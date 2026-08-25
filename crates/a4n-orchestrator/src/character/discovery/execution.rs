@@ -151,20 +151,24 @@ impl OrchestratorContext {
             })
             .collect::<HashMap<_, _>>();
         let mut text_anchors = Vec::new();
-        for chapter in &chapters {
-            let anchors = match anchor_mode {
-                ChapterAnchorMode::EnsureCurrent => {
-                    self.ensure_chapter_content_anchor_records(input.project_id, chapter.id)
-                        .await?
-                }
-                ChapterAnchorMode::RequireExistingCurrent => {
-                    self.require_current_chapter_content_anchors_for_preview(
-                        input.project_id,
-                        chapter.id,
-                    )
+        let chapter_ids = chapters
+            .iter()
+            .map(|chapter| chapter.id)
+            .collect::<Vec<_>>();
+        let anchor_groups = match anchor_mode {
+            ChapterAnchorMode::EnsureCurrent => {
+                self.ensure_chapter_content_anchor_records_batch(input.project_id, &chapter_ids)
                     .await?
-                }
-            };
+            }
+            ChapterAnchorMode::RequireExistingCurrent => {
+                self.require_current_chapter_content_anchors_for_preview_batch(
+                    input.project_id,
+                    &chapter_ids,
+                )
+                .await?
+            }
+        };
+        for anchors in anchor_groups {
             text_anchors.extend(anchors);
         }
         let request = build_character_discovery_request(

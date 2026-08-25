@@ -2,10 +2,9 @@ use a4n_core::error::AppError;
 use serde_json::Value;
 
 use a4n_core::source_spans::SourceSpan;
-use a4n_core::source_spans::resolve_source_span_text;
 
 use super::common::{
-    reject_manga_unknown_fields, required_manga_bool, required_manga_string,
+    SourceSpanIndex, reject_manga_unknown_fields, required_manga_bool, required_manga_string,
     validate_manga_beat_ref, validate_manga_characters_object_shape,
     validate_manga_nonnegative_index, validate_manga_nullable_string,
 };
@@ -21,9 +20,10 @@ pub(in crate::manga) fn validate_manga_character_binding_source_span_ids(
         .ok_or_else(|| {
             AppError::InvalidArgument("manga_character_binding.characters 必须是对象".into())
         })?;
+    let source_spans = SourceSpanIndex::new(source_spans);
     validate_manga_characters_object_shape(
         characters,
-        source_spans,
+        &source_spans,
         "manga_character_binding.characters",
     )
 }
@@ -37,14 +37,15 @@ pub(in crate::manga) fn validate_manga_speech_selection_source_span_ids(
         &["dialogues", "narrations"],
         "manga_speech_selection",
     )?;
-    validate_speech_array(speech_json, source_spans, "dialogues")?;
-    validate_speech_array(speech_json, source_spans, "narrations")?;
+    let source_spans = SourceSpanIndex::new(source_spans);
+    validate_speech_array(speech_json, &source_spans, "dialogues")?;
+    validate_speech_array(speech_json, &source_spans, "narrations")?;
     Ok(())
 }
 
 fn validate_speech_array(
     speech_json: &Value,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
     field: &str,
 ) -> Result<(), AppError> {
     let context = "manga_speech_selection";
@@ -112,7 +113,7 @@ fn validate_speech_array(
                     "{context}.{field}[{index}].source_span_id 不能为空"
                 ))
             })?;
-        resolve_source_span_text(source_spans, source_span_id).map_err(|err| {
+        source_spans.resolve_text(source_span_id).map_err(|err| {
             AppError::InvalidArgument(format!(
                 "{context}.{field}[{index}].source_span_id 无效：{err}"
             ))

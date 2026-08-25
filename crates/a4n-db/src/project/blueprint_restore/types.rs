@@ -1,20 +1,5 @@
 use super::*;
 
-#[derive(Debug, Clone)]
-pub struct BlueprintRestoreResult {
-    pub blueprint: novel_blueprint::Model,
-    pub version: String,
-    pub status_change: Option<BlueprintRestoreStatusChange>,
-    pub restored_at: NaiveDateTime,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct BlueprintRestoreStatusChange {
-    pub from: ProjectStatus,
-    pub to: ProjectStatus,
-    pub changed_at: NaiveDateTime,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum BlueprintRestoreError {
     #[error("{0}")]

@@ -30,6 +30,9 @@ pub(in crate::project::family_package::tests) fn source_snapshot_chapter_record(
         summary: None,
         analysis_data_json: None,
         analysis_hash: None,
+        visual_plan_id: None,
+        visual_plan_version: None,
+        visual_plan_sha256: None,
     }
 }
 

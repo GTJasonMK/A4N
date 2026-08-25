@@ -342,20 +342,17 @@ fn task_info_from_row_keeps_failed_task_error_requirement() {
 #[test]
 fn generated_video_ids_for_active_checkpoints_deduplicates_and_ignores_terminal() {
     let ids = generated_video_ids_for_active_checkpoints(&[
-        checkpoint_row(
-            1,
+        checkpoint_video_refs(
             WORKFLOW_STATUS_RUNNING,
             Some(json!({ "generated_video_id": 9 })),
             Some(json!({ "generated_video_id": 3 })),
         ),
-        checkpoint_row(
-            2,
+        checkpoint_video_refs(
             WORKFLOW_STATUS_INTERRUPTED,
             Some(json!({ "generated_video_id": 3 })),
             None,
         ),
-        checkpoint_row(
-            3,
+        checkpoint_video_refs(
             WORKFLOW_STATUS_COMPLETED,
             Some(json!({ "generated_video_id": 1 })),
             None,
@@ -577,28 +574,17 @@ fn task_row(
     }
 }
 
-fn checkpoint_row(
-    id: i64,
+fn checkpoint_video_refs(
     status: &str,
     artifacts_json: Option<Value>,
     input_fingerprint_json: Option<Value>,
-) -> workflow_checkpoint::Model {
-    let timestamp = test_timestamp();
-    workflow_checkpoint::Model {
-        id,
-        workflow_run_id: 10,
-        step_key: format!("step-{id}"),
-        step_order: id as i32,
+) -> WorkflowCheckpointVideoRefs {
+    WorkflowCheckpointVideoRefs {
         status: status.to_string(),
-        input_fingerprint_sha256: None,
-        input_fingerprint_json,
-        checkpoint_json: None,
-        artifacts_json,
-        generation_run_ids_json: None,
-        error_message: None,
-        created_at: timestamp,
-        updated_at: timestamp,
-        completed_at: None,
+        artifact_generated_video_id: artifacts_json
+            .and_then(|value| value.get("generated_video_id").cloned()),
+        input_generated_video_id: input_fingerprint_json
+            .and_then(|value| value.get("generated_video_id").cloned()),
     }
 }
 

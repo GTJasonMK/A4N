@@ -10,9 +10,11 @@ import { logger } from "../../../utils/logger";
 import { useAuthStore } from "../../../store/auth";
 import { GenerationCallAnalyticsPanel } from "./GenerationCallAnalyticsPanel";
 import { logLineClassName, logPathText, type LogReadResult } from "./logUtils";
+import { formatNumber, useI18n } from "../../../i18n";
 
 export const LogsTab: React.FC = () => {
   const { addToast } = useToast();
+  const { t, locale } = useI18n();
   const user = useAuthStore((state) => state.user);
   const [activeTab, setActiveTab] = useState<"analytics" | "logs">("analytics");
   const [result, setResult] = useState<LogReadResult | null>(null);
@@ -92,7 +94,7 @@ export const LogsTab: React.FC = () => {
       setLogDir(dir);
     } catch (err) {
       if (!isCurrentRefresh(key, requestSeq)) return;
-      const message = extractErrorMessage(err, "读取日志失败");
+      const message = extractErrorMessage(err, t("settingsLogs.readFailed"));
       setLoadError(message);
       addToast(message, "error");
       logger.scoped("LogsTab").error("refresh failed", { err });
@@ -123,16 +125,16 @@ export const LogsTab: React.FC = () => {
 
   const handleApplyFilter = async () => {
     if (!canReadDiagnostics || callerUserId == null) {
-      addToast("服务器诊断数据仅管理员可操作", "error");
+      addToast(t("settingsLogs.adminOnlyAction"), "error");
       return;
     }
     if (applyingFilterRef.current) {
-      addToast("日志级别正在更新，请等待完成", "error");
+      addToast(t("settingsLogs.levelApplying"), "error");
       return;
     }
     const requestFilter = filterInput.trim();
     if (!requestFilter) {
-      addToast("请输入过滤表达式", "error");
+      addToast(t("settingsLogs.filterRequired"), "error");
       return;
     }
     const requestSeq = applyFilterSeqRef.current + 1;
@@ -143,11 +145,11 @@ export const LogsTab: React.FC = () => {
       await setLogLevel({ filter: requestFilter });
       if (!mountedRef.current || applyFilterSeqRef.current !== requestSeq)
         return;
-      addToast(`日志级别已更新：${requestFilter}`, "success");
+      addToast(t("settingsLogs.levelUpdated", { filter: requestFilter }), "success");
     } catch (err) {
       if (!mountedRef.current || applyFilterSeqRef.current !== requestSeq)
         return;
-      addToast(extractErrorMessage(err, "应用级别失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsLogs.applyFailed")), "error");
     } finally {
       if (mountedRef.current && applyFilterSeqRef.current === requestSeq) {
         applyingFilterRef.current = false;
@@ -173,14 +175,14 @@ export const LogsTab: React.FC = () => {
       }, 1500);
     } catch {
       if (!mountedRef.current || copySeqRef.current !== requestSeq) return;
-      addToast("复制失败：请手动选取路径", "error");
+      addToast(t("settingsLogs.copyFailed"), "error");
     }
   };
 
   if (!canReadDiagnostics) {
     return (
       <div className="border-l-2 border-book-border/70 py-2 pl-4 text-sm text-book-text-muted">
-        服务器诊断仅管理员可查看。
+        {t("settingsLogs.adminOnly")}
       </div>
     );
   }
@@ -189,12 +191,12 @@ export const LogsTab: React.FC = () => {
     <div className="flex flex-col h-full gap-3 min-h-0">
       <div className="shrink-0">
         <SegmentedControl
-          ariaLabel="诊断视图"
+          ariaLabel={t("settingsLogs.diagnosticView")}
           value={activeTab}
           onChange={setActiveTab}
           options={[
-            { id: "analytics" as const, label: "生成调用分析" },
-            { id: "logs" as const, label: "运行日志" },
+            { id: "analytics" as const, label: t("settingsLogs.analyticsTab") },
+            { id: "logs" as const, label: t("settingsLogs.logsTab") },
           ]}
         />
       </div>
@@ -204,7 +206,7 @@ export const LogsTab: React.FC = () => {
           id="diagnostics-panel-analytics"
           className="custom-scrollbar min-h-0 overflow-visible md:flex-1 md:overflow-y-auto md:pr-1"
           role="tabpanel"
-          aria-label="生成调用分析"
+          aria-label={t("settingsLogs.analyticsTab")}
         >
           <GenerationCallAnalyticsPanel />
         </div>
@@ -213,43 +215,43 @@ export const LogsTab: React.FC = () => {
           id="diagnostics-panel-logs"
           className="flex min-h-0 flex-1 flex-col gap-3"
           role="tabpanel"
-          aria-label="运行日志"
+          aria-label={t("settingsLogs.logsTab")}
         >
           <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs">
-            <span className="text-book-text-muted">读取范围</span>
+            <span className="text-book-text-muted">{t("settingsLogs.readRange")}</span>
             <select
               id="log-lines"
-              aria-label="日志行数"
+              aria-label={t("settingsLogs.logLines")}
               value={lines}
               onChange={(e) => setLines(Number(e.target.value))}
               className="pyqt-input w-28 px-2 py-1"
             >
-              <option value={100}>最近 100 行</option>
-              <option value={500}>最近 500 行</option>
-              <option value={2000}>最近 2,000 行</option>
-              <option value={10000}>最近 10,000 行</option>
+              <option value={100}>{t("settingsLogs.recentLines", { count: "100" })}</option>
+              <option value={500}>{t("settingsLogs.recentLines", { count: "500" })}</option>
+              <option value={2000}>{t("settingsLogs.recentLines", { count: "2,000" })}</option>
+              <option value={10000}>{t("settingsLogs.recentLines", { count: "10,000" })}</option>
             </select>
             <select
               id="log-days"
-              aria-label="日志日期"
+              aria-label={t("settingsLogs.logDate")}
               value={daysAgo}
               onChange={(e) => setDaysAgo(Number(e.target.value))}
               className="pyqt-input w-24 px-2 py-1"
             >
-              <option value={0}>今天</option>
-              <option value={1}>昨天</option>
-              <option value={2}>2 天前</option>
-              <option value={3}>3 天前</option>
-              <option value={7}>7 天前</option>
+              <option value={0}>{t("settingsLogs.today")}</option>
+              <option value={1}>{t("settingsLogs.yesterday")}</option>
+              <option value={2}>{t("settingsLogs.daysAgo", { count: 2 })}</option>
+              <option value={3}>{t("settingsLogs.daysAgo", { count: 3 })}</option>
+              <option value={7}>{t("settingsLogs.daysAgo", { count: 7 })}</option>
             </select>
             {result ? (
               <span className="text-book-text-muted sm:ml-auto">
-                已显示 {result.returned_lines.toLocaleString()} / {result.total_lines.toLocaleString()} 行
+                {t("settingsLogs.lines", { returned: formatNumber(result.returned_lines, locale), total: formatNumber(result.total_lines, locale) })}
               </span>
             ) : (
               <span className="flex-1" />
             )}
-            <BookIconButton label="刷新日志" size="sm" onClick={refresh} disabled={loading}>
+            <BookIconButton label={t("settingsLogs.refresh")} size="sm" onClick={refresh} disabled={loading}>
               <RefreshCw
                 size={14}
                 className={loading ? "animate-spin" : undefined}
@@ -259,14 +261,14 @@ export const LogsTab: React.FC = () => {
 
           <details className="group border-y border-book-border/35 text-xs">
             <summary className="w-fit cursor-pointer py-2 text-book-text-muted transition-colors hover:text-book-text-main">
-              日志级别
+              {t("settingsLogs.level")}
             </summary>
             <div className="flex flex-wrap items-center gap-2 pb-2">
               <input
-                aria-label="日志过滤级别"
+                aria-label={t("settingsLogs.filterLevel")}
                 value={filterInput}
                 onChange={(e) => setFilterInput(e.target.value)}
-                placeholder="过滤：info / debug / a4n=trace,warn"
+                placeholder={t("settingsLogs.filterPlaceholder")}
                 className="pyqt-input w-full text-xs sm:w-72"
               />
               <BookButton
@@ -275,21 +277,21 @@ export const LogsTab: React.FC = () => {
                 onClick={handleApplyFilter}
                 disabled={applyingFilter}
               >
-                {applyingFilter ? "应用中…" : "应用级别"}
+                {applyingFilter ? t("settingsLogs.applying") : t("settingsLogs.apply")}
               </BookButton>
             </div>
           </details>
 
           <details className="text-xs text-book-text-muted">
             <summary className="w-fit cursor-pointer transition-colors hover:text-book-text-main">
-              日志位置
+              {t("settingsLogs.location")}
             </summary>
             <div className="mt-2 flex flex-wrap items-center gap-2 break-all border-l border-book-border/40 pl-2.5">
               <span className="font-mono">
-                {logPathText(result?.file_path, logDir)}
+                {logPathText(result?.file_path, logDir, t("settingsLogs.pathUnavailable"))}
               </span>
               <BookIconButton
-                label="复制路径"
+                label={t("settingsLogs.copyPath")}
                 variant="ghost"
                 size="sm"
                 onClick={handleCopyPath}
@@ -297,23 +299,23 @@ export const LogsTab: React.FC = () => {
               >
                 <Copy size={12} />
               </BookIconButton>
-              {copied && <span className="text-success">已复制</span>}
+              {copied && <span className="text-success">{t("settingsLogs.copied")}</span>}
             </div>
           </details>
 
           <div className="a4n-flat-surface flex-1 min-h-0 p-3 overflow-y-auto custom-scrollbar font-mono text-small leading-relaxed bg-book-bg-tertiary/40">
             {!result ? (
               loading ? (
-                <div className="text-book-text-muted">加载中…</div>
+                <div className="text-book-text-muted">{t("settingsLogs.loading")}</div>
               ) : loadError ? (
                 <div className="text-error whitespace-pre-wrap break-words">
                   {loadError}
                 </div>
               ) : (
-                <div className="text-book-text-muted">暂无日志数据</div>
+                <div className="text-book-text-muted">{t("settingsLogs.noData")}</div>
               )
             ) : result.lines.length === 0 ? (
-              <div className="text-book-text-muted italic">（暂无日志）</div>
+              <div className="text-book-text-muted italic">{t("settingsLogs.empty")}</div>
             ) : (
               <pre className="whitespace-pre-wrap break-words">
                 {result.lines.map((line, index) => (

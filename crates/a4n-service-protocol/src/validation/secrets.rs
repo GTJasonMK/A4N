@@ -8,7 +8,7 @@ use crate::{EgressDataType, validate_egress_scope};
 
 use super::errors::unauthorized_error;
 
-pub fn validate_provider_api_key_secret_policy(
+pub(crate) fn validate_provider_api_key_secret_policy(
     api_key: Option<&str>,
     policy: &SecretForwardingPolicy,
     service: &str,

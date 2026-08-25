@@ -1,11 +1,9 @@
 use a4n_core::error::AppError;
+use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
 use a4n_llm::{provider::ChatRequest, trace::context_aware_chat_request_trace_json};
 use serde_json::{Value, json};
 
-use crate::{
-    generation::generation_checkpoint_fingerprint_sha256,
-    workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING},
-};
+use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 pub(super) fn chapter_scene_workflow_fingerprint(
     chapter_id: i64,

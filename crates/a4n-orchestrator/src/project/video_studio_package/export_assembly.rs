@@ -5,17 +5,14 @@ use a4n_db::canvas::VideoStudioProjectExportRows;
 use a4n_domain::clear_canvas_transfer_runtime_identity;
 use chrono::Utc;
 
-use super::{
-    PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioMediaFileEntry,
-    VideoStudioProjectPackage,
-};
-use crate::project::validate_freeform_video_project;
+use super::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage};
+use crate::project::{MediaFileEntry, validate_freeform_video_project};
 
 /// 组装视频画布导出 manifest。
-pub fn assemble_video_studio_export_package(
+pub(crate) fn assemble_video_studio_export_package(
     project: novel_project::Model,
     mut rows: VideoStudioProjectExportRows,
-    media_files: Vec<VideoStudioMediaFileEntry>,
+    media_files: Vec<MediaFileEntry>,
 ) -> Result<VideoStudioProjectPackage, String> {
     validate_freeform_video_project(&project, "视频画布项目导出")?;
     for image in &mut rows.generated_images {

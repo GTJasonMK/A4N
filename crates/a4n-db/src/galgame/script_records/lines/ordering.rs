@@ -1,7 +1,7 @@
 use crate::galgame::{GalgameLineRecordError, GalgameLineReorderRecordError};
 use a4n_core::models::galgame::galgame_line;
 use chrono::Utc;
-use sea_orm::sea_query::Expr;
+use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     TransactionTrait,
@@ -54,15 +54,33 @@ where
     }
 
     let now = Utc::now().naive_utc();
+    let mut line_index_case = CaseStatement::new();
     for (index, line_id) in line_ids.iter().enumerate() {
         let line_index = usize_to_i32(index + 1, "line_index")
             .map_err(|error| GalgameLineReorderRecordError::InvalidArgument(error.to_string()))?;
-        galgame_line::Entity::update_many()
-            .col_expr(galgame_line::Column::LineIndex, Expr::value(line_index))
-            .col_expr(galgame_line::Column::UpdatedAt, Expr::value(now))
-            .filter(galgame_line::Column::Id.eq(*line_id))
-            .exec(db)
-            .await?;
+        line_index_case = line_index_case.case(
+            galgame_line::Column::Id.eq(*line_id),
+            Expr::value(line_index),
+        );
+    }
+    let updated = galgame_line::Entity::update_many()
+        .col_expr(
+            galgame_line::Column::LineIndex,
+            line_index_case
+                .finally(Expr::col(galgame_line::Column::LineIndex))
+                .into(),
+        )
+        .col_expr(galgame_line::Column::UpdatedAt, Expr::value(now))
+        .filter(galgame_line::Column::SceneId.eq(scene_id))
+        .filter(galgame_line::Column::Id.is_in(line_ids.clone()))
+        .exec(db)
+        .await?;
+    if updated.rows_affected != line_ids.len() as u64 {
+        return Err(GalgameLineReorderRecordError::InvalidArgument(format!(
+            "Galgame 行重排批量更新影响 {} 行，预期 {} 行",
+            updated.rows_affected,
+            line_ids.len()
+        )));
     }
 
     galgame_line::Entity::find()
@@ -87,18 +105,38 @@ where
         .all(db)
         .await?;
     let now = Utc::now().naive_utc();
+    let mut line_index_case = CaseStatement::new();
+    let mut changed_ids = Vec::new();
     for (index, line) in lines.iter().enumerate() {
         let next = usize_to_i32(index + 1, "line_index")
             .map_err(|error| GalgameLineRecordError::InvalidArgument(error.to_string()))?;
         if line.line_index == next {
             continue;
         }
-        galgame_line::Entity::update_many()
-            .col_expr(galgame_line::Column::LineIndex, Expr::value(next))
+        line_index_case =
+            line_index_case.case(galgame_line::Column::Id.eq(line.id), Expr::value(next));
+        changed_ids.push(line.id);
+    }
+    if !changed_ids.is_empty() {
+        let updated = galgame_line::Entity::update_many()
+            .col_expr(
+                galgame_line::Column::LineIndex,
+                line_index_case
+                    .finally(Expr::col(galgame_line::Column::LineIndex))
+                    .into(),
+            )
             .col_expr(galgame_line::Column::UpdatedAt, Expr::value(now))
-            .filter(galgame_line::Column::Id.eq(line.id))
+            .filter(galgame_line::Column::SceneId.eq(scene_id))
+            .filter(galgame_line::Column::Id.is_in(changed_ids.clone()))
             .exec(db)
             .await?;
+        if updated.rows_affected != changed_ids.len() as u64 {
+            return Err(GalgameLineRecordError::InvalidArgument(format!(
+                "Galgame 行索引压缩批量更新影响 {} 行，预期 {} 行",
+                updated.rows_affected,
+                changed_ids.len()
+            )));
+        }
     }
     Ok(())
 }

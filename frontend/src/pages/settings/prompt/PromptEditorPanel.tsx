@@ -7,6 +7,7 @@ import type { PromptEntry } from "../../../api/prompt";
 import { PromptAdvancedPanels } from "./AdvancedPanels";
 import { ProjectOverridePanel } from "./ProjectOverridePanel";
 import { PromptHistoryPanel } from "./PromptHistoryPanel";
+import { useI18n } from "../../../i18n";
 
 interface PromptEditorPanelProps {
   prompt: PromptEntry | null;
@@ -31,6 +32,7 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
   onSave,
   onReset,
 }) => {
+  const { t } = useI18n();
   const [advancedOpen, setAdvancedOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -45,7 +47,7 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
     >
       {!prompt ? (
         <div className="a4n-empty-state min-h-[148px] text-xs text-book-text-muted">
-          从左侧选择一个提示词以编辑
+          {t("settingsPrompt.editorEmpty")}
         </div>
       ) : (
         <>
@@ -79,7 +81,7 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
                 size={12}
                 className="transition-transform group-open:rotate-180"
               />
-              高级工具
+              {t("settingsPrompt.advancedTools")}
             </summary>
             {advancedOpen ? (
               <div className="mt-1 divide-y divide-book-border/35 border-t border-book-border/35">
@@ -110,11 +112,12 @@ const PromptEditorHeader: React.FC<{
   onSave: () => void;
   onReset: () => void;
 }> = ({ prompt, dirty, saving, resetting, onSave, onReset }) => {
+  const { t } = useI18n();
   const moreItems: DropdownItem[] =
     prompt.is_modified && !resetting
       ? [
           {
-            label: "恢复默认内容",
+            label: t("settingsPrompt.restoreDefault"),
             icon: <RotateCcw size={12} />,
             onClick: onReset,
           },
@@ -125,7 +128,7 @@ const PromptEditorHeader: React.FC<{
     <div className="mb-3 flex shrink-0 items-start gap-3">
       <div className="min-w-0 flex-1">
         <h3 className="truncate text-sm font-medium text-book-text-main">
-          {prompt.title || "提示词"}
+          {prompt.title || t("settingsPrompt.prompt")}
         </h3>
         {prompt.description ? (
           <div className="mt-1 line-clamp-2 text-xs leading-relaxed text-book-text-sub">
@@ -137,12 +140,12 @@ const PromptEditorHeader: React.FC<{
         >
           {dirty ? null : <Check size={11} />}
           {saving
-            ? "正在保存…"
+            ? t("settingsPrompt.saving")
             : dirty
-              ? "有未保存修改"
+              ? t("settingsPrompt.unsaved")
               : prompt.is_modified
-                ? "已保存自定义内容"
-                : "使用默认内容"}
+                ? t("settingsPrompt.savedCustom")
+                : t("settingsPrompt.usingDefault")}
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -154,13 +157,13 @@ const PromptEditorHeader: React.FC<{
             disabled={saving}
           >
             {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
-            {saving ? "保存中…" : "保存"}
+            {saving ? t("settingsPrompt.saving") : t("common.save")}
           </BookButton>
         ) : null}
         {resetting ? (
           <span
             className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted"
-            title="正在恢复默认内容"
+            title={t("settingsPrompt.restoringDefault")}
           >
             <LoadingSpinner size="sm" />
           </span>
@@ -173,48 +176,49 @@ const PromptEditorHeader: React.FC<{
 };
 
 const PromptMetadata: React.FC<{ prompt: PromptEntry }> = ({ prompt }) => {
+  const { t } = useI18n();
   return (
     <details className="mt-2 shrink-0 border-t border-book-border/30 pt-2 text-small">
       <summary className="cursor-pointer text-book-text-muted transition-colors hover:text-book-text-sub">
-        诊断信息
+        {t("settingsAdmin.diagnostics")}
       </summary>
       <div className="mt-2 grid gap-1.5 border-l border-book-border/40 pl-2.5 text-book-text-muted">
         <div>
-          内部名称：
+          {t("settingsPrompt.internalName")}:
           <span className="font-mono text-book-text-sub">{prompt.name}</span>
         </div>
         <div>
-          版本：
+          {t("settingsPrompt.version")}:
           <span className="font-mono text-book-text-sub">
             {prompt.version || "—"}
           </span>
         </div>
         <div>
-          分类：
+          {t("settingsPrompt.categoryLabel")}:
           <span className="font-mono text-book-text-sub">
             {prompt.category}
           </span>
         </div>
         {prompt.used_by && prompt.used_by.length > 0 && (
           <div>
-            使用位置：
+            {t("settingsPrompt.usedBy")}:
             <span className="font-mono text-book-text-sub">
-              {prompt.used_by.join("、")}
+              {prompt.used_by.join(t("common.listSeparator"))}
             </span>
           </div>
         )}
         {(prompt.tags?.length || prompt.dependencies?.length) && (
           <div>
-            {prompt.tags?.length ? `标签：${prompt.tags.join("、")}` : ""}
+            {prompt.tags?.length ? `${t("settingsPrompt.tags")}: ${prompt.tags.join(t("common.listSeparator"))}` : ""}
             {prompt.tags?.length && prompt.dependencies?.length ? " · " : ""}
             {prompt.dependencies?.length
-              ? `依赖：${prompt.dependencies.join("、")}`
+              ? `${t("settingsPrompt.dependencies")}: ${prompt.dependencies.join(t("common.listSeparator"))}`
               : ""}
           </div>
         )}
         {prompt.path && (
           <div className="break-all font-mono text-small text-book-text-muted">
-            文件：{prompt.path}
+            {t("settingsPrompt.file")}: {prompt.path}
           </div>
         )}
       </div>

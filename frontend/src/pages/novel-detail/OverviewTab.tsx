@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ChevronRight, FileText, GitBranch, Pencil, Users } from "lucide-react";
 import { Modal } from "../../components/ui/Modal";
 import { BookButton } from "../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../components/ui/BookInput";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { canEditProjectMaterials, type NovelProject } from "../../api/project";
@@ -17,10 +18,16 @@ import {
 } from "../../api/blueprint";
 import { generationClient } from "../../api/generationTasks";
 import { BlueprintVersionsPanel } from "./overview/BlueprintVersionsPanel";
-import { ProjectCollaborationPanel } from "./overview/ProjectCollaborationPanel";
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
-import { PROJECT_ACCESS_ROLE_LABELS } from "../../utils/projectRouting";
+import { getProjectAccessRoleLabel } from "../../utils/projectRouting";
+import { useI18n } from "../../i18n";
+
+const ProjectCollaborationPanel = lazy(() =>
+  import("./overview/ProjectCollaborationPanel").then((module) => ({
+    default: module.ProjectCollaborationPanel,
+  })),
+);
 
 interface OverviewTabProps {
   project: NovelProject;
@@ -57,6 +64,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   onOpenImports,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
@@ -120,7 +128,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     } catch (err) {
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setBlueprint(null);
-      addToast(extractErrorMessage(err, "加载蓝图失败"), "error");
+      addToast(extractErrorMessage(err, t("writing.blueprintLoadFailed")), "error");
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);
@@ -147,7 +155,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   const handleRefine = async () => {
     if (!canEditProject) {
-      addToast("当前账号没有编辑此项目的权限", "error");
+      addToast(t("novel.noEditPermission"), "error");
       return;
     }
     if (refiningRef.current) return;
@@ -173,14 +181,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
       addToast(
         syncWarnings.length > 0
-          ? `蓝图已优化；${syncWarnings.join("；")}`
-          : "蓝图已优化",
+          ? t("novel.blueprintRefinedWithWarnings", { warnings: syncWarnings.join(t("common.summarySeparator")) })
+          : t("novel.blueprintRefined"),
         syncWarnings.length > 0 ? "info" : "success",
       );
       await onRefresh();
     } catch (err) {
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;
-      addToast(extractErrorMessage(err, "蓝图优化失败"), "error");
+      addToast(extractErrorMessage(err, t("novel.refineBlueprintFailed")), "error");
     } finally {
       if (refineSeqRef.current === requestSeq) refiningRef.current = false;
       if (isCurrentRefine(requestProjectId, requestSeq)) setRefining(false);
@@ -189,7 +197,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   const handleCreateBlueprint = () => {
     if (!canEditProject) {
-      addToast("当前账号没有编辑此项目的权限", "error");
+      addToast(t("novel.noEditPermission"), "error");
       return;
     }
     navigate(`/inspiration/${project.id}`);
@@ -197,7 +205,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   const handleOpenImports = () => {
     if (!canEditProject) {
-      addToast("当前账号没有编辑此项目的权限", "error");
+      addToast(t("novel.noEditPermission"), "error");
       return;
     }
     onOpenImports();
@@ -208,7 +216,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   const handleOpenBlueprintEditor = () => {
     if (!canEditProject) {
-      addToast("当前账号没有编辑此项目的权限", "error");
+      addToast(t("novel.noEditPermission"), "error");
       return;
     }
     setBlueprintDraft({
@@ -234,11 +242,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     const genre = blueprintDraft.genre.trim();
     const totalChapters = Number(blueprintDraft.totalChapters);
     if (!genre) {
-      addToast("请填写蓝图题材", "error");
+      addToast(t("novel.blueprintGenreRequired"), "error");
       return;
     }
     if (!Number.isInteger(totalChapters) || totalChapters < 1 || totalChapters > 10_000) {
-      addToast("总章节数必须是 1 到 10000 之间的整数", "error");
+      addToast(t("novel.totalChaptersRange"), "error");
       return;
     }
     if (blueprintSaveBusyRef.current) return;
@@ -265,13 +273,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       if (!isCurrentProject(requestProjectId)) return;
       addToast(
         result.warnings.length > 0
-          ? `蓝图已保存；${result.warnings.join("；")}`
-          : "蓝图已保存",
+          ? t("novel.blueprintSavedWithWarnings", { warnings: result.warnings.join(t("common.summarySeparator")) })
+          : t("novel.blueprintSaved"),
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
       if (isCurrentProject(requestProjectId)) {
-        addToast(extractErrorMessage(err, "保存蓝图失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.blueprintSaveFailed")), "error");
       }
     } finally {
       if (isCurrentProject(requestProjectId)) {
@@ -289,7 +297,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       <div className="grid min-h-0 grid-cols-1 content-start items-start gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
         <section className="a4n-flat-surface flex min-h-0 flex-col p-4">
           <header className="mb-3 border-b border-book-border/45 pb-3">
-            <h2 className="text-sm font-semibold text-book-text-main">项目概况</h2>
+            <h2 className="text-sm font-semibold text-book-text-main">{t("novel.overviewTitle")}</h2>
           </header>
           <div className="min-h-0 flex-1">
             <ProjectOverviewCard
@@ -313,25 +321,30 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         />
 
         <nav
-          aria-label="项目管理"
+          aria-label={t("novel.projectManagement")}
           className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:col-span-2"
         >
           {displayBlueprint ? (
             <OverviewActionCard
               icon={<GitBranch size={14} />}
-              title="蓝图版本"
-              description={`当前 ${blueprintVersion}${displayBlueprint.genre ? ` · ${displayBlueprint.genre}` : ""}`}
+              title={t("novel.blueprintVersion")}
+              description={`${t("novel.currentVersion", { version: blueprintVersion })}${displayBlueprint.genre ? ` · ${displayBlueprint.genre}` : ""}`}
               onClick={() => setVersionsOpen(true)}
             />
           ) : null}
           <OverviewActionCard
             icon={<Users size={14} />}
-            title="协作成员"
-            description={`${memberCount} 位成员 · ${PROJECT_ACCESS_ROLE_LABELS[project.my_role]}${
-              project.pending_invite_count
-                ? ` · ${project.pending_invite_count} 个邀请待处理`
-                : ""
-            }`}
+            title={t("novel.collaborators")}
+            description={project.pending_invite_count
+              ? t("novel.memberSummaryWithInvites", {
+                  count: memberCount,
+                  role: getProjectAccessRoleLabel(project.my_role, t),
+                  invites: project.pending_invite_count,
+                })
+              : t("novel.memberSummary", {
+                  count: memberCount,
+                  role: getProjectAccessRoleLabel(project.my_role, t),
+                })}
             onClick={() => setCollabOpen(true)}
           />
         </nav>
@@ -342,8 +355,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         onClose={() => {
           if (!blueprintSaving) setBlueprintEditorOpen(false);
         }}
-        title={displayBlueprint ? "编辑正式蓝图" : "直接录入正式蓝图"}
-        subtitle="保存后立即成为当前正式版本；世界观、角色和关系可在各自资料页继续补充"
+        title={displayBlueprint ? t("novel.editFormalBlueprint") : t("novel.enterFormalBlueprint")}
+        subtitle={t("novel.formalBlueprintSubtitle")}
         icon={<Pencil size={15} />}
         maxWidthClassName="max-w-3xl"
         bodyClassName="px-5 py-5"
@@ -351,7 +364,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         <div className="space-y-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <BookInput
-              label="题材 *"
+              label={t("novel.genreRequired")}
               value={blueprintDraft.genre}
               maxLength={256}
               disabled={blueprintSaving}
@@ -360,7 +373,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               }
             />
             <BookInput
-              label="总章节数 *"
+              label={t("novel.totalChaptersRequired")}
               type="number"
               min={1}
               max={10000}
@@ -374,7 +387,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               }
             />
             <BookInput
-              label="写作风格"
+              label={t("novel.writingStyle")}
               value={blueprintDraft.style}
               maxLength={1024}
               disabled={blueprintSaving}
@@ -383,7 +396,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               }
             />
             <BookInput
-              label="情感基调"
+              label={t("novel.tone")}
               value={blueprintDraft.tone}
               maxLength={1024}
               disabled={blueprintSaving}
@@ -393,7 +406,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             />
           </div>
           <BookInput
-            label="目标读者"
+            label={t("writing.blueprintFieldAudience")}
             value={blueprintDraft.targetAudience}
             maxLength={1024}
             disabled={blueprintSaving}
@@ -405,7 +418,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             }
           />
           <BookTextarea
-            label="一句话概要"
+            label={t("novel.oneLineSummary")}
             rows={2}
             value={blueprintDraft.oneSentenceSummary}
             maxLength={4096}
@@ -418,7 +431,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             }
           />
           <BookTextarea
-            label="完整梗概"
+            label={t("novel.fullSynopsis")}
             rows={8}
             value={blueprintDraft.fullSynopsis}
             maxLength={131072}
@@ -436,10 +449,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               disabled={blueprintSaving}
               onClick={() => setBlueprintEditorOpen(false)}
             >
-              取消
+              {t("common.cancel")}
             </BookButton>
             <BookButton disabled={blueprintSaving} onClick={() => void handleSaveBlueprint()}>
-              {blueprintSaving ? "保存中…" : "保存为正式蓝图"}
+              {blueprintSaving ? t("settings.saving") : t("novel.saveFormalBlueprint")}
             </BookButton>
           </div>
         </div>
@@ -448,21 +461,21 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       <Modal
         isOpen={synopsisOpen}
         onClose={() => setSynopsisOpen(false)}
-        title="完整剧情梗概"
+        title={t("novel.fullPlotSynopsis")}
         icon={<FileText size={15} />}
         maxWidthClassName="max-w-3xl"
         bodyClassName="px-5 py-5"
       >
         <div className="whitespace-pre-wrap text-sm leading-7 text-book-text-sub">
-          {displayBlueprint?.full_synopsis || "蓝图未包含完整梗概字段"}
+          {displayBlueprint?.full_synopsis || t("novel.blueprintSynopsisMissing")}
         </div>
       </Modal>
 
       <Modal
         isOpen={versionsOpen}
         onClose={() => setVersionsOpen(false)}
-        title="蓝图版本"
-        subtitle={`${project.title} · 当前 ${blueprintVersion}`}
+        title={t("novel.blueprintVersion")}
+        subtitle={`${project.title} · ${t("novel.currentVersion", { version: blueprintVersion })}`}
         icon={<GitBranch size={15} />}
         maxWidthClassName="max-w-4xl"
         bodyClassName="px-4 py-4"
@@ -473,13 +486,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       <Modal
         isOpen={collabOpen}
         onClose={() => setCollabOpen(false)}
-        title="协作成员"
-        subtitle={`${project.title} · 协作根项目`}
+        title={t("novel.collaborators")}
+        subtitle={`${project.title} · ${t("novel.collaborationRootProject")}`}
         icon={<Users size={15} />}
         maxWidthClassName="max-w-lg"
         bodyClassName="px-4 py-4"
       >
-        <ProjectCollaborationPanel project={project} onRefresh={onRefresh} />
+        {collabOpen ? (
+          <Suspense fallback={<LoadingSpinner size="md" text={t("novel.loadingCollaborators")} />}>
+            <ProjectCollaborationPanel project={project} onRefresh={onRefresh} />
+          </Suspense>
+        ) : null}
       </Modal>
     </div>
   );

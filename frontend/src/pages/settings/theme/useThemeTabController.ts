@@ -3,30 +3,69 @@ import { extractErrorMessage } from "../../../api";
 import {
   activateTheme,
   createTheme,
+  deleteThemeResource,
   deleteTheme,
+  exportThemePackage,
   exportTheme,
   importTheme,
+  importThemePackage,
+  getThemePreference,
   listThemes,
   updateTheme,
+  uploadThemeResource,
   type Theme,
+  type ThemeAppearance,
+  type ThemeDocument,
   type ThemeMode,
 } from "../../../api/theme";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { useAuthStore } from "../../../store/auth";
-import { applyActiveTheme } from "../../../theme/activeTheme";
+import {
+  applyActiveTheme,
+  applyThemePreview,
+  notifyThemeChanged,
+  persistThemeAppearance,
+  restoreActiveTheme,
+} from "../../../theme/activeTheme";
 import { copyTextToClipboard } from "../../../utils/clipboard";
+import { downloadBase64ExportFile } from "../../../utils/downloadFile";
+import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { readThemePreset } from "./presets";
-import { type ThemeScope } from "./types";
+import { isDeletableTheme, type ThemeScope } from "./types";
+import { THEME_DOCUMENT_VERSION } from "../../../theme/themeTokens";
+import { useI18n } from "../../../i18n";
+
+export type ThemeDeleteOutcome =
+  | { id: number; ok: true }
+  | { id: number; ok: false; error: unknown };
+
+export function deleteThemeIdsInParallel(
+  ids: readonly number[],
+  remove: (id: number) => Promise<void>,
+): Promise<ThemeDeleteOutcome[]> {
+  return Promise.all(
+    ids.map(async (id): Promise<ThemeDeleteOutcome> => {
+      try {
+        await remove(id);
+        return { id, ok: true };
+      } catch (error) {
+        return { id, ok: false, error };
+      }
+    }),
+  );
+}
 
 export const useThemeTabController = () => {
   const { addToast } = useToast();
   const { user } = useAuthStore();
+  const { t } = useI18n();
   const [themes, setThemes] = useState<Theme[]>([]);
   const [scope, setScope] = useState<ThemeScope>("all");
   const [loading, setLoading] = useState(false);
   const [activating, setActivating] = useState<number | null>(null);
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newMode, setNewMode] = useState<ThemeMode>("light");
@@ -36,6 +75,12 @@ export const useThemeTabController = () => {
   const [exportingId, setExportingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const [importText, setImportText] = useState("");
+  const [appearance, setAppearance] = useState<ThemeAppearance>("system");
+  const [appearanceSaving, setAppearanceSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editorSaving, setEditorSaving] = useState(false);
+  const [packageExportingId, setPackageExportingId] = useState<number | null>(null);
+  const [packageImporting, setPackageImporting] = useState(false);
   const userKey = String(user?.id ?? "anonymous");
   const mountedRef = useRef(true);
   const activeUserKeyRef = useRef(userKey);
@@ -82,7 +127,7 @@ export const useThemeTabController = () => {
         if (isCurrentRefresh(requestUserKey, requestSeq)) setThemes(data);
       } catch (err) {
         if (isCurrentRefresh(requestUserKey, requestSeq)) {
-          addToast(extractErrorMessage(err, "加载主题列表失败"), "error");
+          addToast(extractErrorMessage(err, t("settingsTheme.loadFailed")), "error");
         }
       } finally {
         if (
@@ -94,12 +139,30 @@ export const useThemeTabController = () => {
         if (isCurrentRefresh(requestUserKey, requestSeq)) setLoading(false);
       }
     },
-    [addToast, isCurrentRefresh, user, userKey],
+    [addToast, isCurrentRefresh, t, user, userKey],
   );
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!user) {
+      setAppearance("system");
+      return;
+    }
+    let current = true;
+    void getThemePreference()
+      .then((value) => {
+        if (current && value.user_id === user.id) setAppearance(value.appearance);
+      })
+      .catch((err) => {
+        if (current) addToast(extractErrorMessage(err, t("settingsTheme.preferenceLoadFailed")), "error");
+      });
+    return () => {
+      current = false;
+    };
+  }, [addToast, t, user]);
 
   useEffect(() => {
     mutationInFlightRef.current = false;
@@ -109,9 +172,15 @@ export const useThemeTabController = () => {
     setThemes([]);
     setActivating(null);
     setDeleting(null);
+    setBulkDeleting(false);
     setCreating(false);
     setExportingId(null);
     setImporting(false);
+    setAppearanceSaving(false);
+    setEditingId(null);
+    setEditorSaving(false);
+    setPackageExportingId(null);
+    setPackageImporting(false);
     setRenamingId(null);
     setRenameValue("");
     setRenameSaving(false);
@@ -160,11 +229,12 @@ export const useThemeTabController = () => {
       const activated = await activateTheme(id);
       if (!isCurrentUser(requestUserKey)) return;
       applyActiveTheme(activated);
-      addToast("已激活主题", "success");
+      notifyThemeChanged();
+      addToast(t("settingsTheme.activated"), "success");
       await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, "激活失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsTheme.activateFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setActivating(null);
@@ -175,9 +245,9 @@ export const useThemeTabController = () => {
     if (!beginMutation()) return;
     const requestUserKey = userKey;
     const confirmed = await confirmDialog({
-      title: "删除主题",
-      message: `删除主题"${name}"？此操作不可撤销。`,
-      confirmText: "删除",
+      title: t("settingsTheme.delete"),
+      message: t("settingsTheme.deleteMessage", { name }),
+      confirmText: t("settingsTheme.delete"),
       dialogType: "danger",
     });
     if (!confirmed || !isCurrentUser(requestUserKey)) {
@@ -188,21 +258,75 @@ export const useThemeTabController = () => {
     try {
       await deleteTheme(id);
       if (!isCurrentUser(requestUserKey)) return;
-      addToast("已删除主题", "success");
+      addToast(t("settingsTheme.deleted"), "success");
+      if (editingId === id) {
+        setEditingId(null);
+        restoreActiveTheme();
+      }
       await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, "删除失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsTheme.deleteFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setDeleting(null);
     }
   };
 
+  const handleDeleteMany = async (targets: Array<Pick<Theme, "id" | "name">>) => {
+    const deletableTargets = targets.filter((target) => {
+      const theme = themes.find((item) => item.id === target.id);
+      return theme != null && isDeletableTheme(theme);
+    });
+    if (deletableTargets.length === 0 || !beginMutation()) return;
+    const requestUserKey = userKey;
+    const confirmed = await confirmDialog({
+      title: t("settingsTheme.deleteSelected", { count: deletableTargets.length }),
+      message: t("settingsTheme.deleteSelectedMessage", { count: deletableTargets.length }),
+      confirmText: t("settingsTheme.deleteSelected", { count: deletableTargets.length }),
+      dialogType: "danger",
+    });
+    if (!confirmed || !isCurrentUser(requestUserKey)) {
+      finishMutation(requestUserKey);
+      return;
+    }
+    setBulkDeleting(true);
+    const deletedIds = new Set<number>();
+    try {
+      const outcomes = await deleteThemeIdsInParallel(
+        deletableTargets.map((target) => target.id),
+        deleteTheme,
+      );
+      for (const outcome of outcomes) {
+        if (outcome.ok) deletedIds.add(outcome.id);
+      }
+      const failedCount = outcomes.length - deletedIds.size;
+      if (!isCurrentUser(requestUserKey)) return;
+      if (failedCount > 0) {
+        addToast(
+          t("settingsTheme.deleteSelectedPartial", {
+            deleted: deletedIds.size,
+            failed: failedCount,
+          }),
+          "error",
+        );
+      } else {
+        addToast(t("settingsTheme.deletedSelected", { count: deletedIds.size }), "success");
+      }
+      if (editingId != null && deletedIds.has(editingId)) {
+        setEditingId(null);
+        restoreActiveTheme();
+      }
+      await refresh({ force: true });
+    } finally {
+      if (finishMutation(requestUserKey)) setBulkDeleting(false);
+    }
+  };
+
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name) {
-      addToast("请输入主题名称", "error");
+      addToast(t("settingsTheme.nameRequired"), "error");
       return;
     }
     if (!beginMutation()) return;
@@ -210,14 +334,22 @@ export const useThemeTabController = () => {
     const mode = newMode;
     setCreating(true);
     try {
-      await createTheme({ name, mode, css_variables: readThemePreset(mode) });
+      await createTheme({
+        name,
+        mode,
+        document: {
+          version: THEME_DOCUMENT_VERSION,
+          tokens: readThemePreset(mode),
+          backgrounds: {},
+        },
+      });
       if (!isCurrentUser(requestUserKey)) return;
-      addToast(`已创建主题：${name}`, "success");
+      addToast(t("settingsTheme.createdNamed", { name }), "success");
       setNewName("");
       await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, "创建主题失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsTheme.createFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setCreating(false);
@@ -234,7 +366,7 @@ export const useThemeTabController = () => {
     if (renamingId == null) return;
     const name = renameValue.trim();
     if (!name) {
-      addToast("名称不能为空", "error");
+      addToast(t("settingsTheme.nameEmpty"), "error");
       return;
     }
     const themeId = renamingId;
@@ -246,13 +378,14 @@ export const useThemeTabController = () => {
     try {
       await updateTheme(themeId, { name });
       if (!isCurrentUser(requestUserKey)) return;
-      addToast("已重命名", "success");
+      addToast(t("settingsTheme.renameSuccess"), "success");
+      notifyThemeChanged();
       setRenamingId(null);
       setRenameValue("");
       await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, "重命名失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsTheme.renameFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setRenameSaving(false);
@@ -269,14 +402,14 @@ export const useThemeTabController = () => {
       if (!isCurrentUser(requestUserKey)) return;
       const copied = await copyToClipboard(
         json,
-        "主题 JSON 已生成，但复制到剪贴板失败",
+        t("settingsTheme.copyJsonFailed"),
       );
       if (copied && isCurrentUser(requestUserKey)) {
-        addToast("主题 JSON 已复制到剪贴板", "success");
+        addToast(t("settingsTheme.copyJsonSuccess"), "success");
       }
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, "导出失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsTheme.exportFailed")), "error");
       }
     } finally {
       if (isCurrentUser(requestUserKey)) {
@@ -286,24 +419,10 @@ export const useThemeTabController = () => {
     }
   };
 
-  const handleViewCss = async (theme: Theme) => {
-    const css = [
-      ":root {",
-      ...Object.entries(theme.css_variables).map(
-        ([key, value]) =>
-          `  ${key.startsWith("--") ? key : `--${key}`}: ${value};`,
-      ),
-      "}",
-    ].join("\n");
-    if (await copyToClipboard(css, "CSS 变量复制失败")) {
-      addToast("CSS 变量已复制", "success");
-    }
-  };
-
   const handleImport = async () => {
     const themeJson = importText.trim();
     if (!themeJson) {
-      addToast("请粘贴主题 JSON", "error");
+      addToast(t("settingsTheme.importJsonRequired"), "error");
       return;
     }
     if (!beginMutation()) return;
@@ -312,15 +431,159 @@ export const useThemeTabController = () => {
     try {
       await importTheme(themeJson);
       if (!isCurrentUser(requestUserKey)) return;
-      addToast("已导入主题", "success");
+      addToast(t("settingsTheme.importSuccess"), "success");
+      notifyThemeChanged();
       setImportText("");
       await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
-        addToast(extractErrorMessage(err, "导入失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsTheme.importFailed")), "error");
       }
     } finally {
       if (finishMutation(requestUserKey)) setImporting(false);
+    }
+  };
+
+  const handleAppearanceChange = async (nextAppearance: ThemeAppearance) => {
+    if (!user || appearanceSaving || !beginMutation()) return;
+    const requestUserKey = userKey;
+    const previous = appearance;
+    setAppearance(nextAppearance);
+    setAppearanceSaving(true);
+    try {
+      const result = await persistThemeAppearance(
+        nextAppearance,
+        () => isCurrentUser(requestUserKey),
+      );
+      if (!isCurrentUser(requestUserKey)) return;
+      setAppearance(result.appearance);
+      addToast(t("settingsTheme.preferenceSaved"), "success");
+    } catch (err) {
+      if (isCurrentUser(requestUserKey)) {
+        setAppearance(previous);
+        addToast(extractErrorMessage(err, t("settingsTheme.preferenceSaveFailed")), "error");
+      }
+    } finally {
+      if (finishMutation(requestUserKey)) setAppearanceSaving(false);
+    }
+  };
+
+  const handleEdit = (theme: Theme) => {
+    if (!user || theme.user_id !== user.id || mutationInFlightRef.current) return;
+    setEditingId(theme.id);
+  };
+
+  const handleEditorCancel = () => {
+    setEditingId(null);
+    restoreActiveTheme();
+  };
+
+  const handleEditorSave = async (
+    themeId: number,
+    input: { name?: string; mode?: ThemeMode; document?: ThemeDocument },
+    pendingFiles: Record<string, File>,
+    deleteResourceIds: number[],
+  ): Promise<Theme | null> => {
+    if (!user || editorSaving || !beginMutation()) return null;
+    const requestUserKey = userKey;
+    const existingResourceIds = new Set(
+      themes.find((theme) => theme.id === themeId)?.resources?.map((resource) => resource.id) ?? [],
+    );
+    const uploadedResourceIds: number[] = [];
+    let committed = false;
+    setEditorSaving(true);
+    const cleanupUploadedResources = async () => {
+      for (const resourceId of uploadedResourceIds) {
+        if (existingResourceIds.has(resourceId)) continue;
+        try {
+          await deleteThemeResource(resourceId);
+        } catch (cleanupError) {
+          addToast(extractErrorMessage(cleanupError, t("settingsTheme.resourceDeleteFailed")), "error");
+        }
+      }
+    };
+    try {
+      for (const [resourceKey, file] of Object.entries(pendingFiles)) {
+        const uploaded = await uploadThemeResource({
+          theme_id: themeId,
+          resource_key: resourceKey,
+          file_name: file.name,
+          mime_type: file.type,
+          data_base64: await readFileAsBase64(file),
+        });
+        uploadedResourceIds.push(uploaded.id);
+      }
+      if (!isCurrentUser(requestUserKey)) {
+        await cleanupUploadedResources();
+        return null;
+      }
+      const saved = await updateTheme(themeId, input);
+      if (!isCurrentUser(requestUserKey)) {
+        await cleanupUploadedResources();
+        return null;
+      }
+      committed = true;
+      for (const resourceId of deleteResourceIds) {
+        try {
+          await deleteThemeResource(resourceId);
+        } catch (err) {
+          addToast(extractErrorMessage(err, t("settingsTheme.resourceDeleteFailed")), "error");
+        }
+      }
+      if (saved.is_active) applyActiveTheme(saved);
+      else applyThemePreview(saved);
+      notifyThemeChanged();
+      addToast(t("settingsTheme.editorSaved"), "success");
+      await refresh({ force: true });
+      return saved;
+    } catch (err) {
+      if (!committed) await cleanupUploadedResources();
+      if (isCurrentUser(requestUserKey)) {
+        addToast(extractErrorMessage(err, t("settingsTheme.editorSaveFailed")), "error");
+      }
+      return null;
+    } finally {
+      if (finishMutation(requestUserKey)) setEditorSaving(false);
+    }
+  };
+
+  const handleExportPackage = async (themeId: number) => {
+    if (packageExportingId != null) return;
+    const requestUserKey = userKey;
+    setPackageExportingId(themeId);
+    try {
+      const file = await exportThemePackage(themeId);
+      if (!isCurrentUser(requestUserKey)) return;
+      downloadBase64ExportFile(file);
+      addToast(t("settingsTheme.packageExported"), "success");
+    } catch (err) {
+      if (isCurrentUser(requestUserKey)) {
+        addToast(extractErrorMessage(err, t("settingsTheme.packageExportFailed")), "error");
+      }
+    } finally {
+      if (isCurrentUser(requestUserKey)) setPackageExportingId(null);
+    }
+  };
+
+  const handleImportPackage = async (file: File) => {
+    if (packageImporting || !beginMutation()) return;
+    const requestUserKey = userKey;
+    setPackageImporting(true);
+    try {
+      const theme = await importThemePackage({
+        file_name: file.name,
+        data_base64: await readFileAsBase64(file),
+      });
+      if (!isCurrentUser(requestUserKey)) return;
+      addToast(t("settingsTheme.packageImported", { name: theme.name }), "success");
+      notifyThemeChanged();
+      await refresh({ force: true });
+    } catch (err) {
+      if (isCurrentUser(requestUserKey)) {
+        addToast(extractErrorMessage(err, t("settingsTheme.packageImportFailed")), "error");
+      }
+    } finally {
+      if (finishMutation(requestUserKey)) setPackageImporting(false);
     }
   };
 
@@ -335,6 +598,7 @@ export const useThemeTabController = () => {
     loading,
     activating,
     deleting,
+    bulkDeleting,
     creating,
     newName,
     newMode,
@@ -344,13 +608,24 @@ export const useThemeTabController = () => {
     exportingId,
     importing,
     importText,
+    appearance,
+    appearanceSaving,
+    editingId,
+    editorSaving,
+    packageExportingId,
+    packageImporting,
     mutationBusy:
       activating != null ||
       deleting != null ||
+      bulkDeleting ||
       creating ||
       importing ||
       renamingId != null ||
-      renameSaving,
+      renameSaving ||
+      appearanceSaving ||
+      editingId != null ||
+      editorSaving ||
+      packageImporting,
     hasUser: Boolean(user),
     refresh,
     setScope,
@@ -361,11 +636,17 @@ export const useThemeTabController = () => {
     setRenamingId,
     handleActivate,
     handleDelete,
+    handleDeleteMany,
     handleCreate,
     handleStartRename,
     handleConfirmRename,
     handleExport,
-    handleViewCss,
     handleImport,
+    handleAppearanceChange,
+    handleEdit,
+    handleEditorCancel,
+    handleEditorSave,
+    handleExportPackage,
+    handleImportPackage,
   };
 };

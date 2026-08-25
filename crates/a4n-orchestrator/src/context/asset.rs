@@ -1,12 +1,18 @@
+use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_core::error::AppError;
 use a4n_core::models::asset::object_profile;
-use a4n_db::DbHandle;
+use a4n_db::{
+    DbHandle,
+    asset::{ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult},
+};
 
 use super::OrchestratorContext;
 
 use crate::asset::{
-    ObjectProfileDraft, ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult,
-    asset_error, normalize_object_profile_record_input, normalize_object_profile_record_inputs,
+    asset_error,
+    object_profiles::{
+        normalize_object_profile_record_input, normalize_object_profile_record_inputs,
+    },
 };
 
 #[derive(Clone)]
@@ -47,7 +53,7 @@ impl AssetApplication {
     async fn create_object_profile_validated(
         &self,
         project_id: i64,
-        draft: ObjectProfileDraft,
+        draft: ObjectProfileInput,
     ) -> Result<object_profile::Model, AppError> {
         let record = normalize_object_profile_record_input(draft)?;
         a4n_db::asset::create_object_profile_record(self.database.connection(), project_id, record)
@@ -59,7 +65,7 @@ impl AssetApplication {
     async fn update_object_profile_validated(
         &self,
         object_profile_id: i64,
-        draft: ObjectProfileDraft,
+        draft: ObjectProfileInput,
     ) -> Result<object_profile::Model, AppError> {
         let record = normalize_object_profile_record_input(draft)?;
         a4n_db::asset::update_object_profile_record(
@@ -75,7 +81,7 @@ impl AssetApplication {
     async fn upsert_object_profiles_from_drafts_validated(
         &self,
         project_id: i64,
-        drafts: Vec<ObjectProfileDraft>,
+        drafts: Vec<ObjectProfileInput>,
         source_chapters: Vec<a4n_db::project::ChapterSourceSnapshot>,
         profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
         generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,
@@ -113,7 +119,7 @@ impl OrchestratorContext {
     pub async fn create_object_profile_validated(
         &self,
         project_id: i64,
-        draft: ObjectProfileDraft,
+        draft: ObjectProfileInput,
     ) -> Result<object_profile::Model, AppError> {
         self.asset
             .create_object_profile_validated(project_id, draft)
@@ -124,7 +130,7 @@ impl OrchestratorContext {
     pub async fn update_object_profile_validated(
         &self,
         object_profile_id: i64,
-        draft: ObjectProfileDraft,
+        draft: ObjectProfileInput,
     ) -> Result<object_profile::Model, AppError> {
         self.asset
             .update_object_profile_validated(object_profile_id, draft)
@@ -135,7 +141,7 @@ impl OrchestratorContext {
     pub(crate) async fn upsert_object_profiles_from_drafts_validated(
         &self,
         project_id: i64,
-        drafts: Vec<ObjectProfileDraft>,
+        drafts: Vec<ObjectProfileInput>,
         source_chapters: Vec<a4n_db::project::ChapterSourceSnapshot>,
         profile_evidence: Vec<ObjectProfileEvidenceRecordInput>,
         generation_run: a4n_db::generation::RecordCompletedGenerationRunInput,

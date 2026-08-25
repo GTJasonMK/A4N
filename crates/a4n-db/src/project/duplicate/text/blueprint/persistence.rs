@@ -2,7 +2,7 @@ use a4n_core::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
 use chrono::NaiveDateTime;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
 use super::ProjectBlueprintGraph;
 use crate::project::duplicate::ProjectDuplicateError;
@@ -41,8 +41,10 @@ where
     .await
     .map_err(ProjectDuplicateError::Database)?;
 
-    for version in &graph.versions {
-        blueprint_version::ActiveModel {
+    let version_rows = graph
+        .versions
+        .iter()
+        .map(|version| blueprint_version::ActiveModel {
             project_id: Set(target_project_id),
             version: Set(version.version.clone()),
             change_description: Set(version.change_description.clone()),
@@ -50,14 +52,19 @@ where
             created_at: Set(version.created_at),
             created_by: Set(version.created_by.clone()),
             ..Default::default()
-        }
-        .insert(db)
-        .await
-        .map_err(ProjectDuplicateError::Database)?;
+        })
+        .collect::<Vec<_>>();
+    if !version_rows.is_empty() {
+        blueprint_version::Entity::insert_many(version_rows)
+            .exec_without_returning(db)
+            .await
+            .map_err(ProjectDuplicateError::Database)?;
     }
 
-    for character in &graph.characters {
-        blueprint_character::ActiveModel {
+    let character_rows = graph
+        .characters
+        .iter()
+        .map(|character| blueprint_character::ActiveModel {
             project_id: Set(target_project_id),
             name: Set(character.name.clone()),
             character_type: Set(character.character_type.clone()),
@@ -73,14 +80,19 @@ where
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
-        .await
-        .map_err(ProjectDuplicateError::Database)?;
+        })
+        .collect::<Vec<_>>();
+    if !character_rows.is_empty() {
+        blueprint_character::Entity::insert_many(character_rows)
+            .exec_without_returning(db)
+            .await
+            .map_err(ProjectDuplicateError::Database)?;
     }
 
-    for relationship in &graph.relationships {
-        blueprint_relationship::ActiveModel {
+    let relationship_rows = graph
+        .relationships
+        .iter()
+        .map(|relationship| blueprint_relationship::ActiveModel {
             project_id: Set(target_project_id),
             relationship_type: Set(relationship.relationship_type.clone()),
             character_a: Set(relationship.character_a.clone()),
@@ -90,11 +102,13 @@ where
             evolution: Set(relationship.evolution.clone()),
             created_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
-        .await
-        .map_err(ProjectDuplicateError::Database)?;
+        })
+        .collect::<Vec<_>>();
+    if !relationship_rows.is_empty() {
+        blueprint_relationship::Entity::insert_many(relationship_rows)
+            .exec_without_returning(db)
+            .await
+            .map_err(ProjectDuplicateError::Database)?;
     }
-
     Ok(())
 }

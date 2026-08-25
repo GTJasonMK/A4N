@@ -4,10 +4,6 @@ use crate::actions::admin_records::{AdminPermission, require_admin_permission};
 use a4n_core::error::AppError;
 use std::path::Path;
 
-pub fn log_dir_path(log_dir: &Path) -> String {
-    path_to_string(log_dir)
-}
-
 pub async fn ensure_log_diagnostics_admin(
     state: &AppState,
     caller_user_id: i64,
@@ -21,10 +17,13 @@ pub async fn log_dir_path_for_admin(
     log_dir: &Path,
 ) -> Result<String, AppError> {
     ensure_log_diagnostics_admin(state, caller_user_id).await?;
-    Ok(log_dir_path(log_dir))
+    Ok(path_to_string(log_dir))
 }
 
-pub fn read_recent_logs(log_dir: &Path, input: ReadLogsInput) -> Result<LogReadResult, String> {
+pub(super) fn read_recent_logs(
+    log_dir: &Path,
+    input: ReadLogsInput,
+) -> Result<LogReadResult, String> {
     let lines = input.lines.min(10_000);
     let days_ago = input.days_ago;
     let date = log_date_for_days_ago(chrono::Local::now().date_naive(), days_ago)?;

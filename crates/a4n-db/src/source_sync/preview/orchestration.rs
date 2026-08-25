@@ -1,8 +1,8 @@
 use super::{
     anchor_conflicts::{insert_anchor_conflicts_for_run, insert_galgame_anchor_conflicts_for_run},
     chapter_conflicts::{
-        insert_conflicts_for_change, insert_conflicts_for_profile_change,
-        insert_galgame_conflicts_for_change,
+        insert_conflicts_for_changes, insert_conflicts_for_profile_changes,
+        insert_galgame_conflicts_for_changes,
     },
 };
 use crate::{
@@ -60,14 +60,23 @@ where
     .await?;
     let mut conflicts = Vec::new();
     let mut galgame_scene_conflict_count = 0usize;
-    for change in diff.chapter_changes {
-        conflicts.extend(insert_conflicts_for_change(&tx, &run, &change).await?);
-        let galgame_conflicts = insert_galgame_conflicts_for_change(&tx, &run, &change).await?;
+    let chapter_conflicts = insert_conflicts_for_changes(&tx, &run, &diff.chapter_changes).await?;
+    let galgame_conflicts =
+        insert_galgame_conflicts_for_changes(&tx, &run, &diff.chapter_changes).await?;
+    for ((_, regular_conflicts), galgame_conflicts) in diff
+        .chapter_changes
+        .iter()
+        .zip(chapter_conflicts)
+        .zip(galgame_conflicts)
+    {
+        conflicts.extend(regular_conflicts);
         galgame_scene_conflict_count += galgame_conflicts.len();
         conflicts.extend(galgame_conflicts);
     }
-    for change in diff.profile_changes {
-        conflicts.extend(insert_conflicts_for_profile_change(&tx, &run, &change).await?);
+    let profile_conflicts =
+        insert_conflicts_for_profile_changes(&tx, &run, &diff.profile_changes).await?;
+    for profile_conflicts in profile_conflicts {
+        conflicts.extend(profile_conflicts);
     }
     let anchor_conflicts = insert_anchor_conflicts_for_run(&tx, &run).await?;
     let anchor_conflict_count = anchor_conflicts.len();

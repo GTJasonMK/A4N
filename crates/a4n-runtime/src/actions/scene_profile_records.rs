@@ -1,12 +1,11 @@
 mod conflicts;
-mod draft;
 mod mutations;
 mod projections;
 mod queries;
 
 pub use a4n_api_contract::profile::{
     CreateSceneProfileInput, DeleteSceneProfileInput, ListSceneProfilesInput,
-    SceneProfileDeleteResult, SceneProfileInput, SceneProfileMutationResult, SceneProfileSummary,
+    SceneProfileDeleteResult, SceneProfileMutationResult, SceneProfileSummary,
     UpdateSceneProfileInput,
 };
 pub use mutations::{create_scene_profile, delete_scene_profile, update_scene_profile};

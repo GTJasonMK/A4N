@@ -17,7 +17,26 @@ fn validate_media_manifest_rejects_unknown_media_binding_target_kind() {
 #[test]
 fn validate_media_manifest_accepts_known_media_binding_target_kinds() {
     for target_kind in MEDIA_BINDING_TARGET_KINDS {
-        let mut package = package_with_valid_media_binding_target(target_kind);
+        let mut package = match *target_kind {
+            "chapter_video_prompt" => {
+                let mut package = crate::project::family_package::tests::video_validation::package_with_video_rows();
+                package.chapter_video_prompts[0].reference_image_ids_json = None;
+                package.chapter_video_prompts[0].generated_video_id = None;
+                package.generated_images.clear();
+                package.generated_videos.clear();
+                package
+            }
+            "generated_video" => {
+                let mut package = crate::project::family_package::tests::video_validation::package_with_video_rows();
+                package.generated_videos[0].file_path = None;
+                package.generated_videos[0].source_image_id = None;
+                package.generated_videos[0].metadata_json = None;
+                package.generated_images.clear();
+                package.chapter_video_prompts.clear();
+                package
+            }
+            _ => package_with_valid_media_binding_target(target_kind),
+        };
         let (role, media_kind) = match *target_kind {
             "galgame_scene" => ("background", MEDIA_KIND_IMAGE),
             "galgame_line" => ("cg", MEDIA_KIND_IMAGE),
@@ -28,8 +47,14 @@ fn validate_media_manifest_accepts_known_media_binding_target_kinds() {
         } else {
             vec![media_asset_with_kind(media_kind)]
         };
-        package.media_bindings = vec![media_binding_record(target_kind, role)];
-        let media_payload = media_payload_for_assets(&package.media_assets);
+        let mut binding = media_binding_record(target_kind, role);
+        binding.target_id = match *target_kind {
+            "chapter_video_prompt" => 41,
+            "generated_video" => 51,
+            _ => 201,
+        };
+        package.media_bindings = vec![binding];
+        let media_payload = media_payload_for_assets(&mut package);
 
         validate_media_manifest(&package, &media_payload)
             .expect("known media binding target_kind should remain importable");

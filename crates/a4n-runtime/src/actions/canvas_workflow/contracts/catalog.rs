@@ -1,5 +1,5 @@
 use super::builders::{contract, input, out};
-use super::types::CanvasNodeContract;
+use a4n_api_contract::canvas::CanvasNodeContract;
 
 pub(in crate::actions::canvas_workflow) fn canvas_node_contracts() -> Vec<CanvasNodeContract> {
     vec![

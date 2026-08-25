@@ -50,9 +50,11 @@ import { EmptyHint, type ChapterRow } from "../shared";
 import {
   assemblyPushSourceIds,
   assemblyPushStatus,
+  formatVideoDuration,
   formatVideoCreatedAt,
 } from "./videoTabUtils";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
+import { useI18n, type MessageTranslator } from "../../../i18n";
 
 interface VideoAssemblyWorkspaceProps {
   projectId: number;
@@ -98,36 +100,19 @@ const assemblyClipSortOrder = (
 const assemblyClipLabel = (
   video: GeneratedVideo,
   timelineDisplayIndexByVideoId: ReadonlyMap<number, number>,
+  t: MessageTranslator,
 ): string => {
   if (video.video_type !== VIDEO_TYPE_ASSEMBLY_INSERT) {
     const displayIndex = timelineDisplayIndexByVideoId.get(video.id);
-    return displayIndex == null ? "顺序缺失" : `时间线 ${displayIndex}`;
+    return displayIndex == null
+      ? t("video.chapter.assemblyOrderMissing")
+      : t("video.chapter.timelineItem", { number: displayIndex });
   }
   const afterShot = assemblyInsertMetadata(video)?.insert_after_shot_number;
   if (Number.isInteger(afterShot) && Number(afterShot) > 0) {
-    return `衔接 · 镜头 ${Number(afterShot)} 后`;
+    return t("video.chapter.assemblyAfter", { number: Number(afterShot) });
   }
-  return "衔接 · 开头";
-};
-
-const formatSeconds = (value: number): string => {
-  if (!Number.isFinite(value) || value <= 0) return "0s";
-  if (value < 60) return `${Math.round(value)}s`;
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.round(value - minutes * 60);
-  return `${minutes}m ${seconds}s`;
-};
-
-const formatBytes = (value: number): string => {
-  if (!Number.isFinite(value) || value <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let size = value;
-  let unitIndex = 0;
-  while (size >= 1024 && unitIndex < units.length - 1) {
-    size /= 1024;
-    unitIndex += 1;
-  }
-  return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+  return t("video.chapter.assemblyStart");
 };
 
 export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
@@ -140,6 +125,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   onToast,
   onRefresh,
 }) => {
+  const { locale, t } = useI18n();
   const [preview, setPreview] = useState<AssembledChapterVideoPreview | null>(
     null,
   );
@@ -336,7 +322,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(extractErrorMessage(err, "加载成片缓存失败"));
+        setError(extractErrorMessage(err, t("video.chapter.cacheLoadFailed")));
       })
       .finally(() => {
         if (!cancelled) setCacheLoading(false);
@@ -381,10 +367,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       });
       setPreview(data);
       setVideoLoading(true);
-      onToast(data.cached ? "已加载缓存预览" : "成片预览已生成", "success");
+      onToast(data.cached ? t("video.chapter.assemblyPreviewLoaded") : t("video.chapter.assemblyPreviewGenerated"), "success");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      const message = extractErrorMessage(err, "生成成片预览失败");
+      const message = extractErrorMessage(err, t("video.chapter.assemblyPreviewFailed"));
       setError(message);
       onToast(message, "error");
     } finally {
@@ -405,10 +391,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         videoPlaybackDataToBlob(preview),
       );
       if (!isCurrentScope(requestScope)) return;
-      onToast("成片预览已下载", "success");
+      onToast(t("video.chapter.assemblyPreviewDownloaded"), "success");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      const message = extractErrorMessage(err, "下载成片预览失败");
+      const message = extractErrorMessage(err, t("video.chapter.assemblyPreviewDownloadFailed"));
       setError(message);
       onToast(message, "error");
     } finally {
@@ -435,12 +421,12 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
       onToast(
-        `已推送 ${result.source_video_ids.length} 个片段到成片后处理`,
+        t("video.chapter.pushSuccess", { count: result.source_video_ids.length }),
         "success",
       );
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      const message = extractErrorMessage(err, "推送成片片段失败");
+      const message = extractErrorMessage(err, t("video.chapter.pushFailed"));
       setError(message);
       onToast(message, "error");
     } finally {
@@ -460,10 +446,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     setError(null);
     let upload: VideoUploadFile | null = null;
     try {
-      upload = await pickVideoUploadFile();
+      upload = await pickVideoUploadFile(t);
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
+      onToast(extractErrorMessage(err, t("video.chapter.filePickerFailed")), "error");
       return;
     } finally {
       if (!upload) {
@@ -496,10 +482,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       clearPreview();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
-      onToast("衔接片段已插入", "success");
+      onToast(t("video.chapter.insertSuccess"), "success");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      const message = extractErrorMessage(err, "插入衔接片段失败");
+      const message = extractErrorMessage(err, t("video.chapter.insertFailed"));
       setError(message);
       onToast(message, "error");
     } finally {
@@ -513,9 +499,9 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
     if (!beginAction()) return;
     setActing(`delete-${video.id}`);
     const ok = await confirmDialog({
-      title: "删除衔接片段",
-      message: "删除这个衔接片段？",
-      confirmText: "删除",
+      title: t("video.chapter.confirmDeleteInsertedTitle"),
+      message: t("video.chapter.confirmDeleteInsertedMessage"),
+      confirmText: t("video.chapter.confirmDelete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -534,10 +520,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       clearPreview();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
-      onToast("衔接片段已删除", "success");
+      onToast(t("video.chapter.deleteSuccess"), "success");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      const message = extractErrorMessage(err, "删除衔接片段失败");
+      const message = extractErrorMessage(err, t("video.chapter.deleteFailed"));
       setError(message);
       onToast(message, "error");
     } finally {
@@ -550,14 +536,14 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
   const handleVideoError = (event: SyntheticEvent<HTMLVideoElement>) => {
     setVideoLoading(false);
     const detail = event.currentTarget.error?.message?.trim();
-    setError(detail ? `成片预览无法播放：${detail}` : "成片预览无法播放");
+    setError(detail ? t("video.chapter.playbackFailed", { detail }) : t("video.chapter.playbackFailedEmpty"));
   };
 
   const assemblyMenuItems: React.ComponentProps<typeof Dropdown>["items"] = [
     ...(pushedPrefixLength === 0
       ? [
           {
-            label: "插入片头素材",
+            label: t("video.chapter.insertIntro"),
             icon: <Plus size={12} />,
             onClick: () => void handleImportInsert(null),
           },
@@ -567,7 +553,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
       ? [
           ...(pushedPrefixLength === 0 ? [{ type: "divider" as const }] : []),
           {
-            label: "下载成片预览",
+            label: t("video.chapter.downloadPreview"),
             icon: <Download size={12} />,
             onClick: () => void handleDownloadPreview(),
           },
@@ -586,10 +572,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
           </div>
           <div className="max-w-sm">
             <h3 className="text-sm font-medium text-book-text-main">
-              还没有可合成的视频片段
+              {t("video.chapter.assemblyNoClips")}
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
-              先完成视频片段生成；片头和过场素材可以随后补充。
+              {t("video.chapter.assemblyNoClipsHint")}
             </p>
           </div>
           <BookButton
@@ -604,7 +590,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             ) : (
               <Plus size={13} />
             )}
-            插入片头素材
+            {t("video.chapter.insertIntro")}
           </BookButton>
           {error ? (
             <div role="alert" className="text-xs text-error">
@@ -622,18 +608,17 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 pb-3">
           <div className="min-w-0 flex-1">
             <h3 className="text-sm font-medium text-book-text-main">
-              成片预览
+              {t("video.chapter.assemblyPreview")}
             </h3>
             <p className="mt-1 text-small text-book-text-muted">
-              {clips.length} 段 · {formatSeconds(totalDuration)}
+              {t("video.chapter.assemblyClipCount", { count: clips.length, duration: formatVideoDuration(totalDuration, locale, t) })}
               {pushedSourceIds.size > 0
-                ? ` · 已推送 ${pushedSourceIds.size} 段`
+                ? t("video.chapter.pushedClipCount", { count: pushedSourceIds.size })
                 : ""}
             </p>
             {unavailableSegmentNumbers.length > 0 ? (
               <p className="mt-1 text-caption text-warning">
-                本次仅合成已有视频；片段 {unavailableSegmentNumbers.join("、")}{" "}
-                尚无有效视频
+                {t("video.chapter.unavailableClips", { numbers: unavailableSegmentNumbers.join(", ") })}
               </p>
             ) : null}
           </div>
@@ -659,14 +644,14 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
           >
             <span className="inline-flex items-center gap-1">
               {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
-              {preview ? "更新预览" : "生成预览"}
+              {preview ? t("video.chapter.assemblyPreviewUpdated") : t("video.chapter.assemblyPreviewGenerate")}
             </span>
           </BookButton>
         </div>
         {preview ? (
           <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2 rounded-xl bg-book-bg-tertiary/35 p-2.5">
             <label className="flex min-h-8 items-center gap-2 text-small text-book-text-muted">
-              <span>推送段数</span>
+              <span>{t("video.chapter.pushClipCount")}</span>
               <input
                 type="number"
                 min={1}
@@ -699,11 +684,14 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             </label>
             <span className="min-w-0 flex-1 truncate text-small text-book-text-muted">
               {selectedPushEndVideo
-                ? `推送至 ${assemblyClipLabel(
-                    selectedPushEndVideo,
-                    timelineDisplayIndexByVideoId,
-                  )}`
-                : "没有待推送片段"}
+                ? t("video.chapter.pushTo", {
+                    label: assemblyClipLabel(
+                      selectedPushEndVideo,
+                      timelineDisplayIndexByVideoId,
+                      t,
+                    ),
+                  })
+                : t("video.chapter.noPushableClips")}
             </span>
             <BookButton
               variant="primary"
@@ -719,16 +707,16 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
               }
               title={
                 hasPendingPush
-                  ? "当前最新推送尚未同意或拒绝，不能继续推送后续片段"
+                  ? t("video.chapter.pushBlockedPending")
                   : !selectedPushEndVideo
-                    ? "当前没有可推送的后续片段"
+                    ? t("video.chapter.pushBlockedNone")
                     : undefined
               }
               className="!min-h-8 !px-3"
             >
               <span className="inline-flex items-center gap-1">
                 {pushing ? <LoadingSpinner size="sm" /> : <Film size={13} />}
-                推送后处理
+                {t("video.chapter.pushPostprocess")}
               </span>
             </BookButton>
           </div>
@@ -750,7 +738,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
             />
           ) : (
             <div className="flex h-full min-h-[320px] items-center justify-center bg-book-bg-tertiary">
-              <EmptyHint text="等待成片预览。" />
+              <EmptyHint text={t("video.chapter.waitingAssemblyPreview")} />
             </div>
           )}
           {(loading || cacheLoading || videoLoading) && (
@@ -758,10 +746,10 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
               <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 px-2.5 py-1.5 backdrop-blur-sm">
                 <LoadingSpinner size="sm" />
                 {loading
-                  ? "正在生成预览"
+                  ? t("video.chapter.generatingPreview")
                   : cacheLoading
-                    ? "正在加载缓存预览"
-                    : "正在加载预览"}
+                    ? t("video.chapter.loadingCachedPreview")
+                    : t("video.chapter.loadingPreview")}
               </span>
             </div>
           )}
@@ -777,10 +765,12 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
         )}
         {preview && (
           <div className="mt-2 text-caption leading-relaxed text-book-text-muted">
-            {preview.clips.length} 段 · {formatBytes(preview.file_size)} ·{" "}
-            {preview.cached ? "缓存预览" : "本次生成"}
+            {t("video.chapter.assemblyClipCount", {
+              count: preview.clips.length,
+              duration: formatVideoDuration(preview.duration_secs, locale, t),
+            })} · {preview.cached ? t("video.chapter.cachedPreview") : t("video.chapter.currentGeneration")}
             {preview.updated_at
-              ? ` · ${formatVideoCreatedAt(preview.updated_at)}`
+              ? ` · ${formatVideoCreatedAt(preview.updated_at, locale, t)}`
               : ""}
           </div>
         )}
@@ -788,9 +778,9 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
 
       <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-book-border/35 px-3 py-2.5">
-          <h3 className="text-xs font-medium text-book-text-main">片段顺序</h3>
+          <h3 className="text-xs font-medium text-book-text-main">{t("video.chapter.clipOrder")}</h3>
           <span className="text-caption text-book-text-muted">
-            {clips.length} 段
+            {t("video.chapter.segments", { count: clips.length })}
           </span>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar">
@@ -812,7 +802,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                 ...(!insertInsidePushed
                   ? [
                       {
-                        label: "在此后插入衔接片段",
+                        label: t("video.chapter.insertAfter"),
                         icon: <Plus size={12} />,
                         onClick: () => void handleImportInsert(video.id),
                       },
@@ -824,7 +814,7 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                         ? [{ type: "divider" as const }]
                         : []),
                       {
-                        label: "删除衔接片段",
+                        label: t("video.chapter.deleteInserted"),
                         icon: <Trash2 size={12} />,
                         danger: true,
                         onClick: () => void handleDeleteInsert(video),
@@ -846,16 +836,17 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                   <div className="flex min-w-0 items-start gap-2">
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-xs font-medium text-book-text-main">
-                        片段 {index + 1} ·{" "}
+                        {t("video.chapter.clipNumber", { number: index + 1 })} ·{" "}
                         {assemblyClipLabel(
                           video,
                           timelineDisplayIndexByVideoId,
+                          t,
                         )}
                       </div>
                       <div className="mt-1 text-caption text-book-text-muted">
-                        {formatSeconds(video.duration_secs)} ·{" "}
-                        {getOperationStatusLabel(video.status)}
-                        {pushed ? " · 已推送" : ""}
+                        {formatVideoDuration(video.duration_secs, locale, t)} ·{" "}
+                        {getOperationStatusLabel(video.status, locale)}
+                        {pushed ? t("video.chapter.pushed") : ""}
                       </div>
                     </div>
                     {rowActionBusy ? (
@@ -872,8 +863,8 @@ export const VideoAssemblyWorkspace: React.FC<VideoAssemblyWorkspaceProps> = ({
                   {isInsert && (
                     <div className="mt-1 text-caption text-book-text-muted">
                       {insertAfterVideoId == null
-                        ? "插入位置：成片开头"
-                        : "插入位置：所选片段之后"}
+                        ? t("video.chapter.insertAtStart")
+                        : t("video.chapter.insertAfterSelected")}
                     </div>
                   )}
                   <div className="mt-1 line-clamp-2 text-caption leading-relaxed text-book-text-sub">

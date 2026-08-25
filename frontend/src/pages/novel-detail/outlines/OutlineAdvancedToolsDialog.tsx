@@ -12,6 +12,7 @@ import {
   type NumberInputValue,
 } from "./outlineTabUtils";
 import type { ChapterOutline, PartOutline } from "../../../api/outline";
+import { useI18n } from "../../../i18n";
 
 interface OutlineAdvancedToolsDialogProps {
   open: boolean;
@@ -56,6 +57,7 @@ export function OutlineAdvancedToolsDialog({
   onDeleteLatestOutlines,
   onChanged,
 }: OutlineAdvancedToolsDialogProps) {
+  const { t } = useI18n();
   const [advancedBusy, setAdvancedBusy] = useState(false);
   const deletingParts = delActing === DELETE_LATEST_PARTS_ACTION;
   const deletingChapterOutlines =
@@ -78,8 +80,11 @@ export function OutlineAdvancedToolsDialog({
       onClose={() => {
         if (!actionBusy) onClose();
       }}
-      title="大纲高级工具"
-      subtitle={`共 ${parts.length} 部、${outlines.length} 个章纲 · 生成、诊断与维护`}
+      title={t("outline.advanced.title")}
+      subtitle={t("outline.advanced.subtitle", {
+        parts: parts.length,
+        outlines: outlines.length,
+      })}
       icon={<SlidersHorizontal size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="px-4 py-4"
@@ -98,19 +103,19 @@ export function OutlineAdvancedToolsDialog({
           onBusyChange={handleAdvancedBusyChange}
         />
 
-        <details className="group" aria-label="末尾维护与删除">
+        <details className="group" aria-label={t("outline.advanced.maintenance")}>
           <summary className="a4n-flat-surface flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
-            <span className="font-medium text-book-text-main">末尾维护与删除</span>
+            <span className="font-medium text-book-text-main">{t("outline.advanced.maintenance")}</span>
             <span className="min-w-0 flex-1 truncate text-right text-small text-book-text-muted">
-              重写最后一部、删除最近内容
+              {t("outline.advanced.maintenanceHint")}
             </span>
           </summary>
           <div className="mt-2 grid gap-2 text-xs">
             <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-book-text-main">重写最后一部</h3>
+                <h3 className="font-medium text-book-text-main">{t("outline.advanced.rewriteLastPart")}</h3>
                 <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-                  保留更早分部，只重写故事末尾的阶段规划。
+                  {t("outline.advanced.rewriteLastPartDescription")}
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">
@@ -118,7 +123,7 @@ export function OutlineAdvancedToolsDialog({
                   <Dropdown
                     items={[
                       {
-                        label: "查看模型请求",
+                        label: t("outline.advanced.viewRequest"),
                         icon: <Eye size={12} />,
                         onClick: onPreviewRegenLastPart,
                         disabled: maintenanceBusy,
@@ -135,10 +140,10 @@ export function OutlineAdvancedToolsDialog({
                 >
                   {regenLastPart ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> 重写中…
+                      <LoadingSpinner size="sm" /> {t("outline.advanced.rewriting")}
                     </span>
                   ) : (
-                    "重写最后一部"
+                    t("outline.advanced.rewrite")
                   )}
                 </BookButton>
               </div>
@@ -146,9 +151,9 @@ export function OutlineAdvancedToolsDialog({
 
             <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-book-text-main">删除最近分部</h3>
+                <h3 className="font-medium text-book-text-main">{t("outline.advanced.deleteRecentParts")}</h3>
                 <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-                  从故事末尾删除指定数量的分部；范围内章纲会保留为未归属。
+                  {t("outline.advanced.deleteRecentPartsDescription")}
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">
@@ -169,7 +174,7 @@ export function OutlineAdvancedToolsDialog({
                     }}
                     className="pyqt-input !w-16"
                   />
-                  部
+                  {t("outline.advanced.partUnit")}
                 </label>
                 <BookButton
                   variant="danger"
@@ -180,10 +185,10 @@ export function OutlineAdvancedToolsDialog({
                 >
                   {deletingParts ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> 删除中…
+                      <LoadingSpinner size="sm" /> {t("outline.advanced.deleting")}
                     </span>
                   ) : (
-                    "删除"
+                    t("outline.advanced.delete")
                   )}
                 </BookButton>
               </div>
@@ -191,9 +196,9 @@ export function OutlineAdvancedToolsDialog({
 
             <section className="a4n-flat-surface flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center">
               <div className="min-w-0 flex-1">
-                <h3 className="font-medium text-book-text-main">删除最近章纲</h3>
+                <h3 className="font-medium text-book-text-main">{t("outline.advanced.deleteRecentOutlines")}</h3>
                 <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-                  只删除章纲，不删除已有正文；对应章节会回到尚未规划的状态。
+                  {t("outline.advanced.deleteRecentOutlinesDescription")}
                 </p>
               </div>
               <div className="flex items-center justify-end gap-2 sm:shrink-0">
@@ -214,7 +219,7 @@ export function OutlineAdvancedToolsDialog({
                     }}
                     className="pyqt-input !w-16"
                   />
-                  章
+                  {t("outline.advanced.chapterUnit")}
                 </label>
                 <BookButton
                   variant="danger"
@@ -225,10 +230,10 @@ export function OutlineAdvancedToolsDialog({
                 >
                   {deletingChapterOutlines ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> 删除中…
+                      <LoadingSpinner size="sm" /> {t("outline.advanced.deleting")}
                     </span>
                   ) : (
-                    "删除"
+                    t("outline.advanced.delete")
                   )}
                 </BookButton>
               </div>

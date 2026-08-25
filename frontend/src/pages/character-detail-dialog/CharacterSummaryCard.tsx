@@ -2,12 +2,14 @@ import React from "react";
 import type { CharacterProfile } from "../../api/character";
 import { characterAttributeText } from "../../utils/characterAttributes";
 import { syncedChapterText } from "./characterDetailUtils";
+import { useI18n } from "../../i18n";
 
 interface CharacterSummaryCardProps {
   character: CharacterProfile;
 }
 
 export const CharacterSummaryCard: React.FC<CharacterSummaryCardProps> = ({ character }) => {
+  const { t } = useI18n();
   const gender = characterAttributeText(character, "explicit", "gender");
   const age = characterAttributeText(character, "explicit", "age");
   const personality = characterAttributeText(character, "implicit", "personality");
@@ -15,7 +17,7 @@ export const CharacterSummaryCard: React.FC<CharacterSummaryCardProps> = ({ char
   const metadata = [
     gender,
     age,
-    syncedChapterText(character.last_synced_chapter),
+    syncedChapterText(character.last_synced_chapter, t),
   ].filter((item): item is string => Boolean(item));
 
   return (
@@ -23,13 +25,13 @@ export const CharacterSummaryCard: React.FC<CharacterSummaryCardProps> = ({ char
       <div className="mb-2 text-small text-book-text-muted">{metadata.join(" · ")}</div>
       {personality && (
         <div className="mb-1 text-xs leading-relaxed text-book-text-sub">
-          <span className="text-book-text-muted">性格：</span>
+          <span className="text-book-text-muted">{t("characterDetail.personality")}</span>
           {personality}
         </div>
       )}
       {background && (
         <div className="line-clamp-2 text-xs leading-relaxed text-book-text-sub">
-          <span className="text-book-text-muted">背景：</span>
+          <span className="text-book-text-muted">{t("characterDetail.background")}</span>
           {background}
         </div>
       )}

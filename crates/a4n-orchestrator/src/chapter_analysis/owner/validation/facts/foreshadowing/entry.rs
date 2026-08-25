@@ -1,7 +1,4 @@
-use a4n_core::{
-    error::AppError,
-    source_spans::{SourceSpan, resolve_source_span_text},
-};
+use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
 use serde_json::Value;
 
 use super::super::super::super::materialize::{
@@ -12,7 +9,7 @@ use super::super::super::super::materialize::{
 pub(super) fn validate_foreshadowing_candidate(
     item: &Value,
     index: usize,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let path = format!("chapter_fact_extraction.foreshadowing_candidates[{index}]");
     let object = item
@@ -60,7 +57,8 @@ pub(super) fn validate_foreshadowing_candidate(
         "original_text_span_id",
         &format!("{path}.original_text_span_id"),
     )?;
-    resolve_source_span_text(source_spans, &span_id)
+    source_spans
+        .resolve_text(&span_id)
         .map_err(analysis_materialize_error)
         .map(|_| ())
 }

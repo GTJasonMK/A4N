@@ -6,7 +6,10 @@ use crate::workflow::{
 use a4n_core::models::{
     ai::generated_video, chapter::chapter_video_prompt, generation::workflow_run,
 };
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
+};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -82,6 +85,15 @@ pub(super) struct PipelineProjectState {
     pub(super) message: Option<String>,
 }
 
+#[derive(Debug, FromQueryResult)]
+struct PipelineWorkflowProgressRow {
+    id: i64,
+    project_id: Option<i64>,
+    status: String,
+    progress_json: Option<Value>,
+    error_message: Option<String>,
+}
+
 pub(super) async fn latest_pipeline_states_by_project(
     db: &DatabaseConnection,
     project_ids: &[i64],
@@ -92,12 +104,19 @@ pub(super) async fn latest_pipeline_states_by_project(
         return Ok(HashMap::new());
     }
     let runs = workflow_run::Entity::find()
+        .select_only()
+        .column(workflow_run::Column::Id)
+        .column(workflow_run::Column::ProjectId)
+        .column(workflow_run::Column::Status)
+        .column(workflow_run::Column::ProgressJson)
+        .column(workflow_run::Column::ErrorMessage)
         .distinct_on([workflow_run::Column::BusinessKey])
         .filter(workflow_run::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(workflow_run::Column::WorkflowKind.eq(workflow_kind))
         .order_by_asc(workflow_run::Column::BusinessKey)
         .order_by_desc(workflow_run::Column::UpdatedAt)
         .order_by_desc(workflow_run::Column::Id)
+        .into_model::<PipelineWorkflowProgressRow>()
         .all(db)
         .await
         .map_err(|error| ProjectProgressReadError::database(query_operation, error))?;
@@ -126,7 +145,7 @@ pub(super) async fn latest_pipeline_states_by_project(
     Ok(states)
 }
 
-fn workflow_project_id(run: &workflow_run::Model) -> Result<i64, ProjectProgressReadError> {
+fn workflow_project_id(run: &PipelineWorkflowProgressRow) -> Result<i64, ProjectProgressReadError> {
     run.project_id
         .ok_or(ProjectProgressReadError::InvalidPersistedReference {
             table: "workflow_run",
@@ -136,7 +155,7 @@ fn workflow_project_id(run: &workflow_run::Model) -> Result<i64, ProjectProgress
 }
 
 fn pipeline_state_from_workflow_run(
-    run: &workflow_run::Model,
+    run: &PipelineWorkflowProgressRow,
 ) -> Result<PipelineProjectState, ProjectProgressReadError> {
     let mut pipeline = PipelineProjectState::default();
     match run.status.as_str() {
@@ -191,32 +210,14 @@ pub(super) fn progress_count_detail(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
 
-    fn workflow_run(status: &str) -> workflow_run::Model {
-        let now = Utc::now().naive_utc();
-        workflow_run::Model {
+    fn workflow_run(status: &str) -> PipelineWorkflowProgressRow {
+        PipelineWorkflowProgressRow {
             id: 9,
-            business_key: "project-progress".to_string(),
-            workflow_kind: "manga_pipeline".to_string(),
             project_id: Some(3),
-            root_project_id: None,
-            source_snapshot_id: None,
-            scope_table: None,
-            scope_id: None,
-            chapter_id: None,
-            mode: None,
-            input_fingerprint_json: None,
             status: status.to_string(),
-            current_step_key: None,
             progress_json: None,
-            active_task_id: None,
-            can_resume: false,
-            resume_block_reason: None,
             error_message: None,
-            created_at: now,
-            updated_at: now,
-            completed_at: None,
         }
     }
 

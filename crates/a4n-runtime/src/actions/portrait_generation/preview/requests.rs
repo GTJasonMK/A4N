@@ -1,8 +1,8 @@
 use super::steps::{chat_preview_step, portrait_preview, provider_preview_step};
 use crate::{
     actions::{
-        access, portrait_records::portrait_project_id_for_user,
-        request_preview::ModelRequestPreview, template_variables::parse_template_variables,
+        access, image_generation::resolve_image_config,
+        portrait_records::portrait_project_id_for_user, request_preview::ModelRequestPreview,
     },
     state::AppState,
 };
@@ -11,8 +11,11 @@ use a4n_orchestrator::portrait::{
     GeneratePortraitPromptInput, RegeneratePortraitInput, profile_portrait_seed_prompt,
     validate_reference_image_ids,
 };
+use a4n_prompt::variables::parse_template_variables;
 
-use super::super::host_port::build_portrait_image_request_preview;
+use super::super::host_port::{
+    build_portrait_image_request_preview, build_portrait_image_request_preview_with_config,
+};
 
 pub async fn preview_generate_portrait_prompt_request(
     state: &AppState,
@@ -150,11 +153,18 @@ pub async fn preview_generate_missing_portraits_request(
         .missing_portrait_profiles(input.project_id)
         .await
         .map_err(|error| error.to_string())?;
+    let config = resolve_image_config(state, None).await?;
     let mut steps = Vec::with_capacity(missing_profiles.len());
     for (index, profile) in missing_profiles.iter().enumerate() {
         let prompt = profile_portrait_seed_prompt(profile)?;
-        let context =
-            build_portrait_image_request_preview(state, input.project_id, &prompt, &[]).await?;
+        let context = build_portrait_image_request_preview_with_config(
+            state,
+            input.project_id,
+            &prompt,
+            &[],
+            &config,
+        )
+        .await?;
         steps.push(
             provider_preview_step(
                 state,

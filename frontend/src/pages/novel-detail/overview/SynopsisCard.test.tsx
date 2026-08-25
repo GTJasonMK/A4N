@@ -1,21 +1,24 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { I18nProvider } from "../../../i18n";
 import { SynopsisCard } from "./SynopsisCard";
 
 describe("SynopsisCard nonlinear blueprint entry", () => {
   it("offers aggregation, direct entry, and inspiration when no blueprint exists", () => {
     const html = renderToStaticMarkup(
-      <SynopsisCard
-        blueprint={null}
-        loading={false}
-        refining={false}
-        canEditBlueprint
-        onOpenSynopsis={() => undefined}
-        onRefine={() => undefined}
-        onEditBlueprint={() => undefined}
-        onOpenImports={() => undefined}
-        onCreateBlueprint={() => undefined}
-      />,
+      <I18nProvider initialLocale="zh-CN">
+        <SynopsisCard
+          blueprint={null}
+          loading={false}
+          refining={false}
+          canEditBlueprint
+          onOpenSynopsis={() => undefined}
+          onRefine={() => undefined}
+          onEditBlueprint={() => undefined}
+          onOpenImports={() => undefined}
+          onCreateBlueprint={() => undefined}
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("前往导入/归纳蓝图");

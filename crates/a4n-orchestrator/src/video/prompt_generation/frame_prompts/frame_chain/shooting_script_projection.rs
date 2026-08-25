@@ -52,6 +52,7 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
                     crate::shooting_script::ChapterShootingScriptSourceInput {
                         project_id,
                         source_chapter_id: chapter_id,
+                        visual_plan_id: None,
                     },
                 )
                 .await?
@@ -73,6 +74,8 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
                 })?;
             let script = ChapterShootingScriptV1 {
                 schema_version: unit_progress.script.schema_version,
+                visual_plan_source: unit_progress.script.visual_plan_source,
+                user_additions: unit_progress.script.user_additions,
                 directing_statement: unit_progress.script.directing_statement,
                 scenes: vec![scene],
             };
@@ -101,6 +104,7 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
                     crate::shooting_script::ChapterShootingScriptSourceInput {
                         project_id,
                         source_chapter_id: chapter_id,
+                        visual_plan_id: None,
                     },
                 )
                 .await?;

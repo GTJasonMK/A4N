@@ -2,70 +2,84 @@ use super::super::{
     state::attribute_value_in_state,
     types::{CharacterAttributeMutationResult, CharacterAttributeValueChangeInput},
 };
-use super::recording::{default_attribute_change_description, record_attribute_event_in};
+use super::recording::{
+    default_attribute_change_description, record_attribute_event_with_profile_in,
+};
 use crate::character::profile::require_profile_for_update;
 use crate::character::{
     CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
 };
-use a4n_core::models::character::attribute_event::{self, SOURCE_KIND_USER};
+use a4n_core::models::character::{
+    attribute_event::{self, SOURCE_KIND_USER},
+    protagonist_profile,
+};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::Value;
 
-async fn add_profile_attribute_in<C>(
-    db: &C,
-    input: CharacterAttributeValueChangeInput,
-) -> Result<attribute_event::Model, CharacterDbError>
-where
-    C: ConnectionTrait,
-{
-    add_profile_attribute_from_source_in(db, input, SOURCE_KIND_USER).await
+fn normalize_attribute_value_change_input(
+    mut input: CharacterAttributeValueChangeInput,
+) -> Result<CharacterAttributeValueChangeInput, CharacterDbError> {
+    validate_chapter_number(input.chapter_number)?;
+    input.category = input.category.trim().to_string();
+    input.key = require_non_empty(&input.key, "属性 key")?;
+    input.cause = require_non_empty(&input.cause, "属性变更原因")?;
+    input.evidence = require_non_empty(&input.evidence, "属性变更证据")?;
+    validate_category(&input.category)?;
+    Ok(input)
 }
 
-pub(in crate::character) async fn add_profile_attribute_from_source_in<C>(
+async fn add_profile_attribute_with_profile_in<C>(
     db: &C,
+    profile: protagonist_profile::Model,
     input: CharacterAttributeValueChangeInput,
     source_kind: &str,
 ) -> Result<attribute_event::Model, CharacterDbError>
 where
     C: ConnectionTrait,
 {
-    validate_chapter_number(input.chapter_number)?;
-    let category = input.category.trim().to_string();
-    let key = require_non_empty(&input.key, "属性 key")?;
-    let cause = require_non_empty(&input.cause, "属性变更原因")?;
-    let evidence = require_non_empty(&input.evidence, "属性变更证据")?;
-    validate_category(&category)?;
-
-    let profile = require_profile_for_update(db, input.profile_id).await?;
-    if attribute_value_in_state(&profile.current_state, &category, &key).is_some() {
+    if attribute_value_in_state(&profile.current_state, &input.category, &input.key).is_some() {
         return Err(CharacterDbError::InvalidState {
-            current: format!("属性 {category}.{key} 已存在"),
+            current: format!("属性 {}.{} 已存在", input.category, input.key),
             operation: "新增角色属性".to_string(),
         });
     }
 
     let change_description = match input.change_description {
         Some(value) => require_non_empty(&value, "属性变更摘要")?,
-        None => default_attribute_change_description("add", &category, &key),
+        None => default_attribute_change_description("add", &input.category, &input.key),
     };
 
-    record_attribute_event_in(
+    record_attribute_event_with_profile_in(
         db,
+        profile,
         super::super::types::CharacterAttributeEventInsertInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
             source_kind: source_kind.to_string(),
-            category,
-            key,
+            category: input.category,
+            key: input.key,
             operation: "add".to_string(),
             old_value: Value::Null,
             new_value: input.value,
             change_description,
-            cause,
-            evidence,
+            cause: input.cause,
+            evidence: input.evidence,
         },
     )
     .await
+}
+
+pub(in crate::character) async fn add_profile_attribute_with_profile_from_source_in<C>(
+    db: &C,
+    profile: protagonist_profile::Model,
+    input: CharacterAttributeValueChangeInput,
+    source_kind: &str,
+) -> Result<attribute_event::Model, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    let input = normalize_attribute_value_change_input(input)?;
+    add_profile_attribute_with_profile_in(db, profile, input, source_kind).await
 }
 
 pub async fn add_profile_attribute<C>(
@@ -78,62 +92,64 @@ where
     let profile_id = input.profile_id;
     let tx = db.begin().await?;
     let profile = require_profile_for_update(&tx, profile_id).await?;
-    let event = add_profile_attribute_in(&tx, input).await?;
+    let input = normalize_attribute_value_change_input(input)?;
+    let event =
+        add_profile_attribute_with_profile_in(&tx, profile.clone(), input, SOURCE_KIND_USER)
+            .await?;
     tx.commit().await?;
     Ok(CharacterAttributeMutationResult { profile, event })
 }
 
-async fn modify_profile_attribute_in<C>(
+pub(in crate::character::attributes) async fn modify_profile_attribute_with_profile_in<C>(
     db: &C,
-    input: CharacterAttributeValueChangeInput,
-) -> Result<attribute_event::Model, CharacterDbError>
-where
-    C: ConnectionTrait,
-{
-    modify_profile_attribute_from_source_in(db, input, SOURCE_KIND_USER).await
-}
-
-pub(in crate::character) async fn modify_profile_attribute_from_source_in<C>(
-    db: &C,
+    profile: protagonist_profile::Model,
     input: CharacterAttributeValueChangeInput,
     source_kind: &str,
 ) -> Result<attribute_event::Model, CharacterDbError>
 where
     C: ConnectionTrait,
 {
-    validate_chapter_number(input.chapter_number)?;
-    let category = input.category.trim().to_string();
-    let key = require_non_empty(&input.key, "属性 key")?;
-    let cause = require_non_empty(&input.cause, "属性变更原因")?;
-    let evidence = require_non_empty(&input.evidence, "属性变更证据")?;
-    validate_category(&category)?;
-
-    let profile = require_profile_for_update(db, input.profile_id).await?;
-    let old_value = attribute_value_in_state(&profile.current_state, &category, &key)
-        .ok_or_else(|| CharacterDbError::NotFound(format!("角色属性不存在: {category}.{key}")))?;
+    let old_value = attribute_value_in_state(&profile.current_state, &input.category, &input.key)
+        .ok_or_else(|| {
+        CharacterDbError::NotFound(format!("角色属性不存在: {}.{}", input.category, input.key))
+    })?;
 
     let change_description = match input.change_description {
         Some(value) => require_non_empty(&value, "属性变更摘要")?,
-        None => default_attribute_change_description("modify", &category, &key),
+        None => default_attribute_change_description("modify", &input.category, &input.key),
     };
 
-    record_attribute_event_in(
+    record_attribute_event_with_profile_in(
         db,
+        profile,
         super::super::types::CharacterAttributeEventInsertInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
             source_kind: source_kind.to_string(),
-            category,
-            key,
+            category: input.category,
+            key: input.key,
             operation: "modify".to_string(),
             old_value,
             new_value: input.value,
             change_description,
-            cause,
-            evidence,
+            cause: input.cause,
+            evidence: input.evidence,
         },
     )
     .await
+}
+
+pub(in crate::character) async fn modify_profile_attribute_with_profile_from_source_in<C>(
+    db: &C,
+    profile: protagonist_profile::Model,
+    input: CharacterAttributeValueChangeInput,
+    source_kind: &str,
+) -> Result<attribute_event::Model, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    let input = normalize_attribute_value_change_input(input)?;
+    modify_profile_attribute_with_profile_in(db, profile, input, source_kind).await
 }
 
 pub async fn modify_profile_attribute<C>(
@@ -146,7 +162,10 @@ where
     let profile_id = input.profile_id;
     let tx = db.begin().await?;
     let profile = require_profile_for_update(&tx, profile_id).await?;
-    let event = modify_profile_attribute_in(&tx, input).await?;
+    let input = normalize_attribute_value_change_input(input)?;
+    let event =
+        modify_profile_attribute_with_profile_in(&tx, profile.clone(), input, SOURCE_KIND_USER)
+            .await?;
     tx.commit().await?;
     Ok(CharacterAttributeMutationResult { profile, event })
 }

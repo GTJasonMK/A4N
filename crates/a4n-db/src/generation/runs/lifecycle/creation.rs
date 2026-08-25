@@ -1,9 +1,9 @@
-use super::super::targets::insert_generation_run_target;
+use super::super::targets::insert_generation_run_targets;
 use super::checkpoint::normalize_checkpoint_context;
 use super::record::{insert_generation_run, root_project_id_for_project};
 use crate::generation::{
-    AttachGenerationRunTargetInput, CreateGenerationRunInput, GenerationDbError,
-    GenerationRunCheckpointContext, RecordStartedGenerationRunInput,
+    CreateGenerationRunInput, GenerationDbError, GenerationRunCheckpointContext,
+    RecordStartedGenerationRunInput,
 };
 use a4n_core::models::generation::generation_run;
 use sea_orm::ConnectionTrait;
@@ -62,18 +62,6 @@ where
         },
     )
     .await?;
-    for target in targets {
-        insert_generation_run_target(
-            db,
-            AttachGenerationRunTargetInput {
-                generation_run_id: run.id,
-                target_kind: target.target_kind,
-                target_table: target.target_table,
-                target_id: target.target_id,
-                role: "output".to_string(),
-            },
-        )
-        .await?;
-    }
+    insert_generation_run_targets(db, run.id, targets).await?;
     Ok(run)
 }

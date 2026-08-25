@@ -5,7 +5,9 @@ use sea_orm::{
 };
 
 use super::{ChapterContentEditError, StoreChapterAnalysisRecordInput};
-use crate::project::{ChapterSourceSnapshot, chapter_source_snapshot_matches};
+use crate::project::{
+    ChapterSourceSnapshot, chapter_source_snapshot_matches, chapter_source_snapshot_matches_fields,
+};
 
 pub async fn chapter_source_snapshots_match_for_update<C>(
     db: &C,
@@ -37,13 +39,27 @@ where
     if db.get_database_backend() != DbBackend::Sqlite {
         query = query.lock_exclusive();
     }
-    let actual = query.all(db).await?;
+    let actual = query
+        .select_only()
+        .column(chapter::Column::Id)
+        .column(chapter::Column::ProjectId)
+        .column(chapter::Column::ChapterNumber)
+        .column(chapter::Column::Title)
+        .column(chapter::Column::Content)
+        .column(chapter::Column::UpdatedAt)
+        .into_tuple::<(i64, i64, i32, Option<String>, String, chrono::NaiveDateTime)>()
+        .all(db)
+        .await?;
 
     Ok(actual.len() == expected.len()
         && expected
             .into_iter()
             .zip(actual.iter())
-            .all(|(source, chapter)| chapter_source_snapshot_matches(source, chapter)))
+            .all(|(source, chapter)| {
+                chapter_source_snapshot_matches_fields(
+                    source, chapter.0, chapter.1, chapter.2, &chapter.3, &chapter.4, chapter.5,
+                )
+            }))
 }
 
 pub async fn lock_chapter_analysis_source<C>(

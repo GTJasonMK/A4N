@@ -3,25 +3,92 @@
 
 export type ThemeMode = "light" | "dark";
 
+export type ThemeAppearance = "system" | "light" | "dark";
+
+export const THEME_DOCUMENT_VERSION = 1;
+export const THEME_GLOBAL_ROUTE_FAMILY = "global";
+export const THEME_ROUTE_FAMILIES = ["global", "home", "inspiration", "novel_detail", "writing_desk", "video_workspace", "video_studio", "comic_workspace", "galgame_workspace", "settings", "agents"] as const;
+export type ThemeRouteFamily = (typeof THEME_ROUTE_FAMILIES)[number];
+export const THEME_TOKEN_NAMES = ["--color-primary", "--color-primary-light", "--color-primary-dark", "--color-primary-pale", "--color-accent", "--color-accent-light", "--color-accent-dark", "--color-accent-pale", "--color-text-primary", "--color-text-secondary", "--color-text-tertiary", "--color-text-placeholder", "--color-text-disabled", "--color-bg-primary", "--color-bg-secondary", "--color-bg-tertiary", "--color-bg-card-hover", "--color-bg-muted", "--color-bg-accent", "--color-border", "--color-border-light", "--color-border-dark", "--status-success", "--status-success-bg", "--status-error", "--status-error-bg", "--status-warning", "--status-warning-bg", "--status-info", "--status-info-bg", "--color-button-text", "--color-button-text-secondary", "--shadow-card", "--shadow-card-hover", "--shadow-overlay", "--font-sans", "--font-serif", "--font-mono", "--pyqt-radius-xs", "--pyqt-radius-sm", "--pyqt-radius-md", "--pyqt-radius-lg", "--pyqt-radius-xl", "--a4n-workspace-opacity", "--a4n-panel-opacity", "--a4n-toolbar-opacity", "--a4n-card-opacity", "--a4n-control-opacity", "--a4n-dialog-opacity", "--a4n-surface-blur", "--a4n-shadow-strength"] as const;
+
+export interface ThemeBackgroundSettings {
+  blur_px: number;
+  opacity: number;
+  overlay: string;
+  overlay_opacity: number;
+  position: string;
+  resource_key: string | null;
+  size: string;
+}
+
+export interface ThemeDocument {
+  backgrounds: Record<string, ThemeBackgroundSettings>;
+  tokens: Record<string, string>;
+  version: number;
+}
+
 export interface CreateThemeInput {
-  css_variables: Record<string, string>;
+  document: ThemeDocument;
   mode: ThemeMode;
   name: string;
 }
 
 export interface UpdateThemeInput {
-  css_variables?: Record<string, string>;
+  document?: ThemeDocument;
   mode?: ThemeMode;
   name?: string;
 }
 
+export interface ThemeResourceSummary {
+  byte_size: number;
+  file_name: string;
+  file_path: string;
+  id: number;
+  mime_type: string;
+  resource_key: string;
+  theme_id: number;
+}
+
+export interface ThemeResourceUploadInput {
+  data_base64: string;
+  file_name: string;
+  mime_type: string;
+  resource_key: string;
+  theme_id: number;
+}
+
+export interface DeleteThemeResourceInput {
+  resource_id: number;
+}
+
+export interface ThemePreferenceSummary {
+  appearance: ThemeAppearance;
+  user_id: number;
+}
+
+export interface UpdateThemePreferenceInput {
+  appearance: ThemeAppearance;
+}
+
+export interface ThemePackageUploadInput {
+  data_base64: string;
+  file_name: string;
+}
+
+export interface ThemePackageExport {
+  data_base64: string;
+  file_name: string;
+  mime_type: string;
+}
+
 export interface ThemeSummary {
-  css_variables: Record<string, string>;
+  document: ThemeDocument;
   id: number;
   is_active: boolean;
   is_system_default: boolean;
   mode: ThemeMode;
   name: string;
+  resources: ThemeResourceSummary[];
   user_id: number | null;
 }
 

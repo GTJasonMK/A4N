@@ -2,6 +2,7 @@ import React from "react";
 import { AlertTriangle, Brain, RefreshCw, Sparkles, Wrench } from "lucide-react";
 import { TabBtn } from "./views";
 import type { CharacterDetailTab } from "./characterDetailUtils";
+import { useI18n } from "../../i18n";
 
 interface CharacterDetailTabsProps {
   activeTab: CharacterDetailTab;
@@ -20,31 +21,32 @@ export const CharacterDetailTabs: React.FC<CharacterDetailTabsProps> = ({
   onRefresh,
   actions,
 }) => {
+  const { t } = useI18n();
   return (
     <div className="flex min-w-0 shrink-0 items-center gap-1 border-b border-book-border/40">
       <TabBtn active={activeTab === "arc"} onClick={() => onTabChange("arc")} icon={<Brain size={12} />}>
-        弧光
+        {t("characterDetail.arc")}
       </TabBtn>
       <TabBtn
         active={activeTab === "voice"}
         onClick={() => onTabChange("voice")}
         icon={<Sparkles size={12} />}
       >
-        声音指纹
+        {t("characterDetail.voice")}
       </TabBtn>
       <TabBtn
         active={activeTab === "conflict"}
         onClick={() => onTabChange("conflict")}
         icon={<AlertTriangle size={12} />}
       >
-        {conflictCount == null ? "一致性" : `一致性 ${conflictCount}`}
+        {conflictCount == null ? t("characterDetail.consistency") : t("characterDetail.consistencyCount", { count: conflictCount })}
       </TabBtn>
       <TabBtn
         active={activeTab === "manage"}
         onClick={() => onTabChange("manage")}
         icon={<Wrench size={12} />}
       >
-        管理
+        {t("characterDetail.manage")}
       </TabBtn>
       <div className="flex-1" />
       {actions}
@@ -54,8 +56,8 @@ export const CharacterDetailTabs: React.FC<CharacterDetailTabsProps> = ({
           onClick={() => void onRefresh()}
           disabled={loadingTab != null}
           className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-          title="刷新当前页面"
-          aria-label="刷新当前页面"
+          title={t("characterDetail.refreshCurrent")}
+          aria-label={t("characterDetail.refreshCurrent")}
         >
           <RefreshCw size={12} className={loadingTab != null ? "animate-spin" : ""} />
         </button>

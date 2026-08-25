@@ -10,8 +10,8 @@ use a4n_core::models::character::{
 };
 use a4n_core::models::project::novel_project;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
-    TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult,
+    QueryFilter, QuerySelect, Set, TransactionTrait,
 };
 use serde_json::Value;
 use std::collections::HashSet;
@@ -19,8 +19,8 @@ use std::collections::HashSet;
 pub use creation::{
     create_profile, create_profile_with_generation_run, create_profile_with_generation_run_in,
 };
-pub(crate) use deletion::delete_profile_cascade_in;
 pub use deletion::delete_profile_cascade_transaction;
+pub(crate) use deletion::delete_profiles_cascade_in;
 pub use records::{profile_by_id, profile_by_project_name, profiles_by_project};
 pub(in crate::character) use records::{
     require_profile, require_profile_for_update, update_profile_current_state,
@@ -33,6 +33,14 @@ pub use types::{
     CharacterProfileCreateError, CharacterProfileCreateInput, CharacterProfileCurrentStateFields,
     CharacterProfileDeleteError, CharacterProfileDeletionSummary,
 };
+
+#[derive(Debug, FromQueryResult)]
+struct InitialProfileEditContext {
+    id: i64,
+    project_id: i64,
+    current_state: Value,
+    last_synced_chapter: i32,
+}
 
 fn initial_profile_editable(
     last_synced_chapter: i32,
@@ -50,6 +58,9 @@ where
     C: ConnectionTrait,
 {
     let project = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::LifecycleGate)
+        .into_tuple::<String>()
         .one(db)
         .await?
         .ok_or_else(|| {
@@ -61,7 +72,7 @@ where
         .map(|profile| profile.id)
         .collect::<Vec<_>>();
     let timeline_profile_ids = timeline_profile_ids(db, &profile_ids).await?;
-    let project_active = project.lifecycle_gate == crate::generation::PROJECT_GATE_ACTIVE;
+    let project_active = project == crate::generation::PROJECT_GATE_ACTIVE;
     Ok(profiles
         .into_iter()
         .map(|profile| {
@@ -91,7 +102,7 @@ where
     let expected_current_state = normalize_base_attributes(expected_current_state)?;
     let base_attributes = normalize_base_attributes(base_attributes)?;
     let tx = db.begin().await?;
-    let project = crate::project::project_by_id_for_update(&tx, project_id)
+    let project = crate::project::project_write_identity_for_update(&tx, project_id)
         .await?
         .ok_or_else(|| {
             crate::character::CharacterDbError::NotFound(format!("项目不存在: {project_id}"))
@@ -103,7 +114,22 @@ where
         });
     }
 
-    let profile = require_profile_for_update(&tx, profile_id).await?;
+    let mut profile_query = protagonist_profile::Entity::find_by_id(profile_id)
+        .select_only()
+        .column(protagonist_profile::Column::Id)
+        .column(protagonist_profile::Column::ProjectId)
+        .column(protagonist_profile::Column::CurrentState)
+        .column(protagonist_profile::Column::LastSyncedChapter);
+    if tx.get_database_backend() != DbBackend::Sqlite {
+        profile_query = profile_query.lock_exclusive();
+    }
+    let profile = profile_query
+        .into_model::<InitialProfileEditContext>()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| {
+            crate::character::CharacterDbError::NotFound(format!("角色档案不存在: {profile_id}"))
+        })?;
     if profile.project_id != project_id {
         return Err(crate::character::CharacterDbError::InvalidArgument(
             format!("角色档案不属于当前项目: profile_id={profile_id}, project_id={project_id}"),
@@ -129,7 +155,10 @@ where
     crate::generation::delete_generation_run_targets_for(&tx, "protagonist_profile", &[profile_id])
         .await?;
 
-    let mut active: protagonist_profile::ActiveModel = profile.into();
+    let mut active = protagonist_profile::ActiveModel {
+        id: Set(profile.id),
+        ..Default::default()
+    };
     active.base_attributes = Set(base_attributes.clone());
     apply_profile_current_state(&mut active, base_attributes);
     active.updated_at = Set(chrono::Utc::now().naive_utc());

@@ -26,6 +26,11 @@ vi.mock("../../../hooks/useProgressTask", () => ({
 vi.mock("../../../hooks/useGenerationTask", () => ({
   useGenerationTask: () => ({}),
 }));
+vi.mock("../../../i18n", () => ({
+  useI18n: () => ({
+    t: (key: string) => key,
+  }),
+}));
 
 import { useOutlineGeneration } from "./useOutlineGeneration";
 
@@ -67,7 +72,7 @@ describe("useOutlineGeneration", () => {
     );
 
     expect(mocks.syncOutlineMaterials).toHaveBeenCalledWith(7);
-    expect(mocks.setProgress).toHaveBeenCalledWith("正在同步资料索引…");
+    expect(mocks.setProgress).toHaveBeenCalledWith("writing.syncingMaterials");
     expect(order).toEqual(["sync", "refresh"]);
     expect(result).toEqual(["索引待恢复"]);
   });

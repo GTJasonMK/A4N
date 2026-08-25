@@ -5,7 +5,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 
-pub fn model_identity_from_config(
+pub(crate) fn model_identity_from_config(
     model: &embedding_config::Model,
 ) -> Result<EmbeddingModelIdentity, AppError> {
     let backend = embedding_provider_capabilities(&model.backend).ok_or_else(|| {

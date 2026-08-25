@@ -5,6 +5,7 @@ import { type CharacterProfile } from "../../api/character";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { describeProfile } from "./CharacterProfileDisplay";
+import { useI18n } from "../../i18n";
 
 export const CharacterProfileList: React.FC<{
   profiles: CharacterProfile[];
@@ -36,35 +37,37 @@ export const CharacterProfileList: React.FC<{
   onPreviewSyncAll,
   onSyncAll,
   onSelect,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <aside className="flex min-h-0 min-w-0 flex-col border-b border-book-border bg-book-bg-paper/45 p-3 md:border-b-0 md:border-r">
     <div className="mb-3 flex items-center gap-2">
       <p className="min-w-0 flex-1 text-small text-book-text-muted">
-        {profiles.length > 0 ? `${profiles.length} 位角色` : "尚无角色"}
+        {profiles.length > 0 ? t("characterDetail.profileCount", { count: profiles.length }) : t("characterDetail.noProfiles")}
       </p>
       <Dropdown
         items={[
           {
-            label: "刷新角色档案",
+            label: t("characterDetail.refreshProfiles"),
             icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
             disabled: loading || discovering || syncingAll,
             onClick: () => void onRefresh(),
           },
           {
-            label: "新建角色",
+            label: t("characterDetail.createProfile"),
             icon: <UserPlus size={12} />,
             disabled: discovering || syncingAll,
             onClick: onCreate,
           },
           { type: "divider" },
           {
-            label: "预览角色发现请求",
+            label: t("characterDetail.previewDiscoverProfiles"),
             icon: <Eye size={12} />,
             disabled: discovering || syncingAll || loading || aiActionBlockedReason != null,
             onClick: () => void onPreviewDiscover(),
           },
           {
-            label: "预览全部同步请求",
+            label: t("characterDetail.previewSyncAllProfiles"),
             icon: <Eye size={12} />,
             disabled:
               syncingAll ||
@@ -76,7 +79,7 @@ export const CharacterProfileList: React.FC<{
             onClick: () => void onPreviewSyncAll(),
           },
           {
-            label: "同步全部角色",
+            label: t("characterDetail.syncAllProfiles"),
             icon: <RefreshCw size={12} />,
             disabled:
               syncingAll ||
@@ -98,15 +101,15 @@ export const CharacterProfileList: React.FC<{
       >
         {syncingAll ? (
           <span className="inline-flex items-center gap-1.5">
-            <LoadingSpinner size="sm" /> 同步中…
+            <LoadingSpinner size="sm" /> {t("characterDetail.syncingProfiles")}
           </span>
         ) : discovering ? (
           <span className="inline-flex items-center gap-1.5">
-            <LoadingSpinner size="sm" /> 发现中…
+            <LoadingSpinner size="sm" /> {t("characterDetail.discoveringProfiles")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">
-            <Search size={12} /> 发现角色
+            <Search size={12} /> {t("characterDetail.discoverProfiles")}
           </span>
         )}
       </BookButton>
@@ -118,18 +121,18 @@ export const CharacterProfileList: React.FC<{
 
     {loading && profiles.length === 0 ? (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <LoadingSpinner size="sm" /> 加载中…
+        <LoadingSpinner size="sm" /> {t("characterDetail.loadingProfiles")}
       </div>
     ) : profiles.length === 0 ? (
       <div className="flex flex-col items-center gap-3 py-6 text-center">
-        <p className="text-xs text-book-text-muted">可以自动发现，也可以手动建立第一个角色。</p>
+        <p className="text-xs text-book-text-muted">{t("characterDetail.createFirstProfileHint")}</p>
         <BookButton variant="secondary" size="sm" onClick={onCreate}>
-          <UserPlus size={12} /> 新建角色
+          <UserPlus size={12} /> {t("characterDetail.createProfile")}
         </BookButton>
       </div>
     ) : (
       <ul
-        aria-label="角色档案"
+        aria-label={t("characterDetail.profileListAria")}
         className="a4n-mobile-scroll-rail custom-scrollbar flex max-w-full gap-2 overflow-x-auto pb-1 md:min-h-0 md:flex-1 md:flex-col md:overflow-x-hidden md:overflow-y-auto md:pb-0 md:pr-1"
       >
         {profiles.map((profile) => {
@@ -166,4 +169,5 @@ export const CharacterProfileList: React.FC<{
       </ul>
     )}
   </aside>
-);
+  );
+};

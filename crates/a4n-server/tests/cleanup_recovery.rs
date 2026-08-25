@@ -20,6 +20,11 @@ use std::{
 use std::convert::Infallible;
 
 use a4n_api_contract::temp_media::TempMediaDeleteRequest;
+#[cfg(any(
+    feature = "embedded-capabilities",
+    feature = "embedded-media-providers"
+))]
+use a4n_core::models::ai::generated_video;
 use a4n_core::models::{
     ai::generated_image,
     chapter::{chapter, chapter_outline, part_outline},
@@ -28,11 +33,6 @@ use a4n_core::models::{
     task::cleanup_outbox,
     user::role::{ROLE_ADMIN, ROLE_USER},
 };
-#[cfg(any(
-    feature = "embedded-capabilities",
-    feature = "embedded-media-providers"
-))]
-use a4n_core::models::ai::generated_video;
 use a4n_db::generation::{
     PersistGenerationCheckpointInput, ReserveGenerationTaskInput, persist_generation_checkpoint,
     reserve_generation_task,
@@ -281,7 +281,7 @@ async fn server_startup_restores_rejected_project_delete_gate() {
             user_id: owner.id,
             title: format!("delete recovery root {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -381,7 +381,7 @@ async fn server_process_recovers_only_registered_or_expired_cleanup() {
             user_id: user.id,
             title: "cleanup recovery".to_string(),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -560,7 +560,7 @@ async fn server_process_reports_image_record_and_cleanup_intent_failures() {
             user_id,
             title: "cleanup upload fault injection".to_string(),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -686,7 +686,7 @@ async fn server_process_kill_before_image_record_commit_leaves_no_database_state
             user_id: user.id,
             title: "cleanup upload kill window".to_string(),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -1716,7 +1716,7 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
             user_id: owner.id,
             title: format!("chapter generation {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -1942,7 +1942,7 @@ async fn server_process_streams_outline_generation_failure_terminal() {
             user_id: owner.id,
             title: format!("outline generation {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -2199,7 +2199,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
             user_id: owner.id,
             title: format!("inspiration generation success {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -2454,7 +2454,7 @@ async fn server_process_streams_image_generation_success_terminal() {
             user_id: owner.id,
             title: format!("image generation success {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -2629,7 +2629,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
             user_id: owner.id,
             title: format!("inspiration generation {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -2779,7 +2779,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
             user_id: owner.id,
             title: format!("optimize chat generation {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

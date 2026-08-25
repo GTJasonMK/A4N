@@ -78,6 +78,14 @@ npm ci
 部署目标机同样需要先运行该安装脚本，或通过 `A4N_ONNXRUNTIME_ROOT` 指向一套
 版本匹配的完整 ONNX Runtime 动态库目录。
 
+安装 RAG 使用的固定版本 Qdrant：
+
+```bash
+./scripts/dev/setup-qdrant.sh
+```
+
+`scripts/run.sh` 会复用健康的本地 Qdrant；默认地址不可达时，会自动启动上述固定版本。
+
 启动开发环境：
 
 ```bash
@@ -141,7 +149,7 @@ export A4N_DATABASE_URL='postgres://USER:PASSWORD@127.0.0.1:5432/a4n'
 export A4N_JWT_SECRET='replace-with-a-long-random-secret'
 
 cargo run -p a4n-cli -- local start
-cargo run -p a4n-cli -- --agent capabilities check
+cargo run -p a4n-cli -- --output agent-json capabilities check
 ```
 
 发布包中可直接使用：
@@ -149,7 +157,7 @@ cargo run -p a4n-cli -- --agent capabilities check
 ```bash
 a4n local start
 a4n health
-a4n --agent capabilities export
+a4n --output agent-json capabilities export
 a4n config runtime set --input @runtime-config.json
 a4n local stop
 ```

@@ -30,6 +30,7 @@ import {
   removeWritingDraft,
 } from "../../utils/writingDraft";
 import type { GenerationWordCountRange } from "./generationWordCount";
+import { formatNumber, useI18n } from "../../i18n";
 
 interface UseChapterStreamGenerationParams {
   projectId: number;
@@ -57,11 +58,6 @@ interface EditorSnapshot {
   isDirty: boolean;
 }
 
-const userFacingGenerationError = (error: unknown, fallback: string): string =>
-  extractErrorMessage(error, fallback)
-    .replace(/generation task[^\s，。]*/gi, "正文生成任务")
-    .replace(/chapter-\d+-\d+-[^\s，。]+/gi, "当前生成任务");
-
 export const useChapterStreamGeneration = ({
   projectId,
   projectIdKey,
@@ -81,6 +77,7 @@ export const useChapterStreamGeneration = ({
   onDraftRemoved,
   onShowContentTab,
 }: UseChapterStreamGenerationParams) => {
+  const { t, locale } = useI18n();
   const [generationHandle, setGenerationHandle] = useState<GenerationTaskHandle | null>(null);
   const [generationChapterNumber, setGenerationChapterNumber] = useState<number | null>(null);
   const [streamBusy, setStreamBusy] = useState(false);
@@ -135,7 +132,7 @@ export const useChapterStreamGeneration = ({
     let cancelled = false;
     streamStartBusyRef.current = true;
     setStreamBusy(true);
-    setStreamMessage("正在恢复章节生成状态…");
+    setStreamMessage(t("writing.generationRestoring"));
 
     void generationClient.listActive(projectId).then((summaries) => {
       if (
@@ -161,10 +158,10 @@ export const useChapterStreamGeneration = ({
       handledTerminalRef.current = null;
       setGenerationHandle(active.handle);
       setGenerationChapterNumber(active.chapterNumber);
-      setStreamMessage(`已恢复第 ${active.chapterNumber} 章生成任务`);
+      setStreamMessage(t("writing.generationRestored", { chapter: active.chapterNumber }));
     }).catch((error) => {
       if (cancelled || projectIdRef.current !== projectId) return;
-      const message = userFacingGenerationError(error, "恢复章节生成状态失败");
+      const message = extractErrorMessage(error, t("writing.generationRestoreFailed"));
       setStreamMessage(message);
       addToast(message, "error");
     }).finally(() => {
@@ -176,7 +173,7 @@ export const useChapterStreamGeneration = ({
     return () => {
       cancelled = true;
     };
-  }, [addToast, projectId]);
+  }, [addToast, projectId, t]);
 
   const streamTaskId = generationHandle?.task_id ?? null;
   const streamTaskChapterNumber = generationChapterNumber;
@@ -186,30 +183,32 @@ export const useChapterStreamGeneration = ({
   const consistencyReadOnly = consistencyReadOnlyChapterNumber === activeNumber;
   const activeChapterBusy = activeChapterGenerating || streamingActiveChapter || consistencyReadOnly;
   const activeChapterGeneratingMessage = consistencyReadOnly
-    ? "正式章节一致性校验异常，当前仅供只读核对；切换章节后可重新进入编辑"
-    : "当前章节正在生成中，请等待完成后再操作";
+    ? t("writing.generationConsistencyReadonly")
+    : t("writing.generationActive");
 
   const generationBlockReason = useMemo(() => {
     if (projectBlockedReason) return projectBlockedReason;
-    if (!activeNumber) return "请先选择章节";
+    if (!activeNumber) return t("writing.selectChapterFirst");
     if (consistencyReadOnly) return activeChapterGeneratingMessage;
     if (streamTaskId) {
       return streamTaskChapterNumber === activeNumber
-        ? "当前章节正在生成中"
-        : `第 ${streamTaskChapterNumber ?? "其他"} 章正在生成中，请等待完成后再启动新生成`;
+        ? t("writing.generationActive")
+        : t("writing.generationOtherChapter", {
+            chapter: streamTaskChapterNumber ?? t("common.unknown"),
+          });
     }
-    if (activeChapter?.status === "generating") return "当前章节正在生成中";
+    if (activeChapter?.status === "generating") return t("writing.generationActive");
     const hasBrief = Boolean(writingNotes.trim());
     const hasDerivedOutline = isDerivedChapterOutline(activeOutline);
     const hasUsableOutline = Boolean(activeOutline && !hasDerivedOutline);
     if (!hasUsableOutline && !hasBrief) {
       if (hasDerivedOutline) {
-        return "当前章纲来自自动分析，不能直接作为未来计划；请填写本章创作简报，或编辑章纲后接管为计划";
+        return t("writing.generatedOutlineNotPlan");
       }
-      return "请填写本章创作简报，或先补充章纲";
+      return t("writing.briefOrOutlineRequired");
     }
     if (hasUsableOutline && !activeOutlineText && !hasBrief) {
-      return "当前章纲缺少可用内容，请填写本章创作简报";
+      return t("writing.outlineContentRequired");
     }
     return null;
   }, [
@@ -223,6 +222,7 @@ export const useChapterStreamGeneration = ({
     streamTaskChapterNumber,
     streamTaskId,
     writingNotes,
+    t,
   ]);
   const canGenerateChapter = !generationBlockReason && !wordCountRangeError;
 
@@ -304,6 +304,7 @@ export const useChapterStreamGeneration = ({
         );
 
         const recovery = resolveFormalResultRecovery({
+          t,
           recoveryIssue,
           consistent,
           hasPersisted: Boolean(persisted && chapterNumber === persisted.chapter_number),
@@ -334,17 +335,17 @@ export const useChapterStreamGeneration = ({
             onDraftRemoved();
           }
           const completionSummary =
-            generationTask.completionSummary?.trim() || "章节正文已保存";
+            generationTask.completionSummary?.trim() || t("writing.generationSaved");
           if (persisted?.derived_sync_status === "failed") {
-            message = "章节正文已保存，但派生资料同步失败；可在章节顶部重试";
+            message = t("writing.generationSyncFailed");
             toastType = chapterContentCommitToastType(persisted.derived_sync_status);
           } else if (persisted?.derived_sync_status === "running") {
             message = completionSummary;
             toastType = "info";
           } else {
             message = completionSummary.replace(
-              "派生资料正在同步",
-              "派生资料已同步",
+              t("writing.generationSyncing"),
+              t("writing.generationSynced"),
             );
             toastType = "success";
           }
@@ -354,10 +355,10 @@ export const useChapterStreamGeneration = ({
         if (!isCurrentTask()) return;
         restoreSnapshot();
         message = status === "cancelled"
-          ? "章节生成已取消"
+          ? t("writing.generationCancelled")
           : status === "interrupted"
-            ? "章节生成已中断"
-            : errorMessage || "章节正文生成失败";
+            ? t("writing.generationInterrupted")
+            : errorMessage || t("writing.generationFailed");
         toastType = status === "cancelled" ? "info" : "error";
       }
 
@@ -374,7 +375,7 @@ export const useChapterStreamGeneration = ({
         );
       }
       restoreSnapshot();
-      const message = userFacingGenerationError(error, "章节生成结果校验失败");
+      const message = extractErrorMessage(error, t("writing.generationResultCheckFailed"));
       clearStreamState(message);
       addToast(message, "error");
     });
@@ -394,11 +395,12 @@ export const useChapterStreamGeneration = ({
     projectIdKey,
     reloadChapters,
     setEditorState,
+    t,
   ]);
 
   const handleStreamStart = useCallback(async () => {
     if (streamStartBusyRef.current || generationHandleRef.current) {
-      addToast(generationBlockReason ?? "章节生成中，请等待完成后再操作", "error");
+      addToast(generationBlockReason ?? t("writing.generationBlocked"), "error");
       return;
     }
     streamStartBusyRef.current = true;
@@ -409,22 +411,32 @@ export const useChapterStreamGeneration = ({
         return;
       }
       if (activeNumber == null) {
-        addToast("请先选择章节", "error");
+        addToast(t("writing.selectChapterFirst"), "error");
         return;
       }
       if (wordCountRangeError || !wordCountRange) {
-        addToast(wordCountRangeError ?? "正文字数范围无效", "error");
+        addToast(wordCountRangeError ?? t("writing.wordCountInvalid"), "error");
         return;
       }
 
       const chapterNumber = activeNumber;
       const ok = await confirmDialog({
-        title: activeChapter?.content?.trim() ? "重新生成章节正文" : "生成章节正文",
+        title: activeChapter?.content?.trim()
+          ? t("writing.regenerateChapterTitle")
+          : t("writing.generateChapterTitle"),
         message: activeChapter?.content?.trim()
-          ? `确认重新生成第 ${chapterNumber} 章正文？当前正文会被新生成内容覆盖。\n本次正文字数范围：${wordCountRange.min.toLocaleString()}-${wordCountRange.max.toLocaleString()} 字。`
-          : `确认生成第 ${chapterNumber} 章正文？\n本次正文字数范围：${wordCountRange.min.toLocaleString()}-${wordCountRange.max.toLocaleString()} 字。`,
-        confirmText: activeChapter?.content?.trim() ? "重新生成" : "生成",
-        cancelText: "取消",
+          ? t("writing.regenerateChapterConfirm", {
+              chapter: chapterNumber,
+              min: formatNumber(wordCountRange.min, locale),
+              max: formatNumber(wordCountRange.max, locale),
+            })
+          : t("writing.generateChapterConfirm", {
+              chapter: chapterNumber,
+              min: formatNumber(wordCountRange.min, locale),
+              max: formatNumber(wordCountRange.max, locale),
+            }),
+        confirmText: activeChapter?.content?.trim() ? t("writing.regenerate") : t("writing.generate"),
+        cancelText: t("common.cancel"),
         dialogType: activeChapter?.content?.trim() ? "warning" : "normal",
       });
       if (!ok || projectIdRef.current !== projectId) return;
@@ -439,7 +451,7 @@ export const useChapterStreamGeneration = ({
       generationChapterRef.current = chapterNumber;
       setGenerationChapterNumber(chapterNumber);
       setStreamBusy(true);
-      setStreamMessage("正在启动正文生成…");
+      setStreamMessage(t("writing.startingGeneration"));
       onShowContentTab();
 
       const input = {
@@ -458,12 +470,12 @@ export const useChapterStreamGeneration = ({
       if (projectIdRef.current !== projectId) return;
       generationHandleRef.current = handle;
       setGenerationHandle(handle);
-      setStreamMessage("正文生成已启动");
-      addToast("正文生成已启动", "success");
+      setStreamMessage(t("writing.generationStarted"));
+      addToast(t("writing.generationStarted"), "success");
     } catch (error) {
       if (projectIdRef.current === projectId) {
         clearStreamState(null);
-        addToast(userFacingGenerationError(error, "启动正文生成失败"), "error");
+        addToast(extractErrorMessage(error, t("writing.startGenerationFailed")), "error");
       }
     } finally {
       streamStartBusyRef.current = false;
@@ -483,26 +495,27 @@ export const useChapterStreamGeneration = ({
     wordCountRange,
     wordCountRangeError,
     writingNotes,
+    t,
   ]);
 
   const handleStreamCancel = useCallback(async () => {
     if (streamCancelBusyRef.current) {
-      addToast("正在取消章节生成", "error");
+      addToast(t("writing.cancelling"), "error");
       return;
     }
     const handle = generationHandleRef.current ?? generationHandle;
     if (!handle) return;
     streamCancelBusyRef.current = true;
     setStreamBusy(true);
-    setStreamMessage("正在取消章节生成…");
+    setStreamMessage(t("writing.cancellingGeneration"));
     try {
       await generationClient.cancel(handle);
-      setStreamMessage("已发送取消请求，正在等待任务停止…");
-      addToast("已发送取消请求", "success");
+      setStreamMessage(t("writing.cancelRequested"));
+      addToast(t("writing.cancelSent"), "success");
     } catch (error) {
       streamCancelBusyRef.current = false;
       setStreamBusy(false);
-      addToast(extractErrorMessage(error, "取消失败"), "error");
+      addToast(extractErrorMessage(error, t("writing.cancelFailed")), "error");
     }
   }, [addToast, generationHandle]);
 

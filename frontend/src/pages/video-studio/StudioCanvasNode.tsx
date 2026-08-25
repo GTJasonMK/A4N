@@ -1,10 +1,13 @@
 import React from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import {
+  CANVAS_TEXT_OUTPUT_KIND_DIALOGUE,
   CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT,
+  CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN,
   CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT,
   CANVAS_TEXT_OUTPUT_KIND_STORYBOARD,
   CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT,
+  CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION,
 } from "../../api/canvas";
 import { loadVideoScrubPlaybackData } from "../../api/video";
 import {
@@ -20,6 +23,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { toMediaSrc } from "../../utils/mediaSrc";
+import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../i18n";
 import type { StudioNode, StudioNodeData, StudioTemplateIcon } from "./types";
 import { configNumber, configObject, configPositiveNumber, configText } from "./canvasConfig";
 import {
@@ -28,6 +32,7 @@ import {
   parseGenerateVideoInputMode,
   studioCategoryLabel,
   studioCategoryTitle,
+  studioPortLabel,
   studioNodeInputPortsForData,
   studioNodeOutputPortsForData,
   type StudioNodeContract,
@@ -45,31 +50,32 @@ type StudioNodeTemplate = {
   icon: StudioTemplateIcon;
 };
 
-export function buildNodeTemplateGroups(contracts: StudioNodeContract[]): Array<{ title: string; items: StudioNodeTemplate[] }> {
+export function buildNodeTemplateGroups(contracts: StudioNodeContract[], t: MessageTranslator): Array<{ title: string; items: StudioNodeTemplate[] }> {
   return STUDIO_NODE_CATEGORY_ORDER.map((category) => ({
-    title: studioCategoryTitle(category),
+    title: studioCategoryTitle(category, t),
     items: contracts
       .filter((contract) => contract.category === category)
       .map((contract) => ({
         kind: contract.kind,
-        label: contract.label,
-        icon: nodeKindMeta(contract.kind).icon,
+        label: nodeKindMeta(contract.kind, t).label,
+        icon: nodeKindMeta(contract.kind, t).icon,
       })),
   })).filter((group) => group.items.length > 0);
 }
 
 const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isConnectable }) => {
-  const meta = nodeKindMeta(data.nodeKind);
+  const { locale, t } = useI18n();
+  const meta = nodeKindMeta(data.nodeKind, t);
   const contract = useStudioNodeContract(data.nodeKind);
   const Icon = meta.icon;
   const previewSrc = nodePreviewSrc(data);
-  const videoPreview = previewSrc ? null : nodeVideoPreview(data);
-  const issues = nodeValidationIssues(data);
+  const videoPreview = previewSrc ? null : nodeVideoPreview(data, t);
+  const issues = nodeValidationIssues(data, t);
   const inputPorts = contract
-    ? studioNodeInputPortsForData(data, contract).map((port) => ({ id: port.id, label: port.label }))
+    ? studioNodeInputPortsForData(data, contract).map((port) => ({ id: port.id, label: studioPortLabel(data.nodeKind, port, t) }))
     : [];
   const outputPorts = contract
-    ? studioNodeOutputPortsForData(data, contract).map((port) => ({ id: port.id, label: port.label }))
+    ? studioNodeOutputPortsForData(data, contract).map((port) => ({ id: port.id, label: studioPortLabel(data.nodeKind, port, t) }))
     : [];
 
   return (
@@ -112,21 +118,21 @@ const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isC
           <Icon size={14} />
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-xs font-semibold text-book-text-main" title={nodeDisplayTitle(data)}>
-            {nodeDisplayTitle(data)}
+          <div className="truncate text-xs font-semibold text-book-text-main" title={nodeDisplayTitle(data, t)}>
+            {nodeDisplayTitle(data, t)}
           </div>
           <div className="truncate text-caption text-book-text-muted">
-            {contract ? studioCategoryLabel(contract.category) : "未知节点"}
+            {contract ? studioCategoryLabel(contract.category, t) : t("video.canvas.unknownNode")}
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <span className={`a4n-studio-state-pill ${nodeStateClass(data.state)}`}>
-            {stateLabel(data.state)}
+            {stateLabel(data.state, t)}
           </span>
           {data.runStatus ? (
             <span className={`a4n-studio-run-pill a4n-studio-run-pill-${data.runStatus}`}>
-              {nodeRunStatusLabel(data.runStatus)}
-              {typeof data.runElapsedSeconds === "number" ? ` ${formatNodeRunElapsed(data.runElapsedSeconds)}` : ""}
+              {nodeRunStatusLabel(data.runStatus, t)}
+              {typeof data.runElapsedSeconds === "number" ? ` ${formatNodeRunElapsed(data.runElapsedSeconds, locale, t)}` : ""}
             </span>
           ) : null}
         </div>
@@ -141,10 +147,10 @@ const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isC
       ) : (
         <div className="flex min-h-[58px] flex-col gap-2 px-2 py-2">
           <p className="line-clamp-2 flex-1 text-small leading-4 text-book-text-sub">
-            {nodeBodyPreview(data)}
+            {nodeBodyPreview(data, t)}
           </p>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-caption text-book-text-muted">
-            <span className="min-w-0 truncate">{nodeSubtitle(data)}</span>
+            <span className="min-w-0 truncate">{nodeSubtitle(data, t)}</span>
             <span className="font-mono">{nodeDimensionLabel(data)}</span>
           </div>
         </div>
@@ -154,7 +160,7 @@ const StudioCanvasNode: React.FC<NodeProps<StudioNode>> = ({ data, selected, isC
         <div className="border-t border-warning/45 bg-warning-bg px-2 py-1 text-caption text-warning">
           <div className="flex items-center gap-1">
             <AlertTriangle size={10} />
-            <span className="truncate" title={issues.join("；")}>
+            <span className="truncate" title={issues.join(t("common.summarySeparator"))}>
               {issues[0]}
             </span>
           </div>
@@ -173,6 +179,7 @@ type StudioNodeVideoPreviewValue = {
 };
 
 const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }> = ({ preview }) => {
+  const { t } = useI18n();
   const [src, setSrc] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [failed, setFailed] = React.useState(false);
@@ -234,12 +241,12 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
       ) : null}
       {loading ? (
         <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-caption text-book-text-muted">
-          加载视频预览
+          {t("video.canvas.preview.loadingVideo")}
         </div>
       ) : null}
       {failed || (!src && !loading) ? (
         <div className="flex h-full flex-col justify-center gap-1 px-2 text-caption text-book-text-muted">
-          <span className="truncate">视频已生成</span>
+          <span className="truncate">{t("video.canvas.preview.videoGenerated")}</span>
           <span className="truncate font-mono" title={preview.filePath}>
             {preview.filePath.split("/").pop() || preview.filePath}
           </span>
@@ -249,122 +256,125 @@ const StudioNodeVideoPreview: React.FC<{ preview: StudioNodeVideoPreviewValue }>
   );
 };
 
-export function edgeRoleLabel(role: string): string {
+export function edgeRoleLabel(role: string, t: MessageTranslator): string {
   switch (role) {
     case "context":
-      return "上下文";
+      return t("video.canvas.edgeRole.context");
     case "first_frame":
-      return "首帧";
+      return t("video.canvas.edgeRole.firstFrame");
     case "end_frame":
-      return "尾帧";
+      return t("video.canvas.edgeRole.endFrame");
     case "style_reference":
-      return "参考图";
+      return t("video.canvas.edgeRole.styleReference");
     case "source_video":
-      return "源视频";
+      return t("video.canvas.edgeRole.sourceVideo");
     case "assembly_clip":
-      return "片段";
+      return t("video.canvas.edgeRole.assemblyClip");
     case "final_video":
-      return "最终视频";
+      return t("video.canvas.edgeRole.finalVideo");
     default:
-      return role || "连线";
+      return role || t("video.canvas.edgeRole.connection");
   }
 }
 
-export function nodeKindMeta(kind: string): {
+export function nodeKindMeta(kind: string, t: MessageTranslator): {
   label: string;
   icon: StudioTemplateIcon;
   tone: string;
 } {
   switch (kind) {
     case "TextInputNode":
-      return { label: "文本输入", icon: Type, tone: "a4n-studio-node-text" };
+      return { label: t("video.canvas.node.textInput"), icon: Type, tone: "a4n-studio-node-text" };
     case "ImageInputNode":
-      return { label: "图片输入", icon: Image, tone: "a4n-studio-node-media" };
+      return { label: t("video.canvas.node.imageInput"), icon: Image, tone: "a4n-studio-node-media" };
     case "VideoInputNode":
-      return { label: "视频输入", icon: Film, tone: "a4n-studio-node-video" };
+      return { label: t("video.canvas.node.videoInput"), icon: Film, tone: "a4n-studio-node-video" };
     case "AudioInputNode":
-      return { label: "音频输入", icon: Music, tone: "a4n-studio-node-audio" };
+      return { label: t("video.canvas.node.audioInput"), icon: Music, tone: "a4n-studio-node-audio" };
     case "RenderTextNode":
-      return { label: "文本模板", icon: Wand2, tone: "a4n-studio-node-action" };
+      return { label: t("video.canvas.node.renderText"), icon: Wand2, tone: "a4n-studio-node-action" };
     case "LlmTextNode":
-      return { label: "LLM文本处理", icon: Wand2, tone: "a4n-studio-node-action" };
+      return { label: t("video.canvas.node.llmText"), icon: Wand2, tone: "a4n-studio-node-action" };
     case "GenerateImageNode":
-      return { label: "生成图片", icon: Image, tone: "a4n-studio-node-generate" };
+      return { label: t("video.canvas.node.generateImage"), icon: Image, tone: "a4n-studio-node-generate" };
     case "GenerateVideoNode":
-      return { label: "生成视频", icon: Film, tone: "a4n-studio-node-generate" };
+      return { label: t("video.canvas.node.generateVideo"), icon: Film, tone: "a4n-studio-node-generate" };
     case "ExtractFrameNode":
-      return { label: "抽取帧", icon: Image, tone: "a4n-studio-node-action" };
+      return { label: t("video.canvas.node.extractFrame"), icon: Image, tone: "a4n-studio-node-action" };
     case "TrimVideoNode":
-      return { label: "裁剪视频", icon: Scissors, tone: "a4n-studio-node-action" };
+      return { label: t("video.canvas.node.trimVideo"), icon: Scissors, tone: "a4n-studio-node-action" };
     case "AssembleVideoNode":
-      return { label: "组装视频", icon: Film, tone: "a4n-studio-node-assemble" };
+      return { label: t("video.canvas.node.assembleVideo"), icon: Film, tone: "a4n-studio-node-assemble" };
     case "TextProbeNode":
-      return { label: "文本探针", icon: Eye, tone: "a4n-studio-node-review" };
+      return { label: t("video.canvas.node.textProbe"), icon: Eye, tone: "a4n-studio-node-review" };
     case "ImageProbeNode":
-      return { label: "图片探针", icon: Eye, tone: "a4n-studio-node-review" };
+      return { label: t("video.canvas.node.imageProbe"), icon: Eye, tone: "a4n-studio-node-review" };
     case "VideoProbeNode":
-      return { label: "视频探针", icon: Eye, tone: "a4n-studio-node-review" };
+      return { label: t("video.canvas.node.videoProbe"), icon: Eye, tone: "a4n-studio-node-review" };
     case "AudioProbeNode":
-      return { label: "音频探针", icon: Eye, tone: "a4n-studio-node-review" };
+      return { label: t("video.canvas.node.audioProbe"), icon: Eye, tone: "a4n-studio-node-review" };
     case "TextOutputNode":
-      return { label: "文本输出", icon: Type, tone: "a4n-studio-node-assemble" };
+      return { label: t("video.canvas.node.textOutput"), icon: Type, tone: "a4n-studio-node-assemble" };
     case "ImageOutputNode":
-      return { label: "图片输出", icon: Download, tone: "a4n-studio-node-assemble" };
+      return { label: t("video.canvas.node.imageOutput"), icon: Download, tone: "a4n-studio-node-assemble" };
     case "VideoOutputNode":
-      return { label: "视频输出", icon: Download, tone: "a4n-studio-node-assemble" };
+      return { label: t("video.canvas.node.videoOutput"), icon: Download, tone: "a4n-studio-node-assemble" };
     case "AudioOutputNode":
-      return { label: "音频输出", icon: Download, tone: "a4n-studio-node-assemble" };
+      return { label: t("video.canvas.node.audioOutput"), icon: Download, tone: "a4n-studio-node-assemble" };
     default:
       return { label: kind, icon: Layers3, tone: "a4n-studio-node-generic" };
   }
 }
 
-export function nodeDisplayTitle(data: StudioNodeData): string {
+export function nodeDisplayTitle(data: StudioNodeData, t: MessageTranslator): string {
   const title = configText(data.config, "title").trim();
   if (title) return title;
   if (data.label && data.label !== data.nodeKind) return data.label;
-  return nodeKindMeta(data.nodeKind).label;
+  return nodeKindMeta(data.nodeKind, t).label;
 }
 
-export function canvasDataTypeLabel(value: string): string {
+export function canvasDataTypeLabel(value: string, t: MessageTranslator): string {
   const normalized = value.trim().toLowerCase();
-  const labels: Record<string, string> = {
-    text: "文本",
-    image: "图片",
-    video: "视频",
-    audio: "音频",
-    media: "媒体",
-    json: "结构数据",
-    any: "任意内容",
-    [CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT]: "图片提示词",
-    [CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT]: "视频提示词",
-    [CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT]: "镜头脚本",
-    [CANVAS_TEXT_OUTPUT_KIND_STORYBOARD]: "分镜",
-  };
-  return labels[normalized] ?? (normalized || "未知内容");
+  switch (normalized) {
+    case "text": return t("video.canvas.dataType.text");
+    case "image": return t("video.canvas.dataType.image");
+    case "video": return t("video.canvas.dataType.video");
+    case "audio": return t("video.canvas.dataType.audio");
+    case "media": return t("video.canvas.dataType.media");
+    case "json": return t("video.canvas.dataType.json");
+    case "any": return t("video.canvas.dataType.any");
+    case CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT: return t("video.canvas.dataType.imagePrompt");
+    case CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT: return t("video.canvas.dataType.videoPrompt");
+    case CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT: return t("video.canvas.dataType.shotScript");
+    case CANVAS_TEXT_OUTPUT_KIND_STORYBOARD: return t("video.canvas.dataType.storyboard");
+    case CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION: return t("video.canvas.inspector.visualDescription");
+    case CANVAS_TEXT_OUTPUT_KIND_DIALOGUE: return t("video.canvas.inspector.dialogue");
+    case CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN: return t("video.canvas.inspector.rhythmPlan");
+    default: return normalized || t("video.canvas.dataType.unknown");
+  }
 }
 
-function canvasReferenceTypeLabel(value: string): string {
-  const labels: Record<string, string> = {
-    generated_image: "图片",
-    generated_video: "视频",
-    media_asset: "媒体",
-    canvas_text_asset: "文本",
-  };
-  return labels[value] ?? "资源";
+function canvasReferenceTypeLabel(value: string, t: MessageTranslator): string {
+  switch (value) {
+    case "generated_image": return t("video.canvas.reference.image");
+    case "generated_video": return t("video.canvas.reference.video");
+    case "media_asset": return t("video.canvas.reference.media");
+    case "canvas_text_asset": return t("video.canvas.reference.text");
+    default: return t("video.canvas.reference.resource");
+  }
 }
 
-function nodeSubtitle(data: StudioNodeData): string {
+function nodeSubtitle(data: StudioNodeData, t: MessageTranslator): string {
   const fileName = configText(data.config, "file_path").split("/").pop();
   if (fileName) return fileName;
   const dimension = nodeDimensionLabel(data);
   if (dimension !== "-") return dimension;
-  if (data.refType) return `已绑定${canvasReferenceTypeLabel(data.refType)}`;
+  if (data.refType) return t("video.canvas.body.bound", { type: canvasReferenceTypeLabel(data.refType, t) });
   const prompt = configText(data.config, "prompt").trim();
   if (prompt) return prompt;
   const observedType = configText(data.config, "observed_data_type").trim();
-  if (observedType) return `已观察：${canvasDataTypeLabel(observedType)}`;
-  return nodeKindMeta(data.nodeKind).label;
+  if (observedType) return t("video.canvas.body.observed", { type: canvasDataTypeLabel(observedType, t) });
+  return nodeKindMeta(data.nodeKind, t).label;
 }
 
 export function nodePreviewSrc(data: StudioNodeData): string | null {
@@ -379,7 +389,7 @@ export function nodePreviewSrc(data: StudioNodeData): string | null {
   return null;
 }
 
-function nodeVideoPreview(data: StudioNodeData): StudioNodeVideoPreviewValue | null {
+function nodeVideoPreview(data: StudioNodeData, t: MessageTranslator): StudioNodeVideoPreviewValue | null {
   if (!nodeKindCanShowVideoPreview(data.nodeKind)) return null;
   const output = configObject(data.config, "output");
   const filePath = firstNonEmptyString([
@@ -394,7 +404,7 @@ function nodeVideoPreview(data: StudioNodeData): StudioNodeVideoPreviewValue | n
   return {
     filePath,
     generatedVideoId,
-    title: nodeDisplayTitle(data),
+    title: nodeDisplayTitle(data, t),
   };
 }
 
@@ -402,8 +412,21 @@ function nodeKindCanShowVideoPreview(kind: string): boolean {
   return kind === "VideoInputNode" || kind === "VideoOutputNode" || kind === "VideoProbeNode";
 }
 
-function nodeBodyPreview(data: StudioNodeData): string {
-  const operationPreview = operationNodeBodyPreview(data);
+function frameKindLabel(value: string, t: MessageTranslator): string {
+  switch (value) {
+    case "first":
+      return t("video.canvas.inspector.firstFrame");
+    case "tail":
+      return t("video.canvas.inspector.tailFrame");
+    case "time":
+      return t("video.canvas.inspector.specifiedTime");
+    default:
+      return value || t("video.canvas.dataType.unknown");
+  }
+}
+
+function nodeBodyPreview(data: StudioNodeData, t: MessageTranslator): string {
+  const operationPreview = operationNodeBodyPreview(data, t);
   if (operationPreview) return operationPreview;
   const observedText = configText(data.config, "observed_text").trim();
   if (observedText) return observedText;
@@ -417,42 +440,46 @@ function nodeBodyPreview(data: StudioNodeData): string {
   if (instruction) return instruction;
   const filePath = configText(data.config, "file_path").trim();
   if (filePath) return filePath;
-  return "等待配置";
+  return t("video.canvas.body.waitingConfig");
 }
 
-function operationNodeBodyPreview(data: StudioNodeData): string | null {
+function operationNodeBodyPreview(data: StudioNodeData, t: MessageTranslator): string | null {
   switch (data.nodeKind) {
     case "RenderTextNode":
-      return "按模板生成文本";
+      return t("video.canvas.body.renderText");
     case "LlmTextNode": {
       const outputKind = configText(data.config, "output_kind");
       const instruction = configText(data.config, "instruction").trim();
-      return instruction || (outputKind ? `输出类型：${outputKind}` : "缺少输出类型");
+      return instruction || (outputKind
+        ? t("video.canvas.body.inputMode", { mode: canvasDataTypeLabel(outputKind, t) })
+        : t("video.canvas.body.missingOutputType"));
     }
     case "GenerateImageNode":
-      return "接收上游提示词生成图片";
+      return t("video.canvas.body.generateImage");
     case "GenerateVideoNode":
       {
         const mode = parseGenerateVideoInputMode(data.config.input_mode);
-        return mode ? `输入模式：${generateVideoInputModeLabel(mode)}` : "缺少输入模式";
+        return mode
+          ? t("video.canvas.body.inputMode", { mode: generateVideoInputModeLabel(mode, t) })
+          : t("video.canvas.body.missingInputMode");
       }
     case "ExtractFrameNode":
-      return `抽帧：${configText(data.config, "frame_kind")}`;
+      return t("video.canvas.body.extractFrame", { kind: frameKindLabel(configText(data.config, "frame_kind"), t) });
     case "TrimVideoNode": {
       const start = configNumber(data.config, "start_secs");
       const end = configNumber(data.config, "end_secs");
-      return `裁剪：${start}s - ${end}s`;
+      return t("video.canvas.body.trim", { start, end });
     }
     case "AssembleVideoNode":
-      return "接收视频片段并输出视频";
+      return t("video.canvas.body.assembleVideo");
     case "TextProbeNode":
-      return configText(data.config, "observed_text").trim() || "观察并透传文本";
+      return configText(data.config, "observed_text").trim() || t("video.canvas.body.textProbe");
     case "ImageProbeNode":
-      return "观察并透传图片";
+      return t("video.canvas.body.imageProbe");
     case "VideoProbeNode":
-      return "观察并透传视频";
+      return t("video.canvas.body.videoProbe");
     case "AudioProbeNode":
-      return "观察并透传音频";
+      return t("video.canvas.body.audioProbe");
     default:
       return null;
   }
@@ -468,29 +495,29 @@ function nodeDimensionLabel(data: StudioNodeData): string {
   return parts.length ? parts.join(" / ") : "-";
 }
 
-export function nodeValidationIssues(data: StudioNodeData): string[] {
+export function nodeValidationIssues(data: StudioNodeData, t: MessageTranslator): string[] {
   const issues: string[] = [];
   if (data.state === "missing") {
-    issues.push(configText(data.config, "missing_reason") || "引用资产缺失");
+    issues.push(configText(data.config, "missing_reason") || t("video.canvas.issue.missingAsset"));
   }
   if (defaultRefTypeForNode(data.nodeKind) && !data.refId) {
-    issues.push("缺少媒体资产引用");
+    issues.push(t("video.canvas.issue.missingMediaReference"));
   }
   return issues;
 }
 
-export function stateLabel(state: string): string {
+export function stateLabel(state: string, t: MessageTranslator): string {
   switch (state) {
     case "ready":
-      return "就绪";
+      return t("video.canvas.state.ready");
     case "running":
-      return "运行";
+      return t("video.canvas.state.running");
     case "completed":
-      return "完成";
+      return t("video.canvas.state.completed");
     case "failed":
-      return "失败";
+      return t("video.canvas.state.failed");
     case "missing":
-      return "缺失";
+      return t("video.canvas.state.missing");
     default:
       return state || "-";
   }
@@ -510,23 +537,26 @@ export function nodeStateClass(state: string): string {
   }
 }
 
-function nodeRunStatusLabel(status: NonNullable<StudioNodeData["runStatus"]>): string {
+function nodeRunStatusLabel(status: NonNullable<StudioNodeData["runStatus"]>, t: MessageTranslator): string {
   switch (status) {
     case "running":
-      return "运行中";
+      return t("video.canvas.state.runRunning");
     case "completed":
-      return "已完成";
+      return t("video.canvas.state.runCompleted");
     case "failed":
-      return "失败";
+      return t("video.canvas.state.failed");
   }
 }
 
-function formatNodeRunElapsed(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds < 0) return "0s";
-  if (seconds < 60) return `${Math.floor(seconds)}s`;
+function formatNodeRunElapsed(seconds: number, locale: Locale, t: MessageTranslator): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return t("video.postprocess.seconds", { count: formatNumber(0, locale) });
+  if (seconds < 60) return t("video.postprocess.seconds", { count: formatNumber(Math.floor(seconds), locale) });
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
-  return `${minutes}m${remainingSeconds.toString().padStart(2, "0")}s`;
+  return t("video.postprocess.minutesSeconds", {
+    minutes: formatNumber(minutes, locale),
+    seconds: formatNumber(remainingSeconds, locale, { minimumIntegerDigits: 2 }),
+  });
 }
 
 function portOffset(index: number, total: number): string {

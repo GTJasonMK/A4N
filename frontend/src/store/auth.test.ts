@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   readCurrentSessionId: vi.fn<() => string | null>(),
   readCurrentUserId: vi.fn<() => number | null>(),
   getCurrentUser: vi.fn(),
+  updateUserProfile: vi.fn(),
 }));
 
 vi.mock("../api", () => ({
@@ -27,6 +28,7 @@ vi.mock("../api/authStorage", () => ({
 
 vi.mock("../api/auth", () => ({
   getCurrentUser: mocks.getCurrentUser,
+  updateUserProfile: mocks.updateUserProfile,
   loginUser: vi.fn(),
   logoutUser: vi.fn(),
   oauth2Callback: vi.fn(),
@@ -49,6 +51,7 @@ const user: UserSummary = {
   last_login_at: null,
   oauth_provider: null,
   oauth_subject: null,
+  page_cli_enabled: false,
   role: "user",
   updated_at: null,
   username: "alice",
@@ -63,6 +66,7 @@ describe("auth store initialization", () => {
     mocks.readCurrentSessionId.mockReset().mockReturnValue(null);
     mocks.readCurrentUserId.mockReset().mockReturnValue(null);
     mocks.getCurrentUser.mockReset();
+    mocks.updateUserProfile.mockReset();
   });
 
   it("uses the verified current user as the only authenticated bootstrap state", async () => {
@@ -100,5 +104,17 @@ describe("auth store initialization", () => {
       user: null,
       error: null,
     });
+  });
+
+  it("updates the Page CLI account switch together with the verified user", async () => {
+    const updated = { ...user, page_cli_enabled: true };
+    useAuthStore.setState({ initialized: true, user, error: null });
+    mocks.updateUserProfile.mockResolvedValue(updated);
+
+    await expect(useAuthStore.getState().updateProfile({ page_cli_enabled: true }))
+      .resolves.toEqual(updated);
+
+    expect(mocks.updateUserProfile).toHaveBeenCalledWith({ page_cli_enabled: true });
+    expect(useAuthStore.getState().user).toEqual(updated);
   });
 });

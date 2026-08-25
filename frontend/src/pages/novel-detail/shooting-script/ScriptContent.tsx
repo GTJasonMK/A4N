@@ -8,30 +8,33 @@ import {
   shootingCoverageLabel,
   shootingShotSizeLabel,
 } from "../../../utils/shootingScriptPresentation";
+import { formatNumber, useI18n } from "../../../i18n";
 
 export const ScriptContent: React.FC<{
   script: ChapterShootingScriptV1;
-}> = ({ script }) => (
+}> = ({ script }) => {
+  const { locale, t } = useI18n();
+  return (
   <div className="space-y-3">
     <section className="a4n-flat-surface overflow-hidden">
       <div className="border-b border-book-border/45 px-3 py-2.5 sm:px-4">
-        <h3 className="text-sm font-semibold text-book-text-main">导演意图</h3>
+        <h3 className="text-sm font-semibold text-book-text-main">{t("shootingScript.editor.directingIntent")}</h3>
       </div>
       <div className="divide-y divide-book-border/45 px-3 sm:px-4">
         <Info
-          label="核心戏剧问题"
+          label={t("shootingScript.editor.centralDramaticQuestion")}
           value={script.directing_statement.central_dramatic_question}
         />
         <Info
-          label="主角行动主线"
+          label={t("shootingScript.editor.protagonistThroughline")}
           value={script.directing_statement.protagonist_throughline}
         />
         <Info
-          label="观众体验"
+          label={t("shootingScript.editor.audienceExperience")}
           value={script.directing_statement.audience_experience}
         />
         <Info
-          label="视觉策略"
+          label={t("shootingScript.editor.visualStrategy")}
           value={script.directing_statement.visual_strategy}
         />
       </div>
@@ -41,23 +44,23 @@ export const ScriptContent: React.FC<{
             size={13}
             className="transition-transform group-open:rotate-90"
           />
-          更多创作策略
+          {t("shootingScript.moreStrategies")}
         </summary>
         <div className="mt-1 divide-y divide-book-border/45 border-t border-book-border/45">
           <Info
-            label="视点策略"
+            label={t("shootingScript.editor.viewpointStrategy")}
             value={script.directing_statement.viewpoint_strategy}
           />
           <Info
-            label="空间策略"
+            label={t("shootingScript.editor.spatialStrategy")}
             value={script.directing_statement.spatial_strategy}
           />
           <Info
-            label="声音策略"
+            label={t("shootingScript.editor.soundStrategy")}
             value={script.directing_statement.sound_strategy}
           />
           <Info
-            label="节奏策略"
+            label={t("shootingScript.editor.rhythmStrategy")}
             value={script.directing_statement.rhythm_strategy}
           />
         </div>
@@ -72,18 +75,18 @@ export const ScriptContent: React.FC<{
         >
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 border-b border-book-border/45 px-3 py-2.5 sm:px-4">
             <h3 className="text-sm font-semibold text-book-text-main">
-              场景 {scene.scene_index} · {scene.title}
+              {t("shootingScript.editor.scene", { index: scene.scene_index })} · {scene.title}
             </h3>
             <span className="text-small text-book-text-muted">
-              {scene.shots.length} 个镜头
+              {t("shootingScript.editor.shotsCount", { count: scene.shots.length })}
             </span>
             <div className="w-full text-small text-book-text-muted">
               {scene.slugline}
             </div>
           </div>
           <div className="grid gap-2 border-b border-book-border/40 px-3 py-3 text-xs sm:grid-cols-2 sm:px-4">
-            <Info label="场景目标" value={scene.scene_objective} compact />
-            <Info label="主要阻碍" value={scene.scene_obstacle} compact />
+            <Info label={t("shootingScript.editor.sceneObjective")} value={scene.scene_objective} compact />
+            <Info label={t("shootingScript.editor.sceneObstacle")} value={scene.scene_obstacle} compact />
           </div>
 
           {scene.shots.length > 0 ? (
@@ -93,17 +96,17 @@ export const ScriptContent: React.FC<{
                   <summary className="grid cursor-pointer list-none grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 text-left [&::-webkit-details-marker]:hidden">
                     <div className="min-w-0">
                       <div className="truncate text-xs font-semibold text-book-text-main">
-                        镜头 {shot.shot_index} · {shot.title}
+                        {t("shootingScript.editor.shot")} {shot.shot_index} · {shot.title}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-caption text-book-text-muted">
-                        <span>{shootingShotSizeLabel(shot.shot_size)}</span>
-                        <span>{shootingCameraAngleLabel(shot.camera_angle)}</span>
+                        <span>{shootingShotSizeLabel(shot.shot_size, t)}</span>
+                        <span>{shootingCameraAngleLabel(shot.camera_angle, t)}</span>
                         <span>
-                          {shootingCameraMovementLabel(shot.camera_movement)}
+                          {shootingCameraMovementLabel(shot.camera_movement, t)}
                         </span>
-                        <span>{shootingCoverageLabel(shot.coverage)}</span>
+                        <span>{shootingCoverageLabel(shot.coverage, t)}</span>
                         <span>
-                          {shot.estimated_natural_seconds.toFixed(1)} 秒
+                          {formatNumber(shot.estimated_natural_seconds, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} {t("units.seconds")}
                         </span>
                       </div>
                     </div>
@@ -124,14 +127,14 @@ export const ScriptContent: React.FC<{
                             className="grid gap-1 py-2 text-xs sm:grid-cols-[72px_minmax(0,1fr)]"
                           >
                             <span className="text-book-text-muted">
-                              节拍 {beat.beat_index}
+                              {t("shootingScript.editor.beat", { index: beat.beat_index })}
                             </span>
                             <div className="min-w-0 text-book-text-main">
                               {beat.actor ? `${beat.actor}：` : ""}
                               {beat.visible_action}
                               {beat.reaction ? (
                                 <div className="mt-0.5 text-small text-book-text-muted">
-                                  反应 · {beat.reaction}
+                                  {t("shootingScript.editor.reaction")} · {beat.reaction}
                                 </div>
                               ) : null}
                             </div>
@@ -145,14 +148,15 @@ export const ScriptContent: React.FC<{
             </div>
           ) : (
             <div className="px-3 py-4 text-xs text-book-text-muted sm:px-4">
-              该场景尚未拆分镜头。
+              {t("shootingScript.noShots")}
             </div>
           )}
         </article>
       ))}
     </div>
   </div>
-);
+  );
+};
 
 const Info: React.FC<{
   label: string;

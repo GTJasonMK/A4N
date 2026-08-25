@@ -1,8 +1,7 @@
 use a4n_core::models::project::novel_project;
-use sea_orm::DbErr;
-use serde::{Deserialize, Serialize};
+use sea_orm::{DbErr, FromQueryResult};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectFamilyMetadataQuery {
     pub project_id: i64,
     pub root_project_id: Option<i64>,
@@ -19,20 +18,28 @@ impl ProjectFamilyMetadataQuery {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ProjectFamilyMetadata {
-    pub project_id: i64,
     pub root_project_title: Option<String>,
-    pub source_snapshot_created_at: Option<String>,
     pub derived_chapter_scope: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub(in crate::project::family_metadata) struct ProjectFamilyRootRow {
+    pub id: i64,
+    pub title: String,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub(in crate::project::family_metadata) struct ProjectFamilySnapshotRow {
+    pub id: i64,
+    pub chapter_scope_json: serde_json::Value,
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectFamilyMetadataReadError {
     #[error("{0}")]
     InvalidArgument(String),
-    #[error("项目缺少族元数据: {project_id}")]
-    MetadataMissing { project_id: i64 },
     #[error("派生项目引用的根文本项目不存在: {root_project_id}")]
     RootProjectMissing { root_project_id: i64 },
     #[error("派生项目引用的源文本快照不存在: {source_snapshot_id}")]

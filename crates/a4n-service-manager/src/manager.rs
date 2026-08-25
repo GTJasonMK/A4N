@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 use std::time::UNIX_EPOCH;
 use tokio::sync::{RwLock, watch};
 
-pub type HttpClientFactory =
+pub(crate) type HttpClientFactory =
     Arc<dyn Fn() -> Result<reqwest::Client, String> + Send + Sync + 'static>;
 
 #[derive(Clone, PartialEq, Eq)]

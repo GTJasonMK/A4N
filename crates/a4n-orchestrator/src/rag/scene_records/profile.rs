@@ -1,9 +1,10 @@
-use a4n_core::{models::scene::scene_profile, rag::RagDataType};
+use a4n_core::rag::RagDataType;
+use a4n_db::rag::RagSceneProfileRow;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
 
 use super::super::{RagRecord, rag_chunk_id};
 
-fn scene_profile_rag_text(profile: &scene_profile::Model) -> Result<String, String> {
+fn scene_profile_rag_text(profile: &RagSceneProfileRow) -> Result<String, String> {
     let name = required_rag_text(
         Some(&profile.name),
         format!("场景档案 {} 缺少名称，跳过 RAG 入库", profile.id),
@@ -42,7 +43,7 @@ fn scene_profile_rag_text(profile: &scene_profile::Model) -> Result<String, Stri
 
 pub fn scene_profile_rag_record(
     project_id: i64,
-    profile: &scene_profile::Model,
+    profile: &RagSceneProfileRow,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {
         chunk_id: rag_chunk_id(project_id, RagDataType::SceneProfile, profile.id),

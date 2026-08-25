@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use a4n_core::{
     error::AppError,
     models::{chapter::chapter, character::protagonist_profile, project::text_anchor},
@@ -21,9 +23,13 @@ use super::{
     },
 };
 
-pub(super) struct PreparedCharacterProfileSync {
+pub(crate) type CharacterProfileSyncAnchorCache = HashMap<i64, Vec<text_anchor::Model>>;
+
+pub(crate) struct PreparedCharacterProfileSync {
     pub(super) project_id: i64,
     pub(super) profile: protagonist_profile::Model,
+    /// 档案声明的 first_seen 与正文证据 first_seen 取 min；跳过判定与区间计算共用此值。
+    pub(super) effective_first_seen: Option<i32>,
     pub(super) start_chapter: i32,
     pub(super) target_chapter: i32,
     pub(super) clear_to_chapter: i32,
@@ -69,6 +75,7 @@ impl OrchestratorContext {
                 "项目还没有章节: project_id={project_id}"
             )));
         }
+        let mut anchor_cache = CharacterProfileSyncAnchorCache::new();
         let target_chapter =
             validate_character_sync_target_chapter(&chapters, project_id, input.target_chapter)
                 .map_err(AppError::InvalidArgument)?;
@@ -78,6 +85,39 @@ impl OrchestratorContext {
             target_chapter,
             input.range_mode,
             input.anchor_mode,
+            &mut anchor_cache,
+        )
+        .await
+    }
+
+    pub(crate) async fn prepare_character_profile_sync_context_with_chapters(
+        &self,
+        input: CharacterProfileSyncApplicationInput,
+        chapters: &[chapter::Model],
+        anchor_cache: &mut CharacterProfileSyncAnchorCache,
+    ) -> Result<PreparedCharacterProfileSync, AppError> {
+        let profile = self
+            .resolve_character_profile_sync_subject(input.subject)
+            .await?;
+        if chapters.is_empty() {
+            return Err(AppError::InvalidArgument(format!(
+                "项目还没有章节: project_id={}",
+                profile.project_id
+            )));
+        }
+        let target_chapter = validate_character_sync_target_chapter(
+            chapters,
+            profile.project_id,
+            input.target_chapter,
+        )
+        .map_err(AppError::InvalidArgument)?;
+        self.prepare_character_profile_sync_for_profile(
+            profile,
+            chapters,
+            target_chapter,
+            input.range_mode,
+            input.anchor_mode,
+            anchor_cache,
         )
         .await
     }
@@ -104,6 +144,7 @@ impl OrchestratorContext {
         target_chapter: i32,
         range_mode: CharacterSyncRangeMode,
         anchor_mode: CharacterProfileSyncAnchorMode,
+        anchor_cache: &mut CharacterProfileSyncAnchorCache,
     ) -> Result<PreparedCharacterProfileSync, AppError> {
         let evidence_first_seen = self
             .earliest_current_profile_evidence_chapter(
@@ -126,6 +167,7 @@ impl OrchestratorContext {
                 project_id: profile.project_id,
                 baseline_state: profile.current_state.clone(),
                 profile,
+                effective_first_seen,
                 start_chapter: target_chapter,
                 target_chapter,
                 clear_to_chapter: target_chapter,
@@ -171,27 +213,55 @@ impl OrchestratorContext {
         } else {
             profile.current_state.clone()
         };
-        let mut chapter_data = Vec::with_capacity(selected_chapters.len());
-        for chapter in selected_chapters {
+        let chapter_ids = selected_chapters
+            .iter()
+            .map(|chapter| chapter.id)
+            .collect::<Vec<_>>();
+        let missing_chapter_ids = chapter_ids
+            .iter()
+            .copied()
+            .filter(|chapter_id| !anchor_cache.contains_key(chapter_id))
+            .collect::<Vec<_>>();
+        if !missing_chapter_ids.is_empty() {
             let anchors = match anchor_mode {
                 CharacterProfileSyncAnchorMode::EnsureCurrent => {
-                    self.ensure_chapter_content_anchor_records(profile.project_id, chapter.id)
-                        .await?
+                    self.ensure_chapter_content_anchor_records_batch(
+                        profile.project_id,
+                        &missing_chapter_ids,
+                    )
+                    .await?
                 }
                 CharacterProfileSyncAnchorMode::RequireExistingCurrent => {
-                    self.require_current_chapter_content_anchors_for_preview(
+                    self.require_current_chapter_content_anchors_for_preview_batch(
                         profile.project_id,
-                        chapter.id,
+                        &missing_chapter_ids,
                     )
                     .await?
                 }
             };
+            for (chapter_id, anchors) in missing_chapter_ids.into_iter().zip(anchors) {
+                anchor_cache.insert(chapter_id, anchors);
+            }
+        }
+        let anchor_groups = chapter_ids
+            .iter()
+            .map(|chapter_id| {
+                anchor_cache.get(chapter_id).cloned().ok_or_else(|| {
+                    AppError::Internal(anyhow::anyhow!(
+                        "角色同步锚点缓存缺少章节: chapter_id={chapter_id}"
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut chapter_data = Vec::with_capacity(selected_chapters.len());
+        for (chapter, anchors) in selected_chapters.iter().zip(anchor_groups) {
             chapter_data.push(character_profile_sync_chapter_context(chapter, &anchors));
         }
 
         Ok(PreparedCharacterProfileSync {
             project_id: profile.project_id,
             profile,
+            effective_first_seen,
             start_chapter: range.start_chapter,
             target_chapter,
             clear_to_chapter: range.clear_to_chapter,

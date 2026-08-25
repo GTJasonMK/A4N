@@ -10,6 +10,7 @@ import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
 import { oauth2AuthorizeUrl } from "../api/auth";
 import { copyTextToClipboard } from "../utils/clipboard";
+import { useI18n } from "../i18n";
 
 const OAUTH_PROVIDERS = ["github", "google"] as const;
 const OAUTH_PROVIDER_LABELS: Record<(typeof OAUTH_PROVIDERS)[number], string> = {
@@ -20,6 +21,7 @@ const OAUTH_PROVIDER_LABELS: Record<(typeof OAUTH_PROVIDERS)[number], string> = 
 export const AuthPage: React.FC = () => {
   const { login, oauthLogin, register } = useAuthStore();
   const { addToast } = useToast();
+  const { t } = useI18n();
 
   const [mode, setMode] = useState<"login" | "register">("login");
   const [username, setUsername] = useState("");
@@ -72,15 +74,15 @@ export const AuthPage: React.FC = () => {
     e.preventDefault();
     if (submitBusyRef.current) return;
     if (!username.trim() || !password) {
-      addToast("请填写用户名和密码", "error");
+      addToast(t("auth.fillUsernamePassword"), "error");
       return;
     }
     if (mode === "register" && !email.trim()) {
-      addToast("请填写邮箱", "error");
+      addToast(t("auth.fillEmail"), "error");
       return;
     }
     if (mode === "register" && !inviteCode.trim()) {
-      addToast("请填写邀请码", "error");
+      addToast(t("auth.fillInviteCode"), "error");
       return;
     }
     submitBusyRef.current = true;
@@ -94,7 +96,7 @@ export const AuthPage: React.FC = () => {
       if (requestMode === "login") {
         await login(requestUsername, requestPassword);
         if (!mountedRef.current) return;
-        addToast(`欢迎回来，${requestUsername}`, "success");
+        addToast(t("auth.welcomeUser", { name: requestUsername }), "success");
       } else {
         await register(
           requestUsername,
@@ -103,14 +105,14 @@ export const AuthPage: React.FC = () => {
           requestInviteCode,
         );
         if (!mountedRef.current) return;
-        addToast(`账户已创建：${requestUsername}`, "success");
+        addToast(t("auth.accountCreated", { name: requestUsername }), "success");
       }
     } catch (err) {
       if (!mountedRef.current) return;
       addToast(
         extractErrorMessage(
           err,
-          requestMode === "login" ? "登录失败" : "注册失败",
+          requestMode === "login" ? t("auth.loginFailed") : t("auth.registerFailed"),
         ),
         "error",
       );
@@ -123,7 +125,7 @@ export const AuthPage: React.FC = () => {
   const handleGetAuthorizeUrl = async () => {
     const requestProvider = oauthProvider.trim();
     if (!requestProvider) {
-      addToast("请选择登录服务", "error");
+      addToast(t("auth.selectLoginService"), "error");
       return;
     }
     if (oauthBusyRef.current) return;
@@ -145,10 +147,10 @@ export const AuthPage: React.FC = () => {
       try {
         await copyTextToClipboard(url);
         setOauthLinkCopied(true);
-        addToast("授权链接已复制，请在浏览器打开", "success");
+        addToast(t("auth.authLinkCopied"), "success");
       } catch {
         setOauthLinkCopied(false);
-        addToast("授权链接已生成，但自动复制失败，请展开链接后手动复制", "error");
+        addToast(t("auth.authLinkCopyFailed"), "error");
       }
     } catch (err) {
       if (
@@ -158,7 +160,7 @@ export const AuthPage: React.FC = () => {
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "获取授权链接失败"), "error");
+      addToast(extractErrorMessage(err, t("auth.oauthUrlFailed")), "error");
     } finally {
       if (oauthSeqRef.current === requestSeq) oauthBusyRef.current = false;
       if (mountedRef.current && oauthSeqRef.current === requestSeq)
@@ -170,7 +172,7 @@ export const AuthPage: React.FC = () => {
     const requestProvider = oauthProvider.trim();
     const requestCode = oauthCode.trim();
     if (!requestProvider || !requestCode) {
-      addToast("请填写授权码", "error");
+      addToast(t("auth.fillAuthCode"), "error");
       return;
     }
     if (oauthBusyRef.current) return;
@@ -181,10 +183,10 @@ export const AuthPage: React.FC = () => {
     try {
       const user = await oauthLogin(requestProvider, requestCode);
       if (!mountedRef.current || oauthSeqRef.current !== requestSeq) return;
-      addToast(`第三方登录成功：${user.username}`, "success");
+      addToast(t("auth.oauthLoginSuccess", { name: user.username }), "success");
     } catch (err) {
       if (!mountedRef.current || oauthSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "第三方登录失败"), "error");
+      addToast(extractErrorMessage(err, t("auth.oauthLoginFailed")), "error");
     } finally {
       if (oauthSeqRef.current === requestSeq) oauthBusyRef.current = false;
       if (mountedRef.current && oauthSeqRef.current === requestSeq)
@@ -193,213 +195,248 @@ export const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full w-full items-start justify-center overflow-y-auto bg-book-bg p-4 sm:items-center sm:p-8">
-      <BookCard className="my-auto w-full max-w-[440px] rounded-3xl p-5 sm:p-6">
-        <header className="mb-5 flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-book-primary/10 text-book-primary">
-            <BookOpen size={18} />
-          </span>
-          <div className="min-w-0">
-            <h1 className="font-serif text-lg font-semibold text-book-text-main">A4N</h1>
-            <p className="text-small text-book-text-muted">AI 长篇创作助手</p>
+    <div className="a4n-auth-page">
+      <div className="a4n-auth-shell">
+        <aside className="a4n-auth-intro" aria-label={t("auth.productIntro")}>
+          <div className="a4n-auth-brand-lockup">
+            <span className="a4n-auth-brand-mark" aria-hidden="true">
+              <BookOpen size={19} />
+            </span>
+            <span>
+              <strong>A4N</strong>
+              <small>AI Narrative Studio</small>
+            </span>
           </div>
-        </header>
 
-        {!showOauth ? (
-          <>
-            <SegmentedControl
-              ariaLabel="账户操作"
-              className="mb-4 w-full [&_.a4n-seg__btn]:min-h-9 [&_.a4n-seg__btn]:flex-1"
-              value={mode}
-              onChange={setMode}
-              options={[
-                { id: "login", label: "登录", disabled: submitting },
-                { id: "register", label: "注册", disabled: submitting },
-              ]}
-            />
+          <div className="a4n-auth-intro-copy">
+            <p className="a4n-auth-eyebrow">{t("auth.tagline")}</p>
+            <h1>
+              {t("auth.heroLineOne")}
+              <span>{t("auth.heroLineTwo")}</span>
+            </h1>
+            <p>{t("auth.heroDescription")}</p>
+          </div>
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              <label className="flex flex-col gap-1">
-                <span className="text-body-sm font-medium text-book-text-sub">用户名</span>
-                <BookInput
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="输入用户名"
-                  autoComplete="username"
-                  disabled={submitting}
-                />
-              </label>
-              {mode === "register" && (
-                <label className="flex flex-col gap-1">
-                  <span className="text-body-sm font-medium text-book-text-sub">邮箱</span>
-                  <BookInput
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="输入邮箱"
-                    autoComplete="email"
-                    disabled={submitting}
-                  />
-                </label>
-              )}
-              {mode === "register" && (
-                <label className="flex flex-col gap-1">
-                  <span className="text-body-sm font-medium text-book-text-sub">邀请码</span>
-                  <BookInput
-                    value={inviteCode}
-                    onChange={(e) => setInviteCode(e.target.value)}
-                    placeholder="输入邀请码"
-                    autoComplete="one-time-code"
-                    disabled={submitting}
-                  />
-                </label>
-              )}
-              <label className="flex flex-col gap-1">
-                <span className="text-body-sm font-medium text-book-text-sub">密码</span>
-                <BookInput
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="输入密码"
-                  autoComplete={
-                    mode === "login" ? "current-password" : "new-password"
-                  }
-                  disabled={submitting}
-                />
-              </label>
+          <div className="a4n-auth-intro-footer">
+            <span>{t("auth.localFirst")}</span>
+            <span>{t("auth.structuredCreation")}</span>
+            <span>{t("auth.endToEnd")}</span>
+          </div>
+        </aside>
 
-              <BookButton
-                type="submit"
-                variant="primary"
-                disabled={submitting || !submitReady}
-                className="mt-1 w-full"
-              >
-                {submitting ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <LoadingSpinner size="sm" />
-                    {mode === "login" ? "登录中…" : "创建中…"}
-                  </span>
-                ) : mode === "login" ? (
-                  "登录"
-                ) : (
-                  "创建账户"
-                )}
-              </BookButton>
-            </form>
-
-            <p className="mt-4 text-center text-small leading-relaxed text-book-text-muted">
-              {mode === "login"
-                ? "你的创作内容优先保存在本地。"
-                : "创建成功后会自动登录当前账户。"}
+        <BookCard className="a4n-auth-card">
+          <header className="a4n-auth-form-header">
+            <p className="a4n-kicker">{t("auth.continueCreation")}</p>
+            <h2>
+              {showOauth
+                ? t("auth.oauthLogin")
+                : mode === "login"
+                  ? t("auth.welcomeBack")
+                  : t("auth.createAccount")}
+            </h2>
+            <p>
+              {showOauth
+                ? t("auth.oauthDescription")
+                : mode === "login"
+                  ? t("auth.loginDescription")
+                  : t("auth.registerDescription")}
             </p>
+          </header>
 
-            {mode === "login" ? (
-              <>
-                <hr className="story-divider my-4" />
-                <button
-                  type="button"
-                  onClick={() => setShowOauth(true)}
-                  disabled={submitting}
-                  aria-expanded={false}
-                  aria-controls="oauth-login-panel"
-                  className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 text-xs text-book-text-sub hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <Globe size={12} /> 使用 GitHub 或 Google 登录
-                </button>
-              </>
-            ) : null}
-          </>
-        ) : (
-          <section id="oauth-login-panel" aria-label="第三方账号登录" className="space-y-4 text-xs">
-            <div>
-              <h2 className="text-sm font-semibold text-book-text-main">第三方账号登录</h2>
-              <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-                先获取授权链接，在浏览器完成授权后粘贴返回的授权码。
-              </p>
-            </div>
-            <label className="flex flex-col gap-1">
-              <span className="text-body-sm font-medium text-book-text-sub">登录服务</span>
-              <select
-                value={oauthProvider}
-                onChange={(e) => handleOauthProviderChange(e.target.value)}
-                disabled={oauthBusy || oauthAuthorizeUrl !== null}
-                className="pyqt-input min-w-0"
-              >
-                {OAUTH_PROVIDERS.map((provider) => (
-                  <option key={provider} value={provider}>
-                    {OAUTH_PROVIDER_LABELS[provider]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {oauthAuthorizeUrl == null ? (
-              <BookButton
-                variant="primary"
-                onClick={handleGetAuthorizeUrl}
-                disabled={oauthBusy}
-                className="w-full"
-              >
-                {oauthBusy ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <LoadingSpinner size="sm" /> 正在生成…
-                  </span>
-                ) : (
-                  "获取授权链接"
-                )}
-              </BookButton>
-            ) : (
-              <>
-                <div className="rounded-xl bg-book-primary/8 px-3 py-2.5 text-small leading-relaxed text-book-text-sub">
-                  {oauthLinkCopied
-                    ? "授权链接已复制。请在浏览器完成授权，再粘贴返回的授权码。"
-                    : "授权链接已生成，但自动复制失败。请展开链接后手动复制。"}
-                </div>
-                <details className="text-caption text-book-text-muted">
-                  <summary className="w-fit cursor-pointer hover:text-book-text-main">查看授权链接</summary>
-                  <div className="mt-1 break-all rounded-xl bg-book-bg-tertiary/50 p-2.5 font-mono text-small leading-relaxed text-book-text-sub">
-                    {oauthAuthorizeUrl}
-                  </div>
-                </details>
+          {!showOauth ? (
+            <>
+              <SegmentedControl
+                ariaLabel={t("auth.accountActions")}
+                className="mb-5 w-full [&_.a4n-seg__btn]:min-h-9 [&_.a4n-seg__btn]:flex-1"
+                value={mode}
+                onChange={setMode}
+                options={[
+                  { id: "login", label: t("auth.login"), disabled: submitting },
+                  { id: "register", label: t("auth.register"), disabled: submitting },
+                ]}
+              />
+
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
                 <label className="flex flex-col gap-1">
-                  <span className="text-body-sm font-medium text-book-text-sub">授权码</span>
+                  <span className="text-body-sm font-medium text-book-text-sub">{t("auth.username")}</span>
                   <BookInput
-                    value={oauthCode}
-                    onChange={(e) => setOauthCode(e.target.value)}
-                    placeholder="粘贴浏览器返回的授权码"
-                    disabled={oauthBusy}
-                    autoComplete="one-time-code"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder={t("auth.usernamePlaceholder")}
+                    autoComplete="username"
+                    disabled={submitting}
                   />
                 </label>
+                {mode === "register" && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-body-sm font-medium text-book-text-sub">{t("auth.email")}</span>
+                    <BookInput
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder={t("auth.emailPlaceholder")}
+                      autoComplete="email"
+                      disabled={submitting}
+                    />
+                  </label>
+                )}
+                {mode === "register" && (
+                  <label className="flex flex-col gap-1">
+                    <span className="text-body-sm font-medium text-book-text-sub">{t("auth.inviteCode")}</span>
+                    <BookInput
+                      value={inviteCode}
+                      onChange={(e) => setInviteCode(e.target.value)}
+                      placeholder={t("auth.inviteCodePlaceholder")}
+                      autoComplete="one-time-code"
+                      disabled={submitting}
+                    />
+                  </label>
+                )}
+                <label className="flex flex-col gap-1">
+                  <span className="text-body-sm font-medium text-book-text-sub">{t("auth.password")}</span>
+                  <BookInput
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={t("auth.passwordPlaceholder")}
+                    autoComplete={
+                      mode === "login" ? "current-password" : "new-password"
+                    }
+                    disabled={submitting}
+                  />
+                </label>
+
+                <BookButton
+                  type="submit"
+                  variant="primary"
+                  disabled={submitting || !submitReady}
+                  className="mt-1 w-full"
+                >
+                  {submitting ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <LoadingSpinner size="sm" />
+                      {mode === "login" ? t("auth.loggingIn") : t("auth.creatingAccount")}
+                    </span>
+                  ) : mode === "login" ? (
+                    t("auth.login")
+                  ) : (
+                    t("auth.createAccountButton")
+                  )}
+                </BookButton>
+              </form>
+
+              <p className="a4n-auth-privacy">
+                {mode === "login"
+                  ? t("auth.localPrivacy")
+                  : t("auth.registerPrivacy")}
+              </p>
+
+              {mode === "login" ? (
+              <>
+                  <hr className="story-divider my-5" />
+                  <button
+                    type="button"
+                    onClick={() => setShowOauth(true)}
+                    disabled={submitting}
+                    aria-expanded={false}
+                    aria-controls="oauth-login-panel"
+                    className="a4n-auth-oauth-button"
+                  >
+                    <Globe size={13} /> {t("auth.useOauth")}
+                  </button>
+                </>
+              ) : null}
+            </>
+          ) : (
+            <section
+              id="oauth-login-panel"
+              aria-label={t("auth.oauthLogin")}
+              className="space-y-4 text-xs"
+            >
+              <label className="flex flex-col gap-1">
+                <span className="text-body-sm font-medium text-book-text-sub">{t("auth.loginService")}</span>
+                <select
+                  value={oauthProvider}
+                  onChange={(e) => handleOauthProviderChange(e.target.value)}
+                  disabled={oauthBusy || oauthAuthorizeUrl !== null}
+                  className="pyqt-input min-w-0"
+                >
+                  {OAUTH_PROVIDERS.map((provider) => (
+                    <option key={provider} value={provider}>
+                      {OAUTH_PROVIDER_LABELS[provider]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {oauthAuthorizeUrl == null ? (
                 <BookButton
                   variant="primary"
-                  onClick={handleOauthCallback}
-                  disabled={oauthBusy || !oauthCode.trim()}
+                  onClick={handleGetAuthorizeUrl}
+                  disabled={oauthBusy}
                   className="w-full"
                 >
                   {oauthBusy ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> 正在登录…
+                      <LoadingSpinner size="sm" /> {t("auth.generatingAuthLink")}
                     </span>
                   ) : (
-                    "完成登录"
+                    t("auth.generateAuthLink")
                   )}
                 </BookButton>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                setShowOauth(false);
-                handleOauthProviderChange(oauthProvider);
-              }}
-              disabled={oauthBusy}
-              className="inline-flex min-h-9 w-full items-center justify-center text-xs text-book-text-muted hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              返回用户名登录
-            </button>
-          </section>
-        )}
-      </BookCard>
+              ) : (
+                <>
+                  <div className="rounded-xl bg-book-primary/8 px-3 py-2.5 text-small leading-relaxed text-book-text-sub">
+                    {oauthLinkCopied
+                      ? t("auth.authLinkCopied")
+                      : t("auth.authLinkCopyFailed")}
+                  </div>
+                  <details className="text-caption text-book-text-muted">
+                    <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("auth.viewAuthLink")}</summary>
+                    <div className="mt-1 break-all rounded-xl bg-book-bg-tertiary/50 p-2.5 font-mono text-small leading-relaxed text-book-text-sub">
+                      {oauthAuthorizeUrl}
+                    </div>
+                  </details>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-body-sm font-medium text-book-text-sub">{t("auth.authCode")}</span>
+                    <BookInput
+                      value={oauthCode}
+                      onChange={(e) => setOauthCode(e.target.value)}
+                      placeholder={t("auth.authCodePlaceholder")}
+                      disabled={oauthBusy}
+                      autoComplete="one-time-code"
+                    />
+                  </label>
+                  <BookButton
+                    variant="primary"
+                    onClick={handleOauthCallback}
+                    disabled={oauthBusy || !oauthCode.trim()}
+                    className="w-full"
+                  >
+                    {oauthBusy ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <LoadingSpinner size="sm" /> {t("auth.completingLogin")}
+                      </span>
+                    ) : (
+                      t("auth.completeLogin")
+                    )}
+                  </BookButton>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOauth(false);
+                  handleOauthProviderChange(oauthProvider);
+                }}
+                disabled={oauthBusy}
+                className="a4n-auth-oauth-button"
+              >
+                {t("auth.backToUsernameLogin")}
+              </button>
+            </section>
+          )}
+        </BookCard>
+      </div>
     </div>
   );
 };

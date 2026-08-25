@@ -1,11 +1,11 @@
 use a4n_core::models::{chapter::chapter, character::foreshadowing_index};
 use a4n_db::project::{
     ChapterSourceSnapshot, CreateProjectRecordInput, ForeshadowingAnalysisDraft,
-    ForeshadowingDbError, ForeshadowingRecordInput, PROJECT_TYPE_NOVEL_LONG,
-    cleanup_foreshadowing_for_chapter, create_foreshadowing_record, create_project_record,
-    delete_foreshadowing_record, sync_chapter_analysis_foreshadowing, update_foreshadowing_record,
+    ForeshadowingDbError, cleanup_foreshadowing_for_chapter, create_foreshadowing_record,
+    create_project_record, delete_foreshadowing_record, sync_chapter_analysis_foreshadowing,
+    update_foreshadowing_record,
 };
-use a4n_domain::character::ForeshadowingStatus;
+use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
 use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};
 use serde_json::json;
@@ -21,7 +21,7 @@ async fn create_project(db: &DatabaseConnection) -> i64 {
             user_id: 1,
             title: "章节伏笔同步测试".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -180,7 +180,7 @@ async fn sync_preserves_setup_that_a_repeat_analysis_does_not_return() {
     let chapter = insert_chapter(&db, project_id, 8).await;
     let planted = insert_foreshadowing(&db, project_id, "门后的脚步声", 8, None, "pending").await;
 
-    let result = sync_chapter_analysis_foreshadowing(
+    sync_chapter_analysis_foreshadowing(
         &db,
         ChapterSourceSnapshot::from(&chapter),
         Vec::new(),
@@ -189,7 +189,6 @@ async fn sync_preserves_setup_that_a_repeat_analysis_does_not_return() {
     .await
     .expect("repeat analysis omission must be non-destructive");
 
-    assert!(result.stale_ids.is_empty());
     assert!(
         foreshadowing_index::Entity::find_by_id(planted.id)
             .one(&db)
@@ -286,6 +285,15 @@ async fn cleanup_preserves_formal_setups_and_reopens_current_payoffs() {
         insert_foreshadowing(&db, project_id, "本章新伏笔", 8, None, "pending").await;
     let current_payoff =
         insert_foreshadowing(&db, project_id, "本章回收旧伏笔", 2, Some(8), "resolved").await;
+    let current_payoff_2 = insert_foreshadowing(
+        &db,
+        project_id,
+        "本章回收另一旧伏笔",
+        4,
+        Some(8),
+        "resolved",
+    )
+    .await;
     let unrelated = insert_foreshadowing(&db, project_id, "其他章节伏笔", 3, None, "pending").await;
 
     let tx = db.begin().await.expect("transaction");
@@ -293,8 +301,9 @@ async fn cleanup_preserves_formal_setups_and_reopens_current_payoffs() {
         .await
         .expect("cleanup");
     tx.commit().await.expect("commit");
-    assert!(result.stale_ids.is_empty());
-    assert_eq!(result.changed_ids, [current_payoff.id]);
+    assert_eq!(result.len(), 2);
+    assert!(result.contains(&current_payoff.id));
+    assert!(result.contains(&current_payoff_2.id));
     assert!(
         foreshadowing_index::Entity::find_by_id(current_setup.id)
             .one(&db)
@@ -307,6 +316,13 @@ async fn cleanup_preserves_formal_setups_and_reopens_current_payoffs() {
         .await
         .expect("lookup")
         .expect("payoff");
+    assert_eq!(reopened.status, "pending");
+    assert_eq!(reopened.payoff_chapter, None);
+    let reopened = foreshadowing_index::Entity::find_by_id(current_payoff_2.id)
+        .one(&db)
+        .await
+        .expect("lookup")
+        .expect("second payoff");
     assert_eq!(reopened.status, "pending");
     assert_eq!(reopened.payoff_chapter, None);
     assert!(

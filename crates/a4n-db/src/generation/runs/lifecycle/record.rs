@@ -5,7 +5,7 @@ use crate::generation::{
 };
 use a4n_core::models::{generation::generation_run, project::novel_project};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 
 pub(super) async fn insert_generation_run<C>(
     db: &C,
@@ -70,8 +70,12 @@ where
 {
     validate_positive_id(project_id, "project_id")?;
     let project = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::RootProjectId)
+        .into_tuple::<(i64, Option<i64>)>()
         .one(db)
         .await?
         .ok_or_else(|| GenerationDbError::NotFound(format!("项目不存在: {project_id}")))?;
-    Ok(project.root_project_id.unwrap_or(project.id))
+    Ok(project.1.unwrap_or(project.0))
 }

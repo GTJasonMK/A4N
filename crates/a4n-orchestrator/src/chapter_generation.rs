@@ -5,7 +5,7 @@ mod preparation;
 pub(crate) mod rag_context;
 
 #[path = "chapter_generation/service/mod.rs"]
-pub mod service;
+mod service;
 
 pub use application::{ChapterGenerationApplicationContext, ChapterGenerationRequestPreview};
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;

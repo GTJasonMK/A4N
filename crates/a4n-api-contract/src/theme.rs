@@ -1,9 +1,13 @@
+pub use a4n_domain::{ThemeAppearance, ThemeBackgroundSettings, ThemeDocument, ThemeMode};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::serde_update::deserialize_non_null_update_field;
 
-pub use a4n_domain::{ThemeCssVariables, ThemeMode};
+pub use a4n_domain::{
+    THEME_DOCUMENT_VERSION, THEME_GLOBAL_ROUTE_FAMILY, THEME_ROUTE_FAMILIES, THEME_TOKEN_NAMES,
+    validate_theme_document,
+};
 
 /// 创建主题的 Web/Tauri 请求合同。
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -11,7 +15,7 @@ pub use a4n_domain::{ThemeCssVariables, ThemeMode};
 pub struct CreateThemeInput {
     pub name: String,
     pub mode: ThemeMode,
-    pub css_variables: ThemeCssVariables,
+    pub document: ThemeDocument,
 }
 
 /// 更新主题的 Web/Tauri 请求合同。
@@ -25,14 +29,71 @@ pub struct UpdateThemeInput {
     #[schemars(with = "ThemeMode")]
     pub mode: Option<ThemeMode>,
     #[serde(default, deserialize_with = "deserialize_non_null_update_field")]
-    #[schemars(with = "ThemeCssVariables")]
-    pub css_variables: Option<ThemeCssVariables>,
+    #[schemars(with = "ThemeDocument")]
+    pub document: Option<ThemeDocument>,
 }
 
 impl UpdateThemeInput {
     pub fn is_empty(&self) -> bool {
-        self.name.is_none() && self.mode.is_none() && self.css_variables.is_none()
+        self.name.is_none() && self.mode.is_none() && self.document.is_none()
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeResourceSummary {
+    pub id: i64,
+    pub theme_id: i64,
+    pub resource_key: String,
+    pub file_name: String,
+    pub mime_type: String,
+    /// Relative path inside the protected application data directory.
+    pub file_path: String,
+    pub byte_size: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeResourceUploadInput {
+    pub theme_id: i64,
+    pub resource_key: String,
+    pub file_name: String,
+    pub mime_type: String,
+    pub data_base64: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct DeleteThemeResourceInput {
+    pub resource_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ThemePreferenceSummary {
+    pub user_id: i64,
+    pub appearance: ThemeAppearance,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateThemePreferenceInput {
+    pub appearance: ThemeAppearance,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ThemePackageUploadInput {
+    pub file_name: String,
+    pub data_base64: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ThemePackageExport {
+    pub file_name: String,
+    pub mime_type: String,
+    pub data_base64: String,
 }
 
 /// 主题查询/变更响应合同。
@@ -43,70 +104,72 @@ pub struct ThemeSummary {
     pub user_id: Option<i64>,
     pub name: String,
     pub mode: ThemeMode,
-    pub css_variables: ThemeCssVariables,
+    pub document: ThemeDocument,
+    pub resources: Vec<ThemeResourceSummary>,
     pub is_system_default: bool,
     pub is_active: bool,
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{CreateThemeInput, ThemeMode, ThemeSummary, UpdateThemeInput};
+    use super::{
+        CreateThemeInput, ThemeAppearance, ThemeDocument, ThemeMode, ThemeSummary, UpdateThemeInput,
+    };
     use serde_json::json;
 
     #[test]
-    fn theme_inputs_keep_strict_wire_contract() {
+    fn theme_inputs_require_the_versioned_document() {
         let input: CreateThemeInput = serde_json::from_value(json!({
             "name": "Dark",
             "mode": "dark",
-            "css_variables": {"--bg": "0 0 0"}
+            "document": {"version": 1, "tokens": {}, "backgrounds": {}}
         }))
-        .expect("valid create input");
-        assert_eq!(input.name, "Dark");
-        assert_eq!(input.mode, ThemeMode::Dark);
-        assert!(
-            serde_json::from_value::<UpdateThemeInput>(json!({
-                "unexpected": true
-            }))
-            .is_err()
-        );
-        assert!(serde_json::from_value::<UpdateThemeInput>(json!({"name": null})).is_err());
-        assert!(serde_json::from_value::<UpdateThemeInput>(json!({"mode": null})).is_err());
-        assert!(
-            serde_json::from_value::<UpdateThemeInput>(json!({"css_variables": null})).is_err()
-        );
-        let empty: UpdateThemeInput = serde_json::from_value(json!({})).unwrap();
-        assert!(empty.is_empty());
+        .expect("document create input");
+        assert_eq!(input.document, ThemeDocument::default());
+
         assert!(
             serde_json::from_value::<CreateThemeInput>(json!({
                 "name": "Dark",
                 "mode": "dark",
-                "css_variables": {"--radius": 8}
             }))
             .is_err()
         );
         assert!(
             serde_json::from_value::<CreateThemeInput>(json!({
                 "name": "Dark",
-                "mode": " dark ",
-                "css_variables": {}
+                "mode": "dark",
+                "document": {"tokens": {}, "backgrounds": {}}
             }))
             .is_err()
         );
     }
 
     #[test]
-    fn theme_summary_wire_shape_is_stable() {
+    fn update_input_rejects_null_and_empty_update_is_explicit() {
+        assert!(serde_json::from_value::<UpdateThemeInput>(json!({"document": null})).is_err());
+        let empty: UpdateThemeInput = serde_json::from_value(json!({})).unwrap();
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn preference_and_summary_wire_shapes_are_stable() {
+        assert_eq!(
+            serde_json::to_value(ThemeAppearance::System).unwrap(),
+            "system"
+        );
         let summary = ThemeSummary {
             id: 1,
             user_id: None,
             name: "Dark".to_string(),
             mode: ThemeMode::Dark,
-            css_variables: Default::default(),
+            document: ThemeDocument::default(),
+            resources: Vec::new(),
             is_system_default: true,
             is_active: false,
         };
         let value = serde_json::to_value(summary).expect("serialize summary");
         assert_eq!(value["mode"], "dark");
-        assert!(value.get("css_variables").is_some());
+        assert_eq!(value["document"]["version"], 1);
+        assert!(value.get("resources").is_some());
     }
 }

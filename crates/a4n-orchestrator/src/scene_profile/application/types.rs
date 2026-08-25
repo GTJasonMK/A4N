@@ -8,6 +8,7 @@ use a4n_core::structured_progress::{ProgressSpan, StructuredJsonProgressSpec};
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 pub(super) const SCENE_PROFILE_CANDIDATES_PROMPT: &str = "scene_profile_candidates";
 pub(super) const SCENE_OCCURRENCE_PROMPT: &str = "scene_occurrence_extraction";
@@ -24,14 +25,23 @@ pub(super) const SCENE_ENTITY_STATE_KEY_RULE: &str = "state_key 只能是 positi
 pub(super) struct SceneProfileSyncRequestContext {
     pub(super) chapter: chapter::Model,
     pub(super) text_anchors: Vec<text_anchor::Model>,
-    pub(super) existing_scene_profiles: Vec<scene_profile::Model>,
-    pub(super) character_profiles: Vec<protagonist_profile::Model>,
-    pub(super) object_profiles: Vec<object_profile::Model>,
+    pub(super) existing_scene_profiles: Arc<Vec<scene_profile::Model>>,
+    pub(super) character_profiles: Arc<Vec<protagonist_profile::Model>>,
+    pub(super) object_profiles: Arc<Vec<object_profile::Model>>,
     pub(super) existing_scene_ids: BTreeSet<i64>,
-    pub(super) character_ids: BTreeSet<i64>,
-    pub(super) object_ids: BTreeSet<i64>,
-    pub(super) character_names: BTreeMap<i64, String>,
-    pub(super) object_names: BTreeMap<i64, String>,
+    pub(super) character_ids: Arc<BTreeSet<i64>>,
+    pub(super) object_ids: Arc<BTreeSet<i64>>,
+    pub(super) character_names: Arc<BTreeMap<i64, String>>,
+    pub(super) object_names: Arc<BTreeMap<i64, String>>,
+}
+
+pub(super) struct SceneProfileSyncStableContext {
+    pub(super) character_profiles: Arc<Vec<protagonist_profile::Model>>,
+    pub(super) object_profiles: Arc<Vec<object_profile::Model>>,
+    pub(super) character_ids: Arc<BTreeSet<i64>>,
+    pub(super) object_ids: Arc<BTreeSet<i64>>,
+    pub(super) character_names: Arc<BTreeMap<i64, String>>,
+    pub(super) object_names: Arc<BTreeMap<i64, String>>,
 }
 
 #[derive(Debug, Clone, Copy)]

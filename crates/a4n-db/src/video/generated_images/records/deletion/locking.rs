@@ -1,34 +1,57 @@
 use crate::video::VideoDbError;
 use a4n_core::models::{ai::generated_image, project::novel_project};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
 };
+
+#[derive(Debug, FromQueryResult)]
+pub(super) struct GeneratedImageDeleteContext {
+    pub(super) id: i64,
+    pub(super) project_id: i64,
+    pub(super) file_path: String,
+}
 
 pub(super) async fn generated_image_for_delete<C>(
     db: &C,
     image_id: i64,
-) -> Result<generated_image::Model, VideoDbError>
+) -> Result<GeneratedImageDeleteContext, VideoDbError>
 where
     C: ConnectionTrait,
 {
-    let candidate = generated_image::Entity::find_by_id(image_id)
+    let image_columns = |query: sea_orm::Select<generated_image::Entity>| {
+        query
+            .select_only()
+            .column(generated_image::Column::Id)
+            .column(generated_image::Column::ProjectId)
+            .column(generated_image::Column::FilePath)
+            .into_model::<GeneratedImageDeleteContext>()
+    };
+    if db.get_database_backend() == DbBackend::Sqlite {
+        return image_columns(generated_image::Entity::find_by_id(image_id))
+            .one(db)
+            .await?
+            .ok_or_else(|| VideoDbError::NotFound("图片不存在".to_string()));
+    }
+    let candidate_project_id = generated_image::Entity::find_by_id(image_id)
+        .select_only()
+        .column(generated_image::Column::ProjectId)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("图片不存在".to_string()))?;
-    if db.get_database_backend() == DbBackend::Sqlite {
-        return Ok(candidate);
-    }
-
-    novel_project::Entity::find_by_id(candidate.project_id)
+    novel_project::Entity::find_by_id(candidate_project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
         .lock_exclusive()
+        .into_tuple::<i64>()
         .one(db)
         .await?;
-    let locked = generated_image::Entity::find_by_id(image_id)
-        .lock_exclusive()
+    let locked = image_columns(generated_image::Entity::find_by_id(image_id).lock_exclusive())
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("图片不存在".to_string()))?;
-    if locked.project_id != candidate.project_id {
+    if locked.project_id != candidate_project_id {
         return Err(VideoDbError::InvalidArgument(format!(
             "图片 {image_id} 的项目归属在删除期间发生变化，请重试"
         )));
@@ -49,7 +72,10 @@ where
     }
     if db.get_database_backend() != DbBackend::Sqlite {
         novel_project::Entity::find_by_id(project_id)
+            .select_only()
+            .column(novel_project::Column::Id)
             .lock_exclusive()
+            .into_tuple::<i64>()
             .one(db)
             .await?;
     }

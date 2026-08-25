@@ -13,6 +13,7 @@ import {
   progressDisplayModel,
 } from "../../utils/progressPresentation";
 import { streamLineFromBuffer } from "../../utils/progressDisplay";
+import { formatNumber, formatTime, useI18n, type MessageTranslator, type Locale } from "../../i18n";
 
 export type ProgressDialogStatus = ProgressStatus;
 export type { ProgressTimelineItem };
@@ -51,13 +52,17 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   events = [],
   error,
   onClose,
-  closeLabel = "关闭",
+  closeLabel,
   onCancel,
-  cancelLabel = "停止生成",
+  cancelLabel,
   cancelling = false,
-  runningHint = "生成过程中请保持当前窗口打开",
+  runningHint,
   formatProgress,
 }) => {
+  const { locale, t } = useI18n();
+  const effectiveCloseLabel = closeLabel ?? t("feedback.progressClose");
+  const effectiveCancelLabel = cancelLabel ?? t("feedback.progressCancel");
+  const effectiveRunningHint = runningHint ?? t("feedback.progressRunningHint");
   const [timing, setTiming] = useState<{ startedAt: number | null; now: number }>({
     startedAt: null,
     now: Date.now(),
@@ -88,14 +93,16 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     );
   const progressLabel = formatProgress
     ? formatProgress(boundedCurrent, boundedTotal, percent)
-    : defaultProgressLabel(boundedCurrent, boundedTotal, percent);
+    : defaultProgressLabel(boundedCurrent, boundedTotal, percent, locale);
   const display = progressDisplayModel({
     current: boundedCurrent,
     total: boundedTotal,
     message,
     meta,
     status,
-    fallbackStage: statusStageLabel(status),
+    locale,
+    t,
+    fallbackStage: statusStageLabel(status, t),
   });
   const timingLabel = progressTimingLabel(
     timing.startedAt,
@@ -103,8 +110,10 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     status,
     percent,
     display.etaMode,
+    locale,
+    t,
   );
-  const barDetail = display.detail ?? statusDetailLabel(status);
+  const barDetail = display.detail ?? statusDetailLabel(status, t);
   const incomingStreamText = streamLineFromBuffer(streamText ?? "");
   const hasStreamText = incomingStreamText.length > 0;
   const timeline = compactProgressEvents(events, 12);
@@ -146,12 +155,12 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
       footer={
         canClose ? (
           <BookButton variant="primary" size="sm" onClick={onClose} className="!min-h-8 !text-xs">
-            {closeLabel}
+            {effectiveCloseLabel}
           </BookButton>
         ) : onCancel ? (
           <>
             <span className="mr-auto text-small leading-relaxed text-book-text-sub">
-              {runningHint}
+              {effectiveRunningHint}
             </span>
             <BookButton
               variant="danger"
@@ -161,15 +170,15 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
               className="!min-h-8 !text-xs"
             >
               {cancelling ? (
-                <LoadingSpinner size="sm" text="正在停止…" />
+                <LoadingSpinner size="sm" text={t("feedback.progressStopping")} />
               ) : (
-                cancelLabel
+                effectiveCancelLabel
               )}
             </BookButton>
           </>
         ) : (
           <span className="text-small text-book-text-sub">
-            {runningHint}
+            {effectiveRunningHint}
           </span>
         )
       }
@@ -238,11 +247,11 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
         {timeline.length > 1 ? (
           <details className="border-t border-book-border/55 pt-3 text-xs text-book-text-muted">
             <summary className="cursor-pointer select-none font-medium transition-colors hover:text-book-text-main">
-              最近进展 · {timeline.length}
+              {t("feedback.recentProgress", { count: formatNumber(timeline.length, locale) })}
             </summary>
             <ol className="mt-2 divide-y divide-book-border/45">
               {timeline.map((item) => (
-                <ProgressTimelineRow key={item.id} item={item} />
+                <ProgressTimelineRow key={item.id} item={item} locale={locale} t={t} />
               ))}
             </ol>
           </details>
@@ -253,16 +262,18 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   );
 };
 
-const ProgressTimelineRow: React.FC<{ item: ProgressTimelineItem }> = ({ item }) => {
+const ProgressTimelineRow: React.FC<{
+  item: ProgressTimelineItem;
+  locale: Locale;
+  t: MessageTranslator;
+}> = ({ item, locale, t }) => {
   const display = progressDisplayModel({
     ...item,
-    fallbackStage: statusStageLabel(item.status),
+    locale,
+    t,
+    fallbackStage: statusStageLabel(item.status, t),
   });
-  const time = new Date(item.timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  const time = formatTime(item.timestamp, locale, t("common.unknown"));
   const dotClass =
     display.tone === "danger"
       ? "bg-error"
@@ -290,40 +301,43 @@ const ProgressTimelineRow: React.FC<{ item: ProgressTimelineItem }> = ({ item })
   );
 };
 
-function defaultProgressLabel(current: number, total: number, percent: number): string {
-  if (total === 100) return `${percent}%`;
-  return `${current}/${total} (${percent}%)`;
+function defaultProgressLabel(current: number, total: number, percent: number, locale: Locale): string {
+  const currentText = formatNumber(current, locale);
+  const totalText = formatNumber(total, locale);
+  const percentText = formatNumber(percent, locale);
+  if (total === 100) return `${percentText}%`;
+  return `${currentText}/${totalText} (${percentText}%)`;
 }
 
-function statusStageLabel(status: ProgressDialogStatus): string {
+function statusStageLabel(status: ProgressDialogStatus, t: MessageTranslator): string {
   switch (status) {
     case "success":
-      return "任务已完成";
+      return t("feedback.progressCompleted");
     case "error":
-      return "任务失败";
+      return t("feedback.progressFailed");
     case "cancelled":
-      return "任务已停止";
+      return t("feedback.progressCancelled");
     case "idle":
-      return "准备中";
+      return t("feedback.progressPreparing");
     case "running":
     default:
-      return "任务执行中";
+      return t("feedback.progressRunning");
   }
 }
 
-function statusDetailLabel(status: ProgressDialogStatus): string {
+function statusDetailLabel(status: ProgressDialogStatus, t: MessageTranslator): string {
   switch (status) {
     case "success":
-      return "已完成";
+      return t("feedback.progressDone");
     case "error":
-      return "请查看错误信息";
+      return t("feedback.progressCheckError");
     case "cancelled":
-      return "已停止";
+      return t("feedback.progressStopped");
     case "idle":
-      return "等待开始";
+      return t("feedback.progressWaiting");
     case "running":
     default:
-      return "等待子阶段更新…";
+      return t("feedback.progressWaitingSubstage");
   }
 }
 
@@ -333,21 +347,31 @@ function progressTimingLabel(
   status: ProgressDialogStatus,
   percent: number,
   etaMode: "hidden" | "rough" | "linear",
+  locale: Locale,
+  t: MessageTranslator,
 ): string | null {
   if (!startedAt) return null;
   const elapsedSecs = Math.max(0, Math.floor((now - startedAt) / 1000));
-  if (status !== "running") return `已用 ${formatDuration(elapsedSecs)}`;
-  if (etaMode === "hidden") return `已用 ${formatDuration(elapsedSecs)}`;
-  if (percent <= 1 || percent >= 100) return `已用 ${formatDuration(elapsedSecs)}`;
+  const elapsed = formatDuration(elapsedSecs, locale, t);
+  if (status !== "running") return t("feedback.elapsed", { duration: elapsed });
+  if (etaMode === "hidden") return t("feedback.elapsed", { duration: elapsed });
+  if (percent <= 1 || percent >= 100) return t("feedback.elapsed", { duration: elapsed });
   const remainingSecs = Math.max(0, Math.round((elapsedSecs * (100 - percent)) / percent));
-  const prefix = etaMode === "linear" ? "预计剩余" : "粗略剩余";
-  return `已用 ${formatDuration(elapsedSecs)} · ${prefix} ${formatDuration(remainingSecs)}`;
+  const prefix = etaMode === "linear" ? t("feedback.etaExpected") : t("feedback.etaRough");
+  return t("feedback.eta", {
+    elapsed,
+    prefix,
+    remaining: formatDuration(remainingSecs, locale, t),
+  });
 }
 
-function formatDuration(totalSecs: number): string {
+function formatDuration(totalSecs: number, locale: Locale, t: MessageTranslator): string {
   const secs = Math.max(0, Math.floor(totalSecs));
   const minutes = Math.floor(secs / 60);
   const seconds = secs % 60;
-  if (minutes <= 0) return `${seconds} 秒`;
-  return `${minutes} 分 ${seconds.toString().padStart(2, "0")} 秒`;
+  if (minutes <= 0) return t("feedback.seconds", { count: formatNumber(seconds, locale) });
+  return t("feedback.minutes", {
+    minutes: formatNumber(minutes, locale),
+    seconds: formatNumber(seconds, locale, { minimumIntegerDigits: 2 }),
+  });
 }

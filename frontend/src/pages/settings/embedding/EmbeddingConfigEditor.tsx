@@ -15,6 +15,7 @@ import {
 } from "./embeddingTabUtils";
 import type { EmbeddingForm } from "./types";
 import type { EmbeddingProviderDescriptor } from "../../../api/generated/config";
+import { useI18n } from "../../../i18n";
 
 interface EmbeddingConfigEditorProps {
   form: EmbeddingForm;
@@ -25,7 +26,6 @@ interface EmbeddingConfigEditorProps {
   pickFastembedModel: () => LocalEmbeddingModel | null;
   resolveLocalModel: (modelName: string) => LocalEmbeddingModel | null;
   resolveDownloadInfo: (modelName: string) => EmbeddingModelDownloadInfo | null;
-  resolveDownloadInfoError: (modelName: string) => string | null;
   modelHostLabel: string;
   onDownloadModel: (modelName: string) => void | Promise<void>;
   onDeleteModel: (modelName: string) => void | Promise<void>;
@@ -40,25 +40,25 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
   pickFastembedModel,
   resolveLocalModel,
   resolveDownloadInfo,
-  resolveDownloadInfoError,
   modelHostLabel,
   onDownloadModel,
   onDeleteModel,
 }) => {
+  const { locale, t } = useI18n();
   const apiKeyInputDisabled = form.clear_api_key;
 
   return (
     <>
-    <FormField label="配置名称" required>
+    <FormField label={t("settingsForm.configName")} required>
       <BookInput
         value={form.name}
         onChange={(e) => setForm({ ...form, name: e.target.value })}
-        placeholder="例如：默认 / 中文优化"
+        placeholder={t("settingsForm.configNamePlaceholder")}
       />
     </FormField>
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <FormField label="后端">
+      <FormField label={t("settingsForm.backend")}>
         <select
           value={form.backend}
           onChange={(e) => {
@@ -97,12 +97,13 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
       </FormField>
       {form.backend === "fastembed" ? (
         <FormField
-          label="模型"
+          label={t("settingsForm.model")}
           required
           hint={formatSelectedModelHint(
             resolveLocalModel(form.model),
             resolveDownloadInfo(form.model),
-            resolveDownloadInfoError(form.model),
+            locale,
+            t,
           )}
         >
           <select
@@ -119,14 +120,15 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
             className="pyqt-input w-full"
           >
             {localModels.length === 0 ? (
-              <option value={DEFAULT_FASTEMBED_MODEL}>{DEFAULT_FASTEMBED_MODEL}</option>
+              <option value={form.model}>{form.model}</option>
             ) : (
               localModels.map((model) => (
                 <option key={model.name} value={model.name}>
                   {formatModelOptionLabel(
                     model,
                     resolveDownloadInfo(model.name),
-                    resolveDownloadInfoError(model.name),
+                    locale,
+                    t,
                   )}
                 </option>
               ))
@@ -134,7 +136,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
           </select>
         </FormField>
       ) : (
-        <FormField label="模型" required>
+        <FormField label={t("settingsForm.model")} required>
           <BookInput
             value={form.model}
             onChange={(e) => setForm({ ...form, model: e.target.value })}
@@ -148,7 +150,6 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
       <FastembedModelPanel
         model={resolveLocalModel(form.model)}
         downloadInfo={resolveDownloadInfo(form.model)}
-        downloadInfoError={resolveDownloadInfoError(form.model)}
         modelName={form.model}
         busy={busyModel === form.model}
         modelHostLabel={modelHostLabel}
@@ -158,7 +159,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
     )}
 
     {form.backend === "api" && (
-      <FormField label="接口地址">
+      <FormField label={t("settingsForm.endpoint")}>
         <BookInput
           value={form.api_base_url}
           onChange={(e) => setForm({ ...form, api_base_url: e.target.value })}
@@ -169,7 +170,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
 
     {form.backend === "api" && (
       <>
-        <FormField label="访问密钥">
+        <FormField label={t("settingsForm.apiKey")}>
           <BookInput
             type="password"
             value={form.api_key}
@@ -196,7 +197,11 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
     )}
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <FormField label="向量维度" required hint="必须与模型输出维度一致">
+      <FormField
+        label={t("settingsForm.dimension")}
+        required
+        hint={t("settingsForm.dimensionHint")}
+      >
         <BookInput
           type="number"
           min={32}
@@ -206,7 +211,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
           onChange={(e) => setForm({ ...form, dimension: Number(e.target.value) })}
         />
       </FormField>
-      <FormField label="批量大小" required>
+      <FormField label={t("settingsForm.batchSize")} required>
         <BookInput
           type="number"
           min={1}

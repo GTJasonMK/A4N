@@ -263,6 +263,20 @@ fn targeted_storyboard_rows_are_complete(
     actual_count == 1 && first_shot_number == Some(target_shot_number)
 }
 
+fn incomplete_frame_error(
+    spec: &super::super::super::FramePromptGenerationSpec,
+    expected_frame_count: usize,
+    actual_frame_count: usize,
+) -> AppError {
+    AppError::InvalidArgument(format!(
+        "当前章节{}不完整：需要 {} 条，当前 {} 条，请先生成完整{}",
+        spec.incomplete_frame_label,
+        expected_frame_count,
+        actual_frame_count,
+        spec.incomplete_frame_label
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,18 +303,4 @@ mod tests {
         assert!(!targeted_storyboard_rows_are_complete(1, Some(1), 3));
         assert!(!targeted_storyboard_rows_are_complete(2, Some(3), 3));
     }
-}
-
-fn incomplete_frame_error(
-    spec: &super::super::super::FramePromptGenerationSpec,
-    expected_frame_count: usize,
-    actual_frame_count: usize,
-) -> AppError {
-    AppError::InvalidArgument(format!(
-        "当前章节{}不完整：需要 {} 条，当前 {} 条，请先生成完整{}",
-        spec.incomplete_frame_label,
-        expected_frame_count,
-        actual_frame_count,
-        spec.incomplete_frame_label
-    ))
 }

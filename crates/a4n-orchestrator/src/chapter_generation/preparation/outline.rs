@@ -86,10 +86,8 @@ pub fn merge_generation_outline_text(
         ));
     }
 
-    if has_outline_source {
-        if let Some(instruction) = writing_instruction {
-            sections.push(format!("## 写作指令\n{instruction}"));
-        }
+    if has_outline_source && let Some(instruction) = writing_instruction {
+        sections.push(format!("## 写作指令\n{instruction}"));
     }
 
     if let Some(range) = word_count_range {

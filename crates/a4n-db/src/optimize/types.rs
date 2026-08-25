@@ -1,4 +1,7 @@
 use super::*;
+use sea_orm::FromQueryResult;
+
+use crate::rag::RagForeshadowingRow;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct OptimizationSessionCreateInput {
@@ -118,18 +121,41 @@ pub struct OptimizationBlueprintRows {
     pub relationships: Vec<blueprint_relationship::Model>,
 }
 
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct OptimizationChapterSummaryRecord {
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub word_count: i32,
+    pub analysis_data: Option<Value>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct OptimizationChapterOutlineRecord {
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub beats: Option<Value>,
+    pub key_scenes: Option<Value>,
+    pub pacing_score: Option<f32>,
+    pub foreshadowing_setup: Option<Value>,
+    pub foreshadowing_payoff: Option<Value>,
+    pub characters_involved: Option<Value>,
+    pub word_count_target: Option<i32>,
+}
+
 #[derive(Debug, Clone)]
 pub struct OptimizationContextRows {
     pub current_chapter: chapter::Model,
-    pub current_chapter_outline: Option<chapter_outline::Model>,
+    pub current_chapter_outline: Option<OptimizationChapterOutlineRecord>,
     pub project: Option<novel_project::Model>,
     pub blueprint: Option<OptimizationBlueprintRows>,
     pub part_outlines: Vec<part_outline::Model>,
-    pub chapter_outlines: Vec<chapter_outline::Model>,
+    pub chapter_outlines: Vec<OptimizationChapterOutlineRecord>,
     pub character_profiles: Vec<protagonist_profile::Model>,
-    pub foreshadowing_index: Vec<foreshadowing_index::Model>,
-    pub previous_chapters: Vec<chapter::Model>,
-    pub next_chapters: Vec<chapter::Model>,
+    pub foreshadowing_index: Vec<RagForeshadowingRow>,
+    pub previous_chapters: Vec<OptimizationChapterSummaryRecord>,
+    pub next_chapters: Vec<OptimizationChapterSummaryRecord>,
 }
 
 #[derive(Debug, Clone)]

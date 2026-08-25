@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_core::video_execution::{
@@ -301,13 +301,20 @@ pub(in crate::video::prompt_generation::frame_prompts) fn select_video_segment_r
     included_source_shot_ids: &HashSet<String>,
     style: &str,
 ) -> Result<(Vec<VideoSegmentPlan>, Vec<VideoSegmentExecutionRecipeV1>), AppError> {
+    let recipes_by_number = recipes.iter().fold(
+        HashMap::with_capacity(recipes.len()),
+        |mut by_number, recipe| {
+            by_number.entry(recipe.segment_number).or_insert(recipe);
+            by_number
+        },
+    );
     let mut selected = segments
         .into_iter()
         .filter(|segment| included_source_shot_ids.contains(&segment.source_shot_id))
         .map(|segment| {
-            let recipe = recipes
-                .iter()
-                .find(|recipe| recipe.segment_number == segment.segment_number)
+            let recipe = recipes_by_number
+                .get(&segment.segment_number)
+                .copied()
                 .cloned()
                 .ok_or_else(|| AppError::InvalidState {
                     current: format!("missing_recipe_for_segment:{}", segment.segment_number),

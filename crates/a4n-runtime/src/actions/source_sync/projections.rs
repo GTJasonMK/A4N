@@ -1,11 +1,11 @@
 use super::{SourceSyncConflictSummary, SourceSyncPlanSummary, SourceSyncRunSummary};
 use a4n_core::error::AppError;
 use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_db::source_sync::SourceSyncPlanRecord;
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncConflictStatus,
     SourceSyncLocalStateKind, SourceSyncResolutionStrategy, SourceSyncRunMode, SourceSyncRunStatus,
 };
-use a4n_orchestrator::source_sync::SourceSyncPlanRecord;
 use serde_json::{Map, Value};
 
 pub(super) fn source_sync_plan_summary(

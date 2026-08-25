@@ -125,6 +125,11 @@ mod tests {
     #[tokio::test]
     async fn retirement_removes_generation_start_request_before_its_task() {
         let db = crate::test_support::connect_test_database().await;
+        db.execute_unprepared(
+            "DROP TABLE IF EXISTS chapter_video_timeline_event, chapter_video_timeline_item, chapter_video_timeline CASCADE",
+        )
+        .await
+        .unwrap();
         crate::migrations::chapter_video_timeline::Migration
             .up(&SchemaManager::new(&db))
             .await

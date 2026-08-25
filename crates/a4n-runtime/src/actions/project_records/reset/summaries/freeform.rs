@@ -1,7 +1,6 @@
-use super::super::super::{
-    contracts::ProjectGeneratedDataResetSummary, summaries::project_summary_with_family_for_user,
-};
+use super::super::super::summaries::{project_record_by_id, project_summary_with_family_for_user};
 use crate::AppState;
+use a4n_api_contract::project::ProjectGeneratedDataResetSummary;
 use a4n_core::models::project::novel_project;
 use a4n_orchestrator::project::FreeformVideoGeneratedDataResetResult;
 
@@ -12,8 +11,9 @@ pub(in crate::actions::project_records::reset) async fn to_freeform_generated_da
     result: &FreeformVideoGeneratedDataResetResult,
     deleted_media_files: usize,
 ) -> Result<ProjectGeneratedDataResetSummary, String> {
+    let project = project_record_by_id(state, project.id).await?;
     Ok(ProjectGeneratedDataResetSummary {
-        project: project_summary_with_family_for_user(state, user_id, project).await?,
+        project: project_summary_with_family_for_user(state, user_id, &project).await?,
         deleted_galgame_scripts: 0,
         deleted_galgame_scenes: 0,
         deleted_galgame_lines: 0,
@@ -48,15 +48,15 @@ pub(in crate::actions::project_records::reset) async fn to_freeform_generated_da
         deleted_optimization_events: 0,
         deleted_optimization_patch_sets: 0,
         deleted_optimization_patches: 0,
-        deleted_generated_images: result.artifact_row_cleanup.deleted_generated_images,
-        deleted_generated_videos: result.artifact_row_cleanup.deleted_generated_videos,
-        deleted_generation_specs: result.artifact_row_cleanup.deleted_generation_specs,
-        deleted_prompt_artifacts: result.artifact_link_cleanup.deleted_prompt_artifacts,
-        deleted_media_assets: result.artifact_row_cleanup.deleted_media_assets,
-        deleted_media_provenance: result.artifact_link_cleanup.deleted_media_provenance,
-        deleted_media_bindings: result.artifact_link_cleanup.deleted_media_bindings,
-        deleted_tasks: result.task_cleanup.deleted_tasks,
-        deleted_task_dependencies: result.task_cleanup.deleted_task_dependencies,
+        deleted_generated_images: result.deleted_generated_images,
+        deleted_generated_videos: result.deleted_generated_videos,
+        deleted_generation_specs: result.deleted_generation_specs,
+        deleted_prompt_artifacts: result.deleted_prompt_artifacts,
+        deleted_media_assets: result.deleted_media_assets,
+        deleted_media_provenance: result.deleted_media_provenance,
+        deleted_media_bindings: result.deleted_media_bindings,
+        deleted_tasks: result.deleted_tasks,
+        deleted_task_dependencies: result.deleted_task_dependencies,
         deleted_media_files,
     })
 }

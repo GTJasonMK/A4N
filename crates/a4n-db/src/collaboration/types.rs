@@ -7,9 +7,10 @@ pub use a4n_domain::collaboration::{
     ProjectMemberSummary,
 };
 pub use contracts::{
-    AccessibleProjectListInput, AccessibleProjectsPage, CollaborationRootProject,
-    ProjectAccessInfo, ProjectAccessInfoQuery,
+    AccessibleProjectListInput, AccessibleProjectRecord, AccessibleProjectsPage,
+    CollaborationRootProject, ProjectAccessInfo, ProjectAccessInfoQuery,
 };
+pub(in crate::collaboration) use contracts::{ProjectAccessRow, UserAccessRow, UserDisplayRow};
 pub use errors::CollaborationDbError;
 
 pub(in crate::collaboration) use lifecycle::{

@@ -1,7 +1,8 @@
 use crate::auth::{
     bootstrap_first_admin, change_password, create_session, create_user, current_user,
-    disable_user, list_sessions, login_user, register_user, rotate_session_refresh_token,
-    update_profile, update_user_role, user_by_id, verify_session_refresh_token,
+    current_user_summary, disable_user, list_sessions, list_users, login_user, register_user,
+    rotate_session_refresh_token, update_profile, update_user_role, user_by_id,
+    verify_session_refresh_token,
 };
 use a4n_core::error::AppError;
 
@@ -41,6 +42,34 @@ async fn create_user_rejects_unknown_role_before_insert() {
 
     assert!(matches!(err, AppError::InvalidArgument(_)));
     assert_eq!(user_count(&db).await, 0);
+}
+
+#[tokio::test]
+async fn list_users_returns_ordered_summaries() {
+    let db = setup().await;
+    let first = create_user(db.as_ref(), "first", "first@example.com", "pw", "admin")
+        .await
+        .unwrap();
+    let second = create_user(
+        db.as_ref(),
+        "second",
+        "second@example.com",
+        "pw",
+        "read_only",
+    )
+    .await
+    .unwrap();
+
+    let users = list_users(db.as_ref()).await.unwrap();
+
+    assert_eq!(users.len(), 2);
+    assert_eq!(users[0].id, first.id);
+    assert_eq!(users[0].username, "first");
+    assert_eq!(users[0].role, "admin");
+    assert_eq!(users[1].id, second.id);
+    assert_eq!(users[1].username, "second");
+    assert_eq!(users[1].role, "read_only");
+    assert!(users.iter().all(|user| user.is_active));
 }
 
 #[tokio::test]
@@ -184,6 +213,14 @@ async fn get_current_user_rejects_disabled_user_without_breaking_raw_get() {
         .await
         .unwrap();
 
+    let summary = current_user_summary(db.as_ref(), user.id)
+        .await
+        .expect("active user summary must be readable");
+    assert_eq!(summary.id, user.id);
+    assert_eq!(summary.username, "alice");
+    assert_eq!(summary.email, "alice@example.com");
+    assert!(summary.is_active);
+
     deactivate_user(&db, user.id).await;
 
     let raw = user_by_id(db.as_ref(), user.id).await.unwrap();
@@ -194,6 +231,11 @@ async fn get_current_user_rejects_disabled_user_without_breaking_raw_get() {
         .expect_err("disabled user must not be restored as current user");
 
     assert!(matches!(err, AppError::Forbidden(_)));
+
+    let summary_err = current_user_summary(db.as_ref(), user.id)
+        .await
+        .expect_err("disabled user summary must be rejected");
+    assert!(matches!(summary_err, AppError::Forbidden(_)));
 }
 
 #[tokio::test]
@@ -210,6 +252,7 @@ async fn update_profile_rejects_disabled_user_without_update() {
         user.id,
         Some("new@example.com"),
         Some(Some("avatar.png")),
+        None,
     )
     .await
     .expect_err("disabled user must not update profile");

@@ -80,6 +80,9 @@ fn source_snapshot_chapter_summary_preserves_content_and_analysis() {
         analysis_data_json: Some(json!({"k": "v"})),
         content_hash: "content-hash".to_string(),
         analysis_hash: Some("analysis-hash".to_string()),
+        visual_plan_id: None,
+        visual_plan_version: None,
+        visual_plan_sha256: None,
     });
 
     assert_eq!(summary.id, 1);

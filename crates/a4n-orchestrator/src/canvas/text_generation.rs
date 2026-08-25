@@ -5,7 +5,6 @@ mod request;
 
 pub use contracts::{
     CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput,
-    CanvasTextNodeRunHandle, CanvasTextNodeRunSummary,
 };
 pub use request::build_canvas_llm_text_request_for_preview;
 

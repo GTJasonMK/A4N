@@ -1,9 +1,7 @@
 import { extractErrorMessage } from "../../api";
 import type { NovelProject, ProjectKind } from "../../api/project";
+import type { MessageTranslator } from "../../i18n";
 import { isCancelledOperation } from "../../utils/cancellation";
-import { PROJECT_KIND_LABELS } from "../../utils/projectRouting";
-
-export { PROJECT_KIND_LABELS };
 
 export interface Quote {
   zh: string;
@@ -58,16 +56,6 @@ export const PROJECT_KIND_FILTERS: readonly ProjectKindFilter[] = [
   "video",
   "galgame",
 ] as const;
-
-export const PROJECT_TAB_LABELS: Record<ProjectTab, string> = {
-  recent: "最近项目",
-  all: "全部项目",
-};
-
-export const PROJECT_KIND_FILTER_LABELS: Record<ProjectKindFilter, string> = {
-  all: "全部类型",
-  ...PROJECT_KIND_LABELS,
-};
 
 export const pickRandomQuote = (): Quote =>
   CREATIVE_QUOTES[Math.floor(Math.random() * CREATIVE_QUOTES.length)];
@@ -156,15 +144,16 @@ export const groupProjectFamiliesByTitle = (
 export const trySyncTextProjectMaterials = async (
   project: Pick<NovelProject, "id" | "project_kind">,
   sync: (projectId: number) => Promise<void>,
+  t: MessageTranslator,
 ): Promise<string | null> => {
   if (project.project_kind !== "text") return null;
   try {
     await sync(project.id);
     return null;
   } catch (err) {
-    const message = extractErrorMessage(err, "资料索引同步失败");
+    const message = extractErrorMessage(err, t("novel.projectListActions.syncFailed"));
     return isCancelledOperation(message)
-      ? "资料索引同步已停止，可在项目操作中重新同步"
-      : `资料索引待恢复：${message}；可在项目操作中重新同步`;
+      ? t("novel.projectListActions.syncStopped")
+      : t("novel.projectListActions.syncRecovery", { error: message });
   }
 };

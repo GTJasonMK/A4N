@@ -4,18 +4,13 @@ use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set, Transa
 
 use super::super::types::{ChapterOutlineSyncDraft, OutlineDbError};
 
-/// 插入章节大纲记录。
-pub async fn insert_chapter_outline_record<C>(
-    db: &C,
+pub(super) fn chapter_outline_active_model(
     project_id: i64,
     part_id: Option<i64>,
     draft: &ChapterOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<chapter_outline::Model, OutlineDbError>
-where
-    C: ConnectionTrait,
-{
-    Ok(chapter_outline::ActiveModel {
+) -> chapter_outline::ActiveModel {
+    chapter_outline::ActiveModel {
         project_id: Set(project_id),
         part_id: Set(part_id),
         chapter_number: Set(draft.chapter_number),
@@ -33,8 +28,24 @@ where
         updated_at: Set(now),
         ..Default::default()
     }
-    .insert(db)
-    .await?)
+}
+
+/// 插入章节大纲记录。
+pub async fn insert_chapter_outline_record<C>(
+    db: &C,
+    project_id: i64,
+    part_id: Option<i64>,
+    draft: &ChapterOutlineSyncDraft,
+    now: NaiveDateTime,
+) -> Result<chapter_outline::Model, OutlineDbError>
+where
+    C: ConnectionTrait,
+{
+    Ok(
+        chapter_outline_active_model(project_id, part_id, draft, now)
+            .insert(db)
+            .await?,
+    )
 }
 
 /// 更新既有章节大纲记录。

@@ -1,5 +1,5 @@
-use super::contracts::{AuthResult, RefreshTokenInput, TokenPairSummary};
 use super::projections::{to_session_summary, to_user_summary};
+use super::{AuthResult, RefreshTokenInput, TokenPairSummary};
 use crate::AppState;
 use crate::jwt;
 use a4n_core::error::AppError;

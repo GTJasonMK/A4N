@@ -8,7 +8,7 @@ use super::galgame::{
     remap_galgame_background_params, remap_galgame_cg_params, remap_galgame_portrait_params,
 };
 
-pub fn remap_generation_spec_params_json(
+pub(in crate::project_family_import) fn remap_generation_spec_params_json(
     spec: &generation_spec::Model,
     maps: &ImportIdMaps,
 ) -> Result<Value, ProjectFamilyImportError> {

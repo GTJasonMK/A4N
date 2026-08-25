@@ -1,7 +1,7 @@
+use a4n_domain::LlmMaxTokensConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
-use a4n_domain::LlmMaxTokensConfig;
 
 use super::defaults::{
     default_cache_dir, default_data_dir, default_database_url, default_embedding_backend,
@@ -9,8 +9,8 @@ use super::defaults::{
     default_embedding_model, default_event_bus_capacity, default_image_backend,
     default_image_height, default_image_max_concurrent, default_image_model, default_image_width,
     default_llm_base_url, default_llm_max_concurrent, default_llm_max_context_tokens,
-    default_llm_max_output_tokens, default_llm_model, default_llm_provider, default_llm_timeout_secs,
-    default_log_dir, default_temp_dir,
+    default_llm_max_output_tokens, default_llm_model, default_llm_provider,
+    default_llm_timeout_secs, default_log_dir, default_temp_dir,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

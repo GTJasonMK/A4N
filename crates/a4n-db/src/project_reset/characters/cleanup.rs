@@ -53,13 +53,12 @@ where
 
 pub(super) async fn delete_text_discovered_profiles<C>(
     tx: &C,
+    project_id: i64,
     text_profile_ids: &[i64],
 ) -> Result<(), ProjectResetDbError>
 where
     C: ConnectionTrait,
 {
-    for profile_id in text_profile_ids.iter().copied() {
-        character::delete_profile_cascade_in(tx, profile_id).await?;
-    }
+    character::delete_profiles_cascade_in(tx, project_id, text_profile_ids).await?;
     Ok(())
 }

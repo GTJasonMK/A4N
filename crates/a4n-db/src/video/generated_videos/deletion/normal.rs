@@ -1,17 +1,17 @@
-use super::locking::generated_video_for_delete;
-use super::references::clear_generated_video_references_record;
+use super::locking::{GeneratedVideoDeleteContext, generated_video_for_delete};
 use crate::video::VideoDbError;
 use a4n_core::models::ai::generated_video;
 use sea_orm::{ConnectionTrait, EntityTrait, TransactionTrait};
 
 async fn delete_locked_generated_video_record_in<C>(
     db: &C,
-    video: &generated_video::Model,
+    video: &GeneratedVideoDeleteContext,
 ) -> Result<(), VideoDbError>
 where
     C: ConnectionTrait,
 {
-    clear_generated_video_references_record(db, std::slice::from_ref(video)).await?;
+    super::references::clear_generated_video_references_by_ids(db, &[(video.id, video.project_id)])
+        .await?;
     crate::media::delete_generated_video_target_media_bindings(db, &[video.id]).await?;
     crate::generation::delete_generation_run_targets_for(db, "generated_video", &[video.id])
         .await?;

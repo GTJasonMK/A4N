@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_core::source_spans::SourceSpan;
+use a4n_core::source_spans::SourceSpanIndex;
 use serde_json::Value;
 
 use super::super::super::materialize::analysis_materialize_error;
@@ -9,7 +9,7 @@ use entry::validate_foreshadowing_candidate;
 
 pub(super) fn validate_foreshadowing_candidates(
     facts: &Value,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let candidates = facts
         .get("foreshadowing_candidates")

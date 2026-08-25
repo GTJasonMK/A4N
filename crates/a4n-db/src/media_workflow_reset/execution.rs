@@ -18,7 +18,7 @@ pub async fn reset_media_workflows_to_v2(
         ));
     }
     let tx = db.begin().await?;
-    let project = crate::project::project_by_id_for_update(&tx, project_id)
+    let project = crate::project::project_write_identity_for_update(&tx, project_id)
         .await
         .map_err(|error| DbErr::Custom(error.to_string()))?
         .ok_or_else(|| DbErr::Custom(format!("项目不存在: {project_id}")))?;

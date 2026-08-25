@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
-import { formatUiDateTime } from "../../../utils/dateTime";
 import type { GalgamePipelineStatusSummary } from "../../../api/galgame";
+import { formatDateTime, useI18n, type MessageTranslator } from "../../../i18n";
 
 /**
  * Galgame 生成状态面板
@@ -14,54 +14,51 @@ interface PipelineStatusPanelProps {
   loading: boolean;
 }
 
-function pipelineStatusLabel(status: string): string {
+function pipelineStatusLabel(status: string, t: MessageTranslator): string {
   switch (status) {
     case "running":
-      return "运行中";
+      return t("workflow.runningStatus");
     case "completed":
-      return "已完成";
+      return t("workflow.successStatus");
     case "failed":
-      return "失败";
+      return t("workflow.error");
     case "cancelled":
-      return "已取消";
+      return t("workflow.cancelled");
     case "interrupted":
-      return "已中断";
+      return t("workflow.interrupted");
     case "superseded":
-      return "已取代";
+      return t("workflow.superseded");
     default:
-      return "状态未知";
+      return t("workflow.unknownStatus");
   }
 }
 
-function pipelineStepLabel(stepKey: string): string {
+function pipelineStepLabel(stepKey: string, t: MessageTranslator): string {
   switch (stepKey) {
     case "shooting_script_projection":
-      return "拍摄剧本投影";
+      return t("workflow.shootingScriptProjection");
     case "script_adaptation":
-      return "剧本改编";
+      return t("workflow.scriptAdaptation");
     case "character_staging":
-      return "角色演出";
+      return t("workflow.characterStaging");
     case "visual_planning":
-      return "视觉规划";
+      return t("workflow.visualPlanning");
     case "branch_design":
-      return "分支设计";
+      return t("workflow.branchDesign");
     case "persist_script":
-      return "写入剧本";
+      return t("workflow.persistScript");
     case "asset_generation":
-      return "资产意图";
+      return t("workflow.assetGeneration");
     default:
-      return "其他步骤";
+      return t("workflow.unknownStep");
   }
-}
-
-function formatPipelineTime(value: string): string {
-  return formatUiDateTime(value);
 }
 
 export const PipelineStatusPanel: React.FC<PipelineStatusPanelProps> = ({
   status,
   loading,
 }) => {
+  const { locale, t } = useI18n();
   const run = status?.run ?? null;
   const [open, setOpen] = useState(
     run?.status === "running" || run?.status === "failed",
@@ -75,35 +72,35 @@ export const PipelineStatusPanel: React.FC<PipelineStatusPanelProps> = ({
 
   return (
     <details
-      aria-label="生成状态"
+      aria-label={t("workflow.progress")}
       className="a4n-flat-surface overflow-hidden text-xs"
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
-        <span>生成状态</span>
+        <span>{t("workflow.progress")}</span>
         <span className="flex-1" />
         {loading ? <LoadingSpinner size="sm" /> : null}
         {run ? (
           <span className="text-small font-normal text-book-text-muted">
-            {pipelineStatusLabel(run.status)}
+            {pipelineStatusLabel(run.status, t)}
           </span>
         ) : null}
       </summary>
       <div className="border-t border-book-border/40 px-3 py-3">
         {!run ? (
-          <div className="text-small text-book-text-muted">正在读取状态…</div>
+          <div className="text-small text-book-text-muted">{t("common.loading")}</div>
         ) : (
           <div className="space-y-1 text-small text-book-text-muted">
             <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
-              <span>{pipelineStatusLabel(run.status)}</span>
+              <span>{pipelineStatusLabel(run.status, t)}</span>
               <span className="min-w-0 truncate text-right">
-                {formatPipelineTime(run.updated_at)}
+                {formatDateTime(run.updated_at, locale)}
               </span>
             </div>
             {run.current_step_key ? (
               <div className="truncate">
-                步骤：{pipelineStepLabel(run.current_step_key)}
+                {t("workflow.currentStep", { step: pipelineStepLabel(run.current_step_key, t) })}
               </div>
             ) : null}
             {run.error_message ? (
@@ -122,9 +119,9 @@ export const PipelineStatusPanel: React.FC<PipelineStatusPanelProps> = ({
                     className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
                   >
                     <span className="min-w-0 truncate">
-                      {pipelineStepLabel(checkpoint.step_key)}
+                      {pipelineStepLabel(checkpoint.step_key, t)}
                     </span>
-                    <span>{pipelineStatusLabel(checkpoint.status)}</span>
+                    <span>{pipelineStatusLabel(checkpoint.status, t)}</span>
                   </div>
                 ))}
               </div>

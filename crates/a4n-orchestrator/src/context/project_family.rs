@@ -1,16 +1,15 @@
 use a4n_core::{error::AppError, event::bridge::InternalEvent, models::project::novel_project};
-use a4n_db::DbHandle;
-use a4n_domain::project::ProjectStatus;
+use a4n_db::{DbHandle, project::MangaCharacterPortraitRefSummary};
+use a4n_domain::project::{ProjectSourceMode, ProjectStatus};
 use chrono::{Duration, Utc};
 
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
 use crate::project::{
-    ChapterMangaSourceSummary, MangaCharacterPortraitRefSummary, ProjectFamilyContext,
-    ProjectFamilyExportRows, ProjectFamilyExportSelection, ProjectFamilyImportPackage,
-    ProjectFamilyMediaFileImporter, ProjectGeneratedDataResetApplicationResult,
-    SourceSnapshotChapterSummary, ensure_positive_project_id,
-    is_freeform_video_generated_data_reset_project, project_family_error_to_app_error,
+    ChapterMangaSourceSummary, ProjectFamilyContext, ProjectFamilyExportRows,
+    ProjectFamilyExportSelection, ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter,
+    ProjectGeneratedDataResetApplicationResult, SourceSnapshotChapterSummary,
+    ensure_positive_project_id, project_family_error_to_app_error,
     project_family_export_error_to_app_error, project_family_import_error_to_app_error,
     project_mutation_error_to_app_error, project_reset_error_to_app_error,
 };
@@ -58,6 +57,18 @@ impl ProjectFamilyApplication {
             .map_err(project_family_error_to_app_error)
     }
 
+    async fn project_or_derived_access_ids(
+        &self,
+        project_id: i64,
+    ) -> Result<(i64, Option<i64>), AppError> {
+        a4n_db::project::project_or_derived_family_access_ids(
+            self.database.connection(),
+            project_id,
+        )
+        .await
+        .map_err(project_family_error_to_app_error)
+    }
+
     async fn manga_character_portrait_refs(
         &self,
         project_id: i64,
@@ -93,6 +104,22 @@ impl ProjectFamilyApplication {
             self.database.connection(),
             project_id,
             chapter_number,
+            require_content,
+        )
+        .await
+        .map_err(project_family_error_to_app_error)
+    }
+
+    async fn chapter_manga_sources_by_ids(
+        &self,
+        project_id: i64,
+        chapter_ids: &[i64],
+        require_content: bool,
+    ) -> Result<Vec<ChapterMangaSourceSummary>, AppError> {
+        a4n_db::project::chapter_manga_sources_by_ids(
+            self.database.connection(),
+            project_id,
+            chapter_ids,
             require_content,
         )
         .await
@@ -408,47 +435,50 @@ impl ProjectFamilyApplication {
 }
 
 impl OrchestratorContext {
-    pub(crate) async fn verify_project_or_derived_family_access_validated(
+    pub async fn verify_project_or_derived_family_access_validated(
         &self,
         user_id: i64,
         project_id: i64,
     ) -> Result<(), AppError> {
-        if self.project_kind(project_id).await? == crate::project::PROJECT_KIND_TEXT {
-            self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
-                .await?;
-            return Ok(());
+        let (project_id, root_project_id) = self
+            .project_family
+            .project_or_derived_access_ids(project_id)
+            .await?;
+        if let Some(root_project_id) = root_project_id {
+            return self
+                .verify_project_permissions(
+                    &[project_id, root_project_id],
+                    user_id,
+                    ProjectAccessRole::Viewer,
+                )
+                .await;
         }
-        self.derived_project_family_access_context_validated(user_id, project_id)
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await
             .map(|_| ())
     }
 
-    pub(crate) async fn verify_project_or_derived_family_editor_validated(
+    pub async fn verify_project_or_derived_family_editor_validated(
         &self,
         user_id: i64,
         project_id: i64,
     ) -> Result<(), AppError> {
-        if self.project_kind(project_id).await? == crate::project::PROJECT_KIND_TEXT {
-            self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
-                .await?;
-            return Ok(());
+        let (project_id, root_project_id) = self
+            .project_family
+            .project_or_derived_access_ids(project_id)
+            .await?;
+        if let Some(root_project_id) = root_project_id {
+            return self
+                .verify_project_permissions(
+                    &[project_id, root_project_id],
+                    user_id,
+                    ProjectAccessRole::Editor,
+                )
+                .await;
         }
-        self.derived_project_family_editor_context_validated(user_id, project_id)
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await
             .map(|_| ())
-    }
-
-    pub(crate) async fn derived_project_family_access_context_validated(
-        &self,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<ProjectFamilyContext, AppError> {
-        let context = self.derived_project_family_context(project_id).await?;
-        self.verify_project_permission(context.project.id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        self.verify_project_permission(context.root_project.id, user_id, ProjectAccessRole::Viewer)
-            .await?;
-        Ok(context)
     }
 
     pub(crate) async fn derived_project_family_editor_context_validated(
@@ -522,6 +552,17 @@ impl OrchestratorContext {
     ) -> Result<ChapterMangaSourceSummary, AppError> {
         self.project_family
             .chapter_manga_source_by_number(project_id, chapter_number, require_content)
+            .await
+    }
+
+    pub(crate) async fn chapter_manga_sources_by_ids(
+        &self,
+        project_id: i64,
+        chapter_ids: &[i64],
+        require_content: bool,
+    ) -> Result<Vec<ChapterMangaSourceSummary>, AppError> {
+        self.project_family
+            .chapter_manga_sources_by_ids(project_id, chapter_ids, require_content)
             .await
     }
 
@@ -723,8 +764,10 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if is_freeform_video_generated_data_reset_project(&project)
-            .map_err(AppError::InvalidArgument)?
+        if project
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {project_id}: {error}")))?
+            == ProjectSourceMode::Freeform
         {
             let result = self
                 .project_family

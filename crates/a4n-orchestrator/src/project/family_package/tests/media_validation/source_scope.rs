@@ -85,6 +85,26 @@ fn validate_media_manifest_rejects_non_object_request_snapshot() {
 }
 
 #[test]
+fn validate_media_manifest_rejects_provenance_runtime_identity() {
+    let mut package = package_with_derived_project();
+    package.media_assets = vec![media_asset_with_kind(MEDIA_KIND_IMAGE)];
+    let mut provenance = media_provenance_record(None);
+    provenance.provider_job_id = Some("remote-job".to_string());
+    package.media_provenance = vec![provenance];
+
+    let err = validate_media_manifest(&package, &empty_media_payload())
+        .expect_err("provider runtime identity must fail");
+    assert!(err.contains("不能携带 provider_job_id"));
+
+    package.media_provenance = vec![media_provenance_record(Some(json!({
+        "nested": {"workflow_run_id": 8}
+    })))];
+    let err = validate_media_manifest(&package, &empty_media_payload())
+        .expect_err("snapshot runtime identity must fail");
+    assert!(err.contains("request_snapshot_json 不能携带运行身份 workflow_run_id"));
+}
+
+#[test]
 fn validate_media_manifest_rejects_generation_spec_source_snapshot_mismatch() {
     let mut package = package_with_derived_project();
     push_second_source_snapshot(&mut package, 902);
@@ -142,7 +162,7 @@ fn validate_media_manifest_rejects_source_media_asset_source_snapshot_mismatch()
     provenance.source_media_asset_id = Some(11);
     package.media_assets = vec![media_asset_with_status(MEDIA_STATUS_PENDING), source_asset];
     package.media_provenance = vec![provenance];
-    let media_payload = media_payload_for_assets(&package.media_assets);
+    let media_payload = media_payload_for_assets(&mut package);
 
     let err = validate_media_manifest(&package, &media_payload)
         .expect_err("source media asset source snapshot must match derived asset");

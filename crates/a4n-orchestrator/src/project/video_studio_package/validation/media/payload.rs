@@ -1,54 +1,59 @@
-use super::owner::{MediaEntryOwner, resolve_media_entry_owner};
-use crate::project::sha256_bytes;
-use crate::project::video_studio_package::{VideoStudioMediaFileEntry, VideoStudioProjectPackage};
+use super::owner::{MediaEntryOwner, MediaEntryOwnerIndex};
+use crate::project::{MediaFileEntry, VideoStudioProjectPackage, sha256_bytes};
 use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
 
-pub(crate) fn validate_media_entry_bytes(
+pub(in crate::project::video_studio_package) fn validate_media_entry_bytes(
     package: &VideoStudioProjectPackage,
-    entry: &VideoStudioMediaFileEntry,
+    entry: &MediaFileEntry,
     bytes: &[u8],
 ) -> Result<(), String> {
-    match resolve_media_entry_owner(package, entry)? {
-        MediaEntryOwner::GeneratedImage(image) => validate_payload_size(
-            image.file_size,
-            bytes,
-            &entry.owner_kind,
-            entry.owner_id,
-            &entry.field,
-        ),
-        MediaEntryOwner::GeneratedVideo(video) if entry.field == FILE_PATH_FIELD => {
-            validate_payload_size(
-                video.file_size,
+    MediaEntryOwnerIndex::new(package).validate_bytes(entry, bytes)
+}
+
+impl<'a> MediaEntryOwnerIndex<'a> {
+    pub fn validate_bytes(&self, entry: &MediaFileEntry, bytes: &[u8]) -> Result<(), String> {
+        match self.resolve(entry)? {
+            MediaEntryOwner::GeneratedImage(image) => validate_payload_size(
+                image.file_size,
                 bytes,
                 &entry.owner_kind,
                 entry.owner_id,
                 &entry.field,
-            )
-        }
-        MediaEntryOwner::MediaAsset(asset) if entry.field == FILE_PATH_FIELD => {
-            validate_payload_size(
-                asset.file_size,
-                bytes,
-                &entry.owner_kind,
-                entry.owner_id,
-                &entry.field,
-            )?;
-            if let Some(expected_checksum) = asset.checksum.as_deref() {
-                let actual_checksum = sha256_bytes(bytes);
-                if actual_checksum != expected_checksum {
-                    return Err(format!(
-                        "媒体文件 checksum 与清单不一致: owner_kind={}, owner_id={}, field={}, expected={}, actual={}",
-                        entry.owner_kind,
-                        entry.owner_id,
-                        entry.field,
-                        expected_checksum,
-                        actual_checksum
-                    ));
-                }
+            ),
+            MediaEntryOwner::GeneratedVideo(video) if entry.field == FILE_PATH_FIELD => {
+                validate_payload_size(
+                    video.file_size,
+                    bytes,
+                    &entry.owner_kind,
+                    entry.owner_id,
+                    &entry.field,
+                )
             }
-            Ok(())
+            MediaEntryOwner::MediaAsset(asset) if entry.field == FILE_PATH_FIELD => {
+                validate_payload_size(
+                    asset.file_size,
+                    bytes,
+                    &entry.owner_kind,
+                    entry.owner_id,
+                    &entry.field,
+                )?;
+                if let Some(expected_checksum) = asset.checksum.as_deref() {
+                    let actual_checksum = sha256_bytes(bytes);
+                    if actual_checksum != expected_checksum {
+                        return Err(format!(
+                            "媒体文件 checksum 与清单不一致: owner_kind={}, owner_id={}, field={}, expected={}, actual={}",
+                            entry.owner_kind,
+                            entry.owner_id,
+                            entry.field,
+                            expected_checksum,
+                            actual_checksum
+                        ));
+                    }
+                }
+                Ok(())
+            }
+            MediaEntryOwner::GeneratedVideo(_) | MediaEntryOwner::MediaAsset(_) => Ok(()),
         }
-        MediaEntryOwner::GeneratedVideo(_) | MediaEntryOwner::MediaAsset(_) => Ok(()),
     }
 }
 

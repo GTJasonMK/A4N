@@ -1,14 +1,7 @@
-mod object_profiles;
-
-pub use a4n_db::asset::{
-    AssetDbError, ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult,
-};
-pub use object_profiles::{
-    OBJECT_TYPES, ObjectProfileDraft, normalize_object_name, normalize_object_profile_record_input,
-    normalize_object_profile_record_inputs, normalize_object_type_value,
-};
+pub(crate) mod object_profiles;
 
 use a4n_core::error::AppError;
+use a4n_db::asset::AssetDbError;
 
 pub(crate) fn asset_error(error: AssetDbError) -> AppError {
     match error {

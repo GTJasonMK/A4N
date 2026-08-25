@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { listAllProjects, type NovelProject } from "../../../api/project";
 import { useToast } from "../../../components/feedback/Toast";
+import { useI18n } from "../../../i18n";
 
 interface PromptProjectSelectProps {
   value: number | null;
@@ -19,6 +20,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   className = "",
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [projects, setProjects] = useState<NovelProject[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +32,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
         if (active) setProjects(items);
       })
       .catch((error) => {
-        if (active) addToast(extractErrorMessage(error, "加载项目列表失败"), "error");
+        if (active) addToast(extractErrorMessage(error, t("settingsPrompt.loadProjectsFailed")), "error");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -52,7 +54,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
       disabled={loading}
     >
       <option value="">
-        {loading ? "正在加载项目…" : allowEmpty ? "不使用项目上下文" : "选择项目"}
+        {loading ? t("settingsPrompt.loadingProjects") : allowEmpty ? t("settingsPrompt.noProjectContext") : t("settingsPrompt.selectProject")}
       </option>
       {projects.map((project) => (
         <option key={project.id} value={project.id}>

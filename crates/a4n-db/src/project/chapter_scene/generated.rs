@@ -1,22 +1,27 @@
-use super::{ProjectGeneratedChapterSceneSaveError, ProjectGeneratedChapterSceneSaveInput};
+use super::{ProjectChapterSceneWriteError, ProjectGeneratedChapterSceneSaveInput};
 use a4n_core::models::chapter::{chapter, chapter_scene};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
+};
 
 pub async fn save_generated_chapter_scene_record(
     db: &DatabaseConnection,
     input: ProjectGeneratedChapterSceneSaveInput,
-) -> Result<chapter_scene::Model, ProjectGeneratedChapterSceneSaveError> {
+) -> Result<chapter_scene::Model, ProjectChapterSceneWriteError> {
     let word_count = i32::try_from(input.content.chars().count()).map_err(|_| {
-        ProjectGeneratedChapterSceneSaveError::InvalidArgument(
+        ProjectChapterSceneWriteError::InvalidArgument(
             "章节场景正文字符数超出 i32 范围".to_string(),
         )
     })?;
-    let chapter = chapter::Entity::find_by_id(input.chapter_id)
+    let chapter_number = chapter::Entity::find_by_id(input.chapter_id)
+        .select_only()
+        .column(chapter::Column::ChapterNumber)
+        .into_tuple::<i32>()
         .one(db)
         .await?
         .ok_or_else(|| {
-            ProjectGeneratedChapterSceneSaveError::NotFound(format!(
+            ProjectChapterSceneWriteError::NotFound(format!(
                 "章节不存在: chapter_id={}",
                 input.chapter_id
             ))
@@ -42,7 +47,7 @@ pub async fn save_generated_chapter_scene_record(
         scene_number: Set(input.scene_number),
         title: Set(Some(format!(
             "第{}章-场景{}",
-            chapter.chapter_number, input.scene_number
+            chapter_number, input.scene_number
         ))),
         content: Set(input.content),
         word_count: Set(word_count),

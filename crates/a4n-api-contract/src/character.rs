@@ -235,6 +235,13 @@ pub struct CharacterProfileSyncedResult {
     pub protected_attributes: Vec<CharacterProfileProtectedAttribute>,
     pub snapshot_hash: String,
     pub state_indexes_upserted: usize,
+    /// 本次为重算清理 AI 时间线的结束章节。大于 `synced_chapter` 时说明档案的已同步进度
+    /// 被回退，`cleared_*` 是被清掉、需要重新同步的记录数。
+    pub cleared_through_chapter: i32,
+    pub cleared_attribute_events: u64,
+    pub cleared_behaviors: u64,
+    pub cleared_state_indexes: u64,
+    pub cleared_snapshots: u64,
     pub deleted_state_rag: usize,
     pub state_rag_indexed_count: usize,
     pub state_rag_indexed: bool,

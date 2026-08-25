@@ -2,8 +2,8 @@ use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::error::AppError;
-use a4n_core::models::character::protagonist_profile;
-use a4n_core::models::project::{blueprint_character, novel_blueprint};
+use a4n_core::models::project::novel_blueprint;
+use a4n_db::video::{VideoPromptBlueprintCharacterRecord, VideoPromptProtagonistProfileRecord};
 
 use super::super::OrchestratorContext;
 
@@ -103,7 +103,9 @@ pub(in crate::video) fn video_context_character_names(
     names
 }
 
-pub(in crate::video) fn video_profile_context(profile: &protagonist_profile::Model) -> Value {
+pub(in crate::video) fn video_profile_context(
+    profile: &VideoPromptProtagonistProfileRecord,
+) -> Value {
     let mut object = Map::new();
     insert_text_value(&mut object, "gender", profile.gender.as_deref());
     insert_text_value(&mut object, "age", profile.age.as_deref());
@@ -157,7 +159,7 @@ fn video_character_entry<'a>(
 }
 
 fn profile_matches_video_names(
-    profile: &protagonist_profile::Model,
+    profile: &VideoPromptProtagonistProfileRecord,
     names: &BTreeSet<String>,
 ) -> bool {
     names.contains(profile.name.trim())
@@ -198,7 +200,7 @@ fn video_blueprint_context(blueprint: &novel_blueprint::Model) -> Value {
     Value::Object(object)
 }
 
-fn video_blueprint_character_context(character: &blueprint_character::Model) -> Value {
+fn video_blueprint_character_context(character: &VideoPromptBlueprintCharacterRecord) -> Value {
     let mut object = Map::new();
     insert_text_value(
         &mut object,

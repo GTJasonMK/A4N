@@ -6,24 +6,24 @@ use super::{
     ImportProjectAnalysisSummary, ProjectImportAnalysisProgress,
     chapter_outline::importable_chapters,
     progress::{
-        finish_import_progress, import_progress_totals_match, initial_import_progress,
-        load_import_progress_optional, resume_import_progress, save_failed_import_progress,
-        save_import_progress, update_import_progress,
+        finish_import_progress, initial_import_progress, load_import_progress_optional,
+        resume_import_progress, save_failed_import_progress, save_import_progress,
+        update_import_progress,
     },
 };
 use crate::OrchestratorContext;
 
-pub enum ImportAnalysisStageResult {
+pub(super) enum ImportAnalysisStageResult {
     Complete(usize),
     Cancelled(usize),
 }
 
-pub struct ImportAnalysisRunPreparation {
-    pub chapters: Vec<chapter::Model>,
-    pub progress: ProjectImportAnalysisProgress,
+pub(super) struct ImportAnalysisRunPreparation {
+    pub(super) chapters: Vec<chapter::Model>,
+    pub(super) progress: ProjectImportAnalysisProgress,
 }
 
-pub async fn save_import_stage(
+pub(super) async fn save_import_stage(
     context: &OrchestratorContext,
     project_id: i64,
     progress: &mut ProjectImportAnalysisProgress,
@@ -37,7 +37,7 @@ pub async fn save_import_stage(
     save_import_progress(context, project_id, progress).await
 }
 
-pub async fn prepare_import_project_analysis(
+pub(super) async fn prepare_import_project_analysis(
     context: &OrchestratorContext,
     project_id: i64,
 ) -> Result<ImportAnalysisRunPreparation, AppError> {
@@ -51,7 +51,7 @@ pub async fn prepare_import_project_analysis(
 
     let progress = match load_import_progress_optional(context, project_id).await? {
         Some(mut progress)
-            if import_progress_totals_match(&progress, chapters.len())
+            if progress.stages.generating_analysis_data.total == chapters.len()
                 && progress.status != ImportAnalysisStatus::Completed =>
         {
             resume_import_progress(&mut progress)?;
@@ -64,7 +64,7 @@ pub async fn prepare_import_project_analysis(
     Ok(ImportAnalysisRunPreparation { chapters, progress })
 }
 
-pub async fn record_import_analysis_failure(
+pub(super) async fn record_import_analysis_failure(
     context: &OrchestratorContext,
     project_id: i64,
     execution_error: &AppError,
@@ -78,7 +78,7 @@ pub async fn record_import_analysis_failure(
         })
 }
 
-pub async fn complete_import_project_analysis(
+pub(super) async fn complete_import_project_analysis(
     context: &OrchestratorContext,
     project_id: i64,
     progress: &mut ProjectImportAnalysisProgress,

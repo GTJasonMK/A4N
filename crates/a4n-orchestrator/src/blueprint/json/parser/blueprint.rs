@@ -11,7 +11,7 @@ use metadata::parse_blueprint_metadata;
 use sections::parse_blueprint_sections;
 use top_level::parse_blueprint_top_level;
 
-pub fn parse_blueprint_json(
+pub(in crate::blueprint) fn parse_blueprint_json(
     content: &str,
     requested_chapters: i32,
 ) -> Result<ParsedBlueprint, AppError> {

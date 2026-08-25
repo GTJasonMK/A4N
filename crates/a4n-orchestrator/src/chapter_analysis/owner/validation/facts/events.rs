@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_core::source_spans::SourceSpan;
+use a4n_core::source_spans::SourceSpanIndex;
 use serde_json::Value;
 
 use super::super::super::materialize::analysis_materialize_error;
@@ -9,7 +9,7 @@ use entry::validate_event_candidate;
 
 pub(super) fn validate_event_candidates(
     facts: &Value,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let events = facts
         .get("event_candidates")

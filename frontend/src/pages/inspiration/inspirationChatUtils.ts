@@ -2,11 +2,10 @@ import type { ProgressDialogStatus } from "../../components/feedback/ProgressDia
 import type { InspirationMessageSummary } from "../../api/generated/host";
 import { parseInspirationResponse } from "./responseParser";
 import type { Message } from "./shared";
+import type { MessageTranslator } from "../../i18n";
 
 export type Stage = "conversation" | "confirm" | "display";
 
-export const DEFAULT_INPUT_PLACEHOLDER =
-  "说说你的想法…  Enter 发送 / Shift+Enter 换行";
 const BLUEPRINT_PROGRESS_TOTAL = 12;
 
 export interface BlueprintProgressState {
@@ -17,11 +16,11 @@ export interface BlueprintProgressState {
   error: string | null;
 }
 
-export const createBlueprintProgressState = (): BlueprintProgressState => ({
+export const createBlueprintProgressState = (initialMessage: string): BlueprintProgressState => ({
   status: "idle",
   current: 0,
   total: BLUEPRINT_PROGRESS_TOTAL,
-  message: "准备生成首版蓝图…",
+  message: initialMessage,
   error: null,
 });
 
@@ -30,10 +29,10 @@ export const msgId = (() => {
   return () => `m-${Date.now()}-${++n}`;
 })();
 
-export const welcomeMessage = (title: string): Message => ({
+export const welcomeMessage = (title: string, t: MessageTranslator): Message => ({
   id: msgId(),
   role: "assistant",
-  content: `你好！我们来一起打磨「${title}」的故事。\n\n先告诉我：你最初的灵感是什么？可以是一个画面、一句台词、一个人物，或者一个让你着迷的"假设"。`,
+  content: t("inspiration.welcome", { title }),
   createdAt: Date.now(),
 });
 

@@ -16,7 +16,7 @@ use super::contracts::{
     ResolvedEmbeddingConfig, positive_usize, required_text, resolve_fastembed_cache_dir,
 };
 
-pub fn make_provider_from_model(
+pub(crate) fn make_provider_from_model(
     model: &embedding_config::Model,
     embedding_models_dir: PathBuf,
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {

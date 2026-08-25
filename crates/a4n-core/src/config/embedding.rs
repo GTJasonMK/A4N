@@ -16,18 +16,6 @@ pub struct CreateEmbeddingConfigParams {
     pub local_model_path: Option<String>,
 }
 
-#[derive(Debug, Clone)]
-pub struct UpdateEmbeddingConfigParams {
-    pub name: String,
-    pub backend: String,
-    pub base_url: Option<String>,
-    pub api_key_encrypted: Option<Option<String>>,
-    pub model: String,
-    pub dimension: i32,
-    pub batch_size: i32,
-    pub local_model_path: Option<String>,
-}
-
 const API_EMBEDDING_BACKEND: &str = "api";
 const FASTEMBED_EMBEDDING_BACKEND: &str = "fastembed";
 const LOCAL_HASH_EMBEDDING_BACKEND: &str = "local_hash";

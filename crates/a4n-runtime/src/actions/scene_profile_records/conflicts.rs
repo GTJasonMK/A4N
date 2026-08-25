@@ -1,8 +1,5 @@
-use crate::actions::{
-    dependency_conflict::{DownstreamConflictStrategy, resolve_downstream_id_conflict},
-    profile_materials,
-};
-use a4n_domain::profile_material::ProfileMaterialKind;
+use crate::actions::{dependency_conflict::resolve_downstream_id_conflict, profile_materials};
+use a4n_domain::{DownstreamConflictStrategy, profile_material::ProfileMaterialKind};
 
 pub(super) async fn scene_profile_project_id(
     scene_profile: &a4n_orchestrator::OrchestratorContext,

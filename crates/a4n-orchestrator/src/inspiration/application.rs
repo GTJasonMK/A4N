@@ -26,7 +26,7 @@ use crate::{
 };
 
 use super::{
-    build_inspiration_request_from_context, validation::validate_inspiration_response_json,
+    request::build_inspiration_request_from_context, validation::validate_inspiration_response_json,
 };
 
 impl OrchestratorContext {

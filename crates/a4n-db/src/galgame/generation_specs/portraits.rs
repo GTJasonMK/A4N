@@ -1,16 +1,17 @@
 use super::*;
-use std::collections::BTreeSet;
+use sea_orm::QuerySelect;
+use std::collections::HashSet;
 
 pub(crate) fn galgame_portrait_spec_references_lines(
     params_json: &serde_json::Value,
-    line_ids: &BTreeSet<i64>,
+    line_ids: &HashSet<i64>,
 ) -> Result<bool, String> {
     let source_line_ids = params_json
         .get("source_line_ids")
         .and_then(serde_json::Value::as_array)
         .filter(|items| !items.is_empty())
         .ok_or_else(|| "Galgame 立绘差分 source_line_ids 必须是非空数组".to_string())?;
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     let mut matches = false;
     for value in source_line_ids {
         let line_id = value
@@ -42,36 +43,48 @@ pub async fn galgame_portrait_spec_target_profile(
     db: &DatabaseConnection,
     spec: &generation_spec::Model,
     input: &GalgamePortraitSpecTargetInput,
-) -> Result<protagonist_profile::Model, GalgameGenerationRecordError> {
+) -> Result<GalgamePortraitSpecTargetProfile, GalgameGenerationRecordError> {
     validate_galgame_portrait_spec_target_input(spec, input)?;
-    let project = novel_project::Entity::find_by_id(spec.project_id)
-        .one(db)
-        .await
-        .map_err(GalgameGenerationRecordError::Database)?
-        .ok_or_else(|| {
-            GalgameGenerationRecordError::NotFound(format!("项目不存在: {}", spec.project_id))
-        })?;
-    if project.project_kind != PROJECT_KIND_GALGAME {
+    let (project_id, project_kind, root_project_id, source_snapshot_id) =
+        novel_project::Entity::find_by_id(spec.project_id)
+            .select_only()
+            .column(novel_project::Column::Id)
+            .column(novel_project::Column::ProjectKind)
+            .column(novel_project::Column::RootProjectId)
+            .column(novel_project::Column::SourceSnapshotId)
+            .into_tuple::<(i64, String, Option<i64>, Option<i64>)>()
+            .one(db)
+            .await
+            .map_err(GalgameGenerationRecordError::Database)?
+            .ok_or_else(|| {
+                GalgameGenerationRecordError::NotFound(format!("项目不存在: {}", spec.project_id))
+            })?;
+    if project_kind != ProjectKind::Galgame.as_str() {
         return Err(GalgameGenerationRecordError::InvalidArgument(format!(
             "Galgame 立绘差分生成意图不属于 Galgame 项目: spec_id={}, project_id={}",
-            spec.id, project.id
+            spec.id, project_id
         )));
     }
-    let root_project_id = project.root_project_id.ok_or_else(|| {
+    let root_project_id = root_project_id.ok_or_else(|| {
         GalgameGenerationRecordError::InvalidArgument(format!(
             "Galgame 项目缺少根文本项目: {}",
-            project.id
+            project_id
         ))
     })?;
-    let source_snapshot_id = project.source_snapshot_id.ok_or_else(|| {
+    let source_snapshot_id = source_snapshot_id.ok_or_else(|| {
         GalgameGenerationRecordError::InvalidArgument(format!(
             "Galgame 项目缺少源文本快照: {}",
-            project.id
+            project_id
         ))
     })?;
     validate_galgame_portrait_spec_family_context(spec, root_project_id, source_snapshot_id)?;
     validate_galgame_portrait_spec_source_chapter(spec)?;
     let profile = protagonist_profile::Entity::find_by_id(input.profile_id)
+        .select_only()
+        .column(protagonist_profile::Column::Id)
+        .column(protagonist_profile::Column::ProjectId)
+        .column(protagonist_profile::Column::Name)
+        .into_tuple::<(i64, i64, String)>()
         .one(db)
         .await
         .map_err(GalgameGenerationRecordError::Database)?
@@ -81,36 +94,43 @@ pub async fn galgame_portrait_spec_target_profile(
                 input.profile_id
             ))
         })?;
-    if profile.project_id != root_project_id {
+    if profile.1 != root_project_id {
         return Err(GalgameGenerationRecordError::InvalidArgument(format!(
             "Galgame 立绘差分角色档案不属于当前 Galgame 根项目: spec_id={}, profile_id={}",
-            spec.id, profile.id
+            spec.id, profile.0
         )));
     }
     let snapshot_profile = source_snapshot_profile::Entity::find()
         .filter(source_snapshot_profile::Column::SnapshotId.eq(source_snapshot_id))
         .filter(source_snapshot_profile::Column::RootProjectId.eq(root_project_id))
         .filter(source_snapshot_profile::Column::ProfileKind.eq("character"))
-        .filter(source_snapshot_profile::Column::SourceProfileId.eq(profile.id))
+        .filter(source_snapshot_profile::Column::SourceProfileId.eq(profile.0))
+        .select_only()
+        .column(source_snapshot_profile::Column::Id)
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map_err(GalgameGenerationRecordError::Database)?;
     if snapshot_profile.is_none() {
         return Err(GalgameGenerationRecordError::InvalidArgument(format!(
             "Galgame 立绘差分角色档案不属于源快照: spec_id={}, profile_id={}, source_snapshot_id={}",
-            spec.id, profile.id, source_snapshot_id
+            spec.id, profile.0, source_snapshot_id
         )));
     }
     validate_galgame_portrait_spec_source_lines(
         db,
         spec,
         input,
-        &project,
+        project_id,
         root_project_id,
         source_snapshot_id,
     )
     .await?;
-    Ok(profile)
+    Ok(GalgamePortraitSpecTargetProfile {
+        id: profile.0,
+        project_id: profile.1,
+        name: profile.2,
+    })
 }
 
 pub(in crate::galgame) fn validate_galgame_portrait_spec_target_input(
@@ -162,7 +182,7 @@ pub async fn completed_galgame_portrait_record(
 
 pub async fn primary_galgame_portrait_reference_image_ids(
     db: &DatabaseConnection,
-    profile: &protagonist_profile::Model,
+    profile: &GalgamePortraitSpecTargetProfile,
 ) -> Result<Vec<i64>, GalgameGenerationRecordError> {
     validate_galgame_generation_id(profile.id, "profile_id")?;
     validate_galgame_generation_id(profile.project_id, "project_id")?;

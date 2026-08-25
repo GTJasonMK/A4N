@@ -143,6 +143,20 @@ impl AgentRegistry {
         agents
     }
 
+    pub(crate) fn authorize(
+        &self,
+        owner_user_id: i64,
+        agent_id: &str,
+        token: &str,
+    ) -> Result<(), ApiError> {
+        self.expire();
+        let records = self.records.read();
+        let record = records
+            .get(agent_id)
+            .ok_or_else(|| ApiError::not_found("Agent 不存在"))?;
+        authorize_record(record, owner_user_id, token)
+    }
+
     fn register(
         &self,
         owner_user_id: i64,
@@ -197,6 +211,24 @@ impl AgentRegistry {
             agent_token: token,
             lease_seconds: AGENT_LEASE_SECONDS,
         })
+    }
+
+    #[cfg(test)]
+    pub(crate) fn register_for_test(&self, owner_user_id: i64, name: &str) -> (String, String) {
+        let response = self
+            .register(
+                owner_user_id,
+                RegisterAgentInput {
+                    name: name.into(),
+                    kind: "test".into(),
+                    client: "test".into(),
+                    project_id: None,
+                    chapter_id: None,
+                    metadata: None,
+                },
+            )
+            .expect("test agent registration");
+        (response.agent.agent_id, response.agent_token)
     }
 
     fn update(

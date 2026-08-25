@@ -1,4 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Film, GitCompare, Layers3 } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -15,17 +23,45 @@ import { BackButton } from "../components/ui/BackButton";
 import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { EmptyHint, type ChapterRow } from "./novel-detail/shared";
 import { VideoTab } from "./novel-detail/VideoTab";
-import { SourceSyncDialog } from "./derived/SourceSyncDialog";
 import {
   getDerivedProjectSubtitle,
   getProjectStudioRoute,
 } from "../utils/projectRouting";
+import { formatNumber, useI18n } from "../i18n";
+
+const SourceSyncDialog = lazy(() =>
+  import("./derived/SourceSyncDialog").then((module) => ({
+    default: module.SourceSyncDialog,
+  })),
+);
 
 export const VideoProjectWorkspace: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const projectId = Number(id);
+
+  const subtitleLabels = useMemo(
+    () => ({
+      fallback: t("video.projectWorkspace"),
+      sourceProject: (title: string) => t("novel.sourceProject", { title }),
+      chapterScope: (start: number, end: number) =>
+        start === end
+          ? t("novel.chapterScopeSingle", { start })
+          : t("novel.chapterScopeRange", { start, end }),
+      sourceSyncStatus: (value: string | null | undefined) => {
+        switch (String(value ?? "").trim().toLowerCase()) {
+          case "current": return t("novel.sourceSyncCurrent");
+          case "root_updated": return t("novel.sourceSyncRootUpdated");
+          case "conflict": return t("novel.sourceSyncConflict");
+          case "detached": return t("novel.sourceSyncDetached");
+          default: return value?.trim() || t("novel.sourceSyncUnknown");
+        }
+      },
+    }),
+    [t],
+  );
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
@@ -38,7 +74,7 @@ export const VideoProjectWorkspace: React.FC = () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast("视频项目参数无效", "error");
+      addToast(t("video.projectInvalid"), "error");
       setProject(null);
       setChapters([]);
       setSelectedSourceChapterId(null);
@@ -50,7 +86,7 @@ export const VideoProjectWorkspace: React.FC = () => {
       const item = await getProject(projectId);
       if (refreshRequestRef.current !== requestId) return;
       if (item.project_kind !== "video") {
-        addToast("当前项目不是视频项目", "error");
+        addToast(t("video.notVideoProject"), "error");
         navigate("/", { replace: true });
         return;
       }
@@ -73,14 +109,14 @@ export const VideoProjectWorkspace: React.FC = () => {
       });
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
-        addToast(extractErrorMessage(err, "加载视频项目失败"), "error");
+        addToast(extractErrorMessage(err, t("video.loadProjectFailed")), "error");
       }
     } finally {
       if (refreshRequestRef.current === requestId) {
         setLoading(false);
       }
     }
-  }, [addToast, navigate, projectId]);
+  }, [addToast, navigate, projectId, t]);
 
   useEffect(() => {
     refreshRequestRef.current += 1;
@@ -121,19 +157,19 @@ export const VideoProjectWorkspace: React.FC = () => {
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
       <DerivedProjectHeader
-        leading={<BackButton iconOnly title="返回项目列表" onClick={() => navigate("/")} />}
+        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
         icon={<Film size={15} />}
-        title={project?.title || "视频项目"}
+        title={project?.title || t("novel.videoProject")}
         subtitle={
           project
-            ? getDerivedProjectSubtitle(project, "视频项目工作区")
-            : "加载源文本信息中"
+            ? getDerivedProjectSubtitle(project, subtitleLabels)
+            : t("video.sourceLoading")
         }
         actions={
           <>
             {canEditProject ? (
               <BookIconButton
-                label="同步源文本"
+                label={t("video.syncSource")}
                 onClick={() => setSourceSyncOpen(true)}
                 disabled={!project}
                 variant="secondary"
@@ -149,32 +185,34 @@ export const VideoProjectWorkspace: React.FC = () => {
               disabled={!project}
             >
               <Layers3 size={14} />
-              画布模式
+              {t("video.canvasMode")}
             </BookButton>
           </>
         }
       />
 
-      {project ? (
-        <SourceSyncDialog
-          open={sourceSyncOpen}
-          projectId={project.id}
-          projectTitle={project.title}
-          sourceSyncStatus={project.source_sync_status}
-          canEditSourceSync={canEditProject}
-          onClose={() => setSourceSyncOpen(false)}
-          onChanged={refresh}
-        />
+      {project && sourceSyncOpen ? (
+        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+          <SourceSyncDialog
+            open
+            projectId={project.id}
+            projectTitle={project.title}
+            sourceSyncStatus={project.source_sync_status}
+            canEditSourceSync={canEditProject}
+            onClose={() => setSourceSyncOpen(false)}
+            onChanged={refresh}
+          />
+        </Suspense>
       ) : null}
 
-      <section aria-label="视频项目工作区" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden">
+      <section aria-label={t("video.projectWorkspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden">
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
-            加载视频项目
+            {t("video.loadingProject")}
           </div>
         ) : project && !canEditProject ? (
-          <EmptyHint text="当前账号没有编辑此视频项目的权限。" />
+          <EmptyHint text={t("video.noEditPermission")} />
         ) : project && chapters.length > 0 ? (
           <div
             className={
@@ -186,7 +224,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             {showChapterNavigation ? (
               <>
                 <label className="flex min-w-0 items-center gap-2 border-b border-book-border/45 pb-3 text-xs md:hidden">
-                  <span className="shrink-0 font-medium text-book-text-muted">来源章节</span>
+                  <span className="shrink-0 font-medium text-book-text-muted">{t("video.sourceChapter")}</span>
                   <select
                     value={selectedSourceChapterId ?? ""}
                     onChange={(event) => setSelectedSourceChapterId(Number(event.target.value))}
@@ -196,15 +234,15 @@ export const VideoProjectWorkspace: React.FC = () => {
                       const title = sourceChapterTitle(chapter);
                       return (
                         <option key={chapter.id} value={chapter.source_chapter_id}>
-                          第 {chapter.chapter_number} 章{title ? ` · ${title}` : ""}
+                          {t("writing.chapterLabel", { number: formatNumber(chapter.chapter_number, locale) })}{title ? ` · ${title}` : ""}
                         </option>
                       );
                     })}
                   </select>
                 </label>
-                <aside aria-label="来源章节" className="a4n-flat-surface hidden max-h-full min-h-0 self-start overflow-y-auto p-2 custom-scrollbar md:block">
+                <aside aria-label={t("video.sourceChapter")} className="a4n-flat-surface hidden max-h-full min-h-0 self-start overflow-y-auto p-2 custom-scrollbar md:block">
                   <div className="mb-2 hidden px-2 text-small font-medium text-book-text-muted md:block">
-                    来源章节
+                    {t("video.sourceChapter")}
                   </div>
                   <div className="space-y-1">
                     {chapters.map((chapter) => {
@@ -218,7 +256,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                           data-active={active ? "1" : undefined}
                           className="a4n-sidebar-item text-xs"
                         >
-                          <div className="font-medium">第 {chapter.chapter_number} 章</div>
+                          <div className="font-medium">{t("writing.chapterLabel", { number: formatNumber(chapter.chapter_number, locale) })}</div>
                           {title ? (
                             <div className="mt-0.5 truncate text-small text-book-text-muted">
                               {title}
@@ -232,12 +270,12 @@ export const VideoProjectWorkspace: React.FC = () => {
               </>
             ) : selectedChapter ? (
               <div
-                aria-label="当前来源章节"
+                aria-label={t("video.currentSourceChapter")}
                 className="flex min-w-0 shrink-0 items-baseline gap-2 border-b border-book-border/45 px-1 pb-3 text-xs"
               >
-                <span className="shrink-0 text-book-text-muted">来源章节</span>
+                <span className="shrink-0 text-book-text-muted">{t("video.sourceChapter")}</span>
                 <span className="min-w-0 truncate font-medium text-book-text-main">
-                  第 {selectedChapter.chapter_number} 章
+                  {t("writing.chapterLabel", { number: formatNumber(selectedChapter.chapter_number, locale) })}
                   {selectedChapter.title ? ` · ${selectedChapter.title}` : ""}
                 </span>
               </div>
@@ -252,7 +290,7 @@ export const VideoProjectWorkspace: React.FC = () => {
             </section>
           </div>
         ) : (
-          <EmptyHint text="当前视频项目没有可用的来源章节。" />
+          <EmptyHint text={t("video.noSourceChapter")} />
         )}
       </section>
     </div>

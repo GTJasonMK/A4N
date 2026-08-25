@@ -1,6 +1,6 @@
 use crate::AppState;
-use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_queue::TaskWorkflowContext;
+use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use std::future::Future;
 use tokio_util::sync::CancellationToken;
 

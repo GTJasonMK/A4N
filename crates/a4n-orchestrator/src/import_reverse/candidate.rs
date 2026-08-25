@@ -10,7 +10,6 @@ use a4n_api_contract::import_reverse::{
 use a4n_core::{
     error::AppError,
     event::bridge::InternalEvent,
-    import_reverse::ReverseContentRequest,
     models::generation::{workflow_checkpoint, workflow_run},
 };
 use a4n_db::{
@@ -36,14 +35,16 @@ use crate::workflow::workflow_checkpoint_contract_app_error;
 
 use super::{
     IMPORT_REVERSE_WORKFLOW_KIND, IMPORT_REVERSE_WORKFLOW_MODE, ReverseEngineeringTarget,
-    ReverseEngineeringTargetDomain,
     application::{
         reverse_blueprint_apply_draft, reverse_blueprint_apply_result,
         reverse_outline_apply_result, reverse_outline_rows, reverse_part_outline_apply_result,
         reverse_part_outline_rows, validate_reverse_engineer_output,
     },
+    context::ReverseContentRequest,
     execution::restored_import_reverse_checkpoint,
     import_reverse_db_error,
+    target::ReverseEngineeringTargetDomain,
+    workflow_rules::import_reverse_business_key,
 };
 
 pub(crate) const REVERSE_CANDIDATE_ARTIFACT_KEY: &str = "candidate";
@@ -154,8 +155,8 @@ async fn latest_reverse_engineering_candidate(
         ));
     }
     let prompt_name = target.prompt_name();
-    let business_key = super::import_reverse_business_key(project_id, target)
-        .map_err(AppError::InvalidArgument)?;
+    let business_key =
+        import_reverse_business_key(project_id, target).map_err(AppError::InvalidArgument)?;
     let Some(run) = workflow_run::Entity::find()
         .filter(workflow_run::Column::BusinessKey.eq(business_key))
         .filter(workflow_run::Column::ProjectId.eq(project_id))
@@ -508,8 +509,7 @@ fn validate_reverse_candidate_run(
             })?;
     validate_reverse_candidate_run_fingerprint(fingerprint, project_id, target)?;
     let expected_business_key =
-        crate::import_reverse::import_reverse_business_key(project_id, target)
-            .map_err(AppError::InvalidArgument)?;
+        import_reverse_business_key(project_id, target).map_err(AppError::InvalidArgument)?;
     if run.business_key != expected_business_key {
         return Err(AppError::InvalidState {
             current: "reverse_candidate_business_key_mismatch".to_string(),
@@ -774,7 +774,7 @@ mod tests {
         let prompt_name = target.prompt_name();
         workflow_run::Model {
             id: 42,
-            business_key: crate::import_reverse::import_reverse_business_key(7, target).unwrap(),
+            business_key: import_reverse_business_key(7, target).unwrap(),
             workflow_kind: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
             project_id: Some(7),
             root_project_id: Some(7),

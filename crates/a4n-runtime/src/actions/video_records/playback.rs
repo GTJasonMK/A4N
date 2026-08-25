@@ -179,22 +179,22 @@ async fn generate_scrub_frames(source_path: &Path, frames_path: &Path) -> Result
 }
 
 fn publish_scrub_asset(temp_path: &Path, target_path: &Path, label: &str) -> Result<(), String> {
-    if !is_non_empty_file(&temp_path) {
-        remove_scrub_temp_file(&temp_path);
+    if !is_non_empty_file(temp_path) {
+        remove_scrub_temp_file(temp_path);
         return Err(format!("{label}生成完成但文件为空"));
     }
     if is_non_empty_file(target_path) {
-        remove_scrub_temp_file(&temp_path);
+        remove_scrub_temp_file(temp_path);
         return Ok(());
     }
     if target_path.exists()
         && let Err(error) = std::fs::remove_file(target_path)
     {
-        remove_scrub_temp_file(&temp_path);
+        remove_scrub_temp_file(temp_path);
         return Err(format!("无法清理无效的{label}：{error}"));
     }
-    if let Err(error) = std::fs::rename(&temp_path, target_path) {
-        remove_scrub_temp_file(&temp_path);
+    if let Err(error) = std::fs::rename(temp_path, target_path) {
+        remove_scrub_temp_file(temp_path);
         return Err(format!("无法发布{label}：{error}"));
     }
     Ok(())
@@ -248,10 +248,8 @@ fn remove_stale_scrub_assets(current_path: &Path, video_id: i64, current_prefix:
                 .is_some_and(|name| {
                     name.starts_with(&video_prefix) && !name.starts_with(&current_prefix)
                 });
-        if is_stale_asset {
-            if let Err(error) = std::fs::remove_file(&path) {
-                tracing::warn!(path = %path.display(), %error, "failed to remove stale video scrub asset");
-            }
+        if is_stale_asset && let Err(error) = std::fs::remove_file(&path) {
+            tracing::warn!(path = %path.display(), %error, "failed to remove stale video scrub asset");
         }
     }
 }

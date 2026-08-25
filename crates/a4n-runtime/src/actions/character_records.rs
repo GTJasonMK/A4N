@@ -8,9 +8,9 @@ mod snapshots;
 
 pub use a4n_api_contract::character::{
     AddProfileAttributeInput, AttributeCountsSummary, AttributeEventSummary, AttributeHistoryInput,
-    BehaviorRecordSummary, CheckProfileSyncConflictInput, CharacterProfileCreateResult,
-    CharacterProfileDeleteResult, CharacterProfileMutationResult, CharacterProfileSummary,
-    CreateProfileInput, DiffProfileChaptersInput, DeletionMarkSummary,
+    BehaviorRecordSummary, CharacterProfileCreateResult, CharacterProfileDeleteResult,
+    CharacterProfileMutationResult, CharacterProfileSummary, CheckProfileSyncConflictInput,
+    CreateProfileInput, DeletionMarkSummary, DiffProfileChaptersInput,
     ExecuteAttributeDeletionInput, GetProfileStateAtChapterInput, GetSnapshotInput,
     ListBehaviorsInput, ListDeletionMarksInput, ListProfilesInput, ListSnapshotsInput,
     ModifyProfileAttributeInput, ProfileChapterStateSummary, ProfileSyncConflictSummary,
@@ -30,8 +30,8 @@ pub use profiles::{
 };
 pub(crate) use projections::deletion_mark_summary;
 pub use snapshots::{
-    check_profile_sync_conflict, diff_profile_chapters, get_profile_state_at_chapter,
-    get_snapshot, list_snapshots, rollback_to_chapter,
+    check_profile_sync_conflict, diff_profile_chapters, get_profile_state_at_chapter, get_snapshot,
+    list_snapshots, rollback_to_chapter,
 };
 
 #[cfg(test)]

@@ -3,6 +3,11 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::chapter_visual_plan::{
+    VisualCameraEventV1, VisualEntityEventV1, VisualKeyframeV1, VisualSoundEventV1,
+    VisualTechniqueEventV1, VisualUserAdditionV1,
+};
+
 pub const CHAPTER_SHOOTING_SCRIPT_V1: &str = "chapter_shooting_script_v1";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -15,8 +20,20 @@ pub enum ChapterShootingScriptSchemaVersion {
 #[serde(deny_unknown_fields)]
 pub struct ChapterShootingScriptV1 {
     pub schema_version: ChapterShootingScriptSchemaVersion,
+    #[serde(default)]
+    pub visual_plan_source: Option<ShootingVisualPlanSourceV1>,
+    #[serde(default)]
+    pub user_additions: Vec<VisualUserAdditionV1>,
     pub directing_statement: ShootingDirectingStatementV1,
     pub scenes: Vec<ShootingSceneV1>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct ShootingVisualPlanSourceV1 {
+    pub plan_id: i64,
+    pub plan_version: i32,
+    pub plan_sha256: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -50,6 +67,10 @@ pub struct ShootingSceneV1 {
     pub participants: Vec<String>,
     pub focal_character: Option<String>,
     pub source_span_ids: Vec<String>,
+    #[serde(default)]
+    pub visual_narrative_unit_id: Option<String>,
+    #[serde(default)]
+    pub user_addition_ids: Vec<String>,
     pub dramatic_question: String,
     pub scene_objective: String,
     pub scene_obstacle: String,
@@ -174,6 +195,16 @@ pub struct ShootingShotV1 {
     pub shot_id: String,
     pub title: String,
     pub source_span_ids: Vec<String>,
+    #[serde(default)]
+    pub visual_shot_id: Option<String>,
+    #[serde(default)]
+    pub planned_start_ms: Option<u64>,
+    #[serde(default)]
+    pub planned_end_ms: Option<u64>,
+    #[serde(default)]
+    pub user_addition_ids: Vec<String>,
+    #[serde(default)]
+    pub visual_constraints: Option<ShootingVisualConstraintsV1>,
     pub coverage: ShootingCoverageV1,
     pub narrative_purpose: String,
     pub subject: String,
@@ -198,6 +229,17 @@ pub struct ShootingShotV1 {
     pub estimated_natural_seconds: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ShootingVisualConstraintsV1 {
+    pub keyframes: Vec<VisualKeyframeV1>,
+    pub entity_events: Vec<VisualEntityEventV1>,
+    pub camera_events: Vec<VisualCameraEventV1>,
+    pub sound_events: Vec<VisualSoundEventV1>,
+    pub technique_events: Vec<VisualTechniqueEventV1>,
+    pub continuity_notes: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ShootingBlockingV1 {
@@ -212,6 +254,8 @@ pub struct ShootingPerformanceBeatV1 {
     pub beat_index: u32,
     pub beat_id: String,
     pub source_span_ids: Vec<String>,
+    #[serde(default)]
+    pub user_addition_ids: Vec<String>,
     pub actor: Option<String>,
     pub objective: String,
     pub obstacle: String,

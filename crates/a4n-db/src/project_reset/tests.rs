@@ -5,14 +5,17 @@ use a4n_core::models::{
     ai::{generated_image, generated_video},
     chapter::chapter,
     project::novel_project,
+    scene::scene_occurrence,
     task::cleanup_outbox,
 };
+use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
 use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
     PaginatorTrait, QueryFilter, Set,
 };
+use serde_json::json;
 use std::error::Error;
 
 async fn setup_db() -> DatabaseConnection {
@@ -26,7 +29,7 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -189,6 +192,90 @@ async fn reset_returns_only_paths_unreferenced_after_transaction_cleanup() {
 }
 
 #[tokio::test]
+async fn reset_deletes_scene_occurrences_before_chapters() {
+    let db = setup_db().await;
+    let project = text_project(&db, "场景出场重置顺序测试").await;
+    let chapter = chapter_record(&db, project.id).await;
+    let scene_profile = crate::scene_profile::create_scene_profile_record(
+        &db,
+        project.id,
+        crate::scene_profile::SceneProfileRecordInput {
+            name: "旧车站".to_string(),
+            normalized_name: "旧车站".to_string(),
+            aliases_json: json!([]),
+            scene_type: "location".to_string(),
+            importance: "primary".to_string(),
+            parent_scene_id: None,
+            base_description: "废弃站台".to_string(),
+            visual_description: "雨幕中的钟楼".to_string(),
+            spatial_layout: "站厅连接钟楼".to_string(),
+            atmosphere: "潮湿而紧张".to_string(),
+            entry_points_json: json!([]),
+            rules_json: json!([]),
+            first_seen_chapter: 1,
+            last_seen_chapter: 1,
+            evidence_json: json!([]),
+            image_prompt_seed: "雨夜旧车站".to_string(),
+        },
+        PROFILE_OWNERSHIP_AI_SYNC,
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    scene_occurrence::ActiveModel {
+        project_id: Set(project.id),
+        scene_profile_id: Set(scene_profile.id),
+        chapter_id: Set(chapter.id),
+        chapter_number: Set(1),
+        occurrence_order: Set(1),
+        timeline_position: Set(None),
+        summary: Set("林岚进入旧车站".to_string()),
+        mood: Set(None),
+        weather_or_lighting: Set(None),
+        source_span_ids_json: Set(json!([])),
+        evidence_json: Set(json!([])),
+        characters_json: Set(json!([])),
+        objects_json: Set(json!([])),
+        key_events_json: Set(json!([])),
+        entry_state_json: Set(json!({})),
+        exit_state_json: Set(json!({})),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let project_id = project.id;
+    let mut gated_project: novel_project::ActiveModel = project.into();
+    gated_project.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
+    gated_project.update(&db).await.unwrap();
+
+    let outcome = reset_project_generated_data_record(&db, project_id)
+        .await
+        .unwrap();
+
+    assert_eq!(outcome.result.deleted_scene_occurrences, 1);
+    assert_eq!(
+        scene_occurrence::Entity::find()
+            .filter(scene_occurrence::Column::ProjectId.eq(outcome.result.project.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        chapter::Entity::find()
+            .filter(chapter::Column::ProjectId.eq(outcome.result.project.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
+}
+
+#[tokio::test]
 async fn rollback_schedules_only_paths_unreferenced_after_chapter_cleanup() {
     let db = setup_db().await;
     let project = text_project(&db, "状态回退路径测试").await;
@@ -276,7 +363,7 @@ async fn rollback_status_history_failure_rolls_back_cleanup_and_status() {
             user_id: 1,
             title: "状态回退事务测试".to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

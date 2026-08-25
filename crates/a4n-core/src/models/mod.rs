@@ -16,6 +16,8 @@ pub mod user {
     pub mod message;
     pub mod role;
     pub mod theme_config;
+    pub mod theme_preference;
+    pub mod theme_resource;
     pub mod usage_stats;
     pub mod user;
     pub mod user_session;
@@ -98,6 +100,7 @@ pub mod chapter {
     pub mod chapter_video_prompt;
     pub mod chapter_video_timeline;
     pub mod chapter_video_timeline_item;
+    pub mod chapter_visual_plan;
     pub mod part_outline;
 }
 

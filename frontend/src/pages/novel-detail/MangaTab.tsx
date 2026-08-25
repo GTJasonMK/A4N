@@ -17,7 +17,11 @@ import { extractErrorMessage } from "../../api";
 import { listChapters } from "../../api/chapter";
 import type { SourceSnapshotChapterSummary } from "../../api/project";
 import { listProfiles, type CharacterProfile } from "../../api/character";
-import { listImagesByProject, type GeneratedImage } from "../../api/image";
+import {
+  listImagesByProject,
+  listImagesByProjects,
+  type GeneratedImage,
+} from "../../api/image";
 import {
   listPortraitsByProject,
   startPortraitGeneration,
@@ -30,6 +34,7 @@ import {
   deleteMangaByChapter,
   getMangaPipelineStatus,
   listMangaPagePrompts,
+  listMangaPipelineStatuses,
   previewResumeMangaPipelineRequest,
   previewStartMangaPipelineRequest,
   resumeMangaPipeline,
@@ -54,10 +59,11 @@ import {
 import { useProgressTask } from "../../hooks/useProgressTask";
 import {
   hasSystemDefaultLlmApiKey,
-  usesLocalRuntimeSettings,
   usesSystemDefaultLlmConfig,
 } from "../../api/localRuntimeSettings";
 import { explainMangaPipelineAiConfigError } from "./manga/mangaPipelineErrors";
+import { useI18n, type MessageTranslator } from "../../i18n";
+import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
 
 interface MangaTabProps {
   projectId: number;
@@ -83,8 +89,10 @@ interface MangaPipelineProgressState {
 
 const MANGA_PIPELINE_POLL_MS = 1500;
 
-const createMangaPipelineProgressState = (): MangaPipelineProgressState => ({
-  title: "漫画流水线",
+const createMangaPipelineProgressState = (
+  t: MessageTranslator,
+): MangaPipelineProgressState => ({
+  title: t("comic.pipelineTitle"),
   status: "idle",
   current: 0,
   total: MANGA_PIPELINE_TOTAL_STEPS,
@@ -120,16 +128,18 @@ const pipelineStatusIsTerminal = (
 
 const pipelineProgressMessage = (
   status: MangaPipelineStatusSummary,
+  t: MessageTranslator,
 ): string => {
   const message = status.message?.trim();
-  if (message) return explainMangaPipelineAiConfigError(message);
-  const stage = status.stage ? mangaStageLabel(status.stage) : "";
-  return stage || status.pipeline_status || "漫画流水线运行中";
+  if (message) return explainMangaPipelineAiConfigError(message, t);
+  const stage = status.stage ? mangaStageLabel(status.stage, t) : "";
+  return stage || status.pipeline_status || t("comic.pipelineRunning");
 };
 
 const progressStateFromPipelineStatus = (
   status: MangaPipelineStatusSummary,
   title: string,
+  t: MessageTranslator,
 ): MangaPipelineProgressState => {
   const nextStatus = pipelineStatusToProgressStatus(status.pipeline_status);
   return {
@@ -137,23 +147,26 @@ const progressStateFromPipelineStatus = (
     status: nextStatus,
     current: status.current ?? 0,
     total: Math.max(1, status.total ?? MANGA_PIPELINE_TOTAL_STEPS),
-    message: pipelineProgressMessage(status),
+    message: pipelineProgressMessage(status, t),
     error:
       nextStatus === "error"
-        ? explainMangaPipelineAiConfigError(status.message ?? "漫画流水线失败")
+        ? explainMangaPipelineAiConfigError(
+            status.message ?? t("comic.pipelineFailed"),
+            t,
+          )
         : null,
   };
 };
 
-const mangaPipelineConfigBlockReason = (): string | null => {
+const mangaPipelineConfigBlockReason = (
+  t: MessageTranslator,
+): string | null => {
   if (
     usesLocalRuntimeSettings() &&
     usesSystemDefaultLlmConfig() &&
     !hasSystemDefaultLlmApiKey()
   ) {
-    return explainMangaPipelineAiConfigError(
-      "使用系统默认 LLM 需要先在用户配置页填写并保存你的个人 API Key",
-    );
+    return t("comic.llmApiKeyRequired");
   }
   return null;
 };
@@ -167,6 +180,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   fixedChapter,
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const { runProgressTask: runPortraitProgressTask } = useProgressTask();
   const hasFixedChapterContext = fixedChapter !== undefined;
   const [chapters, setChapters] = useState<ChapterRow[]>([]);
@@ -194,7 +208,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     useState<ModelRequestPreview | null>(null);
   const [pipelineProgressOpen, setPipelineProgressOpen] = useState(false);
   const [pipelineProgress, setPipelineProgress] =
-    useState<MangaPipelineProgressState>(createMangaPipelineProgressState);
+    useState<MangaPipelineProgressState>(() =>
+      createMangaPipelineProgressState(t),
+    );
   const [pipelineTaskId, setPipelineTaskId] = useState<string | null>(null);
   const [pipelineChapterId, setPipelineChapterId] = useState<number | null>(
     null,
@@ -241,9 +257,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
 
   const ensureCanEditManga = useCallback(() => {
     if (canEditManga) return true;
-    addToast("当前账号没有编辑此漫画项目的权限", "error");
+    addToast(t("comic.noEditPermission"), "error");
     return false;
-  }, [addToast, canEditManga]);
+  }, [addToast, canEditManga, t]);
 
   const isCharacterAssetsCurrent = useCallback(
     (
@@ -368,12 +384,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   ) => {
     if (!isProjectCurrent(requestProjectId)) return;
     void loadSingleStatus(chapterId, requestProjectId).catch((err) =>
-      addToast(extractErrorMessage(err, "加载漫画流水线状态失败"), "error"),
+      addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error"),
     );
     if (!isChapterCurrent(requestProjectId, chapterId)) return;
     void loadPagePrompts(chapterId, requestProjectId, { showLoading: false }).catch(
       (err) =>
-        addToast(extractErrorMessage(err, "加载整页提示词失败"), "error"),
+        addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
     );
   };
 
@@ -396,7 +412,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           // 状态尚未切到本次任务，继续轮询。
         } else {
           setStatuses((current) => ({ ...current, [chapterId]: status }));
-          setPipelineProgress(progressStateFromPipelineStatus(status, title));
+          setPipelineProgress(progressStateFromPipelineStatus(status, title, t));
           if (pipelineStatusIsTerminal(status.pipeline_status)) {
             setPipelineTaskId(null);
             setPipelineChapterId(null);
@@ -407,7 +423,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         }
       } catch (err) {
         if (!isPipelineWatchCurrent(requestProjectId, requestWatchSeq)) return;
-        addToast(extractErrorMessage(err, "加载漫画流水线状态失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error");
       }
       await new Promise<void>((resolve) => {
         window.setTimeout(resolve, MANGA_PIPELINE_POLL_MS);
@@ -453,7 +469,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           requestSeq,
         )
       ) {
-        addToast(extractErrorMessage(err, "加载角色立绘状态失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.loadCharacterAssetsFailed")), "error");
       }
     } finally {
       if (
@@ -485,9 +501,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       setProjectImagesLoading(true);
     }
     try {
-      const imageGroups = await Promise.all(
-        requestImageSourceProjectIds.map(listImagesByProject),
-      );
+      const images =
+        requestImageSourceProjectIds.length === 1
+          ? await listImagesByProject(requestImageSourceProjectIds[0])
+          : await listImagesByProjects(requestImageSourceProjectIds);
       if (
         !isProjectImagesCurrent(
           requestProjectId,
@@ -497,9 +514,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       )
         return;
       const byId = new Map<number, GeneratedImage>();
-      for (const group of imageGroups) {
-        for (const image of group) byId.set(image.id, image);
-      }
+      for (const image of images) byId.set(image.id, image);
       setProjectImages([...byId.values()]);
     } catch (err) {
       if (
@@ -509,7 +524,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           requestSeq,
         )
       ) {
-        addToast(extractErrorMessage(err, "加载项目图片素材失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.loadProjectImagesFailed")), "error");
       }
     } finally {
       if (
@@ -541,10 +556,10 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setPagePrompts([]);
     setCurrentContentHash(null);
     void loadPagePrompts(row.id, projectId).catch((err) =>
-      addToast(extractErrorMessage(err, "加载整页提示词失败"), "error"),
+      addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
     );
     void loadSingleStatus(row.id, projectId).catch((err) =>
-      addToast(extractErrorMessage(err, "加载漫画流水线状态失败"), "error"),
+      addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error"),
     );
   };
 
@@ -601,22 +616,19 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             status: c.status,
             analysis_data: c.analysis_data,
           }));
-      const entries = await Promise.all(
-        rows.map(
-          async (row) =>
-            [
-              row.id,
-              await getMangaPipelineStatus(requestProjectId, row.id),
-            ] as const,
-        ),
-      );
+      const statuses = rows.length
+        ? await listMangaPipelineStatuses(
+            requestProjectId,
+            rows.map((row) => row.id),
+          )
+        : [];
       if (
         !isProjectCurrent(requestProjectId) ||
         chapterLoadSeqRef.current !== requestSeq
       )
         return;
       const map: Record<number, MangaPipelineStatusSummary | null> = {};
-      for (const [id, status] of entries) map[id] = status;
+      for (const status of statuses) map[status.chapter_id] = status;
       const previousChapterId = selectedChapterIdRef.current;
       const nextSelectedChapter =
         rows.find((row) => row.id === previousChapterId) ??
@@ -630,7 +642,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         setPagePrompts([]);
         setCurrentContentHash(null);
         void loadPagePrompts(nextSelectedChapter.id, requestProjectId).catch((err) =>
-          addToast(extractErrorMessage(err, "加载整页提示词失败"), "error"),
+          addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
         );
       } else if (!nextSelectedChapter) {
         setPagePrompts([]);
@@ -641,7 +653,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         isProjectCurrent(requestProjectId) &&
         chapterLoadSeqRef.current === requestSeq
       ) {
-        addToast(extractErrorMessage(err, "加载章节失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.loadChaptersFailed")), "error");
       }
     } finally {
       if (
@@ -679,7 +691,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     setActing(null);
     resetRequestPreview();
     setPipelineProgressOpen(false);
-    setPipelineProgress(createMangaPipelineProgressState());
+    setPipelineProgress(createMangaPipelineProgressState(t));
     setPipelineTaskId(null);
     setPipelineChapterId(null);
     setPipelineCancelling(false);
@@ -748,7 +760,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       .catch((err) => {
         if (!cancelled) {
           setCurrentContentHash(null);
-          addToast(extractErrorMessage(err, "计算章节正文指纹失败"), "error");
+          addToast(extractErrorMessage(err, t("comic.contentHashFailed")), "error");
         }
       });
     return () => {
@@ -777,7 +789,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       !key.startsWith("generate-missing-portraits")
     ) {
       addToast(
-        chapterGeneratingMessage(selectedChapter, "操作漫画素材"),
+        chapterGeneratingMessage(selectedChapter, t("comic.operationFailed"), t),
         "error",
       );
       endAction(key);
@@ -809,7 +821,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       addToast(ok, "success");
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "操作失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.operationFailed")), "error");
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setActing(null);
@@ -823,13 +835,18 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     const chapter = selectedChapter;
     if (!chapter) return;
     if (isChapterGenerating(chapter)) {
-      addToast(chapterGeneratingMessage(chapter, "启动漫画流水线"), "error");
+      addToast(
+        chapterGeneratingMessage(chapter, t("comic.pipelineStartTitle"), t),
+        "error",
+      );
       return;
     }
     const isResume = mode === "resume";
     const actionKey = `${mode}-${chapter.chapter_number}`;
-    const title = isResume ? "续传漫画流水线" : "启动漫画流水线";
-    const configBlockReason = mangaPipelineConfigBlockReason();
+    const title = isResume
+      ? t("comic.pipelineResumeTitle")
+      : t("comic.pipelineStartTitle");
+    const configBlockReason = mangaPipelineConfigBlockReason(t);
     if (configBlockReason) {
       setPipelineProgressOpen(true);
       setPipelineProgress({
@@ -837,7 +854,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         status: "error",
         current: 0,
         total: MANGA_PIPELINE_TOTAL_STEPS,
-        message: isResume ? "续传流水线失败" : "启动流水线失败",
+        message: isResume
+          ? t("comic.pipelineResumeFailed")
+          : t("comic.pipelineStartFailed"),
         error: configBlockReason,
       });
       addToast(configBlockReason, "error");
@@ -857,8 +876,8 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       current: 0,
       total: MANGA_PIPELINE_TOTAL_STEPS,
       message: isResume
-        ? `正在续传漫画 ${MANGA_PIPELINE_TOTAL_STEPS} 步流水线`
-        : `正在启动漫画 ${MANGA_PIPELINE_TOTAL_STEPS} 步流水线`,
+        ? t("comic.pipelineResumeMessage", { steps: MANGA_PIPELINE_TOTAL_STEPS })
+        : t("comic.pipelineStartMessage", { steps: MANGA_PIPELINE_TOTAL_STEPS }),
       error: null,
     });
     setPipelineTaskId(null);
@@ -874,7 +893,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       setPipelineProgress((prev) => ({
         ...prev,
         status: "running",
-        message: "后台任务已提交，正在轮询阶段进度",
+        message: t("comic.pipelineSubmitted"),
       }));
       // 启动请求返回后即可释放 acting；进度由状态轮询驱动。
       setActing(null);
@@ -895,13 +914,18 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       const message = explainMangaPipelineAiConfigError(
         extractErrorMessage(
           err,
-          isResume ? "续传流水线失败" : "启动流水线失败",
+          isResume
+            ? t("comic.pipelineResumeFailed")
+            : t("comic.pipelineStartFailed"),
         ),
+        t,
       );
       setPipelineProgress((prev) => ({
         ...prev,
         status: "error",
-        message: isResume ? "续传流水线失败" : "启动流水线失败",
+        message: isResume
+          ? t("comic.pipelineResumeFailed")
+          : t("comic.pipelineStartFailed"),
         error: message,
       }));
       addToast(message, "error");
@@ -917,13 +941,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (!chapter) return;
     if (isChapterGenerating(chapter)) {
       addToast(
-        chapterGeneratingMessage(chapter, "预览漫画流水线请求"),
+        chapterGeneratingMessage(chapter, t("comic.pipelineRequestPreview"), t),
         "error",
       );
       return;
     }
     if (!chapter.content?.trim()) {
-      addToast("当前章节正文为空，无法预览漫画流水线请求", "error");
+      addToast(t("comic.emptyChapterPreviewPipeline"), "error");
       return;
     }
     const previewKey = `${mode}:${requestProjectId}:${chapter.id}`;
@@ -953,7 +977,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (isPreviewCurrent(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "预览漫画流水线请求失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.previewPipelineFailed")), "error");
         setRequestPreviewOpen(false);
         endPreview(previewKey);
       }
@@ -976,7 +1000,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     const actionSeq = actionSeqRef.current + 1;
     actionSeqRef.current = actionSeq;
     setPipelineCancelling(true);
-    addToast("已发送取消漫画流水线请求", "info");
+    addToast(t("comic.pipelineCancelRequested"), "info");
     try {
       await cancelMangaPipeline(requestProjectId, chapterId);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
@@ -990,13 +1014,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
       setPipelineProgress((prev) => ({
         ...prev,
         status: "cancelled",
-        message: "已请求取消漫画流水线",
+        message: t("comic.pipelineCancelled"),
         error: null,
       }));
       setPipelineCancelling(false);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "取消漫画流水线失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.pipelineCancelFailed")), "error");
         setPipelineCancelling(false);
       }
     } finally {
@@ -1024,12 +1048,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         runPortraitProgressTask,
         handle,
         {
-          title: "补齐角色立绘",
-          startMessage: "正在统计缺失立绘的角色…",
-          successMessage: "角色立绘补齐完成",
-          errorMessage: "补齐立绘失败",
+          title: t("comic.portraitGenerationTitle"),
+          startMessage: t("comic.portraitGenerationStart"),
+          successMessage: t("comic.portraitGenerationSuccess"),
+          errorMessage: t("comic.portraitGenerationFailed"),
           total: 1,
-          cancelLabel: "停止生成",
+          cancelLabel: t("comic.stopGeneration"),
         },
         async (task) => {
           const generated = await verifyPortraitGenerationResult(task, requestAssetProjectId);
@@ -1042,12 +1066,12 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addToast(`已生成 ${createdCount} 张缺失立绘`, "success");
+      addToast(t("comic.missingPortraitsGenerated", { count: createdCount }), "success");
     } catch (err) {
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      const message = extractErrorMessage(err, "补齐立绘失败");
+      const message = extractErrorMessage(err, t("comic.portraitGenerationFailed"));
       if (isCancelledOperation(message)) {
-        addToast("角色立绘补齐已停止", "info");
+        addToast(t("comic.portraitGenerationStopped"), "info");
       } else {
         addToast(message, "error");
       }
@@ -1092,11 +1116,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     const timer = window.setInterval(() => {
       if (!isChapterCurrent(projectId, chapterId)) return;
       void loadSingleStatus(chapterId, projectId).catch((err) =>
-        addToast(extractErrorMessage(err, "加载漫画流水线状态失败"), "error"),
+        addToast(extractErrorMessage(err, t("comic.loadPipelineStatusFailed")), "error"),
       );
       void loadPagePrompts(chapterId, projectId, { showLoading: false }).catch(
         (err) =>
-          addToast(extractErrorMessage(err, "加载整页提示词失败"), "error"),
+          addToast(extractErrorMessage(err, t("comic.loadPagePromptsFailed")), "error"),
       );
     }, 2500);
     return () => window.clearInterval(timer);
@@ -1113,7 +1137,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   if (loading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> 加载章节…
+        <LoadingSpinner size="sm" /> {t("comic.loadingChapters")}
       </div>
     );
   }
@@ -1182,7 +1206,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           void wrapAct(
             `cancel-${chapter.id}`,
             () => cancelMangaPipeline(requestProjectId, chapter.id),
-            "已请求取消漫画流水线",
+            t("comic.pipelineCancelRequested"),
           );
         }}
         onDeleteManga={() => {
@@ -1194,9 +1218,9 @@ export const MangaTab: React.FC<MangaTabProps> = ({
           if (!beginAction(actionKey)) return;
           void (async () => {
             const ok = await confirmDialog({
-              title: "删除漫画产物",
-              message: "删除本章全部漫画提示词与相关产物？此操作不可撤销。",
-              confirmText: "删除",
+              title: t("comic.deleteArtifactsTitle"),
+              message: t("comic.deleteArtifactsMessage"),
+              confirmText: t("common.delete"),
               dialogType: "danger",
             });
             if (!ok) {
@@ -1210,7 +1234,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
             await wrapAct(
               actionKey,
               () => deleteMangaByChapter(requestProjectId, chapter.id),
-              "已删除本章漫画产物",
+              t("comic.deletedArtifacts"),
               { actionAlreadyHeld: true },
             );
           })();
@@ -1222,7 +1246,7 @@ export const MangaTab: React.FC<MangaTabProps> = ({
                   showLoading: false,
                 }).catch((err) =>
                   addToast(
-                    extractErrorMessage(err, "加载整页提示词失败"),
+                    extractErrorMessage(err, t("comic.loadPagePromptsFailed")),
                     "error",
                   ),
                 )
@@ -1243,15 +1267,15 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         onCancel={
           pipelineChapterId != null ? handleCancelPipelineProgress : undefined
         }
-        cancelLabel="取消流水线"
+        cancelLabel={t("comic.cancelPipeline")}
         cancelling={pipelineCancelling}
-        runningHint="漫画流水线运行过程中请保持当前窗口打开"
+        runningHint={t("comic.pipelineRunningHint")}
       />
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="漫画流水线请求预览"
+        fallbackTitle={t("comic.pipelineRequestPreview")}
         onClose={closeRequestPreview}
       />
     </div>

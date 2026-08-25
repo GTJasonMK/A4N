@@ -4,17 +4,12 @@ use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 use super::super::{OutlineDbError, PartOutlineSyncDraft};
 
-/// 插入分部大纲记录。
-pub async fn insert_part_outline_record<C>(
-    db: &C,
+pub(super) fn part_outline_active_model(
     project_id: i64,
     draft: &PartOutlineSyncDraft,
     now: NaiveDateTime,
-) -> Result<part_outline::Model, OutlineDbError>
-where
-    C: ConnectionTrait,
-{
-    Ok(part_outline::ActiveModel {
+) -> part_outline::ActiveModel {
+    part_outline::ActiveModel {
         project_id: Set(project_id),
         part_number: Set(draft.part_number),
         title: Set(draft.title.clone()),
@@ -28,8 +23,21 @@ where
         updated_at: Set(now),
         ..Default::default()
     }
-    .insert(db)
-    .await?)
+}
+
+/// 插入分部大纲记录。
+pub async fn insert_part_outline_record<C>(
+    db: &C,
+    project_id: i64,
+    draft: &PartOutlineSyncDraft,
+    now: NaiveDateTime,
+) -> Result<part_outline::Model, OutlineDbError>
+where
+    C: ConnectionTrait,
+{
+    Ok(part_outline_active_model(project_id, draft, now)
+        .insert(db)
+        .await?)
 }
 
 /// 更新既有分部大纲记录。

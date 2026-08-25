@@ -1,5 +1,5 @@
-use a4n_core::models::{chapter::chapter, project::text_anchor};
-use sea_orm::DbErr;
+use a4n_core::models::project::text_anchor;
+use sea_orm::{DbErr, FromQueryResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TextAnchorProfileKind {
@@ -24,9 +24,17 @@ pub struct TextAnchorEvidenceInput {
     pub evidence_role: String,
 }
 
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct CurrentChapterContentSource {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_number: i32,
+    pub content: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct CurrentChapterContentAnchorRows {
-    pub chapter: chapter::Model,
+    pub chapter: CurrentChapterContentSource,
     pub anchors: Vec<text_anchor::Model>,
     pub source_version_hash: String,
 }

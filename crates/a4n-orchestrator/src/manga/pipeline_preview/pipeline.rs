@@ -21,7 +21,7 @@ impl OrchestratorContext {
             chapter_id,
             project_id,
             prompt_renderer,
-            reference_context,
+            character_portraits,
             workflow_run_id,
             resume_from_checkpoint,
         } = input;
@@ -29,6 +29,7 @@ impl OrchestratorContext {
             .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
                 project_id,
                 source_chapter_id: chapter_id,
+                visual_plan_id: None,
             })
             .await?;
         let source = resolved.source;
@@ -36,7 +37,7 @@ impl OrchestratorContext {
         let chapter_content = source.content.clone();
         let source_spans =
             source_spans_for_content(chapter_id, source.chapter_number, &chapter_content);
-        let reference_assets = manga_reference_assets_json(&reference_context.character_portraits);
+        let reference_assets = manga_reference_assets_json(&character_portraits);
         let context = MangaPreviewContext {
             service: self,
             chapter_id,

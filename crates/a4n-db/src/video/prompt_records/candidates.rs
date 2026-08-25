@@ -1,9 +1,9 @@
 use a4n_core::models::chapter::chapter_video_prompt;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::super::{
-    VideoDbError, validate_positive_video_i32, validate_positive_video_i64,
-    validate_positive_video_ids,
+    ChapterVideoPromptCandidateRecord, VideoDbError, validate_positive_video_i32,
+    validate_positive_video_i64, validate_positive_video_ids,
 };
 
 pub async fn chapter_video_prompts_for_batch_generation(
@@ -29,7 +29,7 @@ pub async fn chapter_video_boundary_frame_prompt_candidates(
     chapter_id: i64,
     first_frame_number: i32,
     last_frame_number: i32,
-) -> Result<Vec<chapter_video_prompt::Model>, VideoDbError> {
+) -> Result<Vec<ChapterVideoPromptCandidateRecord>, VideoDbError> {
     validate_positive_video_i64(project_id, "project_id")?;
     validate_positive_video_i64(chapter_id, "chapter_id")?;
     validate_positive_video_i32(first_frame_number, "first_frame_number")?;
@@ -40,6 +40,12 @@ pub async fn chapter_video_boundary_frame_prompt_candidates(
         ));
     }
     chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::PromptType)
+        .column(chapter_video_prompt::Column::WorkflowMode)
+        .column(chapter_video_prompt::Column::ShotNumber)
+        .column(chapter_video_prompt::Column::MetadataJson)
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
         .filter(
@@ -49,6 +55,7 @@ pub async fn chapter_video_boundary_frame_prompt_candidates(
             chapter_video_prompt::Column::ShotNumber.is_in([first_frame_number, last_frame_number]),
         )
         .order_by_desc(chapter_video_prompt::Column::Id)
+        .into_model::<ChapterVideoPromptCandidateRecord>()
         .all(db)
         .await
         .map_err(VideoDbError::Database)
@@ -58,10 +65,16 @@ pub async fn chapter_video_first_frame_prompt_candidates(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
-) -> Result<Vec<chapter_video_prompt::Model>, VideoDbError> {
+) -> Result<Vec<ChapterVideoPromptCandidateRecord>, VideoDbError> {
     validate_positive_video_i64(project_id, "project_id")?;
     validate_positive_video_i64(chapter_id, "chapter_id")?;
     chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::PromptType)
+        .column(chapter_video_prompt::Column::WorkflowMode)
+        .column(chapter_video_prompt::Column::ShotNumber)
+        .column(chapter_video_prompt::Column::MetadataJson)
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
         .filter(
@@ -70,6 +83,7 @@ pub async fn chapter_video_first_frame_prompt_candidates(
         )
         .filter(chapter_video_prompt::Column::ShotNumber.eq(1))
         .order_by_desc(chapter_video_prompt::Column::Id)
+        .into_model::<ChapterVideoPromptCandidateRecord>()
         .all(db)
         .await
         .map_err(VideoDbError::Database)
@@ -79,10 +93,16 @@ pub async fn chapter_video_first_frame_chain_prompt_candidates(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
-) -> Result<Vec<chapter_video_prompt::Model>, VideoDbError> {
+) -> Result<Vec<ChapterVideoPromptCandidateRecord>, VideoDbError> {
     validate_positive_video_i64(project_id, "project_id")?;
     validate_positive_video_i64(chapter_id, "chapter_id")?;
     chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::PromptType)
+        .column(chapter_video_prompt::Column::WorkflowMode)
+        .column(chapter_video_prompt::Column::ShotNumber)
+        .column(chapter_video_prompt::Column::MetadataJson)
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
         .filter(
@@ -93,6 +113,7 @@ pub async fn chapter_video_first_frame_chain_prompt_candidates(
                 .eq(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN),
         )
         .order_by_desc(chapter_video_prompt::Column::Id)
+        .into_model::<ChapterVideoPromptCandidateRecord>()
         .all(db)
         .await
         .map_err(VideoDbError::Database)
@@ -103,11 +124,17 @@ pub async fn chapter_video_storyboard_prompt_candidates(
     project_id: i64,
     chapter_id: i64,
     shot_number: i32,
-) -> Result<Vec<chapter_video_prompt::Model>, VideoDbError> {
+) -> Result<Vec<ChapterVideoPromptCandidateRecord>, VideoDbError> {
     validate_positive_video_i64(project_id, "project_id")?;
     validate_positive_video_i64(chapter_id, "chapter_id")?;
     validate_positive_video_i32(shot_number, "shot_number")?;
     chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::PromptType)
+        .column(chapter_video_prompt::Column::WorkflowMode)
+        .column(chapter_video_prompt::Column::ShotNumber)
+        .column(chapter_video_prompt::Column::MetadataJson)
         .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
         .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
         .filter(
@@ -120,6 +147,7 @@ pub async fn chapter_video_storyboard_prompt_candidates(
         )
         .filter(chapter_video_prompt::Column::ShotNumber.eq(shot_number))
         .order_by_desc(chapter_video_prompt::Column::Id)
+        .into_model::<ChapterVideoPromptCandidateRecord>()
         .all(db)
         .await
         .map_err(VideoDbError::Database)

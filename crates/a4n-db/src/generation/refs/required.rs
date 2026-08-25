@@ -2,8 +2,11 @@ use a4n_core::models::generation::{
     generation_spec, generation_spec_entity_ref, generation_spec_media_ref,
     generation_spec_text_anchor,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
+};
 use serde_json::Value;
+use std::collections::HashSet;
 
 use crate::generation::{GenerationDbError, validation::validate_positive_id};
 
@@ -50,19 +53,33 @@ where
         .get("required_media_roles")
         .and_then(Value::as_array)
     {
-        for role in required_roles {
-            let role = role.as_str().ok_or_else(|| {
-                GenerationDbError::InvalidArgument(
-                    "params_json.required_media_roles 必须是字符串数组".to_string(),
-                )
-            })?;
-            let role = normalize_media_ref_role(role)?;
-            let count = generation_spec_media_ref::Entity::find()
-                .filter(generation_spec_media_ref::Column::GenerationSpecId.eq(spec.id))
-                .filter(generation_spec_media_ref::Column::Role.eq(role))
-                .count(db)
-                .await?;
-            if count == 0 {
+        let normalized_roles = required_roles
+            .iter()
+            .map(|role| {
+                let role = role.as_str().ok_or_else(|| {
+                    GenerationDbError::InvalidArgument(
+                        "params_json.required_media_roles 必须是字符串数组".to_string(),
+                    )
+                })?;
+                Ok::<_, GenerationDbError>(normalize_media_ref_role(role)?.to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        if normalized_roles.is_empty() {
+            return Ok(());
+        }
+
+        let existing_roles = generation_spec_media_ref::Entity::find()
+            .select_only()
+            .column(generation_spec_media_ref::Column::Role)
+            .filter(generation_spec_media_ref::Column::GenerationSpecId.eq(spec.id))
+            .filter(generation_spec_media_ref::Column::Role.is_in(normalized_roles.iter().cloned()))
+            .into_tuple::<String>()
+            .all(db)
+            .await?
+            .into_iter()
+            .collect::<HashSet<_>>();
+        for role in normalized_roles {
+            if !existing_roles.contains(&role) {
                 return Err(GenerationDbError::InvalidArgument(format!(
                     "生成意图 {} 缺少必需媒体引用: {}",
                     spec.id, role

@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-pub use a4n_api_contract::prompt::{
+use a4n_api_contract::prompt::{
     AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
     PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
     ValidateVarsInput, VersionDiffInput,

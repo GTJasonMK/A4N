@@ -1,27 +1,15 @@
-use a4n_core::models::{ai::generated_image, character::character_portrait};
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
-use chrono::Utc;
 use serde_json::json;
 
 use super::{
     counts::{material_image_counts_by_profile, portrait_counts_by_profile},
     materials::{MaterialNodeSpec, add_material_image_node},
 };
+use crate::project_dependency_graph::graph::{GeneratedImageGraphRow, PortraitGraphRow};
 use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 
-fn portrait(id: i64, profile_id: i64) -> character_portrait::Model {
-    character_portrait::Model {
-        id,
-        profile_id,
-        project_id: 1,
-        portrait_type: "full_body".to_string(),
-        image_path: format!("portrait-{id}.png"),
-        prompt: "portrait".to_string(),
-        expression: None,
-        pose: None,
-        is_primary: false,
-        created_at: Utc::now().naive_utc(),
-    }
+fn portrait(profile_id: i64) -> PortraitGraphRow {
+    PortraitGraphRow { profile_id }
 }
 
 fn material_image(
@@ -29,33 +17,20 @@ fn material_image(
     image_type: &str,
     profile_kind: &str,
     profile_id: i64,
-) -> generated_image::Model {
-    generated_image::Model {
-        id,
-        project_id: 1,
+) -> GeneratedImageGraphRow {
+    let _ = id;
+    GeneratedImageGraphRow {
         image_type: image_type.to_string(),
-        file_path: format!("material-{id}.png"),
-        prompt: "material".to_string(),
-        model: "test".to_string(),
-        width: 1024,
-        height: 1024,
-        file_size: Some(10),
-        ai_score: None,
-        is_favorite: false,
-        chapter_id: None,
-        panel_id: None,
         metadata_json: Some(json!({
             "profile_kind": profile_kind,
             "profile_id": profile_id,
         })),
-        created_at: Utc::now().naive_utc(),
     }
 }
 
 #[test]
 fn profile_asset_counts_group_portraits_and_filter_material_kind() {
-    let portrait_counts =
-        portrait_counts_by_profile(&[portrait(1, 7), portrait(2, 7), portrait(3, 8)]);
+    let portrait_counts = portrait_counts_by_profile(&[portrait(7), portrait(7), portrait(8)]);
     assert_eq!(portrait_counts.get(&7), Some(&2));
     assert_eq!(portrait_counts.get(&8), Some(&1));
 

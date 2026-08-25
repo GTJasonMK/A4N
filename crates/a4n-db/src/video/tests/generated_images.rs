@@ -1,5 +1,5 @@
 use a4n_core::models::{
-    ai::generated_image,
+    ai::{generated_image, generated_video},
     chapter::{chapter, chapter_manga_prompt, chapter_video_prompt},
     project::novel_project,
 };
@@ -11,9 +11,10 @@ use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, PaginatorTrait,
 use serde_json::json;
 
 use crate::video::{
-    CreateGeneratedImageRecordDraftInput, UpdateGeneratedImageRecordInput, VideoDbError,
-    create_generated_image_record, delete_generated_image_record_with_cleanup,
-    update_generated_image_record,
+    CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
+    UpdateGeneratedImageRecordInput, VideoDbError, create_generated_image_record,
+    create_generated_video_record, delete_generated_image_record_with_cleanup,
+    generated_image_ids_by_ids, update_generated_image_record,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -27,7 +28,7 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
             user_id: 1,
             title: title.to_string(),
             description: "图片记录测试项目".to_string(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -77,17 +78,39 @@ async fn image_count(db: &DatabaseConnection) -> u64 {
     generated_image::Entity::find().count(db).await.unwrap()
 }
 
+#[tokio::test]
+async fn generated_image_ids_by_ids_returns_existing_only() {
+    let db = setup_db().await;
+    let project = text_project(&db, "图片 ID 窄投影").await;
+    let image = create_generated_image_record(&db, image_input(project.id))
+        .await
+        .unwrap();
+
+    let mut ids = generated_image_ids_by_ids(&db, &[image.id, image.id + 1])
+        .await
+        .unwrap();
+    ids.sort_unstable();
+    assert_eq!(ids, vec![image.id]);
+    assert!(
+        generated_image_ids_by_ids(&db, &[])
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
 async fn manga_prompt(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
+    page_number: i32,
     generated_image_id: Option<i64>,
 ) -> chapter_manga_prompt::Model {
     let now = Utc::now().naive_utc();
     chapter_manga_prompt::ActiveModel {
         chapter_id: Set(chapter_id),
         project_id: Set(project_id),
-        page_number: Set(1),
+        page_number: Set(page_number),
         prompt_type: Set("page_generation".to_string()),
         image_prompt: Set("draw page".to_string()),
         dialogue_text: Set(None),
@@ -143,6 +166,82 @@ async fn frame_prompt(
     .insert(db)
     .await
     .unwrap()
+}
+
+#[tokio::test]
+async fn delete_image_clears_direct_prompt_and_video_bindings_in_batch() {
+    let db = setup_db().await;
+    let project = text_project(&db, "图片直接引用批量清理").await;
+    let chapter = chapter_record(&db, project.id).await;
+    let deleted = create_generated_image_record(
+        &db,
+        CreateGeneratedImageRecordDraftInput {
+            file_path: format!("projects/{}/images/delete-batch.png", project.id),
+            ..image_input(project.id)
+        },
+    )
+    .await
+    .unwrap();
+    let retained = create_generated_image_record(
+        &db,
+        CreateGeneratedImageRecordDraftInput {
+            file_path: format!("projects/{}/images/retain-batch.png", project.id),
+            ..image_input(project.id)
+        },
+    )
+    .await
+    .unwrap();
+    let deleted_prompt = manga_prompt(&db, project.id, chapter.id, 1, Some(deleted.id)).await;
+    let retained_prompt = manga_prompt(&db, project.id, chapter.id, 2, Some(retained.id)).await;
+    let video = create_generated_video_record(
+        &db,
+        CreateGeneratedVideoRecordDraftInput {
+            project_id: project.id,
+            chapter_id: Some(chapter.id),
+            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+            workflow_mode: Some("boundary_frames".to_string()),
+            prompt: "video reference".to_string(),
+            negative_prompt: None,
+            model: "test-model".to_string(),
+            width: 1280,
+            height: 720,
+            duration_secs: 5.0,
+            fps: 24,
+            source_video_id: None,
+            source_image_id: Some(deleted.id),
+            provider_job_id: None,
+            metadata_json: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    delete_generated_image_record_with_cleanup(&db, deleted.id)
+        .await
+        .unwrap();
+
+    let deleted_prompt = chapter_manga_prompt::Entity::find_by_id(deleted_prompt.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(deleted_prompt.generated_image_id, None);
+    assert_eq!(deleted_prompt.status, "pending");
+    let retained_prompt = chapter_manga_prompt::Entity::find_by_id(retained_prompt.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(retained_prompt.generated_image_id, Some(retained.id));
+    assert_eq!(
+        generated_video::Entity::find_by_id(video.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .source_image_id,
+        None
+    );
 }
 
 #[tokio::test]
@@ -352,7 +451,7 @@ async fn delete_missing_image_keeps_orphan_manga_reference_unchanged() {
     let db = setup_db().await;
     let project = text_project(&db, "缺失图片删除").await;
     let chapter = chapter_record(&db, project.id).await;
-    let prompt = manga_prompt(&db, project.id, chapter.id, Some(999_999)).await;
+    let prompt = manga_prompt(&db, project.id, chapter.id, 1, Some(999_999)).await;
 
     let error = delete_generated_image_record_with_cleanup(&db, 999_999)
         .await
@@ -389,7 +488,7 @@ async fn delete_existing_image_clears_manga_prompt_reference() {
     )
     .await
     .unwrap();
-    let prompt = manga_prompt(&db, project.id, chapter.id, Some(image.id)).await;
+    let prompt = manga_prompt(&db, project.id, chapter.id, 1, Some(image.id)).await;
 
     delete_generated_image_record_with_cleanup(&db, image.id)
         .await

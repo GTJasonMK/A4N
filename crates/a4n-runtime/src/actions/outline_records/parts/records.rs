@@ -1,14 +1,11 @@
 use crate::AppState;
 use crate::actions::access as project_access;
+use crate::actions::outline_records::outline_material_sync_warnings;
 use crate::actions::outline_records::types::{
     DeleteLatestOutlineRecordsInput, OutlineGenerationProgressSummary, OutlineMutationResult,
     PartOutlineSummary, SavePartOutlineInput, SavePartOutlineResult, part_outline_summary,
 };
-use crate::actions::outline_records::{
-    outline_material_sync_warnings, project_outline_delete_input,
-};
 use a4n_core::error::AppError;
-use a4n_orchestrator::project::ManualPartOutlineSaveInput;
 
 pub async fn list_parts(
     state: &AppState,
@@ -32,7 +29,7 @@ pub async fn delete_latest_parts(
     let project_id = input.project_id;
     state
         .orchestrator()
-        .delete_latest_part_outline_records_validated(project_outline_delete_input(input))
+        .delete_latest_part_outline_records_validated(input)
         .await?;
     Ok(OutlineMutationResult {
         warnings: outline_material_sync_warnings(state, project_id).await,
@@ -48,17 +45,7 @@ pub async fn save_part_outline(
     let project_id = input.project_id;
     let saved = state
         .orchestrator()
-        .save_manual_part_outline_validated(ManualPartOutlineSaveInput {
-            project_id,
-            part_id: input.part_id,
-            expected_updated_at: input.expected_updated_at,
-            part_number: input.part_number,
-            start_chapter: input.start_chapter,
-            end_chapter: input.end_chapter,
-            title: input.title,
-            summary: input.summary,
-            theme: input.theme,
-        })
+        .save_manual_part_outline_validated(input)
         .await?;
     Ok(SavePartOutlineResult {
         part: part_outline_summary(&saved),

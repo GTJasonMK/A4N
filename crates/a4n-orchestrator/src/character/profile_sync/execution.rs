@@ -34,8 +34,27 @@ impl OrchestratorContext {
     ) -> Result<Option<CharacterProfileSyncPreviewStep>, AppError> {
         let range_mode = input.range_mode;
         let prepared = self.prepare_character_profile_sync_context(input).await?;
-        if profile_sync_skip_reason_for_mode(&prepared.profile, prepared.target_chapter, range_mode)
-            .is_some()
+        self.prepare_character_profile_sync_preview_from_prepared(
+            prepared,
+            range_mode,
+            prompt_renderer,
+        )
+        .await
+    }
+
+    pub(crate) async fn prepare_character_profile_sync_preview_from_prepared(
+        &self,
+        prepared: PreparedCharacterProfileSync,
+        range_mode: super::super::CharacterSyncRangeMode,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Option<CharacterProfileSyncPreviewStep>, AppError> {
+        if profile_sync_skip_reason_for_mode(
+            &prepared.profile,
+            prepared.target_chapter,
+            range_mode,
+            prepared.effective_first_seen,
+        )
+        .is_some()
         {
             return Ok(None);
         }
@@ -56,11 +75,30 @@ impl OrchestratorContext {
     ) -> Result<SyncCharacterProfileResult, AppError> {
         let range_mode = input.range_mode;
         let prepared = self.prepare_character_profile_sync_context(input).await?;
+        self.run_prepared_character_profile_sync_validated(
+            prepared,
+            range_mode,
+            prompt_renderer,
+            progress,
+            trace_port,
+        )
+        .await
+    }
+
+    pub(crate) async fn run_prepared_character_profile_sync_validated(
+        &self,
+        prepared: PreparedCharacterProfileSync,
+        range_mode: super::super::CharacterSyncRangeMode,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: Option<CharacterProfileSyncProgress<'_>>,
+        trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<SyncCharacterProfileResult, AppError> {
         let name = prepared.profile.name.clone();
         if let Some(reason) = profile_sync_skip_reason_for_mode(
             &prepared.profile,
             prepared.target_chapter,
             range_mode,
+            prepared.effective_first_seen,
         ) {
             report_progress(
                 progress,
@@ -72,6 +110,7 @@ impl OrchestratorContext {
                     &prepared.profile,
                     prepared.target_chapter,
                     reason,
+                    prepared.effective_first_seen,
                 ),
             ));
         }
@@ -363,6 +402,11 @@ fn character_profile_sync_summary(
             .collect(),
         snapshot_hash: applied.target_snapshot_hash,
         state_indexes_upserted: applied.state_indexes.len(),
+        cleared_through_chapter: prepared.clear_to_chapter,
+        cleared_attribute_events: applied.deleted_timeline.deleted_attribute_events,
+        cleared_behaviors: applied.deleted_timeline.deleted_behaviors,
+        cleared_state_indexes: applied.deleted_timeline.deleted_state_indexes,
+        cleared_snapshots: applied.deleted_timeline.deleted_snapshots,
         deleted_state_rag: rag.deleted_state_rag,
         state_rag_indexed_count: rag.state_rag_indexed_count,
         state_rag_indexed: rag.state_rag_indexed,

@@ -3,7 +3,6 @@ use std::fmt;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
 
-pub const PROJECT_KIND_GALGAME: &str = "galgame";
 pub const SCENE_ENTRY_MAIN: &str = "main";
 pub const SCENE_ENTRY_BRANCH: &str = "branch";
 pub const LINE_TYPE_NARRATION: &str = "narration";

@@ -2,6 +2,7 @@ use super::*;
 
 use super::rules::{normalize_invite_code, validate_positive_user_id};
 use super::users::create_user_on;
+use sea_orm::QuerySelect;
 
 pub async fn register_user_with_invite(
     db: &DatabaseConnection,
@@ -67,7 +68,10 @@ pub async fn create_invite_code(
         validate_positive_user_id(user_id)?;
     }
     if invite_code::Entity::find()
+        .select_only()
+        .column(invite_code::Column::Id)
         .filter(invite_code::Column::Code.eq(code.clone()))
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map_err(AppError::Database)?

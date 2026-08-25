@@ -1,5 +1,8 @@
 use a4n_core::error::AppError;
-use a4n_queue::{TaskWorkflowContext, priority::{TaskPermit, TaskStatus}};
+use a4n_queue::{
+    TaskWorkflowContext,
+    priority::{TaskPermit, TaskStatus},
+};
 use tokio_util::sync::CancellationToken;
 
 use super::super::{PersistentTaskQueue, RunningTask, SubmittedTaskGuard};

@@ -4,6 +4,7 @@ mod script;
 
 #[cfg(test)]
 pub(in crate::galgame) use pipeline::galgame_pipeline_prompt_context_from_record;
+pub(in crate::galgame) use pipeline::galgame_pipeline_status_summary;
 pub(crate) use script::galgame_line_from_model;
 #[cfg(test)]
 pub(in crate::galgame) use script::galgame_media_binding_summaries;

@@ -18,9 +18,9 @@ pub use reference::{upload_assembly_insert_video, upload_reference_media_video};
 #[cfg(test)]
 pub(in crate::actions::video_records) use processing::persist_trimmed_video_output;
 pub(crate) use source::recover_expired_uploaded_video_sources;
+pub(in crate::actions::video_records) use source::uploaded_video_source;
 #[cfg(test)]
 pub(in crate::actions::video_records) use source::{
     copy_imported_video_file, expired_uploaded_video_sources, import_video_source_path,
     persist_uploaded_video_source,
 };
-pub(in crate::actions::video_records) use source::uploaded_video_source;

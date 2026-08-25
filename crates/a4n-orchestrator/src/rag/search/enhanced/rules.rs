@@ -13,7 +13,7 @@ pub(crate) fn validate_embedding_identity_match(
         return Ok(());
     }
     Err(AppError::InvalidArgument(format!(
-        "Embedding identity 不匹配，项目期望 {} / {} / {} 维，客户端提交 {} / {} / {} 维；请切回项目模型或重建 RAG",
+        "Embedding identity 不匹配，服务器期望 {} / {} / {} 维，客户端提交 {} / {} / {} 维；请切回项目模型或重建 RAG",
         expected.backend,
         expected.model,
         expected.dimension,

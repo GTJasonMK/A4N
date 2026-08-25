@@ -11,6 +11,7 @@ export const HOST_API_COMMANDS = [
   "add_profile_attribute",
   "add_video_config",
   "apply_assembly_postprocess_edit",
+  "apply_chapter_visual_plan_proposal",
   "apply_implicit_update_decision",
   "apply_optimization_patches",
   "apply_source_sync_decisions",
@@ -34,6 +35,7 @@ export const HOST_API_COMMANDS = [
   "check_profile_sync_conflict",
   "cleanup_orphan_project_data_dirs",
   "commit_inserted_segment_draft",
+  "confirm_chapter_visual_plan",
   "confirm_reverse_engineering_candidate",
   "create_derived_project",
   "create_embedding_config",
@@ -70,6 +72,7 @@ export const HOST_API_COMMANDS = [
   "delete_project",
   "delete_scene_profile",
   "delete_theme",
+  "delete_theme_resource",
   "delete_video",
   "detach_derived_project",
   "detect_image_config_models",
@@ -78,6 +81,7 @@ export const HOST_API_COMMANDS = [
   "diff_blueprint_versions",
   "diff_profile_chapters",
   "disable_user",
+  "discard_chapter_visual_plan_draft",
   "discard_pending_optimize_patch_sets",
   "discover_character_profiles",
   "download_embedding_model",
@@ -95,12 +99,14 @@ export const HOST_API_COMMANDS = [
   "export_pdf_data",
   "export_project_family_data",
   "export_theme",
+  "export_theme_package",
   "export_txt_data",
   "export_video_studio_project_data",
   "forward_project_status",
   "generate_chapter_analysis",
   "generate_chapter_scene",
   "generate_chapter_shooting_script",
+  "generate_chapter_visual_plan_draft",
   "generate_next_chapter_shooting_script_unit",
   "generate_object_profile_image_prompt",
   "generate_portrait_prompt",
@@ -113,6 +119,7 @@ export const HOST_API_COMMANDS = [
   "get_chapter_shooting_script",
   "get_chapter_shooting_script_unit_progress",
   "get_chapter_video_timeline",
+  "get_chapter_visual_plan",
   "get_character_arc_status",
   "get_character_voice_fingerprint",
   "get_current_user",
@@ -139,6 +146,7 @@ export const HOST_API_COMMANDS = [
   "get_snapshot",
   "get_storage_paths",
   "get_task_history",
+  "get_theme_preference",
   "get_token_summary",
   "get_usage_trends",
   "get_user_usage",
@@ -152,6 +160,7 @@ export const HOST_API_COMMANDS = [
   "import_project_family_upload",
   "import_project_text_upload",
   "import_theme",
+  "import_theme_package",
   "import_video_studio_project_upload",
   "insert_galgame_line",
   "invite_project_member",
@@ -171,11 +180,13 @@ export const HOST_API_COMMANDS = [
   "list_image_configs",
   "list_images_by_chapter",
   "list_images_by_project",
+  "list_images_by_projects",
   "list_import_queue",
   "list_invite_codes",
   "list_llm_config",
   "list_local_embedding_models",
   "list_manga_page_prompts",
+  "list_manga_pipeline_statuses",
   "list_model_provider_catalog",
   "list_my_project_invites",
   "list_object_profiles",
@@ -223,6 +234,7 @@ export const HOST_API_COMMANDS = [
   "preview_chapter_prompt",
   "preview_chapter_scene_request",
   "preview_chapter_video_request",
+  "preview_chapter_visual_plan_request",
   "preview_check_character_conflict_request",
   "preview_check_implicit_update_request",
   "preview_continue_part_outlines_request",
@@ -277,6 +289,7 @@ export const HOST_API_COMMANDS = [
   "prompt_validate_variables",
   "prompt_version_diff",
   "prompt_version_history",
+  "propose_chapter_visual_plan_revision",
   "push_assembled_chapter_video",
   "rag_enhanced_search",
   "rag_enhanced_search_with_vectors",
@@ -314,6 +327,7 @@ export const HOST_API_COMMANDS = [
   "save_canvas_graph",
   "save_canvas_text_asset",
   "save_chapter_outline",
+  "save_chapter_visual_plan_draft",
   "save_part_outline",
   "select_segment_video",
   "set_default_embedding_config",
@@ -368,6 +382,7 @@ export const HOST_API_COMMANDS = [
   "update_project_member_role",
   "update_scene_profile",
   "update_theme",
+  "update_theme_preference",
   "update_user_profile",
   "update_user_role",
   "update_video",
@@ -380,6 +395,7 @@ export const HOST_API_COMMANDS = [
   "upload_portrait",
   "upload_profile_material_image",
   "upload_reference_media_video",
+  "upload_theme_resource",
 ] as const;
 
 export type HostApiCommand = (typeof HOST_API_COMMANDS)[number];
@@ -414,7 +430,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "check_character_conflict": "full",
   "check_implicit_update": "full",
   "confirm_reverse_engineering_candidate": "full",
-  "create_foreshadowing": "full",
   "create_optimization_analysis_session": "full",
   "create_optimization_chat_session": "full",
   "create_profile": "full",
@@ -426,6 +441,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "generate_chapter_analysis": "full",
   "generate_chapter_scene": "full",
   "generate_chapter_shooting_script": "full",
+  "generate_chapter_visual_plan_draft": "full",
   "generate_next_chapter_shooting_script_unit": "full",
   "generate_portrait_prompt": "full",
   "import_chapter": "full",
@@ -442,6 +458,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_chapter_prompt": "without_secrets",
   "preview_chapter_scene_request": "without_secrets",
   "preview_chapter_video_request": "without_secrets",
+  "preview_chapter_visual_plan_request": "without_secrets",
   "preview_check_character_conflict_request": "without_secrets",
   "preview_check_implicit_update_request": "without_secrets",
   "preview_continue_part_outlines_request": "without_secrets",
@@ -480,6 +497,7 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_test_embedding_config_request": "without_secrets",
   "preview_test_image_config_request": "without_secrets",
   "preview_test_llm_config_request": "without_secrets",
+  "propose_chapter_visual_plan_revision": "full",
   "rag_enhanced_search": "full",
   "rag_enhanced_search_with_vectors": "full",
   "rag_ingest_all": "full",
@@ -1147,6 +1165,10 @@ export interface ListImagesByProjectInput {
   project_id: number;
 }
 
+export interface ListImagesByProjectsInput {
+  project_ids: number[];
+}
+
 export interface ListImagesByChapterInput {
   chapter_id: number;
   project_id: number;
@@ -1379,6 +1401,11 @@ export interface MangaPipelineStatusSummary {
   total: number | null;
 }
 
+export interface MangaPipelineStatusesInput {
+  chapter_ids: number[];
+  project_id: number;
+}
+
 export type MangaPagePlanSchemaVersion = "manga_page_plan_v3";
 
 export type MangaPageDrawingPromptSchemaVersion = "manga_page_drawing_prompt_v2";
@@ -1492,8 +1519,6 @@ export interface MangaPagePromptSummary {
   page_plan: MangaPageV3;
   project_id: number;
   reference_bindings: MangaReferenceBindingSummary[];
-  shooting_script_id: number;
-  shooting_script_revision: number;
   source: MangaPagePromptSourceSummary;
   status: string;
   updated_at: string;
@@ -3205,6 +3230,11 @@ export interface CharacterProfileSyncedResult {
   changes_applied: number;
   chapters_analyzed: number;
   classification_suggestions_applied: number;
+  cleared_attribute_events: number;
+  cleared_behaviors: number;
+  cleared_snapshots: number;
+  cleared_state_indexes: number;
+  cleared_through_chapter: number;
   deleted_attribute_event_rag: number;
   deleted_deletion_marks: number;
   deleted_state_rag: number;
@@ -3806,6 +3836,318 @@ export interface ForeshadowingWriteResult {
   warnings: string[];
 }
 
+export type ChapterVisualPlanSchemaVersion = "chapter_visual_plan_v1";
+
+export type ChapterVisualPlanStatus = "draft" | "confirmed" | "superseded" | "stale";
+
+export type ChapterVisualPlanAuthoringMode = "automatic" | "collaborative" | "manual";
+
+export type VisualEntityKindV1 = "character" | "object" | "environment" | "text" | "effect";
+
+export type VisualUserAdditionKindV1 = "entity" | "dialogue" | "action" | "location" | "story_fact" | "visual_motif" | "sound" | "other";
+
+export type VisualInterpolationV1 = "hold" | "linear" | "ease_in" | "ease_out" | "ease_in_out";
+
+export type VisualFacingV1 = "left" | "right" | "front" | "back" | "profile_left" | "profile_right" | "unspecified";
+
+export type VisualRelationKindV1 = "left_of" | "right_of" | "above" | "below" | "in_front_of" | "behind" | "inside" | "overlapping" | "facing" | "looking_at" | "touching" | "holding" | "following" | "custom";
+
+export type VisualEntityEventKindV1 = "enter" | "exit" | "move" | "action" | "dialogue" | "expression" | "gaze" | "pose" | "interaction" | "transform" | "custom";
+
+export type VisualCameraEventKindV1 = "cut" | "pan" | "tilt" | "push_in" | "pull_out" | "track" | "dolly" | "crane" | "handheld" | "whip_pan" | "zoom" | "focus" | "shake" | "orbit" | "reframe" | "custom";
+
+export type VisualSoundEventKindV1 = "dialogue" | "voice_over" | "narration" | "ambient" | "effect" | "music" | "silence";
+
+export type VisualTechniqueKindV1 = "montage" | "split_screen" | "slow_motion" | "fast_motion" | "freeze_frame" | "flashback" | "dream" | "subjective" | "symbolic" | "silhouette" | "reflection" | "overlay" | "text_on_screen" | "lighting" | "color_grade" | "match_action" | "offscreen" | "custom";
+
+export type SourceSpanDispositionKindV1 = "adapt" | "omit";
+
+export interface VisualFrameV1 {
+  background: string | null;
+  duration_ms: number;
+  height: number;
+  width: number;
+}
+
+export interface VisualEntityV1 {
+  description: string;
+  id: string;
+  kind: VisualEntityKindV1;
+  label: string;
+  source_span_ids: string[];
+  user_addition_ids: string[];
+}
+
+export interface VisualUserAdditionV1 {
+  description: string;
+  id: string;
+  introduced_at_ms: number | null;
+  kind: VisualUserAdditionKindV1;
+  rationale: string;
+}
+
+export interface VisualRectV1 {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+}
+
+export interface VisualEntityStateV1 {
+  action: string | null;
+  bounds: VisualRectV1;
+  dialogue: string | null;
+  entity_id: string;
+  expression: string | null;
+  facing: VisualFacingV1;
+  gaze_target_entity_id: string | null;
+  notes: string | null;
+  opacity: number;
+  pose: string | null;
+  rotation_degrees: number;
+  visible: boolean;
+  z_index: number;
+}
+
+export interface VisualCameraStateV1 {
+  center_x: number;
+  center_y: number;
+  focus_entity_id: string | null;
+  framing_note: string | null;
+  rotation_degrees: number;
+  zoom: number;
+}
+
+export interface VisualRelationV1 {
+  id: string;
+  kind: VisualRelationKindV1;
+  label: string | null;
+  source_entity_id: string;
+  target_entity_id: string;
+}
+
+export interface VisualKeyframeV1 {
+  at_ms: number;
+  camera: VisualCameraStateV1;
+  entity_states: VisualEntityStateV1[];
+  id: string;
+  interpolation_to_next: VisualInterpolationV1;
+  label: string;
+  relations: VisualRelationV1[];
+}
+
+export interface VisualEntityEventV1 {
+  description: string;
+  end_ms: number;
+  entity_id: string;
+  id: string;
+  kind: VisualEntityEventKindV1;
+  parameters: Record<string, string>;
+  source_span_ids: string[];
+  start_ms: number;
+  target_entity_id: string | null;
+  user_addition_ids: string[];
+}
+
+export interface VisualCameraEventV1 {
+  description: string;
+  end_ms: number;
+  id: string;
+  kind: VisualCameraEventKindV1;
+  parameters: Record<string, string>;
+  source_span_ids: string[];
+  start_ms: number;
+  target_entity_id: string | null;
+  user_addition_ids: string[];
+}
+
+export interface VisualSoundEventV1 {
+  content: string;
+  end_ms: number;
+  id: string;
+  kind: VisualSoundEventKindV1;
+  parameters: Record<string, string>;
+  source_span_ids: string[];
+  speaker_entity_id: string | null;
+  start_ms: number;
+  user_addition_ids: string[];
+}
+
+export interface VisualTechniqueEventV1 {
+  description: string;
+  end_ms: number;
+  id: string;
+  kind: VisualTechniqueKindV1;
+  parameters: Record<string, string>;
+  source_span_ids: string[];
+  start_ms: number;
+  user_addition_ids: string[];
+}
+
+export interface VisualShotPlanV1 {
+  camera_angle: ShootingCameraAngleV1 | null;
+  camera_events: VisualCameraEventV1[];
+  camera_height: ShootingCameraHeightV1 | null;
+  composition: string | null;
+  continuity_notes: string[];
+  coverage: ShootingCoverageV1;
+  end_ms: number;
+  entity_events: VisualEntityEventV1[];
+  id: string;
+  keyframes: VisualKeyframeV1[];
+  lens_intent: string | null;
+  narrative_purpose: string;
+  shot_size: ShootingShotSizeV1 | null;
+  sound_events: VisualSoundEventV1[];
+  source_span_ids: string[];
+  start_ms: number;
+  technique_events: VisualTechniqueEventV1[];
+  title: string;
+  user_addition_ids: string[];
+}
+
+export interface VisualNarrativeUnitV1 {
+  editing_mode: ShootingEditingModeV1;
+  end_ms: number;
+  focal_entity_id: string | null;
+  id: string;
+  intercut_group_id: string | null;
+  location: string | null;
+  narrative_purpose: string;
+  participant_entity_ids: string[];
+  sequence_index: number;
+  shots: VisualShotPlanV1[];
+  source_span_ids: string[];
+  start_ms: number;
+  time_of_day: string | null;
+  timeline_position: number;
+  title: string;
+  user_addition_ids: string[];
+}
+
+export interface VisualTransitionV1 {
+  at_ms: number;
+  duration_ms: number;
+  from_shot_id: string;
+  id: string;
+  kind: ShootingTransitionTypeV1;
+  notes: string | null;
+  preserved_action: string | null;
+  preserved_sound: string | null;
+  to_shot_id: string;
+}
+
+export interface SourceSpanDispositionV1 {
+  disposition: SourceSpanDispositionKindV1;
+  narrative_unit_id: string | null;
+  reason: string | null;
+  shot_ids: string[];
+  source_span_id: string;
+}
+
+export interface ChapterVisualPlanV1 {
+  directing_statement: ShootingDirectingStatementV1;
+  entities: VisualEntityV1[];
+  frame: VisualFrameV1;
+  narrative_units: VisualNarrativeUnitV1[];
+  schema_version: ChapterVisualPlanSchemaVersion;
+  source_dispositions: SourceSpanDispositionV1[];
+  transitions: VisualTransitionV1[];
+  user_additions: VisualUserAdditionV1[];
+}
+
+export interface ChapterVisualPlanSourceInput {
+  project_id: number;
+  source_chapter_id: number;
+}
+
+export interface SaveChapterVisualPlanDraftInput {
+  authoring_mode: ChapterVisualPlanAuthoringMode;
+  expected_revision?: number | null;
+  plan: ChapterVisualPlanV1;
+  project_id: number;
+  record_id?: number | null;
+  source_chapter_id: number;
+}
+
+export interface ChapterVisualPlanRecordInput {
+  expected_revision: number;
+  project_id: number;
+  record_id: number;
+  source_chapter_id: number;
+}
+
+export interface GenerateChapterVisualPlanDraftInput {
+  authoring_mode: ChapterVisualPlanAuthoringMode;
+  project_id: number;
+  source_chapter_id: number;
+  user_direction?: string | null;
+}
+
+export interface ProposeChapterVisualPlanRevisionInput {
+  base_revision: number;
+  instruction: string;
+  project_id: number;
+  record_id: number;
+  source_chapter_id: number;
+}
+
+export interface ApplyChapterVisualPlanProposalInput {
+  base_revision: number;
+  project_id: number;
+  proposal: ChapterVisualPlanV1;
+  record_id: number;
+  source_chapter_id: number;
+}
+
+export interface ChapterVisualPlanRecordSummary {
+  authoring_mode: ChapterVisualPlanAuthoringMode;
+  confirmed_at: string | null;
+  id: number;
+  plan_sha256: string;
+  plan_version: number;
+  revision: number;
+  source_content_sha256: string;
+  status: ChapterVisualPlanStatus;
+}
+
+export interface ChapterVisualPlanSourceSpanView {
+  id: string;
+  paragraph_index: number;
+  text: string;
+}
+
+export interface ChapterVisualPlanSourceView {
+  chapter_number: number;
+  content: string;
+  content_sha256: string;
+  source_spans: ChapterVisualPlanSourceSpanView[];
+  title: string | null;
+}
+
+export interface ChapterVisualPlanView {
+  plan: ChapterVisualPlanV1;
+  record: ChapterVisualPlanRecordSummary;
+}
+
+export interface ChapterVisualPlanSetView {
+  confirmed: ChapterVisualPlanView | null;
+  draft: ChapterVisualPlanView | null;
+  source: ChapterVisualPlanSourceView;
+  starter_plan: ChapterVisualPlanV1;
+}
+
+export interface ConfirmedChapterVisualPlanView {
+  invalidated_project_ids: number[];
+  visual_plan: ChapterVisualPlanView;
+}
+
+export interface ChapterVisualPlanProposalView {
+  base_revision: number;
+  proposal: ChapterVisualPlanV1;
+  record_id: number;
+}
+
 export type ChapterShootingScriptSchemaVersion = "chapter_shooting_script_v1";
 
 export type ShootingEditingModeV1 = "continuity" | "intercut" | "montage" | "flashback" | "parallel_action" | "sound_bridge";
@@ -3886,6 +4228,7 @@ export interface ShootingPerformanceBeatV1 {
   required: boolean;
   source_span_ids: string[];
   spatial_change: string | null;
+  user_addition_ids: string[];
   visible_action: string;
 }
 
@@ -3904,6 +4247,21 @@ export interface ShootingSoundDesignV1 {
   silence: string[];
 }
 
+export interface ShootingVisualPlanSourceV1 {
+  plan_id: number;
+  plan_sha256: string;
+  plan_version: number;
+}
+
+export interface ShootingVisualConstraintsV1 {
+  camera_events: VisualCameraEventV1[];
+  continuity_notes: string[];
+  entity_events: VisualEntityEventV1[];
+  keyframes: VisualKeyframeV1[];
+  sound_events: VisualSoundEventV1[];
+  technique_events: VisualTechniqueEventV1[];
+}
+
 export interface ShootingShotV1 {
   blocking: ShootingBlockingV1;
   camera_angle: ShootingCameraAngleV1;
@@ -3920,6 +4278,8 @@ export interface ShootingShotV1 {
   lens_intent: string;
   narrative_purpose: string;
   performance_beats: ShootingPerformanceBeatV1[];
+  planned_end_ms: number | null;
+  planned_start_ms: number | null;
   shot_id: string;
   shot_index: number;
   shot_size: ShootingShotSizeV1;
@@ -3931,6 +4291,9 @@ export interface ShootingShotV1 {
   title: string;
   transition_in: string;
   transition_out: string;
+  user_addition_ids: string[];
+  visual_constraints: ShootingVisualConstraintsV1 | null;
+  visual_shot_id: string | null;
 }
 
 export interface ShootingSceneV1 {
@@ -3961,7 +4324,9 @@ export interface ShootingSceneV1 {
   timeline_position: number;
   title: string;
   transition_contracts: ShootingTransitionContractV1[];
+  user_addition_ids: string[];
   viewpoint: ShootingViewpointV1;
+  visual_narrative_unit_id: string | null;
   withheld_information: string[];
 }
 
@@ -3969,11 +4334,20 @@ export interface ChapterShootingScriptV1 {
   directing_statement: ShootingDirectingStatementV1;
   scenes: ShootingSceneV1[];
   schema_version: ChapterShootingScriptSchemaVersion;
+  user_additions: VisualUserAdditionV1[];
+  visual_plan_source: ShootingVisualPlanSourceV1 | null;
 }
 
 export interface ChapterShootingScriptSourceInput {
   project_id: number;
   source_chapter_id: number;
+  visual_plan_id?: number | null;
+}
+
+export interface GenerateChapterShootingScriptInput {
+  project_id: number;
+  source_chapter_id: number;
+  visual_plan_id: number;
 }
 
 export interface EditChapterShootingScriptInput {
@@ -3987,6 +4361,9 @@ export interface EditChapterShootingScriptInput {
 export interface ChapterShootingScriptRecordSummary {
   id: number;
   revision: number;
+  visual_plan_id: number | null;
+  visual_plan_sha256: string | null;
+  visual_plan_version: number | null;
 }
 
 export interface ChapterShootingScriptView {

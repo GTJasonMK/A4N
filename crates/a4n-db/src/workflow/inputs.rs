@@ -7,6 +7,7 @@ use serde_json::Value;
 pub struct ListWorkflowRunsInput {
     pub project_id: Option<i64>,
     pub chapter_id: Option<i64>,
+    pub chapter_ids: Option<Vec<i64>>,
     pub workflow_kind: Option<String>,
     pub status: Option<String>,
     pub resumable_only: Option<bool>,

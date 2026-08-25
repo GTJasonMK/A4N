@@ -1,3 +1,4 @@
+use super::diagnostics::read_recent_logs;
 use super::*;
 use std::time::{SystemTime, UNIX_EPOCH};
 

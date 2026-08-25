@@ -1,14 +1,15 @@
-use super::super::validate_completed_visual_asset;
+use super::super::validate_completed_visual_asset_record;
 use super::rules::validate_galgame_media_target_ids;
 use crate::galgame::{
-    CompletedGalgameVisualBindingRecords, GalgameMediaRecordError, require_galgame_media_text,
+    CompletedGalgameVisualBindingRecords, GalgameCompletedVisualAssetRecord,
+    GalgameCompletedVisualBindingRecord, GalgameMediaRecordError, require_galgame_media_text,
     validate_galgame_generation_id,
 };
 use a4n_core::models::{
     generation::generation_spec,
     media::{media_asset, media_binding, media_provenance},
 };
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn completed_galgame_visual_binding_records(
     db: &DatabaseConnection,
@@ -31,6 +32,10 @@ pub async fn completed_galgame_visual_binding_records(
         .filter(media_binding::Column::TargetId.eq(target_entity_id))
         .filter(media_binding::Column::Role.eq(role.to_string()))
         .order_by_desc(media_binding::Column::Id)
+        .select_only()
+        .column(media_binding::Column::Id)
+        .column(media_binding::Column::MediaAssetId)
+        .into_model::<GalgameCompletedVisualBindingRecord>()
         .one(db)
         .await
         .map_err(GalgameMediaRecordError::Database)?
@@ -41,6 +46,14 @@ pub async fn completed_galgame_visual_binding_records(
         )));
     };
     let Some(asset) = media_asset::Entity::find_by_id(binding.media_asset_id)
+        .select_only()
+        .column(media_asset::Column::Id)
+        .column(media_asset::Column::ProjectId)
+        .column(media_asset::Column::RootProjectId)
+        .column(media_asset::Column::MediaKind)
+        .column(media_asset::Column::Status)
+        .column(media_asset::Column::FilePath)
+        .into_model::<GalgameCompletedVisualAssetRecord>()
         .one(db)
         .await
         .map_err(GalgameMediaRecordError::Database)?
@@ -50,7 +63,7 @@ pub async fn completed_galgame_visual_binding_records(
             spec.id, binding.id, binding.media_asset_id
         )));
     };
-    validate_completed_visual_asset(spec, &asset)?;
+    validate_completed_visual_asset_record(spec, &asset)?;
     let Some(provenance) = media_provenance::Entity::find_by_id(asset.id)
         .one(db)
         .await

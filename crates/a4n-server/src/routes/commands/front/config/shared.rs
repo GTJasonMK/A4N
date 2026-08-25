@@ -100,7 +100,7 @@ macro_rules! config_web_model_discovery_command {
                 stringify!($name),
                 &["input"],
             )?;
-            let input: $crate::routes::commands::config_records_actions::ModelDiscoveryInput =
+            let input: a4n_api_contract::config::ModelDiscoveryInput =
                 $crate::routes::commands::command_input(args, stringify!($name))?;
             $crate::routes::commands::to_value(
                 $action(state.runtime(), user_id, input)

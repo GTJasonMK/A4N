@@ -43,7 +43,7 @@ impl OrchestratorContext {
     pub async fn run_canvas_output_node_validated(
         &self,
         input: CanvasOutputNodeExecutionInput<'_>,
-    ) -> Result<crate::canvas::CanvasNodeRunSummary, AppError> {
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
         let data_type = CanvasOutputDataType::from_output_node_kind(&input.node.node_kind)
             .map_err(AppError::InvalidArgument)?;
         let checkpoints = match input.shared_run {

@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use a4n_core::models::{project::project_member, user::role::ROLE_READ_ONLY};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::{
     CollaborationDbError, ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole, find_user,
-    parse_stored_member_role, pending_invite_counts_by_root, projects_by_id, users_by_id,
-    validate_collaboration_root, validate_positive_i64,
+    parse_stored_member_role, pending_invite_counts_by_root, project_access_rows_by_id,
+    users_by_id, validate_collaboration_root_identity, validate_positive_i64,
 };
 
 pub async fn project_access_info(
@@ -42,28 +42,35 @@ pub async fn project_access_info_batch(
     root_ids.sort_unstable();
     root_ids.dedup();
 
-    let roots_by_id = projects_by_id(db, &root_ids).await?;
+    let roots_by_id = project_access_rows_by_id(db, &root_ids).await?;
     for root_id in &root_ids {
         let root = roots_by_id
             .get(root_id)
             .ok_or_else(|| CollaborationDbError::NotFound(format!("项目不存在: {root_id}")))?;
-        validate_collaboration_root(root)?;
+        validate_collaboration_root_identity(
+            root.id,
+            &root.project_kind,
+            root.root_project_id,
+            root.source_snapshot_id,
+        )?;
     }
 
     let members = project_member::Entity::find()
+        .select_only()
+        .column(project_member::Column::ProjectId)
+        .column(project_member::Column::UserId)
+        .column(project_member::Column::Role)
         .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
+        .into_tuple::<(i64, i64, String)>()
         .all(db)
         .await
         .map_err(CollaborationDbError::Database)?;
     let mut member_counts: HashMap<i64, u64> = HashMap::new();
     let mut member_roles = HashMap::new();
-    for member in members {
-        *member_counts.entry(member.project_id).or_insert(0) += 1;
-        if member.user_id == user_id {
-            member_roles.insert(
-                member.project_id,
-                parse_stored_member_role(&member.role)?.into(),
-            );
+    for (project_id, member_user_id, role) in members {
+        *member_counts.entry(project_id).or_insert(0) += 1;
+        if member_user_id == user_id {
+            member_roles.insert(project_id, parse_stored_member_role(&role)?.into());
         }
     }
 

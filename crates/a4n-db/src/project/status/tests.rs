@@ -1,7 +1,10 @@
 use super::*;
-use crate::project::{CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG, create_project_record};
-use a4n_core::models::project::{novel_project, project_status_history};
-use a4n_domain::project::ProjectStatus;
+use crate::project::{CreateProjectRecordInput, create_project_record};
+use a4n_core::models::{
+    chapter::chapter,
+    project::{novel_project, project_status_history},
+};
+use a4n_domain::project::{ProjectStatus, ProjectStatusArtifacts};
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, Set,
@@ -197,6 +200,48 @@ async fn project_status_reads_validate_arguments_before_database_access() {
 }
 
 #[tokio::test]
+async fn project_status_artifacts_combines_flags_and_keeps_content_semantics() {
+    let db = setup_db().await;
+    let project = create_project_record(
+        &db,
+        CreateProjectRecordInput {
+            user_id: 1,
+            title: "状态产物标志".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = test_time(1);
+    chapter::ActiveModel {
+        project_id: Set(project.id),
+        chapter_number: Set(1),
+        content: Set("正文".to_string()),
+        word_count: Set(2),
+        status: Set(chapter::STATUS_COMPLETED.to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let artifacts = project_status_artifacts(&db, project.id).await.unwrap();
+
+    assert_eq!(
+        artifacts,
+        ProjectStatusArtifacts {
+            has_blueprint: false,
+            has_part_outline: false,
+            has_chapter_outline: false,
+            has_chapter_content: true,
+        }
+    );
+}
+
+#[tokio::test]
 async fn update_project_status_record_updates_project_and_history() {
     let db = setup_db().await;
     let project = create_project_record(
@@ -205,7 +250,7 @@ async fn update_project_status_record_updates_project_and_history() {
             user_id: 1,
             title: "状态项目".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

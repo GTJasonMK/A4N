@@ -13,14 +13,60 @@ import {
   updateUserProfile,
   type SessionSummary,
 } from "../../../api/auth";
-import { formatUiDateTime } from "../../../utils/dateTime";
 import { nonEmptyText, textInputValue } from "../../../utils/text";
+import { formatDateTime, useI18n } from "../../../i18n";
+import { useAuthStore } from "../../../store/auth";
+import { shouldUseHttpBackend } from "../../../utils/runtimeMode";
+
+export const PageCliPanel: React.FC = () => {
+  const { user, updateProfile } = useAuthStore();
+  const { addToast } = useToast();
+  const { t } = useI18n();
+  const [busy, setBusy] = useState(false);
+
+  if (!user || !shouldUseHttpBackend()) return null;
+
+  const handleChange = async (enabled: boolean) => {
+    if (busy || enabled === user.page_cli_enabled) return;
+    setBusy(true);
+    try {
+      await updateProfile({ page_cli_enabled: enabled });
+      addToast(t(enabled ? "pageCli.enabledToast" : "pageCli.disabledToast"), "success");
+    } catch (err) {
+      addToast(extractErrorMessage(err, t("pageCli.updateFailed")), "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="a4n-flat-surface overflow-hidden text-xs" aria-label={t("pageCli.title")}>
+      <div className="flex flex-wrap items-start justify-between gap-3 px-3 py-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-medium text-book-text-main">{t("pageCli.title")}</h3>
+          <p className="mt-1 max-w-prose leading-relaxed text-book-text-muted">{t("pageCli.description")}</p>
+        </div>
+        <label className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-tertiary/45 px-2.5 text-book-text-sub has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-book-primary">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-book-primary"
+            checked={user.page_cli_enabled}
+            disabled={busy}
+            onChange={(event) => void handleChange(event.target.checked)}
+          />
+          <span>{user.page_cli_enabled ? t("pageCli.enabled") : t("pageCli.disabled")}</span>
+        </label>
+      </div>
+    </section>
+  );
+};
 
 export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = ({
   userId,
   embedded = false,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [avatar, setAvatar] = useState("");
   const [busy, setBusy] = useState(false);
@@ -84,7 +130,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
         setAvatar(savedProfileRef.current.avatar);
       } catch (err) {
         if (!isCurrentUser(requestUserId) || loadSeqRef.current !== requestSeq) return;
-        const message = extractErrorMessage(err, "加载资料失败");
+        const message = extractErrorMessage(err, t("settingsAbout.loadProfileFailed"));
         setLoadError(message);
         addToast(message, "error");
       } finally {
@@ -117,13 +163,13 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
         editVersionRef.current += 1;
         setEmail(savedProfileRef.current.email);
         setAvatar(savedProfileRef.current.avatar);
-        addToast("已更新资料", "success");
+        addToast(t("settingsAbout.updatedProfile"), "success");
       } else {
-        addToast("已保存提交时的资料，当前保留后续编辑内容", "info");
+        addToast(t("settingsAbout.savedSubmittedProfile"), "info");
       }
     } catch (err) {
       if (!isCurrentUser(requestUserId) || saveSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "更新失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAbout.updateFailed")), "error");
     } finally {
       if (saveSeqRef.current === requestSeq) busyRef.current = false;
       if (isCurrentUser(requestUserId) && saveSeqRef.current === requestSeq) setBusy(false);
@@ -136,26 +182,26 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
         <UserRound size={13} className="text-book-text-muted" />
-        <span className="font-medium text-book-text-main">个人资料</span>
-        <span className="text-caption text-book-text-muted">邮箱与头像</span>
+        <span className="font-medium text-book-text-main">{t("settingsAbout.profile")}</span>
+        <span className="text-caption text-book-text-muted">{t("settingsAbout.emailAndAvatar")}</span>
       </summary>
       <div className="space-y-2 border-t border-book-border/35 p-3">
         {loading ? (
           <div className="inline-flex items-center gap-1.5 text-book-text-muted">
-            <LoadingSpinner size="sm" /> 加载中…
+            <LoadingSpinner size="sm" /> {t("settingsAbout.loading")}
           </div>
         ) : loadError ? (
           <div className="text-error">{loadError}</div>
         ) : (
           <>
             <BookInput
-              label="邮箱"
+              label={t("settingsAbout.email")}
               value={email}
               onChange={(e) => updateEmail(e.target.value)}
               placeholder="user@example.com"
             />
             <BookInput
-              label="头像地址"
+              label={t("settingsAbout.avatarUrl")}
               value={avatar}
               onChange={(e) => updateAvatar(e.target.value)}
               placeholder="https://…/avatar.png"
@@ -169,10 +215,10 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
               >
                 {busy ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <LoadingSpinner size="sm" /> 保存中…
+                  <LoadingSpinner size="sm" /> {t("settingsAbout.saving")}
                   </span>
                 ) : (
-                  "保存资料"
+                  t("settingsAbout.saveProfile")
                 )}
               </BookButton>
             </div>
@@ -185,6 +231,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
 
 export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [oldPwd, setOldPwd] = useState("");
   const [newPwd, setNewPwd] = useState("");
   const [busy, setBusy] = useState(false);
@@ -216,7 +263,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
   const handleChange = async () => {
     if (busyRef.current) return;
     if (!oldPwd || !newPwd) {
-      addToast("请填写两个密码字段", "error");
+      addToast(t("settingsAbout.fillPasswords"), "error");
       return;
     }
     const requestSeq = changeSeqRef.current + 1;
@@ -231,15 +278,15 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
       if (!mountedRef.current || changeSeqRef.current !== requestSeq) return;
       if (editVersionRef.current === requestEditVersion) {
         editVersionRef.current += 1;
-        addToast("密码已修改", "success");
+        addToast(t("settingsAbout.passwordChanged"), "success");
         setOldPwd("");
         setNewPwd("");
       } else {
-        addToast("已修改提交时的密码，当前保留后续输入内容", "info");
+        addToast(t("settingsAbout.savedSubmittedPassword"), "info");
       }
     } catch (err) {
       if (!mountedRef.current || changeSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "修改失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAbout.updatePasswordFailed")), "error");
     } finally {
       if (changeSeqRef.current === requestSeq) busyRef.current = false;
       if (mountedRef.current && changeSeqRef.current === requestSeq) setBusy(false);
@@ -252,17 +299,17 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
         <KeyRound size={13} className="text-book-text-muted" />
-        <span className="font-medium text-book-text-main">修改密码</span>
+        <span className="font-medium text-book-text-main">{t("settingsAbout.changePassword")}</span>
       </summary>
       <div className="space-y-2 border-t border-book-border/35 p-3">
         <BookInput
-          label="当前密码"
+          label={t("settingsAbout.currentPassword")}
           type="password"
           value={oldPwd}
           onChange={(e) => updateOldPwd(e.target.value)}
         />
         <BookInput
-          label="新密码"
+          label={t("settingsAbout.newPassword")}
           type="password"
           value={newPwd}
           onChange={(e) => updateNewPwd(e.target.value)}
@@ -276,10 +323,10 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
           >
             {busy ? (
               <span className="inline-flex items-center gap-1.5">
-                <LoadingSpinner size="sm" /> 更新中…
+                <LoadingSpinner size="sm" /> {t("settingsAbout.updating")}
               </span>
             ) : (
-              "更新密码"
+              t("settingsAbout.changePasswordAction")
             )}
           </BookButton>
         </div>
@@ -290,6 +337,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
 
 export const SessionManager: React.FC = () => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshBusy, setRefreshBusy] = useState(false);
@@ -312,7 +360,7 @@ export const SessionManager: React.FC = () => {
       setSessions(nextSessions);
     } catch (err) {
       if (!mountedRef.current) return;
-      addToast(extractErrorMessage(err, "加载会话失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAbout.loadSessionsFailed")), "error");
     } finally {
       if (mountedRef.current) setLoading(false);
     }
@@ -330,10 +378,10 @@ export const SessionManager: React.FC = () => {
     try {
       await refreshToken();
       if (!mountedRef.current) return;
-      addToast("登录凭证已更新", "success");
+      addToast(t("settingsAbout.credentialUpdated"), "success");
     } catch (err) {
       if (!mountedRef.current) return;
-      addToast(extractErrorMessage(err, "刷新失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAbout.refreshFailed")), "error");
     } finally {
       refreshBusyRef.current = false;
       if (mountedRef.current) setRefreshBusy(false);
@@ -344,18 +392,18 @@ export const SessionManager: React.FC = () => {
     <section className="space-y-2 text-xs">
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="font-medium text-book-text-main">登录设备</h3>
+          <h3 className="font-medium text-book-text-main">{t("settingsAbout.sessions")}</h3>
           <p className="mt-0.5 text-caption text-book-text-muted">
-            {loading ? "正在检查会话…" : `${sessions.length} 个会话`}
+            {loading ? t("settingsAbout.checkingSessions") : t("settingsAbout.sessionCount", { count: sessions.length })}
           </p>
         </div>
       </div>
       {loading ? (
         <div className="a4n-flat-surface flex items-center gap-1.5 p-3 text-book-text-muted">
-          <LoadingSpinner size="sm" /> 加载…
+          <LoadingSpinner size="sm" /> {t("settingsAbout.loadSessions")}
         </div>
       ) : sessions.length === 0 ? (
-        <div className="a4n-flat-surface p-3 text-book-text-muted">没有其他活动会话。</div>
+        <div className="a4n-flat-surface p-3 text-book-text-muted">{t("settingsAbout.noOtherSessions")}</div>
       ) : (
         <ul className="grid items-start gap-2 sm:grid-cols-2">
           {sessions.map((session) => (
@@ -366,12 +414,12 @@ export const SessionManager: React.FC = () => {
       <details className="a4n-flat-surface overflow-hidden text-small text-book-text-muted">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
           <RefreshCw size={11} className="shrink-0" />
-          <span className="font-medium text-book-text-main">登录修复</span>
-          <span className="text-caption">凭证异常时使用</span>
+          <span className="font-medium text-book-text-main">{t("settingsAbout.loginRepair")}</span>
+          <span className="text-caption">{t("settingsAbout.loginRepairHint")}</span>
         </summary>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-book-border/35 p-3">
           <p className="min-w-0 flex-1 leading-relaxed">
-            如果登录状态异常，可使用本机已保存的凭证重新建立会话。
+            {t("settingsAbout.loginRepairMessage")}
           </p>
           <BookButton variant="secondary" size="sm" onClick={handleRefresh} disabled={refreshBusy}>
             {refreshBusy ? (
@@ -379,7 +427,7 @@ export const SessionManager: React.FC = () => {
             ) : (
               <RefreshCw size={11} />
             )}
-            重新获取凭证
+            {t("settingsAbout.refreshCredentials")}
           </BookButton>
         </div>
       </details>
@@ -388,33 +436,30 @@ export const SessionManager: React.FC = () => {
 };
 
 const SessionRow: React.FC<{ session: SessionSummary }> = ({ session }) => {
+  const { t, locale } = useI18n();
   const expiresAt = new Date(session.expires_at);
-  const status = !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date() ? "已过期" : "活跃";
+  const expired = !Number.isNaN(expiresAt.getTime()) && expiresAt <= new Date();
   return (
     <li className="a4n-flat-surface p-3 text-small">
       <div className="flex min-w-0 items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-book-text-main" title={session.user_agent ?? ""}>
-            {session.user_agent || "未知设备"}
+            {session.user_agent || t("settingsAbout.unknownDevice")}
           </div>
           <div className="mt-0.5 text-book-text-muted">
-            <span className={status === "活跃" ? "text-success" : undefined}>{status}</span>
-            {` · 最近使用 ${formatSessionDate(session.last_used_at ?? session.created_at)}`}
+            <span className={!expired ? "text-success" : undefined}>{expired ? t("settingsAbout.sessionExpired") : t("settingsAbout.active")}</span>
+            {` · ${t("settingsAbout.recentlyUsed", { date: formatDateTime(session.last_used_at ?? session.created_at, locale, t("settingsAbout.unknownDate")) })}`}
           </div>
         </div>
       </div>
       <details className="mt-1 text-caption text-book-text-muted">
-        <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
+        <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("settingsAbout.diagnostic")}</summary>
         <div className="mt-1 grid gap-0.5 break-all font-mono">
-          <span>会话 {session.id}</span>
-          <span>创建 {formatSessionDate(session.created_at)}</span>
-          <span>到期 {formatSessionDate(session.expires_at)}</span>
+          <span>{t("settingsAbout.session", { id: session.id })}</span>
+          <span>{t("settingsAbout.created", { date: formatDateTime(session.created_at, locale, t("settingsAbout.unknownDate")) })}</span>
+          <span>{t("settingsAbout.expires", { date: formatDateTime(session.expires_at, locale, t("settingsAbout.unknownDate")) })}</span>
         </div>
       </details>
     </li>
   );
 };
-
-function formatSessionDate(value: string | null): string {
-  return formatUiDateTime(value, "未知");
-}

@@ -3,6 +3,7 @@ use super::super::{
     reject_unknown_command_args, strict_command_input, strict_runtime_command_input, to_value,
 };
 use crate::state::ServerState;
+use a4n_api_contract::import::ImportProjectTextUploadInput;
 use serde_json::Value;
 
 pub(in crate::routes::commands) async fn import_project_text_upload(
@@ -10,7 +11,7 @@ pub(in crate::routes::commands) async fn import_project_text_upload(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: import_file_actions::ImportProjectTextUploadInput =
+    let input: ImportProjectTextUploadInput =
         strict_command_input(args, "import_project_text_upload")?;
     to_value(
         import_file_actions::import_project_text_upload(state.runtime(), user_id, input).await?,

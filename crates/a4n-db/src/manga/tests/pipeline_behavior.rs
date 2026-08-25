@@ -8,7 +8,8 @@ use sea_orm::{
 use serde_json::json;
 
 use crate::manga::{
-    MangaPagePromptSyncDraft, MangaPipelineDbError, sync_manga_page_prompts_by_chapter,
+    MangaPagePromptSyncDraft, MangaPipelineDbError, manga_page_prompt_statuses_by_chapter,
+    manga_page_prompt_statuses_by_chapters, sync_manga_page_prompts_by_chapter,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -22,7 +23,7 @@ async fn project_and_chapter(db: &DatabaseConnection, title: &str) -> (i64, i64)
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -65,16 +66,60 @@ fn prompt_draft(
         image_prompt: image_prompt.to_string(),
         dialogue_text: None,
         characters_in_frame: None,
-        layout: Some(page_layout()),
+        layout: Some(page_layout(page_number)),
         status: "pending".to_string(),
     }
 }
 
-fn page_layout() -> serde_json::Value {
+fn page_layout(page_number: i32) -> serde_json::Value {
     json!({
         "schema_version": "manga_page_generation_v2",
-        "shooting_script_id": 71,
-        "shooting_script_revision": 2
+        "page_plan": {
+            "page_number": page_number,
+            "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+            "role": "setup",
+            "pacing": "medium",
+            "importance": "normal",
+            "reading_flow": "top_to_bottom_left_to_right",
+            "page_goal": "推进场景",
+            "visual_thesis": "角色对峙",
+            "entry_state": "平静",
+            "exit_state": "紧张",
+            "dominant_panel_number": 1,
+            "panels": [{
+                "panel_number": 1,
+                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                "function": "dialogue",
+                "size": "dominant",
+                "shot_scale": "medium",
+                "camera_angle": "eye_level",
+                "participants": ["hero"],
+                "composition": "单人构图",
+                "observable_action": "抬头",
+                "reaction": null,
+                "spatial_relationship": "中央",
+                "continuity_from_previous": null,
+                "text_layers": []
+            }]
+        },
+        "drawing_prompt": {
+            "schema_version": "manga_page_drawing_prompt_v2",
+            "page_number": page_number,
+            "image_prompt": "整页"
+        },
+        "reference_bindings": [],
+        "prompt_fingerprint": {"hash": "sha256"},
+        "source": {
+            "root_project_id": 1,
+            "source_chapter_id": 2,
+            "source_snapshot_id": null,
+            "source_snapshot_chapter_id": null,
+            "source_revision_key": "live:2:content-sha256",
+            "content_sha256": "content-sha256",
+            "shooting_script_id": 71,
+            "shooting_script_revision": 2,
+            "shooting_script_sha256": "script-sha256"
+        }
     })
 }
 
@@ -89,7 +134,7 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
         page_number: Set(1),
         prompt_type: Set(MANGA_PAGE_PROMPT_TYPE.to_string()),
         image_prompt: Set("镜头一".to_string()),
-        layout: Set(Some(page_layout())),
+        layout: Set(Some(page_layout(1))),
         generated_image_id: Set(Some(9901)),
         status: Set("completed".to_string()),
         created_at: Set(old_time),
@@ -139,6 +184,28 @@ async fn sync_page_prompts_preserves_rendered_image_when_prompt_unchanged() {
     assert_eq!(stored[0].generated_image_id, Some(9901));
     assert_eq!(stored[0].status, "completed");
     assert!(!stored.iter().any(|row| row.id == stale.id));
+
+    let mut statuses = manga_page_prompt_statuses_by_chapter(&db, project_id, chapter_id)
+        .await
+        .unwrap();
+    statuses.sort_unstable();
+    assert_eq!(
+        statuses,
+        vec![
+            (stored[0].id, "completed".to_string()),
+            (stored[1].id, "pending".to_string())
+        ]
+    );
+    let batch_statuses = manga_page_prompt_statuses_by_chapters(&db, project_id, &[chapter_id])
+        .await
+        .unwrap();
+    assert_eq!(
+        batch_statuses,
+        vec![
+            (chapter_id, stored[0].id, "completed".to_string()),
+            (chapter_id, stored[1].id, "pending".to_string()),
+        ]
+    );
 }
 
 #[tokio::test]

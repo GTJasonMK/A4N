@@ -24,17 +24,18 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_existing_
     )
     .await
     .map_err(AppError::Database)?;
-    for row in rows {
-        if !metadata_matches_prompt_output_language(
-            row.metadata_json.as_ref(),
-            prompt_output_language,
-        ) {
-            continue;
-        }
-        service
-            .ensure_prompt_stage_mutable(&row, "重新生成")
-            .await?;
-    }
+    let rows = rows
+        .into_iter()
+        .filter(|row| {
+            metadata_matches_prompt_output_language(
+                row.metadata_json.as_ref(),
+                prompt_output_language,
+            )
+        })
+        .collect::<Vec<_>>();
+    service
+        .ensure_prompt_stages_mutable(&rows, "重新生成")
+        .await?;
     Ok(())
 }
 
@@ -63,11 +64,9 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ensure_existing_
         false,
     )
     .await?;
-    for row in rows {
-        service
-            .ensure_prompt_stage_mutable_ignoring(&row, "重新生成", &ignored_prompt_ids)
-            .await?;
-    }
+    service
+        .ensure_prompt_stages_mutable_ignoring(&rows, "重新生成", &ignored_prompt_ids)
+        .await?;
     Ok(())
 }
 

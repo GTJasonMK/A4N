@@ -5,6 +5,7 @@ import {
   type GeneratedVideo,
 } from "../../../api/video";
 import { VideoAssemblyWorkspace } from "./VideoAssemblyWorkspace";
+import { I18nProvider } from "../../../i18n";
 
 const adoptedVideo: GeneratedVideo = {
   id: 11,
@@ -37,7 +38,8 @@ const adoptedVideo: GeneratedVideo = {
 describe("VideoAssemblyWorkspace", () => {
   it("allows assembling the currently available completed videos", () => {
     const html = renderToStaticMarkup(
-      <VideoAssemblyWorkspace
+      <I18nProvider initialLocale="zh-CN">
+        <VideoAssemblyWorkspace
         projectId={1}
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
         videos={[adoptedVideo]}
@@ -62,7 +64,8 @@ describe("VideoAssemblyWorkspace", () => {
         unavailableSegmentNumbers={[2]}
         onToast={() => undefined}
         onRefresh={() => undefined}
-      />,
+        />
+      </I18nProvider>,
     );
     const generateButton = [
       ...html.matchAll(/<button\b[\s\S]*?<\/button>/g),
@@ -87,7 +90,8 @@ describe("VideoAssemblyWorkspace", () => {
       metadata_json: { shot_number: 1 },
     };
     const html = renderToStaticMarkup(
-      <VideoAssemblyWorkspace
+      <I18nProvider initialLocale="zh-CN">
+        <VideoAssemblyWorkspace
         projectId={1}
         chapter={{ id: 2, chapter_number: 1, title: "第一章" }}
         videos={[late, early]}
@@ -122,7 +126,8 @@ describe("VideoAssemblyWorkspace", () => {
         adoptedVideoIds={new Set([late.id, early.id])}
         onToast={() => undefined}
         onRefresh={() => undefined}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html.indexOf("early")).toBeLessThan(html.indexOf("late"));

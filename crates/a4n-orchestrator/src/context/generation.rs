@@ -1128,7 +1128,7 @@ impl GenerationApplication {
     async fn attach_generation_runs_to_workflow_for_target(
         &self,
         input: AttachGenerationRunsToWorkflowInput,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
+    ) -> Result<usize, AppError> {
         a4n_db::generation::attach_runs_to_workflow_for_target(self.connection(), input)
             .await
             .map_err(generation_error)
@@ -1148,7 +1148,7 @@ impl GenerationApplication {
         target_table: &str,
         target_id: i64,
         response_summary_json: Option<Value>,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
+    ) -> Result<usize, AppError> {
         a4n_db::generation::complete_runs_for_target(
             self.connection(),
             target_table,
@@ -1165,7 +1165,7 @@ impl GenerationApplication {
         target_id: i64,
         error_message: String,
         response_summary_json: Option<Value>,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
+    ) -> Result<usize, AppError> {
         a4n_db::generation::fail_runs_for_target(
             self.connection(),
             target_table,
@@ -1182,11 +1182,27 @@ impl GenerationApplication {
         target_table: &str,
         target_id: i64,
         message: String,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
+    ) -> Result<usize, AppError> {
         a4n_db::generation::cancel_runs_for_target(
             self.connection(),
             target_table,
             target_id,
+            message,
+        )
+        .await
+        .map_err(generation_error)
+    }
+
+    pub(super) async fn cancel_generation_runs_for_targets(
+        &self,
+        target_table: &str,
+        target_ids: &[i64],
+        message: String,
+    ) -> Result<Vec<(i64, usize)>, AppError> {
+        a4n_db::generation::cancel_runs_for_targets(
+            self.connection(),
+            target_table,
+            target_ids,
             message,
         )
         .await
@@ -1491,7 +1507,7 @@ impl GenerationApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn validate_video_generation_start(
+    async fn validate_video_generation_start(
         &self,
         user_id: i64,
         input: &StartVideoGenerationInput,
@@ -2030,7 +2046,7 @@ impl OrchestratorContext {
     pub async fn attach_generation_runs_to_workflow_for_target(
         &self,
         input: AttachGenerationRunsToWorkflowInput,
-    ) -> Result<Vec<generation_run::Model>, AppError> {
+    ) -> Result<usize, AppError> {
         self.generation
             .attach_generation_runs_to_workflow_for_target(input)
             .await

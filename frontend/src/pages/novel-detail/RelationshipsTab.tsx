@@ -52,6 +52,7 @@ import { EmptyHint } from "./shared";
 import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
 import { profileRelationshipBaseAttributes } from "../writing-desk/CharacterProfileEditorModal";
 import { CharacterDetailDialog } from "../CharacterDetailDialog";
+import { formatNumber, useI18n, type MessageTranslator } from "../../i18n";
 
 interface CurrentRelationship {
   id: string;
@@ -131,8 +132,16 @@ const RELATIONSHIP_RING_GAP = 150;
 const RELATIONSHIP_GRAPH_LAYOUT_STORAGE_PREFIX =
   "a4n:relationship-graph-layout:v1";
 
-const syncedChapterText = (chapter: number, timelineStarted: boolean): string =>
-  chapter > 0 ? `已同步第 ${chapter} 章` : timelineStarted ? "已有章节记录" : "未同步";
+const syncedChapterText = (
+  chapter: number,
+  timelineStarted: boolean,
+  t: MessageTranslator,
+): string =>
+  chapter > 0
+    ? t("novel.relationships.syncedChapter", { chapter })
+    : timelineStarted
+      ? t("novel.relationships.chapterRecords")
+      : t("novel.relationships.notSynced");
 
 const currentRelationshipsFromProfiles = (
   profiles: CharacterProfile[],
@@ -164,6 +173,7 @@ const currentRelationshipsFromProfiles = (
 export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   projectId,
 }) => {
+  const { t } = useI18n();
   const { addToast } = useToast();
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [currentDetail, setCurrentDetail] =
@@ -199,7 +209,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   const { loading, load } = useChapterAnalysisLoader(
     projectId,
     loadRelationships,
-    "加载关系失败",
+    t("novel.relationships.loadFailed"),
   );
 
   useEffect(() => {
@@ -273,7 +283,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       );
       addToast(
         result.warnings.length > 0
-          ? `${successMessage}；${result.warnings.join("；")}`
+          ? `${successMessage}${t("common.summarySeparator")}${result.warnings.join(t("common.summarySeparator"))}`
           : successMessage,
         result.warnings.length > 0 ? "info" : "success",
       );
@@ -284,7 +294,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         activeProjectIdRef.current === requestProjectId &&
         mutationSeqRef.current === requestSeq
       ) {
-        addToast(extractErrorMessage(error, "保存初始关系失败"), "error");
+        addToast(extractErrorMessage(error, t("novel.relationships.saveFailed")), "error");
       }
       return false;
     } finally {
@@ -303,10 +313,10 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     if (!profile) {
       addToast(
         displayProfiles.length === 0
-          ? "请先建立至少一个角色档案"
+          ? t("novel.relationships.noProfiles")
           : displayProfiles.every((item) => item.timeline_started)
-            ? "现有角色均已进入章节时间线，请在角色详情中按章节记录关系变化"
-            : "当前项目状态不允许直接修改初始关系",
+            ? t("novel.relationships.allInTimeline")
+            : t("novel.relationships.cannotEditInitial"),
         "info",
       );
       return;
@@ -331,8 +341,8 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       } else {
         addToast(
           relationship.structured
-            ? "该关系包含结构化资料，不能用文本表单直接覆盖"
-            : "当前项目状态不允许修改初始关系",
+            ? t("novel.relationships.cannotEditStructured")
+            : t("novel.relationships.cannotEdit"),
           "info",
         );
       }
@@ -352,15 +362,15 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     const target = editor.target.trim();
     const description = editor.description.trim();
     if (!profile) {
-      addToast("关系所属角色已经不存在，请刷新后重试", "error");
+      addToast(t("novel.relationships.missingOwner"), "error");
       return;
     }
     if (!target || !description) {
-      addToast("请填写关系对象和关系描述", "error");
+      addToast(t("novel.relationships.fieldsRequired"), "error");
       return;
     }
     if (relationshipNodeId(profile.name) === relationshipNodeId(target)) {
-      addToast("关系对象不能与所属角色相同", "error");
+      addToast(t("novel.relationships.sameCharacter"), "error");
       return;
     }
     if (
@@ -371,7 +381,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
           relationshipNodeId(relationship.character_b) === relationshipNodeId(target),
       )
     ) {
-      addToast("该角色已经存在同名关系，请直接编辑现有关系", "error");
+      addToast(t("novel.relationships.duplicate"), "error");
       return;
     }
     if (
@@ -379,7 +389,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         profile,
         target,
         description,
-        editor.editing ? "初始关系已更新" : "初始关系已创建",
+        editor.editing ? t("novel.relationships.updated") : t("novel.relationships.created"),
       )
     ) {
       setEditor(null);
@@ -390,18 +400,21 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     if (!relationship.editable) {
       addToast(
         relationship.timeline_started
-          ? "该关系已进入章节时间线，不能直接删除初始值"
+          ? t("novel.relationships.timelineDelete")
           : relationship.structured
-            ? "该关系包含结构化资料，不能通过文本关系入口删除"
-            : "当前项目状态不允许删除初始关系",
+            ? t("novel.relationships.structuredDelete")
+            : t("novel.relationships.cannotDelete"),
         "info",
       );
       return;
     }
     const confirmed = await confirmDialog({
-      title: "删除初始关系",
-      message: `删除「${relationship.character_a} → ${relationship.character_b}」的初始关系？`,
-      confirmText: "删除",
+      title: t("novel.relationships.deleteTitle"),
+      message: t("novel.relationships.deleteMessage", {
+        from: relationship.character_a,
+        to: relationship.character_b,
+      }),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!confirmed) return;
@@ -409,7 +422,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
       (item) => item.id === relationship.profile_id,
     );
     if (!profile) {
-      addToast("关系所属角色已经不存在，请刷新后重试", "error");
+      addToast(t("novel.relationships.missingOwner"), "error");
       return;
     }
     if (
@@ -417,7 +430,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
         profile,
         relationship.character_b,
         null,
-        "初始关系已删除",
+        t("novel.relationships.deleted"),
       )
     ) {
       setCurrentDetail(null);
@@ -428,7 +441,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> 加载关系…
+        <LoadingSpinner size="sm" /> {t("common.loading")}
       </div>
     );
   }
@@ -443,7 +456,7 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
     <div className="content-wide flex h-full min-h-0 flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-small leading-relaxed text-book-text-muted">
-          正文时间线开始前可直接维护初始关系；同步章节后请在角色详情中按章节记录关系变化。
+          {t("novel.relationships.beforeTimelineHint")}
         </div>
         <BookButton
           variant="primary"
@@ -452,11 +465,11 @@ export const RelationshipsTab: React.FC<{ projectId: number }> = ({
           disabled={saving || editableProfiles.length === 0}
           title={
             editableProfiles.length > 0
-              ? "新增初始角色关系"
-              : "没有可直接修改初始关系的角色"
+              ? t("novel.relationships.addInitial")
+              : t("novel.relationships.noEditableProfiles")
           }
         >
-          <Plus size={12} /> 新增初始关系
+          <Plus size={12} /> {t("novel.relationships.addInitial")}
         </BookButton>
       </div>
 
@@ -509,6 +522,7 @@ const CurrentRelationshipsCard: React.FC<{
   relationships: CurrentRelationship[];
   onOpen: (relationship: CurrentRelationship) => void;
 }> = ({ projectId, relationships, onOpen }) => {
+  const { locale, t } = useI18n();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [mobileView, setMobileView] =
     useState<MobileRelationshipView>("graph");
@@ -529,7 +543,7 @@ const CurrentRelationshipsCard: React.FC<{
     () => relationshipLayoutSize(graph.nodes.length),
     [graph.nodes.length],
   );
-  const edges = useMemo(() => buildRelationshipFlowEdges(graph), [graph]);
+  const edges = useMemo(() => buildRelationshipFlowEdges(graph, t), [graph, t]);
 
   useEffect(() => {
     const stored = loadRelationshipNodePositions(projectId);
@@ -539,7 +553,7 @@ const CurrentRelationshipsCard: React.FC<{
       saveRelationshipNodePositions(projectId, positions);
     }
     setFixedNodeCount(Object.keys(positions).length);
-    setNodes(buildRelationshipFlowNodes(graph, positions, layoutSize));
+    setNodes(buildRelationshipFlowNodes(graph, positions, layoutSize, t, locale));
     setSelectedNodeId((current) =>
       current && nodeIds.has(current) ? current : null,
     );
@@ -547,7 +561,7 @@ const CurrentRelationshipsCard: React.FC<{
       void flowInstance?.fitView({ padding: 0.22, maxZoom: 1.15 });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [flowInstance, graph, layoutSize, projectId, setNodes]);
+  }, [flowInstance, graph, layoutSize, locale, projectId, setNodes, t]);
 
   const flowNodes = useMemo(
     () =>
@@ -592,18 +606,18 @@ const CurrentRelationshipsCard: React.FC<{
   const resetNodeLayout = useCallback(() => {
     clearRelationshipNodePositions(projectId);
     setFixedNodeCount(0);
-    setNodes(buildRelationshipFlowNodes(graph, {}, layoutSize));
+    setNodes(buildRelationshipFlowNodes(graph, {}, layoutSize, t, locale));
     setSelectedNodeId(null);
     setHoveredRelationship(null);
     window.requestAnimationFrame(() => {
       void flowInstance?.fitView({ padding: 0.22, maxZoom: 1.15 });
     });
-  }, [flowInstance, graph, layoutSize, projectId, setNodes]);
+  }, [flowInstance, graph, layoutSize, locale, projectId, setNodes, t]);
 
   if (relationships.length === 0) {
     return (
       <div className="a4n-flat-surface p-5">
-        <EmptyHint text="角色档案中还没有社会关系。" />
+        <EmptyHint text={t("novel.relationships.noRelationships")} />
       </div>
     );
   }
@@ -613,21 +627,21 @@ const CurrentRelationshipsCard: React.FC<{
       <div className="flex min-h-12 items-center border-b border-book-border/60 bg-book-bg-paper px-3 py-2">
         <div className="w-full lg:hidden">
           <SegmentedControl
-            ariaLabel="关系页视图"
+            ariaLabel={t("novel.relationships.viewAria")}
             value={mobileView}
             onChange={setMobileView}
             options={[
-              { id: "graph", label: "关系图" },
-              { id: "characters", label: "角色列表" },
+              { id: "graph", label: t("novel.relationships.graph") },
+              { id: "characters", label: t("novel.relationships.characters") },
             ]}
           />
         </div>
         <div className="hidden min-w-0 items-baseline gap-2 lg:flex">
           <div className="text-body font-semibold text-book-text-main">
-            关系图
+            {t("novel.relationships.title")}
           </div>
           <div className="text-small text-book-text-muted">
-            {graph.nodes.length} 位角色 · {graph.edges.length} 条关系
+            {formatNumber(graph.nodes.length, locale)} {t("novel.relationships.characters")} · {t("novel.relationships.relationshipCount", { count: formatNumber(graph.edges.length, locale) })}
           </div>
         </div>
       </div>
@@ -644,7 +658,7 @@ const CurrentRelationshipsCard: React.FC<{
               <Dropdown
                 items={[
                   {
-                    label: "恢复自动布局",
+                    label: t("novel.relationships.restoreLayout"),
                     icon: <RefreshCcw size={13} />,
                     onClick: resetNodeLayout,
                   },
@@ -687,7 +701,7 @@ const CurrentRelationshipsCard: React.FC<{
               ],
             ]}
             className="a4n-relationship-flow"
-            aria-label="当前角色关系网"
+            aria-label={t("novel.relationships.graphAria")}
           >
             <Controls
               showInteractive={false}
@@ -735,6 +749,7 @@ const RelationshipGraphPanel: React.FC<{
   onSelectNode,
   onOpen,
 }) => {
+  const { locale, t } = useI18n();
   const prominentNodes = [...graph.nodes].sort(
     (a, b) => b.degree - a.degree || a.name.localeCompare(b.name),
   );
@@ -768,7 +783,7 @@ const RelationshipGraphPanel: React.FC<{
                 {selectedNode.name}
               </div>
               <div className="mt-0.5 text-small text-book-text-muted">
-                共 {selectedNode.degree} 条关系
+                {t("novel.relationships.relationshipCount", { count: formatNumber(selectedNode.degree, locale) })}
               </div>
             </div>
           </div>
@@ -780,7 +795,7 @@ const RelationshipGraphPanel: React.FC<{
                 type="button"
                 onClick={() => onOpen(relationship)}
                 className="block w-full rounded-xl border border-book-border/40 bg-book-bg-paper/45 px-3 py-2.5 text-left transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/55 focus-visible:border-book-primary/45 focus-visible:outline-none"
-                title="查看关系详情"
+                title={t("novel.relationships.viewDetails")}
               >
                 <div className="flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-main">
                   <span className="truncate">{relationship.character_a}</span>
@@ -798,7 +813,7 @@ const RelationshipGraphPanel: React.FC<{
 
       <section className="px-2 py-3">
         <div className="mb-1 px-2 text-small font-semibold text-book-text-main">
-          全部角色
+          {t("novel.relationships.allCharacters")}
         </div>
         <div className="grid gap-1.5">
           {prominentNodes.map((node) => {
@@ -823,7 +838,7 @@ const RelationshipGraphPanel: React.FC<{
                   {node.name}
                 </span>
                 <span className="shrink-0 text-caption text-book-text-muted">
-                  {node.degree} 条
+                  {formatNumber(node.degree, locale)}
                 </span>
               </button>
             );
@@ -849,6 +864,7 @@ const RelationshipEditorModal: React.FC<{
   onSave: () => void;
   onClose: () => void;
 }> = ({ state, profiles, allProfiles, saving, onChange, onSave, onClose }) => {
+  const { t } = useI18n();
   if (!state) return null;
   const profile = profiles.find((item) => item.id === state.profileId);
   const targetOptions = allProfiles.filter((item) => item.id !== state.profileId);
@@ -857,8 +873,12 @@ const RelationshipEditorModal: React.FC<{
     <Modal
       isOpen
       onClose={onClose}
-      title={state.editing ? "编辑初始关系" : "新增初始关系"}
-      subtitle="直接更新正式角色档案，不创建虚假的章节事件"
+      title={
+        state.editing
+          ? t("novel.relationships.editorEdit")
+          : t("novel.relationships.editorCreate")
+      }
+      subtitle={t("novel.relationships.editorSubtitle")}
       icon={state.editing ? <Pencil size={15} /> : <Plus size={15} />}
       maxWidthClassName="max-w-lg"
       bodyClassName="px-4 py-4"
@@ -878,19 +898,21 @@ const RelationshipEditorModal: React.FC<{
         >
           {saving ? (
             <span className="inline-flex items-center gap-2">
-              <LoadingSpinner size="sm" /> 保存中…
+              <LoadingSpinner size="sm" /> {t("novel.relationships.saving")}
             </span>
           ) : state.editing ? (
-            "保存修改"
+            t("novel.relationships.saveChanges")
           ) : (
-            "保存"
+            t("novel.relationships.save")
           )}
         </BookButton>
       }
     >
       <div className="grid gap-3">
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-book-text-sub">所属角色 *</span>
+          <span className="text-xs text-book-text-sub">
+            {t("novel.relationships.owner")}
+          </span>
           <select
             value={state.profileId}
             onChange={(event) =>
@@ -911,7 +933,9 @@ const RelationshipEditorModal: React.FC<{
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-book-text-sub">关系对象 *</span>
+          <span className="text-xs text-book-text-sub">
+            {t("novel.relationships.target")}
+          </span>
           <input
             type="text"
             list="initial-relationship-targets"
@@ -919,7 +943,7 @@ const RelationshipEditorModal: React.FC<{
             onChange={(event) => onChange({ ...state, target: event.target.value })}
             disabled={saving || state.editing}
             className="pyqt-input"
-            placeholder="角色、组织或阵营名称"
+            placeholder={t("novel.relationships.targetPlaceholder")}
           />
           <datalist id="initial-relationship-targets">
             {targetOptions.map((item) => (
@@ -929,7 +953,9 @@ const RelationshipEditorModal: React.FC<{
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-book-text-sub">关系描述 *</span>
+          <span className="text-xs text-book-text-sub">
+            {t("novel.relationships.description")}
+          </span>
           <textarea
             value={state.description}
             onChange={(event) =>
@@ -937,7 +963,7 @@ const RelationshipEditorModal: React.FC<{
             }
             disabled={saving}
             className="pyqt-input min-h-28 resize-y"
-            placeholder="例如：旧友，彼此信任但对过去有所隐瞒"
+            placeholder={t("novel.relationships.descriptionPlaceholder")}
           />
         </label>
       </div>
@@ -952,6 +978,7 @@ const CurrentRelationshipDetailDialog: React.FC<{
   onDelete: () => void;
   onClose: () => void;
 }> = ({ relationship, saving, onEdit, onDelete, onClose }) => {
+  const { t } = useI18n();
   const editMode = relationshipEditMode(
     relationship.editable,
     relationship.timeline_started,
@@ -961,10 +988,13 @@ const CurrentRelationshipDetailDialog: React.FC<{
       isOpen
       onClose={onClose}
       title={`${relationship.character_a} / ${relationship.character_b}`}
-      subtitle={`社会关系 · ${syncedChapterText(
-        relationship.last_synced_chapter,
-        relationship.timeline_started,
-      )}`}
+      subtitle={t("novel.relationships.detailSubtitle", {
+        status: syncedChapterText(
+          relationship.last_synced_chapter,
+          relationship.timeline_started,
+          t,
+        ),
+      })}
       icon={<Network size={15} />}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
@@ -972,22 +1002,22 @@ const CurrentRelationshipDetailDialog: React.FC<{
         editMode === "initial" ? (
           <div className="flex items-center gap-2">
             <BookButton variant="secondary" onClick={onEdit} disabled={saving}>
-              <Pencil size={12} /> 编辑
+              <Pencil size={12} /> {t("common.edit")}
             </BookButton>
             <BookButton variant="danger" onClick={onDelete} disabled={saving}>
-              <Trash2 size={12} /> 删除
+              <Trash2 size={12} /> {t("common.delete")}
             </BookButton>
           </div>
         ) : editMode === "timeline" ? (
           <BookButton variant="primary" onClick={onEdit} disabled={saving}>
-            <Pencil size={12} /> 记录关系变化
+            <Pencil size={12} /> {t("novel.relationships.timeline")}
           </BookButton>
         ) : undefined
       }
     >
       <div>
         <div className="mb-1 text-xs font-semibold text-book-text-main">
-          关系描述
+          {t("novel.relationships.descriptionLabel")}
         </div>
         <div className="whitespace-pre-wrap text-sm leading-7 text-book-text-sub">
           {relationship.description}
@@ -995,10 +1025,10 @@ const CurrentRelationshipDetailDialog: React.FC<{
         {editMode !== "initial" ? (
           <div className="mt-4 rounded-xl border border-book-border/60 bg-book-bg-tertiary/45 px-3 py-2 text-small leading-relaxed text-book-text-muted">
             {relationship.timeline_started
-              ? "该角色已经进入章节时间线。后续关系变化应在角色详情中按实际章节记录，不能直接重写初始关系。"
+              ? t("novel.relationships.timelineNotice")
               : relationship.structured
-                ? "该关系包含结构化资料，文本表单不会将其压平成普通描述。"
-                : "当前项目状态不允许直接重写初始关系。"}
+                ? t("novel.relationships.structuredNotice")
+                : t("novel.relationships.readonlyNotice")}
           </div>
         ) : null}
       </div>
@@ -1107,6 +1137,8 @@ function buildRelationshipFlowNodes(
   graph: RelationshipGraphData,
   positions: RelationshipNodePositions,
   layout: { width: number; height: number },
+  t: MessageTranslator,
+  locale: Parameters<typeof formatNumber>[1],
 ): RelationshipFlowNode[] {
   const ordered = [...graph.nodes].sort(
     (left, right) =>
@@ -1139,7 +1171,9 @@ function buildRelationshipFlowNodes(
               {node.name}
             </span>
             <span className="mt-0.5 text-[9px] text-book-text-muted">
-              {node.degree} 条
+              {t("novel.relationships.relationshipCount", {
+                count: formatNumber(node.degree, locale),
+              })}
             </span>
           </div>
         ),
@@ -1153,13 +1187,17 @@ function buildRelationshipFlowNodes(
       selectable: true,
       deletable: false,
       connectable: false,
-      ariaLabel: node.name + "，" + node.degree + " 条关系",
+      ariaLabel: t("novel.relationships.nodeAria", {
+        name: node.name,
+        count: formatNumber(node.degree, locale),
+      }),
     };
   });
 }
 
 function buildRelationshipFlowEdges(
   graph: RelationshipGraphData,
+  t: MessageTranslator,
 ): RelationshipFlowEdge[] {
   const showLabels = graph.edges.length <= 8;
   return graph.edges.map((edge) => ({
@@ -1172,7 +1210,7 @@ function buildRelationshipFlowEdges(
       curvature: Math.min(0.85, 0.2 + edge.parallelIndex * 0.18),
     },
     label: showLabels
-      ? relationshipEdgeSummary(edge.relationship.description)
+      ? relationshipEdgeSummary(edge.relationship.description, t)
       : undefined,
     markerEnd: {
       type: MarkerType.ArrowClosed,
@@ -1183,12 +1221,11 @@ function buildRelationshipFlowEdges(
     selectable: true,
     deletable: false,
     focusable: true,
-    ariaLabel:
-      edge.relationship.character_a +
-      " 到 " +
-      edge.relationship.character_b +
-      "：" +
-      edge.relationship.description,
+    ariaLabel: t("novel.relationships.edgeAria", {
+      from: edge.relationship.character_a,
+      to: edge.relationship.character_b,
+      description: edge.relationship.description,
+    }),
   }));
 }
 
@@ -1288,9 +1325,12 @@ function initialOf(value: string): string {
   return (value.trim().charAt(0) || "?").toUpperCase();
 }
 
-function relationshipEdgeSummary(description: string): string {
+function relationshipEdgeSummary(
+  description: string,
+  t: MessageTranslator,
+): string {
   const normalized = description.replace(/\s+/g, " ").trim();
-  if (!normalized) return "关系";
+  if (!normalized) return t("novel.relationships.relationship");
   const splitIndex = normalized.search(/[。；;，,]/);
   return splitIndex > 0 ? normalized.slice(0, splitIndex) : normalized;
 }

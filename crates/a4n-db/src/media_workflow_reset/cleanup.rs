@@ -12,7 +12,7 @@ pub(super) async fn delete_media_workflow_v2_records<C>(
 where
     C: ConnectionTrait,
 {
-    let _ = crate::project::delete_project_generation_runs(
+    crate::project::delete_project_generation_runs(
         db,
         project_id,
         &scope.image_ids,
@@ -23,7 +23,7 @@ where
     let _ = crate::project::delete_project_task_queue_records(db, project_id)
         .await
         .map_err(|error| DbErr::Custom(error.to_string()))?;
-    let _ = crate::project::delete_project_workflow_runs(db, project_id)
+    crate::project::delete_project_workflow_runs(db, project_id)
         .await
         .map_err(|error| DbErr::Custom(error.to_string()))?;
 

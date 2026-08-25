@@ -5,6 +5,7 @@ mod galgame_lines;
 mod galgame_scenes;
 mod generation_refs;
 mod generation_spec;
+mod manga;
 mod project_snapshot;
 mod support;
 mod text_core;

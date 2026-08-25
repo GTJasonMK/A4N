@@ -17,10 +17,11 @@ use crate::outline::{
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::contracts::ChapterOutlineRequestInput;
+use super::queries::existing_chapter_outline_for_number;
 use super::requests::build_chapter_outline_request;
 
 impl OrchestratorContext {
-    pub async fn preview_regenerate_chapter_outline_request(
+    pub(in crate::outline) async fn preview_regenerate_chapter_outline_request(
         &self,
         project_id: i64,
         outline_id: i64,
@@ -47,7 +48,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn preview_generate_chapter_outlines_by_count_requests(
+    pub(in crate::outline) async fn preview_generate_chapter_outlines_by_count_requests(
         &self,
         project_id: i64,
         start_chapter: i32,
@@ -66,7 +67,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn preview_generate_part_chapter_outline_requests(
+    pub(in crate::outline) async fn preview_generate_part_chapter_outline_requests(
         &self,
         project_id: i64,
         part_id: i64,
@@ -100,6 +101,30 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
+        let context =
+            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
+        self.preview_chapter_outline_sequence_requests_with_context(
+            project_id,
+            start_chapter,
+            count,
+            focus_part,
+            prompt_renderer,
+            variables,
+            &context,
+        )
+        .await
+    }
+
+    pub(in crate::outline) async fn preview_chapter_outline_sequence_requests_with_context(
+        &self,
+        project_id: i64,
+        start_chapter: i32,
+        count: i32,
+        focus_part: Option<&part_outline::Model>,
+        prompt_renderer: &dyn PromptRenderer,
+        variables: &HashMap<String, Value>,
+        context: &crate::outline::context::ChapterOutlineGenerationContext,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
         let end_chapter = validate_chapter_outline_generation_request(start_chapter, count)?;
         if let Some(part) = focus_part {
             required_part_summary(part)?;
@@ -110,9 +135,6 @@ impl OrchestratorContext {
                 )));
             }
         }
-
-        let context =
-            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
         validate_requested_part_context(&context.parts, start_chapter, end_chapter)?;
         ensure_focus_part_in_context(focus_part, &context.parts)?;
 
@@ -121,9 +143,8 @@ impl OrchestratorContext {
             let expected_part_id =
                 requested_part_for_chapter(&context.parts, chapter_number)?.map(|part| part.id);
             let title = format!("第 {chapter_number} 章章纲");
-            if let Some(existing) = self
-                .existing_chapter_outline_for_number(project_id, chapter_number)
-                .await?
+            if let Some(existing) =
+                existing_chapter_outline_for_number(&context.chapter_outlines, chapter_number)?
             {
                 validate_existing_chapter_outline_for_request(
                     &existing,

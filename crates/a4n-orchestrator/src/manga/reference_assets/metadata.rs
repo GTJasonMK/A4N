@@ -1,12 +1,12 @@
 use serde_json::{Value, json};
 
-use super::contracts::MangaCharacterPortraitRef;
+use a4n_db::project::MangaCharacterPortraitRefSummary;
 
-fn character_portraits_json(refs: &[MangaCharacterPortraitRef]) -> Value {
+fn character_portraits_json(refs: &[MangaCharacterPortraitRefSummary]) -> Value {
     Value::Array(refs.iter().map(character_portrait_json).collect())
 }
 
-fn character_portrait_json(portrait: &MangaCharacterPortraitRef) -> Value {
+fn character_portrait_json(portrait: &MangaCharacterPortraitRefSummary) -> Value {
     json!({
         "profile_id": portrait.profile_id,
         "portrait_id": portrait.portrait_id,
@@ -16,11 +16,13 @@ fn character_portrait_json(portrait: &MangaCharacterPortraitRef) -> Value {
         "portrait_type": portrait.portrait_type,
         "expression": portrait.expression,
         "pose": portrait.pose,
-        "is_primary": portrait.is_primary,
+        "is_primary": true,
     })
 }
 
-pub(in crate::manga) fn manga_reference_assets_json(refs: &[MangaCharacterPortraitRef]) -> Value {
+pub(in crate::manga) fn manga_reference_assets_json(
+    refs: &[MangaCharacterPortraitRefSummary],
+) -> Value {
     json!({
         "character_portraits": character_portraits_json(refs),
     })

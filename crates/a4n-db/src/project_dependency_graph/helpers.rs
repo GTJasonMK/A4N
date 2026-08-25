@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use a4n_core::models::{ai::generated_image, chapter::chapter_video_prompt};
+use serde_json::Value;
 
 pub(super) fn count_strings<'a>(values: impl Iterator<Item = &'a str>) -> BTreeMap<String, u64> {
     let mut counts = BTreeMap::new();
@@ -16,10 +16,6 @@ pub(super) fn count_string_value(counts: &mut BTreeMap<String, u64>, value: &str
         return;
     }
     *counts.entry(value.to_string()).or_insert(0) += 1;
-}
-
-pub(super) fn prompt_type_in(row: &chapter_video_prompt::Model, prompt_types: &[&str]) -> bool {
-    prompt_type_str_in(&row.prompt_type, prompt_types)
 }
 
 pub(super) fn prompt_type_str_in(prompt_type: &str, prompt_types: &[&str]) -> bool {
@@ -39,11 +35,14 @@ pub(super) fn outline_range_summary(start: Option<i32>, end: Option<i32>) -> Opt
     }
 }
 
-pub(super) fn video_frame_image_prompt_id(image: &generated_image::Model) -> Option<i64> {
-    if !a4n_domain::image::is_video_frame_prompt_image_type(&image.image_type) {
+pub(super) fn video_frame_image_prompt_id(
+    image_type: &str,
+    metadata_json: Option<&Value>,
+) -> Option<i64> {
+    if !a4n_domain::image::is_video_frame_prompt_image_type(image_type) {
         return None;
     }
-    a4n_domain::image::video_frame_image_generation_context(image.metadata_json.as_ref())
+    a4n_domain::image::video_frame_image_generation_context(metadata_json)
         .ok()
         .flatten()
         .map(|context| context.prompt_id)

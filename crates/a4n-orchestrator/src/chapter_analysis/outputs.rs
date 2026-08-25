@@ -230,14 +230,14 @@ impl OrchestratorContext {
             )
             .await
             .map_err(ChapterAnalysisOutputError::Persistence)?;
-        for item in &synced.current {
-            self.sync_foreshadowing_rag(chapter.project_id, item)
-                .await
-                .map_err(ChapterAnalysisOutputError::Rag)?;
-        }
-        self.delete_foreshadowing_rag_by_ids(chapter.project_id, &synced.stale_ids)
+        let current_ids = synced
+            .current
+            .iter()
+            .map(|item| item.id)
+            .collect::<Vec<_>>();
+        self.reingest_foreshadowing_rag_by_ids(chapter.project_id, &current_ids)
             .await
-            .map_err(|error| ChapterAnalysisOutputError::Rag(error.to_string()))?;
+            .map_err(ChapterAnalysisOutputError::Rag)?;
         let rows = |items: &[a4n_core::models::character::foreshadowing_index::Model]| {
             items
                 .iter()

@@ -1,12 +1,8 @@
-use super::super::cleanup::{
-    ProjectCleanupDbError, ProjectGeneratedArtifactLinkCleanupResult,
-    ProjectGeneratedArtifactRowCleanupResult, ProjectTaskQueueCleanupResult,
-};
+use super::super::cleanup::ProjectCleanupDbError;
 use sea_orm::DbErr;
-use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FreeformGeneratedResetTargets {
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct FreeformGeneratedResetTargets {
     pub image_ids: Vec<i64>,
     pub video_ids: Vec<i64>,
     pub media_asset_ids: Vec<i64>,
@@ -15,11 +11,17 @@ pub struct FreeformGeneratedResetTargets {
     pub media_paths: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FreeformVideoGeneratedDataResetResult {
-    pub task_cleanup: ProjectTaskQueueCleanupResult,
-    pub artifact_link_cleanup: ProjectGeneratedArtifactLinkCleanupResult,
-    pub artifact_row_cleanup: ProjectGeneratedArtifactRowCleanupResult,
+    pub deleted_tasks: u64,
+    pub deleted_task_dependencies: u64,
+    pub deleted_generation_specs: u64,
+    pub deleted_prompt_artifacts: u64,
+    pub deleted_media_assets: u64,
+    pub deleted_media_provenance: u64,
+    pub deleted_media_bindings: u64,
+    pub deleted_generated_images: u64,
+    pub deleted_generated_videos: u64,
     pub media_paths: Vec<String>,
 }
 

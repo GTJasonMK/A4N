@@ -1,6 +1,5 @@
-use a4n_core::{
-    error::AppError, models::character::foreshadowing_index, text_location::extract_scene_location,
-};
+use a4n_core::{error::AppError, text_location::extract_scene_location};
+use a4n_db::rag::PendingForeshadowingSearchRow;
 
 use super::contracts::EnhancedRagQuery;
 use crate::OrchestratorContext;
@@ -15,7 +14,7 @@ pub(super) async fn matched_blueprint_character_names(
         .await?;
     let mut names = characters
         .into_iter()
-        .map(|character| character.name.trim().to_string())
+        .map(|name| name.trim().to_string())
         .filter(|name| !name.is_empty() && query.contains(name))
         .collect::<Vec<_>>();
     names.sort();
@@ -28,14 +27,13 @@ pub(super) async fn candidate_foreshadowing(
     context: &OrchestratorContext,
     project_id: i64,
     chapter_number: Option<i32>,
-) -> Result<Vec<foreshadowing_index::Model>, AppError> {
-    if let Some(chapter_number) = chapter_number.filter(|value| *value > 1) {
-        return context
-            .pending_foreshadowing_before_chapter(project_id, chapter_number, 12)
-            .await;
-    }
+) -> Result<Vec<PendingForeshadowingSearchRow>, AppError> {
     context
-        .pending_foreshadowing_for_project(project_id, 12)
+        .pending_foreshadowing_search_rows(
+            project_id,
+            chapter_number.filter(|value| *value > 1),
+            12,
+        )
         .await
 }
 
@@ -64,7 +62,7 @@ impl OrchestratorContext {
 pub(super) fn build_enhanced_rag_queries(
     base_query: &str,
     character_names: &[String],
-    foreshadowing: &[foreshadowing_index::Model],
+    foreshadowing: &[PendingForeshadowingSearchRow],
 ) -> Vec<EnhancedRagQuery> {
     let mut queries = Vec::new();
     push_enhanced_query(&mut queries, "主查询", base_query, 1.0);
@@ -96,10 +94,10 @@ pub(super) fn build_enhanced_rag_queries(
 }
 
 pub(super) fn filter_relevant_foreshadowing(
-    items: Vec<foreshadowing_index::Model>,
+    items: Vec<PendingForeshadowingSearchRow>,
     query: &str,
     character_names: &[String],
-) -> Vec<foreshadowing_index::Model> {
+) -> Vec<PendingForeshadowingSearchRow> {
     items
         .into_iter()
         .filter(|item| {

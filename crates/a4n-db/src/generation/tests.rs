@@ -1,4 +1,10 @@
 use super::*;
+use a4n_core::models::{
+    generation::{generation_spec_media_ref, generation_spec_text_anchor},
+    media::media_asset,
+    project::{project_source_snapshot, text_anchor},
+};
+use sea_orm::{ActiveModelTrait, Set};
 use serde_json::json;
 
 fn spec_with_params(params_json: Value) -> generation_spec::Model {
@@ -21,6 +27,136 @@ fn spec_with_params(params_json: Value) -> generation_spec::Model {
         created_at: now,
         updated_at: now,
     }
+}
+
+#[tokio::test]
+async fn validate_required_prompt_refs_reads_required_roles_in_one_batch() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "生成意图媒体角色批量校验".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .expect("test project");
+    let now = Utc::now().naive_utc();
+    let snapshot = project_source_snapshot::ActiveModel {
+        id: Set(1),
+        root_project_id: Set(project.id),
+        source_version_hash: Set("snapshot-hash".to_string()),
+        blueprint_version_id: Set(None),
+        chapter_scope_json: Set(json!({})),
+        chapter_hashes_json: Set(json!({})),
+        profile_hashes_json: Set(json!({})),
+        created_at: Set(now),
+    }
+    .insert(&db)
+    .await
+    .expect("test snapshot");
+    let anchor = text_anchor::ActiveModel {
+        id: Set(1),
+        project_id: Set(project.id),
+        source_chapter_id: Set(None),
+        source_snapshot_id: Set(Some(snapshot.id)),
+        source_snapshot_chapter_id: Set(None),
+        source_kind: Set("chapter".to_string()),
+        source_id: Set(1),
+        paragraph_index: Set(0),
+        start_offset: Set(0),
+        end_offset: Set(1),
+        quote: Set("锚点".to_string()),
+        quote_hash: Set("quote-hash".to_string()),
+        source_version_hash: Set("snapshot-hash".to_string()),
+        created_at: Set(now),
+    }
+    .insert(&db)
+    .await
+    .expect("test anchor");
+    let spec = generation_spec::ActiveModel {
+        id: Set(1),
+        project_id: Set(project.id),
+        root_project_id: Set(project.id),
+        source_context_kind: Set(Some("snapshot_backed".to_string())),
+        source_snapshot_id: Set(Some(snapshot.id)),
+        source_chapter_id: Set(None),
+        source_snapshot_chapter_id: Set(None),
+        canvas_text_asset_id: Set(None),
+        target_kind: Set("video_segment".to_string()),
+        target_entity_kind: Set("segment".to_string()),
+        target_entity_id: Set(Some(1)),
+        status: Set("ready".to_string()),
+        source_version_hash: Set("snapshot-hash".to_string()),
+        params_json: Set(json!({
+            "required_media_roles": [" first_frame ", "end_frame"]
+        })),
+        created_at: Set(now),
+        updated_at: Set(now),
+    }
+    .insert(&db)
+    .await
+    .expect("test generation spec");
+    generation_spec_text_anchor::ActiveModel {
+        generation_spec_id: Set(spec.id),
+        text_anchor_id: Set(anchor.id),
+        role: Set("context".to_string()),
+    }
+    .insert(&db)
+    .await
+    .expect("test generation anchor ref");
+    let asset = media_asset::ActiveModel {
+        id: Set(1),
+        project_id: Set(project.id),
+        root_project_id: Set(project.id),
+        source_snapshot_id: Set(Some(snapshot.id)),
+        source_chapter_id: Set(None),
+        source_snapshot_chapter_id: Set(None),
+        media_kind: Set("image".to_string()),
+        origin: Set("generated".to_string()),
+        file_path: Set(Some("test/first-frame.png".to_string())),
+        thumbnail_path: Set(None),
+        width: Set(Some(1)),
+        height: Set(Some(1)),
+        duration_secs: Set(None),
+        fps: Set(None),
+        file_size: Set(Some(1)),
+        checksum: Set(None),
+        status: Set("completed".to_string()),
+        error_message: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+    }
+    .insert(&db)
+    .await
+    .expect("test media asset");
+    generation_spec_media_ref::ActiveModel {
+        generation_spec_id: Set(spec.id),
+        media_asset_id: Set(asset.id),
+        role: Set("first_frame".to_string()),
+    }
+    .insert(&db)
+    .await
+    .expect("test first-frame ref");
+
+    let missing = validate_required_prompt_refs(&db, &spec)
+        .await
+        .expect_err("the second required role must be reported");
+    assert!(missing.to_string().contains("缺少必需媒体引用: end_frame"));
+
+    generation_spec_media_ref::ActiveModel {
+        generation_spec_id: Set(spec.id),
+        media_asset_id: Set(asset.id),
+        role: Set("end_frame".to_string()),
+    }
+    .insert(&db)
+    .await
+    .expect("test end-frame ref");
+    validate_required_prompt_refs(&db, &spec)
+        .await
+        .expect("all required roles should pass");
 }
 
 #[test]

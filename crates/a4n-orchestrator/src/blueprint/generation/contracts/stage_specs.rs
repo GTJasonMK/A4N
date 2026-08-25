@@ -5,7 +5,7 @@ use crate::blueprint::json::{
 
 use super::BlueprintStageSpec;
 
-pub const BLUEPRINT_GENERATION_STAGES: [BlueprintStageSpec; 4] = [
+pub(in crate::blueprint) const BLUEPRINT_GENERATION_STAGES: [BlueprintStageSpec; 4] = [
     BlueprintStageSpec {
         key: "story_core",
         title: "阶段 1/4：故事核心",

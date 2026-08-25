@@ -79,9 +79,5 @@ pub(crate) fn combine_optional_errors(
 }
 
 pub(crate) fn prompt_id_from_video(video: &generated_video::Model) -> Option<i64> {
-    video
-        .metadata_json
-        .as_ref()
-        .and_then(|metadata| metadata.get("prompt_id"))
-        .and_then(|value| value.as_i64())
+    a4n_domain::video::generated_video_prompt_id(video.metadata_json.as_ref())
 }

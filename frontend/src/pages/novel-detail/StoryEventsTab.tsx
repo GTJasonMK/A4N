@@ -16,6 +16,7 @@ import {
 } from "./story-events/storyEventUtils";
 import type { StoryEventFilters } from "./story-events/types";
 import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
+import { useI18n } from "../../i18n";
 
 interface StoryEventsTabProps {
   projectId: number;
@@ -28,6 +29,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
 }) => {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [foreshadowing, setForeshadowing] = useState<Foreshadowing[]>([]);
   const [filters, setFilters] = useState<StoryEventFilters>(DEFAULT_STORY_EVENT_FILTERS);
@@ -58,7 +60,7 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const { loading, load } = useChapterAnalysisLoader(
     projectId,
     loadChapters,
-    "加载事件脉络失败",
+    t("novel.storyEvents.loadFailed"),
   );
 
   useEffect(() => {
@@ -70,8 +72,8 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const displayLoading = loading || loadedProjectId !== projectId;
 
   const sections = useMemo(
-    () => displayChapters.map(extractChapterStorySection),
-    [displayChapters],
+    () => displayChapters.map((chapter) => extractChapterStorySection(chapter, t)),
+    [displayChapters, t],
   );
 
   const allEvents = useMemo(
@@ -91,18 +93,18 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
   const openWritingDesk = useCallback(
     (chapterNumber?: number) => {
       if (!canOpenWritingDesk) {
-        addToast("当前账号没有进入写作桌的权限", "error");
+        addToast(t("novel.writingDeskPermissionDenied"), "error");
         return;
       }
       navigate(chapterNumber ? `/write/${projectId}?chapter=${chapterNumber}` : `/write/${projectId}`);
     },
-    [addToast, canOpenWritingDesk, navigate, projectId],
+    [addToast, canOpenWritingDesk, navigate, projectId, t],
   );
 
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> 加载事件脉络…
+        <LoadingSpinner size="sm" /> {t("novel.storyEvents.loading")}
       </div>
     );
   }

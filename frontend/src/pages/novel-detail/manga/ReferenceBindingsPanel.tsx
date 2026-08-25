@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   Image,
   Link2,
@@ -9,6 +9,7 @@ import type { BindMangaReferenceImageInput } from "../../../api/manga";
 import type { Portrait } from "../../../api/portrait";
 import { BookButton } from "../../../components/ui/BookButton";
 import { toMediaSrc } from "../../../utils/mediaSrc";
+import { useI18n } from "../../../i18n";
 import {
   buildReferenceCandidates,
   mangaReferenceAssetKey,
@@ -38,10 +39,20 @@ export const ReferenceBindingsPanel: React.FC<{
   onSelectCandidate,
   onBindReferenceImage,
 }) => {
+  const { t } = useI18n();
+  const candidatesByCharacter = useMemo(
+    () => new Map(
+      page.referenceBindings.map((binding) => [
+        binding.characterName,
+        buildReferenceCandidates(binding, profiles, portraits, projectImages, t),
+      ]),
+    ),
+    [page.referenceBindings, profiles, portraits, projectImages, t],
+  );
   if (page.referenceBindings.length === 0) {
     return (
       <div className="border-l-2 border-book-border/70 pl-2 text-xs text-book-text-muted">
-        本页没有角色参考图需求。
+        {t("comic.prompt.noReferenceNeeds")}
       </div>
     );
   }
@@ -49,7 +60,7 @@ export const ReferenceBindingsPanel: React.FC<{
   return (
     <div className="divide-y divide-book-border/35 border-y border-book-border/35">
       {page.referenceBindings.map((binding) => {
-        const candidates = buildReferenceCandidates(binding, profiles, portraits, projectImages);
+        const candidates = candidatesByCharacter.get(binding.characterName) ?? [];
         const bindingKey = `${page.prompt.id}:${binding.characterName}`;
         const boundKey = binding.boundAsset
           ? mangaReferenceAssetKey(
@@ -94,7 +105,9 @@ export const ReferenceBindingsPanel: React.FC<{
                       binding.boundAsset ? "text-success" : "text-warning"
                     }`}
                   >
-                    {binding.boundAsset ? "已绑定" : "待绑定"}
+                    {binding.boundAsset
+                      ? t("comic.prompt.bound")
+                      : t("comic.prompt.pendingBinding")}
                   </span>
                 </div>
               </div>
@@ -109,10 +122,10 @@ export const ReferenceBindingsPanel: React.FC<{
               >
                 <option value="">
                   {assetsLoading
-                    ? "加载素材…"
+                    ? t("comic.prompt.loadingImageAssets")
                     : candidates.length === 0
-                      ? "无可用素材"
-                      : "选择素材"}
+                      ? t("comic.prompt.noImageAssets")
+                      : t("comic.prompt.selectAsset")}
                 </option>
                 {candidates.map((candidate) => (
                   <option key={candidate.key} value={candidate.key}>
@@ -135,7 +148,7 @@ export const ReferenceBindingsPanel: React.FC<{
                 }}
               >
                 <Link2 size={12} />
-                {binding.boundAsset ? "改绑" : "绑定"}
+                {binding.boundAsset ? t("comic.prompt.rebind") : t("comic.prompt.bind")}
               </BookButton>
             </div>
           </div>

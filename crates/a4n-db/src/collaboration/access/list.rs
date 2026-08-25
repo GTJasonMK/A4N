@@ -4,8 +4,9 @@ use sea_orm::{
 };
 
 use super::super::{
-    AccessibleProjectListInput, AccessibleProjectsPage, CollaborationDbError, ProjectAccessScope,
-    accessible_member_condition, member_root_ids, validate_positive_i64,
+    AccessibleProjectListInput, AccessibleProjectRecord, AccessibleProjectsPage,
+    CollaborationDbError, ProjectAccessScope, accessible_member_condition, member_root_ids,
+    validate_positive_i64,
 };
 use sea_orm::DatabaseConnection;
 
@@ -23,8 +24,27 @@ pub async fn list_accessible_projects(
     }
 
     let paginator = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::UserId)
+        .column(novel_project::Column::Title)
+        .column(novel_project::Column::Description)
+        .column(novel_project::Column::ProjectType)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .column(novel_project::Column::SourceSyncStatus)
+        .column(novel_project::Column::Status)
+        .column(novel_project::Column::LifecycleGate)
+        .column(novel_project::Column::TargetChapters)
+        .column(novel_project::Column::CurrentChapter)
+        .column(novel_project::Column::TotalChapters)
+        .column(novel_project::Column::ChaptersPerPart)
+        .column(novel_project::Column::CreatedAt)
+        .column(novel_project::Column::UpdatedAt)
         .filter(condition)
         .order_by_desc(novel_project::Column::UpdatedAt)
+        .into_model::<AccessibleProjectRecord>()
         .paginate(db, input.limit);
     let total = paginator
         .num_items()

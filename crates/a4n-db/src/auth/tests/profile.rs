@@ -42,7 +42,7 @@ async fn update_profile_rejects_email_owned_by_another_user() {
         .await
         .unwrap();
 
-    let err = update_profile(db.as_ref(), bob.id, Some(" alice@example.com "), None)
+    let err = update_profile(db.as_ref(), bob.id, Some(" alice@example.com "), None, None)
         .await
         .expect_err("email identity must not move to another user");
 
@@ -60,7 +60,7 @@ async fn update_profile_rejects_email_with_internal_whitespace_without_update() 
         .await
         .unwrap();
 
-    let err = update_profile(db.as_ref(), user.id, Some("alice @example.com"), None)
+    let err = update_profile(db.as_ref(), user.id, Some("alice @example.com"), None, None)
         .await
         .expect_err("profile email identity must not contain whitespace");
 
@@ -81,6 +81,7 @@ async fn update_profile_clears_avatar_when_explicitly_null() {
         user.id,
         None,
         Some(Some(" https://cdn/avatar.png ")),
+        None,
     )
     .await
     .unwrap();
@@ -90,7 +91,7 @@ async fn update_profile_clears_avatar_when_explicitly_null() {
         Some("https://cdn/avatar.png")
     );
 
-    let cleared = update_profile(db.as_ref(), user.id, None, Some(None))
+    let cleared = update_profile(db.as_ref(), user.id, None, Some(None), None)
         .await
         .unwrap();
 
@@ -108,11 +109,12 @@ async fn update_profile_keeps_avatar_when_avatar_field_is_missing() {
         user.id,
         None,
         Some(Some("https://cdn/avatar.png")),
+        None,
     )
     .await
     .unwrap();
 
-    let updated = update_profile(db.as_ref(), user.id, Some("alice2@example.com"), None)
+    let updated = update_profile(db.as_ref(), user.id, Some("alice2@example.com"), None, None)
         .await
         .unwrap();
 

@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_core::source_spans::SourceSpan;
+use a4n_core::source_spans::SourceSpanIndex;
 use serde_json::Value;
 
 use super::super::values::analysis_materialize_error;
@@ -11,7 +11,7 @@ use entities::materialize_metadata_entities;
 
 pub(in crate::chapter_analysis::owner) fn materialize_metadata_source_spans(
     root: &mut serde_json::Map<String, Value>,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let metadata = root
         .get_mut("metadata")

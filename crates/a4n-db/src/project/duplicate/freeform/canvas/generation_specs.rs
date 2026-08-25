@@ -5,9 +5,7 @@ use crate::project::duplicate::freeform::{
 use crate::project::duplicate::shared::remap_derived_optional_id;
 use a4n_core::models::generation::generation_spec;
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
 
 pub(in crate::project::duplicate::freeform) async fn copy_freeform_generation_specs_record<C>(
@@ -26,68 +24,181 @@ where
         .all(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
-    let mut spec_id_map = HashMap::new();
-    let mut deferred_targets = Vec::new();
-    for spec in &specs {
-        if spec.source_snapshot_id.is_some()
-            || spec.source_chapter_id.is_some()
-            || spec.source_snapshot_chapter_id.is_some()
-        {
-            return Err(ProjectDuplicateError::InvalidState {
-                current: format!("生成意图 {} 包含源快照引用", spec.id),
-                operation: "复制自由视频项目生成意图".to_string(),
-            });
-        }
-        let canvas_text_asset_id = remap_derived_optional_id(
-            text_asset_id_map,
-            spec.canvas_text_asset_id,
-            "generation_spec.canvas_text_asset_id",
-        )?;
-        let target_entity_id = match (spec.target_entity_kind.as_str(), spec.target_entity_id) {
-            (
-                "canvas_node" | "video_segment" | "assembly_timeline" | "media_asset",
-                Some(old_id),
-            ) => {
-                deferred_targets.push(DeferredFreeformSpecTarget {
-                    new_spec_id: 0,
-                    target_entity_kind: spec.target_entity_kind.clone(),
-                    old_target_entity_id: old_id,
+    if specs.is_empty() {
+        return Ok(CopiedFreeformGenerationSpecs {
+            spec_ids: Vec::new(),
+            spec_id_map: HashMap::new(),
+            deferred_targets: Vec::new(),
+        });
+    }
+    let mut deferred_target_indexes = Vec::new();
+    let rows = specs
+        .iter()
+        .map(|spec| {
+            if spec.source_snapshot_id.is_some()
+                || spec.source_chapter_id.is_some()
+                || spec.source_snapshot_chapter_id.is_some()
+            {
+                return Err(ProjectDuplicateError::InvalidState {
+                    current: format!("生成意图 {} 包含源快照引用", spec.id),
+                    operation: "复制自由视频项目生成意图".to_string(),
                 });
-                None
             }
-            _ => spec.target_entity_id,
-        };
-        let copied = generation_spec::ActiveModel {
-            project_id: Set(new_project_id),
-            root_project_id: Set(new_project_id),
-            source_context_kind: Set(Some(generation_spec::SOURCE_CONTEXT_FREEFORM.to_string())),
-            source_snapshot_id: Set(None),
-            source_chapter_id: Set(None),
-            source_snapshot_chapter_id: Set(None),
-            canvas_text_asset_id: Set(canvas_text_asset_id),
-            target_kind: Set(spec.target_kind.clone()),
-            target_entity_kind: Set(spec.target_entity_kind.clone()),
-            target_entity_id: Set(target_entity_id),
-            status: Set(spec.status.clone()),
-            source_version_hash: Set(spec.source_version_hash.clone()),
-            params_json: Set(spec.params_json.clone()),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        }
-        .insert(db)
+            let canvas_text_asset_id = remap_derived_optional_id(
+                text_asset_id_map,
+                spec.canvas_text_asset_id,
+                "generation_spec.canvas_text_asset_id",
+            )?;
+            let target_entity_id = match (spec.target_entity_kind.as_str(), spec.target_entity_id) {
+                (
+                    "canvas_node" | "video_segment" | "assembly_timeline" | "media_asset",
+                    Some(old_id),
+                ) => {
+                    deferred_target_indexes.push((
+                        spec.id,
+                        spec.target_entity_kind.clone(),
+                        old_id,
+                    ));
+                    None
+                }
+                _ => spec.target_entity_id,
+            };
+            Ok::<_, ProjectDuplicateError>(generation_spec::ActiveModel {
+                project_id: Set(new_project_id),
+                root_project_id: Set(new_project_id),
+                source_context_kind: Set(Some(
+                    generation_spec::SOURCE_CONTEXT_FREEFORM.to_string(),
+                )),
+                source_snapshot_id: Set(None),
+                source_chapter_id: Set(None),
+                source_snapshot_chapter_id: Set(None),
+                canvas_text_asset_id: Set(canvas_text_asset_id),
+                target_kind: Set(spec.target_kind.clone()),
+                target_entity_kind: Set(spec.target_entity_kind.clone()),
+                target_entity_id: Set(target_entity_id),
+                status: Set(spec.status.clone()),
+                source_version_hash: Set(spec.source_version_hash.clone()),
+                params_json: Set(spec.params_json.clone()),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let inserted = generation_spec::Entity::insert_many(rows)
+        .exec_with_returning_many(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
-        if let Some(target) = deferred_targets.last_mut()
-            && target.new_spec_id == 0
-        {
-            target.new_spec_id = copied.id;
-        }
+    if inserted.len() != specs.len() {
+        return Err(ProjectDuplicateError::InvalidState {
+            current: "复制后的生成意图数量与源记录不一致".to_string(),
+            operation: "复制自由视频项目生成意图".to_string(),
+        });
+    }
+    let mut spec_id_map = HashMap::with_capacity(specs.len());
+    for (spec, copied) in specs.iter().zip(&inserted) {
         spec_id_map.insert(spec.id, copied.id);
     }
+    let deferred_targets = deferred_target_indexes
+        .into_iter()
+        .map(
+            |(source_spec_id, target_entity_kind, old_target_entity_id)| {
+                let new_spec_id = spec_id_map[&source_spec_id];
+                DeferredFreeformSpecTarget {
+                    new_spec_id,
+                    target_entity_kind,
+                    old_target_entity_id,
+                }
+            },
+        )
+        .collect();
     Ok(CopiedFreeformGenerationSpecs {
         spec_ids: specs.iter().map(|spec| spec.id).collect(),
         spec_id_map,
         deferred_targets,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_core::models::generation::generation_spec;
+    use chrono::Utc;
+    use sea_orm::EntityTrait;
+    use serde_json::json;
+
+    #[tokio::test]
+    async fn copies_generation_specs_in_one_batch() {
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let source = crate::project::create_freeform_video_project_record(
+            &db,
+            1,
+            crate::project::CreateFreeformVideoProjectParams {
+                title: "复制生成意图源".to_string(),
+                description: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+        let target = crate::project::create_freeform_video_project_record(
+            &db,
+            1,
+            crate::project::CreateFreeformVideoProjectParams {
+                title: "复制生成意图目标".to_string(),
+                description: String::new(),
+            },
+        )
+        .await
+        .unwrap();
+        let now = Utc::now().naive_utc();
+        let source_specs = (0..20)
+            .map(|index| {
+                let params_json = json!({
+                    "source_material": {"source_node_ids": [70_000 + index]}
+                });
+                generation_spec::ActiveModel {
+                    project_id: Set(source.id),
+                    root_project_id: Set(source.id),
+                    source_context_kind: Set(Some(
+                        generation_spec::SOURCE_CONTEXT_FREEFORM.to_string(),
+                    )),
+                    target_kind: Set("video".to_string()),
+                    target_entity_kind: Set("media_asset".to_string()),
+                    target_entity_id: Set(Some(70_000 + index)),
+                    status: Set("completed".to_string()),
+                    source_version_hash: Set(generation_spec::freeform_source_version_hash(
+                        &params_json,
+                    )
+                    .unwrap()),
+                    params_json: Set(params_json),
+                    created_at: Set(now),
+                    updated_at: Set(now),
+                    ..Default::default()
+                }
+            })
+            .collect::<Vec<_>>();
+        let source_rows = generation_spec::Entity::insert_many(source_specs)
+            .exec_with_returning_many(&db)
+            .await
+            .unwrap();
+
+        let copied =
+            copy_freeform_generation_specs_record(&db, source.id, target.id, &HashMap::new(), now)
+                .await
+                .unwrap();
+        assert_eq!(copied.spec_id_map.len(), source_rows.len());
+        assert_eq!(copied.deferred_targets.len(), source_rows.len());
+        assert!(
+            copied
+                .deferred_targets
+                .iter()
+                .all(|target| target.new_spec_id > 0)
+        );
+        let target_rows = generation_spec::Entity::find()
+            .filter(generation_spec::Column::ProjectId.eq(target.id))
+            .all(&db)
+            .await
+            .unwrap();
+        assert_eq!(target_rows.len(), source_rows.len());
+    }
 }

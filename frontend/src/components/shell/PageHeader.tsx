@@ -29,7 +29,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   titleId,
   className = "",
 }) => (
-  <header className={`a4n-page-header a4n-app-page-header ${className}`.trim()}>
+  <header className={`a4n-page-header a4n-app-page-header a4n-motion-header ${className}`.trim()}>
     {leading != null ? <div className="a4n-app-page-header__leading">{leading}</div> : null}
     {icon != null ? <div className="a4n-app-page-header__icon">{icon}</div> : null}
 

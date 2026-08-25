@@ -6,12 +6,9 @@ use crate::actions::{image_generation, portrait_generation};
 use crate::file_utils::canonicalize_data_file_path;
 use a4n_core::error::AppError;
 use a4n_orchestrator::{
-    galgame::{
-        GalgameAssetGenerationHostPort, GalgamePortraitImageGenerationInput,
-        GalgameVisualImageGenerationInput,
-    },
-    media::GeneratedImageSummary,
-    portrait::PortraitSummary,
+    galgame::GalgameAssetGenerationHostPort,
+    media::{GenerateGalgameImageInput, GeneratedImageSummary},
+    portrait::{GeneratePortraitInput, PortraitSummary},
 };
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
@@ -65,47 +62,21 @@ impl GalgameAssetGenerationHostPort for RuntimeGalgameAssetGenerationHostPort<'_
     async fn generate_visual_image(
         &self,
         user_id: i64,
-        input: GalgameVisualImageGenerationInput,
+        input: GenerateGalgameImageInput,
     ) -> Result<GeneratedImageSummary, AppError> {
-        image_generation::generate_galgame_image(
-            self.state,
-            user_id,
-            image_generation::GenerateGalgameImageInput {
-                project_id: input.project_id,
-                prompt: input.prompt,
-                image_type: input.image_type,
-                config_id: input.config_id,
-                chapter_id: input.chapter_id,
-                generation_spec_id: input.generation_spec_id,
-                target_kind: input.target_kind.to_string(),
-                target_entity_kind: input.target_entity_kind.to_string(),
-                target_entity_id: input.target_entity_id,
-                workflow_run_id: None,
-            },
-        )
-        .await
-        .map_err(generation_host_error)
+        image_generation::generate_galgame_image(self.state, user_id, input)
+            .await
+            .map_err(generation_host_error)
     }
 
     async fn generate_portrait_image(
         &self,
         user_id: i64,
-        input: GalgamePortraitImageGenerationInput,
+        input: GeneratePortraitInput,
     ) -> Result<PortraitSummary, AppError> {
-        portrait_generation::generate_portrait_inline(
-            self.state,
-            user_id,
-            portrait_generation::GeneratePortraitInput {
-                project_id: input.project_id,
-                character_name: input.character_name,
-                style: Some(input.style),
-                expression: Some(input.expression),
-                pose: Some(input.pose),
-                reference_image_ids: input.reference_image_ids,
-            },
-        )
-        .await
-        .map_err(generation_host_error)
+        portrait_generation::generate_portrait_inline(self.state, user_id, input)
+            .await
+            .map_err(generation_host_error)
     }
 
     fn validate_data_file(&self, relative_path: &str, label: &str) -> Result<(), AppError> {

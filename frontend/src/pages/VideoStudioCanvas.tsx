@@ -1,4 +1,6 @@
 import React, {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -58,7 +60,6 @@ import {
 import { listVideoConfigs } from "../api/video";
 import type { ProgressEventRecord } from "../api/progress";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
-import { RequestPreviewModal } from "../components/feedback/RequestPreviewModal";
 import { useToast } from "../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { BackButton } from "../components/ui/BackButton";
@@ -71,11 +72,6 @@ import {
 } from "../components/ui/ContextMenu";
 import { pickLocalFile, readFileAsBase64 } from "../utils/fileUpload";
 import { CanvasEmptyState } from "./video-studio/CanvasEmptyState";
-import { CanvasNodeContentPreviewDialog } from "./video-studio/CanvasNodeContentPreviewDialog";
-import {
-  EdgeInspector,
-  NodeInspector,
-} from "./video-studio/CanvasNodeInspector";
 import { CanvasWorkflowPanel } from "./video-studio/CanvasWorkflowPanel";
 import {
   STUDIO_NODE_TYPES,
@@ -146,13 +142,36 @@ import {
   type StudioNodeContract,
 } from "./video-studio/nodeContracts";
 import type { StudioEdge, StudioNode } from "./video-studio/types";
+import { formatNumber, useI18n } from "../i18n";
 
 const CANVAS_WORKFLOW_KIND = "video_canvas_graph";
+
+const RequestPreviewModal = lazy(() =>
+  import("../components/feedback/RequestPreviewModal").then((module) => ({
+    default: module.RequestPreviewModal,
+  })),
+);
+const CanvasNodeContentPreviewDialog = lazy(() =>
+  import("./video-studio/CanvasNodeContentPreviewDialog").then((module) => ({
+    default: module.CanvasNodeContentPreviewDialog,
+  })),
+);
+const NodeInspector = lazy(() =>
+  import("./video-studio/CanvasNodeInspector").then((module) => ({
+    default: module.NodeInspector,
+  })),
+);
+const EdgeInspector = lazy(() =>
+  import("./video-studio/CanvasNodeInspector").then((module) => ({
+    default: module.EdgeInspector,
+  })),
+);
 
 export const VideoStudioCanvas: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const contextMenu = useContextMenu();
   const projectId = Number(id);
   const [project, setProject] = useState<NovelProject | null>(null);
@@ -230,8 +249,8 @@ export const VideoStudioCanvas: React.FC = () => {
     [nodeContracts],
   );
   const nodeTemplateGroups = useMemo(
-    () => buildNodeTemplateGroups(nodeContracts),
-    [nodeContracts],
+    () => buildNodeTemplateGroups(nodeContracts, t),
+    [nodeContracts, t],
   );
   const nodeTemplateCount = useMemo(
     () =>
@@ -326,16 +345,16 @@ export const VideoStudioCanvas: React.FC = () => {
       setConfigOptions(nextConfigOptions);
     } catch (err) {
       if (configRefreshRef.current === requestId) {
-        addToast(extractErrorMessage(err, "刷新画布配置失败"), "error");
+        addToast(extractErrorMessage(err, t("video.refreshCanvasConfigFailed")), "error");
       }
     }
-  }, [addToast, loadStudioConfigOptions]);
+  }, [addToast, loadStudioConfigOptions, t]);
 
   const load = useCallback(async () => {
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast("视频项目参数无效", "error");
+      addToast(t("video.projectInvalid"), "error");
       setLoading(false);
       return;
     }
@@ -354,22 +373,23 @@ export const VideoStudioCanvas: React.FC = () => {
       ]);
       if (requestRef.current !== requestId) return;
       if (projectRecord.project_kind !== "video") {
-        addToast("当前项目不是视频项目", "error");
+        addToast(t("video.notVideoProject"), "error");
         navigate("/", { replace: true });
         return;
       }
       const normalizedContracts =
         normalizeStudioNodeContracts(rawNodeContracts);
       if (normalizedContracts.length === 0) {
-        throw new Error("画布节点合同为空");
+        throw new Error(t("video.emptyNodeContract"));
       }
       const loadedContractsByKind = studioNodeContractMap(normalizedContracts);
       const flowNodes = graphDocument.nodes.map(toFlowNode);
-      const flowEdges = graphDocument.edges.map(toFlowEdge);
+      const flowEdges = graphDocument.edges.map((edge) => toFlowEdge(edge, t));
       const loadedEdgeError = canvasGraphSaveValidationError(
         flowNodes,
         flowEdges,
         loadedContractsByKind,
+        t,
       );
       if (loadedEdgeError) throw new Error(loadedEdgeError);
       setProject(projectRecord);
@@ -381,7 +401,7 @@ export const VideoStudioCanvas: React.FC = () => {
       setDirty(false);
     } catch (err) {
       if (requestRef.current === requestId) {
-        addToast(extractErrorMessage(err, "加载视频画布失败"), "error");
+        addToast(extractErrorMessage(err, t("video.canvasLoadFailed")), "error");
       }
     } finally {
       if (requestRef.current === requestId) setLoading(false);
@@ -393,6 +413,7 @@ export const VideoStudioCanvas: React.FC = () => {
     projectId,
     setEdges,
     setNodes,
+    t,
   ]);
 
   useEffect(() => {
@@ -513,9 +534,10 @@ export const VideoStudioCanvas: React.FC = () => {
         label,
         flowInstance?.getZoom() ?? 1,
         studioNodeContract(nodeContractsByKind, kind),
+        t,
       );
     },
-    [canvasMutationDisabled, flowInstance, nodeContractsByKind],
+    [canvasMutationDisabled, flowInstance, nodeContractsByKind, t],
   );
 
   const onCanvasDragOver = useCallback(
@@ -543,7 +565,7 @@ export const VideoStudioCanvas: React.FC = () => {
       const label =
         event.dataTransfer.getData(NODE_DRAG_LABEL) ||
         contract.label ||
-        nodeKindMeta(kind).label;
+        nodeKindMeta(kind, t).label;
       addNode(
         kind,
         label,
@@ -553,7 +575,7 @@ export const VideoStudioCanvas: React.FC = () => {
         }),
       );
     },
-    [addNode, canvasMutationDisabled, flowInstance, nodeContractsByKind],
+    [addNode, canvasMutationDisabled, flowInstance, nodeContractsByKind, t],
   );
 
   const onConnect = useCallback(
@@ -564,6 +586,7 @@ export const VideoStudioCanvas: React.FC = () => {
         nodes,
         edges,
         nodeContractsByKind,
+        t,
       );
       if (typeof validation === "string") {
         addToast(validation, "error");
@@ -582,7 +605,7 @@ export const VideoStudioCanvas: React.FC = () => {
             targetHandle: contract.targetPort,
             type: "smoothstep",
             animated: false,
-            label: edgeRoleLabel(contract.role),
+            label: edgeRoleLabel(contract.role, t),
             className: "a4n-studio-edge",
             labelBgPadding: [6, 3],
             labelBgBorderRadius: 4,
@@ -600,14 +623,15 @@ export const VideoStudioCanvas: React.FC = () => {
       nodeContractsByKind,
       nodes,
       setEdges,
+      t,
     ],
   );
 
   const isValidCanvasConnection = useCallback<IsValidConnection>(
     (connection) =>
       !canvasMutationDisabled &&
-      typeof validateCanvasConnection(connection, nodes, edges, nodeContractsByKind) !== "string",
-    [canvasMutationDisabled, edges, nodeContractsByKind, nodes],
+      typeof validateCanvasConnection(connection, nodes, edges, nodeContractsByKind, t) !== "string",
+    [canvasMutationDisabled, edges, nodeContractsByKind, nodes, t],
   );
 
   const selectCanvasNode = useCallback(
@@ -640,9 +664,9 @@ export const VideoStudioCanvas: React.FC = () => {
         ),
       );
       setDirty(true);
-      addToast(`已删除节点：${nodeDisplayTitle(node.data)}`, "success");
+      addToast(t("video.deletedNode", { name: nodeDisplayTitle(node.data, t) }), "success");
     },
-    [addToast, canvasMutationDisabled, setEdges, setNodes],
+    [addToast, canvasMutationDisabled, setEdges, setNodes, t],
   );
 
   const deleteCanvasEdge = useCallback(
@@ -650,9 +674,9 @@ export const VideoStudioCanvas: React.FC = () => {
       if (canvasMutationDisabled) return;
       setEdges((items) => items.filter((item) => item.id !== edge.id));
       setDirty(true);
-      addToast("已删除连线", "success");
+      addToast(t("video.deletedEdge"), "success");
     },
-    [addToast, canvasMutationDisabled, setEdges],
+    [addToast, canvasMutationDisabled, setEdges, t],
   );
 
   const updateSelectedConfig = (patch: Record<string, unknown>) => {
@@ -666,7 +690,7 @@ export const VideoStudioCanvas: React.FC = () => {
     }
     const nextLabel =
       typeof patch.title === "string"
-        ? patch.title.trim() || nodeKindMeta(selectedNode.data.nodeKind).label
+        ? patch.title.trim() || nodeKindMeta(selectedNode.data.nodeKind, t).label
         : selectedNode.data.label;
     const nextData = {
       ...selectedNode.data,
@@ -740,6 +764,7 @@ export const VideoStudioCanvas: React.FC = () => {
       nodes,
       edges,
       nodeContractsByKind,
+      t,
     );
     if (validationError) {
       addToast(validationError, "error");
@@ -750,6 +775,7 @@ export const VideoStudioCanvas: React.FC = () => {
       const nodesWithTextAssets = await persistCanvasTextAssets(
         projectId,
         nodes,
+        t,
       );
       const saved = await saveCanvasGraph(
         projectId,
@@ -759,16 +785,16 @@ export const VideoStudioCanvas: React.FC = () => {
           edges,
         ),
       );
-      const savedEdges = saved.edges.map(toFlowEdge);
+      const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
       setDocument(saved);
       setNodes((current) =>
         preserveSelectedItems(saved.nodes.map(toFlowNode), current),
       );
       setEdges((current) => preserveSelectedItems(savedEdges, current));
       setDirty(false);
-      addToast("画布已保存", "success");
+      addToast(t("video.canvasSaved"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "保存画布失败"), "error");
+      addToast(extractErrorMessage(err, t("video.canvasSaveFailed")), "error");
     } finally {
       setSaving(false);
     }
@@ -777,13 +803,14 @@ export const VideoStudioCanvas: React.FC = () => {
   const importMedia = async (mediaKind: "image" | "video" | "audio") => {
     if (!document || canvasWriteBusy || !canEdit) return;
     if (mediaKind === "audio" && project?.source_mode !== "freeform") {
-      addToast("音频资产导入只支持自由视频项目", "error");
+      addToast(t("video.freeProjectAudioOnly"), "error");
       return;
     }
     const validationError = canvasGraphSaveValidationError(
       nodes,
       edges,
       nodeContractsByKind,
+      t,
     );
     if (validationError) {
       addToast(validationError, "error");
@@ -814,23 +841,25 @@ export const VideoStudioCanvas: React.FC = () => {
             imported.image,
             imported.asset,
             nodes.length,
+            t,
           );
-          successMessage = "图片已导入画布";
+          successMessage = t("video.importedImage");
           break;
         case "video":
           importedNode = importedVideoInputNode(
             imported.video,
             imported.asset,
             nodes.length,
+            t,
           );
-          successMessage = "视频已导入画布";
+          successMessage = t("video.importedVideo");
           break;
         case "audio":
-          importedNode = importedAudioInputNode(imported.asset, nodes.length);
-          successMessage = "音频已导入画布";
+          importedNode = importedAudioInputNode(imported.asset, nodes.length, t);
+          successMessage = t("video.importedAudio");
           break;
         default:
-          throw new Error("画布媒体导入返回不支持的类型");
+          throw new Error(t("video.unsupportedImportedMedia"));
       }
       const nextNodes = [
         ...nodes.map((node) => ({ ...node, selected: false })),
@@ -840,7 +869,7 @@ export const VideoStudioCanvas: React.FC = () => {
         projectId,
         toCanvasGraphInput(document, nextNodes, edges),
       );
-      const savedEdges = saved.edges.map(toFlowEdge);
+      const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
       setDocument(saved);
       setNodes((current) =>
         preserveSelectedItems(saved.nodes.map(toFlowNode), current),
@@ -853,17 +882,17 @@ export const VideoStudioCanvas: React.FC = () => {
         extractErrorMessage(
           err,
           mediaKind === "image"
-            ? "导入图片失败"
+            ? t("video.importImageFailed")
             : mediaKind === "video"
-              ? "导入视频失败"
-              : "导入音频失败",
+              ? t("video.importVideoFailed")
+              : t("video.importAudioFailed"),
         ),
         "error",
       );
     } finally {
       setImporting(false);
     }
-  };
+    };
 
   const refreshCanvasRuntimeResults = useCallback(
     async (graphId: number) => {
@@ -907,7 +936,7 @@ export const VideoStudioCanvas: React.FC = () => {
           } catch (err) {
             if (!options.silent) {
               addToast(
-                extractErrorMessage(err, "同步画布运行结果失败"),
+                extractErrorMessage(err, t("video.syncCanvasRuntimeFailed")),
                 "error",
               );
             }
@@ -915,13 +944,13 @@ export const VideoStudioCanvas: React.FC = () => {
         }
       } catch (err) {
         if (!options.silent) {
-          addToast(extractErrorMessage(err, "加载画布运行记录失败"), "error");
+          addToast(extractErrorMessage(err, t("video.loadCanvasRunsFailed")), "error");
         }
       } finally {
         setWorkflowLoading(false);
       }
     },
-    [addToast, refreshCanvasRuntimeResults],
+    [addToast, refreshCanvasRuntimeResults, t],
   );
 
   const stopWorkflowDiscovery = useCallback(() => {
@@ -1005,12 +1034,12 @@ export const VideoStudioCanvas: React.FC = () => {
     }
     if (!document) return;
     if (dirty) {
-      addToast("请先保存画布再预览节点请求", "info");
+      addToast(t("video.saveBeforePreview"), "info");
       return;
     }
     const nodeId = numericId(node.id);
     if (!nodeId) {
-      addToast("请先保存新节点再查看模型请求", "info");
+      addToast(t("video.saveNodeBeforeRequest"), "info");
       return;
     }
     setPreviewDialogOpen(true);
@@ -1025,7 +1054,7 @@ export const VideoStudioCanvas: React.FC = () => {
       setPreviewData(preview);
     } catch (err) {
       setPreviewDialogOpen(false);
-      addToast(extractErrorMessage(err, "预览节点请求失败"), "error");
+      addToast(extractErrorMessage(err, t("video.previewRequestFailed")), "error");
     } finally {
       setPreviewLoading(false);
     }
@@ -1034,7 +1063,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const runNode = async (node: StudioNode) => {
     if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
     if (dirty) {
-      addToast("请先保存画布再运行", "info");
+      addToast(t("video.saveBeforeRun"), "info");
       return;
     }
     const contract = studioNodeContract(
@@ -1042,32 +1071,32 @@ export const VideoStudioCanvas: React.FC = () => {
       node.data.nodeKind,
     );
     if (!contract?.runnable) {
-      addToast("输入节点不能单独运行，请运行下游功能节点或输出节点", "info");
+      addToast(t("video.inputNodeCannotRun"), "info");
       return;
     }
     const nodeId = numericId(node.id);
     if (!nodeId) {
-      addToast("请先保存新节点再运行", "info");
+      addToast(t("video.saveNodeBeforeRun"), "info");
       return;
     }
     const confirmation = [
-      "确认只运行此节点？",
+      t("video.runNodeMessage"),
       "",
-      `目标节点：${nodeDisplayTitle(node.data)}`,
-      "系统只执行当前节点，不会自动运行上游节点。",
-      "当前节点会读取已保存输入，或读取上游节点最近一次完成的运行结果。",
+      t("video.runNodeTarget", { name: nodeDisplayTitle(node.data, t) }),
+      t("video.runNodeConfirmDescription"),
+      t("video.runNodeInputHint"),
     ].join("\n");
     const confirmed = await confirmDialog({
-      title: "只运行此节点",
+      title: t("video.runNodeTitle"),
       message: confirmation,
-      confirmText: "运行",
-      cancelText: "取消",
+      confirmText: t("video.run"),
+      cancelText: t("common.cancel"),
       dialogType: "warning",
     });
     if (!confirmed) {
       return;
     }
-    setWorkflowSubmissionLabel(`正在只运行：${nodeDisplayTitle(node.data)}`);
+    setWorkflowSubmissionLabel(t("video.runNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
     setLatestWorkflowRunId(null);
     setWorkflowDetail(null);
     setWorkflowEvents([]);
@@ -1077,13 +1106,13 @@ export const VideoStudioCanvas: React.FC = () => {
     try {
       const result = await runCanvasNode(projectId, graphId, nodeId);
       addToast(
-        result.error_message ?? "已提交只运行此节点",
+        result.error_message ?? t("video.runOnlyNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
       );
       await loadWorkflowStatus(result.workflow_run_id);
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "只运行此节点失败"), "error");
+      addToast(extractErrorMessage(err, t("video.runOnlyNodeError")), "error");
     } finally {
       setWorkflowSubmissionLabel(null);
       stopWorkflowDiscovery();
@@ -1093,7 +1122,7 @@ export const VideoStudioCanvas: React.FC = () => {
   const runToNode = async (node: StudioNode) => {
     if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
     if (dirty) {
-      addToast("请先保存画布再运行", "info");
+      addToast(t("video.saveBeforeRun"), "info");
       return;
     }
     if (
@@ -1101,14 +1130,14 @@ export const VideoStudioCanvas: React.FC = () => {
       "output"
     ) {
       addToast(
-        "运行到此节点只能锚定输出节点，请选择文本/图片/视频/音频输出节点",
+        t("video.runToOutputOnly"),
         "info",
       );
       return;
     }
     const nodeId = numericId(node.id);
     if (!nodeId) {
-      addToast("请先保存新节点再运行", "info");
+      addToast(t("video.saveNodeBeforeRun"), "info");
       return;
     }
     const scope = computeRunToNodeScope(
@@ -1117,18 +1146,18 @@ export const VideoStudioCanvas: React.FC = () => {
       edges,
       nodeContractsByKind,
     );
-    const confirmation = runToNodeConfirmationMessage(scope, node);
+    const confirmation = runToNodeConfirmationMessage(scope, node, t);
     const confirmed = await confirmDialog({
-      title: "运行到此节点",
+      title: t("video.runToNodeTitle"),
       message: confirmation,
-      confirmText: "运行",
-      cancelText: "取消",
+      confirmText: t("video.run"),
+      cancelText: t("common.cancel"),
       dialogType: "warning",
     });
     if (!confirmed) {
       return;
     }
-    setWorkflowSubmissionLabel(`正在运行到：${nodeDisplayTitle(node.data)}`);
+    setWorkflowSubmissionLabel(t("video.runToNodeSubmitting", { name: nodeDisplayTitle(node.data, t) }));
     setLatestWorkflowRunId(null);
     setWorkflowDetail(null);
     setWorkflowEvents([]);
@@ -1138,13 +1167,13 @@ export const VideoStudioCanvas: React.FC = () => {
     try {
       const result = await runCanvasGraphToNode(projectId, graphId, nodeId);
       addToast(
-        result.error_message ?? "已提交运行到此节点",
+        result.error_message ?? t("video.runToNodeSubmitted"),
         result.status === "failed" ? "info" : "success",
       );
       await loadWorkflowStatus(result.workflow_run_id);
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "运行到此节点失败"), "error");
+      addToast(extractErrorMessage(err, t("video.runToNodeError")), "error");
     } finally {
       setWorkflowSubmissionLabel(null);
       stopWorkflowDiscovery();
@@ -1154,10 +1183,10 @@ export const VideoStudioCanvas: React.FC = () => {
   const runGraph = async () => {
     if (!document || canvasWriteBusy || !canEdit || workflowSubmitting) return;
     if (dirty) {
-      addToast("请先保存画布再运行", "info");
+      addToast(t("video.saveBeforeRun"), "info");
       return;
     }
-    setWorkflowSubmissionLabel("正在运行画布");
+    setWorkflowSubmissionLabel(t("video.runCanvasSubmitting"));
     setLatestWorkflowRunId(null);
     setWorkflowDetail(null);
     setWorkflowEvents([]);
@@ -1167,13 +1196,13 @@ export const VideoStudioCanvas: React.FC = () => {
     try {
       const result = await runCanvasGraph(projectId, graphId);
       addToast(
-        result.error_message ?? "画布运行已提交",
+        result.error_message ?? t("video.submittedRunCanvas"),
         result.status === "failed" ? "info" : "success",
       );
       await loadWorkflowStatus(result.workflow_run_id);
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "运行画布失败"), "error");
+      addToast(extractErrorMessage(err, t("video.runCanvasError")), "error");
     } finally {
       setWorkflowSubmissionLabel(null);
       stopWorkflowDiscovery();
@@ -1192,14 +1221,14 @@ export const VideoStudioCanvas: React.FC = () => {
       const items: ContextMenuEntry[] = [];
       if (!hasProviderRequest || document) {
         items.push({
-          label: hasProviderRequest ? "模型请求" : "查看内容",
+          label: hasProviderRequest ? t("video.viewModelRequest") : t("video.viewNodeContent"),
           icon: <Eye size={13} />,
           onClick: () => void previewNode(node),
         });
       }
       if (isRunnableNode) {
         items.push({
-          label: "只运行此节点",
+          label: t("video.runOnlyNode"),
           icon: <Play size={13} />,
           disabled: canvasMutationDisabled || workflowSubmitting,
           onClick: () => void runNode(node),
@@ -1207,7 +1236,7 @@ export const VideoStudioCanvas: React.FC = () => {
       }
       if (isOutputNode) {
         items.push({
-          label: "运行到此节点",
+          label: t("video.runToNode"),
           icon: <Play size={13} />,
           disabled: canvasMutationDisabled || workflowSubmitting,
           onClick: () => void runToNode(node),
@@ -1216,7 +1245,7 @@ export const VideoStudioCanvas: React.FC = () => {
       if (!canvasMutationDisabled) {
         if (items.length > 0) items.push({ divider: true });
         items.push({
-          label: "删除节点",
+          label: t("video.deleteNode"),
           icon: <Trash2 size={13} />,
           danger: true,
           shortcut: "Del",
@@ -1234,6 +1263,7 @@ export const VideoStudioCanvas: React.FC = () => {
       runNode,
       runToNode,
       workflowSubmitting,
+      t,
     ],
   );
 
@@ -1242,7 +1272,7 @@ export const VideoStudioCanvas: React.FC = () => {
       !canvasMutationDisabled
         ? [
             {
-              label: "删除连线",
+              label: t("video.deleteEdge"),
               icon: <Trash2 size={13} />,
               danger: true,
               shortcut: "Del",
@@ -1250,25 +1280,25 @@ export const VideoStudioCanvas: React.FC = () => {
             },
           ]
         : [],
-    [canvasMutationDisabled, deleteCanvasEdge],
+    [canvasMutationDisabled, deleteCanvasEdge, t],
   );
 
   const mediaImportMenuItems = useCallback(
     (): ContextMenuEntry[] => [
       {
-        label: "导入图片",
+        label: t("video.importImage"),
         icon: <Upload size={13} />,
         disabled: !document || canvasWriteBusy || !canEdit,
         onClick: () => void importMedia("image"),
       },
       {
-        label: "导入视频",
+        label: t("video.importVideo"),
         icon: <Upload size={13} />,
         disabled: !document || canvasWriteBusy || !canEdit,
         onClick: () => void importMedia("video"),
       },
       {
-        label: "导入音频",
+        label: t("video.importAudio"),
         icon: <Upload size={13} />,
         disabled:
           !document ||
@@ -1284,13 +1314,14 @@ export const VideoStudioCanvas: React.FC = () => {
       importMedia,
       canvasWriteBusy,
       project?.source_mode,
+      t,
     ],
   );
 
   const paneContextMenuItems = useCallback(
     (): ContextMenuEntry[] => [
       {
-        label: "运行画布",
+        label: t("video.runCanvasTitle"),
         icon: <Play size={13} />,
         disabled:
           !document || canvasWriteBusy || !canEdit || workflowSubmitting,
@@ -1306,6 +1337,7 @@ export const VideoStudioCanvas: React.FC = () => {
       mediaImportMenuItems,
       runGraph,
       workflowSubmitting,
+      t,
     ],
   );
 
@@ -1356,12 +1388,12 @@ export const VideoStudioCanvas: React.FC = () => {
         task_id: taskId,
         workflow_run_id: workflowRunId,
       });
-      addToast("已请求取消画布任务", "info");
+      addToast(t("video.cancelRunRequested"), "info");
       if (workflowRunId) {
         await loadWorkflowStatus(workflowRunId);
       }
     } catch (err) {
-      addToast(extractErrorMessage(err, "取消画布任务失败"), "error");
+      addToast(extractErrorMessage(err, t("video.cancelRunFailed")), "error");
     } finally {
       setCancellingWorkflow(false);
     }
@@ -1373,11 +1405,11 @@ export const VideoStudioCanvas: React.FC = () => {
     setResumingWorkflow(true);
     try {
       const run = await resumeWorkflowRun(workflowRunId);
-      addToast("已继续运行画布任务", "success");
+      addToast(t("video.resumeRunSuccess"), "success");
       workflowRuntimeRefreshSignatureRef.current = null;
       await loadWorkflowStatus(run.id);
     } catch (err) {
-      addToast(extractErrorMessage(err, "继续运行失败"), "error");
+      addToast(extractErrorMessage(err, t("video.resumeRunFailed")), "error");
     } finally {
       setResumingWorkflow(false);
     }
@@ -1387,13 +1419,13 @@ export const VideoStudioCanvas: React.FC = () => {
     const importDisabled = !document || canvasWriteBusy || !canEdit;
     const items: DropdownItem[] = [
       {
-        label: "导入图片",
+        label: t("video.importImage"),
         icon: <Upload size={13} />,
         disabled: importDisabled,
         onClick: () => void importMedia("image"),
       },
       {
-        label: "导入视频",
+        label: t("video.importVideo"),
         icon: <Upload size={13} />,
         disabled: importDisabled,
         onClick: () => void importMedia("video"),
@@ -1401,7 +1433,7 @@ export const VideoStudioCanvas: React.FC = () => {
     ];
     if (project?.source_mode === "freeform") {
       items.push({
-        label: "导入音频",
+        label: t("video.importAudio"),
         icon: <Upload size={13} />,
         disabled: importDisabled,
         onClick: () => void importMedia("audio"),
@@ -1410,7 +1442,7 @@ export const VideoStudioCanvas: React.FC = () => {
     if (selectedNode) {
       items.push({ type: "divider" });
       items.push({
-        label: nodeHasProviderRequest(selectedNode) ? "查看模型请求" : "查看节点内容",
+        label: nodeHasProviderRequest(selectedNode) ? t("video.viewModelRequest") : t("video.viewNodeContent"),
         icon: <Eye size={13} />,
         disabled:
           previewLoading ||
@@ -1419,7 +1451,7 @@ export const VideoStudioCanvas: React.FC = () => {
       });
       if (selectedNodeRunToTarget || selectedNodeRunnable) {
         items.push({
-          label: selectedNodeRunToTarget ? "运行到所选节点" : "只运行所选节点",
+          label: selectedNodeRunToTarget ? t("video.runToSelectedNode") : t("video.runSelectedNode"),
           icon: <Play size={13} />,
           disabled:
             canvasMutationDisabled || dirty || workflowSubmitting,
@@ -1447,19 +1479,20 @@ export const VideoStudioCanvas: React.FC = () => {
     selectedNodeRunToTarget,
     selectedNodeRunnable,
     workflowSubmitting,
+    t,
   ]);
 
   const renderNodeLibraryPanel = (mobile: boolean) => (
     <div className={mobile ? "space-y-3" : "flex h-full min-h-0 flex-col"}>
       {mobile ? (
         <p className="text-small text-book-text-muted">
-          点击节点即可添加到当前画布视图中心
+          {t("video.nodeLibraryMobileHint")}
         </p>
       ) : (
         <div className="mb-3">
-          <h2 className="text-sm font-semibold text-book-text-main">节点库</h2>
+          <h2 className="text-sm font-semibold text-book-text-main">{t("video.nodeLibraryTitle")}</h2>
           <p className="mt-0.5 text-small text-book-text-muted">
-            拖入画布编排 · {nodeTemplateCount} 种节点
+            {t("video.nodeLibraryCount", { count: formatNumber(nodeTemplateCount, locale) })}
           </p>
         </div>
       )}
@@ -1484,7 +1517,7 @@ export const VideoStudioCanvas: React.FC = () => {
                       : (event) => onNodeTemplateDragStart(event, kind, label)
                   }
                   disabled={canvasMutationDisabled}
-                  title={mobile ? "添加到当前画布视图中心" : "拖入画布"}
+                  title={mobile ? t("video.addToCanvas") : t("video.dragToCanvas")}
                   className={`flex w-full select-none items-center gap-2 rounded-xl bg-transparent px-2 text-left text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-50 ${
                     mobile
                       ? "h-10"
@@ -1509,39 +1542,43 @@ export const VideoStudioCanvas: React.FC = () => {
       {!mobile ? (
         <div className="mb-3">
           <h2 className="text-sm font-semibold text-book-text-main">
-            {selectedEdge ? "连线属性" : "节点属性"}
+            {selectedEdge ? t("video.edgeProperties") : t("video.nodeProperties")}
           </h2>
           <p className="mt-0.5 truncate text-small text-book-text-muted">
             {selectedNode
-              ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · ${stateLabel(selectedNode.data.state)}`
+              ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data, t)} · ${stateLabel(selectedNode.data.state, t)}`
               : selectedEdge
-                ? edgeRoleLabel(selectedEdge.data?.role ?? "")
-                : "选择节点或连线后编辑"}
+                ? edgeRoleLabel(selectedEdge.data?.role ?? "", t)
+                : t("video.editAfterSelect")}
           </p>
         </div>
       ) : selectedNode ? (
         <p className="text-small text-book-text-muted">
-          {selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · {stateLabel(selectedNode.data.state)}
+          {selectedNode.data.label || nodeDisplayTitle(selectedNode.data, t)} · {stateLabel(selectedNode.data.state, t)}
         </p>
       ) : null}
       <div className={mobile ? "space-y-3" : "min-h-0 flex-1 overflow-y-auto pr-1 custom-scrollbar"}>
         {selectedEdge ? (
-          <EdgeInspector edge={selectedEdge} />
+          <Suspense fallback={<CanvasInspectorFallback />}>
+            <EdgeInspector edge={selectedEdge} />
+          </Suspense>
         ) : selectedNode ? (
-          <NodeInspector
-            node={selectedNode}
-            nodes={nodes}
-            edges={edges}
-            disabled={canvasMutationDisabled}
-            configOptions={configOptions}
-            onChange={updateSelectedConfig}
-            onRefChange={updateSelectedRef}
-            onMoveAssembleClip={moveAssembleClip}
-            onPreviewContent={(node) => setContentPreviewNode(node)}
-          />
+          <Suspense fallback={<CanvasInspectorFallback />}>
+            <NodeInspector
+              node={selectedNode}
+              nodes={nodes}
+              edges={edges}
+              disabled={canvasMutationDisabled}
+              configOptions={configOptions}
+              onChange={updateSelectedConfig}
+              onRefChange={updateSelectedRef}
+              onMoveAssembleClip={moveAssembleClip}
+              onPreviewContent={(node) => setContentPreviewNode(node)}
+            />
+          </Suspense>
         ) : (
           <div className="a4n-empty-state a4n-empty-state--compact text-xs">
-            选择画布节点或连线后编辑属性
+            {t("video.selectCanvasItem")}
           </div>
         )}
         <CanvasWorkflowPanel
@@ -1567,26 +1604,26 @@ export const VideoStudioCanvas: React.FC = () => {
       <div className="h-full min-h-0 flex flex-col bg-book-bg">
         <PageHeader
           className="shrink-0"
-          leading={<BackButton iconOnly title="返回项目列表" onClick={() => navigate("/")} />}
+          leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
           icon={<Film size={15} />}
-          title={project?.title || "视频画布"}
+          title={project?.title || t("video.canvasProject")}
           subtitle={
             selectedNode
-              ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data)} · ${stateLabel(selectedNode.data.state)}`
+              ? `${selectedNode.data.label || nodeDisplayTitle(selectedNode.data, t)} · ${stateLabel(selectedNode.data.state, t)}`
               : project?.source_mode === "freeform"
-                ? "自由编排节点、媒体与生成流程"
-                : "基于派生项目编排视频生成流程"
+                ? t("video.freeCanvasDescription")
+                : t("video.derivedCanvasDescription")
           }
           meta={
             <span className="text-small text-book-text-muted">
               {saving
-                ? "正在保存画布…"
+                ? t("video.canvasSaving")
                 : importing
-                  ? "正在导入媒体…"
+                  ? t("video.canvasImporting")
                   : project?.source_mode === "freeform"
-                    ? "自由画布"
-                    : "派生画布"}
-              {!canvasWriteBusy && dirty ? " · 有未保存更改" : ""}
+                    ? t("video.freeCanvas")
+                    : t("video.derivedCanvas")}
+              {!canvasWriteBusy && dirty ? t("video.canvasDirty") : ""}
             </span>
           }
           actions={
@@ -1594,7 +1631,7 @@ export const VideoStudioCanvas: React.FC = () => {
               {isMobileLayout ? (
                 <>
                   <BookIconButton
-                    label="打开节点库"
+                    label={t("video.openNodeLibrary")}
                     onClick={() => setMobileNodeLibraryOpen(true)}
                     disabled={canvasMutationDisabled}
                     variant="secondary"
@@ -1603,7 +1640,7 @@ export const VideoStudioCanvas: React.FC = () => {
                     <ListPlus size={14} />
                   </BookIconButton>
                   <BookIconButton
-                    label="打开属性面板"
+                    label={t("video.openProperties")}
                     onClick={() => setMobileInspectorOpen(true)}
                     variant="secondary"
                     size="sm"
@@ -1625,7 +1662,7 @@ export const VideoStudioCanvas: React.FC = () => {
                   ) : (
                     <Save size={14} />
                   )}
-                  {saving ? "保存中…" : "保存画布"}
+                  {saving ? t("video.canvasSaving") : t("video.saveCanvas")}
                 </BookButton>
               ) : (
                 <BookButton
@@ -1638,21 +1675,21 @@ export const VideoStudioCanvas: React.FC = () => {
                     !canEdit ||
                     workflowSubmitting
                   }
-                  title="运行完整画布工作流"
+                  title={t("video.runFullCanvas")}
                 >
                   {workflowSubmitting ? (
                     <LoadingSpinner size="sm" />
                   ) : (
                     <Play size={14} />
                   )}
-                  {workflowSubmitting ? workflowSubmissionLabel ?? "正在运行" : "运行画布"}
+                  {workflowSubmitting ? workflowSubmissionLabel ?? t("video.running") : t("video.runCanvas")}
                 </BookButton>
               )}
             </>
           }
         />
         <section
-          aria-label="视频画布编辑区"
+          aria-label={t("video.canvasEditor")}
           aria-busy={canvasWriteBusy}
           className="grid flex-1 min-h-0 overflow-hidden"
           style={{ gridTemplateColumns: canvasGridTemplateColumns }}
@@ -1679,7 +1716,7 @@ export const VideoStudioCanvas: React.FC = () => {
             {loading ? (
               <div className="flex h-full items-center justify-center text-xs text-book-text-muted">
                 <LoadingSpinner size="sm" className="mr-2" />
-                加载画布
+                {t("video.canvasLoading")}
               </div>
             ) : (
               <>
@@ -1729,7 +1766,11 @@ export const VideoStudioCanvas: React.FC = () => {
                   />
                 </ReactFlow>
                 {nodes.length === 0 ? (
-                  <CanvasEmptyState disabled={!canEdit} mobile={isMobileLayout} />
+                  <CanvasEmptyState
+                    disabled={!canEdit}
+                    mobile={isMobileLayout}
+                    onOpenNodeLibrary={() => setMobileNodeLibraryOpen(true)}
+                  />
                 ) : null}
               </>
             )}
@@ -1758,7 +1799,7 @@ export const VideoStudioCanvas: React.FC = () => {
             <Modal
               isOpen={mobileNodeLibraryOpen}
               onClose={() => setMobileNodeLibraryOpen(false)}
-              title="节点库"
+              title={t("video.nodeLibrary")}
               maxWidthClassName="max-w-lg"
               bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
             >
@@ -1767,7 +1808,7 @@ export const VideoStudioCanvas: React.FC = () => {
             <Modal
               isOpen={mobileInspectorOpen}
               onClose={() => setMobileInspectorOpen(false)}
-              title={selectedEdge ? "连线属性" : "节点属性"}
+              title={selectedEdge ? t("video.edgeProperties") : t("video.nodeProperties")}
               maxWidthClassName="max-w-xl"
               bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
             >
@@ -1775,18 +1816,36 @@ export const VideoStudioCanvas: React.FC = () => {
             </Modal>
           </>
         ) : null}
-        <RequestPreviewModal
-          open={previewDialogOpen}
-          loading={previewLoading}
-          data={previewData}
-          onClose={() => setPreviewDialogOpen(false)}
-        />
-        <CanvasNodeContentPreviewDialog
-          node={contentPreviewNode}
-          onClose={() => setContentPreviewNode(null)}
-          onCopyError={(message) => addToast(message, "error")}
-        />
+        {previewDialogOpen ? (
+          <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+            <RequestPreviewModal
+              open
+              loading={previewLoading}
+              data={previewData}
+              onClose={() => setPreviewDialogOpen(false)}
+            />
+          </Suspense>
+        ) : null}
+        {contentPreviewNode ? (
+          <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+            <CanvasNodeContentPreviewDialog
+              node={contentPreviewNode}
+              onClose={() => setContentPreviewNode(null)}
+              onCopyError={(message) => addToast(message, "error")}
+            />
+          </Suspense>
+        ) : null}
       </div>
     </StudioNodeContractsProvider>
+  );
+};
+
+const CanvasInspectorFallback = () => {
+  const { t } = useI18n();
+  return (
+    <div className="inline-flex items-center gap-2 py-2 text-small text-book-text-muted">
+      <LoadingSpinner size="sm" />
+      {t("video.inspectorLoading")}
+    </div>
   );
 };

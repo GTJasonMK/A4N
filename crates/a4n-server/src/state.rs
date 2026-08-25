@@ -1,4 +1,4 @@
-use crate::routes::agents::AgentRegistry;
+use crate::routes::{agents::AgentRegistry, page_sessions::PageSessionRegistry};
 use a4n_core::config::app_config::{AppConfig, apply_storage_env_overrides, portable_home_dir};
 use a4n_core::config::env::{
     optional_non_empty_env_path, optional_non_empty_env_string, required_non_empty_env_string,
@@ -6,7 +6,7 @@ use a4n_core::config::env::{
 };
 use a4n_core::error::AppError;
 use a4n_core::files::paths::AppPaths;
-use a4n_runtime::host_api::auth_records::{self, BootstrapAdminInput};
+use a4n_runtime::host_api::auth_records;
 use a4n_runtime::state::RuntimeProfile;
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -56,6 +56,7 @@ impl ServerConfig {
 pub struct ServerState {
     runtime: Arc<a4n_runtime::AppState>,
     agents: AgentRegistry,
+    page_sessions: PageSessionRegistry,
 }
 
 impl ServerState {
@@ -68,16 +69,19 @@ impl ServerState {
         let runtime_profile = runtime_profile_for_server_host()?;
         let runtime =
             Arc::new(a4n_runtime::AppState::new_with_profile(app_config, runtime_profile).await?);
-        let bootstrap = bootstrap_admin.as_ref().map(|input| BootstrapAdminInput {
-            username: input.username.as_str(),
-            email: input.email.as_str(),
-            password: input.password.as_str(),
+        let bootstrap = bootstrap_admin.as_ref().map(|input| {
+            (
+                input.username.as_str(),
+                input.email.as_str(),
+                input.password.as_str(),
+            )
         });
         auth_records::require_existing_user_or_bootstrap_admin(runtime.as_ref(), bootstrap).await?;
 
         Ok(Self {
             runtime,
             agents: AgentRegistry::new(),
+            page_sessions: PageSessionRegistry::new(),
         })
     }
 
@@ -89,10 +93,15 @@ impl ServerState {
         &self.agents
     }
 
+    pub(crate) fn page_sessions(&self) -> &PageSessionRegistry {
+        &self.page_sessions
+    }
+
     pub(crate) fn from_runtime(runtime: a4n_runtime::AppState) -> Self {
         Self {
             runtime: Arc::new(runtime),
             agents: AgentRegistry::new(),
+            page_sessions: PageSessionRegistry::new(),
         }
     }
 }

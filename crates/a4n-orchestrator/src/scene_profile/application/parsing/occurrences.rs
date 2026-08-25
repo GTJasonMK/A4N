@@ -7,14 +7,14 @@ use a4n_core::json_contract::{
     required_object_value, required_string, string_array_value,
 };
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 pub(super) fn parse_scene_occurrences(
     root: &Value,
     context: &SceneProfileSyncRequestContext,
 ) -> Result<Vec<SceneOccurrenceDraft>, String> {
     let occurrences = required_array(root, "occurrences", "root")?;
-    let mut refs = BTreeSet::new();
+    let mut refs = HashSet::new();
     let mut drafts = Vec::with_capacity(occurrences.len());
     for (index, occurrence) in occurrences.iter().enumerate() {
         let path = format!("occurrences[{index}]");

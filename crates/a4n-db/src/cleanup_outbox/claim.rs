@@ -196,6 +196,8 @@ where
     C: ConnectionTrait,
 {
     Ok(cleanup_outbox::Entity::find()
+        .select_only()
+        .column(cleanup_outbox::Column::Id)
         .filter(cleanup_outbox::Column::ProjectId.eq(project_id))
         .filter(cleanup_outbox::Column::CleanupKind.eq(MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND))
         .filter(cleanup_outbox::Column::Status.is_in([
@@ -203,6 +205,7 @@ where
             CLEANUP_STATUS_RUNNING,
             CLEANUP_STATUS_FAILED,
         ]))
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .is_some())

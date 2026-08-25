@@ -4,12 +4,9 @@ import {
   useState,
   type RefObject,
 } from "react";
-import type { ProgressTimelineItem } from "../../../components/feedback/ProgressDialog";
 import { previewModelStream } from "./modelStreamPreview";
-import {
-  progressEventToStreamItem,
-  type StreamItem,
-} from "./optimizeTabUtils";
+import type { StreamItem } from "./optimizeTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface LlmStreamPreviewState {
   taskId: string;
@@ -26,8 +23,8 @@ export const useOptimizeActivityStream = ({
   activeChapterId,
   activeSessionIdRef,
 }: UseOptimizeActivityStreamParams) => {
+  const { t } = useI18n();
   const [localItems, setLocalItems] = useState<StreamItem[]>([]);
-  const [progressStreamItems, setProgressStreamItems] = useState<StreamItem[]>([]);
   const llmStreamPreviewRef = useRef<LlmStreamPreviewState | null>(null);
 
   const appendLocalItem = useCallback(
@@ -61,7 +58,7 @@ export const useOptimizeActivityStream = ({
         llmStreamPreviewRef.current = state;
       }
       state.raw += delta;
-      const preview = previewModelStream(state.raw);
+      const preview = previewModelStream(state.raw, t);
       const item: StreamItem = {
         id: state.itemId,
         kind: preview.kind,
@@ -80,7 +77,7 @@ export const useOptimizeActivityStream = ({
         return [...next, item].slice(-80);
       });
     },
-    [activeChapterId, activeSessionIdRef],
+    [activeChapterId, activeSessionIdRef, t],
   );
 
   const clearLlmStreamPreview = useCallback((taskId: string) => {
@@ -90,30 +87,10 @@ export const useOptimizeActivityStream = ({
     setLocalItems((prev) => prev.filter((item) => item.id !== state.itemId));
   }, []);
 
-  const appendProgressTimelineEvent = useCallback(
-    (event: ProgressTimelineItem) => {
-      const item = progressEventToStreamItem(event);
-      setProgressStreamItems((prev) =>
-        [
-          ...prev,
-          {
-            ...item,
-            id: `progress-stream-${event.id}`,
-            chapterId: activeChapterId,
-            sessionId: activeSessionIdRef.current,
-          },
-        ].slice(-160),
-      );
-    },
-    [activeChapterId, activeSessionIdRef],
-  );
-
   return {
     appendLlmStreamChunk,
     appendLocalItem,
-    appendProgressTimelineEvent,
     clearLlmStreamPreview,
     localItems,
-    progressStreamItems,
   };
 };

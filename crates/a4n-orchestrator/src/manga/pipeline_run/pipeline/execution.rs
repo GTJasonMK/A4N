@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::manga::MangaPagePromptSourceSummary;
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_manga_prompt;
-use serde_json::json;
 
 use crate::shooting_script::ChapterShootingScriptSourceInput;
 use a4n_core::source_spans::source_spans_for_content;
@@ -26,7 +26,7 @@ impl OrchestratorContext {
             chapter_id,
             project_id,
             prompt_renderer,
-            reference_context,
+            character_portraits,
             task_id,
             workflow_run_id,
             resume_from_checkpoint,
@@ -36,6 +36,7 @@ impl OrchestratorContext {
             .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
                 project_id,
                 source_chapter_id: chapter_id,
+                visual_plan_id: None,
             })
             .await?;
         if script_context.source.source_chapter_id != chapter_id {
@@ -50,17 +51,17 @@ impl OrchestratorContext {
             script_context.source.chapter_number,
             &chapter_content,
         );
-        let source_metadata = json!({
-            "root_project_id": script_context.source.root_project_id,
-            "source_chapter_id": script_context.source.source_chapter_id,
-            "source_snapshot_id": script_context.source.source_snapshot_id,
-            "source_snapshot_chapter_id": script_context.source.source_snapshot_chapter_id,
-            "source_revision_key": script_context.source.source_revision_key,
-            "content_sha256": script_context.source.content_sha256,
-            "shooting_script_id": script_context.shooting_script.record.id,
-            "shooting_script_revision": script_context.shooting_script.record.revision,
-            "shooting_script_sha256": script_context.shooting_script.record.script_sha256,
-        });
+        let source_metadata = MangaPagePromptSourceSummary {
+            root_project_id: script_context.source.root_project_id,
+            source_chapter_id: script_context.source.source_chapter_id,
+            source_snapshot_id: script_context.source.source_snapshot_id,
+            source_snapshot_chapter_id: script_context.source.source_snapshot_chapter_id,
+            source_revision_key: script_context.source.source_revision_key.clone(),
+            content_sha256: script_context.source.content_sha256.clone(),
+            shooting_script_id: script_context.shooting_script.record.id,
+            shooting_script_revision: script_context.shooting_script.record.revision,
+            shooting_script_sha256: script_context.shooting_script.record.script_sha256.clone(),
+        };
         let (initial_stage, initial_current, initial_message) =
             manga_pipeline_stage_status(MangaPipelineStage::CharacterBinding);
         self.record_manga_pipeline_progress(
@@ -73,7 +74,7 @@ impl OrchestratorContext {
         .await?;
 
         let variables = HashMap::new();
-        let reference_assets = manga_reference_assets_json(&reference_context.character_portraits);
+        let reference_assets = manga_reference_assets_json(&character_portraits);
         let reference_assets_metadata = reference_assets.clone();
         let prompt_fingerprint =
             manga_pipeline_prompt_fingerprint(prompt_renderer, project_id, &variables).await?;

@@ -102,7 +102,7 @@ pub(in crate::galgame) fn validate_staged_presentation(
     speaker_profile_id: Option<i64>,
     context: &str,
 ) -> Result<(), AppError> {
-    let mut visible = std::collections::BTreeSet::new();
+    let mut visible = std::collections::HashSet::new();
     for cast in &presentation.visible_cast {
         if cast.character_profile_id <= 0 || !visible.insert(cast.character_profile_id) {
             return Err(invalid(format!(
@@ -121,7 +121,7 @@ pub(in crate::galgame) fn validate_staged_presentation(
             )));
         }
     }
-    let mut unique = std::collections::BTreeSet::new();
+    let mut unique = std::collections::HashSet::new();
     for id in &presentation.enter {
         if *id <= 0 || !unique.insert(*id) || !visible.contains(id) {
             return Err(invalid(format!(
@@ -151,7 +151,7 @@ pub(in crate::galgame) fn validate_staged_presentation(
             "{context}.lines[].presentation.visible_cast 必须包含当前 speaker_profile_id"
         )));
     }
-    let mut knowledge = std::collections::BTreeSet::new();
+    let mut knowledge = std::collections::HashSet::new();
     for value in &presentation.player_knowledge {
         let value = value.trim();
         if value.is_empty() || !knowledge.insert(value) {

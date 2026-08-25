@@ -23,6 +23,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
+import { formatDateTime, formatNumber, useI18n, type MessageKey } from "../../../i18n";
 
 const emptyCreateUserForm: CreateUserInput = {
   username: "",
@@ -31,10 +32,10 @@ const emptyCreateUserForm: CreateUserInput = {
   role: "user",
 };
 const USER_ROLES = ["user", "admin", "read_only"] as const;
-const USER_ROLE_LABELS: Record<(typeof USER_ROLES)[number], string> = {
-  user: "普通用户",
-  admin: "管理员",
-  read_only: "只读用户",
+const USER_ROLE_LABEL_KEYS: Record<(typeof USER_ROLES)[number], MessageKey> = {
+  user: "settingsAdmin.roleUser",
+  admin: "settingsAdmin.roleAdmin",
+  read_only: "settingsAdmin.roleReadOnly",
 };
 
 type UserRole = (typeof USER_ROLES)[number];
@@ -42,25 +43,8 @@ type UserRole = (typeof USER_ROLES)[number];
 const isUserRole = (value: string): value is UserRole =>
   USER_ROLES.includes(value as UserRole);
 
-const userRoleLabel = (value: string): string =>
-  isUserRole(value) ? USER_ROLE_LABELS[value] : "未知角色";
-
-const USER_ROLE_VALUES_BY_LABEL = Object.fromEntries(
-  Object.entries(USER_ROLE_LABELS).map(([value, label]) => [label, value]),
-) as Record<string, UserRole>;
-
-const formatAdminDate = (value: string | null): string => {
-  if (!value) return "—";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "日期未知";
-  return parsed.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-};
+const userRoleLabel = (value: string, t: ReturnType<typeof useI18n>["t"]): string =>
+  isUserRole(value) ? t(USER_ROLE_LABEL_KEYS[value]) : t("settingsAdmin.unknownRole");
 
 const inviteAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -81,6 +65,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   currentUserId,
 }) => {
   const { addToast } = useToast();
+  const { t, locale } = useI18n();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [inviteCodes, setInviteCodes] = useState<InviteCodeSummary[]>([]);
   const [actingKeys, setActingKeys] = useState<Set<string>>(() => new Set());
@@ -138,7 +123,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       currentUserId,
       loadUsers,
       applyUsers,
-      "加载用户失败",
+      t("settingsAdmin.loadUsersFailed"),
     );
 
   useEffect(() => {
@@ -199,7 +184,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       role: createForm.role,
     };
     if (!input.username || !input.email || !input.password.trim()) {
-      addToast("用户名、邮箱、密码不能为空", "error");
+      addToast(t("settingsAdmin.userFieldsRequired"), "error");
       return;
     }
     const requestCurrentUserId = currentUserId;
@@ -209,15 +194,15 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       await createAdminUser(input);
       if (!isCurrentUser(requestCurrentUserId)) return;
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
-        addToast("用户已创建", "success");
+        addToast(t("settingsAdmin.userCreated"), "success");
         closeCreate();
       } else {
-        addToast("已创建提交时的用户，当前保留后续编辑内容", "info");
+        addToast(t("settingsAdmin.userCreatedWithDraft"), "info");
       }
       await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast(extractErrorMessage(err, "创建用户失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.createUserFailed")), "error");
     } finally {
       if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
@@ -229,27 +214,27 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     if (!tryStartAction(actionKey)) return;
     try {
       const code = await promptDialog({
-        title: "新增邀请码",
-        message: "邀请码：",
+        title: t("settingsAdmin.createInviteCode"),
+        message: t("settingsAdmin.inviteCodeLabel"),
         defaultValue: generateInviteCode(),
         placeholder: "A4N-XXXX-XXXX-XXXX-XXXX",
         required: true,
-        confirmText: "创建邀请码",
+        confirmText: t("settingsAdmin.createInviteCode"),
       });
       if (!code) return;
       const trimmedCode = code.trim();
       if (!trimmedCode) {
-        addToast("邀请码不能为空", "error");
+        addToast(t("settingsAdmin.inviteCodeRequired"), "error");
         return;
       }
       if (!isCurrentUser(requestCurrentUserId)) return;
       await createInviteCode({ code: trimmedCode });
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast("邀请码已创建", "success");
+      addToast(t("settingsAdmin.inviteCreated"), "success");
       await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast(extractErrorMessage(err, "创建邀请码失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.createInviteFailed")), "error");
     } finally {
       if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
@@ -261,28 +246,31 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     if (!tryStartAction(actionKey)) return;
     try {
       const next = await promptDialog({
-        title: "修改用户角色",
-        message: `将用户「${u.username}」的角色改为：`,
-        defaultValue: userRoleLabel(u.role),
-        placeholder: "管理员 / 普通用户 / 只读用户",
+        title: t("settingsAdmin.changeUserRole"),
+        message: t("settingsAdmin.changeUserRoleMessage", { name: u.username }),
+        defaultValue: userRoleLabel(u.role, t),
+        placeholder: t("settingsAdmin.rolePlaceholder"),
         required: true,
-        confirmText: "更新角色",
+        confirmText: t("settingsAdmin.updateRole"),
       });
       if (!next || next === u.role) return;
       if (!isCurrentUser(requestCurrentUserId)) return;
       const inputRole = next.trim();
-      const role = USER_ROLE_VALUES_BY_LABEL[inputRole] ?? inputRole;
+      const roleValuesByLabel = Object.fromEntries(
+        USER_ROLES.map((role) => [t(USER_ROLE_LABEL_KEYS[role]), role]),
+      ) as Record<string, UserRole>;
+      const role = roleValuesByLabel[inputRole] ?? inputRole;
       if (!isUserRole(role)) {
-        addToast("角色必须是管理员、普通用户或只读用户", "error");
+        addToast(t("settingsAdmin.invalidRole"), "error");
         return;
       }
       await updateUserRole(u.id, role);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast("角色已更新", "success");
+      addToast(t("settingsAdmin.roleUpdated"), "success");
       await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast(extractErrorMessage(err, "更新失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.updateFailed")), "error");
     } finally {
       if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
@@ -290,7 +278,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
 
   const handleDel = async (u: UserSummary) => {
     if (u.id === currentUserId) {
-      addToast("不能删除自己", "error");
+      addToast(t("settingsAdmin.cannotDisableSelf"), "error");
       return;
     }
     const requestCurrentUserId = currentUserId;
@@ -298,20 +286,20 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     if (!tryStartAction(actionKey)) return;
     try {
       const ok = await confirmDialog({
-        title: "禁用用户",
-        message: `禁用账户「${u.username}」？该账户将无法继续登录，已有数据会保留。`,
-        confirmText: "禁用",
+        title: t("settingsAdmin.disableUser"),
+        message: t("settingsAdmin.disableUserMessage", { name: u.username }),
+        confirmText: t("settingsAdmin.disable"),
         dialogType: "danger",
       });
       if (!ok) return;
       if (!isCurrentUser(requestCurrentUserId)) return;
       await disableUser(u.id);
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast("已禁用", "success");
+      addToast(t("settingsAdmin.disabled"), "success");
       await load();
     } catch (err) {
       if (!isCurrentUser(requestCurrentUserId)) return;
-      addToast(extractErrorMessage(err, "禁用失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.disableFailed")), "error");
     } finally {
       if (isCurrentUser(requestCurrentUserId)) finishAction(actionKey);
     }
@@ -340,7 +328,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         tokenSeqRef.current !== requestSeq
       )
         return;
-      addToast(extractErrorMessage(err, "加载 Token 失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.loadTokenFailed")), "error");
     } finally {
       if (
         isCurrentUser(requestCurrentUserId) &&
@@ -375,7 +363,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         usageSeqRef.current !== requestSeq
       )
         return;
-      addToast(extractErrorMessage(err, "加载用量失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.loadUsageFailed")), "error");
     } finally {
       if (
         isCurrentUser(requestCurrentUserId) &&
@@ -387,8 +375,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     }
   };
 
-  const tokenUserLabel = users.find((user) => user.id === tokenFor)?.username ?? "用户";
-  const usageUserLabel = users.find((user) => user.id === usageFor)?.username ?? "用户";
+  const tokenUserLabel = users.find((user) => user.id === tokenFor)?.username ?? t("settingsAdmin.userFallback");
+  const usageUserLabel = users.find((user) => user.id === usageFor)?.username ?? t("settingsAdmin.userFallback");
   const availableInviteCount = inviteCodes.filter((code) => !code.used_at).length;
 
   const closeTokenSummary = () => {
@@ -410,25 +398,25 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   const userActions = (u: UserSummary): DropdownItem[] => {
     const items: DropdownItem[] = [
       {
-        label: "令牌摘要",
+        label: t("settingsAdmin.tokenSummary"),
         icon: <KeyRound size={12} />,
         onClick: () => void handleToken(u),
       },
       {
-        label: "查看用量",
+        label: t("settingsAdmin.viewUsage"),
         icon: <BarChart3 size={12} />,
         onClick: () => void handleUsage(u),
       },
       { type: "divider" },
       {
-        label: "调整角色",
+        label: t("settingsAdmin.adjustRole"),
         icon: <Shield size={12} />,
         onClick: () => void handleRole(u),
       },
     ];
     if (u.id !== currentUserId && u.is_active !== false) {
       items.push({
-        label: "禁用用户",
+        label: t("settingsAdmin.disableUser"),
         icon: <UserX size={12} />,
         danger: true,
         onClick: () => void handleDel(u),
@@ -445,23 +433,23 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-h-9 flex-wrap items-center gap-2">
-        <span className="text-xs text-book-text-muted">{users.length} 位用户</span>
+        <span className="text-xs text-book-text-muted">{t("settingsAdmin.userCount", { count: users.length })}</span>
         <span className="flex-1" />
         <BookButton size="sm" onClick={openCreate}>
           <Plus size={13} />
-          新增用户
+          {t("settingsAdmin.createUser")}
         </BookButton>
         <Dropdown
-          label="更多"
+          label={t("settingsAdmin.more")}
           items={[
             {
-              label: isActing("create-invite-code") ? "正在新增邀请码" : "新增邀请码",
+              label: isActing("create-invite-code") ? t("settingsAdmin.creatingInviteCode") : t("settingsAdmin.createInviteCode"),
               icon: <Plus size={12} />,
               disabled: isActing("create-invite-code"),
               onClick: () => void handleCreateInviteCode(),
             },
             {
-              label: loading ? "正在刷新" : "刷新列表",
+              label: loading ? t("settingsAdmin.refreshing") : t("settingsAdmin.refreshList"),
               icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
               disabled: loading,
               onClick: () => void load(),
@@ -473,11 +461,11 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         {loading && users.length === 0 ? (
           <li className="a4n-flat-surface inline-flex w-full items-center gap-1.5 p-3 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
-            正在加载用户…
+            {t("settingsAdmin.loadingUsers")}
           </li>
         ) : users.length === 0 ? (
           <li className="a4n-empty-state a4n-empty-state--framed p-3 text-xs text-book-text-muted">
-            暂无用户
+            {t("settingsAdmin.noUsers")}
           </li>
         ) : (
           users.map((u) => (
@@ -486,9 +474,11 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
                 <div className="truncate font-medium text-book-text-main">{u.username}</div>
                 <div className="mt-1 truncate text-book-text-muted">{u.email}</div>
                 <div className="mt-0.5 text-small text-book-text-muted">
-                  {userRoleLabel(u.role)}
-                  {u.is_active === false ? " · 已禁用" : ""}
-                  {u.last_login_at ? ` · 最近登录 ${formatAdminDate(u.last_login_at)}` : " · 尚未登录"}
+                  {userRoleLabel(u.role, t)}
+                  {u.is_active === false ? ` · ${t("settingsAdmin.userDisabled")}` : ""}
+                  {u.last_login_at
+                    ? ` · ${t("settingsAdmin.lastLogin", { date: formatDateTime(u.last_login_at, locale, t("settingsAdmin.unknownDate")) })}`
+                    : ` · ${t("settingsAdmin.neverLoggedIn")}`}
                 </div>
               </div>
               <div>
@@ -504,25 +494,25 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       </ul>
       <details className="a4n-flat-surface group overflow-hidden">
         <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
-          <span className="font-medium text-book-text-main">邀请码</span>
+          <span className="font-medium text-book-text-main">{t("settingsAdmin.inviteCodes")}</span>
           <span className="min-w-0 flex-1 truncate text-right text-book-text-muted">
-            {availableInviteCount} 个可用 · 共 {inviteCodes.length} 个
+            {t("settingsAdmin.inviteCodeSummary", { available: availableInviteCount, total: inviteCodes.length })}
           </span>
         </summary>
         <ul className="divide-y divide-book-border/30 border-t border-book-border/30">
           {loading && inviteCodes.length === 0 ? (
             <li className="inline-flex w-full items-center gap-1.5 p-3 text-xs text-book-text-muted">
               <LoadingSpinner size="sm" />
-              正在加载邀请码…
+              {t("settingsAdmin.loadingInviteCodes")}
             </li>
           ) : inviteCodes.length === 0 ? (
-            <li className="p-3 text-xs text-book-text-muted">暂无邀请码</li>
+            <li className="p-3 text-xs text-book-text-muted">{t("settingsAdmin.noInviteCodes")}</li>
           ) : (
             inviteCodes.map((code) => (
               <li key={code.id} className="grid gap-1 px-3 py-2.5 text-xs sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
                 <span className="min-w-0 break-all font-mono text-book-text-main">{code.code}</span>
                 <span className={code.used_at ? "text-book-text-muted" : "text-book-primary"}>
-                  {code.used_at ? "已使用" : "可使用"} · {formatAdminDate(code.created_at)}
+                  {code.used_at ? t("settingsAdmin.used") : t("settingsAdmin.available")} · {formatDateTime(code.created_at, locale, t("settingsAdmin.unknownDate"))}
                 </span>
               </li>
             ))
@@ -532,7 +522,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       <Modal
         isOpen={tokenFor != null}
         onClose={closeTokenSummary}
-        title={`${tokenUserLabel} · 令牌摘要`}
+        title={`${tokenUserLabel} · ${t("settingsAdmin.tokenSummary")}`}
         maxWidthClassName="max-w-xl"
       >
         <TokenSummaryPanel data={tokenInfo} loading={tokenLoadingFor === tokenFor} />
@@ -540,7 +530,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       <Modal
         isOpen={usageFor != null}
         onClose={closeUsageRecords}
-        title={`${usageUserLabel} · 最近用量`}
+        title={`${usageUserLabel} · ${t("settingsAdmin.recentUsage")}`}
         maxWidthClassName="max-w-2xl"
       >
         <UsageRecordsPanel data={usageInfo} loading={usageLoadingFor === usageFor} />
@@ -550,8 +540,8 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
         onClose={() => {
           if (!createBusy) closeCreate();
         }}
-        title="新增用户"
-        subtitle="管理员创建账号后，用户使用用户名和密码登录。"
+        title={t("settingsAdmin.createUser")}
+        subtitle={t("settingsAdmin.createUserSubtitle")}
         icon={<Plus size={15} />}
         maxWidthClassName="max-w-lg"
         closeOnBackdrop={!createBusy}
@@ -563,13 +553,13 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             onClick={() => void handleCreate()}
             disabled={createBusy || !createReady}
           >
-            {createBusy ? "创建中…" : "创建用户"}
+            {createBusy ? t("settingsAdmin.creating") : t("settingsAdmin.createUser")}
           </BookButton>
         }
       >
         <div className="grid gap-3 text-xs">
           <label className="grid gap-1">
-            <span className="text-book-text-muted">用户名</span>
+            <span className="text-book-text-muted">{t("settingsAdmin.username")}</span>
             <input
               className="pyqt-input"
               value={createForm.username}
@@ -579,7 +569,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             />
           </label>
           <label className="grid gap-1">
-            <span className="text-book-text-muted">邮箱</span>
+            <span className="text-book-text-muted">{t("settingsAdmin.email")}</span>
             <input
               className="pyqt-input"
               value={createForm.email}
@@ -589,7 +579,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             />
           </label>
           <label className="grid gap-1">
-            <span className="text-book-text-muted">初始密码</span>
+            <span className="text-book-text-muted">{t("settingsAdmin.initialPassword")}</span>
             <input
               className="pyqt-input"
               type="password"
@@ -600,7 +590,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             />
           </label>
           <label className="grid gap-1">
-            <span className="text-book-text-muted">角色</span>
+            <span className="text-book-text-muted">{t("settingsAdmin.role")}</span>
             <select
               className="pyqt-input"
               value={createForm.role}
@@ -609,7 +599,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
             >
               {USER_ROLES.map((role) => (
                 <option key={role} value={role}>
-                  {USER_ROLE_LABELS[role]}
+                  {t(USER_ROLE_LABEL_KEYS[role])}
                 </option>
               ))}
             </select>
@@ -624,6 +614,7 @@ const TokenSummaryPanel: React.FC<{
   data: unknown;
   loading: boolean;
 }> = ({ data, loading }) => {
+  const { t, locale } = useI18n();
   const record = data && typeof data === "object" && !Array.isArray(data)
     ? data as Record<string, unknown>
     : null;
@@ -632,22 +623,22 @@ const TokenSummaryPanel: React.FC<{
     return typeof item === "number" && Number.isFinite(item) ? item : null;
   };
   const items = [
-    ["调用", value("total_calls")],
-    ["输入令牌", value("total_prompt_tokens")],
-    ["输出令牌", value("total_completion_tokens")],
-    ["总令牌", value("total_tokens")],
-    ["成功", value("success_count")],
-    ["失败", value("fail_count")],
+    [t("settingsAdmin.tokenCalls"), value("total_calls")],
+    [t("settingsAdmin.inputTokens"), value("total_prompt_tokens")],
+    [t("settingsAdmin.outputTokens"), value("total_completion_tokens")],
+    [t("settingsAdmin.totalTokens"), value("total_tokens")],
+    [t("settingsAdmin.success"), value("success_count")],
+    [t("settingsAdmin.failure"), value("fail_count")],
   ] as const;
 
   return (
     <div className="overflow-hidden">
       {loading && !record ? (
         <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
-          <LoadingSpinner size="sm" /> 正在加载数据…
+          <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}
         </div>
       ) : !record ? (
-        <div className="px-3 py-3 text-small text-book-text-muted">暂无数据</div>
+        <div className="px-3 py-3 text-small text-book-text-muted">{t("settingsAdmin.noData")}</div>
       ) : (
         <>
           <dl className="grid grid-cols-2 divide-x divide-y divide-book-border/30 sm:grid-cols-3">
@@ -655,13 +646,13 @@ const TokenSummaryPanel: React.FC<{
               <div key={label} className="px-3 py-2.5">
                 <dt className="text-caption text-book-text-muted">{label}</dt>
                 <dd className="mt-0.5 font-mono text-sm font-semibold text-book-text-main">
-                  {item == null ? "—" : item.toLocaleString()}
+                  {item == null ? "—" : formatNumber(item, locale)}
                 </dd>
               </div>
             ))}
           </dl>
           <details className="border-t border-book-border/30 px-3 py-2 text-caption text-book-text-muted">
-            <summary className="cursor-pointer">诊断信息</summary>
+            <summary className="cursor-pointer">{t("settingsAdmin.diagnostics")}</summary>
             <pre className="mt-2 whitespace-pre-wrap break-words font-mono">
               {JSON.stringify(data, null, 2)}
             </pre>
@@ -675,34 +666,37 @@ const TokenSummaryPanel: React.FC<{
 const UsageRecordsPanel: React.FC<{
   data: UsageLogSummary[] | null;
   loading: boolean;
-}> = ({ data, loading }) => (
+}> = ({ data, loading }) => {
+  const { t, locale } = useI18n();
+  return (
   <div className="overflow-hidden">
     {loading && data == null ? (
       <div className="inline-flex items-center gap-1.5 px-3 py-3 text-small text-book-text-muted">
-        <LoadingSpinner size="sm" /> 正在加载数据…
+        <LoadingSpinner size="sm" /> {t("settingsAdmin.loadingData")}
       </div>
     ) : !data?.length ? (
-      <div className="px-3 py-3 text-small text-book-text-muted">暂无调用记录</div>
+      <div className="px-3 py-3 text-small text-book-text-muted">{t("settingsAdmin.noCallRecords")}</div>
     ) : (
       <ul className="divide-y divide-book-border/30">
         {data.map((item, index) => (
           <li key={item.id} className="px-3 py-2.5 text-small">
             <div className="flex min-w-0 items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-medium text-book-text-main">
-                {item.model || `调用 ${index + 1}`}
+                {item.model || t("settingsAdmin.callNumber", { count: index + 1 })}
               </span>
               <span className="shrink-0 font-mono text-book-text-sub">
-                {item.total_tokens.toLocaleString()} 令牌
+                {t("settingsAdmin.tokens", { count: formatNumber(item.total_tokens, locale) })}
               </span>
             </div>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-book-text-muted">
-              <span>输入 {item.prompt_tokens.toLocaleString()}</span>
-              <span>输出 {item.completion_tokens.toLocaleString()}</span>
-              <span>{formatAdminDate(item.created_at)}</span>
+              <span>{t("settingsAdmin.inputValue", { count: formatNumber(item.prompt_tokens, locale) })}</span>
+              <span>{t("settingsAdmin.outputValue", { count: formatNumber(item.completion_tokens, locale) })}</span>
+              <span>{formatDateTime(item.created_at, locale, t("settingsAdmin.unknownDate"))}</span>
             </div>
           </li>
         ))}
       </ul>
     )}
   </div>
-);
+  );
+};

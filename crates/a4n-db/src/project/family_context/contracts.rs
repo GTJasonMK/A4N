@@ -1,6 +1,19 @@
 use a4n_core::models::project::{novel_project, project_source_snapshot};
-use sea_orm::DbErr;
-use serde::{Deserialize, Serialize};
+use sea_orm::{DbErr, FromQueryResult};
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub(crate) struct ProjectFamilyAccessRow {
+    pub id: i64,
+    pub project_kind: String,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub(crate) struct ProjectFamilySnapshotAccessRow {
+    pub id: i64,
+    pub root_project_id: i64,
+}
 
 #[derive(Debug, Clone)]
 pub struct ProjectFamilyContext {
@@ -19,7 +32,7 @@ pub enum ProjectFamilyDbError {
     Database(#[from] DbErr),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct MangaCharacterPortraitRefSummary {
     pub profile_id: i64,
     pub portrait_id: i64,
@@ -29,10 +42,9 @@ pub struct MangaCharacterPortraitRefSummary {
     pub portrait_type: String,
     pub expression: Option<String>,
     pub pose: Option<String>,
-    pub is_primary: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ChapterMangaSourceSummary {
     pub chapter_id: i64,
     pub chapter_number: i32,

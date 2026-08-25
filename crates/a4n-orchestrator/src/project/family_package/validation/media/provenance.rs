@@ -5,6 +5,7 @@ mod request;
 mod source_asset;
 
 use a4n_core::models::media::{media_asset, media_provenance};
+use a4n_domain::canvas_transfer_runtime_identity_key;
 
 use super::contracts::MediaProvenanceRefContext;
 use generation::validate_generation_spec_ref;
@@ -17,6 +18,22 @@ pub(super) fn validate_media_provenance_refs(
     asset: &media_asset::Model,
     refs: &MediaProvenanceRefContext<'_>,
 ) -> Result<(), String> {
+    if provenance.provider_job_id.is_some() {
+        return Err(format!(
+            "项目族导入包媒体来源不能携带 provider_job_id: media_asset_id={}",
+            provenance.media_asset_id
+        ));
+    }
+    if let Some(key) = provenance
+        .request_snapshot_json
+        .as_ref()
+        .and_then(canvas_transfer_runtime_identity_key)
+    {
+        return Err(format!(
+            "项目族导入包媒体来源 request_snapshot_json 不能携带运行身份 {key}: media_asset_id={}",
+            provenance.media_asset_id
+        ));
+    }
     let linked_spec = validate_generation_spec_ref(provenance, asset, refs)?;
     validate_prompt_artifact_ref(provenance, asset, linked_spec, refs)?;
     validate_source_media_asset_ref(provenance, asset, refs)?;

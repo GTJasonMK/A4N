@@ -1,54 +1,63 @@
 import React from "react";
-import { Check, Code2, Download, Trash2 } from "lucide-react";
+import { Check, Download, Pencil, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
-import { BookButton } from "../../../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { parseCssRgb, rgb } from "../../../utils/cssColor";
+import { useI18n } from "../../../i18n";
+import { isDeletableTheme } from "./types";
 
 interface ThemeCardProps {
   theme: Theme;
   activating: boolean;
-  activateDisabled: boolean;
   deleting: boolean;
   exporting: boolean;
+  editing: boolean;
   renaming: boolean;
   renameValue: string;
   renameSaving: boolean;
   mutationBusy: boolean;
+  selectable: boolean;
+  selected: boolean;
   onRenameInput: (value: string) => void;
   onRenameStart: () => void;
   onRenameConfirm: () => void;
   onRenameCancel: () => void;
   onActivate: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   onExport: () => void;
-  onViewCss: () => void;
+  onSelect: () => void;
 }
 
 export const ThemeCard: React.FC<ThemeCardProps> = ({
   theme,
   activating,
-  activateDisabled,
   deleting,
   exporting,
+  editing,
   renaming,
   renameValue,
   renameSaving,
   mutationBusy,
+  selectable,
+  selected,
   onRenameInput,
   onRenameStart,
   onRenameConfirm,
   onRenameCancel,
   onActivate,
+  onEdit,
   onDelete,
   onExport,
-  onViewCss,
+  onSelect,
 }) => {
+  const { t } = useI18n();
   const renameReady =
     renameValue.trim().length > 0 && renameValue.trim() !== theme.name.trim();
   const previewColor = (key: string): string =>
-    rgb(parseCssRgb(theme.css_variables[key] ?? "", [204, 204, 204]));
+    rgb(parseCssRgb(theme.document.tokens[key] ?? "", [204, 204, 204]));
   const previewColors = {
     primary: previewColor("--color-primary"),
     bg: previewColor("--color-bg-primary"),
@@ -59,20 +68,15 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   const isOwned = theme.user_id != null;
   const moreItems: DropdownItem[] = [
     {
-      label: "导出主题",
+      label: t("settingsTheme.export"),
       icon: <Download size={12} />,
       onClick: onExport,
     },
-    {
-      label: "查看颜色变量",
-      icon: <Code2 size={12} />,
-      onClick: onViewCss,
-    },
   ];
-  if (isOwned && !theme.is_active) {
+  if (isDeletableTheme(theme)) {
     moreItems.push({ type: "divider" });
     moreItems.push({
-      label: "删除主题",
+      label: t("settingsTheme.delete"),
       icon: <Trash2 size={12} />,
       danger: true,
       disabled: mutationBusy,
@@ -83,15 +87,35 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   return (
     <li className="a4n-flat-surface flex min-w-0 items-stretch overflow-hidden">
       <div className="flex w-16 shrink-0 overflow-hidden sm:w-24" style={{ background: previewColors.bg }}>
-        <ColorBand color={previewColors.primary} label="主色" />
-        <ColorBand color={previewColors.bg} label="背景" />
-        <ColorBand color={previewColors.bgPaper} label="表面" />
-        <ColorBand color={previewColors.text} label="文字" />
-        <ColorBand color={previewColors.border} label="边线" />
+        <ColorBand color={previewColors.primary} label={t("settingsTheme.colorPrimary")} />
+        <ColorBand color={previewColors.bg} label={t("settingsTheme.colorBackground")} />
+        <ColorBand color={previewColors.bgPaper} label={t("settingsTheme.colorSurface")} />
+        <ColorBand color={previewColors.text} label={t("settingsTheme.colorText")} />
+        <ColorBand color={previewColors.border} label={t("settingsTheme.colorBorder")} />
       </div>
 
-      <div className="flex min-w-0 flex-1 items-center gap-3 p-3">
-        <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 p-3">
+        <div className="flex min-w-0 basis-full flex-1 items-center gap-3 sm:basis-0">
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+            <input
+              type="checkbox"
+              checked={selectable && selected}
+              disabled={!selectable || mutationBusy}
+              onChange={selectable ? () => onSelect() : undefined}
+              aria-label={
+                selectable
+                  ? t("settingsTheme.selectTheme", { name: theme.name })
+                  : t("settingsTheme.selectionUnavailable", { name: theme.name })
+              }
+              title={
+                selectable
+                  ? t("settingsTheme.selectTheme", { name: theme.name })
+                  : t("settingsTheme.selectionUnavailable", { name: theme.name })
+              }
+              className="h-4 w-4 shrink-0"
+            />
+          </span>
+          <div className="min-w-0 flex-1">
           {renaming ? (
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <input
@@ -113,10 +137,10 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
               >
                 {renameSaving ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <LoadingSpinner size="sm" /> 保存中…
+                    <LoadingSpinner size="sm" /> {t("settingsTheme.saving")}
                   </span>
                 ) : (
-                  "保存"
+                  t("common.save")
                 )}
               </BookButton>
               <BookButton
@@ -125,7 +149,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                 onClick={onRenameCancel}
                 disabled={renameSaving}
               >
-                取消
+                {t("settingsTheme.cancel")}
               </BookButton>
             </div>
           ) : (
@@ -137,7 +161,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                     onClick={onRenameStart}
                     disabled={mutationBusy}
                     className="min-w-0 truncate text-left text-sm font-semibold text-book-text-main hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-55"
-                    title="重命名主题"
+                    title={t("settingsTheme.rename")}
                   >
                     {theme.name}
                   </button>
@@ -147,31 +171,46 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
                   </span>
                 )}
                 {theme.is_active ? (
-                  <span className="text-caption font-medium text-book-primary">使用中</span>
+                  <span className="text-caption font-medium text-book-primary">{t("settingsTheme.active")}</span>
                 ) : null}
               </div>
               <div className="mt-0.5 text-small text-book-text-muted">
                 {isOwned
-                  ? "用户自定义"
+                  ? t("settingsTheme.userCustom")
                   : theme.is_system_default
-                    ? "系统默认"
-                    : "系统主题"} ·{" "}
-                {theme.mode === "dark" ? "暗色" : "亮色"}
+                    ? t("settingsTheme.systemDefault")
+                    : t("settingsTheme.systemTheme")} ·{" "}
+                {theme.mode === "dark" ? t("settingsTheme.dark") : t("settingsTheme.light")}
               </div>
             </>
           )}
+          </div>
         </div>
         {!renaming ? (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex basis-full items-center justify-end gap-2 sm:basis-auto">
+            {isOwned ? (
+              <BookIconButton
+                label={t("settingsTheme.edit")}
+                variant="secondary"
+                size="sm"
+                onClick={onEdit}
+                disabled={mutationBusy}
+                title={t("settingsTheme.edit")}
+                aria-pressed={editing}
+                className={editing ? "!bg-book-primary/8 !text-book-primary" : undefined}
+              >
+                <Pencil size={12} />
+              </BookIconButton>
+            ) : null}
             {isOwned && !theme.is_active ? (
               <BookButton
                 variant="secondary"
                 size="sm"
                 onClick={onActivate}
-                disabled={activateDisabled}
+                disabled={mutationBusy}
               >
                 {activating ? <LoadingSpinner size="sm" /> : <Check size={12} />}
-                使用
+                {t("settingsTheme.activate")}
               </BookButton>
             ) : null}
             {exporting || deleting ? (

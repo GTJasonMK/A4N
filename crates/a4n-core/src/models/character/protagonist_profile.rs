@@ -65,19 +65,22 @@ impl ActiveModelBehavior for ActiveModel {}
 
 impl Model {
     pub fn first_seen_chapter(&self) -> Option<i32> {
-        let explicit = self
-            .base_attributes
-            .get("explicit_attributes")
-            .and_then(serde_json::Value::as_object)?;
-        let first_seen = explicit.get("first_seen_chapter")?.as_i64()?;
-        i32::try_from(first_seen)
-            .ok()
-            .filter(|chapter| *chapter > 0)
+        first_seen_chapter_from_attributes(&self.base_attributes)
     }
 
     pub fn is_text_discovered(&self) -> bool {
         self.first_seen_chapter().is_some()
     }
+}
+
+pub fn first_seen_chapter_from_attributes(attributes: &serde_json::Value) -> Option<i32> {
+    let explicit = attributes
+        .get("explicit_attributes")
+        .and_then(serde_json::Value::as_object)?;
+    let first_seen = explicit.get("first_seen_chapter")?.as_i64()?;
+    i32::try_from(first_seen)
+        .ok()
+        .filter(|chapter| *chapter > 0)
 }
 
 impl Related<super::super::project::novel_project::Entity> for Entity {

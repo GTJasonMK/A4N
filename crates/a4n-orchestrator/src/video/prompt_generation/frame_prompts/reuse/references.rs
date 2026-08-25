@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::error::AppError;
 
@@ -97,6 +97,7 @@ pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_reference
     generation_reference_ids: &[i64],
 ) -> Vec<i64> {
     let mut refs = Vec::new();
+    let mut seen = HashSet::new();
     match workflow_mode {
         PromptWorkflowMode::SharedSegmentPlan => {
             unreachable!("共享片段规划不参与卡片媒体引用计算")
@@ -107,10 +108,14 @@ pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_reference
                 .flatten()
             {
                 if let Some(image_id) = frame_image_ids_by_number.get(&frame_number) {
-                    extend_unique_reference_ids(&mut refs, &[*image_id]);
+                    extend_unique_reference_ids_with_seen(&mut refs, &mut seen, &[*image_id]);
                 }
                 if let Some(frame) = frame_by_number.get(&frame_number) {
-                    extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
+                    extend_unique_reference_ids_with_seen(
+                        &mut refs,
+                        &mut seen,
+                        &frame.reference_image_ids,
+                    );
                 }
             }
         }
@@ -118,35 +123,44 @@ pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_reference
             if unit.unit_number == 1
                 && let Some(image_id) = frame_image_ids_by_number.get(&1)
             {
-                extend_unique_reference_ids(&mut refs, &[*image_id]);
+                extend_unique_reference_ids_with_seen(&mut refs, &mut seen, &[*image_id]);
             }
             if unit.unit_number == 1
                 && let Some(frame) = frame_by_number.get(&1)
             {
-                extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
+                extend_unique_reference_ids_with_seen(
+                    &mut refs,
+                    &mut seen,
+                    &frame.reference_image_ids,
+                );
             }
         }
         PromptWorkflowMode::Storyboard => {
             if let Some(storyboard_number) = unit.storyboard_number {
                 if let Some(image_id) = frame_image_ids_by_number.get(&storyboard_number) {
-                    extend_unique_reference_ids(&mut refs, &[*image_id]);
+                    extend_unique_reference_ids_with_seen(&mut refs, &mut seen, &[*image_id]);
                 }
                 if let Some(frame) = frame_by_number.get(&storyboard_number) {
-                    extend_unique_reference_ids(&mut refs, &frame.reference_image_ids);
+                    extend_unique_reference_ids_with_seen(
+                        &mut refs,
+                        &mut seen,
+                        &frame.reference_image_ids,
+                    );
                 }
             }
         }
     }
-    extend_unique_reference_ids(&mut refs, generation_reference_ids);
+    extend_unique_reference_ids_with_seen(&mut refs, &mut seen, generation_reference_ids);
     refs
 }
 
-pub(in crate::video::prompt_generation::frame_prompts) fn extend_unique_reference_ids(
+fn extend_unique_reference_ids_with_seen(
     target: &mut Vec<i64>,
+    seen: &mut HashSet<i64>,
     source: &[i64],
 ) {
     for image_id in source {
-        if *image_id > 0 && !target.contains(image_id) {
+        if *image_id > 0 && seen.insert(*image_id) {
             target.push(*image_id);
         }
     }
@@ -156,8 +170,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn video_prompt_workflow_
     segments: &[VideoSegmentPlan],
 ) -> Vec<i64> {
     let mut refs = Vec::new();
+    let mut seen = HashSet::new();
     for segment in segments {
-        extend_unique_reference_ids(&mut refs, &segment.reference_image_ids);
+        extend_unique_reference_ids_with_seen(&mut refs, &mut seen, &segment.reference_image_ids);
     }
     refs
 }

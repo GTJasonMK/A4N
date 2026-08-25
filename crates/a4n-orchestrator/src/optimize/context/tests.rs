@@ -1,4 +1,5 @@
 use a4n_core::models::chapter::chapter;
+use a4n_db::optimize::OptimizationChapterSummaryRecord;
 use serde_json::json;
 
 use super::manifest::optimization_context_manifest;
@@ -69,7 +70,13 @@ fn chapter_projection_trims_optional_text_and_exposes_source_spans_only_for_curr
     assert_eq!(current["status"], json!(chapter::STATUS_COMPLETED));
     assert!(!current["source_spans"].as_array().unwrap().is_empty());
 
-    let neighboring = optimization_chapter_summary_context(&chapter);
+    let neighboring = optimization_chapter_summary_context(&OptimizationChapterSummaryRecord {
+        chapter_number: chapter.chapter_number,
+        title: chapter.title.clone(),
+        summary: chapter.summary.clone(),
+        word_count: chapter.word_count,
+        analysis_data: chapter.analysis_data.clone(),
+    });
     assert_eq!(neighboring["title"], json!("旧城回声"));
     assert_eq!(neighboring["summary"], json!("主角听见回声。"));
     assert!(neighboring.get("source_spans").is_none());

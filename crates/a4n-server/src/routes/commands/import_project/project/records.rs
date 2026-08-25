@@ -6,6 +6,10 @@ use super::macros::{
 use crate::routes::commands::{
     ApiError, nullable_i64_arg, optional_string_field, project_records_actions, to_value, u64_arg,
 };
+use a4n_api_contract::project::{
+    CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    UpdateProjectInput,
+};
 use serde_json::Value;
 
 pub(in crate::routes::commands) async fn list_projects(
@@ -37,17 +41,17 @@ pub(in crate::routes::commands) async fn list_projects(
 
 project_web_input_value_command!(
     create_project,
-    project_records_actions::CreateProjectInput,
+    CreateProjectInput,
     project_records_actions::create_project
 );
 project_web_input_value_command!(
     create_derived_project,
-    project_records_actions::CreateDerivedProjectInput,
+    CreateDerivedProjectInput,
     project_records_actions::create_derived_project
 );
 project_web_input_value_command!(
     create_freeform_video_project,
-    project_records_actions::CreateFreeformVideoProjectInput,
+    CreateFreeformVideoProjectInput,
     project_records_actions::create_freeform_video_project
 );
 project_web_project_value_command!(get_project, project_records_actions::get_project_summary);
@@ -58,7 +62,7 @@ project_web_project_value_command!(
 
 project_web_project_input_value_command!(
     update_project,
-    project_records_actions::UpdateProjectInput,
+    UpdateProjectInput,
     project_records_actions::update_project
 );
 project_web_project_value_command!(

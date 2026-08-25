@@ -10,16 +10,13 @@ pub(super) async fn recover_pending(queue: &PersistentTaskQueue) -> Result<(), A
     let active_task_ids = a4n_db::queue::recoverable_active_task_ids(queue.db.as_ref())
         .await
         .map_err(queue_db_error)?;
-    for task_id in active_task_ids {
-        a4n_db::queue::update_task_status(
-            queue.db.as_ref(),
-            &task_id,
-            "interrupted",
-            Some("应用重启后中断未绑定执行器的队列任务"),
-        )
-        .await
-        .map_err(queue_db_error)?;
-    }
+    a4n_db::queue::interrupt_active_tasks(
+        queue.db.as_ref(),
+        &active_task_ids,
+        "应用重启后中断未绑定执行器的队列任务",
+    )
+    .await
+    .map_err(queue_db_error)?;
     a4n_db::workflow::recover_stale_in_process_workflows(queue.db.as_ref())
         .await
         .map_err(workflow_write_app_error)?;

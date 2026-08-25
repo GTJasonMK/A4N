@@ -65,6 +65,7 @@ pub async fn login_with_oauth2(
         oauth_provider: Set(Some(provider)),
         oauth_subject: Set(Some(provider_id)),
         avatar_url: Set(avatar_url.map(str::to_string)),
+        page_cli_enabled: Set(false),
         is_active: Set(true),
         created_at: Set(now),
         updated_at: Set(now),

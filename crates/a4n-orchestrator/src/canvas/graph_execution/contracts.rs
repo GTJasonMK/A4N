@@ -1,8 +1,9 @@
+use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_core::models::canvas::canvas_node;
 use a4n_db::canvas::CanvasGraphRecordDocument;
 use async_trait::async_trait;
 
-use crate::canvas::{CanvasNodeRunHandle, CanvasNodeRunSummary};
+use crate::canvas::CanvasNodeRunHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CanvasGraphNodeExecutionKind {
@@ -75,8 +76,8 @@ pub struct PreparedCanvasGraphRun {
 }
 
 impl PreparedCanvasGraphRun {
-    pub fn summary(&self, status: &str, error_message: Option<String>) -> CanvasNodeRunSummary {
-        CanvasNodeRunSummary {
+    pub fn summary(&self, status: &str, error_message: Option<String>) -> CanvasRunSummary {
+        CanvasRunSummary {
             workflow_run_id: self.workflow_run_id,
             project_id: self.project_id,
             graph_id: self.graph_id,
@@ -105,5 +106,5 @@ pub trait CanvasGraphExecutionHostPort: Send + Sync {
     async fn execute_node(
         &self,
         input: CanvasGraphNodeExecutionInput<'_>,
-    ) -> Result<CanvasNodeRunSummary, String>;
+    ) -> Result<CanvasRunSummary, String>;
 }

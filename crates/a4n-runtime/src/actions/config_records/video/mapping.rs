@@ -1,9 +1,6 @@
-use super::{
-    super::shared::has_configured_api_key,
-    contracts::{UpdateVideoConfigInput, VideoConfigInput, VideoConfigSummary},
-};
+use super::super::shared::has_configured_api_key;
+use a4n_api_contract::config::VideoConfigSummary;
 use a4n_core::models::ai::video_gen_config;
-use a4n_orchestrator::video::{UpdateVideoConfigParams, VideoConfigParams};
 use std::str::FromStr;
 
 pub(super) fn video_config_summary(
@@ -33,47 +30,9 @@ pub(super) fn video_config_summary(
     })
 }
 
-pub(super) fn video_create_params(input: VideoConfigInput) -> VideoConfigParams {
-    VideoConfigParams {
-        name: input.name,
-        backend: input.backend,
-        base_url: input.base_url,
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model,
-        max_concurrent: input.max_concurrent,
-        default_width: input.default_width,
-        default_height: input.default_height,
-        default_duration_secs: input.default_duration_secs,
-        min_duration_secs: input.min_duration_secs,
-        max_duration_secs: input.max_duration_secs,
-        duration_mode: input.duration_mode.to_string(),
-        supported_durations_json: input.supported_durations_json,
-        default_fps: input.default_fps,
-    }
-}
-
-pub(super) fn video_update_params(input: UpdateVideoConfigInput) -> UpdateVideoConfigParams {
-    UpdateVideoConfigParams {
-        name: input.name,
-        backend: input.backend,
-        base_url: input.base_url,
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model,
-        max_concurrent: input.max_concurrent,
-        default_width: input.default_width,
-        default_height: input.default_height,
-        default_duration_secs: input.default_duration_secs,
-        min_duration_secs: input.min_duration_secs,
-        max_duration_secs: input.max_duration_secs,
-        duration_mode: input.duration_mode.to_string(),
-        supported_durations_json: input.supported_durations_json,
-        default_fps: input.default_fps,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use a4n_api_contract::config::UpdateVideoConfigInput;
     use serde_json::Value;
 
     #[test]
@@ -96,7 +55,6 @@ mod tests {
         let missing_key = serde_json::from_value::<UpdateVideoConfigInput>(base.clone())
             .expect("missing api_key_encrypted should preserve the old key");
         assert_eq!(missing_key.api_key_encrypted, None);
-        assert_eq!(video_update_params(missing_key).api_key_encrypted, None);
         let mut clear_value = base.clone();
         clear_value["api_key_encrypted"] = Value::Null;
         let clear_key = serde_json::from_value::<UpdateVideoConfigInput>(clear_value)
@@ -107,7 +65,7 @@ mod tests {
         let replace_key = serde_json::from_value::<UpdateVideoConfigInput>(replace_value)
             .expect("string api_key_encrypted should replace the old key");
         assert_eq!(
-            video_update_params(replace_key).api_key_encrypted,
+            replace_key.api_key_encrypted,
             Some(Some("sk-new".to_string()))
         );
     }

@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::error::AppError;
 
@@ -10,7 +10,9 @@ use crate::video::{
     },
 };
 
-use super::super::super::{expected_video_unit_count, storyboard_expected_segment_numbers};
+use super::super::super::{
+    expected_video_unit_count, storyboard_expected_segment_numbers, units_for_frame_mapping,
+};
 
 pub(in crate::video) fn validate_storyboard_prompts(
     storyboard_prompts: &[VideoFramePrompt],
@@ -36,7 +38,42 @@ pub(in crate::video) fn validate_storyboard_prompts(
                 frame.frame_number
             )));
         }
-        validate_storyboard_prompt(frame, segment_plan, allowed_reference_ids)?;
+    }
+    if storyboard_prompts.is_empty() {
+        return Ok(());
+    }
+    let units = units_for_frame_mapping(segment_plan)?;
+    let segments_by_number = segment_plan.iter().fold(
+        HashMap::with_capacity(segment_plan.len()),
+        |mut by_number, segment| {
+            by_number.entry(segment.segment_number).or_insert(segment);
+            by_number
+        },
+    );
+    for (frame, unit) in storyboard_prompts.iter().zip(&units) {
+        let expected_segment_numbers = unit.source_segment_numbers();
+        let representative_segment_number =
+            expected_segment_numbers.first().copied().ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "分镜提示词 #{} 缺少对应片段规划",
+                    frame.frame_number
+                ))
+            })?;
+        let segment = segments_by_number
+            .get(&representative_segment_number)
+            .copied()
+            .ok_or_else(|| {
+                AppError::InvalidArgument(format!(
+                    "分镜提示词 #{} 缺少对应片段规划",
+                    frame.frame_number
+                ))
+            })?;
+        validate_storyboard_prompt_for_segment(
+            frame,
+            segment,
+            &expected_segment_numbers,
+            allowed_reference_ids,
+        )?;
     }
     Ok(())
 }
@@ -98,6 +135,20 @@ fn validate_storyboard_prompt_for_segment_numbers(
                 frame.frame_number
             ))
         })?;
+    validate_storyboard_prompt_for_segment(
+        frame,
+        segment,
+        expected_segment_numbers,
+        allowed_reference_ids,
+    )
+}
+
+fn validate_storyboard_prompt_for_segment(
+    frame: &VideoFramePrompt,
+    segment: &VideoSegmentPlan,
+    expected_segment_numbers: &[i32],
+    allowed_reference_ids: &HashSet<i64>,
+) -> Result<(), AppError> {
     if frame.segment_numbers != expected_segment_numbers {
         return Err(AppError::InvalidArgument(format!(
             "分镜提示词 #{} segment_numbers 必须为 {:?}，实际为 {:?}",

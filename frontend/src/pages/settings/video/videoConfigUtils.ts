@@ -7,6 +7,9 @@ import type {
 import type { ConfigItem } from "../ConfigListPanel";
 import type { VideoForm } from "./types";
 import type { VideoProviderDescriptor } from "../../../api/generated/config";
+import type { MessageKey, MessageParams } from "../../../i18n";
+
+type Translate = (key: MessageKey, params?: MessageParams) => string;
 
 export const DEFAULT_VIDEO_FORM: VideoForm = {
   name: "",
@@ -35,29 +38,32 @@ export const VIDEO_SIZE_OPTIONS = [
 ];
 
 export const VIDEO_DURATION_MODES: Array<{ value: VideoDurationMode; label: string }> = [
-  { value: "range", label: "时间范围档位" },
-  { value: "fixed", label: "固定时间档位" },
+  { value: "range", label: "range" },
+  { value: "fixed", label: "fixed" },
 ];
 
 export function validateVideoForm(
   form: VideoForm,
   provider: VideoProviderDescriptor | undefined,
+  t: Translate,
 ): string | null {
-  if (!form.name.trim()) return "请填写配置名称";
-  if (!form.model.trim()) return "请填写模型名";
-  if (!form.api_base_url.trim()) return "请填写 API Base URL";
-  if (!provider || provider.id !== form.provider) return `video provider 未注册：${form.provider}`;
+  if (!form.name.trim()) return t("settingsForm.nameRequired");
+  if (!form.model.trim()) return t("settingsForm.modelRequired");
+  if (!form.api_base_url.trim()) return t("settingsForm.baseUrlRequired");
+  if (!provider || provider.id !== form.provider) {
+    return t("settingsForm.providerNotRegistered", { provider: form.provider });
+  }
   const minDuration = provider.min_duration_secs;
   const maxDuration = provider.max_duration_secs;
   return (
-    intRangeError(form.max_concurrent, "并发", 1, 8) ??
-    intRangeError(form.duration_secs, "时长", minDuration, maxDuration) ??
-    validateDurationCapability(form, provider) ??
-    intRangeError(form.fps, "FPS", 1, 120)
+    intRangeError(form.max_concurrent, t("settingsForm.concurrency"), 1, 8, t) ??
+    intRangeError(form.duration_secs, t("settingsForm.defaultDuration"), minDuration, maxDuration, t) ??
+    validateDurationCapability(form, provider, t) ??
+    intRangeError(form.fps, t("settingsForm.fps"), 1, 120, t)
   );
 }
 
-export function formatVideoItem(config: VideoForm): {
+export function formatVideoItem(config: VideoForm, t: Translate): {
   primary: string;
   secondary: string;
   tertiary: string;
@@ -65,7 +71,7 @@ export function formatVideoItem(config: VideoForm): {
   return {
     primary: config.name,
     secondary: `${config.provider} · ${config.model}`,
-    tertiary: `${config.size} · 默认 ${config.duration_secs}s · 支持 ${durationCapabilityLabel(config)} · ${config.fps}fps`,
+    tertiary: `${config.size} · ${t("settingsForm.defaultDuration")} ${config.duration_secs}s · ${t("settingsForm.supportedDurations")} ${durationCapabilityLabel(config, t)} · ${config.fps}fps`,
   };
 }
 
@@ -99,10 +105,11 @@ export function toVideoItem(raw: VideoGenConfig): ConfigItem<VideoForm> {
 export function toCreateVideoInput(
   form: VideoForm,
   provider: VideoProviderDescriptor | undefined,
+  t: Translate,
 ): CreateVideoConfigInput {
   const apiKey = form.api_key.trim();
   return {
-    ...buildVideoConfigInput(form, provider),
+    ...buildVideoConfigInput(form, provider, t),
     api_key_encrypted: apiKey || undefined,
   };
 }
@@ -110,10 +117,11 @@ export function toCreateVideoInput(
 export function toUpdateVideoInput(
   form: VideoForm,
   provider: VideoProviderDescriptor | undefined,
+  t: Translate,
 ): UpdateVideoConfigInput {
   const apiKey = form.api_key.trim();
   return {
-    ...buildVideoConfigInput(form, provider),
+    ...buildVideoConfigInput(form, provider, t),
     api_key_encrypted: form.clear_api_key ? null : apiKey || undefined,
   };
 }
@@ -121,103 +129,112 @@ export function toUpdateVideoInput(
 function buildVideoConfigInput(
   form: VideoForm,
   provider: VideoProviderDescriptor | undefined,
+  t: Translate,
 ): Omit<CreateVideoConfigInput, "api_key_encrypted"> {
   if (!provider || provider.id !== form.provider) {
-    throw new Error(`video provider 未注册：${form.provider}`);
+    throw new Error(t("settingsForm.providerNotRegistered", { provider: form.provider }));
   }
-  const capabilityError = validateDurationCapability(form, provider);
+  const capabilityError = validateDurationCapability(form, provider, t);
   if (capabilityError) throw new Error(capabilityError);
-  const { width, height } = parseVideoSize(form.size);
+  const { width, height } = parseVideoSize(form.size, t);
   const fixedDurations =
-    form.duration_mode === "fixed" ? parseSupportedDurationsText(form) : [];
+    form.duration_mode === "fixed" ? parseSupportedDurationsText(form, t) : [];
   const minDuration = provider.min_duration_secs;
   const maxDuration = provider.max_duration_secs;
   const minDurationSecs =
     form.duration_mode === "fixed"
       ? fixedDurations[0]
-      : ensureIntRange(form.min_duration_secs, "最小时长", minDuration, maxDuration);
+      : ensureIntRange(form.min_duration_secs, t("settingsForm.minDuration"), minDuration, maxDuration, t);
   const maxDurationSecs =
     form.duration_mode === "fixed"
       ? fixedDurations[fixedDurations.length - 1]
-      : ensureIntRange(form.max_duration_secs, "最大时长", 1, maxDuration);
+      : ensureIntRange(form.max_duration_secs, t("settingsForm.maxDuration"), 1, maxDuration, t);
   return {
-    name: requireTrimmed(form.name, "配置名称"),
+    name: requireTrimmed(form.name, t("settingsForm.configName"), t),
     backend: form.provider,
-    base_url: requireTrimmed(form.api_base_url, "API Base URL"),
-    model: requireTrimmed(form.model, "模型名"),
-    max_concurrent: ensureIntRange(form.max_concurrent, "并发", 1, 8),
+    base_url: requireTrimmed(form.api_base_url, t("settingsForm.endpoint"), t),
+    model: requireTrimmed(form.model, t("settingsForm.model"), t),
+    max_concurrent: ensureIntRange(form.max_concurrent, t("settingsForm.concurrency"), 1, 8, t),
     default_width: width,
     default_height: height,
     default_duration_secs: ensureIntRange(
       form.duration_secs,
-      "时长",
+      t("settingsForm.defaultDuration"),
       minDuration,
       maxDuration,
+      t,
     ),
     min_duration_secs: minDurationSecs,
     max_duration_secs: maxDurationSecs,
     duration_mode: form.duration_mode,
     supported_durations_json: form.duration_mode === "fixed" ? fixedDurations : null,
-    default_fps: ensureIntRange(form.fps, "FPS", 1, 120),
+    default_fps: ensureIntRange(form.fps, t("settingsForm.fps"), 1, 120, t),
   };
 }
 
 function validateDurationCapability(
   form: VideoForm,
   provider: VideoProviderDescriptor,
+  t: Translate,
 ): string | null {
   const minDuration = provider.min_duration_secs;
   const maxDuration = provider.max_duration_secs;
   const defaultDuration = ensureIntRangeOrNull(
     form.duration_secs,
-    "默认时长",
+    t("settingsForm.defaultDuration"),
     minDuration,
     maxDuration,
+    t,
   );
   if (typeof defaultDuration === "string") return defaultDuration;
   if (form.duration_mode === "fixed") {
     try {
-      const supported = parseSupportedDurationsText(form);
-      if (supported.length === 0) return "固定时间档位模式必须填写固定时长档位";
+      const supported = parseSupportedDurationsText(form, t);
+      if (supported.length === 0) return t("settingsForm.fixedModeRequired");
       const tooLong = supported.find((duration) => duration > maxDuration);
       if (tooLong != null) {
-        return `${form.provider} 固定时长不能超过 ${maxDuration} 秒：${tooLong}`;
+        return t("settingsForm.fixedExceeds", {
+          provider: form.provider,
+          max: maxDuration,
+          value: tooLong,
+        });
       }
       if (!supported.includes(defaultDuration)) {
-        return `默认时长必须包含在固定时长档位 ${supported.join(", ")} 中`;
+        return t("settingsForm.defaultInFixed", { values: supported.join(", ") });
       }
     } catch (err) {
-      return err instanceof Error ? err.message : "固定时长档位无效";
+      return err instanceof Error ? err.message : t("settingsForm.durationInvalid");
     }
     return null;
   }
 
   const min = ensureIntRangeOrNull(
     form.min_duration_secs,
-    "最小时长",
+    t("settingsForm.minDuration"),
     minDuration,
     maxDuration,
+    t,
   );
   if (typeof min === "string") return min;
-  const max = ensureIntRangeOrNull(form.max_duration_secs, "最大时长", 1, maxDuration);
+  const max = ensureIntRangeOrNull(form.max_duration_secs, t("settingsForm.maxDuration"), 1, maxDuration, t);
   if (typeof max === "string") return max;
-  if (min > max) return "最小时长不能大于最大时长";
+  if (min > max) return t("settingsForm.minGreater");
   if (defaultDuration < min || defaultDuration > max) {
-    return `默认时长必须在模型支持范围 ${min}-${max} 秒之间`;
+    return t("settingsForm.defaultRange", { min, max });
   }
   return null;
 }
 
-function parseVideoSize(value: string): { width: number; height: number } {
+function parseVideoSize(value: string, t: Translate): { width: number; height: number } {
   const [width, height] = value.split("x").map((part) => Number(part));
   if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
-    throw new Error(`视频尺寸无效：${value}`);
+    throw new Error(t("settingsForm.videoSizeInvalid", { value }));
   }
   return { width, height };
 }
 
-function ensureIntRange(value: number, label: string, min: number, max: number): number {
-  const error = intRangeError(value, label, min, max);
+function ensureIntRange(value: number, label: string, min: number, max: number, t: Translate): number {
+  const error = intRangeError(value, label, min, max, t);
   if (error) throw new Error(error);
   return value;
 }
@@ -227,27 +244,28 @@ function ensureIntRangeOrNull(
   label: string,
   min: number,
   max: number,
+  t: Translate,
 ): number | string {
-  const error = intRangeError(value, label, min, max);
+  const error = intRangeError(value, label, min, max, t);
   return error ?? value;
 }
 
-function intRangeError(value: number, label: string, min: number, max: number): string | null {
+function intRangeError(value: number, label: string, min: number, max: number, t: Translate): string | null {
   if (!Number.isInteger(value) || value < min || value > max) {
-    return `${label}必须在 ${min}-${max} 之间`;
+    return t("settingsForm.rangeInvalid", { label, min, max });
   }
   return null;
 }
 
-function requireTrimmed(value: string, label: string): string {
+function requireTrimmed(value: string, label: string, t: Translate): string {
   const trimmed = value.trim();
   if (!trimmed) {
-    throw new Error(`请填写${label}`);
+    throw new Error(t("settingsForm.fill", { label }));
   }
   return trimmed;
 }
 
-function parseSupportedDurationsText(form: VideoForm): number[] {
+function parseSupportedDurationsText(form: VideoForm, t: Translate): number[] {
   const raw = form.supported_durations_text.trim();
   if (!raw) return [];
   const values = raw
@@ -257,31 +275,34 @@ function parseSupportedDurationsText(form: VideoForm): number[] {
     .map((part) => {
       const value = Number(part);
       if (!Number.isInteger(value)) {
-        throw new Error(`固定时长档位必须是整数：${part}`);
+        throw new Error(t("settingsForm.fixedInteger", { value: part }));
       }
       return value;
     });
-  return validateSupportedDurations(values, "固定时长档位");
+  return validateSupportedDurations(values, t("settingsForm.fixedDuration"), t);
 }
 
-function validateSupportedDurations(values: number[], label: string): number[] {
+function validateSupportedDurations(values: number[], label: string, t: Translate): number[] {
   const seen = new Set<number>();
   const supported: number[] = [];
   values.forEach((value, index) => {
     if (!Number.isInteger(value)) {
-      throw new Error(`${label} 必须只包含整数：${String(value)}`);
+      throw new Error(t("settingsForm.fixedOnlyIntegers", { label, value: String(value) }));
     }
     if (value < 1 || value > 60) {
-      throw new Error(`${label} ${value} 必须在 1-60 秒之间`);
+      throw new Error(t("settingsForm.fixedRange", { label, value }));
     }
     if (seen.has(value)) {
-      throw new Error(`${label} 包含重复时长：${value}`);
+      throw new Error(t("settingsForm.duplicateDuration", { label, value }));
     }
     const previous = supported[supported.length - 1];
     if (previous !== undefined && value <= previous) {
-      throw new Error(
-        `${label} 必须按从小到大填写；第 ${index + 1} 项 ${value} 不大于前一项 ${previous}`,
-      );
+      throw new Error(t("settingsForm.ascendingDuration", {
+        label,
+        index: index + 1,
+        value,
+        previous,
+      }));
     }
     seen.add(value);
     supported.push(value);
@@ -289,11 +310,11 @@ function validateSupportedDurations(values: number[], label: string): number[] {
   return supported;
 }
 
-function durationCapabilityLabel(config: VideoForm): string {
+function durationCapabilityLabel(config: VideoForm, t: Translate): string {
   if (config.duration_mode === "fixed") {
-    const supported = parseSupportedDurationsText(config);
-    if (supported.length === 0) return "固定 未配置";
-    return `固定 ${supported.join("/")}s`;
+    const supported = parseSupportedDurationsText(config, t);
+    if (supported.length === 0) return `${t("settingsForm.fixed")} ${t("settingsForm.notConfigured")}`;
+    return `${t("settingsForm.fixed")} ${supported.join("/")}s`;
   }
-  return `范围 ${config.min_duration_secs}-${config.max_duration_secs}s`;
+  return `${t("settingsForm.range")} ${config.min_duration_secs}-${config.max_duration_secs}s`;
 }

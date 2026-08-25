@@ -1,57 +1,27 @@
 use std::collections::HashMap;
 
-use super::super::{FamilyImportMediaPayload, ProjectFamilyPackage};
-use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
-use a4n_orchestrator::project::{
-    media_asset_path, media_file_key, validate_family_media_bytes as validate_media_bytes,
-};
+use super::super::ProjectFamilyPackage;
+use a4n_orchestrator::project::{ImportMediaPayload, media_file_key};
 
 pub(super) fn read_media_payloads_from_entries(
     package: &ProjectFamilyPackage,
     bytes: HashMap<String, Vec<u8>>,
-) -> Result<FamilyImportMediaPayload, String> {
-    let media_assets = package
-        .media_assets
-        .iter()
-        .map(|asset| (asset.id, asset))
-        .collect::<HashMap<_, _>>();
+) -> Result<ImportMediaPayload, String> {
     let mut entries = HashMap::new();
     for entry in &package.media_files {
-        let asset = media_assets.get(&entry.media_asset_id).ok_or_else(|| {
-            format!(
-                "媒体文件清单引用了不存在的 media_asset_id: {}",
-                entry.media_asset_id
-            )
-        })?;
-        let expected_path = media_asset_path(asset, &entry.field)?;
-        if expected_path.is_none() {
-            return Err(format!(
-                "媒体文件清单字段 {} 与媒体资产 {} 不匹配",
-                entry.field, asset.id
-            ));
-        }
-        let key = media_file_key(entry.media_asset_id, &entry.field);
+        let key = media_file_key(&entry.owner_kind, entry.owner_id, &entry.field);
         if entries.insert(key, entry.clone()).is_some() {
             return Err(format!(
-                "媒体文件清单重复: media_asset_id={}, field={}",
-                entry.media_asset_id, entry.field
+                "媒体文件清单重复: owner_kind={}, owner_id={}, field={}",
+                entry.owner_kind, entry.owner_id, entry.field
             ));
         }
     }
 
     for entry in &package.media_files {
-        let asset = media_assets.get(&entry.media_asset_id).ok_or_else(|| {
-            format!(
-                "媒体文件清单引用了不存在的 media_asset_id: {}",
-                entry.media_asset_id
-            )
-        })?;
-        let file_bytes = bytes
+        bytes
             .get(&entry.package_path)
             .ok_or_else(|| format!("项目族导入包缺少媒体文件 {}", entry.package_path))?;
-        if entry.field == FILE_PATH_FIELD {
-            validate_media_bytes(asset, file_bytes)?;
-        }
     }
-    Ok(FamilyImportMediaPayload { entries, bytes })
+    Ok(ImportMediaPayload { entries, bytes })
 }

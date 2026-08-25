@@ -1,20 +1,20 @@
 use a4n_core::models::canvas::canvas_node;
-use a4n_orchestrator::{canvas::CanvasImageNodeExecutionInput, media::ImageGenerationProgress};
+use a4n_orchestrator::{
+    canvas::{CanvasGraphRecordDocument, CanvasImageNodeExecutionInput, CanvasNodeRunHandle},
+    media::ImageGenerationProgress,
+};
 
 use crate::{AppState, actions::image_generation::RuntimeImageGenerationHostPort};
 
-use super::super::{
-    CanvasGraphDocument, CanvasRunSummary,
-    node_lifecycle::{CanvasRunHandle, runtime_summary},
-};
+use super::super::CanvasRunSummary;
 
 pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_image_node(
     state: &AppState,
     project_id: i64,
     graph_id: i64,
     node: &canvas_node::Model,
-    document: &CanvasGraphDocument,
-    run_handle: Option<CanvasRunHandle>,
+    document: &CanvasGraphRecordDocument,
+    run_handle: Option<CanvasNodeRunHandle>,
     mode: &str,
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeImageGenerationHostPort::new(state);
@@ -26,13 +26,12 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_image_node(
                 graph_id,
                 node,
                 document,
-                shared_run: run_handle.map(Into::into),
+                shared_run: run_handle,
                 mode,
             },
             &host_port,
             &ImageGenerationProgress::none(),
         )
         .await
-        .map(runtime_summary)
         .map_err(|error| error.to_string())
 }

@@ -69,6 +69,7 @@ import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
+import { useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
 
 interface GalgameTabProps {
   projectId: number;
@@ -76,74 +77,74 @@ interface GalgameTabProps {
   snapshotChapters: SourceSnapshotChapterSummary[];
 }
 
-const LINE_TYPES: Array<{ value: GalgameLineType; label: string }> = [
-  { value: "narration", label: "旁白" },
-  { value: "dialogue", label: "对白" },
-  { value: "monologue", label: "独白" },
-  { value: "stage_direction", label: "演出" },
-  { value: "choice", label: "选择" },
+const LINE_TYPES: Array<{ value: GalgameLineType; labelKey: MessageKey }> = [
+  { value: "narration", labelKey: "galgame.lineType.narration" },
+  { value: "dialogue", labelKey: "galgame.lineType.dialogue" },
+  { value: "monologue", labelKey: "galgame.lineType.monologue" },
+  { value: "stage_direction", labelKey: "galgame.lineType.stageDirection" },
+  { value: "choice", labelKey: "galgame.lineType.choice" },
 ];
 
 const SPEAKING_LINE_TYPES = new Set(["dialogue", "monologue"]);
 
 const POSITIONS: Array<{
   value: GalgameStagePositionV2 | "";
-  label: string;
+  labelKey: MessageKey;
 }> = [
-  { value: "", label: "无站位" },
-  { value: "left", label: "左" },
-  { value: "center", label: "中" },
-  { value: "right", label: "右" },
+  { value: "", labelKey: "galgame.position.none" },
+  { value: "left", labelKey: "galgame.position.left" },
+  { value: "center", labelKey: "galgame.position.center" },
+  { value: "right", labelKey: "galgame.position.right" },
 ];
 
 const EXPRESSIONS = [
-  { value: "", label: "无表情" },
-  { value: "neutral", label: "自然" },
-  { value: "smile", label: "微笑" },
-  { value: "sad", label: "悲伤" },
-  { value: "angry", label: "生气" },
-  { value: "surprised", label: "惊讶" },
-  { value: "shy", label: "害羞" },
-  { value: "serious", label: "严肃" },
+  { value: "", labelKey: "galgame.expression.none" as MessageKey },
+  { value: "neutral", labelKey: "galgame.expression.neutral" as MessageKey },
+  { value: "smile", labelKey: "galgame.expression.smile" as MessageKey },
+  { value: "sad", labelKey: "galgame.expression.sad" as MessageKey },
+  { value: "angry", labelKey: "galgame.expression.angry" as MessageKey },
+  { value: "surprised", labelKey: "galgame.expression.surprised" as MessageKey },
+  { value: "shy", labelKey: "galgame.expression.shy" as MessageKey },
+  { value: "serious", labelKey: "galgame.expression.serious" as MessageKey },
 ];
 
 const POSE_SUGGESTIONS = [
-  { value: "natural", label: "自然" },
-  { value: "standing", label: "站立" },
-  { value: "sitting", label: "坐姿" },
-  { value: "walking", label: "行走" },
-  { value: "turning", label: "转身" },
-  { value: "close_up", label: "近景" },
+  { value: "natural", labelKey: "galgame.pose.natural" as MessageKey },
+  { value: "standing", labelKey: "galgame.pose.standing" as MessageKey },
+  { value: "sitting", labelKey: "galgame.pose.sitting" as MessageKey },
+  { value: "walking", labelKey: "galgame.pose.walking" as MessageKey },
+  { value: "turning", labelKey: "galgame.pose.turning" as MessageKey },
+  { value: "close_up", labelKey: "galgame.pose.closeUp" as MessageKey },
 ];
 
 const CG_IMPORTANCE_OPTIONS: Array<{
   value: GalgameCgImportance;
-  label: string;
+  labelKey: MessageKey;
 }> = [
-  { value: "normal", label: "普通" },
-  { value: "high", label: "重要" },
-  { value: "critical", label: "关键" },
+  { value: "normal", labelKey: "galgame.cgImportance.normal" },
+  { value: "high", labelKey: "galgame.cgImportance.high" },
+  { value: "critical", labelKey: "galgame.cgImportance.critical" },
 ];
 
 const TRANSITION_OPTIONS = [
-  { value: "", label: "无转场" },
-  { value: "cut", label: "直接切换" },
-  { value: "fade", label: "淡入淡出" },
-  { value: "dissolve", label: "叠化" },
+  { value: "", labelKey: "galgame.transition.none" as MessageKey },
+  { value: "cut", labelKey: "galgame.transition.cut" as MessageKey },
+  { value: "fade", labelKey: "galgame.transition.fade" as MessageKey },
+  { value: "dissolve", labelKey: "galgame.transition.dissolve" as MessageKey },
 ];
 
 const PIPELINE_START_STAGES: Array<{
   value: GalgamePipelineStartStage | "";
-  label: string;
+  labelKey: MessageKey;
 }> = [
-  { value: "", label: "从头开始" },
-  { value: "shooting_script_projection", label: "拍摄剧本投影" },
-  { value: "script_adaptation", label: "剧本改编" },
-  { value: "character_staging", label: "角色演出" },
-  { value: "visual_planning", label: "视觉规划" },
-  { value: "branch_design", label: "分支设计" },
-  { value: "persist_script", label: "写入剧本" },
-  { value: "asset_generation", label: "资产意图" },
+  { value: "", labelKey: "galgame.startStage.all" },
+  { value: "shooting_script_projection", labelKey: "galgame.startStage.shootingScript" },
+  { value: "script_adaptation", labelKey: "galgame.startStage.adaptation" },
+  { value: "character_staging", labelKey: "galgame.startStage.staging" },
+  { value: "visual_planning", labelKey: "galgame.startStage.planning" },
+  { value: "branch_design", labelKey: "galgame.startStage.branch" },
+  { value: "persist_script", labelKey: "galgame.startStage.persist" },
+  { value: "asset_generation", labelKey: "galgame.startStage.asset" },
 ];
 
 const lineBusyTarget = (lineId: number): string => `line:${lineId}`;
@@ -166,6 +167,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   snapshotChapters,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const [detail, setDetail] = useState<GalgameScriptDetail | null>(null);
   const [pipelineStatus, setPipelineStatus] =
@@ -211,7 +213,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       } else {
         setPipelineStatus(null);
         addToast(
-          extractErrorMessage(statusResult.reason, "加载 Galgame 管线状态失败"),
+          extractErrorMessage(statusResult.reason, t("galgame.pipelineFailed")),
           "error",
         );
       }
@@ -225,7 +227,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         setDetail(null);
         const message = extractErrorMessage(scriptResult.reason, "");
         if (!message.includes("不存在")) {
-          addToast(message || "加载 Galgame 剧本失败", "error");
+          addToast(message || t("galgame.loadFailed"), "error");
         }
       }
     } finally {
@@ -249,6 +251,14 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     for (const scene of detail?.scenes ?? []) map.set(scene.scene.id, scene);
     return map;
   }, [detail?.scenes]);
+
+  const speakerProfileById = useMemo(() => {
+    const map = new Map<number, GalgameSpeakerProfile>();
+    for (const profile of detail?.speaker_profiles ?? []) {
+      if (!map.has(profile.id)) map.set(profile.id, profile);
+    }
+    return map;
+  }, [detail?.speaker_profiles]);
 
   const selectedScene = useMemo(
     () =>
@@ -322,8 +332,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
   const pipelineCanResume = Boolean(pipelineStatus?.run?.can_resume);
   const showPipelinePrimary = !detail || pipelineCanResume;
   const regenerateScriptLabel = pipelineStartStage
-    ? `从${pipelineStartStageLabel(pipelineStartStage)}重新生成`
-    : "重新生成完整剧本";
+    ? t("galgame.regenerateFromStage", { stage: pipelineStartStageLabel(pipelineStartStage, t) })
+    : t("galgame.regenerateFullScript");
 
   useEffect(() => {
     if (pipelineRunning || (!loading && !detail)) setPipelineControlsOpen(true);
@@ -336,13 +346,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     try {
       const next = await runProgressTask(
         {
-          title: "Galgame 管线",
-          startMessage: "正在准备 Galgame 管线",
-          successMessage: "Galgame 管线已完成",
-          errorMessage: "运行 Galgame 管线失败",
+          title: t("galgame.pipelineTitle"),
+          startMessage: t("galgame.preparingPipeline"),
+          successMessage: t("galgame.pipelineCompleted"),
+          errorMessage: t("galgame.pipelineFailed"),
           total: 7,
-          cancelLabel: "取消管线",
-          runningHint: "取消后已写入的检查点会保留，可从检查点续跑。",
+          cancelLabel: t("galgame.cancelPipeline"),
+          runningHint: t("galgame.pipelineRunningHint"),
           cancelTaskId: taskId,
           pollTaskProgress: true,
           cancelTask: async () => {
@@ -351,14 +361,14 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           },
         },
         async ({ setProgress }) => {
-          setProgress("正在提交 Galgame 管线...", 0, 7);
+          setProgress(t("galgame.submittingPipeline"), 0, 7);
           const result = await startGalgamePipeline({
             project_id: projectId,
             task_id: taskId,
             start_from_stage: currentPipelineStartStage(),
             resume_from_checkpoint: resumeFromCheckpoint,
           });
-          setProgress("正在刷新 Galgame 管线状态...", 7, 7);
+          setProgress(t("galgame.refreshingPipeline"), 7, 7);
           return result;
         },
       );
@@ -366,12 +376,12 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       setDetail(next);
       setPipelineStatus(nextStatus);
       setSelectedSceneId(next.scenes[0]?.scene.id ?? null);
-      addToast("Galgame 管线已完成", "success");
+      addToast(t("galgame.pipelineCompleted"), "success");
     } catch (err) {
-      const message = extractErrorMessage(err, "运行 Galgame 管线失败");
+      const message = extractErrorMessage(err, t("galgame.pipelineFailed"));
       const cancelled = message.includes("取消");
       addToast(
-        cancelled ? "Galgame 管线已取消" : message,
+        cancelled ? t("galgame.pipelineCancelled") : message,
         cancelled ? "info" : "error",
       );
       const nextStatus = await getGalgamePipelineStatus(projectId).catch(
@@ -389,9 +399,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     try {
       const next = await cancelGalgamePipeline(projectId);
       setPipelineStatus(next);
-      addToast("已请求取消 Galgame 管线", "info");
+      addToast(t("galgame.cancelRequested"), "info");
     } catch (err) {
-      addToast(extractErrorMessage(err, "取消 Galgame 管线失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.cancelFailed")), "error");
     } finally {
       setPipelineCancelling(false);
     }
@@ -415,7 +425,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     } catch (err) {
       if (previewSeqRef.current === seq) {
         addToast(
-          extractErrorMessage(err, "预览 Galgame 管线请求失败"),
+          extractErrorMessage(err, t("galgame.previewFailed")),
           "error",
         );
         setRequestPreviewOpen(false);
@@ -438,9 +448,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     try {
       const next = await planGalgameAssets(projectId);
       setAssetPlan(next);
-      addToast("Galgame 资产规划已写入生成意图", "success");
+      addToast(t("galgame.planWritten"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "规划 Galgame 资产失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.planFailed")), "error");
     } finally {
       setPlanningAssets(false);
     }
@@ -454,11 +464,14 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       const nextDetail = await getGalgameScript(projectId);
       setDetail(nextDetail);
       addToast(
-        `Galgame 视觉资产已生成 ${result.generated_count} 项，跳过 ${result.skipped_completed_count} 项`,
+        t("galgame.assetGenerationSummary", {
+          generated: result.generated_count,
+          skipped: result.skipped_completed_count,
+        }),
         "success",
       );
     } catch (err) {
-      addToast(extractErrorMessage(err, "生成 Galgame 视觉资产失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.assetGenerationFailed")), "error");
     } finally {
       setGeneratingAssets(false);
     }
@@ -480,11 +493,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       });
       setAssetPlan(await planGalgameAssets(projectId));
       addToast(
-        result.generated_count > 0 ? "角色差分已生成" : "角色差分已复用",
+        result.generated_count > 0
+          ? t("galgame.portraitGenerated")
+          : t("galgame.portraitReused"),
         "success",
       );
     } catch (err) {
-      addToast(extractErrorMessage(err, "生成角色差分失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.portraitGenerationFailed")), "error");
     } finally {
       setGeneratingAssetSpecId(null);
     }
@@ -517,7 +532,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       await updateGalgameLine(projectId, input);
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "保存剧本行失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.saveLineFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -541,7 +556,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       await updateGalgameScene(projectId, input);
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "保存场信息失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.saveSceneFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -552,11 +567,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     afterLine: GalgameLine | null,
   ) => {
     if (!canEditGalgame || busyTarget != null) return;
-    const inputText = window.prompt("请输入新旁白内容");
+    const inputText = window.prompt(t("galgame.newNarrationPrompt"));
     if (inputText == null) return;
     const text = inputText.trim();
     if (!text) {
-      addToast("新旁白内容不能为空", "error");
+      addToast(t("galgame.emptyNarration"), "error");
       return;
     }
     setBusyTarget(insertBusyTarget(scene.scene.id, afterLine?.id ?? null));
@@ -572,7 +587,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       });
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "新增剧本行失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.insertLineFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -585,7 +600,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       await deleteGalgameLine(projectId, { line_id: line.id });
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "删除剧本行失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.deleteLineFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -610,7 +625,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       });
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "调整剧本行顺序失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.reorderLineFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -629,7 +644,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       });
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "保存选择支失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.saveChoicesFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -642,7 +657,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     );
     if (!file) return;
     if (!file.type) {
-      addToast("无法识别音频 MIME 类型", "error");
+      addToast(t("galgame.invalidAudioMime"), "error");
       return;
     }
     setBusyTarget(audioBusyTarget(line.id, role));
@@ -657,11 +672,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       });
       await load();
       addToast(
-        role === "bgm" ? "BGM 已导入并绑定" : "音效已导入并绑定",
+        t("galgame.audioImported", {
+          role: role === "bgm" ? "BGM" : t("galgame.soundEffect"),
+        }),
         "success",
       );
     } catch (err) {
-      addToast(extractErrorMessage(err, "导入 Galgame 音频失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.importAudioFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -680,7 +697,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       });
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "解绑 Galgame 媒体失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.unbindMediaFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -703,9 +720,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         role,
       });
       await load();
-      addToast("Galgame 媒体已绑定", "success");
+      addToast(t("galgame.mediaBound"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "绑定 Galgame 媒体失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.bindMediaFailed")), "error");
     } finally {
       setBusyTarget(null);
     }
@@ -716,9 +733,9 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     setExportingWebgal(true);
     try {
       downloadBase64ExportFile(await exportGalgameWebgal(projectId));
-      addToast("WebGAL 工程已导出", "success");
+      addToast(t("galgame.exportedWebgal"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "导出 WebGAL 工程失败"), "error");
+      addToast(extractErrorMessage(err, t("galgame.exportWebgalFailed")), "error");
     } finally {
       setExportingWebgal(false);
     }
@@ -731,29 +748,29 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
     <div className="flex min-h-[60vh] flex-col gap-3 lg:h-full lg:min-h-0">
       <div className="lg:hidden">
         <SegmentedControl
-          ariaLabel="Galgame 移动工作区"
+          ariaLabel={t("galgame.mobileWorkspace")}
           value={mobileWorkspaceView}
           onChange={setMobileWorkspaceView}
           options={[
-            { id: "scenes", label: "场次" },
-            { id: "editor", label: "编辑" },
+            { id: "scenes", label: t("galgame.scenes") },
+            { id: "editor", label: t("galgame.editor") },
           ]}
         />
       </div>
       <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-4">
         <aside
-          aria-label="Galgame 场次与管线"
+          aria-label={t("galgame.sceneAndPipeline")}
           className={`${mobileWorkspaceView === "scenes" ? "block" : "hidden"} min-h-0 space-y-3 lg:block lg:overflow-y-auto custom-scrollbar`}
         >
           <div className="flex items-start gap-3 px-1 pb-1">
             <div className="min-w-0 flex-1">
               <h2 className="text-xs font-semibold text-book-text-main">
-                场次
+                {t("galgame.scenes")}
               </h2>
               <p className="mt-0.5 text-caption text-book-text-muted">
                 {detail
-                  ? `${detail.scenes.length} 场 · ${totalLines} 行`
-                  : "尚未生成"}
+                  ? t("galgame.sceneCount", { scenes: detail.scenes.length, lines: totalLines })
+                  : t("galgame.notGenerated")}
               </p>
             </div>
             <button
@@ -761,8 +778,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
               onClick={load}
               disabled={loading || generating || pipelineCancelling}
               className="pyqt-btn-icon !h-9 !w-9 !rounded-xl sm:!h-8 sm:!w-8"
-              aria-label="刷新 Galgame 剧本"
-              title="刷新"
+              aria-label={t("galgame.refreshScript")}
+              title={t("common.refresh")}
             >
               {loading ? (
                 <LoadingSpinner size="sm" />
@@ -775,8 +792,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                 items={[
                   {
                     label: exportingWebgal
-                      ? "正在导出 WebGAL 工程"
-                      : "导出 WebGAL 工程",
+                      ? t("galgame.exportingWebgal")
+                      : t("galgame.exportWebgal"),
                     icon: exportingWebgal ? (
                       <LoadingSpinner size="sm" />
                     ) : (
@@ -790,7 +807,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
             ) : null}
           </div>
           <details
-            aria-label="Galgame 剧本生成"
+            aria-label={t("galgame.scriptGeneration")}
             className="a4n-flat-surface overflow-hidden"
             open={pipelineControlsOpen}
             onToggle={(event) =>
@@ -798,16 +815,16 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
             }
           >
             <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-xs font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
-              <span>剧本生成</span>
+              <span>{t("galgame.scriptGeneration")}</span>
               <span className="flex-1" />
               <span className="text-small font-normal text-book-text-muted">
                 {pipelineRunning
-                  ? "生成中"
+                  ? t("galgame.generating")
                   : pipelineCanResume
-                    ? "可继续"
+                    ? t("galgame.resumable")
                     : detail
-                      ? "已生成"
-                      : "未生成"}
+                      ? t("galgame.generated")
+                      : t("galgame.notGenerated")}
               </span>
             </summary>
             <div className="border-t border-book-border/40 px-3 pb-3 pt-2.5">
@@ -824,7 +841,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                   ) : (
                     <X size={13} />
                   )}
-                  停止生成
+                  {t("galgame.stopGeneration")}
                 </BookButton>
               ) : showPipelinePrimary ? (
                 <BookButton
@@ -839,14 +856,14 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                   ) : (
                     <FileText size={14} />
                   )}
-                  {pipelineCanResume ? "继续生成" : "生成剧本"}
+                  {pipelineCanResume ? t("galgame.continueGeneration") : t("galgame.generateScript")}
                 </BookButton>
               ) : null}
               {!pipelineRunning ? (
                 <div className="mt-2 flex items-start justify-between gap-2">
                   <details className="min-w-0 flex-1">
                     <summary className="cursor-pointer rounded-lg px-1 py-1 text-caption text-book-text-muted hover:bg-book-bg-tertiary/55 hover:text-book-text-main">
-                      生成选项 · {pipelineStartStageLabel(pipelineStartStage)}
+                      {t("galgame.generationOptions")} · {pipelineStartStageLabel(pipelineStartStage, t)}
                     </summary>
                     <select
                       className="pyqt-input mt-1.5 w-full text-xs"
@@ -862,7 +879,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                     >
                       {PIPELINE_START_STAGES.map((stage) => (
                         <option key={stage.value || "all"} value={stage.value}>
-                          {stage.label}
+                          {t(stage.labelKey)}
                         </option>
                       ))}
                     </select>
@@ -871,8 +888,8 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                     items={[
                       {
                         label: requestPreviewLoading
-                          ? "正在准备模型请求"
-                          : "查看模型请求",
+                          ? t("galgame.preparingModelRequest")
+                          : t("galgame.viewModelRequest"),
                         icon: requestPreviewLoading ? (
                           <LoadingSpinner size="sm" />
                         ) : (
@@ -940,13 +957,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                     </div>
                     <div className="mt-1 truncate text-small">
                       {chapter
-                        ? `第 ${chapter.chapter_number} 章`
-                        : "来源章节"}
+                        ? t("novel.chapterRangeSingle", { number: chapter.chapter_number })
+                        : t("galgame.sourceChapter")}
                       {" · "}
-                      {item.lines.length} 行
+                      {t("galgame.lineCount", { count: item.lines.length })}
                     </div>
                     <div className="mt-1 text-caption leading-relaxed text-book-text-subtle">
-                      {sceneEntryKindLabel(item.scene.entry_kind)}
+                      {sceneEntryKindLabel(item.scene.entry_kind, t)}
                       {item.scene.next_scene_id != null ? (
                         <span
                           className={
@@ -963,12 +980,18 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                           {nextScene
                             ? item.scene.entry_kind === "branch" &&
                               nextScene.scene.entry_kind !== "main"
-                              ? `→ 非主线场 ${nextScene.scene.scene_index}`
-                              : `→ 场次 ${nextScene.scene.scene_index}`
-                            : "→ 下一场缺失"}
+                              ? t("galgame.nextSceneNonMain", {
+                                  number: nextScene.scene.scene_index,
+                                })
+                              : t("galgame.nextSceneLabel", {
+                                  number: nextScene.scene.scene_index,
+                                })
+                            : t("galgame.nextSceneMissingLabel")}
                         </span>
                       ) : item.scene.entry_kind === "branch" ? (
-                        <span className="text-error"> · 未回收敛</span>
+                        <span className="text-error">
+                          {t("galgame.branchNotConverged")}
+                        </span>
                       ) : null}
                     </div>
                   </button>
@@ -996,7 +1019,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         </aside>
 
         <section
-          aria-label="Galgame 剧本编辑区"
+          aria-label={t("galgame.editor")}
           className={`${mobileWorkspaceView === "editor" ? "block" : "hidden"} a4n-flat-surface min-h-0 overflow-hidden ${
             selectedScene ? "lg:flex lg:flex-col" : "self-start lg:block"
           }`}
@@ -1004,21 +1027,21 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
           <div className="flex items-start gap-3 border-b border-book-border/40 px-3 py-3 sm:px-4">
             <div className="min-w-0 flex-1">
               <h2 className="truncate text-sm font-semibold text-book-text-main">
-                {selectedScene?.scene.title ?? "Galgame 剧本"}
+                {selectedScene?.scene.title ?? t("galgame.workspace")}
               </h2>
               <p className="mt-0.5 truncate text-caption text-book-text-muted">
                 {selectedScene
                   ? [
                       selectedScene.scene.background_note,
-                      sceneEntryKindLabel(selectedScene.scene.entry_kind),
+                      sceneEntryKindLabel(selectedScene.scene.entry_kind, t),
                       selectedSourceChapter
-                        ? `第 ${selectedSourceChapter.chapter_number} 章`
-                        : "来源章节",
-                      `${selectedScene.lines.length} 行`,
+                        ? t("novel.chapterRangeSingle", { number: selectedSourceChapter.chapter_number })
+                        : t("galgame.sourceChapter"),
+                      t("galgame.lineCount", { count: selectedScene.lines.length }),
                     ]
                       .filter(Boolean)
                       .join(" · ")
-                  : "生成后可编辑场和行"}
+                  : t("galgame.generatedEditorHint")}
               </p>
             </div>
             {selectedScene && canEditGalgame ? (
@@ -1037,7 +1060,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                 className="!min-h-9 !px-2.5 !text-xs sm:!min-h-8"
               >
                 <Plus size={14} />
-                添加旁白
+                {t("galgame.addNarration")}
               </BookButton>
             ) : null}
           </div>
@@ -1073,12 +1096,12 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
             {loading ? (
               <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
                 <LoadingSpinner size="sm" />
-                加载 Galgame 剧本
+                {t("galgame.loadingScript")}
               </div>
             ) : !selectedScene ? (
               <div className="m-auto flex min-h-[160px] max-w-md flex-col items-center justify-center gap-3 text-xs text-book-text-muted">
                 <PenLine size={22} />
-                <span>尚未生成剧本</span>
+                <span>{t("galgame.scriptNotGenerated")}</span>
               </div>
             ) : (
               <div className="divide-y divide-book-border/40">
@@ -1087,6 +1110,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                     key={line.id}
                     line={line}
                     speakerProfiles={detail?.speaker_profiles ?? []}
+                    speakerProfileById={speakerProfileById}
                     sourceAnchor={
                       line.text_anchor_id
                         ? (textAnchorById.get(line.text_anchor_id) ?? null)
@@ -1137,7 +1161,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="Galgame 生成请求"
+        fallbackTitle={t("galgame.requestTitle")}
         onClose={closeRequestPreview}
       />
     </div>
@@ -1147,6 +1171,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 interface LineEditorProps {
   line: GalgameLine;
   speakerProfiles: GalgameSpeakerProfile[];
+  speakerProfileById: ReadonlyMap<number, GalgameSpeakerProfile>;
   sourceAnchor: GalgameTextAnchorSummary | null;
   sourceChapter: SourceSnapshotChapterSummary | null;
   mediaBindings: GalgameMediaBindingSummary[];
@@ -1189,16 +1214,26 @@ const AssetPlanPanel: React.FC<{
   onGenerate,
   onGenerateSpec,
 }) => {
+  const { t } = useI18n();
   const planSummary = plan
     ? [
         plan.summary.background_specs > 0
-          ? `背景 ${plan.summary.background_specs}`
+          ? t("galgame.assetSummary", {
+              label: t("galgame.background"),
+              count: plan.summary.background_specs,
+            })
           : null,
         plan.summary.portrait_expression_specs > 0
-          ? `角色差分 ${plan.summary.portrait_expression_specs}`
+          ? t("galgame.assetSummary", {
+              label: t("galgame.portraitExpressions"),
+              count: plan.summary.portrait_expression_specs,
+            })
           : null,
         plan.summary.event_cg_specs > 0
-          ? `事件 CG ${plan.summary.event_cg_specs}`
+          ? t("galgame.assetSummary", {
+              label: "CG",
+              count: plan.summary.event_cg_specs,
+            })
           : null,
       ]
         .filter(Boolean)
@@ -1207,13 +1242,22 @@ const AssetPlanPanel: React.FC<{
   const outcomeSummary = plan
     ? [
         plan.summary.created_specs > 0
-          ? `新增 ${plan.summary.created_specs}`
+          ? t("galgame.assetSummary", {
+              label: t("galgame.assetOutcome.created"),
+              count: plan.summary.created_specs,
+            })
           : null,
         plan.summary.updated_specs > 0
-          ? `更新 ${plan.summary.updated_specs}`
+          ? t("galgame.assetSummary", {
+              label: t("galgame.assetOutcome.updated"),
+              count: plan.summary.updated_specs,
+            })
           : null,
         plan.summary.reused_specs > 0
-          ? `复用 ${plan.summary.reused_specs}`
+          ? t("galgame.assetSummary", {
+              label: t("galgame.assetOutcome.reused"),
+              count: plan.summary.reused_specs,
+            })
           : null,
       ]
         .filter(Boolean)
@@ -1221,17 +1265,17 @@ const AssetPlanPanel: React.FC<{
     : null;
   return (
     <details
-      aria-label="资产规划"
+      aria-label={t("galgame.assetPlan")}
       className="a4n-flat-surface overflow-hidden text-xs"
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 font-medium text-book-text-main hover:bg-book-bg-tertiary/55 [&::-webkit-details-marker]:hidden">
-        <span>视觉资产</span>
+        <span>{t("galgame.visualAssets")}</span>
         <span className="flex-1" />
         {loading || generating ? (
           <LoadingSpinner size="sm" />
         ) : null}
         <span className="text-small font-normal text-book-text-muted">
-          {plan ? "已规划" : "未规划"}
+          {plan ? t("galgame.assetPlanPlanned") : t("galgame.assetPlanUnplanned")}
         </span>
       </summary>
       <div className="border-t border-book-border/40 px-3 py-3">
@@ -1247,14 +1291,16 @@ const AssetPlanPanel: React.FC<{
           ) : (
             <Images size={13} />
           )}
-          {plan ? "生成视觉资产" : "规划视觉资产"}
+          {plan
+            ? t("galgame.generateVisualAssets")
+            : t("galgame.planVisualAssets")}
         </BookButton>
         {plan ? (
           <div className="mt-2 flex justify-end">
             <Dropdown
               items={[
                 {
-                  label: "重新规划视觉资产",
+                  label: t("galgame.replanVisualAssets"),
                   icon: <RefreshCw size={13} />,
                   onClick: onPlan,
                   disabled,
@@ -1265,7 +1311,7 @@ const AssetPlanPanel: React.FC<{
         ) : null}
         {!plan ? (
           <div className="mt-2 text-small text-book-text-muted">
-            规划后可统一生成背景、角色差分与事件 CG。
+            {t("galgame.assetPlanHint")}
           </div>
         ) : (
           <div className="mt-2 space-y-2 text-small text-book-text-muted">
@@ -1275,7 +1321,7 @@ const AssetPlanPanel: React.FC<{
                 {outcomeSummary}
               </p>
             ) : null}
-            <AssetPlanList title="背景" items={plan.backgrounds} />
+            <AssetPlanList title={t("galgame.background")} items={plan.backgrounds} />
             <PortraitExpressionMatrix
               items={plan.portrait_expressions}
               speakerProfiles={speakerProfiles}
@@ -1283,7 +1329,7 @@ const AssetPlanPanel: React.FC<{
               generatingSpecId={generatingSpecId}
               onGenerateSpec={onGenerateSpec}
             />
-            <AssetPlanList title="事件 CG" items={plan.event_cgs} />
+            <AssetPlanList title="CG" items={plan.event_cgs} />
           </div>
         )}
       </div>
@@ -1295,6 +1341,7 @@ const AssetPlanList: React.FC<{
   title: string;
   items: GalgameAssetPlan["backgrounds"];
 }> = ({ title, items }) => {
+  const { t } = useI18n();
   if (!items.length) return null;
   return (
     <div className="border-t border-book-border pt-2">
@@ -1308,10 +1355,10 @@ const AssetPlanList: React.FC<{
             <span className="min-w-0 truncate" title={item.label}>
               {item.label}
             </span>
-            <span>{assetPlanOutcomeLabel(item.outcome)}</span>
+            <span>{assetPlanOutcomeLabel(item.outcome, t)}</span>
           </div>
         ))}
-        {items.length > 4 ? <div>还有 {items.length - 4} 项</div> : null}
+        {items.length > 4 ? <div>{t("galgame.moreCount", { count: items.length - 4 })}</div> : null}
       </div>
     </div>
   );
@@ -1344,6 +1391,7 @@ const PortraitExpressionMatrix: React.FC<{
   generatingSpecId,
   onGenerateSpec,
 }) => {
+  const { t } = useI18n();
   const cells = useMemo(
     () => buildPortraitExpressionCells(items, speakerProfiles),
     [items, speakerProfiles],
@@ -1357,9 +1405,9 @@ const PortraitExpressionMatrix: React.FC<{
   return (
     <div className="border-t border-book-border pt-2">
       <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="font-semibold text-book-text-main">角色差分</span>
+        <span className="font-semibold text-book-text-main">{t("galgame.portraitExpressions")}</span>
         <span className="text-caption tabular-nums text-book-text-subtle">
-          {cells.length} 项
+          {t("galgame.itemCount", { count: cells.length })}
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -1367,14 +1415,14 @@ const PortraitExpressionMatrix: React.FC<{
           <thead>
             <tr className="text-left text-book-text-muted">
               <th className="border border-book-border bg-book-bg-paper px-2 py-1 font-medium">
-                角色
+                {t("novel.characters")}
               </th>
               {expressionValues.map((expression) => (
                 <th
                   key={expression || "none"}
                   className="border border-book-border bg-book-bg-paper px-2 py-1 font-medium"
                 >
-                  {portraitExpressionLabel(expression)}
+                  {portraitExpressionLabel(expression, t)}
                 </th>
               ))}
             </tr>
@@ -1389,9 +1437,9 @@ const PortraitExpressionMatrix: React.FC<{
                     </div>
                     <div
                       className="truncate text-book-text-muted"
-                      title={poseDisplayValue(firstCell.pose)}
+                      title={poseDisplayValue(firstCell.pose, t)}
                     >
-                      {poseDisplayValue(firstCell.pose)}
+                      {poseDisplayValue(firstCell.pose, t)}
                     </div>
                   </th>
                   {expressionValues.map((expression) => {
@@ -1413,7 +1461,7 @@ const PortraitExpressionMatrix: React.FC<{
                               }`}
                               title={cell.item.label}
                             >
-                              {assetSpecStatusLabel(cell.item.status)}
+                              {assetSpecStatusLabel(cell.item.status, t)}
                             </span>
                             <BookButton
                               variant="secondary"
@@ -1430,8 +1478,8 @@ const PortraitExpressionMatrix: React.FC<{
                                 <RefreshCw size={12} />
                               )}
                               {cell.item.status === "completed"
-                                ? "检查"
-                                : "生成"}
+                                ? t("common.open")
+                                : t("galgame.generateScript")}
                             </BookButton>
                           </div>
                         ) : (
@@ -1467,6 +1515,7 @@ const SceneMetaEditor: React.FC<{
   onBindMedia,
   onUnbindMedia,
 }) => {
+  const { t } = useI18n();
   const [draft, setDraft] = useState({
     title: scene.title,
     location: scene.location ?? "",
@@ -1538,7 +1587,7 @@ const SceneMetaEditor: React.FC<{
           className="pyqt-input text-book-text-main"
           value={draft.location}
           disabled={disabled}
-          placeholder="地点"
+          placeholder={t("galgame.location")}
           onChange={(event) =>
             setDraft((current) => ({
               ...current,
@@ -1551,7 +1600,7 @@ const SceneMetaEditor: React.FC<{
           className="pyqt-input text-book-text-main"
           value={draft.time_of_day}
           disabled={disabled}
-          placeholder="时间"
+          placeholder={t("galgame.time")}
           onChange={(event) =>
             setDraft((current) => ({
               ...current,
@@ -1564,7 +1613,7 @@ const SceneMetaEditor: React.FC<{
           className="pyqt-input min-h-16 text-book-text-main md:col-span-3"
           value={draft.background_note}
           disabled={disabled}
-          placeholder="背景需求"
+          placeholder={t("galgame.backgroundNeed")}
           onChange={(event) =>
             setDraft((current) => ({
               ...current,
@@ -1584,38 +1633,38 @@ const SceneMetaEditor: React.FC<{
           }}
         >
           <option value="">
-            {scene.entry_kind === "branch" ? "未回收敛" : "无下一场"}
+            {scene.entry_kind === "branch" ? t("galgame.noConvergence") : t("galgame.noNextScene")}
           </option>
           {!selectedNextSceneSelectable && scene.next_scene_id != null ? (
             <option value={scene.next_scene_id}>
               {scenes.some((item) => item.scene.id === scene.next_scene_id)
-                ? "当前下一场不是可用主线场"
-                : "当前下一场已缺失"}
+                ? t("galgame.nextSceneNotMain")
+                : t("galgame.nextSceneMissing")}
             </option>
           ) : null}
           {availableNextScenes.map((item) => (
             <option key={item.scene.id} value={item.scene.id}>
-              {sceneSelectLabel(item.scene)}
+              {sceneSelectLabel(item.scene, t)}
             </option>
           ))}
         </select>
       </div>
       <details className="rounded-xl border border-book-border/40 bg-book-bg-paper/45 p-2.5">
         <summary className="cursor-pointer text-small font-medium text-book-text-main">
-          背景素材 ·{" "}
+          {t("galgame.background")} ·{" "}
           {backgroundBindings.length
-            ? `${backgroundBindings.length} 项`
-            : "未绑定"}
+            ? t("galgame.bindingCount", { count: backgroundBindings.length })
+            : t("galgame.unbound")}
         </summary>
         <div className="mt-2">
           <ImageBindingStrip
-            title="背景"
+            title={t("galgame.background")}
             emptyLabel=""
             bindings={backgroundBindings}
             disabled={disabled}
             bindControl={
               <MediaAssetIdBinder
-                label="绑定背景素材"
+                label={t("galgame.bindBackground")}
                 disabled={disabled}
                 onBind={onBindMedia}
               />
@@ -1631,6 +1680,7 @@ const SceneMetaEditor: React.FC<{
 const LineEditor: React.FC<LineEditorProps> = ({
   line,
   speakerProfiles,
+  speakerProfileById,
   sourceAnchor,
   sourceChapter,
   mediaBindings,
@@ -1651,8 +1701,9 @@ const LineEditor: React.FC<LineEditorProps> = ({
   onBindMedia,
   onUnbindMedia,
 }) => {
+  const { t } = useI18n();
   const [text, setText] = useState(line.text);
-  const [pose, setPose] = useState(poseDisplayValue(line.pose ?? ""));
+  const [pose, setPose] = useState(line.pose ?? "");
   const isSpeakingLine = SPEAKING_LINE_TYPES.has(line.line_type);
   const isChoiceLine = line.line_type === "choice";
   const expressionValue = selectValue(line.expression, EXPRESSIONS);
@@ -1661,15 +1712,15 @@ const LineEditor: React.FC<LineEditorProps> = ({
   const poseDatalistId = `galgame-pose-suggestions-${line.id}`;
   const speaker = useMemo(
     () =>
-      speakerProfiles.find(
-        (profile) => profile.id === line.speaker_profile_id,
-      ) ?? null,
-    [line.speaker_profile_id, speakerProfiles],
+      line.speaker_profile_id == null
+        ? null
+        : (speakerProfileById.get(line.speaker_profile_id) ?? null),
+    [line.speaker_profile_id, speakerProfileById],
   );
 
   useEffect(() => {
     setText(line.text);
-    setPose(poseDisplayValue(line.pose ?? ""));
+    setPose(line.pose ?? "");
   }, [line.pose, line.text]);
 
   const firstSpeakerId = speakerProfiles[0]?.id ?? null;
@@ -1678,7 +1729,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
     <article className="py-4 first:pt-0 last:pb-0">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="min-w-8 text-small font-semibold text-book-text-muted">
-          第 {line.line_index} 行
+          {t("galgame.lineNumber", { number: line.line_index })}
         </span>
         <select
           className="pyqt-input text-xs text-book-text-main"
@@ -1706,7 +1757,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
                 speakerProfiles.length === 0
               }
             >
-              {item.label}
+              {t(item.labelKey)}
             </option>
           ))}
         </select>
@@ -1727,7 +1778,9 @@ const LineEditor: React.FC<LineEditorProps> = ({
             }
           >
             <option value="">
-              {speakerProfiles.length === 0 ? "无角色档案" : "未绑定角色"}
+              {speakerProfiles.length === 0
+                ? t("galgame.noSpeakerProfiles")
+                : t("galgame.unboundSpeaker")}
             </option>
             {speakerProfiles.map((profile) => (
               <option key={profile.id} value={profile.id}>
@@ -1748,7 +1801,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
           >
             {POSITIONS.map((item) => (
               <option key={item.value} value={item.value}>
-                {item.label}
+                {t(item.labelKey)}
               </option>
             ))}
           </select>
@@ -1763,16 +1816,16 @@ const LineEditor: React.FC<LineEditorProps> = ({
             title={
               speaker
                 ? missingSpeakingExpression
-                  ? "对白或独白必须设置表情"
+                  ? t("galgame.expressionRequired")
                   : speaker.name
-                : "未绑定角色"
+                : t("galgame.unboundSpeaker")
             }
           >
             {speaker
               ? missingSpeakingExpression
-                ? "表情未设置"
-                : `角色 ${speaker.name}`
-              : "角色未绑定"}
+                ? t("galgame.expressionUnset")
+                : t("galgame.speakerLabel", { name: speaker.name })
+              : t("galgame.lineUnbound")}
           </span>
         ) : null}
         {line.text_anchor_id ? (
@@ -1782,17 +1835,25 @@ const LineEditor: React.FC<LineEditorProps> = ({
             }`}
             title={
               sourceAnchor
-                ? `${sourceChapter ? `第 ${sourceChapter.chapter_number} 章` : "来源章节"} · P${
+                ? `${sourceChapter
+                    ? t("novel.chapterRangeSingle", {
+                        number: sourceChapter.chapter_number,
+                      })
+                    : t("galgame.sourceChapter")} · P${
                     sourceAnchor.paragraph_index + 1
                   } · ${sourceAnchor.quote}`
-                : "来源锚点未随剧本返回"
+                : t("galgame.sourceAnchorMissing")
             }
           >
             {sourceAnchor
-              ? `${sourceChapter ? `第 ${sourceChapter.chapter_number} 章` : "源快照"} · ${
+              ? `${sourceChapter
+                  ? t("novel.chapterRangeSingle", {
+                      number: sourceChapter.chapter_number,
+                    })
+                  : t("galgame.sourceSnapshot")} · ${
                   sourceAnchor.quote
                 }`
-              : "来源锚点缺失"}
+              : t("galgame.sourceAnchorUnavailable")}
           </span>
         ) : null}
         <div className="ml-auto flex items-center gap-1">
@@ -1802,24 +1863,24 @@ const LineEditor: React.FC<LineEditorProps> = ({
           <Dropdown
             items={[
               {
-                label: "上移一行",
+                label: t("galgame.moveUp"),
                 onClick: onMoveUp,
                 disabled: disabled || !canMoveUp,
               },
               {
-                label: "下移一行",
+                label: t("galgame.moveDown"),
                 onClick: onMoveDown,
                 disabled: disabled || !canMoveDown,
               },
               {
-                label: "在下方插入旁白",
+                label: t("galgame.insertNarration"),
                 icon: <Plus size={13} />,
                 onClick: onInsertAfter,
                 disabled,
               },
               { type: "divider" },
               {
-                label: "删除此行",
+                label: t("galgame.deleteLine"),
                 icon: <Trash2 size={13} />,
                 onClick: onDelete,
                 disabled,
@@ -1854,26 +1915,26 @@ const LineEditor: React.FC<LineEditorProps> = ({
                 value={item.value}
                 disabled={isSpeakingLine && item.value === ""}
               >
-                {item.label}
+                {t(item.labelKey)}
               </option>
             ))}
           </select>
           <input
             list={poseDatalistId}
             className="pyqt-input text-xs text-book-text-main"
-            value={pose}
+            value={poseDisplayValue(pose, t)}
             disabled={disabled}
-            placeholder="姿势"
+            placeholder={t("galgame.posePlaceholder")}
             onChange={(event) => setPose(event.target.value)}
             onBlur={() => {
-              const storedPose = poseStoredValue(pose);
+              const storedPose = poseStoredValue(pose, t);
               if (storedPose !== (line.pose ?? ""))
                 onPatch({ pose: storedPose || null });
             }}
           />
           <datalist id={poseDatalistId}>
             {POSE_SUGGESTIONS.map((item) => (
-              <option key={item.value} value={item.label} />
+              <option key={item.value} value={t(item.labelKey)} />
             ))}
           </datalist>
           <PresentationEditor
@@ -1910,6 +1971,7 @@ const PresentationEditor: React.FC<{
   disabled: boolean;
   onPatch: (presentationJson: GalgameLinePresentationDocumentV2) => void;
 }> = ({ line, disabled, onPatch }) => {
+  const { t } = useI18n();
   const presentation = line.presentation_json;
   const currentCgEnabled = presentation.cg === true;
   const currentCgImportance: GalgameCgImportance | "" =
@@ -1968,7 +2030,7 @@ const PresentationEditor: React.FC<{
               }`}
             />
           </span>
-          事件 CG
+          CG
         </button>
         {cgEnabled ? (
           <select
@@ -1982,11 +2044,11 @@ const PresentationEditor: React.FC<{
             }}
           >
             <option value="" disabled>
-              选择 CG 优先级
+              {t("galgame.selectCgImportance")}
             </option>
             {CG_IMPORTANCE_OPTIONS.map((item) => (
               <option key={item.value} value={item.value}>
-                {item.label}
+                {t(item.labelKey)}
               </option>
             ))}
           </select>
@@ -2003,7 +2065,7 @@ const PresentationEditor: React.FC<{
         >
           {TRANSITION_OPTIONS.map((item) => (
             <option key={item.value || "none"} value={item.value}>
-              {item.label}
+              {t(item.labelKey)}
             </option>
           ))}
         </select>
@@ -2013,7 +2075,7 @@ const PresentationEditor: React.FC<{
           className="min-h-16 w-full resize-y rounded-xl border border-book-border/55 bg-book-bg px-2.5 py-2 text-xs leading-relaxed text-book-text-main outline-none focus:border-book-primary"
           value={cgNote}
           disabled={disabled}
-          placeholder="事件 CG 画面描述"
+          placeholder={t("galgame.cgDescriptionPlaceholder")}
           onChange={(event) => setCgNote(event.target.value)}
           onBlur={() => {
             if (cgNote !== presentationCgNote(presentation)) {
@@ -2029,7 +2091,7 @@ const PresentationEditor: React.FC<{
       ) : null}
       {cgEnabled && cgNote.trim() && !cgImportance ? (
         <div className="mt-1 text-small text-error">
-          请选择 CG 优先级后保存画面描述。
+          {t("galgame.requireCgImportance")}
         </div>
       ) : null}
     </div>
@@ -2049,6 +2111,7 @@ const ChoiceEditor: React.FC<{
   disabled: boolean;
   onUpdate: (choices: UpdateGalgameChoiceOptionInput[]) => void;
 }> = ({ line, choices, scenes, sceneById, disabled, onUpdate }) => {
+  const { t } = useI18n();
   const [drafts, setDrafts] = useState<ChoiceDraft[]>(() =>
     buildChoiceDrafts(choices),
   );
@@ -2060,9 +2123,9 @@ const ChoiceEditor: React.FC<{
   const targetInspections = useMemo(
     () =>
       drafts.map((draft) =>
-        inspectChoiceTarget(draft.target_scene_id, sceneById),
+        inspectChoiceTarget(draft.target_scene_id, sceneById, t),
       ),
-    [drafts, sceneById],
+    [drafts, sceneById, t],
   );
   const normalizedChoices = useMemo(() => {
     return drafts
@@ -2094,12 +2157,12 @@ const ChoiceEditor: React.FC<{
   const canSave = structurallyComplete && targetIssueCount === 0;
   const validationMessage =
     scenes.length === 0
-      ? "没有可用目标场"
+      ? t("galgame.targetUnavailable")
       : structurallyComplete
         ? targetIssueCount > 0
-          ? `${targetIssueCount} 个目标需要修正`
-          : "选择支目标可验收"
-        : "选择支需要 2 到 3 个完整选项";
+          ? t("galgame.targetNeedsFix", { count: targetIssueCount })
+          : t("galgame.targetReady")
+        : t("galgame.choiceCountInvalid");
 
   const updateDraft = (index: number, patch: Partial<ChoiceDraft>) => {
     setDrafts((current) =>
@@ -2139,7 +2202,7 @@ const ChoiceEditor: React.FC<{
                   className="border border-book-border bg-book-bg px-2 py-1 text-xs text-book-text-main outline-none focus:border-book-primary"
                   value={draft.option_text}
                   disabled={disabled}
-                  placeholder={`选项 ${index + 1}`}
+                  placeholder={t("galgame.choicePlaceholder", { index: index + 1 })}
                   onChange={(event) =>
                     updateDraft(index, { option_text: event.target.value })
                   }
@@ -2153,11 +2216,13 @@ const ChoiceEditor: React.FC<{
                   }
                 >
                   <option value="">
-                    {scenes.length === 0 ? "无目标场" : "请选择目标场"}
+                    {scenes.length === 0
+                      ? t("galgame.noTargetScene")
+                      : t("galgame.chooseTargetScene")}
                   </option>
                   {scenes.map((item) => (
                     <option key={item.scene.id} value={item.scene.id}>
-                      {sceneSelectLabel(item.scene)}
+                      {sceneSelectLabel(item.scene, t)}
                     </option>
                   ))}
                 </select>
@@ -2167,7 +2232,7 @@ const ChoiceEditor: React.FC<{
                     size="sm"
                     onClick={() => removeDraft(index)}
                     disabled={disabled}
-                    aria-label={`删除选项 ${index + 1}`}
+                    aria-label={t("galgame.deleteChoice", { index: index + 1 })}
                   >
                     <Trash2 size={13} />
                   </BookButton>
@@ -2182,7 +2247,7 @@ const ChoiceEditor: React.FC<{
       </div>
       {targetInspections.some((item) => item.kind === "error") ? (
         <div className="mt-2 border border-error/50 bg-book-bg px-2 py-1 text-small text-error">
-          存在缺失目标或未回收敛支线，导出前需要修正。
+          {t("galgame.choiceTargetWarning")}
         </div>
       ) : null}
       <div className="mt-2 flex flex-col gap-2 border-t border-book-border/35 pt-2 sm:flex-row sm:items-center">
@@ -2203,7 +2268,7 @@ const ChoiceEditor: React.FC<{
             disabled={disabled || drafts.length >= 3 || scenes.length === 0}
           >
             <Plus size={13} />
-            添加
+            {t("galgame.addChoice")}
           </BookButton>
           <BookButton
             variant="primary"
@@ -2211,7 +2276,7 @@ const ChoiceEditor: React.FC<{
             onClick={() => onUpdate(normalizedChoices)}
             disabled={disabled || !canSave}
           >
-            保存选择支
+            {t("galgame.saveChoices")}
           </BookButton>
         </div>
       </div>
@@ -2238,47 +2303,64 @@ const ChoiceTargetSummary: React.FC<{ inspection: ChoiceTargetInspection }> = ({
 function inspectChoiceTarget(
   targetSceneId: string,
   sceneById: Map<number, GalgameSceneDetail>,
+  t: MessageTranslator,
 ): ChoiceTargetInspection {
   if (!targetSceneId) {
-    return { kind: "empty", message: "未选择目标场" };
+    return { kind: "empty", message: t("galgame.choiceTarget.notSelected") };
   }
   const sceneId = Number(targetSceneId);
   if (!Number.isInteger(sceneId)) {
-    return { kind: "error", message: "目标场无效" };
+    return { kind: "error", message: t("galgame.choiceTarget.invalid") };
   }
   const target = sceneById.get(sceneId);
   if (!target) {
-    return { kind: "error", message: "选择的目标场不存在" };
+    return { kind: "error", message: t("galgame.choiceTarget.missing") };
   }
   if (target.scene.entry_kind !== "branch") {
     return {
       kind: "main",
-      message: `跳转到主线场次 ${target.scene.scene_index} · ${target.scene.title}`,
+      message: t("galgame.choiceTarget.main", {
+        number: target.scene.scene_index,
+        title: target.scene.title,
+      }),
     };
   }
   const returnSceneId = target.scene.next_scene_id;
   if (returnSceneId == null) {
     return {
       kind: "error",
-      message: `支线场次 ${target.scene.scene_index} · ${target.scene.title} 未设置回收敛场`,
+      message: t("galgame.choiceTarget.branchNoReturn", {
+        number: target.scene.scene_index,
+        title: target.scene.title,
+      }),
     };
   }
   const returnScene = sceneById.get(returnSceneId);
   if (!returnScene) {
     return {
       kind: "error",
-      message: `支线场次 ${target.scene.scene_index} 的回收敛目标不存在`,
+      message: t("galgame.choiceTarget.returnMissing", {
+        number: target.scene.scene_index,
+      }),
     };
   }
   if (returnScene.scene.entry_kind !== "main") {
     return {
       kind: "error",
-      message: `支线场次 ${target.scene.scene_index} 的回收敛目标不是主线场次 ${returnScene.scene.scene_index}`,
+      message: t("galgame.choiceTarget.returnNotMain", {
+        number: target.scene.scene_index,
+        returnNumber: returnScene.scene.scene_index,
+      }),
     };
   }
   return {
     kind: "branch",
-    message: `进入支线场次 ${target.scene.scene_index} · ${target.scene.title}，回到场次 ${returnScene.scene.scene_index} · ${returnScene.scene.title}`,
+    message: t("galgame.choiceTarget.branch", {
+      number: target.scene.scene_index,
+      title: target.scene.title,
+      returnNumber: returnScene.scene.scene_index,
+      returnTitle: returnScene.scene.title,
+    }),
   };
 }
 
@@ -2306,6 +2388,7 @@ const LineMediaBindings: React.FC<{
   onBindMedia: (role: "cg" | "bgm" | "sfx", mediaAssetId: number) => void;
   onUnbindMedia: (binding: GalgameMediaBindingSummary) => void;
 }> = ({ bindings, disabled, onImportAudio, onBindMedia, onUnbindMedia }) => {
+  const { t } = useI18n();
   const audioBindings = bindings.filter(
     (item) => item.binding.role === "bgm" || item.binding.role === "sfx",
   );
@@ -2314,7 +2397,10 @@ const LineMediaBindings: React.FC<{
   return (
     <details className="mt-3 border-t border-book-border/40 pt-2.5">
       <summary className="cursor-pointer rounded-lg px-1 py-1 text-small font-medium text-book-text-main hover:bg-book-bg-tertiary/55">
-        媒体与音效 · {bindingCount > 0 ? `${bindingCount} 项` : "未绑定"}
+        {t("galgame.mediaAndAudio")} ·{" "}
+        {bindingCount > 0
+          ? t("galgame.bindingCount", { count: bindingCount })
+          : t("galgame.unbound")}
       </summary>
       <div className="mt-2.5">
         <ImageBindingStrip
@@ -2324,7 +2410,7 @@ const LineMediaBindings: React.FC<{
           disabled={disabled}
           bindControl={
             <MediaAssetIdBinder
-              label="绑定 CG 资产"
+              label={t("galgame.bindCg")}
               disabled={disabled}
               onBind={(mediaAssetId) => onBindMedia("cg", mediaAssetId)}
             />
@@ -2362,7 +2448,7 @@ const LineMediaBindings: React.FC<{
                   {src ? (
                     <audio src={src} controls className="h-8 w-full" />
                   ) : (
-                    <span>音频文件缺失</span>
+                    <span>{t("galgame.audioMissing")}</span>
                   )}
                   <BookButton
                     variant="secondary"
@@ -2397,6 +2483,7 @@ const ImageBindingStrip: React.FC<{
   bindControl,
   onUnbindMedia,
 }) => {
+  const { t } = useI18n();
   if (!bindings.length) {
     return (
       <div className="mb-2 space-y-2">
@@ -2429,7 +2516,7 @@ const ImageBindingStrip: React.FC<{
                   onClick={() => onUnbindMedia(item)}
                   disabled={disabled}
                   className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main disabled:opacity-45"
-                  aria-label={`取消绑定${title}`}
+                  aria-label={t("galgame.unbindMedia", { title })}
                 >
                   <X size={13} />
                 </button>
@@ -2443,7 +2530,7 @@ const ImageBindingStrip: React.FC<{
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-small text-book-text-muted">
-                    图片文件缺失
+                    {t("galgame.imageMissing")}
                   </div>
                 )}
               </div>
@@ -2462,6 +2549,7 @@ const AudioBindingControl: React.FC<{
   onImport: () => void;
   onBind: (mediaAssetId: number) => void;
 }> = ({ label, disabled, onImport, onBind }) => {
+  const { t } = useI18n();
   return (
     <section className="p-2.5">
       <div className="mb-2 text-small font-semibold text-book-text-main">
@@ -2475,10 +2563,10 @@ const AudioBindingControl: React.FC<{
         disabled={disabled}
       >
         <Music size={13} />
-        导入 {label}
+        {t("galgame.importAudio", { label })}
       </BookButton>
       <MediaAssetIdBinder
-        label={`绑定 ${label} 资产`}
+        label={t("galgame.bindAudio", { label })}
         disabled={disabled}
         onBind={onBind}
       />
@@ -2488,52 +2576,56 @@ const AudioBindingControl: React.FC<{
 
 function pipelineStartStageLabel(
   stage: GalgamePipelineStartStage | "",
+  t: MessageTranslator,
 ): string {
   return (
-    PIPELINE_START_STAGES.find((item) => item.value === stage)?.label ??
-    "从头开始"
+    PIPELINE_START_STAGES.find((item) => item.value === stage)
+      ? t(PIPELINE_START_STAGES.find((item) => item.value === stage)!.labelKey)
+      : t("galgame.startStage.all")
   );
 }
 
-function sceneEntryKindLabel(entryKind: string): string {
+function sceneEntryKindLabel(entryKind: string, t: MessageTranslator): string {
   switch (entryKind) {
     case "main":
-      return "主线";
+      return t("galgame.sceneEntry.main");
     case "branch":
-      return "支线";
+      return t("galgame.sceneEntry.branch");
     default:
-      return "其他场次";
+      return t("galgame.sceneEntry.other");
   }
 }
 
-function sceneSelectLabel(scene: GalgameScene): string {
-  const entryKind = scene.entry_kind === "branch" ? "支线" : "主线";
-  return `场次 ${scene.scene_index} · ${scene.title} · ${entryKind}`;
+function sceneSelectLabel(scene: GalgameScene, t: MessageTranslator): string {
+  const entryKind = scene.entry_kind === "branch"
+    ? t("galgame.sceneEntry.branch")
+    : t("galgame.sceneEntry.main");
+  return `${t("galgame.scenes")} ${scene.scene_index} · ${scene.title} · ${entryKind}`;
 }
 
-function assetPlanOutcomeLabel(outcome: string): string {
+function assetPlanOutcomeLabel(outcome: string, t: MessageTranslator): string {
   switch (outcome) {
     case "created":
-      return "新增";
+      return t("galgame.assetOutcome.created");
     case "updated":
-      return "更新";
+      return t("galgame.assetOutcome.updated");
     case "reused":
-      return "复用";
+      return t("galgame.assetOutcome.reused");
     default:
-      return "其他结果";
+      return t("galgame.assetOutcome.other");
   }
 }
 
-function assetSpecStatusLabel(status: string): string {
+function assetSpecStatusLabel(status: string, t: MessageTranslator): string {
   switch (status) {
     case "draft":
-      return "待生成";
+      return t("galgame.assetStatus.draft");
     case "completed":
-      return "已完成";
+      return t("galgame.assetStatus.completed");
     case "failed":
-      return "失败";
+      return t("galgame.assetStatus.failed");
     case "running":
-      return "生成中";
+      return t("galgame.assetStatus.running");
     default:
       throw new Error(`Galgame 资产规划状态无效: ${status}`);
   }
@@ -2608,20 +2700,24 @@ function portraitExpressionColumns(present: Set<string>): string[] {
   return columns;
 }
 
-function portraitExpressionLabel(expression: string): string {
-  const label = EXPRESSIONS.find((item) => item.value === expression)?.label;
-  if (!label) throw new Error(`Galgame 立绘表情无效: ${expression}`);
-  return label;
+function portraitExpressionLabel(
+  expression: string,
+  t: MessageTranslator,
+): string {
+  const option = EXPRESSIONS.find((item) => item.value === expression);
+  if (!option) throw new Error(`Galgame 立绘表情无效: ${expression}`);
+  return t(option.labelKey);
 }
 
-function poseDisplayValue(pose: string): string {
-  return POSE_SUGGESTIONS.find((item) => item.value === pose)?.label ?? pose;
+function poseDisplayValue(pose: string, t: MessageTranslator): string {
+  const option = POSE_SUGGESTIONS.find((item) => item.value === pose);
+  return option ? t(option.labelKey) : pose;
 }
 
-function poseStoredValue(pose: string): string {
+function poseStoredValue(pose: string, t: MessageTranslator): string {
   const normalized = pose.trim();
   return (
-    POSE_SUGGESTIONS.find((item) => item.label === normalized)?.value ??
+    POSE_SUGGESTIONS.find((item) => t(item.labelKey) === normalized)?.value ??
     normalized
   );
 }

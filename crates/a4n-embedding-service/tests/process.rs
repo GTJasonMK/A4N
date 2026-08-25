@@ -16,12 +16,12 @@ use a4n_test_support::process::{
 #[cfg(feature = "fastembed")]
 use tokio::{io::AsyncReadExt, sync::oneshot, task::JoinHandle};
 
-#[allow(unused_mut)]
 fn embedding_process_env(cache_dir: &std::path::Path) -> Vec<(String, String)> {
-    let mut env = vec![(
+    let mut env = Vec::new();
+    env.push((
         EMBEDDING_CACHE_DIR_ENV.to_string(),
         cache_dir.to_string_lossy().into_owned(),
-    )];
+    ));
     #[cfg(feature = "fastembed")]
     for key in [
         "A4N_ONNXRUNTIME_ROOT",

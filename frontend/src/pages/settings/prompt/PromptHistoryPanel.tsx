@@ -10,10 +10,10 @@ import {
   type PromptEntry,
   type PromptVersion,
 } from "../../../api/prompt";
-import { formatUiDateTime } from "../../../utils/dateTime";
+import { formatDateTime, useI18n } from "../../../i18n";
 
-const promptVersionLabel = (index: number): string =>
-  index === 0 ? "最新版本" : `历史版本 ${index}`;
+const promptVersionLabel = (index: number, t: ReturnType<typeof useI18n>["t"]): string =>
+  index === 0 ? t("settingsPrompt.latestVersion") : t("settingsPrompt.historyVersion", { count: index });
 
 interface PromptHistoryPanelProps {
   prompt: PromptEntry;
@@ -21,6 +21,7 @@ interface PromptHistoryPanelProps {
 
 export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }) => {
   const { addToast } = useToast();
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<PromptVersion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -64,7 +65,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       setHistory(data);
     } catch (err) {
       if (isCurrentScope(targetScope)) {
-        addToast(extractErrorMessage(err, "加载历史失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsPrompt.loadHistoryFailed")), "error");
       }
     } finally {
       if (isCurrentScope(targetScope)) {
@@ -119,7 +120,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       setDiffResult(text);
     } catch (err) {
       if (isCurrentScope(targetScope) && diffSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, "对比失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsPrompt.compareFailed")), "error");
       }
     } finally {
       if (diffSeqRef.current === requestSeq) diffLoadingRef.current = false;
@@ -136,30 +137,30 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
       className="py-2.5"
     >
       <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
-        <History size={11} /> 版本历史
+        <History size={11} /> {t("settingsPrompt.versionHistory")}
       </summary>
       <div className="mt-2">
         {loading ? (
           <div className="text-small text-book-text-muted inline-flex items-center gap-1.5">
-            <LoadingSpinner size="sm" /> 加载历史…
+            <LoadingSpinner size="sm" /> {t("settingsPrompt.loadingHistory")}
           </div>
         ) : history.length === 0 ? (
           <div className="text-small text-book-text-muted italic">
-            尚无历史记录（首次保存后会有）
+            {t("settingsPrompt.noHistory")}
           </div>
         ) : (
           <>
             <div className="mb-1.5 flex items-center gap-2 text-small">
-              <span className="text-book-text-muted">选择两个版本查看内容差异</span>
+              <span className="text-book-text-muted">{t("settingsPrompt.selectTwoVersions")}</span>
               {diffPair.length === 2 && (
                 <BookButton variant="secondary" size="sm" onClick={handleDiff} disabled={diffLoading}>
                   {diffLoading ? (
                     <>
                       <LoadingSpinner size="sm" />
-                      对比中…
+                      {t("settingsPrompt.comparing")}
                     </>
                   ) : (
-                    <>对比已选版本</>
+                    <>{t("settingsPrompt.compareSelected")}</>
                   )}
                 </BookButton>
               )}
@@ -184,10 +185,10 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
                       <span className="min-w-0 flex-1">
                         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="font-medium text-book-text-main">
-                            {promptVersionLabel(index)}
+                            {promptVersionLabel(index, t)}
                           </span>
                           <time className="text-caption tabular-nums text-book-text-muted">
-                            {formatUiDateTime(version.timestamp)}
+                            {formatDateTime(version.timestamp, locale)}
                           </time>
                           {version.author ? (
                             <span className="text-caption text-book-text-muted">
@@ -196,7 +197,7 @@ export const PromptHistoryPanel: React.FC<PromptHistoryPanelProps> = ({ prompt }
                           ) : null}
                         </span>
                         <span className="mt-0.5 block truncate text-small text-book-text-sub">
-                          {version.message || "保存提示词"}
+                          {version.message || t("settingsPrompt.savePrompt")}
                         </span>
                       </span>
                     </button>

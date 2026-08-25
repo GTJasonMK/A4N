@@ -1,6 +1,6 @@
+use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_orchestrator::canvas::{
     CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphNodeExecutionKind,
-    CanvasNodeRunSummary,
 };
 use async_trait::async_trait;
 
@@ -8,12 +8,10 @@ use crate::{
     actions::{
         access,
         canvas_workflow::{
-            CanvasRunSummary,
             media_nodes::{
                 run_canvas_editing_node, run_canvas_generate_image_node,
                 run_canvas_generate_video_node,
             },
-            node_lifecycle::CanvasRunHandle,
             output_nodes::run_canvas_output_node,
             probe_node::run_canvas_probe_node,
             text_nodes::{run_canvas_llm_text_node, run_canvas_render_text_node},
@@ -41,11 +39,8 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
     async fn execute_node(
         &self,
         input: CanvasGraphNodeExecutionInput<'_>,
-    ) -> Result<CanvasNodeRunSummary, String> {
-        let run_handle = Some(CanvasRunHandle {
-            workflow_run_id: input.shared_run.workflow_run_id,
-            finalize_on_success: input.shared_run.finalize_on_success,
-        });
+    ) -> Result<CanvasRunSummary, String> {
+        let run_handle = Some(input.shared_run);
         let summary = match input.kind {
             CanvasGraphNodeExecutionKind::RenderText => {
                 run_canvas_render_text_node(
@@ -139,17 +134,6 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                 .await
             }
         }?;
-        Ok(canvas_node_run_summary(summary))
-    }
-}
-
-fn canvas_node_run_summary(summary: CanvasRunSummary) -> CanvasNodeRunSummary {
-    CanvasNodeRunSummary {
-        workflow_run_id: summary.workflow_run_id,
-        project_id: summary.project_id,
-        graph_id: summary.graph_id,
-        mode: summary.mode,
-        status: summary.status,
-        error_message: summary.error_message,
+        Ok(summary)
     }
 }

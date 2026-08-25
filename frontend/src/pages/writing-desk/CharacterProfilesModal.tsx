@@ -32,6 +32,7 @@ import { cancelWorkflowTask } from "../../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import type { CharacterAttributeCategory } from "../../utils/characterAttributes";
 import { isCancelledOperation } from "../../utils/cancellation";
+import { useI18n } from "../../i18n";
 
 interface CharacterProfilesModalProps {
   open: boolean;
@@ -53,6 +54,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   onMaterialSync,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -155,7 +157,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!isCurrentWorkspace(requestProjectId) || loadSeqRef.current !== requestSeq) return;
       setProfiles([]);
       setSelectedId(null);
-      addToast(extractErrorMessage(err, "加载角色档案失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.profileLoadFailed")), "error");
     } finally {
       if (isCurrentWorkspace(requestProjectId) && loadSeqRef.current === requestSeq) {
         setLoading(false);
@@ -235,7 +237,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      addToast("请填写角色姓名", "error");
+      addToast(t("characterDetail.nameRequiredError"), "error");
       return;
     }
     const actionKey = "save";
@@ -254,15 +256,18 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
       addToast(
         result.warnings.length > 0
-          ? `已创建角色：${createdName}；${result.warnings.join("；")}`
-          : `已创建角色：${createdName}`,
+          ? t("characterDetail.profileCreatedWithWarnings", {
+              name: createdName,
+              warnings: result.warnings.join(t("common.listSeparator")),
+            })
+          : t("characterDetail.profileCreated", { name: createdName }),
         result.warnings.length > 0 ? "info" : "success",
       );
       setEditorOpen(false);
       await load(result.profile_id);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || saveSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "保存失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.profileSaveFailed")), "error");
     } finally {
       if (isCurrentWorkspace(requestProjectId) && saveSeqRef.current === requestSeq) {
         setSaving(false);
@@ -277,9 +282,9 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     if (!beginAction(actionKey)) return;
     try {
       const ok = await confirmDialog({
-        title: "删除角色档案",
-        message: `删除角色档案「${profile.name}」？相关事件、快照、行为记录和立绘引用会一起删除。`,
-        confirmText: "删除",
+        title: t("characterDetail.deleteProfile"),
+        message: t("characterDetail.deleteProfileMessage", { name: profile.name }),
+        confirmText: t("common.delete"),
         dialogType: "danger",
       });
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
@@ -287,14 +292,17 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!isCurrentWorkspace(requestProjectId)) return;
       addToast(
         result.warnings.length > 0
-          ? `已删除：${profile.name}；${result.warnings.join("；")}`
-          : `已删除：${profile.name}`,
+          ? t("characterDetail.profileDeletedWithWarnings", {
+              name: profile.name,
+              warnings: result.warnings.join(t("common.listSeparator")),
+            })
+          : t("characterDetail.profileDeleted", { name: profile.name }),
         result.warnings.length > 0 ? "info" : "success",
       );
       await load(selectedId === profile.id ? null : selectedId);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId)) return;
-      addToast(extractErrorMessage(err, "删除失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.profileDeleteFailed")), "error");
     } finally {
       finishAction(actionKey);
     }
@@ -315,12 +323,12 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: "发现角色",
-          startMessage: "正在准备角色发现",
-          successMessage: "角色发现完成",
-          errorMessage: "发现角色失败",
-          cancelLabel: "停止发现",
-          runningHint: "角色任务执行过程中已完成的角色数据会保留",
+          title: t("characterDetail.discoverProfiles"),
+          startMessage: t("characterDetail.preparingDiscovery"),
+          successMessage: t("characterDetail.discoveryComplete"),
+          errorMessage: t("characterDetail.discoveryFailed"),
+          cancelLabel: t("characterDetail.stopDiscovery"),
+          runningHint: t("characterDetail.discoveryRunningHint"),
         },
         () => discoverCharacterProfiles(requestProjectId, activeChapterNumber, taskId),
       );
@@ -328,13 +336,16 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       const createdCount = result.created.length;
       const existingCount = result.existing.length;
       const discoveredCount = result.discovered_count;
-      const discoverMessage =
-        `角色发现完成：识别 ${discoveredCount} 个，新建 ${createdCount} 个，已存在 ${existingCount} 个`;
+      const discoverMessage = t("characterDetail.discoverySummary", {
+        discovered: discoveredCount,
+        created: createdCount,
+        existing: existingCount,
+      });
       addToast(discoverMessage, createdCount > 0 ? "success" : "info");
       await load(result.created[0]?.id ?? selectedId);
     } catch (err) {
       if (!isCurrentWorkspace(requestProjectId) || discoverSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, "发现角色失败");
+      const message = extractErrorMessage(err, t("characterDetail.discoveryFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
       await load(selectedId);
     } finally {
@@ -364,7 +375,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       if (!isCurrentWorkspace(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
       }
-      addToast(extractErrorMessage(err, "预览角色请求失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.previewRequestFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (isCurrentWorkspace(requestProjectId) && requestPreviewSeqRef.current === requestSeq) {
@@ -384,11 +395,11 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   const handlePreviewSyncAll = async () => {
     if (!requireCurrentAiSource()) return;
     if (profiles.length === 0) {
-      addToast("当前没有可同步的角色档案", "info");
+      addToast(t("characterDetail.noProfilesToSync"), "info");
       return;
     }
     if (!activeChapterNumber) {
-      addToast("请先选择要同步的章节", "error");
+      addToast(t("characterDetail.chooseChapterToSync"), "error");
       return;
     }
     await openRequestPreview(() =>
@@ -399,23 +410,25 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
   const handleSyncAll = async () => {
     if (!requireCurrentAiSource()) return;
     if (profiles.length === 0) {
-      addToast("当前没有可同步的角色档案", "info");
+      addToast(t("characterDetail.noProfilesToSync"), "info");
       return;
     }
     if (!activeChapterNumber) {
-      addToast("请先选择要同步的章节", "error");
+      addToast(t("characterDetail.chooseChapterToSync"), "error");
       return;
     }
     const actionKey = "sync-all";
     if (!beginAction(actionKey)) return;
-    const targetText = `第 ${activeChapterNumber} 章`;
     const requestProjectId = projectId;
     let requestSeq: number | null = null;
     try {
       const ok = await confirmDialog({
-        title: "同步全部角色档案",
-        message: `将 ${profiles.length} 位角色档案同步到${targetText}？\n\n会从每个角色的同步断点继续；已同步到目标章的角色会跳过，已完成的数据会保留。`,
-        confirmText: "开始同步",
+        title: t("characterDetail.syncAllTitle"),
+        message: t("characterDetail.syncAllMessage", {
+          count: profiles.length,
+          chapter: activeChapterNumber,
+        }),
+        confirmText: t("characterDetail.startSync"),
         dialogType: "warning",
       });
       if (!ok || !isCurrentWorkspace(requestProjectId)) return;
@@ -428,12 +441,12 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: "同步全部角色档案",
-          startMessage: "正在准备批量角色同步",
-          successMessage: "批量角色同步完成",
-          errorMessage: "同步全部角色档案失败",
-          cancelLabel: "停止同步",
-          runningHint: "角色任务执行过程中已完成的角色数据会保留",
+          title: t("characterDetail.syncAllTitle"),
+          startMessage: t("characterDetail.syncAllPreparing"),
+          successMessage: t("characterDetail.syncAllComplete"),
+          errorMessage: t("characterDetail.syncAllFailed"),
+          cancelLabel: t("characterDetail.stopSync"),
+          runningHint: t("characterDetail.taskDataKept"),
         },
         () => syncAllCharacterProfiles(requestProjectId, activeChapterNumber, taskId),
       );
@@ -445,34 +458,68 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
       const skippedCount = skippedItems.length;
       const failedCount = failedItems.length;
       const failedNames = failedItems.map((item) => item.name);
-      const failedText =
-        failedCount > 0
-          ? `，失败角色：${failedNames.slice(0, 3).join("、")}${failedCount > 3 ? "等" : ""}`
-          : "";
+      const moreNames = (count: number) =>
+        count > 3 ? t("characterDetail.moreNames") : "";
+      const failedText = failedCount > 0
+        ? t("characterDetail.syncFailedNames", {
+            names: failedNames.slice(0, 3).join(t("common.listSeparator")),
+            more: moreNames(failedCount),
+          })
+        : "";
       const ragIssueNames = syncedItems
-        .filter((item) => item.state_rag_error || !item.state_rag_indexed)
+        .filter((item) =>
+          Boolean(
+            item.state_rag_error?.trim() ||
+              !item.state_rag_indexed ||
+              item.attribute_event_rag_error?.trim() ||
+              !item.attribute_event_rag_indexed,
+          ),
+        )
         .map((item) => item.name);
       const ragIssueCount = ragIssueNames.length;
-      const ragIssueText =
-        ragIssueCount > 0
-          ? `，状态 RAG 异常 ${ragIssueCount} 个（${ragIssueNames.slice(0, 3).join("、")}${
-              ragIssueCount > 3 ? "等" : ""
-            }）`
-          : "";
+      const ragIssueText = ragIssueCount > 0
+        ? t("characterDetail.syncRagIssues", {
+            count: ragIssueCount,
+            names: ragIssueNames.slice(0, 3).join(t("common.listSeparator")),
+            more: moreNames(ragIssueCount),
+          })
+        : "";
+      const rewoundNames = syncedItems
+        .filter((item) => item.cleared_through_chapter > item.synced_chapter)
+        .map((item) => item.name);
+      const rewoundCount = rewoundNames.length;
+      const rewoundText = rewoundCount > 0
+        ? t("characterDetail.syncRewoundProfiles", {
+            count: rewoundCount,
+            names: rewoundNames.slice(0, 3).join(t("common.listSeparator")),
+            more: moreNames(rewoundCount),
+          })
+        : "";
       addToast(
-        `角色档案同步完成：成功 ${syncedCount} 个，跳过 ${skippedCount} 个，失败 ${failedCount} 个${failedText}${ragIssueText}`,
-        ragIssueCount > 0 || failedCount > 0 ? "error" : "success",
+        t("characterDetail.syncAllSummary", {
+          synced: syncedCount,
+          skipped: skippedCount,
+          failed: failedCount,
+          failedText,
+          ragText: ragIssueText,
+          rewoundText,
+        }),
+        ragIssueCount > 0 || failedCount > 0
+          ? "error"
+          : rewoundCount > 0
+            ? "info"
+            : "success",
       );
       await load(selectedId);
     } catch (err) {
       if (requestSeq == null) {
         if (isCurrentWorkspace(requestProjectId)) {
-          addToast(extractErrorMessage(err, "同步全部角色档案失败"), "error");
+          addToast(extractErrorMessage(err, t("characterDetail.syncAllFailed")), "error");
         }
         return;
       }
       if (!isCurrentWorkspace(requestProjectId) || syncSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, "同步全部角色档案失败");
+      const message = extractErrorMessage(err, t("characterDetail.syncAllFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
       await load(selectedId);
     } finally {
@@ -496,15 +543,15 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
     onClose();
   };
   const activeChapterText = currentChapterNumber
-    ? `当前章节：第 ${currentChapterNumber} 章`
-    : "当前未选择章节";
+    ? t("characterDetail.currentChapterText", { chapter: currentChapterNumber })
+    : t("characterDetail.noCurrentChapter");
 
   return (
     <>
       <Modal
         isOpen={open}
         onClose={handleClose}
-        title="角色档案工作台"
+        title={t("characterDetail.profilesWorkspaceTitle")}
         subtitle={activeChapterText}
         icon={<User size={15} />}
         maxWidthClassName="max-w-5xl"
@@ -568,7 +615,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="角色请求预览"
+        fallbackTitle={t("characterDetail.profileRequestPreview")}
         onClose={() => {
           requestPreviewSeqRef.current += 1;
           finishAction("request-preview");

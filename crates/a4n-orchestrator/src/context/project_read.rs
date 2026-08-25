@@ -83,6 +83,15 @@ impl ProjectReadApplication {
             .await
             .map_err(project_mutation_error_to_app_error)
     }
+
+    pub(super) async fn summary_by_id(
+        &self,
+        project_id: i64,
+    ) -> Result<Option<novel_project::Model>, AppError> {
+        a4n_db::project::project_summary_by_id_record(self.database.connection(), project_id)
+            .await
+            .map_err(project_mutation_error_to_app_error)
+    }
 }
 
 impl OrchestratorContext {
@@ -131,5 +140,12 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<Option<novel_project::Model>, AppError> {
         self.project_read.by_id(project_id).await
+    }
+
+    pub async fn project_summary_by_id(
+        &self,
+        project_id: i64,
+    ) -> Result<Option<novel_project::Model>, AppError> {
+        self.project_read.summary_by_id(project_id).await
     }
 }

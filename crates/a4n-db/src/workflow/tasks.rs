@@ -10,5 +10,6 @@ pub use queries::{persisted_task_by_id, persisted_task_history};
 
 #[cfg(test)]
 pub(in crate::workflow) use projections::{
-    generated_video_ids_for_active_checkpoints, persisted_task_info_from_row,
+    WorkflowCheckpointVideoRefs, generated_video_ids_for_active_checkpoints,
+    persisted_task_info_from_row,
 };

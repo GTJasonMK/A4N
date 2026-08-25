@@ -9,7 +9,7 @@ use super::{
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::Value;
 
-pub fn remap_source_sync_decision_payload(
+pub(in crate::project_family_import) fn remap_source_sync_decision_payload(
     strategy: &str,
     value: &Value,
     maps: &ImportIdMaps,

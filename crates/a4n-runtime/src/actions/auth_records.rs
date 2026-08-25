@@ -1,13 +1,11 @@
-mod contracts;
 mod projections;
 mod sessions;
 mod tokens;
 mod users;
 
-pub use contracts::{
-    AuthResult, BootstrapAdminInput, ChangePasswordInput, LoginInput, RefreshTokenInput,
-    RegisterInput, RevokeSessionInput, SessionSummary, TokenPairSummary, UpdateProfileInput,
-    UserSummary,
+pub use a4n_api_contract::auth::{
+    AuthResult, ChangePasswordInput, LoginInput, RefreshTokenInput, RegisterInput,
+    RevokeSessionInput, SessionSummary, TokenPairSummary, UpdateProfileInput, UserSummary,
 };
 pub(crate) use projections::to_user_summary;
 pub use sessions::{list_sessions, revoke_session};

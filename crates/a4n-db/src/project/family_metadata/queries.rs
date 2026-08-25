@@ -1,10 +1,11 @@
 use super::super::validate_positive_i64;
 use super::contracts::{
     ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError,
+    ProjectFamilyRootRow, ProjectFamilySnapshotRow,
 };
 use super::projection::build_project_family_metadata;
 use a4n_core::models::project::{novel_project, project_source_snapshot};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 pub async fn project_family_metadata(
@@ -13,11 +14,9 @@ pub async fn project_family_metadata(
 ) -> Result<ProjectFamilyMetadata, ProjectFamilyMetadataReadError> {
     let mut metadata_by_project_id =
         project_family_metadata_batch(db, std::slice::from_ref(&query)).await?;
-    metadata_by_project_id.remove(&query.project_id).ok_or(
-        ProjectFamilyMetadataReadError::MetadataMissing {
-            project_id: query.project_id,
-        },
-    )
+    Ok(metadata_by_project_id
+        .remove(&query.project_id)
+        .expect("单项族元数据查询必须产生对应项目结果"))
 }
 
 pub async fn project_family_metadata_batch(
@@ -61,12 +60,16 @@ pub async fn project_family_metadata_batch(
 async fn project_models_by_id(
     db: &DatabaseConnection,
     project_ids: &[i64],
-) -> Result<HashMap<i64, novel_project::Model>, ProjectFamilyMetadataReadError> {
+) -> Result<HashMap<i64, ProjectFamilyRootRow>, ProjectFamilyMetadataReadError> {
     if project_ids.is_empty() {
         return Ok(HashMap::new());
     }
     let rows = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::Title)
         .filter(novel_project::Column::Id.is_in(project_ids.iter().copied()))
+        .into_model::<ProjectFamilyRootRow>()
         .all(db)
         .await
         .map_err(|error| ProjectFamilyMetadataReadError::database("查询项目族根项目失败", error))?;
@@ -76,12 +79,16 @@ async fn project_models_by_id(
 async fn source_snapshots_by_id(
     db: &DatabaseConnection,
     snapshot_ids: &[i64],
-) -> Result<HashMap<i64, project_source_snapshot::Model>, ProjectFamilyMetadataReadError> {
+) -> Result<HashMap<i64, ProjectFamilySnapshotRow>, ProjectFamilyMetadataReadError> {
     if snapshot_ids.is_empty() {
         return Ok(HashMap::new());
     }
     let rows = project_source_snapshot::Entity::find()
+        .select_only()
+        .column(project_source_snapshot::Column::Id)
+        .column(project_source_snapshot::Column::ChapterScopeJson)
         .filter(project_source_snapshot::Column::Id.is_in(snapshot_ids.iter().copied()))
+        .into_model::<ProjectFamilySnapshotRow>()
         .all(db)
         .await
         .map_err(|error| {

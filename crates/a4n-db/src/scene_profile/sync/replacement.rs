@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_core::models::scene::scene_occurrence;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::persistence::{
     delete_chapter_scene_records, ensure_chapter_in, insert_scene_entity_state_records,
@@ -22,12 +22,14 @@ where
 {
     ensure_chapter_in(db, project_id, chapter_id, chapter_number).await?;
     let old_scene_ids = scene_occurrence::Entity::find()
+        .select_only()
+        .column(scene_occurrence::Column::SceneProfileId)
         .filter(scene_occurrence::Column::ProjectId.eq(project_id))
         .filter(scene_occurrence::Column::ChapterId.eq(chapter_id))
+        .into_tuple::<i64>()
         .all(db)
         .await?
         .into_iter()
-        .map(|occurrence| occurrence.scene_profile_id)
         .collect::<BTreeSet<_>>();
 
     let scene_ref_map = upsert_scene_profile_records(db, project_id, &input.profiles).await?;

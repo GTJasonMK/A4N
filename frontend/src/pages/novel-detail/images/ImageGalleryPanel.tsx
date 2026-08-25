@@ -12,6 +12,7 @@ import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import type { GeneratedImage } from "../../../api/image";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { toMediaSrc } from "../../../utils/mediaSrc";
+import { formatNumber, useI18n } from "../../../i18n";
 import {
   CHAPTER_SCOPE_OPTIONS,
   compareGroupKey,
@@ -65,6 +66,7 @@ export function ImageGalleryPanel({
   onToggleFavorite,
   onOpenActions,
 }: ImageGalleryPanelProps) {
+  const { locale, t } = useI18n();
   const { images, stats } = useMemo(() => {
     const visibleImages: GeneratedImage[] = [];
     let staleCount = 0;
@@ -103,15 +105,20 @@ export function ImageGalleryPanel({
   const gallerySummary = useMemo(() => {
     if (stats.total === 0) return null;
     const countText = favOnly
-      ? `显示 ${stats.visible} 张收藏图片`
-      : `共 ${stats.total} 张图片`;
-    return stats.stale > 0 ? `${countText}，其中 ${stats.stale} 张需要更新` : countText;
-  }, [favOnly, stats.stale, stats.total, stats.visible]);
+      ? t("novel.imageLibrary.shownFavorites", { count: formatNumber(stats.visible, locale) })
+      : t("novel.imageLibrary.totalImages", { count: formatNumber(stats.total, locale) });
+    return stats.stale > 0
+      ? t("novel.imageLibrary.staleSummary", {
+          summary: countText,
+          count: formatNumber(stats.stale, locale),
+        })
+      : countText;
+  }, [favOnly, locale, stats.stale, stats.total, stats.visible, t]);
 
   const renderImageCard = (img: GeneratedImage) => {
     const src = toMediaSrc(img.file_path);
     const stale = isImageStale(img, chapter, currentContentHash);
-    const typeLabel = imageTypeLabel(img.image_type);
+    const typeLabel = imageTypeLabel(img.image_type, t);
     return (
       <li
         key={img.id}
@@ -122,7 +129,7 @@ export function ImageGalleryPanel({
           onClick={() => onOpenActions(img)}
           disabled={busyId === img.id || scoringId === img.id}
           className="block h-full w-full text-left disabled:cursor-wait disabled:opacity-60"
-          title={canEditImages ? "管理图片" : "查看图片"}
+          title={canEditImages ? t("novel.imageLibrary.manage") : t("novel.imageLibrary.view")}
         >
           <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-book-bg-tertiary text-xs text-book-text-muted">
             {src ? (
@@ -132,22 +139,24 @@ export function ImageGalleryPanel({
                 className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02]"
               />
             ) : (
-              "无图"
+              <span>{t("novel.imageLibrary.noImage")}</span>
             )}
             {stale ? (
               <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-md bg-warning/90 px-1.5 py-0.5 text-caption text-white backdrop-blur-sm">
                 <AlertTriangle size={9} />
-                需更新
+                {t("novel.imageLibrary.stale")}
               </span>
             ) : null}
           </div>
           <div className="p-2.5">
             <div className="flex min-w-0 items-center gap-2 text-caption text-book-text-muted">
               <span className="min-w-0 flex-1 truncate">{typeLabel}</span>
-              {img.ai_score != null ? <span>评分 {img.ai_score.toFixed(2)}</span> : null}
+              {img.ai_score != null ? (
+                <span>{t("novel.imageLibrary.score", { value: formatNumber(img.ai_score, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })}</span>
+              ) : null}
             </div>
             <div className="mt-1 line-clamp-2 min-h-[2.5rem] text-small leading-relaxed text-book-text-sub">
-              {img.prompt.trim() || "没有提示词说明"}
+              {img.prompt.trim() || t("novel.imageLibrary.noPrompt")}
             </div>
           </div>
         </button>
@@ -161,7 +170,7 @@ export function ImageGalleryPanel({
                 ? "border-warning/60 bg-warning/90 text-white"
                 : "border-white/20 bg-black/25 text-white/85 hover:bg-black/45"
             }`}
-            title={img.is_favorite ? "取消收藏" : "收藏"}
+            title={img.is_favorite ? t("novel.imageLibrary.unfavorite") : t("novel.imageLibrary.favorite")}
           >
             <Star size={12} fill={img.is_favorite ? "currentColor" : "none"} />
           </button>
@@ -181,12 +190,12 @@ export function ImageGalleryPanel({
           <div className="flex min-w-0 items-center gap-2 overflow-x-auto no-scrollbar">
             {hasChapterContext ? (
               <SegmentedControl
-                ariaLabel="图像范围"
+                ariaLabel={t("novel.imageLibrary.scopeAria")}
                 value={scopeMode}
                 onChange={onScopeModeChange}
                 options={CHAPTER_SCOPE_OPTIONS.map((option) => ({
                   id: option.id,
-                  label: option.label,
+                  label: t(option.labelKey),
                 }))}
               />
             ) : null}
@@ -199,7 +208,7 @@ export function ImageGalleryPanel({
                 onClick={() => onFavoriteOnlyChange(!favOnly)}
               >
                 <Star size={11} fill={favOnly ? "currentColor" : "none"} />
-                仅看收藏
+                {t("novel.imageLibrary.favoritesOnly")}
               </button>
             ) : null}
           </div>
@@ -217,7 +226,7 @@ export function ImageGalleryPanel({
             <Dropdown
               items={[
                 {
-                  label: loading ? "正在刷新…" : "刷新图库",
+                  label: loading ? t("novel.imageLibrary.refreshing") : t("novel.imageLibrary.refresh"),
                   icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
                   onClick: onRefresh,
                   disabled: loading,
@@ -225,7 +234,7 @@ export function ImageGalleryPanel({
                 ...(canEditImages
                   ? [
                       {
-                        label: importBusy ? "正在导入…" : "导入图片",
+                        label: importBusy ? t("novel.imageLibrary.importing") : t("novel.imageLibrary.import"),
                         icon: <ImagePlus size={12} />,
                         onClick: onImportImage,
                         disabled: importBusy,
@@ -241,7 +250,7 @@ export function ImageGalleryPanel({
                 onClick={onOpenTools}
                 className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
-                <Camera size={12} /> 生成图片
+                <Camera size={12} /> {t("novel.imageLibrary.generate")}
               </BookButton>
             ) : null}
           </div>
@@ -252,10 +261,10 @@ export function ImageGalleryPanel({
         <EmptyHint
           text={
             loading
-              ? "加载中…"
+              ? t("novel.imageLibrary.loading")
               : chapter
-                ? "暂无图像。可通过“生成”创建章节场景图。"
-                : "暂无图像。可通过“生成”创建项目场景图。"
+                ? t("novel.imageLibrary.emptyChapter")
+                : t("novel.imageLibrary.emptyProject")
           }
         />
       ) : (
@@ -265,7 +274,7 @@ export function ImageGalleryPanel({
               {imageGroups.map(([key, groupImages]) => (
                 <section key={key} className="min-w-0">
                   <h3 className="mb-2 truncate text-xs font-medium text-book-text-sub">
-                    {getImageGroupTitle(key, 1)}
+                    {getImageGroupTitle(key, 1, t)}
                   </h3>
                   <ul>{groupImages.map(renderImageCard)}</ul>
                 </section>
@@ -276,7 +285,7 @@ export function ImageGalleryPanel({
               {imageGroups.map(([key, groupImages]) => (
                 <section key={key}>
                   <h3 className="mb-2 text-xs font-medium text-book-text-sub">
-                    {getImageGroupTitle(key, groupImages.length)}
+                    {getImageGroupTitle(key, groupImages.length, t)}
                   </h3>
                   <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                     {groupImages.map(renderImageCard)}

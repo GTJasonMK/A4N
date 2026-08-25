@@ -1,7 +1,6 @@
-use super::super::super::{
-    contracts::ProjectGeneratedDataResetSummary, summaries::project_summary_with_family_for_user,
-};
+use super::super::super::summaries::{project_record_by_id, project_summary_with_family_for_user};
 use crate::AppState;
+use a4n_api_contract::project::ProjectGeneratedDataResetSummary;
 use a4n_orchestrator::project::ProjectGeneratedDataResetResult;
 
 pub(in crate::actions::project_records::reset) async fn to_generated_data_reset_summary(
@@ -11,7 +10,7 @@ pub(in crate::actions::project_records::reset) async fn to_generated_data_reset_
     deleted_media_files: usize,
 ) -> Result<ProjectGeneratedDataResetSummary, String> {
     let ProjectGeneratedDataResetResult {
-        project,
+        project: _,
         deleted_galgame_scripts,
         deleted_galgame_scenes,
         deleted_galgame_lines,
@@ -57,8 +56,9 @@ pub(in crate::actions::project_records::reset) async fn to_generated_data_reset_
         deleted_task_dependencies,
         ..
     } = result;
+    let project = project_record_by_id(state, result.project.id).await?;
     Ok(ProjectGeneratedDataResetSummary {
-        project: project_summary_with_family_for_user(state, user_id, project).await?,
+        project: project_summary_with_family_for_user(state, user_id, &project).await?,
         deleted_galgame_scripts: *deleted_galgame_scripts,
         deleted_galgame_scenes: *deleted_galgame_scenes,
         deleted_galgame_lines: *deleted_galgame_lines,

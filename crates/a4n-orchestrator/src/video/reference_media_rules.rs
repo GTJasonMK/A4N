@@ -135,24 +135,15 @@ fn scaled_even_dimension(short_edge: i32, numerator: i32, denominator: i32) -> R
         .map_err(|_| "参考媒体视频分辨率超出 i32 范围".to_string())
 }
 
-/// 参考媒体导入选项（时长 + 画幅）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReferenceMediaImportOptions {
-    pub aspect_ratio: String,
-}
-
 /// 校验参考媒体导入时长（1..=60 秒）与画幅。
 pub fn validate_reference_media_import_options(
     duration_secs: i32,
     aspect_ratio: &str,
-) -> Result<ReferenceMediaImportOptions, String> {
+) -> Result<(), String> {
     if !(1..=60).contains(&duration_secs) {
         return Err("参考媒体视频时长必须在 1 到 60 秒之间".to_string());
     }
-    reference_media_dimensions_for_aspect_ratio(aspect_ratio)?;
-    Ok(ReferenceMediaImportOptions {
-        aspect_ratio: aspect_ratio.to_string(),
-    })
+    reference_media_dimensions_for_aspect_ratio(aspect_ratio).map(|_| ())
 }
 
 fn reference_media_prompt(value: &str) -> Result<String, String> {
@@ -446,8 +437,7 @@ mod tests {
             (720, 720)
         );
         assert!(reference_media_dimensions_for_aspect_ratio("2:1").is_err());
-        let opts = validate_reference_media_import_options(8, "16:9").unwrap();
-        assert_eq!(opts.aspect_ratio, "16:9");
+        validate_reference_media_import_options(8, "16:9").unwrap();
         assert!(validate_reference_media_import_options(8, " 16:9 ").is_err());
         assert!(validate_reference_media_import_options(0, "16:9").is_err());
         assert!(validate_reference_media_import_options(8, "2:1").is_err());
@@ -478,8 +468,7 @@ mod tests {
     #[test]
     fn urls_require_lowercase_http_scheme() {
         let err = reference_media_urls(vec!["HTTPS://x".into()], "image_files", 9)
-            .err()
-            .expect("uppercase URL scheme must fail");
+            .expect_err("uppercase URL scheme must fail");
         assert!(err.contains("小写 http://"));
     }
 
@@ -605,8 +594,7 @@ mod tests {
                 aspect_ratio: "16:9".to_string(),
             },
         )
-        .err()
-        .expect("cliproxy image count over the provider limit must fail");
+        .expect_err("cliproxy image count over the provider limit must fail");
 
         assert!(error.contains("最多允许 7 个 URL"));
     }

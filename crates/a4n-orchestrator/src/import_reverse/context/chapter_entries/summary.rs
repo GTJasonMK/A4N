@@ -1,9 +1,10 @@
 use a4n_core::models::chapter::chapter;
 use serde_json::{Map, Value, json};
 
+use crate::import_reverse::json::collect_json_strings;
+
 use super::analysis::{analysis_metadata_array, analysis_value_path};
 use super::formatting::{add_optional_chapter_title, add_summary_or_preview};
-use a4n_core::import_reverse::json::collect_json_strings;
 
 pub(in crate::import_reverse::context) fn chapter_summary_for_reverse(
     ch: &chapter::Model,

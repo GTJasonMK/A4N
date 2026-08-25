@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { usePersistedTab } from "../hooks/usePersistedTab";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
@@ -11,6 +11,7 @@ import { isCancelledOperation } from "../utils/cancellation";
 import { useToast } from "../components/feedback/Toast";
 import { confirmDialog } from "../components/feedback/ConfirmDialog";
 import { promptDialog } from "../components/feedback/PromptDialog";
+import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../api";
 import { formatRagIngestResultSummary, ragIngestAll } from "../api/rag";
 import { cancelWorkflowTask } from "../api/streaming";
@@ -38,12 +39,7 @@ import {
   type ProjectKind,
 } from "../api/project";
 import { NovelListSidebar } from "./novel-list/NovelListSidebar";
-import {
-  ProjectCreationDialog,
-  ProjectImportDialog,
-  ProjectTextImportDialog,
-  type CreateMode,
-} from "./novel-list/NovelListDialogs";
+import type { CreateMode } from "./novel-list/NovelListDialogs";
 import { ProjectListPanel } from "./novel-list/ProjectListPanel";
 import { createProjectActions } from "./novel-list/projectActions";
 import {
@@ -59,6 +55,23 @@ import {
 } from "./novel-list/novelListUtils";
 import { pickLocalFile, readFileAsBase64 } from "../utils/fileUpload";
 import { base64DataToBlob, downloadBlob } from "../utils/downloadFile";
+import { useI18n } from "../i18n";
+
+const ProjectCreationDialog = lazy(() =>
+  import("./novel-list/NovelListDialogs").then((module) => ({
+    default: module.ProjectCreationDialog,
+  })),
+);
+const ProjectImportDialog = lazy(() =>
+  import("./novel-list/NovelListDialogs").then((module) => ({
+    default: module.ProjectImportDialog,
+  })),
+);
+const ProjectTextImportDialog = lazy(() =>
+  import("./novel-list/NovelListDialogs").then((module) => ({
+    default: module.ProjectTextImportDialog,
+  })),
+);
 
 /**
  * 首页
@@ -77,16 +90,10 @@ interface NovelListProps {
 
 type DerivedProjectKind = Exclude<ProjectKind, "text">;
 
-const DERIVED_PROJECT_LABELS: Record<DerivedProjectKind, string> = {
-  comic: "漫画项目",
-  video: "视频项目",
-  galgame: "GALGame 项目",
-};
-const DEFAULT_TEXT_PROJECT_TITLE = "未命名小说项目";
-
 export const NovelList: React.FC<NovelListProps> = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const { runProgressTask } = useProgressTask();
 
   const [projects, setProjects] = useState<NovelProject[]>([]);
@@ -173,7 +180,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         activeAccessScopeRef.current === requestScope &&
         activeProjectKindFilterRef.current === requestKind
       ) {
-        const message = extractErrorMessage(err, "加载项目列表失败");
+        const message = extractErrorMessage(err, t("novel.projectLoadFailed"));
         setLoadError(message);
         addToast(message, "error");
       }
@@ -199,7 +206,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       setPendingInvites(invites);
     } catch (err) {
       if (mountedRef.current && inviteSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, "加载项目邀请失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectLoadFailed")), "error");
       }
     }
   };
@@ -265,22 +272,24 @@ export const NovelList: React.FC<NovelListProps> = () => {
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: `同步「${project.title}」资料索引`,
-          startMessage: "正在读取新项目的正式资料…",
-          successMessage: "新项目资料索引已同步",
-          errorMessage: "新项目资料索引同步失败",
+          title: t("novel.projectListActions.syncTitle", { title: project.title }),
+          startMessage: t("novel.projectListActions.syncStart"),
+          successMessage: t("novel.projectListActions.syncSuccess"),
+          errorMessage: t("novel.projectListActions.syncFailed"),
           total: 1,
-          cancelLabel: "停止同步",
-          runningHint: "项目已经创建；索引失败或停止后可稍后重新同步",
+          cancelLabel: t("novel.stopSync"),
+          runningHint: t("novel.projectListActions.syncRunningHint"),
         },
         async ({ setProgress }) => {
           const result = await ragIngestAll(projectId, taskId);
-          setProgress(`资料索引同步完成：${formatRagIngestResultSummary(result)}`, 1, 1);
+          setProgress(t("novel.projectListActions.syncProgress", {
+            summary: formatRagIngestResultSummary(result, locale, t),
+          }), 1, 1);
         },
       );
-    });
+    }, t);
     if (warning && mountedRef.current) {
-      addToast(`「${project.title}」正式资料已保存；${warning}`, "info");
+      addToast(t("novel.projectListActions.savedWithWarning", { title: project.title, warning }), "info");
     }
   };
 
@@ -311,16 +320,16 @@ export const NovelList: React.FC<NovelListProps> = () => {
       const project =
         requestMode === "video_canvas"
           ? await createFreeformVideoProject({
-              title: "未命名视频项目",
+              title: t("novel.projectListActions.unnamedVideoProject"),
               description: "",
             })
           : await createProject({
-              title: DEFAULT_TEXT_PROJECT_TITLE,
+              title: t("novel.unnamedProject"),
               description: "",
               project_type: "novel_long",
             });
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
-      addToast(`已创建：${project.title}`, "success");
+      addToast(t("novel.projectListActions.created", { title: project.title }), "success");
       setCreateDialogOpen(false);
       await refresh(activeTabRef.current);
       if (!mountedRef.current || createSeqRef.current !== requestSeq) return;
@@ -333,7 +342,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       }
     } catch (err) {
       if (mountedRef.current && createSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, "创建项目失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.createFailed")), "error");
       }
     } finally {
       if (mountedRef.current && createSeqRef.current === requestSeq) {
@@ -352,12 +361,12 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const actionKey = `duplicate-${project.id}`;
     if (!beginProjectAction(actionKey)) return;
     const title = await promptDialog({
-      title: "复制项目",
-      message: `复制项目「${project.title}」为新项目，请输入新标题。`,
-      defaultValue: `${project.title} 副本`,
-      placeholder: "新项目标题",
+      title: t("novel.projectListActions.duplicateTitle"),
+      message: t("novel.projectListActions.duplicateMessage", { title: project.title }),
+      defaultValue: t("novel.projectListActions.duplicateDefault", { title: project.title }),
+      placeholder: t("novel.projectListActions.duplicatePlaceholder"),
       required: true,
-      confirmText: "复制",
+      confirmText: t("novel.projectListActions.duplicateConfirm"),
     });
     if (!title || !title.trim()) {
       finishProjectAction(actionKey);
@@ -370,13 +379,13 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       const np = await duplicateProject(project.id, title.trim());
       if (!mountedRef.current) return;
-      addToast(`已复制为：${np.title}`, "success");
+      addToast(t("novel.projectListActions.duplicated", { title: np.title }), "success");
       await refresh(activeTabRef.current);
       if (!mountedRef.current) return;
       await syncCreatedProjectMaterials(np);
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "复制失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.duplicateFailed")), "error");
       }
     } finally {
       finishProjectAction(actionKey);
@@ -387,20 +396,24 @@ export const NovelList: React.FC<NovelListProps> = () => {
     project: NovelProject,
     kind: DerivedProjectKind,
   ) => {
-    const label = DERIVED_PROJECT_LABELS[kind];
+    const label = kind === "comic"
+      ? t("novel.comicProject")
+      : kind === "video"
+        ? t("novel.videoProject")
+        : t("novel.galgameProject");
     if (project.project_kind !== "text") {
-      addToast(`只能从文本项目创建${label}`, "error");
+      addToast(t("novel.projectListActions.derivedSourceOnly", { label }), "error");
       return;
     }
     const actionKey = `derived-${kind}-${project.id}`;
     if (!beginProjectAction(actionKey)) return;
     const title = await promptDialog({
-      title: `创建${label}`,
-      message: `从「${project.title}」创建${label}，请输入项目标题。`,
+      title: t("novel.projectListActions.derivedTitle", { label }),
+      message: t("novel.projectListActions.derivedMessage", { title: project.title, label }),
       defaultValue: `${project.title} ${label}`,
-      placeholder: `${label}标题`,
+      placeholder: t("novel.projectListActions.derivedPlaceholder", { label }),
       required: true,
-      confirmText: "下一步",
+      confirmText: t("novel.projectListActions.nextStep"),
     });
     if (!title || !title.trim()) {
       finishProjectAction(actionKey);
@@ -412,12 +425,12 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
 
     const chapterRange = await promptDialog({
-      title: "章节范围",
-      message: "输入派生章节范围，格式为 1-10。",
+      title: t("novel.projectListActions.chapterRangeTitle"),
+      message: t("novel.projectListActions.chapterRangeMessage"),
       defaultValue: "1-1",
-      placeholder: "例如：1-10",
+      placeholder: t("novel.projectListActions.chapterRangePlaceholder"),
       required: true,
-      confirmText: "创建",
+      confirmText: t("novel.projectListActions.create"),
     });
     if (!chapterRange || !chapterRange.trim()) {
       finishProjectAction(actionKey);
@@ -429,14 +442,14 @@ export const NovelList: React.FC<NovelListProps> = () => {
     }
     const match = chapterRange.trim().match(/^(\d+)\s*-\s*(\d+)$/);
     if (!match) {
-      addToast("章节范围格式必须为 1-10", "error");
+      addToast(t("novel.projectListActions.chapterRangeFormat"), "error");
       finishProjectAction(actionKey);
       return;
     }
     const start = Number(match[1]);
     const end = Number(match[2]);
     if (!Number.isInteger(start) || !Number.isInteger(end) || start <= 0 || end < start) {
-      addToast("章节范围无效", "error");
+      addToast(t("novel.projectListActions.chapterRangeInvalid"), "error");
       finishProjectAction(actionKey);
       return;
     }
@@ -446,18 +459,18 @@ export const NovelList: React.FC<NovelListProps> = () => {
         root_project_id: project.id,
         derived_kind: kind,
         title: title.trim(),
-        description: `基于「${project.title}」的${label}`,
+        description: t("novel.projectListActions.derivedDescription", { title: project.title, label }),
         start_chapter: start,
         end_chapter: end,
       });
       if (!mountedRef.current) return;
-      addToast(`已创建${label}：${derived.title}`, "success");
+      addToast(t("novel.projectListActions.derivedCreated", { label, title: derived.title }), "success");
       await refresh(activeTabRef.current);
       if (!mountedRef.current) return;
       navigate(getProjectHomeEntryRoute(derived));
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, `创建${label}失败`), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.derivedCreateFailed", { label })), "error");
       }
     } finally {
       finishProjectAction(actionKey);
@@ -486,10 +499,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
         result.file_name,
         base64DataToBlob(result.data_base64, "application/zip"),
       );
-      addToast(`项目包已下载：${result.file_name}`, "success");
+      addToast(t("novel.projectListActions.exported", { file: result.file_name }), "success");
     } catch (err) {
       if (!mountedRef.current) return;
-      const message = extractErrorMessage(err, "导出失败");
+      const message = extractErrorMessage(err, t("novel.projectListActions.exportFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       finishProjectAction(actionKey);
@@ -500,9 +513,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
     const actionKey = `delete-${project.id}`;
     if (!beginProjectAction(actionKey)) return;
     const ok = await confirmDialog({
-      title: "删除项目",
-      message: `确定要删除「${project.title}」吗？此操作不可撤销，项目所有数据将被永久清除。`,
-      confirmText: "永久删除",
+      title: t("novel.projectListActions.deleteTitle"),
+      message: t("novel.projectListActions.deleteMessage", { title: project.title }),
+      confirmText: t("novel.projectListActions.permanentDelete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -516,11 +529,11 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await deleteProject(project.id);
       if (!mountedRef.current) return;
-      addToast(`已删除：${project.title}`, "success");
+      addToast(t("novel.projectListActions.deleted", { title: project.title }), "success");
       await refresh(activeTabRef.current);
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "删除失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.deleteFailed")), "error");
       }
     } finally {
       finishProjectAction(actionKey);
@@ -532,7 +545,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
     if (!mountedRef.current || importBusyRef.current) return;
     const selectedFile = importFile;
     if (!selectedFile) {
-      addToast("请选择项目导入文件", "error");
+      addToast(t("novel.projectListActions.selectImportFile"), "error");
       return;
     }
     importBusyRef.current = true;
@@ -550,14 +563,17 @@ export const NovelList: React.FC<NovelListProps> = () => {
         const imported = await importProjectFamilyUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
         importedTextProject = imported.find((item) => item.project_kind === "text") ?? null;
-        addToast(`已导入项目族包：${imported.map((item) => item.title).join(" / ")}`, "success");
+        addToast(t("novel.projectListActions.importedFamily", { titles: imported.map((item) => item.title).join(" / ") }), "success");
       } else if (normalizedFileName.endsWith(VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX)) {
         const imported = await importVideoStudioProjectUpload(input);
         if (!mountedRef.current || importSeqRef.current !== requestSeq) return;
-        addToast(`已导入视频画布项目：${imported.title}`, "success");
+        addToast(t("novel.projectListActions.importedVideo", { title: imported.title }), "success");
       } else {
         throw new Error(
-          `项目导入文件必须以 ${PROJECT_FAMILY_PACKAGE_SUFFIX} 或 ${VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX} 结尾`,
+          t("novel.projectListActions.invalidImportFile", {
+            familySuffix: PROJECT_FAMILY_PACKAGE_SUFFIX,
+            videoSuffix: VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+          }),
         );
       }
       setImportDialogOpenState(false);
@@ -566,7 +582,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
       if (importedTextProject) await syncCreatedProjectMaterials(importedTextProject);
     } catch (err) {
       if (mountedRef.current && importSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, "导入失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.importFailed")), "error");
       }
     } finally {
       if (mountedRef.current && importSeqRef.current === requestSeq) {
@@ -597,7 +613,7 @@ export const NovelList: React.FC<NovelListProps> = () => {
         importDialogOpenRef.current &&
         importFileSeqRef.current === requestSeq
       ) {
-        addToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.filePickerFailed")), "error");
       }
     }
   };
@@ -637,12 +653,12 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await acceptProjectInvite(invite.id);
       if (!mountedRef.current) return;
-      addToast("已接受项目邀请", "success");
+      addToast(t("novel.projectListActions.inviteAccepted"), "success");
       await loadPendingInvites();
       await refresh(activeTabRef.current);
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "接受邀请失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.acceptInviteFailed")), "error");
       }
     } finally {
       finishInviteAction(invite.id);
@@ -654,11 +670,11 @@ export const NovelList: React.FC<NovelListProps> = () => {
     try {
       await declineProjectInvite(invite.id);
       if (!mountedRef.current) return;
-      addToast("已拒绝项目邀请", "success");
+      addToast(t("novel.projectListActions.inviteDeclined"), "success");
       await loadPendingInvites();
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "拒绝邀请失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.projectListActions.declineInviteFailed")), "error");
       }
     } finally {
       finishInviteAction(invite.id);
@@ -686,10 +702,10 @@ export const NovelList: React.FC<NovelListProps> = () => {
       onExport: (item) => void handleExport(item),
       onImportText: (item) => setImportTextProjectId(item.id),
       onDelete: (item) => void handleDelete(item),
-    });
+    }, t);
 
   return (
-    <div className="relative h-full w-full overflow-y-auto overflow-x-hidden bg-book-bg md:overflow-hidden">
+    <div className="a4n-home-page relative h-full w-full overflow-y-auto overflow-x-hidden bg-book-bg md:overflow-hidden">
       <div className="relative z-10 flex min-h-full w-full flex-col md:h-full md:flex-row md:overflow-hidden">
         <NovelListSidebar
           quote={quote}
@@ -720,26 +736,32 @@ export const NovelList: React.FC<NovelListProps> = () => {
         />
       </div>
 
-      <ProjectCreationDialog
-        open={createDialogOpen}
-        creating={creating}
-        onClose={() => setCreateDialogOpen(false)}
-        onSelectMode={handleSelectMode}
-      />
-
-      <ProjectImportDialog
-        open={importDialogOpen}
-        importing={importing}
-        importFileName={importFile?.name ?? ""}
-        onClose={() => setImportDialogOpenState(false)}
-        onSelectFile={handleSelectImportFile}
-        onImport={handleImport}
-      />
-
-      <ProjectTextImportDialog
-        projectId={importTextProjectId}
-        onClose={() => setImportTextProjectId(null)}
-      />
+      <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+        {createDialogOpen ? (
+          <ProjectCreationDialog
+            open
+            creating={creating}
+            onClose={() => setCreateDialogOpen(false)}
+            onSelectMode={handleSelectMode}
+          />
+        ) : null}
+        {importDialogOpen ? (
+          <ProjectImportDialog
+            open
+            importing={importing}
+            importFileName={importFile?.name ?? ""}
+            onClose={() => setImportDialogOpenState(false)}
+            onSelectFile={handleSelectImportFile}
+            onImport={handleImport}
+          />
+        ) : null}
+        {importTextProjectId != null ? (
+          <ProjectTextImportDialog
+            projectId={importTextProjectId}
+            onClose={() => setImportTextProjectId(null)}
+          />
+        ) : null}
+      </Suspense>
     </div>
   );
 };

@@ -1,9 +1,10 @@
 use super::validate_positive_i64;
 use a4n_core::models::project::novel_project;
 use chrono::Utc;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    PaginatorTrait, QueryFilter, Set,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
+    QueryFilter, QuerySelect,
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -32,12 +33,15 @@ pub async fn project_import_analysis_progress(
 ) -> Result<Option<String>, ProjectBasicRecordError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectBasicRecordError::InvalidArgument)?;
-    let project = novel_project::Entity::find_by_id(project_id)
+    let progress = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::ImportAnalysisProgress)
+        .into_tuple::<Option<String>>()
         .one(db)
         .await
         .map_err(|error| ProjectBasicRecordError::database("读取项目导入分析进度", error))?
         .ok_or(ProjectBasicRecordError::ProjectNotFound { project_id })?;
-    Ok(project.import_analysis_progress)
+    Ok(progress)
 }
 
 pub async fn save_project_import_analysis_progress(
@@ -47,19 +51,22 @@ pub async fn save_project_import_analysis_progress(
 ) -> Result<(), ProjectBasicRecordError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectBasicRecordError::InvalidArgument)?;
-    let project = novel_project::Entity::find_by_id(project_id)
-        .one(db)
-        .await
-        .map_err(|error| ProjectBasicRecordError::database("保存导入分析进度前读取项目", error))?
-        .ok_or(ProjectBasicRecordError::ProjectNotFound { project_id })?;
-
-    let mut active: novel_project::ActiveModel = project.into();
-    active.import_analysis_progress = Set(Some(progress));
-    active.updated_at = Set(Utc::now().naive_utc());
-    active
-        .update(db)
+    let updated = novel_project::Entity::update_many()
+        .col_expr(
+            novel_project::Column::ImportAnalysisProgress,
+            Expr::value(Some(progress)),
+        )
+        .col_expr(
+            novel_project::Column::UpdatedAt,
+            Expr::value(Utc::now().naive_utc()),
+        )
+        .filter(novel_project::Column::Id.eq(project_id))
+        .exec(db)
         .await
         .map_err(|error| ProjectBasicRecordError::database("更新项目导入分析进度", error))?;
+    if updated.rows_affected != 1 {
+        return Err(ProjectBasicRecordError::ProjectNotFound { project_id });
+    }
     Ok(())
 }
 
@@ -69,12 +76,15 @@ pub async fn project_kind(
 ) -> Result<String, ProjectBasicRecordError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectBasicRecordError::InvalidArgument)?;
-    let project = novel_project::Entity::find_by_id(project_id)
+    let project_kind = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::ProjectKind)
+        .into_tuple::<String>()
         .one(db)
         .await
         .map_err(|error| ProjectBasicRecordError::database("读取项目类型", error))?
         .ok_or(ProjectBasicRecordError::ProjectNotFound { project_id })?;
-    Ok(project.project_kind)
+    Ok(project_kind)
 }
 
 pub async fn project_title(
@@ -83,15 +93,18 @@ pub async fn project_title(
 ) -> Result<String, ProjectBasicRecordError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectBasicRecordError::InvalidArgument)?;
-    let project = novel_project::Entity::find_by_id(project_id)
+    let title = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Title)
+        .into_tuple::<String>()
         .one(db)
         .await
         .map_err(|error| ProjectBasicRecordError::database("读取项目标题", error))?
         .ok_or(ProjectBasicRecordError::ProjectNotFound { project_id })?;
-    Ok(project.title)
+    Ok(title)
 }
 
-pub async fn derived_project_count<C>(db: &C, root_project_id: i64) -> Result<u64, DbErr>
+pub(crate) async fn derived_project_count<C>(db: &C, root_project_id: i64) -> Result<u64, DbErr>
 where
     C: ConnectionTrait,
 {
@@ -154,5 +167,17 @@ mod tests {
                     if message == "project_id 必须大于 0"
             ));
         }
+    }
+
+    #[tokio::test]
+    async fn save_progress_reports_missing_project_without_reading_full_row() {
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let error = save_project_import_analysis_progress(&db, i64::MAX, "{}".to_string())
+            .await
+            .expect_err("missing project must be reported by the narrow update");
+        assert!(matches!(
+            error,
+            ProjectBasicRecordError::ProjectNotFound { project_id } if project_id == i64::MAX
+        ));
     }
 }

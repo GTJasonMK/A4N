@@ -12,6 +12,7 @@ use crate::project::{
         types::SourceSnapshotBuildData,
     },
 };
+use std::collections::HashSet;
 
 pub(super) async fn build_source_snapshot_data<C>(
     db: &C,
@@ -40,9 +41,10 @@ where
         .map(|chapter| chapter.chapter_number)
         .collect::<Vec<_>>();
     if actual_numbers != expected_numbers {
+        let actual_number_set = actual_numbers.iter().copied().collect::<HashSet<_>>();
         let missing = expected_numbers
             .into_iter()
-            .filter(|number| !actual_numbers.contains(number))
+            .filter(|number| !actual_number_set.contains(number))
             .collect::<Vec<_>>();
         return Err(ProjectMutationError::InvalidArgument(format!(
             "源文本快照范围内缺少章节: {:?}",

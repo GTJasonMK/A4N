@@ -91,8 +91,7 @@ mod tests {
             None,
             "test-call",
         )
-        .err()
-        .expect("mismatched checkpoint must fail");
+        .expect_err("mismatched checkpoint must fail");
 
         assert!(
             error

@@ -52,13 +52,13 @@ describe("sparse profile draft validation", () => {
         first_seen_chapter: 3,
         last_seen_chapter: 2,
       }),
-    ).toBe("物体最近出现章节不能早于首次出现章节");
+    ).toBe("novel.profile.objectChapterRangeInvalid");
     expect(
       validateSceneProfileDraft({
         ...sparseScene(),
         first_seen_chapter: 3,
         last_seen_chapter: 2,
       }),
-    ).toBe("场景最近出现章节不能早于首次出现章节");
+    ).toBe("novel.profile.chapterRangeInvalid");
   });
 });

@@ -9,7 +9,7 @@ import {
   removeWritingDraft,
   writeWritingDraft,
 } from "../../utils/writingDraft";
-import { formatUiDateTime } from "../../utils/dateTime";
+import { formatDateTime, useI18n } from "../../i18n";
 
 type AddToast = (message: string, type: ToastType) => void;
 
@@ -31,6 +31,7 @@ export function useWritingDeskDrafts({
   activeChapter,
   addToast,
 }: UseWritingDeskDraftsParams) {
+  const { locale, t } = useI18n();
   const [editorContent, setEditorContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [draftRevision, setDraftRevision] = useState(0);
@@ -90,7 +91,7 @@ export function useWritingDeskDrafts({
     if (!draftSaveWarnedRef.current) {
       draftSaveWarnedRef.current = true;
       addToast(
-        "本地草稿保存失败（浏览器存储不可用或容量不足），请尽快手动保存",
+        t("writing.localDraftSaveFailed"),
         "info",
       );
     }
@@ -107,12 +108,12 @@ export function useWritingDeskDrafts({
       if (!dirtyRef.current) return true;
       const draftOk = saveLocalDraftForCurrent();
       const ok = await confirmDialog({
-        title: "未保存修改",
+        title: t("writing.unsavedEditTitle"),
         message: draftOk
-          ? `当前章节有未保存修改。\n${actionText}前已自动保存本地草稿，可随时恢复。\n是否继续？`
-          : `当前章节有未保存修改。\n本地草稿保存失败，${actionText}可能丢失未保存内容。\n是否继续？`,
-        confirmText: "继续",
-        cancelText: "留在当前",
+          ? t("writing.unsavedEditMessage", { action: actionText })
+          : t("writing.unsavedEditMessageNoDraft", { action: actionText }),
+        confirmText: t("writing.continueAction"),
+        cancelText: t("writing.stayCurrent"),
         dialogType: "warning",
       });
       return ok;
@@ -159,18 +160,18 @@ export function useWritingDeskDrafts({
         draftPromptedRef.current.add(draftKey);
         const draft = readWritingDraft(draftKey);
         if (draft && draft.content !== baseContent) {
-          const ts = formatUiDateTime(draft.updatedAt, "时间未知");
+          const ts = formatDateTime(draft.updatedAt, locale, t("common.unknown"));
           void confirmDialog({
-            title: "恢复草稿",
-            message: `检测到本地草稿（${ts}）。\n是否恢复到编辑器？`,
-            confirmText: "恢复草稿",
-            cancelText: "保持当前",
+            title: t("writing.restoreDraftTitle"),
+            message: t("writing.restoreDraftMessage", { time: ts }),
+            confirmText: t("writing.restoreDraft"),
+            cancelText: t("writing.keepCurrent"),
             dialogType: "warning",
           }).then((ok) => {
             if (!ok || cancelled || activeNumberRef.current !== activeNumber)
               return;
             setEditorState(draft.content, true);
-            addToast("已恢复本地草稿（未保存）", "success");
+            addToast(t("writing.draftRestored"), "success");
           });
         }
       }
@@ -184,8 +185,10 @@ export function useWritingDeskDrafts({
     activeChapter?.id,
     activeChapter?.content,
     addToast,
+    locale,
     projectIdKey,
     setEditorState,
+    t,
   ]);
 
   useEffect(() => {
@@ -217,7 +220,7 @@ export function useWritingDeskDrafts({
       if (!draftSaveWarnedRef.current) {
         draftSaveWarnedRef.current = true;
         addToast(
-          "本地草稿保存失败（浏览器存储不可用或容量不足），请尽快手动保存",
+          t("writing.localDraftSaveFailed"),
           "info",
         );
       }

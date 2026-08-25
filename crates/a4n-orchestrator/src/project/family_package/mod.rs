@@ -42,26 +42,22 @@ mod validation;
 #[cfg(test)]
 mod tests;
 
-pub use contracts::{
-    FamilyImportMediaPayload, MANIFEST_PATH, MEDIA_FILE_FIELDS, MediaFileEntry,
-    PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage, TextCorePackage,
-};
+pub(crate) use contracts::PROJECT_FAMILY_PACKAGE_VERSION;
+pub use contracts::{MANIFEST_PATH, ProjectFamilyPackage, TextCorePackage};
 
 pub(crate) use crate::project::{hash_json, hash_text, sha256_bytes};
 
-pub use export_assembly::{
-    assemble_project_family_export_package, family_media_package_path, validate_export_same_user,
-    validate_export_snapshot_coverage,
+pub(crate) use export_assembly::{
+    assemble_project_family_export_package, family_media_package_path,
 };
-pub use validation::{
-    snapshot_profile_key, validate_media_bytes, validate_media_manifest, validate_package_manifest,
-};
+pub use validation::validate_media_bytes;
+pub(crate) use validation::{validate_media_manifest, validate_package_manifest};
 
 use a4n_db::project_family_import::ProjectFamilyImportPackage;
 
 impl ProjectFamilyPackage {
     /// 转为 DB 导入包（不含 media_files 索引）。
-    pub fn into_import_package(self) -> ProjectFamilyImportPackage {
+    pub(crate) fn into_import_package(self) -> ProjectFamilyImportPackage {
         ProjectFamilyImportPackage {
             root_project_id: self.root_project_id,
             projects: self.projects,
@@ -72,6 +68,13 @@ impl ProjectFamilyPackage {
             source_snapshot_profiles: self.source_snapshot_profiles,
             text_anchors: self.text_anchors,
             profile_evidence: self.profile_evidence,
+            chapter_visual_plans: self.chapter_visual_plans,
+            chapter_shooting_scripts: self.chapter_shooting_scripts,
+            character_portraits: self.character_portraits,
+            generated_images: self.generated_images,
+            chapter_manga_prompts: self.chapter_manga_prompts,
+            chapter_video_prompts: self.chapter_video_prompts,
+            generated_videos: self.generated_videos,
             generation_specs: self.generation_specs,
             generation_spec_text_anchors: self.generation_spec_text_anchors,
             generation_spec_entity_refs: self.generation_spec_entity_refs,

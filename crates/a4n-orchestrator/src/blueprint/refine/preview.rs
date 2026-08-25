@@ -23,17 +23,6 @@ impl OrchestratorContext {
             crate::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        self.preview_blueprint_refine_request(project_id, focus, prompt_renderer, variables)
-            .await
-    }
-
-    pub async fn preview_blueprint_refine_request(
-        &self,
-        project_id: i64,
-        focus: Option<&str>,
-        prompt_renderer: &dyn PromptRenderer,
-        variables: &HashMap<String, Value>,
-    ) -> Result<ChatRequest, AppError> {
         let blueprint = self
             .load_blueprint(project_id)
             .await?

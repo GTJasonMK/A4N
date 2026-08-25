@@ -4,10 +4,10 @@ use a4n_core::error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::context::{
     COMPRESSION_FULL_RAW, LlmContextPackDraft, LlmContextPackDraftInput, LlmContextPackRef,
-    LlmContextPackRequirement, PlannedContextPack, context_pack_model_ref,
+    LlmContextPackRequirement, PlannedContextPack,
 };
 use a4n_llm::provider::{ChatMessage, LlmProvider, LlmTraceContext, MessageRole};
-use a4n_orchestrator::llm_context::RecordOrReuseContextPackInput;
+use a4n_orchestrator::llm_context::{ContextPackReference, RecordOrReuseContextPackInput};
 use serde_json::json;
 
 use a4n_orchestrator::DynamicProviderFacade;
@@ -30,8 +30,9 @@ pub(super) async fn build_manifest_requirements(
     let mut requirements = Vec::new();
     let mut content_by_ref = HashMap::new();
 
+    let mut drafts = Vec::new();
+    let mut variant_counts = Vec::with_capacity(manifest.packs.len());
     for pack in &manifest.packs {
-        let mut variants = Vec::new();
         for variant in &pack.variants {
             let draft = LlmContextPackDraft::from_json(LlmContextPackDraftInput {
                 project_id,
@@ -44,9 +45,28 @@ pub(super) async fn build_manifest_requirements(
                 compression_level: variant.compression_level.clone(),
                 canonical_content_json: variant.canonical_content_json.clone(),
             })?;
+            drafts.push(draft);
+        }
+        variant_counts.push(pack.variants.len());
+    }
+    let references = facade
+        .record_or_reuse_context_pack_references(
+            drafts
+                .iter()
+                .cloned()
+                .map(context_pack_record_input)
+                .collect(),
+        )
+        .await?;
+    let mut model_index = 0;
+    for (pack, variant_count) in manifest.packs.iter().zip(variant_counts) {
+        let mut variants = Vec::new();
+        for _ in 0..variant_count {
+            let draft = &drafts[model_index];
+            let reference = &references[model_index];
+            model_index += 1;
             let canonical_content_text = draft.canonical_content_text.clone();
-            let model = record_or_reuse_context_pack_for_llm(facade, draft).await?;
-            let mut pack_ref = context_pack_model_ref(&model);
+            let mut pack_ref = context_pack_reference_ref(reference);
             pack_ref.token_estimate = provider.count_tokens(&canonical_content_text);
             content_by_ref.insert(selected_pack_key(&pack_ref), canonical_content_text);
             variants.push(pack_ref);
@@ -79,6 +99,15 @@ pub(super) fn selected_pack_key(pack_ref: &LlmContextPackRef) -> (String, String
         pack_ref.compression_level.clone(),
         pack_ref.content_sha256.clone(),
     )
+}
+
+fn context_pack_reference_ref(reference: &ContextPackReference) -> LlmContextPackRef {
+    LlmContextPackRef {
+        pack_kind: reference.pack_kind.clone(),
+        content_sha256: reference.content_sha256.clone(),
+        compression_level: reference.compression_level.clone(),
+        token_estimate: reference.token_estimate.max(0) as usize,
+    }
 }
 
 pub(super) fn system_messages(messages: &[ChatMessage]) -> Vec<ChatMessage> {
@@ -127,8 +156,8 @@ pub(super) async fn build_system_prefix_pack_ref(
         compression_level: COMPRESSION_FULL_RAW.to_string(),
         canonical_content_json: content,
     })?;
-    let model = record_or_reuse_context_pack_for_llm(facade, draft).await?;
-    let mut pack_ref = context_pack_model_ref(&model);
+    let reference = record_or_reuse_context_pack_for_llm(facade, draft).await?;
+    let mut pack_ref = context_pack_reference_ref(&reference);
     pack_ref.token_estimate = token_estimate;
     Ok(pack_ref)
 }
@@ -155,8 +184,8 @@ pub(super) fn context_pack_record_input(
 pub(super) async fn record_or_reuse_context_pack_for_llm(
     facade: &DynamicProviderFacade,
     draft: LlmContextPackDraft,
-) -> Result<a4n_core::models::generation::llm_context_pack::Model, AppError> {
+) -> Result<ContextPackReference, AppError> {
     facade
-        .record_or_reuse_context_pack(context_pack_record_input(draft))
+        .record_or_reuse_context_pack_reference(context_pack_record_input(draft))
         .await
 }

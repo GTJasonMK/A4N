@@ -2,6 +2,7 @@ import React from "react";
 import { FileText, Loader2, type LucideIcon } from "lucide-react";
 import type { ChapterMaterialSyncState } from "../../api/chapter";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+import { formatNumber, useI18n, type MessageKey } from "../../i18n";
 
 /** 写作桌侧栏中的连续章节行。 */
 
@@ -16,22 +17,22 @@ interface ChapterCardProps {
   onClick: () => void;
 }
 
-const STATUS_ICON: Record<string, { Icon: LucideIcon; tone: string; title: string }> = {
-  draft: { Icon: FileText, tone: "text-warning", title: "草稿" },
-  generating: { Icon: Loader2, tone: "text-book-primary animate-spin", title: "生成中" },
-  imported: { Icon: FileText, tone: "text-info", title: "已导入" },
+const STATUS_ICON: Record<string, { Icon: LucideIcon; tone: string; title: MessageKey }> = {
+  draft: { Icon: FileText, tone: "text-warning", title: "writing.chapterStatusDraft" },
+  generating: { Icon: Loader2, tone: "text-book-primary animate-spin", title: "writing.chapterStatusGenerating" },
+  imported: { Icon: FileText, tone: "text-info", title: "writing.chapterStatusImported" },
 };
 
-const materialSyncLabel = (state: ChapterMaterialSyncState | null | undefined): string | null => {
+const materialSyncLabel = (state: ChapterMaterialSyncState | null | undefined): MessageKey | null => {
   if (!state) return null;
   const statuses = Object.values(state);
-  if (statuses.includes("failed")) return "资料同步失败";
-  if (statuses.includes("running")) return "资料同步中";
-  if (statuses.includes("pending")) return "资料待同步";
-  if (statuses.includes("needs_analysis")) return "正文变化，需重析";
-  if (statuses.includes("not_analyzed")) return "尚未分析";
-  if (statuses.includes("unknown")) return "资料待核对";
-  return "资料已同步";
+  if (statuses.includes("failed")) return "writing.materialSyncFailed";
+  if (statuses.includes("running")) return "writing.materialSyncRunning";
+  if (statuses.includes("pending")) return "writing.materialSyncPending";
+  if (statuses.includes("needs_analysis")) return "writing.materialNeedsAnalysis";
+  if (statuses.includes("not_analyzed")) return "writing.materialNotAnalyzed";
+  if (statuses.includes("unknown")) return "writing.materialNeedsReview";
+  return "writing.materialSynced";
 };
 
 export const ChapterCard: React.FC<ChapterCardProps> = ({
@@ -44,6 +45,7 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
   selected,
   onClick,
 }) => {
+  const { t, locale } = useI18n();
   const iconInfo = status ? STATUS_ICON[status] : null;
   const StatusIcon = iconInfo?.Icon;
 
@@ -52,41 +54,42 @@ export const ChapterCard: React.FC<ChapterCardProps> = ({
     : "bg-transparent hover:bg-book-bg-tertiary/55";
 
   const metaParts: string[] = [];
-  if (wordCount != null) metaParts.push(`${wordCount.toLocaleString()} 字`);
-  if (iconInfo) metaParts.push(iconInfo.title);
+  if (wordCount != null) metaParts.push(t("writing.chapterWordCount", { count: formatNumber(wordCount, locale) }));
+  if (iconInfo) metaParts.push(t(iconInfo.title));
   if (status && status !== "completed" && !iconInfo) {
-    metaParts.push(getOperationStatusLabel(status));
+    metaParts.push(getOperationStatusLabel(status, locale));
   }
   const syncLabel = materialSyncLabel(materialSync);
-  if (syncLabel) metaParts.push(syncLabel);
+  if (syncLabel) metaParts.push(t(syncLabel));
 
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={selected ? "page" : undefined}
-      className={`w-full px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary/35 ${containerClass}`}
+      className={`a4n-chapter-card w-full px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary/35 ${containerClass}`}
+      data-selected={selected ? "true" : undefined}
     >
       <div className="flex items-start gap-2">
         {StatusIcon && (
-          <span className={`shrink-0 mt-0.5 ${iconInfo.tone}`} title={iconInfo.title}>
+          <span className={`shrink-0 mt-0.5 ${iconInfo.tone}`} title={t(iconInfo.title)}>
             <StatusIcon size={11} />
           </span>
         )}
         <div className="flex-1 min-w-0">
-          <div className="flex items-baseline text-xs">
+          <div className="flex min-w-0 items-center gap-1.5 text-xs">
             <span
               className={`min-w-0 flex-1 truncate ${
                 selected ? "text-book-text-main font-semibold" : "text-book-text-sub"
               }`}
             >
-              第 {chapterNumber} 章{title?.trim() ? ` · ${title.trim()}` : ""}
-              {hasDraft && (
-                <span className="ml-1 text-book-accent" title="存在本地草稿">
-                  *
-                </span>
-              )}
+              {t("writing.chapterLabel", { number: chapterNumber })}{title?.trim() ? ` · ${title.trim()}` : ""}
             </span>
+            {hasDraft ? (
+              <span className="a4n-draft-badge shrink-0" title={t("writing.localDraft")}>
+                {t("writing.localDraft")}
+              </span>
+            ) : null}
           </div>
           {metaParts.length > 0 && (
             <div className="mt-0.5 truncate text-small text-book-text-muted">

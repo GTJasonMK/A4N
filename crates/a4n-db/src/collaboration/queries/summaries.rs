@@ -2,10 +2,7 @@ use super::indexes::{
     projects_by_id, unique_invite_project_ids, unique_invite_user_ids, users_by_id,
 };
 use crate::collaboration::{CollaborationDbError, ProjectInviteSummary, parse_stored_member_role};
-use a4n_core::models::{
-    project::{novel_project, project_invite},
-    user::user,
-};
+use a4n_core::models::project::project_invite;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 
@@ -33,8 +30,8 @@ pub(in crate::collaboration) async fn invite_summaries(
 
 fn invite_summary_from_indexes(
     invite: project_invite::Model,
-    users_by_id: &HashMap<i64, user::Model>,
-    projects_by_id: &HashMap<i64, novel_project::Model>,
+    users_by_id: &HashMap<i64, super::super::types::UserDisplayRow>,
+    projects_by_id: &HashMap<i64, String>,
 ) -> Result<ProjectInviteSummary, CollaborationDbError> {
     let inviter = users_by_id.get(&invite.inviter_user_id).ok_or_else(|| {
         CollaborationDbError::Internal(format!("邀请发起人不存在: {}", invite.inviter_user_id))
@@ -47,7 +44,7 @@ fn invite_summary_from_indexes(
     })?;
     Ok(ProjectInviteSummary {
         id: invite.id,
-        project_title: project.title.clone(),
+        project_title: project.clone(),
         inviter_username: inviter.username.clone(),
         invitee_username: invitee.username.clone(),
         role: parse_stored_member_role(&invite.role)?,

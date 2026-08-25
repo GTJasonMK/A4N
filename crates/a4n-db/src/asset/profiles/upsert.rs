@@ -1,14 +1,15 @@
-use std::collections::BTreeSet;
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::models::asset::object_profile;
 use a4n_core::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
 use a4n_core::profile_text::merge_profile_evidence_json;
-use sea_orm::{ActiveModelTrait, ConnectionTrait};
+use chrono::Utc;
+use sea_orm::sea_query::{CaseStatement, Expr};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 use crate::asset::{AssetDbError, ObjectProfileRecordInput, ObjectProfileUpsertRecordResult};
 
-use super::read::object_profile_by_normalized_name;
-use super::record::{apply_object_profile_input, insert_object_profile_record};
+use super::record::object_profile_active_model;
 
 pub(in crate::asset) async fn upsert_object_profiles_in<C>(
     db: &C,
@@ -19,42 +20,280 @@ where
     C: ConnectionTrait,
 {
     let mut result = ObjectProfileUpsertRecordResult::default();
-    let mut seen = BTreeSet::new();
-    for input in inputs {
+    let mut seen = HashSet::new();
+    let normalized_names = inputs
+        .iter()
+        .map(|input| input.normalized_name.clone())
+        .collect::<Vec<_>>();
+    for input in &inputs {
         if !seen.insert(input.normalized_name.clone()) {
             return Err(AssetDbError::InvalidArgument(format!(
                 "物体发现结果存在重复物体: {}",
                 input.name
             )));
         }
-        match object_profile_by_normalized_name(db, project_id, &input.normalized_name).await? {
-            Some(model) => result
-                .updated
-                .push(merge_object_profile_record(db, model, input).await?),
-            None => result.created.push(
-                insert_object_profile_record(db, project_id, input, PROFILE_OWNERSHIP_AI_SYNC)
-                    .await?,
-            ),
+    }
+    let existing_by_name = if normalized_names.is_empty() {
+        HashMap::new()
+    } else {
+        object_profile::Entity::find()
+            .filter(object_profile::Column::ProjectId.eq(project_id))
+            .filter(object_profile::Column::NormalizedName.is_in(normalized_names))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|profile| (profile.normalized_name.clone(), profile))
+            .collect::<HashMap<_, _>>()
+    };
+    let mut created_rows = Vec::new();
+    let mut pending_updates = Vec::new();
+    let mut updated_order = Vec::new();
+    let mut unchanged_updates = HashMap::new();
+    for input in inputs {
+        match existing_by_name.get(&input.normalized_name).cloned() {
+            Some(model) => {
+                updated_order.push(model.id);
+                let merged = merge_object_profile_record_input(&model, input);
+                if !object_profile_matches_input(&model, &merged) {
+                    pending_updates.push((model.id, merged));
+                } else {
+                    unchanged_updates.insert(model.id, model);
+                }
+            }
+            None => created_rows.push(object_profile_active_model(
+                project_id,
+                input,
+                PROFILE_OWNERSHIP_AI_SYNC,
+                Utc::now().naive_utc(),
+            )),
         }
     }
-    Ok(result)
-}
-
-async fn merge_object_profile_record<C>(
-    db: &C,
-    existing: object_profile::Model,
-    input: ObjectProfileRecordInput,
-) -> Result<object_profile::Model, AssetDbError>
-where
-    C: ConnectionTrait,
-{
-    let input = merge_object_profile_record_input(&existing, input);
-    if object_profile_matches_input(&existing, &input) {
-        return Ok(existing);
+    if !created_rows.is_empty() {
+        let expected = created_rows.len();
+        let created = object_profile::Entity::insert_many(created_rows)
+            .exec_with_returning_many(db)
+            .await?;
+        if created.len() != expected {
+            return Err(AssetDbError::InvalidState {
+                current: format!(
+                    "物体档案批量写入返回 {} 行，预期 {} 行",
+                    created.len(),
+                    expected
+                ),
+                operation: "批量写入物体档案".to_string(),
+            });
+        }
+        result.created = created;
     }
-    let mut active: object_profile::ActiveModel = existing.into();
-    apply_object_profile_input(&mut active, input);
-    active.update(db).await.map_err(AssetDbError::Database)
+    if !pending_updates.is_empty() {
+        let mut name_case = CaseStatement::new();
+        let mut normalized_name_case = CaseStatement::new();
+        let mut aliases_case = CaseStatement::new();
+        let mut object_type_case = CaseStatement::new();
+        let mut importance_case = CaseStatement::new();
+        let mut visual_description_case = CaseStatement::new();
+        let mut material_and_state_case = CaseStatement::new();
+        let mut story_usage_case = CaseStatement::new();
+        let mut visual_usage_case = CaseStatement::new();
+        let mut generation_usage_case = CaseStatement::new();
+        let mut location_context_case = CaseStatement::new();
+        let mut first_seen_chapter_case = CaseStatement::new();
+        let mut last_seen_chapter_case = CaseStatement::new();
+        let mut evidence_case = CaseStatement::new();
+        let mut image_prompt_seed_case = CaseStatement::new();
+        let updated_ids = pending_updates
+            .iter()
+            .map(|(id, _)| *id)
+            .collect::<Vec<_>>();
+        for (id, input) in pending_updates {
+            name_case = name_case.case(object_profile::Column::Id.eq(id), Expr::value(input.name));
+            normalized_name_case = normalized_name_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.normalized_name),
+            );
+            aliases_case = aliases_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.aliases_json).cast_as("json"),
+            );
+            object_type_case = object_type_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.object_type),
+            );
+            importance_case = importance_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.importance),
+            );
+            visual_description_case = visual_description_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.visual_description),
+            );
+            material_and_state_case = material_and_state_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.material_and_state),
+            );
+            story_usage_case = story_usage_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.story_usage),
+            );
+            visual_usage_case = visual_usage_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.visual_usage),
+            );
+            generation_usage_case = generation_usage_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.generation_usage),
+            );
+            location_context_case = location_context_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.location_context),
+            );
+            first_seen_chapter_case = first_seen_chapter_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.first_seen_chapter),
+            );
+            last_seen_chapter_case = last_seen_chapter_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.last_seen_chapter),
+            );
+            evidence_case = evidence_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.evidence_json).cast_as("json"),
+            );
+            image_prompt_seed_case = image_prompt_seed_case.case(
+                object_profile::Column::Id.eq(id),
+                Expr::value(input.image_prompt_seed),
+            );
+        }
+        let now = Utc::now().naive_utc();
+        let updated = object_profile::Entity::update_many()
+            .col_expr(
+                object_profile::Column::Name,
+                name_case
+                    .finally(Expr::col(object_profile::Column::Name))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::NormalizedName,
+                normalized_name_case
+                    .finally(Expr::col(object_profile::Column::NormalizedName))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::AliasesJson,
+                aliases_case
+                    .finally(Expr::col(object_profile::Column::AliasesJson))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::ObjectType,
+                object_type_case
+                    .finally(Expr::col(object_profile::Column::ObjectType))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::Importance,
+                importance_case
+                    .finally(Expr::col(object_profile::Column::Importance))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::VisualDescription,
+                visual_description_case
+                    .finally(Expr::col(object_profile::Column::VisualDescription))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::MaterialAndState,
+                material_and_state_case
+                    .finally(Expr::col(object_profile::Column::MaterialAndState))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::StoryUsage,
+                story_usage_case
+                    .finally(Expr::col(object_profile::Column::StoryUsage))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::VisualUsage,
+                visual_usage_case
+                    .finally(Expr::col(object_profile::Column::VisualUsage))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::GenerationUsage,
+                generation_usage_case
+                    .finally(Expr::col(object_profile::Column::GenerationUsage))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::LocationContext,
+                location_context_case
+                    .finally(Expr::col(object_profile::Column::LocationContext))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::FirstSeenChapter,
+                first_seen_chapter_case
+                    .finally(Expr::col(object_profile::Column::FirstSeenChapter))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::LastSeenChapter,
+                last_seen_chapter_case
+                    .finally(Expr::col(object_profile::Column::LastSeenChapter))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::EvidenceJson,
+                evidence_case
+                    .finally(Expr::col(object_profile::Column::EvidenceJson))
+                    .into(),
+            )
+            .col_expr(
+                object_profile::Column::ImagePromptSeed,
+                image_prompt_seed_case
+                    .finally(Expr::col(object_profile::Column::ImagePromptSeed))
+                    .into(),
+            )
+            .col_expr(object_profile::Column::UpdatedAt, Expr::value(now))
+            .filter(object_profile::Column::ProjectId.eq(project_id))
+            .filter(object_profile::Column::Id.is_in(updated_ids.clone()))
+            .exec(db)
+            .await?;
+        if updated.rows_affected != updated_ids.len() as u64 {
+            return Err(AssetDbError::InvalidState {
+                current: format!(
+                    "物体档案批量更新影响 {} 行，预期 {} 行",
+                    updated.rows_affected,
+                    updated_ids.len()
+                ),
+                operation: "批量更新物体档案".to_string(),
+            });
+        }
+        let updated_by_id = object_profile::Entity::find()
+            .filter(object_profile::Column::ProjectId.eq(project_id))
+            .filter(object_profile::Column::Id.is_in(updated_ids.clone()))
+            .all(db)
+            .await?
+            .into_iter()
+            .map(|profile| (profile.id, profile))
+            .collect::<HashMap<_, _>>();
+        unchanged_updates.extend(updated_by_id);
+    }
+    for id in updated_order {
+        result
+            .updated
+            .push(
+                unchanged_updates
+                    .remove(&id)
+                    .ok_or_else(|| AssetDbError::InvalidState {
+                        current: format!("物体档案批量更新结果缺少记录: {id}"),
+                        operation: "读取批量更新物体档案".to_string(),
+                    })?,
+            );
+    }
+    Ok(result)
 }
 
 fn merge_object_profile_record_input(
@@ -250,5 +489,117 @@ mod tests {
 
         assert_eq!(merged.first_seen_chapter, 5);
         assert_eq!(merged.last_seen_chapter, 5);
+    }
+
+    #[tokio::test]
+    async fn inserts_new_object_profiles_in_one_batch() {
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let user = crate::auth::create_user(
+            &db,
+            "object_profile_batch_insert",
+            "object-profile-batch-insert@example.invalid",
+            "object-profile-batch-insert-password",
+            a4n_core::models::user::role::ROLE_USER,
+        )
+        .await
+        .unwrap();
+        let project = crate::project::create_project_record(
+            &db,
+            crate::project::CreateProjectRecordInput {
+                user_id: user.id,
+                title: "物体档案批量写入".to_string(),
+                description: String::new(),
+                project_type: "novel_long".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        let inputs = (0..20)
+            .map(|index| {
+                let mut input = discovery_input();
+                input.name = format!("物体 {index}");
+                input.normalized_name = format!("物体 {index}");
+                input
+            })
+            .collect::<Vec<_>>();
+
+        let result = upsert_object_profiles_in(&db, project.id, inputs)
+            .await
+            .unwrap();
+
+        assert_eq!(result.created.len(), 20);
+        assert!(result.updated.is_empty());
+        assert_eq!(
+            object_profile::Entity::find()
+                .filter(object_profile::Column::ProjectId.eq(project.id))
+                .all(&db)
+                .await
+                .unwrap()
+                .len(),
+            20
+        );
+    }
+
+    #[tokio::test]
+    async fn updates_existing_object_profiles_in_one_batch() {
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let user = crate::auth::create_user(
+            &db,
+            "object_profile_batch_update",
+            "object-profile-batch-update@example.invalid",
+            "object-profile-batch-update-password",
+            a4n_core::models::user::role::ROLE_USER,
+        )
+        .await
+        .unwrap();
+        let project = crate::project::create_project_record(
+            &db,
+            crate::project::CreateProjectRecordInput {
+                user_id: user.id,
+                title: "物体档案批量更新".to_string(),
+                description: String::new(),
+                project_type: "novel_long".to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        let initial_inputs = (0..20)
+            .map(|index| {
+                let mut input = discovery_input();
+                input.name = format!("物体 {index}");
+                input.normalized_name = format!("物体 {index}");
+                input
+            })
+            .collect::<Vec<_>>();
+        upsert_object_profiles_in(&db, project.id, initial_inputs)
+            .await
+            .unwrap();
+
+        let refreshed_inputs = (0..20)
+            .map(|index| {
+                let mut input = discovery_input();
+                input.name = format!("刷新物体 {index}");
+                input.normalized_name = format!("物体 {index}");
+                input.visual_description = format!("刷新外观 {index}");
+                input
+            })
+            .collect::<Vec<_>>();
+        let result = upsert_object_profiles_in(&db, project.id, refreshed_inputs)
+            .await
+            .unwrap();
+
+        assert!(result.created.is_empty());
+        assert_eq!(result.updated.len(), 20);
+        assert_eq!(result.updated[0].name, "刷新物体 0");
+        assert_eq!(result.updated[0].visual_description, "刷新外观 0");
+        assert_eq!(
+            object_profile::Entity::find()
+                .filter(object_profile::Column::ProjectId.eq(project.id))
+                .all(&db)
+                .await
+                .unwrap()
+                .len(),
+            20
+        );
     }
 }

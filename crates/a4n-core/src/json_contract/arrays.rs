@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use serde_json::{Value, json};
 
@@ -12,7 +12,7 @@ pub fn string_array(
 ) -> Result<Vec<String>, String> {
     let values = required_array(value, key, path)?;
     let mut normalized = Vec::new();
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for (index, item) in values.iter().enumerate() {
         let text = item
             .as_str()
@@ -21,7 +21,7 @@ pub fn string_array(
         if text.is_empty() {
             continue;
         }
-        if seen.insert(text.to_string()) {
+        if seen.insert(text) {
             normalized.push(text.to_string());
         }
     }
@@ -48,7 +48,7 @@ pub fn positive_i64_array(
 ) -> Result<Vec<i64>, String> {
     let values = required_array(value, key, path)?;
     let mut normalized = Vec::new();
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for (index, item) in values.iter().enumerate() {
         let id = item
             .as_i64()

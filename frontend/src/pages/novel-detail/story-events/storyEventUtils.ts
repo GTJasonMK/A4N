@@ -16,6 +16,7 @@ import type {
   StoryEventFilterOptions,
   StoryEventFilters,
 } from "./types";
+import type { MessageTranslator } from "../../../i18n";
 
 export const ALL_STORY_EVENT_FILTER = "all";
 
@@ -35,8 +36,8 @@ const eventDescription = (raw: unknown): string => {
   return firstAnalysisText(record, ["description", "summary", "event", "title"]);
 };
 
-const chapterTitle = (chapter: ChapterSummary): string =>
-  chapter.title?.trim() || `第 ${chapter.chapter_number} 章`;
+const chapterTitle = (chapter: ChapterSummary, t: MessageTranslator): string =>
+  chapter.title?.trim() || t("writing.chapterLabel", { number: chapter.chapter_number });
 
 const analysisSummary = (analysis: JsonRecord | null, chapter: ChapterSummary): string => {
   const summaries = asRecord(analysis?.summaries);
@@ -69,12 +70,15 @@ const sectionSearchText = (section: ChapterStorySection): string =>
     section.keywords.join(" "),
   ].join(" ");
 
-export const extractChapterStorySection = (chapter: ChapterSummary): ChapterStorySection => {
+export const extractChapterStorySection = (
+  chapter: ChapterSummary,
+  t: MessageTranslator,
+): ChapterStorySection => {
   const analysis = asRecord(chapter.analysis_data);
   const metadata = asRecord(analysis?.metadata);
   const summaries = asRecord(analysis?.summaries);
   const foreshadowing = asRecord(analysis?.foreshadowing);
-  const title = chapterTitle(chapter);
+  const title = chapterTitle(chapter, t);
   const eventRows = asArray(analysis?.key_events)
     .map((raw, index): StoryEvent | null => {
       const description = eventDescription(raw);
@@ -87,12 +91,13 @@ export const extractChapterStorySection = (chapter: ChapterSummary): ChapterStor
         chapterTitle: title,
         description,
         type:
-          chapterEventTypeLabel(firstAnalysisText(record, ["type"])) ??
-          "其他事件",
+          chapterEventTypeLabel(firstAnalysisText(record, ["type"]), t) ??
+          t("novel.eventTypeOther"),
         importance:
           chapterEventImportanceLabel(
             firstAnalysisText(record, ["importance", "priority"]),
-          ) ?? "未标注",
+            t,
+          ) ?? t("novel.unlabeled"),
         involvedCharacters: textList(record?.involved_characters, 12),
       };
     })

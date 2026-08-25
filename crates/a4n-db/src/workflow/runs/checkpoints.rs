@@ -176,6 +176,71 @@ pub async fn workflow_checkpoint_models(
     workflow_checkpoints(db, workflow_run_id).await
 }
 
+pub async fn workflow_checkpoint_models_for_runs(
+    db: &DatabaseConnection,
+    workflow_run_ids: &[i64],
+) -> Result<Vec<workflow_checkpoint::Model>, WorkflowReadError> {
+    for workflow_run_id in workflow_run_ids {
+        validate_positive_i64(*workflow_run_id, "workflow_run_id")?;
+    }
+    if workflow_run_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    workflow_checkpoint::Entity::find()
+        .filter(workflow_checkpoint::Column::WorkflowRunId.is_in(workflow_run_ids.iter().copied()))
+        .order_by_asc(workflow_checkpoint::Column::WorkflowRunId)
+        .order_by_asc(workflow_checkpoint::Column::StepOrder)
+        .order_by_asc(workflow_checkpoint::Column::Id)
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
+pub async fn workflow_checkpoint_step_statuses<C>(
+    db: &C,
+    workflow_run_id: i64,
+) -> Result<Vec<(String, String)>, WorkflowReadError>
+where
+    C: ConnectionTrait,
+{
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    workflow_checkpoint::Entity::find()
+        .select_only()
+        .column(workflow_checkpoint::Column::StepKey)
+        .column(workflow_checkpoint::Column::Status)
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .order_by_asc(workflow_checkpoint::Column::StepOrder)
+        .order_by_asc(workflow_checkpoint::Column::Id)
+        .into_tuple::<(String, String)>()
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
+pub async fn workflow_checkpoint_statuses_for_runs(
+    db: &DatabaseConnection,
+    workflow_run_ids: &[i64],
+) -> Result<Vec<(i64, String)>, WorkflowReadError> {
+    for workflow_run_id in workflow_run_ids {
+        validate_positive_i64(*workflow_run_id, "workflow_run_id")?;
+    }
+    if workflow_run_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    workflow_checkpoint::Entity::find()
+        .select_only()
+        .column(workflow_checkpoint::Column::WorkflowRunId)
+        .column(workflow_checkpoint::Column::Status)
+        .filter(workflow_checkpoint::Column::WorkflowRunId.is_in(workflow_run_ids.iter().copied()))
+        .order_by_asc(workflow_checkpoint::Column::WorkflowRunId)
+        .order_by_asc(workflow_checkpoint::Column::StepOrder)
+        .order_by_asc(workflow_checkpoint::Column::Id)
+        .into_tuple::<(i64, String)>()
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
 pub async fn delete_workflow_checkpoints_by_keys(
     db: &DatabaseConnection,
     workflow_run_id: i64,

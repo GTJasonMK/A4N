@@ -1,11 +1,15 @@
 use a4n_core::error::AppError;
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use serde_json::json;
+use std::sync::Arc;
 
 use crate::OrchestratorContext;
 
 use super::{
-    context::{build_scene_profile_sync_request, select_scene_profile_sync_chapters},
+    context::{
+        build_scene_profile_sync_request_with_profiles, load_scene_profile_sync_anchor_context,
+        load_scene_profile_sync_stable_context, select_scene_profile_sync_chapters,
+    },
     stages::build_scene_profile_stage_request,
     types::{
         ChapterAnchorMode, SCENE_CANDIDATE_ACTUAL_OCCURRENCE_RULE, SCENE_PROFILE_CANDIDATES_PROMPT,
@@ -23,16 +27,35 @@ impl OrchestratorContext {
         let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number)
             .await
             .map_err(scene_profile_sync_preview_error)?;
-        let mut steps = Vec::new();
-        for chapter in chapters {
-            let context = build_scene_profile_sync_request(
-                self,
-                project_id,
-                chapter,
-                ChapterAnchorMode::RequireExistingCurrent,
-            )
+        let stable = load_scene_profile_sync_stable_context(self, project_id)
             .await
             .map_err(scene_profile_sync_preview_error)?;
+        let existing_scene_profiles = self
+            .scene_profiles_by_project(project_id)
+            .await
+            .map_err(|error| scene_profile_sync_preview_error(error.to_string()))?;
+        let existing_scene_profiles = Arc::new(existing_scene_profiles);
+        let anchors = load_scene_profile_sync_anchor_context(
+            self,
+            project_id,
+            &chapters,
+            ChapterAnchorMode::RequireExistingCurrent,
+        )
+        .await
+        .map_err(scene_profile_sync_preview_error)?;
+        let mut steps = Vec::new();
+        for chapter in chapters {
+            let chapter_id = chapter.id;
+            let context = build_scene_profile_sync_request_with_profiles(
+                chapter,
+                anchors
+                    .get(&chapter_id)
+                    .cloned()
+                    .ok_or_else(|| "场景档案同步锚点批量读取缺少章节".to_string())
+                    .map_err(scene_profile_sync_preview_error)?,
+                &stable,
+                Arc::clone(&existing_scene_profiles),
+            );
             let chapter_number = context.chapter.chapter_number;
             let scene_request = build_scene_profile_stage_request(
                 prompt_renderer,

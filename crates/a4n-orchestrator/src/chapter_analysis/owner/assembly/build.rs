@@ -1,7 +1,7 @@
 mod metadata;
 
 use a4n_core::error::AppError;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::required_stage_field;
 use metadata::assemble_metadata;

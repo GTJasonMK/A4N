@@ -1,8 +1,6 @@
 use a4n_core::models::ai::generated_video;
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::project::duplicate::{
     ProjectDuplicateError, freeform::FreeformGeneratedVideoCopyRecords,
@@ -45,7 +43,12 @@ where
     C: ConnectionTrait,
     Copier: ProjectMediaFileCopier,
 {
-    let mut copied = FreeformGeneratedVideoCopyRecords::default();
+    if videos.is_empty() {
+        return Ok(FreeformGeneratedVideoCopyRecords::default());
+    }
+    let mut file_paths = Vec::with_capacity(videos.len());
+    let mut thumbnail_paths = Vec::with_capacity(videos.len());
+    let mut rows = Vec::with_capacity(videos.len());
     for video in videos {
         let file_path = media_file_copier
             .copy_media_file(
@@ -63,7 +66,9 @@ where
                 video.thumbnail_path.as_deref(),
             )
             .map_err(ProjectDuplicateError::MediaCopy)?;
-        let row = generated_video::ActiveModel {
+        file_paths.push(file_path.clone());
+        thumbnail_paths.push(thumbnail_path.clone());
+        rows.push(generated_video::ActiveModel {
             project_id: Set(new_project_id),
             chapter_id: Set(None),
             video_type: Set(video.video_type.clone()),
@@ -88,10 +93,25 @@ where
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
+        });
+    }
+    let inserted = generated_video::Entity::insert_many(rows)
+        .exec_with_returning_many(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
+    if inserted.len() != videos.len() {
+        return Err(ProjectDuplicateError::InvalidState {
+            current: "复制后的生成视频数量与源记录不一致".to_string(),
+            operation: "复制自由视频项目生成视频".to_string(),
+        });
+    }
+    let mut copied = FreeformGeneratedVideoCopyRecords::default();
+    for (((video, file_path), thumbnail_path), row) in videos
+        .iter()
+        .zip(file_paths)
+        .zip(thumbnail_paths)
+        .zip(inserted)
+    {
         copied.file_paths.insert(video.id, file_path);
         copied.thumbnail_paths.insert(video.id, thumbnail_path);
         copied.ids.insert(video.id, row.id);

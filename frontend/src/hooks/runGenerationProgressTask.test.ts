@@ -76,7 +76,7 @@ describe("runGenerationProgressTaskThen", () => {
         taskKind: "test_generation",
         stageCode: "provider_stream",
         phaseKind: "model_stream",
-        stageLabel: "模型正在输出",
+        stageLabel: "provider_stream",
         severity: "info",
       }),
     );
@@ -211,8 +211,8 @@ describe("runGenerationProgressTaskThen", () => {
       "model_wait",
     ]);
     expect(setProgress.mock.calls.map((call) => call[3]?.stageLabel)).toEqual([
-      "正在连接模型",
-      "正在等待模型响应",
+      "provider_connect",
+      "provider_wait",
     ]);
   });
 });

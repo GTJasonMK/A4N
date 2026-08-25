@@ -48,7 +48,7 @@ pub(super) async fn generate_shooting_scene(
             progress,
             stream_reporter,
             cancel_token,
-            |output| validate_design_unit(output, unit),
+            |output| validate_design_unit(output, unit, prepared),
         )
         .await?;
     progress(
@@ -73,16 +73,23 @@ fn design_unit_request(
     workflow_run_id: i64,
     unit: &ScreenplayPlanUnit,
 ) -> Result<ChatRequest, AppError> {
+    let planned_unit = planned_visual_unit(prepared, unit)?;
     shooting_context_request(
         prepared,
         workflow_run_id,
         CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
         format!("shooting_design_unit:{}", unit.narrative_unit_index),
         prepared.design_unit_system_prompt.clone(),
-        Some(("shooting_screenplay_plan_unit", unit)),
+        Some((
+            "shooting_visual_design_input",
+            &serde_json::json!({
+                "screenplay_plan_unit": unit,
+                "locked_visual_unit": planned_unit,
+            }),
+        )),
         format!(
-            "只设计 narrative_unit_index={} 的 ShootingSceneV1。",
-            unit.narrative_unit_index
+            "只设计 narrative_unit_index={} 的 ShootingSceneV1。shots 必须与 locked_visual_unit.shots 数量和顺序一致；不得改变视觉镜头 ID、时间范围、source_span_ids、user_addition_ids 或关键帧/事件约束。",
+            unit.narrative_unit_index,
         ),
         llm_token_profiles::EXTRA_LONG.into(),
     )
@@ -100,7 +107,7 @@ pub(in crate::shooting_script) async fn restore_shooting_scene(
             workflow_run_id,
             &format!("shooting_design_unit:{}", unit.narrative_unit_index),
             &request,
-            |output| validate_design_unit(output, unit),
+            |output| validate_design_unit(output, unit, prepared),
         )
         .await
 }
@@ -108,6 +115,7 @@ pub(in crate::shooting_script) async fn restore_shooting_scene(
 fn validate_design_unit(
     scene: &ShootingSceneV1,
     unit: &ScreenplayPlanUnit,
+    prepared: &PreparedChapterShootingScriptRequest,
 ) -> Result<(), AppError> {
     if scene.narrative_unit_index != unit.narrative_unit_index || scene.shots.is_empty() {
         return Err(AppError::InvalidArgument(format!(
@@ -115,7 +123,44 @@ fn validate_design_unit(
             unit.narrative_unit_index
         )));
     }
+    let planned = planned_visual_unit(prepared, unit)?;
+    if scene.shots.len() != planned.shots.len() {
+        return Err(AppError::InvalidArgument(format!(
+            "拍摄设计 unit {} 必须生成 {} 个视觉方案镜头，实际 {} 个",
+            unit.narrative_unit_index,
+            planned.shots.len(),
+            scene.shots.len()
+        )));
+    }
+    for (shot, planned_shot) in scene.shots.iter().zip(&planned.shots) {
+        if shot.source_span_ids != planned_shot.source_span_ids {
+            return Err(AppError::InvalidArgument(format!(
+                "拍摄设计 unit {} 的镜头来源顺序偏离 confirmed 导演编排",
+                unit.narrative_unit_index
+            )));
+        }
+    }
     validate_design_scene_content_against_plan_unit(scene, unit)
+}
+
+fn planned_visual_unit<'a>(
+    prepared: &'a PreparedChapterShootingScriptRequest,
+    unit: &ScreenplayPlanUnit,
+) -> Result<&'a a4n_domain::chapter_visual_plan::VisualNarrativeUnitV1, AppError> {
+    prepared
+        .visual_plan
+        .plan
+        .narrative_units
+        .get(usize::try_from(unit.narrative_unit_index - 1).map_err(|_| {
+            AppError::InvalidArgument("narrative_unit_index 超出 usize 范围".into())
+        })?)
+        .filter(|planned| planned.id == unit.scene_identity)
+        .ok_or_else(|| {
+            AppError::InvalidArgument(format!(
+                "拍摄设计 unit {} 找不到对应的 confirmed 视觉单元",
+                unit.narrative_unit_index
+            ))
+        })
 }
 
 fn validate_design_scene_content_against_plan_unit(
@@ -158,14 +203,20 @@ fn validate_design_scene_content_against_plan_unit(
         .flat_map(|shot| &shot.performance_beats)
         .filter(|beat| beat.required)
         .collect::<Vec<_>>();
+    let required_beat_sources = required_source_ids(
+        required_beats
+            .iter()
+            .map(|beat| beat.source_span_ids.as_slice()),
+    );
     for fact in planned_unit
         .performance_facts
         .iter()
         .filter(|fact| fact.required)
     {
-        if !required_beats
+        if !fact
+            .source_span_ids
             .iter()
-            .any(|beat| source_sets_overlap(&beat.source_span_ids, &fact.source_span_ids))
+            .any(|id| required_beat_sources.contains(id.as_str()))
         {
             return Err(AppError::InvalidArgument(format!(
                 "镜头设计 unit {} 的 required performance fact {} 未被 required beat 覆盖",
@@ -182,11 +233,10 @@ fn validate_shot_sources(
     allowed_sources: &HashSet<&str>,
     participants: &HashSet<&str>,
 ) -> Result<(), AppError> {
-    if shot.source_span_ids.is_empty()
-        || shot
-            .source_span_ids
-            .iter()
-            .any(|id| !allowed_sources.contains(id.as_str()))
+    if shot
+        .source_span_ids
+        .iter()
+        .any(|id| !allowed_sources.contains(id.as_str()))
     {
         return Err(AppError::InvalidArgument(format!(
             "镜头设计 unit {narrative_unit_index} 的 shot {} 引用了当前单元范围外的 source span",
@@ -205,11 +255,10 @@ fn validate_shot_sources(
                 shot.shot_index, beat.beat_index
             )));
         }
-        if beat.source_span_ids.is_empty()
-            || beat
-                .source_span_ids
-                .iter()
-                .any(|id| !shot_sources.contains(id.as_str()))
+        if beat
+            .source_span_ids
+            .iter()
+            .any(|id| !shot_sources.contains(id.as_str()))
         {
             return Err(AppError::InvalidArgument(format!(
                 "镜头设计 unit {narrative_unit_index} 的 shot {} beat {} 来源范围无效",
@@ -220,8 +269,14 @@ fn validate_shot_sources(
     Ok(())
 }
 
-fn source_sets_overlap(left: &[String], right: &[String]) -> bool {
-    left.iter().any(|value| right.contains(value))
+fn required_source_ids<'a, I>(source_lists: I) -> HashSet<&'a str>
+where
+    I: IntoIterator<Item = &'a [String]>,
+{
+    source_lists
+        .into_iter()
+        .flat_map(|sources| sources.iter().map(String::as_str))
+        .collect()
 }
 
 fn optional_actor_is_allowed(actor: Option<&str>, participants: &HashSet<&str>) -> bool {
@@ -241,7 +296,7 @@ fn shooting_design_call_order(unit_offset: usize) -> Result<i32, AppError> {
 mod tests {
     use std::collections::HashSet;
 
-    use super::{optional_actor_is_allowed, shooting_design_call_order, source_sets_overlap};
+    use super::{optional_actor_is_allowed, required_source_ids, shooting_design_call_order};
 
     #[test]
     fn design_call_order_follows_layout_and_adaptation_for_each_unit() {
@@ -264,7 +319,12 @@ mod tests {
             "span-3".to_string(),
         ];
 
-        assert!(source_sets_overlap(&fact_sources, &beat_sources));
+        let required_sources = required_source_ids([beat_sources.as_slice()]);
+        assert!(
+            fact_sources
+                .iter()
+                .any(|source| required_sources.contains(source.as_str()))
+        );
     }
 
     #[test]

@@ -22,11 +22,30 @@ impl OrchestratorContext {
         .map_err(|error| error.to_string())?;
 
         let processed = records.len();
-        for record in records {
-            let chunk_id = record.chunk_id.clone();
-            sync.sync_record(self, record)
+        let batch_size = self.embedding_batch_size();
+        if batch_size == 0 {
+            return Err("RAG embedding provider batch_size 必须大于 0".to_string());
+        }
+        let prepared = records
+            .into_iter()
+            .map(|record| sync.prepare_record(record))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| format!("同步章节 RAG 失败：{error}"))?;
+        let mut pending = prepared.into_iter();
+        loop {
+            let batch = pending.by_ref().take(batch_size).collect::<Vec<_>>();
+            if batch.is_empty() {
+                break;
+            }
+            let chunk_ids = batch
+                .iter()
+                .map(|record| record.chunk_id().to_string())
+                .collect::<Vec<_>>();
+            self.store_prepared_rag_records(chapter.project_id, batch)
                 .await
-                .map_err(|error| format!("同步章节 RAG 失败：{chunk_id}：{error}"))?;
+                .map_err(|error| {
+                    format!("同步章节 RAG 失败 [{}]：{error}", chunk_ids.join(", "))
+                })?;
         }
         sync.cleanup_stale(self).await.map_err(|error| {
             format!("清理章节过期 RAG 失败：chapter_id={}：{error}", chapter.id)

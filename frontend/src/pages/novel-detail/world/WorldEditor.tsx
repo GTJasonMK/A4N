@@ -14,6 +14,7 @@ import {
   type WorldEditMode,
   type WorldObject,
 } from "./worldTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface WorldEditorProps {
   editMode: WorldEditMode;
@@ -34,6 +35,7 @@ export const WorldEditor: React.FC<WorldEditorProps> = ({
   onJsonDraftChange,
   onTextDraftChange,
 }) => {
+  const { t } = useI18n();
   const draftObject = useMemo(() => tryParseObjectDraft(jsonDraft), [jsonDraft]);
   const coreDraft = draftObject ? pickFirst(draftObject, CORE_KEYS) : null;
   const locationsDraft = draftObject ? pickFirst(draftObject, LOCATION_KEYS) : null;
@@ -41,10 +43,10 @@ export const WorldEditor: React.FC<WorldEditorProps> = ({
   const canStructured = Boolean(draftObject);
   const activeMode = editMode === "structured" && !canStructured ? "json" : editMode;
   const modeDescription = activeMode === "structured"
-    ? "适合日常维护；未展示的扩展字段会原样保留。"
+    ? t("novel.world.structuredModeDescription")
     : activeMode === "json"
-      ? "直接编辑完整数据结构，仅建议熟悉 JSON 时使用。"
-      : "使用自然语言记录；保存后世界观将以纯文本形式存储。";
+      ? t("novel.world.jsonModeDescription")
+      : t("novel.world.textModeDescription");
 
   const updateObjectDraft = (patch: (obj: WorldObject) => void) => {
     const base = tryParseObjectDraft(jsonDraft);
@@ -56,7 +58,7 @@ export const WorldEditor: React.FC<WorldEditorProps> = ({
 
   const handleModeChange = (mode: WorldEditMode) => {
     if (mode === "text" && !textDraft.trim() && draftObject) {
-      onTextDraftChange(valueToText(draftObject));
+      onTextDraftChange(valueToText(draftObject, t));
     }
     onEditModeChange(mode);
   };
@@ -65,14 +67,18 @@ export const WorldEditor: React.FC<WorldEditorProps> = ({
     <div className="space-y-4">
       <div className="space-y-2 border-b border-book-border/45 pb-3">
         <SegmentedControl
-          ariaLabel="世界观编辑模式"
+          ariaLabel={t("novel.world.modeAria")}
           value={activeMode}
           onChange={handleModeChange}
           className="w-full [&_.a4n-seg__btn]:flex-1 sm:w-auto sm:[&_.a4n-seg__btn]:flex-none"
           options={[
-            { id: "structured", label: "结构化", disabled: !canStructured },
-            { id: "json", label: "JSON", title: "编辑完整 JSON 结构" },
-            { id: "text", label: "纯文本" },
+            {
+              id: "structured",
+              label: t("novel.world.structured"),
+              disabled: !canStructured,
+            },
+            { id: "json", label: t("novel.world.json"), title: t("novel.world.jsonTitle") },
+            { id: "text", label: t("novel.world.text") },
           ]}
         />
         <p className="text-small leading-relaxed text-book-text-muted">
@@ -94,7 +100,7 @@ export const WorldEditor: React.FC<WorldEditorProps> = ({
           onChange={(event) => onTextDraftChange(event.target.value)}
           disabled={saving}
           className="min-h-[320px] text-sm font-serif leading-relaxed sm:min-h-[400px]"
-          placeholder="用自然语言描述世界观设定…"
+          placeholder={t("novel.world.textPlaceholder")}
         />
       ) : (
         <BookTextarea
@@ -102,7 +108,7 @@ export const WorldEditor: React.FC<WorldEditorProps> = ({
           onChange={(event) => onJsonDraftChange(event.target.value)}
           disabled={saving}
           spellCheck={false}
-          error={jsonDraft.trim() && !draftObject ? "请输入合法 JSON 对象" : undefined}
+          error={jsonDraft.trim() && !draftObject ? t("novel.world.jsonObjectError") : undefined}
           className="min-h-[360px] font-mono text-xs leading-relaxed sm:min-h-[460px]"
           placeholder='{"core_rules":"","key_locations":[],"factions":[]}'
         />
@@ -126,11 +132,12 @@ const StructuredWorldEditor: React.FC<StructuredWorldEditorProps> = ({
   saving,
   onObjectDraftChange,
 }) => {
+  const { t } = useI18n();
   return (
     <>
       <div className="border-b border-book-border/45 pb-4">
         <BookTextarea
-          label="核心规则"
+          label={t("novel.world.coreRules")}
           value={inputTextValue(coreDraft?.[1])}
           onChange={(event) =>
             onObjectDraftChange((obj) => {
@@ -139,14 +146,14 @@ const StructuredWorldEditor: React.FC<StructuredWorldEditorProps> = ({
           }
           disabled={saving}
           className="min-h-[140px] text-sm font-serif leading-relaxed"
-          placeholder="例如：时代背景、社会规则、能力体系、禁忌与代价…"
+          placeholder={t("novel.world.coreRulesPlaceholder")}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div className="border-b border-book-border/45 pb-4 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-3">
           <BookTextarea
-            label="关键地点"
+            label={t("novel.world.keyLocations")}
             value={namedListToEditText(locationsDraft?.[1])}
             onChange={(event) =>
               onObjectDraftChange((obj) => {
@@ -158,16 +165,16 @@ const StructuredWorldEditor: React.FC<StructuredWorldEditorProps> = ({
             }
             disabled={saving}
             className="min-h-[220px] text-xs font-mono leading-relaxed"
-            placeholder={"王都｜政治中心，暗流涌动\n灰港｜走私与情报交易之城\n禁林"}
+            placeholder={t("novel.world.keyLocationsPlaceholder")}
           />
           <div className="mt-1.5 text-small text-book-text-muted">
-            每行一条，可写“名称｜描述”，支持中文竖线或英文 |。
+            {t("novel.world.listHint")}
           </div>
         </div>
 
         <div className="lg:pl-3">
           <BookTextarea
-            label="主要阵营"
+            label={t("novel.world.factions")}
             value={namedListToEditText(factionsDraft?.[1])}
             onChange={(event) =>
               onObjectDraftChange((obj) => {
@@ -179,10 +186,10 @@ const StructuredWorldEditor: React.FC<StructuredWorldEditorProps> = ({
             }
             disabled={saving}
             className="min-h-[220px] text-xs font-mono leading-relaxed"
-            placeholder={"学院派｜重视秩序与传承\n流亡者｜被放逐的旧贵族残党"}
+            placeholder={t("novel.world.factionsPlaceholder")}
           />
           <div className="mt-1.5 text-small text-book-text-muted">
-            复杂字段请切换到高级模式继续调整。
+            {t("novel.world.advancedHint")}
           </div>
         </div>
       </div>

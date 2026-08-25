@@ -20,7 +20,7 @@ pub async fn preview_manga_pipeline_requests(
         .prepare_manga_pipeline_preview_validated(MangaPipelinePreviewApplicationInput {
             project_id,
             chapter_number,
-            prompt_renderer: prompt_renderer,
+            prompt_renderer,
             resume_from_checkpoint,
         })
         .await?;

@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   buildInsertedSegmentGenerationOptions,
+  gapLabel,
   timelineGapsForMove,
 } from "./InsertedSegmentTimelinePanel";
+import type { VideoTimelineItemSummary } from "../../../api/video";
+import { translateMessage, type MessageTranslator } from "../../../i18n";
+
+const t: MessageTranslator = (key, params) =>
+  translateMessage("zh-CN", key, params);
 
 describe("InsertedSegmentTimelinePanel", () => {
   it("flattens the selected gap into the strict generation contract", () => {
@@ -35,5 +41,30 @@ describe("InsertedSegmentTimelinePanel", () => {
       { previous_item_id: 1, next_item_id: 2 },
       { previous_item_id: 2, next_item_id: null },
     ]);
+  });
+
+  it("keeps the first timeline item when formatting a gap", () => {
+    const item = (
+      id: number,
+      title: string,
+      display_index: number,
+    ): VideoTimelineItemSummary => ({
+      id,
+      title,
+      display_index,
+      generated_video_id: null,
+      kind: "inserted",
+      plan_prompt_id: null,
+      segment_number: null,
+      source_shot_id: null,
+      status: "active",
+    });
+    expect(
+      gapLabel(
+        { previous_item_id: 1, next_item_id: null },
+        [item(1, "首个镜头", 1), item(1, "重复镜头", 2)],
+        t,
+      ),
+    ).toContain("首个镜头");
   });
 });

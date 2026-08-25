@@ -13,6 +13,7 @@ use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 struct SceneSessionPromptRenderer;
 
@@ -54,14 +55,14 @@ fn context_for_test() -> SceneProfileSyncRequestContext {
     SceneProfileSyncRequestContext {
         chapter,
         text_anchors,
-        existing_scene_profiles: Vec::new(),
-        character_profiles: Vec::new(),
-        object_profiles: Vec::new(),
+        existing_scene_profiles: Arc::new(Vec::new()),
+        character_profiles: Arc::new(Vec::new()),
+        object_profiles: Arc::new(Vec::new()),
         existing_scene_ids: BTreeSet::new(),
-        character_ids: BTreeSet::from([10]),
-        object_ids: BTreeSet::from([20]),
-        character_names: BTreeMap::from([(10, "进入者".to_string())]),
-        object_names: BTreeMap::from([(20, "青铜钥匙".to_string())]),
+        character_ids: Arc::new(BTreeSet::from([10])),
+        object_ids: Arc::new(BTreeSet::from([20])),
+        character_names: Arc::new(BTreeMap::from([(10, "进入者".to_string())])),
+        object_names: Arc::new(BTreeMap::from([(20, "青铜钥匙".to_string())])),
     }
 }
 

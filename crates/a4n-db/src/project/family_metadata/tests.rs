@@ -1,7 +1,10 @@
-use super::contracts::{ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError};
+use super::contracts::{
+    ProjectFamilyMetadataQuery, ProjectFamilyMetadataReadError, ProjectFamilyRootRow,
+    ProjectFamilySnapshotRow,
+};
 use super::projection::build_project_family_metadata;
 use super::queries::{project_family_metadata, project_family_metadata_batch};
-use a4n_core::models::project::{novel_project, project_source_snapshot};
+use a4n_core::models::project::novel_project;
 use chrono::{NaiveDate, NaiveDateTime};
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::json;
@@ -10,15 +13,13 @@ use std::{collections::HashMap, error::Error};
 #[test]
 fn preserves_family_fields() {
     let root = project();
-    let snapshot = project_source_snapshot::Model {
+    let root = ProjectFamilyRootRow {
+        id: root.id,
+        title: root.title,
+    };
+    let snapshot = ProjectFamilySnapshotRow {
         id: 20,
-        root_project_id: 7,
-        source_version_hash: "source-hash".to_string(),
-        blueprint_version_id: None,
         chapter_scope_json: json!({"start": 1, "end": 2}),
-        chapter_hashes_json: json!({}),
-        profile_hashes_json: json!({}),
-        created_at: naive_datetime(),
     };
     let query = ProjectFamilyMetadataQuery {
         project_id: 10,
@@ -33,12 +34,7 @@ fn preserves_family_fields() {
     )
     .expect("family metadata should be complete");
 
-    assert_eq!(metadata.project_id, 10);
     assert_eq!(metadata.root_project_title.as_deref(), Some("项目"));
-    assert_eq!(
-        metadata.source_snapshot_created_at.as_deref(),
-        Some("2026-01-01 00:00:00")
-    );
     assert_eq!(
         metadata.derived_chapter_scope,
         Some(json!({"start": 1, "end": 2}))
@@ -82,10 +78,6 @@ fn keeps_missing_reference_errors() {
 
 #[test]
 fn read_error_preserves_invariants_and_database_source() {
-    let missing = ProjectFamilyMetadataReadError::MetadataMissing { project_id: 17 };
-    assert_eq!(missing.to_string(), "项目缺少族元数据: 17");
-    assert!(missing.source().is_none());
-
     let database = ProjectFamilyMetadataReadError::database(
         "查询项目族根项目失败",
         DbErr::Custom("query failed".to_string()),

@@ -1,10 +1,10 @@
 use crate::galgame::galgame_portrait_spec_references_lines;
 use serde_json::json;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 #[test]
 fn portrait_spec_reference_rule_only_matches_integer_source_line_ids() {
-    let line_ids = BTreeSet::from([2, 5]);
+    let line_ids = HashSet::from([2, 5]);
 
     assert!(
         galgame_portrait_spec_references_lines(&json!({"source_line_ids": [1, 2]}), &line_ids,)

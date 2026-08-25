@@ -1,12 +1,13 @@
 use crate::collaboration::{
     CollaborationDbError, INVITE_STATUS_PENDING, INVITE_TTL_DAYS, ProjectAccessRole,
     ProjectInviteSummary, ProjectMemberRole, expire_project_invites, find_user_by_identity,
-    invite_summaries, resolve_root_project_model, verify_project_permission,
+    invite_summaries, resolve_root_project, verify_project_permission,
 };
 use a4n_core::models::project::{project_invite, project_member};
 use chrono::{Duration, Utc};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set,
 };
 
 pub async fn invite_project_member(
@@ -24,7 +25,7 @@ pub async fn invite_project_member(
             "只有项目所有者可以邀请 manager".to_string(),
         ));
     }
-    let root = resolve_root_project_model(db, project_id).await?;
+    let root = resolve_root_project(db, project_id).await?;
     let invitee = find_user_by_identity(db, username_or_email).await?;
     if !invitee.is_active {
         return Err(CollaborationDbError::InvalidState(
@@ -42,8 +43,11 @@ pub async fn invite_project_member(
         ));
     }
     if project_member::Entity::find()
+        .select_only()
+        .column(project_member::Column::Id)
         .filter(project_member::Column::ProjectId.eq(root.id))
         .filter(project_member::Column::UserId.eq(invitee.id))
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map_err(CollaborationDbError::Database)?
@@ -56,9 +60,12 @@ pub async fn invite_project_member(
 
     expire_project_invites(db, root.id).await?;
     if project_invite::Entity::find()
+        .select_only()
+        .column(project_invite::Column::Id)
         .filter(project_invite::Column::ProjectId.eq(root.id))
         .filter(project_invite::Column::InviteeUserId.eq(invitee.id))
         .filter(project_invite::Column::Status.eq(INVITE_STATUS_PENDING))
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map_err(CollaborationDbError::Database)?
@@ -94,7 +101,7 @@ pub async fn list_project_invites(
     project_id: i64,
 ) -> Result<Vec<ProjectInviteSummary>, CollaborationDbError> {
     verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Manager).await?;
-    let root = resolve_root_project_model(db, project_id).await?;
+    let root = resolve_root_project(db, project_id).await?;
     let invites = project_invite::Entity::find()
         .filter(project_invite::Column::ProjectId.eq(root.id))
         .filter(project_invite::Column::Status.eq(INVITE_STATUS_PENDING))

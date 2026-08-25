@@ -99,18 +99,28 @@ pub(super) async fn generate_storyboard_frames(
     } else {
         spec.frame_generate_progress
     };
+    let mut generated_frame_numbers = storyboard_prompts
+        .iter()
+        .map(|prompt| prompt.frame_number)
+        .collect::<HashSet<_>>();
+    let eligible_units = video_units
+        .iter()
+        .filter(|unit| target_shot_number.is_none_or(|target| unit.unit_number == target))
+        .collect::<Vec<_>>();
+    let mut next_unit_index = 0usize;
     let mut generated_this_run = 0usize;
     while storyboard_prompts.len() < expected_frame_count && generated_this_run < prompt_batch_size
     {
         let index = storyboard_prompts.len();
-        let unit = video_units
-            .iter()
-            .filter(|unit| target_shot_number.is_none_or(|target| unit.unit_number == target))
-            .find(|unit| {
-                !storyboard_prompts
-                    .iter()
-                    .any(|prompt| prompt.frame_number == unit.unit_number)
-            })
+        while eligible_units
+            .get(next_unit_index)
+            .is_some_and(|unit| generated_frame_numbers.contains(&unit.unit_number))
+        {
+            next_unit_index += 1;
+        }
+        let unit = eligible_units
+            .get(next_unit_index)
+            .copied()
             .ok_or_else(|| {
                 AppError::InvalidArgument("分镜提示词缺少目标视频单元规划".to_string())
             })?;
@@ -179,6 +189,8 @@ pub(super) async fn generate_storyboard_frames(
             validate_storyboard_prompt(&frame_prompt, segment_plan, allowed_reference_ids)?;
         }
         storyboard_prompts.push(frame_prompt);
+        generated_frame_numbers.insert(frame_number);
+        next_unit_index += 1;
         generated_this_run += 1;
 
         let frame_drafts = storyboard_prompt_drafts(StoryboardPromptDraftsInput {

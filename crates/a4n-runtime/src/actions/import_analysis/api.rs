@@ -11,7 +11,7 @@ pub async fn get_project_import_analysis_progress(
     project_id: i64,
 ) -> Result<Option<ProjectImportAnalysisProgress>, AppError> {
     access::verify_project_editor(state, user_id, project_id).await?;
-    a4n_orchestrator::import_analysis::lifecycle::project_import_analysis_progress(
+    a4n_orchestrator::import_analysis::project_import_analysis_progress(
         state.orchestrator(),
         project_id,
     )
@@ -44,9 +44,6 @@ pub async fn cancel_import_analysis(
     project_id: i64,
 ) -> Result<(), AppError> {
     access::verify_project_editor(state, user_id, project_id).await?;
-    a4n_orchestrator::import_analysis::lifecycle::cancel_import_analysis(
-        state.orchestrator(),
-        project_id,
-    )
-    .await
+    a4n_orchestrator::import_analysis::cancel_import_analysis(state.orchestrator(), project_id)
+        .await
 }

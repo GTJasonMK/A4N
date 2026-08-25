@@ -23,17 +23,20 @@ where
 {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectCleanupDbError::InvalidArgument)?;
-    let generated_videos = if generated_video_ids.is_empty() {
+    let generated_video_refs = if generated_video_ids.is_empty() {
         Vec::new()
     } else {
         let mut query = generated_video::Entity::find()
+            .select_only()
+            .column(generated_video::Column::Id)
+            .column(generated_video::Column::ProjectId)
             .filter(generated_video::Column::ProjectId.eq(project_id))
             .filter(generated_video::Column::Id.is_in(generated_video_ids.iter().copied()))
             .order_by_asc(generated_video::Column::Id);
         if db.get_database_backend() != DbBackend::Sqlite {
             query = query.lock_exclusive();
         }
-        query.all(db).await?
+        query.into_tuple::<(i64, i64)>().all(db).await?
     };
 
     crate::video::clear_generated_image_references_record(db, generated_image_ids).await?;
@@ -46,7 +49,7 @@ where
             .exec(db)
             .await?;
     }
-    crate::video::clear_generated_video_references_record(db, &generated_videos).await?;
+    crate::video::clear_generated_video_references_by_ids(db, &generated_video_refs).await?;
     crate::media::delete_generated_image_target_media_bindings(db, generated_image_ids).await?;
     crate::media::delete_generated_video_target_media_bindings(db, generated_video_ids).await?;
 

@@ -15,6 +15,7 @@ import type {
 import type { ProgressMeta } from "../api/progress";
 import { isCancelledOperation } from "../utils/cancellation";
 import { streamLineFromBuffer } from "../utils/progressDisplay";
+import { useI18n } from "../i18n";
 
 interface ProgressTaskState {
   open: boolean;
@@ -133,7 +134,7 @@ export async function runTaskWithProgressEvents<T>(
 
 const createProgressTaskState = (): ProgressTaskState => ({
   open: false,
-  title: "生成进度",
+  title: "",
   status: "idle",
   current: 0,
   total: 1,
@@ -172,6 +173,7 @@ export function useProgressTask(): ProgressTaskApi {
 }
 
 function useProgressTaskController(): ProgressTaskController {
+  const { t } = useI18n();
   const [progressTask, setProgressTask] = useState<ProgressTaskState>(createProgressTaskState);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState(false);
@@ -336,18 +338,18 @@ function useProgressTaskController(): ProgressTaskController {
     setCancelling(true);
     setProgressTask((prev) => ({
       ...prev,
-      message: "已发送停止任务请求，正在等待后端确认…",
+      message: t("workflow.cancelRequested"),
       meta: null,
       error: null,
     }));
     try {
       const cancelTask = cancelTaskRef.current;
       if (!cancelTask) {
-        throw new Error("任务未提供取消函数；请在 runProgressTask 显式传入 cancelTask");
+        throw new Error(t("workflow.cancelTaskMissing"));
       }
       await cancelTask(activeTaskId);
     } catch (err) {
-      const errorMessage = extractErrorMessage(err, "停止任务失败");
+      const errorMessage = extractErrorMessage(err, t("workflow.stopFailed"));
       setProgressTask((prev) => ({
         ...prev,
         message: errorMessage,
@@ -357,7 +359,7 @@ function useProgressTaskController(): ProgressTaskController {
       cancellingRef.current = false;
       setCancelling(false);
     }
-  }, [activeTaskId]);
+  }, [activeTaskId, t]);
 
   return {
     progressTask,

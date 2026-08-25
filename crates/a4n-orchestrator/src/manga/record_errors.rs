@@ -1,6 +1,5 @@
 use a4n_core::error::AppError;
-
-use super::MangaPromptRecordError;
+use a4n_db::manga::{MangaPipelineDbError, MangaPromptRecordError};
 
 pub(crate) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppError {
     match error {
@@ -14,4 +13,11 @@ pub(crate) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppErr
         MangaPromptRecordError::Generation(error) => crate::generation::generation_error(error),
     }
 }
-pub use crate::manga::output_sync::errors::manga_pipeline_db_error;
+
+pub(in crate::manga) fn manga_pipeline_db_error(error: MangaPipelineDbError) -> AppError {
+    match error {
+        MangaPipelineDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        MangaPipelineDbError::Database(error) => AppError::Database(error),
+        MangaPipelineDbError::Generation(error) => crate::generation::generation_error(error),
+    }
+}

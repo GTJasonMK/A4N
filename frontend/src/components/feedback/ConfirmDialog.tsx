@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { AlertTriangle, HelpCircle, Info, ShieldAlert } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { BookButton } from "../ui/BookButton";
+import { getActiveLocale, translateMessage } from "../../i18n";
 
 type ConfirmDialogType = "normal" | "warning" | "danger";
 type ConfirmDialogResult = "cancel" | "confirm" | "secondary";
@@ -44,10 +45,10 @@ const useConfirmDialog = create<ConfirmDialogStore>((set, get) => ({
     }
 
     return new Promise<ConfirmDialogResult>((resolve) => {
-      const title = String(opts.title || "确认");
+      const title = String(opts.title || translateMessage(getActiveLocale(), "feedback.confirmTitle"));
       const message = String(opts.message || "");
-      const confirmText = String(opts.confirmText || "确认");
-      const cancelText = String(opts.cancelText || "取消");
+      const confirmText = String(opts.confirmText || translateMessage(getActiveLocale(), "feedback.confirm"));
+      const cancelText = String(opts.cancelText || translateMessage(getActiveLocale(), "feedback.cancel"));
       const dialogType: ConfirmDialogType = opts.dialogType || "normal";
       const secondaryText =
         "secondaryText" in opts ? String(opts.secondaryText || "") : null;
@@ -126,7 +127,7 @@ export function ConfirmDialogHost() {
       <ShieldAlert size={15} />
     ) : current.dialogType === "warning" ? (
       <AlertTriangle size={15} />
-    ) : current.title === "确认" ? (
+    ) : current.title === translateMessage(getActiveLocale(), "feedback.confirmTitle") ? (
       <HelpCircle size={15} />
     ) : (
       <Info size={15} />

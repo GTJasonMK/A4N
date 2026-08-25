@@ -1,5 +1,5 @@
 use crate::file_utils::{
-    paths::canonicalize_path_in_data_dir,
+    canonicalize_path_in_data_dir,
     rules::{normalize_relative_data_path, validate_missing_delete_target_parent},
 };
 use std::{

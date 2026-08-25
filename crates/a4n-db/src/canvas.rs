@@ -5,7 +5,7 @@ mod transfer;
 
 pub use artifacts::{
     CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary,
-    CanvasAssemblySourceVideoInput, CanvasImageMediaAssetEnsureInput,
+    CanvasAssemblySourceVideoInput, CanvasImageMediaAssetEnsureInput, CanvasMediaAssetProbeRecord,
     CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
     CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
     FreeformCanvasGenerationSpecUpsertInput, canvas_media_asset_by_id,
@@ -21,9 +21,6 @@ pub use graph_record::{
     validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
     validate_canvas_record_viewport_json,
 };
-pub use references::{
-    MissingCanvasRef, clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node,
-};
 pub use transfer::{
     VideoStudioProjectExportRows, VideoStudioProjectImportError,
     VideoStudioProjectImportMediaError, VideoStudioProjectImportMediaFileWriter,
@@ -33,7 +30,9 @@ pub use transfer::{
 
 pub(crate) use references::{
     generated_video_ref_project_ids, mark_canvas_generated_image_refs_missing,
-    mark_canvas_generated_video_refs_missing, mark_freeform_canvas_generated_refs_missing,
+    mark_canvas_generated_video_refs_missing_for_projects,
+    mark_canvas_generated_video_refs_missing_for_projects_and_videos,
+    mark_freeform_canvas_generated_refs_missing,
 };
 
 use sea_orm::DbErr;

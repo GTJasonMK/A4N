@@ -11,7 +11,7 @@ use a4n_core::models::{
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     chapter::{
         chapter, chapter_manga_prompt, chapter_outline, chapter_outline_provenance, chapter_scene,
-        chapter_shooting_script, chapter_video_prompt, part_outline,
+        chapter_shooting_script, chapter_video_prompt, chapter_visual_plan, part_outline,
     },
     character::{
         attribute_event, character_portrait, character_state_index, foreshadowing_index,
@@ -34,8 +34,8 @@ use a4n_core::models::{
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
     task::{cleanup_outbox, task_dependency, task_queue},
     user::{
-        conversation, invite_code, llm_usage_log, message, theme_config, usage_stats, user,
-        user_session,
+        conversation, invite_code, llm_usage_log, message, theme_config, theme_preference,
+        theme_resource, usage_stats, user, user_session,
     },
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
@@ -553,9 +553,23 @@ impl MigrationTrait for Migration {
         let schema = Schema::new(DbBackend::Postgres);
 
         create_entity_table!(manager, schema, user::Entity);
+        execute_pg_sql(
+            manager,
+            "ALTER TABLE \"user\" ALTER COLUMN page_cli_enabled SET DEFAULT false",
+        )
+        .await?;
         create_entity_table!(manager, schema, invite_code::Entity);
         create_entity_table!(manager, schema, user_session::Entity);
         create_entity_table!(manager, schema, theme_config::Entity);
+        // The historical theme integrity migrations still need to read the old
+        // column before theme_system_v3 removes it from deployed databases.
+        execute_pg_sql(
+            manager,
+            "ALTER TABLE theme_config ADD COLUMN IF NOT EXISTS css_variables JSON NOT NULL DEFAULT '{}'",
+        )
+        .await?;
+        create_entity_table!(manager, schema, theme_preference::Entity);
+        create_entity_table!(manager, schema, theme_resource::Entity);
         create_entity_table!(manager, schema, llm_usage_log::Entity);
         create_entity_table!(manager, schema, usage_stats::Entity);
 
@@ -625,6 +639,7 @@ impl MigrationTrait for Migration {
         create_entity_table!(manager, schema, chapter_outline_provenance::Entity);
         create_entity_table!(manager, schema, chapter::Entity);
         create_entity_table!(manager, schema, chapter_scene::Entity);
+        create_entity_table!(manager, schema, chapter_visual_plan::Entity);
         create_entity_table!(manager, schema, chapter_shooting_script::Entity);
         create_entity_index!(
             manager,
@@ -823,6 +838,7 @@ impl MigrationTrait for Migration {
         drop_entity_table!(manager, chapter_video_prompt::Entity);
         drop_entity_table!(manager, chapter_manga_prompt::Entity);
         drop_entity_table!(manager, chapter_shooting_script::Entity);
+        drop_entity_table!(manager, chapter_visual_plan::Entity);
         drop_entity_table!(manager, chapter_scene::Entity);
         drop_entity_table!(manager, chapter_outline_provenance::Entity);
         drop_entity_table!(manager, chapter::Entity);
@@ -844,6 +860,8 @@ impl MigrationTrait for Migration {
         drop_entity_table!(manager, usage_stats::Entity);
         drop_entity_table!(manager, llm_usage_log::Entity);
         drop_entity_table!(manager, theme_config::Entity);
+        drop_entity_table!(manager, theme_resource::Entity);
+        drop_entity_table!(manager, theme_preference::Entity);
         drop_entity_table!(manager, message::Entity);
         drop_entity_table!(manager, conversation::Entity);
         drop_entity_table!(manager, user_session::Entity);

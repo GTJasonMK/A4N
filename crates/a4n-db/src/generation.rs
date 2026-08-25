@@ -12,8 +12,6 @@ use sea_orm::{
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::collections::BTreeSet;
-
 const RUN_STATUS_RUNNING: &str = "running";
 const RUN_STATUS_COMPLETED: &str = "completed";
 const RUN_STATUS_FAILED: &str = "failed";
@@ -30,7 +28,6 @@ use validation::{
 
 mod types;
 pub(crate) use types::append_generation_artifact_target;
-use types::{AttachGenerationRunTargetInput, CreateGenerationRunInput, INTERNAL_PROMPT_TOKENS};
 pub use types::{
     AttachGenerationRunsToWorkflowInput, GENERATION_ENTITY_KINDS, GENERATION_ENTITY_ROLES,
     GENERATION_MEDIA_REF_ROLES, GENERATION_PROMPT_KIND_CANVAS_PROMPT,
@@ -49,6 +46,7 @@ pub use types::{
     is_valid_generation_spec_target_entity_kind, is_valid_generation_spec_target_kind,
     is_valid_generation_text_anchor_role,
 };
+use types::{CreateGenerationRunInput, INTERNAL_PROMPT_TOKENS};
 pub(in crate::generation) use types::{
     GENERATION_PROMPT_KIND_IMAGE_PROMPT, VIDEO_PROMPT_REQUIRED_SECTIONS,
 };
@@ -57,21 +55,21 @@ mod runs;
 #[cfg(test)]
 pub(in crate::generation) use runs::usage_trace_fields;
 pub use runs::{
-    attach_runs_to_workflow_for_target, cancel_runs_for_target, complete_runs_for_target,
-    delete_generation_run_targets_for, fail_runs_for_target,
+    attach_runs_to_workflow_for_target, cancel_runs_for_target, cancel_runs_for_targets,
+    complete_runs_for_target, delete_generation_run_targets_for, fail_runs_for_target,
     generation_run_exists_for_target_output, record_completed_generation_run,
     record_completed_generation_run_in_transaction,
     record_completed_run_with_checkpoint_transaction, record_llm_call_trace,
 };
 pub(crate) use runs::{
-    interrupt_runs_for_target, record_completed_generation_run_with_checkpoint_in,
-    record_started_generation_run,
+    generation_run_existing_target_outputs, interrupt_runs_for_targets,
+    record_completed_generation_run_with_checkpoint_in, record_started_generation_run,
 };
 
 mod refs;
 pub(crate) use refs::{
-    insert_generation_entity_ref, insert_generation_media_ref, insert_generation_text_anchor_ref,
-    validate_entity_ref, validate_required_prompt_refs,
+    insert_generation_entity_refs, insert_generation_media_refs,
+    insert_generation_text_anchor_refs, validate_entity_refs, validate_required_prompt_refs,
 };
 #[cfg(test)]
 pub(in crate::generation) use refs::{normalize_entity_kind, normalize_media_ref_role};

@@ -2,6 +2,7 @@ import React from "react";
 import { Play, Square } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
+import { useI18n } from "../../i18n";
 
 interface StreamControlBarProps {
   activeNumber: number | null;
@@ -28,33 +29,42 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
   resetBusy,
   onStart,
   onCancel,
-}) => (
-  <div className="min-w-0 space-y-2 text-xs">
+}) => {
+  const { t } = useI18n();
+  const generationActive = Boolean(streamTaskId || streamBusy || resetBusy);
+  return (
+  <div
+    className="a4n-stream-control min-w-0 space-y-2 text-xs"
+    data-stream-active={generationActive ? "true" : undefined}
+    aria-busy={generationActive}
+  >
     {resetBusy ? (
-      <div className="flex min-w-0 items-center gap-2 text-small text-book-text-muted">
+      <div className="a4n-stream-state flex min-w-0 items-center gap-2 text-small" role="status" aria-live="polite">
         <LoadingSpinner size="sm" className="shrink-0" />
-        <span className="truncate">正在重置生成数据…</span>
+        <span className="truncate">{t("writing.resettingProjectData")}…</span>
       </div>
     ) : streamTaskId ? (
-      <div className="flex min-w-0 items-center gap-2 text-small text-book-text-muted">
+      <div className="a4n-stream-state flex min-w-0 items-center gap-2 text-small" role="status" aria-live="polite">
         <LoadingSpinner size="sm" className="shrink-0" />
         <span className="truncate">
-          {activeNumber != null ? `正在生成第 ${activeNumber} 章…` : "正在生成正文…"}
+          {activeNumber != null
+            ? `${t("writing.generatingChapter")} ${t("writing.chapterLabel", { number: activeNumber })}`
+            : t("writing.generatingBody")}
         </span>
       </div>
     ) : null}
     {streamTaskId && (
       <details className="text-caption text-book-text-muted">
         <summary className="w-fit cursor-pointer transition-colors hover:text-book-text-main">
-          诊断信息
+          {t("writing.diagnostics")}
         </summary>
         <div className="mt-1 break-all border-l border-book-border/40 pl-2 font-mono">
-          任务编号：{streamTaskId}
+          {t("writing.taskId")}: {streamTaskId}
         </div>
       </details>
     )}
     {streamMessage ? (
-      <div className="flex min-w-0 items-center gap-1.5 rounded-lg bg-book-bg-tertiary/55 px-2.5 py-2 text-small text-book-text-muted">
+      <div className="a4n-stream-message flex min-w-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-small">
         <span className="min-w-0 break-words">{streamMessage}</span>
       </div>
     ) : null}
@@ -72,7 +82,7 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
           ) : (
             <span className="inline-flex min-w-0 items-center gap-1">
               <Play size={11} className="shrink-0" />
-              <span className="truncate">开始生成</span>
+              <span className="truncate">{t("writing.startGeneration")}</span>
             </span>
           )}
         </BookButton>
@@ -82,16 +92,17 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
           onClick={onCancel}
           disabled={streamBusy}
           className="a4n-touch-target pyqt-btn-secondary inline-flex min-w-0 flex-1 items-center justify-center gap-1 !border-error/50 !px-2 text-small !text-error sm:!min-h-[28px]"
-          title="取消当前章节生成任务"
+          title={t("writing.cancelCurrentGeneration")}
         >
           {streamBusy ? (
             <LoadingSpinner size="sm" className="shrink-0" />
           ) : (
             <Square size={11} className="shrink-0" />
           )}
-          <span className="truncate">取消生成</span>
+          <span className="truncate">{t("writing.cancelGeneration")}</span>
         </button>
       )}
     </div>
   </div>
-);
+  );
+};

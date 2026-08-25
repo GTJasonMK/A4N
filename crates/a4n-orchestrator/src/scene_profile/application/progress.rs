@@ -49,10 +49,10 @@ pub(super) const SCENE_ENTITY_STATE_PROGRESS_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("source_anchor_ids", "来源锚点", 1),
 ];
 
-pub type SceneProfileSyncProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync);
+type SceneProfileSyncProgressReporter<'a> = &'a (dyn Fn(u32, u32, &str) + Send + Sync);
 
 /// 活体信号出口：把模型输出的原始尾巴交给 Host，与字段级里程碑取自同一个 token 流。
-pub type SceneProfileSyncStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
+type SceneProfileSyncStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
 
 pub struct SceneProfileSyncProgress<'a> {
     reporter: Option<SceneProfileSyncProgressReporter<'a>>,

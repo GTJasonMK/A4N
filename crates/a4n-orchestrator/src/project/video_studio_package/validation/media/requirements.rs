@@ -1,4 +1,4 @@
-use crate::project::video_studio_package::{ImportMediaPayload, media_file_key};
+use crate::project::{ImportMediaPayload, media_file_key};
 
 pub(in crate::project::video_studio_package::validation) fn validate_optional_file_size(
     file_size: Option<i64>,

@@ -1,4 +1,4 @@
-use a4n_domain::{ThemeCssVariables, ThemeMode};
+use a4n_domain::{ThemeDocument, ThemeMode};
 use sea_orm::DbErr;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -98,7 +98,7 @@ pub struct SettingsAllThemeRow {
     pub user_id: Option<i64>,
     pub name: String,
     pub mode: ThemeMode,
-    pub css_variables: ThemeCssVariables,
+    pub document: ThemeDocument,
     pub is_system_default: bool,
     pub is_active: bool,
 }

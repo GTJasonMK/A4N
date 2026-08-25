@@ -361,6 +361,26 @@ where
         .map_err(OptimizeDbError::Database)
 }
 
+pub async fn optimization_turn_events_for_turns<C>(
+    db: &C,
+    turn_ids: &[i64],
+) -> Result<Vec<optimization_turn_event::Model>, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    if turn_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    optimization_turn_event::Entity::find()
+        .filter(optimization_turn_event::Column::TurnId.is_in(turn_ids.to_vec()))
+        .order_by_asc(optimization_turn_event::Column::TurnId)
+        .order_by_asc(optimization_turn_event::Column::Seq)
+        .order_by_asc(optimization_turn_event::Column::Id)
+        .all(db)
+        .await
+        .map_err(OptimizeDbError::Database)
+}
+
 pub async fn append_optimization_turn_event<C>(
     db: &C,
     input: OptimizationTurnEventAppendInput,

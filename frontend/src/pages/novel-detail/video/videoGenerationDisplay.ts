@@ -1,198 +1,209 @@
 import type { ChapterVideoPrompt } from "../../../api/video";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
+import type { MessageTranslator } from "../../../i18n";
 
-export const promptTitle = (prompt: ChapterVideoPrompt): string => {
+export const promptTitle = (
+  prompt: ChapterVideoPrompt,
+  t: MessageTranslator,
+): string => {
   const title = prompt.title?.trim();
-  return title ? title : `镜头 ${prompt.shot_number}`;
+  return title ? title : t("video.chapter.shot", { number: prompt.shot_number });
 };
 
-const labelForKey = (key: string): string => {
-  const labels: Record<string, string> = {
-    start: "起点",
-    movement: "走位",
-    end: "终点",
-    spatial_anchors: "固定参照物",
-    video_intent: "视频意图",
-    hook: "钩子",
-    audience_effect: "观众感受",
-    rhythm: "节奏",
-    visual_priority: "视觉重点",
-    emotional_arc: "情绪弧线",
-    turn: "转折",
-    function: "段落功能",
-    material_coverage: "素材覆盖",
-    required_entities: "关键对象",
-    missing_or_weak_references: "缺失/弱覆盖",
-    risk_note: "风险说明",
-    do_not_change: "不得改变",
-    key_light: "主光",
-    direction: "方向",
-    shadow: "阴影",
-    continuity: "连续性",
-    character: "人物",
-    emotion: "情绪",
-    visible_action: "可见动作",
-    timing: "时机",
-    shot_size: "景别",
-    camera_angle: "机位",
-    camera_movement: "镜头运动",
-    axis_rule: "轴线规则",
-    lens_hint: "焦段",
-    start_sec: "开始秒",
-    end_sec: "结束秒",
-    camera: "镜头",
-    subject_action: "主体动作",
-    continuity_target: "连续性目标",
-    image_id: "参考图",
-    entity: "对象",
-    role: "角色",
-    usage: "用途",
-    must_keep: "必须保持",
-    coverage_check: "覆盖检查",
-    blocking: "站位",
-    lighting: "光影",
-    references: "参考",
-    revision: "修订",
-    speaker: "说话人",
-    line: "台词",
-    delivery: "语气",
-    listener_reaction: "听者反应",
-    sound_design: "声音设计",
-    ambience: "环境声",
-    action_sounds: "动作声",
-    dialogue_delivery: "对白语气",
-    silence_or_pause: "静默/停顿",
+const labelForKey = (key: string, t: MessageTranslator): string => {
+  const keys: Record<string, Parameters<MessageTranslator>[0]> = {
+    start: "video.chapter.director.start",
+    movement: "video.chapter.director.movement",
+    end: "video.chapter.director.end",
+    spatial_anchors: "video.chapter.director.spatialAnchors",
+    video_intent: "video.chapter.director.videoIntent",
+    hook: "video.chapter.director.hook",
+    audience_effect: "video.chapter.director.audienceEffect",
+    rhythm: "video.chapter.director.rhythm",
+    visual_priority: "video.chapter.director.visualPriority",
+    emotional_arc: "video.chapter.director.emotionalArc",
+    turn: "video.chapter.director.turn",
+    function: "video.chapter.director.function",
+    material_coverage: "video.chapter.director.materialCoverage",
+    required_entities: "video.chapter.director.requiredEntities",
+    missing_or_weak_references: "video.chapter.director.missingReferences",
+    risk_note: "video.chapter.director.riskNote",
+    do_not_change: "video.chapter.director.doNotChange",
+    key_light: "video.chapter.director.keyLight",
+    direction: "video.chapter.director.direction",
+    shadow: "video.chapter.director.shadow",
+    continuity: "video.chapter.director.continuity",
+    character: "video.chapter.director.character",
+    emotion: "video.chapter.director.emotion",
+    visible_action: "video.chapter.director.visibleAction",
+    timing: "video.chapter.director.timing",
+    shot_size: "video.chapter.director.shotSize",
+    camera_angle: "video.chapter.director.cameraAngle",
+    camera_movement: "video.chapter.director.cameraMovement",
+    axis_rule: "video.chapter.director.axisRule",
+    lens_hint: "video.chapter.director.lensHint",
+    start_sec: "video.chapter.director.startSecond",
+    end_sec: "video.chapter.director.endSecond",
+    camera: "video.chapter.director.camera",
+    subject_action: "video.chapter.director.subjectAction",
+    continuity_target: "video.chapter.director.continuityTarget",
+    image_id: "video.chapter.director.image",
+    entity: "video.chapter.director.entity",
+    role: "video.chapter.director.role",
+    usage: "video.chapter.director.usage",
+    must_keep: "video.chapter.director.mustKeep",
+    coverage_check: "video.chapter.director.coverageCheck",
+    blocking: "video.chapter.director.blocking",
+    lighting: "video.chapter.director.lighting",
+    references: "video.chapter.director.references",
+    revision: "video.chapter.director.revision",
+    speaker: "video.chapter.director.speaker",
+    line: "video.chapter.director.line",
+    delivery: "video.chapter.director.delivery",
+    listener_reaction: "video.chapter.director.listenerReaction",
+    sound_design: "video.chapter.director.soundDesign",
+    ambience: "video.chapter.director.ambience",
+    action_sounds: "video.chapter.director.actionSounds",
+    dialogue_delivery: "video.chapter.director.dialogueDelivery",
+    silence_or_pause: "video.chapter.director.silenceOrPause",
   };
-  return labels[key] ?? key;
+  return keys[key] ? t(keys[key]) : key;
 };
 
-const metadataValueText = (value: unknown): string => {
+const metadataValueText = (value: unknown, t: MessageTranslator): string => {
   if (value == null) return "";
   if (typeof value === "string") return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
-    return value.map(metadataValueText).filter(Boolean).join("、");
+    return value.map((item) => metadataValueText(item, t)).filter(Boolean).join(t("common.listSeparator"));
   }
   const record = asRecord(value);
   if (!record) return "";
   return Object.entries(record)
     .map(([key, item]) => {
-      const text = metadataValueText(item);
-      return text ? `${labelForKey(key)}：${text}` : "";
+      const text = metadataValueText(item, t);
+      return text ? `${labelForKey(key, t)}: ${text}` : "";
     })
     .filter(Boolean)
-    .join("；");
+    .join(t("common.summarySeparator"));
 };
 
-const metadataFieldText = (record: Record<string, unknown>, key: string): string => {
-  return metadataValueText(record[key]);
+const metadataFieldText = (record: Record<string, unknown>, key: string, t: MessageTranslator): string => {
+  return metadataValueText(record[key], t);
 };
 
-type ClauseSpec = [key: string, label: string];
+type ClauseSpec = string;
 
-const clausesText = (record: Record<string, unknown>, clauses: ClauseSpec[]): string => {
+const clausesText = (record: Record<string, unknown>, clauses: ClauseSpec[], t: MessageTranslator): string => {
   return clauses
-    .map(([key, label]) => {
-      const text = metadataFieldText(record, key);
-      return text ? `${label}：${text}` : "";
+    .map((key) => {
+      const text = metadataFieldText(record, key, t);
+      const displayLabel = labelForKey(key, t);
+      return text ? `${displayLabel}: ${text}` : "";
     })
     .filter(Boolean)
-    .join("；");
+    .join(t("common.summarySeparator"));
 };
 
 const clauseListText = (
   value: unknown,
   clauses: ClauseSpec[],
   prefix: (record: Record<string, unknown>, index: number) => string,
+  t: MessageTranslator,
 ): string => {
   if (!Array.isArray(value)) return "";
   return value
     .map((item, index) => {
       const itemRecord = asRecord(item);
-      if (!itemRecord) return metadataValueText(item);
-      const text = clausesText(itemRecord, clauses);
+      if (!itemRecord) return metadataValueText(item, t);
+      const text = clausesText(itemRecord, clauses, t);
       return text ? `${prefix(itemRecord, index)}${text}` : "";
     })
     .filter(Boolean)
     .join("\n");
 };
 
-const sectionText = (key: string, value: unknown): string => {
+const sectionText = (key: string, value: unknown, t: MessageTranslator): string => {
   const record = asRecord(value);
   if (key === "blocking_plan" && record) {
     return clausesText(record, [
-      ["start", "起点"],
-      ["movement", "走位"],
-      ["end", "终点"],
-      ["spatial_anchors", "固定参照物"],
-      ["do_not_change", "不得改变"],
-    ]);
+      "start",
+      "movement",
+      "end",
+      "spatial_anchors",
+      "do_not_change",
+    ], t);
   }
   if (key === "lighting_plan" && record) {
     return clausesText(record, [
-      ["key_light", "主光"],
-      ["direction", "方向"],
-      ["shadow", "阴影"],
-      ["continuity", "连续性"],
-    ]);
+      "key_light",
+      "direction",
+      "shadow",
+      "continuity",
+    ], t);
   }
   if (key === "cinematography_plan" && record) {
     return clausesText(record, [
-      ["shot_size", "景别"],
-      ["camera_angle", "机位"],
-      ["camera_movement", "镜头运动"],
-      ["axis_rule", "轴线规则"],
-      ["lens_hint", "焦段"],
-    ]);
+      "shot_size",
+      "camera_angle",
+      "camera_movement",
+      "axis_rule",
+      "lens_hint",
+    ], t);
   }
   if (key === "continuity_check" && record) {
     return clausesText(record, [
-      ["blocking", "站位"],
-      ["lighting", "光影"],
-      ["emotion", "情绪"],
-      ["references", "参考"],
-      ["revision", "修订"],
-    ]);
+      "blocking",
+      "lighting",
+      "emotion",
+      "references",
+      "revision",
+    ], t);
   }
   if (key === "emotion_action_beats" && Array.isArray(value)) {
     return clauseListText(
       value,
       [
-        ["character", "人物"],
-        ["emotion", "情绪"],
-        ["visible_action", "可见动作"],
-        ["timing", "时机"],
+        "character",
+        "emotion",
+        "visible_action",
+        "timing",
       ],
       (_itemRecord, index) => `${index + 1}. `,
+      t,
     );
   }
   if (key === "dialogue_beats" && Array.isArray(value)) {
     return clauseListText(
       value,
       [
-        ["speaker", "说话人"],
-        ["line", "台词"],
-        ["delivery", "语气"],
-        ["visible_action", "可见动作"],
-        ["listener_reaction", "听者反应"],
-        ["timing", "时机"],
+        "speaker",
+        "line",
+        "delivery",
+        "visible_action",
+        "listener_reaction",
+        "timing",
       ],
       (_itemRecord, index) => `${index + 1}. `,
+      t,
     );
   }
   if (key === "temporal_beats" && Array.isArray(value)) {
     return clauseListText(
       value,
       [
-        ["camera", "镜头"],
-        ["subject_action", "主体动作"],
-        ["continuity_target", "连续性目标"],
+        "camera",
+        "subject_action",
+        "continuity_target",
       ],
       (itemRecord, index) => {
-        const start = metadataFieldText(itemRecord, "start_sec");
-        const end = metadataFieldText(itemRecord, "end_sec");
-        return start && end ? `${start}-${end} 秒：` : `时间段 ${index + 1}：`;
+        const start = metadataFieldText(itemRecord, "start_sec", t);
+        const end = metadataFieldText(itemRecord, "end_sec", t);
+        return start && end
+          ? t("video.chapter.director.secondsColon", { value: `${start}-${end}` })
+          : t("video.chapter.director.timeSegment", { number: index + 1 });
       },
+      t,
     );
   }
   if (key === "reference_binding" && record) {
@@ -200,22 +211,22 @@ const sectionText = (key: string, value: unknown): string => {
     const lines = bindings
       .map((item) => {
         const binding = asRecord(item);
-        if (!binding) return metadataValueText(item);
-        const id = metadataFieldText(binding, "image_id");
+        if (!binding) return metadataValueText(item, t);
+        const id = metadataFieldText(binding, "image_id", t);
         const text = clausesText(binding, [
-          ["entity", "对象"],
-          ["usage", "用途"],
-          ["must_keep", "必须保持"],
-          ["role", "角色"],
-        ]);
-        return `${id ? `参考图 #${id}` : "参考图"}${text ? `：${text}` : ""}`;
+          "entity",
+          "usage",
+          "must_keep",
+          "role",
+        ], t);
+        return `${id ? t("video.chapter.director.referenceNumber", { id }) : t("video.chapter.director.reference")}${text ? `: ${text}` : ""}`;
       })
       .filter(Boolean);
-    const coverage = metadataFieldText(record, "coverage_check");
-    if (coverage) lines.push(`覆盖检查：${coverage}`);
+    const coverage = metadataFieldText(record, "coverage_check", t);
+    if (coverage) lines.push(`${t("video.chapter.director.coverage")}: ${coverage}`);
     return lines.join("\n");
   }
-  return metadataValueText(value);
+  return metadataValueText(value, t);
 };
 
 const directorSectionValue = (metadata: unknown, key: string): unknown => {
@@ -228,30 +239,49 @@ const directorSectionValue = (metadata: unknown, key: string): unknown => {
 
 export const directorSections = (
   metadata: unknown,
+  t: MessageTranslator,
 ): Array<{ key: string; label: string; text: string }> => {
   const sections = [
-    ["video_intent", "视频意图"],
-    ["emotional_arc", "情绪弧线"],
-    ["material_coverage", "素材覆盖"],
-    ["self_contained_context", "独立上下文"],
-    ["start_state", "起始状态"],
-    ["transition_in", "入场转场"],
-    ["end_state", "结尾状态"],
-    ["blocking_plan", "站位/走位"],
-    ["lighting_plan", "光影"],
-    ["emotion_action_beats", "情绪动作"],
-    ["dialogue_beats", "对白"],
-    ["cinematography_plan", "镜头语法"],
-    ["temporal_beats", "时间节拍"],
-    ["reference_binding", "素材绑定"],
-    ["sound_design", "声音设计"],
-    ["continuity_check", "自检"],
+    "video_intent",
+    "emotional_arc",
+    "material_coverage",
+    "self_contained_context",
+    "start_state",
+    "transition_in",
+    "end_state",
+    "blocking_plan",
+    "lighting_plan",
+    "emotion_action_beats",
+    "dialogue_beats",
+    "cinematography_plan",
+    "temporal_beats",
+    "reference_binding",
+    "sound_design",
+    "continuity_check",
   ] as const;
+  const translatedLabels: Record<string, Parameters<MessageTranslator>[0]> = {
+    video_intent: "video.chapter.director.videoIntent",
+    emotional_arc: "video.chapter.director.emotionalArc",
+    material_coverage: "video.chapter.director.materialCoverage",
+    self_contained_context: "video.chapter.director.selfContainedContext",
+    start_state: "video.chapter.director.startState",
+    transition_in: "video.chapter.director.transitionIn",
+    end_state: "video.chapter.director.endState",
+    blocking_plan: "video.chapter.director.blockingPlan",
+    lighting_plan: "video.chapter.director.lightingPlan",
+    emotion_action_beats: "video.chapter.director.emotionActionBeats",
+    dialogue_beats: "video.chapter.director.dialogueBeats",
+    cinematography_plan: "video.chapter.director.cinematographyPlan",
+    temporal_beats: "video.chapter.director.temporalBeats",
+    reference_binding: "video.chapter.director.referenceBinding",
+    sound_design: "video.chapter.director.soundDesign",
+    continuity_check: "video.chapter.director.continuityCheck",
+  };
   return sections
-    .map(([key, label]) => ({
+    .map((key) => ({
       key,
-      label,
-      text: sectionText(key, directorSectionValue(metadata, key)),
+      label: t(translatedLabels[key]),
+      text: sectionText(key, directorSectionValue(metadata, key), t),
     }))
     .filter((section) => section.text.length > 0);
 };

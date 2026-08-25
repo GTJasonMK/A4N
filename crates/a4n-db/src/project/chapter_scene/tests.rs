@@ -1,7 +1,7 @@
 use super::*;
-use a4n_core::models::chapter::chapter_scene;
+use a4n_core::models::chapter::{chapter, chapter_scene};
 use chrono::{NaiveDate, NaiveDateTime};
-use sea_orm::{DatabaseConnection, DbErr};
+use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, Set};
 use std::error::Error;
 
 #[test]
@@ -78,25 +78,78 @@ async fn record_operations_validate_identity_before_database_access() {
 async fn reorder_rejects_empty_and_invalid_numbers_before_database_access() {
     let db = DatabaseConnection::Disconnected;
     assert!(matches!(
-        chapter_scene_reorder_scope(
-            &db,
-            ProjectChapterSceneReorderInput { order: Vec::new() },
-        )
-        .await,
-        Err(ProjectChapterSceneReorderError::InvalidArgument(message))
+        chapter_scene_reorder_project_id(&db, &[]).await,
+        Err(ProjectChapterSceneWriteError::InvalidArgument(message))
             if message == "场景排序为空"
     ));
     assert!(matches!(
-        chapter_scene_reorder_scope(
-            &db,
-            ProjectChapterSceneReorderInput {
-                order: vec![(1, 0)],
-            },
-        )
-        .await,
-        Err(ProjectChapterSceneReorderError::InvalidArgument(message))
+        chapter_scene_reorder_project_id(&db, &[(1, 0)]).await,
+        Err(ProjectChapterSceneWriteError::InvalidArgument(message))
             if message == "场景序号必须为正数"
     ));
+}
+
+#[tokio::test]
+async fn reorder_updates_all_scene_numbers_and_returns_sorted_rows() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "章节场景批量重排".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let now = chrono::Utc::now().naive_utc();
+    let chapter = chapter::ActiveModel {
+        project_id: Set(project.id),
+        outline_id: Set(None),
+        chapter_number: Set(1),
+        title: Set(Some("第一章".to_string())),
+        content: Set("正文".to_string()),
+        word_count: Set(2),
+        status: Set(chapter::STATUS_DRAFT.to_string()),
+        summary: Set(None),
+        style_tags: Set(None),
+        analysis_data: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+    let mut scenes = Vec::new();
+    for scene_number in 1..=3 {
+        scenes.push(
+            save_generated_chapter_scene_record(
+                &db,
+                ProjectGeneratedChapterSceneSaveInput {
+                    chapter_id: chapter.id,
+                    scene_number,
+                    content: format!("场景 {scene_number}"),
+                },
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    let updated = reorder_chapter_scene_records(
+        &db,
+        &[(scenes[2].id, 1), (scenes[0].id, 2), (scenes[1].id, 3)],
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        updated
+            .iter()
+            .map(|scene| (scene.id, scene.scene_number))
+            .collect::<Vec<_>>(),
+        vec![(scenes[2].id, 1), (scenes[0].id, 2), (scenes[1].id, 3)]
+    );
 }
 
 fn assert_invalid_argument(error: ProjectChapterSceneRecordError, expected: &str) {

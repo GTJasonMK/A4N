@@ -1,5 +1,6 @@
 import type { DownstreamConflictStrategy } from "../../api/generated/host";
 import { choiceDialog } from "../../components/feedback/ConfirmDialog";
+import type { MessageTranslator } from "../../i18n";
 
 interface DownstreamConflictOptions {
   title: string;
@@ -7,6 +8,7 @@ interface DownstreamConflictOptions {
   downstreamLabel: string;
   downstreamCount: number;
   operation: string;
+  t: MessageTranslator;
 }
 
 export async function chooseDownstreamConflictStrategy({
@@ -15,17 +17,20 @@ export async function chooseDownstreamConflictStrategy({
   downstreamLabel,
   downstreamCount,
   operation,
+  t,
 }: DownstreamConflictOptions): Promise<DownstreamConflictStrategy | null> {
   if (downstreamCount <= 0) return "reject";
   const result = await choiceDialog({
     title,
-    message:
-      `${assetLabel} 已派生 ${downstreamCount} 个${downstreamLabel}。\n\n` +
-      `你可以删除这些下游派生产物后再${operation}，也可以只${operation}源资产并保留下游产物。` +
-      "保留下游时，已有下游产物可能与新的源资产内容不一致，需要你后续按需重新生成或清理。",
-    confirmText: "删除下游后继续",
-    secondaryText: "保留下游继续",
-    cancelText: "取消",
+    message: t("common.downstreamMessage", {
+      asset: assetLabel,
+      count: downstreamCount,
+      downstream: downstreamLabel,
+      operation,
+    }),
+    confirmText: t("common.deleteDownstreamContinue"),
+    secondaryText: t("common.keepDownstreamContinue"),
+    cancelText: t("common.cancel"),
     dialogType: "warning",
   });
   if (result === "confirm") return "delete_downstream";

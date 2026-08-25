@@ -22,8 +22,11 @@ fn rejects_incompatible_protocol_version_with_trace() {
     let mut request = service_request(serde_json::json!({}));
     request.schema_version.protocol = PROTOCOL_VERSION + 1;
 
-    let response: ServiceResponse<()> =
-        request.error_response(request.validate_known_service(RAG_SERVICE_NAME).unwrap_err());
+    let response: ServiceResponse<()> = request.error_response(
+        request
+            .validate_known_service(RAG_SERVICE_NAME)
+            .unwrap_err(),
+    );
 
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));
@@ -37,8 +40,11 @@ fn rejects_secret_forwarding_policy() {
     let mut request = service_request(serde_json::json!({}));
     request.secret_policy = a4n_service_protocol::SecretForwardingPolicy::local_user_secret();
 
-    let response: ServiceResponse<()> =
-        request.error_response(request.validate_known_service(RAG_SERVICE_NAME).unwrap_err());
+    let response: ServiceResponse<()> = request.error_response(
+        request
+            .validate_known_service(RAG_SERVICE_NAME)
+            .unwrap_err(),
+    );
 
     assert_eq!(response.status, ServiceStatus::Error);
     assert_eq!(response.trace_id.as_deref(), Some("trace-1"));

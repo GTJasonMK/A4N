@@ -3,7 +3,7 @@ use crate::AppState;
 use crate::actions::image_generation::{GenerateCanvasImageInput, preview_canvas_image_request};
 use a4n_core::models::canvas::canvas_node;
 use a4n_orchestrator::canvas::{
-    CanvasGraphRecordDocument as CanvasGraphDocument, build_canvas_image_node_input_for_preview,
+    CanvasGraphRecordDocument, build_canvas_image_node_input_for_preview,
 };
 
 pub(super) async fn preview_canvas_image_node(
@@ -11,7 +11,7 @@ pub(super) async fn preview_canvas_image_node(
     user_id: i64,
     input: &PreviewCanvasNodeRequestInput,
     node: &canvas_node::Model,
-    document: &CanvasGraphDocument,
+    document: &CanvasGraphRecordDocument,
 ) -> Result<ModelRequestPreview, String> {
     let image_input = build_canvas_image_node_input_for_preview(node, document)?;
     let image_input = GenerateCanvasImageInput {

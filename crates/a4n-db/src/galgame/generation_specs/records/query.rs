@@ -4,7 +4,7 @@ use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
 };
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashSet};
 
 pub async fn galgame_asset_generation_specs(
     db: &DatabaseConnection,
@@ -32,7 +32,7 @@ pub async fn galgame_asset_generation_specs(
     }
     let mut specs = query.all(db).await?;
     if !generation_spec_ids.is_empty() && specs.len() != generation_spec_ids.len() {
-        let found = specs.iter().map(|spec| spec.id).collect::<BTreeSet<_>>();
+        let found = specs.iter().map(|spec| spec.id).collect::<HashSet<_>>();
         let missing = generation_spec_ids
             .iter()
             .filter(|id| !found.contains(id))
@@ -75,7 +75,7 @@ pub(in crate::galgame) fn validate_galgame_asset_generation_spec_query(
             "generation_spec_ids 必须全部是正整数: {spec_id}"
         )));
     }
-    let unique_ids = generation_spec_ids.iter().copied().collect::<BTreeSet<_>>();
+    let unique_ids = generation_spec_ids.iter().copied().collect::<HashSet<_>>();
     if unique_ids.len() != generation_spec_ids.len() {
         return Err(GalgameAssetPlanSpecRecordError::InvalidArgument(
             "generation_spec_ids 不能包含重复值".to_string(),

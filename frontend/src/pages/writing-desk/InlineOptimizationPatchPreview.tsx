@@ -8,6 +8,7 @@ import {
   type PatchReviewDecision,
   type PatchReviewDecisions,
 } from "../novel-detail/optimize/patchPreviewTypes";
+import { useI18n } from "../../i18n";
 
 interface InlineOptimizationPatchPreviewProps {
   preview: OptimizationPatchPreviewController;
@@ -38,8 +39,9 @@ interface DiffBuildResult {
 export function InlineOptimizationPatchPreview({
   preview,
 }: InlineOptimizationPatchPreviewProps) {
+  const { t } = useI18n();
   const { proposal, decisions, automaticWriteback, taskRunning } = preview;
-  const diff = buildDiffSegments(preview.baseContent, proposal.patches, decisions);
+  const diff = buildDiffSegments(preview.baseContent, proposal.patches, decisions, t);
   const reviewPatches = patchesInDocumentOrder(preview.baseContent, proposal.patches);
   const acceptedCount = proposal.patches.filter(
     (patch) => patchDecision(decisions, patch) === "accepted",
@@ -53,7 +55,7 @@ export function InlineOptimizationPatchPreview({
   const batchItems: DropdownItem[] = automaticWriteback
     ? [
         {
-          label: "放弃全部修改",
+          label: t("writing.abandonAllChanges"),
           icon: <X size={12} />,
           danger: true,
           disabled: taskRunning,
@@ -62,14 +64,14 @@ export function InlineOptimizationPatchPreview({
       ]
     : [
         {
-          label: "接受并同步全部",
+          label: t("writing.acceptAndSyncAll"),
           icon: <CheckCircle2 size={12} />,
           disabled: taskRunning || diff.error != null,
           onClick: preview.onAcceptAll,
         },
         { type: "divider" },
         {
-          label: "放弃全部修改",
+          label: t("writing.abandonAllChanges"),
           icon: <X size={12} />,
           danger: true,
           disabled: taskRunning,
@@ -78,17 +80,17 @@ export function InlineOptimizationPatchPreview({
       ];
 
   return (
-    <div className="book-control flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-book-border bg-book-bg-paper font-serif text-sm">
+    <div className="book-control flex h-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border border-book-border font-serif text-sm">
       <div className="shrink-0 border-b border-book-border bg-book-bg-paper/95 px-3 py-2.5">
         <div className="flex min-w-0 flex-wrap items-start gap-2">
           <div className="min-w-0 flex-1 basis-48">
             <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
               <span className="font-semibold text-book-text-main">
-                {proposal.patches.length} 处修改
+                {t("writing.patchCount", { count: proposal.patches.length })}
               </span>
               {!automaticWriteback ? (
                 <span className="text-caption text-book-text-muted">
-                  已接受 {acceptedCount} 处 · 已拒绝 {rejectedCount} 处 · 待审阅 {pendingCount} 处
+                  {t("writing.patchReviewCounts", { accepted: acceptedCount, rejected: rejectedCount, pending: pendingCount })}
                 </span>
               ) : null}
             </div>
@@ -104,10 +106,10 @@ export function InlineOptimizationPatchPreview({
                 onClick={preview.onAcceptAll}
                 disabled={taskRunning || diff.error != null}
                 className="!text-small"
-                title="接受全部修改并同步到正文"
+                title={t("writing.acceptAllAndSync")}
               >
                 <CheckCircle2 size={12} />
-                接受全部
+                {t("writing.acceptAll")}
               </BookButton>
             ) : pendingCount === 0 ? (
               <BookButton
@@ -116,20 +118,20 @@ export function InlineOptimizationPatchPreview({
                 onClick={preview.onSyncAccepted}
                 disabled={taskRunning || diff.error != null}
                 className="!text-small"
-                title={acceptedCount > 0 ? "同步已接受的修改到正文" : "完成本轮审阅"}
+                title={acceptedCount > 0 ? t("writing.syncAcceptedChanges") : t("writing.finishReviewRound")}
               >
                 <RefreshCw size={12} />
-                {acceptedCount > 0 ? `同步 ${acceptedCount} 处修改` : "完成审阅"}
+                {acceptedCount > 0 ? t("writing.syncChanges", { count: acceptedCount }) : t("writing.finishReview")}
               </BookButton>
             ) : null}
-            <Dropdown label="批量处理" items={batchItems} />
+            <Dropdown label={t("writing.batchActions")} items={batchItems} />
           </div>
         </div>
 
         {!automaticWriteback ? (
           <details className="mt-2 border-t border-book-border/40 pt-1.5 text-small">
             <summary className="w-fit cursor-pointer text-book-text-muted hover:text-book-text-main">
-              逐条审阅{pendingCount > 0 ? ` · ${pendingCount} 处待处理` : " · 已完成"}
+              {t("writing.reviewEach")}{pendingCount > 0 ? ` · ${t("writing.pendingChanges", { count: pendingCount })}` : ` · ${t("writing.reviewComplete")}`}
             </summary>
             <ul className="mt-1.5 divide-y divide-book-border/35 border-y border-book-border/35">
               {reviewPatches.map((patch, index) => {
@@ -140,9 +142,9 @@ export function InlineOptimizationPatchPreview({
                     className="flex min-w-0 items-center gap-2 px-1 py-2"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-caption text-book-text-muted">修改 {index + 1}</div>
+                      <div className="text-caption text-book-text-muted">{t("writing.patchLabel", { index: index + 1 })}</div>
                       <div className="truncate text-small text-book-text-sub">
-                        {patch.reason.trim() || `调整第 ${index + 1} 处内容`}
+                        {patch.reason.trim() || t("writing.adjustPatchContent", { index: index + 1 })}
                       </div>
                     </div>
                     <select
@@ -156,13 +158,11 @@ export function InlineOptimizationPatchPreview({
                       }}
                       disabled={taskRunning}
                       className="pyqt-input w-24 shrink-0 !px-2 !py-1 text-small"
-                      aria-label={`第 ${index + 1} 处修改的审阅决定`}
+                      aria-label={t("writing.patchDecisionAria", { index: index + 1 })}
                     >
-                      <option value="pending" disabled>
-                        待审阅
-                      </option>
-                      <option value="accepted">接受</option>
-                      <option value="rejected">拒绝</option>
+                      <option value="pending" disabled>{t("writing.pendingReview")}</option>
+                      <option value="accepted">{t("writing.accept")}</option>
+                      <option value="rejected">{t("writing.reject")}</option>
                     </select>
                   </li>
                 );
@@ -178,7 +178,7 @@ export function InlineOptimizationPatchPreview({
         </div>
       ) : (
         <div className="custom-scrollbar min-h-0 min-w-0 flex-1 overflow-auto p-3 leading-loose">
-          <div className="whitespace-pre-wrap break-words">{renderSegments(diff.segments)}</div>
+          <div className="whitespace-pre-wrap break-words">{renderSegments(diff.segments, t)}</div>
         </div>
       )}
     </div>
@@ -189,6 +189,7 @@ function buildDiffSegments(
   content: string,
   patches: OptimizationPatch[],
   decisions: PatchReviewDecisions,
+  t: ReturnType<typeof useI18n>["t"],
 ): DiffBuildResult {
   const indexed: IndexedPatch[] = [];
   for (const [index, patch] of patches.entries()) {
@@ -196,14 +197,14 @@ function buildDiffSegments(
     if (start < 0) {
       return {
         segments: [],
-        error: `第 ${index + 1} 处补丁无法定位原文，可能是正文已经变化：${patch.old_text}`,
+        error: t("writing.patchLocateFailed", { index: index + 1, text: patch.old_text }),
       };
     }
     const second = content.indexOf(patch.old_text, start + patch.old_text.length);
     if (second >= 0) {
       return {
         segments: [],
-        error: `第 ${index + 1} 处补丁原文不唯一，无法安全显示：${patch.old_text}`,
+        error: t("writing.patchNotUnique", { index: index + 1, text: patch.old_text }),
       };
     }
     indexed.push({
@@ -225,7 +226,7 @@ function buildDiffSegments(
     if (item.start < cursor) {
       return {
         segments: [],
-        error: `第 ${item.index + 1} 处补丁与其他补丁范围重叠，无法安全显示。`,
+        error: t("writing.patchOverlap", { index: item.index + 1 }),
       };
     }
     pushNormal(segments, content.slice(cursor, item.start));
@@ -326,14 +327,14 @@ function pushNew(
   out.push({ kind: "new", text, patchIndex, decision });
 }
 
-function renderSegments(segments: DiffSegment[]) {
+function renderSegments(segments: DiffSegment[], t: ReturnType<typeof useI18n>["t"]) {
   return segments.map((segment, index) => {
     if (segment.kind === "normal") {
       return <span key={index}>{segment.text}</span>;
     }
     const label =
       index === 0 || segments[index - 1].kind === "normal"
-        ? `修改 ${segment.patchIndex + 1}`
+        ? t("writing.patchLabel", { index: segment.patchIndex + 1 })
         : null;
     return (
       <span key={index}>

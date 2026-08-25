@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, source_spans::SourceSpan};
+use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
 use serde_json::{Map, Value};
 
 use super::super::super::values::analysis_materialize_error;
@@ -8,7 +8,7 @@ use item::materialize_metadata_entity;
 
 pub(super) fn materialize_metadata_entities(
     metadata: &mut Map<String, Value>,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     for key in ["characters", "locations", "items"] {
         let values = metadata

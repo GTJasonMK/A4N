@@ -1,9 +1,7 @@
-use a4n_core::models::generation::generation_run;
-use chrono::Utc;
 use serde_json::json;
 
 use super::{
-    projection::apply_generation_runs,
+    projection::{GenerationRunInputRecord, apply_generation_runs},
     rules::{generation_target_key, generation_target_table, should_expect_generation_inputs},
 };
 use crate::project_dependency_graph::{AssetLineageRecord, AssetLineageRef};
@@ -27,30 +25,9 @@ fn lineage_record(asset_kind: &str, origin: &str) -> AssetLineageRecord {
     }
 }
 
-fn generation_run_with_inputs(include_inputs: bool) -> generation_run::Model {
-    let now = Utc::now().naive_utc();
-    generation_run::Model {
+fn generation_run_with_inputs(include_inputs: bool) -> GenerationRunInputRecord {
+    GenerationRunInputRecord {
         id: 9,
-        project_id: 1,
-        root_project_id: 1,
-        workflow: "chapter".to_string(),
-        step_key: "generate".to_string(),
-        title: "生成".to_string(),
-        model_kind: "llm".to_string(),
-        provider: Some("test".to_string()),
-        model: Some("test-model".to_string()),
-        status: "completed".to_string(),
-        workflow_run_id: None,
-        call_key: None,
-        input_fingerprint_sha256: None,
-        input_fingerprint_json: None,
-        raw_response_json: None,
-        parsed_output_json: None,
-        validation_json: None,
-        artifact_refs_json: None,
-        attempt: 1,
-        prompt_template_names_json: None,
-        prompt_template_hashes_json: None,
         rendered_messages_json: include_inputs.then(|| json!([{"role": "user"}])),
         rendered_prompts_json: None,
         input_variables_json: include_inputs.then(|| json!({"chapter_id": 1})),
@@ -58,9 +35,6 @@ fn generation_run_with_inputs(include_inputs: bool) -> generation_run::Model {
         media_refs_json: None,
         request_json: Some(serde_json::Value::Null),
         response_summary_json: None,
-        error_message: None,
-        created_at: now,
-        completed_at: Some(now),
     }
 }
 

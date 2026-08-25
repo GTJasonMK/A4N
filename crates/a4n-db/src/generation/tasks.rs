@@ -10,11 +10,11 @@ use a4n_service_protocol::{
     GenerationDeliveryMode, GenerationTargetRef, GenerationTaskSnapshot, GenerationTaskStatus,
     JS_SAFE_INTEGER_I64, StartedEvent,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    DbBackend, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, Set,
-    Statement, TransactionTrait,
+    DbBackend, DbErr, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, Set, Statement, TransactionTrait,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
@@ -129,6 +129,97 @@ pub struct GenerationTaskListCursor {
 pub struct GenerationTaskCheckpointPage {
     pub items: Vec<generation_task_checkpoint::Model>,
     pub has_more: bool,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct GenerationTaskSummaryRow {
+    task_id: String,
+    attempt: i32,
+    requested_by_user_id: i64,
+    task_kind: String,
+    delivery_mode: String,
+    batch_policy: Option<String>,
+    project_id: Option<i64>,
+    root_project_id: Option<i64>,
+    workflow_run_id: Option<i64>,
+    generation_run_id: Option<i64>,
+    target_kind: Option<String>,
+    target_id: Option<String>,
+    target_revision: Option<String>,
+    root_task_id: String,
+    parent_task_id: Option<String>,
+    item_key: Option<String>,
+    retry_of_task_id: Option<String>,
+    status: String,
+    covers_through_sequence: i64,
+    public_snapshot_json: Option<Value>,
+    public_snapshot_sha256: Option<String>,
+    result_kind: Option<String>,
+    result_id: Option<String>,
+    result_revision: Option<String>,
+    expires_at: Option<NaiveDateTime>,
+    updated_at: NaiveDateTime,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct GenerationTaskLineageRow {
+    task_id: String,
+    business_key: String,
+    attempt: i32,
+    requested_by_user_id: i64,
+    project_id: Option<i64>,
+    root_project_id: Option<i64>,
+    root_task_id: String,
+    parent_task_id: Option<String>,
+    item_key: Option<String>,
+}
+
+impl GenerationTaskSummaryRow {
+    fn into_checkpoint(self) -> generation_task_checkpoint::Model {
+        generation_task_checkpoint::Model {
+            task_id: self.task_id,
+            business_key: String::new(),
+            attempt: self.attempt,
+            requested_by_user_id: self.requested_by_user_id,
+            task_kind: self.task_kind,
+            delivery_mode: self.delivery_mode,
+            batch_policy: self.batch_policy,
+            project_id: self.project_id,
+            root_project_id: self.root_project_id,
+            workflow_run_id: self.workflow_run_id,
+            generation_run_id: self.generation_run_id,
+            target_kind: self.target_kind,
+            target_id: self.target_id,
+            target_revision: self.target_revision,
+            root_task_id: self.root_task_id,
+            parent_task_id: self.parent_task_id,
+            item_key: self.item_key,
+            retry_of_task_id: self.retry_of_task_id,
+            status: self.status,
+            checkpoint_revision: 0,
+            covers_through_sequence: self.covers_through_sequence,
+            reserved_through_sequence: 0,
+            public_snapshot_json: self.public_snapshot_json,
+            public_snapshot_sha256: self.public_snapshot_sha256,
+            step_key: None,
+            call_key: None,
+            provider_kind: None,
+            provider_model: None,
+            provider_job_id: None,
+            provider_idempotency_key_sha256: None,
+            resume_metadata_version: None,
+            execution_checkpoint_json: None,
+            execution_checkpoint_sha256: None,
+            input_fingerprint_sha256: String::new(),
+            result_kind: self.result_kind,
+            result_id: self.result_id,
+            result_revision: self.result_revision,
+            expires_at: self.expires_at,
+            created_at: self.updated_at,
+            updated_at: self.updated_at,
+            completed_at: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -499,11 +590,40 @@ async fn list_generation_task_checkpoints(
         });
     }
     let rows = generation_task_checkpoint::Entity::find()
+        .select_only()
+        .column(generation_task_checkpoint::Column::TaskId)
+        .column(generation_task_checkpoint::Column::Attempt)
+        .column(generation_task_checkpoint::Column::RequestedByUserId)
+        .column(generation_task_checkpoint::Column::TaskKind)
+        .column(generation_task_checkpoint::Column::DeliveryMode)
+        .column(generation_task_checkpoint::Column::BatchPolicy)
+        .column(generation_task_checkpoint::Column::ProjectId)
+        .column(generation_task_checkpoint::Column::RootProjectId)
+        .column(generation_task_checkpoint::Column::WorkflowRunId)
+        .column(generation_task_checkpoint::Column::GenerationRunId)
+        .column(generation_task_checkpoint::Column::TargetKind)
+        .column(generation_task_checkpoint::Column::TargetId)
+        .column(generation_task_checkpoint::Column::TargetRevision)
+        .column(generation_task_checkpoint::Column::RootTaskId)
+        .column(generation_task_checkpoint::Column::ParentTaskId)
+        .column(generation_task_checkpoint::Column::ItemKey)
+        .column(generation_task_checkpoint::Column::RetryOfTaskId)
+        .column(generation_task_checkpoint::Column::Status)
+        .column(generation_task_checkpoint::Column::CoversThroughSequence)
+        .column(generation_task_checkpoint::Column::PublicSnapshotJson)
+        .column(generation_task_checkpoint::Column::PublicSnapshotSha256)
+        .column(generation_task_checkpoint::Column::ResultKind)
+        .column(generation_task_checkpoint::Column::ResultId)
+        .column(generation_task_checkpoint::Column::ResultRevision)
+        .column(generation_task_checkpoint::Column::ExpiresAt)
+        .column(generation_task_checkpoint::Column::UpdatedAt)
         .filter(generation_task_checkpoint::Column::TaskId.is_in(ids.iter().cloned()))
+        .into_model::<GenerationTaskSummaryRow>()
         .all(db)
         .await?;
     let mut by_id = rows
         .into_iter()
+        .map(GenerationTaskSummaryRow::into_checkpoint)
         .map(|row| (row.task_id.clone(), row))
         .collect::<HashMap<_, _>>();
     let mut items = Vec::with_capacity(ids.len());
@@ -1005,12 +1125,14 @@ async fn next_generation_attempt(
     business_key: &str,
 ) -> Result<i32, GenerationTaskPersistenceError> {
     let previous = generation_task_checkpoint::Entity::find()
+        .select_only()
+        .column(generation_task_checkpoint::Column::Attempt)
         .filter(generation_task_checkpoint::Column::BusinessKey.eq(business_key))
         .order_by_desc(generation_task_checkpoint::Column::Attempt)
+        .into_tuple::<i32>()
         .one(tx)
         .await?;
     previous
-        .map(|checkpoint| checkpoint.attempt)
         .unwrap_or(0)
         .checked_add(1)
         .filter(|attempt| *attempt > 0)
@@ -1021,6 +1143,29 @@ async fn next_generation_attempt(
         })
 }
 
+async fn generation_task_lineage_row(
+    tx: &DatabaseTransaction,
+    task_id: &str,
+) -> Result<Option<GenerationTaskLineageRow>, GenerationTaskPersistenceError> {
+    Ok(
+        generation_task_checkpoint::Entity::find_by_id(task_id.to_string())
+            .select_only()
+            .column(generation_task_checkpoint::Column::TaskId)
+            .column(generation_task_checkpoint::Column::BusinessKey)
+            .column(generation_task_checkpoint::Column::Attempt)
+            .column(generation_task_checkpoint::Column::RequestedByUserId)
+            .column(generation_task_checkpoint::Column::ProjectId)
+            .column(generation_task_checkpoint::Column::RootProjectId)
+            .column(generation_task_checkpoint::Column::RootTaskId)
+            .column(generation_task_checkpoint::Column::ParentTaskId)
+            .column(generation_task_checkpoint::Column::ItemKey)
+            .lock_shared()
+            .into_model::<GenerationTaskLineageRow>()
+            .one(tx)
+            .await?,
+    )
+}
+
 async fn validate_retry_lineage(
     tx: &DatabaseTransaction,
     prepared: &PreparedReservation,
@@ -1029,9 +1174,7 @@ async fn validate_retry_lineage(
     let Some(retry_of_task_id) = prepared.input.retry_of_task_id.as_deref() else {
         return Ok(());
     };
-    let retry_of = generation_task_checkpoint::Entity::find_by_id(retry_of_task_id.to_string())
-        .lock_shared()
-        .one(tx)
+    let retry_of = generation_task_lineage_row(tx, retry_of_task_id)
         .await?
         .ok_or_else(|| {
             GenerationTaskPersistenceError::NotFound(format!(
@@ -1075,16 +1218,12 @@ async fn validate_task_tree_lineage(
     ) else {
         return Ok(());
     };
-    let root = generation_task_checkpoint::Entity::find_by_id(root_task_id.to_string())
-        .lock_shared()
-        .one(tx)
+    let root = generation_task_lineage_row(tx, root_task_id)
         .await?
         .ok_or_else(|| {
             GenerationTaskPersistenceError::NotFound(format!("root_task_id 不存在: {root_task_id}"))
         })?;
-    let parent = generation_task_checkpoint::Entity::find_by_id(parent_task_id.to_string())
-        .lock_shared()
-        .one(tx)
+    let parent = generation_task_lineage_row(tx, parent_task_id)
         .await?
         .ok_or_else(|| {
             GenerationTaskPersistenceError::NotFound(format!(
@@ -1113,17 +1252,22 @@ async fn validate_related_generation_records(
     input: &ReserveGenerationTaskInput,
 ) -> Result<(), GenerationTaskPersistenceError> {
     if let Some(workflow_run_id) = input.workflow_run_id {
-        let run = workflow_run::Entity::find_by_id(workflow_run_id)
-            .lock_shared()
-            .one(tx)
-            .await?
-            .ok_or_else(|| {
-                GenerationTaskPersistenceError::NotFound(format!(
-                    "workflow_run 不存在: {workflow_run_id}"
-                ))
-            })?;
-        if run.project_id != input.project_id
-            || run.root_project_id.or(run.project_id) != input.root_project_id
+        let (run_project_id, run_root_project_id) =
+            workflow_run::Entity::find_by_id(workflow_run_id)
+                .select_only()
+                .column(workflow_run::Column::ProjectId)
+                .column(workflow_run::Column::RootProjectId)
+                .lock_shared()
+                .into_tuple::<(Option<i64>, Option<i64>)>()
+                .one(tx)
+                .await?
+                .ok_or_else(|| {
+                    GenerationTaskPersistenceError::NotFound(format!(
+                        "workflow_run 不存在: {workflow_run_id}"
+                    ))
+                })?;
+        if run_project_id != input.project_id
+            || run_root_project_id.or(run_project_id) != input.root_project_id
         {
             return Err(GenerationTaskPersistenceError::InvalidArgument(
                 "workflow_run 与 generation task project 归属不一致".to_string(),
@@ -1131,17 +1275,22 @@ async fn validate_related_generation_records(
         }
     }
     if let Some(generation_run_id) = input.generation_run_id {
-        let run = generation_run::Entity::find_by_id(generation_run_id)
-            .lock_shared()
-            .one(tx)
-            .await?
-            .ok_or_else(|| {
-                GenerationTaskPersistenceError::NotFound(format!(
-                    "generation_run 不存在: {generation_run_id}"
-                ))
-            })?;
-        if input.project_id != Some(run.project_id)
-            || input.root_project_id != Some(run.root_project_id)
+        let (run_project_id, run_root_project_id) =
+            generation_run::Entity::find_by_id(generation_run_id)
+                .select_only()
+                .column(generation_run::Column::ProjectId)
+                .column(generation_run::Column::RootProjectId)
+                .lock_shared()
+                .into_tuple::<(i64, i64)>()
+                .one(tx)
+                .await?
+                .ok_or_else(|| {
+                    GenerationTaskPersistenceError::NotFound(format!(
+                        "generation_run 不存在: {generation_run_id}"
+                    ))
+                })?;
+        if input.project_id != Some(run_project_id)
+            || input.root_project_id != Some(run_root_project_id)
         {
             return Err(GenerationTaskPersistenceError::InvalidArgument(
                 "generation_run 与 generation task project 归属不一致".to_string(),

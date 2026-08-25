@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 
 use crate::galgame::{
-    GalgameSpeakerProfile, OrchestratorContext, galgame_speaker_profiles_from_models,
+    GalgameSpeakerProfile, OrchestratorContext, galgame_speaker_profiles_from_prompt_records,
     validate_positive_id,
 };
 
@@ -24,6 +24,6 @@ impl OrchestratorContext {
         )
         .await
         .map_err(AppError::Database)?;
-        Ok(galgame_speaker_profiles_from_models(&profiles))
+        Ok(galgame_speaker_profiles_from_prompt_records(&profiles))
     }
 }

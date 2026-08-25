@@ -5,7 +5,7 @@ use a4n_core::state::{
     rollback::{CleanupAction, rollback_actions},
     validator::parse_project_status,
 };
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::project::{ProjectKind, ProjectStatus};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
@@ -15,8 +15,7 @@ use sea_orm::{
 use crate::character;
 use crate::generation;
 use crate::project::{
-    self as project_db, PROJECT_KIND_GALGAME, PROJECT_KIND_TEXT, ProjectStatusHistoryInput,
-    ProjectTextAnchorDeleteScope,
+    self as project_db, PROJECT_KIND_TEXT, ProjectStatusHistoryInput, ProjectTextAnchorDeleteScope,
 };
 use crate::project_delete::{
     GeneratedImageDeleteScope, delete_chapter_generation_outputs, delete_project_profile_scene_data,

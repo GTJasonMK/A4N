@@ -9,6 +9,7 @@ import { Modal } from "../../components/ui/Modal";
 import { characterAttributeText } from "../../utils/characterAttributes";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { nonEmptyText } from "../../utils/text";
+import { formatNumber, useI18n, type Locale } from "../../i18n";
 
 /** 写作侧栏的蓝图与角色直接入口。 */
 
@@ -20,8 +21,8 @@ interface WritingContextCardsProps {
   onOpenProfiles?: () => void;
 }
 
-const blueprintField = (label: string, value: string | number | null | undefined) => {
-  const text = typeof value === "number" ? String(value) : nonEmptyText(value);
+const blueprintField = (label: string, value: string | number | null | undefined, locale: Locale) => {
+  const text = typeof value === "number" ? formatNumber(value, locale) : nonEmptyText(value);
   if (!text) return null;
   return (
     <section className="border-b border-book-border/30 pb-3 last:border-b-0 last:pb-0">
@@ -39,6 +40,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
   onOpenProfiles,
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [blueprintError, setBlueprintError] = useState<string | null>(null);
   const [primaryProfile, setPrimaryProfile] = useState<CharacterProfile | null>(null);
@@ -62,7 +64,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
         }
       } catch (err) {
         if (!cancelled) {
-          const message = extractErrorMessage(err, "加载故事蓝图失败");
+          const message = extractErrorMessage(err, t("writing.blueprintLoadFailed"));
           setBlueprint(null);
           setBlueprintError(message);
           addToast(message, "error");
@@ -85,7 +87,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
           setPrimaryProfile(null);
           setProfileCount(0);
           setPortrait(null);
-          const message = extractErrorMessage(err, "加载角色档案失败");
+          const message = extractErrorMessage(err, t("writing.profileLoadFailedContext"));
           setProfileError(message);
           addToast(message, "error");
         }
@@ -94,7 +96,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [projectId, refreshKey, addToast]);
+  }, [projectId, refreshKey, addToast, t]);
 
   const progress =
     totalChapters > 0 ? Math.round((chapterCount / totalChapters) * 100) : null;
@@ -107,25 +109,25 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
           onClick={() => setBlueprintDetailOpen(true)}
           className="a4n-flat-surface block w-full px-3 py-2.5 text-left text-small transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
           disabled={!blueprint || !!blueprintError}
-          title="查看故事蓝图"
+          title={t("writing.viewBlueprint")}
         >
           <div className="flex items-center gap-2">
             <Sparkles size={12} className="shrink-0 text-book-primary" />
-            <span className="font-semibold text-book-text-main">故事蓝图</span>
+            <span className="font-semibold text-book-text-main">{t("writing.storyBlueprint")}</span>
             {progress != null ? (
               <span className="ml-auto text-caption text-book-text-muted">
-                {chapterCount} / {totalChapters} 章
+                {t("writing.chapterProgress", { count: formatNumber(chapterCount, locale), total: formatNumber(totalChapters, locale) })}
               </span>
             ) : null}
             <ChevronRight size={13} className="shrink-0 text-book-text-muted" />
           </div>
           {blueprintError ? (
-            <p className="mt-1 text-error">故事蓝图暂时无法加载。</p>
+            <p className="mt-1 text-error">{t("writing.blueprintLoadUnavailable")}</p>
           ) : blueprint ? (
             <div className="mt-1 min-w-0 leading-relaxed text-book-text-sub">
               {nonEmptyText(blueprint.style) ? (
                 <p className="truncate text-book-text-muted">
-                  风格：<span className="text-book-text-main">{nonEmptyText(blueprint.style)}</span>
+                  {t("writing.blueprintStyle")}<span className="text-book-text-main">{nonEmptyText(blueprint.style)}</span>
                 </p>
               ) : null}
               {nonEmptyText(blueprint.full_synopsis) ? (
@@ -141,7 +143,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
               ) : null}
             </div>
           ) : (
-            <p className="mt-1 text-book-text-muted">故事蓝图未加载</p>
+            <p className="mt-1 text-book-text-muted">{t("writing.blueprintNotLoaded")}</p>
           )}
         </button>
 
@@ -150,7 +152,7 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
           onClick={onOpenProfiles}
           className="a4n-flat-surface flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-small text-book-text-sub transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/45 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-default disabled:hover:border-book-border disabled:hover:bg-transparent"
           disabled={!onOpenProfiles}
-          title="打开角色档案工作台"
+          title={t("writing.openProfilesWorkspace")}
         >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-book-bg-tertiary">
             {primaryPortraitSrc && primaryProfile?.name.trim() ? (
@@ -170,20 +172,20 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <Users size={12} className="shrink-0 text-book-primary" />
-              <span className="font-semibold text-book-text-main">角色档案</span>
+              <span className="font-semibold text-book-text-main">{t("characterDetail.profilesTitle")}</span>
               <span className="ml-auto text-caption text-book-text-muted">
-                {profileCount > 0 ? `${profileCount} 位` : "尚无角色"}
+                {profileCount > 0 ? t("writing.profileCountUnit", { count: formatNumber(profileCount, locale) }) : t("writing.noProfilesShort")}
               </span>
             </div>
             {profileError ? (
-              <p className="mt-1 text-error">角色档案暂时无法加载。</p>
+              <p className="mt-1 text-error">{t("writing.profileLoadUnavailable")}</p>
             ) : primaryProfile ? (
               <p className="mt-1 truncate text-book-text-muted">
                 {primaryProfile.name}
                 {primaryPersonality ? ` · ${primaryPersonality}` : ""}
               </p>
             ) : (
-              <p className="mt-1 text-book-text-muted">打开工作台建立角色档案</p>
+              <p className="mt-1 text-book-text-muted">{t("writing.openWorkspaceToCreateProfile")}</p>
             )}
           </div>
           <ChevronRight size={13} className="shrink-0 text-book-text-muted" />
@@ -193,21 +195,21 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
       <Modal
         isOpen={blueprintDetailOpen && !!blueprint}
         onClose={() => setBlueprintDetailOpen(false)}
-        title="故事蓝图"
+        title={t("writing.storyBlueprint")}
         icon={<Sparkles size={14} />}
         maxWidthClassName="max-w-2xl"
       >
         {blueprint && (
           <div className="space-y-3">
-            {blueprintField("标题", blueprint.title)}
-            {blueprintField("类型", blueprint.genre)}
-            {blueprintField("一句话简介", blueprint.one_sentence_summary)}
-            {blueprintField("完整梗概", blueprint.full_synopsis)}
-            {blueprintField("风格", blueprint.style)}
-            {blueprintField("语气", blueprint.tone)}
-            {blueprintField("目标读者", blueprint.target_audience)}
-            {blueprintField("规划章节数", blueprint.total_chapters)}
-            {blueprintField("每部分章节数", blueprint.chapters_per_part)}
+            {blueprintField(t("writing.blueprintFieldTitle"), blueprint.title, locale)}
+            {blueprintField(t("writing.blueprintFieldGenre"), blueprint.genre, locale)}
+            {blueprintField(t("writing.blueprintFieldOneSentence"), blueprint.one_sentence_summary, locale)}
+            {blueprintField(t("writing.blueprintFieldSynopsis"), blueprint.full_synopsis, locale)}
+            {blueprintField(t("writing.blueprintFieldStyle"), blueprint.style, locale)}
+            {blueprintField(t("writing.blueprintFieldTone"), blueprint.tone, locale)}
+            {blueprintField(t("writing.blueprintFieldAudience"), blueprint.target_audience, locale)}
+            {blueprintField(t("writing.blueprintFieldTotalChapters"), blueprint.total_chapters, locale)}
+            {blueprintField(t("writing.blueprintFieldChaptersPerPart"), blueprint.chapters_per_part, locale)}
           </div>
         )}
       </Modal>

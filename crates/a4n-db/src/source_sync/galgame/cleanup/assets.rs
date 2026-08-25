@@ -1,7 +1,7 @@
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
 use a4n_core::models::media::media_provenance;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 pub async fn media_asset_ids_for_generation_specs<C>(
     db: &C,
@@ -43,7 +43,13 @@ where
         validate_positive_id(*media_asset_id, "media_asset_id")?;
     }
 
-    crate::media::delete_unbound_project_media_assets(db, project_id, candidate_media_asset_ids)
-        .await?;
+    crate::media::delete_unbound_project_media_assets(
+        db,
+        project_id,
+        candidate_media_asset_ids
+            .into_iter()
+            .collect::<HashSet<_>>(),
+    )
+    .await?;
     Ok(())
 }

@@ -6,6 +6,7 @@ use a4n_db::generation::{
 };
 use serde_json::json;
 
+use super::super::super::layout_rules::manga_page_generation_layout;
 use super::super::super::pipeline_prompt::MangaPromptGenerationTrace;
 use super::contracts::MangaPageGenerationTraceRecord;
 
@@ -13,19 +14,11 @@ pub(super) fn build_manga_page_generation_trace_record(
     row: &chapter_manga_prompt::Model,
     trace: MangaPromptGenerationTrace,
 ) -> Result<MangaPageGenerationTraceRecord, AppError> {
-    let source_refs_json = row
-        .layout
-        .as_ref()
-        .and_then(|layout| layout.get("source"))
-        .cloned()
-        .map(|source| json!({ "source": source }));
-    let media_refs_json = row.layout.as_ref().and_then(|layout| {
-        layout.get("reference_bindings").cloned().map(|bindings| {
-            json!({
-                "reference_bindings": bindings,
-            })
-        })
-    });
+    let layout = manga_page_generation_layout(row).map_err(AppError::InvalidArgument)?;
+    let source_refs_json = Some(json!({ "source": layout.source }));
+    let media_refs_json = Some(json!({
+        "reference_bindings": layout.reference_bindings,
+    }));
     let input_fingerprint_json = trace.input_fingerprint_json.clone();
     let output_json = json!({
         "chapter_manga_prompt_id": row.id,

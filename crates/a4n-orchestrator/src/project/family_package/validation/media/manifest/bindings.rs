@@ -36,6 +36,8 @@ pub(super) fn validate_media_bindings(
             &context.character_profile_ids,
             &context.object_profile_ids,
             &context.scene_profile_ids,
+            &context.chapter_video_prompt_ids,
+            &context.generated_video_ids,
             &context.video_segment_ids,
             &context.assembly_timeline_ids,
             &context.galgame_scene_ids,

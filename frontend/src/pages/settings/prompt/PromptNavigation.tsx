@@ -1,5 +1,6 @@
 import React from "react";
 import type { CategoryInfo } from "../../../api/prompt";
+import { useI18n } from "../../../i18n";
 
 interface PromptCategoryTabsProps {
   categories: CategoryInfo[];
@@ -13,8 +14,10 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
   activeCategory,
   filteredCount,
   onCategoryChange,
-}) => (
-  <div className="tab-bar shrink-0 border-b border-book-border/45" aria-label="提示词分类">
+}) => {
+  const { t } = useI18n();
+  return (
+  <div className="tab-bar shrink-0 border-b border-book-border/45" aria-label={t("settingsPrompt.category")}>
     <button
       type="button"
       onClick={() => onCategoryChange("all")}
@@ -22,7 +25,7 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
       data-active={activeCategory === "all" ? "1" : undefined}
       className="pyqt-tab"
     >
-      全部
+      {t("common.all")}
     </button>
     {categories.map((category) => (
       <button
@@ -32,13 +35,14 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
         aria-pressed={activeCategory === category.key}
         data-active={activeCategory === category.key ? "1" : undefined}
         className="pyqt-tab"
-        title={category.description || category.label || "提示词分类"}
+        title={category.description || category.label || t("settingsPrompt.category")}
       >
         {category.label || category.key}
       </button>
     ))}
     <span className="ml-auto inline-flex shrink-0 items-center px-2 text-small text-book-text-muted">
-      {filteredCount} 项
+      {t("settingsPrompt.itemCount", { count: filteredCount })}
     </span>
   </div>
-);
+  );
+};

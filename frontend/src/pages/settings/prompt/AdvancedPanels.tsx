@@ -12,12 +12,14 @@ import {
   type PromptRenderAbResult,
 } from "../../../api/prompt";
 import { PromptProjectSelect } from "./PromptProjectSelect";
+import { useI18n } from "../../../i18n";
 
 export const PromptAdvancedPanels: React.FC<{
   prompt: PromptEntry;
   reverseDependencies: string[];
 }> = ({ prompt, reverseDependencies }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const mountedRef = useRef(true);
   const scopeRef = useRef({ name: prompt.name, token: 0 });
   const validateSeqRef = useRef(0);
@@ -138,9 +140,9 @@ export const PromptAdvancedPanels: React.FC<{
       }
       setMissingVars(miss);
       if (miss.length === 0) {
-        addToast("校验通过：无缺失变量", "success");
+        addToast(t("settingsPrompt.validationPassed"), "success");
       } else {
-        addToast(`缺失 ${miss.length} 个变量`, "error");
+        addToast(t("settingsPrompt.missingVariables", { count: miss.length }), "error");
       }
     } catch (err) {
       if (
@@ -148,7 +150,7 @@ export const PromptAdvancedPanels: React.FC<{
         validateSeqRef.current === requestSeq &&
         validateInputVersionRef.current === requestInputVersion
       ) {
-        addToast(extractErrorMessage(err, "变量校验失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsPrompt.validationFailed")), "error");
       }
     } finally {
       if (validateSeqRef.current === requestSeq) {
@@ -170,11 +172,11 @@ export const PromptAdvancedPanels: React.FC<{
     try {
       const v = JSON.parse(s);
       if (typeof v !== "object" || v === null || Array.isArray(v)) {
-        throw new Error("必须是 JSON 对象");
+        throw new Error(t("settingsPrompt.jsonObjectRequired"));
       }
       return v as Record<string, unknown>;
     } catch (err) {
-      addToast(`JSON 解析失败：${extractErrorMessage(err, "")}`, "error");
+      addToast(t("settingsPrompt.jsonParseFailed", { message: extractErrorMessage(err, "") }), "error");
       return null;
     }
   };
@@ -210,7 +212,7 @@ export const PromptAdvancedPanels: React.FC<{
         directRenderSeqRef.current === requestSeq &&
         renderInputVersionRef.current === requestInputVersion
       ) {
-        addToast(extractErrorMessage(err, "渲染失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsPrompt.renderFailed")), "error");
       }
     } finally {
       if (directRenderSeqRef.current === requestSeq) {
@@ -257,7 +259,7 @@ export const PromptAdvancedPanels: React.FC<{
         abRenderSeqRef.current === requestSeq &&
         renderInputVersionRef.current === requestInputVersion
       ) {
-        addToast(extractErrorMessage(err, "对照渲染失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsPrompt.compareRenderFailed")), "error");
       }
     } finally {
       if (abRenderSeqRef.current === requestSeq) {
@@ -277,14 +279,14 @@ export const PromptAdvancedPanels: React.FC<{
     <>
       <details className="py-2.5">
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
-          <NetworkIcon size={11} /> 依赖图 / 反向依赖
+          <NetworkIcon size={11} /> {t("settingsPrompt.dependenciesPanel")}
         </summary>
         <div className="mt-2 text-small">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <div className="text-book-text-muted mb-1">依赖（→）</div>
+              <div className="text-book-text-muted mb-1">{t("settingsPrompt.dependenciesForward")}</div>
               {prompt.dependencies.length === 0 ? (
-                <div className="italic text-book-text-muted">无</div>
+                <div className="italic text-book-text-muted">{t("common.none")}</div>
               ) : (
                 <div className="break-words font-mono text-book-text-sub">
                   {prompt.dependencies.join("、")}
@@ -292,9 +294,9 @@ export const PromptAdvancedPanels: React.FC<{
               )}
             </div>
             <div>
-              <div className="text-book-text-muted mb-1">反向依赖（←）</div>
+              <div className="text-book-text-muted mb-1">{t("settingsPrompt.dependenciesReverse")}</div>
               {reverseDependencies.length === 0 ? (
-                <div className="italic text-book-text-muted">无</div>
+                <div className="italic text-book-text-muted">{t("common.none")}</div>
               ) : (
                 <div className="break-words font-mono text-book-text-sub">
                   {reverseDependencies.join("、")}
@@ -307,17 +309,17 @@ export const PromptAdvancedPanels: React.FC<{
 
       <details className="py-2.5">
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
-          <CheckCircle2 size={11} /> 变量校验
+          <CheckCircle2 size={11} /> {t("settingsPrompt.variableValidation")}
         </summary>
         <div className="mt-2 text-small space-y-1.5">
           <div className="text-book-text-muted">
-            输入要传入的变量名（逗号或换行分隔），检查是否覆盖模板所有占位符。
+            {t("settingsPrompt.variableValidationHint")}
           </div>
           <textarea
             value={varsInput}
             onChange={(e) => handleVarsInputChange(e.target.value)}
             className="pyqt-input w-full text-small h-16 resize-y font-mono"
-            placeholder="如：title, chapter_number, character_name"
+            placeholder={t("settingsPrompt.variablePlaceholder")}
           />
           <div className="flex items-center gap-2">
             <BookButton
@@ -326,15 +328,15 @@ export const PromptAdvancedPanels: React.FC<{
               onClick={handleValidate}
               disabled={validateBusy}
             >
-              {validateBusy ? <LoadingSpinner size="sm" /> : "校验"}
+              {validateBusy ? <LoadingSpinner size="sm" /> : t("settingsPrompt.validate")}
             </BookButton>
             {missingVars !== null && missingVars.length === 0 && (
-              <span className="text-success">✓ 所有占位符已覆盖</span>
+              <span className="text-success">✓ {t("settingsPrompt.allVariablesCovered")}</span>
             )}
           </div>
           {missingVars !== null && missingVars.length > 0 && (
             <div className="break-words border-l border-error/40 pl-2.5 pt-1 text-error">
-              缺失：<span className="font-mono">{missingVars.join("、")}</span>
+              {t("settingsPrompt.missingLabel")}: <span className="font-mono">{missingVars.join("、")}</span>
             </div>
           )}
         </div>
@@ -342,25 +344,25 @@ export const PromptAdvancedPanels: React.FC<{
 
       <details className="py-2.5">
         <summary className="cursor-pointer text-xs text-book-text-sub inline-flex items-center gap-1.5">
-          <Play size={11} /> 渲染对照
+          <Play size={11} /> {t("settingsPrompt.renderComparison")}
         </summary>
         <div className="mt-2 text-small space-y-1.5">
           <label className="grid gap-1">
-            <span className="text-book-text-muted">项目上下文</span>
+            <span className="text-book-text-muted">{t("nav.projectContext")}</span>
             <PromptProjectSelect
               value={abProjectId}
               onChange={handleRenderProjectChange}
               allowEmpty
-              ariaLabel="渲染时使用的项目上下文"
+              ariaLabel={t("settingsPrompt.renderProjectContext")}
               className="w-full"
             />
           </label>
-          <div className="text-book-text-muted">变量结构数据</div>
+          <div className="text-book-text-muted">{t("settingsPrompt.variableJson")}</div>
           <textarea
             value={abVarsJson}
             onChange={(e) => handleRenderVariablesChange(e.target.value)}
             className="pyqt-input w-full text-small h-20 resize-y font-mono"
-            placeholder='{"title": "示例", "chapter": 1}'
+            placeholder={t("settingsPrompt.variableJsonPlaceholder")}
           />
           <div className="flex items-center gap-2 flex-wrap">
             <BookButton
@@ -369,7 +371,7 @@ export const PromptAdvancedPanels: React.FC<{
               onClick={handleDirectRender}
               disabled={renderBusy}
             >
-              {renderBusy ? <LoadingSpinner size="sm" /> : "直接渲染"}
+              {renderBusy ? <LoadingSpinner size="sm" /> : t("settingsPrompt.renderDirect")}
             </BookButton>
             <BookButton
               variant="primary"
@@ -377,26 +379,26 @@ export const PromptAdvancedPanels: React.FC<{
               onClick={handleAbRender}
               disabled={abBusy}
             >
-              {abBusy ? <LoadingSpinner size="sm" /> : "当前/原始对照"}
+              {abBusy ? <LoadingSpinner size="sm" /> : t("settingsPrompt.renderCurrentOriginal")}
             </BookButton>
           </div>
           {renderResult !== null && (
             <div>
-              <div className="text-book-text-muted">直接渲染结果</div>
+              <div className="text-book-text-muted">{t("settingsPrompt.directRenderResult")}</div>
               <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
-                {renderResult || "（空）"}
+                {renderResult || t("settingsPrompt.emptyResult")}
               </pre>
             </div>
           )}
           {abResult !== null && (
             <div>
-              <div className="text-book-text-muted">当前模板</div>
+              <div className="text-book-text-muted">{t("settingsPrompt.currentTemplate")}</div>
               <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
-                {abResult.current || "（空）"}
+                {abResult.current || t("settingsPrompt.emptyResult")}
               </pre>
-              <div className="text-book-text-muted mt-1.5">原始模板</div>
+              <div className="text-book-text-muted mt-1.5">{t("settingsPrompt.originalTemplate")}</div>
               <pre className="mt-1 whitespace-pre-wrap break-words border-l border-book-border/45 pl-2.5 font-mono text-caption text-book-text-sub">
-                {abResult.original || "（空）"}
+                {abResult.original || t("settingsPrompt.emptyResult")}
               </pre>
             </div>
           )}

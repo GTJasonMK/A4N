@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::super::outline::push_optional_text;
 use super::json::{compact_json_text, is_meaningful_json_value, truncate_text_chars};
 use a4n_core::models::{
@@ -77,9 +79,13 @@ pub(super) fn format_protagonist_profile_reference(
     profiles: &[protagonist_profile::Model],
     involved_names: &[String],
 ) -> Option<Vec<String>> {
+    let involved_names = involved_names
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
     let mut selected = profiles
         .iter()
-        .filter(|profile| involved_names.iter().any(|name| name == &profile.name))
+        .filter(|profile| involved_names.contains(profile.name.as_str()))
         .collect::<Vec<_>>();
     if selected.is_empty() {
         selected = profiles.iter().collect::<Vec<_>>();

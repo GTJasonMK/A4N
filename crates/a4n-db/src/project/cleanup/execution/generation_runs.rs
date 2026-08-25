@@ -1,59 +1,51 @@
-use super::super::{ProjectCleanupDbError, ProjectGenerationRunCleanupResult};
+use super::super::ProjectCleanupDbError;
 use crate::project::validate_positive_i64;
 use a4n_core::models::generation::{generation_run, generation_run_target};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub(crate) async fn delete_project_generation_runs<C>(
     db: &C,
     project_id: i64,
     generated_image_ids: &[i64],
     generated_video_ids: &[i64],
-) -> Result<ProjectGenerationRunCleanupResult, ProjectCleanupDbError>
+) -> Result<(), ProjectCleanupDbError>
 where
     C: ConnectionTrait,
 {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectCleanupDbError::InvalidArgument)?;
     let generation_run_ids = generation_run::Entity::find()
+        .select_only()
+        .column(generation_run::Column::Id)
         .filter(generation_run::Column::ProjectId.eq(project_id))
+        .into_tuple::<i64>()
         .all(db)
-        .await?
-        .into_iter()
-        .map(|row| row.id)
-        .collect::<Vec<_>>();
+        .await?;
 
-    let mut deleted_generation_run_targets = 0;
     if !generation_run_ids.is_empty() {
-        deleted_generation_run_targets += generation_run_target::Entity::delete_many()
+        generation_run_target::Entity::delete_many()
             .filter(generation_run_target::Column::GenerationRunId.is_in(generation_run_ids))
             .exec(db)
-            .await?
-            .rows_affected;
+            .await?;
     }
     if !generated_image_ids.is_empty() {
-        deleted_generation_run_targets += generation_run_target::Entity::delete_many()
+        generation_run_target::Entity::delete_many()
             .filter(generation_run_target::Column::TargetTable.eq("generated_image"))
             .filter(generation_run_target::Column::TargetId.is_in(generated_image_ids.to_vec()))
             .exec(db)
-            .await?
-            .rows_affected;
+            .await?;
     }
     if !generated_video_ids.is_empty() {
-        deleted_generation_run_targets += generation_run_target::Entity::delete_many()
+        generation_run_target::Entity::delete_many()
             .filter(generation_run_target::Column::TargetTable.eq("generated_video"))
             .filter(generation_run_target::Column::TargetId.is_in(generated_video_ids.to_vec()))
             .exec(db)
-            .await?
-            .rows_affected;
+            .await?;
     }
-    let deleted_generation_runs = generation_run::Entity::delete_many()
+    generation_run::Entity::delete_many()
         .filter(generation_run::Column::ProjectId.eq(project_id))
         .exec(db)
-        .await?
-        .rows_affected;
+        .await?;
 
-    Ok(ProjectGenerationRunCleanupResult {
-        deleted_generation_runs,
-        deleted_generation_run_targets,
-    })
+    Ok(())
 }

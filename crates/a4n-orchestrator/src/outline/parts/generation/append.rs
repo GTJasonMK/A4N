@@ -12,7 +12,7 @@ use super::super::contracts::PartOutlineJsonInput;
 use super::super::planning::plan_next_parts;
 
 impl OrchestratorContext {
-    pub async fn generate_parts(
+    pub(in crate::outline) async fn generate_parts(
         &self,
         input: PartOutlineGenerationInput<'_, '_>,
     ) -> Result<Vec<part_outline::Model>, AppError> {

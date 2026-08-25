@@ -6,6 +6,7 @@ import {
   type StreamItemKind,
 } from "./optimizeTabUtils";
 import { isJsonRecord as isRecord, type JsonRecord } from "../../../utils/jsonRecord";
+import type { MessageTranslator } from "../../../i18n";
 
 interface ModelStreamPreview {
   kind: StreamItemKind;
@@ -13,33 +14,33 @@ interface ModelStreamPreview {
   content: string;
 }
 
-export function previewModelStream(raw: string): ModelStreamPreview {
+export function previewModelStream(raw: string, t: MessageTranslator): ModelStreamPreview {
   const parsed = parseJsonObject(raw);
-  if (parsed) return previewParsedOutput(parsed);
-  return previewPartialOutput(raw);
+  if (parsed) return previewParsedOutput(parsed, t);
+  return previewPartialOutput(raw, t);
 }
 
-function previewParsedOutput(parsed: JsonRecord): ModelStreamPreview {
+function previewParsedOutput(parsed: JsonRecord, t: MessageTranslator): ModelStreamPreview {
   const action = stringField(parsed, "action");
   if (action) {
     const publicUpdate = stringField(parsed, "public_update");
     const args = recordField(parsed, "arguments");
-    return previewAgentDecision(action, args, publicUpdate);
+    return previewAgentDecision(action, args, publicUpdate, t);
   }
 
   if (Array.isArray(parsed.issues)) {
-    return previewIssues(parsed.issues);
+    return previewIssues(parsed.issues, t);
   }
 
   if (Array.isArray(parsed.patches)) {
-    return previewPatches(parsed);
+    return previewPatches(parsed, t);
   }
 
   const reply = stringField(parsed, "reply");
   if (reply) {
     return {
       kind: "assistant",
-      title: "Agent 正在回复",
+      title: t("optimize.agentReply"),
       content: reply,
     };
   }
@@ -48,56 +49,58 @@ function previewParsedOutput(parsed: JsonRecord): ModelStreamPreview {
   if (summary) {
     return {
       kind: "agent",
-      title: "正在整理结果",
+      title: t("optimize.summaryPreparing"),
       content: summary,
     };
   }
 
-  return protocolError("模型输出不符合协议", "缺少可展示的 reply、issues、patches 或 Agent action");
+  return protocolError(t("optimize.protocolInvalid"), t("optimize.protocolMissingFields"));
 }
 
 function previewAgentDecision(
   action: string,
   args: JsonRecord | null,
   publicUpdate: string | null,
+  t: MessageTranslator,
 ): ModelStreamPreview {
   switch (action) {
     case "think":
-      return previewThinking(publicUpdate);
+      return previewThinking(publicUpdate, t);
     case "run_tool":
-      return previewToolCall(args, publicUpdate);
+      return previewToolCall(args, publicUpdate, t);
     case "final":
-      return previewFinal(args);
+      return previewFinal(args, t);
     default:
-      return protocolError("模型返回非法 action", action);
+      return protocolError(t("optimize.invalidAction"), action);
   }
 }
 
-function previewThinking(publicUpdate: string | null): ModelStreamPreview {
+function previewThinking(publicUpdate: string | null, t: MessageTranslator): ModelStreamPreview {
   if (publicUpdate) {
     return {
       kind: "agent",
-      title: "Agent 说明",
+      title: t("optimize.agentNote"),
       content: publicUpdate,
     };
   }
-  return protocolError("模型决策缺少阶段说明", "think 决策没有返回 public_update");
+  return protocolError(t("optimize.modelStageMissing"), t("optimize.thinkPublicUpdateMissing"));
 }
 
 function previewToolCall(
   args: JsonRecord | null,
   publicUpdate: string | null,
+  t: MessageTranslator,
 ): ModelStreamPreview {
   const tool = args ? stringField(args, "tool") : null;
   const toolArgs = args ? recordField(args, "arguments") : null;
   if (!publicUpdate) {
-    return protocolError("模型决策缺少阶段说明", "run_tool 决策没有返回 public_update");
+    return protocolError(t("optimize.modelStageMissing"), t("optimize.runToolUpdateMissing"));
   }
   if (tool === "get_project_information") {
     const mode = toolArgs ? stringField(toolArgs, "mode") : null;
     return {
       kind: "agent",
-      title: mode === "search" ? "调用工具：搜索资料" : "调用工具：读取资料",
+      title: mode === "search" ? t("optimize.callSearch") : t("optimize.callRead"),
       content: publicUpdate,
     };
   }
@@ -105,124 +108,129 @@ function previewToolCall(
   if (tool === "edit_article") {
     return {
       kind: "agent",
-      title: "调用工具：修改正文",
+      title: t("optimize.callEditArticle"),
       content: publicUpdate,
     };
   }
 
   return {
     kind: "agent",
-    title: "正在调用工具",
+    title: t("optimize.callTool"),
     content: publicUpdate,
   };
 }
 
-function previewFinal(args: JsonRecord | null): ModelStreamPreview {
+function previewFinal(args: JsonRecord | null, t: MessageTranslator): ModelStreamPreview {
   const reply = args ? stringField(args, "reply") : null;
   if (reply) {
     return {
       kind: "assistant",
-      title: "Agent 正在回复",
+      title: t("optimize.agentReply"),
       content: reply,
     };
   }
 
   const issues = args && Array.isArray(args.issues) ? args.issues : null;
-  if (issues) return previewIssues(issues);
+  if (issues) return previewIssues(issues, t);
 
-  return protocolError("模型 final 参数无效", "final.arguments 缺少 reply 或 issues");
+  return protocolError(t("optimize.invalidFinalArguments"), t("optimize.missingReplyOrIssues"));
 }
 
-function previewIssues(rawIssues: unknown[]): ModelStreamPreview {
+function previewIssues(rawIssues: unknown[], t: MessageTranslator): ModelStreamPreview {
   const issues = parseOptimizeIssues(rawIssues);
   return {
     kind: "assistant",
-    title: "正在整理分析结果",
+    title: t("optimize.analysisPreparing"),
     content: lines([
       issues.length === 0
-        ? "本次分析未发现明确问题。"
-        : `已发现 ${issues.length} 个问题：`,
-      ...issues.map((issue, index) => {
-        const severity = issue.severity ? ` / ${issue.severity}` : "";
-        return `${index + 1}. ${issue.description || "未填写问题描述"}${severity}`;
-      }),
+        ? t("optimize.noIssues")
+        : t("optimize.issueCount", { count: issues.length }),
+      ...issues.map((issue, index) =>
+        t("optimize.issueLine", {
+          index: index + 1,
+          description: issue.description || t("optimize.issueDescriptionMissing"),
+          tool: issue.tool,
+          severity: issue.severity ? ` / ${issue.severity}` : "",
+          id: issue.id,
+        }),
+      ),
     ]),
   };
 }
 
-function previewPatches(parsed: JsonRecord): ModelStreamPreview {
+function previewPatches(parsed: JsonRecord, t: MessageTranslator): ModelStreamPreview {
   const summary = stringField(parsed, "summary");
   const patches = Array.isArray(parsed.patches) ? parsed.patches : [];
   return {
     kind: "agent",
-    title: "正在生成正文补丁",
+    title: t("optimize.patchPreparing"),
     content: lines([
-      summary ? `摘要：${summary}` : null,
-      patches.length > 0 ? `已生成 ${patches.length} 处局部修改` : "没有生成可安全定位的修改",
-      formatPatchReasons(patches),
+      summary ? t("optimize.patchSummary", { summary }) : null,
+      patches.length > 0 ? t("optimize.patchCount", { count: patches.length }) : t("optimize.noSafeChanges"),
+      formatPatchReasons(patches, t),
     ]),
   };
 }
 
-function previewPartialOutput(raw: string): ModelStreamPreview {
+function previewPartialOutput(raw: string, t: MessageTranslator): ModelStreamPreview {
   const reply = extractStringField(raw, "reply");
   if (reply) {
     return {
       kind: "assistant",
-      title: "Agent 正在回复",
+      title: t("optimize.agentReply"),
       content: reply,
     };
   }
 
   const action = extractStringField(raw, "action");
   const publicUpdate = extractStringField(raw, "public_update");
-  if (action === "think") return previewPartialThinking(publicUpdate);
-  if (action === "run_tool") return previewPartialToolCall(raw, publicUpdate);
-  if (action === "final") return previewPartialFinal(raw);
+  if (action === "think") return previewPartialThinking(publicUpdate, t);
+  if (action === "run_tool") return previewPartialToolCall(raw, publicUpdate, t);
+  if (action === "final") return previewPartialFinal(raw, t);
 
   const summary = extractStringField(raw, "summary");
   if (summary || hasField(raw, "patches")) {
     return {
       kind: "agent",
-      title: "正在生成正文补丁",
+      title: t("optimize.patchPreparing"),
       content: lines([
-        summary ? `摘要：${summary}` : null,
-        partialPatchCount(raw),
+        summary ? t("optimize.patchSummary", { summary }) : null,
+        partialPatchCount(raw, t),
         formatPartialPatchReasons(raw),
       ]),
     };
   }
 
   if (hasField(raw, "thought")) {
-    return thinkingPreview();
+    return thinkingPreview(t);
   }
 
   return {
     kind: "agent",
-    title: "模型正在输出",
+    title: t("optimize.partialOutput"),
     content: "",
   };
 }
 
-function previewPartialThinking(publicUpdate: string | null): ModelStreamPreview {
+function previewPartialThinking(publicUpdate: string | null, t: MessageTranslator): ModelStreamPreview {
   if (publicUpdate) {
     return {
       kind: "agent",
-      title: "Agent 说明",
+      title: t("optimize.agentNote"),
       content: publicUpdate,
     };
   }
-  return thinkingPreview();
+  return thinkingPreview(t);
 }
 
-function previewPartialToolCall(raw: string, publicUpdate: string | null): ModelStreamPreview {
+function previewPartialToolCall(raw: string, publicUpdate: string | null, t: MessageTranslator): ModelStreamPreview {
   const tool = extractStringField(raw, "tool");
   const content = publicUpdate ?? "";
   if (tool === "get_project_information") {
     const mode = extractStringField(raw, "mode");
     return {
       kind: "agent",
-      title: mode === "search" ? "调用工具：搜索资料" : "调用工具：读取资料",
+      title: mode === "search" ? t("optimize.callSearch") : t("optimize.callRead"),
       content,
     };
   }
@@ -230,34 +238,34 @@ function previewPartialToolCall(raw: string, publicUpdate: string | null): Model
   if (tool === "edit_article") {
     return {
       kind: "agent",
-      title: "调用工具：修改正文",
+      title: t("optimize.callEditArticle"),
       content,
     };
   }
 
   return {
     kind: "agent",
-    title: "正在选择工具",
+    title: t("optimize.toolSelecting"),
     content,
   };
 }
 
-function thinkingPreview(): ModelStreamPreview {
+function thinkingPreview(t: MessageTranslator): ModelStreamPreview {
   return {
     kind: "agent",
-    title: "正在思考",
+    title: t("optimize.thinking"),
     content: "",
   };
 }
 
-function previewPartialFinal(raw: string): ModelStreamPreview {
+function previewPartialFinal(raw: string, t: MessageTranslator): ModelStreamPreview {
   if (hasField(raw, "issues")) {
     const descriptions = extractStringFields(raw, "description");
     return {
       kind: "assistant",
-      title: "正在整理分析结果",
+      title: t("optimize.analysisPreparing"),
       content: lines([
-        descriptions.length > 0 ? "已识别的问题：" : "正在整理问题列表",
+        descriptions.length > 0 ? t("optimize.identifiedIssues") : t("optimize.preparingIssues"),
         ...descriptions.map((description, index) => `${index + 1}. ${description}`),
       ]),
     };
@@ -265,21 +273,25 @@ function previewPartialFinal(raw: string): ModelStreamPreview {
 
   return {
     kind: "agent",
-    title: "正在整理回复",
+    title: t("optimize.responsePreparing"),
     content: "",
   };
 }
 
-function formatPatchReasons(patches: unknown[]): string | null {
+function formatPatchReasons(patches: unknown[], t: MessageTranslator): string | null {
   const linesOut = patches
     .map((patch, index) => {
       if (!isRecord(patch)) return null;
       const reason = stringField(patch, "reason");
       const operation = stringField(patch, "operation");
       if (!reason && !operation) return null;
-      return `${index + 1}. ${operation ? `${patchOperationLabel(operation)}：` : ""}${
-        reason || "局部修改"
-      }`;
+      const description = reason || t("optimize.localChange");
+      return operation
+        ? `${index + 1}. ${t("optimize.patchReasonWithOperation", {
+            operation: patchOperationLabel(operation, t),
+            reason: description,
+          })}`
+        : `${index + 1}. ${description}`;
     })
     .filter((line): line is string => line != null);
   return linesOut.length > 0 ? linesOut.join("\n") : null;
@@ -291,9 +303,9 @@ function formatPartialPatchReasons(raw: string): string | null {
   return reasons.map((reason, index) => `${index + 1}. ${reason}`).join("\n");
 }
 
-function partialPatchCount(raw: string): string | null {
+function partialPatchCount(raw: string, t: MessageTranslator): string | null {
   const count = countField(raw, "patch_id");
-  return count > 0 ? `已起草 ${count} 处局部修改` : null;
+  return count > 0 ? t("optimize.draftedChanges", { count }) : null;
 }
 
 function lines(items: Array<string | null | undefined>): string {

@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use super::super::{MANIFEST_PATH, VideoStudioProjectPackage};
 use crate::actions::project_transfer::package_files::project_package_media_zip_entries;
+use a4n_orchestrator::project::{MANIFEST_PATH, VideoStudioProjectPackage};
 
 pub(in crate::actions::project_transfer) async fn package_zip_bytes(
     runtime_profile: crate::state::RuntimeProfile,

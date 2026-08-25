@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from "react";
 import type { CanvasNodeContract, CanvasPortContract } from "../../api/canvas";
+import type { MessageTranslator } from "../../i18n";
 import { configText } from "./canvasConfig";
 
 export type StudioNodeCategory = "input" | "operation" | "probe" | "output";
@@ -18,13 +19,6 @@ const GENERATE_VIDEO_IMAGE_INPUTS_BY_MODE: Record<GenerateVideoInputMode, string
   first_frame: ["first_frame"],
   first_end_frame: ["first_frame", "end_frame"],
   reference_images: ["reference_image"],
-};
-
-const CATEGORY_TITLES: Record<StudioNodeCategory, string> = {
-  input: "输入节点",
-  operation: "操作节点",
-  probe: "观察节点",
-  output: "输出节点",
 };
 
 export const STUDIO_NODE_CATEGORY_ORDER: StudioNodeCategory[] = [
@@ -111,25 +105,66 @@ export function parseGenerateVideoInputMode(value: unknown): GenerateVideoInputM
   return null;
 }
 
-export function generateVideoInputModeLabel(mode: GenerateVideoInputMode): string {
+export function generateVideoInputModeLabel(mode: GenerateVideoInputMode, t: MessageTranslator): string {
   switch (mode) {
     case "first_frame":
-      return "首帧";
+      return t("video.canvas.inputMode.firstFrame");
     case "first_end_frame":
-      return "首尾帧";
+      return t("video.canvas.inputMode.firstEndFrame");
     case "reference_images":
-      return "参考图";
+      return t("video.canvas.inputMode.referenceImages");
     case "text_only":
-      return "仅提示词";
+      return t("video.canvas.inputMode.textOnly");
   }
 }
 
-export function studioCategoryLabel(category: string): string {
-  return CATEGORY_TITLES[category as StudioNodeCategory] ?? (category || "节点");
+export function studioCategoryLabel(category: string, t: MessageTranslator): string {
+  switch (category) {
+    case "input":
+      return t("video.canvas.category.input");
+    case "operation":
+      return t("video.canvas.category.operation");
+    case "probe":
+      return t("video.canvas.category.probe");
+    case "output":
+      return t("video.canvas.category.output");
+    default:
+      return category || t("video.canvas.unknownNode");
+  }
 }
 
-export function studioCategoryTitle(category: StudioNodeCategory): string {
-  return CATEGORY_TITLES[category];
+export function studioCategoryTitle(category: StudioNodeCategory, t: MessageTranslator): string {
+  return studioCategoryLabel(category, t);
+}
+
+export function studioPortLabel(
+  nodeKind: string,
+  port: Pick<CanvasPortContract, "id" | "data_type">,
+  t: MessageTranslator,
+): string {
+  if (port.id === "first_frame") return t("video.canvas.port.firstFrame");
+  if (port.id === "end_frame") return t("video.canvas.port.endFrame");
+  if (port.id === "reference_image") return t("video.canvas.port.referenceImage");
+  if (port.id === "clip") return t("video.canvas.port.clip");
+  if (nodeKind === "ExtractFrameNode" && port.id === "image") return t("video.canvas.dataType.frame");
+  switch (port.data_type) {
+    case "text":
+      return t("video.canvas.dataType.text");
+    case "image":
+      return t("video.canvas.dataType.image");
+    case "video":
+      return t("video.canvas.dataType.video");
+    case "audio":
+      return t("video.canvas.dataType.audio");
+    case "media":
+      return t("video.canvas.dataType.media");
+    case "json":
+      return t("video.canvas.dataType.json");
+    case "any":
+      return t("video.canvas.dataType.any");
+    default:
+      return t("video.canvas.port.unknown", { id: port.id });
+  }
 }
 
 export function dataTypesCompatible(sourceType: string, targetType: string): boolean {

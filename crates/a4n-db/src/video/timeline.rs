@@ -14,9 +14,11 @@ use a4n_core::{
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::OnConflict,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
+    sea_query::{CaseStatement, Expr, OnConflict},
 };
 use serde_json::{Value, json};
+use std::collections::{HashMap, HashSet};
 
 use super::{VideoDbError, lock_generated_media_project};
 
@@ -333,24 +335,24 @@ pub async fn reconcile_native_timeline(
         }
     }
 
-    let mut desired_native_ids = Vec::with_capacity(keys.len());
-    for key in keys {
+    let now = Utc::now().naive_utc();
+    let mut desired_native_ids = vec![None; keys.len()];
+    let mut reactivated = Vec::new();
+    let mut pending_inserts = Vec::new();
+    let mut pending_insert_slots = Vec::new();
+    for (slot, key) in keys.iter().enumerate() {
         if let Some(item) = by_key.remove(key) {
             if item.status != TIMELINE_ACTIVE_STATUS {
-                let mut active: chapter_video_timeline_item::ActiveModel = item.clone().into();
-                active.status = Set(TIMELINE_ACTIVE_STATUS.to_string());
-                active.position = Set(Some(next_temporary_position));
-                active.updated_at = Set(Utc::now().naive_utc());
-                active.update(&txn).await.map_err(VideoDbError::Database)?;
+                reactivated.push((item.id, next_temporary_position));
                 next_temporary_position =
                     next_temporary_position.checked_add(1).ok_or_else(|| {
                         VideoDbError::InvalidArgument("时间线片段数量超出范围".to_string())
                     })?;
             }
-            desired_native_ids.push(item.id);
+            desired_native_ids[slot] = Some(item.id);
         } else {
-            let now = Utc::now().naive_utc();
-            let item = chapter_video_timeline_item::ActiveModel {
+            pending_insert_slots.push((slot, key.clone()));
+            pending_inserts.push(chapter_video_timeline_item::ActiveModel {
                 timeline_id: Set(timeline_id),
                 position: Set(Some(next_temporary_position)),
                 item_kind: Set(TIMELINE_NATIVE_KIND.to_string()),
@@ -362,60 +364,202 @@ pub async fn reconcile_native_timeline(
                 created_at: Set(now),
                 updated_at: Set(now),
                 ..Default::default()
-            }
-            .insert(&txn)
-            .await
-            .map_err(VideoDbError::Database)?;
-            desired_native_ids.push(item.id);
+            });
             next_temporary_position = next_temporary_position.checked_add(1).ok_or_else(|| {
                 VideoDbError::InvalidArgument("时间线片段数量超出范围".to_string())
             })?;
         }
     }
+    if !reactivated.is_empty() {
+        let ids = reactivated.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+        let mut position_case = CaseStatement::new();
+        for (id, position) in &reactivated {
+            position_case = position_case.case(
+                chapter_video_timeline_item::Column::Id.eq(*id),
+                Expr::value(Some(*position)),
+            );
+        }
+        let updated = chapter_video_timeline_item::Entity::update_many()
+            .col_expr(
+                chapter_video_timeline_item::Column::Status,
+                Expr::value(TIMELINE_ACTIVE_STATUS.to_string()),
+            )
+            .col_expr(
+                chapter_video_timeline_item::Column::Position,
+                position_case
+                    .finally(Expr::col(chapter_video_timeline_item::Column::Position))
+                    .into(),
+            )
+            .col_expr(
+                chapter_video_timeline_item::Column::UpdatedAt,
+                Expr::value(now),
+            )
+            .filter(chapter_video_timeline_item::Column::TimelineId.eq(timeline_id))
+            .filter(chapter_video_timeline_item::Column::Id.is_in(ids.clone()))
+            .exec(&txn)
+            .await
+            .map_err(VideoDbError::Database)?;
+        if updated.rows_affected != ids.len() as u64 {
+            return Err(VideoDbError::InvalidState {
+                current: format!(
+                    "重新激活 native 时间线项批量更新影响 {} 行，预期 {} 行",
+                    updated.rows_affected,
+                    ids.len()
+                ),
+                operation: "同步章节时间线".to_string(),
+            });
+        }
+    }
+    if !pending_inserts.is_empty() {
+        let expected = pending_inserts.len();
+        let inserted = chapter_video_timeline_item::Entity::insert_many(pending_inserts)
+            .exec_with_returning_many(&txn)
+            .await
+            .map_err(VideoDbError::Database)?;
+        if inserted.len() != expected {
+            return Err(VideoDbError::InvalidState {
+                current: format!(
+                    "新增 native 时间线项批量插入返回 {} 行，预期 {} 行",
+                    inserted.len(),
+                    expected
+                ),
+                operation: "同步章节时间线".to_string(),
+            });
+        }
+        let inserted_by_key = inserted
+            .into_iter()
+            .map(|item| {
+                (
+                    (
+                        item.native_source_shot_id.clone().unwrap_or_default(),
+                        item.native_segment_index_in_shot.unwrap_or_default(),
+                    ),
+                    item.id,
+                )
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        for (slot, key) in pending_insert_slots {
+            desired_native_ids[slot] = Some(
+                *inserted_by_key
+                    .get(&(key.source_shot_id, key.segment_index_in_shot))
+                    .ok_or_else(|| VideoDbError::InvalidState {
+                        current: "新增 native 时间线项批量插入后无法按稳定键回读".to_string(),
+                        operation: "同步章节时间线".to_string(),
+                    })?,
+            );
+        }
+    }
+    let desired_native_ids = desired_native_ids
+        .into_iter()
+        .map(|id| {
+            id.ok_or_else(|| VideoDbError::InvalidState {
+                current: "native 时间线稳定键缺少持久化 ID".to_string(),
+                operation: "同步章节时间线".to_string(),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     // 保留插入项的相对位置；没有出现在新 native 规划中的 native 项进入删除状态，
     // 不硬删除，以便历史/撤销和问题修复仍有依据。
-    for item in by_key.values() {
-        if item.status == TIMELINE_DELETED_STATUS {
-            continue;
+    let stale_native_ids = by_key
+        .values()
+        .filter(|item| item.status != TIMELINE_DELETED_STATUS)
+        .map(|item| item.id)
+        .collect::<Vec<_>>();
+    if !stale_native_ids.is_empty() {
+        let now = Utc::now().naive_utc();
+        let updated = chapter_video_timeline_item::Entity::update_many()
+            .col_expr(
+                chapter_video_timeline_item::Column::Status,
+                Expr::value(TIMELINE_DELETED_STATUS.to_string()),
+            )
+            .col_expr(
+                chapter_video_timeline_item::Column::Position,
+                Expr::value(Option::<i32>::None),
+            )
+            .col_expr(
+                chapter_video_timeline_item::Column::UpdatedAt,
+                Expr::value(now),
+            )
+            .filter(chapter_video_timeline_item::Column::TimelineId.eq(timeline_id))
+            .filter(chapter_video_timeline_item::Column::Id.is_in(stale_native_ids.clone()))
+            .filter(chapter_video_timeline_item::Column::Status.ne(TIMELINE_DELETED_STATUS))
+            .exec(&txn)
+            .await
+            .map_err(VideoDbError::Database)?;
+        if updated.rows_affected != stale_native_ids.len() as u64 {
+            return Err(VideoDbError::InvalidState {
+                current: format!(
+                    "失效 native 时间线项批量更新影响 {} 行，预期 {} 行",
+                    updated.rows_affected,
+                    stale_native_ids.len()
+                ),
+                operation: "同步章节时间线".to_string(),
+            });
         }
-        let mut active: chapter_video_timeline_item::ActiveModel = (*item).clone().into();
-        active.status = Set(TIMELINE_DELETED_STATUS.to_string());
-        active.position = Set(None);
-        active.updated_at = Set(Utc::now().naive_utc());
-        active.update(&txn).await.map_err(VideoDbError::Database)?;
     }
 
     let inserted_id_set = existing
         .iter()
         .filter(|item| item.item_kind == TIMELINE_INSERTED_KIND)
         .map(|item| item.id)
-        .collect::<std::collections::HashSet<_>>();
+        .collect::<HashSet<_>>();
     let inserted_ids = current_order
         .iter()
         .copied()
         .filter(|id| inserted_id_set.contains(id))
         .collect::<Vec<_>>();
+    let existing_by_id = if inserted_ids.is_empty() {
+        HashMap::new()
+    } else {
+        existing
+            .iter()
+            .map(|item| (item.id, item))
+            .collect::<HashMap<_, _>>()
+    };
     // 以原生规划顺序为主，将插入项保留在原来相邻的 gap；无法恢复的项置于末尾并标记。
     let (rebuilt, needs_reanchor) =
         rebuild_native_timeline_order(&current_order, desired_native_ids, &inserted_id_set);
+    let mut inserted_status_ids = HashMap::<&'static str, Vec<i64>>::new();
     for inserted_id in inserted_ids {
-        let item = existing
-            .iter()
-            .find(|item| item.id == inserted_id)
-            .ok_or_else(|| VideoDbError::InvalidState {
+        let item = existing_by_id.get(&inserted_id).copied().ok_or_else(|| {
+            VideoDbError::InvalidState {
                 current: "timeline_inserted_item_unreachable".to_string(),
                 operation: format!("重建时间线项 {inserted_id}"),
-            })?;
+            }
+        })?;
         let status = inserted_status_after_native_reconcile(
             &item.status,
             needs_reanchor.contains(&inserted_id),
         );
         if item.status != status {
-            let mut active: chapter_video_timeline_item::ActiveModel = item.clone().into();
-            active.status = Set(status.to_string());
-            active.updated_at = Set(Utc::now().naive_utc());
-            active.update(&txn).await.map_err(VideoDbError::Database)?;
+            inserted_status_ids.entry(status).or_default().push(item.id);
+        }
+    }
+    for (status, item_ids) in inserted_status_ids {
+        let updated = chapter_video_timeline_item::Entity::update_many()
+            .col_expr(
+                chapter_video_timeline_item::Column::Status,
+                Expr::value(status.to_string()),
+            )
+            .col_expr(
+                chapter_video_timeline_item::Column::UpdatedAt,
+                Expr::value(Utc::now().naive_utc()),
+            )
+            .filter(chapter_video_timeline_item::Column::TimelineId.eq(timeline_id))
+            .filter(chapter_video_timeline_item::Column::Id.is_in(item_ids.clone()))
+            .exec(&txn)
+            .await
+            .map_err(VideoDbError::Database)?;
+        if updated.rows_affected != item_ids.len() as u64 {
+            return Err(VideoDbError::InvalidState {
+                current: format!(
+                    "插入时间线项状态批量更新影响 {} 行，预期 {} 行",
+                    updated.rows_affected,
+                    item_ids.len()
+                ),
+                operation: "同步章节时间线".to_string(),
+            });
         }
     }
     rewrite_positions(&txn, &timeline, &rebuilt).await?;
@@ -701,47 +845,88 @@ fn ensure_gap_anchors_active(
 fn rebuild_native_timeline_order(
     current_order: &[i64],
     desired_native_ids: Vec<i64>,
-    inserted_ids: &std::collections::HashSet<i64>,
-) -> (Vec<i64>, std::collections::HashSet<i64>) {
-    let mut rebuilt = desired_native_ids;
-    let mut last_inserted_id = None;
-    for (old_index, inserted_id) in current_order.iter().copied().enumerate() {
-        if !inserted_ids.contains(&inserted_id) {
-            continue;
+    inserted_ids: &HashSet<i64>,
+) -> (Vec<i64>, HashSet<i64>) {
+    let native_index = desired_native_ids
+        .iter()
+        .enumerate()
+        .map(|(index, item_id)| (*item_id, index))
+        .collect::<HashMap<_, _>>();
+    let native_ids = native_index.keys().copied().collect::<HashSet<_>>();
+
+    // The old loop searched the current prefix/suffix for every inserted item.
+    // Both anchor directions are stable once the current order is known, so index
+    // them once and assign each inserted item to a native gap.
+    let mut previous_by_inserted = HashMap::with_capacity(inserted_ids.len());
+    let mut previous = None;
+    for item_id in current_order {
+        if inserted_ids.contains(item_id) {
+            previous_by_inserted.insert(*item_id, previous);
         }
-        let previous = current_order[..old_index]
-            .iter()
-            .rev()
-            .copied()
-            .find(|item_id| rebuilt.contains(item_id));
-        let next = current_order[old_index + 1..]
-            .iter()
-            .copied()
-            .find(|item_id| rebuilt.contains(item_id));
-        let insertion_index = previous
-            .and_then(|item_id| rebuilt.iter().position(|candidate| *candidate == item_id))
-            .map(|index| index + 1)
-            .or_else(|| {
-                next.and_then(|item_id| rebuilt.iter().position(|candidate| *candidate == item_id))
-            })
-            .unwrap_or(rebuilt.len());
-        let insertion_index = last_inserted_id
-            .and_then(|item_id| rebuilt.iter().position(|candidate| *candidate == item_id))
-            .map(|index| insertion_index.max(index + 1))
-            .unwrap_or(insertion_index);
-        rebuilt.insert(insertion_index, inserted_id);
-        last_inserted_id = Some(inserted_id);
+        if native_ids.contains(item_id) || inserted_ids.contains(item_id) {
+            previous = Some(*item_id);
+        }
+    }
+    let mut next_native_by_inserted = HashMap::with_capacity(inserted_ids.len());
+    let mut next_native = None;
+    for item_id in current_order.iter().rev() {
+        if inserted_ids.contains(item_id) {
+            next_native_by_inserted.insert(*item_id, next_native);
+        }
+        if native_ids.contains(item_id) {
+            next_native = Some(*item_id);
+        }
     }
 
+    let native_count = desired_native_ids.len();
+    let mut inserted_by_gap = vec![Vec::new(); native_count + 1];
+    let mut assigned_gap_by_inserted = HashMap::with_capacity(inserted_ids.len());
+    let mut last_gap = None;
+    for inserted_id in current_order
+        .iter()
+        .copied()
+        .filter(|item_id| inserted_ids.contains(item_id))
+    {
+        let base_gap = match previous_by_inserted.get(&inserted_id).copied().flatten() {
+            Some(previous_id) => native_index
+                .get(&previous_id)
+                .copied()
+                .map(|index| index + 1)
+                .or_else(|| assigned_gap_by_inserted.get(&previous_id).copied())
+                .expect("previous timeline anchor must have a native gap"),
+            None => next_native_by_inserted
+                .get(&inserted_id)
+                .copied()
+                .flatten()
+                .and_then(|item_id| native_index.get(&item_id).copied())
+                .unwrap_or(native_count),
+        };
+        let gap = last_gap.map_or(base_gap, |last| base_gap.max(last));
+        inserted_by_gap[gap].push(inserted_id);
+        assigned_gap_by_inserted.insert(inserted_id, gap);
+        last_gap = Some(gap);
+    }
+
+    let mut gap_groups = inserted_by_gap.into_iter();
+    let mut rebuilt = Vec::with_capacity(current_order.len());
+    for native_id in desired_native_ids {
+        rebuilt.extend(gap_groups.next().expect("native gap group must exist"));
+        rebuilt.push(native_id);
+    }
+    rebuilt.extend(
+        gap_groups
+            .next()
+            .expect("trailing native gap group must exist"),
+    );
+
+    let current_neighbors = timeline_item_neighbor_map(current_order, inserted_ids);
+    let rebuilt_neighbors = timeline_item_neighbor_map(&rebuilt, inserted_ids);
     let changed = inserted_ids
         .iter()
         .copied()
-        .filter(|item_id| {
-            timeline_item_neighbors(current_order, *item_id)
-                != timeline_item_neighbors(&rebuilt, *item_id)
-        })
-        .collect::<std::collections::HashSet<_>>();
-    let mut needs_reanchor = std::collections::HashSet::new();
+        .filter(|item_id| current_neighbors.get(item_id) != rebuilt_neighbors.get(item_id))
+        .collect::<HashSet<_>>();
+    let mut needs_reanchor = HashSet::new();
     let mut index = 0;
     while index < rebuilt.len() {
         if !inserted_ids.contains(&rebuilt[index]) {
@@ -762,14 +947,25 @@ fn rebuild_native_timeline_order(
     (rebuilt, needs_reanchor)
 }
 
-fn timeline_item_neighbors(order: &[i64], item_id: i64) -> Option<(Option<i64>, Option<i64>)> {
-    let index = order.iter().position(|candidate| *candidate == item_id)?;
-    Some((
-        index
-            .checked_sub(1)
-            .and_then(|index| order.get(index).copied()),
-        order.get(index + 1).copied(),
-    ))
+fn timeline_item_neighbor_map(
+    order: &[i64],
+    item_ids: &HashSet<i64>,
+) -> HashMap<i64, (Option<i64>, Option<i64>)> {
+    let mut neighbors = HashMap::with_capacity(item_ids.len());
+    for (index, item_id) in order.iter().enumerate() {
+        if item_ids.contains(item_id) {
+            neighbors.insert(
+                *item_id,
+                (
+                    index
+                        .checked_sub(1)
+                        .and_then(|index| order.get(index).copied()),
+                    order.get(index + 1).copied(),
+                ),
+            );
+        }
+    }
+    neighbors
 }
 
 fn inserted_status_after_native_reconcile(
@@ -803,11 +999,39 @@ async fn sync_inserted_prompt_shot_numbers<C: ConnectionTrait>(
     db: &C,
     order: &[i64],
 ) -> Result<(), VideoDbError> {
-    for (index, item_id) in order.iter().enumerate() {
-        let item = chapter_video_timeline_item::Entity::find_by_id(*item_id)
-            .one(db)
+    if order.is_empty() {
+        return Ok(());
+    }
+    let items_by_id = chapter_video_timeline_item::Entity::find()
+        .filter(chapter_video_timeline_item::Column::Id.is_in(order.to_vec()))
+        .all(db)
+        .await
+        .map_err(VideoDbError::Database)?
+        .into_iter()
+        .map(|item| (item.id, item))
+        .collect::<std::collections::HashMap<_, _>>();
+    let prompt_ids = order
+        .iter()
+        .filter_map(|item_id| items_by_id.get(item_id))
+        .filter(|item| item.item_kind == TIMELINE_INSERTED_KIND)
+        .filter_map(|item| item.insert_plan_prompt_id)
+        .collect::<Vec<_>>();
+    let prompts_by_id = if prompt_ids.is_empty() {
+        std::collections::HashMap::new()
+    } else {
+        chapter_video_prompt::Entity::find()
+            .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids))
+            .all(db)
             .await
             .map_err(VideoDbError::Database)?
+            .into_iter()
+            .map(|prompt| (prompt.id, prompt))
+            .collect::<std::collections::HashMap<_, _>>()
+    };
+    let mut pending_updates = std::collections::HashMap::new();
+    for (index, item_id) in order.iter().enumerate() {
+        let item = items_by_id
+            .get(item_id)
             .ok_or_else(|| VideoDbError::NotFound(format!("时间线项不存在: {item_id}")))?;
         if item.item_kind != TIMELINE_INSERTED_KIND {
             continue;
@@ -818,10 +1042,8 @@ async fn sync_inserted_prompt_shot_numbers<C: ConnectionTrait>(
                 current: "inserted_timeline_item_missing_prompt".to_string(),
                 operation: format!("同步时间线项 {item_id}"),
             })?;
-        let prompt = chapter_video_prompt::Entity::find_by_id(prompt_id)
-            .one(db)
-            .await
-            .map_err(VideoDbError::Database)?
+        let prompt = prompts_by_id
+            .get(&prompt_id)
             .ok_or_else(|| VideoDbError::NotFound(format!("视频提示词不存在: {prompt_id}")))?;
         let segment_number = i32::try_from(index + 1)
             .map_err(|_| VideoDbError::InvalidArgument("时间线片段数量超出范围".to_string()))?;
@@ -836,12 +1058,63 @@ async fn sync_inserted_prompt_shot_numbers<C: ConnectionTrait>(
         update_inserted_prompt_display_position(&mut metadata, segment_number)?;
         if prompt.shot_number != segment_number || prompt.metadata_json.as_ref() != Some(&metadata)
         {
-            let mut active: chapter_video_prompt::ActiveModel = prompt.into();
-            active.shot_number = Set(segment_number);
-            active.metadata_json = Set(Some(metadata));
-            active.updated_at = Set(Utc::now().naive_utc());
-            active.update(db).await.map_err(VideoDbError::Database)?;
+            pending_updates.insert(prompt_id, (segment_number, metadata));
         }
+    }
+    if pending_updates.is_empty() {
+        return Ok(());
+    }
+    let now = Utc::now().naive_utc();
+    let mut shot_number_case = CaseStatement::new();
+    let mut metadata_case = CaseStatement::new();
+    let mut updated_at_case = CaseStatement::new();
+    let prompt_ids = pending_updates.keys().copied().collect::<Vec<_>>();
+    for (prompt_id, (segment_number, metadata)) in pending_updates {
+        shot_number_case = shot_number_case.case(
+            chapter_video_prompt::Column::Id.eq(prompt_id),
+            Expr::value(segment_number),
+        );
+        metadata_case = metadata_case.case(
+            chapter_video_prompt::Column::Id.eq(prompt_id),
+            Expr::value(Some(metadata)).cast_as("json"),
+        );
+        updated_at_case = updated_at_case.case(
+            chapter_video_prompt::Column::Id.eq(prompt_id),
+            Expr::value(now),
+        );
+    }
+    let updated = chapter_video_prompt::Entity::update_many()
+        .col_expr(
+            chapter_video_prompt::Column::ShotNumber,
+            shot_number_case
+                .finally(Expr::col(chapter_video_prompt::Column::ShotNumber))
+                .into(),
+        )
+        .col_expr(
+            chapter_video_prompt::Column::MetadataJson,
+            metadata_case
+                .finally(Expr::col(chapter_video_prompt::Column::MetadataJson))
+                .into(),
+        )
+        .col_expr(
+            chapter_video_prompt::Column::UpdatedAt,
+            updated_at_case
+                .finally(Expr::col(chapter_video_prompt::Column::UpdatedAt))
+                .into(),
+        )
+        .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids.clone()))
+        .exec(db)
+        .await
+        .map_err(VideoDbError::Database)?;
+    if updated.rows_affected != prompt_ids.len() as u64 {
+        return Err(VideoDbError::InvalidState {
+            current: format!(
+                "插入片段提示词展示位置批量更新影响 {} 行，预期 {} 行",
+                updated.rows_affected,
+                prompt_ids.len()
+            ),
+            operation: "同步插入片段展示位置".to_string(),
+        });
     }
     Ok(())
 }
@@ -856,19 +1129,53 @@ async fn rewrite_positions<C: ConnectionTrait>(
         .revision
         .checked_add(1)
         .ok_or_else(|| VideoDbError::InvalidArgument("时间线 revision 超出范围".to_string()))?;
-    for (index, item_id) in order.iter().enumerate() {
-        let mut active: chapter_video_timeline_item::ActiveModel =
-            chapter_video_timeline_item::Entity::find_by_id(*item_id)
-                .one(db)
+    if !order.is_empty() {
+        let mut positions = CaseStatement::new();
+        for (index, item_id) in order.iter().enumerate() {
+            let position = i32::try_from(index + 1)
+                .map_err(|_| VideoDbError::InvalidArgument("时间线片段数量超出范围".to_string()))?;
+            positions = positions.case(
+                chapter_video_timeline_item::Column::Id.eq(*item_id),
+                position,
+            );
+        }
+        let updated = chapter_video_timeline_item::Entity::update_many()
+            .col_expr(
+                chapter_video_timeline_item::Column::Position,
+                positions
+                    .finally(Expr::col(chapter_video_timeline_item::Column::Position))
+                    .into(),
+            )
+            .col_expr(
+                chapter_video_timeline_item::Column::UpdatedAt,
+                Expr::value(now),
+            )
+            .filter(chapter_video_timeline_item::Column::TimelineId.eq(timeline.id))
+            .filter(chapter_video_timeline_item::Column::Id.is_in(order.to_vec()))
+            .exec(db)
+            .await
+            .map_err(VideoDbError::Database)?;
+        if updated.rows_affected != order.len() as u64 {
+            let existing_ids = chapter_video_timeline_item::Entity::find()
+                .select_only()
+                .column(chapter_video_timeline_item::Column::Id)
+                .filter(chapter_video_timeline_item::Column::TimelineId.eq(timeline.id))
+                .filter(chapter_video_timeline_item::Column::Id.is_in(order.to_vec()))
+                .into_tuple::<i64>()
+                .all(db)
                 .await
                 .map_err(VideoDbError::Database)?
-                .ok_or_else(|| VideoDbError::NotFound(format!("时间线项不存在: {item_id}")))?
-                .into();
-        active.position = Set(Some(i32::try_from(index + 1).map_err(|_| {
-            VideoDbError::InvalidArgument("时间线片段数量超出范围".to_string())
-        })?));
-        active.updated_at = Set(now);
-        active.update(db).await.map_err(VideoDbError::Database)?;
+                .into_iter()
+                .collect::<std::collections::HashSet<_>>();
+            let missing_id = order
+                .iter()
+                .find(|item_id| !existing_ids.contains(item_id))
+                .copied()
+                .unwrap_or_default();
+            return Err(VideoDbError::NotFound(format!(
+                "时间线项不存在: {missing_id}"
+            )));
+        }
     }
     let mut timeline_active: chapter_video_timeline::ActiveModel = timeline.clone().into();
     timeline_active.revision = Set(revision);
@@ -974,6 +1281,26 @@ mod tests {
     }
 
     #[test]
+    fn native_reconcile_keeps_leading_inserted_run_before_first_native() {
+        let inserted_ids = [8, 9].into_iter().collect();
+        let (rebuilt, needs_reanchor) =
+            rebuild_native_timeline_order(&[8, 9, 1], vec![1], &inserted_ids);
+
+        assert_eq!(rebuilt, vec![8, 9, 1]);
+        assert!(needs_reanchor.is_empty());
+    }
+
+    #[test]
+    fn native_reconcile_keeps_following_inserted_items_in_the_previous_gap() {
+        let inserted_ids = [8, 9].into_iter().collect();
+        let (rebuilt, needs_reanchor) =
+            rebuild_native_timeline_order(&[1, 8, 9, 4], vec![1, 2, 3, 4], &inserted_ids);
+
+        assert_eq!(rebuilt, vec![1, 8, 9, 2, 3, 4]);
+        assert_eq!(needs_reanchor, inserted_ids);
+    }
+
+    #[test]
     fn native_reconcile_never_reverses_inserted_items_when_native_order_changes() {
         let inserted_ids = [8, 9].into_iter().collect();
         let (rebuilt, needs_reanchor) =
@@ -1039,7 +1366,7 @@ mod tests {
                 user_id: 1,
                 title: "视频时间线写入门禁".to_string(),
                 description: String::new(),
-                project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+                project_type: "novel_long".to_string(),
             },
         )
         .await
@@ -1102,7 +1429,7 @@ mod tests {
                 user_id: 1,
                 title: "插入片段导入绑定".to_string(),
                 description: String::new(),
-                project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+                project_type: "novel_long".to_string(),
             },
         )
         .await

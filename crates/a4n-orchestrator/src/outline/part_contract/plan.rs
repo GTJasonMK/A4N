@@ -1,7 +1,7 @@
 use super::model::PartGenerationPlan;
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 pub fn validate_part_generation_inputs(
     part_count: i32,
@@ -56,7 +56,7 @@ pub fn validate_existing_parts_for_plan(parts: &[part_outline::Model]) -> Result
 }
 
 fn validate_existing_parts(parts: &[part_outline::Model], action: &str) -> Result<(), AppError> {
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     let mut ranges = Vec::with_capacity(parts.len());
     for part in parts {
         if !seen.insert(part.part_number) {

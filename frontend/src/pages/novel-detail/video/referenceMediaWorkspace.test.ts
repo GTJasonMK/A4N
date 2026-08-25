@@ -7,6 +7,7 @@ import {
   referenceMediaDraftError,
   referenceMediaRecipeFromDraft,
 } from "./referenceMediaWorkspace";
+import { translateMessage } from "../../../i18n";
 
 describe("reference media draft persistence", () => {
   it("binds a draft to the plan and stable segment identity", () => {
@@ -44,6 +45,6 @@ describe("reference media draft persistence", () => {
       image: restored.imageRows,
       video: restored.videoRows,
       audio: restored.audioRows,
-    })).toContain("缺少 URL 或本地文件");
+    }, translateMessage.bind(null, "zh-CN"))).toContain("缺少 URL 或本地文件");
   });
 });

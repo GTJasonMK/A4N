@@ -4,6 +4,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { listBehaviors, type BehaviorRecord } from "../../api/character";
+import { useI18n } from "../../i18n";
 import {
   behaviorTypeLabel,
   jsonPreview,
@@ -19,6 +20,7 @@ const behaviorLoadKey = (
 
 export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [items, setItems] = useState<BehaviorRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
@@ -93,7 +95,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
       setLoadedScopeKey(requestKey);
     } catch (err) {
       if (!isCurrentLoad(requestProfileId, requestChapterFilter, requestLimit, requestSeq)) return;
-      addToast(extractErrorMessage(err, "加载行为失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.behavior.loadFailed")), "error");
     } finally {
       if (loadInFlightKeyRef.current === requestKey) {
         loadInFlightKeyRef.current = null;
@@ -102,7 +104,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
         setLoading(false);
       }
     }
-  }, [addToast, isCurrentLoad, profileId]);
+  }, [addToast, isCurrentLoad, profileId, t]);
 
   useEffect(() => {
     invalidateLoadedResults();
@@ -115,11 +117,11 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
   return (
     <div className="flex flex-col gap-2">
       <div className="text-caption text-book-text-muted">
-        行为记录由章节同步生成，用于隐性属性复审和后续溯源。
+        {t("characterDetail.behavior.description")}
       </div>
       <div className="grid grid-cols-2 items-end gap-2 text-small sm:flex sm:flex-wrap">
         <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
-          <span>章节</span>
+          <span>{t("characterDetail.behavior.chapter")}</span>
           <input
             type="number"
             min={1}
@@ -140,11 +142,11 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
               }
             }}
             className="pyqt-input w-full !px-2 !py-1 sm:w-24"
-            placeholder="全部"
+            placeholder={t("characterDetail.behavior.all")}
           />
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
-          <span>显示数量</span>
+          <span>{t("characterDetail.behavior.displayCount")}</span>
           <select
             value={limit}
             disabled={loading}
@@ -158,9 +160,9 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
             }}
             className="pyqt-input w-full !px-2 !py-1 sm:w-24"
           >
-            <option value={20}>20 条</option>
-            <option value={50}>50 条</option>
-            <option value={100}>100 条</option>
+            <option value={20}>{t("characterDetail.behavior.count", { count: 20 })}</option>
+            <option value={50}>{t("characterDetail.behavior.count", { count: 50 })}</option>
+            <option value={100}>{t("characterDetail.behavior.count", { count: 100 })}</option>
           </select>
         </label>
         <BookButton
@@ -172,19 +174,19 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
         >
           {loading ? (
             <span className="inline-flex items-center gap-1.5">
-              <LoadingSpinner size="sm" /> 刷新中…
+              <LoadingSpinner size="sm" /> {t("characterDetail.behavior.refreshing")}
             </span>
           ) : (
-            "刷新"
+            t("characterDetail.behavior.refresh")
           )}
         </BookButton>
       </div>
       {loading ? (
-        <div className="text-small text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">{t("characterDetail.behavior.loading")}</div>
       ) : !hasCurrentResults ? (
-        <div className="text-small text-book-text-muted italic">当前筛选条件尚未加载，请刷新行为记录</div>
+        <div className="text-small text-book-text-muted italic">{t("characterDetail.behavior.notLoaded")}</div>
       ) : items.length === 0 ? (
-        <div className="text-small text-book-text-muted italic">尚无行为记录</div>
+        <div className="text-small text-book-text-muted italic">{t("characterDetail.behavior.empty")}</div>
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/45">
           {items.map((item) => (
@@ -193,8 +195,8 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
               className="px-3 py-2 text-small"
             >
               <div className="mb-1 text-caption text-book-text-muted">
-                第 {item.chapter_number} 章 · {behaviorTypeLabel(item.behavior_type)} ·{" "}
-                {sourceKindLabel(item.source_kind)}
+                {t("characterDetail.chapter", { chapter: item.chapter_number })} · {behaviorTypeLabel(item.behavior_type, t)} ·{" "}
+                {sourceKindLabel(item.source_kind, t)}
               </div>
               <div className="leading-relaxed text-book-text-main">{item.behavior_description}</div>
               {item.original_text && (
@@ -203,16 +205,16 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
                 </blockquote>
               )}
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-caption text-book-text-muted">
-                {listPreview(item.behavior_tags) && (
-                  <span>标签：{listPreview(item.behavior_tags)}</span>
+                {listPreview(item.behavior_tags, t) && (
+                  <span>{t("characterDetail.behavior.tags")}{listPreview(item.behavior_tags, t)}</span>
                 )}
-                {listPreview(item.related_characters) && (
-                  <span>相关：{listPreview(item.related_characters)}</span>
+                {listPreview(item.related_characters, t) && (
+                  <span>{t("characterDetail.behavior.related")}{listPreview(item.related_characters, t)}</span>
                 )}
               </div>
               {jsonPreview(item.classification_results) && (
                 <details className="mt-1 text-caption text-book-text-muted">
-                  <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
+                  <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("characterDetail.diagnostics")}</summary>
                   <div className="mt-1 break-words font-mono">
                     {jsonPreview(item.classification_results)}
                   </div>
@@ -220,7 +222,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
               )}
               {item.impact_analysis && (
                 <div className="text-book-text-muted italic mt-0.5">
-                  影响：{item.impact_analysis}
+                  {t("characterDetail.behavior.impact")}{item.impact_analysis}
                 </div>
               )}
             </li>

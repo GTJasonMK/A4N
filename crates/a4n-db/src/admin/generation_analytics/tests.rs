@@ -1,6 +1,7 @@
 use super::aggregate::build_generation_call_analytics;
 use super::query::validate_generation_call_analytics_input;
 use super::*;
+use sea_orm::EntityTrait;
 use serde_json::json;
 
 #[test]
@@ -37,6 +38,74 @@ fn analytics_input_rejects_out_of_range_recent_limit_as_invalid_argument() {
 
     assert!(matches!(&error, AdminDbError::InvalidArgument(_)));
     assert_eq!(error.to_string(), "recent_limit 必须在 1..=200 之间");
+}
+
+#[tokio::test]
+async fn generation_analytics_query_preserves_output_without_loading_large_json_payloads() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let now = Utc::now().naive_utc();
+    let run = generation_run::Model {
+        id: 11,
+        project_id: 1,
+        root_project_id: 1,
+        workflow: "video_generation".to_string(),
+        step_key: "render".to_string(),
+        title: "测试视频".to_string(),
+        model_kind: "video".to_string(),
+        provider: Some("mock".to_string()),
+        model: Some("mock-video".to_string()),
+        status: "completed".to_string(),
+        workflow_run_id: None,
+        call_key: None,
+        input_fingerprint_sha256: None,
+        input_fingerprint_json: Some(json!({"large": [1, 2, 3]})),
+        raw_response_json: Some(json!({"large": [1, 2, 3]})),
+        parsed_output_json: Some(json!({"large": [1, 2, 3]})),
+        validation_json: Some(json!({"ok": true})),
+        artifact_refs_json: Some(json!({"asset": 1})),
+        attempt: 1,
+        prompt_template_names_json: Some(json!(["video"])),
+        prompt_template_hashes_json: Some(json!(["hash"])),
+        rendered_messages_json: Some(json!([{"role": "user"}])),
+        rendered_prompts_json: Some(json!(["prompt"])),
+        input_variables_json: Some(json!({"text": "input"})),
+        source_refs_json: Some(json!([1])),
+        media_refs_json: Some(json!([2])),
+        request_json: Some(json!({"request": true})),
+        response_summary_json: Some(json!({"summary": true})),
+        error_message: None,
+        created_at: now,
+        completed_at: Some(now),
+    };
+    let run: generation_run::ActiveModel = run.into();
+    generation_run::Entity::insert(run)
+        .exec(&db)
+        .await
+        .expect("generation run fixture should insert");
+
+    let mut call = llm_call(12, "video_prompt", 100, 80, 20);
+    call.generation_run_id = Some(11);
+    call.context_pack_refs_json = Some(json!({"large": [1, 2, 3]}));
+    let call: llm_call_trace::ActiveModel = call.into();
+    llm_call_trace::Entity::insert(call)
+        .exec(&db)
+        .await
+        .expect("llm call fixture should insert");
+
+    let result = super::query::generation_call_analytics(
+        &db,
+        GenerationCallAnalyticsInput {
+            days: 1,
+            recent_limit: 10,
+        },
+    )
+    .await
+    .expect("generation analytics query should succeed");
+    assert_eq!(result.recent_llm_calls.len(), 1);
+    assert_eq!(result.recent_llm_calls[0].id, 12);
+    assert_eq!(result.recent_media_calls.len(), 1);
+    assert_eq!(result.recent_media_calls[0].id, 11);
+    assert_eq!(result.recent_media_calls[0].title, "测试视频");
 }
 
 fn llm_call(id: i64, workflow: &str, total: i32, hit: i32, miss: i32) -> llm_call_trace::Model {

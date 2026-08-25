@@ -1,6 +1,6 @@
 use a4n_orchestrator::{
     canvas::{
-        CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput, CanvasNodeRunSummary,
+        CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput,
         CanvasSingleNodeRunPreparationInput, PreparedCanvasGraphRun,
     },
     workflow::{
@@ -14,7 +14,6 @@ use crate::{
     AppState,
     actions::canvas_workflow::{CanvasRunSummary, RunCanvasGraphInput, RunCanvasNodeInput},
 };
-use crate::actions::canvas_workflow::node_lifecycle::runtime_summary;
 
 pub async fn run_canvas_graph(
     state: &AppState,
@@ -75,9 +74,7 @@ pub(crate) async fn resume_canvas_graph_run(
         )
         .await?;
     if prepared.runnable_node_ids.is_empty() {
-        return Ok(runtime_summary(
-            prepared.summary(WORKFLOW_STATUS_COMPLETED, None),
-        ));
+        return Ok(prepared.summary(WORKFLOW_STATUS_COMPLETED, None));
     }
     submit_prepared_canvas_graph_run(state, prepared)
 }
@@ -86,7 +83,7 @@ fn submit_prepared_canvas_graph_run(
     state: &AppState,
     prepared: PreparedCanvasGraphRun,
 ) -> Result<CanvasRunSummary, String> {
-    let summary = runtime_summary(prepared.summary(WORKFLOW_STATUS_RUNNING, None));
+    let summary = prepared.summary(WORKFLOW_STATUS_RUNNING, None);
     let runtime_snapshot = crate::runtime_config::current_snapshot();
     let background_state = state.clone();
     tokio::spawn(async move {
@@ -123,7 +120,7 @@ async fn run_prepared_canvas_graph_with_runtime_config(
     state: &AppState,
     prepared: PreparedCanvasGraphRun,
     runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
-) -> Result<CanvasNodeRunSummary, String> {
+) -> Result<CanvasRunSummary, String> {
     match runtime_snapshot {
         Some(snapshot) => {
             crate::runtime_config::scope(snapshot, run_prepared_canvas_graph(state, prepared)).await
@@ -135,7 +132,7 @@ async fn run_prepared_canvas_graph_with_runtime_config(
 async fn run_prepared_canvas_graph(
     state: &AppState,
     prepared: PreparedCanvasGraphRun,
-) -> Result<CanvasNodeRunSummary, String> {
+) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeCanvasGraphExecutionHostPort::new(state);
     state
         .orchestrator()

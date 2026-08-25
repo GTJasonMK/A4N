@@ -1,6 +1,10 @@
-use a4n_core::models::ai::system_settings;
+use std::collections::HashSet;
+
+use a4n_core::models::{ai::system_settings, project::novel_project};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,
+};
 use serde_json::Value;
 
 use super::identity::{
@@ -12,7 +16,6 @@ use super::{ProjectOverrideIdentity, PromptOverrideDbError};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum MissingProjectMessage {
     Command,
-    Hydrate,
 }
 
 pub async fn load_project_override_persisted_content(
@@ -98,8 +101,13 @@ pub(super) async fn ensure_project_exists(
     project_id: i64,
     missing_message: MissingProjectMessage,
 ) -> Result<(), PromptOverrideDbError> {
-    let exists = crate::project::project_by_id_record(db, project_id)
-        .await?
+    let exists = novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .into_tuple::<i64>()
+        .one(db)
+        .await
+        .map_err(crate::project::ProjectMutationError::Database)?
         .is_some();
     if exists {
         return Ok(());
@@ -109,10 +117,39 @@ pub(super) async fn ensure_project_exists(
         MissingProjectMessage::Command => Err(PromptOverrideDbError::NotFound(format!(
             "项目不存在: {project_id}"
         ))),
-        MissingProjectMessage::Hydrate => Err(PromptOverrideDbError::NotFound(format!(
-            "提示词覆盖关联项目不存在: {project_id}"
-        ))),
     }
+}
+
+pub(super) async fn ensure_hydration_projects_exist(
+    db: &DatabaseConnection,
+    project_ids: &[i64],
+) -> Result<(), PromptOverrideDbError> {
+    let requested_ids = project_ids.iter().copied().collect::<HashSet<_>>();
+    if requested_ids.is_empty() {
+        return Ok(());
+    }
+
+    let existing_ids = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .filter(novel_project::Column::Id.is_in(requested_ids.iter().copied()))
+        .into_tuple::<i64>()
+        .all(db)
+        .await
+        .map_err(crate::project::ProjectMutationError::Database)?
+        .into_iter()
+        .collect::<HashSet<_>>();
+
+    if let Some(project_id) = project_ids
+        .iter()
+        .find(|project_id| !existing_ids.contains(project_id))
+    {
+        return Err(PromptOverrideDbError::NotFound(format!(
+            "提示词覆盖关联项目不存在: {project_id}"
+        )));
+    }
+
+    Ok(())
 }
 
 pub(super) async fn all_prompt_override_settings(

@@ -6,6 +6,7 @@ import { Modal } from "../../components/ui/Modal";
 import { BookButton } from "../../components/ui/BookButton";
 import { ProfileTextarea } from "./CharacterProfileDisplay";
 import { characterAttributeText } from "../../utils/characterAttributes";
+import { useI18n } from "../../i18n";
 
 export interface ProfileForm {
   name: string;
@@ -100,6 +101,7 @@ export const CharacterProfileEditorModal: React.FC<{
   onSave: () => void | Promise<void>;
   onClose: () => void;
 }> = ({ open, form, saving, mode = "create", onChange, onSave, onClose }) => {
+  const { t } = useI18n();
   if (!open) return null;
   const editing = mode === "edit";
 
@@ -107,12 +109,12 @@ export const CharacterProfileEditorModal: React.FC<{
     <Modal
       isOpen
       onClose={() => !saving && onClose()}
-      title={editing ? "编辑初始角色档案" : "新建角色档案"}
+      title={editing ? t("characterDetail.editInitialProfileTitle") : t("characterDetail.newProfileTitle")}
       icon={editing ? <Pencil size={15} /> : <UserPlus size={15} />}
       subtitle={
         editing
-          ? "保存后成为用户确认的初始设定，不会伪造章节事件"
-          : "建立随章节同步维护的角色档案"
+          ? t("characterDetail.editProfileSubtitle")
+          : t("characterDetail.createProfileSubtitle")
       }
       maxWidthClassName="max-w-lg"
       bodyClassName="px-4 py-4"
@@ -127,67 +129,67 @@ export const CharacterProfileEditorModal: React.FC<{
         >
           {saving ? (
             <span className="inline-flex items-center gap-2">
-              <LoadingSpinner size="sm" /> 保存中…
+              <LoadingSpinner size="sm" /> {t("characterDetail.savingProfile")}
             </span>
           ) : (
-            editing ? "保存修改" : "保存"
+            editing ? t("characterDetail.saveChanges") : t("characterDetail.saveProfile")
           )}
         </BookButton>
       }
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 sm:col-span-2">
-          <span className="text-xs text-book-text-sub">姓名 *</span>
+          <span className="text-xs text-book-text-sub">{t("characterDetail.nameRequired")}</span>
           <input
             type="text"
             value={form.name}
             onChange={(event) => onChange({ ...form, name: event.target.value })}
             disabled={saving || editing}
             className="pyqt-input"
-            placeholder="角色姓名"
+            placeholder={t("characterDetail.namePlaceholder")}
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-book-text-sub">性别</span>
+          <span className="text-xs text-book-text-sub">{t("characterDetail.labels.gender")}</span>
           <input
             type="text"
             value={form.gender}
             onChange={(event) => onChange({ ...form, gender: event.target.value })}
             disabled={saving}
             className="pyqt-input"
-            placeholder="男 / 女 / 其他"
+            placeholder={t("characterDetail.genderPlaceholder")}
           />
         </label>
         <label className="flex flex-col gap-1.5">
-          <span className="text-xs text-book-text-sub">年龄</span>
+          <span className="text-xs text-book-text-sub">{t("characterDetail.labels.age")}</span>
           <input
             type="text"
             value={form.age}
             onChange={(event) => onChange({ ...form, age: event.target.value })}
             disabled={saving}
             className="pyqt-input"
-            placeholder="18 / 弱冠 / 不详"
+            placeholder={t("characterDetail.agePlaceholder")}
           />
         </label>
         <ProfileTextarea
-          label="性格"
+          label={t("characterDetail.labels.personality")}
           value={form.personality}
           disabled={saving}
-          placeholder="冷静、固执、外热内冷..."
+          placeholder={t("characterDetail.personalityPlaceholder")}
           onChange={(value) => onChange({ ...form, personality: value })}
         />
         <ProfileTextarea
-          label="背景"
+          label={t("characterDetail.labels.background")}
           value={form.background}
           disabled={saving}
-          placeholder="出身、成长经历、关键事件"
+          placeholder={t("characterDetail.backgroundPlaceholder")}
           onChange={(value) => onChange({ ...form, background: value })}
         />
         <ProfileTextarea
-          label="外观"
+          label={t("characterDetail.labels.appearance")}
           value={form.appearance}
           disabled={saving}
-          placeholder="身形、五官、常穿衣物"
+          placeholder={t("characterDetail.appearancePlaceholder")}
           onChange={(value) => onChange({ ...form, appearance: value })}
         />
       </div>

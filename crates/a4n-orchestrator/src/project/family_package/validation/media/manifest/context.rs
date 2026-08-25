@@ -10,7 +10,6 @@ use super::super::contracts::MediaRequestRefContext;
 use crate::project::family_package::ProjectFamilyPackage;
 
 pub(super) struct MediaManifestContext<'a> {
-    pub(super) media_asset_ids: HashSet<i64>,
     pub(super) media_assets_by_id: HashMap<i64, &'a media_asset::Model>,
     pub(super) generation_specs: HashMap<i64, &'a generation_spec::Model>,
     pub(super) prompt_artifacts: HashMap<i64, &'a prompt_artifact::Model>,
@@ -18,6 +17,8 @@ pub(super) struct MediaManifestContext<'a> {
     pub(super) character_profile_ids: HashSet<i64>,
     pub(super) object_profile_ids: HashSet<i64>,
     pub(super) scene_profile_ids: HashSet<i64>,
+    pub(super) chapter_video_prompt_ids: HashSet<i64>,
+    pub(super) generated_video_ids: HashSet<i64>,
     pub(super) video_segment_ids: HashSet<i64>,
     pub(super) assembly_timeline_ids: HashSet<i64>,
     pub(super) galgame_scene_ids: HashSet<i64>,
@@ -33,11 +34,6 @@ pub(super) struct MediaManifestContext<'a> {
 
 impl<'a> MediaManifestContext<'a> {
     pub(super) fn new(package: &'a ProjectFamilyPackage) -> Self {
-        let media_asset_ids = package
-            .media_assets
-            .iter()
-            .map(|asset| asset.id)
-            .collect::<HashSet<_>>();
         let media_assets_by_id = package
             .media_assets
             .iter()
@@ -76,6 +72,16 @@ impl<'a> MediaManifestContext<'a> {
             .scene_profiles
             .iter()
             .map(|profile| profile.id)
+            .collect::<HashSet<_>>();
+        let chapter_video_prompt_ids = package
+            .chapter_video_prompts
+            .iter()
+            .map(|prompt| prompt.id)
+            .collect::<HashSet<_>>();
+        let generated_video_ids = package
+            .generated_videos
+            .iter()
+            .map(|video| video.id)
             .collect::<HashSet<_>>();
         let video_segment_ids = package
             .video_segments
@@ -125,7 +131,6 @@ impl<'a> MediaManifestContext<'a> {
             .map(|chapter| (chapter.id, chapter))
             .collect::<HashMap<_, _>>();
         Self {
-            media_asset_ids,
             media_assets_by_id,
             generation_specs,
             prompt_artifacts,
@@ -133,6 +138,8 @@ impl<'a> MediaManifestContext<'a> {
             character_profile_ids,
             object_profile_ids,
             scene_profile_ids,
+            chapter_video_prompt_ids,
+            generated_video_ids,
             video_segment_ids,
             assembly_timeline_ids,
             galgame_scene_ids,

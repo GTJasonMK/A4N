@@ -1,6 +1,6 @@
 //! 生成图片实体
 
-use sea_orm::entity::prelude::*;
+use sea_orm::{FromQueryResult, entity::prelude::*};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq, DeriveEntityModel, Serialize, Deserialize)]
@@ -48,6 +48,14 @@ pub struct Model {
     pub metadata_json: Option<serde_json::Value>,
 
     pub created_at: chrono::NaiveDateTime,
+}
+
+/// 只用于视频提示词引用匹配的轻量图片记录。
+#[derive(Clone, Debug, PartialEq, FromQueryResult)]
+pub struct Reference {
+    pub id: i64,
+    pub image_type: String,
+    pub metadata_json: Option<serde_json::Value>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]

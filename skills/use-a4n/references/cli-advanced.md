@@ -26,7 +26,7 @@ a4n --output agent-json capabilities export
 
 - `human` 适合终端查看；`json` 是单个 JSON 文档；`jsonl` 把数组或事件逐行输出。
 - `agent-json` 返回稳定的 `{ok, command, data, meta}` envelope；失败 envelope 写到 stderr。
-- `--agent` 等价于 `--output agent-json`，并关闭交互和颜色；`--compact` 只影响普通 JSON。
+- `--agent` 等价于 `--output agent-json`，并关闭交互和颜色；此外它会为部分工作命令启用 Agent 生命周期跟踪，必须已有保存的 Agent 租约。没有跟踪需求时用 `--output agent-json`；`--compact` 只影响普通 JSON。
 - 自动化同时检查 envelope 和退出码；不要从自然语言输出猜测成功。
 
 ## 注册、OAuth 与凭证
@@ -50,12 +50,12 @@ printf '%s\n' "$OAUTH_CODE" | a4n auth oauth-callback github --code-stdin
 ## 命令目录与 manifest
 
 ```bash
-a4n --agent commands
-a4n --agent commands video
-a4n --agent capabilities describe start_video_generation
-a4n --agent capabilities list --domain video
-a4n --agent capabilities export
-a4n --agent capabilities check
+a4n --output agent-json commands
+a4n --output agent-json commands video
+a4n --output agent-json capabilities describe start_video_generation
+a4n --output agent-json capabilities list --domain video
+a4n --output agent-json capabilities export
+a4n --output agent-json capabilities check
 ```
 
 `commands` 只列出 CLI 命令和桌面运行时等价入口，适合低上下文发现；`describe` 返回单个
@@ -79,10 +79,14 @@ a4n config runtime clear
 `Full` 策略自动注入 `call` 请求。`runtime show` 会隐藏密钥，但持久化配置文件和 set
 输入可能含 API key，必须限制访问且不要提交。
 
+`--config PATH` 或 `A4N_CLI_CONFIG` 选择保存 token、Server 地址、runtime snapshot 和
+Agent 租约的 CLI 配置；`--context PATH` 是独立的项目/章节上下文文件。注册 Agent 和
+后续 `--agent` 工作命令必须使用同一 CLI 配置。
+
 ## 跨命令 context
 
 ```bash
-CTX="$HOME/.config/a4n/context.json"
+CTX=/path/to/a4n-context.json
 a4n --context "$CTX" project use 42
 a4n --context "$CTX" chapter use 100
 a4n --context "$CTX" context show
@@ -92,7 +96,9 @@ a4n --context "$CTX" context clear-snapshot
 
 还可用 `context clear`、`clear-project`、`clear-chapter`。切换项目会清理章节和快照，
 切换章节会清理快照；持久化 context 绑定 Server 与用户，发现归属变化时拒绝覆盖。
-没有 `--context` 时，context 只在当前进程（包括交互 Shell）内有效。
+没有 `--context` 时，context 只在当前进程（包括交互 Shell）内有效。Unix 可使用
+`${XDG_CONFIG_HOME:-$HOME/.config}/a4n/context.json`；Windows 使用
+`%APPDATA%\\A4N\\context.json` 或其他显式安全路径。
 
 ## 交互 Shell
 
@@ -138,5 +144,5 @@ PATCH/DELETE）必须显式 `--allow-unsafe-request`。优先用 typed `capabili
 ## 自动化边界
 
 当前 CLI **没有 `a4n flow` 子命令**。旧流程文档中的 `flow run/resume` 不可执行；自动化
-请用普通脚本顺序组合 `--agent call`、task/workflow 观察和媒体下载，并持久化返回的 ID。
+请用普通脚本顺序组合 `--output agent-json call`、task/workflow 观察和媒体下载，并持久化返回的 ID。只有已注册 Agent 且需要工作台可见状态时才改用 `--agent`。
 重试非幂等调用前先查 descriptor 的 `idempotency` 和 Server 当前状态。

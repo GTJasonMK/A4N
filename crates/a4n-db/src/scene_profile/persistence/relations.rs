@@ -5,8 +5,8 @@ use crate::scene_profile::{
 };
 use a4n_core::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
-use std::collections::BTreeMap;
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set};
+use std::collections::{BTreeMap, HashMap};
 
 pub(in crate::scene_profile) async fn insert_scene_transition_records<C>(
     db: &C,
@@ -20,7 +20,11 @@ pub(in crate::scene_profile) async fn insert_scene_transition_records<C>(
 where
     C: ConnectionTrait,
 {
+    if drafts.is_empty() {
+        return Ok(0);
+    }
     let now = Utc::now().naive_utc();
+    let mut rows = Vec::with_capacity(drafts.len());
     for draft in drafts {
         let from_scene_profile_id = draft
             .from_scene_ref
@@ -37,7 +41,7 @@ where
             .as_deref()
             .map(|value| resolve_ref(occurrence_ref_map, value, "transition.occurrence_ref"))
             .transpose()?;
-        scene_transition::ActiveModel {
+        rows.push(scene_transition::ActiveModel {
             project_id: Set(project_id),
             chapter_id: Set(chapter_id),
             chapter_number: Set(chapter_number),
@@ -55,10 +59,11 @@ where
             evidence_json: Set(draft.evidence_json.clone()),
             created_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
-        .await?;
+        });
     }
+    scene_transition::Entity::insert_many(rows)
+        .exec_without_returning(db)
+        .await?;
     Ok(drafts.len())
 }
 
@@ -72,29 +77,53 @@ pub(in crate::scene_profile) async fn insert_scene_entity_state_records<C>(
 where
     C: ConnectionTrait,
 {
+    if drafts.is_empty() {
+        return Ok(0);
+    }
+    let resolved_refs = drafts
+        .iter()
+        .map(|draft| {
+            let scene_profile_id =
+                resolve_ref(scene_ref_map, &draft.scene_ref, "entity_state.scene_ref")?;
+            let occurrence_id = resolve_ref(
+                occurrence_ref_map,
+                &draft.occurrence_ref,
+                "entity_state.occurrence_ref",
+            )?;
+            Ok::<(i64, i64), SceneProfileDbError>((scene_profile_id, occurrence_id))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let occurrence_ids = resolved_refs
+        .iter()
+        .map(|(_, occurrence_id)| *occurrence_id)
+        .collect::<Vec<_>>();
+    let occurrences_by_id = scene_occurrence::Entity::find()
+        .select_only()
+        .column(scene_occurrence::Column::Id)
+        .column(scene_occurrence::Column::ChapterNumber)
+        .filter(scene_occurrence::Column::Id.is_in(occurrence_ids.iter().copied()))
+        .into_tuple::<(i64, i32)>()
+        .all(db)
+        .await?
+        .into_iter()
+        .collect::<HashMap<_, _>>();
     let now = Utc::now().naive_utc();
-    for draft in drafts {
-        let scene_profile_id =
-            resolve_ref(scene_ref_map, &draft.scene_ref, "entity_state.scene_ref")?;
-        let occurrence_id = resolve_ref(
-            occurrence_ref_map,
-            &draft.occurrence_ref,
-            "entity_state.occurrence_ref",
-        )?;
-        let occurrence = scene_occurrence::Entity::find_by_id(occurrence_id)
-            .one(db)
-            .await?
+    let mut rows = Vec::with_capacity(drafts.len());
+    for (draft, (scene_profile_id, occurrence_id)) in drafts.iter().zip(resolved_refs) {
+        let chapter_number = occurrences_by_id
+            .get(&occurrence_id)
+            .copied()
             .ok_or_else(|| {
                 SceneProfileDbError::InvalidArgument(format!(
                     "场景出场不存在: occurrence_ref={}",
                     draft.occurrence_ref
                 ))
             })?;
-        scene_entity_state::ActiveModel {
+        rows.push(scene_entity_state::ActiveModel {
             project_id: Set(project_id),
             scene_profile_id: Set(scene_profile_id),
             occurrence_id: Set(occurrence_id),
-            chapter_number: Set(occurrence.chapter_number),
+            chapter_number: Set(chapter_number),
             entity_type: Set(draft.entity_type.clone()),
             entity_id: Set(draft.entity_id),
             entity_name_snapshot: Set(draft.entity_name_snapshot.clone()),
@@ -107,9 +136,10 @@ where
             evidence_json: Set(draft.evidence_json.clone()),
             created_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
-        .await?;
+        });
     }
+    scene_entity_state::Entity::insert_many(rows)
+        .exec_without_returning(db)
+        .await?;
     Ok(drafts.len())
 }

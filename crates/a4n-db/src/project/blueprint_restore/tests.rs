@@ -5,6 +5,7 @@ use crate::project::PROJECT_KIND_TEXT;
 use a4n_core::models::project::{
     blueprint_character, blueprint_relationship, project_status_history,
 };
+use a4n_domain::project::ProjectStatus;
 use chrono::{Duration, NaiveDate};
 use sea_orm::QueryOrder;
 use serde_json::json;
@@ -327,7 +328,6 @@ async fn restore_blueprint_version_record_restores_rows_and_project_status() {
         .await
         .unwrap();
 
-    assert_eq!(result.version, "v2");
     assert_eq!(result.blueprint.title, "星潮档案");
     assert_eq!(result.blueprint.current_version, "v2");
     assert_eq!(result.blueprint.total_chapters, Some(30));

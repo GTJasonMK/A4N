@@ -1,15 +1,17 @@
+import { getActiveLocale, translateMessage } from "../i18n";
+
 export function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("读取文件失败"));
+    reader.onerror = () => reject(new Error(translateMessage(getActiveLocale(), "errors.fileReadFailed")));
     reader.onload = () => {
       if (typeof reader.result !== "string") {
-        reject(new Error("读取文件失败"));
+        reject(new Error(translateMessage(getActiveLocale(), "errors.fileReadFailed")));
         return;
       }
       const [, body] = reader.result.split(",", 2);
       if (!body) {
-        reject(new Error("文件 data URL 格式无效"));
+        reject(new Error(translateMessage(getActiveLocale(), "errors.invalidFileData")));
         return;
       }
       resolve(body);

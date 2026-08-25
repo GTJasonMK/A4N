@@ -1,9 +1,9 @@
-use super::contracts::{
-    CreateEmbeddingInput, EmbeddingConfigSummary, UpdateEmbeddingInput, embedding_config_summary,
-};
-use super::mapping::{embedding_create_params, embedding_update_params};
+use super::mapping::embedding_config_summary;
 use crate::actions::config_records::shared::require_config_admin;
 use crate::{AppState, actions::app_error_message};
+use a4n_api_contract::config::{
+    CreateEmbeddingInput, EmbeddingConfigSummary, UpdateEmbeddingInput,
+};
 use a4n_core::error::AppError;
 
 pub async fn list_embedding_config(
@@ -23,10 +23,9 @@ pub async fn create_embedding_config(
     input: CreateEmbeddingInput,
 ) -> Result<EmbeddingConfigSummary, AppError> {
     require_config_admin(state, caller_user_id).await?;
-    let params = embedding_create_params(input);
     let config = state
         .orchestrator()
-        .create_embedding_config_validated(params)
+        .create_embedding_config_validated(input)
         .await?;
     Ok(embedding_config_summary(&config))
 }
@@ -38,10 +37,9 @@ pub async fn update_embedding_config(
     input: UpdateEmbeddingInput,
 ) -> Result<EmbeddingConfigSummary, AppError> {
     require_config_admin(state, caller_user_id).await?;
-    let params = embedding_update_params(input);
     let updated = state
         .orchestrator()
-        .update_embedding_config_validated(config_id, params)
+        .update_embedding_config_validated(config_id, input)
         .await?;
     Ok(embedding_config_summary(&updated))
 }

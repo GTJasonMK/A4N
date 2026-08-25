@@ -1,9 +1,10 @@
-use super::shared::{ModelDiscoveryInput, require_config_admin};
+use super::shared::require_config_admin;
 use crate::{
     AppState,
     actions::app_error_message,
     sidecar_clients::{ModelDiscoveryKind, discover_models},
 };
+use a4n_api_contract::config::ModelDiscoveryInput;
 use a4n_model_discovery::ModelDiscoveryResult;
 
 pub async fn detect_llm_config_models(

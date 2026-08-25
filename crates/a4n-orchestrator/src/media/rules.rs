@@ -35,7 +35,6 @@ pub const MEDIA_BINDING_TARGET_KINDS: &[&str] = &[
     "galgame_scene",
     "galgame_line",
     "video_segment",
-    "chapter_manga_prompt",
     "chapter_video_prompt",
     "generated_video",
     "chapter",

@@ -65,32 +65,6 @@ pub(super) fn workflow_checkpoint_summary(
     }
 }
 
-pub(super) fn generation_run_summary(run: generation_run::Model) -> GenerationRunSummary {
-    GenerationRunSummary {
-        id: run.id,
-        workflow_run_id: run.workflow_run_id,
-        workflow: run.workflow,
-        step_key: run.step_key,
-        call_key: run.call_key,
-        title: run.title,
-        model_kind: run.model_kind,
-        provider: run.provider,
-        model: run.model,
-        status: run.status,
-        input_fingerprint_sha256: run.input_fingerprint_sha256,
-        input_fingerprint_json: run.input_fingerprint_json,
-        raw_response_json: run.raw_response_json,
-        parsed_output_json: run.parsed_output_json,
-        validation_json: run.validation_json,
-        artifact_refs_json: run.artifact_refs_json,
-        attempt: run.attempt,
-        response_summary_json: run.response_summary_json,
-        error_message: run.error_message,
-        created_at: run.created_at.to_string(),
-        completed_at: run.completed_at.map(|value| value.to_string()),
-    }
-}
-
 pub(in crate::workflow) fn workflow_run_progress_summary(
     value: &Value,
 ) -> Result<WorkflowRunProgressSummary, WorkflowReadError> {

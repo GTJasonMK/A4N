@@ -3,9 +3,24 @@ use crate::workflow::is_terminal_workflow_status;
 use a4n_core::models::{generation::workflow_run, task::task_queue};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
-    ActiveModelTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QuerySelect,
-    Set, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult,
+    QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
 };
+use std::collections::BTreeSet;
+
+#[derive(Debug, FromQueryResult)]
+struct TaskStatusRecord {
+    id: String,
+    status: String,
+    workflow_run_id: Option<i64>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct WorkflowStatusRecord {
+    id: i64,
+    status: String,
+    active_task_id: Option<String>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum TaskStatusTimestampUpdate {
@@ -21,11 +36,16 @@ pub async fn update_task_status(
     error: Option<&str>,
 ) -> Result<(), QueueDbError> {
     let tx = db.begin().await?;
-    let mut query = task_queue::Entity::find_by_id(task_id.to_string());
+    let mut query = task_queue::Entity::find_by_id(task_id.to_string())
+        .select_only()
+        .column(task_queue::Column::Id)
+        .column(task_queue::Column::Status)
+        .column(task_queue::Column::WorkflowRunId);
     if tx.get_database_backend() != DbBackend::Sqlite {
         query = query.lock_exclusive();
     }
     let task = query
+        .into_model::<TaskStatusRecord>()
         .one(&tx)
         .await?
         .ok_or_else(|| QueueDbError::NotFound(format!("任务不存在: {task_id}")))?;
@@ -35,19 +55,166 @@ pub async fn update_task_status(
     }
 
     let workflow_run_id = task.workflow_run_id;
-    let mut active: task_queue::ActiveModel = task.into();
-    active.status = Set(status.to_string());
     let now = Utc::now().naive_utc();
+    let mut update = task_queue::Entity::update_many()
+        .col_expr(
+            task_queue::Column::Status,
+            sea_orm::sea_query::Expr::value(status.to_string()),
+        )
+        .filter(task_queue::Column::Id.eq(&task.id));
     match task_status_timestamp_update(status) {
-        TaskStatusTimestampUpdate::Started => active.started_at = Set(Some(now)),
-        TaskStatusTimestampUpdate::Completed => active.completed_at = Set(Some(now)),
+        TaskStatusTimestampUpdate::Started => {
+            update = update.col_expr(
+                task_queue::Column::StartedAt,
+                sea_orm::sea_query::Expr::value(Some(now)),
+            );
+        }
+        TaskStatusTimestampUpdate::Completed => {
+            update = update.col_expr(
+                task_queue::Column::CompletedAt,
+                sea_orm::sea_query::Expr::value(Some(now)),
+            );
+        }
         TaskStatusTimestampUpdate::None => {}
     }
     if let Some(msg) = error {
-        active.error_message = Set(Some(msg.to_string()));
+        update = update.col_expr(
+            task_queue::Column::ErrorMessage,
+            sea_orm::sea_query::Expr::value(Some(msg.to_string())),
+        );
     }
-    active.update(&tx).await?;
+    if update.exec(&tx).await?.rows_affected != 1 {
+        return Err(QueueDbError::NotFound(format!("任务不存在: {task_id}")));
+    }
     sync_workflow_active_task(&tx, workflow_run_id, task_id, status, now).await?;
+    tx.commit().await?;
+    Ok(())
+}
+
+/// 将启动恢复发现的多个普通队列任务一次性标记为 interrupted。
+pub async fn interrupt_active_tasks(
+    db: &DatabaseConnection,
+    task_ids: &[String],
+    error: &str,
+) -> Result<(), QueueDbError> {
+    if task_ids.is_empty() {
+        return Ok(());
+    }
+    let mut requested_ids = task_ids.to_vec();
+    requested_ids.sort_unstable();
+    requested_ids.dedup();
+
+    let tx = db.begin().await?;
+    let mut query = task_queue::Entity::find()
+        .select_only()
+        .column(task_queue::Column::Id)
+        .column(task_queue::Column::Status)
+        .column(task_queue::Column::WorkflowRunId)
+        .filter(task_queue::Column::Id.is_in(requested_ids.clone()))
+        .order_by_asc(task_queue::Column::Id);
+    if tx.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
+    }
+    let tasks = query.into_model::<TaskStatusRecord>().all(&tx).await?;
+    if tasks.len() != requested_ids.len() {
+        let found = tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<BTreeSet<_>>();
+        let missing = requested_ids
+            .iter()
+            .find(|task_id| !found.contains(task_id.as_str()))
+            .cloned()
+            .unwrap_or_else(|| requested_ids[0].clone());
+        return Err(QueueDbError::NotFound(format!("任务不存在: {missing}")));
+    }
+
+    let recoverable = tasks
+        .into_iter()
+        .filter(|task| !is_terminal_status(&task.status))
+        .collect::<Vec<_>>();
+    if recoverable.is_empty() {
+        tx.commit().await?;
+        return Ok(());
+    }
+    let recoverable_ids = recoverable
+        .iter()
+        .map(|task| task.id.clone())
+        .collect::<Vec<_>>();
+    let now = Utc::now().naive_utc();
+    let updated = task_queue::Entity::update_many()
+        .col_expr(
+            task_queue::Column::Status,
+            sea_orm::sea_query::Expr::value("interrupted"),
+        )
+        .col_expr(
+            task_queue::Column::CompletedAt,
+            sea_orm::sea_query::Expr::value(Some(now)),
+        )
+        .col_expr(
+            task_queue::Column::ErrorMessage,
+            sea_orm::sea_query::Expr::value(Some(error.to_string())),
+        )
+        .filter(task_queue::Column::Id.is_in(recoverable_ids.clone()))
+        .exec(&tx)
+        .await?;
+    if updated.rows_affected != recoverable_ids.len() as u64 {
+        return Err(QueueDbError::NotFound("任务不存在".to_string()));
+    }
+
+    let workflow_ids = recoverable
+        .iter()
+        .filter_map(|task| task.workflow_run_id)
+        .collect::<BTreeSet<_>>();
+    if !workflow_ids.is_empty() {
+        let runs = workflow_run::Entity::find()
+            .select_only()
+            .column(workflow_run::Column::Id)
+            .column(workflow_run::Column::Status)
+            .column(workflow_run::Column::ActiveTaskId)
+            .filter(workflow_run::Column::Id.is_in(workflow_ids.iter().copied()))
+            .order_by_asc(workflow_run::Column::Id)
+            .lock_exclusive()
+            .into_model::<WorkflowStatusRecord>()
+            .all(&tx)
+            .await?;
+        if runs.len() != workflow_ids.len() {
+            let found = runs.iter().map(|run| run.id).collect::<BTreeSet<_>>();
+            let missing = workflow_ids
+                .iter()
+                .find(|workflow_id| !found.contains(workflow_id))
+                .copied()
+                .unwrap_or_default();
+            return Err(QueueDbError::NotFound(format!(
+                "队列任务关联工作流不存在: {missing}"
+            )));
+        }
+        let mutable_workflow_ids = runs
+            .into_iter()
+            .filter(|run| !is_terminal_workflow_status(&run.status))
+            .map(|run| run.id)
+            .collect::<Vec<_>>();
+        if !mutable_workflow_ids.is_empty() {
+            let workflow_updated = workflow_run::Entity::update_many()
+                .col_expr(
+                    workflow_run::Column::ActiveTaskId,
+                    sea_orm::sea_query::Expr::value(Option::<String>::None),
+                )
+                .col_expr(
+                    workflow_run::Column::UpdatedAt,
+                    sea_orm::sea_query::Expr::value(now),
+                )
+                .filter(workflow_run::Column::Id.is_in(mutable_workflow_ids))
+                .filter(workflow_run::Column::ActiveTaskId.is_in(recoverable_ids))
+                .exec(&tx)
+                .await?;
+            if workflow_updated.rows_affected > workflow_ids.len() as u64 {
+                return Err(QueueDbError::NotFound(
+                    "队列任务关联工作流更新数量不一致".to_string(),
+                ));
+            }
+        }
+    }
     tx.commit().await?;
     Ok(())
 }
@@ -66,7 +233,12 @@ where
         return Ok(());
     };
     let run = workflow_run::Entity::find_by_id(workflow_run_id)
+        .select_only()
+        .column(workflow_run::Column::Id)
+        .column(workflow_run::Column::Status)
+        .column(workflow_run::Column::ActiveTaskId)
         .lock_exclusive()
+        .into_model::<WorkflowStatusRecord>()
         .one(db)
         .await?
         .ok_or_else(|| {
@@ -80,10 +252,23 @@ where
         _ if run.active_task_id.as_deref() == Some(task_id) => None,
         _ => return Ok(()),
     };
-    let mut active: workflow_run::ActiveModel = run.into();
-    active.active_task_id = Set(next_active_task_id);
-    active.updated_at = Set(now);
-    active.update(db).await?;
+    let updated = workflow_run::Entity::update_many()
+        .col_expr(
+            workflow_run::Column::ActiveTaskId,
+            sea_orm::sea_query::Expr::value(next_active_task_id),
+        )
+        .col_expr(
+            workflow_run::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(now),
+        )
+        .filter(workflow_run::Column::Id.eq(run.id))
+        .exec(db)
+        .await?;
+    if updated.rows_affected != 1 {
+        return Err(QueueDbError::NotFound(format!(
+            "队列任务关联工作流不存在: {workflow_run_id}"
+        )));
+    }
     Ok(())
 }
 

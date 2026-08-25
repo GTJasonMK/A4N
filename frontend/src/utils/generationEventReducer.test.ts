@@ -14,6 +14,10 @@ import {
   reduceGenerationTask,
   resolveFormalResultRecovery,
 } from "./generationEventReducer";
+import { translateMessage } from "../i18n";
+
+const t = (key: Parameters<typeof translateMessage>[1], params?: Parameters<typeof translateMessage>[2]) =>
+  translateMessage("zh-CN", key, params);
 
 const taskId = "123e4567-e89b-42d3-a456-426614174000";
 const handle: GenerationTaskHandle = {
@@ -70,6 +74,32 @@ describe("generation event reducer", () => {
     state = reduceGenerationTask(state, { type: "snapshot", snapshot: snapshot(1) });
     expect(state.taskStatus).toBe("running");
     expect(state.nextSequence).toBe(3);
+    expect(state.recoveryState).toBe("idle");
+  });
+
+  it("drains the maximum recovery queue without losing event order", () => {
+    let state = createGenerationTaskViewState(handle);
+    for (let sequence = 2; sequence <= 513; sequence += 1) {
+      state = reduceGenerationTask(state, {
+        type: "event",
+        event: event(sequence, {
+          kind: "progress",
+          data: {
+            estimated: true,
+            message: String(sequence),
+            phase_kind: "model_stream",
+            severity: "info",
+            stage_code: "stream",
+          },
+        }),
+      });
+    }
+
+    state = reduceGenerationTask(state, { type: "snapshot", snapshot: snapshot(1) });
+
+    expect(state.nextSequence).toBe(514);
+    expect(state.pendingEvents).toHaveLength(0);
+    expect(state.progress?.message).toBe("513");
     expect(state.recoveryState).toBe("idle");
   });
 
@@ -206,6 +236,7 @@ describe("generation event reducer", () => {
     "inspiration_message",
   ] as const)("accepts verified terminal for %s without a second recovery path", (domain) => {
     const outcome = resolveFormalResultRecovery({
+      t,
       recoveryIssue: null,
       consistent: true,
       hasPersisted: true,
@@ -233,6 +264,7 @@ describe("generation event reducer", () => {
       const hasResultRef = expectedFragment !== "且没有正式结果引用，无法恢复"
         && expectedFragment !== "且没有正式结果引用，无法恢复；已恢复编辑器快照";
       const outcome = resolveFormalResultRecovery({
+        t,
         recoveryIssue,
         consistent: false,
         hasPersisted,
@@ -246,7 +278,7 @@ describe("generation event reducer", () => {
       expect(outcome.kind).toBe(kind);
       expect(outcome.shouldMarkConsistencyError).toBe(recoveryIssue == null);
       if (recoveryIssue) {
-        expect(outcome.issueMessage).toBe(generationTaskRecoveryIssueMessage(recoveryIssue));
+        expect(outcome.issueMessage).toBe(generationTaskRecoveryIssueMessage(recoveryIssue, t));
       }
       if (kind === "readonly") {
         expect(outcome.warning).toContain(expectedFragment);

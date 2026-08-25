@@ -1,7 +1,8 @@
 use a4n_core::config::env::{env_flag_enabled, optional_non_empty_env_string};
 use a4n_service_manager::normalize_remote_service_url;
+use a4n_service_protocol::ServiceCatalogEntry;
 
-use super::catalog::{MANAGED_SIDECARS_ENV, SidecarServiceSpec, sidecar_service_specs};
+use super::catalog::{MANAGED_SIDECARS_ENV, sidecar_service_specs};
 
 pub(in crate::sidecar_clients) fn sidecar_service_and_url_for_capability(
     capability_version: &str,
@@ -20,7 +21,7 @@ fn sidecar_url_for_service(name: &str) -> Result<String, String> {
 }
 
 pub(in crate::sidecar_clients::service_manager) fn sidecar_url_from_spec(
-    spec: &SidecarServiceSpec,
+    spec: &ServiceCatalogEntry,
 ) -> Result<String, String> {
     if let Some(url) =
         optional_non_empty_env_string(&spec.url_env).map_err(|error| error.to_string())?

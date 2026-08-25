@@ -47,38 +47,46 @@ import {
 } from "./shared";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { useProjectProfileCollection } from "./useProjectProfileCollection";
+import { useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
 
-const SCENE_TYPE_LABELS: Record<string, string> = {
-  room: "房间",
-  building: "建筑",
-  street: "街道",
-  city: "城市",
-  wilderness: "荒野",
-  route: "路线",
-  landmark: "地标",
-  other: "其他",
+const SCENE_TYPE_KEYS: Record<string, MessageKey> = {
+  room: "novel.sceneType.room",
+  building: "novel.sceneType.building",
+  street: "novel.sceneType.street",
+  city: "novel.sceneType.city",
+  wilderness: "novel.sceneType.wilderness",
+  route: "novel.sceneType.route",
+  landmark: "novel.sceneType.landmark",
+  other: "novel.sceneType.other",
 };
 
-const IMPORTANCE_LABELS: Record<string, string> = {
-  primary: "关键",
-  secondary: "重要",
-  minor: "次要",
+const SCENE_TYPE_OPTIONS = ["", ...Object.keys(SCENE_TYPE_KEYS).filter((key) => key !== "other")];
+const IMPORTANCE_OPTIONS = ["", "primary", "secondary", "minor"];
+
+const sceneTypeLabel = (value: string, t: MessageTranslator): string =>
+  value ? t(SCENE_TYPE_KEYS[value] ?? "novel.sceneType.other") : t("novel.unconfirmed");
+const importanceLabel = (value: string, t: MessageTranslator): string => {
+  if (value === "primary") return t("novel.objectImportance.primary");
+  if (value === "secondary") return t("novel.objectImportance.secondary");
+  if (value === "minor") return t("novel.objectImportance.minor");
+  return t("novel.unlabeled");
 };
 
-const sceneTypeLabel = (value: string): string =>
-  value ? (SCENE_TYPE_LABELS[value] ?? "其他") : "未确定";
-const importanceLabel = (value: string): string => IMPORTANCE_LABELS[value] ?? "未标注";
-
-const SCENE_TYPE_INPUT_LABELS = { "": "未确定", ...SCENE_TYPE_LABELS };
-const IMPORTANCE_INPUT_LABELS = { "": "未确定", ...IMPORTANCE_LABELS };
-const SCENE_TYPE_OPTIONS = Object.keys(SCENE_TYPE_INPUT_LABELS);
-const IMPORTANCE_OPTIONS = Object.keys(IMPORTANCE_INPUT_LABELS);
+const sceneTypeInputLabels = (t: MessageTranslator): Record<string, string> =>
+  Object.fromEntries(
+    SCENE_TYPE_OPTIONS.map((value) => [value, sceneTypeLabel(value, t)]),
+  );
+const importanceInputLabels = (t: MessageTranslator): Record<string, string> =>
+  Object.fromEntries(
+    IMPORTANCE_OPTIONS.map((value) => [value, value ? importanceLabel(value, t) : t("novel.unconfirmed")]),
+  );
 
 export const SceneProfilesTab: React.FC<{
   projectId: number;
   canEditProfiles: boolean;
 }> = ({ projectId, canEditProfiles }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const [syncing, setSyncing] = useState(false);
   const {
@@ -98,7 +106,8 @@ export const SceneProfilesTab: React.FC<{
   } = useProjectProfileCollection<SceneProfile>({
     projectId,
     canEditProfiles,
-    entityLabel: "场景档案",
+    entityLabel: t("novel.profile.scene"),
+    t,
     listProfiles: listSceneProfiles,
     addToast,
   });
@@ -112,20 +121,26 @@ export const SceneProfilesTab: React.FC<{
       images: profiles.reduce((sum, profile) => sum + profile.generated_image_count, 0),
     };
   }, [profiles]);
+  const summary = stats.total > 0
+    ? [
+        t("novel.profile.summary", { total: stats.total }),
+        stats.primary > 0 ? t("novel.profile.primarySummary", { count: stats.primary }) : null,
+        stats.images > 0 ? t("novel.profile.imageSummary", { count: stats.images }) : null,
+      ].filter((value): value is string => Boolean(value)).join(" · ")
+    : t("novel.profile.sceneLocationHint");
 
   const handleSync = async () => {
     const requestProjectId = projectId;
     if (!canEditProfiles) {
-      addToast("只读协作者不能同步场景档案", "error");
+      addToast(t("novel.profile.readonlyCannot", { operation: t("novel.profile.syncScene"), name: t("novel.profile.scene") }), "error");
       return;
     }
     const requestSeq = beginAction(requestProjectId);
     if (requestSeq == null) return;
     const ok = await confirmDialog({
-      title: "同步场景档案",
-      message:
-        "将根据已生成章节重新同步场景档案、出场、位移关系和场景内实体状态。当前章节的旧场景同步记录会被替换。",
-      confirmText: "开始同步",
+      title: t("novel.profile.syncScene"),
+      message: t("novel.profile.syncSceneConfirm"),
+      confirmText: t("workflow.start"),
       dialogType: "warning",
     });
     if (!ok) {
@@ -144,13 +159,13 @@ export const SceneProfilesTab: React.FC<{
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: "同步场景档案",
-          startMessage: "正在准备场景档案同步",
-          successMessage: "场景档案已同步",
-          errorMessage: "场景档案同步失败",
+          title: t("novel.profile.syncScene"),
+          startMessage: t("common.loading"),
+          successMessage: t("novel.profile.syncScene"),
+          errorMessage: t("novel.profile.syncError"),
           total: 100,
-          cancelLabel: "停止同步",
-          runningHint: "场景档案同步过程中请保持当前窗口打开",
+          cancelLabel: t("workflow.stop"),
+          runningHint: t("workflow.keepWindowOpen"),
         },
         async () => {
           if (!isCurrentAction(requestProjectId, requestSeq)) {
@@ -164,11 +179,11 @@ export const SceneProfilesTab: React.FC<{
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      addToast("场景档案已同步", "success");
+      addToast(t("novel.profile.syncScene"), "success");
     } catch (err) {
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      const message = extractErrorMessage(err, "场景档案同步失败");
-      addToast(isCancelledOperation(message) ? "场景档案同步已停止" : message, isCancelledOperation(message) ? "info" : "error");
+      const message = extractErrorMessage(err, t("novel.profile.syncError"));
+      addToast(isCancelledOperation(message) ? t("novel.profile.syncStopped") : message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         setSyncing(false);
@@ -180,12 +195,12 @@ export const SceneProfilesTab: React.FC<{
   const handleGenerateImage = async (profile: SceneProfile) => {
     const requestProjectId = projectId;
     if (!canEditProfiles) {
-      addToast("只读协作者不能生成场景素材图", "error");
+      addToast(t("novel.profile.readonlyCannot", { operation: t("novel.profile.generateSceneImage"), name: t("novel.profile.scene") }), "error");
       return;
     }
     const requestProfile = profilesRef.current.find((item) => item.id === profile.id);
     if (!requestProfile || requestProfile.project_id !== requestProjectId) {
-      addToast("场景档案已不在当前项目中", "error");
+      addToast(t("novel.profile.notInProject", { name: t("novel.profile.scene") }), "error");
       return;
     }
     const requestSeq = beginAction(requestProjectId);
@@ -204,12 +219,12 @@ export const SceneProfilesTab: React.FC<{
         runProgressTask,
         handle,
         {
-          title: "生成场景素材图",
-          startMessage: "正在准备场景素材图",
-          successMessage: "场景素材图已生成",
-          errorMessage: "场景素材图生成失败",
+          title: t("novel.profile.generateSceneImage"),
+          startMessage: t("common.loading"),
+          successMessage: t("novel.profile.generateSceneImage"),
+          errorMessage: t("novel.profile.generateError", { name: t("novel.profile.scene") }),
           total: 3,
-          cancelLabel: "停止生成",
+          cancelLabel: t("workflow.stop"),
         },
         async (task) => {
           if (!isCurrentAction(requestProjectId, requestSeq)) {
@@ -220,11 +235,11 @@ export const SceneProfilesTab: React.FC<{
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      addToast(`已生成 ${requestProfile.name} 的场景素材图`, "success");
+      addToast(t("novel.profile.generated", { name: requestProfile.name }), "success");
     } catch (err) {
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      const message = extractErrorMessage(err, "场景素材图生成失败");
-      addToast(isCancelledOperation(message) ? "图片生成已停止" : message, isCancelledOperation(message) ? "info" : "error");
+      const message = extractErrorMessage(err, t("novel.profile.generateError", { name: t("novel.profile.scene") }));
+      addToast(isCancelledOperation(message) ? t("workflow.cancelled") : message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         setBusyId(null);
@@ -236,12 +251,12 @@ export const SceneProfilesTab: React.FC<{
   const handleDelete = async (profile: SceneProfile) => {
     const requestProjectId = projectId;
     if (!canEditProfiles) {
-      addToast("只读协作者不能删除场景档案", "error");
+      addToast(t("novel.profile.readonlyCannot", { operation: t("common.delete"), name: t("novel.profile.scene") }), "error");
       return;
     }
     const requestProfile = profilesRef.current.find((item) => item.id === profile.id);
     if (!requestProfile || requestProfile.project_id !== requestProjectId) {
-      addToast("场景档案已不在当前项目中", "error");
+      addToast(t("novel.profile.notInProject", { name: t("novel.profile.scene") }), "error");
       return;
     }
     const requestSeq = beginAction(requestProjectId);
@@ -249,11 +264,12 @@ export const SceneProfilesTab: React.FC<{
     let downstreamStrategy: DownstreamConflictStrategy = "reject";
     if (requestProfile.generated_image_count > 0) {
       const strategy = await chooseDownstreamConflictStrategy({
-        title: "场景档案存在下游素材",
-        assetLabel: `场景档案“${requestProfile.name}”`,
-        downstreamLabel: "素材图",
+        title: t("novel.profile.hasDownstream", { name: t("novel.profile.scene") }),
+        assetLabel: `${t("novel.profile.scene")}“${requestProfile.name}”`,
+        downstreamLabel: t("novel.generateMaterialImage"),
         downstreamCount: requestProfile.generated_image_count,
-        operation: "删除",
+        operation: t("common.delete"),
+        t,
       });
       if (!strategy) {
         finishAction(requestSeq);
@@ -262,9 +278,9 @@ export const SceneProfilesTab: React.FC<{
       downstreamStrategy = strategy;
     } else {
       const ok = await confirmDialog({
-        title: "删除场景档案",
-        message: `删除“${requestProfile.name}”？该场景的出场、位移和实体状态记录会一起删除。`,
-        confirmText: "删除",
+        title: t("novel.profile.deleteScene"),
+        message: t("novel.profile.sceneDeleteConfirm", { name: requestProfile.name }),
+        confirmText: t("common.delete"),
         dialogType: "danger",
       });
       if (!ok) {
@@ -285,13 +301,13 @@ export const SceneProfilesTab: React.FC<{
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
         result.warnings.length > 0
-          ? `场景档案已删除；${result.warnings.join("；")}`
-          : "场景档案已删除",
+          ? t("novel.profile.deletedWithWarnings", { name: t("novel.profile.scene"), warnings: result.warnings.join(t("common.summarySeparator")) })
+          : t("novel.profile.deleted", { name: t("novel.profile.scene") }),
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "删除场景档案失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.profile.deleteError", { name: t("novel.profile.scene") })), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, requestSeq)) {
@@ -304,7 +320,7 @@ export const SceneProfilesTab: React.FC<{
   const handleSaveProfile = async (input: SceneProfileInput) => {
     const requestProjectId = projectId;
     if (!canEditProfiles) {
-      addToast("只读协作者不能保存场景档案", "error");
+      addToast(t("novel.profile.readonlyCannot", { operation: t("common.save"), name: t("novel.profile.scene") }), "error");
       return;
     }
     const editingProfileId =
@@ -315,12 +331,12 @@ export const SceneProfilesTab: React.FC<{
         : profilesRef.current.find((profile) => profile.id === editingProfileId) ?? null;
     if (editingProfileId != null && !existingProfile) {
       setEditingProfile(null);
-      addToast("场景档案已不存在，请刷新后重试", "error");
+      addToast(t("novel.profile.notFound", { name: t("novel.profile.scene") }), "error");
       return;
     }
     if (existingProfile && existingProfile.project_id !== requestProjectId) {
       setEditingProfile(null);
-      addToast("场景档案已不在当前项目中", "error");
+      addToast(t("novel.profile.notInProject", { name: t("novel.profile.scene") }), "error");
       return;
     }
     const requestSeq = beginAction(requestProjectId);
@@ -328,11 +344,12 @@ export const SceneProfilesTab: React.FC<{
     let downstreamStrategy: DownstreamConflictStrategy = "reject";
     if (existingProfile && existingProfile.generated_image_count > 0) {
       const strategy = await chooseDownstreamConflictStrategy({
-        title: "场景档案存在下游素材",
-        assetLabel: `场景档案“${existingProfile.name}”`,
-        downstreamLabel: "素材图",
+        title: t("novel.profile.hasDownstream", { name: t("novel.profile.scene") }),
+        assetLabel: `${t("novel.profile.scene")}“${existingProfile.name}”`,
+        downstreamLabel: t("novel.generateMaterialImage"),
         downstreamCount: existingProfile.generated_image_count,
-        operation: "修改",
+        operation: t("common.update"),
+        t,
       });
       if (!strategy) {
         finishAction(requestSeq);
@@ -359,16 +376,18 @@ export const SceneProfilesTab: React.FC<{
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);
-      const successMessage = editingProfile === "new" ? "场景档案已创建" : "场景档案已更新";
+      const successMessage = editingProfile === "new"
+        ? t("novel.profile.created", { name: t("novel.profile.scene") })
+        : t("novel.profile.updated", { name: t("novel.profile.scene") });
       addToast(
         result.warnings.length > 0
-          ? `${successMessage}；${result.warnings.join("；")}`
+          ? `${successMessage}${t("common.summarySeparator")}${result.warnings.join(t("common.summarySeparator"))}`
           : successMessage,
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "保存场景档案失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.profile.saveError", { name: t("novel.profile.scene") })), "error");
       }
       throw err;
     } finally {
@@ -382,7 +401,7 @@ export const SceneProfilesTab: React.FC<{
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <LoadingSpinner size="sm" /> 加载场景档案…
+        <LoadingSpinner size="sm" /> {t("common.loading")}
       </div>
     );
   }
@@ -392,18 +411,16 @@ export const SceneProfilesTab: React.FC<{
       <section>
         <header className="mb-3 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-book-text-main">场景档案</h2>
+            <h2 className="text-sm font-semibold text-book-text-main">{t("novel.profile.scene")}</h2>
             <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-              {stats.total > 0
-                ? `共 ${stats.total} 个档案${stats.primary > 0 ? `，${stats.primary} 个关键场景` : ""}${stats.images > 0 ? `，已生成 ${stats.images} 张素材图` : ""}`
-                : "整理故事中的地点、空间关系和环境规则"}
+              {summary}
             </p>
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
             <Dropdown
               items={[
                 {
-                  label: loading ? "正在刷新…" : "刷新档案",
+                  label: loading ? t("common.loading") : t("novel.profile.refresh"),
                   icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
                   onClick: () => void load({ projectId }),
                   disabled: loading || syncing || busyId != null,
@@ -411,7 +428,7 @@ export const SceneProfilesTab: React.FC<{
                 ...(canEditProfiles
                   ? [
                       {
-                        label: syncing ? "正在同步…" : "从章节同步",
+                        label: syncing ? t("common.loading") : t("novel.profile.syncScene"),
                         icon: syncing ? <LoadingSpinner size="sm" /> : <Route size={12} />,
                         onClick: () => void handleSync(),
                         disabled: syncing || busyId != null,
@@ -428,7 +445,7 @@ export const SceneProfilesTab: React.FC<{
                 disabled={busyId != null || syncing}
                 className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
-                <Plus size={12} /> 新建档案
+                <Plus size={12} /> {t("novel.profile.create")}
               </BookButton>
             ) : null}
           </div>
@@ -436,7 +453,7 @@ export const SceneProfilesTab: React.FC<{
 
         {profiles.length === 0 ? (
           <div className="a4n-flat-surface p-3">
-            <EmptyHint text="尚未从章节分析中同步出场景档案。" />
+            <EmptyHint text={t("novel.profile.noSceneProfiles")} />
           </div>
         ) : (
           <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
@@ -453,20 +470,20 @@ export const SceneProfilesTab: React.FC<{
                   }
                 }}
                 className="a4n-flat-surface flex min-h-16 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
-                title="查看场景详情"
+                title={t("novel.profile.viewScene")}
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">
-                    {sceneTypeLabel(profile.scene_type)} · {importanceLabel(profile.importance)} · {profileOwnershipLabel(profile.ownership_kind)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
+                    {sceneTypeLabel(profile.scene_type, t)} · {importanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind, t)}
                   </div>
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
-                    {profile.visual_description || profile.base_description || "暂无场景摘要。"}
+                    {profile.visual_description || profile.base_description || t("novel.profile.noSummary")}
                   </p>
                   <div className="mt-1 truncate text-caption text-book-text-muted">
-                    {profile.spatial_layout || profile.atmosphere || "未记录空间布局"}
-                    {profile.occurrence_count > 0 ? ` · ${profile.occurrence_count} 次出场` : ""}
-                    {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
+                    {profile.spatial_layout || profile.atmosphere || t("novel.profile.noLayout")}
+                    {profile.occurrence_count > 0 ? ` · ${t("novel.profile.appearances", { count: profile.occurrence_count })}` : ""}
+                    {profile.generated_image_count > 0 ? ` · ${t("novel.profile.materialImages", { count: profile.generated_image_count })}` : ""}
                   </div>
                 </div>
                 <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
@@ -482,7 +499,7 @@ export const SceneProfilesTab: React.FC<{
         onGenerate={(profile) => void handleGenerateImage(profile)}
         onEdit={(profile) => {
           if (!canEditProfiles) {
-            addToast("只读协作者不能编辑场景档案", "error");
+            addToast(t("novel.profile.readonlyCannot", { operation: t("common.edit"), name: t("novel.profile.scene") }), "error");
             return;
           }
           setEditingProfile(profile);
@@ -521,14 +538,15 @@ function SceneProfileDetailModal({
   busyId: number | null;
   canEdit: boolean;
 }) {
+  const { t } = useI18n();
   const aliases = stringList(profile?.aliases_json);
   const evidence = stringList(profile?.evidence_json);
   return (
     <Modal
       isOpen={profile != null}
       onClose={onClose}
-      title={profile?.name ?? "场景档案"}
-      subtitle={profile ? `${sceneTypeLabel(profile.scene_type)} · ${importanceLabel(profile.importance)}` : undefined}
+      title={profile?.name ?? t("novel.profile.scene")}
+      subtitle={profile ? `${sceneTypeLabel(profile.scene_type, t)} · ${importanceLabel(profile.importance, t)}` : undefined}
       icon={<Map size={15} />}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
@@ -536,21 +554,21 @@ function SceneProfileDetailModal({
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
           <p className="text-small leading-relaxed text-book-text-muted">
-            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
-            {aliases.length > 0 ? ` · 别名：${aliases.join("、")}` : ""}
-            {profile.occurrence_count > 0 ? ` · ${profile.occurrence_count} 次出场` : ""}
-            {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
+            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind, t)}
+            {aliases.length > 0 ? ` · ${t("novel.profile.aliasesSummary", { value: aliases.join(", ") })}` : ""}
+            {profile.occurrence_count > 0 ? ` · ${t("novel.profile.appearances", { count: profile.occurrence_count })}` : ""}
+            {profile.generated_image_count > 0 ? ` · ${t("novel.profile.materialImages", { count: profile.generated_image_count })}` : ""}
           </p>
           <dl className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
-            <DetailRow label="资料来源" value={profileOwnershipLabel(profile.ownership_kind)} />
-            <DetailRow label="基础定义" value={profile.base_description} />
-            <DetailRow label="视觉特征" value={profile.visual_description} />
-            <DetailRow label="空间布局" value={profile.spatial_layout} />
-            <DetailRow label="氛围" value={profile.atmosphere} />
-            <JsonRow label="出入口" value={profile.entry_points_json} />
-            <JsonRow label="规则" value={profile.rules_json} />
-            <JsonRow label="当前状态" value={profile.current_state_json} />
-            <DetailRow label="图像描述" value={profile.image_prompt_seed} />
+            <DetailRow label={t("novel.profile.source")} value={profileOwnershipLabel(profile.ownership_kind, t)} />
+            <DetailRow label={t("novel.profile.baseDefinition")} value={profile.base_description} />
+            <DetailRow label={t("novel.profile.visualDescription")} value={profile.visual_description} />
+            <DetailRow label={t("novel.profile.spatialLayout")} value={profile.spatial_layout} />
+            <DetailRow label={t("novel.profile.atmosphere")} value={profile.atmosphere} />
+            <JsonRow label={t("novel.profile.entryPoints")} value={profile.entry_points_json} />
+            <JsonRow label={t("novel.profile.rules")} value={profile.rules_json} />
+            <JsonRow label={t("novel.profile.currentState")} value={profile.current_state_json} />
+            <DetailRow label={t("novel.profile.imageDescription")} value={profile.image_prompt_seed} />
           </dl>
           <ProfileEvidence items={evidence} />
           {canEdit && (
@@ -582,6 +600,7 @@ function SceneProfileEditModal({
   onSave: (input: SceneProfileInput) => Promise<void>;
 }) {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [draft, setDraft] = useState<SceneProfileInput>(emptySceneProfileInput());
   const [saving, setSaving] = useState(false);
 
@@ -599,7 +618,7 @@ function SceneProfileEditModal({
   const submit = async () => {
     const validationError = validateSceneProfileDraft(draft);
     if (validationError) {
-      addToast(validationError, "error");
+      addToast(t(validationError), "error");
       return;
     }
     setSaving(true);
@@ -614,7 +633,7 @@ function SceneProfileEditModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={profile === "new" ? "新建场景档案" : "编辑场景档案"}
+      title={profile === "new" ? t("novel.profile.createScene") : t("novel.profile.editScene")}
       icon={<Map size={15} />}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
@@ -627,32 +646,32 @@ function SceneProfileEditModal({
           disabled={busy || saving || !draft.name.trim()}
         >
           {saving ? <LoadingSpinner size="sm" /> : null}
-          保存
+          {t("common.save")}
         </BookButton>
       }
     >
       <fieldset disabled={busy || saving} className="grid gap-3 text-xs disabled:opacity-75">
         <p className="text-caption leading-relaxed text-book-text-muted">
-          只需名称即可保存；空白字段可在后续手工补充或由章节分析补齐。尚未确定出场章节时可保留默认值。
+          {t("novel.profile.appearanceHint")}
         </p>
         <div className="grid gap-2 md:grid-cols-2">
-          <TextField label="名称" value={draft.name} onChange={(value) => update("name", value)} />
+          <TextField label={t("novel.profile.name")} value={draft.name} onChange={(value) => update("name", value)} />
           <SelectField
-            label="类型"
+            label={t("novel.profile.sceneType")}
             value={draft.scene_type}
             options={SCENE_TYPE_OPTIONS}
-            labels={SCENE_TYPE_INPUT_LABELS}
+            labels={sceneTypeInputLabels(t)}
             onChange={(value) => update("scene_type", value)}
           />
           <SelectField
-            label="重要性"
+            label={t("novel.profile.importance")}
             value={draft.importance}
             options={IMPORTANCE_OPTIONS}
-            labels={IMPORTANCE_INPUT_LABELS}
+            labels={importanceInputLabels(t)}
             onChange={(value) => update("importance", value)}
           />
           <label className="flex flex-col gap-1">
-            <span className="text-book-text-muted">上级场景</span>
+            <span className="text-book-text-muted">{t("novel.profile.parentScene")}</span>
             <select
               value={draft.parent_scene_id ?? ""}
               onChange={(event) =>
@@ -663,7 +682,7 @@ function SceneProfileEditModal({
               }
               className="pyqt-input"
             >
-              <option value="">无</option>
+              <option value="">{t("novel.profile.noParent")}</option>
               {profiles
                 .filter((item) => profile === "new" || item.id !== profile.id)
                 .map((item) => (
@@ -674,48 +693,48 @@ function SceneProfileEditModal({
             </select>
           </label>
           <NumberField
-            label="首次章节"
+            label={t("novel.profile.firstChapter")}
             value={draft.first_seen_chapter}
             onChange={(value) => update("first_seen_chapter", value)}
           />
           <NumberField
-            label="最近章节"
+            label={t("novel.profile.lastChapter")}
             value={draft.last_seen_chapter}
             onChange={(value) => update("last_seen_chapter", value)}
           />
         </div>
         <TextAreaField
-          label="别名"
+          label={t("novel.profile.aliases")}
           value={(draft.aliases ?? []).join("\n")}
           onChange={(value) => update("aliases", splitLines(value))}
         />
         <TextAreaField
-          label="基础定义"
+          label={t("novel.profile.baseDefinition")}
           value={draft.base_description}
           onChange={(value) => update("base_description", value)}
         />
         <TextAreaField
-          label="视觉特征"
+          label={t("novel.profile.visualDescription")}
           value={draft.visual_description}
           onChange={(value) => update("visual_description", value)}
         />
         <TextAreaField
-          label="空间布局"
+          label={t("novel.profile.spatialLayout")}
           value={draft.spatial_layout}
           onChange={(value) => update("spatial_layout", value)}
         />
         <TextAreaField
-          label="氛围"
+          label={t("novel.profile.atmosphere")}
           value={draft.atmosphere}
           onChange={(value) => update("atmosphere", value)}
         />
         <TextAreaField
-          label="证据"
+          label={t("novel.profile.evidence")}
           value={(draft.evidence ?? []).join("\n")}
           onChange={(value) => update("evidence", splitLines(value))}
         />
         <TextAreaField
-          label="图像描述"
+          label={t("novel.profile.imageDescription")}
           value={draft.image_prompt_seed}
           onChange={(value) => update("image_prompt_seed", value)}
         />
@@ -725,16 +744,17 @@ function SceneProfileEditModal({
 }
 
 function JsonRow({ label, value }: { label: string; value: unknown }) {
+  const { t } = useI18n();
   const text = formatJson(value);
   if (!text) return null;
   return (
     <div className="px-3 py-2.5 sm:grid sm:grid-cols-[96px_minmax(0,1fr)] sm:gap-3">
       <dt className="text-small font-medium text-book-text-muted">{label}</dt>
       <dd className="mt-1 min-w-0 text-small leading-relaxed text-book-text-sub sm:mt-0">
-        <div>{formatStructuredSummary(value)}</div>
+        <div>{formatStructuredSummary(value, t)}</div>
         <details className="mt-1 text-caption text-book-text-muted">
           <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
-            诊断信息
+            {t("novel.profile.diagnostics")}
           </summary>
           <pre className="mt-1 whitespace-pre-wrap break-words rounded-[10px] bg-book-bg-tertiary/50 px-2 py-2 font-mono leading-relaxed text-book-text-sub">
             {text}
@@ -745,36 +765,44 @@ function JsonRow({ label, value }: { label: string; value: unknown }) {
   );
 }
 
-const STRUCTURED_FIELD_LABELS: Record<string, string> = {
-  name: "名称",
-  title: "名称",
-  type: "类型",
-  description: "说明",
-  direction: "方向",
-  condition: "条件",
-  rule: "规则",
-  status: "状态",
-  value: "内容",
+const STRUCTURED_FIELD_LABELS: Record<string, MessageKey> = {
+  name: "novel.profile.name",
+  title: "novel.profile.name",
+  type: "novel.profile.type",
+  description: "novel.profile.structuredField.description",
+  direction: "novel.profile.structuredField.direction",
+  condition: "novel.profile.structuredField.condition",
+  rule: "novel.profile.structuredField.rule",
+  status: "novel.profile.structuredField.status",
+  value: "novel.profile.structuredField.value",
 };
 
-function formatStructuredSummary(value: unknown, depth = 0): string {
-  if (value == null) return "未记录";
-  if (typeof value === "string") return value.trim() || "未记录";
+function formatStructuredSummary(
+  value: unknown,
+  t: MessageTranslator,
+): string {
+  if (value == null) return t("novel.notRecorded");
+  if (typeof value === "string") return value.trim() || t("novel.notRecorded");
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
-    const rows = value.map((item) => formatStructuredSummary(item, depth + 1)).filter(Boolean);
-    return rows.length > 0 ? rows.join("；") : "未记录";
+    const rows = value
+      .map((item) => formatStructuredSummary(item, t))
+      .filter(Boolean);
+    return rows.length > 0 ? rows.join(t("common.summarySeparator")) : t("novel.notRecorded");
   }
   if (typeof value === "object") {
     const entries = Object.entries(value as Record<string, unknown>);
-    if (entries.length === 0) return "未记录";
+    if (entries.length === 0) return t("novel.notRecorded");
     return entries
       .slice(0, 8)
       .map(([key, item]) => {
-        const itemText = formatStructuredSummary(item, depth + 1);
-        return `${STRUCTURED_FIELD_LABELS[key] ?? "信息"}：${itemText}`;
+        const itemText = formatStructuredSummary(item, t);
+        const fieldLabel = STRUCTURED_FIELD_LABELS[key]
+          ? t(STRUCTURED_FIELD_LABELS[key])
+          : t("novel.profile.structuredField.info");
+        return `${fieldLabel}: ${itemText}`;
       })
-      .join("；");
+      .join(t("common.summarySeparator"));
   }
   return String(value);
 }
@@ -832,16 +860,16 @@ function sceneProfileToInput(profile: SceneProfile): SceneProfileInput {
   };
 }
 
-export function validateSceneProfileDraft(draft: SceneProfileInput): string | null {
-  if (!draft.name.trim()) return "场景名称不能为空";
+export function validateSceneProfileDraft(draft: SceneProfileInput): MessageKey | null {
+  if (!draft.name.trim()) return "novel.profile.sceneNameRequired";
   if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
-    return "场景首次出现章节必须是正整数";
+    return "novel.profile.firstChapterPositive";
   }
   if (!Number.isInteger(draft.last_seen_chapter) || draft.last_seen_chapter <= 0) {
-    return "场景最近出现章节必须是正整数";
+    return "novel.profile.lastChapterPositive";
   }
   if (draft.last_seen_chapter < draft.first_seen_chapter) {
-    return "场景最近出现章节不能早于首次出现章节";
+    return "novel.profile.chapterRangeInvalid";
   }
   return null;
 }

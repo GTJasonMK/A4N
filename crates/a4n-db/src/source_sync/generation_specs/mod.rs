@@ -13,7 +13,6 @@ pub(in crate::source_sync) use prompt_artifacts::{
     insert_manual_source_sync_prompt_artifact_record,
     render_and_insert_source_sync_prompt_artifact_record,
 };
-pub(in crate::source_sync) use references::source_snapshot_chapter_for_source;
 pub use references::{
     SourceSyncAnchorMappingRecord, SourceSyncEntityRefRecordInput, SourceSyncMediaRefRecordInput,
     SourceSyncTextAnchorRefRecordInput,
@@ -22,6 +21,9 @@ pub(in crate::source_sync) use references::{
     generation_spec_for_source_sync_run, insert_generation_spec_ref_records,
     rebind_generation_spec_anchor_records, replace_generation_spec_ref_records,
     update_generation_spec_params_record, update_generation_spec_to_snapshot_record,
+};
+pub(in crate::source_sync) use references::{
+    source_snapshot_chapter_for_source, source_snapshot_chapter_id_for_source,
 };
 pub(in crate::source_sync) use replacement::create_source_sync_replacement_spec_record;
 pub use replacement::{

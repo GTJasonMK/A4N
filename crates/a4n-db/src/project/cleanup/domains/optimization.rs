@@ -4,7 +4,7 @@ use a4n_core::models::ai::{
     optimization_patch, optimization_patch_set, optimization_session, optimization_session_message,
     optimization_turn, optimization_turn_event,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn delete_project_optimization_tree<C>(
     db: &C,
@@ -16,33 +16,33 @@ where
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectCleanupDbError::InvalidArgument)?;
     let session_ids = optimization_session::Entity::find()
+        .select_only()
+        .column(optimization_session::Column::Id)
         .filter(optimization_session::Column::ProjectId.eq(project_id))
+        .into_tuple::<i64>()
         .all(db)
-        .await?
-        .into_iter()
-        .map(|row| row.id)
-        .collect::<Vec<_>>();
+        .await?;
     let turn_ids = if session_ids.is_empty() {
         Vec::new()
     } else {
         optimization_turn::Entity::find()
+            .select_only()
+            .column(optimization_turn::Column::Id)
             .filter(optimization_turn::Column::SessionId.is_in(session_ids.clone()))
+            .into_tuple::<i64>()
             .all(db)
             .await?
-            .into_iter()
-            .map(|row| row.id)
-            .collect::<Vec<_>>()
     };
     let patch_set_ids = if session_ids.is_empty() {
         Vec::new()
     } else {
         optimization_patch_set::Entity::find()
+            .select_only()
+            .column(optimization_patch_set::Column::Id)
             .filter(optimization_patch_set::Column::SessionId.is_in(session_ids.clone()))
+            .into_tuple::<i64>()
             .all(db)
             .await?
-            .into_iter()
-            .map(|row| row.id)
-            .collect::<Vec<_>>()
     };
 
     let deleted_patches = if patch_set_ids.is_empty() {

@@ -1,8 +1,9 @@
 use super::{
-    CanvasNodeRefKind, FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD, VideoStudioMediaFileEntry,
-    empty_payload, media_asset_with_file, media_file_key, package, validate_media_entry_bytes,
+    CanvasNodeRefKind, FILE_PATH_FIELD, MediaFileEntry, THUMBNAIL_PATH_FIELD, empty_payload,
+    media_asset_with_file, media_file_key, package, validate_media_entry_bytes,
     validate_package_manifest, video_with_file,
 };
+use crate::project::video_studio_package::MediaEntryOwnerIndex;
 
 #[test]
 fn validate_video_studio_manifest_rejects_missing_generated_video_file_payload() {
@@ -70,7 +71,7 @@ fn validate_video_studio_manifest_accepts_generated_video_media_payloads() {
         (FILE_PATH_FIELD, video.file_path.clone().unwrap()),
         (THUMBNAIL_PATH_FIELD, video.thumbnail_path.clone().unwrap()),
     ] {
-        let entry = VideoStudioMediaFileEntry {
+        let entry = MediaFileEntry {
             owner_kind: CanvasNodeRefKind::GeneratedVideo.as_str().to_string(),
             owner_id: video.id,
             field: field.to_string(),
@@ -123,7 +124,7 @@ fn validate_media_entry_bytes_rejects_generated_video_file_size_mismatch() {
     let mut package = package();
     let video = video_with_file();
     package.generated_videos.push(video.clone());
-    let entry = VideoStudioMediaFileEntry {
+    let entry = MediaFileEntry {
         owner_kind: CanvasNodeRefKind::GeneratedVideo.as_str().to_string(),
         owner_id: video.id,
         field: FILE_PATH_FIELD.to_string(),
@@ -143,7 +144,7 @@ fn validate_media_entry_bytes_rejects_media_asset_checksum_mismatch() {
     let mut package = package();
     let asset = media_asset_with_file(b"expected bytes");
     package.media_assets.push(asset.clone());
-    let entry = VideoStudioMediaFileEntry {
+    let entry = MediaFileEntry {
         owner_kind: CanvasNodeRefKind::MediaAsset.as_str().to_string(),
         owner_id: asset.id,
         field: FILE_PATH_FIELD.to_string(),
@@ -156,4 +157,24 @@ fn validate_media_entry_bytes_rejects_media_asset_checksum_mismatch() {
 
     assert!(err.contains("checksum 与清单不一致"));
     assert!(err.contains("owner_kind=media_asset"));
+}
+
+#[test]
+fn media_entry_owner_index_preserves_first_duplicate_record() {
+    let mut package = package();
+    let first = video_with_file();
+    let mut second = first.clone();
+    second.file_path = Some("projects/1/videos/second.mp4".to_string());
+    package.generated_videos.extend([first.clone(), second]);
+    let entry = MediaFileEntry {
+        owner_kind: CanvasNodeRefKind::GeneratedVideo.as_str().to_string(),
+        owner_id: first.id,
+        field: FILE_PATH_FIELD.to_string(),
+        original_path: first.file_path.unwrap(),
+        package_path: "media/generated_video/10/file.mp4".to_string(),
+    };
+
+    MediaEntryOwnerIndex::new(&package)
+        .validate_owner(&entry)
+        .expect("索引必须保持原线性查找的首条记录语义");
 }

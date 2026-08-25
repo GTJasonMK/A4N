@@ -2,15 +2,20 @@ use a4n_core::models::{
     character::{attribute_event, character_state_index, protagonist_profile},
     project::{blueprint_character, blueprint_relationship},
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 
 pub async fn blueprint_characters_for_rag_search(
     db: &impl ConnectionTrait,
     project_id: i64,
-) -> Result<Vec<blueprint_character::Model>, DbErr> {
+) -> Result<Vec<String>, DbErr> {
     blueprint_character::Entity::find()
+        .select_only()
+        .column(blueprint_character::Column::Name)
         .filter(blueprint_character::Column::ProjectId.eq(project_id))
         .order_by_asc(blueprint_character::Column::Id)
+        .into_tuple::<String>()
         .all(db)
         .await
 }

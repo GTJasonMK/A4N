@@ -1,9 +1,12 @@
 mod access;
-mod contracts;
 mod models;
 mod redaction;
 mod scope;
 
+pub use a4n_api_contract::runtime_config::{
+    RuntimeConfigSnapshot, RuntimeEmbeddingConfig, RuntimeImageConfig, RuntimeLlmConfig,
+    RuntimeVideoConfig,
+};
 pub use access::{
     current_embedding_model, current_image_model, current_image_model_for_id,
     current_image_snapshot_scope_present, current_llm_max_tokens, current_llm_model,
@@ -13,10 +16,6 @@ pub use access::{
     current_video_snapshot_scope_present, uses_client_desktop_embedding,
     uses_system_default_image_template, uses_system_default_llm_template,
     uses_system_default_video_template,
-};
-pub use contracts::{
-    RuntimeConfigSnapshot, RuntimeEmbeddingConfig, RuntimeImageConfig, RuntimeLlmConfig,
-    RuntimeVideoConfig,
 };
 pub use redaction::{redacted_current_snapshot_value, redacted_snapshot_value};
 pub use scope::{request_scope, scope, snapshot_from_args};

@@ -1,36 +1,70 @@
 use super::generic::{lineage_ref, optional_prompt_sources, prompt_source};
 use super::json_records::db_record_result;
+use crate::project_dependency_graph::helpers::prompt_type_str_in;
 use crate::project_dependency_graph::{
     AssetLineageRecord, PromptSource, VIDEO_FRAME_PROMPT_TYPES, VIDEO_SEGMENT_PLAN_PROMPT_TYPES,
 };
-use crate::project_dependency_graph::helpers::prompt_type_str_in;
 use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_domain::GeneratedMediaReference;
+use sea_orm::FromQueryResult;
 use serde_json::Value;
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct VideoPromptSourceRecord {
+    pub id: i64,
+    pub visual_prompt: String,
+    pub motion_prompt: Option<String>,
+    pub negative_prompt: Option<String>,
+}
 
 pub(in crate::project_dependency_graph) fn video_prompt_sources(
     prompt: &chapter_video_prompt::Model,
 ) -> Vec<PromptSource> {
+    video_prompt_sources_from_fields(
+        prompt.id,
+        &prompt.visual_prompt,
+        prompt.motion_prompt.as_deref(),
+        prompt.negative_prompt.as_deref(),
+    )
+}
+
+pub(in crate::project_dependency_graph) fn video_prompt_sources_from_record(
+    prompt: &VideoPromptSourceRecord,
+) -> Vec<PromptSource> {
+    video_prompt_sources_from_fields(
+        prompt.id,
+        &prompt.visual_prompt,
+        prompt.motion_prompt.as_deref(),
+        prompt.negative_prompt.as_deref(),
+    )
+}
+
+fn video_prompt_sources_from_fields(
+    id: i64,
+    visual_prompt: &str,
+    motion_prompt: Option<&str>,
+    negative_prompt: Option<&str>,
+) -> Vec<PromptSource> {
     optional_prompt_sources(vec![
         prompt_source(
-            &format!("chapter_video_visual_prompt:{}", prompt.id),
+            &format!("chapter_video_visual_prompt:{id}"),
             "video_visual_prompt",
-            Some(&prompt.visual_prompt),
-            Some(prompt.id),
+            Some(visual_prompt),
+            Some(id),
             None,
         ),
         prompt_source(
-            &format!("chapter_video_motion_prompt:{}", prompt.id),
+            &format!("chapter_video_motion_prompt:{id}"),
             "video_motion_prompt",
-            prompt.motion_prompt.as_deref(),
-            Some(prompt.id),
+            motion_prompt,
+            Some(id),
             None,
         ),
         prompt_source(
-            &format!("chapter_video_negative_prompt:{}", prompt.id),
+            &format!("chapter_video_negative_prompt:{id}"),
             "video_negative_prompt",
-            prompt.negative_prompt.as_deref(),
-            Some(prompt.id),
+            negative_prompt,
+            Some(id),
             None,
         ),
     ])
@@ -93,28 +127,4 @@ pub(in crate::project_dependency_graph) fn video_prompt_asset_kind(
     } else {
         "chapter_video_prompt"
     }
-}
-
-pub(in crate::project_dependency_graph) fn generated_video_prompt_id(
-    metadata: Option<&Value>,
-) -> Option<i64> {
-    let metadata = metadata?;
-    metadata
-        .get("prompt_id")
-        .and_then(Value::as_i64)
-        .or_else(|| {
-            metadata
-                .get("metadata")
-                .and_then(Value::as_object)
-                .and_then(|value| value.get("prompt_id"))
-                .and_then(Value::as_i64)
-        })
-        .or_else(|| {
-            metadata
-                .get("generation_context")
-                .and_then(Value::as_object)
-                .and_then(|context| context.get("prompt_id"))
-                .and_then(Value::as_i64)
-        })
-        .filter(|id| *id > 0)
 }

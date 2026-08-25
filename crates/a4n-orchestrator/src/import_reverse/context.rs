@@ -5,9 +5,6 @@ mod project;
 #[cfg(test)]
 mod test_support;
 
-use a4n_core::import_reverse::{
-    ReverseContentRequest, ReverseContextKind, required_reverse_context_limit,
-};
 use a4n_core::source_spans::source_text_hash;
 use a4n_db::import_reverse::ReverseContextRows;
 use serde_json::json;
@@ -15,12 +12,26 @@ use serde_json::json;
 use self::blueprint::has_blueprint_source;
 use self::project::project_reverse_context;
 
-pub fn resolve_reverse_content_sample(
-    input: ReverseContentRequest<'_>,
-    kind: ReverseContextKind,
-    rows: Option<&ReverseContextRows>,
-) -> Result<String, String> {
-    resolve_reverse_content_sample_with_provenance(input, kind, rows).map(|(content, _)| content)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ReverseContextKind {
+    Blueprint,
+    Outline,
+    PartOutline,
+}
+
+#[derive(Debug, Clone)]
+pub(super) struct ReverseContentRequest<'a> {
+    pub(super) project_id: i64,
+    pub(super) manual_sample: &'a str,
+    pub(super) auto_context: bool,
+    pub(super) context_limit: Option<usize>,
+}
+
+fn required_reverse_context_limit(limit: Option<usize>) -> Result<usize, String> {
+    match limit {
+        Some(limit) if limit > 0 => Ok(limit),
+        _ => Err("启用项目上下文时必须提供 context_limit 且大于 0".to_string()),
+    }
 }
 
 pub(super) fn resolve_reverse_content_sample_with_provenance(
@@ -60,4 +71,30 @@ pub(super) fn resolve_reverse_content_sample_with_provenance(
     serde_json::to_string_pretty(&context)
         .map(|content| (content, Some(source_fingerprint)))
         .map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::required_reverse_context_limit;
+
+    #[test]
+    fn context_limit_requires_explicit_value() {
+        let err = required_reverse_context_limit(None).unwrap_err();
+
+        assert!(err.contains("context_limit"));
+    }
+
+    #[test]
+    fn context_limit_rejects_zero() {
+        let err = required_reverse_context_limit(Some(0)).unwrap_err();
+
+        assert!(err.contains("大于 0"));
+    }
+
+    #[test]
+    fn context_limit_accepts_positive_value() {
+        let limit = required_reverse_context_limit(Some(50)).unwrap();
+
+        assert_eq!(limit, 50);
+    }
 }

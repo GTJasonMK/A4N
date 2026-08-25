@@ -128,6 +128,64 @@ fn video_read_ids_and_frame_numbers_reject_non_positive_values() {
     assert!(validate_positive_video_ids(&[], "prompt_ids").is_ok());
 }
 
+#[tokio::test]
+async fn timeline_prompt_query_returns_the_timeline_projection() {
+    let db = setup_db().await;
+    let project = freeform_video_project(&db, "时间线提示词窄读").await;
+    let chapter = video_test_chapter(&db, project.id).await;
+    let now = Utc::now().naive_utc();
+    chapter_video_prompt::ActiveModel {
+        project_id: Set(project.id),
+        chapter_id: Set(chapter.id),
+        style: Set(Some("cinematic".to_string())),
+        prompt_type: Set(chapter_video_prompt::PROMPT_TYPE_VIDEO.to_string()),
+        workflow_mode: Set(chapter_video_prompt::WORKFLOW_MODE_STORYBOARD.to_string()),
+        shot_number: Set(1),
+        title: Set(Some("时间线镜头".to_string())),
+        scene_summary: Set(Some("场景摘要".to_string())),
+        visual_prompt: Set("视觉提示词".to_string()),
+        motion_prompt: Set(Some("运动提示词".to_string())),
+        negative_prompt: Set(Some("无关字段".to_string())),
+        duration_secs: Set(5),
+        aspect_ratio: Set(Some("16:9".to_string())),
+        reference_image_ids_json: Set(Some(json!([1]))),
+        status: Set(chapter_video_prompt::STATUS_COMPLETED.to_string()),
+        generated_video_id: Set(Some(99)),
+        metadata_json: Set(Some(json!({
+            "ignored": "timeline projection",
+            "prompt_output_language": "zh_cn"
+        }))),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
+
+    let rows = chapter_video_prompt_timeline_records_for_chapter(&db, project.id, chapter.id)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        rows[0],
+        ChapterVideoPromptTimelineRecord {
+            id: rows[0].id,
+            generated_video_id: Some(99),
+            title: Some("时间线镜头".to_string()),
+            scene_summary: Some("场景摘要".to_string()),
+            visual_prompt: "视觉提示词".to_string(),
+            motion_prompt: Some("运动提示词".to_string()),
+        }
+    );
+    assert_eq!(
+        chapter_video_prompt_video_binding_records_for_chapter(&db, project.id, chapter.id)
+            .await
+            .unwrap(),
+        vec![(rows[0].id, Some(99))]
+    );
+}
+
 #[test]
 fn video_database_error_keeps_db_source() {
     let error = VideoDbError::Database(DbErr::Custom("fixture failure".to_string()));
@@ -259,7 +317,7 @@ async fn delete_generated_image_clears_every_segment_recipe_image_reference() {
             user_id: 1,
             title: "片段方案图片引用删除测试".to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -284,9 +342,10 @@ async fn delete_generated_image_clears_every_segment_recipe_image_reference() {
     let image = create_generated_image_record(
         &db,
         CreateGeneratedImageRecordDraftInput {
-            project_id: project.id,
+            // A derived video prompt is allowed to reference a root-project image.
+            project_id: root.id,
             image_type: "video_reference".to_string(),
-            file_path: format!("projects/{}/images/recipe-reference.png", project.id),
+            file_path: format!("projects/{}/images/recipe-reference.png", root.id),
             prompt: "recipe reference".to_string(),
             model: "test".to_string(),
             width: 512,
@@ -452,6 +511,141 @@ async fn delete_generated_video_with_cleanup_records_video_and_thumbnail_paths()
         .unwrap()
         .expect("视频记录删除必须留下文件 cleanup intent");
     assert_eq!(intent.payload_json["paths"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn delete_generated_video_rebinds_prompt_to_completed_candidate() {
+    let db = setup_db().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "视频引用批量候选".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let chapter = video_test_chapter(&db, project.id).await;
+    let prompt = shared_segment_plan(&db, project.id, chapter.id, "replacement").await;
+    let video_input = |metadata| CreateGeneratedVideoRecordDraftInput {
+        project_id: project.id,
+        chapter_id: Some(chapter.id),
+        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+        workflow_mode: Some("boundary_frames".to_string()),
+        prompt: "replacement candidate".to_string(),
+        negative_prompt: None,
+        model: "test-model".to_string(),
+        width: 1280,
+        height: 720,
+        duration_secs: 5.0,
+        fps: 24,
+        source_video_id: None,
+        source_image_id: None,
+        provider_job_id: None,
+        metadata_json: Some(metadata),
+    };
+    let deleted = create_generated_video_record(&db, video_input(json!({"prompt_id": prompt.id})))
+        .await
+        .unwrap();
+    let candidate =
+        create_generated_video_record(&db, video_input(json!({"prompt_id": prompt.id})))
+            .await
+            .unwrap();
+    mark_generated_video_completed_and_link_prompt_record(
+        &db,
+        deleted.id,
+        &format!("projects/{}/videos/deleted.mp4", project.id),
+        None,
+        1024,
+        None,
+        Some(prompt.id),
+    )
+    .await
+    .unwrap();
+    mark_generated_video_completed_and_link_prompt_record(
+        &db,
+        candidate.id,
+        &format!("projects/{}/videos/candidate.mp4", project.id),
+        None,
+        1024,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    delete_generated_video_record_with_cleanup(&db, deleted.id)
+        .await
+        .unwrap();
+
+    let prompt = chapter_video_prompt::Entity::find_by_id(prompt.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(prompt.generated_video_id, Some(candidate.id));
+    assert_eq!(prompt.status, chapter_video_prompt::STATUS_COMPLETED);
+}
+
+#[tokio::test]
+async fn batch_error_status_updates_many_videos_in_one_contract() {
+    let db = setup_db().await;
+    let project = freeform_video_project(&db, "批量终止视频状态").await;
+    let mut videos = Vec::new();
+    for index in 0..20 {
+        videos.push(
+            create_generated_video_record(
+                &db,
+                CreateGeneratedVideoRecordDraftInput {
+                    project_id: project.id,
+                    chapter_id: None,
+                    video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+                    workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
+                    prompt: format!("batch-{index}"),
+                    negative_prompt: None,
+                    model: "test".to_string(),
+                    width: 1280,
+                    height: 720,
+                    duration_secs: 1.0,
+                    fps: 24,
+                    source_video_id: None,
+                    source_image_id: None,
+                    provider_job_id: (index % 2 == 0).then(|| format!("job-{index}")),
+                    metadata_json: None,
+                },
+            )
+            .await
+            .unwrap(),
+        );
+    }
+    let inputs = videos
+        .iter()
+        .map(|video| GeneratedVideoErrorStatusBatchInput {
+            video_id: video.id,
+            prompt_id: None,
+            status: generated_video::STATUS_INTERRUPTED.to_string(),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        mark_generated_videos_error_status_and_prompt_records(&db, &inputs, "批量取消测试",)
+            .await
+            .unwrap(),
+        Vec::<i64>::new()
+    );
+    let stored = generated_videos_by_ids(
+        &db,
+        &videos.iter().map(|video| video.id).collect::<Vec<_>>(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(stored.len(), 20);
+    assert!(
+        stored
+            .iter()
+            .all(|video| video.status == generated_video::STATUS_INTERRUPTED)
+    );
 }
 
 #[tokio::test]

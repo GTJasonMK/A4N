@@ -1,4 +1,5 @@
 import type { ChapterOutline, PartOutline } from "../../../api/outline";
+import type { MessageTranslator } from "../../../i18n";
 import { nonEmptyText } from "../../../utils/text";
 
 export type NumberInputValue = number | "";
@@ -18,14 +19,19 @@ export const DELETE_LATEST_CHAPTER_OUTLINES_ACTION =
 export const deleteChapterOutlinesFromAction = (outlineId: number): string =>
   `delete-chapter-outlines-from-${outlineId}`;
 
-export const partHeading = (part: PartOutline): string => {
+export const partHeading = (part: PartOutline, t: MessageTranslator): string => {
   const title = nonEmptyText(part.title);
-  return title ? `第 ${part.part_number} 部：${title}` : `第 ${part.part_number} 部`;
+  const heading = t("outline.partSection.part", { part: part.part_number });
+  return title ? `${heading}：${title}` : heading;
 };
 
-export const chapterOutlineHeading = (outline: ChapterOutline): string => {
+export const chapterOutlineHeading = (
+  outline: ChapterOutline,
+  t: MessageTranslator,
+): string => {
   const title = nonEmptyText(outline.title);
-  return title
-    ? `第 ${outline.chapter_number} 章：${title}`
-    : `第 ${outline.chapter_number} 章`;
+  const heading = t("outline.chapterSection.chapter", {
+    chapter: outline.chapter_number,
+  });
+  return title ? `${heading}：${title}` : heading;
 };

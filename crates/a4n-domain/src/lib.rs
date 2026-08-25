@@ -6,6 +6,7 @@
 pub mod admin;
 pub mod auth;
 pub mod canvas;
+pub mod chapter_visual_plan;
 pub mod character;
 pub mod collaboration;
 pub mod embedding;
@@ -20,6 +21,7 @@ pub mod progress;
 pub mod project;
 pub mod shooting_script;
 pub mod source_sync;
+pub mod video;
 
 pub use canvas::{
     CanvasFrameKind, CanvasNodeRefKind, GeneratedMediaReference, GeneratedMediaReferenceParseError,
@@ -47,7 +49,270 @@ pub enum ThemeMode {
     Dark,
 }
 
-pub type ThemeCssVariables = BTreeMap<String, String>;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeAppearance {
+    System,
+    Light,
+    Dark,
+}
+
+pub const THEME_DOCUMENT_VERSION: u16 = 1;
+pub const THEME_GLOBAL_ROUTE_FAMILY: &str = "global";
+pub const THEME_ROUTE_FAMILIES: &[&str] = &[
+    THEME_GLOBAL_ROUTE_FAMILY,
+    "home",
+    "inspiration",
+    "novel_detail",
+    "writing_desk",
+    "video_workspace",
+    "video_studio",
+    "comic_workspace",
+    "galgame_workspace",
+    "settings",
+    "agents",
+];
+
+/// The only tokens that may be supplied by a user theme. Values are still
+/// validated at the API boundary; this list prevents arbitrary CSS injection.
+pub const THEME_TOKEN_NAMES: &[&str] = &[
+    "--color-primary",
+    "--color-primary-light",
+    "--color-primary-dark",
+    "--color-primary-pale",
+    "--color-accent",
+    "--color-accent-light",
+    "--color-accent-dark",
+    "--color-accent-pale",
+    "--color-text-primary",
+    "--color-text-secondary",
+    "--color-text-tertiary",
+    "--color-text-placeholder",
+    "--color-text-disabled",
+    "--color-bg-primary",
+    "--color-bg-secondary",
+    "--color-bg-tertiary",
+    "--color-bg-card-hover",
+    "--color-bg-muted",
+    "--color-bg-accent",
+    "--color-border",
+    "--color-border-light",
+    "--color-border-dark",
+    "--status-success",
+    "--status-success-bg",
+    "--status-error",
+    "--status-error-bg",
+    "--status-warning",
+    "--status-warning-bg",
+    "--status-info",
+    "--status-info-bg",
+    "--color-button-text",
+    "--color-button-text-secondary",
+    "--shadow-card",
+    "--shadow-card-hover",
+    "--shadow-overlay",
+    "--font-sans",
+    "--font-serif",
+    "--font-mono",
+    "--pyqt-radius-xs",
+    "--pyqt-radius-sm",
+    "--pyqt-radius-md",
+    "--pyqt-radius-lg",
+    "--pyqt-radius-xl",
+    "--a4n-workspace-opacity",
+    "--a4n-panel-opacity",
+    "--a4n-toolbar-opacity",
+    "--a4n-card-opacity",
+    "--a4n-control-opacity",
+    "--a4n-dialog-opacity",
+    "--a4n-surface-blur",
+    "--a4n-shadow-strength",
+];
+
+const THEME_OPACITY_TOKEN_NAMES: &[&str] = &[
+    "--a4n-workspace-opacity",
+    "--a4n-panel-opacity",
+    "--a4n-toolbar-opacity",
+    "--a4n-card-opacity",
+    "--a4n-control-opacity",
+    "--a4n-dialog-opacity",
+];
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeBackgroundSettings {
+    #[serde(default)]
+    pub resource_key: Option<String>,
+    #[serde(default = "default_background_opacity")]
+    pub opacity: f32,
+    #[serde(default = "default_background_overlay")]
+    pub overlay: String,
+    #[serde(default = "default_background_overlay_opacity")]
+    pub overlay_opacity: f32,
+    #[serde(default)]
+    pub blur_px: f32,
+    #[serde(default = "default_background_position")]
+    pub position: String,
+    #[serde(default = "default_background_size")]
+    pub size: String,
+}
+
+impl Default for ThemeBackgroundSettings {
+    fn default() -> Self {
+        Self {
+            resource_key: None,
+            opacity: default_background_opacity(),
+            overlay: default_background_overlay(),
+            overlay_opacity: default_background_overlay_opacity(),
+            blur_px: 0.0,
+            position: default_background_position(),
+            size: default_background_size(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeDocument {
+    pub version: u16,
+    #[serde(default)]
+    pub tokens: BTreeMap<String, String>,
+    #[serde(default)]
+    pub backgrounds: BTreeMap<String, ThemeBackgroundSettings>,
+}
+
+impl Default for ThemeDocument {
+    fn default() -> Self {
+        Self {
+            version: THEME_DOCUMENT_VERSION,
+            tokens: BTreeMap::new(),
+            backgrounds: BTreeMap::new(),
+        }
+    }
+}
+
+impl ThemeDocument {
+    /// Export formats without bundled resources keep visual settings without
+    /// leaving references to files that are not part of the export.
+    pub fn without_resource_references(&self) -> Self {
+        let mut document = self.clone();
+        for background in document.backgrounds.values_mut() {
+            background.resource_key = None;
+        }
+        document
+    }
+}
+
+pub fn validate_theme_document(document: &ThemeDocument) -> Result<(), String> {
+    if document.version != THEME_DOCUMENT_VERSION {
+        return Err(format!(
+            "主题文档版本不受支持：{}，当前只支持 {}",
+            document.version, THEME_DOCUMENT_VERSION
+        ));
+    }
+    if document.tokens.len() > 80 {
+        return Err("主题高级 Token 数量不能超过 80 个".to_string());
+    }
+    for (name, value) in &document.tokens {
+        if !THEME_TOKEN_NAMES.contains(&name.as_str()) {
+            return Err(format!("主题 Token 不受支持：{name}"));
+        }
+        validate_theme_css_value(name, value)?;
+    }
+    if document.backgrounds.len() > THEME_ROUTE_FAMILIES.len() {
+        return Err("主题背景配置数量超过允许范围".to_string());
+    }
+    for (route_family, background) in &document.backgrounds {
+        if !THEME_ROUTE_FAMILIES.contains(&route_family.as_str()) {
+            return Err(format!("主题路由族不受支持：{route_family}"));
+        }
+        if let Some(resource_key) = &background.resource_key {
+            if !THEME_ROUTE_FAMILIES.contains(&resource_key.as_str()) {
+                return Err(format!("主题资源标识无效：{resource_key}"));
+            }
+        }
+        validate_fraction("背景透明度", background.opacity)?;
+        validate_fraction("背景遮罩透明度", background.overlay_opacity)?;
+        if !background.blur_px.is_finite() || !(0.0..=40.0).contains(&background.blur_px) {
+            return Err("背景模糊必须在 0 到 40 像素之间".to_string());
+        }
+        if !is_hex_color(&background.overlay) {
+            return Err(format!("背景遮罩颜色无效：{}", background.overlay));
+        }
+        if !matches!(
+            background.position.as_str(),
+            "center" | "top" | "bottom" | "left" | "right"
+        ) {
+            return Err(format!("背景定位不受支持：{}", background.position));
+        }
+        if !matches!(background.size.as_str(), "cover" | "contain" | "auto") {
+            return Err(format!("背景尺寸不受支持：{}", background.size));
+        }
+    }
+    Ok(())
+}
+
+fn validate_theme_css_value(name: &str, value: &str) -> Result<(), String> {
+    let value = value.trim();
+    if value.is_empty() || value.len() > 512 {
+        return Err(format!("主题 Token {name} 的值为空或过长"));
+    }
+    let lower = value.to_ascii_lowercase();
+    if [
+        "url(",
+        "expression(",
+        "@import",
+        "javascript:",
+        "</style",
+        "{",
+        "}",
+        ";",
+    ]
+    .iter()
+    .any(|forbidden| lower.contains(forbidden))
+    {
+        return Err(format!("主题 Token {name} 包含不安全 CSS"));
+    }
+    if THEME_OPACITY_TOKEN_NAMES.contains(&name) {
+        let opacity = value
+            .parse::<f32>()
+            .map_err(|_| format!("主题 Token {name} 必须是 0 到 1 之间的数字"))?;
+        validate_fraction("主题组件透明度", opacity)?;
+    }
+    Ok(())
+}
+
+fn validate_fraction(label: &str, value: f32) -> Result<(), String> {
+    if !value.is_finite() || !(0.0..=1.0).contains(&value) {
+        return Err(format!("{label}必须在 0 到 1 之间"));
+    }
+    Ok(())
+}
+
+fn is_hex_color(value: &str) -> bool {
+    let value = value.strip_prefix('#').unwrap_or_default();
+    matches!(value.len(), 3 | 6 | 8) && value.chars().all(|ch| ch.is_ascii_hexdigit())
+}
+
+fn default_background_opacity() -> f32 {
+    0.22
+}
+
+fn default_background_overlay() -> String {
+    "#000000".to_string()
+}
+
+fn default_background_overlay_opacity() -> f32 {
+    0.16
+}
+
+fn default_background_position() -> String {
+    "center".to_string()
+}
+
+fn default_background_size() -> String {
+    "cover".to_string()
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
@@ -101,6 +366,8 @@ pub enum DomainError {
     NonPositiveId { field: &'static str },
     #[error("主题 mode 无效：{value}，只支持 light、dark")]
     InvalidThemeMode { value: String },
+    #[error("主题外观偏好无效：{value}，只支持 system、light、dark")]
+    InvalidThemeAppearance { value: String },
     #[error("视频 duration_mode 无效：{value}，只支持 range、fixed")]
     InvalidVideoDurationMode { value: String },
     #[error("视频画幅无效：{value}")]
@@ -120,6 +387,37 @@ impl ThemeMode {
         match self {
             Self::Light => "light",
             Self::Dark => "dark",
+        }
+    }
+}
+
+impl ThemeAppearance {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::System => "system",
+            Self::Light => "light",
+            Self::Dark => "dark",
+        }
+    }
+}
+
+impl fmt::Display for ThemeAppearance {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for ThemeAppearance {
+    type Err = DomainError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "system" => Ok(Self::System),
+            "light" => Ok(Self::Light),
+            "dark" => Ok(Self::Dark),
+            _ => Err(DomainError::InvalidThemeAppearance {
+                value: value.to_string(),
+            }),
         }
     }
 }
@@ -300,6 +598,56 @@ mod tests {
         assert_eq!("dark".parse::<ThemeMode>().unwrap(), ThemeMode::Dark);
         assert!(" dark ".parse::<ThemeMode>().is_err());
         assert!("system".parse::<ThemeMode>().is_err());
+    }
+
+    #[test]
+    fn theme_document_rejects_uncontrolled_css_and_invalid_backgrounds() {
+        let mut document = ThemeDocument::default();
+        document
+            .tokens
+            .insert("--unknown".to_string(), "red".to_string());
+        assert!(validate_theme_document(&document).is_err());
+
+        let mut document = ThemeDocument::default();
+        document.tokens.insert(
+            "--color-primary".to_string(),
+            "url(https://example.com)".to_string(),
+        );
+        assert!(validate_theme_document(&document).is_err());
+
+        document.tokens.clear();
+        document
+            .tokens
+            .insert("--a4n-card-opacity".to_string(), "1.1".to_string());
+        assert!(validate_theme_document(&document).is_err());
+
+        document.backgrounds.insert(
+            "home".to_string(),
+            ThemeBackgroundSettings {
+                opacity: 1.2,
+                ..Default::default()
+            },
+        );
+        assert!(validate_theme_document(&document).is_err());
+
+        document.backgrounds.get_mut("home").unwrap().opacity = 0.5;
+        document.backgrounds.get_mut("home").unwrap().resource_key = Some("unknown".to_string());
+        assert!(validate_theme_document(&document).is_err());
+    }
+
+    #[test]
+    fn definition_export_removes_unbundled_resource_references() {
+        let mut document = ThemeDocument::default();
+        document.backgrounds.insert(
+            "home".to_string(),
+            ThemeBackgroundSettings {
+                resource_key: Some("home".to_string()),
+                ..Default::default()
+            },
+        );
+
+        let definition = document.without_resource_references();
+        assert_eq!(definition.backgrounds["home"].resource_key, None);
     }
 
     #[test]

@@ -2,16 +2,17 @@
 //!
 //! 每个校验子模块显式声明依赖，避免通过父模块 glob 导入隐藏合同。
 
-use super::{ImportMediaPayload, VideoStudioProjectPackage};
+use crate::project::{ImportMediaPayload, VideoStudioProjectPackage};
 
 mod canvas;
 mod manifest;
 mod media;
 mod provenance;
 
-pub(crate) use media::{validate_media_entry_bytes, validate_media_entry_owner};
+pub use media::MediaEntryOwnerIndex;
+pub(super) use media::{validate_media_entry_bytes, validate_media_entry_owner};
 
-pub(crate) fn validate_package_manifest(
+pub(super) fn validate_package_manifest(
     package: &VideoStudioProjectPackage,
     media_payload: &ImportMediaPayload,
 ) -> Result<(), String> {

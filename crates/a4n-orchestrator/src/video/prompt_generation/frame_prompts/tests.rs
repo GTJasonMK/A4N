@@ -9,12 +9,14 @@ use a4n_core::models::ai::generated_image;
 use a4n_core::models::chapter::{chapter, chapter_video_prompt};
 use a4n_db::project::{
     CreateDerivedProjectParams, CreateProjectRecordInput, DerivedChapterScope, PROJECT_KIND_VIDEO,
-    PROJECT_TYPE_NOVEL_LONG, create_derived_project_record, create_project_record,
+    create_derived_project_record, create_project_record,
 };
 use a4n_domain::image::IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT;
 use sea_orm::{ActiveModelTrait, Set};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+
+const PROJECT_TYPE_NOVEL_LONG: &str = "novel_long";
 
 fn source_span(id: &str, paragraph_index: usize) -> SourceSpan {
     SourceSpan {

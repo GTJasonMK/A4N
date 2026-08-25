@@ -7,7 +7,7 @@ use a4n_orchestrator::workflow::require_positive_workflow_run_id;
 
 use super::super::super::{
     access::{
-        verify_task_access, verify_task_handle_access, verify_workflow_run_access,
+        verify_task_access, verify_task_handle_access, verify_task_project_access,
         verify_workflow_run_summary_access,
     },
     projections::{persisted_progress_event, task_progress_event},
@@ -33,7 +33,6 @@ pub async fn get_workflow_progress_events(
             .read()
             .iter()
             .cloned()
-            .into_iter()
             .rev()
             .take(input.limit)
             .map(task_progress_event)
@@ -66,11 +65,11 @@ pub async fn get_workflow_progress_events(
     }
     if let Some(run) = state
         .orchestrator()
-        .workflow_run_model_by_active_task_id(&task_id)
+        .workflow_run_access_record_by_active_task_id(&task_id)
         .await
         .map_err(app_error_message)?
     {
-        verify_workflow_run_access(state, user_id, &run).await?;
+        verify_task_project_access(state, user_id, run.project_id, run.root_project_id).await?;
         return state
             .orchestrator()
             .workflow_progress_events(run.id, input.limit)

@@ -1,4 +1,4 @@
-//! 按 workflow_mode 分发的 generate/preview 入口，供 runtime 窄 facade 使用。
+//! 按 workflow_mode 分发 video application 的 generate/preview 入口。
 
 use a4n_core::models::chapter::chapter_video_prompt;
 
@@ -13,7 +13,7 @@ fn unsupported_workflow_mode(kind: &str, mode: &str) -> AppError {
 
 impl OrchestratorContext {
     /// 按 stage.workflow_mode 分发章节视频提示词生成。
-    pub async fn generate_chapter_video_prompts_for_mode(
+    pub(in crate::video) async fn generate_chapter_video_prompts_for_mode(
         &self,
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
@@ -41,7 +41,7 @@ impl OrchestratorContext {
     }
 
     /// 按 stage.workflow_mode 分发章节帧提示词生成。
-    pub async fn generate_chapter_frame_prompts_for_mode(
+    pub(in crate::video) async fn generate_chapter_frame_prompts_for_mode(
         &self,
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,

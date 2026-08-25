@@ -135,9 +135,7 @@ fn validate_package_manifest_rejects_galgame_participant_missing_profile() {
 fn validate_package_manifest_accepts_galgame_dialogue_with_expression() {
     let mut package = package_with_galgame_project();
     package.text_core.character_profiles = vec![character_profile_record(601)];
-    package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].speaker_profile_id = Some(601);
-    package.galgame_lines[0].expression = Some("neutral".to_string());
+    set_galgame_speaker_line(&mut package.galgame_lines[0], 601, "neutral", "center");
 
     validate_package_manifest(&package)
         .expect("dialogue lines with speaker and expression should import");

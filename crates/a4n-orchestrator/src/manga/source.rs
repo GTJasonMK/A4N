@@ -1,11 +1,6 @@
 use a4n_core::error::AppError;
 
-use crate::{
-    OrchestratorContext,
-    project::{ChapterMangaSourceSummary, MangaCharacterPortraitRefSummary},
-};
-
-use super::{MangaCharacterPortraitRef, MangaReferenceContext};
+use crate::project::ChapterMangaSourceSummary;
 
 pub fn ensure_manga_source_can_write(
     source: &ChapterMangaSourceSummary,
@@ -24,38 +19,6 @@ pub fn ensure_manga_source_can_write(
         )));
     }
     Ok(())
-}
-
-impl OrchestratorContext {
-    pub(crate) async fn manga_reference_context(
-        &self,
-        project_id: i64,
-    ) -> Result<MangaReferenceContext, AppError> {
-        self.manga_character_portrait_refs(project_id)
-            .await
-            .map(manga_reference_context)
-    }
-}
-
-fn manga_reference_context(
-    summaries: Vec<MangaCharacterPortraitRefSummary>,
-) -> MangaReferenceContext {
-    MangaReferenceContext {
-        character_portraits: summaries
-            .into_iter()
-            .map(|summary| MangaCharacterPortraitRef {
-                profile_id: summary.profile_id,
-                portrait_id: summary.portrait_id,
-                character_name: summary.character_name,
-                image_path: summary.image_path,
-                prompt: summary.prompt,
-                portrait_type: summary.portrait_type,
-                expression: summary.expression,
-                pose: summary.pose,
-                is_primary: summary.is_primary,
-            })
-            .collect(),
-    }
 }
 
 #[cfg(test)]

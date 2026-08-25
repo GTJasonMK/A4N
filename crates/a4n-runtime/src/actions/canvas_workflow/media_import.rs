@@ -8,9 +8,7 @@ use a4n_api_contract::canvas::CanvasMediaAssetSummary;
 use a4n_core::models::media::media_asset;
 use a4n_orchestrator::media::{MEDIA_KIND_AUDIO, MEDIA_KIND_IMAGE, MEDIA_KIND_VIDEO};
 
-pub(super) fn canvas_media_asset_summary(
-    asset: media_asset::Model,
-) -> CanvasMediaAssetSummary {
+pub(super) fn canvas_media_asset_summary(asset: media_asset::Model) -> CanvasMediaAssetSummary {
     CanvasMediaAssetSummary {
         id: asset.id,
         project_id: asset.project_id,

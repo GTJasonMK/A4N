@@ -5,7 +5,6 @@ import {
   useState,
   type SyntheticEvent,
 } from "react";
-import { extractErrorMessage } from "../../../api";
 import {
   loadVideoPlaybackData,
   loadVideoScrubPlaybackData,
@@ -13,13 +12,20 @@ import {
 import type { GeneratedVideo, VideoPlaybackData } from "../../../api/video";
 import { base64ToBytes } from "../../../utils/base64";
 import { videoPlaybackDataToObjectUrl } from "../../../utils/videoPlayback";
+import { useI18n, type MessageTranslator } from "../../../i18n";
 
 const PLAYBACK_LOAD_TIMEOUT_MS = 20_000;
 const SCRUB_PROXY_LOAD_TIMEOUT_MS = 120_000;
 class PlaybackLoadTimeoutError extends Error {
   constructor() {
-    super("读取视频文件超时，请稍后重试");
+    super("Playback load timed out");
     this.name = "PlaybackLoadTimeoutError";
+  }
+}
+class ScrubFrameDecodeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ScrubFrameDecodeError";
   }
 }
 type PlaybackLoader = (videoId: number) => Promise<VideoPlaybackData>;
@@ -32,9 +38,10 @@ export interface VideoScrubFrameSequence {
 
 const decodeScrubFrames = (
   data: VideoPlaybackData["scrub_frames"],
+  t: MessageTranslator,
 ): VideoScrubFrameSequence => {
   if (!data || data.mime_type !== "image/jpeg" || data.frames_per_second <= 0) {
-    throw new Error("剪辑拖动帧数据无效");
+    throw new ScrubFrameDecodeError(t("video.chapter.scrubFramesInvalid"));
   }
   const bytes = base64ToBytes(data.data_base64);
   const ranges: VideoScrubFrameSequence["ranges"] = [];
@@ -53,7 +60,7 @@ const decodeScrubFrames = (
     }
   }
   if (start >= 0 || ranges.length === 0) {
-    throw new Error("剪辑拖动帧 JPEG 序列损坏");
+    throw new ScrubFrameDecodeError(t("video.chapter.scrubFramesCorrupted"));
   }
   return {
     bytes,
@@ -94,6 +101,7 @@ export const useVideoPlaybackSource = ({
   selectedVideo,
   mediaKind,
 }: UseVideoPlaybackSourceParams) => {
+  const { t } = useI18n();
   const selectedVideoId = selectedVideo?.id;
   const selectedVideoPath = selectedVideo?.file_path?.trim();
   const [playbackSource, setPlaybackSource] = useState<{
@@ -115,6 +123,7 @@ export const useVideoPlaybackSource = ({
     : null;
   const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
   const [videoLoading, setVideoLoading] = useState(false);
+  const [playbackRequestVersion, setPlaybackRequestVersion] = useState(0);
   const objectUrlRef = useRef<string | null>(null);
   const playbackGenerationRef = useRef(0);
   const videoLoadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -162,7 +171,7 @@ export const useVideoPlaybackSource = ({
       .then((data) => {
         if (cancelled || generation !== playbackGenerationRef.current) return;
         const scrubFrames =
-          mediaKind === "scrub" ? decodeScrubFrames(data.scrub_frames) : null;
+          mediaKind === "scrub" ? decodeScrubFrames(data.scrub_frames, t) : null;
         objectUrl = videoPlaybackDataToObjectUrl(data);
         objectUrlRef.current = objectUrl;
         setPlaybackSource({
@@ -174,9 +183,15 @@ export const useVideoPlaybackSource = ({
         });
       })
       .catch((err) => {
-        if (cancelled) return;
+        if (cancelled || generation !== playbackGenerationRef.current) return;
         setVideoLoading(false);
-        setVideoLoadError(extractErrorMessage(err, "无法读取本地视频文件"));
+        setVideoLoadError(
+          err instanceof ScrubFrameDecodeError
+            ? err.message
+            : err instanceof PlaybackLoadTimeoutError
+            ? t("video.chapter.playbackLoadTimeout")
+            : t("video.chapter.playbackLoadFailed"),
+        );
       });
 
     return () => {
@@ -190,9 +205,15 @@ export const useVideoPlaybackSource = ({
   }, [
     clearVideoLoadTimeout,
     mediaKind,
+    playbackRequestVersion,
     selectedVideo?.file_path,
     selectedVideo?.id,
+    t,
   ]);
+
+  const retryVideoLoad = useCallback(() => {
+    setPlaybackRequestVersion((version) => version + 1);
+  }, []);
 
   const handleVideoLoadStart = useCallback(() => {
     clearVideoLoadTimeout();
@@ -201,9 +222,9 @@ export const useVideoPlaybackSource = ({
     videoLoadTimeoutRef.current = setTimeout(() => {
       videoLoadTimeoutRef.current = null;
       setVideoLoading(false);
-      setVideoLoadError("内置播放器加载视频超时，请重试或使用本地播放器打开。");
+      setVideoLoadError(t("video.chapter.playbackPlayerTimeout"));
     }, PLAYBACK_LOAD_TIMEOUT_MS);
-  }, [clearVideoLoadTimeout]);
+  }, [clearVideoLoadTimeout, t]);
 
   const handleVideoLoaded = useCallback(() => {
     clearVideoLoadTimeout();
@@ -223,12 +244,12 @@ export const useVideoPlaybackSource = ({
       const detail = event.currentTarget.error?.message?.trim();
       setVideoLoadError(
         detail
-          ? `内置播放器无法播放该视频：${detail}`
-          : "内置播放器无法解码该视频，文件已保存，可用本地播放器进一步检查。",
+          ? t("video.chapter.playbackCannotPlay", { detail })
+          : t("video.chapter.playbackCannotDecode"),
       );
       return true;
     },
-    [clearVideoLoadTimeout],
+    [clearVideoLoadTimeout, t],
   );
 
   return {
@@ -236,6 +257,7 @@ export const useVideoPlaybackSource = ({
     videoScrubFrames,
     videoLoadError,
     videoLoading,
+    retryVideoLoad,
     handleVideoLoadStart,
     handleVideoLoaded,
     handleVideoError,

@@ -37,4 +37,4 @@ From a text project's menu, create a manga, video, or GALGame project with a sou
 - Content dependency/status views show downstream effects before changing source text or deleting assets.
 - If a feature is disabled, check project type/stage, account permission, runtime mode, and required provider configuration.
 
-For detailed page/button behavior in a source checkout, consult sections 1–13 of `用户操作流程.txt` and only load the relevant section. Treat its CLI section as non-authoritative; use [cli-operation.md](cli-operation.md) and [cli-advanced.md](cli-advanced.md) for current commands.
+For detailed page/button behavior in a source checkout, consult only the relevant section of the repository-root [用户操作流程.txt](../../../用户操作流程.txt) (sections 1–13). Treat its CLI section as non-authoritative; use [cli-operation.md](cli-operation.md) and [cli-advanced.md](cli-advanced.md) for current commands.

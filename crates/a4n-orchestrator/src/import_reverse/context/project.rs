@@ -1,7 +1,7 @@
-use a4n_core::import_reverse::ReverseContextKind;
 use a4n_db::import_reverse::ReverseContextRows;
 use serde_json::{Value, json};
 
+use super::ReverseContextKind;
 use super::blueprint::blueprint_context;
 use super::chapter_entries::{
     chapter_outline_entry, chapter_part_entry, chapter_summary_for_reverse,
@@ -100,8 +100,8 @@ mod tests {
     use a4n_db::import_reverse::ReverseContextRows;
     use chrono::NaiveDateTime;
 
+    use super::super::ReverseContextKind;
     use super::project_reverse_context;
-    use a4n_core::import_reverse::ReverseContextKind;
 
     fn rows() -> ReverseContextRows {
         ReverseContextRows {

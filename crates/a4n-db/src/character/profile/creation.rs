@@ -1,6 +1,7 @@
 use a4n_core::models::character::protagonist_profile;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
+    TransactionTrait,
 };
 use serde_json::Value;
 
@@ -17,8 +18,11 @@ where
     C: ConnectionTrait,
 {
     let existing = protagonist_profile::Entity::find()
+        .select_only()
+        .column(protagonist_profile::Column::Id)
         .filter(protagonist_profile::Column::ProjectId.eq(input.project_id))
         .filter(protagonist_profile::Column::Name.eq(&input.name))
+        .into_tuple::<i64>()
         .one(db)
         .await?;
     if existing.is_some() {

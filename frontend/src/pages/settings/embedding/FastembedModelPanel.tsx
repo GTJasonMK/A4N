@@ -8,11 +8,11 @@ import type {
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { formatBytes } from "./embeddingTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface FastembedModelPanelProps {
   model: LocalEmbeddingModel | null;
   downloadInfo: EmbeddingModelDownloadInfo | null;
-  downloadInfoError: string | null;
   modelName: string;
   busy: boolean;
   modelHostLabel: string;
@@ -23,25 +23,25 @@ interface FastembedModelPanelProps {
 export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
   model,
   downloadInfo,
-  downloadInfoError,
   modelName,
   busy,
   modelHostLabel,
   onDownload,
   onDelete,
 }) => {
+  const { locale, t } = useI18n();
   const downloadLabel =
     downloadInfo && downloadInfo.missing_size_bytes > 0
-      ? `下载 ${formatBytes(downloadInfo.missing_size_bytes)}`
-      : "下载";
+      ? `${t("common.download")} ${formatBytes(downloadInfo.missing_size_bytes, locale)}`
+      : t("common.download");
   const totalSizeText = downloadInfo
-    ? `预计总大小 ${formatBytes(downloadInfo.total_size_bytes)}`
+    ? t("settingsEmbedding.totalSize", { size: formatBytes(downloadInfo.total_size_bytes, locale) })
     : model?.size_bytes
-      ? `${modelHostLabel}缓存 ${formatBytes(model.size_bytes)}`
-      : "预计总大小获取中";
+      ? t("settingsEmbedding.cacheSize", { host: modelHostLabel, size: formatBytes(model.size_bytes, locale) })
+      : null;
 
   return (
-    <div aria-label="本地嵌入模型" className="a4n-flat-surface px-3 py-3">
+    <div aria-label={t("settingsEmbedding.localModel")} className="a4n-flat-surface px-3 py-3">
       <div className="flex min-w-0 items-start gap-3">
         <div className="min-w-0 flex-1">
           <div className="truncate text-xs font-semibold text-book-text-main">
@@ -49,19 +49,25 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
           </div>
           <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
             <span className={model?.downloaded ? "text-success" : "text-warning"}>
-              {model?.downloaded ? "已下载" : "未下载"}
+              {model?.downloaded
+                ? t("settingsEmbedding.downloaded")
+                : t("settingsEmbedding.notDownloaded")}
             </span>
             {model ? (
               <>
                 <span aria-hidden="true">·</span>
-                <span>{model.dimension} 维</span>
-                <span aria-hidden="true">·</span>
-                <span>{totalSizeText}</span>
+                <span>{t("settingsEmbedding.dimensionUnit", { count: model.dimension })}</span>
+                {totalSizeText ? (
+                  <>
+                    <span aria-hidden="true">·</span>
+                    <span>{totalSizeText}</span>
+                  </>
+                ) : null}
               </>
             ) : (
               <>
                 <span aria-hidden="true">·</span>
-                <span>未加载到{modelHostLabel}模型目录</span>
+                <span>{t("settingsEmbedding.modelDirectoryUnavailable", { host: modelHostLabel })}</span>
               </>
             )}
           </div>
@@ -69,13 +75,13 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
         {busy && model?.downloaded ? (
           <span className="inline-flex h-8 shrink-0 items-center gap-1.5 text-small text-book-text-muted">
             <LoadingSpinner size="sm" />
-            正在删除
+            {t("common.deleting")}
           </span>
         ) : model?.downloaded ? (
           <Dropdown
             items={[
               {
-                label: "删除模型缓存",
+                label: t("settingsEmbedding.deleteCache"),
                 icon: <Trash2 size={12} />,
                 danger: true,
                 onClick: onDelete,
@@ -84,17 +90,11 @@ export const FastembedModelPanel: React.FC<FastembedModelPanelProps> = ({
           />
         ) : null}
       </div>
-      {!downloadInfo && !downloadInfoError ? (
-        <div className="mb-2 text-small text-book-text-muted">正在获取模型大小…</div>
-      ) : downloadInfo ? (
+      {downloadInfo ? (
         <div className="mb-2 text-small text-book-text-muted">
-          预计总大小 {formatBytes(downloadInfo.total_size_bytes)} · 已缓存{" "}
-          {formatBytes(downloadInfo.downloaded_size_bytes)} · 还需下载{" "}
-          {formatBytes(downloadInfo.missing_size_bytes)}
-        </div>
-      ) : downloadInfoError ? (
-        <div className="mb-2 text-small text-error">
-          {downloadInfoError}
+          {t("settingsEmbedding.totalSize", { size: formatBytes(downloadInfo.total_size_bytes, locale) })} ·{" "}
+          {t("settingsEmbedding.cachedSize", { size: formatBytes(downloadInfo.downloaded_size_bytes, locale) })} ·{" "}
+          {t("settingsEmbedding.missingSize", { size: formatBytes(downloadInfo.missing_size_bytes, locale) })}
         </div>
       ) : null}
       {model?.description && (

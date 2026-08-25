@@ -7,18 +7,15 @@ use a4n_core::error::AppError;
 use crate::AppState;
 
 use super::manual::blueprint_material_sync_warnings;
-use super::projections::blueprint_version_summary;
-
 pub async fn list_blueprint_versions(
     state: &AppState,
     user_id: i64,
     input: ListBlueprintVersionsInput,
 ) -> Result<Vec<BlueprintVersionSummary>, AppError> {
-    let versions = state
+    state
         .orchestrator()
-        .blueprint_versions_for_user_validated(user_id, input.project_id)
-        .await?;
-    versions.iter().map(blueprint_version_summary).collect()
+        .blueprint_version_summaries_for_user_validated(user_id, input.project_id)
+        .await
 }
 
 pub async fn diff_blueprint_versions(

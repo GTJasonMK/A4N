@@ -1,7 +1,10 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-pub fn parse_outline_json_object(content: &str, prompt_name: &str) -> Result<Value, AppError> {
+pub(in crate::outline) fn parse_outline_json_object(
+    content: &str,
+    prompt_name: &str,
+) -> Result<Value, AppError> {
     let trimmed = content.trim();
     let value: Value = serde_json::from_str(trimmed).map_err(|error| {
         AppError::InvalidArgument(format!(
@@ -24,7 +27,11 @@ fn json_error_preview(content: &str) -> String {
     content.chars().take(240).collect()
 }
 
-pub fn reject_keys(json: &Value, keys: &[&str], context: &str) -> Result<(), AppError> {
+pub(in crate::outline) fn reject_keys(
+    json: &Value,
+    keys: &[&str],
+    context: &str,
+) -> Result<(), AppError> {
     for key in keys {
         if json.get(*key).is_some() {
             return Err(AppError::InvalidArgument(format!(
@@ -35,7 +42,11 @@ pub fn reject_keys(json: &Value, keys: &[&str], context: &str) -> Result<(), App
     Ok(())
 }
 
-pub fn reject_unknown_keys(json: &Value, allowed: &[&str], context: &str) -> Result<(), AppError> {
+pub(in crate::outline) fn reject_unknown_keys(
+    json: &Value,
+    allowed: &[&str],
+    context: &str,
+) -> Result<(), AppError> {
     let object = json
         .as_object()
         .ok_or_else(|| AppError::InvalidArgument(format!("{context} 必须是 JSON 对象")))?;

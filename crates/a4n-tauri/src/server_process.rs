@@ -10,6 +10,13 @@ use tauri::{AppHandle, Manager};
 
 const LOCAL_SERVER_URL: &str = "http://127.0.0.1:8080";
 
+#[derive(Debug, PartialEq, Eq)]
+enum ServerProbe {
+    Healthy,
+    Occupied,
+    Unreachable,
+}
+
 pub(crate) struct LocalServerProcess {
     child: Mutex<Option<Child>>,
 }
@@ -19,11 +26,20 @@ impl LocalServerProcess {
         app: &AppHandle,
         config: &AppConfig,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        if server_healthy().await {
-            return Err(format!(
-                "{LOCAL_SERVER_URL} 已有运行中的 A4N Server；local-server 模式不会复用未知版本的进程，请先停止它，或使用 remote 模式显式连接"
-            )
-            .into());
+        match server_probe().await {
+            ServerProbe::Healthy => {
+                return Err(format!(
+                    "{LOCAL_SERVER_URL} 已有运行中的 A4N Server；local-server 模式不会复用未知版本的进程，请先停止它，或使用 remote 模式显式连接"
+                )
+                .into());
+            }
+            ServerProbe::Occupied => {
+                return Err(format!(
+                    "{LOCAL_SERVER_URL} 已被其他 HTTP 服务占用；请停止占用 8080 端口的服务，或使用 remote 模式显式连接"
+                )
+                .into());
+            }
+            ServerProbe::Unreachable => {}
         }
 
         let server = resolve_binary(app, "a4n-server", "A4N_SERVER_BINARY")?;
@@ -56,9 +72,9 @@ impl LocalServerProcess {
         let process = Self {
             child: Mutex::new(Some(child)),
         };
-        if !wait_until_healthy(&process).await {
+        if let Err(error) = wait_until_healthy(&process).await {
             process.stop();
-            return Err("A4N Server 启动超时；请检查 Server 日志".into());
+            return Err(error);
         }
 
         tracing::info!(url = LOCAL_SERVER_URL, "A4N HTTP-only Server 启动完成");
@@ -73,10 +89,10 @@ impl LocalServerProcess {
         let Some(mut child_process) = child.take() else {
             return;
         };
-        if let Err(error) = terminate_child(&mut child_process) {
-            if error.kind() != std::io::ErrorKind::InvalidInput {
-                tracing::warn!(%error, "停止 A4N Server 失败");
-            }
+        if let Err(error) = terminate_child(&mut child_process)
+            && error.kind() != std::io::ErrorKind::InvalidInput
+        {
+            tracing::warn!(%error, "停止 A4N Server 失败");
         }
     }
 }
@@ -108,40 +124,88 @@ impl Drop for LocalServerProcess {
     }
 }
 
-async fn server_healthy() -> bool {
+async fn server_probe() -> ServerProbe {
     let Ok(client) = reqwest::Client::builder()
         .timeout(Duration::from_secs(1))
         .build()
     else {
-        return false;
+        return ServerProbe::Unreachable;
     };
     let Ok(response) = client
         .get(format!("{LOCAL_SERVER_URL}/api/health"))
         .send()
         .await
     else {
-        return false;
+        return ServerProbe::Unreachable;
     };
-    response.status() == StatusCode::OK
-        && response.text().await.is_ok_and(|body| body.trim() == "ok")
+    let status = response.status();
+    let body = response.text().await.ok();
+    classify_server_response(status, body.as_deref())
 }
 
-async fn wait_until_healthy(process: &LocalServerProcess) -> bool {
+fn classify_server_response(status: StatusCode, body: Option<&str>) -> ServerProbe {
+    if status == StatusCode::OK && body.is_some_and(|body| body.trim() == "ok") {
+        ServerProbe::Healthy
+    } else {
+        ServerProbe::Occupied
+    }
+}
+
+async fn wait_until_healthy(
+    process: &LocalServerProcess,
+) -> Result<(), Box<dyn std::error::Error>> {
     for _ in 0..200 {
-        if let Ok(mut child) = process.child.lock() {
-            if !matches!(
-                child.as_mut().and_then(|value| value.try_wait().ok()),
-                Some(None)
-            ) {
-                return false;
-            }
+        let exit_status = {
+            let mut child = process
+                .child
+                .lock()
+                .map_err(|_| "获取 A4N Server 子进程锁失败")?;
+            let child = child.as_mut().ok_or("A4N Server 子进程状态丢失")?;
+            child
+                .try_wait()
+                .map_err(|error| format!("读取 A4N Server 子进程状态失败: {error}"))?
+        };
+        if let Some(status) = exit_status {
+            return Err(format!(
+                "A4N Server 在健康检查通过前退出（{status}）；请检查 Server 日志，并确认 {LOCAL_SERVER_URL} 未被占用"
+            )
+            .into());
         }
-        if server_healthy().await {
-            return true;
+        match server_probe().await {
+            ServerProbe::Healthy => return Ok(()),
+            ServerProbe::Occupied => {
+                return Err(format!(
+                    "{LOCAL_SERVER_URL} 在启动过程中被其他 HTTP 服务占用；请停止占用 8080 端口的服务"
+                )
+                .into());
+            }
+            ServerProbe::Unreachable => {}
         }
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
-    false
+    Err("A4N Server 启动超时；请检查 Server 日志".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ServerProbe, classify_server_response};
+    use reqwest::StatusCode;
+
+    #[test]
+    fn classifies_any_http_response_as_port_occupied() {
+        assert_eq!(
+            classify_server_response(StatusCode::OK, Some("ok\n")),
+            ServerProbe::Healthy
+        );
+        assert_eq!(
+            classify_server_response(StatusCode::NOT_FOUND, Some("not found")),
+            ServerProbe::Occupied
+        );
+        assert_eq!(
+            classify_server_response(StatusCode::OK, None),
+            ServerProbe::Occupied
+        );
+    }
 }
 
 fn run_migration(binary: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -169,6 +233,8 @@ fn terminate_child(child: &mut Child) -> Result<(), std::io::Error> {
     {
         let status = Command::new("kill")
             .args(["-TERM", &child.id().to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
             .status()?;
         if status.success() {
             for _ in 0..50 {

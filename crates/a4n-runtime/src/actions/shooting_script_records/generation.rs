@@ -1,13 +1,13 @@
 use super::contracts::{
-    ChapterShootingScriptSourceInput, ChapterShootingScriptUnitProgressView,
-    ChapterShootingScriptView, contract_view, progress_contract_view,
+    ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
+    GenerateChapterShootingScriptInput, contract_view, progress_contract_view,
 };
 use crate::AppState;
 
 pub async fn generate_chapter_shooting_script(
     state: &AppState,
     user_id: i64,
-    input: ChapterShootingScriptSourceInput,
+    input: GenerateChapterShootingScriptInput,
     progress: &(dyn Fn(u32, u32, &str) -> Result<(), a4n_core::error::AppError> + Send + Sync),
     stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
     cancel_token: Option<&tokio_util::sync::CancellationToken>,
@@ -34,7 +34,7 @@ pub async fn generate_chapter_shooting_script(
 pub async fn generate_next_chapter_shooting_script_unit(
     state: &AppState,
     user_id: i64,
-    input: ChapterShootingScriptSourceInput,
+    input: GenerateChapterShootingScriptInput,
     progress: &(dyn Fn(u32, u32, &str) -> Result<(), a4n_core::error::AppError> + Send + Sync),
     stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
     cancel_token: Option<&tokio_util::sync::CancellationToken>,

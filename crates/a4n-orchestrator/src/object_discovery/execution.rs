@@ -2,7 +2,8 @@ use std::collections::BTreeSet;
 
 use a4n_core::{error::AppError, structured_progress::StructuredJsonProgressSpec};
 use a4n_llm::{
-    context::chat_request_with_workflow_run_id, structured_stream::StructuredLlmProgress,
+    context::chat_request_with_workflow_run_id, provider::ChatRequest,
+    structured_stream::StructuredLlmProgress,
 };
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
@@ -23,7 +24,7 @@ use super::{
     contracts::{
         ChapterAnchorMode, OBJECT_DISCOVERY_FIELDS, OBJECT_DISCOVERY_LLM_SPAN,
         ObjectDiscoveryCallResult, ObjectDiscoveryInput, ObjectDiscoveryProgress,
-        ObjectDiscoveryRequestContext, ObjectDiscoveryRequestPreview,
+        ObjectDiscoveryRequestContext,
     },
     output::parse_and_validate_object_discovery_output,
     request::build_object_discovery_request,
@@ -34,26 +35,23 @@ use super::{
 };
 
 impl OrchestratorContext {
-    pub async fn prepare_object_discovery_request_preview_validated(
+    pub(crate) async fn prepare_object_discovery_request_preview_validated(
         &self,
         input: ObjectDiscoveryInput,
         prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<ObjectDiscoveryRequestPreview, AppError> {
+    ) -> Result<ChatRequest, AppError> {
         validate_object_discovery_input(&input)?;
-        let (prepared, request) = self
+        let (_, request) = self
             .prepare_object_discovery_request(
                 input,
                 ChapterAnchorMode::RequireExistingCurrent,
                 prompt_renderer,
             )
             .await?;
-        Ok(ObjectDiscoveryRequestPreview {
-            analyzed_chapter_count: prepared.chapters.len(),
-            request,
-        })
+        Ok(request)
     }
 
-    pub async fn discover_object_profiles_validated(
+    pub(crate) async fn discover_object_profiles_validated(
         &self,
         input: ObjectDiscoveryInput,
         prompt_renderer: &dyn PromptRenderer,
@@ -132,20 +130,24 @@ impl OrchestratorContext {
         .map_err(AppError::InvalidArgument)?;
         let existing_profiles = self.object_profiles_by_project(input.project_id).await?;
         let mut text_anchors = Vec::new();
-        for chapter in &chapters {
-            let anchors = match anchor_mode {
-                ChapterAnchorMode::EnsureCurrent => {
-                    self.ensure_chapter_content_anchor_records(input.project_id, chapter.id)
-                        .await?
-                }
-                ChapterAnchorMode::RequireExistingCurrent => {
-                    self.require_current_chapter_content_anchors_for_preview(
-                        input.project_id,
-                        chapter.id,
-                    )
+        let chapter_ids = chapters
+            .iter()
+            .map(|chapter| chapter.id)
+            .collect::<Vec<_>>();
+        let anchor_groups = match anchor_mode {
+            ChapterAnchorMode::EnsureCurrent => {
+                self.ensure_chapter_content_anchor_records_batch(input.project_id, &chapter_ids)
                     .await?
-                }
-            };
+            }
+            ChapterAnchorMode::RequireExistingCurrent => {
+                self.require_current_chapter_content_anchors_for_preview_batch(
+                    input.project_id,
+                    &chapter_ids,
+                )
+                .await?
+            }
+        };
+        for anchors in anchor_groups {
             text_anchors.extend(anchors);
         }
         let request = build_object_discovery_request(

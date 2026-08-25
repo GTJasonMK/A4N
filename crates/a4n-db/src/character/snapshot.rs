@@ -2,7 +2,7 @@ use super::CharacterDbError;
 use a4n_core::models::character::snapshot_reference;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set,
+    QuerySelect, Set,
 };
 use serde_json::Value;
 use sha2::{Digest, Sha256};
@@ -104,18 +104,25 @@ pub(in crate::character) async fn upsert_snapshot_reference<C>(
 where
     C: ConnectionTrait,
 {
-    let existing = snapshot_reference::Entity::find()
+    let existing_id = snapshot_reference::Entity::find()
+        .select_only()
+        .column(snapshot_reference::Column::Id)
         .filter(snapshot_reference::Column::ProfileId.eq(input.profile_id))
         .filter(snapshot_reference::Column::ChapterNumber.eq(input.chapter_number))
+        .into_tuple::<i64>()
         .one(db)
         .await?;
 
-    if let Some(existing) = existing {
-        let mut active: snapshot_reference::ActiveModel = existing.into();
-        active.snapshot_hash = Set(input.snapshot_hash);
-        active.reference_count = Set(1);
-        active.data = Set(input.data);
-        return active.update(db).await;
+    if let Some(id) = existing_id {
+        return snapshot_reference::ActiveModel {
+            id: Set(id),
+            snapshot_hash: Set(input.snapshot_hash),
+            reference_count: Set(1),
+            data: Set(input.data),
+            ..Default::default()
+        }
+        .update(db)
+        .await;
     }
 
     snapshot_reference::ActiveModel {

@@ -56,8 +56,7 @@ mod tests {
             None,
             "blueprint_refine:7",
         )
-        .err()
-        .expect("mismatched checkpoint must fail");
+        .expect_err("mismatched checkpoint must fail");
 
         assert!(
             error

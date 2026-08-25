@@ -6,7 +6,10 @@ use crate::{
     },
 };
 
-use super::{ListImagesByChapterInput, ListImagesByProjectInput, ListVideoReferenceImagesInput};
+use super::{
+    ListImagesByChapterInput, ListImagesByProjectInput, ListImagesByProjectsInput,
+    ListVideoReferenceImagesInput,
+};
 
 pub async fn list_images_by_project(
     state: &AppState,
@@ -16,6 +19,19 @@ pub async fn list_images_by_project(
     let rows = state
         .orchestrator()
         .list_generated_images_for_user_validated(user_id, input.project_id)
+        .await
+        .map_err(app_error_message)?;
+    Ok(rows.iter().map(to_summary).collect())
+}
+
+pub async fn list_images_by_projects(
+    state: &AppState,
+    user_id: i64,
+    input: ListImagesByProjectsInput,
+) -> Result<Vec<GeneratedImageSummary>, String> {
+    let rows = state
+        .orchestrator()
+        .list_generated_images_for_projects_for_user_validated(user_id, input.project_ids)
         .await
         .map_err(app_error_message)?;
     Ok(rows.iter().map(to_summary).collect())

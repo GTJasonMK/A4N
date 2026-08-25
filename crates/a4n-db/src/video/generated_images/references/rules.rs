@@ -63,9 +63,57 @@ pub(in crate::video::generated_images) fn should_delete_manga_page_image_record(
     page_number: i32,
     preserve_image_id: Option<i64>,
 ) -> bool {
-    if Some(image.id) == preserve_image_id || image.image_type != "manga_page" {
+    should_delete_manga_page_image_fields(
+        image.id,
+        &image.image_type,
+        image.panel_id.as_deref(),
+        image.metadata_json.as_ref(),
+        panel_id,
+        page_number,
+        preserve_image_id,
+    )
+}
+
+pub(in crate::video::generated_images) fn should_delete_manga_page_image_fields(
+    image_id: i64,
+    image_type: &str,
+    image_panel_id: Option<&str>,
+    metadata: Option<&Value>,
+    panel_id: &str,
+    page_number: i32,
+    preserve_image_id: Option<i64>,
+) -> bool {
+    if Some(image_id) == preserve_image_id || image_type != "manga_page" {
         return false;
     }
-    image.panel_id.as_deref() == Some(panel_id)
-        || generated_image_page_number(image.metadata_json.as_ref()) == Some(page_number)
+    image_panel_id == Some(panel_id) || generated_image_page_number(metadata) == Some(page_number)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_delete_manga_page_image_fields;
+    use serde_json::json;
+
+    #[test]
+    fn manga_page_candidate_fields_preserve_page_and_keep_ids() {
+        let metadata = json!({"page_number": 3});
+        assert!(should_delete_manga_page_image_fields(
+            7,
+            "manga_page",
+            None,
+            Some(&metadata),
+            "page3",
+            3,
+            None,
+        ));
+        assert!(!should_delete_manga_page_image_fields(
+            7,
+            "manga_page",
+            None,
+            Some(&metadata),
+            "page3",
+            3,
+            Some(7),
+        ));
+    }
 }

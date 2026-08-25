@@ -4,13 +4,12 @@
 //! 生成编排（LLM/preview/pipeline）仍在 `manga/` 模块，但 DB 只经本 owner。
 
 use a4n_core::{error::AppError, models::chapter::chapter_manga_prompt};
-use a4n_db::DbHandle;
+use a4n_db::{DbHandle, manga::MangaPromptUpdatedAt};
 use a4n_domain::manga::{MangaBoundReferenceAsset, MangaReferenceAssetKind};
 use serde_json::Value;
 
 use super::OrchestratorContext;
-use crate::manga::MangaPromptUpdatedAt;
-use crate::manga::record_errors::manga_prompt_record_error;
+use crate::manga::manga_prompt_record_error;
 
 /// Manga 领域 application owner。
 #[derive(Clone)]
@@ -32,6 +31,34 @@ impl MangaApplication {
             self.database.connection(),
             project_id,
             chapter_id,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn manga_page_prompt_statuses_by_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<(i64, String)>, AppError> {
+        a4n_db::manga::manga_page_prompt_statuses_by_chapter(
+            self.database.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(manga_prompt_record_error)
+    }
+
+    async fn manga_page_prompt_statuses_by_chapters(
+        &self,
+        project_id: i64,
+        chapter_ids: &[i64],
+    ) -> Result<Vec<(i64, i64, String)>, AppError> {
+        a4n_db::manga::manga_page_prompt_statuses_by_chapters(
+            self.database.connection(),
+            project_id,
+            chapter_ids,
         )
         .await
         .map_err(manga_prompt_record_error)
@@ -151,6 +178,26 @@ impl OrchestratorContext {
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
         self.manga
             .manga_page_prompts_by_chapter(project_id, chapter_id)
+            .await
+    }
+
+    pub async fn manga_page_prompt_statuses_by_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<(i64, String)>, AppError> {
+        self.manga
+            .manga_page_prompt_statuses_by_chapter(project_id, chapter_id)
+            .await
+    }
+
+    pub(crate) async fn manga_page_prompt_statuses_by_chapters(
+        &self,
+        project_id: i64,
+        chapter_ids: &[i64],
+    ) -> Result<Vec<(i64, i64, String)>, AppError> {
+        self.manga
+            .manga_page_prompt_statuses_by_chapters(project_id, chapter_ids)
             .await
     }
 

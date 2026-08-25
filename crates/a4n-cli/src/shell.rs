@@ -166,7 +166,12 @@ impl History for SensitiveHistory {
 
 #[cfg(test)]
 mod tests {
-    use super::{ShellInput, split_line};
+    use std::fs;
+
+    use reedline::{FileBackedHistory, History, HistoryItem, SearchQuery};
+    use tempfile::TempDir;
+
+    use super::{SensitiveHistory, ShellInput, prepare_history_file, split_line};
     use crate::client::contains_sensitive_marker;
 
     #[test]
@@ -187,5 +192,57 @@ mod tests {
             "call inspect --args '{\"media_token\":\"x\"}'"
         ));
         assert!(!contains_sensitive_marker("call list_projects"));
+    }
+
+    #[test]
+    fn history_preparation_creates_private_parent_and_file() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("nested").join("history");
+
+        prepare_history_file(&path).unwrap();
+
+        assert!(path.is_file());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+    }
+
+    #[test]
+    fn sensitive_history_persists_safe_commands_and_filters_secrets() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("history");
+        prepare_history_file(&path).unwrap();
+        let inner = FileBackedHistory::with_file(2_000, path.clone()).unwrap();
+        let mut history = SensitiveHistory { inner };
+
+        history
+            .save(HistoryItem::from_command_line("project list"))
+            .unwrap();
+        history
+            .save(HistoryItem::from_command_line(
+                "auth login --password password-secret",
+            ))
+            .unwrap();
+        history
+            .save(HistoryItem::from_command_line(
+                "call x --args '{\"api_key\":\"secret\"}'",
+            ))
+            .unwrap();
+        history.sync().unwrap();
+
+        let contents = fs::read_to_string(&path).unwrap();
+        assert_eq!(contents, "project list\n");
+
+        let reloaded = FileBackedHistory::with_file(2_000, path).unwrap();
+        let items = reloaded
+            .search(SearchQuery::all_that_contain_rev("project".into()))
+            .unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].command_line, "project list");
     }
 }

@@ -87,6 +87,7 @@ where
     C: ConnectionTrait,
 {
     let mut bound = BTreeSet::new();
+    let mut evidence_batches = Vec::with_capacity(inputs.len());
     for input in inputs {
         if !bound.insert(input.scene_ref.clone()) {
             return Err(SceneProfileDbError::InvalidArgument(format!(
@@ -117,20 +118,20 @@ where
                 "场景档案 profile_evidence 不能为空".to_string(),
             ));
         }
-        crate::text_anchor::merge_profile_evidence_records(
-            db,
-            project_id,
-            None,
-            TextAnchorProfileKind::Scene,
-            profile_id,
-            refs,
-        )
-        .await?;
+        evidence_batches.push((profile_id, refs));
     }
     if bound.len() != result.profile_ref_ids.len() {
         return Err(SceneProfileDbError::InvalidArgument(
             "场景档案证据未覆盖全部写入结果".to_string(),
         ));
     }
+    crate::text_anchor::merge_profile_evidence_records_batch(
+        db,
+        project_id,
+        None,
+        TextAnchorProfileKind::Scene,
+        evidence_batches,
+    )
+    .await?;
     Ok(())
 }

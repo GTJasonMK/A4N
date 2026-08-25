@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { sha256Hex } from "../../../utils/contentHash";
 import type { ChapterRow } from "../shared";
+import { useI18n } from "../../../i18n";
 
 export const useChapterContentHash = (chapter: ChapterRow | null) => {
+  const { t } = useI18n();
   const [currentContentHash, setCurrentContentHash] = useState<string | null>(null);
   const [chapterContentReady, setChapterContentReady] = useState(false);
   const [chapterContentHashError, setChapterContentHashError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export const useChapterContentHash = (chapter: ChapterRow | null) => {
       .then((hash) => {
         if (cancelled) return;
         if (!hash) {
-          setChapterContentHashError("当前环境无法计算章节正文 SHA-256");
+          setChapterContentHashError(t("video.chapter.contentHashUnavailable"));
           return;
         }
         setCurrentContentHash(hash);
@@ -34,14 +36,16 @@ export const useChapterContentHash = (chapter: ChapterRow | null) => {
           setCurrentContentHash(null);
           setChapterContentReady(false);
           setChapterContentHashError(
-            error instanceof Error ? error.message : "计算章节正文 SHA-256 失败",
+            error instanceof Error
+              ? error.message
+              : t("video.chapter.contentHashFailed"),
           );
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [chapter?.content, chapter?.id]);
+  }, [chapter?.content, chapter?.id, t]);
 
   return { currentContentHash, chapterContentReady, chapterContentHashError };
 };

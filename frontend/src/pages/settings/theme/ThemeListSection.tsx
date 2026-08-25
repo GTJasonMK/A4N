@@ -1,10 +1,14 @@
-import React from "react";
-import { RefreshCw } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { CheckCheck, RefreshCw, Square, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
+import { BookButton } from "../../../components/ui/BookButton";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { ThemeCard } from "./ThemeCard";
-import { type ThemeScope } from "./types";
+import { isDeletableTheme, type ThemeScope } from "./types";
+import { useI18n } from "../../../i18n";
+
+type ThemeDeleteTarget = Pick<Theme, "id" | "name">;
 
 interface ThemeListSectionProps {
   themes: Theme[];
@@ -14,10 +18,12 @@ interface ThemeListSectionProps {
   activatingId: number | null;
   deletingId: number | null;
   exportingId: number | null;
+  editingId: number | null;
   renamingId: number | null;
   renameValue: string;
   renameSaving: boolean;
   mutationBusy: boolean;
+  bulkDeleting: boolean;
   onScopeChange: (scope: ThemeScope) => void;
   onRefresh: () => void;
   onRenameInput: (value: string) => void;
@@ -25,9 +31,10 @@ interface ThemeListSectionProps {
   onRenameConfirm: () => void;
   onRenameCancel: () => void;
   onActivate: (themeId: number) => void;
+  onEdit: (theme: Theme) => void;
   onDelete: (themeId: number, name: string) => void;
+  onDeleteMany: (themes: ThemeDeleteTarget[]) => void;
   onExport: (themeId: number) => void;
-  onViewCss: (theme: Theme) => void;
 }
 
 export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
@@ -38,10 +45,12 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   activatingId,
   deletingId,
   exportingId,
+  editingId,
   renamingId,
   renameValue,
   renameSaving,
   mutationBusy,
+  bulkDeleting,
   onScopeChange,
   onRefresh,
   onRenameInput,
@@ -49,31 +58,87 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   onRenameConfirm,
   onRenameCancel,
   onActivate,
+  onEdit,
   onDelete,
+  onDeleteMany,
   onExport,
-  onViewCss,
-}) => (
-  <div>
-    <div className="mb-3 flex min-w-0 items-center gap-2">
+}) => {
+  const { t } = useI18n();
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
+  const deletableThemes = themes.filter(isDeletableTheme);
+  const selectedThemes = deletableThemes.filter((theme) => selectedIds.has(theme.id));
+  const allSelected = deletableThemes.length > 0 && selectedThemes.length === deletableThemes.length;
+
+  useEffect(() => {
+    const validIds = new Set(deletableThemes.map((theme) => theme.id));
+    setSelectedIds((current) => {
+      const next = new Set([...current].filter((id) => validIds.has(id)));
+      return next.size === current.size ? current : next;
+    });
+  }, [themes]);
+
+  const toggleSelected = (themeId: number) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(themeId)) next.delete(themeId);
+      else next.add(themeId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? new Set() : new Set(deletableThemes.map((theme) => theme.id)));
+  };
+
+  return <div>
+    <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2">
       <SegmentedControl
-        ariaLabel="主题范围"
+        ariaLabel={t("settingsTheme.scope")}
         value={scope}
         onChange={onScopeChange}
         options={[
-          { id: "all", label: "全部", disabled: mutationBusy },
-          { id: "user", label: "我的", disabled: !hasUser || mutationBusy },
+          { id: "all", label: t("settingsTheme.all"), disabled: mutationBusy },
+          { id: "user", label: t("settingsTheme.mine"), disabled: !hasUser || mutationBusy },
         ]}
       />
-      <span className="min-w-0 flex-1 truncate text-small text-book-text-muted">
-        {loading ? "正在更新…" : `${themes.length} 个主题`}
+      <span className="min-w-0 flex-1 truncate text-small text-book-text-muted max-sm:flex-none max-sm:whitespace-nowrap">
+        {loading
+          ? t("settingsTheme.updating")
+          : selectedThemes.length > 0
+            ? `${t("settingsTheme.count", { count: themes.length })} · ${t("settingsTheme.selectedCount", { count: selectedThemes.length })}`
+            : t("settingsTheme.count", { count: themes.length })}
       </span>
+      {deletableThemes.length > 0 ? (
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <BookButton
+            variant="ghost"
+            size="sm"
+            onClick={toggleSelectAll}
+            disabled={mutationBusy}
+          >
+            {allSelected ? <Square size={13} /> : <CheckCheck size={13} />}
+            {allSelected ? t("settingsTheme.deselectAll") : t("settingsTheme.selectAll")}
+          </BookButton>
+          {selectedThemes.length > 0 ? (
+            <BookButton
+              variant="danger"
+              size="sm"
+              onClick={() => onDeleteMany(selectedThemes.map(({ id, name }) => ({ id, name })))}
+              disabled={mutationBusy}
+            >
+              {bulkDeleting ? <LoadingSpinner size="sm" /> : <Trash2 size={13} />}
+              {t("settingsTheme.deleteSelected", { count: selectedThemes.length })}
+            </BookButton>
+          ) : null}
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={onRefresh}
         disabled={loading || mutationBusy}
         className="pyqt-btn-icon !h-8 !w-8 shrink-0"
-        title="刷新主题"
-        aria-label="刷新主题"
+        title={t("settingsTheme.refresh")}
+        aria-label={t("settingsTheme.refresh")}
       >
         <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
       </button>
@@ -81,11 +146,11 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
 
     {loading && themes.length === 0 ? (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> 加载主题…
+        <LoadingSpinner size="sm" /> {t("settingsTheme.loading")}
       </div>
     ) : themes.length === 0 ? (
       <div className="a4n-empty-state a4n-empty-state--framed text-xs">
-        尚未配置任何主题。下方可创建第一个主题。
+        {t("settingsTheme.empty")}
       </div>
     ) : (
       <ul className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
@@ -94,24 +159,27 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
             key={theme.id}
             theme={theme}
             activating={activatingId === theme.id}
-            activateDisabled={mutationBusy}
             deleting={deletingId === theme.id}
             exporting={exportingId === theme.id}
+            editing={editingId === theme.id}
             renaming={renamingId === theme.id}
             renameValue={renameValue}
             renameSaving={renameSaving && renamingId === theme.id}
             mutationBusy={mutationBusy}
+            selectable={isDeletableTheme(theme)}
+            selected={selectedIds.has(theme.id)}
             onRenameInput={onRenameInput}
             onRenameStart={() => onRenameStart(theme)}
             onRenameConfirm={onRenameConfirm}
             onRenameCancel={onRenameCancel}
             onActivate={() => onActivate(theme.id)}
+            onEdit={() => onEdit(theme)}
             onDelete={() => onDelete(theme.id, theme.name)}
             onExport={() => onExport(theme.id)}
-            onViewCss={() => onViewCss(theme)}
+            onSelect={() => toggleSelected(theme.id)}
           />
         ))}
       </ul>
     )}
-  </div>
-);
+  </div>;
+};

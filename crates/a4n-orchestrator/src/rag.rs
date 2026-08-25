@@ -20,14 +20,16 @@ pub use character_profile_records::{blueprint_character_rag_records, protagonist
 pub use continuity_records::{
     CharacterProfileRagDeletionSummary, CharacterSyncRagInput, CharacterSyncRagSummary,
     CharacterTimelineRagDeletionSummary, character_attribute_event_rag_record,
-    character_state_rag_record, foreshadowing_rag_record,
+    character_state_rag_record, foreshadowing_rag_record, foreshadowing_rag_record_from_row,
 };
 pub(crate) use keys::{
     chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id, character_state_rag_chunk_id,
     foreshadowing_rag_chunk_id, protagonist_rag_chunk_id, protagonist_rag_chunk_prefix,
     rag_chunk_id, rag_project_prefix,
 };
-pub use outline_records::{outline_rag_record, part_outline_rag_record};
+pub use outline_records::{
+    outline_rag_record, outline_rag_record_from_row, part_outline_rag_record,
+};
 pub use scene_records::{
     scene_occurrence_rag_record, scene_profile_rag_record, scene_transition_rag_record,
 };

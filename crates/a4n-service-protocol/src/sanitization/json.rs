@@ -32,7 +32,7 @@ pub fn redact_sensitive_value(value: &mut Value) {
     }
 }
 
-pub fn contains_unredacted_sensitive_value(value: &Value) -> bool {
+pub(crate) fn contains_unredacted_sensitive_value(value: &Value) -> bool {
     match value {
         Value::Object(map) => map.iter().any(|(key, child)| {
             if is_sensitive_key(key) {

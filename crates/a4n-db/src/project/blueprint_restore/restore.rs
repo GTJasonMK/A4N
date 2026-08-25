@@ -9,7 +9,7 @@ pub async fn restore_blueprint_version_record(
     db: &DatabaseConnection,
     project_id: i64,
     version_name: &str,
-) -> Result<BlueprintRestoreResult, BlueprintRestoreError> {
+) -> Result<crate::blueprint::VersionedBlueprintMutationResult, BlueprintRestoreError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(BlueprintRestoreError::InvalidArgument)?;
     let version_name = version_name.trim();
@@ -82,10 +82,8 @@ pub async fn restore_blueprint_version_record(
         .await
         .map_err(|error| BlueprintRestoreError::database("提交蓝图版本恢复事务失败", error))?;
 
-    Ok(BlueprintRestoreResult {
+    Ok(crate::blueprint::VersionedBlueprintMutationResult {
         blueprint: restored,
-        version: version.version,
         status_change,
-        restored_at: now,
     })
 }

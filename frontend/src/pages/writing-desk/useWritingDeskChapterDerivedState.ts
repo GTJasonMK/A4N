@@ -3,6 +3,7 @@ import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
 import type { ChapterRow } from "../novel-detail/shared";
+import { useI18n } from "../../i18n";
 
 interface UseWritingDeskChapterDerivedStateParams {
   chapters: ChapterSummary[];
@@ -19,6 +20,7 @@ export function useWritingDeskChapterDerivedState({
   chapterQuery,
   optimizationPatchPreview,
 }: UseWritingDeskChapterDerivedStateParams) {
+  const { t } = useI18n();
   const chaptersByNumber = useMemo(
     () => new Map(chapters.map((chapter) => [chapter.chapter_number, chapter])),
     [chapters],
@@ -86,8 +88,7 @@ export function useWritingDeskChapterDerivedState({
       const outline = outlinesByNumber.get(number);
       const haystack = [
         String(number),
-        `第${number}章`,
-        `第 ${number} 章`,
+        t("writing.chapterLabel", { number }),
         chapter?.title,
         outline?.title,
         outline?.summary,
@@ -99,7 +100,7 @@ export function useWritingDeskChapterDerivedState({
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [chapterNumbers, chaptersByNumber, deferredChapterQuery, outlinesByNumber]);
+  }, [chapterNumbers, chaptersByNumber, deferredChapterQuery, outlinesByNumber, t]);
 
   return {
     activeChapter,

@@ -1,6 +1,7 @@
 import React, { useRef } from "react";
 import { ChevronRight, Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { useI18n } from "../../../i18n";
 
 interface FullConfigBackupPanelProps {
   overwrite: boolean;
@@ -21,6 +22,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   onExport,
   onImportFile,
 }) => {
+  const { t } = useI18n();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -31,10 +33,10 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
   };
 
   return (
-    <section aria-label="配置备份" className="w-full max-w-3xl">
-      <h3 className="text-sm font-semibold text-book-text-main">配置备份</h3>
+    <section aria-label={t("settingsAdvanced.configBackup")} className="w-full max-w-3xl">
+      <h3 className="text-sm font-semibold text-book-text-main">{t("settingsAdvanced.configBackup")}</h3>
       <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-        备份或恢复模型、提示词、主题和系统配置。
+        {t("settingsAdvanced.configBackupHint")}
       </p>
 
       <div className="mt-3 grid items-start gap-2 text-xs sm:grid-cols-2">
@@ -47,9 +49,9 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
           >
             {exporting ? <LoadingSpinner size="sm" /> : <Download size={14} />}
             <span className="min-w-0 flex-1">
-              <span className="block font-medium">导出配置文件</span>
+              <span className="block font-medium">{t("settingsAdvanced.exportFile")}</span>
               <span className="mt-0.5 block text-small text-book-text-muted">
-                保存一份完整配置备份
+                {t("settingsAdvanced.exportFileHint")}
               </span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
@@ -57,7 +59,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
           {lastExportPath ? (
             <details className="border-t border-book-border/35 text-small text-book-text-muted">
               <summary className="cursor-pointer px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-main">
-                最近导出位置
+                {t("settingsAdvanced.lastExportLocation")}
               </summary>
               <div className="break-all border-t border-book-border/35 px-3 py-2.5 font-mono text-book-text-sub">
                 {lastExportPath}
@@ -75,9 +77,9 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
           >
             {importing ? <LoadingSpinner size="sm" /> : <Upload size={14} />}
             <span className="min-w-0 flex-1">
-              <span className="block font-medium">导入配置文件</span>
+              <span className="block font-medium">{t("settingsAdvanced.importFile")}</span>
               <span className="mt-0.5 block text-small text-book-text-muted">
-                从 JSON 备份恢复配置
+                {t("settingsAdvanced.importFileHint")}
               </span>
             </span>
             <ChevronRight size={13} className="text-book-text-muted" />
@@ -91,7 +93,7 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
           />
           <details className="border-t border-book-border/35 text-xs text-book-text-muted">
             <summary className="cursor-pointer px-3 py-2.5 transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-main">
-              导入选项
+              {t("settingsAdvanced.importOptions")}
             </summary>
             <button
               type="button"
@@ -100,14 +102,14 @@ export const FullConfigBackupPanel: React.FC<FullConfigBackupPanelProps> = ({
               onClick={() => onOverwriteChange(!overwrite)}
               disabled={exporting || importing}
               className="flex w-full items-center gap-3 border-t border-book-border/35 px-3 py-3 text-left disabled:cursor-not-allowed disabled:opacity-50"
-              title="开启后同名项会被覆盖；关闭时保留现有项，仅插入新项"
+              title={t("settingsAdvanced.overwriteTitle")}
             >
               <span className="min-w-0 flex-1">
-                <span className="block text-book-text-sub">覆盖同名项</span>
+                <span className="block text-book-text-sub">{t("settingsAdvanced.overwrite")}</span>
                 <span className="mt-0.5 block text-small text-book-text-muted">
                   {overwrite
-                    ? "导入时替换已有同名配置"
-                    : "保留已有配置，只补充新项目"}
+                    ? t("settingsAdvanced.overwriteHint")
+                    : t("settingsAdvanced.keepExistingHint")}
                 </span>
               </span>
               <span

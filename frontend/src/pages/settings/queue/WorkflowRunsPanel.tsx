@@ -14,6 +14,7 @@ import {
   getWorkflowModeLabel,
   getOperationStatusLabel,
 } from "../../../utils/workflowPresentation";
+import { formatDateTime, useI18n } from "../../../i18n";
 
 const PANEL_RESUMABLE_WORKFLOW_KINDS = new Set([
   "video_provider_job",
@@ -40,23 +41,25 @@ export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
   details,
   onResume,
   onToggleDetail,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <section>
     <div className="flex items-baseline gap-2 px-1 pb-2">
-      <h3 className="text-xs font-semibold text-book-text-main">持久化工作流</h3>
+      <h3 className="text-xs font-semibold text-book-text-main">{t("settingsQueue.persistentWorkflows")}</h3>
       <span className="text-small text-book-text-muted">
-        {runs.length > 0 ? `最近 ${runs.length} 条` : "可恢复的运行记录"}
+        {runs.length > 0 ? t("settingsQueue.recentRuns", { count: runs.length }) : t("settingsQueue.resumableRuns")}
       </span>
       {loading ? <LoadingSpinner size="sm" className="ml-auto  text-book-text-muted" /> : null}
     </div>
     {loading && runs.length === 0 ? (
       <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
         <LoadingSpinner size="sm" />
-        正在加载工作流…
+        {t("settingsQueue.loadingWorkflows")}
       </div>
     ) : runs.length === 0 ? (
       <div className="a4n-empty-state a4n-empty-state--framed px-3 py-5 text-center text-xs text-book-text-muted">
-        暂无持久化工作流记录
+        {t("settingsQueue.noPersistentWorkflows")}
       </div>
     ) : (
       <ul className="space-y-2.5">
@@ -75,7 +78,8 @@ export const WorkflowRunsPanel: React.FC<WorkflowRunsPanelProps> = ({
       </ul>
     )}
   </section>
-);
+  );
+};
 
 const WorkflowRunRow: React.FC<{
   run: WorkflowRunSummary;
@@ -94,9 +98,12 @@ const WorkflowRunRow: React.FC<{
   onResume,
   onToggleDetail,
 }) => {
+  const { t, locale } = useI18n();
   const display = run.progress
-    ? progressDisplayModel({
+      ? progressDisplayModel({
         ...run.progress,
+        locale,
+        t,
         status:
           run.status === "completed"
             ? "success"
@@ -105,31 +112,31 @@ const WorkflowRunRow: React.FC<{
               : run.status === "cancelled"
                 ? "cancelled"
                 : "running",
-        fallbackStage: getWorkflowKindLabel(run.workflow_kind),
+        fallbackStage: getWorkflowKindLabel(run.workflow_kind, locale),
       })
     : null;
-  const kindLabel = getWorkflowKindLabel(run.workflow_kind);
+  const kindLabel = getWorkflowKindLabel(run.workflow_kind, locale);
   const displayStage = readableWorkflowText(display?.stage, kindLabel);
   const canResumeLabel = run.can_resume
-    ? "可恢复"
+    ? t("settingsQueue.resumable")
     : run.resume_block_reason
-      ? "不可恢复"
+      ? t("settingsQueue.notResumable")
       : null;
   const canResumeFromPanel =
     run.can_resume && PANEL_RESUMABLE_WORKFLOW_KINDS.has(run.workflow_kind);
   const resumeTitle = run.can_resume
     ? canResumeFromPanel
-      ? "可在此处恢复工作流"
-      : "该工作流需要在对应业务页面恢复"
+      ? t("settingsQueue.resumeHere")
+      : t("settingsQueue.resumeOnBusinessPage")
     : (run.resume_block_reason ?? undefined);
   const fallbackDetail =
     (run.can_resume && !canResumeFromPanel
-      ? "请到对应业务页面恢复"
+      ? t("settingsQueue.goToBusinessPage")
       : (run.error_message ?? run.updated_at));
   const detailText = readableWorkflowText(display?.detail, fallbackDetail);
   const menuItems: DropdownItem[] = [
     {
-      label: expanded ? "收起运行详情" : "查看运行详情",
+      label: expanded ? t("settingsQueue.collapseDetails") : t("settingsQueue.viewDetails"),
       icon: expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />,
       onClick: () => onToggleDetail(run),
     },
@@ -137,7 +144,7 @@ const WorkflowRunRow: React.FC<{
   if (canResumeFromPanel && !resuming) {
     menuItems.push({ type: "divider" });
     menuItems.push({
-      label: "继续运行",
+      label: t("settingsQueue.continueRun"),
       icon: <RefreshCw size={13} />,
       onClick: () => onResume(run),
     });
@@ -151,11 +158,11 @@ const WorkflowRunRow: React.FC<{
             {kindLabel}
           </div>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
-            <span className={runStatusTone(run.status)}>{getOperationStatusLabel(run.status)}</span>
+            <span className={runStatusTone(run.status)}>{getOperationStatusLabel(run.status, locale)}</span>
             {run.mode ? (
               <>
                 <span aria-hidden="true">·</span>
-                <span>{getWorkflowModeLabel(run.mode)}</span>
+                <span>{getWorkflowModeLabel(run.mode, locale)}</span>
               </>
             ) : null}
             {canResumeLabel ? (
@@ -177,7 +184,7 @@ const WorkflowRunRow: React.FC<{
             {displayStage}
           </div>
           <div className="truncate text-small leading-4 text-book-text-muted" title={detailText}>
-            {formatWorkflowDetail(detailText)}
+            {formatDateTime(detailText, locale, detailText)}
           </div>
         </div>
         {detailLoading || resuming ? (
@@ -199,31 +206,32 @@ const WorkflowRunDetailBlock: React.FC<{
   detail?: WorkflowRunDetailSummary;
   loading: boolean;
 }> = ({ detail, loading }) => {
+  const { t, locale } = useI18n();
   if (loading && !detail) {
     return (
       <div className="mt-3 flex items-center gap-1.5 border-t border-book-border/30 pt-3 text-small text-book-text-muted">
         <LoadingSpinner size="sm" />
-        正在加载调用详情…
+        {t("settingsQueue.loadingCallDetails")}
       </div>
     );
   }
   if (!detail) {
     return (
       <div className="mt-3 border-t border-book-border/30 pt-3 text-small text-book-text-muted">
-        暂无调用详情
+        {t("settingsQueue.noCallDetails")}
       </div>
     );
   }
   return (
     <div className="mt-3 space-y-3 border-t border-book-border/30 pt-3 text-small text-book-text-muted">
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-        <span className="text-book-text-sub">{detail.checkpoints.length} 个检查点</span>
+        <span className="text-book-text-sub">{t("settingsQueue.checkpoints", { count: detail.checkpoints.length })}</span>
         <span aria-hidden="true">·</span>
-        <span className="text-book-text-sub">{detail.generation_runs.length} 次生成调用</span>
+        <span className="text-book-text-sub">{t("settingsQueue.generationCalls", { count: detail.generation_runs.length })}</span>
       </div>
       {detail.checkpoints.length > 0 && (
         <div>
-          <div className="mb-1.5 font-medium text-book-text-sub">运行进度</div>
+          <div className="mb-1.5 font-medium text-book-text-sub">{t("settingsQueue.runProgress")}</div>
           <ol className="divide-y divide-book-border/25 rounded-xl bg-book-bg-tertiary/35 px-2.5">
             {detail.checkpoints.slice(0, 6).map((checkpoint) => (
               <li
@@ -231,10 +239,10 @@ const WorkflowRunDetailBlock: React.FC<{
                 className="flex min-w-0 items-center gap-2 py-2"
               >
                 <span className="min-w-0 flex-1 text-book-text-sub">
-                  第 {checkpoint.step_order} 步
+                  {t("settingsQueue.step", { count: checkpoint.step_order })}
                 </span>
                 <span className={runStatusTone(checkpoint.status)}>
-                  {getOperationStatusLabel(checkpoint.status)}
+                  {getOperationStatusLabel(checkpoint.status, locale)}
                 </span>
               </li>
             ))}
@@ -243,7 +251,7 @@ const WorkflowRunDetailBlock: React.FC<{
       )}
       {detail.generation_runs.length > 0 && (
         <div>
-          <div className="mb-1.5 font-medium text-book-text-sub">生成调用</div>
+          <div className="mb-1.5 font-medium text-book-text-sub">{t("settingsQueue.generationCall")}</div>
           <ol className="divide-y divide-book-border/25 rounded-xl bg-book-bg-tertiary/35 px-2.5">
             {detail.generation_runs.slice(0, 8).map((run, index) => (
               <li
@@ -252,11 +260,11 @@ const WorkflowRunDetailBlock: React.FC<{
               >
                 <span className="text-book-text-muted">{index + 1}</span>
                 <span className="min-w-0 truncate text-book-text-sub">
-                  {run.title || "生成请求"}
+                  {run.title || t("settingsQueue.generationRequest")}
                 </span>
                 <span className={runStatusTone(run.status)}>
-                  {getOperationStatusLabel(run.status)}
-                  {run.attempt > 1 ? ` · 第 ${run.attempt} 次` : ""}
+                  {getOperationStatusLabel(run.status, locale)}
+                  {run.attempt > 1 ? ` · ${t("settingsQueue.attempt", { count: run.attempt })}` : ""}
                 </span>
               </li>
             ))}
@@ -268,22 +276,24 @@ const WorkflowRunDetailBlock: React.FC<{
   );
 };
 
-const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = ({ detail }) => (
+const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = ({ detail }) => {
+  const { t } = useI18n();
+  return (
   <details className="text-caption text-book-text-muted">
     <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
-      诊断信息
+      {t("settingsQueue.diagnostic")}
     </summary>
     <div className="mt-1 space-y-2 rounded-xl bg-book-bg-tertiary/45 p-2.5 font-mono">
       <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1">
-        <span>运行编号</span>
+        <span>{t("settingsQueue.runNumber")}</span>
         <span className="break-all text-book-text-sub">{detail.run.id}</span>
-        <span>业务键</span>
+        <span>{t("settingsQueue.businessKey")}</span>
         <span className="break-all text-book-text-sub">{detail.run.business_key}</span>
-        <span>工作流类型</span>
+        <span>{t("settingsQueue.workflowKind")}</span>
         <span className="break-all text-book-text-sub">{detail.run.workflow_kind}</span>
         {detail.run.current_step_key ? (
           <>
-            <span>当前步骤</span>
+            <span>{t("settingsQueue.currentStep")}</span>
             <span className="break-all text-book-text-sub">{detail.run.current_step_key}</span>
           </>
         ) : null}
@@ -292,7 +302,7 @@ const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = (
         <div className="border-t border-book-border/30 pt-2">
           {detail.checkpoints.slice(0, 6).map((checkpoint) => (
             <div key={checkpoint.id} className="break-all">
-              checkpoint {checkpoint.id} · {checkpoint.step_key} · {checkpoint.status}
+              {t("settingsQueue.checkpoint", { id: checkpoint.id })} · {checkpoint.step_key} · {checkpoint.status}
             </div>
           ))}
         </div>
@@ -301,17 +311,18 @@ const WorkflowRunDiagnostics: React.FC<{ detail: WorkflowRunDetailSummary }> = (
         <div className="border-t border-book-border/30 pt-2">
           {detail.generation_runs.slice(0, 8).map((run) => (
             <div key={run.id} className="break-all">
-              generation {run.id} · {run.call_key ?? run.step_key} · {run.status}
-              {run.raw_response_json != null ? " · raw" : ""}
-              {run.parsed_output_json != null ? " · parsed" : ""}
-              {run.validation_json != null ? " · validated" : ""}
+              {t("settingsQueue.generation", { id: run.id })} · {run.call_key ?? run.step_key} · {run.status}
+              {run.raw_response_json != null ? ` · ${t("settingsQueue.raw")}` : ""}
+              {run.parsed_output_json != null ? ` · ${t("settingsQueue.parsed")}` : ""}
+              {run.validation_json != null ? ` · ${t("settingsQueue.validated")}` : ""}
             </div>
           ))}
         </div>
       ) : null}
     </div>
   </details>
-);
+  );
+};
 
 function runStatusTone(status: string): string {
   if (["completed", "success"].includes(status)) return "text-success";
@@ -319,18 +330,6 @@ function runStatusTone(status: string): string {
   if (["interrupted", "paused", "blocked"].includes(status)) return "text-warning";
   if (status === "running") return "text-book-primary";
   return "text-book-text-muted";
-}
-
-function formatWorkflowDetail(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }
 
 function readableWorkflowText(value: string | null | undefined, fallback: string): string {

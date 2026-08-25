@@ -7,14 +7,14 @@ use crate::{
 };
 use a4n_core::models::canvas::canvas_node;
 use a4n_orchestrator::canvas::{
-    CanvasGraphRecordDocument as CanvasGraphDocument, build_canvas_llm_text_request_for_preview,
+    CanvasGraphRecordDocument, build_canvas_llm_text_request_for_preview,
 };
 
 pub(super) async fn preview_canvas_llm_node(
     state: &AppState,
     input: &PreviewCanvasNodeRequestInput,
     node: &canvas_node::Model,
-    document: &CanvasGraphDocument,
+    document: &CanvasGraphRecordDocument,
 ) -> Result<ModelRequestPreview, String> {
     let request = build_canvas_llm_text_request_for_preview(
         input.project_id,

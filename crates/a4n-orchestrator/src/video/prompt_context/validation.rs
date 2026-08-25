@@ -14,7 +14,7 @@ pub(in crate::video) fn validate_prompt_options(
     validate_prompt_options_with_reference_limit(options, MAX_REFERENCE_IMAGE_IDS)
 }
 
-pub fn validate_prompt_options_with_reference_limit(
+pub(in crate::video) fn validate_prompt_options_with_reference_limit(
     options: ChapterVideoPromptOptions,
     max_reference_image_ids: usize,
 ) -> Result<ChapterVideoPromptOptions, AppError> {

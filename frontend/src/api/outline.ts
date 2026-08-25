@@ -52,14 +52,6 @@ export const isRetrospectiveChapterOutline = (
   outline: ChapterOutline | null | undefined,
 ): boolean => outline?.source_kind === CHAPTER_OUTLINE_SOURCE_RETROSPECTIVE_ANALYSIS;
 
-export const chapterOutlineSourceLabel = (
-  outline: ChapterOutline | null | undefined,
-): string => {
-  if (isRetrospectiveChapterOutline(outline)) return "回顾摘要";
-  if (isDerivedChapterOutline(outline)) return "分析候选";
-  return "章节大纲";
-};
-
 // ============================================================================
 // 分部大纲
 // ============================================================================

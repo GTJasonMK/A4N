@@ -2,7 +2,7 @@ use serde_json::Value;
 
 use crate::project_family_import::{ImportIdMaps, ProjectFamilyImportError, map_required};
 
-pub fn remap_chapter_hashes_json(
+pub(in crate::project_family_import) fn remap_chapter_hashes_json(
     value: &Value,
     maps: &ImportIdMaps,
 ) -> Result<Value, ProjectFamilyImportError> {

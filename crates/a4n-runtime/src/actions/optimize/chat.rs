@@ -35,7 +35,7 @@ pub async fn start_optimize_chat_generation_typed(
                 .orchestrator()
                 .run_optimize_chat_generation_task(
                     a4n_orchestrator::optimize::OptimizeChatGenerationApplicationContext {
-                        prompt_renderer: prompt_renderer,
+                        prompt_renderer,
                     },
                     user_id,
                     input,

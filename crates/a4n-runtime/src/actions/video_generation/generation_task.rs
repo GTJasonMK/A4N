@@ -32,7 +32,7 @@ pub async fn start_video_generation_typed(
                         handle,
                         a4n_orchestrator::video::VideoPromptApplicationContext {
                             runtime_video_config: runtime_video_config.as_ref(),
-                            prompt_renderer: prompt_renderer,
+                            prompt_renderer,
                         },
                     )
                     .await

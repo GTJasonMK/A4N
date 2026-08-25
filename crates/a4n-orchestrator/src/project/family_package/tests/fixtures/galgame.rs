@@ -122,18 +122,33 @@ pub(in crate::project::family_package::tests) fn empty_galgame_presentation_json
 pub(in crate::project::family_package::tests) fn speaker_galgame_presentation_json(
     profile_id: i64,
     expression: &str,
+    position: &str,
 ) -> Value {
     let mut presentation = empty_galgame_presentation_json();
     presentation["visible_cast"] = json!([{
         "character_profile_id": profile_id,
         "expression": expression,
         "pose": "standing",
-        "position": "center",
+        "position": position,
         "facing": "front",
         "layer": "front"
     }]);
     presentation["focus_character_profile_id"] = json!(profile_id);
     presentation
+}
+
+pub(in crate::project::family_package::tests) fn set_galgame_speaker_line(
+    line: &mut galgame_line::Model,
+    profile_id: i64,
+    expression: &str,
+    position: &str,
+) {
+    line.line_type = "dialogue".to_string();
+    line.speaker_profile_id = Some(profile_id);
+    line.expression = Some(expression.to_string());
+    line.pose = Some("standing".to_string());
+    line.position = Some(position.to_string());
+    line.presentation_json = speaker_galgame_presentation_json(profile_id, expression, position);
 }
 
 pub(in crate::project::family_package::tests) fn galgame_choice_record(

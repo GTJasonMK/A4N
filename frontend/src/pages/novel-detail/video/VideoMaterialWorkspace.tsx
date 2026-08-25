@@ -45,6 +45,7 @@ import {
 } from "../../../utils/imageUpload";
 import { ImageActionDialog } from "../images/ImageActionDialog";
 import { chapterRangeText } from "../shared";
+import { useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
 import {
   VISUAL_STYLE_TEMPLATES,
   renderVisualStyleTemplate,
@@ -57,84 +58,85 @@ const DEFAULT_STYLE_TEMPLATE_ID = VISUAL_STYLE_TEMPLATES[0].id;
 const STYLE_TEMPLATE_VERSION = "1";
 const MAX_UPLOAD_IMAGE_BYTES = 20 * 1024 * 1024;
 
-const KIND_OPTIONS: Array<{ value: ProfileMaterialKindFilter; label: string }> = [
-  { value: "all", label: "全部" },
-  { value: "scene", label: "场景" },
-  { value: "object", label: "物品" },
+const kindOptions = (t: MessageTranslator): Array<{ value: ProfileMaterialKindFilter; label: string }> => [
+  { value: "all", label: t("video.material.all") },
+  { value: "scene", label: t("video.material.scene") },
+  { value: "object", label: t("video.material.object") },
 ];
 
-const FILTER_OPTIONS: Array<{ value: ProfileMaterialFilter; label: string }> = [
-  { value: "all", label: "全部状态" },
-  { value: "missing", label: "缺失" },
-  { value: "stale", label: "已过期" },
-  { value: "unknown", label: "旧素材" },
-  { value: "ready", label: "可用" },
-  { value: "favorite", label: "收藏" },
+const filterOptions = (t: MessageTranslator): Array<{ value: ProfileMaterialFilter; label: string }> => [
+  { value: "all", label: t("video.material.allStates") },
+  { value: "missing", label: t("video.material.missing") },
+  { value: "stale", label: t("video.material.stale") },
+  { value: "unknown", label: t("video.material.old") },
+  { value: "ready", label: t("video.material.ready") },
+  { value: "favorite", label: t("video.material.favorite") },
 ];
 
-const SORT_OPTIONS: Array<{ value: ProfileMaterialSort; label: string }> = [
-  { value: "missing_first", label: "缺失优先" },
-  { value: "stale_first", label: "过期优先" },
-  { value: "newest", label: "最新素材" },
-  { value: "importance", label: "重要性" },
+const sortOptions = (t: MessageTranslator): Array<{ value: ProfileMaterialSort; label: string }> => [
+  { value: "missing_first", label: t("video.material.missingFirst") },
+  { value: "stale_first", label: t("video.material.staleFirst") },
+  { value: "newest", label: t("video.material.newest") },
+  { value: "importance", label: t("video.material.importance") },
 ];
 
-const MATERIAL_STATE_LABELS: Record<ProfileMaterialState, string> = {
-  missing: "缺失",
-  ready: "可用",
-  stale: "已过期",
-  unknown: "旧素材",
+const materialStateLabel = (value: ProfileMaterialState, t: MessageTranslator): string =>
+  t(`video.material.state${value[0].toUpperCase()}${value.slice(1)}` as MessageKey);
+
+const materialKindLabel = (value: ProfileMaterialKind, t: MessageTranslator): string =>
+  t(`video.material.${value}` as MessageKey);
+
+const IMPORTANCE_KEYS: Record<string, MessageKey> = {
+  primary: "video.material.importancePrimary",
+  secondary: "video.material.importanceSecondary",
+  minor: "video.material.importanceMinor",
+  major: "video.material.importanceMajor",
+  supporting: "video.material.importanceSupporting",
+  background: "video.material.importanceBackground",
+  high: "video.material.importanceHigh",
+  medium: "video.material.importanceMedium",
+  low: "video.material.importanceLow",
+  normal: "video.material.importanceNormal",
+  critical: "video.material.importanceCritical",
 };
 
-const MATERIAL_KIND_LABELS: Record<ProfileMaterialKind, string> = {
-  scene: "场景",
-  object: "物品",
+const CATEGORY_KEYS: Record<string, MessageKey> = {
+  room: "video.material.categoryRoom",
+  building: "video.material.categoryBuilding",
+  street: "video.material.categoryStreet",
+  city: "video.material.categoryCity",
+  wilderness: "video.material.categoryWilderness",
+  route: "video.material.categoryRoute",
+  landmark: "video.material.categoryLandmark",
+  location: "video.material.categoryLocation",
+  interior: "video.material.categoryInterior",
+  exterior: "video.material.categoryExterior",
+  region: "video.material.categoryRegion",
+  world: "video.material.categoryWorld",
+  organization: "video.material.categoryOrganization",
+  weapon: "video.material.categoryWeapon",
+  prop: "video.material.categoryProp",
+  tool: "video.material.categoryTool",
+  token: "video.material.categoryToken",
+  document: "video.material.categoryDocument",
+  vehicle: "video.material.categoryVehicle",
+  clothing: "video.material.categoryClothing",
+  location_object: "video.material.categoryLocationObject",
+  environment_object: "video.material.categoryEnvironmentObject",
+  artifact: "video.material.categoryArtifact",
+  consumable: "video.material.categoryConsumable",
+  other: "video.material.categoryOther",
 };
 
-const IMPORTANCE_LABELS: Record<string, string> = {
-  primary: "关键",
-  secondary: "重要",
-  minor: "次要",
-  major: "主要",
-  supporting: "辅助",
-  background: "背景",
-  high: "高",
-  medium: "中",
-  low: "低",
-  normal: "普通",
-  critical: "关键",
+const categoryLabel = (value: string, t: MessageTranslator): string => {
+  const key = CATEGORY_KEYS[value];
+  return key ? t(key) : t("video.material.uncategorized");
 };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  room: "房间",
-  building: "建筑",
-  street: "街道",
-  city: "城市",
-  wilderness: "荒野",
-  route: "路线",
-  landmark: "地标",
-  location: "地点",
-  interior: "室内",
-  exterior: "室外",
-  region: "区域",
-  world: "世界",
-  organization: "组织空间",
-  weapon: "武器",
-  prop: "道具",
-  tool: "工具",
-  token: "信物",
-  document: "文书",
-  vehicle: "载具",
-  clothing: "服装",
-  location_object: "设施",
-  environment_object: "环境物件",
-  artifact: "器物",
-  consumable: "消耗品",
-  other: "其他",
+const importanceLabel = (value: string, t: MessageTranslator): string => {
+  const key = IMPORTANCE_KEYS[value];
+  return key ? t(key) : t("video.material.unmarked");
 };
-
-const categoryLabel = (value: string): string => CATEGORY_LABELS[value] ?? "未分类";
-const importanceLabel = (value: string): string => IMPORTANCE_LABELS[value] ?? "未标注";
 
 const groupKey = (group: ProfileMaterialGroup): string => `${group.kind}:${group.profile.id}`;
 
@@ -151,6 +153,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   runProgressTask,
   onRefreshVideoData,
 }) => {
+  const { t } = useI18n();
   const [groups, setGroups] = useState<ProfileMaterialGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -251,7 +254,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         setGroups(result);
       } catch (err) {
         if (loadSeqRef.current !== requestSeq || activeLoadKeyRef.current !== requestKey) return;
-        onToast(extractErrorMessage(err, "加载素材管理数据失败"), "error");
+        onToast(extractErrorMessage(err, t("video.material.loadFailed")), "error");
       } finally {
         if (loadSeqRef.current === requestSeq && activeLoadKeyRef.current === requestKey) {
           setLoading(false);
@@ -266,7 +269,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     })();
     loadInFlightRef.current = { key: requestKey, seq: requestSeq, promise };
     return promise;
-  }, [kindFilter, loadRequestKey, onToast, projectId, query, sort, stateFilter]);
+  }, [kindFilter, loadRequestKey, onToast, projectId, query, sort, stateFilter, t]);
 
   useEffect(() => {
     void loadMaterials();
@@ -358,26 +361,26 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
         runProgressTask,
         handle,
         {
-          title: `${group.profile.name} 素材图生成`,
-          startMessage: "正在准备素材图生成",
-          successMessage: "素材图生成完成",
-          errorMessage: "素材图生成失败",
+          title: t("video.material.generationTitle", { name: group.profile.name }),
+          startMessage: t("video.material.preparingGeneration"),
+          successMessage: t("video.material.generationCompleted"),
+          errorMessage: t("video.material.generationFailed"),
           total: 3,
-          cancelLabel: "停止生成",
+          cancelLabel: t("video.material.stopGeneration"),
         },
         async (task) => {
-          if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
+          if (!isCurrentProject(requestProjectId)) throw new Error(t("video.material.taskStopped"));
           await verifyImageGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(`已生成 ${group.profile.name} 的项目级素材图`, "success");
+      onToast(t("video.material.generatedProjectMaterial", { name: group.profile.name }), "success");
       if (options.refresh !== false) {
         await refreshAfterMaterialChange();
       }
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "素材图生成失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.generationFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) setBusyKey(null);
     }
@@ -428,10 +431,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       if (!isCurrentProject(requestProjectId)) return;
       await copyTextToClipboard(prompt);
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(`已复制 ${group.profile.name} 的图片提示词`, "success");
+      onToast(t("video.material.copiedPrompt", { name: group.profile.name }), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "复制提示词失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.copyPromptFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) setBusyKey(null);
       finishAction(requestProjectId);
@@ -452,11 +455,11 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     const stylePayload = generationStylePayload();
     try {
       if (!isSupportedImageMime(file.type)) {
-        onToast("只支持 PNG/JPEG/WebP 图片", "error");
+        onToast(t("video.material.imageFormats"), "error");
         return;
       }
       if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-        onToast(`上传图片不能超过 ${MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024}MB`, "error");
+        onToast(t("video.material.imageTooLarge", { size: MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024 }), "error");
         return;
       }
       setBusyKey(key);
@@ -483,10 +486,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       setUploadTarget(null);
       await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(uploadSetPrimary ? "已上传并设为主素材" : "已上传素材图", "success");
+      onToast(uploadSetPrimary ? t("video.material.uploadedPrimary") : t("video.material.uploaded"), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "上传素材图失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.uploadFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) setBusyKey(null);
       finishAction(requestProjectId);
@@ -497,7 +500,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     const requestProjectId = projectId;
     const targets = groups.filter((group) => group.material_state === mode);
     if (targets.length === 0) {
-      onToast(mode === "missing" ? "当前没有缺失素材" : "当前没有过期素材", "info");
+      onToast(mode === "missing" ? t("video.material.noMissing") : t("video.material.noStale"), "info");
       return;
     }
     if (!beginAction()) return;
@@ -510,7 +513,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       if (!isCurrentProject(requestProjectId)) return;
       await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(`批量生成完成：${targets.length} 个档案`, "success");
+      onToast(t("video.material.batchCompleted", { count: targets.length }), "success");
     } finally {
       if (isCurrentProject(requestProjectId)) setBatchBusy(false);
       finishAction(requestProjectId);
@@ -536,10 +539,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
       await loadMaterials({ force: true });
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(updated.is_favorite ? "已收藏" : "已取消收藏", "success");
+      onToast(updated.is_favorite ? t("video.material.favorited") : t("video.material.unfavorited"), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "切换素材收藏失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.favoriteFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) setImageBusyId(null);
       finishAction(requestProjectId);
@@ -550,7 +553,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     const requestProjectId = projectId;
     const score = Number(imageScoreInput);
     if (!Number.isFinite(score)) {
-      onToast("评分必须是数字", "error");
+      onToast(t("video.material.scoreInvalid"), "error");
       return;
     }
     if (!beginAction()) return;
@@ -561,10 +564,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
       await loadMaterials({ force: true });
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(`已打分 ${score}`, "success");
+      onToast(t("video.material.scored", { score }), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "打分失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.scoreFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) setImageScoringId(null);
       finishAction(requestProjectId);
@@ -581,10 +584,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       setImageDetails((current) => (current?.id === updated.id ? updated : current));
       await loadMaterials({ force: true });
       if (!isCurrentProject(requestProjectId)) return;
-      onToast("图片记录已更新", "success");
+      onToast(t("video.material.imageUpdated"), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "更新图片记录失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.updateImageFailed")), "error");
       throw err;
     } finally {
       if (isCurrentProject(requestProjectId)) setImageBusyId(null);
@@ -597,9 +600,9 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     if (!beginAction()) return;
     try {
       const ok = await confirmDialog({
-        title: "删除素材图",
-        message: "删除这张素材图？相关视频参考图会同步解除关联。",
-        confirmText: "删除",
+        title: t("video.material.deleteTitle"),
+        message: t("video.material.deleteMessage"),
+        confirmText: t("common.delete"),
         dialogType: "danger",
       });
       if (!ok) return;
@@ -610,10 +613,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       setImageDetails(null);
       await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
-      onToast("已删除素材图", "success");
+      onToast(t("video.material.deleted"), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "删除素材图失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.deleteFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) setImageBusyId(null);
       finishAction(requestProjectId);
@@ -634,10 +637,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       if (!isCurrentProject(requestProjectId)) return;
       await refreshAfterMaterialChange();
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(imageId == null ? "已取消主素材" : "已设为主素材", "success");
+      onToast(imageId == null ? t("video.material.primaryCleared") : t("video.material.primarySet"), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      onToast(extractErrorMessage(err, "设置主素材失败"), "error");
+      onToast(extractErrorMessage(err, t("video.material.setPrimaryFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) setBusyKey(null);
       finishAction(requestProjectId);
@@ -655,27 +658,27 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
               onChange={(event) => setQuery(event.target.value)}
               disabled={loading || busyKey != null || batchBusy}
               className="min-w-0 flex-1 bg-transparent text-book-text-main outline-none placeholder:text-book-text-muted"
-              placeholder="搜索场景或物品"
+              placeholder={t("video.material.searchPlaceholder")}
             />
           </label>
           <ToolbarSelect
-            label="类型"
+            label={t("video.material.type")}
             value={kindFilter}
-            options={KIND_OPTIONS}
+            options={kindOptions(t)}
             disabled={loading || busyKey != null || batchBusy}
             onChange={(value) => setKindFilter(value as ProfileMaterialKindFilter)}
           />
           <ToolbarSelect
-            label="状态"
+            label={t("video.material.status")}
             value={stateFilter}
-            options={FILTER_OPTIONS}
+            options={filterOptions(t)}
             disabled={loading || busyKey != null || batchBusy}
             onChange={(value) => setStateFilter(value as ProfileMaterialFilter)}
           />
           <ToolbarSelect
-            label="排序"
+            label={t("video.material.sort")}
             value={sort}
-            options={SORT_OPTIONS}
+            options={sortOptions(t)}
             disabled={loading || busyKey != null || batchBusy}
             onChange={(value) => setSort(value as ProfileMaterialSort)}
           />
@@ -684,41 +687,41 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
             onClick={() => void loadMaterials()}
             disabled={loading || busyKey != null || batchBusy}
             className="pyqt-btn-icon !h-9 !w-9"
-            title="刷新素材管理数据"
-            aria-label="刷新素材管理数据"
+            title={t("video.material.refresh")}
+            aria-label={t("video.material.refresh")}
           >
             {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
           </button>
         </div>
         <div className="border-t border-book-border/35 px-3 py-2 text-small leading-relaxed text-book-text-muted">
-          当前 {groups.length} 个档案 · {stats.imageCount} 张素材图
-          {stats.missingCount > 0 ? ` · ${stats.missingCount} 项待补齐` : ""}
-          {stats.staleCount > 0 ? ` · ${stats.staleCount} 项需更新` : ""}
+          {t("video.material.statsProfiles", { count: groups.length })} · {t("video.material.statsImages", { count: stats.imageCount })}
+          {stats.missingCount > 0 ? ` · ${t("video.material.statsMissing", { count: stats.missingCount })}` : ""}
+          {stats.staleCount > 0 ? ` · ${t("video.material.statsStale", { count: stats.staleCount })}` : ""}
         </div>
         <details className="group border-t border-book-border/35">
           <summary className="flex min-h-10 cursor-pointer list-none items-center gap-3 px-3 py-2 text-xs [&::-webkit-details-marker]:hidden">
-            <span className="font-medium text-book-text-main">生成设置</span>
+            <span className="font-medium text-book-text-main">{t("video.material.generationSettings")}</span>
             <span className="min-w-0 flex-1 truncate text-right text-caption text-book-text-muted">
-              {selectedStyleTemplate?.name ?? "自定义风格"}
+              {selectedStyleTemplate?.name ?? t("video.material.customStyle")}
             </span>
           </summary>
           <div className="grid min-w-0 grid-cols-1 gap-2 border-t border-book-border/25 px-3 pb-3 pt-2 sm:grid-cols-2">
             <ToolbarSelect
-              label="风格模板"
+              label={t("video.material.styleTemplate")}
               value={selectedStyleTemplate?.id ?? CUSTOM_STYLE_VALUE}
               options={[
                 ...VISUAL_STYLE_TEMPLATES.map((template) => ({
                   value: template.id,
                   label: template.name,
                 })),
-                { value: CUSTOM_STYLE_VALUE, label: "自定义/后端默认" },
+                { value: CUSTOM_STYLE_VALUE, label: t("video.material.customBackendDefault") },
               ]}
               disabled={busyKey != null || batchBusy}
               onChange={applyStyleTemplate}
               wide
             />
             <label className="flex min-h-9 min-w-0 items-center gap-2 rounded-xl border border-book-border/60 bg-book-bg-paper/60 px-3 text-xs transition-colors focus-within:border-book-primary/70 focus-within:bg-book-bg-paper">
-              <span className="shrink-0 text-book-text-muted">补充</span>
+              <span className="shrink-0 text-book-text-muted">{t("video.material.supplement")}</span>
               <input
                 value={selectedStyleTemplate ? "" : customStyle}
                 onChange={(event) => setCustomStyle(event.target.value)}
@@ -727,7 +730,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
                 placeholder={
                   selectedStyleTemplate
                     ? selectedStyleTemplate.summary
-                    : "输入自定义风格；清空则使用后端默认"
+                    : t("video.material.customStylePlaceholder")
                 }
               />
             </label>
@@ -739,10 +742,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
                     onClick={() => void batchGenerate("missing")}
                     disabled={loading || busyKey != null || batchBusy}
                     className="pyqt-btn-primary inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 px-3 text-xs sm:flex-none"
-                    title="为当前筛选结果中的缺失档案生成素材图"
+                    title={t("video.material.generateMissingTitle")}
                   >
                     {batchBusy ? <LoadingSpinner size="sm" /> : <Sparkles size={13} />}
-                    补齐 {stats.missingCount} 项缺失
+                    {t("video.material.fillMissing", { count: stats.missingCount })}
                   </button>
                 )}
                 {stats.staleCount > 0 && (
@@ -751,10 +754,10 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
                     onClick={() => void batchGenerate("stale")}
                     disabled={loading || busyKey != null || batchBusy}
                     className="pyqt-btn-secondary inline-flex min-h-9 flex-1 items-center justify-center gap-1.5 px-3 text-xs sm:flex-none"
-                    title="为当前筛选结果中的过期档案重新生成素材图"
+                    title={t("video.material.generateStaleTitle")}
                   >
                     <RefreshCw size={13} />
-                    更新 {stats.staleCount} 项过期素材
+                    {t("video.material.updateStale", { count: stats.staleCount })}
                   </button>
                 )}
               </div>
@@ -766,7 +769,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
       <div className="min-h-0 flex-1 overflow-y-auto custom-scrollbar pr-1">
         {groups.length === 0 ? (
           <div className="flex h-full min-h-[180px] items-center justify-center rounded-2xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-xs text-book-text-muted">
-            {loading ? "正在加载素材..." : "当前筛选条件下没有素材档案。"}
+            {loading ? t("video.material.loading") : t("video.material.empty")}
           </div>
         ) : (
           <div className="grid grid-cols-1 items-start gap-2 lg:grid-cols-2 xl:grid-cols-3">
@@ -835,6 +838,7 @@ function MaterialCard({
   onOpenImage: (image: GeneratedImage) => void;
   onSetPrimary: (imageId: number | null) => void;
 }) {
+  const { t } = useI18n();
   const icon = group.kind === "scene" ? <MapPinned size={14} /> : <Box size={14} />;
   const hero = group.primary_image ?? group.images[0] ?? null;
   const heroSrc = hero ? toMediaSrc(hero.image.file_path) : null;
@@ -854,7 +858,7 @@ function MaterialCard({
     ...(!directGenerate
       ? [
           {
-            label: "重新生成素材图",
+            label: t("video.material.regenerate"),
             icon: <Sparkles size={13} />,
             disabled,
             onClick: onGenerate,
@@ -863,13 +867,13 @@ function MaterialCard({
         ]
       : []),
     {
-      label: "复制素材提示词",
+      label: t("video.material.copyPrompt"),
       icon: <Clipboard size={13} />,
       disabled,
       onClick: onCopyPrompt,
     },
     {
-      label: "上传素材图",
+      label: t("video.material.upload"),
       icon: <Upload size={13} />,
       disabled,
       onClick: onUpload,
@@ -878,7 +882,7 @@ function MaterialCard({
       ? [
           { type: "divider" as const },
           {
-            label: "取消主素材",
+            label: t("video.material.clearPrimary"),
             disabled,
             onClick: () => onSetPrimary(null),
           },
@@ -897,12 +901,12 @@ function MaterialCard({
             {group.profile.name}
           </h3>
           <p className="mt-1 truncate text-caption text-book-text-muted">
-            {MATERIAL_KIND_LABELS[group.kind]} · {categoryLabel(group.profile.category)} · {importanceLabel(group.profile.importance)} · {chapterRangeText(group.profile.first_seen_chapter, group.profile.last_seen_chapter)}
+            {materialKindLabel(group.kind, t)} · {categoryLabel(group.profile.category, t)} · {importanceLabel(group.profile.importance, t)} · {chapterRangeText(group.profile.first_seen_chapter, group.profile.last_seen_chapter, t)}
           </p>
         </div>
         <div className="shrink-0 text-right text-caption leading-relaxed">
-          <div className={stateTone}>{MATERIAL_STATE_LABELS[group.material_state]}</div>
-          <div className="text-book-text-muted">{group.image_count} 张</div>
+          <div className={stateTone}>{materialStateLabel(group.material_state, t)}</div>
+          <div className="text-book-text-muted">{t("video.material.imageCount", { count: group.image_count })}</div>
         </div>
       </div>
 
@@ -911,24 +915,24 @@ function MaterialCard({
         disabled={!hero}
         onClick={() => hero && onOpenImage(hero.image)}
         className="relative flex aspect-[16/9] w-full items-center justify-center overflow-hidden rounded-2xl border border-book-border/45 bg-book-bg-tertiary text-xs text-book-text-muted disabled:cursor-default"
-        title={hero ? "打开素材图" : "暂无素材图"}
+        title={hero ? t("video.material.openImage") : t("video.material.noImage")}
       >
         {heroSrc ? (
           <img
             src={heroSrc}
-            alt={`${group.profile.name} 主素材`}
+            alt={`${group.profile.name} ${t("video.material.primaryMaterial")}`}
             className="h-full w-full object-cover"
           />
         ) : (
-          "暂无素材图"
+          t("video.material.noImage")
         )}
         {hero ? (
           <div className="absolute left-2 top-2 flex gap-1.5 text-white">
             {hero.is_primary ? (
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/35 backdrop-blur-md"
-                title="主素材"
-                aria-label="主素材"
+                title={t("video.material.primaryMaterial")}
+                aria-label={t("video.material.primaryMaterial")}
               >
                 <BadgeCheck size={13} />
               </span>
@@ -936,8 +940,8 @@ function MaterialCard({
             {hero.image.is_favorite ? (
               <span
                 className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-black/35 backdrop-blur-md"
-                title="已收藏"
-                aria-label="已收藏"
+                title={t("video.material.favoritedLabel")}
+                aria-label={t("video.material.favoritedLabel")}
               >
                 <Star size={13} fill="currentColor" />
               </span>
@@ -947,10 +951,10 @@ function MaterialCard({
       </button>
 
       <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-book-text-sub">
-        {group.profile.primary_text || "暂无视觉描述。"}
+        {group.profile.primary_text || t("video.material.noVisualDescription")}
       </p>
       <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-muted">
-        {group.profile.secondary_text || "未记录补充信息。"}
+        {group.profile.secondary_text || t("video.material.noSupplementalInfo")}
       </p>
 
       <div className="mt-2 flex min-h-14 gap-2 overflow-x-auto pb-1 custom-scrollbar">
@@ -967,22 +971,22 @@ function MaterialCard({
                       ? "border-book-primary/80"
                       : "border-book-border/45"
                   }`}
-                  title="素材图"
+                  title={t("video.material.materialImage")}
                 >
                   {src ? (
                     <img
                       src={src}
-                      alt={`${group.profile.name} 候选素材图`}
+                      alt={`${group.profile.name} ${t("video.material.candidateImage")}`}
                       className="h-full w-full object-cover"
                     />
                   ) : (
-                    "无图"
+                    t("video.material.noImageShort")
                   )}
                   {item.staleness === "stale" ? (
                     <span
                       className="absolute right-1 top-1 h-2 w-2 rounded-full bg-warning ring-2 ring-black/25"
-                      title="素材已过期"
-                      aria-label="素材已过期"
+                      title={t("video.material.staleImage")}
+                      aria-label={t("video.material.staleImage")}
                     />
                   ) : null}
                   {item.is_primary ? (
@@ -999,8 +1003,8 @@ function MaterialCard({
                     onClick={() => onSetPrimary(item.image.id)}
                     disabled={disabled}
                     className="absolute bottom-1 right-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-white/25 bg-black/40 text-white opacity-80 backdrop-blur-sm transition-opacity sm:opacity-0 sm:group-hover/thumb:opacity-100 sm:focus-visible:opacity-100 disabled:opacity-40"
-                    title="设为主素材"
-                    aria-label="设为主素材"
+                    title={t("video.material.setPrimary")}
+                    aria-label={t("video.material.setPrimary")}
                   >
                     <BadgeCheck size={12} />
                   </button>
@@ -1010,11 +1014,11 @@ function MaterialCard({
           })
         ) : hero ? (
           <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-small text-book-text-muted">
-            暂无其他候选素材
+            {t("video.material.noOtherCandidates")}
           </div>
         ) : (
           <div className="flex h-14 w-full items-center justify-center rounded-xl border border-dashed border-book-border/50 bg-book-bg-paper/30 text-small text-book-text-muted">
-            缺失素材图
+            {t("video.material.missingImage")}
           </div>
         )}
       </div>
@@ -1025,7 +1029,7 @@ function MaterialCard({
             role="status"
             className="inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 text-xs text-book-text-muted"
           >
-            <LoadingSpinner size="sm" /> 正在生成
+            <LoadingSpinner size="sm" /> {t("video.material.generating")}
           </span>
         ) : directGenerate ? (
           <button
@@ -1033,10 +1037,10 @@ function MaterialCard({
             onClick={onGenerate}
             disabled={disabled}
             className={`${missingMaterial ? "pyqt-btn-primary" : "pyqt-btn-secondary"} inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 px-3 text-xs`}
-            title={missingMaterial ? "生成项目级可复用素材图" : "更新已过期的素材图"}
+            title={missingMaterial ? t("video.material.generateReusableTitle") : t("video.material.updateStaleTitle")}
           >
             {staleMaterial ? <RefreshCw size={13} /> : <Sparkles size={13} />}
-            {staleMaterial ? "更新素材图" : "生成素材图"}
+            {staleMaterial ? t("video.material.updateImage") : t("video.material.generateImage")}
           </button>
         ) : (
           <span className="min-w-0 flex-1" aria-hidden="true" />
@@ -1103,14 +1107,15 @@ function ProfileMaterialUploadDialog({
   onUpload: (file: File) => void;
 }) {
   if (!group) return null;
+  const { t } = useI18n();
   return (
     <Modal
       isOpen
       onClose={() => {
         if (!busy) onClose();
       }}
-      title="上传素材图"
-      subtitle={`${MATERIAL_KIND_LABELS[group.kind]} · ${group.profile.name}`}
+      title={t("video.material.uploadTitle")}
+      subtitle={`${materialKindLabel(group.kind, t)} · ${group.profile.name}`}
       icon={<Upload size={15} />}
       maxWidthClassName="max-w-md"
       closeOnBackdrop={!busy}
@@ -1127,10 +1132,10 @@ function ProfileMaterialUploadDialog({
         >
           <span className="min-w-0">
             <span className="block text-xs font-medium text-book-text-main">
-              上传后设为主素材
+              {t("video.material.uploadAfterPrimary")}
             </span>
             <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
-              在项目素材和后续生成中优先使用这张图片
+              {t("video.material.uploadAfterPrimaryHelp")}
             </span>
           </span>
           <span
@@ -1154,7 +1159,7 @@ function ProfileMaterialUploadDialog({
             }`}
           >
             <Upload size={14} />
-            选择图片
+            {t("video.material.chooseImage")}
             <input
               type="file"
               accept={supportedImageAccept()}
@@ -1168,7 +1173,7 @@ function ProfileMaterialUploadDialog({
             />
           </label>
           <div className="mt-2 text-small text-book-text-muted">
-            支持 PNG、JPEG、WebP，文件不超过 20MB。
+            {t("video.material.supportedFormats")}
           </div>
         </div>
 
@@ -1180,12 +1185,12 @@ function ProfileMaterialUploadDialog({
             className="inline-flex min-h-9 items-center gap-1.5 text-xs text-book-text-sub transition-colors hover:text-book-text-main disabled:opacity-50"
           >
             <Clipboard size={13} />
-            复制当前提示词
+            {t("video.material.copyCurrentPrompt")}
           </button>
           {busy ? (
             <span role="status" className="inline-flex items-center gap-1.5 text-xs text-book-text-muted">
               <LoadingSpinner size="sm" />
-              正在上传
+              {t("video.material.uploading")}
             </span>
           ) : null}
         </div>

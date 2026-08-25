@@ -3,9 +3,7 @@ mod embedded_stream;
 
 use std::pin::Pin;
 
-use a4n_core::config::app_config::{
-    DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS,
-};
+use a4n_core::config::app_config::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
 use a4n_core::error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
 use async_trait::async_trait;

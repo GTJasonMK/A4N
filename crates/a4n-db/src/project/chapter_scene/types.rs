@@ -33,17 +33,6 @@ impl ProjectChapterSceneRecordError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectChapterSceneReorderInput {
-    pub order: Vec<(i64, i32)>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ProjectChapterSceneReorderScope {
-    pub chapter_id: i64,
-    pub project_id: i64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProjectGeneratedChapterSceneSaveInput {
     pub chapter_id: i64,
     pub scene_number: i32,
@@ -51,17 +40,7 @@ pub struct ProjectGeneratedChapterSceneSaveInput {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ProjectChapterSceneReorderError {
-    #[error("{0}")]
-    InvalidArgument(String),
-    #[error("{0}")]
-    NotFound(String),
-    #[error(transparent)]
-    Database(#[from] DbErr),
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum ProjectGeneratedChapterSceneSaveError {
+pub enum ProjectChapterSceneWriteError {
     #[error("{0}")]
     InvalidArgument(String),
     #[error("{0}")]

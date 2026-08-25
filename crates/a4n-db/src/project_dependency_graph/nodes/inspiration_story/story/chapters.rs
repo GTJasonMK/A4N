@@ -1,9 +1,10 @@
-use a4n_core::models::chapter::chapter;
 use serde_json::json;
 
-use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
+use crate::project_dependency_graph::{
+    GraphBuilder, NodeSeedMetadata, graph::ChapterGraphRow, node,
+};
 
-pub(super) fn add_chapter_nodes(graph: &mut GraphBuilder, chapters: &[chapter::Model]) {
+pub(super) fn add_chapter_nodes(graph: &mut GraphBuilder, chapters: &[ChapterGraphRow]) {
     let word_count = chapters
         .iter()
         .map(|row| row.word_count.max(0) as u64)
@@ -35,14 +36,7 @@ pub(super) fn add_chapter_nodes(graph: &mut GraphBuilder, chapters: &[chapter::M
         chapters.len() as u64,
     );
 
-    let analysis_count = chapters
-        .iter()
-        .filter(|row| {
-            row.analysis_data
-                .as_ref()
-                .is_some_and(|value| !value.is_null())
-        })
-        .count();
+    let analysis_count = chapters.iter().filter(|row| row.has_analysis).count();
     graph.add_node(node(
         "chapter_analysis",
         "text",

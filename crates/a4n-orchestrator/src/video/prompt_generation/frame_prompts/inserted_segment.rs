@@ -86,7 +86,7 @@ pub(crate) fn validate_video_inserted_segment_generation_options(
     Ok(())
 }
 
-pub(crate) async fn generate_inserted_segment_draft(
+pub(in crate::video) async fn generate_inserted_segment_draft(
     service: &OrchestratorContext,
     user_id: i64,
     project_id: i64,

@@ -16,10 +16,11 @@ use crate::outline::{
 };
 
 use super::contracts::{ChapterOutlineSequenceInput, SingleChapterOutlineJsonInput};
+use super::queries::existing_chapter_outline_for_number;
 
 impl OrchestratorContext {
     /// 生成章节大纲（增量）
-    pub async fn generate_chapter_outlines(
+    pub(in crate::outline) async fn generate_chapter_outlines(
         &self,
         input: ChapterOutlineGenerationInput<'_, '_>,
     ) -> Result<Vec<chapter_outline::Model>, AppError> {
@@ -54,7 +55,7 @@ impl OrchestratorContext {
     }
 
     /// 按数量追加章节大纲（短篇项目或已有分部范围内的追加生成）。
-    pub async fn generate_chapter_outlines_by_count(
+    pub(in crate::outline) async fn generate_chapter_outlines_by_count(
         &self,
         input: ChapterOutlineCountGenerationInput<'_, '_>,
     ) -> Result<Vec<chapter_outline::Model>, AppError> {
@@ -139,18 +140,15 @@ impl OrchestratorContext {
                 });
             }
 
-            if let Some(existing) = self
-                .existing_chapter_outline_for_number(project_id, chapter_number)
-                .await?
+            if let Some(existing) =
+                existing_chapter_outline_for_number(&context.chapter_outlines, chapter_number)?
             {
                 validate_existing_chapter_outline_for_request(
                     &existing,
                     chapter_number,
                     expected_part_id,
                 )?;
-                context =
-                    load_chapter_outline_generation_context(self.database.connection(), project_id)
-                        .await?;
+                // 该分支没有写入；生成分支会在提交后刷新 context，这里复用现有快照即可。
                 report_progress(
                     progress,
                     current,

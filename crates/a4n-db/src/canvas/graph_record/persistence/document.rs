@@ -1,12 +1,11 @@
-use a4n_core::models::{
-    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
-    project::novel_project,
-};
+use a4n_core::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 
-use super::context::{default_canvas_record_graph_kind, require_canvas_project_record};
+use super::context::{
+    CanvasProjectIdentity, default_canvas_record_graph_kind, require_canvas_project_record,
+};
 use crate::canvas::{CanvasDbError, CanvasGraphRecordDocument};
 
 pub async fn get_or_create_canvas_graph_record<C>(
@@ -40,7 +39,7 @@ where
 
 async fn insert_default_canvas_graph_record<C>(
     db: &C,
-    project: &novel_project::Model,
+    project: &CanvasProjectIdentity,
     now: chrono::NaiveDateTime,
 ) -> Result<canvas_graph::Model, CanvasDbError>
 where

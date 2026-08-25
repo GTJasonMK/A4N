@@ -12,6 +12,47 @@ use sea_orm::sea_query::OnConflict;
 use sea_orm::{
     ActiveValue::NotSet, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
 };
+use std::collections::HashMap;
+
+struct PreparedCleanupIntent {
+    dedupe_key: String,
+    cleanup_kind: String,
+    project_id: Option<i64>,
+    requested_by_user_id: Option<i64>,
+    task_id: Option<String>,
+    attempt: Option<i32>,
+    payload_version: i32,
+    payload_json: serde_json::Value,
+    payload_sha256: String,
+}
+
+impl PreparedCleanupIntent {
+    fn active_model(&self, now: chrono::NaiveDateTime) -> cleanup_outbox::ActiveModel {
+        cleanup_outbox::ActiveModel {
+            id: NotSet,
+            dedupe_key: Set(self.dedupe_key.clone()),
+            cleanup_kind: Set(self.cleanup_kind.clone()),
+            project_id: Set(self.project_id),
+            requested_by_user_id: Set(self.requested_by_user_id),
+            task_id: Set(self.task_id.clone()),
+            attempt: Set(self.attempt),
+            payload_version: Set(self.payload_version),
+            payload_json: Set(self.payload_json.clone()),
+            payload_sha256: Set(self.payload_sha256.clone()),
+            status: Set(CLEANUP_STATUS_PENDING.to_string()),
+            attempt_count: Set(0),
+            observation_count: Set(0),
+            next_attempt_at: Set(now),
+            lease_token: Set(None),
+            lease_expires_at: Set(None),
+            last_error: Set(None),
+            outcome: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+            completed_at: Set(None),
+        }
+    }
+}
 
 pub async fn insert_project_deletion_cleanup_intent<C>(
     db: &C,
@@ -61,6 +102,73 @@ where
         })?,
     )
     .await
+}
+
+pub async fn insert_media_workflow_v2_reset_intents<C, I>(
+    db: &C,
+    intents: I,
+) -> Result<Vec<cleanup_outbox::Model>, DbErr>
+where
+    C: ConnectionTrait,
+    I: IntoIterator<Item = (String, MediaWorkflowV2ResetPayload)>,
+{
+    let specs = intents
+        .into_iter()
+        .map(|(dedupe_key, payload)| {
+            let project_id = payload.project_id;
+            let payload_json = serde_json::to_value(payload).map_err(|error| {
+                DbErr::Custom(format!("序列化媒体工作流 v2 reset payload 失败: {error}"))
+            })?;
+            prepare_cleanup_intent(
+                dedupe_key,
+                MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND,
+                Some(project_id),
+                None,
+                None,
+                None,
+                payload_json,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if specs.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let dedupe_keys = specs
+        .iter()
+        .map(|spec| spec.dedupe_key.clone())
+        .collect::<Vec<_>>();
+    let now = Utc::now().naive_utc();
+    cleanup_outbox::Entity::insert_many(specs.iter().map(|spec| spec.active_model(now)))
+        .on_conflict(
+            OnConflict::column(cleanup_outbox::Column::DedupeKey)
+                .do_nothing()
+                .to_owned(),
+        )
+        .do_nothing()
+        .exec_without_returning(db)
+        .await?;
+    let records = cleanup_outbox::Entity::find()
+        .filter(cleanup_outbox::Column::DedupeKey.is_in(dedupe_keys))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|record| (record.dedupe_key.clone(), record))
+        .collect::<HashMap<_, _>>();
+
+    specs
+        .iter()
+        .map(|spec| {
+            let existing = records.get(&spec.dedupe_key).ok_or_else(|| {
+                DbErr::Custom(format!(
+                    "cleanup outbox 插入或 dedupe 冲突后找不到记录: {}",
+                    spec.dedupe_key
+                ))
+            })?;
+            validate_existing_cleanup_intent(existing, spec)?;
+            Ok(existing.clone())
+        })
+        .collect()
 }
 
 pub async fn insert_file_artifact_cleanup_intent<C>(
@@ -198,6 +306,47 @@ async fn insert_cleanup_intent<C>(
 where
     C: ConnectionTrait,
 {
+    let spec = prepare_cleanup_intent(
+        dedupe_key,
+        cleanup_kind,
+        project_id,
+        requested_by_user_id,
+        task_id,
+        attempt,
+        payload_json,
+    )?;
+    cleanup_outbox::Entity::insert(spec.active_model(Utc::now().naive_utc()))
+        .on_conflict(
+            OnConflict::column(cleanup_outbox::Column::DedupeKey)
+                .do_nothing()
+                .to_owned(),
+        )
+        .do_nothing()
+        .exec_without_returning(db)
+        .await?;
+    let existing = cleanup_outbox::Entity::find()
+        .filter(cleanup_outbox::Column::DedupeKey.eq(&spec.dedupe_key))
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            DbErr::Custom(format!(
+                "cleanup outbox 插入或 dedupe 冲突后找不到记录: {}",
+                spec.dedupe_key
+            ))
+        })?;
+    validate_existing_cleanup_intent(&existing, &spec)?;
+    Ok(existing)
+}
+
+fn prepare_cleanup_intent(
+    dedupe_key: String,
+    cleanup_kind: &str,
+    project_id: Option<i64>,
+    requested_by_user_id: Option<i64>,
+    task_id: Option<String>,
+    attempt: Option<i32>,
+    payload_json: serde_json::Value,
+) -> Result<PreparedCleanupIntent, DbErr> {
     let dedupe_key = dedupe_key.trim().to_string();
     if dedupe_key.is_empty() {
         return Err(DbErr::Custom(
@@ -217,60 +366,36 @@ where
         .ok_or_else(|| DbErr::Custom("cleanup payload version 必须为正整数".to_string()))?;
     let payload_sha256 = crate::generation::canonical_json_sha256(&payload_json)
         .map_err(|error| DbErr::Custom(format!("cleanup payload canonical hash 失败: {error}")))?;
-    let now = Utc::now().naive_utc();
-    let active = cleanup_outbox::ActiveModel {
-        id: NotSet,
-        dedupe_key: Set(dedupe_key.clone()),
-        cleanup_kind: Set(cleanup_kind.to_string()),
-        project_id: Set(project_id),
-        requested_by_user_id: Set(requested_by_user_id),
-        task_id: Set(task_id.clone()),
-        attempt: Set(attempt),
-        payload_version: Set(payload_version),
-        payload_json: Set(payload_json.clone()),
-        payload_sha256: Set(payload_sha256.clone()),
-        status: Set(CLEANUP_STATUS_PENDING.to_string()),
-        attempt_count: Set(0),
-        observation_count: Set(0),
-        next_attempt_at: Set(now),
-        lease_token: Set(None),
-        lease_expires_at: Set(None),
-        last_error: Set(None),
-        outcome: Set(None),
-        created_at: Set(now),
-        updated_at: Set(now),
-        completed_at: Set(None),
-    };
-    cleanup_outbox::Entity::insert(active)
-        .on_conflict(
-            OnConflict::column(cleanup_outbox::Column::DedupeKey)
-                .do_nothing()
-                .to_owned(),
-        )
-        .do_nothing()
-        .exec_without_returning(db)
-        .await?;
-    let existing = cleanup_outbox::Entity::find()
-        .filter(cleanup_outbox::Column::DedupeKey.eq(&dedupe_key))
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            DbErr::Custom(format!(
-                "cleanup outbox 插入或 dedupe 冲突后找不到记录: {dedupe_key}"
-            ))
-        })?;
-    if existing.cleanup_kind != cleanup_kind
-        || existing.project_id != project_id
-        || existing.requested_by_user_id != requested_by_user_id
-        || existing.task_id != task_id
-        || existing.attempt != attempt
-        || existing.payload_version != payload_version
-        || existing.payload_json != payload_json
-        || existing.payload_sha256 != payload_sha256
+    Ok(PreparedCleanupIntent {
+        dedupe_key,
+        cleanup_kind: cleanup_kind.to_string(),
+        project_id,
+        requested_by_user_id,
+        task_id,
+        attempt,
+        payload_version,
+        payload_json,
+        payload_sha256,
+    })
+}
+
+fn validate_existing_cleanup_intent(
+    existing: &cleanup_outbox::Model,
+    expected: &PreparedCleanupIntent,
+) -> Result<(), DbErr> {
+    if existing.cleanup_kind != expected.cleanup_kind
+        || existing.project_id != expected.project_id
+        || existing.requested_by_user_id != expected.requested_by_user_id
+        || existing.task_id != expected.task_id
+        || existing.attempt != expected.attempt
+        || existing.payload_version != expected.payload_version
+        || existing.payload_json != expected.payload_json
+        || existing.payload_sha256 != expected.payload_sha256
     {
         return Err(DbErr::Custom(format!(
-            "cleanup outbox dedupe_key 已绑定其他 payload: {dedupe_key}"
+            "cleanup outbox dedupe_key 已绑定其他 payload: {}",
+            expected.dedupe_key
         )));
     }
-    Ok(existing)
+    Ok(())
 }

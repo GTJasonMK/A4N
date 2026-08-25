@@ -1,8 +1,5 @@
-use a4n_core::{
-    blueprint_context::blueprint_llm_context, chapter_analysis::summary_text,
-    models::chapter::chapter,
-};
-use a4n_db::inspiration::InspirationProjectContextRows;
+use a4n_core::{blueprint_context::blueprint_llm_context, chapter_analysis::summary_text};
+use a4n_db::inspiration::{InspirationProjectContextRows, InspirationRecentChapterRow};
 use serde_json::{Value, json};
 
 pub(super) fn inspiration_project_context(rows: InspirationProjectContextRows) -> Value {
@@ -54,8 +51,8 @@ pub(super) fn optional_trimmed_string(value: &str) -> Option<String> {
     }
 }
 
-fn inspiration_chapter_context(ch: &chapter::Model) -> Option<Value> {
-    if ch.content.trim().is_empty() && ch.summary.as_deref().unwrap_or("").trim().is_empty() {
+fn inspiration_chapter_context(ch: &InspirationRecentChapterRow) -> Option<Value> {
+    if !ch.has_content && ch.summary.as_deref().unwrap_or("").trim().is_empty() {
         return None;
     }
     let summary = ch

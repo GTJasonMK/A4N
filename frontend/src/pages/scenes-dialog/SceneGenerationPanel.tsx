@@ -3,6 +3,7 @@ import { Eye, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { useI18n } from "../../i18n";
 
 interface SceneGenerationPanelProps {
   nextSceneNumber: number;
@@ -24,13 +25,15 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
   onPromptChange,
   onPreviewRequest,
   onGenerate,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <section className="a4n-flat-surface shrink-0 p-3">
     <label className="mb-1 block text-xs font-medium text-book-text-main" htmlFor="scene-generation-prompt">
-      生成下一场景
+      {t("scenes.generateNext")}
     </label>
     <div className="mb-2 text-small text-book-text-muted">
-      将创建场景 {nextSceneNumber}，可补充本场景需要遵循的方向。
+      {t("scenes.generateHint", { number: nextSceneNumber })}
     </div>
     {aiActionBlockedReason ? (
       <p className="mb-2 text-small leading-relaxed text-error">{aiActionBlockedReason}</p>
@@ -42,7 +45,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
       disabled={generating}
       spellCheck={false}
       className="book-control min-h-[72px] w-full resize-none rounded-xl p-2.5 text-xs leading-relaxed"
-      placeholder="例如：承接上一场景的紧张气氛，让人物在码头发现新的线索。"
+      placeholder={t("scenes.generatePlaceholder")}
     />
     <div className="mt-2 flex items-center justify-end gap-2">
       {previewing ? (
@@ -53,7 +56,7 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
         <Dropdown
           items={[
             {
-              label: "查看模型请求",
+              label: t("scenes.viewModelRequest"),
               icon: <Eye size={12} />,
               disabled: generating || aiActionBlockedReason != null,
               onClick: onPreviewRequest,
@@ -70,14 +73,15 @@ export const SceneGenerationPanel: React.FC<SceneGenerationPanelProps> = ({
       >
         {generating ? (
           <span className="inline-flex items-center gap-1.5">
-            <LoadingSpinner size="sm" /> 生成中…
+            <LoadingSpinner size="sm" /> {t("scenes.generating")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">
-            <Sparkles size={14} /> 生成场景
+            <Sparkles size={14} /> {t("scenes.generate")}
           </span>
         )}
       </BookButton>
     </div>
   </section>
-);
+  );
+};

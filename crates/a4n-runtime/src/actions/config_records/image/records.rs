@@ -1,9 +1,7 @@
-use super::contracts::{
-    ImageConfigInput, ImageConfigSummary, UpdateImageConfigInput, image_config_summary,
-    image_create_params, image_update_params,
-};
+use super::mapping::image_config_summary;
 use crate::actions::config_records::shared::require_config_admin;
 use crate::{AppState, actions::app_error_message};
+use a4n_api_contract::config::{ImageConfigInput, ImageConfigSummary, UpdateImageConfigInput};
 use a4n_core::error::AppError;
 
 pub async fn list_image_configs(state: &AppState) -> Result<Vec<ImageConfigSummary>, String> {
@@ -21,10 +19,9 @@ pub async fn add_image_config(
     input: ImageConfigInput,
 ) -> Result<ImageConfigSummary, AppError> {
     require_config_admin(state, caller_user_id).await?;
-    let params = image_create_params(input);
     let config = state
         .orchestrator()
-        .create_image_config_validated(params)
+        .create_image_config_validated(input)
         .await?;
     image_config_summary(&config).map_err(AppError::InvalidArgument)
 }
@@ -36,10 +33,9 @@ pub async fn update_image_config(
     input: UpdateImageConfigInput,
 ) -> Result<ImageConfigSummary, AppError> {
     require_config_admin(state, caller_user_id).await?;
-    let params = image_update_params(input);
     let updated = state
         .orchestrator()
-        .update_image_config_validated(config_id, params)
+        .update_image_config_validated(config_id, input)
         .await?;
     image_config_summary(&updated).map_err(AppError::InvalidArgument)
 }

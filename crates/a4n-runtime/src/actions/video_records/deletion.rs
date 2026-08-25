@@ -1,10 +1,10 @@
 use crate::AppState;
-use crate::actions::access;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::media::{
     append_secondary_error, delete_video_tail_frame_assets,
 };
 use a4n_core::error::AppError;
+use a4n_orchestrator::collaboration::ProjectAccessRole;
 use a4n_orchestrator::video::VideoRecordLifecycleHostPort;
 use async_trait::async_trait;
 
@@ -55,9 +55,11 @@ pub async fn delete_video(state: &AppState, user_id: i64, video_id: i64) -> Resu
     if project_ids.is_empty() {
         return Err("视频不存在".to_string());
     }
-    for project_id in project_ids {
-        access::verify_project_editor_string(state, user_id, project_id).await?;
-    }
+    state
+        .orchestrator()
+        .verify_project_permissions(&project_ids, user_id, ProjectAccessRole::Editor)
+        .await
+        .map_err(app_error_message)?;
     state
         .orchestrator()
         .delete_video_record_validated(&VideoRecordLifecycleHost { state }, video_id)

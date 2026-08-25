@@ -1,7 +1,7 @@
 import React from "react";
 import type { NovelProject } from "../../../api/project";
 import type { Blueprint } from "../../../api/blueprint";
-import { formatUiDateTime } from "../../../utils/dateTime";
+import { formatDateTime, formatNumber, useI18n } from "../../../i18n";
 
 interface ProjectOverviewCardProps {
   project: NovelProject;
@@ -15,6 +15,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
   blueprint,
   embedded = false,
 }) => {
+  const { locale, t } = useI18n();
   const projectDescription = project.description.trim();
   const chapterCurrent = project.current_chapter;
   const chapterTotal = project.target_chapters;
@@ -23,16 +24,16 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
       ? Math.min(100, Math.round((chapterCurrent / chapterTotal) * 100))
       : 0;
   const blueprintMeta = [
-    { label: "目标读者", value: blueprint?.target_audience?.trim() },
-    { label: "写作风格", value: blueprint?.style?.trim() },
-    { label: "情感基调", value: blueprint?.tone?.trim() },
+    { label: t("writing.blueprintFieldAudience"), value: blueprint?.target_audience?.trim() },
+    { label: t("novel.writingStyle"), value: blueprint?.style?.trim() },
+    { label: t("novel.tone"), value: blueprint?.tone?.trim() },
   ].filter((item): item is { label: string; value: string } => Boolean(item.value));
 
   const body = (
     <>
       {projectDescription ? (
         <div className={embedded ? "mb-3" : "a4n-flat-surface mb-3 p-3"}>
-          <div className="mb-1 text-small font-semibold text-book-text-muted">核心摘要</div>
+          <div className="mb-1 text-small font-semibold text-book-text-muted">{t("novel.coreSummary")}</div>
           <p className="line-clamp-4 whitespace-pre-wrap text-xs leading-relaxed text-book-text-sub">
             {projectDescription}
           </p>
@@ -41,17 +42,17 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
 
       {chapterTotal > 0 ? (
         <div className="mb-3 flex flex-wrap items-center gap-2 border-y border-book-border/35 py-2 text-small">
-          <span className="font-medium text-book-text-sub">章节进度</span>
+          <span className="font-medium text-book-text-sub">{t("novel.chapterProgress")}</span>
           <span className="font-mono text-book-text-main">
-            {chapterCurrent} / {chapterTotal}
+            {formatNumber(chapterCurrent, locale)} / {formatNumber(chapterTotal, locale)}
           </span>
-          <div className="h-1.5 min-w-[8rem] flex-1 overflow-hidden rounded-full bg-book-bg-tertiary">
+          <div className="order-last h-1.5 min-w-0 basis-full overflow-hidden rounded-full bg-book-bg-tertiary sm:order-none sm:min-w-[8rem] sm:basis-auto sm:flex-1">
             <div
               className="h-full rounded-full bg-book-primary/70 transition-[width] duration-300"
               style={{ width: `${chapterProgress}%` }}
             />
           </div>
-          <span className="font-mono text-book-text-muted">{chapterProgress}%</span>
+          <span className="font-mono text-book-text-muted">{formatNumber(chapterProgress, locale)}%</span>
         </div>
       ) : null}
 
@@ -60,7 +61,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
           role="status"
           className="mt-3 rounded-lg border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:text-amber-200"
         >
-          正式蓝图需复核：生成依据的章节资料已变化，请重新分析或确认新版本。
+          {t("novel.blueprintNeedsReview")}
         </div>
       ) : null}
 
@@ -79,7 +80,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
       ) : null}
       {!embedded ? (
         <div className="mt-3 border-t border-book-border/40 pt-2 text-right text-small text-book-text-muted">
-          更新于 {formatUiDateTime(project.updated_at)}
+          {t("novel.updatedAt", { date: formatDateTime(project.updated_at, locale) })}
         </div>
       ) : null}
     </>
@@ -89,7 +90,7 @@ export const ProjectOverviewCard: React.FC<ProjectOverviewCardProps> = ({
 
   return (
     <div className="a4n-flat-surface p-4">
-      <div className="mb-3 text-sm font-semibold text-book-text-main font-serif">项目概况</div>
+      <div className="mb-3 text-sm font-semibold text-book-text-main font-serif">{t("novel.overviewTitle")}</div>
       {body}
     </div>
   );

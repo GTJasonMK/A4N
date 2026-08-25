@@ -18,13 +18,14 @@ import {
   type StoragePathsSummary,
 } from "../../../api/storagePaths";
 import { copyTextToClipboard } from "../../../utils/clipboard";
+import { formatNumber, useI18n } from "../../../i18n";
 
 interface StoragePathsPanelProps {
   isAdmin?: boolean;
   className?: string;
 }
 
-const formatBytes = (bytes: number): string => {
+const formatBytes = (bytes: number, locale: ReturnType<typeof useI18n>["locale"]): string => {
   if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
   const units = ["B", "KB", "MB", "GB", "TB"];
   let value = bytes;
@@ -33,7 +34,8 @@ const formatBytes = (bytes: number): string => {
     value /= 1024;
     unitIndex += 1;
   }
-  return `${value >= 10 || unitIndex === 0 ? value.toFixed(0) : value.toFixed(1)} ${units[unitIndex]}`;
+  const displayValue = value >= 10 || unitIndex === 0 ? value : Number(value.toFixed(1));
+  return `${formatNumber(displayValue, locale)} ${units[unitIndex]}`;
 };
 
 export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
@@ -41,6 +43,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   className = "mt-5",
 }) => {
   const { addToast } = useToast();
+  const { t, locale } = useI18n();
   const [paths, setPaths] = useState<StoragePathsSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [orphanSummary, setOrphanSummary] =
@@ -91,7 +94,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       setPaths(nextPaths);
     } catch (err) {
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "加载存储路径失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAbout.loadStoragePathsFailed")), "error");
     } finally {
       if (mountedRef.current && refreshSeqRef.current === requestSeq) {
         setLoading(false);
@@ -120,7 +123,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       }, 1500);
     } catch {
       if (!mountedRef.current || copySeqRef.current !== requestSeq) return;
-      addToast("复制失败：请手动选取路径", "error");
+      addToast(t("settingsAbout.copyPathFailed"), "error");
     }
   };
 
@@ -142,7 +145,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       setOrphanSummary(summary);
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "扫描孤儿项目目录失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAbout.scanOrphansFailed")), "error");
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanScanningRef.current = false;
@@ -166,10 +169,10 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
     orphanCleaningRef.current = true;
     setOrphanCleaning(true);
     const confirmed = await confirmDialog({
-      title: "清理孤儿项目目录",
-      message: `确认删除 ${summary.total_count} 个孤儿项目目录（约 ${formatBytes(summary.total_size_bytes)}）？`,
-      confirmText: "删除",
-      cancelText: "取消",
+      title: t("settingsAbout.cleanupOrphans"),
+      message: t("settingsAbout.cleanupOrphansMessage", { count: summary.total_count, size: formatBytes(summary.total_size_bytes, locale) }),
+      confirmText: t("common.delete"),
+      cancelText: t("common.cancel"),
       dialogType: "danger",
     });
     if (!confirmed) {
@@ -184,12 +187,12 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
       setOrphanSummary({ items: [], total_count: 0, total_size_bytes: 0 });
       addToast(
-        `已清理 ${summary.total_count} 个孤儿项目目录，释放约 ${formatBytes(summary.total_size_bytes)}`,
+        t("settingsAbout.cleanedOrphans", { count: summary.total_count, size: formatBytes(summary.total_size_bytes, locale) }),
         "success",
       );
     } catch (err) {
       if (!mountedRef.current || orphanSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "清理孤儿项目目录失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAbout.cleanupOrphansFailed")), "error");
     } finally {
       if (orphanSeqRef.current === requestSeq) {
         orphanCleaningRef.current = false;
@@ -202,36 +205,36 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
 
   const rows = paths
     ? [
-        ["应用目录", paths.application_home],
-        ["数据目录", paths.data_dir],
-        ["配置文件", paths.config_file],
-        ["数据库", paths.database_url],
-        ["项目数据", paths.projects_dir],
-        ["导出文件", paths.exports_dir],
-        ["备份文件", paths.backups_dir],
-        ["日志", paths.log_dir],
-        ["WebView 数据", paths.webview_dir],
-        ["前端状态", paths.frontend_state_file],
-        ["缓存", paths.cache_dir],
-        ["嵌入模型", paths.embedding_models_dir],
-        ["临时文件", paths.temp_dir],
-        ["提示词历史", paths.prompts_git_dir],
-        ["RAG 索引 (Qdrant URL)", paths.qdrant_url || "（未配置 A4N_QDRANT_URL）"],
-        ["RAG collection", paths.qdrant_collection],
+        [t("settingsAbout.storageApplication"), paths.application_home],
+        [t("settingsAbout.storageData"), paths.data_dir],
+        [t("settingsAbout.storageConfig"), paths.config_file],
+        [t("settingsAbout.storageDatabase"), paths.database_url],
+        [t("settingsAbout.storageProjects"), paths.projects_dir],
+        [t("settingsAbout.storageExports"), paths.exports_dir],
+        [t("settingsAbout.storageBackups"), paths.backups_dir],
+        [t("settingsAbout.storageLogs"), paths.log_dir],
+        [t("settingsAbout.storageWebview"), paths.webview_dir],
+        [t("settingsAbout.storageFrontendState"), paths.frontend_state_file],
+        [t("settingsAbout.storageCache"), paths.cache_dir],
+        [t("settingsAbout.storageEmbedding"), paths.embedding_models_dir],
+        [t("settingsAbout.storageTemp"), paths.temp_dir],
+        [t("settingsAbout.storagePromptHistory"), paths.prompts_git_dir],
+        [t("settingsAbout.storageRagIndex"), paths.qdrant_url || t("settingsAbout.storageUnsetQdrant")],
+        [t("settingsAbout.storageRagCollection"), paths.qdrant_collection],
       ]
     : [];
 
   return (
     <div className={`${className} space-y-3 text-xs`}>
-      <section aria-label="存储位置" className="a4n-flat-surface space-y-3 p-3">
+      <section aria-label={t("settingsAbout.storageLocation")} className="a4n-flat-surface space-y-3 p-3">
         <div className="flex items-center gap-2">
           <FolderOpen size={14} className="shrink-0 text-book-primary" />
           <div className="min-w-0 flex-1">
-            <h3 className="text-xs font-semibold text-book-text-main">存储位置</h3>
-            <p className="mt-0.5 text-small text-book-text-muted">完整路径默认隐藏</p>
+            <h3 className="text-xs font-semibold text-book-text-main">{t("settingsAbout.storageLocation")}</h3>
+            <p className="mt-0.5 text-small text-book-text-muted">{t("settingsAbout.storagePathHidden")}</p>
           </div>
           <BookIconButton
-            label="刷新路径"
+            label={t("settingsAbout.refreshPaths")}
             variant="ghost"
             size="sm"
             onClick={refresh}
@@ -243,13 +246,13 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
 
         {loading && !paths ? (
           <div className="inline-flex items-center gap-1.5 text-book-text-muted">
-            <LoadingSpinner size="sm" /> 加载中…
+            <LoadingSpinner size="sm" /> {t("settingsAbout.loading")}
           </div>
         ) : (
           <details className="border-t border-book-border/35 pt-2">
             <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-book-text-sub [&::-webkit-details-marker]:hidden">
-              <span>查看存储位置</span>
-              <span className="text-small text-book-text-muted">{rows.length} 项</span>
+              <span>{t("settingsAbout.viewStorageLocation")}</span>
+              <span className="text-small text-book-text-muted">{t("settingsAbout.storageItemCount", { count: rows.length })}</span>
             </summary>
             <div className="mt-2 divide-y divide-book-border/30 border-y border-book-border/30">
               {rows.map(([label, value]) => (
@@ -259,13 +262,13 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
                 >
                   <span className="text-book-text-muted">{label}</span>
                   <span className="break-all font-mono text-small text-book-text-main">
-                    {storageValueForDisplay(label, value)}
+                    {storageValueForDisplay(label, value, t("settingsAbout.storageDatabase"), t)}
                   </span>
-                  {label === "数据库" ? (
+                  {label === t("settingsAbout.storageDatabase") ? (
                     <span className="h-8 w-8" aria-hidden="true" />
                   ) : (
                     <BookIconButton
-                      label={`复制${label}`}
+                      label={t("settingsAbout.copyPath", { label })}
                       variant="ghost"
                       size="sm"
                       onClick={() => copyPath(label, value)}
@@ -279,7 +282,7 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
             {copiedKey && (
               <div className="mt-2 inline-flex items-center gap-1 text-success">
                 <Database size={11} />
-                已复制：{copiedKey}
+                {t("settingsAbout.copiedPath", { label: copiedKey })}
               </div>
             )}
           </details>
@@ -287,26 +290,26 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
       </section>
 
       {isAdmin && (
-        <section aria-label="存储清理" className="a4n-flat-surface space-y-3 p-3">
+        <section aria-label={t("settingsAbout.storageCleanup")} className="a4n-flat-surface space-y-3 p-3">
           <div className="flex items-center gap-2">
             <Trash2 size={14} className="shrink-0 text-book-primary" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-xs font-semibold text-book-text-main">存储清理</h3>
+              <h3 className="text-xs font-semibold text-book-text-main">{t("settingsAbout.storageCleanup")}</h3>
               <p className="mt-0.5 text-small text-book-text-muted">
-                扫描并清理已失去项目归属的本地目录
+                {t("settingsAbout.storageCleanupHint")}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-t border-book-border/35 pt-3">
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-book-text-main">孤儿项目目录</div>
+              <div className="font-medium text-book-text-main">{t("settingsAbout.orphanProjectDirs")}</div>
               <div className="mt-0.5 text-small text-book-text-muted">
                 {orphanSummary
                   ? orphanSummary.total_count > 0
-                    ? `${orphanSummary.total_count} 个目录，约 ${formatBytes(orphanSummary.total_size_bytes)}`
-                    : "未发现可清理目录"
-                  : "尚未扫描"}
+                    ? t("settingsAbout.orphanSummary", { count: orphanSummary.total_count, size: formatBytes(orphanSummary.total_size_bytes, locale) })
+                    : t("settingsAbout.noOrphans")
+                  : t("settingsAbout.notScanned")}
               </div>
             </div>
             <BookButton
@@ -316,18 +319,18 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
               disabled={orphanLoading || orphanCleaning}
             >
               {orphanLoading ? <LoadingSpinner size="sm" /> : null}
-              {orphanLoading ? "扫描中…" : "扫描"}
+              {orphanLoading ? t("settingsAbout.scanning") : t("settingsAbout.scan")}
             </BookButton>
             {orphanCleaning ? (
               <span className="inline-flex min-h-8 items-center gap-1 px-2 text-small text-book-text-muted">
                 <LoadingSpinner size="sm" />
-                正在清理…
+                {t("settingsAbout.cleaning")}
               </span>
             ) : (orphanSummary?.total_count ?? 0) > 0 ? (
               <Dropdown
                 items={[
                   {
-                    label: "清理孤儿项目目录",
+                    label: t("settingsAbout.cleanupOrphans"),
                     icon: <Trash2 size={12} />,
                     danger: true,
                     onClick: () => void cleanupOrphanProjectDirs(),
@@ -340,12 +343,12 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
           {orphanSummary && orphanSummary.items.length > 0 ? (
             <details className="border-t border-book-border/35 pt-2 text-caption text-book-text-muted">
               <summary className="w-fit cursor-pointer hover:text-book-text-main">
-                诊断信息
+                {t("settingsAbout.diagnostic")}
               </summary>
               <div className="mt-1 space-y-1 font-mono">
                 {orphanSummary.items.slice(0, 5).map((item) => (
                   <div key={item.project_id} className="break-all">
-                    {item.path} · {formatBytes(item.size_bytes)}
+                    {item.path} · {formatBytes(item.size_bytes, locale)}
                   </div>
                 ))}
               </div>
@@ -357,14 +360,19 @@ export const StoragePathsPanel: React.FC<StoragePathsPanelProps> = ({
   );
 };
 
-function storageValueForDisplay(label: string, value: string): string {
-  if (label !== "数据库") return value;
+function storageValueForDisplay(
+  label: string,
+  value: string,
+  databaseLabel: string,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  if (label !== databaseLabel) return value;
   try {
     const url = new URL(value);
     const databaseName = url.pathname.replace(/^\//, "");
     const endpoint = `${url.hostname}${url.port ? `:${url.port}` : ""}`;
-    return databaseName ? `${endpoint}/${databaseName}` : endpoint || "已配置";
+    return databaseName ? `${endpoint}/${databaseName}` : endpoint || t("settingsAdmin.configured");
   } catch {
-    return value ? "已配置" : "未配置";
-  }
+    return value ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured");
+}
 }

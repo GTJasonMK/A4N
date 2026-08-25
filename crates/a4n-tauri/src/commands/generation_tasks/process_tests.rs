@@ -60,7 +60,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             user_id: owner.id,
             title: "Tauri image generation".to_string(),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

@@ -2,7 +2,7 @@ use super::contracts::CharacterStateIndexUpsertInput;
 use a4n_core::models::character::{character_state_index, protagonist_behavior_record};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
-    Set,
+    QuerySelect, Set,
 };
 
 pub(in crate::character) async fn upsert_state_index<C>(
@@ -13,20 +13,27 @@ where
     C: ConnectionTrait,
 {
     let now = chrono::Utc::now().naive_utc();
-    let existing = character_state_index::Entity::find()
+    let existing_id = character_state_index::Entity::find()
+        .select_only()
+        .column(character_state_index::Column::Id)
         .filter(character_state_index::Column::ProfileId.eq(input.profile_id))
         .filter(character_state_index::Column::ChapterNumber.eq(input.chapter_number))
+        .into_tuple::<i64>()
         .one(db)
         .await?;
 
-    if let Some(idx) = existing {
-        let mut active: character_state_index::ActiveModel = idx.into();
-        active.state_summary = Set(input.state_summary);
-        active.key_attributes = Set(input.key_attributes);
-        active.emotional_state = Set(input.emotional_state);
-        active.current_location = Set(input.current_location);
-        active.current_goal = Set(input.current_goal);
-        return active.update(db).await;
+    if let Some(id) = existing_id {
+        return character_state_index::ActiveModel {
+            id: Set(id),
+            state_summary: Set(input.state_summary),
+            key_attributes: Set(input.key_attributes),
+            emotional_state: Set(input.emotional_state),
+            current_location: Set(input.current_location),
+            current_goal: Set(input.current_goal),
+            ..Default::default()
+        }
+        .update(db)
+        .await;
     }
 
     character_state_index::ActiveModel {

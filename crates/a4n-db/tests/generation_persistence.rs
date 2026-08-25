@@ -13,9 +13,9 @@ use a4n_db::generation::{
     ProjectLifecycleOperation, ReserveGenerationTaskInput, begin_project_lifecycle_gate,
     canonical_json_sha256, expire_generation_snapshot_bodies, extend_generation_sequence_lease,
     list_active_generation_task_checkpoints, list_generation_task_history_checkpoints,
-    load_generation_task, persist_generation_checkpoint, persist_generation_status_changed,
-    persist_generation_terminal, purge_expired_generation_task_trees, reserve_generation_task,
-    restore_project_lifecycle_gate,
+    load_generation_task, persist_generation_cancel_requested_batch, persist_generation_checkpoint,
+    persist_generation_status_changed, persist_generation_terminal,
+    purge_expired_generation_task_trees, reserve_generation_task, restore_project_lifecycle_gate,
 };
 use a4n_db::workflow::{
     ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
@@ -149,7 +149,7 @@ async fn generation_reservation_resolves_derived_project_root() {
             user_id: user.id,
             title: format!("generation derived root {suffix}"),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -452,6 +452,7 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
         .unwrap()
         .unwrap();
     assert_eq!(running_queue.status, "running");
+    assert!(running_queue.started_at.is_some());
     let claim =
         begin_project_lifecycle_gate(&db, project.id, user.id, ProjectLifecycleOperation::Reset)
             .await
@@ -567,6 +568,89 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
         expire_generation_snapshot_bodies(&db, 100).await.unwrap(),
         0
     );
+}
+
+#[tokio::test]
+async fn generation_cancel_batch_updates_checkpoints_and_queue_rows() {
+    let db = connect_test_database().await;
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user(
+        &db,
+        &format!("cancel_batch_{suffix}"),
+        &format!("cancel_batch_{suffix}@example.invalid"),
+        "generation-test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    let project = a4n_db::project::create_freeform_video_project_record(
+        &db,
+        user.id,
+        a4n_db::project::CreateFreeformVideoProjectParams {
+            title: format!("generation cancel batch {suffix}"),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut reservations = Vec::new();
+    for operation in ["cancel-batch-a", "cancel-batch-b"] {
+        let reserved =
+            reserve_generation_task(&db, list_reservation_input(user.id, project.id, operation))
+                .await
+                .unwrap();
+        reservations.push((
+            reserved.task.checkpoint.task_id,
+            reserved.task.checkpoint.checkpoint_revision,
+            reserved.task.public_snapshot.unwrap(),
+        ));
+    }
+    reservations.sort_by(|left, right| left.0.cmp(&right.0));
+
+    let expected_revisions = reservations
+        .iter()
+        .map(|(task_id, revision, snapshot)| {
+            let mut snapshot = snapshot.clone();
+            snapshot.covers_through_sequence += 1;
+            snapshot.status = GenerationTaskStatus::Cancelling;
+            snapshot.cancel_reason = Some(a4n_service_protocol::CancellationReason::UserRequested);
+            snapshot.updated_at_ms = Utc::now().timestamp_millis();
+            (
+                task_id.clone(),
+                *revision,
+                a4n_db::generation::PersistGenerationLifecycleInput {
+                    task_id: task_id.clone(),
+                    attempt: snapshot.attempt,
+                    expected_checkpoint_revision: *revision,
+                    expected_status: GenerationTaskStatus::Reserved,
+                    public_snapshot: snapshot,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let inputs = expected_revisions
+        .iter()
+        .map(|(_, _, input)| input.clone())
+        .collect::<Vec<_>>();
+
+    let persisted = persist_generation_cancel_requested_batch(&db, inputs)
+        .await
+        .unwrap();
+    assert_eq!(persisted.len(), expected_revisions.len());
+    for ((task_id, revision, _), persisted) in expected_revisions.iter().zip(persisted) {
+        assert_eq!(persisted.checkpoint_revision, revision + 1);
+        let loaded = load_generation_task(&db, task_id).await.unwrap();
+        assert_eq!(loaded.checkpoint.status, "cancelling");
+        assert_eq!(loaded.checkpoint.checkpoint_revision, revision + 1);
+        let queue = task_queue::Entity::find_by_id(task_id.clone())
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(queue.status, "running");
+        assert!(queue.completed_at.is_none());
+    }
 }
 
 #[tokio::test]

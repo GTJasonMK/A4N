@@ -14,7 +14,7 @@ use super::preparation::{
 };
 
 impl OrchestratorContext {
-    pub async fn preview_regenerate_last_part_request(
+    pub(in crate::outline) async fn preview_regenerate_last_part_request(
         &self,
         project_id: i64,
         prompt_renderer: &dyn PromptRenderer,
@@ -24,7 +24,7 @@ impl OrchestratorContext {
         preview_regenerate_part_request(prepared, prompt_renderer, variables).await
     }
 
-    pub async fn preview_regenerate_part_outline_request(
+    pub(in crate::outline) async fn preview_regenerate_part_outline_request(
         &self,
         project_id: i64,
         part_id: i64,

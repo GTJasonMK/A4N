@@ -14,6 +14,18 @@ export async function getMangaPipelineStatus(
   });
 }
 
+export async function listMangaPipelineStatuses(
+  projectId: Id,
+  chapterIds: Id[],
+): Promise<Host.MangaPipelineStatusSummary[]> {
+  return apiInvoke<Host.MangaPipelineStatusSummary[]>("list_manga_pipeline_statuses", {
+    input: {
+      project_id: idNum(projectId),
+      chapter_ids: chapterIds.map(idNum),
+    } satisfies Host.MangaPipelineStatusesInput,
+  });
+}
+
 /** 后端 cancel_manga_pipeline(project_id, chapter_id) —— 返回取消的整页提示词数 */
 export async function cancelMangaPipeline(projectId: Id, chapterId: Id): Promise<number> {
   return apiInvoke<number>("cancel_manga_pipeline", {

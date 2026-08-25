@@ -11,7 +11,10 @@ mod types;
 
 pub use orchestration::project_family_export_rows;
 pub use selection::{derived_project_export_selection, project_family_export_selection};
-pub use types::*;
+pub use types::{
+    ProjectFamilyExportError, ProjectFamilyExportRows, ProjectFamilyExportSelection,
+    ProjectFamilyTextCoreRows,
+};
 
 #[cfg(test)]
 mod tests;

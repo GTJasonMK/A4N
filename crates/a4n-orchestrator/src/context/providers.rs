@@ -10,23 +10,14 @@ use crate::{
 
 impl OrchestratorContext {
     /// 生产 LLM 完整结果入口：只走统一 stream driver，禁止 provider `chat()`。
-    pub async fn stream_complete_llm(
+    pub(crate) async fn stream_complete_llm(
         &self,
         request: ChatRequest,
-    ) -> Result<ChatResponse, AppError> {
-        self.stream_complete_llm_cancellable(request, CancellationToken::new())
-            .await
-    }
-
-    pub async fn stream_complete_llm_cancellable(
-        &self,
-        request: ChatRequest,
-        cancellation: CancellationToken,
     ) -> Result<ChatResponse, AppError> {
         crate::generation::stream::execute_llm_chat_response(
             self.llm.as_ref(),
             request,
-            cancellation,
+            CancellationToken::new(),
         )
         .await
     }
@@ -40,27 +31,6 @@ impl OrchestratorContext {
         self.llm.as_ref()
     }
 
-    pub async fn chat_json_stream_with_progress(
-        &self,
-        input: ChatJsonStreamInput<'_>,
-        report_progress: impl FnMut(u32, &str) -> Result<(), String>,
-    ) -> Result<String, String> {
-        self.chat_json_stream_result_with_progress(input, report_progress)
-            .await
-            .map(|result| result.response_content)
-    }
-
-    pub(crate) async fn chat_json_stream_result_with_progress(
-        &self,
-        input: ChatJsonStreamInput<'_>,
-        report_progress: impl FnMut(u32, &str) -> Result<(), String>,
-    ) -> Result<StructuredLlmStreamResult, String> {
-        self.chat_json_stream_result_with_sink(input, report_progress, None)
-            .await
-    }
-
-    /// 与 [`Self::chat_json_stream_result_with_progress`] 相同，额外把原始文本增量交给 `on_delta`。
-    ///
     /// 结构化里程碑（「进行到哪了」）与原始 delta（「还活着」）取自同一个 token 流，
     /// 调用方可同时获得二者而不重复请求模型。
     pub(crate) async fn chat_json_stream_result_with_sink(

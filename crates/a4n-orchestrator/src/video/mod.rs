@@ -8,7 +8,7 @@ mod boundary_frame_rules;
 mod chapter_video_generation;
 mod chapter_video_request_rules;
 mod config;
-pub mod contracts;
+mod contracts;
 mod duration;
 mod errors;
 mod first_frame_chain_rules;
@@ -62,22 +62,22 @@ pub use a4n_db::video::{
 };
 pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 
-pub use assembly_clip_rules::{
+pub use assembly_clip_rules::assembly_media_properties;
+pub(crate) use assembly_clip_rules::{
     AssemblyClipOrderAnchor, assembly_clip_display_shot_number,
     assembly_clip_insert_after_video_id, assembly_clip_sort_order,
-    assembly_insert_metadata_with_position, assembly_media_properties, is_assembly_clip_video_type,
+    assembly_insert_metadata_with_position, is_assembly_clip_video_type,
     next_assembly_insert_sort_order,
 };
-pub use assembly_postprocess_rules::{
-    PostprocessEditMetadata, parse_postprocess_edit_metadata, postprocess_edit_timing,
+pub(crate) use assembly_postprocess_rules::{
+    parse_postprocess_edit_metadata, postprocess_edit_timing,
 };
-pub use assembly_push_rules::{
-    ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_PENDING, ASSEMBLY_PUSH_STATUS_REJECTED,
-    AssemblyPushMetadata, AssemblyPushRecord, active_assembly_push_source_ids,
+pub use assembly_push_rules::ASSEMBLY_PUSH_STATUS_PENDING;
+pub(in crate::video) use assembly_push_rules::{
+    ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_REJECTED, active_assembly_push_source_ids,
     assembly_push_metadata_with_status, assembly_push_records,
     ensure_active_pushes_match_clip_prefix, ensure_insert_position_not_inside_pushed_prefix,
-    is_active_assembly_push_status, is_completed_assembly_push_row, latest_non_rejected_push_index,
-    parse_assembly_push_metadata, selected_assembly_push_end_index,
+    latest_non_rejected_push_index, parse_assembly_push_metadata, selected_assembly_push_end_index,
     validate_assembly_workflow_mode,
 };
 pub use boundary_frame_rules::{
@@ -94,15 +94,16 @@ pub use chapter_video_request_rules::{
     build_video_generation_provider_prompt_with_renderer, provider_specific_negative_prompt,
     video_request_prompt_length_context,
 };
-pub use contracts::{
-    BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, CHAT_VIDEO_CONTRACT_VERSION, ChapterVideoPromptOptions,
-    ChapterVideoPromptStageInput, ChapterVideoSource, ChapterVideoSourceContext,
-    FIRST_FRAME_CHAIN_CONTRACT_VERSION, FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT,
-    FRAME_SEGMENT_PLAN_CONTRACT_VERSION, ProjectChapterVideoSource,
+pub use contracts::ProjectChapterVideoSource;
+pub(in crate::video) use contracts::{
+    BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, CHAT_VIDEO_CONTRACT_VERSION,
+    ChapterVideoPromptStageInput, ChapterVideoSourceContext, FIRST_FRAME_CHAIN_CONTRACT_VERSION,
+    FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT, FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
     STORYBOARD_PROMPT_CONTRACT_VERSION, STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION,
     VIDEO_PROMPT_CHECKPOINT_STAGE_CODE, VideoPromptChunk, VideoPromptProgress,
     VideoPromptProgressUpdate,
 };
+pub(crate) use contracts::{ChapterVideoPromptOptions, ChapterVideoSource};
 pub use duration::VideoDurationCapability;
 pub use first_frame_chain_rules::first_frame_prompt_matches_video_prompt;
 pub use generation_run_rules::started_video_generation_run_input;
@@ -124,8 +125,8 @@ pub use library::{
     video_reference_scope_rank,
 };
 pub use prompt_application::{
-    ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, GeneratePromptOptionsInput,
-    LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
+    ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, LoadVideoSegmentPlanDraftInput,
+    OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
     UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
     VideoPromptDownstreamCleanupPort, VideoSegmentPlanDraftState,
 };
@@ -133,18 +134,14 @@ pub(crate) use prompt_application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
     validate_video_segment_plan_generation_options,
 };
-pub use prompt_chain_rules::{prompt_chain_matches, prompt_source_type_matches};
-pub(crate) use prompt_generation::{
-    generate_inserted_segment_draft, validate_video_inserted_segment_generation_options,
-};
+pub use prompt_chain_rules::{PromptChainFields, prompt_chain_matches, prompt_source_type_matches};
+pub(crate) use prompt_generation::validate_video_inserted_segment_generation_options;
 pub(in crate::video) use prompt_generation::{
-    load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
-    update_video_segment_plan_draft_recipe_checkpoint,
+    generate_inserted_segment_draft, load_video_segment_plan_draft_checkpoints,
+    load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
 };
-pub use prompt_workflow_rules::{
-    video_prompt_optimization_business_key, video_prompt_optimization_workflow_run_input,
-    video_prompt_workflow_business_key, video_prompt_workflow_fingerprint,
-    video_prompt_workflow_run_input,
+pub(crate) use prompt_workflow_rules::{
+    video_prompt_optimization_workflow_run_input, video_prompt_workflow_run_input,
 };
 pub(crate) use provider_execution::VideoGenerationCheckpointContext;
 pub use provider_execution::{
@@ -164,15 +161,14 @@ pub(crate) use provider_request_rules::prompt_provider_workflow_for_recipe;
 pub use provider_request_rules::{
     MAX_CLIPROXY_VIDEO_PROMPT_BYTES, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES,
     ProviderGenerationWorkflow, boundary_frame_missing_image_message,
-    cliproxy_prompt_length_violation_message, data_url_mime,
-    ensure_newapi_first_frame_image_supported, ensure_provider_generation_workflow,
-    first_frame_chain_missing_start_image_message, linked_video_preview_config_id,
-    provider_image_binding_violation_messages, provider_request_snapshot_value,
-    reference_ids_with_storyboard_image, required_prompt_source_prompt_type,
-    required_video_execution_identity, storyboard_missing_image_message,
+    cliproxy_prompt_length_violation_message, ensure_newapi_first_frame_image_supported,
+    ensure_provider_generation_workflow, first_frame_chain_missing_start_image_message,
+    linked_video_preview_config_id, provider_image_binding_violation_messages,
+    provider_request_snapshot_value, reference_ids_with_storyboard_image,
+    required_prompt_source_prompt_type, required_video_execution_identity,
+    storyboard_missing_image_message,
 };
 pub use provider_workflow_rules::{
-    is_video_provider_terminal_or_interrupted_status, prompt_id_from_generated_video,
     video_provider_progress_workflow_run_input, video_provider_workflow_business_key,
     video_provider_workflow_fingerprint,
 };
@@ -184,16 +180,17 @@ pub use reference_media_generation::{
     ReferenceMediaVideoRequestPreview,
 };
 pub use reference_media_rules::{
-    MIN_PROVIDER_VISUAL_PROMPT_CHARS, ReferenceMediaImportOptions, ReferenceMediaVideoInput,
-    VideoProviderValidationMode, reference_media_dimensions_for_aspect_ratio,
-    validate_reference_media_import_options, validate_reference_media_start_input,
+    MIN_PROVIDER_VISUAL_PROMPT_CHARS, ReferenceMediaVideoInput, VideoProviderValidationMode,
+    reference_media_dimensions_for_aspect_ratio, validate_reference_media_import_options,
+    validate_reference_media_start_input,
 };
 pub use storyboard_frame_rules::{
     latest_storyboard_image_id, storyboard_prompt_matches_video_prompt,
 };
 pub use tail_frame_rules::{
     completed_provider_metadata, is_first_frame_chain_video, required_video_chapter_id,
-    should_capture_video_tail_frame, tail_frame_image_belongs_to_video, video_shot_number,
+    should_capture_video_tail_frame, tail_frame_image_belongs_to_video,
+    tail_frame_metadata_belongs_to_video, tail_frame_reference_belongs_to_video, video_shot_number,
 };
 
 pub(crate) use crate::OrchestratorContext;
@@ -203,11 +200,10 @@ pub(crate) use tokio_util::sync::CancellationToken;
 pub use self::config::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
-    UpdateVideoConfigParams, VideoConfigParams, duration_capability_for_config,
-    pick_provider_for_config, validate_video_config_model, validate_video_config_params,
-    validate_video_duration_for_config_secs, validate_video_max_concurrent,
+    VideoConfigParams, duration_capability_for_config, validate_video_config_model,
+    validate_video_config_params, validate_video_duration_for_config_secs,
+    validate_video_max_concurrent,
 };
-pub use self::prompt_context::validate_prompt_options_with_reference_limit;
 pub use self::prompt_json::{
     validate_direct_prompt_text, video_motion_prompt_has_temporal_storyboard,
     video_prompt_missing_required_section_for_language, video_prompt_stale_section_for_language,
@@ -224,6 +220,7 @@ pub use records::{
     PreparedAssemblyPostprocessEditRecord, PreparedAssemblyPushRecord,
     PreparedImportedChapterVideoRecord, UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput,
     VideoGenerationRecordInput, VideoRecordLifecycleHostPort, VideoTrimPlan,
+    generated_video_summary,
 };
 
 #[cfg(test)]

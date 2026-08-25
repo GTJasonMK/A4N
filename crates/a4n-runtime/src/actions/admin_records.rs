@@ -9,8 +9,8 @@ pub use a4n_api_contract::admin::{CreateInviteCodeInput, CreateUserInput, Update
 pub use a4n_api_contract::auth::UserSummary;
 pub use a4n_domain::admin::InviteCodeSummary;
 pub use a4n_orchestrator::admin::{
-    AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint, TaskQueueSummary, ThemeInfo,
-    UsageLogSummary, UsageTrendsInput,
+    AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint, TaskQueueSummary, UsageLogSummary,
+    UsageTrendsInput,
 };
 pub use authorized::{
     cancel_admin_task_for_admin, create_invite_code_for_admin, create_user_for_admin,

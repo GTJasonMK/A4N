@@ -1,5 +1,5 @@
 use a4n_core::models::project::{project_source_snapshot, source_snapshot_chapter};
-use sea_orm::{ConnectionTrait, EntityTrait};
+use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 
 use crate::text_anchor::{TextAnchorDbError, TextAnchorDbResult};
 
@@ -18,25 +18,31 @@ where
         )),
         (Some(snapshot_id), chapter_id) => {
             let snapshot = project_source_snapshot::Entity::find_by_id(snapshot_id)
+                .select_only()
+                .column(project_source_snapshot::Column::RootProjectId)
+                .into_tuple::<i64>()
                 .one(db)
                 .await?
                 .ok_or_else(|| {
                     TextAnchorDbError::NotFound(format!("源文本快照不存在: {snapshot_id}"))
                 })?;
-            if snapshot.root_project_id != root_project_id {
+            if snapshot != root_project_id {
                 return Err(TextAnchorDbError::InvalidArgument(format!(
                     "源文本快照不属于文本根项目: snapshot_id={snapshot_id}, root_project_id={root_project_id}"
                 )));
             }
             if let Some(chapter_id) = chapter_id {
                 let chapter = source_snapshot_chapter::Entity::find_by_id(chapter_id)
+                    .select_only()
+                    .column(source_snapshot_chapter::Column::SnapshotId)
+                    .column(source_snapshot_chapter::Column::RootProjectId)
+                    .into_tuple::<(i64, i64)>()
                     .one(db)
                     .await?
                     .ok_or_else(|| {
                         TextAnchorDbError::NotFound(format!("源快照章节不存在: {chapter_id}"))
                     })?;
-                if chapter.snapshot_id != snapshot_id || chapter.root_project_id != root_project_id
-                {
+                if chapter.0 != snapshot_id || chapter.1 != root_project_id {
                     return Err(TextAnchorDbError::InvalidArgument(format!(
                         "源快照章节不属于目标源快照: source_snapshot_chapter_id={chapter_id}"
                     )));

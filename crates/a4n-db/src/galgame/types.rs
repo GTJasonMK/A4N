@@ -19,9 +19,16 @@ pub(in crate::galgame) use self::generation_specs::{
 };
 pub use self::read_models::{
     CompletedGalgameVisualBindingRecords, GalgameAssetPlanningReadModel,
-    GalgameMediaBindingReadModel, GalgameMediaBindingResult,
-    GalgamePersistValidationScopeReadModel, GalgamePipelinePromptChapterRecord,
-    GalgamePipelinePromptContextRecord, GalgameScriptDetailReadModel,
+    GalgameAssetPlanningSceneRecord, GalgameAssetPlanningSourceChapterRecord,
+    GalgameCompletedVisualAssetRecord, GalgameCompletedVisualBindingRecord,
+    GalgameMediaAssetReadRecord, GalgameMediaBindingReadModel, GalgameMediaBindingReadRecord,
+    GalgameMediaBindingResult, GalgamePersistValidationScopeReadModel,
+    GalgamePersistValidationSourceSnapshotChapterRecord,
+    GalgamePersistValidationSpeakerProfileRecord, GalgamePersistValidationTextAnchorRecord,
+    GalgamePipelinePromptChapterRecord, GalgamePipelinePromptChapterSourceRecord,
+    GalgamePipelinePromptContextRecord, GalgamePipelinePromptSpeakerProfileRecord,
+    GalgamePipelinePromptTextAnchorRecord, GalgameScriptDetailChoiceRecord,
+    GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord, GalgameScriptDetailScriptRecord,
 };
 pub use self::script_records::{
     InsertGalgameLineRecordInput, PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput,
@@ -29,5 +36,6 @@ pub use self::script_records::{
     ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput, UpdateGalgameSceneRecordInput,
 };
 pub use self::targets::{
-    GalgamePortraitSpecTargetInput, GalgamePromptArtifactUpsertInput, GalgameTargetContext,
+    GalgamePortraitSpecTargetInput, GalgamePortraitSpecTargetProfile,
+    GalgamePromptArtifactUpsertInput, GalgameTargetContext,
 };

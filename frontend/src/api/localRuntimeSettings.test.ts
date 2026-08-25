@@ -10,10 +10,6 @@ vi.mock("../utils/portableStorage", () => ({
   },
 }));
 
-vi.mock("../utils/runtimeMode", () => ({
-  usesLocalRuntimeSettings: () => true,
-}));
-
 import {
   activeLocalEmbeddingConfig,
   deleteLocalEmbeddingConfig,

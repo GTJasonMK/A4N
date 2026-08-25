@@ -9,6 +9,8 @@ import {
   getTaskPriorityLabel,
   getTaskTypeLabel,
 } from "../../../utils/workflowPresentation";
+import { useI18n } from "../../../i18n";
+import { formatDateTime } from "../../../i18n";
 
 interface TaskHistoryPanelProps {
   tasks: TaskInfoSummary[];
@@ -22,45 +24,47 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
   loading,
   cancellingTaskIds,
   onCancel,
-}) => (
+}) => {
+  const { t, locale } = useI18n();
+  return (
   <section>
     <div className="flex items-baseline gap-2 px-1 pb-2">
-      <h3 className="text-xs font-semibold text-book-text-main">最近任务</h3>
+      <h3 className="text-xs font-semibold text-book-text-main">{t("settingsQueue.recentTasks")}</h3>
       <span className="text-small text-book-text-muted">
-        {tasks.length > 0 ? `显示最近 ${tasks.length} 条` : "执行记录"}
+        {tasks.length > 0 ? t("settingsQueue.recentTaskCount", { count: tasks.length }) : t("settingsQueue.executionRecords")}
       </span>
       {loading ? <LoadingSpinner size="sm" className="ml-auto  text-book-text-muted" /> : null}
     </div>
     {loading && tasks.length === 0 ? (
       <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
         <LoadingSpinner size="sm" />
-        正在加载最近任务…
+        {t("settingsQueue.loadHistory")}
       </div>
     ) : tasks.length === 0 ? (
       <div className="a4n-empty-state a4n-empty-state--framed px-3 py-5 text-center text-xs text-book-text-muted">
-        暂无任务
+        {t("settingsQueue.noTasks")}
       </div>
     ) : (
       <ul className="space-y-2.5">
         {tasks.map((task) => {
           const canCancel = task.status === "pending" || task.status === "running";
-          const progressDisplay = taskProgressDisplay(task);
+          const progressDisplay = taskProgressDisplay(task, t, locale);
           const cancelling = cancellingTaskIds.has(task.id);
-          const taskTime = formatTaskTime(task.completed_at ?? task.started_at ?? task.created_at);
+          const taskTime = formatDateTime(task.completed_at ?? task.started_at ?? task.created_at, locale, t("common.unknown"));
           return (
             <li key={task.id} className="a4n-flat-surface px-3 py-3 text-xs">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                 <div className="min-w-0">
                   <div className="truncate font-medium text-book-text-main">
-                    {getTaskTypeLabel(task.task_type)}
+                    {getTaskTypeLabel(task.task_type, locale)}
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
                     <span className={task.priority === "high" ? "text-error" : undefined}>
-                      {getTaskPriorityLabel(task.priority)}
+                      {getTaskPriorityLabel(task.priority, locale)}
                     </span>
                     <span aria-hidden="true">·</span>
                     <span className={taskStatusTone(task.status)}>
-                      {getOperationStatusLabel(task.status)}
+                      {getOperationStatusLabel(task.status, locale)}
                     </span>
                     {task.progress ? (
                       <>
@@ -94,7 +98,7 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
                   <Dropdown
                     items={[
                       {
-                        label: "取消任务",
+                        label: t("settingsQueue.cancelTask"),
                         icon: <X size={13} />,
                         danger: true,
                         onClick: () => onCancel(task.id),
@@ -104,12 +108,12 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
                 ) : null}
               </div>
               <details className="mt-1 text-caption text-book-text-muted">
-                <summary className="cursor-pointer">诊断信息</summary>
+                <summary className="cursor-pointer">{t("settingsQueue.diagnostic")}</summary>
                 <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 font-mono">
-                  <span>任务编号 {task.id}</span>
-                  {task.task_scope ? <span>任务范围 {task.task_scope}</span> : null}
-                  {task.root_project_id != null ? <span>根项目 {task.root_project_id}</span> : null}
-                  {task.source_snapshot_id != null ? <span>来源快照 {task.source_snapshot_id}</span> : null}
+                  <span>{t("settingsQueue.taskId", { id: task.id })}</span>
+                  {task.task_scope ? <span>{t("settingsQueue.taskScope", { scope: task.task_scope })}</span> : null}
+                  {task.root_project_id != null ? <span>{t("settingsQueue.rootProject", { id: task.root_project_id })}</span> : null}
+                  {task.source_snapshot_id != null ? <span>{t("settingsQueue.sourceSnapshot", { id: task.source_snapshot_id })}</span> : null}
                 </div>
               </details>
             </li>
@@ -118,23 +122,12 @@ export const TaskHistoryPanel: React.FC<TaskHistoryPanelProps> = ({
       </ul>
     )}
   </section>
-);
+  );
+};
 
 function taskStatusTone(status: string): string {
   if (status === "completed") return "text-success";
   if (status === "failed") return "text-error";
   if (status === "running") return "text-book-primary";
   return "text-book-text-muted";
-}
-
-function formatTaskTime(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }

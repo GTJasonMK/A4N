@@ -82,9 +82,8 @@ use self::frame_chain::{
     generate_shared_segment_plan,
 };
 use self::generation_spec::*;
-pub(crate) use self::inserted_segment::{
-    generate_inserted_segment_draft, validate_video_inserted_segment_generation_options,
-};
+pub(in crate::video) use self::inserted_segment::generate_inserted_segment_draft;
+pub(crate) use self::inserted_segment::validate_video_inserted_segment_generation_options;
 use self::parsing::*;
 use self::prepared::{
     LoadedSharedSegmentPlan, PreparedSegmentPlan, SHARED_SEGMENT_PLAN_CONTEXT,
@@ -129,9 +128,9 @@ pub(in crate::video) use self::validation::boundary_frame_prompt_rows_prefix;
 use self::validation::*;
 use self::video_units::*;
 pub(in crate::video) use self::video_units::{
-    VideoUnitPlan, expected_boundary_frame_count, expected_video_unit_count,
-    storyboard_expected_segment_numbers, video_unit_for_target_segment,
-    video_units_for_segment_plan,
+    VideoUnitPlan, boundary_frame_expected_segment_numbers_from_units,
+    expected_boundary_frame_count, expected_video_unit_count, storyboard_expected_segment_numbers,
+    units_for_frame_mapping, video_unit_for_target_segment, video_units_for_segment_plan,
 };
 
 const FINAL_VIDEO_PROMPT_OUTPUT_CONTRACT_VERSION: &str =

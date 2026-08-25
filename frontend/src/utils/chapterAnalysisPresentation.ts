@@ -1,39 +1,41 @@
-const EVENT_TYPE_LABELS: Record<string, string> = {
-  battle: "战斗",
-  revelation: "真相揭示",
-  relationship: "关系变化",
-  discovery: "发现线索",
-  decision: "关键决定",
-  death: "角色死亡",
-  arrival: "抵达",
-  departure: "离开",
-  战斗: "战斗",
-  真相揭示: "真相揭示",
-  关系变化: "关系变化",
-  发现线索: "发现线索",
-  关键决定: "关键决定",
-  角色死亡: "角色死亡",
-  抵达: "抵达",
-  离开: "离开",
+import type { MessageKey, MessageTranslator } from "../i18n";
+
+const EVENT_TYPE_KEYS: Record<string, MessageKey> = {
+  battle: "novel.eventType.battle",
+  revelation: "novel.eventType.revelation",
+  relationship: "novel.eventType.relationship",
+  discovery: "novel.eventType.discovery",
+  decision: "novel.eventType.decision",
+  death: "novel.eventType.death",
+  arrival: "novel.eventType.arrival",
+  departure: "novel.eventType.departure",
+  战斗: "novel.eventType.battle",
+  真相揭示: "novel.eventType.revelation",
+  关系变化: "novel.eventType.relationship",
+  发现线索: "novel.eventType.discovery",
+  关键决定: "novel.eventType.decision",
+  角色死亡: "novel.eventType.death",
+  抵达: "novel.eventType.arrival",
+  离开: "novel.eventType.departure",
 };
 
 const IMPORTANCE_PRESENTATION: Record<
   string,
-  { label: string; rank: number }
+  { key: MessageKey; rank: number }
 > = {
-  high: { label: "高重要性", rank: 3 },
-  critical: { label: "高重要性", rank: 3 },
-  major: { label: "高重要性", rank: 3 },
-  medium: { label: "中等重要性", rank: 2 },
-  moderate: { label: "中等重要性", rank: 2 },
-  low: { label: "低重要性", rank: 1 },
-  minor: { label: "低重要性", rank: 1 },
-  高: { label: "高重要性", rank: 3 },
-  高重要性: { label: "高重要性", rank: 3 },
-  中: { label: "中等重要性", rank: 2 },
-  中等重要性: { label: "中等重要性", rank: 2 },
-  低: { label: "低重要性", rank: 1 },
-  低重要性: { label: "低重要性", rank: 1 },
+  high: { key: "novel.importance.high", rank: 3 },
+  critical: { key: "novel.importance.high", rank: 3 },
+  major: { key: "novel.importance.high", rank: 3 },
+  medium: { key: "novel.importance.medium", rank: 2 },
+  moderate: { key: "novel.importance.medium", rank: 2 },
+  low: { key: "novel.importance.low", rank: 1 },
+  minor: { key: "novel.importance.low", rank: 1 },
+  高: { key: "novel.importance.high", rank: 3 },
+  高重要性: { key: "novel.importance.high", rank: 3 },
+  中: { key: "novel.importance.medium", rank: 2 },
+  中等重要性: { key: "novel.importance.medium", rank: 2 },
+  低: { key: "novel.importance.low", rank: 1 },
+  低重要性: { key: "novel.importance.low", rank: 1 },
 };
 
 const normalizedKey = (value: string | null | undefined): string =>
@@ -41,11 +43,19 @@ const normalizedKey = (value: string | null | undefined): string =>
 
 export const chapterEventTypeLabel = (
   value: string | null | undefined,
-): string | null => EVENT_TYPE_LABELS[normalizedKey(value)] ?? null;
+  t: MessageTranslator,
+): string | null => {
+  const key = EVENT_TYPE_KEYS[normalizedKey(value)];
+  return key ? t(key) : null;
+};
 
 export const chapterEventImportanceLabel = (
   value: string | null | undefined,
-): string | null => IMPORTANCE_PRESENTATION[normalizedKey(value)]?.label ?? null;
+  t: MessageTranslator,
+): string | null => {
+  const item = IMPORTANCE_PRESENTATION[normalizedKey(value)];
+  return item ? t(item.key) : null;
+};
 
 export const chapterEventImportanceRank = (
   value: string | null | undefined,

@@ -3,21 +3,38 @@ use super::super::{
     preservation::{prompt_sync_draft_fields_match, prompt_sync_generation_fields_changed},
 };
 use a4n_core::models::chapter::chapter_video_prompt;
-use sea_orm::ConnectionTrait;
+use sea_orm::{ConnectionTrait, Set};
 
 use crate::video::{self, VideoDbError};
 use crate::video_prompt::ChapterVideoPromptSyncDraft;
 
-pub(in crate::video_prompt::sync) async fn insert_prompt_from_sync_draft<C>(
-    db: &C,
-    draft: ChapterVideoPromptSyncDraft,
+pub(in crate::video_prompt::sync) fn prompt_active_model(
+    draft: &ChapterVideoPromptSyncDraft,
     now: chrono::NaiveDateTime,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    let status = generated_prompt_status(&draft.fields.prompt_type);
-    video::insert_chapter_video_prompt_record(db, draft.fields, status, now).await
+) -> chapter_video_prompt::ActiveModel {
+    let fields = &draft.fields;
+    chapter_video_prompt::ActiveModel {
+        project_id: Set(fields.project_id),
+        chapter_id: Set(fields.chapter_id),
+        style: Set(fields.style.clone()),
+        prompt_type: Set(fields.prompt_type.clone()),
+        workflow_mode: Set(fields.workflow_mode.clone()),
+        shot_number: Set(fields.shot_number),
+        title: Set(fields.title.clone()),
+        scene_summary: Set(fields.scene_summary.clone()),
+        visual_prompt: Set(fields.visual_prompt.clone()),
+        motion_prompt: Set(fields.motion_prompt.clone()),
+        negative_prompt: Set(fields.negative_prompt.clone()),
+        duration_secs: Set(fields.duration_secs),
+        aspect_ratio: Set(fields.aspect_ratio.clone()),
+        reference_image_ids_json: Set(fields.reference_image_ids_json.clone()),
+        status: Set(generated_prompt_status(&fields.prompt_type)),
+        generated_video_id: Set(None),
+        metadata_json: Set(fields.metadata_json.clone()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
 }
 
 pub(in crate::video_prompt::sync) async fn replace_prompt_from_sync_draft<C>(

@@ -5,8 +5,8 @@ use a4n_orchestrator::project::ProjectFamilyMetadataQuery;
 use crate::AppState;
 use crate::actions::app_error_message;
 
-use super::super::contracts::ProjectSummary;
 use super::{project_progress_query, projection::to_summary};
+use a4n_api_contract::project::ProjectSummary;
 
 pub async fn project_summaries_with_family_for_user(
     state: &AppState,
@@ -17,29 +17,21 @@ pub async fn project_summaries_with_family_for_user(
         .iter()
         .map(ProjectFamilyMetadataQuery::from_project)
         .collect();
-    let family_metadata_by_project_id = state
-        .orchestrator()
-        .project_family_metadata_batch(&family_queries)
-        .await
-        .map_err(app_error_message)?;
     let access_queries: Vec<_> = projects
         .iter()
         .map(ProjectAccessInfoQuery::from_project)
         .collect();
-    let access_infos = state
-        .orchestrator()
-        .project_access_info_batch(&access_queries, user_id)
-        .await
-        .map_err(app_error_message)?;
     let progress_queries: Vec<_> = projects
         .iter()
         .map(project_progress_query)
         .collect::<Result<_, _>>()?;
-    let progress_by_project_id = state
-        .orchestrator()
-        .project_progress_summaries(&progress_queries)
-        .await
-        .map_err(app_error_message)?;
+    let orchestrator = state.orchestrator();
+    let (family_metadata_by_project_id, access_infos, progress_by_project_id) = tokio::try_join!(
+        orchestrator.project_family_metadata_batch(&family_queries),
+        orchestrator.project_access_info_batch(&access_queries, user_id),
+        orchestrator.project_progress_summaries(&progress_queries),
+    )
+    .map_err(app_error_message)?;
 
     let mut summaries = Vec::with_capacity(projects.len());
     for (project, query) in projects.iter().zip(&progress_queries) {

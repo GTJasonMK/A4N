@@ -1,6 +1,9 @@
 import type { ImageConfigInput, ImageGenConfig, UpdateImageConfigInput } from "../../../api/image";
 import type { ConfigItem } from "../ConfigListPanel";
 import type { ImageForm } from "./types";
+import type { MessageKey, MessageParams } from "../../../i18n";
+
+type Translate = (key: MessageKey, params?: MessageParams) => string;
 
 export const DEFAULT_IMAGE_FORM: ImageForm = {
   name: "",
@@ -32,17 +35,17 @@ export const IMAGE_SIZE_OPTIONS = [
   "4096x4096",
 ];
 
-export function validateImageForm(form: ImageForm): string | null {
-  if (!form.name.trim()) return "请填写配置名称";
-  if (!form.model.trim()) return "请填写模型名";
-  if (!form.api_base_url.trim()) return "请填写 API Base URL";
+export function validateImageForm(form: ImageForm, t: Translate): string | null {
+  if (!form.name.trim()) return t("settingsForm.nameRequired");
+  if (!form.model.trim()) return t("settingsForm.modelRequired");
+  if (!form.api_base_url.trim()) return t("settingsForm.baseUrlRequired");
   try {
-    parseImageSize(form.size);
+    parseImageSize(form.size, t);
   } catch (err) {
-    return err instanceof Error ? err.message : "图片尺寸无效";
+    return err instanceof Error ? err.message : t("settingsForm.imageSizeInvalid");
   }
   if (!Number.isInteger(form.max_concurrent) || form.max_concurrent <= 0) {
-    return "并发上限必须为正整数";
+    return t("settingsForm.concurrencyPositive");
   }
   return null;
 }
@@ -77,8 +80,8 @@ export function toImageItem(raw: ImageGenConfig): ConfigItem<ImageForm> {
   };
 }
 
-export function toCreateImageInput(form: ImageForm): ImageConfigInput {
-  const input = buildImageConfigInput(form);
+export function toCreateImageInput(form: ImageForm, t: Translate): ImageConfigInput {
+  const input = buildImageConfigInput(form, t);
   const apiKey = form.api_key.trim();
 
   return {
@@ -87,18 +90,19 @@ export function toCreateImageInput(form: ImageForm): ImageConfigInput {
   };
 }
 
-export function toUpdateImageInput(form: ImageForm): UpdateImageConfigInput {
+export function toUpdateImageInput(form: ImageForm, t: Translate): UpdateImageConfigInput {
   const apiKey = form.api_key.trim();
   return {
-    ...buildImageConfigInput(form),
+    ...buildImageConfigInput(form, t),
     api_key_encrypted: form.clear_api_key ? null : apiKey || undefined,
   };
 }
 
 function buildImageConfigInput(
   form: ImageForm,
+  t: Translate,
 ): Omit<ImageConfigInput, "api_key_encrypted"> {
-  const { width, height } = parseImageSize(form.size);
+  const { width, height } = parseImageSize(form.size, t);
   return {
     name: form.name.trim(),
     backend: form.provider,
@@ -110,10 +114,10 @@ function buildImageConfigInput(
   };
 }
 
-function parseImageSize(value: string): { width: number; height: number } {
+function parseImageSize(value: string, t: Translate): { width: number; height: number } {
   const match = value.trim().match(/^(\d+)\s*[xX]\s*(\d+)$/);
   if (!match) {
-    throw new Error("图片尺寸格式必须为 宽x高，例如 3840x2160");
+    throw new Error(t("settingsForm.imageSizeFormat"));
   }
 
   const width = Number(match[1]);
@@ -124,10 +128,10 @@ function parseImageSize(value: string): { width: number; height: number } {
     width <= 0 ||
     height <= 0
   ) {
-    throw new Error(`图片尺寸无效：${value}`);
+    throw new Error(t("settingsForm.imageSizeValueInvalid", { value }));
   }
   if (width > 2147483647 || height > 2147483647) {
-    throw new Error("图片尺寸不能超过 2147483647");
+    throw new Error(t("settingsForm.imageSizeTooLarge"));
   }
   return { width, height };
 }

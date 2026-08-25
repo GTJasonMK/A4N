@@ -7,11 +7,16 @@ import {
 } from "../../utils/generationEventReducer";
 import { BlueprintConfirmationPane } from "./BlueprintConfirmationPane";
 import { ChatBubble } from "./ChatBubble";
+import { I18nProvider, translateMessage } from "../../i18n";
+
+const t = (key: Parameters<typeof translateMessage>[1], params?: Parameters<typeof translateMessage>[2]) =>
+  translateMessage("zh-CN", key, params);
 
 describe("generation consistency presentation", () => {
   it("renders one meaningful status inside an empty streaming reply", () => {
     const html = renderToStaticMarkup(
-      <ChatBubble
+      <I18nProvider initialLocale="zh-CN">
+        <ChatBubble
         message={{
           id: "message-streaming",
           role: "assistant",
@@ -20,7 +25,8 @@ describe("generation consistency presentation", () => {
           createdAt: 1,
         }}
         onSendOption={vi.fn()}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("正在整理你的灵感…");
@@ -29,6 +35,7 @@ describe("generation consistency presentation", () => {
 
   it("keeps the persisted inspiration message visible with an explicit warning", () => {
     const recovery = resolveFormalResultRecovery({
+      t,
       recoveryIssue: "consistency_error",
       consistent: false,
       hasPersisted: true,
@@ -36,7 +43,8 @@ describe("generation consistency presentation", () => {
       domain: "inspiration_message",
     });
     const html = renderToStaticMarkup(
-      <ChatBubble
+      <I18nProvider initialLocale="zh-CN">
+        <ChatBubble
         message={{
           id: "message-1",
           role: "assistant",
@@ -45,16 +53,18 @@ describe("generation consistency presentation", () => {
           createdAt: 1,
         }}
         onSendOption={vi.fn()}
-      />,
+        />
+      </I18nProvider>,
     );
 
-    expect(html).toContain(generationTaskRecoveryIssueMessage("consistency_error"));
+    expect(html).toContain(generationTaskRecoveryIssueMessage("consistency_error", t));
     expect(html).toContain("以下内容来自正式消息，只供核对");
     expect(html).toContain("正式消息正文");
   });
 
   it("renders an inconsistent persisted blueprint without mutation actions", () => {
     const recovery = resolveFormalResultRecovery({
+      t,
       recoveryIssue: "expired",
       consistent: false,
       hasPersisted: true,
@@ -62,7 +72,8 @@ describe("generation consistency presentation", () => {
       domain: "blueprint",
     });
     const html = renderToStaticMarkup(
-      <BlueprintConfirmationPane
+      <I18nProvider initialLocale="zh-CN">
+        <BlueprintConfirmationPane
         blueprint={blueprint()}
         consistencyWarning={recovery.warning}
         refining={false}
@@ -70,7 +81,8 @@ describe("generation consistency presentation", () => {
         onPreviewRefine={vi.fn()}
         onConfirm={vi.fn()}
         onCancel={vi.fn()}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("当前展示正式蓝图，只供核对");
@@ -81,6 +93,7 @@ describe("generation consistency presentation", () => {
 
   it("marks chapter and optimize recovery with the same readonly / unrecoverable semantics", () => {
     const chapterReadonly = resolveFormalResultRecovery({
+      t,
       recoveryIssue: "corrupt",
       consistent: false,
       hasPersisted: true,
@@ -91,6 +104,7 @@ describe("generation consistency presentation", () => {
     expect(chapterReadonly.message).toContain("已只读加载正式章节供核对");
 
     const chapterUnrecoverable = resolveFormalResultRecovery({
+      t,
       recoveryIssue: "expired",
       consistent: false,
       hasPersisted: false,
@@ -101,6 +115,7 @@ describe("generation consistency presentation", () => {
     expect(chapterUnrecoverable.message).toContain("且没有正式结果引用，无法恢复");
 
     const optimizeReadonly = resolveFormalResultRecovery({
+      t,
       recoveryIssue: null,
       consistent: false,
       hasPersisted: true,
@@ -113,6 +128,7 @@ describe("generation consistency presentation", () => {
     expect(optimizeReadonly.warning).toContain("已只读加载正式 Turn 供核对");
 
     const optimizeUnrecoverable = resolveFormalResultRecovery({
+      t,
       recoveryIssue: "expired",
       consistent: false,
       hasPersisted: false,

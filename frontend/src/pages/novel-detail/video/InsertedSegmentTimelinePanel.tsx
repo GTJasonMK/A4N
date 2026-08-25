@@ -1,4 +1,4 @@
-import React, { useImperativeHandle, useState } from "react";
+import React, { useImperativeHandle, useMemo, useState } from "react";
 import { Check, ChevronDown, Plus, Save, Trash2, Wand2 } from "lucide-react";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -14,6 +14,7 @@ import type {
 } from "../../../api/video";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { MAX_REFERENCE_IMAGES, VIDEO_ASPECT_RATIOS } from "./videoTabUtils";
+import { useI18n, type MessageTranslator } from "../../../i18n";
 
 export interface InsertedSegmentGap {
   previous_item_id: number | null;
@@ -93,14 +94,33 @@ export const insertedSegmentGapKey = (gap: InsertedSegmentGap): string =>
     gap.next_item_id == null ? "tail" : gap.next_item_id
   }`;
 
+const timelineItemsById = (
+  items: ReadonlyArray<VideoTimelineItemSummary>,
+): Map<number, VideoTimelineItemSummary> => {
+  const index = new Map<number, VideoTimelineItemSummary>();
+  for (const item of items) {
+    if (!index.has(item.id)) index.set(item.id, item);
+  }
+  return index;
+};
+
+const gapLabelFromIndex = (
+  gap: InsertedSegmentGap,
+  itemsById: ReadonlyMap<number, VideoTimelineItemSummary>,
+  t: MessageTranslator,
+): string => {
+  const previous =
+    gap.previous_item_id == null ? null : (itemsById.get(gap.previous_item_id) ?? null);
+  const next = gap.next_item_id == null ? null : (itemsById.get(gap.next_item_id) ?? null);
+  const segment = (number: number) => t("video.chapter.segment", { number });
+  return `${previous?.title ?? (previous ? segment(previous.display_index) : t("video.chapter.assemblyStart"))} → ${next?.title ?? (next ? segment(next.display_index) : t("video.chapter.assemblyEnd"))}`;
+};
+
 export const gapLabel = (
   gap: InsertedSegmentGap,
   items: VideoTimelineItemSummary[],
-): string => {
-  const previous = items.find((item) => item.id === gap.previous_item_id);
-  const next = items.find((item) => item.id === gap.next_item_id);
-  return `${previous?.title ?? (previous ? `片段 ${previous.display_index}` : "开头")} → ${next?.title ?? (next ? `片段 ${next.display_index}` : "结尾")}`;
-};
+  t: MessageTranslator,
+): string => gapLabelFromIndex(gap, timelineItemsById(items), t);
 
 export const timelineGaps = (
   items: ReadonlyArray<Pick<VideoTimelineItemSummary, "id">>,
@@ -164,7 +184,9 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
     },
     ref,
   ) => {
+    const { t } = useI18n();
     const items = timeline?.items ?? [];
+    const itemsById = useMemo(() => timelineItemsById(items), [items]);
     const reanchorItemIds = new Set(
       items
         .filter((item) => item.status === "needs_reanchor")
@@ -181,7 +203,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
     } | null>(null);
     const [editingItemId, setEditingItemId] = useState<number | null>(null);
     const [edit, setEdit] = useState<InsertedPromptEdit | null>(null);
-    const editingItem = items.find((item) => item.id === editingItemId) ?? null;
+    const editingItem =
+      editingItemId == null ? null : (itemsById.get(editingItemId) ?? null);
     const editingPrompt =
       editingItem?.plan_prompt_id == null
         ? null
@@ -274,8 +297,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
         <Modal
           isOpen={form != null}
           onClose={closeModal}
-          title="生成插入片段"
-          subtitle={form ? gapLabel(form.gap, items) : undefined}
+          title={t("video.chapter.generateInsertedTitle")}
+          subtitle={form ? gapLabelFromIndex(form.gap, itemsById, t) : undefined}
           icon={<Plus size={15} />}
           maxWidthClassName="max-w-3xl"
           footer={
@@ -287,7 +310,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   onClick={closeModal}
                   disabled={acting != null}
                 >
-                  取消
+                  {t("common.cancel")}
                 </BookButton>
                 <BookButton
                   variant="secondary"
@@ -311,7 +334,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   }}
                 >
                   <Check size={12} />
-                  确认插入
+                  {t("video.chapter.confirmInsert")}
                 </BookButton>
                 <BookButton
                   variant="primary"
@@ -335,7 +358,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   }}
                 >
                   <Wand2 size={12} />
-                  {draft == null ? "生成描述" : "重新生成描述"}
+                  {draft == null ? t("video.chapter.generateDescription") : t("video.chapter.regenerateDescription")}
                 </BookButton>
               </div>
             ) : undefined
@@ -345,7 +368,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
             <div className="space-y-3">
               <label className="block">
                 <span className="text-xs font-medium text-book-text-main">
-                  用户提示词
+                  {t("video.chapter.userPrompt")}
                 </span>
                 <textarea
                   value={form.user_prompt}
@@ -354,12 +377,12 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     updateForm({ user_prompt: event.target.value })
                   }
                   className="book-control mt-1 min-h-28 w-full resize-y p-2 text-xs leading-relaxed"
-                  placeholder="例如：让两人短暂沉默后交换一个确认眼神，镜头从门口缓慢推进。"
+                  placeholder={t("video.chapter.insertPromptPlaceholder")}
                 />
               </label>
               <div className="grid gap-2 sm:grid-cols-2">
                 <label className="block">
-                  <span className="text-xs text-book-text-muted">风格</span>
+                  <span className="text-xs text-book-text-muted">{t("video.chapter.style")}</span>
                   <input
                     value={form.style}
                     disabled={acting != null}
@@ -371,7 +394,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                 </label>
                 <label className="block">
                   <span className="text-xs text-book-text-muted">
-                    提示词语言
+                    {t("video.chapter.promptLanguageLabel")}
                   </span>
                   <select
                     value={form.prompt_output_language}
@@ -384,13 +407,13 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     }
                     className="book-control mt-1 h-9 w-full px-2 text-xs"
                   >
-                    <option value="zh_cn">简体中文</option>
-                    <option value="en">English</option>
+                    <option value="zh_cn">{t("settings.chinese")}</option>
+                    <option value="en">{t("settings.english")}</option>
                   </select>
                 </label>
                 <label className="block">
                   <span className="text-xs text-book-text-muted">
-                    时长（秒）
+                    {t("video.chapter.durationSeconds")}
                   </span>
                   <select
                     value={form.duration_secs}
@@ -402,13 +425,13 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   >
                     {form.duration_secs_options.map((duration) => (
                       <option key={duration} value={duration}>
-                        {duration} 秒
+                        {t("video.chapter.seconds", { count: duration })}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs text-book-text-muted">画幅</span>
+                  <span className="text-xs text-book-text-muted">{t("video.chapter.aspectRatioLabel")}</span>
                   <select
                     value={form.aspect_ratio}
                     disabled={acting != null}
@@ -427,7 +450,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
               </div>
               <div>
                 <div className="mb-1 text-xs text-book-text-muted">
-                  参考图（可选）
+                  {t("video.chapter.referenceImagesOptional")}
                 </div>
                 <div className="grid max-h-36 grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-5">
                   {referenceImages.map((image) => {
@@ -480,16 +503,15 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     })
                   }
                 />
-                没有前项尾帧/参考图时允许纯文本生成
+                {t("video.chapter.allowTextOnly")}
               </label>
               {draft != null && draft.revision !== timeline.revision ? (
                 <div className="rounded-lg border border-warning/35 bg-warning/8 px-3 py-2 text-caption text-warning">
-                  时间线已变化，当前草稿不能直接提交；表单已保留，请重新生成描述。
+                  {t("video.chapter.timelineChanged")}
                 </div>
               ) : draft != null ? (
                 <div className="rounded-lg border border-success/35 bg-success/8 px-3 py-2 text-caption text-success">
-                  描述草稿已生成（workflow #{draft.workflowRunId}
-                  ）。确认后才会写入时间线；若 revision 冲突，表单内容会保留。
+                  {t("video.chapter.descriptionDraftGenerated", { id: draft.workflowRunId })}
                 </div>
               ) : null}
             </div>
@@ -499,8 +521,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
         <Modal
           isOpen={editingItem != null && editingPrompt != null && edit != null}
           onClose={closeModal}
-          title="插入片段详情"
-          subtitle="该片段已进入时间线，可编辑提示词并复用视频生成"
+          title={t("video.chapter.insertedDetailTitle")}
+          subtitle={t("video.chapter.insertedDetailSubtitle")}
           icon={<ChevronDown size={15} />}
           maxWidthClassName="max-w-3xl"
           footer={
@@ -512,7 +534,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     size="sm"
                     onClick={() => void onPreviewVideo(editingVideo)}
                   >
-                    预览视频
+                    {t("video.chapter.previewVideo")}
                   </BookButton>
                 ) : null}
                 {editingVideo ? (
@@ -522,7 +544,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     disabled={acting != null}
                     onClick={() => void onDeleteVideo(editingVideo)}
                   >
-                    <Trash2 size={12} /> 删除视频
+                    <Trash2 size={12} /> {t("video.chapter.deleteVideo")}
                   </BookButton>
                 ) : null}
                 <BookButton
@@ -537,7 +559,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     })
                   }
                 >
-                  <Save size={12} /> 保存提示词
+                  <Save size={12} /> {t("video.chapter.saveChanges")}
                 </BookButton>
                 <BookButton
                   variant="primary"
@@ -550,7 +572,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   onClick={() => void onGenerateVideo(editingPrompt)}
                 >
                   <Wand2 size={12} />
-                  {editingPromptDirty ? "请先保存" : "生成视频"}
+                  {editingPromptDirty ? t("video.chapter.saveBeforeAction") : t("video.chapter.generateVideo")}
                 </BookButton>
                 <BookButton
                   variant="secondary"
@@ -558,7 +580,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   onClick={closeModal}
                   disabled={acting != null}
                 >
-                  关闭
+                  {t("common.close")}
                 </BookButton>
               </div>
             ) : undefined
@@ -569,10 +591,10 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
               {editingItem ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-book-border/35 bg-book-bg-paper/70 px-3 py-2">
                   <div className="min-w-0 flex-1 text-caption text-book-text-muted">
-                    时间线第 {editingItem.display_index} 位
+                    {t("video.chapter.timelinePosition", { number: editingItem.display_index })}
                   </div>
                   <select
-                    aria-label={`移动插入片段 ${editingItem.display_index}`}
+                    aria-label={t("video.chapter.moveInserted", { number: editingItem.display_index })}
                     value=""
                     disabled={acting != null}
                     onChange={(event) => {
@@ -590,7 +612,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     }}
                     className="book-control h-8 max-w-48 px-2 text-caption"
                   >
-                    <option value="">移动位置…</option>
+                    <option value="">{t("video.chapter.movePosition")}</option>
                     {editingMoveGaps
                       .filter((candidate) => !gapUsesReanchorItem(candidate))
                       .map((candidate) => (
@@ -598,7 +620,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                           key={insertedSegmentGapKey(candidate)}
                           value={insertedSegmentGapKey(candidate)}
                         >
-                          {gapLabel(candidate, items)}
+                          {gapLabelFromIndex(candidate, itemsById, t)}
                         </option>
                       ))}
                   </select>
@@ -608,9 +630,9 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                     disabled={acting != null}
                     onClick={async () => {
                       const confirmed = await confirmDialog({
-                        title: "删除插入片段",
-                        message: "删除该插入片段？历史视频不会被物理删除。",
-                        confirmText: "删除",
+                        title: t("video.chapter.deleteInsertedTimelineTitle"),
+                        message: t("video.chapter.deleteInsertedTimelineMessage"),
+                        confirmText: t("common.delete"),
                         dialogType: "danger",
                       });
                       if (!confirmed) return;
@@ -621,26 +643,26 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                       });
                     }}
                   >
-                    <Trash2 size={11} /> 移除片段
+                    <Trash2 size={11} /> {t("video.chapter.removeSegment")}
                   </BookButton>
                 </div>
               ) : null}
               {editingItemNeedsReanchor ? (
                 <div className="rounded-lg border border-warning/35 bg-warning/8 px-3 py-2 text-caption text-warning">
-                  原生片段规划已变化，请先关闭窗口并通过“移动…”重新定位该片段，再生成视频或进入成片。
+                  {t("video.chapter.nativePlanChanged")}
                 </div>
               ) : null}
               <div className="grid gap-2 sm:grid-cols-2">
                 <div className="rounded-lg border border-book-border/35 bg-book-bg-paper/70 px-3 py-2">
-                  <div className="text-xs text-book-text-muted">标题</div>
+                  <div className="text-xs text-book-text-muted">{t("novel.novel")}</div>
                   <div className="mt-1 text-xs text-book-text-main">
-                    {editingPrompt.title?.trim() || "未命名插入片段"}
+                    {editingPrompt.title?.trim() || t("video.chapter.unnamedInserted")}
                   </div>
                 </div>
                 <div className="rounded-lg border border-book-border/35 bg-book-bg-paper/70 px-3 py-2">
-                  <div className="text-xs text-book-text-muted">场景摘要</div>
+                  <div className="text-xs text-book-text-muted">{t("video.chapter.sceneSummary")}</div>
                   <div className="mt-1 whitespace-pre-wrap text-xs text-book-text-main">
-                    {editingPrompt.scene_summary?.trim() || "暂无场景摘要"}
+                    {editingPrompt.scene_summary?.trim() || t("video.chapter.noSceneSummary")}
                   </div>
                 </div>
               </div>
@@ -650,10 +672,10 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                 <label key={field} className="block">
                   <span className="text-xs text-book-text-muted">
                     {field === "visual_prompt"
-                      ? "画面提示词"
+                      ? t("video.chapter.visualPrompt")
                       : field === "motion_prompt"
-                        ? "运动提示词"
-                        : "限制与避免项"}
+                        ? t("video.chapter.motionPrompt")
+                        : t("video.chapter.constraints")}
                   </span>
                   <textarea
                     value={edit[field]}

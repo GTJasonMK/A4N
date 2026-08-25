@@ -1,4 +1,5 @@
 import type { ProjectKind, ProjectSourceMode, ProjectStatus } from "../api/project";
+import type { MessageKey, MessageTranslator } from "../i18n";
 
 export interface RoutedProject {
   id: number | string;
@@ -13,69 +14,79 @@ export interface DerivedProjectPresentation {
   source_sync_status?: string | null;
 }
 
-const PROJECT_TYPE_LABELS = {
-  novel_long: "长篇小说",
-  novel_short: "短篇故事",
-  script: "剧本",
-  prose: "散文",
+const PROJECT_TYPE_LABEL_KEYS: Record<string, MessageKey> = {
+  novel_long: "novel.longNovel",
+  novel_short: "novel.shortStory",
+  script: "novel.script",
+  prose: "novel.prose",
 } as const;
 
-export const PROJECT_KIND_LABELS: Record<ProjectKind, string> = {
-  text: "文本项目",
-  video: "视频项目",
-  comic: "漫画项目",
-  galgame: "GALGame 项目",
+export const PROJECT_KIND_LABEL_KEYS: Record<ProjectKind, MessageKey> = {
+  text: "novel.textProject",
+  video: "novel.videoProject",
+  comic: "novel.comicProject",
+  galgame: "novel.galgameProject",
 };
 
-export const PROJECT_ACCESS_ROLE_LABELS = {
-  owner: "所有者",
-  manager: "管理员",
-  editor: "编辑者",
-  viewer: "只读成员",
+const PROJECT_ACCESS_ROLE_LABEL_KEYS = {
+  owner: "novel.ownerRole",
+  manager: "novel.managerRole",
+  editor: "novel.editorRole",
+  viewer: "novel.viewerRole",
 } as const;
 
-const SOURCE_SYNC_STATUS_LABELS: Record<string, string> = {
-  current: "已同步",
-  root_updated: "源文本有更新",
-  conflict: "存在冲突",
-  detached: "已脱离源项目",
-};
+export const getProjectTypeLabel = (
+  value: string,
+  t: MessageTranslator,
+): string => t(PROJECT_TYPE_LABEL_KEYS[value] ?? "novel.unknownType");
 
-export const getProjectTypeLabel = (value: string): string =>
-  PROJECT_TYPE_LABELS[value as keyof typeof PROJECT_TYPE_LABELS] ?? "未知类型";
+export const getProjectKindLabel = (
+  value: ProjectKind,
+  t: MessageTranslator,
+): string => t(PROJECT_KIND_LABEL_KEYS[value]);
+
+export const getProjectAccessRoleLabel = (
+  value: keyof typeof PROJECT_ACCESS_ROLE_LABEL_KEYS,
+  t: MessageTranslator,
+): string => t(PROJECT_ACCESS_ROLE_LABEL_KEYS[value]);
 
 export const getAdminProjectTypeLabel = (project: {
   project_kind: ProjectKind;
   project_type: string;
-}): string =>
+}, t: MessageTranslator): string =>
   project.project_kind === "text"
-    ? getProjectTypeLabel(project.project_type)
-    : PROJECT_KIND_LABELS[project.project_kind];
+    ? getProjectTypeLabel(project.project_type, t)
+    : getProjectKindLabel(project.project_kind, t);
 
-const getSourceSyncStatusLabel = (value: string | null | undefined): string => {
-  const normalized = String(value ?? "").trim().toLowerCase();
-  return SOURCE_SYNC_STATUS_LABELS[normalized] ?? (normalized || "未知");
-};
-
-const formatDerivedChapterScope = (scope: unknown): string | null => {
+const formatDerivedChapterScope = (
+  scope: unknown,
+  format: (start: number, end: number) => string,
+): string | null => {
   if (!scope || typeof scope !== "object") return null;
   const record = scope as Record<string, unknown>;
   const start = Number(record.start);
   const end = Number(record.end);
   if (!Number.isInteger(start) || !Number.isInteger(end)) return null;
-  return start === end ? `第 ${start} 章` : `第 ${start}-${end} 章`;
+  return format(start, end);
 };
+
+export interface DerivedProjectSubtitleLabels {
+  fallback: string;
+  sourceProject: (title: string) => string;
+  chapterScope: (start: number, end: number) => string;
+  sourceSyncStatus: (value: string | null | undefined) => string;
+}
 
 export const getDerivedProjectSubtitle = (
   project: DerivedProjectPresentation,
-  fallback: string,
+  labels: DerivedProjectSubtitleLabels,
 ): string => {
   const parts = [
-    project.root_project_title ? `源项目：${project.root_project_title}` : null,
-    formatDerivedChapterScope(project.derived_chapter_scope),
-    getSourceSyncStatusLabel(project.source_sync_status),
+    project.root_project_title ? labels.sourceProject(project.root_project_title) : null,
+    formatDerivedChapterScope(project.derived_chapter_scope, labels.chapterScope),
+    labels.sourceSyncStatus(project.source_sync_status),
   ].filter((part): part is string => Boolean(part));
-  return parts.join(" · ") || fallback;
+  return parts.join(" · ") || labels.fallback;
 };
 
 export const getProjectStudioRoute = (id: number | string): string =>
@@ -99,26 +110,32 @@ const projectRoute = (
 export const getProjectPrimaryRoute = (project: RoutedProject): string =>
   projectRoute(project, "novel");
 
-export const getProjectPrimaryLabel = (project: RoutedProject): string =>
+export const getProjectPrimaryLabel = (
+  project: RoutedProject,
+  t: MessageTranslator,
+): string =>
   project.project_kind === "video"
-    ? "进入视频项目"
+    ? t("novel.enterVideoProject")
     : project.project_kind === "comic"
-      ? "进入漫画项目"
+      ? t("novel.enterComicProject")
       : project.project_kind === "galgame"
-        ? "进入 GALGame 项目"
-        : "进入项目详情";
+        ? t("novel.enterGalgameProject")
+        : t("novel.enterProjectDetails");
 
 export const getProjectWorkspaceRoute = (project: RoutedProject): string =>
   projectRoute(project, "write");
 
-export const getProjectWorkspaceLabel = (project: RoutedProject): string =>
+export const getProjectWorkspaceLabel = (
+  project: RoutedProject,
+  t: MessageTranslator,
+): string =>
   project.project_kind === "video"
-    ? "进入视频工作台"
+    ? t("novel.enterVideoWorkspace")
     : project.project_kind === "comic"
-      ? "进入漫画工作台"
+      ? t("novel.enterComicWorkspace")
       : project.project_kind === "galgame"
-        ? "进入游戏工作台"
-        : "进入写作台";
+        ? t("novel.enterGameWorkspace")
+        : t("novel.enterWritingDesk");
 
 export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
   if (project.project_kind !== "text") return getProjectPrimaryRoute(project);
@@ -129,11 +146,14 @@ export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
   return getProjectPrimaryRoute(project);
 };
 
-export const getProjectHomeEntryLabel = (project: RoutedProject): string => {
-  if (project.project_kind !== "text") return getProjectPrimaryLabel(project);
+export const getProjectHomeEntryLabel = (
+  project: RoutedProject,
+  t: MessageTranslator,
+): string => {
+  if (project.project_kind !== "text") return getProjectPrimaryLabel(project, t);
 
   if (project.status === "writing" || project.status === "completed") {
-    return getProjectWorkspaceLabel(project);
+    return getProjectWorkspaceLabel(project, t);
   }
-  return getProjectPrimaryLabel(project);
+  return getProjectPrimaryLabel(project, t);
 };

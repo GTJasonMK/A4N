@@ -8,8 +8,8 @@ pub mod host_api;
 
 mod baseline_configs;
 mod cleanup_outbox;
-pub mod dynamic_embedding;
-pub mod dynamic_llm;
+pub(crate) mod dynamic_embedding;
+pub(crate) mod dynamic_llm;
 pub mod file_utils;
 pub(crate) mod jwt;
 pub mod media_file;

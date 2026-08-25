@@ -8,9 +8,9 @@ import type {
 } from "../../../api/import";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import { progressDisplayText } from "../../../utils/progressDisplay";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
+import { useI18n } from "../../../i18n";
 
 export type ReviewAction = "accept" | "reject" | "delete";
 
@@ -53,14 +53,11 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
   onViewDetail,
   onAct,
 }) => {
+  const { locale, t } = useI18n();
   const analysisStatus = projectProgress?.status ?? null;
-  const analyzeActionLabel =
-    analysisStatus === "failed" || analysisStatus === "cancelled" ? "继续分析" : "分析项目";
-  const progressDisplay = projectProgress
-    ? progressDisplayText({
-        message: projectProgress.message,
-        stageHint: projectProgress.stages.generating_analysis_data.name,
-      })
+  const canContinue = analysisStatus === "failed" || analysisStatus === "cancelled";
+  const progressDetail = projectProgress
+    ? importAnalysisProgressDetail(projectProgress.status, t)
     : null;
   const reviewActionBusy = actBusy !== null;
   const reviewSelectionLocked =
@@ -76,11 +73,11 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
     <section className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-book-text-main">审核队列</h3>
+          <h3 className="text-sm font-semibold text-book-text-main">{t("novel.importReview.queue.title")}</h3>
           {reviews.length > 0 ? (
             <p className="mt-0.5 text-small text-book-text-muted">
-              {reviews.length} 条记录
-              {selected.size > 0 ? ` · 已选 ${selected.size} 条` : ""}
+              {t("novel.importReview.queue.records", { count: reviews.length })}
+              {selected.size > 0 ? ` · ${t("novel.importReview.queue.selected", { count: selected.size })}` : ""}
             </p>
           ) : null}
         </div>
@@ -96,11 +93,11 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
               >
                 {cancelBusy ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <LoadingSpinner size="sm" /> 停止中…
+                  <LoadingSpinner size="sm" /> {t("novel.importReview.queue.stopping")}
                   </span>
                 ) : (
                   <>
-                    <Square size={12} /> 停止分析
+                    <Square size={12} /> {t("novel.importReview.stopAnalysis")}
                   </>
                 )}
               </BookButton>
@@ -115,11 +112,11 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
             >
               {batchBusy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 接受中（{selected.size}）…
+                  <LoadingSpinner size="sm" /> {t("novel.importReview.queue.acceptLoading", { count: selected.size })}
                 </span>
               ) : (
                 <>
-                  <CheckCheck size={13} /> 接受所选（{selected.size}）
+                  <CheckCheck size={13} /> {t("novel.importReview.queue.acceptSelected", { count: selected.size })}
                 </>
               )}
             </BookButton>
@@ -127,7 +124,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
             <>
               {!analyzeBusy && !cancelBusy && !externalBusy ? (
                 <BookIconButton
-                  label="查看分析模型请求"
+                  label={t("novel.importReview.queue.previewRequest")}
                   variant="secondary"
                   size="sm"
                   onClick={() => void onPreviewAnalysisRequest()}
@@ -145,11 +142,11 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                 {analyzeBusy ? (
                   <span className="inline-flex items-center gap-1.5">
                     <LoadingSpinner size="sm" />
-                    {analyzeActionLabel === "继续分析" ? "继续分析中…" : "分析中…"}
+                    {canContinue ? t("novel.importReview.queue.continuing") : t("novel.importReview.queue.analyzing")}
                   </span>
                 ) : (
                   <>
-                    <Sparkles size={13} /> {analyzeActionLabel}
+                    <Sparkles size={13} /> {canContinue ? t("novel.importReview.queue.continue") : t("novel.importReview.queue.analyze")}
                   </>
                 )}
               </BookButton>
@@ -162,10 +159,10 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
         <div className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden px-3 text-small">
           {visibleAnalysis.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 py-2">
-              <div className="shrink-0 text-book-text-muted">审核状态</div>
+              <div className="shrink-0 text-book-text-muted">{t("novel.importReview.queue.status")}</div>
               <div className="min-w-0 flex-1 text-book-text-sub">
                 {visibleAnalysis
-                  .map((item) => `${getOperationStatusLabel(item.status)} ${item.count}`)
+                  .map((item) => `${getOperationStatusLabel(item.status, locale)} ${item.count}`)
                   .join(" · ")}
               </div>
             </div>
@@ -174,9 +171,9 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
             <div className="py-2">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium text-book-text-main">
-                  {projectProgress.stages.generating_analysis_data.name}
+                  {t("novel.importReview.queue.analysisStage")}
                 </span>
-                <span className="text-book-text-muted">{getOperationStatusLabel(projectProgress.status)}</span>
+                  <span className="text-book-text-muted">{getOperationStatusLabel(projectProgress.status, locale)}</span>
                 <span className="ml-auto font-mono text-book-text-muted">
                   {projectProgress.overall_progress}%
                 </span>
@@ -186,9 +183,9 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                   className="h-full bg-book-primary/35"
                   style={{ width: `${projectProgress.overall_progress}%` }}
                 />
-                {progressDisplay?.detail ? (
+                {progressDetail ? (
                   <div className="pointer-events-none absolute inset-x-1.5 top-1/2 -translate-y-1/2 truncate text-caption leading-3 text-book-text-main">
-                    {progressDisplay.detail}
+                    {progressDetail}
                   </div>
                 ) : null}
               </div>
@@ -203,7 +200,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
       )}
 
       {reviews.length === 0 ? (
-        <EmptyHint text={loading ? "加载中…" : "暂无待审核内容。"} />
+        <EmptyHint text={loading ? t("common.loading") : t("novel.importReview.queue.empty")} />
       ) : (
         <ul className="grid gap-2">
           {reviews.map((review) => {
@@ -215,7 +212,7 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                 <button
                   type="button"
                   aria-pressed={selected.has(review.id)}
-                  aria-label={`选择 ${review.filename}`}
+                  aria-label={t("novel.importReview.queue.select", { name: review.filename })}
                   disabled={!reviewSelectable}
                   onClick={() => onToggleSelect(review.id)}
                   className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] border transition-colors focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-not-allowed disabled:opacity-50 ${
@@ -232,13 +229,13 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                     onClick={() => void onViewDetail(review.id)}
                     disabled={reviewSelectionLocked}
                     className="block w-full rounded-md text-left outline-none transition-colors hover:text-book-primary focus-visible:ring-2 focus-visible:ring-book-primary/35 disabled:opacity-60"
-                    aria-label={`查看 ${review.filename} 的审核详情`}
+                    aria-label={t("novel.importReview.queue.view", { name: review.filename })}
                   >
                     <span className="block truncate font-medium text-book-text-main">
                       {review.filename}
                     </span>
                     <span className="mt-1 block text-small text-book-text-muted">
-                      {getOperationStatusLabel(review.review_status)}
+                      {getOperationStatusLabel(review.review_status, locale)}
                     </span>
                   </button>
                 </div>
@@ -247,13 +244,13 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
                     items={[
                       ...(review.review_status === "pending"
                         ? [
-                            { label: "接受审核", icon: <Check size={12} />, onClick: () => void onAct(review.id, "accept") },
-                            { label: "拒绝审核", icon: <X size={12} />, onClick: () => void onAct(review.id, "reject") },
+                            { label: t("novel.importReview.queue.accept"), icon: <Check size={12} />, onClick: () => void onAct(review.id, "accept") },
+                            { label: t("novel.importReview.queue.reject"), icon: <X size={12} />, onClick: () => void onAct(review.id, "reject") },
                             { type: "divider" as const },
                           ]
                         : []),
                       {
-                        label: "删除审核记录",
+                        label: t("novel.importReview.queue.delete"),
                         icon: <Trash2 size={12} />,
                         danger: true,
                         onClick: () => void onAct(review.id, "delete"),
@@ -270,3 +267,19 @@ export const ImportReviewQueuePanel: React.FC<ImportReviewQueuePanelProps> = ({
     </section>
   );
 };
+
+function importAnalysisProgressDetail(
+  status: ProjectImportAnalysisProgress["status"],
+  t: ReturnType<typeof useI18n>["t"],
+): string {
+  switch (status) {
+    case "completed":
+      return t("feedback.progressDone");
+    case "failed":
+      return t("feedback.progressCheckError");
+    case "cancelled":
+      return t("feedback.progressStopped");
+    case "analyzing":
+      return t("feedback.progressRunning");
+  }
+}

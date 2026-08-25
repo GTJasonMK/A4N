@@ -12,9 +12,18 @@ import type {
   UploadedRagEmbedding,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
+import { formatNumber, type Locale, type MessageTranslator } from "../../i18n";
 
-export const formatRagIngestResultSummary = (result: RagIngestResult): string =>
-  `新增 ${result.added_count}，更新 ${result.updated_count}，跳过 ${result.skipped_count}，删除 ${result.deleted_count}`;
+export const formatRagIngestResultSummary = (
+  result: RagIngestResult,
+  locale: Locale,
+  t: MessageTranslator,
+): string => t("novel.ragIngestSummary", {
+  added: formatNumber(result.added_count, locale),
+  updated: formatNumber(result.updated_count, locale),
+  skipped: formatNumber(result.skipped_count, locale),
+  deleted: formatNumber(result.deleted_count, locale),
+});
 
 export async function ragIngestAll(
   projectId: Id,

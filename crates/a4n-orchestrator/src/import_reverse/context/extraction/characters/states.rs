@@ -1,7 +1,8 @@
 use serde_json::{Map, Value, json};
 
+use crate::import_reverse::json::stringify_json_value;
+
 use super::{CharacterMap, push_character_chapter};
-use a4n_core::import_reverse::json::stringify_json_value;
 
 pub(super) fn merge_character_states(
     map: &mut CharacterMap,

@@ -6,16 +6,17 @@ mod video_prompt;
 mod video_records;
 
 pub(super) use image::{
-    delete_image, list_images_by_chapter, list_images_by_project, list_profile_materials,
-    list_video_reference_images, preview_batch_images_request, preview_page_image_request,
-    preview_scene_image_request, set_profile_primary_material, update_image, upload_image,
-    upload_profile_material_image,
+    delete_image, list_images_by_chapter, list_images_by_project, list_images_by_projects,
+    list_profile_materials, list_video_reference_images, preview_batch_images_request,
+    preview_page_image_request, preview_scene_image_request, set_profile_primary_material,
+    update_image, upload_image, upload_profile_material_image,
 };
 pub(super) use manga::{
     bind_manga_reference_image, cancel_manga_pipeline, delete_manga_by_chapter,
-    delete_manga_prompt, get_manga_pipeline_status, list_manga_page_prompts, optimize_manga_prompt,
-    preview_resume_manga_pipeline_request, preview_start_manga_pipeline_request,
-    resume_manga_pipeline, start_manga_pipeline, update_manga_prompt,
+    delete_manga_prompt, get_manga_pipeline_status, list_manga_page_prompts,
+    list_manga_pipeline_statuses, optimize_manga_prompt, preview_resume_manga_pipeline_request,
+    preview_start_manga_pipeline_request, resume_manga_pipeline, start_manga_pipeline,
+    update_manga_prompt,
 };
 pub(super) use profile::{
     create_foreshadowing, create_object_profile, create_scene_profile, delete_foreshadowing,

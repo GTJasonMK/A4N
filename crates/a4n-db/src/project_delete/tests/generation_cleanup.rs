@@ -146,7 +146,7 @@ async fn freeform_reset_rediscovers_targets_and_preserves_imported_media() {
         .await
         .unwrap();
 
-    assert_eq!(reset.artifact_row_cleanup.deleted_generated_images, 1);
+    assert_eq!(reset.deleted_generated_images, 1);
     assert!(reset.media_paths.is_empty());
     assert!(
         generated_image::Entity::find_by_id(generated.id)

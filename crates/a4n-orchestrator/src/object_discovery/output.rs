@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_core::{
     json_contract::{
         optional_string, positive_i64_array, reject_unknown_fields, required_string, string_array,
@@ -11,7 +12,7 @@ use a4n_core::{
 use serde_json::Value;
 
 use crate::{
-    asset::{OBJECT_TYPES, ObjectProfileDraft, normalize_object_type_value},
+    asset::object_profiles::{OBJECT_TYPES, normalize_object_type_value},
     object_discovery::rules::validate_object_discovery_chapter_scope,
 };
 
@@ -122,7 +123,7 @@ fn normalize_object(
     );
     Ok(ParsedObjectProfileDraft {
         evidence_anchor_ids,
-        draft: ObjectProfileDraft {
+        draft: ObjectProfileInput {
             aliases,
             object_type,
             importance,

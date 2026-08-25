@@ -1,10 +1,11 @@
 use super::{ProjectStatusHistoryInput, ProjectStatusWriteError, insert_project_status_history};
-use crate::project::{project_by_id_for_update, validate_positive_i64};
+use crate::project::validate_positive_i64;
 use a4n_core::models::project::novel_project;
 use a4n_domain::project::ProjectStatus;
 use chrono::NaiveDateTime;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait, sea_query::Expr,
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QuerySelect,
+    TransactionTrait, sea_query::Expr,
 };
 
 pub async fn update_project_status_record<C>(
@@ -19,19 +20,27 @@ where
     validate_positive_i64(project.id, "project_id")
         .map_err(ProjectStatusWriteError::InvalidArgument)?;
     let txn = db.begin().await?;
-    let locked = project_by_id_for_update(&txn, project.id)
+    let mut lock_query = novel_project::Entity::find_by_id(project.id)
+        .select_only()
+        .column(novel_project::Column::Status);
+    if txn.get_database_backend() != DbBackend::Sqlite {
+        lock_query = lock_query.lock_exclusive();
+    }
+    let locked_status = lock_query
+        .into_tuple::<String>()
+        .one(&txn)
         .await
         .map_err(ProjectStatusWriteError::from)?
         .ok_or(ProjectStatusWriteError::ProjectNotFound {
             project_id: project.id,
         })?;
-    if locked.status != project.status {
+    if locked_status != project.status {
         return Err(ProjectStatusWriteError::StatusChanged {
             expected: project.status,
-            actual: locked.status,
+            actual: locked_status,
         });
     }
-    let updated = update_project_status_record_in(&txn, locked, to_status, changed_at).await?;
+    let updated = update_project_status_record_in(&txn, project, to_status, changed_at).await?;
     txn.commit().await?;
     Ok(updated)
 }

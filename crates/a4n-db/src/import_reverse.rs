@@ -10,10 +10,11 @@ pub use outlines::{
     apply_reverse_part_outline_records, apply_reverse_part_outline_records_transaction,
 };
 pub use types::{
-    ImportReverseDbError, ReverseBlueprintApplyDraft, ReverseBlueprintApplyPlanRecord,
-    ReverseBlueprintApplyRecord, ReverseBlueprintApplyResult, ReverseBlueprintContextRows,
-    ReverseContextRows, ReverseOutlineApplyRow, ReversePartOutlineApplyRow,
+    ImportReverseDbError, ReverseBlueprintApplyDraft, ReverseBlueprintApplyResult,
+    ReverseBlueprintContextRows, ReverseContextRows, ReverseOutlineApplyRow,
+    ReversePartOutlineApplyRow,
 };
+pub(crate) use types::{ReverseBlueprintApplyPlanRecord, ReverseBlueprintApplyRecord};
 
 #[cfg(test)]
 mod tests;

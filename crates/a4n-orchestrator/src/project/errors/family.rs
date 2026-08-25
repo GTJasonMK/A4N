@@ -41,8 +41,7 @@ pub(crate) fn project_family_metadata_read_error_to_app_error(
         ProjectFamilyMetadataReadError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        ProjectFamilyMetadataReadError::MetadataMissing { .. }
-        | ProjectFamilyMetadataReadError::RootProjectMissing { .. }
+        ProjectFamilyMetadataReadError::RootProjectMissing { .. }
         | ProjectFamilyMetadataReadError::SourceSnapshotMissing { .. } => {
             AppError::Internal(anyhow::anyhow!(error.to_string()))
         }
@@ -109,18 +108,6 @@ mod tests {
             error,
             AppError::InvalidState { current, operation }
                 if current == "detached" && operation == "导出项目族"
-        ));
-    }
-
-    #[test]
-    fn missing_family_metadata_maps_to_internal_error() {
-        let error = project_family_metadata_read_error_to_app_error(
-            ProjectFamilyMetadataReadError::MetadataMissing { project_id: 17 },
-        );
-
-        assert!(matches!(
-            error,
-            AppError::Internal(source) if source.to_string().contains("17")
         ));
     }
 }

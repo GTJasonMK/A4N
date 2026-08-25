@@ -2,10 +2,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_core::models::chapter::{chapter, chapter_outline, part_outline};
 use chrono::NaiveDateTime;
-use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait,
-    QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,
+    QueryOrder, QuerySelect, TransactionTrait,
+    sea_query::{CaseStatement, Expr},
 };
 
 use super::{DeleteLatestOutlineRecordsInput, OutlineDeleteTarget, ProjectOutlineRecordError};
@@ -50,11 +50,31 @@ pub async fn delete_latest_part_outline_records(
     if txn.get_database_backend() != DbBackend::Sqlite {
         outline_query = outline_query.lock_exclusive();
     }
-    for outline in outline_query.all(&txn).await? {
-        let mut active: chapter_outline::ActiveModel = outline.clone().into();
-        active.part_id = Set(None);
-        active.updated_at = Set(super::mutation::next_updated_at(outline.updated_at));
-        active.update(&txn).await?;
+    let outlines = outline_query.all(&txn).await?;
+    if !outlines.is_empty() {
+        let mut updated_at_by_id = CaseStatement::new();
+        let mut outline_ids = Vec::with_capacity(outlines.len());
+        for outline in &outlines {
+            updated_at_by_id = updated_at_by_id.case(
+                chapter_outline::Column::Id.eq(outline.id),
+                super::mutation::next_updated_at(outline.updated_at),
+            );
+            outline_ids.push(outline.id);
+        }
+        chapter_outline::Entity::update_many()
+            .col_expr(
+                chapter_outline::Column::PartId,
+                Expr::value(Option::<i64>::None),
+            )
+            .col_expr(
+                chapter_outline::Column::UpdatedAt,
+                updated_at_by_id
+                    .finally(Expr::col(chapter_outline::Column::UpdatedAt))
+                    .into(),
+            )
+            .filter(chapter_outline::Column::Id.is_in(outline_ids))
+            .exec(&txn)
+            .await?;
     }
 
     delete_generation_run_targets_for(&txn, "part_outline", &part_ids).await?;

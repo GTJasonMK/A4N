@@ -338,15 +338,17 @@ impl OrchestratorContext {
                 PATCH_SET_STATUS_PENDING,
             )
             .await?;
-        for patch_set in patch_sets {
-            self.update_optimization_patch_set_status(
-                patch_set,
-                PATCH_SET_STATUS_APPLIED,
-                PATCH_DECISION_ACCEPTED,
-                PATCH_APPLY_STATUS_APPLIED,
-            )
-            .await?;
-        }
+        let patch_set_ids = patch_sets
+            .iter()
+            .map(|patch_set| patch_set.id)
+            .collect::<Vec<_>>();
+        self.update_optimization_patch_sets_status(
+            &patch_set_ids,
+            PATCH_SET_STATUS_APPLIED,
+            PATCH_DECISION_ACCEPTED,
+            PATCH_APPLY_STATUS_APPLIED,
+        )
+        .await?;
         Ok(())
     }
 

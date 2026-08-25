@@ -107,7 +107,7 @@ async fn chapter_analysis_stages_share_one_source_prefix_without_losing_stage_pr
         "importance": 3,
         "related_characters": []
     }]);
-    let requests = vec![
+    let requests = [
         build_chapter_fact_extraction_request(&chapter, &ChapterSessionPromptRenderer, &spans)
             .await
             .expect("facts request"),

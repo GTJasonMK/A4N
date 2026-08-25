@@ -13,6 +13,7 @@ use a4n_domain::image::{
     image_generation_shot_number, image_generation_source, image_generation_source_hash,
 };
 use sea_orm::ConnectionTrait;
+use std::collections::{HashMap, HashSet};
 
 pub async fn ensure_frame_prompt_image_generation_allowed<C>(
     db: &C,
@@ -71,23 +72,45 @@ where
 pub(super) async fn generated_frame_images_for_prompt<C>(
     db: &C,
     prompt: &chapter_video_prompt::Model,
-) -> Result<Vec<generated_image::Model>, VideoDbError>
+) -> Result<Vec<generated_image::Reference>, VideoDbError>
 where
     C: ConnectionTrait,
 {
-    let Some(source) = frame_image_generation_source_for_prompt(prompt) else {
+    generated_frame_images_for_prompts(db, prompt.project_id, prompt.chapter_id, &[prompt]).await
+}
+
+pub(crate) async fn generated_frame_images_for_prompts<C>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+    prompts: &[&chapter_video_prompt::Model],
+) -> Result<Vec<generated_image::Reference>, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    let expected_sources = prompts
+        .iter()
+        .filter_map(|prompt| {
+            frame_image_generation_source_for_prompt(prompt).map(|source| (prompt.id, source))
+        })
+        .collect::<HashMap<_, _>>();
+    if expected_sources.is_empty() {
         return Ok(Vec::new());
-    };
-    let images =
-        video::generated_images_for_chapter_by_id_desc(db, prompt.project_id, prompt.chapter_id)
-            .await
-            .map_err(VideoDbError::Database)?;
+    }
+
+    let images = video::generated_images_for_chapter_by_id_desc(db, project_id, chapter_id)
+        .await
+        .map_err(VideoDbError::Database)?;
     Ok(images
         .into_iter()
         .filter(|image| {
             let metadata = image.metadata_json.as_ref();
-            image_generation_prompt_id(metadata) == Some(prompt.id)
-                && image_generation_source(metadata) == Some(source)
+            let Some(prompt_id) = image_generation_prompt_id(metadata) else {
+                return false;
+            };
+            expected_sources
+                .get(&prompt_id)
+                .is_some_and(|source| image_generation_source(metadata) == Some(*source))
         })
         .collect())
 }
@@ -95,7 +118,7 @@ where
 async fn previous_boundary_frame_image_for_prompt<C>(
     db: &C,
     prompt: &chapter_video_prompt::Model,
-) -> Result<Option<generated_image::Model>, VideoDbError>
+) -> Result<Option<generated_image::Reference>, VideoDbError>
 where
     C: ConnectionTrait,
 {
@@ -169,9 +192,11 @@ fn effective_boundary_frame_reference_image_ids(
     }
 
     let mut ids = Vec::with_capacity(requested_reference_image_ids.len() + 1);
+    let mut seen = HashSet::with_capacity(requested_reference_image_ids.len() + 1);
     ids.push(previous_frame_image_id);
+    seen.insert(previous_frame_image_id);
     for id in requested_reference_image_ids {
-        if !ids.contains(id) {
+        if seen.insert(*id) {
             ids.push(*id);
         }
     }

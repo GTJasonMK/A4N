@@ -9,10 +9,23 @@ use a4n_core::models::{
 use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
 use a4n_core::source_spans::source_text_hash;
 use sea_orm::{
-    ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
-    QueryOrder, QuerySelect,
+    ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult,
+    QueryFilter, QueryOrder, QuerySelect,
 };
 use std::collections::HashMap;
+
+#[derive(Debug, FromQueryResult)]
+struct ChapterContentRow {
+    id: i64,
+    content: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct ChapterContentAnchorRow {
+    id: i64,
+    source_chapter_id: Option<i64>,
+    source_version_hash: String,
+}
 
 pub async fn object_profiles_before_chapter(
     db: &DatabaseConnection,
@@ -72,8 +85,12 @@ async fn current_object_profile_ids_before_chapter(
     chapter_number: i32,
 ) -> Result<Vec<i64>, ProjectChapterContextError> {
     let chapters = chapter::Entity::find()
+        .select_only()
+        .column(chapter::Column::Id)
+        .column(chapter::Column::Content)
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.lt(chapter_number))
+        .into_model::<ChapterContentRow>()
         .all(db)
         .await
         .map_err(ProjectChapterContextError::Database)?;
@@ -85,10 +102,15 @@ async fn current_object_profile_ids_before_chapter(
         .map(|chapter| (chapter.id, source_text_hash(&chapter.content)))
         .collect::<HashMap<_, _>>();
     let anchors = text_anchor::Entity::find()
+        .select_only()
+        .column(text_anchor::Column::Id)
+        .column(text_anchor::Column::SourceChapterId)
+        .column(text_anchor::Column::SourceVersionHash)
         .filter(text_anchor::Column::ProjectId.eq(project_id))
         .filter(text_anchor::Column::SourceKind.eq(crate::text_anchor::SOURCE_KIND_CHAPTER_CONTENT))
         .filter(text_anchor::Column::SourceChapterId.is_in(chapter_versions.keys().copied()))
         .filter(text_anchor::Column::SourceSnapshotId.is_null())
+        .into_model::<ChapterContentAnchorRow>()
         .all(db)
         .await
         .map_err(ProjectChapterContextError::Database)?;
@@ -189,6 +211,25 @@ where
         .filter(snapshot_reference::Column::ProfileId.eq(profile_id))
         .filter(snapshot_reference::Column::ChapterNumber.eq(chapter_number))
         .one(db)
+        .await
+        .map_err(ProjectChapterContextError::Database)
+}
+
+pub async fn snapshot_references_for_profiles_chapter<C>(
+    db: &C,
+    profile_ids: &[i64],
+    chapter_number: i32,
+) -> Result<Vec<snapshot_reference::Model>, ProjectChapterContextError>
+where
+    C: ConnectionTrait,
+{
+    if profile_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    snapshot_reference::Entity::find()
+        .filter(snapshot_reference::Column::ProfileId.is_in(profile_ids.iter().copied()))
+        .filter(snapshot_reference::Column::ChapterNumber.eq(chapter_number))
+        .all(db)
         .await
         .map_err(ProjectChapterContextError::Database)
 }

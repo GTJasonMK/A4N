@@ -10,10 +10,18 @@ pub struct ParsedChapterShootingScript {
     pub script: ChapterShootingScriptV1,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChapterVisualPlanIdentity {
+    pub id: i64,
+    pub version: i32,
+    pub sha256: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct InsertChapterShootingScriptInput {
     pub source: ResolvedChapterSource,
     pub input_fingerprint_sha256: String,
+    pub visual_plan: ChapterVisualPlanIdentity,
     pub script: ChapterShootingScriptV1,
     pub workflow_run_id: Option<i64>,
 }
@@ -23,6 +31,7 @@ pub struct UpdateChapterShootingScriptInput {
     pub record_id: i64,
     pub expected_revision: i32,
     pub input_fingerprint_sha256: String,
+    pub visual_plan: ChapterVisualPlanIdentity,
     pub script: ChapterShootingScriptV1,
     pub workflow_run_id: Option<i64>,
 }

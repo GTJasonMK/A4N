@@ -19,7 +19,7 @@ pub async fn cancel_import_analysis(
     cancel_import_progress(context, project_id).await
 }
 
-pub async fn cancelled_import_analysis_summary(
+pub(super) async fn cancelled_import_analysis_summary(
     context: &OrchestratorContext,
     project_id: i64,
     analyzed_chapters: usize,

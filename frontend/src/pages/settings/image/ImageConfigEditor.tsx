@@ -9,6 +9,7 @@ import type { ImageProviderDescriptor } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import type { ImageForm } from "./types";
+import { useI18n } from "../../../i18n";
 
 interface ImageConfigEditorProps {
   form: ImageForm;
@@ -31,6 +32,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
   templateLocked = false,
   providers,
 }) => {
+  const { t } = useI18n();
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
   const selectedProvider = providers.find(
@@ -49,17 +51,17 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
 
   return (
     <>
-      <FormField label="配置名称" required>
+      <FormField label={t("settingsForm.configName")} required>
         <BookInput
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
-          placeholder="例如：DALL·E 高清 / SD 写实风"
+          placeholder={t("settingsForm.configNamePlaceholder")}
           disabled={structureDisabled}
         />
       </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField label="图片服务商">
+        <FormField label={t("settingsForm.imageProvider")}>
           <select
             value={form.provider}
             onChange={(event) =>
@@ -75,11 +77,11 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             ))}
           </select>
         </FormField>
-        <FormField label="模型" required>
+        <FormField label={t("settingsForm.model")} required>
           <ModelDiscoveryField
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
-            placeholder="例如：gpt-image-2 / dall-e-3 / sd_xl_base_1.0"
+            placeholder={t("settingsForm.imageModelPlaceholder")}
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
@@ -88,23 +90,23 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="接口地址" required>
+      <FormField label={t("settingsForm.endpoint")} required>
         <BookInput
           value={form.api_base_url}
           onChange={(event) =>
             setForm({ ...form, api_base_url: event.target.value })
           }
-          placeholder="例如：https://api.openai.com/v1"
+          placeholder={t("settingsForm.endpointPlaceholder")}
           disabled={structureDisabled}
         />
       </FormField>
 
       <FormField
-        label="访问密钥"
+        label={t("settingsForm.apiKey")}
         hint={
           templateLocked
-            ? "只保存为你的个人密钥；系统默认模板不会共享管理员密钥"
-            : "存储于本地数据库，不会上传到任何外部服务"
+            ? t("settingsForm.personalApiKeyHint")
+            : t("settingsForm.localApiKeyHint")
         }
       >
         <BookInput
@@ -137,14 +139,14 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField
-          label="尺寸"
-          hint="可手动输入宽×高；4K 如 3840×2160，实际支持范围取决于模型和图片服务商"
+          label={t("settingsForm.size")}
+          hint={t("settingsForm.sizeHint")}
         >
           <BookInput
             value={form.size}
             list={IMAGE_SIZE_DATALIST_ID}
             onChange={(event) => setForm({ ...form, size: event.target.value })}
-            placeholder="例如：3840x2160"
+            placeholder={t("settingsForm.sizePlaceholder")}
             disabled={structureDisabled}
           />
           <datalist id={IMAGE_SIZE_DATALIST_ID}>
@@ -155,7 +157,10 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
             ))}
           </datalist>
         </FormField>
-        <FormField label="并发上限" hint="同一配置的最大并行图片生成数">
+        <FormField
+          label={t("settingsForm.concurrencyLimit")}
+          hint={t("settingsForm.imageConcurrencyHint")}
+        >
           <BookInput
             type="number"
             min={1}

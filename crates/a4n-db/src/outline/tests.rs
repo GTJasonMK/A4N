@@ -22,32 +22,52 @@ fn part(id: i64, part_number: i32) -> part_outline::Model {
     }
 }
 
+fn outline(chapter_number: i32, part_id: Option<i64>) -> chapter_outline::Model {
+    chapter_outline::Model {
+        id: 100 + i64::from(chapter_number),
+        project_id: 7,
+        part_id,
+        chapter_number,
+        title: Some(format!("第 {chapter_number} 章")),
+        summary: Some("摘要".to_string()),
+        beats: None,
+        key_scenes: None,
+        pacing_score: None,
+        foreshadowing_setup: None,
+        foreshadowing_payoff: None,
+        characters_involved: None,
+        word_count_target: None,
+        status: "draft".to_string(),
+        created_at: Utc::now().naive_utc(),
+        updated_at: Utc::now().naive_utc(),
+    }
+}
+
 #[test]
 fn chapter_outline_ids_in_part_range_selects_only_target_range() {
     let part = part(20, 2);
     let outlines = [8, 12, 20, 21]
         .into_iter()
-        .map(|chapter_number| chapter_outline::Model {
-            id: 100 + chapter_number as i64,
-            project_id: 7,
-            part_id: Some(part.id),
-            chapter_number,
-            title: Some(format!("第 {chapter_number} 章")),
-            summary: Some("摘要".to_string()),
-            beats: None,
-            key_scenes: None,
-            pacing_score: None,
-            foreshadowing_setup: None,
-            foreshadowing_payoff: None,
-            characters_involved: None,
-            word_count_target: None,
-            status: "draft".to_string(),
-            created_at: Utc::now().naive_utc(),
-            updated_at: Utc::now().naive_utc(),
-        })
+        .map(|chapter_number| outline(chapter_number, Some(part.id)))
         .collect::<Vec<_>>();
     let deleted_ids = chapter_outline_ids_in_part_range(&outlines, &part);
     assert_eq!(deleted_ids, vec![112, 120]);
+}
+
+#[test]
+fn chapter_outline_ids_in_part_ranges_selects_by_chapter_range_not_part_id() {
+    let first_part = part(20, 2);
+    let second_part = part(30, 3);
+    let outlines = [
+        outline(12, None),
+        outline(18, Some(999)),
+        outline(25, Some(second_part.id)),
+        outline(31, Some(second_part.id)),
+    ];
+    assert_eq!(
+        chapter_outline_ids_in_part_ranges(&outlines, &[first_part, second_part]),
+        vec![112, 118, 125]
+    );
 }
 
 #[tokio::test]

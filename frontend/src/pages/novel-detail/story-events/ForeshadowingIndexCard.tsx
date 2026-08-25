@@ -15,12 +15,13 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { Modal } from "../../../components/ui/Modal";
 import { EmptyHint, NumberField, SelectField, TextAreaField, splitLines } from "../shared";
+import { useI18n, type MessageKey } from "../../../i18n";
 
-const STATUS_LABELS: Record<ForeshadowingStatus, string> = {
-  pending: "待回收",
-  partially_revealed: "部分揭示",
-  resolved: "已回收",
-  abandoned: "已放弃",
+const STATUS_LABELS: Record<ForeshadowingStatus, MessageKey> = {
+  pending: "novel.foreshadowing.statusPending",
+  partially_revealed: "novel.foreshadowing.statusPartial",
+  resolved: "novel.foreshadowing.statusResolved",
+  abandoned: "novel.foreshadowing.statusAbandoned",
 };
 const STATUS_OPTIONS = Object.keys(STATUS_LABELS) as ForeshadowingStatus[];
 
@@ -49,6 +50,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   onReload,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [editing, setEditing] = useState<"new" | Foreshadowing | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
   const [busyId, setBusyId] = useState<number | null>(null);
@@ -67,14 +69,14 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
     if (!editing || !canEdit) return;
     const record = inputFromDraft(draft);
     if (!record.description) {
-      addToast("伏笔描述不能为空", "error");
+      addToast(t("novel.foreshadowing.descriptionRequired"), "error");
       return;
     }
     if (
       record.status === "resolved" &&
       (record.payoff_chapter == null || record.payoff_chapter <= record.setup_chapter)
     ) {
-      addToast("回收章节必须晚于埋设章节", "error");
+      addToast(t("novel.foreshadowing.payoffAfterSetup"), "error");
       return;
     }
 
@@ -88,12 +90,12 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       await onReload();
       addToast(
         result.warnings.length > 0
-          ? `伏笔已保存；${result.warnings.join("；")}`
-          : "伏笔已保存",
+          ? t("novel.foreshadowing.savedWithWarnings", { warnings: result.warnings.join(t("common.listSeparator")) })
+          : t("novel.foreshadowing.saved"),
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (error) {
-      addToast(extractErrorMessage(error, "保存伏笔失败"), "error");
+      addToast(extractErrorMessage(error, t("novel.foreshadowing.saveFailed")), "error");
     } finally {
       setBusyId(null);
     }
@@ -102,9 +104,9 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
   const handleDelete = async (record: Foreshadowing) => {
     if (!canEdit) return;
     const confirmed = await confirmDialog({
-      title: "删除正式伏笔",
-      message: `删除“${record.description}”？章节再次分析不会自动恢复这条记录，除非正文重新识别到同一伏笔。`,
-      confirmText: "删除",
+      title: t("novel.foreshadowing.deleteTitle"),
+      message: t("novel.foreshadowing.deleteMessage", { description: record.description }),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!confirmed) return;
@@ -114,12 +116,12 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       await onReload();
       addToast(
         result.warnings.length > 0
-          ? `伏笔已删除；${result.warnings.join("；")}`
-          : "伏笔已删除",
+          ? t("novel.foreshadowing.deletedWithWarnings", { warnings: result.warnings.join(t("common.listSeparator")) })
+          : t("novel.foreshadowing.deleted"),
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (error) {
-      addToast(extractErrorMessage(error, "删除伏笔失败"), "error");
+      addToast(extractErrorMessage(error, t("novel.foreshadowing.deleteFailed")), "error");
     } finally {
       setBusyId(null);
     }
@@ -129,9 +131,9 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
     <section className="a4n-flat-surface overflow-hidden">
       <header className="flex items-start gap-3 border-b border-book-border/40 px-3 py-3">
         <div className="min-w-0 flex-1">
-          <h2 className="text-sm font-semibold text-book-text-main">正式伏笔索引</h2>
+          <h2 className="text-sm font-semibold text-book-text-main">{t("novel.foreshadowing.title")}</h2>
           <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-            章节分析可以补充和回收伏笔，但不会因本次遗漏而删除，也不会覆盖已有填写。
+            {t("novel.foreshadowing.description")}
           </p>
         </div>
         <button
@@ -139,8 +141,8 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
           onClick={() => void onReload()}
           disabled={loading || busyId != null}
           className="pyqt-btn-icon !h-8 !w-8"
-          aria-label="刷新伏笔索引"
-          title="刷新伏笔索引"
+          aria-label={t("novel.foreshadowing.refresh")}
+          title={t("novel.foreshadowing.refresh")}
         >
           <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
         </button>
@@ -150,7 +152,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
             onClick={() => openEditor("new")}
             disabled={busyId != null}
           >
-            <Plus size={12} /> 新增伏笔
+            <Plus size={12} /> {t("novel.foreshadowing.add")}
           </BookButton>
         ) : null}
       </header>
@@ -158,8 +160,8 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       {records.length === 0 ? (
         <div className="p-3">
           <EmptyHint
-            text="还没有正式伏笔。可以手工建立，也可以在章节分析后自动补充。"
-            actionText={canEdit ? "新增伏笔" : undefined}
+            text={t("novel.foreshadowing.empty")}
+            actionText={canEdit ? t("novel.foreshadowing.add") : undefined}
             onAction={canEdit ? () => openEditor("new") : undefined}
           />
         </div>
@@ -173,17 +175,17 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
                     {record.description}
                   </span>
                   <span className="rounded-full bg-book-bg-tertiary px-2 py-0.5 text-small text-book-text-muted">
-                    {STATUS_LABELS[record.status] ?? record.status}
+                    {t(STATUS_LABELS[record.status])}
                   </span>
                   <span className="text-small text-book-text-muted">
-                    重要度 {record.importance}/5
+                    {t("novel.foreshadowing.importance", { value: record.importance })}
                   </span>
                 </div>
                 <p className="mt-1 text-small text-book-text-muted">
-                  第 {record.setup_chapter} 章埋设
-                  {record.payoff_chapter != null ? ` · 第 ${record.payoff_chapter} 章回收` : ""}
+                  {t("novel.foreshadowing.setup", { chapter: record.setup_chapter })}
+                  {record.payoff_chapter != null ? ` · ${t("novel.foreshadowing.payoff", { chapter: record.payoff_chapter })}` : ""}
                   {record.related_characters.length > 0
-                    ? ` · 关联 ${record.related_characters.join("、")}`
+                    ? ` · ${t("novel.foreshadowing.relatedCharacters", { value: record.related_characters.join(t("common.listSeparator")) })}`
                     : ""}
                 </p>
               </div>
@@ -194,8 +196,8 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
                     onClick={() => openEditor(record)}
                     disabled={busyId != null}
                     className="pyqt-btn-icon !h-8 !w-8"
-                    aria-label={`编辑伏笔：${record.description}`}
-                    title="编辑伏笔"
+                    aria-label={t("novel.foreshadowing.editAria", { description: record.description })}
+                    title={t("novel.foreshadowing.edit")}
                   >
                     <Pencil size={12} />
                   </button>
@@ -204,8 +206,8 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
                     onClick={() => void handleDelete(record)}
                     disabled={busyId != null}
                     className="pyqt-btn-icon !h-8 !w-8 text-error"
-                    aria-label={`删除伏笔：${record.description}`}
-                    title="删除伏笔"
+                    aria-label={t("novel.foreshadowing.deleteAria", { description: record.description })}
+                    title={t("novel.foreshadowing.delete")}
                   >
                     {busyId === record.id ? <LoadingSpinner size="sm" /> : <Trash2 size={12} />}
                   </button>
@@ -219,38 +221,38 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
       <Modal
         isOpen={editing != null}
         onClose={() => (busyId == null ? setEditing(null) : undefined)}
-        title={editing === "new" ? "新增正式伏笔" : "编辑正式伏笔"}
+        title={editing === "new" ? t("novel.foreshadowing.addTitle") : t("novel.foreshadowing.editTitle")}
         closeOnBackdrop={busyId == null}
         closeOnEscape={busyId == null}
         footer={
           <>
             <BookButton variant="secondary" onClick={() => setEditing(null)} disabled={busyId != null}>
-              取消
+              {t("common.cancel")}
             </BookButton>
             <BookButton onClick={() => void handleSave()} disabled={busyId != null}>
               {busyId != null ? <LoadingSpinner size="sm" /> : null}
-              保存
+              {t("common.save")}
             </BookButton>
           </>
         }
       >
         <div className="grid gap-3">
           <TextAreaField
-            label="伏笔描述"
+            label={t("novel.foreshadowing.descriptionLabel")}
             value={draft.description}
             onChange={(description) => setDraft((current) => ({ ...current, description }))}
           />
           <div className="grid gap-3 sm:grid-cols-3">
             <NumberField
-              label="埋设章节"
+              label={t("novel.foreshadowing.setupLabel")}
               value={draft.setupChapter}
               onChange={(setupChapter) => setDraft((current) => ({ ...current, setupChapter }))}
             />
             <SelectField
-              label="当前状态"
+              label={t("novel.foreshadowing.statusLabel")}
               value={draft.status}
               options={STATUS_OPTIONS}
-              labels={STATUS_LABELS}
+              labels={Object.fromEntries(STATUS_OPTIONS.map((status) => [status, t(STATUS_LABELS[status])]))}
               onChange={(status) =>
                 setDraft((current) => ({
                   ...current,
@@ -259,7 +261,7 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
               }
             />
             <NumberField
-              label="重要度（1-5）"
+              label={t("novel.foreshadowing.importanceLabel")}
               value={draft.importance}
               min={1}
               max={5}
@@ -268,14 +270,14 @@ export const ForeshadowingIndexCard: React.FC<ForeshadowingIndexCardProps> = ({
           </div>
           {draft.status === "resolved" ? (
             <NumberField
-              label="回收章节"
+              label={t("novel.foreshadowing.payoffLabel")}
               value={draft.payoffChapter}
               min={draft.setupChapter + 1}
               onChange={(payoffChapter) => setDraft((current) => ({ ...current, payoffChapter }))}
             />
           ) : null}
           <TextAreaField
-            label="关联角色（每行一个）"
+            label={t("novel.foreshadowing.relatedCharactersLabel")}
             value={draft.relatedCharacters}
             onChange={(relatedCharacters) =>
               setDraft((current) => ({ ...current, relatedCharacters }))

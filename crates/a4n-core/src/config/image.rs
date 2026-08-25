@@ -16,18 +16,6 @@ pub struct CreateImageConfigParams {
     pub default_height: i32,
 }
 
-#[derive(Debug, Clone)]
-pub struct UpdateImageConfigParams {
-    pub name: String,
-    pub backend: String,
-    pub base_url: String,
-    pub api_key_encrypted: Option<Option<String>>,
-    pub model: String,
-    pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
-}
-
 pub const OPENAI_COMPATIBLE_IMAGE_BACKEND: &str = "openai-compatible-image";
 pub const OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND: &str = "openai-compatible-image-edit";
 pub const OPENAI_CHAT_IMAGE_BACKEND: &str = "openai-chat-image";

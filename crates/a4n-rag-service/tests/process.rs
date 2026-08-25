@@ -163,7 +163,8 @@ async fn rag_service_process_persists_rebuilds_and_recovers() {
     let base_url = sidecar_base_url(addr);
     assert_protected_route_rejects_invalid_auth(&base_url, RAG_METADATA_BY_IDS_PATH).await;
     assert_route_rejects_malformed_json(&base_url, RAG_METADATA_BY_IDS_PATH).await;
-    assert_route_rejects_oversized_json(&base_url, RAG_METADATA_BY_IDS_PATH, 16 * 1024 * 1024).await;
+    assert_route_rejects_oversized_json(&base_url, RAG_METADATA_BY_IDS_PATH, 16 * 1024 * 1024)
+        .await;
     let client = HttpRagClient::new_with_auth_token(base_url, SIDECAR_PROCESS_TEST_TOKEN);
     let request = request_context(
         "rag-process-metadata",

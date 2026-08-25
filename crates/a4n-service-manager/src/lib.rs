@@ -14,5 +14,5 @@ pub use config::{
     normalize_remote_service_url,
 };
 pub use errors::ServiceManagerError;
-pub use manager::{HttpClientFactory, ServiceManager};
+pub use manager::ServiceManager;
 pub use process::{ManagedSidecarProcess, ManagedSidecarState, ManagedSidecarStatus};

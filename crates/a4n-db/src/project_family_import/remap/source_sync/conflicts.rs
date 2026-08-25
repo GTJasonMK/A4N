@@ -4,7 +4,7 @@ use super::decisions::remap_source_sync_decision_payload;
 use a4n_core::models::source_sync::source_sync_conflict;
 use serde_json::Value;
 
-pub fn remap_conflict_source_summary(
+pub(in crate::project_family_import) fn remap_conflict_source_summary(
     conflict: &source_sync_conflict::Model,
     maps: &ImportIdMaps,
 ) -> Result<Value, ProjectFamilyImportError> {
@@ -35,7 +35,7 @@ pub fn remap_conflict_source_summary(
     Ok(Value::Object(object))
 }
 
-pub fn remap_conflict_local_summary(
+pub(in crate::project_family_import) fn remap_conflict_local_summary(
     conflict: &source_sync_conflict::Model,
     maps: &ImportIdMaps,
 ) -> Result<Value, ProjectFamilyImportError> {
@@ -52,7 +52,7 @@ pub fn remap_conflict_local_summary(
     Ok(Value::Object(object))
 }
 
-pub fn remap_conflict_affected_refs(
+pub(in crate::project_family_import) fn remap_conflict_affected_refs(
     conflict: &source_sync_conflict::Model,
     maps: &ImportIdMaps,
 ) -> Result<Value, ProjectFamilyImportError> {
@@ -87,7 +87,7 @@ pub fn remap_conflict_affected_refs(
     Ok(Value::Object(object))
 }
 
-pub fn remap_conflict_decision_json(
+pub(in crate::project_family_import) fn remap_conflict_decision_json(
     conflict: &source_sync_conflict::Model,
     maps: &ImportIdMaps,
 ) -> Result<Option<Value>, ProjectFamilyImportError> {

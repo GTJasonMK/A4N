@@ -4,6 +4,7 @@ import type { CharacterProfile } from "../../../api/character";
 import type { Portrait } from "../../../api/portrait";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { EmptyHint } from "../shared";
+import { useI18n } from "../../../i18n";
 
 interface PortraitGalleryGridProps {
   portraits: Portrait[];
@@ -20,6 +21,7 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
   onOpenActions,
   emptyText,
 }) => {
+  const { t } = useI18n();
   const profilesById = useMemo(
     () => new Map(profiles.map((profile) => [profile.id, profile])),
     [profiles],
@@ -28,7 +30,7 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
   if (portraits.length === 0) {
     return (
       <div className="py-8">
-        <EmptyHint text={emptyText ?? "尚未生成任何人物三视图拆解。建立角色档案后，点击右上按钮可批量生成。"} />
+        <EmptyHint text={emptyText ?? t("characterDetail.portrait.empty")} />
       </div>
     );
   }
@@ -47,30 +49,32 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
             onClick={() => onOpenActions(portrait)}
             disabled={busy}
             className="group min-w-0 overflow-hidden rounded-[14px] border border-book-border/55 bg-book-bg-paper/45 text-left transition-colors hover:border-book-primary/45 disabled:cursor-wait disabled:opacity-60"
-            title="管理人物三视图拆解"
+            title={t("characterDetail.portrait.manage")}
           >
             <div className="relative flex aspect-square w-full items-center justify-center overflow-hidden bg-book-bg-tertiary text-xs text-book-text-muted">
               {imageSrc ? (
                 <img
                   src={imageSrc}
-                  alt={profile?.name ? `${profile.name}人物三视图拆解` : "人物三视图拆解"}
+                  alt={profile?.name
+                    ? t("characterDetail.portrait.alt", { name: profile.name })
+                    : t("characterDetail.portrait.altGeneric")}
                   className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02]"
                 />
               ) : (
-                "无图"
+                <span>{t("characterDetail.portrait.noImage")}</span>
               )}
               {portrait.is_primary ? (
                 <span className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-md bg-book-primary/90 px-2 py-1 text-caption text-white backdrop-blur-sm">
-                  <Star size={9} fill="currentColor" /> 主图
+                  <Star size={9} fill="currentColor" /> {t("characterDetail.portrait.primary")}
                 </span>
               ) : null}
             </div>
             <div className="p-2.5">
               <div className="truncate text-xs font-medium text-book-text-main">
-                {profile?.name ?? "未关联角色"}
+                {profile?.name ?? t("characterDetail.portrait.unlinked")}
               </div>
               <div className="mt-1 flex min-w-0 items-center gap-2 text-caption text-book-text-muted">
-                <span className="truncate">{portrait.portrait_type}</span>
+                <span className="truncate">{portraitTypeLabel(portrait.portrait_type, t)}</span>
                 {portrait.expression ? <span className="truncate">{portrait.expression}</span> : null}
               </div>
             </div>
@@ -80,3 +84,18 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
     </div>
   );
 };
+
+function portraitTypeLabel(type: string, t: ReturnType<typeof useI18n>["t"]): string {
+  switch (type) {
+    case "full_body":
+      return t("characterDetail.portrait.typeFullBody");
+    case "half_body":
+      return t("characterDetail.portrait.typeHalfBody");
+    case "face":
+      return t("characterDetail.portrait.typeFace");
+    case "chibi":
+      return t("characterDetail.portrait.typeChibi");
+    default:
+      return type;
+  }
+}

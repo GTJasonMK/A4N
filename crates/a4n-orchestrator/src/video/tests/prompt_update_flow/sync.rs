@@ -50,9 +50,22 @@ async fn sync_prompts_rejects_regenerating_frame_prompt_with_generated_image() {
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: None,
                 metadata_json: Some(json!({
+                    "prompt_output_language": "zh_cn",
                     "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
                     "source_prompt_type": "frame_segment_plan",
-                    "source": {"content_sha256": "same"}
+                    "source": {"content_sha256": "same"},
+                    "video_execution_identity": {
+                        "contract_epoch": 1,
+                        "source_content_sha256": "same",
+                        "style_sha256": "style",
+                        "duration_secs": 6,
+                        "aspect_ratio": "16:9",
+                        "segment_plan_prompt_id": 1,
+                        "source_shot_id": "shot-1",
+                        "segment_index_in_shot": 1,
+                        "segment_sha256": "segment-1",
+                        "segment_recipe_fingerprint": "recipe-1"
+                    }
                 })),
             })],
         )

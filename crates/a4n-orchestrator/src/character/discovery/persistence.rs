@@ -2,8 +2,9 @@ use a4n_api_contract::character::{
     DiscoverCharacterProfilesResult, ExistingCharacterProfileDiscovery,
 };
 use a4n_core::error::AppError;
-use sea_orm::{ConnectionTrait, TransactionTrait};
+use sea_orm::TransactionTrait;
 use serde_json::{Value, json};
+use std::collections::BTreeMap;
 
 use crate::{
     OrchestratorContext,
@@ -55,6 +56,7 @@ impl OrchestratorContext {
             .iter()
             .map(a4n_db::project::ChapterSourceSnapshot::from)
             .collect::<Vec<_>>();
+        let mut pending_evidence = BTreeMap::<(i64, i64), TextAnchorEvidenceInput>::new();
         let tx = self
             .database
             .connection()
@@ -87,8 +89,11 @@ impl OrchestratorContext {
                     .iter()
                     .find_map(|key| existing_key_profiles.get(key).copied())
                 {
-                    bind_character_profile_evidence_in(&tx, project_id, profile_id, &character)
-                        .await?;
+                    collect_character_profile_evidence(
+                        &mut pending_evidence,
+                        profile_id,
+                        &character,
+                    )?;
                 }
                 existing.push(ExistingCharacterProfileDiscovery {
                     name,
@@ -152,8 +157,11 @@ impl OrchestratorContext {
                         existing_keys.insert(key.clone());
                         existing_key_profiles.insert(key, profile.id);
                     }
-                    bind_character_profile_evidence_in(&tx, project_id, profile.id, &character)
-                        .await?;
+                    collect_character_profile_evidence(
+                        &mut pending_evidence,
+                        profile.id,
+                        &character,
+                    )?;
                     created.push(profile_for_result(&profile).map_err(AppError::InvalidArgument)?);
                 }
                 Err(a4n_db::character::CharacterProfileCreateError::AlreadyExists { .. }) => {
@@ -167,8 +175,11 @@ impl OrchestratorContext {
                             "角色档案已存在但无法重新读取: project_id={project_id}, name={name}"
                         ))
                     })?;
-                    bind_character_profile_evidence_in(&tx, project_id, profile.id, &character)
-                        .await?;
+                    collect_character_profile_evidence(
+                        &mut pending_evidence,
+                        profile.id,
+                        &character,
+                    )?;
                     for key in keys {
                         existing_keys.insert(key.clone());
                         existing_key_profiles.insert(key, profile.id);
@@ -182,11 +193,24 @@ impl OrchestratorContext {
                     });
                 }
                 Err(error) => {
-                    return Err(
-                        crate::character::profiles::errors::character_profile_create_error(error),
-                    );
+                    return Err(crate::character::character_profile_create_error(error));
                 }
             }
+        }
+        if !pending_evidence.is_empty() {
+            let mut profile_refs = BTreeMap::<i64, Vec<TextAnchorEvidenceInput>>::new();
+            for ((profile_id, _), evidence) in pending_evidence {
+                profile_refs.entry(profile_id).or_default().push(evidence);
+            }
+            a4n_db::text_anchor::merge_profile_evidence_records_batch(
+                &tx,
+                project_id,
+                None,
+                TextAnchorProfileKind::Character,
+                profile_refs.into_iter().collect(),
+            )
+            .await
+            .map_err(text_anchor_db_error)?;
         }
         tx.commit().await.map_err(AppError::Database)?;
 
@@ -204,15 +228,11 @@ impl OrchestratorContext {
     }
 }
 
-async fn bind_character_profile_evidence_in<C>(
-    db: &C,
-    project_id: i64,
+fn collect_character_profile_evidence(
+    pending: &mut BTreeMap<(i64, i64), TextAnchorEvidenceInput>,
     profile_id: i64,
     character: &Value,
-) -> Result<(), AppError>
-where
-    C: ConnectionTrait,
-{
+) -> Result<(), AppError> {
     let text_anchor_id = required_value(character, "evidence_anchor_id")
         .map_err(AppError::InvalidArgument)?
         .as_i64()
@@ -221,18 +241,11 @@ where
                 "角色发现字段 evidence_anchor_id 必须是 JSON 整数数字".to_string(),
             )
         })?;
-    a4n_db::text_anchor::merge_profile_evidence_records(
-        db,
-        project_id,
-        None,
-        TextAnchorProfileKind::Character,
-        profile_id,
-        vec![TextAnchorEvidenceInput {
+    pending
+        .entry((profile_id, text_anchor_id))
+        .or_insert_with(|| TextAnchorEvidenceInput {
             text_anchor_id,
             evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
-        }],
-    )
-    .await
-    .map_err(text_anchor_db_error)
-    .map(|_| ())
+        });
+    Ok(())
 }

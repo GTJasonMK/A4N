@@ -1,5 +1,5 @@
-use a4n_core::{error::AppError, models::project::novel_project};
-use sea_orm::{ConnectionTrait, EntityTrait};
+use a4n_core::error::AppError;
+use sea_orm::ConnectionTrait;
 
 use super::asset_dependency_graph_for_scope;
 use crate::project_dependency_graph::{
@@ -14,8 +14,9 @@ use crate::project_dependency_graph::{
         generic_node_detail_records, manga_image_detail_records, manga_prompt_detail_records,
         media_asset_detail_records, object_profile_detail_records, part_outline_detail_records,
         profile_material_image_detail_records, prompt_artifact_detail_records,
-        scene_profile_detail_records, structural_source_refs_for_node,
-        video_frame_image_detail_records, video_prompt_detail_records,
+        scene_profile_detail_records, shooting_script_detail_records,
+        structural_source_refs_for_node, video_frame_image_detail_records,
+        video_prompt_detail_records, visual_plan_detail_records,
     },
     scope::load_asset_graph_scope,
 };
@@ -25,12 +26,7 @@ pub async fn asset_dependency_graph_node_detail(
     project_id: i64,
     node_id: &str,
 ) -> Result<AssetGraphNodeDetail, AppError> {
-    let requested_project = novel_project::Entity::find_by_id(project_id)
-        .one(db)
-        .await
-        .map_err(AppError::Database)?
-        .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-    let scope = load_asset_graph_scope(db, requested_project).await?;
+    let scope = load_asset_graph_scope(db, project_id).await?;
     let root_project_id = scope.root_project.id;
     let graph = asset_dependency_graph_for_scope(db, &scope).await?;
     let family_project_ids = &scope.family_project_ids;
@@ -49,6 +45,8 @@ pub async fn asset_dependency_graph_node_detail(
         "chapter_outline" => chapter_outline_detail_records(db, root_project_id).await?,
         "chapter_content" => chapter_content_detail_records(db, root_project_id).await?,
         "chapter_analysis" => chapter_analysis_detail_records(db, root_project_id).await?,
+        "chapter_visual_plan" => visual_plan_detail_records(db, root_project_id).await?,
+        "chapter_shooting_script" => shooting_script_detail_records(db, root_project_id).await?,
         "character_profile_record" => {
             character_profile_detail_records(db, root_project_id, node.record_id).await?
         }

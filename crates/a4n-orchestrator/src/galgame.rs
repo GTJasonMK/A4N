@@ -41,12 +41,11 @@ pub(crate) use contracts::{
     GalgameLine, GalgameLinePresentationDocumentV2, GalgameLinePresentationSchemaVersion,
     GalgameLinePresentationV2, GalgameLineType, GalgameMediaAsset, GalgameMediaBinding,
     GalgameMediaBindingSummary, GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV3,
-    GalgamePipelinePromptContext, GalgamePipelineStartStage, GalgamePipelineStatusReadModel,
-    GalgameScene, GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail,
-    GalgameSpeakerProfile, GalgameStagePositionV2, GalgameTargetEntityKind,
-    GalgameTextAnchorSummary, GalgameVisibleCastMemberV2, ImportGalgameAudioInput,
-    InsertGalgameLineInput, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE,
-    LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, PROJECT_KIND_GALGAME, ReorderGalgameLinesInput,
+    GalgamePipelinePromptContext, GalgamePipelineStartStage, GalgameScene, GalgameSceneDetail,
+    GalgameSceneEntryKind, GalgameScriptDetail, GalgameSpeakerProfile, GalgameStagePositionV2,
+    GalgameTargetEntityKind, GalgameTextAnchorSummary, GalgameVisibleCastMemberV2,
+    ImportGalgameAudioInput, InsertGalgameLineInput, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE,
+    LINE_TYPE_MONOLOGUE, LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, ReorderGalgameLinesInput,
     RunGalgameAssetGenerationInput, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN, UnbindGalgameMediaInput,
     UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
 };
@@ -79,7 +78,7 @@ pub(crate) use pipeline_prompt::{
     GalgamePipelinePromptChapter, GalgamePipelinePromptSourceSpan,
     galgame_branch_design_user_message, galgame_character_staging_user_message,
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
-    galgame_script_adaptation_user_message, galgame_speaker_profiles_from_models,
+    galgame_script_adaptation_user_message, galgame_speaker_profiles_from_prompt_records,
     galgame_visual_planning_user_message,
 };
 pub(in crate::galgame) use pipeline_prompt::{
@@ -121,7 +120,4 @@ use a4n_db::galgame::{
 use a4n_domain::galgame::{GalgameFacingV2, GalgameStageLayerV2};
 
 pub use application::GalgamePipelineApplicationInput;
-pub use asset_generation_application::{
-    GalgameAssetGenerationHostPort, GalgamePortraitImageGenerationInput,
-    GalgameVisualImageGenerationInput,
-};
+pub use asset_generation_application::GalgameAssetGenerationHostPort;

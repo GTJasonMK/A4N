@@ -1,15 +1,25 @@
 use super::contracts::InspirationDbError;
+use crate::project::{ProjectMutationError, project_summary_by_id_record};
 use a4n_core::models::project::novel_project;
-use sea_orm::{DatabaseConnection, EntityTrait};
+use sea_orm::DatabaseConnection;
 
 async fn inspiration_project_by_id(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<Option<novel_project::Model>, InspirationDbError> {
-    novel_project::Entity::find_by_id(project_id)
-        .one(db)
+    project_summary_by_id_record(db, project_id)
         .await
-        .map_err(InspirationDbError::Database)
+        .map_err(inspiration_project_read_error)
+}
+
+fn inspiration_project_read_error(error: ProjectMutationError) -> InspirationDbError {
+    match error {
+        ProjectMutationError::InvalidArgument(message)
+        | ProjectMutationError::Forbidden(message)
+        | ProjectMutationError::Internal(message) => InspirationDbError::InvalidArgument(message),
+        ProjectMutationError::NotFound(message) => InspirationDbError::NotFound(message),
+        ProjectMutationError::Database(error) => InspirationDbError::Database(error),
+    }
 }
 
 pub(super) async fn ensure_inspiration_project_exists(

@@ -8,8 +8,6 @@ import {
   editChapterShootingScript,
   generateChapterShootingScript,
   generateNextChapterShootingScriptUnit,
-  getChapterShootingScript,
-  getChapterShootingScriptUnitProgress,
   type ChapterShootingScriptUnitProgressView,
   type ChapterShootingScriptV1,
   type ChapterShootingScriptView,
@@ -27,6 +25,8 @@ import { isCancelledOperation } from "../../utils/cancellation";
 import { ScriptContent } from "./shooting-script/ScriptContent";
 import { StructuredScriptEditor } from "./shooting-script/StructuredScriptEditor";
 import { EmptyHint } from "./shared";
+import { useI18n } from "../../i18n";
+import { loadShootingScriptData } from "./loadShootingScriptData";
 
 interface ShootingScriptTabProps {
   projectId: number;
@@ -40,6 +40,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   chapter,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const chapterId = chapter?.id ?? null;
   const [view, setView] = useState<ChapterShootingScriptView | null>(null);
@@ -48,6 +49,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   const [scriptLoading, setScriptLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmedVisualPlanId, setConfirmedVisualPlanId] = useState<number | null>(null);
   const [draft, setDraft] = useState<ChapterShootingScriptV1 | null>(null);
   const [invalidatedProjectIds, setInvalidatedProjectIds] = useState<number[]>(
     [],
@@ -66,26 +68,25 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setUnitProgress(null);
       setDraft(null);
       setInvalidatedProjectIds([]);
+      setConfirmedVisualPlanId(null);
       setScriptLoading(false);
       return;
     }
     let active = true;
     setView(null);
     setScriptLoading(true);
-    void Promise.all([
-      getChapterShootingScript(projectId, chapterId),
-      getChapterShootingScriptUnitProgress(projectId, chapterId),
-    ])
-      .then(([value, progress]) => {
+    void loadShootingScriptData(projectId, chapterId)
+      .then(({ view: value, unitProgress: progress, visualPlan }) => {
         if (!active) return;
         setView(value);
         setUnitProgress(value ? null : progress);
         setDraft(value ? structuredClone(value.script) : null);
         setInvalidatedProjectIds([]);
+        setConfirmedVisualPlanId(visualPlan.confirmed?.record.id ?? null);
       })
       .catch((error) => {
         if (active) {
-          addToast(extractErrorMessage(error, "加载拍摄剧本失败"), "error");
+          addToast(extractErrorMessage(error, t("shootingScript.loadFailed")), "error");
         }
       })
       .finally(() => {
@@ -97,14 +98,20 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   }, [addToast, chapterId, projectId]);
 
   const generate = async () => {
-    if (chapterId == null || generating || saving || scriptLoading) return;
+    if (
+      chapterId == null ||
+      confirmedVisualPlanId == null ||
+      generating ||
+      saving ||
+      scriptLoading
+    ) return;
     if (view) {
       const confirmed = await confirmDialog({
-        title: "重新生成拍摄剧本",
+        title: t("shootingScript.regenerate"),
         message: isDirty
-          ? "重新生成会覆盖当前拍摄剧本，你尚未保存的改编也会丢失。是否继续？"
-          : "重新生成会覆盖当前拍摄剧本，并可能使依赖它的下游内容需要重新生成。是否继续？",
-        confirmText: "重新生成",
+          ? t("shootingScript.unsavedWillBeLost")
+          : t("shootingScript.downstreamWillRegenerate"),
+        confirmText: t("shootingScript.regenerate"),
         dialogType: "warning",
       });
       if (!confirmed) return;
@@ -117,25 +124,30 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: "生成结构化拍摄剧本",
-          startMessage: "正在准备剧本改编",
-          successMessage: "结构化拍摄剧本生成完成",
-          errorMessage: "结构化拍摄剧本生成失败",
+          title: t("shootingScript.generateStructured"),
+          startMessage: t("shootingScript.preparing"),
+          successMessage: t("shootingScript.completed"),
+          errorMessage: t("shootingScript.failed"),
           total: 100,
-          cancelLabel: "停止生成",
-          runningHint: "生成过程中会保留已完成的阶段，可在下次继续恢复",
+          cancelLabel: t("workflow.stop"),
+          runningHint: t("shootingScript.stopHint"),
         },
-        () => generateChapterShootingScript(projectId, chapterId, taskId),
+        () => generateChapterShootingScript(
+          projectId,
+          chapterId,
+          taskId,
+          confirmedVisualPlanId,
+        ),
       );
       setView(generated);
       setUnitProgress(null);
       setDraft(structuredClone(generated.script));
       setInvalidatedProjectIds([]);
-      addToast("拍摄剧本生成完成", "success");
+      addToast(t("shootingScript.completed"), "success");
     } catch (error) {
-      const message = extractErrorMessage(error, "生成拍摄剧本失败");
+      const message = extractErrorMessage(error, t("shootingScript.failed"));
       addToast(
-        isCancelledOperation(message) ? "拍摄剧本生成已停止" : message,
+        isCancelledOperation(message) ? t("shootingScript.stopped") : message,
         isCancelledOperation(message) ? "info" : "error",
       );
     } finally {
@@ -144,7 +156,13 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
   };
 
   const generateNextUnit = async () => {
-    if (chapterId == null || generating || saving || scriptLoading) return;
+    if (
+      chapterId == null ||
+      confirmedVisualPlanId == null ||
+      generating ||
+      saving ||
+      scriptLoading
+    ) return;
     setGenerating(true);
     try {
       const taskId = createWorkflowTaskId("chapter-shooting-script-unit", projectId);
@@ -153,15 +171,20 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: "生成下一个拍摄场景",
-          startMessage: "正在准备场景改编",
-          successMessage: "拍摄场景已生成",
-          errorMessage: "拍摄场景生成失败",
+          title: t("shootingScript.generateNextScene"),
+          startMessage: t("shootingScript.prepareScene"),
+          successMessage: t("shootingScript.nextSceneCompleted"),
+          errorMessage: t("shootingScript.failed"),
           total: 100,
-          cancelLabel: "停止生成",
-          runningHint: "已完成的场景会保存，之后可继续生成下一个",
+          cancelLabel: t("workflow.stop"),
+          runningHint: t("shootingScript.nextSceneHint"),
         },
-        () => generateNextChapterShootingScriptUnit(projectId, chapterId, taskId),
+        () => generateNextChapterShootingScriptUnit(
+          projectId,
+          chapterId,
+          taskId,
+          confirmedVisualPlanId,
+        ),
       );
       if (generated.completed_record) {
         const completedView = {
@@ -177,14 +200,14 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setInvalidatedProjectIds([]);
       addToast(
         generated.completed_record
-          ? "全部拍摄场景已生成"
-          : `已生成 ${generated.completed_unit_count}/${generated.total_unit_count} 个场景`,
+          ? t("shootingScript.allScenesCompleted")
+          : t("shootingScript.sceneProgress", { current: generated.completed_unit_count, total: generated.total_unit_count }),
         "success",
       );
     } catch (error) {
-      const message = extractErrorMessage(error, "拍摄场景生成失败");
+      const message = extractErrorMessage(error, t("shootingScript.failed"));
       addToast(
-        isCancelledOperation(message) ? "拍摄场景生成已停止" : message,
+        isCancelledOperation(message) ? t("shootingScript.stopped") : message,
         isCancelledOperation(message) ? "info" : "error",
       );
     } finally {
@@ -207,19 +230,19 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       setInvalidatedProjectIds(result.invalidated_project_ids);
       addToast(
         result.invalidated_project_ids.length > 0
-          ? `拍摄剧本已保存，${result.invalidated_project_ids.length} 个下游项目已失效`
-          : "拍摄剧本已保存",
+          ? t("shootingScript.downstreamInvalidated", { count: result.invalidated_project_ids.length })
+          : t("shootingScript.saveCompleted"),
         "success",
       );
     } catch (error) {
-      addToast(extractErrorMessage(error, "保存拍摄剧本失败"), "error");
+      addToast(extractErrorMessage(error, t("shootingScript.saveFailed")), "error");
     } finally {
       setSaving(false);
     }
   };
 
   if (!chapter) {
-    return <EmptyHint text="请先选择已生成的章节，再进行剧本改编。" />;
+    return <EmptyHint text={t("shootingScript.chooseChapter")} />;
   }
 
   const actionsDisabled = generating || saving || scriptLoading;
@@ -229,18 +252,20 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
         <div className="text-small text-book-text-muted">
           {scriptLoading
-            ? "正在加载拍摄剧本…"
+            ? t("shootingScript.loading")
             : generating
               ? view
-                ? "正在重新生成拍摄剧本…"
-                : "正在生成拍摄剧本…"
+                ? t("shootingScript.regenerating")
+                : t("shootingScript.generating")
               : saving
-                ? "正在保存拍摄剧本…"
+                ? t("shootingScript.saving")
                 : view
-                  ? `拍摄剧本 · 第 ${view.record.revision} 版${isDirty ? " · 有未保存修改" : ""}`
+                  ? t("shootingScript.currentRevision", { revision: view.record.revision, dirty: isDirty ? ` · ${t("writing.unsavedChanges")}` : "" })
                   : unitProgress
-                    ? `已完成 ${unitProgress.completed_unit_count}/${unitProgress.total_unit_count} 个拍摄场景`
-                  : "当前章节尚未生成拍摄剧本"}
+                    ? t("shootingScript.completedScenes", { current: unitProgress.completed_unit_count, total: unitProgress.total_unit_count })
+                  : confirmedVisualPlanId == null
+                    ? t("shootingScript.choosePlan")
+                    : t("shootingScript.notGenerated")}
         </div>
         {canEdit ? (
           <div className="ml-auto flex items-center gap-2">
@@ -249,7 +274,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 <Dropdown
                   items={[
                     {
-                      label: generating ? "正在重新生成拍摄剧本…" : "重新生成拍摄剧本",
+                      label: generating ? t("shootingScript.regenerating") : t("shootingScript.regenerate"),
                       onClick: () => void generate(),
                       disabled: actionsDisabled,
                       icon: generating ? (
@@ -270,7 +295,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                   ) : (
                     <Save size={13} />
                   )}
-                  {saving ? "保存中…" : "保存改编"}
+                  {saving ? t("shootingScript.saving") : t("shootingScript.saveAdaptation")}
                 </BookButton>
               </>
             ) : (
@@ -279,7 +304,7 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                   <Dropdown
                     items={[
                       {
-                        label: "生成全部剩余场景",
+                        label: t("shootingScript.generateRemaining"),
                         onClick: () => void generate(),
                         disabled: actionsDisabled,
                         icon: <RefreshCw size={12} />,
@@ -290,14 +315,14 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
                 <BookButton
                   size="sm"
                   onClick={() => void generateNextUnit()}
-                  disabled={actionsDisabled}
+                  disabled={actionsDisabled || confirmedVisualPlanId == null}
                 >
                   {generating ? <LoadingSpinner size="sm" /> : <Wand2 size={13} />}
                   {generating
-                    ? "生成中…"
-                    : unitProgress
-                      ? "生成下一个场景"
-                      : "生成第一个场景"}
+                    ? t("shootingScript.generatingShort")
+                      : unitProgress
+                      ? t("shootingScript.nextScene")
+                      : t("shootingScript.firstScene")}
                 </BookButton>
               </>
             )}
@@ -306,11 +331,17 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
       </div>
       {scriptLoading ? (
         <div className="a4n-flat-surface py-12 text-center">
-          <LoadingSpinner size="md" text="加载拍摄剧本…" inline={false} />
+          <LoadingSpinner size="md" text={t("shootingScript.loading")} inline={false} />
         </div>
       ) : !view && !unitProgress ? (
         <div className="a4n-flat-surface p-3 sm:p-4">
-          <EmptyHint text="生成后可按场景编辑导演意图、镜头设计与表演节拍。" />
+          <EmptyHint
+            text={
+              confirmedVisualPlanId == null
+                ? t("shootingScript.choosePlan")
+                : t("shootingScript.editDescription")
+            }
+          />
         </div>
       ) : view ? (
         <>
@@ -326,14 +357,14 @@ export const ShootingScriptTab: React.FC<ShootingScriptTabProps> = ({
           {invalidatedProjectIds.length > 0 ? (
             <div className="px-1 text-small leading-relaxed text-book-text-muted">
               <p>
-                保存后有 {invalidatedProjectIds.length} 个下游项目需要重新生成。
+                {t("shootingScript.invalidatedHint", { count: invalidatedProjectIds.length })}
               </p>
               <details className="mt-1">
                 <summary className="w-fit cursor-pointer hover:text-book-text-main">
-                  诊断信息
+                  {t("writing.diagnostics")}
                 </summary>
                 <p className="mt-1 break-all font-mono text-caption">
-                  下游项目 ID：{invalidatedProjectIds.join("、")}
+                  {t("shootingScript.downstreamIds", { ids: invalidatedProjectIds.join(", ") })}
                 </p>
               </details>
             </div>

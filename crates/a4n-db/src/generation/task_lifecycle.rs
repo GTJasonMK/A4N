@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use a4n_core::models::{
     generation::{
         generation_run, generation_start_request, generation_task_checkpoint, workflow_run,
@@ -11,7 +13,9 @@ use a4n_service_protocol::{
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction,
-    DbBackend, DbErr, EntityTrait, QueryFilter, QuerySelect, Set, Statement, TransactionTrait,
+    DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set, Statement,
+    TransactionTrait,
+    sea_query::{CaseStatement, Expr},
 };
 use sha2::Digest;
 
@@ -376,13 +380,191 @@ pub async fn persist_generation_cancel_requested_batch(
     }
 
     let tx = db.begin().await?;
+    let task_ids = inputs
+        .iter()
+        .map(|input| input.task_id.clone())
+        .collect::<Vec<_>>();
+    let checkpoints = generation_task_checkpoint::Entity::find()
+        .filter(generation_task_checkpoint::Column::TaskId.is_in(task_ids.clone()))
+        .order_by_asc(generation_task_checkpoint::Column::TaskId)
+        .lock_exclusive()
+        .all(&tx)
+        .await?;
+    let mut checkpoints_by_id = checkpoints
+        .into_iter()
+        .map(|checkpoint| (checkpoint.task_id.clone(), checkpoint))
+        .collect::<HashMap<_, _>>();
     let mut prepared = Vec::with_capacity(inputs.len());
     for input in inputs {
-        prepared.push(prepare_transition(&tx, input, false, false, false).await?);
+        let task_id = input.task_id.clone();
+        let checkpoint = checkpoints_by_id.remove(&task_id).ok_or_else(|| {
+            GenerationTaskPersistenceError::NotFound(format!(
+                "generation task checkpoint 不存在: {task_id}"
+            ))
+        })?;
+        prepared.push(prepare_transition_from_checkpoint(
+            checkpoint, input, false, false,
+        )?);
     }
+
+    // cancel_requested is non-terminal: all rows share the same queue update and have no
+    // per-row cleanup side effects, so collapse the N checkpoint/queue writes into two updates.
+    let queue_ids = task_queue::Entity::find()
+        .select_only()
+        .column(task_queue::Column::Id)
+        .filter(task_queue::Column::Id.is_in(task_ids.clone()))
+        .order_by_asc(task_queue::Column::Id)
+        .lock_exclusive()
+        .into_tuple::<String>()
+        .all(&tx)
+        .await?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    if queue_ids.len() != task_ids.len() {
+        let missing = task_ids
+            .iter()
+            .find(|task_id| !queue_ids.contains(*task_id))
+            .cloned()
+            .unwrap_or_else(|| task_ids[0].clone());
+        return Err(GenerationTaskLifecycleError::Corrupt(format!(
+            "generation task {missing} 缺少 task_queue row"
+        )));
+    }
+
+    let mut checkpoint_revision_case = CaseStatement::new();
+    let mut covers_case = CaseStatement::new();
+    let mut reserved_case = CaseStatement::new();
+    let mut public_snapshot_case = CaseStatement::new();
+    let mut public_snapshot_sha256_case = CaseStatement::new();
+    let mut updated_at_case = CaseStatement::new();
     let mut persisted = Vec::with_capacity(prepared.len());
     for transition in prepared {
-        persisted.push(apply_prepared_transition(&tx, transition).await?);
+        let PreparedGenerationTransition {
+            checkpoint,
+            input,
+            terminal: _,
+        } = transition;
+        let now = Utc::now().naive_utc();
+        let covers =
+            i64::try_from(input.public_snapshot.covers_through_sequence).map_err(|_| {
+                GenerationTaskPersistenceError::InvalidArgument(
+                    "lifecycle covers_through_sequence 超出 i64 范围".to_string(),
+                )
+            })?;
+        validate_safe_sequence(covers, "covers_through_sequence")?;
+        let reserved = extended_sequence_high_water(checkpoint.reserved_through_sequence, covers)?;
+        let public_snapshot_json = serde_json::to_value(&input.public_snapshot)
+            .map_err(GenerationTaskPersistenceError::from)?;
+        let public_snapshot_sha256 = canonical_json_sha256(&public_snapshot_json)
+            .map_err(GenerationTaskPersistenceError::from)?;
+        let task_id = checkpoint.task_id.clone();
+        checkpoint_revision_case = checkpoint_revision_case.case(
+            generation_task_checkpoint::Column::TaskId.eq(task_id.clone()),
+            Expr::value(checkpoint.checkpoint_revision + 1),
+        );
+        covers_case = covers_case.case(
+            generation_task_checkpoint::Column::TaskId.eq(task_id.clone()),
+            Expr::value(covers),
+        );
+        reserved_case = reserved_case.case(
+            generation_task_checkpoint::Column::TaskId.eq(task_id.clone()),
+            Expr::value(reserved),
+        );
+        public_snapshot_case = public_snapshot_case.case(
+            generation_task_checkpoint::Column::TaskId.eq(task_id.clone()),
+            Expr::value(Some(public_snapshot_json)).cast_as("jsonb"),
+        );
+        public_snapshot_sha256_case = public_snapshot_sha256_case.case(
+            generation_task_checkpoint::Column::TaskId.eq(task_id.clone()),
+            Expr::value(Some(public_snapshot_sha256)),
+        );
+        updated_at_case = updated_at_case.case(
+            generation_task_checkpoint::Column::TaskId.eq(task_id),
+            Expr::value(now),
+        );
+        persisted.push(PersistedGenerationCheckpoint {
+            checkpoint_revision: checkpoint.checkpoint_revision + 1,
+            covers_through_sequence: covers,
+            reserved_through_sequence: reserved,
+            updated_at: now,
+        });
+    }
+
+    let updated = generation_task_checkpoint::Entity::update_many()
+        .col_expr(
+            generation_task_checkpoint::Column::Status,
+            Expr::value("cancelling"),
+        )
+        .col_expr(
+            generation_task_checkpoint::Column::CheckpointRevision,
+            checkpoint_revision_case
+                .finally(Expr::col(
+                    generation_task_checkpoint::Column::CheckpointRevision,
+                ))
+                .into(),
+        )
+        .col_expr(
+            generation_task_checkpoint::Column::CoversThroughSequence,
+            covers_case
+                .finally(Expr::col(
+                    generation_task_checkpoint::Column::CoversThroughSequence,
+                ))
+                .into(),
+        )
+        .col_expr(
+            generation_task_checkpoint::Column::ReservedThroughSequence,
+            reserved_case
+                .finally(Expr::col(
+                    generation_task_checkpoint::Column::ReservedThroughSequence,
+                ))
+                .into(),
+        )
+        .col_expr(
+            generation_task_checkpoint::Column::PublicSnapshotJson,
+            public_snapshot_case
+                .finally(Expr::col(
+                    generation_task_checkpoint::Column::PublicSnapshotJson,
+                ))
+                .into(),
+        )
+        .col_expr(
+            generation_task_checkpoint::Column::PublicSnapshotSha256,
+            public_snapshot_sha256_case
+                .finally(Expr::col(
+                    generation_task_checkpoint::Column::PublicSnapshotSha256,
+                ))
+                .into(),
+        )
+        .col_expr(
+            generation_task_checkpoint::Column::UpdatedAt,
+            updated_at_case
+                .finally(Expr::col(generation_task_checkpoint::Column::UpdatedAt))
+                .into(),
+        )
+        .filter(generation_task_checkpoint::Column::TaskId.is_in(task_ids.clone()))
+        .exec(&tx)
+        .await?;
+    if updated.rows_affected != task_ids.len() as u64 {
+        return Err(GenerationTaskLifecycleError::Corrupt(format!(
+            "generation cancel batch 更新 checkpoint 数量不一致: {}",
+            updated.rows_affected
+        )));
+    }
+
+    let queue_updated = task_queue::Entity::update_many()
+        .col_expr(task_queue::Column::Status, Expr::value("running"))
+        .col_expr(
+            task_queue::Column::ErrorMessage,
+            Expr::value(Option::<String>::None),
+        )
+        .filter(task_queue::Column::Id.is_in(task_ids))
+        .exec(&tx)
+        .await?;
+    if queue_updated.rows_affected != persisted.len() as u64 {
+        return Err(GenerationTaskLifecycleError::Corrupt(format!(
+            "generation cancel batch 更新 task_queue 数量不一致: {}",
+            queue_updated.rows_affected
+        )));
     }
     tx.commit().await?;
     Ok(persisted)
@@ -577,23 +759,23 @@ pub async fn purge_expired_generation_task_trees(
             .exec(&tx)
             .await?;
         task_dependency::Entity::delete_many()
-            .filter(task_dependency::Column::DependsOnTaskId.is_in(task_ids))
+            .filter(task_dependency::Column::DependsOnTaskId.is_in(task_ids.clone()))
             .exec(&tx)
             .await?;
 
-        // SQL 已按深度降序、同深度 task id 升序返回；不要改成 root-only DELETE。
-        for row in tree_rows {
-            let task_id: String = row.try_get("", "task_id")?;
-            let result = task_queue::Entity::delete_by_id(task_id.clone())
-                .exec(&tx)
-                .await?;
-            if result.rows_affected != 1 {
-                return Err(GenerationTaskLifecycleError::Corrupt(format!(
-                    "generation task tree {root_task_id} 删除 task_queue {task_id} 时行数不为 1"
-                )));
-            }
-            deleted_tasks += 1;
+        // checkpoint 已锁定且依赖行已清理，按整棵树删除可保留级联语义并避免逐任务往返。
+        let expected_tasks = task_ids.len() as u64;
+        let deleted = task_queue::Entity::delete_many()
+            .filter(task_queue::Column::Id.is_in(task_ids))
+            .exec(&tx)
+            .await?;
+        if deleted.rows_affected != expected_tasks {
+            return Err(GenerationTaskLifecycleError::Corrupt(format!(
+                "generation task tree {root_task_id} 批量删除 task_queue 影响 {} 行，预期 {} 行",
+                deleted.rows_affected, expected_tasks
+            )));
         }
+        deleted_tasks += deleted.rows_affected;
     }
 
     tx.commit().await?;
@@ -1197,32 +1379,41 @@ async fn update_task_queue<C>(
 where
     C: ConnectionTrait,
 {
-    let task = task_queue::Entity::find_by_id(task_id.to_string())
-        .lock_exclusive()
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            GenerationTaskLifecycleError::Corrupt(format!(
-                "generation task {task_id} 缺少 task_queue row"
-            ))
-        })?;
-    let started_at_missing = task.started_at.is_none();
     let now = Utc::now().naive_utc();
-    let mut active: task_queue::ActiveModel = task.into();
     let terminal = is_terminal_status(status);
-    active.status = Set(match status {
-        "reserved" => "pending".to_string(),
-        "running" | "finalizing" | "cancelling" => "running".to_string(),
-        _ => status.to_string(),
-    });
-    active.error_message = Set(message);
-    if status == "running" && started_at_missing {
-        active.started_at = Set(Some(now));
+    let queue_status = match status {
+        "reserved" => "pending",
+        "running" | "finalizing" | "cancelling" => "running",
+        _ => status,
+    };
+    let mut update = task_queue::Entity::update_many()
+        .col_expr(task_queue::Column::Status, Expr::value(queue_status))
+        .col_expr(task_queue::Column::ErrorMessage, Expr::value(message))
+        .filter(task_queue::Column::Id.eq(task_id.to_string()));
+    if status == "running" {
+        let started_at = CaseStatement::new()
+            .case(
+                task_queue::Column::StartedAt.is_null(),
+                Expr::value(Some(now)),
+            )
+            .finally(Expr::col(task_queue::Column::StartedAt));
+        update = update.col_expr(task_queue::Column::StartedAt, started_at.into());
     }
     if terminal {
-        active.completed_at = Set(Some(now));
+        update = update.col_expr(task_queue::Column::CompletedAt, Expr::value(Some(now)));
     }
-    active.update(db).await?;
+    let updated = update.exec(db).await?;
+    if updated.rows_affected == 0 {
+        return Err(GenerationTaskLifecycleError::Corrupt(format!(
+            "generation task {task_id} 缺少 task_queue row"
+        )));
+    }
+    if updated.rows_affected != 1 {
+        return Err(GenerationTaskLifecycleError::Corrupt(format!(
+            "generation task {task_id} 更新 task_queue 数量不一致: {}",
+            updated.rows_affected
+        )));
+    }
     Ok(())
 }
 
@@ -1238,32 +1429,57 @@ where
     let Some(workflow_run_id) = checkpoint.workflow_run_id else {
         return Ok(());
     };
-    let Some(run) = workflow_run::Entity::find_by_id(workflow_run_id)
-        .lock_exclusive()
-        .one(db)
-        .await?
+    let Some((run_id, status_value, active_task_id)) =
+        workflow_run::Entity::find_by_id(workflow_run_id)
+            .select_only()
+            .column(workflow_run::Column::Id)
+            .column(workflow_run::Column::Status)
+            .column(workflow_run::Column::ActiveTaskId)
+            .lock_exclusive()
+            .into_tuple::<(i64, String, Option<String>)>()
+            .one(db)
+            .await?
     else {
         return Err(GenerationTaskLifecycleError::Corrupt(format!(
             "generation task {} 缺少 workflow_run {workflow_run_id}",
             checkpoint.task_id
         )));
     };
-    if is_terminal_status(&run.status) {
+    if is_terminal_status(&status_value) {
         return Ok(());
     }
     let now = Utc::now().naive_utc();
-    let clear_active_task = run.active_task_id.as_deref() == Some(checkpoint.task_id.as_str());
-    let mut active: workflow_run::ActiveModel = run.into();
-    active.status = Set(status.to_string());
+    let clear_active_task = active_task_id.as_deref() == Some(checkpoint.task_id.as_str());
+    let mut update = workflow_run::Entity::update_many()
+        .col_expr(
+            workflow_run::Column::Status,
+            Expr::value(status.to_string()),
+        )
+        .col_expr(
+            workflow_run::Column::CanResume,
+            Expr::value(status == "interrupted"),
+        )
+        .col_expr(
+            workflow_run::Column::ResumeBlockReason,
+            Expr::value(Option::<String>::None),
+        )
+        .col_expr(workflow_run::Column::ErrorMessage, Expr::value(message))
+        .col_expr(workflow_run::Column::UpdatedAt, Expr::value(now))
+        .col_expr(workflow_run::Column::CompletedAt, Expr::value(Some(now)))
+        .filter(workflow_run::Column::Id.eq(run_id));
     if clear_active_task {
-        active.active_task_id = Set(None);
+        update = update.col_expr(
+            workflow_run::Column::ActiveTaskId,
+            Expr::value(Option::<String>::None),
+        );
     }
-    active.can_resume = Set(status == "interrupted");
-    active.resume_block_reason = Set(None);
-    active.error_message = Set(message);
-    active.updated_at = Set(now);
-    active.completed_at = Set(Some(now));
-    active.update(db).await?;
+    let updated = update.exec(db).await?;
+    if updated.rows_affected != 1 {
+        return Err(GenerationTaskLifecycleError::Corrupt(format!(
+            "generation task {} 更新 workflow_run {} 数量不一致: {}",
+            checkpoint.task_id, run_id, updated.rows_affected
+        )));
+    }
     Ok(())
 }
 
@@ -1279,8 +1495,12 @@ where
     let Some(generation_run_id) = checkpoint.generation_run_id else {
         return Ok(());
     };
-    let Some(run) = generation_run::Entity::find_by_id(generation_run_id)
+    let Some((run_id, status_value)) = generation_run::Entity::find_by_id(generation_run_id)
+        .select_only()
+        .column(generation_run::Column::Id)
+        .column(generation_run::Column::Status)
         .lock_exclusive()
+        .into_tuple::<(i64, String)>()
         .one(db)
         .await?
     else {
@@ -1289,14 +1509,28 @@ where
             checkpoint.task_id
         )));
     };
-    if is_terminal_status(&run.status) {
+    if is_terminal_status(&status_value) {
         return Ok(());
     }
-    let mut active: generation_run::ActiveModel = run.into();
-    active.status = Set(status.to_string());
-    active.error_message = Set(message);
-    active.completed_at = Set(Some(Utc::now().naive_utc()));
-    active.update(db).await?;
+    let updated = generation_run::Entity::update_many()
+        .col_expr(
+            generation_run::Column::Status,
+            Expr::value(status.to_string()),
+        )
+        .col_expr(generation_run::Column::ErrorMessage, Expr::value(message))
+        .col_expr(
+            generation_run::Column::CompletedAt,
+            Expr::value(Some(Utc::now().naive_utc())),
+        )
+        .filter(generation_run::Column::Id.eq(run_id))
+        .exec(db)
+        .await?;
+    if updated.rows_affected != 1 {
+        return Err(GenerationTaskLifecycleError::Corrupt(format!(
+            "generation task {} 更新 generation_run {} 数量不一致: {}",
+            checkpoint.task_id, run_id, updated.rows_affected
+        )));
+    }
     Ok(())
 }
 

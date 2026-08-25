@@ -10,8 +10,11 @@ use a4n_domain::project::{
     is_valid_blueprint_total_chapters, needs_part_outlines_for_chapters,
 };
 use chrono::Utc;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
+};
 use serde_json::Value;
+use std::collections::HashSet;
 
 use super::{
     BlueprintDbError, BlueprintMutationStatusChange, BlueprintRefinePatchInput,
@@ -247,7 +250,7 @@ fn max_positive_chapter(
 }
 
 fn max_part_end_chapter(parts: &[part_outline::Model]) -> Result<i32, BlueprintDbError> {
-    let mut seen_parts = std::collections::BTreeSet::new();
+    let mut seen_parts = HashSet::new();
     let mut ranges = Vec::with_capacity(parts.len());
     for part in parts {
         if part.part_number <= 0 || !seen_parts.insert(part.part_number) {
@@ -289,19 +292,33 @@ where
             .map_err(|error| BlueprintDbError::InvalidArgument(error.to_string()))?,
         None => "1.0".to_string(),
     };
-    loop {
-        let exists = blueprint_version::Entity::find()
-            .filter(blueprint_version::Column::ProjectId.eq(project_id))
-            .filter(blueprint_version::Column::Version.eq(&candidate))
-            .one(db)
-            .await?
-            .is_some();
-        if !exists {
-            return Ok(candidate);
-        }
+    let candidate_is_free = blueprint_version::Entity::find()
+        .select_only()
+        .column(blueprint_version::Column::Id)
+        .filter(blueprint_version::Column::ProjectId.eq(project_id))
+        .filter(blueprint_version::Column::Version.eq(&candidate))
+        .into_tuple::<i64>()
+        .one(db)
+        .await?
+        .is_none();
+    if candidate_is_free {
+        return Ok(candidate);
+    }
+
+    let used_versions = blueprint_version::Entity::find()
+        .select_only()
+        .column(blueprint_version::Column::Version)
+        .filter(blueprint_version::Column::ProjectId.eq(project_id))
+        .into_tuple::<String>()
+        .all(db)
+        .await?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    while used_versions.contains(&candidate) {
         candidate = increment_blueprint_version(&candidate)
             .map_err(|error| BlueprintDbError::InvalidArgument(error.to_string()))?;
     }
+    Ok(candidate)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -447,7 +464,10 @@ fn map_status_write_error(error: ProjectStatusWriteError) -> BlueprintDbError {
 #[cfg(test)]
 mod tests {
     use super::{max_part_end_chapter, normalize_manual_input};
-    use crate::blueprint::SaveManualBlueprintInput;
+    use crate::blueprint::{SaveManualBlueprintInput, next_blueprint_version_record};
+    use a4n_core::models::project::blueprint_version;
+    use chrono::Utc;
+    use sea_orm::{ActiveModelTrait, Set};
 
     #[test]
     fn manual_input_trims_optional_fields_and_accepts_single_chapter() {
@@ -472,5 +492,41 @@ mod tests {
     #[test]
     fn part_range_validation_accepts_empty_project() {
         assert_eq!(max_part_end_chapter(&[]).unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn next_version_batches_occupied_candidates() {
+        let db = a4n_migration::test_support::connect_test_database().await;
+        let project = crate::project::create_project_record(
+            &db,
+            crate::project::CreateProjectRecordInput {
+                user_id: 1,
+                title: "蓝图版本递增测试".to_string(),
+                description: String::new(),
+                project_type: "novel_long".to_string(),
+            },
+        )
+        .await
+        .expect("test project");
+        let now = Utc::now().naive_utc();
+        for version in ["1.1", "1.2"] {
+            blueprint_version::ActiveModel {
+                project_id: Set(project.id),
+                version: Set(version.to_string()),
+                blueprint_data: Set(serde_json::json!({"title": "测试蓝图"})),
+                created_at: Set(now),
+                ..Default::default()
+            }
+            .insert(&db)
+            .await
+            .expect("test version");
+        }
+
+        assert_eq!(
+            next_blueprint_version_record(&db, project.id, Some("1.0"))
+                .await
+                .expect("next version"),
+            "1.3"
+        );
     }
 }

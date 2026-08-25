@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use a4n_core::models::media::media_binding;
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::project::duplicate::{ProjectDuplicateError, shared::remap_derived_required_id};
 
@@ -34,30 +32,44 @@ where
         .all(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
-    for binding in bindings {
-        let target_id = remap_derived_media_binding_target(
-            source_project_id,
-            &binding.target_kind,
-            binding.target_id,
-            segment_id_map,
-            timeline_id_map,
-            video_id_map,
-        )?;
-        media_binding::ActiveModel {
-            media_asset_id: Set(remap_derived_required_id(
-                asset_id_map,
-                binding.media_asset_id,
-                "media_binding.media_asset_id",
-            )?),
-            target_kind: Set(binding.target_kind),
-            target_id: Set(target_id),
-            role: Set(binding.role),
-            created_at: Set(now),
-            ..Default::default()
-        }
-        .insert(db)
+    if bindings.is_empty() {
+        return Ok(());
+    }
+    let inserts = bindings
+        .into_iter()
+        .map(|binding| {
+            let target_id = remap_derived_media_binding_target(
+                source_project_id,
+                &binding.target_kind,
+                binding.target_id,
+                segment_id_map,
+                timeline_id_map,
+                video_id_map,
+            )?;
+            Ok::<_, ProjectDuplicateError>(media_binding::ActiveModel {
+                media_asset_id: Set(remap_derived_required_id(
+                    asset_id_map,
+                    binding.media_asset_id,
+                    "media_binding.media_asset_id",
+                )?),
+                target_kind: Set(binding.target_kind),
+                target_id: Set(target_id),
+                role: Set(binding.role),
+                created_at: Set(now),
+                ..Default::default()
+            })
+        })
+        .collect::<Result<Vec<_>, ProjectDuplicateError>>()?;
+    let binding_count = inserts.len();
+    let inserted = media_binding::Entity::insert_many(inserts)
+        .exec_without_returning(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
+    if inserted != binding_count as u64 {
+        return Err(ProjectDuplicateError::InvalidState {
+            current: "复制后的媒体绑定数量与源记录不一致".to_string(),
+            operation: "复制派生项目媒体绑定".to_string(),
+        });
     }
     Ok(())
 }

@@ -383,7 +383,7 @@ mod tests {
 
     #[tokio::test]
     async fn delete_remote_temp_media_maps_http_success_and_failure() {
-        let _guard = remote_temp_env_lock();
+        let _guard = remote_temp_env_lock().lock().await;
         let artifact_id = "0123456789abcdef0123456789abcdef";
         let sha = "b".repeat(64);
 
@@ -421,9 +421,9 @@ mod tests {
             .block_on(delete_remote_temp_media_artifact(artifact_id, sha256))
     }
 
-    fn remote_temp_env_lock() -> std::sync::MutexGuard<'static, ()> {
-        static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    fn remote_temp_env_lock() -> &'static tokio::sync::Mutex<()> {
+        static LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();
+        LOCK.get_or_init(|| tokio::sync::Mutex::new(()))
     }
 
     async fn with_remote_delete_server<F, T>(status: u16, work: F) -> T

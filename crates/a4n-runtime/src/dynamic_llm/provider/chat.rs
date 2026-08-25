@@ -14,7 +14,7 @@ use super::super::trace::{
 };
 
 impl DynamicLlmProvider {
-    pub async fn chat_with_config_id(
+    pub(crate) async fn chat_with_config_id(
         &self,
         config_id: Option<i64>,
         request: ChatRequest,

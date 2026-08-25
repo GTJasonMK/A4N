@@ -19,6 +19,13 @@ pub struct GalgamePortraitSpecTargetInput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GalgamePortraitSpecTargetProfile {
+    pub id: i64,
+    pub project_id: i64,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GalgamePromptArtifactUpsertInput {
     pub generation_spec_id: i64,
     pub prompt_kind: String,

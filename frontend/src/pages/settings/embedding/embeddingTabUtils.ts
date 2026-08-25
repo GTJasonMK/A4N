@@ -6,6 +6,9 @@ import type {
 } from "../../../api/config";
 import type { ConfigItem } from "../ConfigListPanel";
 import type { EmbeddingForm } from "./types";
+import { formatNumber, type Locale, type MessageKey, type MessageParams } from "../../../i18n";
+
+type Translate = (key: MessageKey, params?: MessageParams) => string;
 
 export const DEFAULT_FASTEMBED_MODEL = "BGESmallZHV15";
 export const DEFAULT_FASTEMBED_DIMENSION = 512;
@@ -20,7 +23,7 @@ export function preferredFastembedModel(
 }
 
 export const DEFAULT_FORM: EmbeddingForm = {
-  name: "基础本地哈希向量",
+  name: "",
   backend: "local_hash",
   model: "local-sha256-hash",
   api_base_url: "",
@@ -51,8 +54,8 @@ export function toItem(raw: EmbeddingConfig): ConfigItem<EmbeddingForm> {
   };
 }
 
-export function formatBytes(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "0 B";
+export function formatBytes(value: number, locale: Locale): string {
+  if (!Number.isFinite(value) || value <= 0) return `${formatNumber(0, locale)} B`;
   const units = ["B", "KB", "MB", "GB"];
   let size = value;
   let unit = 0;
@@ -60,62 +63,86 @@ export function formatBytes(value: number): string {
     size /= 1024;
     unit += 1;
   }
-  return `${size.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
+  return `${formatNumber(size, locale, { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
 }
 
 function formatDownloadInfoLabel(
   info: EmbeddingModelDownloadInfo | null,
-  error: string | null,
-): string {
+  locale: Locale,
+  t: Translate,
+): string | null {
   if (info) {
-    return `预计总大小 ${formatBytes(info.total_size_bytes)}，还需 ${formatBytes(
-      info.missing_size_bytes,
-    )}`;
+    return t("settingsEmbedding.downloadInfo", {
+      total: formatBytes(info.total_size_bytes, locale),
+      missing: formatBytes(info.missing_size_bytes, locale),
+    });
   }
-  if (error) return "大小获取失败";
-  return "大小获取中";
+  return null;
 }
 
 export function formatSelectedModelHint(
   model: LocalEmbeddingModel | null,
   info: EmbeddingModelDownloadInfo | null,
-  error: string | null,
+  locale: Locale,
+  t: Translate,
 ): string {
   if (info) {
-    return `预计总大小 ${formatBytes(info.total_size_bytes)}；已缓存 ${formatBytes(
-      info.downloaded_size_bytes,
-    )}；还需下载 ${formatBytes(info.missing_size_bytes)}`;
+    return `${t("settingsEmbedding.totalSize", {
+      size: formatBytes(info.total_size_bytes, locale),
+    })}${t("common.summarySeparator")}${t("settingsEmbedding.cachedSize", {
+      size: formatBytes(info.downloaded_size_bytes, locale),
+    })}${t("common.summarySeparator")}${t("settingsEmbedding.missingSize", {
+      size: formatBytes(info.missing_size_bytes, locale),
+    })}`;
   }
-  if (error) return `模型大小获取失败：${error}`;
   if (model?.size_bytes) {
-    return `本地缓存 ${formatBytes(model.size_bytes)}；正在获取远端总大小`;
+    return t("settingsEmbedding.cachedOnly", {
+      size: formatBytes(model.size_bytes, locale),
+    });
   }
-  return "正在获取该模型的远端总大小";
+  return "";
 }
 
 export function formatModelOptionLabel(
   model: LocalEmbeddingModel,
   info: EmbeddingModelDownloadInfo | null,
-  error: string | null,
+  locale: Locale,
+  t: Translate,
 ): string {
-  const sizeLabel = formatDownloadInfoLabel(info, error);
-  const cachedLabel = model.size_bytes > 0 ? ` · 本地缓存 ${formatBytes(model.size_bytes)}` : "";
-  return `${model.name} · ${model.dimension} 维 · ${sizeLabel}${cachedLabel} · ${
-    model.downloaded ? "已下载" : "未下载"
+  const sizeLabel = formatDownloadInfoLabel(info, locale, t);
+  const cachedLabel = model.size_bytes > 0
+    ? ` · ${t("settingsEmbedding.cachedOnly", { size: formatBytes(model.size_bytes, locale) })}`
+    : "";
+  const sizeText = sizeLabel ? ` · ${sizeLabel}` : "";
+  return `${model.name} · ${t("settingsEmbedding.dimensionUnit", { count: formatNumber(model.dimension, locale) })}${sizeText}${cachedLabel} · ${
+    model.downloaded
+      ? t("settingsEmbedding.downloaded")
+      : t("settingsEmbedding.notDownloaded")
   }`;
 }
 
-export function formatDownloadStartMessage(info: EmbeddingModelDownloadInfo): string {
-  return `预计总大小 ${formatBytes(info.total_size_bytes)}，已缓存 ${formatBytes(
-    info.downloaded_size_bytes,
-  )}，准备下载…`;
+export function formatDownloadStartMessage(
+  info: EmbeddingModelDownloadInfo,
+  locale: Locale,
+  t: Translate,
+): string {
+  return t("settingsEmbedding.downloadPreparation", {
+    total: formatBytes(info.total_size_bytes, locale),
+    cached: formatBytes(info.downloaded_size_bytes, locale),
+  });
 }
 
 export function formatBytesProgress(
   current: number,
   total: number,
   percent: number,
+  locale: Locale,
+  t: Translate,
 ): React.ReactNode {
-  if (total <= 1 && current <= 0) return "准备中";
-  return `${formatBytes(current)} / ${formatBytes(total)} (${percent}%)`;
+  if (total <= 1 && current <= 0) return t("settingsEmbedding.preparing");
+  return t("settingsEmbedding.progress", {
+    current: formatBytes(current, locale),
+    total: formatBytes(total, locale),
+    percent: formatNumber(percent, locale, { maximumFractionDigits: 1 }),
+  });
 }

@@ -5,9 +5,12 @@ use a4n_core::video_execution::{
     propagate_adopted_video_change, video_segment_recipes_from_metadata,
 };
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect,
+    sea_query::{Alias, CaseStatement, Expr},
+};
 use serde_json::Value;
-use std::collections::BTreeMap;
+use std::collections::{HashMap, HashSet};
 
 fn clear_source_video_metadata_references(metadata: &mut Value) {
     let Some(obj) = metadata.as_object_mut() else {
@@ -23,7 +26,7 @@ fn clear_source_video_metadata_references(metadata: &mut Value) {
 
 fn clear_segment_recipe_video_references(
     metadata: &mut Value,
-    video_ids: &[i64],
+    video_ids: &HashSet<i64>,
 ) -> Result<bool, VideoDbError> {
     let mut recipes = video_segment_recipes_from_metadata(Some(metadata)).map_err(|error| {
         VideoDbError::InvalidArgument(format!(
@@ -83,7 +86,7 @@ fn clear_segment_recipe_video_references(
 
 fn clear_inserted_prompt_video_reference(
     metadata: &mut Value,
-    video_ids: &[i64],
+    video_ids: &HashSet<i64>,
 ) -> Result<bool, VideoDbError> {
     let Some(value) = metadata.get("segment_recipe").cloned() else {
         return Ok(false);
@@ -115,71 +118,175 @@ fn clear_inserted_prompt_video_reference(
     Ok(true)
 }
 
-pub(crate) async fn clear_generated_video_references_record<C>(
+pub(crate) async fn clear_generated_video_references_by_ids<C>(
     db: &C,
-    videos: &[generated_video::Model],
+    video_projects: &[(i64, i64)],
 ) -> Result<(), VideoDbError>
 where
     C: ConnectionTrait,
 {
-    let video_projects = videos
-        .iter()
-        .map(|video| (video.id, video.project_id))
-        .collect::<BTreeMap<_, _>>();
+    clear_generated_video_references_for_projects(
+        db,
+        video_projects.iter().copied().collect::<HashMap<_, _>>(),
+    )
+    .await
+}
+
+async fn clear_generated_video_references_for_projects<C>(
+    db: &C,
+    video_projects: HashMap<i64, i64>,
+) -> Result<(), VideoDbError>
+where
+    C: ConnectionTrait,
+{
     if video_projects.is_empty() {
         return Ok(());
     }
     let video_ids = video_projects.keys().copied().collect::<Vec<_>>();
+    let video_id_set = video_ids.iter().copied().collect::<HashSet<_>>();
     let now = Utc::now().naive_utc();
 
     let prompts = chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::ProjectId)
+        .column(chapter_video_prompt::Column::ChapterId)
         .filter(chapter_video_prompt::Column::GeneratedVideoId.is_in(video_ids.iter().copied()))
+        .into_tuple::<(i64, i64, i64)>()
         .all(db)
         .await?;
-    for prompt in prompts {
-        let replacement = generated_video::Entity::find()
-            .filter(generated_video::Column::ProjectId.eq(prompt.project_id))
-            .filter(generated_video::Column::ChapterId.eq(prompt.chapter_id))
-            .filter(generated_video::Column::Status.eq(generated_video::STATUS_COMPLETED))
-            .all(db)
-            .await?
-            .into_iter()
-            .filter(|video| !video_ids.contains(&video.id))
-            .filter(|video| {
-                video
-                    .metadata_json
-                    .as_ref()
-                    .and_then(|metadata| metadata.get("prompt_id"))
-                    .and_then(Value::as_i64)
-                    == Some(prompt.id)
-            })
-            .max_by_key(|video| (video.updated_at, video.id));
-        let mut active: chapter_video_prompt::ActiveModel = prompt.into();
-        active.generated_video_id = Set(replacement.as_ref().map(|video| video.id));
-        active.status = Set(if replacement.is_some() {
-            chapter_video_prompt::STATUS_COMPLETED.to_string()
-        } else {
-            chapter_video_prompt::STATUS_PENDING.to_string()
-        });
-        active.updated_at = Set(now);
-        active.update(db).await?;
+    let mut replacement_by_key = HashMap::<(i64, i64, i64), (i64, chrono::NaiveDateTime)>::new();
+    if !prompts.is_empty() {
+        let mut chapter_scope = Condition::any();
+        let mut project_chapters = HashSet::new();
+        for (_, project_id, chapter_id) in &prompts {
+            project_chapters.insert((*project_id, *chapter_id));
+        }
+        for (project_id, chapter_id) in project_chapters {
+            chapter_scope = chapter_scope.add(
+                Condition::all()
+                    .add(generated_video::Column::ProjectId.eq(project_id))
+                    .add(generated_video::Column::ChapterId.eq(chapter_id)),
+            );
+        }
+        for (video_id, project_id, chapter_id, metadata_json, updated_at) in
+            generated_video::Entity::find()
+                .select_only()
+                .column(generated_video::Column::Id)
+                .column(generated_video::Column::ProjectId)
+                .column(generated_video::Column::ChapterId)
+                .column(generated_video::Column::MetadataJson)
+                .column(generated_video::Column::UpdatedAt)
+                .filter(chapter_scope)
+                .filter(generated_video::Column::Status.eq(generated_video::STATUS_COMPLETED))
+                .filter(generated_video::Column::Id.is_not_in(video_ids.iter().copied()))
+                .into_tuple::<(i64, i64, Option<i64>, Option<Value>, chrono::NaiveDateTime)>()
+                .all(db)
+                .await?
+        {
+            let Some(chapter_id) = chapter_id else {
+                continue;
+            };
+            let Some(prompt_id) = metadata_json
+                .as_ref()
+                .and_then(|metadata| metadata.get("prompt_id"))
+                .and_then(Value::as_i64)
+            else {
+                continue;
+            };
+            let key = (project_id, chapter_id, prompt_id);
+            if replacement_by_key
+                .get(&key)
+                .is_none_or(|current| (updated_at, video_id) > (current.1, current.0))
+            {
+                replacement_by_key.insert(key, (video_id, updated_at));
+            }
+        }
+    }
+    if !prompts.is_empty() {
+        let mut generated_video_id_case = CaseStatement::new();
+        let mut status_case = CaseStatement::new();
+        let mut prompt_ids = Vec::with_capacity(prompts.len());
+        for (prompt_id, project_id, chapter_id) in &prompts {
+            let replacement = replacement_by_key.get(&(*project_id, *chapter_id, *prompt_id));
+            generated_video_id_case = generated_video_id_case.case(
+                chapter_video_prompt::Column::Id.eq(*prompt_id),
+                Expr::value(replacement.map(|video| video.0)),
+            );
+            status_case = status_case.case(
+                chapter_video_prompt::Column::Id.eq(*prompt_id),
+                Expr::value(if replacement.is_some() {
+                    chapter_video_prompt::STATUS_COMPLETED
+                } else {
+                    chapter_video_prompt::STATUS_PENDING
+                }),
+            );
+            prompt_ids.push(*prompt_id);
+        }
+        let updated = chapter_video_prompt::Entity::update_many()
+            .col_expr(
+                chapter_video_prompt::Column::GeneratedVideoId,
+                generated_video_id_case
+                    .finally(Expr::col(chapter_video_prompt::Column::GeneratedVideoId))
+                    .into(),
+            )
+            .col_expr(
+                chapter_video_prompt::Column::Status,
+                status_case
+                    .finally(Expr::col(chapter_video_prompt::Column::Status))
+                    .into(),
+            )
+            .col_expr(chapter_video_prompt::Column::UpdatedAt, Expr::value(now))
+            .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids.clone()))
+            .exec(db)
+            .await?;
+        if updated.rows_affected != prompt_ids.len() as u64 {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "视频提示词引用批量更新数量不一致: updated={}, expected={}",
+                updated.rows_affected,
+                prompt_ids.len()
+            )));
+        }
     }
 
-    let project_ids = video_projects.values().copied().collect::<Vec<_>>();
+    let project_ids = video_projects
+        .values()
+        .copied()
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let reference_scope = Condition::any()
+        .add(
+            Condition::all()
+                .add(
+                    chapter_video_prompt::Column::PromptType
+                        .eq(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN),
+                )
+                .add(
+                    chapter_video_prompt::Column::WorkflowMode
+                        .eq(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN),
+                ),
+        )
+        .add(chapter_video_prompt::Column::TimelineItemId.is_not_null());
     let referenced_prompts = chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids))
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::TimelineItemId)
+        .column(chapter_video_prompt::Column::MetadataJson)
+        .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
+        .filter(reference_scope)
+        .into_tuple::<(i64, Option<i64>, Option<Value>)>()
         .all(db)
         .await?;
-    for prompt in referenced_prompts {
-        let mut metadata = prompt.metadata_json.clone().unwrap_or(Value::Null);
-        let mut changed = clear_segment_recipe_video_references(&mut metadata, &video_ids)?;
-        changed |= clear_inserted_prompt_video_reference(&mut metadata, &video_ids)?;
+    let mut prompt_updates = Vec::new();
+    for (prompt_id, timeline_item_id, metadata_json) in referenced_prompts {
+        let mut metadata = metadata_json.unwrap_or(Value::Null);
+        let mut changed = clear_segment_recipe_video_references(&mut metadata, &video_id_set)?;
+        changed |= clear_inserted_prompt_video_reference(&mut metadata, &video_id_set)?;
         if !changed {
             continue;
         }
-        let inserted = prompt.timeline_item_id.is_some();
-        let mut active: chapter_video_prompt::ActiveModel = prompt.into();
-        if inserted {
+        let reference_image_ids_json = if timeline_item_id.is_some() {
             let recipe = serde_json::from_value::<VideoSegmentExecutionRecipeV1>(
                 metadata.get("segment_recipe").cloned().ok_or_else(|| {
                     VideoDbError::InvalidArgument("已清理的插入片段缺少 segment_recipe".to_string())
@@ -188,34 +295,119 @@ where
             .map_err(|error| {
                 VideoDbError::InvalidArgument(format!("读取已清理插入片段执行方案失败：{error}"))
             })?;
-            active.reference_image_ids_json = Set(Some(serde_json::json!(
-                recipe.provider_reference_image_ids()
+            Some(serde_json::json!(recipe.provider_reference_image_ids()))
+        } else {
+            None
+        };
+        prompt_updates.push((prompt_id, metadata, reference_image_ids_json));
+    }
+    if !prompt_updates.is_empty() {
+        let mut metadata_case = CaseStatement::new();
+        let mut reference_image_ids_case = CaseStatement::new();
+        let mut has_reference_image_ids_updates = false;
+        let mut prompt_ids = Vec::with_capacity(prompt_updates.len());
+        for (prompt_id, metadata, reference_image_ids_json) in prompt_updates {
+            metadata_case = metadata_case.case(
+                chapter_video_prompt::Column::Id.eq(prompt_id),
+                Expr::value(Some(metadata)).cast_as(Alias::new("json")),
+            );
+            if let Some(reference_image_ids_json) = reference_image_ids_json {
+                has_reference_image_ids_updates = true;
+                reference_image_ids_case = reference_image_ids_case.case(
+                    chapter_video_prompt::Column::Id.eq(prompt_id),
+                    Expr::value(Some(reference_image_ids_json)).cast_as(Alias::new("json")),
+                );
+            }
+            prompt_ids.push(prompt_id);
+        }
+        let mut update = chapter_video_prompt::Entity::update_many()
+            .col_expr(
+                chapter_video_prompt::Column::MetadataJson,
+                metadata_case
+                    .finally(Expr::col(chapter_video_prompt::Column::MetadataJson))
+                    .into(),
+            )
+            .col_expr(chapter_video_prompt::Column::UpdatedAt, Expr::value(now));
+        if has_reference_image_ids_updates {
+            update = update.col_expr(
+                chapter_video_prompt::Column::ReferenceImageIdsJson,
+                reference_image_ids_case
+                    .finally(Expr::col(
+                        chapter_video_prompt::Column::ReferenceImageIdsJson,
+                    ))
+                    .into(),
+            );
+        }
+        let updated = update
+            .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids.clone()))
+            .exec(db)
+            .await?;
+        if updated.rows_affected != prompt_ids.len() as u64 {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "视频提示词片段引用批量更新数量不一致: updated={}, expected={}",
+                updated.rows_affected,
+                prompt_ids.len()
             )));
         }
-        active.metadata_json = Set(Some(metadata));
-        active.updated_at = Set(now);
-        active.update(db).await?;
     }
 
     let child_videos = generated_video::Entity::find()
-        .filter(generated_video::Column::SourceVideoId.is_in(video_ids.iter().copied()))
+        .select_only()
+        .column(generated_video::Column::Id)
+        .column(generated_video::Column::MetadataJson)
+        .filter(generated_video::Column::SourceVideoId.is_in(video_id_set.iter().copied()))
+        .into_tuple::<(i64, Option<Value>)>()
         .all(db)
         .await?;
-    for video in child_videos {
-        let mut metadata = video.metadata_json.clone();
-        let mut active: generated_video::ActiveModel = video.into();
-        active.source_video_id = Set(None);
+    let mut child_updates = Vec::with_capacity(child_videos.len());
+    for (video_id, mut metadata) in child_videos {
         if let Some(mut metadata) = metadata.take() {
             clear_source_video_metadata_references(&mut metadata);
-            active.metadata_json = Set(Some(metadata));
+            child_updates.push((video_id, Some(metadata)));
+        } else {
+            child_updates.push((video_id, None));
         }
-        active.updated_at = Set(now);
-        active.update(db).await?;
+    }
+    if !child_updates.is_empty() {
+        let mut metadata_case = CaseStatement::new();
+        let mut child_ids = Vec::with_capacity(child_updates.len());
+        for (video_id, metadata) in child_updates {
+            metadata_case = metadata_case.case(
+                generated_video::Column::Id.eq(video_id),
+                Expr::value(metadata).cast_as(Alias::new("json")),
+            );
+            child_ids.push(video_id);
+        }
+        let updated = generated_video::Entity::update_many()
+            .col_expr(
+                generated_video::Column::SourceVideoId,
+                Expr::value(Option::<i64>::None),
+            )
+            .col_expr(
+                generated_video::Column::MetadataJson,
+                metadata_case
+                    .finally(Expr::col(generated_video::Column::MetadataJson))
+                    .into(),
+            )
+            .col_expr(generated_video::Column::UpdatedAt, Expr::value(now))
+            .filter(generated_video::Column::Id.is_in(child_ids.clone()))
+            .exec(db)
+            .await?;
+        if updated.rows_affected != child_ids.len() as u64 {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "子视频来源引用批量更新数量不一致: updated={}, expected={}",
+                updated.rows_affected,
+                child_ids.len()
+            )));
+        }
     }
 
-    for (video_id, project_id) in video_projects {
-        crate::canvas::mark_canvas_generated_video_refs_missing(db, project_id, video_id).await?;
-    }
+    crate::canvas::mark_canvas_generated_video_refs_missing_for_projects_and_videos(
+        db,
+        &project_ids,
+        &video_ids,
+    )
+    .await?;
     Ok(())
 }
 
@@ -306,7 +498,9 @@ mod tests {
             ]
         });
 
-        assert!(clear_segment_recipe_video_references(&mut metadata, &[41]).unwrap());
+        assert!(
+            clear_segment_recipe_video_references(&mut metadata, &HashSet::from([41])).unwrap()
+        );
         assert_eq!(
             metadata["segment_recipes"][0]["adopted_video_id"],
             Value::Null
@@ -353,7 +547,9 @@ mod tests {
             "video_execution_identity": {"segment_sha256": "stable"}
         });
 
-        assert!(clear_inserted_prompt_video_reference(&mut metadata, &[41]).unwrap());
+        assert!(
+            clear_inserted_prompt_video_reference(&mut metadata, &HashSet::from([41])).unwrap()
+        );
         assert_eq!(
             metadata["segment_recipe"]["continuity_source_video_id"],
             Value::Null

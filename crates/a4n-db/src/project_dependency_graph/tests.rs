@@ -1,6 +1,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::models::chapter::{chapter, chapter_video_prompt};
+use a4n_core::{
+    models::chapter::{chapter, chapter_video_prompt},
+    prompt_language::{
+        PromptOutputLanguage, prompt_type_uses_prompt_output_language,
+        with_prompt_output_language_metadata,
+    },
+};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde_json::json;
@@ -8,7 +14,7 @@ use serde_json::json;
 use super::{asset_dependency_graph, asset_dependency_graph_node_detail};
 use crate::project::{
     CreateDerivedProjectParams, CreateProjectRecordInput, DerivedChapterScope, PROJECT_KIND_VIDEO,
-    PROJECT_TYPE_NOVEL_LONG, create_derived_project_record, create_project_record,
+    create_derived_project_record, create_project_record,
 };
 
 async fn setup_db() -> DatabaseConnection {
@@ -66,7 +72,8 @@ async fn insert_video_prompt(
         reference_image_ids_json: Set(None),
         status: Set("completed".to_string()),
         generated_video_id: Set(None),
-        metadata_json: Set(None),
+        metadata_json: Set(prompt_type_uses_prompt_output_language(prompt_type)
+            .then(|| with_prompt_output_language_metadata(json!({}), PromptOutputLanguage::ZhCn))),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -85,7 +92,7 @@ async fn derived_project_graph_matches_root_family_graph() {
             user_id: 1,
             title: "根文本".to_string(),
             description: "测试简介".to_string(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   Copy,
@@ -30,6 +31,8 @@ import { EmptyHint } from "../shared";
 import { copyTextToClipboard } from "../../../utils/clipboard";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
+import { formatNumber, useI18n, type Locale } from "../../../i18n";
+import type { MessageTranslator } from "../../../i18n";
 import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
 import {
   formatVideoCreatedAt,
@@ -58,7 +61,7 @@ interface VideoResultsPaneProps {
 
 type VideoActionItems = React.ComponentProps<typeof Dropdown>["items"];
 
-const videoRecordTitle = (video: GeneratedVideo): string => {
+const videoRecordTitle = (video: GeneratedVideo, locale: Locale, t: MessageTranslator): string => {
   const metadata =
     video.metadata_json && typeof video.metadata_json === "object" && !Array.isArray(video.metadata_json)
       ? (video.metadata_json as Record<string, unknown>)
@@ -66,13 +69,13 @@ const videoRecordTitle = (video: GeneratedVideo): string => {
   const shotNumber = metadata?.shot_number;
   if (video.video_type === VIDEO_TYPE_CHAPTER) {
     return typeof shotNumber === "number" && Number.isInteger(shotNumber) && shotNumber > 0
-      ? `镜头 ${shotNumber}`
-      : "章节视频";
+      ? t("video.chapter.shot", { number: formatNumber(shotNumber, locale) })
+      : t("video.chapter.videoTypeChapter");
   }
-  if (video.video_type === VIDEO_TYPE_REFERENCE_MEDIA) return "参考媒体视频";
-  if (video.video_type === VIDEO_TYPE_TRIMMED_CLIP) return "裁剪片段";
-  if (video.video_type === VIDEO_TYPE_CANVAS) return "画布视频";
-  return "生成视频";
+  if (video.video_type === VIDEO_TYPE_REFERENCE_MEDIA) return t("video.chapter.videoTypeReference");
+  if (video.video_type === VIDEO_TYPE_TRIMMED_CLIP) return t("video.chapter.videoTypeTrimmed");
+  if (video.video_type === VIDEO_TYPE_CANVAS) return t("video.chapter.videoTypeCanvas");
+  return t("video.chapter.videoTypeGenerated");
 };
 
 export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
@@ -93,6 +96,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   onOpenSegmentConfig,
   onAdoptVideo,
 }) => {
+  const { locale, t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptEditing, setPromptEditing] = useState(false);
@@ -106,6 +110,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     videoPlaybackSrc,
     videoLoadError,
     videoLoading,
+    retryVideoLoad,
     handleVideoLoadStart,
     handleVideoLoaded,
     handleVideoError,
@@ -128,14 +133,14 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
   const copyText = async (label: string, text: string | null | undefined) => {
     const value = text?.trim();
     if (!value) {
-      addToast(`${label}为空，无法复制`, "error");
+      addToast(t("video.chapter.emptyCannotCopy", { label }), "error");
       return;
     }
     try {
       await copyTextToClipboard(value);
-      addToast(`已复制${label}`, "success");
+      addToast(t("video.chapter.copiedPrompt", { label }), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, `复制${label}失败`), "error");
+      addToast(extractErrorMessage(err, t("video.chapter.copyFailed", { label })), "error");
     }
   };
 
@@ -182,7 +187,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     if (promptSavingRef.current || acting != null) return;
     const prompt = promptDraft.trim();
     if (!prompt) {
-      addToast("视频 Prompt 不能为空", "error");
+      addToast(t("video.chapter.promptEmpty"), "error");
       return;
     }
     promptSavingRef.current = true;
@@ -205,22 +210,25 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
     if (!selectedVideoRecord) {
       return (
         <div className="a4n-flat-surface min-h-[180px] self-start">
-          <EmptyHint text="选择一个视频后查看生成效果。" />
+          <EmptyHint text={t("video.chapter.chooseVideoHint")} />
         </div>
       );
     }
 
-    const previewBlockedReason = videoProviderRequestPreviewBlockedReason(selectedVideoRecord);
+    const previewBlockedReason = videoProviderRequestPreviewBlockedReason(
+      selectedVideoRecord,
+      t,
+    );
     const selectedActions: VideoActionItems = [
       {
-        label: "复制提示词",
+        label: t("video.chapter.copyPrompt"),
         icon: <Copy size={12} />,
-        onClick: () => void copyText("视频 Prompt", selectedVideoRecord.prompt),
+        onClick: () => void copyText(t("video.chapter.promptLabel"), selectedVideoRecord.prompt),
       },
       ...(!previewBlockedReason
         ? [
             {
-              label: "查看模型请求",
+              label: t("video.chapter.viewModelRequest"),
               icon: <Eye size={12} />,
               onClick: () => void onPreviewVideoRequest(selectedVideoRecord),
             },
@@ -229,20 +237,20 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       ...(selectedVideoRecord.provider_job_id && selectedVideoRecord.status !== "completed"
         ? [
             {
-              label: "刷新生成状态",
+              label: t("video.chapter.refreshStatus"),
               icon: <RefreshCw size={12} />,
               onClick: () => void onPollVideo(selectedVideoRecord),
             },
           ]
         : []),
       {
-        label: selectedVideoRecord.is_favorite ? "取消收藏" : "收藏视频",
+        label: selectedVideoRecord.is_favorite ? t("video.chapter.unfavoriteVideo") : t("video.chapter.favoriteVideo"),
         icon: <Star size={12} fill={selectedVideoRecord.is_favorite ? "currentColor" : "none"} />,
         onClick: () => void onToggleVideoFavorite(selectedVideoRecord),
       },
       { type: "divider" },
       {
-        label: "删除视频",
+        label: t("video.chapter.deleteVideo"),
         icon: <Trash2 size={12} />,
         danger: true,
         onClick: () => void onDeleteVideo(selectedVideoRecord),
@@ -257,22 +265,22 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           <Film size={12} className="shrink-0 text-book-primary" />
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-medium text-book-text-main">
-              {videoRecordTitle(selectedVideoRecord)}
+              {videoRecordTitle(selectedVideoRecord, locale, t)}
             </div>
             <div className="mt-0.5 truncate text-caption text-book-text-muted">
-              {getOperationStatusLabel(selectedVideoRecord.status)} · {Math.round(selectedVideoRecord.duration_secs)} 秒
-              {selectedVideoRecord.is_favorite ? " · 已收藏" : ""}
-              {` · ${formatVideoCreatedAt(selectedVideoRecord.created_at)}`}
+              {getOperationStatusLabel(selectedVideoRecord.status, locale)} · {t("video.chapter.seconds", { count: formatNumber(Math.round(selectedVideoRecord.duration_secs), locale) })}
+              {selectedVideoRecord.is_favorite ? ` · ${t("video.chapter.favorite")}` : ""}
+              {` · ${formatVideoCreatedAt(selectedVideoRecord.created_at, locale, t)}`}
             </div>
           </div>
           <button
             type="button"
             onClick={openPromptModal}
             className="pyqt-btn-secondary inline-flex !min-h-9 items-center gap-1 !px-2.5 text-small sm:!min-h-7"
-            title="查看完整视频提示词"
+            title={t("video.chapter.viewFullPrompt")}
           >
             <Eye size={11} />
-            提示词
+            {t("video.chapter.promptChars")}
           </button>
           {selectedVideoRecord.status === "completed" ? (
             <BookButton
@@ -281,14 +289,14 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
               onClick={() => void onAdoptVideo(selectedVideoRecord)}
               disabled={selectedVideoAdopted || acting === `adopt-video-${selectedVideoRecord.id}`}
               className="!min-h-9 !px-2.5 sm:!min-h-7"
-              title={selectedVideoAdopted ? "当前片段已采用此视频" : "设为当前片段的合成结果"}
+              title={selectedVideoAdopted ? t("video.chapter.adopted") : t("video.chapter.adoptCurrent")}
             >
               {acting === `adopt-video-${selectedVideoRecord.id}` ? (
                 <LoadingSpinner size="sm" />
               ) : (
                 <Check size={11} />
               )}
-              {selectedVideoAdopted ? "已采用" : "采用"}
+              {selectedVideoAdopted ? t("video.chapter.adopted") : t("video.chapter.adopt")}
             </BookButton>
           ) : null}
           {acting === `poll-${selectedVideoRecord.id}` ||
@@ -318,28 +326,59 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                 onCanPlay={handleVideoLoaded}
                 onError={handleVideoError}
               />
+            ) : videoLoadError ? (
+              <div
+                role="alert"
+                className="flex aspect-video w-full flex-col items-center justify-center gap-2 bg-black px-5 text-center text-white max-[360px]:h-[140px] max-[360px]:aspect-auto max-[360px]:gap-1.5 md:h-[220px] md:aspect-auto xl:h-auto xl:aspect-video"
+              >
+                <AlertTriangle
+                  size={20}
+                  className="text-warning max-[360px]:hidden"
+                  aria-hidden="true"
+                />
+                <p className="text-sm font-semibold">{t("video.chapter.videoPreviewLoadFailed")}</p>
+                <p className="max-w-md text-small leading-relaxed text-white/70">
+                  {videoLoadError}
+                </p>
+                <BookButton
+                  variant="secondary"
+                  size="sm"
+                  onClick={retryVideoLoad}
+                  className="mt-1"
+                >
+                  <RefreshCw size={12} aria-hidden="true" />
+                  {t("video.chapter.retryVideoLoad")}
+                </BookButton>
+              </div>
             ) : (
-              <div className="flex aspect-video w-full items-center justify-center bg-black text-xs text-white">
-                正在读取视频文件
+              <div className="flex aspect-video w-full items-center justify-center gap-2 bg-black text-xs text-white">
+                <LoadingSpinner size="sm" />
+                {t("video.chapter.loadingVideoFile")}
               </div>
             )}
             {videoLoading && !videoLoadError && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/35 text-xs text-white">
                 <span className="inline-flex items-center gap-1.5 rounded bg-black/55 px-2 py-1">
                   <LoadingSpinner size="sm" />
-                  正在加载视频
+                  {t("video.chapter.loadingVideo")}
                 </span>
               </div>
             )}
           </div>
         ) : (
           <div className="flex aspect-video w-full items-center justify-center bg-book-bg-tertiary text-xs text-book-text-muted">
-            {selectedVideoRecord.provider_job_id ? "等待视频服务返回结果" : "无本地视频文件"}
+            {selectedVideoRecord.provider_job_id ? t("video.chapter.waitingVideoService") : t("video.chapter.noLocalVideo")}
           </div>
         )}
-        {videoLoadError && (
-          <div className="border-t border-book-border/40 px-2 py-1.5 text-small text-error">
-            {videoLoadError}
+        {videoLoadError && videoPlaybackSrc && (
+          <div className="flex flex-wrap items-center gap-2 border-t border-book-border/40 px-2 py-1.5">
+            <span className="min-w-0 flex-1 text-small text-error">
+              {videoLoadError}
+            </span>
+            <BookButton variant="secondary" size="sm" onClick={retryVideoLoad}>
+              <RefreshCw size={12} aria-hidden="true" />
+              {t("video.chapter.retryVideoLoad")}
+            </BookButton>
           </div>
         )}
         {selectedVideoRecord.error_message && (
@@ -349,7 +388,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
         )}
         <div className="border-t border-book-border/40 px-2 py-2">
           <div className="mb-1 text-caption text-book-text-muted">
-            提示词 · {selectedPromptChars.toLocaleString()} 字
+            {t("video.chapter.promptLength", { count: formatNumber(selectedPromptChars, locale) })}
           </div>
           <div className="line-clamp-3 text-small leading-relaxed text-book-text-sub">
             {selectedVideoRecord.prompt}
@@ -357,25 +396,25 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
           {selectedVideoPath ? (
             <details className="mt-2 border-t border-book-border/35 pt-2 text-xs">
               <summary className="w-fit cursor-pointer text-caption text-book-text-muted transition-colors hover:text-book-text-main">
-                裁剪视频
+                {t("video.chapter.trimVideo")}
               </summary>
               <div className="mt-2 grid gap-2 sm:grid-cols-[90px_90px_auto]">
                 <label className="grid gap-1 text-caption text-book-text-muted">
-                  开始时间
+                  {t("video.chapter.trimStart")}
                   <input
                     value={trimStart}
                     onChange={(event) => onTrimStartChange(event.target.value)}
                     className="pyqt-input !px-2 !py-1 text-xs"
-                    placeholder="秒"
+                    placeholder={t("video.chapter.secondsPlaceholder")}
                   />
                 </label>
                 <label className="grid gap-1 text-caption text-book-text-muted">
-                  结束时间
+                  {t("video.chapter.trimEnd")}
                   <input
                     value={trimEnd}
                     onChange={(event) => onTrimEndChange(event.target.value)}
                     className="pyqt-input !px-2 !py-1 text-xs"
-                    placeholder="秒"
+                    placeholder={t("video.chapter.secondsPlaceholder")}
                   />
                 </label>
                 <button
@@ -383,14 +422,14 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                   onClick={() => void onTrim()}
                   disabled={acting === `trim-${selectedVideoRecord.id}`}
                   className="pyqt-btn-secondary inline-flex !min-h-9 items-center justify-center gap-1 !px-2 text-xs sm:self-end sm:!min-h-[28px]"
-                  title="裁剪选中视频"
+                  title={t("video.chapter.trimSelected")}
                 >
                   {acting === `trim-${selectedVideoRecord.id}` ? (
                     <LoadingSpinner size="sm" />
                   ) : (
                     <Scissors size={12} />
                   )}
-                  裁剪
+                  {t("video.chapter.trim")}
                 </button>
               </div>
             </details>
@@ -408,9 +447,9 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             <Film size={16} />
           </div>
           <div className="max-w-sm">
-            <h3 className="text-sm font-medium text-book-text-main">还没有生成视频</h3>
+            <h3 className="text-sm font-medium text-book-text-main">{t("video.chapter.noVideo")}</h3>
             <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
-              完成片段配置并生成视频后，可以在这里预览、整理和剪辑成片。
+              {t("video.chapter.noVideoHint")}
             </p>
             <div className="mt-3 xl:hidden">
               <BookButton
@@ -419,7 +458,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                 onClick={onOpenSegmentConfig}
               >
                 <ArrowLeft size={13} />
-                前往配置
+                {t("video.chapter.openConfig")}
               </BookButton>
             </div>
           </div>
@@ -437,10 +476,10 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
       <Modal
         isOpen={promptOpen && selectedVideoRecord != null}
         onClose={closePromptModal}
-        title="视频提示词"
+        title={t("video.chapter.promptRecord")}
         subtitle={
           selectedVideoRecord
-            ? `${videoRecordTitle(selectedVideoRecord)} · ${Math.round(selectedVideoRecord.duration_secs)} 秒`
+            ? `${videoRecordTitle(selectedVideoRecord, locale, t)} · ${t("video.chapter.seconds", { count: formatNumber(Math.round(selectedVideoRecord.duration_secs), locale) })}`
             : undefined
         }
         icon={<Eye size={15} />}
@@ -458,7 +497,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                 ) : (
                   <Save size={12} />
                 )}
-                {promptSaving ? "保存中" : "保存记录"}
+                {promptSaving ? t("video.chapter.saving") : t("video.chapter.saveRecord")}
               </span>
             </BookButton>
           ) : undefined
@@ -476,24 +515,24 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                 >
                   <span className="inline-flex items-center gap-1.5">
                     <Pencil size={12} />
-                    编辑记录
+                    {t("common.edit")}
                   </span>
                 </BookButton>
                 <Dropdown
                   items={[
                     {
-                      label: "复制提示词",
+                      label: t("video.chapter.copyPrompt"),
                       icon: <Copy size={12} />,
-                      onClick: () => void copyText("视频提示词", selectedVideoRecord.prompt),
+                      onClick: () => void copyText(t("video.chapter.promptLabel"), selectedVideoRecord.prompt),
                     },
                     ...(selectedVideoRecord.negative_prompt
                       ? [
                           {
-                            label: "复制负面提示词",
+                            label: t("video.chapter.copyNegativePrompt"),
                             icon: <Copy size={12} />,
                             onClick: () =>
                               void copyText(
-                                "负面提示词",
+                                t("video.chapter.negativePromptLabel"),
                                 selectedVideoRecord.negative_prompt,
                               ),
                           },
@@ -507,7 +546,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
               <>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-book-text-main">
-                    视频提示词
+                    {t("video.chapter.promptLabel")}
                   </span>
                   <textarea
                     value={promptDraft}
@@ -518,7 +557,7 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs font-medium text-book-text-main">
-                    负面提示词
+                    {t("video.chapter.negativePromptLabel")}
                   </span>
                   <textarea
                     value={negativePromptDraft}
@@ -532,16 +571,16 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
               <section className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
                 <div>
                   <div className="px-3 pt-3 text-xs font-medium text-book-text-main">
-                    视频提示词
+                    {t("video.chapter.promptLabel")}
                   </div>
                   <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-small leading-relaxed text-book-text-main">
-                    {selectedVideoRecord.prompt || "（空）"}
+                    {selectedVideoRecord.prompt || t("video.chapter.empty")}
                   </div>
                 </div>
                 {selectedVideoRecord.negative_prompt ? (
                   <div>
                     <div className="px-3 pt-3 text-xs font-medium text-book-text-main">
-                      负面提示词
+                      {t("video.chapter.negativePromptLabel")}
                     </div>
                     <div className="whitespace-pre-wrap break-words px-3 pb-3 pt-2 text-small leading-relaxed text-book-text-main">
                       {selectedVideoRecord.negative_prompt}
@@ -553,17 +592,17 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
             {selectedVideoRecord.model || selectedVideoRecord.metadata_json ? (
               <details className="a4n-flat-surface overflow-hidden">
                 <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-book-text-muted hover:text-book-text-main">
-                  诊断信息
+                  {t("video.chapter.diagnostics")}
                 </summary>
                 <div className="border-t border-book-border/40">
                   <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 px-3 py-2 text-caption">
-                    <dt className="text-book-text-muted">模型</dt>
+                    <dt className="text-book-text-muted">{t("video.chapter.model")}</dt>
                     <dd className="break-all font-mono text-book-text-sub">
-                      {selectedVideoRecord.model || "未记录"}
+                      {selectedVideoRecord.model || t("video.chapter.notRecorded")}
                     </dd>
-                    <dt className="text-book-text-muted">画面规格</dt>
+                    <dt className="text-book-text-muted">{t("video.chapter.aspectRatio")}</dt>
                     <dd className="text-book-text-sub">
-                      {selectedVideoRecord.width}×{selectedVideoRecord.height} · {selectedVideoRecord.fps} FPS
+                      {formatNumber(selectedVideoRecord.width, locale)}×{formatNumber(selectedVideoRecord.height, locale)} · {formatNumber(selectedVideoRecord.fps, locale)} FPS
                     </dd>
                   </dl>
                   {providerRequestSnapshotText(selectedVideoRecord) ? (
@@ -573,14 +612,14 @@ export const VideoResultsPane: React.FC<VideoResultsPaneProps> = ({
                         size="sm"
                         onClick={() =>
                           void copyText(
-                            "模型请求",
+                            t("video.chapter.modelRequest"),
                             providerRequestSnapshotText(selectedVideoRecord),
                           )
                         }
                         className="!min-h-7 !text-small"
                       >
                         <Copy size={11} />
-                        复制模型请求
+                        {t("video.chapter.copyModelRequest")}
                       </BookButton>
                     </div>
                   ) : null}

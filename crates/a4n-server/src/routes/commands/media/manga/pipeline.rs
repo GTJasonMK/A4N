@@ -1,3 +1,4 @@
+use a4n_api_contract::manga::{MangaChapterInput, MangaPipelineStatusesInput};
 use serde_json::{Value, json};
 
 use super::super::super::{
@@ -9,12 +10,24 @@ pub(in crate::routes::commands) async fn get_manga_pipeline_status(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: manga_records_actions::MangaChapterInput =
-        command_input(args, "get_manga_pipeline_status")?;
+    let input: MangaChapterInput = command_input(args, "get_manga_pipeline_status")?;
     let status = manga_records_actions::get_manga_pipeline_status(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;
     to_value(status)
+}
+
+pub(in crate::routes::commands) async fn list_manga_pipeline_statuses(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: MangaPipelineStatusesInput = command_input(args, "list_manga_pipeline_statuses")?;
+    let statuses =
+        manga_records_actions::list_manga_pipeline_statuses(state.runtime(), user_id, input)
+            .await
+            .map_err(ApiError::bad_request)?;
+    to_value(statuses)
 }
 
 pub(in crate::routes::commands) async fn cancel_manga_pipeline(
@@ -22,8 +35,7 @@ pub(in crate::routes::commands) async fn cancel_manga_pipeline(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: manga_records_actions::MangaChapterInput =
-        command_input(args, "cancel_manga_pipeline")?;
+    let input: MangaChapterInput = command_input(args, "cancel_manga_pipeline")?;
     let cancelled = manga_records_actions::cancel_manga_pipeline(state.runtime(), user_id, input)
         .await
         .map_err(ApiError::bad_request)?;

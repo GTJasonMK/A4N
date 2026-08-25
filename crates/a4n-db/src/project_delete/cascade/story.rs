@@ -18,6 +18,12 @@ where
     C: ConnectionTrait,
 {
     delete_chapter_generation_outputs(db, project_id, GeneratedImageDeleteScope::Project).await?;
+    project_db::delete_project_chapter_adaptation_records(
+        db,
+        project_id,
+        project_db::ProjectChapterAdaptationDeleteScope::Project,
+    )
+    .await?;
     chapter::Entity::delete_many()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .exec(db)

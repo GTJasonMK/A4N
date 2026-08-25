@@ -1,5 +1,6 @@
 import { authenticatedWebFetch } from ".";
 import { readSseStream } from "../utils/sseParser";
+import { getActiveLocale, translateMessage } from "../i18n";
 
 export type AgentStatus = "idle" | "running" | "paused" | "completed" | "failed" | "offline";
 
@@ -30,9 +31,11 @@ export interface AgentEvent {
 
 export async function listAgents(): Promise<AgentView[]> {
   const response = await authenticatedWebFetch("/agents");
-  if (!response.ok) throw new Error(`加载 Agent 列表失败（${response.status}）`);
+  if (!response.ok) {
+    throw new Error(translateMessage(getActiveLocale(), "errors.agentListLoadFailed", { status: response.status }));
+  }
   const value: unknown = await response.json();
-  if (!Array.isArray(value)) throw new Error("Agent 列表响应无效");
+  if (!Array.isArray(value)) throw new Error(translateMessage(getActiveLocale(), "errors.agentListResponseInvalid"));
   return value.map(parseAgent);
 }
 
@@ -44,13 +47,15 @@ export async function subscribeAgentEvents(
     headers: { Accept: "text/event-stream" },
     signal,
   });
-  if (!response.ok) throw new Error(`连接 Agent 事件失败（${response.status}）`);
-  if (!response.body) throw new Error("Agent 事件流没有响应体");
+  if (!response.ok) {
+    throw new Error(translateMessage(getActiveLocale(), "errors.agentEventConnectionFailed", { status: response.status }));
+  }
+  if (!response.body) throw new Error(translateMessage(getActiveLocale(), "errors.agentEventStreamMissingBody"));
   await readSseStream(response.body, (event) => {
     if (event.event !== "agent_update") return;
     const value = JSON.parse(event.data) as Partial<AgentEvent>;
     if (!value.agent_id || !["registered", "updated", "removed"].includes(value.kind ?? "")) {
-      throw new Error("Agent 事件响应无效");
+      throw new Error(translateMessage(getActiveLocale(), "errors.agentEventResponseInvalid"));
     }
     onEvent({
       kind: value.kind as AgentEvent["kind"],
@@ -61,13 +66,13 @@ export async function subscribeAgentEvents(
 }
 
 function parseAgent(value: unknown): AgentView {
-  if (!value || typeof value !== "object") throw new Error("Agent 响应无效");
+  if (!value || typeof value !== "object") throw new Error(translateMessage(getActiveLocale(), "errors.agentResponseInvalid"));
   const agent = value as Partial<AgentView>;
   if (typeof agent.agent_id !== "string" || typeof agent.name !== "string") {
-    throw new Error("Agent 响应缺少身份字段");
+    throw new Error(translateMessage(getActiveLocale(), "errors.agentIdentityMissing"));
   }
   if (typeof agent.status !== "string" || !Object.prototype.hasOwnProperty.call(STATUS_LABELS, agent.status)) {
-    throw new Error("Agent 状态无效");
+    throw new Error(translateMessage(getActiveLocale(), "errors.agentStatusInvalid"));
   }
   return agent as AgentView;
 }

@@ -6,6 +6,7 @@ import type {
   ChapterShootingScriptView,
   EditChapterShootingScriptInput,
   EditedChapterShootingScriptView,
+  GenerateChapterShootingScriptInput,
 } from "./generated/host";
 
 export type {
@@ -43,6 +44,16 @@ const sourceInput = (
   source_chapter_id: sourceChapterId,
 });
 
+const generationInput = (
+  projectId: number,
+  sourceChapterId: number,
+  visualPlanId: number,
+): GenerateChapterShootingScriptInput => ({
+  project_id: projectId,
+  source_chapter_id: sourceChapterId,
+  visual_plan_id: visualPlanId,
+});
+
 export const getChapterShootingScript = (projectId: number, sourceChapterId: number) =>
   apiInvoke<ChapterShootingScriptView | null>("get_chapter_shooting_script", {
     input: sourceInput(projectId, sourceChapterId),
@@ -62,9 +73,10 @@ export const generateChapterShootingScript = (
   projectId: number,
   sourceChapterId: number,
   taskId: string,
+  visualPlanId: number,
 ) =>
   apiInvoke<ChapterShootingScriptView>("generate_chapter_shooting_script", {
-    input: sourceInput(projectId, sourceChapterId),
+    input: generationInput(projectId, sourceChapterId, visualPlanId),
     taskId,
   });
 
@@ -72,10 +84,11 @@ export const generateNextChapterShootingScriptUnit = (
   projectId: number,
   sourceChapterId: number,
   taskId: string,
+  visualPlanId: number,
 ) => apiInvoke<ChapterShootingScriptUnitProgressView>(
   "generate_next_chapter_shooting_script_unit",
   {
-    input: sourceInput(projectId, sourceChapterId),
+    input: generationInput(projectId, sourceChapterId, visualPlanId),
     taskId,
   },
 );

@@ -18,6 +18,7 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import type { ChapterRow } from "../shared";
+import type { MessageTranslator } from "../../../i18n";
 import {
   currentFinalVideoPromptMatchesSegment,
   extractSourceContentHash,
@@ -36,6 +37,7 @@ import {
   videoWorkflowModeOfPrompt,
   videoExecutionSegmentIdentityMatchesPrompt,
   videoExecutionSegmentIdentityMatchesVideo,
+  videoExecutionSegmentIdentityIndex,
   videoWorkflowModeOfVideo,
   VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION,
   VIDEO_FIRST_FRAME_CHAIN_CONTRACT_VERSION,
@@ -63,6 +65,7 @@ interface UseVideoTabDerivedStateParams {
   recipeFingerprint: string | null;
   frameRecipeFingerprint: string | null;
   continuitySourceVideoId: number | null;
+  t: MessageTranslator;
 }
 
 export const useVideoTabDerivedState = ({
@@ -82,6 +85,7 @@ export const useVideoTabDerivedState = ({
   recipeFingerprint,
   frameRecipeFingerprint,
   continuitySourceVideoId,
+  t,
 }: UseVideoTabDerivedStateParams) => {
   const framePromptType =
     workflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
@@ -99,6 +103,10 @@ export const useVideoTabDerivedState = ({
         : workflowMode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES
           ? VIDEO_BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION
           : null;
+  const frameSegmentIdentityIndex = useMemo(
+    () => videoExecutionSegmentIdentityIndex(frameSegmentPlanPrompt),
+    [frameSegmentPlanPrompt],
+  );
   const finalVideoPrompts = useMemo(
     () =>
       prompts
@@ -112,6 +120,7 @@ export const useVideoTabDerivedState = ({
               recipeFingerprint,
               workflowMode,
               promptOutputLanguage,
+              frameSegmentIdentityIndex,
             ),
         )
         .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id),
@@ -122,6 +131,7 @@ export const useVideoTabDerivedState = ({
       promptOutputLanguage,
       recipeFingerprint,
       selectedSegmentNumber,
+      frameSegmentIdentityIndex,
     ],
   );
   const selectedPrompt = useMemo(
@@ -149,6 +159,7 @@ export const useVideoTabDerivedState = ({
             frameSegmentPlanPrompt,
             selectedSegmentNumber,
             frameRecipeFingerprint,
+            frameSegmentIdentityIndex,
           ),
       )
       .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id);
@@ -160,6 +171,7 @@ export const useVideoTabDerivedState = ({
     frameSegmentPlanPrompt,
     frameRecipeFingerprint,
     selectedSegmentNumber,
+    frameSegmentIdentityIndex,
   ]);
   const currentLanguageFramePrompts = useMemo(
     () =>
@@ -170,8 +182,12 @@ export const useVideoTabDerivedState = ({
     [framePrompts, promptOutputLanguage],
   );
   const selectedPromptReferenceState = useMemo(
-    () => readSavedReferenceImageIds(selectedPrompt?.reference_image_ids_json),
-    [selectedPrompt?.reference_image_ids_json],
+    () =>
+      readSavedReferenceImageIds(
+        selectedPrompt?.reference_image_ids_json,
+        t,
+      ),
+    [selectedPrompt?.reference_image_ids_json, t],
   );
   const selectedPromptReferenceIds = selectedPromptReferenceState.ids;
   const savedReferenceIdsError = selectedPromptReferenceState.error;
@@ -187,6 +203,7 @@ export const useVideoTabDerivedState = ({
           frameSegmentPlanPrompt,
           selectedSegmentNumber,
           recipeFingerprint,
+          frameSegmentIdentityIndex,
         )
       )
         continue;
@@ -218,6 +235,7 @@ export const useVideoTabDerivedState = ({
     selectedVideoId,
     videos,
     workflowMode,
+    frameSegmentIdentityIndex,
   ]);
   const selectedVideoPath = useMemo(
     () => trimmedText(selectedVideo?.file_path),

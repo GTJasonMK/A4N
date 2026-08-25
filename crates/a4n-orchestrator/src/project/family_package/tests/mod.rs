@@ -2,20 +2,17 @@
 
 use super::validation::{validate_media_bytes, validate_media_manifest, validate_package_manifest};
 use super::*;
-use crate::generation::{
-    GENERATION_ENTITY_ROLES, GENERATION_MEDIA_REF_ROLES, GENERATION_PROMPT_KINDS,
-    GENERATION_SPEC_STATUSES, GENERATION_SPEC_TARGET_ENTITY_KINDS, GENERATION_SPEC_TARGET_KINDS,
-    GENERATION_TEXT_ANCHOR_ROLES,
-};
 use crate::media::{
     MEDIA_BINDING_ROLES, MEDIA_BINDING_TARGET_KINDS, MEDIA_KIND_AUDIO, MEDIA_KIND_IMAGE,
     MEDIA_KIND_VIDEO, MEDIA_ORIGIN_ASSEMBLED_PREVIEW, MEDIA_ORIGIN_EXTRACTED_FRAME,
     MEDIA_ORIGIN_GENERATED, MEDIA_ORIGIN_IMPORTED, MEDIA_STATUS_CANCELLED, MEDIA_STATUS_FAILED,
     MEDIA_STATUS_RUNNING,
 };
-use crate::project::{
-    PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, SOURCE_SYNC_CONFLICT, SOURCE_SYNC_CURRENT,
-    SOURCE_SYNC_DETACHED, SOURCE_SYNC_ROOT_UPDATED, media_asset_status_for_import_insert,
+use crate::project::{PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT};
+use a4n_db::generation::{
+    GENERATION_ENTITY_ROLES, GENERATION_MEDIA_REF_ROLES, GENERATION_PROMPT_KINDS,
+    GENERATION_SPEC_STATUSES, GENERATION_SPEC_TARGET_ENTITY_KINDS, GENERATION_SPEC_TARGET_KINDS,
+    GENERATION_TEXT_ANCHOR_ROLES,
 };
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncConflictStatus,
@@ -50,6 +47,9 @@ fn dt() -> chrono::NaiveDateTime {
 }
 
 const PROJECT_KIND_GALGAME_TEST: &str = "galgame";
+const SOURCE_SYNC_ROOT_UPDATED: &str = "root_updated";
+const SOURCE_SYNC_CONFLICT: &str = "conflict";
+const SOURCE_SYNC_DETACHED: &str = "detached";
 
 #[test]
 fn validate_package_manifest_rejects_blank_project_title() {
@@ -63,3 +63,4 @@ fn validate_package_manifest_rejects_blank_project_title() {
 mod core_validation;
 mod media_validation;
 mod source_sync_validation;
+mod video_validation;

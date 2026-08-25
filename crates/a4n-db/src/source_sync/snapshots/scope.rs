@@ -1,7 +1,7 @@
 use super::super::{SourceSyncDbError, validate_positive_id};
 use crate::project::DerivedChapterScope;
 use a4n_core::models::project::{novel_project, project_source_snapshot};
-use sea_orm::{ConnectionTrait, EntityTrait};
+use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 use serde_json::Value;
 
 pub async fn source_sync_chapter_scope_for_derived_project<C>(
@@ -13,23 +13,29 @@ where
 {
     validate_positive_id(derived_project_id, "derived_project_id")?;
     let project = novel_project::Entity::find_by_id(derived_project_id)
+        .select_only()
+        .column(novel_project::Column::SourceSnapshotId)
+        .into_tuple::<Option<i64>>()
         .one(db)
         .await?
         .ok_or_else(|| {
             SourceSyncDbError::NotFound(format!("派生项目不存在: {derived_project_id}"))
         })?;
-    let source_snapshot_id = project.source_snapshot_id.ok_or_else(|| {
+    let source_snapshot_id = project.ok_or_else(|| {
         SourceSyncDbError::InvalidArgument(format!(
             "派生项目缺少 source_snapshot_id: {derived_project_id}"
         ))
     })?;
     let snapshot = project_source_snapshot::Entity::find_by_id(source_snapshot_id)
+        .select_only()
+        .column(project_source_snapshot::Column::ChapterScopeJson)
+        .into_tuple::<Value>()
         .one(db)
         .await?
         .ok_or_else(|| {
             SourceSyncDbError::NotFound(format!("源文本快照不存在: {source_snapshot_id}"))
         })?;
-    parse_source_sync_chapter_scope(&snapshot.chapter_scope_json)
+    parse_source_sync_chapter_scope(&snapshot)
 }
 
 pub(in crate::source_sync) fn parse_source_sync_chapter_scope(

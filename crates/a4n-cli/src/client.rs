@@ -180,6 +180,22 @@ impl ApiClient {
             .filter(|value| !value.is_empty())
     }
 
+    pub(crate) fn ui_session_id(&self) -> Option<&str> {
+        self.stored
+            .ui_session_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
+    pub(crate) fn ui_session_token(&self) -> Option<&str> {
+        self.stored
+            .ui_session_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+    }
+
     pub(crate) fn has_agent_credentials(&self) -> bool {
         self.agent_id().is_some() && self.agent_token().is_some()
     }
@@ -245,6 +261,32 @@ impl ApiClient {
         self.ensure_stored_server_matches(&stored)?;
         stored.agent_id = None;
         stored.agent_token = None;
+        stored.save_unlocked(&self.config_path)?;
+        self.stored = stored;
+        Ok(())
+    }
+
+    pub(crate) fn save_page_credentials(
+        &mut self,
+        session_id: String,
+        session_token: String,
+    ) -> Result<()> {
+        let _lock = lock_config(&self.config_path)?;
+        let mut stored = StoredConfig::load_unlocked(&self.config_path)?;
+        self.ensure_stored_server_matches(&stored)?;
+        stored.ui_session_id = Some(session_id);
+        stored.ui_session_token = Some(session_token);
+        stored.save_unlocked(&self.config_path)?;
+        self.stored = stored;
+        Ok(())
+    }
+
+    pub(crate) fn clear_page_credentials(&mut self) -> Result<()> {
+        let _lock = lock_config(&self.config_path)?;
+        let mut stored = StoredConfig::load_unlocked(&self.config_path)?;
+        self.ensure_stored_server_matches(&stored)?;
+        stored.ui_session_id = None;
+        stored.ui_session_token = None;
         stored.save_unlocked(&self.config_path)?;
         self.stored = stored;
         Ok(())
@@ -435,6 +477,36 @@ impl ApiClient {
             .into_value()
     }
 
+    pub(crate) async fn send_page_json(
+        &mut self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+        with_ui_session: bool,
+        with_agent: bool,
+    ) -> Result<Value> {
+        let mut response = self
+            .send_page_once(
+                method.clone(),
+                path,
+                body.clone(),
+                with_ui_session,
+                with_agent,
+            )
+            .await?;
+        if response.status() == StatusCode::UNAUTHORIZED && self.can_refresh() {
+            self.refresh_after_unauthorized().await?;
+            response = self
+                .send_page_once(method, path, body, with_ui_session, with_agent)
+                .await?;
+        }
+        let secrets = self.auth_secrets();
+        read_response(response)
+            .await
+            .map_err(|error| redact_error_values(error, &secrets))?
+            .into_value()
+    }
+
     pub(crate) async fn send(&mut self, request: JsonRequest) -> Result<ApiBody> {
         let response = self
             .send_with_refresh(
@@ -474,6 +546,18 @@ impl ApiClient {
         if response.status() == StatusCode::UNAUTHORIZED && self.can_refresh() {
             self.refresh_after_unauthorized().await?;
             response = self.send_stream_once(path, last_event_id).await?;
+        }
+        let secrets = self.auth_secrets();
+        ensure_success_response(response)
+            .await
+            .map_err(|error| redact_error_values(error, &secrets))
+    }
+
+    pub(crate) async fn page_stream(&mut self, path: &str) -> Result<Response> {
+        let mut response = self.send_page_stream_once(path).await?;
+        if response.status() == StatusCode::UNAUTHORIZED && self.can_refresh() {
+            self.refresh_after_unauthorized().await?;
+            response = self.send_page_stream_once(path).await?;
         }
         let secrets = self.auth_secrets();
         ensure_success_response(response)
@@ -554,6 +638,49 @@ impl ApiClient {
         request.send().await.map_err(transport_error)
     }
 
+    async fn send_page_once(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Value>,
+        with_ui_session: bool,
+        with_agent: bool,
+    ) -> Result<Response> {
+        let access_token = self
+            .access_token()
+            .ok_or_else(|| anyhow!("未登录；请先执行 `a4n auth login --password-stdin`"))?;
+        let mut request = self
+            .http
+            .request(method, self.url(path)?)
+            .bearer_auth(access_token);
+        if with_ui_session {
+            request = request.header(
+                "x-ui-session-token",
+                self.ui_session_token().ok_or_else(|| {
+                    anyhow!("没有 Page Session；请先执行 `a4n page attach --code CODE`")
+                })?,
+            );
+        }
+        if with_agent {
+            request = request
+                .header(
+                    "x-agent-id",
+                    self.agent_id()
+                        .ok_or_else(|| anyhow!("没有 Agent；请先执行 `a4n agent register`"))?,
+                )
+                .header(
+                    "x-agent-token",
+                    self.agent_token().ok_or_else(|| {
+                        anyhow!("没有 Agent token；请先执行 `a4n agent register`")
+                    })?,
+                );
+        }
+        if let Some(body) = body {
+            request = request.json(&body);
+        }
+        request.send().await.map_err(transport_error)
+    }
+
     async fn send_stream_once(&self, path: &str, last_event_id: Option<&str>) -> Result<Response> {
         let token = self
             .access_token()
@@ -570,6 +697,19 @@ impl ApiClient {
             );
         }
         request.send().await.map_err(transport_error)
+    }
+
+    async fn send_page_stream_once(&self, path: &str) -> Result<Response> {
+        let token = self
+            .access_token()
+            .ok_or_else(|| anyhow!("未登录；请先执行 `a4n auth login --password-stdin`"))?;
+        self.http
+            .get(self.url(path)?)
+            .header(ACCEPT, "text/event-stream")
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(transport_error)
     }
 
     async fn send_media_once(&self, media_path: &str) -> Result<Response> {
@@ -700,6 +840,8 @@ impl ApiClient {
             session_id: Some(tokens.session_id.clone()),
             agent_id: self.stored.agent_id.clone(),
             agent_token: self.stored.agent_token.clone(),
+            ui_session_id: self.stored.ui_session_id.clone(),
+            ui_session_token: self.stored.ui_session_token.clone(),
             runtime_config_snapshot: self.stored.runtime_config_snapshot.clone(),
         }
     }
@@ -730,6 +872,7 @@ impl ApiClient {
             self.access_token().map(str::to_string),
             self.stored.refresh_token.clone(),
             self.stored.agent_token.clone(),
+            self.stored.ui_session_token.clone(),
         ]
         .into_iter()
         .flatten()
@@ -1041,9 +1184,66 @@ mod tests {
     use uuid::Uuid;
 
     use super::{
-        ApiClient, JsonRequest, api_request_error, is_sensitive_field_name, redact_json_values,
+        ApiBody, ApiClient, JsonRequest, api_request_error, is_sensitive_field_name,
+        redact_json_values,
     };
     use crate::config::StoredConfig;
+
+    #[test]
+    fn response_bodies_decode_json_text_empty_and_reject_invalid_bytes() {
+        assert_eq!(
+            ApiBody {
+                content_type: Some("application/json".into()),
+                bytes: br#"{"ok":true}"#.to_vec(),
+            }
+            .into_value()
+            .unwrap(),
+            json!({"ok": true})
+        );
+        assert_eq!(
+            ApiBody {
+                content_type: None,
+                bytes: b"[1,2]".to_vec(),
+            }
+            .into_value()
+            .unwrap(),
+            json!([1, 2])
+        );
+        assert_eq!(
+            ApiBody {
+                content_type: Some("text/plain".into()),
+                bytes: b"plain text".to_vec(),
+            }
+            .into_value()
+            .unwrap(),
+            json!("plain text")
+        );
+        assert_eq!(
+            ApiBody {
+                content_type: None,
+                bytes: Vec::new(),
+            }
+            .into_value()
+            .unwrap(),
+            serde_json::Value::Null
+        );
+        assert!(
+            ApiBody {
+                content_type: Some("application/json".into()),
+                bytes: b"not-json".to_vec(),
+            }
+            .into_value()
+            .is_err()
+        );
+        assert!(
+            ApiBody {
+                content_type: None,
+                bytes: vec![0xff],
+            }
+            .into_value()
+            .is_err()
+        );
+    }
 
     #[test]
     fn extracts_api_error_contract() {
@@ -1137,6 +1337,8 @@ mod tests {
             session_id: Some("session".into()),
             agent_id: None,
             agent_token: None,
+            ui_session_id: None,
+            ui_session_token: None,
             runtime_config_snapshot: None,
         };
         let mut client = ApiClient::new(config_path, stored, None).unwrap();
@@ -1179,6 +1381,8 @@ mod tests {
             session_id: Some("session".into()),
             agent_id: None,
             agent_token: None,
+            ui_session_id: None,
+            ui_session_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1205,6 +1409,8 @@ mod tests {
             session_id: Some("session".into()),
             agent_id: None,
             agent_token: None,
+            ui_session_id: None,
+            ui_session_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1259,6 +1465,8 @@ mod tests {
             session_id: Some("session".into()),
             agent_id: None,
             agent_token: None,
+            ui_session_id: None,
+            ui_session_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1351,6 +1559,8 @@ mod tests {
             session_id: Some("session".into()),
             agent_id: None,
             agent_token: None,
+            ui_session_id: None,
+            ui_session_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1410,6 +1620,8 @@ mod tests {
             session_id: Some("session".into()),
             agent_id: None,
             agent_token: None,
+            ui_session_id: None,
+            ui_session_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();
@@ -1433,6 +1645,8 @@ mod tests {
             session_id: Some("stored-session".into()),
             agent_id: None,
             agent_token: None,
+            ui_session_id: None,
+            ui_session_token: None,
             runtime_config_snapshot: None,
         };
         stored.save(&config_path).unwrap();

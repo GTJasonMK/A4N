@@ -1,9 +1,11 @@
 use super::super::*;
+use sea_orm::sea_query::{Alias, Expr};
+use std::collections::HashSet;
 
 pub async fn attach_runs_to_workflow_for_target<C>(
     db: &C,
     input: AttachGenerationRunsToWorkflowInput,
-) -> Result<Vec<generation_run::Model>, GenerationDbError>
+) -> Result<usize, GenerationDbError>
 where
     C: ConnectionTrait,
 {
@@ -12,41 +14,56 @@ where
     validate_positive_id(input.workflow_run_id, "workflow_run_id")?;
     let call_key = normalize_optional_owned_text(input.call_key);
     let input_fingerprint_sha256 = normalize_optional_owned_text(input.input_fingerprint_sha256);
-    let targets = generation_run_target::Entity::find()
+    let run_ids = generation_run_target::Entity::find()
+        .select_only()
+        .column(generation_run_target::Column::GenerationRunId)
         .filter(generation_run_target::Column::TargetTable.eq(target_table))
         .filter(generation_run_target::Column::TargetId.eq(input.target_id))
         .order_by_asc(generation_run_target::Column::Id)
+        .into_tuple::<i64>()
         .all(db)
         .await?;
-    if targets.is_empty() {
-        return Ok(Vec::new());
+    let run_ids = run_ids.into_iter().collect::<HashSet<_>>();
+    if run_ids.is_empty() {
+        return Ok(0);
     }
-    let run_ids = targets
-        .iter()
-        .map(|target| target.generation_run_id)
-        .collect::<BTreeSet<_>>();
-    let runs = generation_run::Entity::find()
-        .filter(generation_run::Column::Id.is_in(run_ids))
-        .order_by_asc(generation_run::Column::CreatedAt)
-        .all(db)
-        .await?;
-    let mut updated = Vec::with_capacity(runs.len());
-    for run in runs {
-        let mut active: generation_run::ActiveModel = run.into();
-        active.workflow_run_id = Set(Some(input.workflow_run_id));
-        if call_key.is_some() {
-            active.call_key = Set(call_key.clone());
-        }
-        if input_fingerprint_sha256.is_some() {
-            active.input_fingerprint_sha256 = Set(input_fingerprint_sha256.clone());
-        }
-        if input.input_fingerprint_json.is_some() {
-            active.input_fingerprint_json = Set(input.input_fingerprint_json.clone());
-        }
-        if input.artifact_refs_json.is_some() {
-            active.artifact_refs_json = Set(input.artifact_refs_json.clone());
-        }
-        updated.push(active.update(db).await?);
+    let mut update = generation_run::Entity::update_many()
+        .col_expr(
+            generation_run::Column::WorkflowRunId,
+            Expr::value(Some(input.workflow_run_id)),
+        )
+        .filter(generation_run::Column::Id.is_in(run_ids.iter().copied()));
+    if let Some(call_key) = &call_key {
+        update = update.col_expr(
+            generation_run::Column::CallKey,
+            Expr::value(call_key.clone()),
+        );
     }
-    Ok(updated)
+    if let Some(input_fingerprint_sha256) = &input_fingerprint_sha256 {
+        update = update.col_expr(
+            generation_run::Column::InputFingerprintSha256,
+            Expr::value(input_fingerprint_sha256.clone()),
+        );
+    }
+    if let Some(input_fingerprint_json) = &input.input_fingerprint_json {
+        update = update.col_expr(
+            generation_run::Column::InputFingerprintJson,
+            Expr::value(input_fingerprint_json.clone()).cast_as(Alias::new("json")),
+        );
+    }
+    if let Some(artifact_refs_json) = &input.artifact_refs_json {
+        update = update.col_expr(
+            generation_run::Column::ArtifactRefsJson,
+            Expr::value(artifact_refs_json.clone()).cast_as(Alias::new("json")),
+        );
+    }
+    let result = update.exec(db).await?;
+    if result.rows_affected != run_ids.len() as u64 {
+        return Err(GenerationDbError::InvalidArgument(format!(
+            "绑定 workflow 的生成运行数量不一致: updated={}, expected={}",
+            result.rows_affected,
+            run_ids.len()
+        )));
+    }
+    Ok(run_ids.len())
 }

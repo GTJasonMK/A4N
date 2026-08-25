@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
@@ -11,10 +11,27 @@ pub(super) async fn sync_reusable_boundary_frame_previous_image_refs(
     rows: Vec<chapter_video_prompt::Model>,
     image_id_by_frame_number: &HashMap<i32, i64>,
 ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    let image_ids = rows
+        .iter()
+        .filter_map(|row| row.reference_image_ids_json.as_ref())
+        .filter_map(Value::as_array)
+        .flat_map(|items| items.iter().filter_map(Value::as_i64))
+        .collect::<BTreeSet<_>>();
+    let existing_image_ids = service
+        .generated_image_ids_by_ids(&image_ids.iter().copied().collect::<Vec<_>>())
+        .await?
+        .into_iter()
+        .collect::<BTreeSet<_>>();
     let mut synced = Vec::with_capacity(rows.len());
     for row in rows {
         synced.push(
-            sync_boundary_frame_previous_image_ref(service, row, image_id_by_frame_number).await?,
+            sync_boundary_frame_previous_image_ref(
+                service,
+                row,
+                image_id_by_frame_number,
+                &existing_image_ids,
+            )
+            .await?,
         );
     }
     Ok(synced)
@@ -24,6 +41,7 @@ pub(super) async fn sync_boundary_frame_previous_image_ref(
     service: &OrchestratorContext,
     row: chapter_video_prompt::Model,
     image_id_by_frame_number: &HashMap<i32, i64>,
+    existing_image_ids: &BTreeSet<i64>,
 ) -> Result<chapter_video_prompt::Model, AppError> {
     if row.shot_number <= 1 {
         return Ok(row);
@@ -41,25 +59,21 @@ pub(super) async fn sync_boundary_frame_previous_image_ref(
     let Some(last_ref_id) = refs.last().copied() else {
         return Ok(row);
     };
-    let last_ref_exists = service.generated_image_by_id(last_ref_id).await?.is_some();
-    if last_ref_exists {
+    if existing_image_ids.contains(&last_ref_id) {
         return Ok(row);
     }
-    let updated_refs = refs
-        .into_iter()
-        .map(|id| {
-            if id == last_ref_id {
-                latest_previous_image_id
-            } else {
-                id
-            }
-        })
-        .fold(Vec::<i64>::new(), |mut acc, id| {
-            if !acc.contains(&id) {
-                acc.push(id);
-            }
-            acc
-        });
+    let mut seen = HashSet::new();
+    let mut updated_refs = Vec::with_capacity(refs.len());
+    for id in refs {
+        let id = if id == last_ref_id {
+            latest_previous_image_id
+        } else {
+            id
+        };
+        if seen.insert(id) {
+            updated_refs.push(id);
+        }
+    }
     let mut metadata_json = row.metadata_json.clone();
     if let Some(metadata) = metadata_json.as_mut()
         && let Some(boundary_frame) = metadata.get_mut("boundary_frame")
@@ -142,18 +156,26 @@ pub(super) async fn ensure_boundary_frame_checkpoint_can_sync(
     )
     .await
     .map_err(AppError::Database)?;
+    let mut prompts_to_validate = Vec::new();
     for row in rows {
         if row.status == chapter_video_prompt::STATUS_RUNNING {
+            service
+                .ensure_prompt_stages_mutable_skipping_generated_images(
+                    &prompts_to_validate,
+                    "删除",
+                )
+                .await?;
             return Err(AppError::InvalidArgument(format!(
                 "当前章节已有边界帧提示词 #{} 正在运行，不能继续生成边界帧提示词",
                 row.shot_number
             )));
         }
-        if !kept_prompt_ids.contains(&row.id)
-            && !service.frame_prompt_has_generated_image(&row).await?
-        {
-            service.ensure_prompt_stage_mutable(&row, "删除").await?;
+        if !kept_prompt_ids.contains(&row.id) {
+            prompts_to_validate.push(row);
         }
     }
+    service
+        .ensure_prompt_stages_mutable_skipping_generated_images(&prompts_to_validate, "删除")
+        .await?;
     Ok(())
 }

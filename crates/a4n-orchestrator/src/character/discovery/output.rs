@@ -6,7 +6,7 @@ use a4n_core::{
     json_contract::reject_unknown_fields,
     models::{chapter::chapter, project::text_anchor},
     profile_text::normalize_importance_value,
-    source_spans::anchor_quote_with_chapter_number,
+    source_spans::AnchorQuoteIndex,
 };
 use serde_json::{Value, json};
 
@@ -37,8 +37,9 @@ pub(super) fn parse_character_discovery_output(
 
     let mut seen = BTreeSet::new();
     let mut characters = Vec::new();
+    let anchor_index = AnchorQuoteIndex::new(chapters, text_anchors);
     for (index, character) in required_array(&value, "characters")?.iter().enumerate() {
-        let normalized = normalize_discovered_character(index, character, chapters, text_anchors)?;
+        let normalized = normalize_discovered_character(index, character, &anchor_index)?;
         let keys = discovered_character_keys(&normalized)?;
         if keys.iter().any(|key| seen.contains(key)) {
             return Err(format!("characters[{index}] 与前序角色重复"));
@@ -52,8 +53,7 @@ pub(super) fn parse_character_discovery_output(
 fn normalize_discovered_character(
     index: usize,
     character: &Value,
-    chapters: &[chapter::Model],
-    text_anchors: &[text_anchor::Model],
+    anchor_index: &AnchorQuoteIndex<'_>,
 ) -> Result<Value, String> {
     if !character.is_object() {
         return Err(format!("characters[{index}] 必须是 JSON 对象"));
@@ -116,11 +116,9 @@ fn normalize_discovered_character(
         ],
     );
     let evidence_anchor_id = required_positive_i64(character, "evidence_anchor_id", index)?;
-    let evidence_anchor = anchor_quote_with_chapter_number(
+    let evidence_anchor = anchor_index.quote_with_chapter_number(
         &format!("{evidence_path}.evidence_anchor_id"),
         evidence_anchor_id,
-        chapters,
-        text_anchors,
     )?;
     Ok(json!({
         "name": name,

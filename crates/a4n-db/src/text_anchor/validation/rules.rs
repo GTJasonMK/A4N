@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use a4n_core::models::project::text_anchor;
 
@@ -37,7 +37,7 @@ pub(super) fn validate_loaded_anchor_records(
     let allowed_chapters = source_snapshot_chapter_ids
         .iter()
         .copied()
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     for anchor in anchors {
         if anchor.project_id != root_project_id {
             return Err(TextAnchorDbError::InvalidArgument(format!(

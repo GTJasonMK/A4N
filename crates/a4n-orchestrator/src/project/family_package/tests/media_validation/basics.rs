@@ -8,22 +8,6 @@ fn validate_media_bytes_rejects_checksum_mismatch() {
 }
 
 #[test]
-fn completed_media_asset_import_uses_pending_insert_status() {
-    assert_eq!(
-        media_asset_status_for_import_insert(MEDIA_STATUS_COMPLETED),
-        MEDIA_STATUS_PENDING
-    );
-    assert_eq!(
-        media_asset_status_for_import_insert(MEDIA_STATUS_RUNNING),
-        MEDIA_STATUS_RUNNING
-    );
-    assert_eq!(
-        media_asset_status_for_import_insert(MEDIA_STATUS_FAILED),
-        MEDIA_STATUS_FAILED
-    );
-}
-
-#[test]
 fn validate_media_manifest_rejects_unknown_media_status() {
     let mut package = package_with_derived_project();
     package.media_assets = vec![media_asset_with_status("bogus")];

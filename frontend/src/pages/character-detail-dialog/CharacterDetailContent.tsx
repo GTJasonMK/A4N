@@ -9,6 +9,7 @@ import type {
   CharacterDetailInitialEventFilter,
   CharacterDetailTab,
 } from "./characterDetailUtils";
+import { useI18n } from "../../i18n";
 
 interface CharacterDetailContentProps {
   tab: CharacterDetailTab;
@@ -35,11 +36,12 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
   onChanged,
   onRefresh,
 }) => {
+  const { t } = useI18n();
   if (loadingTab === tab) {
     return (
       <div className="py-10 flex flex-col items-center gap-2 text-book-text-muted">
         <LoadingSpinner size="lg" />
-        <span className="text-xs">加载中…</span>
+        <span className="text-xs">{t("characterDetail.loading")}</span>
       </div>
     );
   }
@@ -56,9 +58,9 @@ export const CharacterDetailContent: React.FC<CharacterDetailContentProps> = ({
     return conflicts == null ? (
       <div className="py-8 flex flex-col items-center gap-3 text-book-text-muted">
         <AlertTriangle size={18} />
-        <div className="text-xs">尚未检测一致性</div>
+        <div className="text-xs">{t("characterDetail.notChecked")}</div>
         <BookButton variant="secondary" onClick={() => void onRefresh()}>
-          开始检测
+          {t("characterDetail.startCheck")}
         </BookButton>
       </div>
     ) : (

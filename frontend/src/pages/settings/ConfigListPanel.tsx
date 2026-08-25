@@ -9,6 +9,7 @@ import { ConfigListSidebar } from "./config-list/ConfigListSidebar";
 import { ConfigListToolbar } from "./config-list/ConfigListToolbar";
 import { FormField } from "./config-list/FormField";
 import type { ConfigListPanelProps, ConfigTestResult } from "./config-list/types";
+import { useI18n } from "../../i18n";
 
 export type { ConfigItem } from "./config-list/types";
 export { FormField };
@@ -33,12 +34,17 @@ export function ConfigListPanel<C>({
   renderEditor,
   defaultForm,
   validate,
-  activeLabel = "当前默认",
-  activateText = "设为默认",
-  activateSuccessMessage = "已设为默认",
-  activateErrorMessage = "设置默认失败",
+  activeLabel,
+  activateText,
+  activateSuccessMessage,
+  activateErrorMessage,
 }: ConfigListPanelProps<C>) {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
+  const resolvedActiveLabel = activeLabel ?? t("settings.currentDefault");
+  const resolvedActivateText = activateText ?? t("settings.setDefault");
+  const resolvedActivateSuccessMessage = activateSuccessMessage ?? t("settings.setDefaultSuccess");
+  const resolvedActivateErrorMessage = activateErrorMessage ?? t("settings.setDefaultFailed");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<C>(defaultForm);
@@ -108,11 +114,10 @@ export function ConfigListPanel<C>({
   };
 
   useLayoutEffect(() => {
-    if (creating || dirty || items.length !== 1) return;
-    const onlyItem = items[0];
-    if (selectedId === onlyItem.id) return;
-    setSelectedId(onlyItem.id);
-    setForm(onlyItem.config);
+    if (creating || dirty || selectedId != null || items.length === 0) return;
+    const initialItem = items.find((item) => item.isActive) ?? items[0];
+    setSelectedId(initialItem.id);
+    setForm(initialItem.config);
     markClean();
   }, [creating, dirty, items, selectedId]);
 
@@ -135,9 +140,9 @@ export function ConfigListPanel<C>({
   const confirmDiscardDraft = async (actionText: string): Promise<boolean> => {
     if (!dirtyRef.current) return true;
     return confirmDialog({
-      title: "未保存修改",
-      message: `当前 ${title} 表单有未保存修改，${actionText}会放弃当前草稿。是否继续？`,
-      confirmText: "放弃草稿",
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", { name: title, action: actionText }),
+      confirmText: t("common.discardDraft"),
       dialogType: "warning",
     });
   };
@@ -155,7 +160,7 @@ export function ConfigListPanel<C>({
     if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
     draftTransitionRef.current = true;
     try {
-      if (!(await confirmDiscardDraft(`新增${title}`))) return;
+      if (!(await confirmDiscardDraft(t("settings.createConfig", { name: title })))) return;
       if (!mountedRef.current) return;
       setSelectedId(null);
       setCreating(true);
@@ -171,7 +176,7 @@ export function ConfigListPanel<C>({
     if (!creating && id === selectedId) return;
     draftTransitionRef.current = true;
     try {
-      if (!(await confirmDiscardDraft(`切换${title}`))) return;
+      if (!(await confirmDiscardDraft(t("settings.switchConfig", { name: title })))) return;
       if (!mountedRef.current || !hasItem(id)) return;
       setSelectedId(id);
       setCreating(false);
@@ -188,7 +193,7 @@ export function ConfigListPanel<C>({
     refreshingRef.current = true;
     draftTransitionRef.current = true;
     try {
-      if (!(await confirmDiscardDraft("刷新列表"))) return;
+      if (!(await confirmDiscardDraft(t("settings.refreshList")))) return;
       if (!mountedRef.current || refreshSeqRef.current !== requestSeq) return;
       if (dirtyRef.current) {
         resetFormToSavedState();
@@ -234,11 +239,11 @@ export function ConfigListPanel<C>({
         await onCreate(requestForm);
         if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
         if (editorScope() === requestScope && editVersionRef.current === requestEditVersion) {
-          addToast(`${title} 已创建`, "success");
+          addToast(t("settings.configCreated", { name: title }), "success");
           setCreating(false);
           markClean();
         } else if (editorScope() === requestScope) {
-          addToast(`${title} 已创建，保存期间的后续修改仍保留为未保存草稿`, "success");
+          addToast(t("settings.configCreatedWithDraft", { name: title }), "success");
         }
       } else if (requestSelectedItem) {
         await onUpdate(requestSelectedItem.id, requestForm);
@@ -249,16 +254,16 @@ export function ConfigListPanel<C>({
           return next;
         });
         if (editorScope() === requestScope && editVersionRef.current === requestEditVersion) {
-          addToast(`${title} 已更新`, "success");
+          addToast(t("settings.configUpdated", { name: title }), "success");
           markClean();
         } else if (editorScope() === requestScope) {
-          addToast(`${title} 已更新，保存期间的后续修改仍保留为未保存草稿`, "success");
+          addToast(t("settings.configUpdatedWithDraft", { name: title }), "success");
         }
       }
       await onRefresh();
     } catch (err) {
       if (!mountedRef.current || saveSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "保存失败"), "error");
+      addToast(extractErrorMessage(err, t("settings.saveFailed")), "error");
     } finally {
       if (saveSeqRef.current === requestSeq) savingRef.current = false;
       if (mountedRef.current && saveSeqRef.current === requestSeq) setSaving(false);
@@ -277,7 +282,7 @@ export function ConfigListPanel<C>({
     if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
     draftTransitionRef.current = true;
     try {
-      if (!(await confirmDiscardDraft("取消编辑"))) return;
+      if (!(await confirmDiscardDraft(t("settings.cancelEdit")))) return;
       if (!mountedRef.current) return;
       setCreating(false);
       setSelectedId(null);
@@ -303,11 +308,11 @@ export function ConfigListPanel<C>({
     try {
       await onActivate(id);
       if (!mountedRef.current || activateSeqRef.current !== requestSeq || !hasItem(id)) return;
-      addToast(activateSuccessMessage, "success");
+      addToast(resolvedActivateSuccessMessage, "success");
       await onRefresh();
     } catch (err) {
       if (!mountedRef.current || activateSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, activateErrorMessage), "error");
+      addToast(extractErrorMessage(err, resolvedActivateErrorMessage), "error");
     } finally {
       if (activateSeqRef.current === requestSeq) activatingRef.current = null;
       if (mountedRef.current && activateSeqRef.current === requestSeq) setActivating(null);
@@ -324,14 +329,14 @@ export function ConfigListPanel<C>({
     if (!hasItem(id)) return;
     const item = itemsRef.current.find((row) => row.id === id);
     if (item?.deleteDisabled) {
-      addToast(item.deleteDisabledReason ?? "该配置不可删除", "error");
+      addToast(item.deleteDisabledReason ?? t("settings.configCannotDelete"), "error");
       return;
     }
     deletingRef.current = id;
     const ok = await confirmDialog({
-      title: `删除${title}`,
-      message: `确定删除该 ${title}？此操作不可撤销。`,
-      confirmText: "删除",
+      title: t("settings.deleteConfigTitle", { name: title }),
+      message: t("common.deleteConfirm", { name: title }),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -349,7 +354,7 @@ export function ConfigListPanel<C>({
     try {
       await onDelete(id);
       if (!mountedRef.current || deleteSeqRef.current !== requestSeq) return;
-      addToast("已删除", "success");
+      addToast(t("settings.configDeleted"), "success");
       if (selectedIdRef.current === id) setSelectedId(null);
       setTestResults((prev) => {
         const next = { ...prev };
@@ -359,7 +364,7 @@ export function ConfigListPanel<C>({
       await onRefresh();
     } catch (err) {
       if (!mountedRef.current || deleteSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "删除失败"), "error");
+      addToast(extractErrorMessage(err, t("settings.deleteFailed")), "error");
     } finally {
       if (deleteSeqRef.current === requestSeq) deletingRef.current = null;
       if (mountedRef.current && deleteSeqRef.current === requestSeq) setDeleting(null);
@@ -376,11 +381,11 @@ export function ConfigListPanel<C>({
     ) return;
     if (!isSelectedItem(id)) return;
     if (selectedItem?.readonly) {
-      addToast(selectedItem.readonlyReason ?? "只读配置不能在这里测试", "error");
+      addToast(selectedItem.readonlyReason ?? t("settings.readonlyConfigCannotTest"), "error");
       return;
     }
     if (dirtyRef.current) {
-      addToast("当前表单有未保存修改，请先保存后再测试配置", "error");
+      addToast(t("settings.unsavedConfigBeforeTest"), "error");
       return;
     }
     const requestSeq = testSeqRef.current + 1;
@@ -394,14 +399,14 @@ export function ConfigListPanel<C>({
         ...prev,
         [id]: {
           status: "success",
-          message: "连接测试通过",
+          message: t("settings.connectionTestPassed"),
           testedAt: new Date().toISOString(),
         },
       }));
-      addToast("连接测试通过", "success");
+      addToast(t("settings.connectionTestPassed"), "success");
     } catch (err) {
       if (!mountedRef.current || testSeqRef.current !== requestSeq || !isSelectedItem(id)) return;
-      const message = extractErrorMessage(err, "连接测试失败");
+      const message = extractErrorMessage(err, t("settings.connectionTestFailed"));
       setTestResults((prev) => ({
         ...prev,
         [id]: {
@@ -427,11 +432,11 @@ export function ConfigListPanel<C>({
     ) return;
     if (!isSelectedItem(id)) return;
     if (selectedItem?.readonly) {
-      addToast(selectedItem.readonlyReason ?? "只读配置不能在这里预览测试请求", "error");
+      addToast(selectedItem.readonlyReason ?? t("settings.readonlyConfigCannotPreview"), "error");
       return;
     }
     if (dirtyRef.current) {
-      addToast("当前表单有未保存修改，请先保存后再预览测试请求", "error");
+      addToast(t("settings.unsavedConfigBeforePreview"), "error");
       return;
     }
     const requestSeq = previewSeqRef.current + 1;
@@ -458,7 +463,7 @@ export function ConfigListPanel<C>({
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "预览测试请求失败"), "error");
+      addToast(extractErrorMessage(err, t("settings.previewTestFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (previewSeqRef.current === requestSeq) previewLoadingRef.current = false;
@@ -469,7 +474,7 @@ export function ConfigListPanel<C>({
   };
 
   return (
-    <section aria-label={`${title}管理`} className="flex h-auto flex-col gap-3 md:h-full">
+    <section aria-label={t("settings.configManagement", { name: title })} className="flex h-auto flex-col gap-3 md:h-full">
       <ConfigListToolbar
         title={title}
         itemCount={items.length}
@@ -494,7 +499,7 @@ export function ConfigListPanel<C>({
             creating={creating}
             formatItem={formatItem}
             testResults={testResults}
-            activeLabel={activeLabel}
+            activeLabel={resolvedActiveLabel}
             onSelect={(id) => void handleSelect(id)}
           />
         ) : null}
@@ -516,7 +521,7 @@ export function ConfigListPanel<C>({
           testResult={selectedItem ? testResults[selectedItem.id] ?? null : null}
           canTest={Boolean(onTest)}
           canPreviewTest={Boolean(onPreviewTest)}
-          activateText={activateText}
+          activateText={resolvedActivateText}
           renderEditor={renderEditor}
           onFormChange={(nextForm) => {
             setForm(nextForm);
@@ -540,7 +545,7 @@ export function ConfigListPanel<C>({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle={`${title}测试请求预览`}
+        fallbackTitle={t("settings.testRequestPreview", { name: title })}
         onClose={() => {
           previewSeqRef.current += 1;
           previewLoadingRef.current = false;

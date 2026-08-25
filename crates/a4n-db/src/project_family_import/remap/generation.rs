@@ -1,6 +1,12 @@
 mod galgame;
+mod manga;
 mod params;
 mod target;
 
-pub use params::remap_generation_spec_params_json;
-pub use target::{remap_generation_spec_source_version_hash, remap_generation_target_id};
+pub(in crate::project_family_import) use manga::{
+    remap_manga_page_layout, remap_manga_reference_bindings_value,
+};
+pub(in crate::project_family_import) use params::remap_generation_spec_params_json;
+pub(in crate::project_family_import) use target::{
+    remap_generation_spec_source_version_hash, remap_generation_target_id,
+};

@@ -1,12 +1,12 @@
 use a4n_core::error::AppError;
-use a4n_core::source_spans::{SourceSpan, resolve_source_span_text};
+use a4n_core::source_spans::SourceSpanIndex;
 use serde_json::Value;
 
 use super::analysis_materialize_error;
 
 pub(in crate::chapter_analysis::owner) fn validate_source_span_ids(
     value: Option<&Value>,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
     path: &str,
 ) -> Result<(), AppError> {
     let ids = value
@@ -23,7 +23,9 @@ pub(in crate::chapter_analysis::owner) fn validate_source_span_ids(
             .ok_or_else(|| {
                 analysis_materialize_error(format!("{path}[{index}] 必须是非空字符串"))
             })?;
-        resolve_source_span_text(source_spans, id).map_err(analysis_materialize_error)?;
+        source_spans
+            .resolve_text(id)
+            .map_err(analysis_materialize_error)?;
     }
     Ok(())
 }

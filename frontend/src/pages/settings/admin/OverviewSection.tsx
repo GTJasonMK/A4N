@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { AlertTriangle, CheckCircle2, RefreshCw } from "lucide-react";
+import type { MessageKey } from "../../../i18n";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import {
   getAdminOverview,
@@ -10,8 +11,10 @@ import {
 } from "../../../api/admin";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
+import { formatNumber, useI18n } from "../../../i18n";
 
 export const OverviewSection: React.FC = () => {
+  const { t } = useI18n();
   const [overview, setOverview] = useState<AdminOverviewSummary | null>(null);
   const [health, setHealth] = useState<AdminHealthCheck | null>(null);
   const loadOverview = useCallback(
@@ -29,7 +32,7 @@ export const OverviewSection: React.FC = () => {
     "admin-overview",
     loadOverview,
     applyOverview,
-    "加载失败",
+    t("settingsAdmin.loadFailed"),
   );
 
   return (
@@ -45,33 +48,48 @@ const OverviewSummary: React.FC<{
   loading: boolean;
   onRefresh: () => void | Promise<void>;
 }> = ({ overview, loading, onRefresh }) => {
+  const { t, locale } = useI18n();
   const items: Array<[string, string]> = [
     [
-      "用户",
+      t("settingsAdmin.usersMetric"),
       overview
-        ? `${overview.total_users.toLocaleString()} 位 · 今日活跃 ${overview.daily_active_users.toLocaleString()} 位`
+        ? t("settingsAdmin.userMetricDetail", {
+            total: formatNumber(overview.total_users, locale),
+            active: formatNumber(overview.daily_active_users, locale),
+          })
         : "",
     ],
     [
-      "内容",
+      t("settingsAdmin.contentMetric"),
       overview
-        ? `${overview.total_projects.toLocaleString()} 个项目 · ${overview.total_chapters.toLocaleString()} 个章节`
+        ? t("settingsAdmin.contentMetricDetail", {
+            projects: formatNumber(overview.total_projects, locale),
+            chapters: formatNumber(overview.total_chapters, locale),
+          })
         : "",
     ],
     [
-      "任务",
+      t("settingsAdmin.tasksMetric"),
       overview
-        ? `${overview.task_queue_count.toLocaleString()} 个 · 等待 ${overview.pending_tasks.toLocaleString()} · 执行中 ${overview.running_tasks.toLocaleString()}`
+        ? t("settingsAdmin.taskMetricDetail", {
+            total: formatNumber(overview.task_queue_count, locale),
+            pending: formatNumber(overview.pending_tasks, locale),
+            running: formatNumber(overview.running_tasks, locale),
+          })
         : "",
     ],
     [
-      "AI 调用",
+      t("settingsAdmin.aiCallsMetric"),
       overview
-        ? `${overview.total_llm_calls.toLocaleString()} 次 · ${(
-            overview.llm_config_count +
-            overview.embedding_config_count +
-            overview.image_gen_config_count
-          ).toLocaleString()} 项配置`
+        ? t("settingsAdmin.aiCallMetricDetail", {
+            calls: formatNumber(overview.total_llm_calls, locale),
+            configs: formatNumber(
+              overview.llm_config_count +
+              overview.embedding_config_count +
+              overview.image_gen_config_count,
+              locale,
+            ),
+          })
         : "",
     ],
   ];
@@ -79,10 +97,10 @@ const OverviewSummary: React.FC<{
   return (
     <section className="a4n-flat-surface overflow-hidden">
       <div className="flex min-h-10 items-center gap-2 border-b border-book-border/30 px-3 py-1.5">
-        <h3 className="text-xs font-medium text-book-text-main">运行概览</h3>
+        <h3 className="text-xs font-medium text-book-text-main">{t("settingsAdmin.overviewTitle")}</h3>
         <span className="flex-1" />
         <BookIconButton
-          label="刷新后台概览"
+          label={t("settingsAdmin.refresh")}
           onClick={onRefresh}
           size="sm"
           disabled={loading}
@@ -95,7 +113,7 @@ const OverviewSummary: React.FC<{
           <div key={label} className="grid min-w-0 grid-cols-[4rem_minmax(0,1fr)] gap-3 px-3 py-2.5 text-xs">
             <dt className="text-book-text-muted">{label}</dt>
             <dd className="min-w-0 truncate text-book-text-main" title={value}>
-              {value || (loading ? "正在加载…" : "暂无数据")}
+              {value || (loading ? t("settingsAdmin.loadingData") : t("settingsAdmin.noData"))}
             </dd>
           </div>
         ))}
@@ -108,27 +126,28 @@ const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: b
   health,
   loading,
 }) => {
+  const { t } = useI18n();
   const services = health?.services ?? [];
   const healthyCount = services.filter((service) => service.healthy).length;
 
   return (
     <section>
       <div className="mb-2 flex min-h-8 flex-wrap items-center gap-x-3 gap-y-1 px-1">
-        <h3 className="text-xs font-medium text-book-text-main">系统健康</h3>
+        <h3 className="text-xs font-medium text-book-text-main">{t("settingsAdmin.systemHealth")}</h3>
         <span className="min-w-0 flex-1 text-right text-small text-book-text-muted">
-          {health ? `${serviceModeLabel(health.runtime_profile)} · ` : ""}
-          {services.length > 0 ? `${healthyCount}/${services.length} 项正常` : "暂无数据"}
+          {health ? `${serviceModeLabel(health.runtime_profile, t)} · ` : ""}
+          {services.length > 0 ? t("settingsAdmin.healthyCount", { healthy: healthyCount, total: services.length }) : t("settingsAdmin.noData")}
         </span>
       </div>
 
       {loading && services.length === 0 ? (
         <div className="a4n-flat-surface inline-flex w-full items-center justify-center gap-1.5 py-4 text-small text-book-text-muted">
           <LoadingSpinner size="sm" />
-          正在加载数据…
+          {t("settingsAdmin.loadingData")}
         </div>
       ) : services.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--framed py-4 text-center text-xs text-book-text-muted">
-          无服务状态
+          {t("settingsAdmin.noServices")}
         </div>
       ) : (
         <ul className="grid grid-cols-1 items-start gap-2 lg:grid-cols-2">
@@ -142,6 +161,7 @@ const ServiceHealthPanel: React.FC<{ health: AdminHealthCheck | null; loading: b
 };
 
 const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }) => {
+  const { t } = useI18n();
   const url = service.url ?? "";
 
   return (
@@ -153,35 +173,35 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
         <div className="min-w-0 flex-1 font-medium text-book-text-main">{service.name}</div>
         <span className={`inline-flex shrink-0 items-center gap-1 text-small ${service.healthy ? "text-success" : "text-error"}`}>
           {service.healthy ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
-          {service.healthy ? "正常" : "异常"}
+          {service.healthy ? t("settingsAdmin.healthy") : t("settingsAdmin.unhealthy")}
         </span>
       </div>
       <details className="group mt-1.5 text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main">
-          诊断详情
+          {t("settingsAdmin.diagnostics")}
         </summary>
         <div className="mt-1.5 grid gap-3 border-l border-book-border/45 pl-3 sm:grid-cols-2">
           <div className="min-w-0">
-            <div className="mb-0.5 text-book-text-muted">连接</div>
-            <div className="text-book-text-sub">{serviceModeLabel(service.mode)}</div>
+            <div className="mb-0.5 text-book-text-muted">{t("settingsAdmin.connection")}</div>
+            <div className="text-book-text-sub">{serviceModeLabel(service.mode, t)}</div>
             <div className="mt-0.5 truncate font-mono text-book-text-muted" title={url}>
-              {url || "未配置服务地址"}
+              {url || t("settingsAdmin.notConfiguredService")}
             </div>
           </div>
           <div>
-            <div className="mb-0.5 text-book-text-muted">版本</div>
+            <div className="mb-0.5 text-book-text-muted">{t("settingsAdmin.version")}</div>
             <VersionLines service={service} />
           </div>
           <div>
-            <div className="mb-0.5 text-book-text-muted">进程</div>
+            <div className="mb-0.5 text-book-text-muted">{t("settingsAdmin.process")}</div>
             <div>{service.pid ?? "—"}</div>
           </div>
           <div className="min-w-0">
-            <div className="mb-0.5 text-book-text-muted">错误与程序</div>
+            <div className="mb-0.5 text-book-text-muted">{t("settingsAdmin.errorsAndPrograms")}</div>
             {service.error_message ? (
               <div className="break-words text-error">{service.error_message}</div>
             ) : (
-              <div className="text-book-text-sub">无错误</div>
+              <div className="text-book-text-sub">{t("settingsAdmin.noErrors")}</div>
             )}
             {service.binary ? (
               <div className="mt-1 truncate font-mono text-book-text-muted" title={service.binary}>
@@ -197,27 +217,30 @@ const ServiceHealthRow: React.FC<{ service: AdminServiceHealth }> = ({ service }
 
 type ServiceModeValue = AdminServiceHealth["mode"] | AdminHealthCheck["runtime_profile"];
 
-const SERVICE_MODE_LABELS: Record<ServiceModeValue, string> = {
-  full: "内置服务",
-  minimal: "精简内置",
-  embedded: "内置",
-  sidecar: "随附进程",
-  remote: "远程",
-  disabled: "已停用",
+const SERVICE_MODE_LABELS: Record<ServiceModeValue, MessageKey> = {
+  full: "settingsAdmin.builtinService",
+  minimal: "settingsAdmin.minimalBuiltin",
+  embedded: "settingsAdmin.embedded",
+  sidecar: "settingsAdmin.sidecar",
+  remote: "settingsAdmin.remote",
+  disabled: "settingsAdmin.disabled",
 };
 
-const serviceModeLabel = (mode: ServiceModeValue): string => SERVICE_MODE_LABELS[mode];
+const serviceModeLabel = (mode: ServiceModeValue, t: ReturnType<typeof useI18n>["t"]): string => t(SERVICE_MODE_LABELS[mode]);
 
-const VersionLines: React.FC<{ service: AdminServiceHealth }> = ({ service }) => (
+const VersionLines: React.FC<{ service: AdminServiceHealth }> = ({ service }) => {
+  const { t } = useI18n();
+  return (
   <div className="space-y-0.5 font-mono text-small leading-snug text-book-text-sub">
     <div className="truncate" title={service.service_version ?? ""}>
-      服务 {service.service_version ?? "—"}
+      {t("settingsAdmin.serviceVersion", { value: service.service_version ?? "—" })}
     </div>
     <div className="truncate" title={service.protocol_version?.toString() ?? ""}>
-      协议 {service.protocol_version ?? "—"}
+      {t("settingsAdmin.protocolVersion", { value: service.protocol_version ?? "—" })}
     </div>
     <div className="truncate" title={service.capability_version ?? ""}>
-      能力 {service.capability_version ?? "—"}
+      {t("settingsAdmin.capabilityVersion", { value: service.capability_version ?? "—" })}
     </div>
   </div>
-);
+  );
+};

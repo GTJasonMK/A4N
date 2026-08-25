@@ -50,6 +50,7 @@ import {
   type ImportAnalysisDialogState,
 } from "./imports/importTabUtils";
 import { readFileAsBase64 } from "../../utils/fileUpload";
+import { formatNumber, useI18n } from "../../i18n";
 
 interface ImportsTabProps {
   projectId: number;
@@ -61,6 +62,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   onBusyChange,
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const { runProgressTask: runReverseProgressTask } = useProgressTask();
   const [reviews, setReviews] = useState<ImportReviewSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -120,7 +122,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const [requestPreviewData, setRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
   const [requestPreviewTitle, setRequestPreviewTitle] =
-    useState("模型请求预览");
+    useState(() => t("novel.importReview.requestPreview"));
   const [importAnalysisDialog, setImportAnalysisDialog] =
     useState<ImportAnalysisDialogState | null>(null);
   const writeBusy =
@@ -284,7 +286,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         isCurrentProject(requestProjectId) &&
         loadRequestRef.current === requestId
       ) {
-        addToast(extractErrorMessage(err, "加载导入队列失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.loadQueueFailed")), "error");
       }
     } finally {
       if (
@@ -310,7 +312,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       setReverseResult(restored);
     } catch (err) {
       if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "恢复项目资料归纳结果失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.restoreCandidateFailed")), "error");
       }
     }
   };
@@ -346,7 +348,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
     setRequestPreviewData(null);
-    setRequestPreviewTitle("模型请求预览");
+    setRequestPreviewTitle(t("novel.importReview.requestPreview"));
     importAnalysisDialogDismissedRef.current = false;
     setImportAnalysisDialog(null);
     setSelected(new Set());
@@ -356,12 +358,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setActiveReviewJsonDirty(false);
     void load(projectId);
     void restoreLatestReverseCandidate(projectId, reverseType);
-    const t = setInterval(() => {
+    const refreshTimer = setInterval(() => {
       void load(projectId);
     }, 5000);
     return () => {
       loadRequestRef.current += 1;
-      clearInterval(t);
+      clearInterval(refreshTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
@@ -371,12 +373,14 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     const requestFileName = importFileName.trim();
     const requestProjectId = projectId;
     if (!requestFile || !requestFileName) {
-      addToast("请选择要导入的文件", "error");
+      addToast(t("novel.importReview.chooseFile"), "error");
       return;
     }
     if (requestFile.size > MAX_PROJECT_TEXT_UPLOAD_BYTES) {
       addToast(
-        `导入文件不能超过 ${MAX_PROJECT_TEXT_UPLOAD_BYTES / 1024 / 1024}MB`,
+        t("novel.importReview.fileTooLarge", {
+          size: formatNumber(MAX_PROJECT_TEXT_UPLOAD_BYTES / 1024 / 1024, locale),
+        }),
         "error",
       );
       return;
@@ -394,13 +398,13 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         data_base64: dataBase64,
       });
       if (!isCurrentAction(requestProjectId, importSeqRef, requestSeq)) return;
-      addToast(`已创建 ${reviews.length} 个审核项`, "success");
+      addToast(t("novel.importReview.reviewsCreated", { count: reviews.length }), "success");
       setImportFileName("");
       setImportUploadFile(null);
       await load(requestProjectId);
     } catch (err) {
       if (isCurrentAction(requestProjectId, importSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "导入失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.importFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, importSeqRef, requestSeq)) {
@@ -423,7 +427,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     if (!file) return;
     if (file.size > MAX_PROJECT_TEXT_UPLOAD_BYTES) {
       addToast(
-        `导入文件不能超过 ${MAX_PROJECT_TEXT_UPLOAD_BYTES / 1024 / 1024}MB`,
+        t("novel.importReview.fileTooLarge", {
+          size: formatNumber(MAX_PROJECT_TEXT_UPLOAD_BYTES / 1024 / 1024, locale),
+        }),
         "error",
       );
       return;
@@ -471,10 +477,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       setProjectProgress(result.progress);
       setProgressDialogFromProgress(result.progress);
       if (result.progress.status === "cancelled") {
-        addToast("导入项目分析已停止，已完成部分会保留", "success");
+        addToast(t("novel.importReview.analysisStopped"), "success");
       } else {
         addToast(
-          `已完成 ${result.analyzed_chapters} 章的分析与资料同步`,
+          t("novel.importReview.analysisCompleted", { count: result.analyzed_chapters }),
           "success",
         );
       }
@@ -482,14 +488,14 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     } catch (err) {
       if (!isCurrentAction(requestProjectId, analysisSeqRef, requestSeq))
         return;
-      const message = extractErrorMessage(err, "启动失败");
+      const message = extractErrorMessage(err, t("novel.importReview.startFailed"));
       setImportAnalysisDialog((prev) =>
         prev
           ? {
               ...prev,
               open: !importAnalysisDialogDismissedRef.current,
               status: "error",
-              message: "导入项目分析失败",
+              message: t("novel.importReview.analysisFailed"),
               error: message,
             }
           : null,
@@ -514,7 +520,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
-    setRequestPreviewTitle("导入项目分析请求预览");
+    setRequestPreviewTitle(t("novel.importReview.analysisRequestPreview"));
     try {
       const preview =
         await previewImportProjectAnalysisRequest(requestProjectId);
@@ -523,7 +529,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestPreviewSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "预览导入项目分析请求失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.analysisPreviewFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -539,7 +545,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const handleCancelAnalysis = async () => {
     if (cancelBusyRef.current) return;
     if (!canCancelAnalysis) {
-      addToast("当前没有正在运行的导入项目分析", "info");
+      addToast(t("novel.importReview.noAnalysisRunning"), "info");
       return;
     }
     cancelBusyRef.current = true;
@@ -553,7 +559,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       analysisSeqRef.current += 1;
       setAnalyzeBusy(false);
       importAnalysisDialogDismissedRef.current = false;
-      addToast("导入项目分析已取消", "success");
+      addToast(t("novel.importReview.analysisCancelled"), "success");
       const progress = await getProjectImportAnalysisProgress(requestProjectId);
       if (!isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq))
         return;
@@ -564,7 +570,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       await load(requestProjectId);
     } catch (err) {
       if (isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "取消失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.cancelFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, cancelAnalysisSeqRef, requestSeq)) {
@@ -581,7 +587,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     const requestProjectId = projectId;
     const arr = Array.from(selected);
     if (arr.length === 0) {
-      addToast("请勾选要批量接受的审核", "error");
+      addToast(t("novel.importReview.selectReviews"), "error");
       return;
     }
     batchBusyRef.current = true;
@@ -600,12 +606,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       if (updatedActiveReview) {
         setActiveReviewState(updatedActiveReview);
       }
-      addToast(`已批量接受 ${result.length} 个`, "success");
+      addToast(t("novel.importReview.batchAccepted", { count: result.length }), "success");
       setSelected(new Set());
       await load(requestProjectId);
     } catch (err) {
       if (isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "批量接受失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.operationFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, batchSeqRef, requestSeq)) {
@@ -631,7 +637,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     const requestProjectId = projectId;
     const review = reviewsRef.current.find((item) => item.id === id);
     if (!review || review.project_id !== requestProjectId) {
-      addToast("审核项已不在当前项目队列中", "error");
+      addToast(t("novel.importReview.reviewNotInProject"), "error");
       return;
     }
     const actionKey = `${action}-${id}`;
@@ -644,7 +650,11 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       else await deleteImportReview(id);
       if (!isCurrentAction(requestProjectId, actSeqRef, requestSeq)) return;
       addToast(
-        `已${action === "accept" ? "接受" : action === "reject" ? "拒绝" : "删除"}`,
+        action === "accept"
+          ? t("novel.importReview.accepted")
+          : action === "reject"
+            ? t("novel.importReview.rejected")
+            : t("novel.importReview.deleted"),
         "success",
       );
       setSelected((prev) => {
@@ -661,7 +671,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       await load(requestProjectId);
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "操作失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.operationFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
@@ -676,7 +686,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const handleViewDetail = (id: number) => {
     const detail = reviewsRef.current.find((review) => review.id === id);
     if (!detail || detail.project_id !== projectId) {
-      addToast("审核项已不在当前项目队列中", "error");
+      addToast(t("novel.importReview.reviewNotInProject"), "error");
       return;
     }
     setActiveReviewState(detail);
@@ -702,7 +712,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       }
       setActiveReviewJsonError(null);
     } catch {
-      setActiveReviewJsonError("JSON 格式无效");
+      setActiveReviewJsonError(t("novel.importReview.invalidJson"));
     }
   };
 
@@ -713,7 +723,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     if (!requestReview) return;
     const requestProjectId = projectId;
     if (requestReview.project_id !== requestProjectId) {
-      addToast("审核项已不在当前项目队列中", "error");
+      addToast(t("novel.importReview.reviewNotInProject"), "error");
       return;
     }
     let parsed: unknown;
@@ -721,7 +731,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       parsed = JSON.parse(activeReviewJson);
       setActiveReviewJsonError(null);
     } catch {
-      setActiveReviewJsonError("JSON 格式无效");
+      setActiveReviewJsonError(t("novel.importReview.invalidJson"));
       return;
     }
     actBusyRef.current = `modify-${requestReview.id}`;
@@ -738,11 +748,11 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         JSON.stringify(updated.analysis_result, null, 2),
         false,
       );
-      addToast("修改已保存并接受", "success");
+      addToast(t("novel.importReview.modified"), "success");
       await load(requestProjectId);
     } catch (err) {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "保存并接受失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.saveAndAcceptFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, actSeqRef, requestSeq)) {
@@ -775,7 +785,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     if (dedupBusyRef.current) return;
     const requestText = dedupText.trim();
     if (!requestText) {
-      addToast("请先粘贴需要检查的段落", "error");
+      addToast(t("novel.importReview.dedupSampleRequired"), "error");
       return;
     }
     dedupBusyRef.current = true;
@@ -798,12 +808,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         return;
       }
       setDedupResult(result);
-      addToast("已完成去重检查", "success");
+      addToast(t("novel.importReview.dedupCompleted"), "success");
     } catch (err) {
       if (
         isCurrentDedupRequest(requestProjectId, requestSeq, requestInputVersion)
       ) {
-        addToast(extractErrorMessage(err, "去重检查失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.dedupFailed")), "error");
       }
     } finally {
       if (
@@ -840,7 +850,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     const requestSample = reverseSample;
     const requestAutoContext = reverseAutoContext;
     if (!requestAutoContext && !requestSample.trim()) {
-      addToast("请粘贴反推样本，或启用项目上下文", "error");
+      addToast(t("novel.importReview.reverseSampleRequired"), "error");
       return;
     }
     const requestSeq = nextSequence(requestPreviewSeqRef);
@@ -854,7 +864,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
     setRequestPreviewData(null);
-    setRequestPreviewTitle("项目资料归纳请求预览");
+    setRequestPreviewTitle(t("novel.importReview.reverseRequestPreview"));
     try {
       const preview = await previewReverseEngineerRequest(input);
       if (!isCurrentAction(requestProjectId, requestPreviewSeqRef, requestSeq))
@@ -862,7 +872,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestPreviewSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "预览项目资料归纳请求失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.reversePreviewFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -882,7 +892,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     const requestSample = reverseSample;
     const requestAutoContext = reverseAutoContext;
     if (!requestAutoContext && !requestSample.trim()) {
-      addToast("请粘贴反推样本，或启用项目上下文", "error");
+      addToast(t("novel.importReview.reverseSampleRequired"), "error");
       return;
     }
     reverseBusyRef.current = true;
@@ -893,10 +903,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     );
     const reverseLabel =
       requestReverseType === "blueprint"
-        ? "蓝图"
+        ? t("novel.importReview.blueprint")
         : requestReverseType === "outline"
-          ? "章节大纲"
-          : "分部大纲";
+          ? t("novel.importReview.chapterOutline")
+          : t("novel.importReview.partOutline");
     const input = buildReverseInput(
       requestProjectId,
       requestReverseType,
@@ -913,18 +923,18 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
           title: writesFormalBlueprint
-            ? "依据当前资料归纳正式蓝图"
-            : `生成${reverseLabel}候选`,
-          startMessage: `正在整理${reverseLabel}所需资料`,
+            ? t("novel.importReview.tools.generateBlueprint")
+            : t("novel.importReview.tools.generateCandidate", { label: reverseLabel }),
+          startMessage: t("novel.importReview.tools.generatingResult"),
           successMessage: writesFormalBlueprint
-            ? "蓝图已归纳并写入正式资料"
-            : `${reverseLabel}候选已生成，尚未写入正式资料`,
-          errorMessage: "项目资料归纳失败",
+            ? t("novel.importReview.reverseSucceeded")
+            : t("novel.importReview.tools.candidatePending", { label: reverseLabel }),
+          errorMessage: t("novel.importReview.reverseFailed"),
           total: REVERSE_ENGINEERING_PROGRESS_TOTAL,
-          cancelLabel: "停止归纳",
+          cancelLabel: t("workflow.stop"),
           runningHint: writesFormalBlueprint
-            ? "只有成功完成才会更新正式蓝图；失败或停止时保留原蓝图"
-            : "归纳停止后，已生成的结果会保留；正式资料不会被自动修改",
+            ? t("novel.importReview.reverseBlueprintHint")
+            : t("novel.importReview.reverseStopped"),
         },
         () => {
           if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
@@ -937,15 +947,16 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       setReverseResult(result);
       const notice = formalReverseNotice(
         writesFormalBlueprint
-          ? "蓝图已归纳并写入正式资料"
-          : `${reverseLabel}候选已生成，尚未写入正式资料`,
+          ? t("novel.importReview.reverseSucceeded")
+          : t("novel.importReview.tools.candidatePending", { label: reverseLabel }),
         result.warnings,
+        t("common.summarySeparator"),
       );
       addToast(notice.message, notice.tone);
       if (writesFormalBlueprint) await load(requestProjectId);
     } catch (err) {
       if (!isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) return;
-      const message = extractErrorMessage(err, "项目资料归纳失败");
+      const message = extractErrorMessage(err, t("novel.importReview.reverseFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)) {
@@ -960,12 +971,12 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
   const handleConfirmReverseCandidate = async () => {
     if (reverseConfirmBusyRef.current) return;
     if (reverseType === "blueprint") {
-      addToast("蓝图归纳成功后会直接写入正式资料，无需再次确认", "info");
+      addToast(t("novel.importReview.reverseDirectNotice"), "info");
       return;
     }
     const candidate = reverseResult;
     if (!candidate || candidate.state !== "proposal") {
-      addToast("当前没有可确认的反推候选", "error");
+      addToast(t("novel.importReview.noCandidate"), "error");
       return;
     }
     reverseConfirmBusyRef.current = true;
@@ -974,15 +985,15 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
     try {
       const reverseLabel =
         reverseType === "outline"
-          ? "章节大纲"
-          : "分部大纲";
+          ? t("novel.importReview.chapterOutline")
+          : t("novel.importReview.partOutline");
       const confirmedByUser = await confirmDialog({
-        title: `确认更新${reverseLabel}`,
+        title: t("novel.importReview.confirmTitle", { label: reverseLabel }),
         message:
           reverseType === "part_outline"
-            ? "确认后会按分部编号更新候选覆盖的正式分部，并重新关联章节大纲；候选未覆盖的分部会保留。"
-            : "确认后会按章节号更新候选覆盖的正式章纲；候选未覆盖的章纲会保留。",
-        confirmText: `更新${reverseLabel}`,
+            ? t("novel.importReview.confirmPartMessage")
+            : t("novel.importReview.confirmOutlineMessage"),
+        confirmText: t("novel.importReview.confirmButton", { label: reverseLabel }),
         dialogType: "warning",
       });
       if (!confirmedByUser || !isCurrentProject(requestProjectId)) return;
@@ -995,8 +1006,10 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       setReverseResult(confirmed);
       addToast(
         confirmed.warnings.length > 0
-          ? `反推候选已确认并写入正式资料；${confirmed.warnings.join("；")}`
-          : "反推候选已确认并写入正式资料",
+          ? t("novel.importReview.candidateConfirmedWithWarnings", {
+              warnings: confirmed.warnings.join(t("common.summarySeparator")),
+            })
+          : t("novel.importReview.candidateConfirmed"),
         confirmed.warnings.length > 0 ? "info" : "success",
       );
       await load(requestProjectId);
@@ -1005,7 +1018,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
         requestSeq !== null &&
         isCurrentAction(requestProjectId, reverseSeqRef, requestSeq)
       ) {
-        addToast(extractErrorMessage(err, "确认项目资料候选失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importReview.confirmFailed")), "error");
       }
     } finally {
       if (
@@ -1133,7 +1146,7 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
       {importAnalysisDialog ? (
         <ProgressDialog
           open={importAnalysisDialog.open}
-          title="导入项目分析"
+          title={t("novel.importReview.analysisTitle")}
           status={importAnalysisDialog.status}
           current={importAnalysisDialog.current}
           total={importAnalysisDialog.total}
@@ -1145,9 +1158,9 @@ export const ImportsTab: React.FC<ImportsTabProps> = ({
               ? handleCancelAnalysis
               : undefined
           }
-          cancelLabel="停止分析"
+          cancelLabel={t("novel.importReview.stopAnalysis")}
           cancelling={cancelBusy}
-          runningHint="分析过程中已完成的章节和大纲会保留"
+          runningHint={t("novel.importReview.analysisRunningHint")}
         />
       ) : null}
       <RequestPreviewModal

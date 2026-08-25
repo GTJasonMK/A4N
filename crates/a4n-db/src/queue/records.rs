@@ -13,11 +13,14 @@ pub async fn recoverable_active_task_ids(
         .column(generation_task_checkpoint::Column::TaskId)
         .into_query();
     let tasks = task_queue::Entity::find()
+        .select_only()
+        .column(task_queue::Column::Id)
         .filter(task_queue::Column::Status.is_in(["pending", "running"]))
         .filter(task_queue::Column::Id.not_in_subquery(generation_task_ids))
+        .into_tuple::<String>()
         .all(db)
         .await?;
-    Ok(tasks.into_iter().map(|task| task.id).collect())
+    Ok(tasks)
 }
 
 pub async fn insert_task_queue_record(

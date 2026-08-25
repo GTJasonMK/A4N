@@ -10,6 +10,7 @@ use a4n_core::{
     error::AppError,
     models::chapter::{chapter_outline, part_outline},
 };
+use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgressPart};
 use a4n_domain::project::ProjectStatus;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::variables::parse_template_variables_app_error;
@@ -18,6 +19,7 @@ use serde_json::json;
 use crate::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
 
+use super::context::load_chapter_outline_generation_context;
 use super::{
     BeatMappingApplyInput, ChapterOutlineCountGenerationInput, ChapterOutlineGenerationInput,
     ChapterOutlineRegenerationInput, OutlineRequestPreviewStep, PartOutlineContinuationInput,
@@ -50,7 +52,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn generate_parts_validated(
+    pub(in crate::outline) async fn generate_parts_validated(
         &self,
         input: GeneratePartsInput,
         progress: ProgressReporter<'_>,
@@ -101,7 +103,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn regenerate_parts_validated(
+    pub(in crate::outline) async fn regenerate_parts_validated(
         &self,
         input: RegeneratePartsInput,
         progress: ProgressReporter<'_>,
@@ -152,7 +154,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn regenerate_last_part_validated(
+    pub(in crate::outline) async fn regenerate_last_part_validated(
         &self,
         input: RegenerateLastPartInput,
         progress: ProgressReporter<'_>,
@@ -194,7 +196,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn continue_part_outlines_validated(
+    pub(in crate::outline) async fn continue_part_outlines_validated(
         &self,
         input: ContinuePartOutlinesInput,
         progress: ProgressReporter<'_>,
@@ -252,7 +254,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn regenerate_part_outline_validated(
+    pub(in crate::outline) async fn regenerate_part_outline_validated(
         &self,
         input: RegeneratePartOutlineInput,
         progress: ProgressReporter<'_>,
@@ -301,7 +303,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn generate_part_chapter_outlines_validated(
+    pub(in crate::outline) async fn generate_part_chapter_outlines_validated(
         &self,
         input: GeneratePartChapterOutlinesInput,
         progress: ProgressReporter<'_>,
@@ -360,7 +362,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn batch_generate_part_outlines_validated(
+    pub(in crate::outline) async fn batch_generate_part_outlines_validated(
         &self,
         input: BatchGeneratePartOutlinesInput,
         progress: ProgressReporter<'_>,
@@ -450,7 +452,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn generate_chapter_outlines_by_count_validated(
+    pub(in crate::outline) async fn generate_chapter_outlines_by_count_validated(
         &self,
         input: GenerateChapterOutlinesByCountInput,
         progress: ProgressReporter<'_>,
@@ -504,7 +506,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn regenerate_chapter_outline_validated(
+    pub(in crate::outline) async fn regenerate_chapter_outline_validated(
         &self,
         input: RegenerateChapterOutlineInput,
         progress: ProgressReporter<'_>,
@@ -553,7 +555,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn apply_beat_mapping_validated(
+    pub(in crate::outline) async fn apply_beat_mapping_validated(
         &self,
         input: ApplyBeatMappingInput,
         progress: ProgressReporter<'_>,
@@ -702,15 +704,21 @@ impl OrchestratorContext {
         let parts = self
             .load_unique_outline_parts(input.project_id, &input.part_ids)
             .await?;
+        let context =
+            load_chapter_outline_generation_context(self.database.connection(), input.project_id)
+                .await?;
         let variables = HashMap::new();
         let mut all_steps = Vec::new();
         for part in parts {
             let steps = self
-                .preview_generate_part_chapter_outline_requests(
+                .preview_chapter_outline_sequence_requests_with_context(
                     input.project_id,
-                    part.id,
+                    part.start_chapter,
+                    part.end_chapter - part.start_chapter + 1,
+                    Some(&part),
                     self,
                     &variables,
+                    &context,
                 )
                 .await?;
             let has_request = steps.iter().any(|step| step.request.is_some());
@@ -777,6 +785,12 @@ impl OrchestratorContext {
             return Err(AppError::InvalidArgument("part_ids 不能为空".to_string()));
         }
         let mut seen = HashSet::new();
+        let mut parts_by_id = self
+            .get_parts(part_ids)
+            .await?
+            .into_iter()
+            .map(|part| (part.id, part))
+            .collect::<HashMap<_, _>>();
         let mut parts = Vec::with_capacity(part_ids.len());
         for part_id in part_ids {
             if !seen.insert(*part_id) {
@@ -784,7 +798,9 @@ impl OrchestratorContext {
                     "part_ids 包含重复分部: {part_id}"
                 )));
             }
-            let part = self.get_part(*part_id).await?;
+            let part = parts_by_id
+                .remove(part_id)
+                .ok_or_else(|| AppError::NotFound(format!("分部大纲不存在: {part_id}")))?;
             ensure_part_project(&part, project_id)?;
             parts.push(part);
         }
@@ -814,10 +830,10 @@ fn ensure_part_project(part: &part_outline::Model, project_id: i64) -> Result<()
 }
 
 pub(super) fn completed_part_count(
-    parts: &[part_outline::Model],
-    outlines: &[chapter_outline::Model],
+    parts: &[OutlineGenerationProgressPart],
+    outlines: &[OutlineGenerationProgressChapter],
 ) -> Result<u64, AppError> {
-    let mut outlines_by_chapter = HashMap::<i32, &chapter_outline::Model>::new();
+    let mut outlines_by_chapter = HashMap::<i32, &OutlineGenerationProgressChapter>::new();
     for outline in outlines {
         if !chapter_outline::is_valid_status(&outline.status) {
             return Err(outline_progress_state_error(format!(

@@ -1,9 +1,10 @@
-use a4n_core::import_reverse::ReverseContextKind;
 use a4n_domain::project::ProjectStatus;
 
-pub use a4n_api_contract::import_reverse::ReverseEngineeringTarget;
+use super::context::ReverseContextKind;
 
-pub(crate) trait ReverseEngineeringTargetDomain {
+pub(crate) use a4n_api_contract::import_reverse::ReverseEngineeringTarget;
+
+pub(super) trait ReverseEngineeringTargetDomain {
     fn context_kind(self) -> ReverseContextKind;
     fn applied_status(self) -> ProjectStatus;
 }

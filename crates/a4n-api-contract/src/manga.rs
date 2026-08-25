@@ -6,10 +6,11 @@ pub use a4n_domain::manga::{
     MANGA_PAGE_DRAWING_PROMPT_V2, MANGA_PAGE_GENERATION_V2, MANGA_PAGE_PLAN_V3,
     MangaBoundReferenceAsset, MangaCameraAngleV2, MangaPageDrawingPromptSchemaVersion,
     MangaPageDrawingPromptV2, MangaPageGenerationSchemaVersion, MangaPageImportanceV2,
-    MangaPagePacingV2, MangaPagePlanSchemaVersion, MangaPagePlanV3, MangaPageRoleV2, MangaPageV3,
-    MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2, MangaReadingFlowV2,
-    MangaReferenceAssetKind, MangaReferenceBindingSummary, MangaShootingBeatRefV3,
-    MangaShotScaleV2, MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2,
+    MangaPagePacingV2, MangaPagePlanSchemaVersion, MangaPagePlanV3, MangaPagePromptSourceSummary,
+    MangaPageRoleV2, MangaPageV3, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2,
+    MangaReadingFlowV2, MangaReferenceAssetKind, MangaReferenceBindingSummary,
+    MangaShootingBeatRefV3, MangaShotScaleV2, MangaTextLayerKindV2, MangaTextLayerV2,
+    MangaTextPlacementV2,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -37,6 +38,15 @@ pub struct MangaChapterInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub chapter_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct MangaPipelineStatusesInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(length(min = 1, max = 200))]
+    pub chapter_ids: Vec<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -101,20 +111,6 @@ pub struct MangaPipelineStatusSummary {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct MangaPagePromptSourceSummary {
-    pub root_project_id: i64,
-    pub source_chapter_id: i64,
-    pub source_snapshot_id: Option<i64>,
-    pub source_snapshot_chapter_id: Option<i64>,
-    pub source_revision_key: String,
-    pub content_sha256: String,
-    pub shooting_script_id: i64,
-    pub shooting_script_revision: i32,
-    pub shooting_script_sha256: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct MangaPagePromptSummary {
     pub id: i64,
     pub chapter_id: i64,
@@ -122,8 +118,6 @@ pub struct MangaPagePromptSummary {
     pub page_number: i32,
     pub image_prompt: String,
     pub dialogue_text: Option<String>,
-    pub shooting_script_id: i64,
-    pub shooting_script_revision: i32,
     pub page_plan: MangaPageV3,
     pub drawing_prompt: MangaPageDrawingPromptV2,
     pub reference_bindings: Vec<MangaReferenceBindingSummary>,

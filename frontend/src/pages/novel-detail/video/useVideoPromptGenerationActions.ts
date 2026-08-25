@@ -74,6 +74,7 @@ import {
   VIDEO_STORYBOARD_PROMPT_CONTRACT_VERSION,
 } from "./videoTabUtils";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
+import { formatNumber, type Locale, type MessageTranslator } from "../../../i18n";
 
 type AddToast = (message: string, type: ToastType) => void;
 type PromptGenerationRequestOptions = {
@@ -90,6 +91,7 @@ export const runVideoPromptGenerationTask = async (
   handle: GenerationTaskHandle,
   options: GenerationProgressUiOptions,
   refreshPrompts: () => Promise<void>,
+  t: MessageTranslator,
   onDraftCheckpoint?: (text: string, checkpointKey: string) => void,
 ): Promise<void> => {
   let lastCommittedKey: string | null = null;
@@ -146,9 +148,9 @@ export const runVideoPromptGenerationTask = async (
     try {
       await flushRefresh();
     } catch (refreshError) {
-      throw new Error(
-        `${extractErrorMessage(error, "生成失败")}；刷新已提交提示词失败：${extractErrorMessage(refreshError, "未知错误")}`,
-      );
+      throw new Error(t("video.actions.refreshSubmittedFailed", {
+        error: extractErrorMessage(refreshError, t("common.unknown")),
+      }));
     }
     throw error;
   }
@@ -171,6 +173,8 @@ interface UseVideoPromptGenerationActionsParams {
   allFinalVideoPrompts: ChapterVideoPrompt[];
   currentContentHash: string | null;
   actionScopeKey: string | null;
+  locale: Locale;
+  t: MessageTranslator;
   addToast: AddToast;
   runProgressTask: RunProgressTask;
   loadAll: () => Promise<void>;
@@ -199,6 +203,8 @@ export function useVideoPromptGenerationActions({
   allFinalVideoPrompts,
   currentContentHash,
   actionScopeKey,
+  locale,
+  t,
   addToast,
   runProgressTask,
   loadAll,
@@ -236,7 +242,7 @@ export function useVideoPromptGenerationActions({
         : durationLimits;
     const style = effectiveOptions.style.trim();
     if (!style) {
-      addToast(`请填写${operation}风格`, "error");
+      addToast(t("video.actions.styleRequired", { operation }), "error");
       return null;
     }
     if (operationDurationLimits.configError) {
@@ -248,15 +254,16 @@ export function useVideoPromptGenerationActions({
       return null;
     }
     if (!isDurationAllowed(effectiveOptions.durationSecs, operationDurationLimits)) {
-      addToast(`当前${operation}时长不在默认视频模型支持范围内`, "error");
+      addToast(t("video.actions.durationUnsupportedForOperation", { operation }), "error");
       return null;
     }
     if (!durationOptionsAllowed(
       effectiveOptions.durationSecs,
       effectiveOptions.durationOptions,
       operationDurationLimits,
+      t,
     )) {
-      addToast(`当前${operation}候选时长包含默认视频模型不支持的秒数`, "error");
+      addToast(t("video.actions.durationOptionsUnsupported", { operation }), "error");
       return null;
     }
     return {
@@ -281,7 +288,7 @@ export function useVideoPromptGenerationActions({
       return;
     }
     if (requests.length === 0) {
-      addToast("请至少提供一个帧生成请求", "error");
+      addToast(t("video.actions.atLeastOneFrameRequest"), "error");
       finishAction(key);
       return;
     }
@@ -298,11 +305,11 @@ export function useVideoPromptGenerationActions({
         handle,
         {
           title,
-          startMessage: `正在准备${title}`,
-          successMessage: `${title}已完成`,
-          errorMessage: `${title}失败`,
+          startMessage: t("video.actions.preparing", { operation: title }),
+          successMessage: t("video.actions.completed", { operation: title }),
+          errorMessage: t("video.actions.failed", { operation: title }),
           total: Math.max(1, requests.length),
-          cancelLabel: "停止生成",
+          cancelLabel: t("workflow.stop"),
         },
         async (task) => {
           const rows = await verifyImageGenerationResult(task, projectId);
@@ -311,10 +318,10 @@ export function useVideoPromptGenerationActions({
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(`已生成 ${generatedIds.length} 张${resultImageLabel}`, "success");
+      addToast(t("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, locale), label: resultImageLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, `${title}失败`);
+      const message = extractErrorMessage(err, t("video.actions.failed", { operation: title }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       finishAction(key);
@@ -325,14 +332,18 @@ export function useVideoPromptGenerationActions({
     if (!chapter) return;
     let frameContract: ReturnType<typeof videoFrameImageContractForPromptType>;
     try {
-      frameContract = videoFrameImageContractForPromptType(prompt.prompt_type);
+      frameContract = videoFrameImageContractForPromptType(prompt.prompt_type, t);
     } catch (err) {
-      addToast(extractErrorMessage(err, "导入视频帧图片失败"), "error");
+      addToast(extractErrorMessage(err, t("video.actions.framePromptImportFailed")), "error");
       return;
     }
     const { frameLabel, imageType, source } = frameContract;
     if (prompt.status === "running") {
-      addToast(`${frameLabel}提示词 #${prompt.shot_number} 正在运行，不能导入图片`, "error");
+      addToast(t("video.actions.framePromptRunningCannot", {
+        label: frameLabel,
+        number: formatNumber(prompt.shot_number, locale),
+        operation: t("common.import"),
+      }), "error");
       return;
     }
 
@@ -344,19 +355,19 @@ export function useVideoPromptGenerationActions({
       file = await pickLocalFile(supportedImageAccept());
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
+      addToast(extractErrorMessage(err, t("video.chapter.filePickerFailed")), "error");
       return;
     } finally {
       if (!file) finishAction(actionKey);
     }
     if (!file) return;
     if (!isSupportedImageMime(file.type)) {
-      addToast("只支持 PNG/JPEG/WebP 图片", "error");
+      addToast(t("video.actions.unsupportedImageFormat"), "error");
       finishAction(actionKey);
       return;
     }
     if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-      addToast(`上传图片不能超过 ${MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024}MB`, "error");
+      addToast(t("video.actions.imageTooLarge", { size: formatNumber(MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024, locale, { maximumFractionDigits: 1 }) }), "error");
       finishAction(actionKey);
       return;
     }
@@ -369,7 +380,10 @@ export function useVideoPromptGenerationActions({
       prompt.visual_prompt.trim() ||
       prompt.scene_summary?.trim() ||
       prompt.title?.trim() ||
-      `${frameLabel} #${prompt.shot_number} 手动导入图片`;
+      t("video.actions.imagePromptManualImport", {
+        label: frameLabel,
+        number: formatNumber(prompt.shot_number, locale),
+      });
     try {
       const dataBase64 = await readFileAsBase64(file);
       if (!isCurrentActionScope(requestScope)) return;
@@ -380,14 +394,14 @@ export function useVideoPromptGenerationActions({
         image_type: imageType,
         prompt: imagePrompt,
         chapter_id: chapter.id,
-        metadata_json: buildVideoFrameImageTraceMetadata(prompt, source),
+        metadata_json: buildVideoFrameImageTraceMetadata(prompt, source, t),
       });
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(`已导入${frameLabel}图片`, "success");
+      addToast(t("video.actions.frameImageImported", { label: frameLabel }), "success");
       await loadAll();
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, `导入${frameLabel}图片失败`), "error");
+      addToast(extractErrorMessage(err, t("video.actions.frameImageImportFailed", { label: frameLabel })), "error");
     } finally {
       finishAction(actionKey);
     }
@@ -452,10 +466,12 @@ export function useVideoPromptGenerationActions({
     if (!fingerprint) return false;
     const savedReferenceIds = readSavedReferenceImageIds(
       fingerprint.reference_image_ids,
+      t,
       "generation_asset_fingerprint.reference_image_ids",
     );
     const savedVideoLibraryIds = readSavedReferenceImageIds(
       fingerprint.video_library_image_ids,
+      t,
       "generation_asset_fingerprint.video_library_image_ids",
     );
     if (savedReferenceIds.error || savedVideoLibraryIds.error) return false;
@@ -477,6 +493,7 @@ export function useVideoPromptGenerationActions({
     }
     const savedDurationOptions = readSavedReferenceImageIds(
       source.duration_secs_options,
+      t,
       "source.duration_secs_options",
     );
     if (savedDurationOptions.error) return false;
@@ -521,7 +538,7 @@ export function useVideoPromptGenerationActions({
       targetWorkflowMode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
       targetWorkflowMode !== VIDEO_WORKFLOW_MODE_STORYBOARD
     ) {
-      addToast("当前模式不能使用帧提示词链路", "error");
+      addToast(t("video.actions.frameChainUnsupported"), "error");
       return;
     }
     const segmentNumber = recipe.segment_number;
@@ -529,19 +546,21 @@ export function useVideoPromptGenerationActions({
       targetWorkflowMode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN;
     const label =
       targetWorkflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
-          ? "分镜提示词"
+          ? t("video.actions.storyboardPromptLabel")
         : firstFrameMode
-          ? "首帧提示词"
-          : "边界帧提示词";
+          ? t("video.actions.firstFramePromptLabel")
+          : t("video.actions.boundaryPromptLabel");
     if (firstFrameMode && recipe.guidance_mode === "continuity") {
       addToast(
-        "当前片段使用尾帧续接，无需生成首帧提示词；如需自己生成，请先把首帧来源切换为独立生成",
+        t("video.actions.continuityFrameInfo"),
         "info",
       );
       return;
     }
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
-    const operationLabel = `${regenerateExisting ? "重新生成" : "生成"}${label}`;
+    const operationLabel = regenerateExisting
+      ? t("video.actions.regenerateTitle", { label })
+      : t("video.actions.generateTitle", { label });
     const runningFramePrompt = allFramePrompts.find(
       (prompt) =>
         prompt.status === "running" &&
@@ -552,7 +571,11 @@ export function useVideoPromptGenerationActions({
     );
     if (runningFramePrompt) {
       addToast(
-        `${label} #${runningFramePrompt.shot_number} 正在运行，不能${operationLabel}`,
+        t("video.actions.framePromptRunningCannot", {
+          label,
+          number: formatNumber(runningFramePrompt.shot_number, locale),
+          operation: t("video.actions.generate"),
+        }),
         "error",
       );
       return;
@@ -564,11 +587,11 @@ export function useVideoPromptGenerationActions({
     const framePromptType = framePromptTypeForWorkflow(targetWorkflowMode);
     const framePromptContract = framePromptContractForWorkflow(targetWorkflowMode);
     if (!segmentPlanPrompt) {
-      addToast("请先生成片段规划，再生成帧提示词", "error");
+      addToast(t("video.actions.segmentPlanRequired"), "error");
       return;
     }
     if (!framePromptType || !framePromptContract) {
-      addToast("当前模式缺少帧提示词类型或合同版本，不能生成帧提示词", "error");
+      addToast(t("video.actions.frameContractMissing"), "error");
       return;
     }
     const targetFrameNumbers =
@@ -596,7 +619,7 @@ export function useVideoPromptGenerationActions({
     ).length;
     if (!regenerateExisting && completedMatchingCount >= expectedFrameCount) {
       addToast(
-        `当前参数下${label}已全部生成，如需更新请使用重新生成。`,
+        t("video.actions.allFramesGenerated", { label }),
         "info",
       );
       return;
@@ -606,9 +629,9 @@ export function useVideoPromptGenerationActions({
     if (!beginAction(actionKey)) return;
     if (regenerateExisting && targetFramePrompts.length > 0) {
       const ok = await confirmDialog({
-        title: `重新生成${label}`,
-        message: `将重新生成本章已有${label}，并覆盖尚未成图的前置提示词。已生成图片的记录不能覆盖，请先删除对应图片。`,
-        confirmText: "重新生成",
+        title: t("video.actions.regenerateTitle", { label }),
+        message: t("video.actions.regenerateFrameMessage", { label }),
+        confirmText: t("video.actions.regenerateConfirm"),
       });
       if (!ok) {
         finishAction(actionKey);
@@ -633,18 +656,20 @@ export function useVideoPromptGenerationActions({
         handle,
         {
           title: operationLabel,
-          startMessage: `正在准备${operationLabel}`,
-          successMessage: `已完成${operationLabel}`,
-          errorMessage: `${operationLabel}失败`,
+          startMessage: t("video.actions.preparing", { operation: operationLabel }),
+          successMessage: t("video.actions.completed", { operation: operationLabel }),
+          errorMessage: t("video.actions.failed", { operation: operationLabel }),
           total: 100,
         },
         refreshPrompts,
+        t,
+        undefined,
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(`已完成${operationLabel}`, "success");
+      addToast(t("video.actions.completed", { operation: operationLabel }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, `${operationLabel}失败`);
+      const message = extractErrorMessage(err, t("video.actions.failed", { operation: operationLabel }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       finishAction(actionKey);
@@ -655,7 +680,7 @@ export function useVideoPromptGenerationActions({
     requestOptions: PromptGenerationRequestOptions = {},
   ) => {
     if (!chapter) return;
-    const label = "视频片段规划";
+    const label = t("video.actions.segmentPlanLabel");
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
     const resumedDraft = segmentPlanDraft;
     const effectiveRegenerateExisting =
@@ -664,7 +689,7 @@ export function useVideoPromptGenerationActions({
       resumedDraft?.resumeOptions ?? null;
     if (!generationOptions) {
       if (!segmentPlanOptions) {
-        addToast("视频片段规划配置不可用，请重置损坏的本地配置", "error");
+        addToast(t("video.actions.segmentPlanConfigInvalid"), "error");
         return;
       }
       const validatedOptions = validatedPromptOptions(
@@ -690,9 +715,9 @@ export function useVideoPromptGenerationActions({
     if (!beginAction(actionKey)) return;
     if (effectiveRegenerateExisting && segmentPlanPrompt && !resumedDraft) {
       const ok = await confirmDialog({
-        title: `重新生成${label}`,
-        message: `将重新生成当前章节的${label}。如果后续已经派生首尾帧提示词、图片或视频，系统会阻止覆盖，请先处理下游产物。`,
-        confirmText: "重新生成",
+        title: t("video.actions.regenerateTitle", { label }),
+        message: t("video.actions.regenerateSegmentPlanMessage", { label }),
+        confirmText: t("video.actions.regenerateConfirm"),
       });
       if (!ok) {
         finishAction(actionKey);
@@ -706,10 +731,10 @@ export function useVideoPromptGenerationActions({
     if (effectiveRegenerateExisting && !resumedDraft) setSegmentPlanPreview([]);
     const persistedProgress = resumedDraft?.workflowProgress;
     const resumeStartMessage = persistedProgress
-      ? `已加载持久化进度 ${Math.round(persistedProgress.percent)}%${persistedProgress.message.trim() ? ` · ${persistedProgress.message.trim()}` : ""}，正在继续生成`
+      ? t("video.actions.resumePersisted", { percent: formatNumber(Math.round(persistedProgress.percent), locale), detail: persistedProgress.message.trim() ? ` · ${persistedProgress.message.trim()}` : "" })
       : resumedDraft && resumedDraft.completedShotCount > 0
-        ? `已加载 ${resumedDraft.completedShotCount}/${resumedDraft.totalShotCount} 个已保存镜头，正在核对并继续生成`
-        : `正在准备${effectiveRegenerateExisting ? "重新生成" : "生成"}${label}`;
+        ? t("video.actions.resumeShots", { completed: formatNumber(resumedDraft.completedShotCount, locale), total: formatNumber(resumedDraft.totalShotCount, locale) })
+        : t("video.actions.preparing", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) });
     let previewFingerprint = "";
     try {
       const handle = await startChapterVideoSegmentPlan(
@@ -722,13 +747,14 @@ export function useVideoPromptGenerationActions({
         runProgressTask,
         handle,
         {
-          title: `${effectiveRegenerateExisting ? "重新生成" : "生成"}${label}`,
+          title: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }),
           startMessage: resumeStartMessage,
-          successMessage: `已${effectiveRegenerateExisting ? "重新生成" : "生成"}${label}`,
-          errorMessage: `${effectiveRegenerateExisting ? "重新生成" : "生成"}${label}失败`,
+          successMessage: t("video.actions.completed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }),
+          errorMessage: t("video.actions.failed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }),
           total: 100,
         },
         refreshPrompts,
+        t,
         (streamText, checkpointKey) => {
           if (!isCurrentActionScope(requestScope)) return;
           if (!isSegmentPlanDraftCheckpointKey(checkpointKey)) return;
@@ -741,10 +767,10 @@ export function useVideoPromptGenerationActions({
         },
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(`已${effectiveRegenerateExisting ? "重新生成" : "生成"}${label}`, "success");
+      addToast(t("video.actions.completed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, `${effectiveRegenerateExisting ? "重新生成" : "生成"}${label}失败`);
+      const message = extractErrorMessage(err, t("video.actions.failed", { operation: effectiveRegenerateExisting ? t("video.actions.regenerateTitle", { label }) : t("video.actions.generateTitle", { label }) }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       if (isCurrentActionScope(requestScope)) await loadAll();
@@ -764,16 +790,16 @@ export function useVideoPromptGenerationActions({
       targetWorkflowMode !== VIDEO_WORKFLOW_MODE_STORYBOARD &&
       targetWorkflowMode !== VIDEO_WORKFLOW_MODE_CHAT_VIDEO
     ) {
-      addToast("当前模式的视频提示词链路尚未接入", "error");
+      addToast(t("video.actions.generateModeUnavailable"), "error");
       return;
     }
     const segmentNumber = recipe.segment_number;
     const chatVideoMode = targetWorkflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO;
     const promptLabel = chatVideoMode
-      ? "Chat 视频提示词"
+      ? t("video.actions.chatVideoPromptLabel")
       : targetWorkflowMode === VIDEO_WORKFLOW_MODE_STORYBOARD
-        ? "分镜视频提示词"
-        : "视频提示词";
+        ? t("video.actions.storyboardVideoPromptLabel")
+        : t("video.actions.videoPromptLabel");
     const regenerateExisting = requestOptions.regenerateExisting ?? false;
     const runningFramePrompt = allFramePrompts.find(
       (prompt) =>
@@ -786,11 +812,15 @@ export function useVideoPromptGenerationActions({
     if (runningFramePrompt) {
       const label =
         runningFramePrompt.prompt_type === VIDEO_FIRST_FRAME_PROMPT_TYPE
-          ? "首帧提示词"
+          ? t("video.actions.firstFramePromptLabel")
           : runningFramePrompt.prompt_type === VIDEO_STORYBOARD_PROMPT_TYPE
-            ? "分镜提示词"
-          : "边界帧提示词";
-      addToast(`${label} #${runningFramePrompt.shot_number} 正在运行，不能生成视频提示词`, "error");
+            ? t("video.actions.storyboardPromptLabel")
+          : t("video.actions.boundaryPromptLabel");
+      addToast(t("video.actions.framePromptRunningCannot", {
+        label,
+        number: formatNumber(runningFramePrompt.shot_number, locale),
+        operation: t("video.actions.generate"),
+      }), "error");
       return;
     }
     const runningPrompt = allFinalVideoPrompts.find(
@@ -802,7 +832,7 @@ export function useVideoPromptGenerationActions({
         ) === segmentNumber,
     );
     if (runningPrompt) {
-      addToast(`视频提示词 #${runningPrompt.id} 正在运行，不能继续生成视频提示词`, "error");
+      addToast(t("video.actions.finalPromptRunningCannot", { id: formatNumber(runningPrompt.id, locale) }), "error");
       return;
     }
     const targetFinalVideoPrompts = allFinalVideoPrompts.filter(
@@ -818,12 +848,12 @@ export function useVideoPromptGenerationActions({
       (prompt) => prompt.generated_video_id != null,
     ).length;
     if (!segmentPlanPrompt) {
-      addToast("请先生成片段规划，才能生成视频提示词", "error");
+      addToast(t("video.actions.videoPromptsRequirePlan"), "error");
       return;
     }
     if (regenerateExisting && generatedVideoPromptCount > 0) {
       addToast(
-        `已有 ${generatedVideoPromptCount} 条视频提示词生成了视频，不能重新生成；请先删除对应视频`,
+        t("video.actions.generatedVideosBlockRegenerate", { count: formatNumber(generatedVideoPromptCount, locale) }),
         "error",
       );
       return;
@@ -835,9 +865,9 @@ export function useVideoPromptGenerationActions({
     if (!beginAction(actionKey)) return;
     if (regenerateExisting && targetFinalVideoPrompts.length > 0) {
       const ok = await confirmDialog({
-        title: `重新生成${promptLabel}`,
-        message: `将重新生成本章已有${promptLabel}，覆盖尚未生成视频的提示词。已生成视频的提示词不能覆盖，请先删除对应视频。`,
-        confirmText: "重新生成",
+        title: t("video.actions.regenerateTitle", { label: promptLabel }),
+        message: t("video.actions.regenerateVideoMessage", { label: promptLabel }),
+        confirmText: t("video.actions.regenerateConfirm"),
       });
       if (!ok) {
         finishAction(actionKey);
@@ -858,19 +888,21 @@ export function useVideoPromptGenerationActions({
         runProgressTask,
         handle,
         {
-          title: `${regenerateExisting ? "重新生成" : "生成"}${promptLabel}`,
-          startMessage: `正在准备${regenerateExisting ? "重新生成" : "生成"}${promptLabel}`,
-          successMessage: `已${regenerateExisting ? "重新生成" : "生成"}${promptLabel}`,
-          errorMessage: `${regenerateExisting ? "重新生成" : "生成"}${promptLabel}失败`,
+          title: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }),
+          startMessage: t("video.actions.preparing", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }),
+          successMessage: t("video.actions.completed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }),
+          errorMessage: t("video.actions.failed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }),
           total: 100,
         },
         refreshPrompts,
+        t,
+        undefined,
       );
       if (!isCurrentActionScope(requestScope)) return;
-      addToast(`已${regenerateExisting ? "重新生成" : "生成"}${promptLabel}`, "success");
+      addToast(t("video.actions.completed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }), "success");
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, `${regenerateExisting ? "重新生成" : "生成"}${promptLabel}失败`);
+      const message = extractErrorMessage(err, t("video.actions.failed", { operation: regenerateExisting ? t("video.actions.regenerateTitle", { label: promptLabel }) : t("video.actions.generateTitle", { label: promptLabel }) }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       finishAction(actionKey);
@@ -883,17 +915,20 @@ export function useVideoPromptGenerationActions({
     prompts: ChapterVideoPrompt[] = framePrompts,
   ): Record<string, unknown> => {
     const { imageType, source, promptLabel: label } =
-      videoFrameImageContractForPromptType(prompt.prompt_type);
+      videoFrameImageContractForPromptType(prompt.prompt_type, t);
     const framePrompt = prompt.visual_prompt.trim();
     const error = promptLengthError(
       label,
       framePrompt,
       VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
+      t,
     );
     if (error) throw new Error(error);
-    const references = frameImageReferencesForPrompt(prompt, images, prompts);
+    const references = frameImageReferencesForPrompt(prompt, images, prompts, t);
     if (references.error) {
-      throw new Error(`${references.error}；请重新生成或手动修正${label}后再生成图片`);
+      throw new Error(
+        `${references.error}\n${t("video.chapter.frameImageMustPrepare", { label })}`,
+      );
     }
     const effectiveFramePrompt = shiftReferenceLabels(
       framePrompt,
@@ -902,18 +937,22 @@ export function useVideoPromptGenerationActions({
     const referenceOrderError = referenceLabelOrderError(
       effectiveFramePrompt,
       references.ids.length,
+      t,
     );
     if (referenceOrderError) {
-      throw new Error(`${referenceOrderError}；请重新生成或手动修正${label}后再生成图片`);
+      throw new Error(
+        `${referenceOrderError}\n${t("video.chapter.frameImageMustPrepare", { label })}`,
+      );
     }
     return buildVideoFrameImageRequest(
       imageType,
       effectiveFramePrompt,
       chapter?.id ?? prompt.chapter_id,
       prompt.aspect_ratio,
-      buildVideoFrameImageTraceMetadata(prompt, source),
+      buildVideoFrameImageTraceMetadata(prompt, source, t),
       references.ids,
       references.note,
+      t,
     );
   };
 
@@ -930,26 +969,32 @@ export function useVideoPromptGenerationActions({
     }
     let chain: ChapterVideoPrompt[];
     try {
-      chain = boundaryFramePromptChainTo(targetPrompt, framePrompts, "生成");
+      chain = boundaryFramePromptChainTo(
+        targetPrompt,
+        framePrompts,
+        t("video.actions.generate"),
+        t,
+      );
     } catch (err) {
-      addToast(extractErrorMessage(err, "边界帧提示词链不完整"), "error");
+      addToast(extractErrorMessage(err, t("video.actions.frameChainIncomplete")), "error");
       finishAction(actionKey);
       return;
     }
     const missingPrompts: ChapterVideoPrompt[] = [];
     for (const item of chain) {
       if (item.status === "running") {
-        addToast(`${label} #${item.shot_number} 正在运行，不能成图`, "error");
+        addToast(t("video.actions.frameImageRunningCannot", { label, number: formatNumber(item.shot_number, locale) }), "error");
         finishAction(actionKey);
         return;
       }
-      if (!latestVideoFrameImageForPrompt(item, frameImages)) {
+      if (!latestVideoFrameImageForPrompt(item, frameImages, t)) {
         missingPrompts.push(item);
       }
       const error = promptLengthError(
         label,
         item.visual_prompt.trim(),
         VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
+        t,
       );
       if (error) {
         addToast(error, "error");
@@ -958,14 +1003,14 @@ export function useVideoPromptGenerationActions({
       }
     }
     if (missingPrompts.length === 0) {
-      addToast(`第 1-${targetPrompt.shot_number} 张${frameLabel}图片已存在，将直接复用`, "info");
+      addToast(t("video.actions.sequentialReuseNotice", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }), "info");
       finishAction(actionKey);
       return;
     }
     const ok = await confirmDialog({
-      title: `生成到第 ${targetPrompt.shot_number} 张${frameLabel}`,
-      message: `将按顺序检查第 1-${targetPrompt.shot_number} 张${frameLabel}图片：已有图片直接复用，缺失的 ${missingPrompts.length} 张会从前到后依次生成；第 2 张开始都会使用上一张实际成图作为参考图 1。`,
-      confirmText: "顺序生成",
+      title: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }),
+      message: t("video.actions.sequentialMessage", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel, missing: formatNumber(missingPrompts.length, locale) }),
+      confirmText: t("video.actions.sequentialConfirm"),
     });
     if (!ok) {
       finishAction(actionKey);
@@ -980,7 +1025,7 @@ export function useVideoPromptGenerationActions({
       const chainImages = [...frameImages];
       let activeHandle: GenerationTaskHandle | null = null;
       const firstMissing = missingPrompts[0];
-      if (!firstMissing) throw new Error("缺少可生成的边界帧提示词");
+      if (!firstMissing) throw new Error(t("video.actions.missingFramePrompt"));
       const firstRequest = buildFrameImageGenerationRequest(
         firstMissing,
         chainImages,
@@ -993,16 +1038,16 @@ export function useVideoPromptGenerationActions({
       activeHandle = firstHandle;
       await runProgressTask(
         {
-          title: `生成到第 ${targetPrompt.shot_number} 张${frameLabel}`,
-          startMessage: `正在准备顺序生成${frameLabel}`,
-          successMessage: `${frameLabel}顺序生成已完成`,
-          errorMessage: `${frameLabel}顺序生成失败`,
+          title: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }),
+          startMessage: t("video.actions.preparing", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }),
+          successMessage: t("video.actions.completed", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }),
+          errorMessage: t("video.actions.failed", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }),
           total: missingPrompts.length,
           cancelTaskId: firstHandle.task_id,
           cancelTask: async () => {
             if (activeHandle) await generationClient.cancel(activeHandle);
           },
-          cancelLabel: "停止生成",
+          cancelLabel: t("workflow.stop"),
         },
         async ({ setProgress }) => {
           for (const [index, item] of missingPrompts.entries()) {
@@ -1019,7 +1064,7 @@ export function useVideoPromptGenerationActions({
               activeHandle = nextHandle;
             }
             const handle = activeHandle;
-            if (!handle) throw new Error("图片生成任务未启动");
+            if (!handle) throw new Error(t("video.actions.imageTaskNotStarted"));
             const task = await generationClient.waitForTerminal(handle, (current) => {
               if (current?.progress) {
                 setProgress(current.progress.message, index, missingPrompts.length);
@@ -1029,7 +1074,7 @@ export function useVideoPromptGenerationActions({
             generatedIds.push(image.id);
             chainImages.push(image);
             setProgress(
-              `已生成第 ${item.shot_number} 张${frameLabel}`,
+              t("video.actions.generatedFrameProgress", { number: formatNumber(item.shot_number, locale), label: frameLabel }),
               index + 1,
               missingPrompts.length,
             );
@@ -1040,12 +1085,12 @@ export function useVideoPromptGenerationActions({
       );
       if (!isCurrentActionScope(requestScope)) return;
       addToast(
-        `已生成 ${generatedIds.length} 张${frameLabel}，其余上游图片已复用`,
+        t("video.actions.generatedFramesReused", { count: formatNumber(generatedIds.length, locale), label: frameLabel }),
         "success",
       );
     } catch (err) {
       if (!isCurrentActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, `${frameLabel}顺序生成失败`);
+      const message = extractErrorMessage(err, t("video.actions.failed", { operation: t("video.actions.sequentialTitle", { number: formatNumber(targetPrompt.shot_number, locale), label: frameLabel }) }));
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       finishAction(actionKey);
@@ -1056,9 +1101,9 @@ export function useVideoPromptGenerationActions({
     if (!chapter) return;
     let frameContract: ReturnType<typeof videoFrameImageContractForPromptType>;
     try {
-      frameContract = videoFrameImageContractForPromptType(prompt.prompt_type);
+      frameContract = videoFrameImageContractForPromptType(prompt.prompt_type, t);
     } catch (err) {
-      addToast(extractErrorMessage(err, "生成视频帧图片失败"), "error");
+      addToast(extractErrorMessage(err, t("video.actions.frameImageGenerationFailed")), "error");
       return;
     }
     const { promptLabel: label, frameLabel } = frameContract;
@@ -1069,22 +1114,22 @@ export function useVideoPromptGenerationActions({
       return;
     }
     if (prompt.status === "running") {
-      addToast(`${label} #${prompt.shot_number} 正在运行，不能成图`, "error");
+      addToast(t("video.actions.frameImageRunningCannot", { label, number: formatNumber(prompt.shot_number, locale) }), "error");
       return;
     }
     let request: Record<string, unknown>;
     try {
       request = buildFrameImageGenerationRequest(prompt);
     } catch (err) {
-      addToast(extractErrorMessage(err, `生成${frameLabel}图片失败`), "error");
+      addToast(extractErrorMessage(err, t("video.actions.failed", { operation: t("video.actions.generateFrameImageTitle", { label: frameLabel }) })), "error");
       return;
     }
     const requestScope = actionScopeKey;
     if (!beginAction(actionKey)) return;
     const ok = await confirmDialog({
-      title: `生成${frameLabel}图片`,
-      message: `将调用图片模型，为${label} #${prompt.shot_number} 生成 1 张${frameLabel}图片。生成后会作为后续视频生成的${frameLabel}输入；如需重生成，需要先删除对应图片。`,
-      confirmText: "生成图片",
+      title: t("video.actions.generateFrameImageTitle", { label: frameLabel }),
+      message: t("video.actions.generateFrameImageMessage", { promptLabel: label, number: formatNumber(prompt.shot_number, locale), label: frameLabel }),
+      confirmText: t("video.actions.generateFrameImageConfirm"),
     });
     if (!ok) {
       finishAction(actionKey);
@@ -1096,7 +1141,7 @@ export function useVideoPromptGenerationActions({
     }
     await runImageAssetTask(
       actionKey,
-      `生成${frameLabel}`,
+      t("video.actions.generateFrameImageTitle", { label: frameLabel }),
       frameLabel,
       [request],
     );

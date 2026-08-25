@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { VideoSegmentExecutionRecipe } from "../../../api/video";
 import { VideoPromptSetupPanel } from "./VideoPromptSetupPanel";
+import { I18nProvider } from "../../../i18n";
 
 const recipe = (
   segmentNumber: number,
@@ -57,7 +58,8 @@ describe("VideoPromptSetupPanel", () => {
       acting: string | null = null,
     ) =>
       renderToStaticMarkup(
-        <VideoPromptSetupPanel
+        <I18nProvider initialLocale="zh-CN">
+          <VideoPromptSetupPanel
           prompts={[]}
           segmentCards={segmentCards}
           segmentRecipes={segmentRecipes}
@@ -77,7 +79,8 @@ describe("VideoPromptSetupPanel", () => {
           onDeletePrompt={() => undefined}
           onInsertSegment={() => undefined}
           onOpenInsertedSegment={() => undefined}
-        />,
+          />
+        </I18nProvider>,
       );
     const firstSelected = renderSelected(1);
     const secondSelected = renderSelected(2);
@@ -109,7 +112,8 @@ describe("VideoPromptSetupPanel", () => {
 
   it("renders the page sidebar as a pure segment index", () => {
     const html = renderToStaticMarkup(
-      <VideoPromptSetupPanel
+      <I18nProvider initialLocale="zh-CN">
+        <VideoPromptSetupPanel
         prompts={[]}
         segmentCards={[
           {
@@ -151,7 +155,8 @@ describe("VideoPromptSetupPanel", () => {
         onDeletePrompt={() => undefined}
         onInsertSegment={() => undefined}
         onOpenInsertedSegment={() => undefined}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("片段一");

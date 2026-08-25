@@ -33,6 +33,7 @@ import {
 import { readSseStream } from "../utils/sseParser";
 import { sha256Hex } from "../utils/contentHash";
 import { utf8ByteLength } from "../utils/text";
+import { getActiveLocale, translateMessage } from "../i18n";
 import {
   generationTaskKey,
   getGenerationTaskViewState,
@@ -186,8 +187,8 @@ export const generationClient = {
               task,
               new Error(
                 task.taskStatus === "cancelled" || task.taskStatus === "interrupted"
-                  ? "生成已停止"
-                  : task.error?.message?.trim() || "生成失败",
+                  ? translateMessage(getActiveLocale(), "errors.generationStopped")
+                  : task.error?.message?.trim() || translateMessage(getActiveLocale(), "errors.generationFailed"),
               ),
             );
             return;
@@ -200,8 +201,8 @@ export const generationClient = {
               task,
               new Error(
                 task.clientState === "consistency_error"
-                  ? "生成结果一致性校验失败，请从正式结果重新加载"
-                  : "生成状态连接失败，请在任务队列查看最终结果",
+                  ? translateMessage(getActiveLocale(), "errors.generationConsistencyFailed")
+                  : translateMessage(getActiveLocale(), "errors.generationConnectionFailed"),
               ),
             );
           }
@@ -259,7 +260,7 @@ export const generationClient = {
       });
       const snapshot = await this.getSnapshot(handle.task_id, handle.attempt);
       if (!await snapshotTerminalIsConsistent(snapshot)) {
-        const message = "generation completed hash 与 snapshot 正文不一致";
+        const message = translateMessage(getActiveLocale(), "errors.generationHashMismatch");
         const terminal = snapshot.terminal_event;
         markGenerationConsistencyFailure(
           { taskId: handle.task_id, attempt: handle.attempt },
@@ -293,7 +294,10 @@ export const generationClient = {
           state: "failed",
         });
         throw new Error(
-          `${extractErrorMessage(error, "generation snapshot 恢复失败")}；${extractErrorMessage(summaryError, "summary 查询失败")}`,
+          translateMessage(getActiveLocale(), "errors.generationSnapshotRecoveryFailed", {
+            error: extractErrorMessage(error, translateMessage(getActiveLocale(), "errors.generationSnapshotRecoveryError")),
+            summaryError: extractErrorMessage(summaryError, translateMessage(getActiveLocale(), "errors.generationSummaryQueryFailed")),
+          }),
         );
       }
       useGenerationTasksStore.getState().dispatch(key, { type: "summary", summary });
@@ -379,12 +383,12 @@ async function runWebTransport(
       if (!response.ok) {
         throw await readHostError(response);
       }
-      if (!response.body) throw new Error("generation SSE response 缺少 body");
+      if (!response.body) throw new Error(translateMessage(getActiveLocale(), "errors.generationSseMissingBody"));
       await readSseStream(response.body, (frame) => {
         if (frame.event !== "generation_task_event") {
-          throw new Error(`generation SSE event type 无效: ${frame.event}`);
+          throw new Error(translateMessage(getActiveLocale(), "errors.generationSseInvalidEvent", { event: frame.event }));
         }
-        if (terminalVerification) throw new Error("generation terminal 后收到额外事件");
+        if (terminalVerification) throw new Error(translateMessage(getActiveLocale(), "errors.generationTerminalExtraEvent"));
         const event = parseGenerationTaskEvent(JSON.parse(frame.data));
         cursor = event.sequence;
         retry = 0;
@@ -406,7 +410,7 @@ async function runTauriTransport(
   afterSequence: number | undefined,
   session: GenerationTransportSession,
 ): Promise<void> {
-  if (!isTauriRuntime()) throw new Error("当前环境不支持 Tauri generation Channel");
+  if (!isTauriRuntime()) throw new Error(translateMessage(getActiveLocale(), "errors.generationChannelUnsupported"));
   const channel = createRuntimeChannel<unknown>();
   channel.onmessage = (value) => {
     try {

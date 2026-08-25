@@ -1,5 +1,5 @@
 mod cursor;
-pub mod destructive_lifecycle;
+pub(crate) mod destructive_lifecycle;
 
 use a4n_api_contract::generation_tasks::{
     CancelGenerationTaskInput, GenerationTaskHandle, GenerationTaskHistoryPage,

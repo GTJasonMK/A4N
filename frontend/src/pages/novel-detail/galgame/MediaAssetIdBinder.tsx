@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Images } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
+import { useI18n } from "../../../i18n";
 
 /**
  * 素材编号绑定器
@@ -26,13 +27,14 @@ export const MediaAssetIdBinder: React.FC<MediaAssetIdBinderProps> = ({
   disabled,
   onBind,
 }) => {
+  const { t } = useI18n();
   const [draft, setDraft] = useState("");
   const [error, setError] = useState("");
   const mediaAssetId = parsePositiveInteger(draft);
 
   const submit = () => {
     if (mediaAssetId == null) {
-      setError("请输入有效的素材编号");
+      setError(t("galgame.invalidMediaAssetId"));
       return;
     }
     setError("");
@@ -42,7 +44,7 @@ export const MediaAssetIdBinder: React.FC<MediaAssetIdBinderProps> = ({
   return (
     <details className="border-t border-book-border/55 pt-2">
       <summary className="cursor-pointer list-none text-small text-book-text-muted hover:text-book-text-main [&::-webkit-details-marker]:hidden">
-        从已有素材绑定
+        {t("galgame.bindExistingMedia")}
       </summary>
       <div className="mt-2 space-y-1">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
@@ -51,8 +53,8 @@ export const MediaAssetIdBinder: React.FC<MediaAssetIdBinderProps> = ({
             value={draft}
             disabled={disabled}
             inputMode="numeric"
-            aria-label="素材编号"
-            placeholder="素材编号"
+            aria-label={t("galgame.mediaAssetId")}
+            placeholder={t("galgame.mediaAssetId")}
             onChange={(event) => {
               setDraft(event.target.value);
               if (error) setError("");

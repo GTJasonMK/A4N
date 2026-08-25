@@ -1,4 +1,6 @@
-use super::types::{ChapterAnchorMode, SceneProfileSyncRequestContext};
+use super::types::{
+    ChapterAnchorMode, SceneProfileSyncRequestContext, SceneProfileSyncStableContext,
+};
 use crate::OrchestratorContext;
 use a4n_core::models::asset::object_profile;
 use a4n_core::models::chapter::chapter;
@@ -7,66 +9,118 @@ use a4n_core::models::project::text_anchor;
 use a4n_core::models::scene::scene_profile;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
-pub(super) async fn build_scene_profile_sync_request(
+pub(super) async fn load_scene_profile_sync_stable_context(
     state: &OrchestratorContext,
     project_id: i64,
-    chapter: chapter::Model,
-    anchor_mode: ChapterAnchorMode,
-) -> Result<SceneProfileSyncRequestContext, String> {
-    let existing_scene_profiles = state
-        .scene_profiles_by_project(project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-    let existing_scene_ids = existing_scene_profiles
-        .iter()
-        .map(|profile| profile.id)
-        .collect::<BTreeSet<_>>();
-    let object_profiles = state
-        .object_profiles_by_project(project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-    let object_ids = object_profiles
-        .iter()
-        .map(|profile| profile.id)
-        .collect::<BTreeSet<_>>();
-    let object_names = object_profiles
-        .iter()
-        .map(|profile| (profile.id, profile.name.clone()))
-        .collect::<BTreeMap<_, _>>();
-    let character_profiles = state
-        .protagonist_profiles_for_project(project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-    let character_ids = character_profiles
-        .iter()
-        .map(|profile| profile.id)
-        .collect::<BTreeSet<_>>();
-    let character_names = character_profiles
-        .iter()
-        .map(|profile| (profile.id, profile.name.clone()))
-        .collect::<BTreeMap<_, _>>();
-    let text_anchors = match anchor_mode {
-        ChapterAnchorMode::EnsureCurrent => state
-            .ensure_chapter_content_anchor_records(project_id, chapter.id)
+) -> Result<SceneProfileSyncStableContext, String> {
+    let object_profiles = Arc::new(
+        state
+            .object_profiles_by_project(project_id)
             .await
             .map_err(|error| error.to_string())?,
-        ChapterAnchorMode::RequireExistingCurrent => {
-            read_current_chapter_content_anchors(state, project_id, chapter.id).await?
-        }
-    };
-    Ok(SceneProfileSyncRequestContext {
-        chapter,
-        text_anchors,
-        existing_scene_profiles,
+    );
+    let character_profiles = Arc::new(
+        state
+            .protagonist_profiles_for_project(project_id)
+            .await
+            .map_err(|error| error.to_string())?,
+    );
+    let object_ids = Arc::new(object_profiles.iter().map(|profile| profile.id).collect());
+    let character_ids = Arc::new(
+        character_profiles
+            .iter()
+            .map(|profile| profile.id)
+            .collect(),
+    );
+    let object_names = Arc::new(
+        object_profiles
+            .iter()
+            .map(|profile| (profile.id, profile.name.clone()))
+            .collect(),
+    );
+    let character_names = Arc::new(
+        character_profiles
+            .iter()
+            .map(|profile| (profile.id, profile.name.clone()))
+            .collect(),
+    );
+
+    Ok(SceneProfileSyncStableContext {
         character_profiles,
         object_profiles,
-        existing_scene_ids,
         character_ids,
         object_ids,
         character_names,
         object_names,
     })
+}
+
+pub(super) async fn build_scene_profile_sync_request(
+    state: &OrchestratorContext,
+    project_id: i64,
+    chapter: chapter::Model,
+    text_anchors: Vec<text_anchor::Model>,
+    stable: &SceneProfileSyncStableContext,
+) -> Result<SceneProfileSyncRequestContext, String> {
+    let existing_scene_profiles = state
+        .scene_profiles_by_project(project_id)
+        .await
+        .map_err(|error| error.to_string())?;
+    Ok(build_scene_profile_sync_request_with_profiles(
+        chapter,
+        text_anchors,
+        stable,
+        Arc::new(existing_scene_profiles),
+    ))
+}
+
+pub(super) fn build_scene_profile_sync_request_with_profiles(
+    chapter: chapter::Model,
+    text_anchors: Vec<text_anchor::Model>,
+    stable: &SceneProfileSyncStableContext,
+    existing_scene_profiles: Arc<Vec<scene_profile::Model>>,
+) -> SceneProfileSyncRequestContext {
+    let existing_scene_ids = existing_scene_profiles
+        .iter()
+        .map(|profile| profile.id)
+        .collect::<BTreeSet<_>>();
+    SceneProfileSyncRequestContext {
+        chapter,
+        text_anchors,
+        existing_scene_profiles,
+        character_profiles: Arc::clone(&stable.character_profiles),
+        object_profiles: Arc::clone(&stable.object_profiles),
+        existing_scene_ids,
+        character_ids: Arc::clone(&stable.character_ids),
+        object_ids: Arc::clone(&stable.object_ids),
+        character_names: Arc::clone(&stable.character_names),
+        object_names: Arc::clone(&stable.object_names),
+    }
+}
+
+pub(super) async fn load_scene_profile_sync_anchor_context(
+    state: &OrchestratorContext,
+    project_id: i64,
+    chapters: &[chapter::Model],
+    anchor_mode: ChapterAnchorMode,
+) -> Result<BTreeMap<i64, Vec<text_anchor::Model>>, String> {
+    let chapter_ids = chapters
+        .iter()
+        .map(|chapter| chapter.id)
+        .collect::<Vec<_>>();
+    let groups = match anchor_mode {
+        ChapterAnchorMode::EnsureCurrent => state
+            .ensure_chapter_content_anchor_records_batch(project_id, &chapter_ids)
+            .await
+            .map_err(|error| error.to_string())?,
+        ChapterAnchorMode::RequireExistingCurrent => state
+            .require_current_chapter_content_anchors_for_preview_batch(project_id, &chapter_ids)
+            .await
+            .map_err(|error| error.to_string())?,
+    };
+    Ok(chapter_ids.into_iter().zip(groups).collect())
 }
 
 pub(super) async fn select_scene_profile_sync_chapters(
@@ -115,15 +169,4 @@ pub(super) fn object_profile_for_prompt(profile: &object_profile::Model) -> Valu
 
 pub(super) fn scene_profile_chapter_context(chapter: &chapter::Model) -> Value {
     json!({"chapter_id": chapter.id, "chapter_number": chapter.chapter_number, "chapter_title": chapter.title, "content": chapter.content, "analysis_data": chapter.analysis_data})
-}
-
-pub(super) async fn read_current_chapter_content_anchors(
-    state: &OrchestratorContext,
-    project_id: i64,
-    chapter_id: i64,
-) -> Result<Vec<text_anchor::Model>, String> {
-    state
-        .require_current_chapter_content_anchors_for_preview(project_id, chapter_id)
-        .await
-        .map_err(|error| error.to_string())
 }

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
+import { useI18n } from '../../i18n';
 
 export type ToastType = 'success' | 'error' | 'info';
 
@@ -29,6 +30,7 @@ export const useToast = create<ToastStore>((set) => ({
 
 export function ToastContainer() {
   const { toasts, removeToast } = useToast();
+  const { t } = useI18n();
 
   const iconMap = {
     success: <CheckCircle size={14} className="text-success" />,
@@ -48,7 +50,7 @@ export function ToastContainer() {
         <div
           key={toast.id}
           role={toast.type === 'error' ? 'alert' : 'status'}
-          className={`toast-enter pointer-events-auto w-full rounded-[var(--pyqt-radius-lg)] border px-3 py-2.5 shadow-[var(--shadow-overlay)] ${toneClasses[toast.type]}`}
+          className={`a4n-toast a4n-toast--${toast.type} toast-enter pointer-events-auto w-full rounded-[var(--pyqt-radius-lg)] border px-3 py-2.5 shadow-[var(--shadow-overlay)] ${toneClasses[toast.type]}`}
         >
           <div className="flex min-w-0 items-start gap-2">
             <span className="mt-0.5 shrink-0">{iconMap[toast.type]}</span>
@@ -57,7 +59,7 @@ export function ToastContainer() {
             </p>
             <button
               type="button"
-              aria-label="关闭提示"
+              aria-label={t("feedback.closeToast")}
               className="a4n-icon-button -mt-1 mr-0 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main sm:h-7 sm:w-7"
               onClick={() => removeToast(toast.id)}
             >

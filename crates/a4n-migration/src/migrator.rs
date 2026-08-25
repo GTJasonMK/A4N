@@ -92,6 +92,16 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::external_import_model_identity_cleanup::Migration),
             Box::new(crate::migrations::chapter_video_prompt_output_language_contract::Migration),
             Box::new(crate::migrations::profile_record_ownership_default_cleanup::Migration),
+            Box::new(crate::migrations::chapter_visual_plan::Migration),
+            Box::new(crate::migrations::chapter_visual_plan_source_revision_identity::Migration),
+            Box::new(crate::migrations::legacy_asset_lineage_shadow_cleanup::Migration),
+            Box::new(crate::migrations::manga_page_layout_identity_cleanup::Migration),
+            Box::new(crate::migrations::chapter_visual_plan_workflow_identity_cleanup::Migration),
+            Box::new(crate::migrations::page_cli_enabled::Migration),
+            Box::new(crate::migrations::theme_system_v2::Migration),
+            Box::new(crate::migrations::theme_system_v3::Migration),
+            Box::new(crate::migrations::theme_resource_size_limit_v2::Migration),
+            Box::new(crate::migrations::theme_token_layer_cleanup::Migration),
         ]
     }
 }
@@ -141,14 +151,11 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(35)
+                .take(42)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "segment_execution_recipe_identity",
-                "segment_recipe_adoption_repair",
-                "chapter_video_prompt_execution_identity",
                 "drop_chapter_video_prompt_identity_unique",
                 "unified_model_provider_requests",
                 "system_settings_key_unique",
@@ -181,6 +188,16 @@ mod tests {
                 "external_import_model_identity_cleanup",
                 "chapter_video_prompt_output_language_contract",
                 "profile_record_ownership_default_cleanup",
+                "chapter_visual_plan",
+                "chapter_visual_plan_source_revision_identity",
+                "legacy_asset_lineage_shadow_cleanup",
+                "manga_page_layout_identity_cleanup",
+                "chapter_visual_plan_workflow_identity_cleanup",
+                "page_cli_enabled",
+                "theme_system_v2",
+                "theme_system_v3",
+                "theme_resource_size_limit_v2",
+                "theme_token_layer_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

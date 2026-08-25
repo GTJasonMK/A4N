@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use super::ShootingScriptValidationError;
 use super::rules::{invalid, is_subset, non_empty_texts, require_index, required_text};
@@ -7,8 +7,10 @@ use crate::shooting_script::{ShootingPerformanceBeatV1, ShootingSceneV1, Shootin
 pub(super) fn validate_scene(
     scene: &ShootingSceneV1,
     path: &str,
-    shot_ids: &mut BTreeSet<String>,
-    beat_ids: &mut BTreeSet<String>,
+    shot_ids: &mut HashSet<String>,
+    beat_ids: &mut HashSet<String>,
+    user_addition_ids: &HashSet<&str>,
+    requires_visual_plan: bool,
 ) -> Result<(), ShootingScriptValidationError> {
     for (field, text) in [
         ("title", &scene.title),
@@ -24,7 +26,27 @@ pub(super) fn validate_scene(
     ] {
         required_text(text, &format!("{path}.{field}"))?;
     }
-    non_empty_texts(&scene.source_span_ids, &format!("{path}.source_span_ids"))?;
+    validate_provenance(
+        &scene.source_span_ids,
+        &scene.user_addition_ids,
+        &format!("{path}.source_span_ids"),
+    )?;
+    validate_addition_refs(
+        &scene.user_addition_ids,
+        user_addition_ids,
+        &format!("{path}.user_addition_ids"),
+    )?;
+    if requires_visual_plan
+        && scene
+            .visual_narrative_unit_id
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+    {
+        return invalid(
+            format!("{path}.visual_narrative_unit_id"),
+            "绑定 visual plan 的拍摄剧本必须保留叙事单元 ID",
+        );
+    }
     if !scene.participants.is_empty() {
         non_empty_texts(&scene.participants, &format!("{path}.participants"))?;
     }
@@ -61,7 +83,15 @@ pub(super) fn validate_scene(
             shot_offset,
             &format!("{shot_path}.shot_index"),
         )?;
-        validate_shot(scene, shot, &shot_path, shot_ids, beat_ids)?;
+        validate_shot(
+            scene,
+            shot,
+            &shot_path,
+            shot_ids,
+            beat_ids,
+            user_addition_ids,
+            requires_visual_plan,
+        )?;
     }
     Ok(())
 }
@@ -70,8 +100,10 @@ fn validate_shot(
     scene: &ShootingSceneV1,
     shot: &ShootingShotV1,
     path: &str,
-    shot_ids: &mut BTreeSet<String>,
-    beat_ids: &mut BTreeSet<String>,
+    shot_ids: &mut HashSet<String>,
+    beat_ids: &mut HashSet<String>,
+    user_addition_ids: &HashSet<&str>,
+    requires_visual_plan: bool,
 ) -> Result<(), ShootingScriptValidationError> {
     for (field, text) in [
         ("shot_id", &shot.shot_id),
@@ -95,7 +127,38 @@ fn validate_shot(
     if !shot_ids.insert(shot.shot_id.clone()) {
         return invalid(format!("{path}.shot_id"), "必须在章节内唯一");
     }
-    non_empty_texts(&shot.source_span_ids, &format!("{path}.source_span_ids"))?;
+    validate_provenance(
+        &shot.source_span_ids,
+        &shot.user_addition_ids,
+        &format!("{path}.source_span_ids"),
+    )?;
+    validate_addition_refs(
+        &shot.user_addition_ids,
+        user_addition_ids,
+        &format!("{path}.user_addition_ids"),
+    )?;
+    match (shot.planned_start_ms, shot.planned_end_ms) {
+        (Some(start), Some(end)) if start < end => {}
+        (None, None) if !requires_visual_plan => {}
+        _ => {
+            return invalid(
+                format!("{path}.planned_start_ms"),
+                "visual plan 镜头必须同时保留有效的计划起止时间",
+            );
+        }
+    }
+    if requires_visual_plan
+        && (shot
+            .visual_shot_id
+            .as_deref()
+            .is_none_or(|value| value.trim().is_empty())
+            || shot.visual_constraints.is_none())
+    {
+        return invalid(
+            format!("{path}.visual_shot_id"),
+            "绑定 visual plan 的拍摄剧本必须保留镜头 ID 和视觉约束",
+        );
+    }
     if !is_subset(&shot.source_span_ids, &scene.source_span_ids) {
         return invalid(
             format!("{path}.source_span_ids"),
@@ -116,7 +179,7 @@ fn validate_shot(
             beat_offset,
             &format!("{beat_path}.beat_index"),
         )?;
-        validate_beat(scene, shot, beat, &beat_path, beat_ids)?;
+        validate_beat(scene, shot, beat, &beat_path, beat_ids, user_addition_ids)?;
         seconds += beat.estimated_seconds;
     }
     if !shot.performance_beats.is_empty() && (seconds - shot.estimated_natural_seconds).abs() > 0.01
@@ -126,13 +189,14 @@ fn validate_shot(
             "必须等于表演节拍时长之和",
         );
     }
+    let beat_ids_for_shot = shot
+        .performance_beats
+        .iter()
+        .map(|beat| beat.beat_id.as_str())
+        .collect::<HashSet<_>>();
     for cue in &shot.dialogue_cues {
         required_text(&cue.beat_id, &format!("{path}.dialogue_cues[].beat_id"))?;
-        if !shot
-            .performance_beats
-            .iter()
-            .any(|beat| beat.beat_id == cue.beat_id)
-        {
+        if !beat_ids_for_shot.contains(cue.beat_id.as_str()) {
             return invalid(
                 format!("{path}.dialogue_cues[].beat_id"),
                 "必须引用当前镜头的表演节拍",
@@ -152,7 +216,8 @@ fn validate_beat(
     shot: &ShootingShotV1,
     beat: &ShootingPerformanceBeatV1,
     path: &str,
-    beat_ids: &mut BTreeSet<String>,
+    beat_ids: &mut HashSet<String>,
+    user_addition_ids: &HashSet<&str>,
 ) -> Result<(), ShootingScriptValidationError> {
     for (field, text) in [
         ("beat_id", &beat.beat_id),
@@ -169,7 +234,16 @@ fn validate_beat(
     if !beat_ids.insert(beat.beat_id.clone()) {
         return invalid(format!("{path}.beat_id"), "必须在章节内唯一");
     }
-    non_empty_texts(&beat.source_span_ids, &format!("{path}.source_span_ids"))?;
+    validate_provenance(
+        &beat.source_span_ids,
+        &beat.user_addition_ids,
+        &format!("{path}.source_span_ids"),
+    )?;
+    validate_addition_refs(
+        &beat.user_addition_ids,
+        user_addition_ids,
+        &format!("{path}.user_addition_ids"),
+    )?;
     if !is_subset(&beat.source_span_ids, &shot.source_span_ids) {
         return invalid(
             format!("{path}.source_span_ids"),
@@ -186,6 +260,32 @@ fn validate_beat(
     }
     if !beat.estimated_seconds.is_finite() || beat.estimated_seconds <= 0.0 {
         return invalid(format!("{path}.estimated_seconds"), "必须是大于 0 的有限数");
+    }
+    Ok(())
+}
+
+fn validate_addition_refs(
+    values: &[String],
+    known: &HashSet<&str>,
+    path: &str,
+) -> Result<(), ShootingScriptValidationError> {
+    if let Some(value) = values.iter().find(|value| !known.contains(value.as_str())) {
+        invalid(path, format!("引用了不存在的用户新增事实: {value}"))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_provenance(
+    source_span_ids: &[String],
+    user_addition_ids: &[String],
+    path: &str,
+) -> Result<(), ShootingScriptValidationError> {
+    if source_span_ids.is_empty() && user_addition_ids.is_empty() {
+        return invalid(path, "必须引用原文来源或用户新增事实");
+    }
+    if !source_span_ids.is_empty() {
+        non_empty_texts(source_span_ids, path)?;
     }
     Ok(())
 }

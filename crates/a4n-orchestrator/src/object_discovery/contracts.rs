@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 
+use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_core::{
     error::AppError,
     models::{chapter::chapter, project::text_anchor},
@@ -7,8 +8,6 @@ use a4n_core::{
 };
 use a4n_llm::provider::ChatRequest;
 use tokio_util::sync::CancellationToken;
-
-use crate::asset::ObjectProfileDraft;
 
 pub(super) const OBJECT_DISCOVERY_LLM_SPAN: ProgressSpan = ProgressSpan::new(10, 75);
 pub(super) const OBJECT_DISCOVERY_FIELDS: &[FieldMilestone] = &[
@@ -25,16 +24,16 @@ pub(super) const OBJECT_DISCOVERY_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("evidence_anchor_ids", "证据锚点", 1),
 ];
 
-pub type ObjectDiscoveryProgressReporter<'a> =
+pub(crate) type ObjectDiscoveryProgressReporter<'a> =
     &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
 
 #[derive(Clone, Copy)]
-pub struct ObjectDiscoveryProgress<'a> {
-    pub reporter: Option<ObjectDiscoveryProgressReporter<'a>>,
+pub(crate) struct ObjectDiscoveryProgress<'a> {
+    pub(crate) reporter: Option<ObjectDiscoveryProgressReporter<'a>>,
     /// 活体信号出口：与字段级里程碑取自同一个 token 流。
-    pub stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
-    pub cancel_token: Option<&'a CancellationToken>,
-    pub active_task_id: Option<&'a str>,
+    pub(crate) stream_reporter: Option<&'a (dyn Fn(&str) + Send + Sync)>,
+    pub(crate) cancel_token: Option<&'a CancellationToken>,
+    pub(crate) active_task_id: Option<&'a str>,
 }
 
 impl ObjectDiscoveryProgress<'_> {
@@ -53,15 +52,9 @@ impl ObjectDiscoveryProgress<'_> {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ObjectDiscoveryInput {
-    pub project_id: i64,
-    pub chapter_number: Option<i32>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ObjectDiscoveryRequestPreview {
-    pub analyzed_chapter_count: usize,
-    pub request: ChatRequest,
+pub(crate) struct ObjectDiscoveryInput {
+    pub(crate) project_id: i64,
+    pub(crate) chapter_number: Option<i32>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -77,7 +70,7 @@ pub(super) struct ObjectDiscoveryRequestContext {
 
 #[derive(Debug)]
 pub(super) struct ParsedObjectProfileDraft {
-    pub(super) draft: ObjectProfileDraft,
+    pub(super) draft: ObjectProfileInput,
     pub(super) evidence_anchor_ids: Vec<i64>,
 }
 

@@ -2,7 +2,7 @@ use super::contracts::ManifestIds;
 
 use a4n_domain::CanvasNodeRefKind;
 
-use crate::project::video_studio_package::ImportMediaPayload;
+use crate::project::ImportMediaPayload;
 
 pub(super) fn validate_payload_entries(
     media_payload: &ImportMediaPayload,

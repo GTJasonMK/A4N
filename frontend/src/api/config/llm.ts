@@ -78,7 +78,7 @@ function systemDefaultRuntimeLlmConfig(
   return {
     ...config,
     id: SYSTEM_LLM_CONFIG_ID,
-    name: `系统默认：${config.name.replace(/^系统默认：/, "")}`,
+    name: `系统默认：${config.name}`,
     ...(apiKey ? { api_key_encrypted: apiKey } : {}),
     has_api_key: apiKey ? true : config.has_api_key,
     is_default: true,

@@ -12,6 +12,7 @@ import { Modal } from "../../../components/ui/Modal";
 import { StyleTemplatePicker } from "../StyleTemplatePicker";
 import type { ChapterRow } from "../shared";
 import { VISUAL_STYLE_TEMPLATES } from "../styleTemplates";
+import { formatNumber, useI18n } from "../../../i18n";
 
 interface ImageGenerationDialogProps {
   open: boolean;
@@ -57,6 +58,7 @@ export function ImageGenerationDialog({
   onPreviewObjectImage,
   onGenerateObjectImage,
 }: ImageGenerationDialogProps) {
+  const { locale, t } = useI18n();
   const [objectToolsOpen, setObjectToolsOpen] = useState(false);
   const hasObjectProfiles = objectProfiles.length > 0;
   const busy = genBusy || objectImageBusy || objectPromptCopying;
@@ -71,11 +73,11 @@ export function ImageGenerationDialog({
     <Modal
       isOpen={open}
       onClose={onClose}
-      title={chapter ? "生成章节图像" : "生成项目图像"}
+      title={chapter ? t("novel.imageLibrary.chapterTitle") : t("novel.imageLibrary.projectTitle")}
       subtitle={
         chapter
-          ? "为当前章节创建场景图。"
-          : "使用提示词创建项目图像。"
+          ? t("novel.imageLibrary.chapterDescription")
+          : t("novel.imageLibrary.projectDescription")
       }
       icon={<Camera size={15} />}
       maxWidthClassName="max-w-2xl"
@@ -87,11 +89,11 @@ export function ImageGenerationDialog({
       <div className="space-y-4">
         <section className="space-y-3 text-xs">
           <label className="flex flex-col gap-1">
-            <span className="text-small text-book-text-muted">提示词</span>
+            <span className="text-small text-book-text-muted">{t("novel.imageLibrary.prompt")}</span>
             <textarea
               value={genPrompt}
               onChange={(event) => onGenPromptChange(event.target.value)}
-              placeholder="如：夜色中的码头，远处一艘船的灯火…"
+              placeholder={t("novel.imageLibrary.scenePromptPlaceholder")}
               rows={3}
               className="pyqt-input min-h-[72px] resize-y"
               disabled={chapterGenerateLocked || busy}
@@ -99,11 +101,11 @@ export function ImageGenerationDialog({
           </label>
           {chapterGenerateLocked ? (
             <p className="text-small leading-relaxed text-warning">
-              当前章节正在生成，暂时不能再次生成章节场景图。
+              {t("novel.imageLibrary.chapterLocked")}
             </p>
           ) : chapter ? (
             <p className="text-small text-book-text-muted">
-              新生成的场景图会绑定到当前章节，并记录当前正文指纹，可作为视频参考图或后续素材使用。
+              {t("novel.imageLibrary.generatedSceneHint")}
             </p>
           ) : null}
           <div className="flex items-center justify-end gap-2 border-t border-book-border/45 pt-3">
@@ -111,7 +113,7 @@ export function ImageGenerationDialog({
               <Dropdown
                 items={[
                   {
-                    label: "查看模型请求",
+                    label: t("novel.imageLibrary.viewRequest"),
                     icon: <Eye size={12} />,
                     onClick: onPreviewGenerate,
                   },
@@ -127,10 +129,10 @@ export function ImageGenerationDialog({
             >
               {genBusy ? (
                 <span className="inline-flex items-center gap-1">
-                  <LoadingSpinner size="sm" /> 生成中
+                  <LoadingSpinner size="sm" /> {t("novel.imageLibrary.generating")}
                 </span>
               ) : (
-                "开始生成"
+                t("novel.imageLibrary.startGenerate")
               )}
             </BookButton>
           </div>
@@ -147,10 +149,10 @@ export function ImageGenerationDialog({
                 <Boxes size={14} className="mt-0.5 shrink-0 text-book-primary" />
                 <span className="min-w-0">
                   <span className="block text-xs font-medium text-book-text-main">
-                    从物体档案生成素材
+                    {t("novel.imageLibrary.objectTitle")}
                   </span>
                   <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
-                    辅助工作流 · 创建可复用的关联素材图
+                    {t("novel.imageLibrary.objectDescription")}
                   </span>
                 </span>
               </span>
@@ -165,10 +167,10 @@ export function ImageGenerationDialog({
                   htmlFor="object-image-profile"
                   className="text-small text-book-text-muted"
                 >
-                  物体档案
+                  {t("novel.imageLibrary.objectProfiles")}
                 </label>
                 <span className="text-caption text-book-text-muted">
-                  {objectProfiles.length} 个可用档案
+                  {t("novel.imageLibrary.availableProfiles", { count: formatNumber(objectProfiles.length, locale) })}
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-2">
@@ -184,7 +186,7 @@ export function ImageGenerationDialog({
                   className="pyqt-input"
                   disabled={busy}
                 >
-                  <option value="">选择物体档案</option>
+                  <option value="">{t("novel.imageLibrary.selectObject")}</option>
                   {objectProfiles.map((profile) => (
                     <option key={profile.id} value={profile.id}>
                       {profile.name}
@@ -192,7 +194,7 @@ export function ImageGenerationDialog({
                   ))}
                 </select>
                 <StyleTemplatePicker
-                  label="素材图风格"
+                  label={t("novel.imageLibrary.style")}
                   value={objectImageStyle}
                   templates={VISUAL_STYLE_TEMPLATES}
                   disabled={busy}
@@ -203,18 +205,18 @@ export function ImageGenerationDialog({
               <div className="flex items-center justify-end gap-2 border-t border-book-border/45 pt-3">
                 {objectPromptCopying ? (
                   <span className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
-                    <LoadingSpinner size="sm" /> 正在准备提示词…
+                    <LoadingSpinner size="sm" /> {t("novel.imageLibrary.copyingPrompt")}
                   </span>
                 ) : !busy && selectedObjectProfileId != null ? (
                   <Dropdown
                     items={[
                       {
-                        label: "复制提示词",
+                        label: t("novel.imageLibrary.copyPrompt"),
                         icon: <Clipboard size={12} />,
                         onClick: onCopyObjectImagePrompt,
                       },
                       {
-                        label: "查看模型请求",
+                        label: t("novel.imageLibrary.viewRequest"),
                         icon: <Eye size={12} />,
                         onClick: onPreviewObjectImage,
                       },
@@ -230,10 +232,10 @@ export function ImageGenerationDialog({
                 >
                   {objectImageBusy ? (
                     <span className="inline-flex items-center gap-1">
-                      <LoadingSpinner size="sm" /> 生成中
+                      <LoadingSpinner size="sm" /> {t("novel.imageLibrary.generating")}
                     </span>
                   ) : (
-                    "生成素材图"
+                    t("novel.imageLibrary.generateMaterial")
                   )}
                 </BookButton>
               </div>

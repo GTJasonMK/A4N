@@ -3,6 +3,8 @@ use crate::shooting_script::*;
 fn valid_script() -> ChapterShootingScriptV1 {
     ChapterShootingScriptV1 {
         schema_version: ChapterShootingScriptSchemaVersion::V1,
+        visual_plan_source: None,
+        user_additions: Vec::new(),
         directing_statement: ShootingDirectingStatementV1 {
             central_dramatic_question: "主角能否确认异常".to_string(),
             protagonist_throughline: "克制恐惧并继续调查".to_string(),
@@ -29,6 +31,8 @@ fn valid_script() -> ChapterShootingScriptV1 {
             participants: vec!["主角".to_string()],
             focal_character: Some("主角".to_string()),
             source_span_ids: vec!["span-1".to_string()],
+            visual_narrative_unit_id: None,
+            user_addition_ids: Vec::new(),
             dramatic_question: "暗处是否存在威胁".to_string(),
             scene_objective: "确认大厅状况".to_string(),
             scene_obstacle: "昏暗遮蔽视线".to_string(),
@@ -56,6 +60,11 @@ fn valid_script() -> ChapterShootingScriptV1 {
                 shot_id: "shot-1".to_string(),
                 title: "进入".to_string(),
                 source_span_ids: vec!["span-1".to_string()],
+                visual_shot_id: None,
+                planned_start_ms: None,
+                planned_end_ms: None,
+                user_addition_ids: Vec::new(),
+                visual_constraints: None,
                 coverage: ShootingCoverageV1::MustShow,
                 narrative_purpose: "建立空间并发现异常".to_string(),
                 subject: "主角".to_string(),
@@ -75,6 +84,7 @@ fn valid_script() -> ChapterShootingScriptV1 {
                     beat_index: 1,
                     beat_id: "beat-1".to_string(),
                     source_span_ids: vec!["span-1".to_string()],
+                    user_addition_ids: Vec::new(),
                     actor: Some("主角".to_string()),
                     objective: "确认异常".to_string(),
                     obstacle: "视线受阻".to_string(),

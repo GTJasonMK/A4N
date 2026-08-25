@@ -15,6 +15,7 @@ import {
 } from "../../../hooks/useProgressTask";
 import { useGenerationTask } from "../../../hooks/useGenerationTask";
 import type { GenerationTaskViewState } from "../../../utils/generationEventReducer";
+import { useI18n } from "../../../i18n";
 
 type OutlineGenerationUiOptions = GenerationProgressUiOptions;
 
@@ -29,6 +30,7 @@ export type RunOutlineGeneration = (
 
 export function useOutlineGeneration() {
   const { runProgressTask } = useProgressTask();
+  const { t } = useI18n();
   const [handle, setHandle] = useState<GenerationTaskHandle | null>(null);
   const handleRef = useRef<GenerationTaskHandle | null>(null);
   const generationTask = useGenerationTask({ handle });
@@ -39,7 +41,7 @@ export function useOutlineGeneration() {
     afterCompletion,
   ) => {
     if (handleRef.current) {
-      throw new Error("已有大纲生成任务正在运行，请等待当前任务完成");
+      throw new Error(t("outline.operationInProgress"));
     }
     const nextHandle = await startOutlineGeneration(input);
     handleRef.current = nextHandle;
@@ -52,7 +54,7 @@ export function useOutlineGeneration() {
         nextHandle,
         options,
         async (task, control) => {
-          control.setProgress("正在同步资料索引…");
+          control.setProgress(t("writing.syncingMaterials"));
           const warnings = await syncOutlineMaterials(input.project_id);
           if (afterCompletion) await afterCompletion(control, task);
           return warnings;
@@ -62,7 +64,7 @@ export function useOutlineGeneration() {
       handleRef.current = null;
       setHandle(null);
     }
-  }, [runProgressTask]);
+  }, [runProgressTask, t]);
 
   return { handle, task: generationTask, run };
 }

@@ -9,23 +9,29 @@ import {
 } from "../../../utils/characterAttributes";
 import { attributeKeyLabel } from "../../character-detail-dialog/manageViewUtils";
 import { EmptyHint } from "../shared";
+import { useI18n, type MessageTranslator } from "../../../i18n";
 
-const profileDescription = (profile: CharacterProfile): string =>
+const profileDescription = (profile: CharacterProfile, t: MessageTranslator): string =>
   characterAttributeText(profile, "implicit", "personality") ??
   characterAttributeText(profile, "explicit", "background") ??
   characterAttributeText(profile, "explicit", "appearance") ??
-  "暂无角色摘要。";
+  t("characterDetail.profileSummaryMissing");
 
-const syncedChapterText = (chapter: number): string =>
-  chapter > 0 ? `同步至第 ${chapter} 章` : "未同步";
+const syncedChapterText = (chapter: number, t: MessageTranslator): string =>
+  chapter > 0
+    ? t("characterDetail.syncThroughChapter", { chapter })
+    : t("characterDetail.notSynced");
 
-const visibleAttributeEntries = (profile: CharacterProfile): Array<[string, string]> =>
+const visibleAttributeEntries = (
+  profile: CharacterProfile,
+  t: MessageTranslator,
+): Array<[string, string]> =>
   [
     ...characterAttributeEntries(profile, "explicit"),
     ...characterAttributeEntries(profile, "implicit"),
     ...characterAttributeEntries(profile, "social"),
   ]
-    .map(([key, value]) => [attributeKeyLabel(key), characterAttributeValueText(value)] as [string, string])
+    .map(([key, value]) => [attributeKeyLabel(key, t), characterAttributeValueText(value)] as [string, string])
     .filter(([, value]) => value && !value.trim().startsWith("{") && !value.trim().startsWith("["))
     .slice(0, 3);
 
@@ -38,6 +44,7 @@ export const CharacterProfilesPanel: React.FC<{
   onChanged: () => void | Promise<void>;
   onEdit: (profile: CharacterProfile) => void;
 }> = ({ projectId, profiles, onChanged, onEdit }) => {
+  const { t } = useI18n();
   const [detailFor, setDetailFor] = useState<CharacterProfile | null>(null);
 
   useEffect(() => {
@@ -48,7 +55,7 @@ export const CharacterProfilesPanel: React.FC<{
   }, [profiles]);
 
   if (profiles.length === 0) {
-    return <EmptyHint text="尚无角色档案。可手动建立，或在有正文后运行章节分析。" />;
+    return <EmptyHint text={t("characterDetail.profilesEmpty")} />;
   }
 
   const latestSyncedChapter = profiles.reduce(
@@ -60,15 +67,15 @@ export const CharacterProfilesPanel: React.FC<{
     <>
       <section>
         <header className="mb-3 px-1">
-          <h2 className="text-sm font-semibold text-book-text-main">角色档案</h2>
+          <h2 className="text-sm font-semibold text-book-text-main">{t("characterDetail.profilesTitle")}</h2>
           <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-            共 {profiles.length} 位角色
-            {latestSyncedChapter > 0 ? `，最新同步至第 ${latestSyncedChapter} 章` : ""}
+            {t("characterDetail.profileCount", { count: profiles.length })}
+            {latestSyncedChapter > 0 ? ` · ${t("characterDetail.latestSynced", { chapter: latestSyncedChapter })}` : ""}
           </p>
         </header>
         <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
           {profiles.map((profile) => {
-            const attributes = visibleAttributeEntries(profile);
+            const attributes = visibleAttributeEntries(profile, t);
             const gender = characterAttributeText(profile, "explicit", "gender");
             const age = characterAttributeText(profile, "explicit", "age");
             return (
@@ -84,7 +91,7 @@ export const CharacterProfilesPanel: React.FC<{
                   }
                 }}
                 className="a4n-flat-surface flex min-h-20 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
-                title="查看角色详情"
+                title={t("characterDetail.viewDetails")}
               >
                 <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-book-primary/10 text-xs font-semibold text-book-primary">
                   {profile.name.trim().charAt(0).toUpperCase() || "?"}
@@ -92,16 +99,16 @@ export const CharacterProfilesPanel: React.FC<{
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">
-                    {[gender, age, syncedChapterText(profile.last_synced_chapter)]
+                    {[gender, age, syncedChapterText(profile.last_synced_chapter, t)]
                       .filter(Boolean)
                       .join(" · ")}
                   </div>
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
-                    {profileDescription(profile)}
+                    {profileDescription(profile, t)}
                   </p>
                   {attributes.length > 0 ? (
                     <p className="mt-1 truncate text-caption text-book-text-muted">
-                      {attributes.map(([key, value]) => `${key}：${value}`).join(" · ")}
+                      {attributes.map(([key, value]) => `${key}: ${value}`).join(" · ")}
                     </p>
                   ) : null}
                 </div>

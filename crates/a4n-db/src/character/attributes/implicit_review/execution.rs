@@ -1,6 +1,5 @@
 use super::super::{
-    deletion_marks::request_attribute_deletion_from_source_in,
-    events::modify_profile_attribute_from_source_in,
+    events::modify_profile_attribute_with_profile_from_source_in,
     types::{
         AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
         CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
@@ -35,18 +34,27 @@ async fn apply_implicit_review_decision_record_in<C>(
 where
     C: ConnectionTrait,
 {
-    apply_implicit_review_decision_record_from_source_in(db, input, SOURCE_KIND_USER).await
+    let profile = require_profile_for_update(db, input.profile_id).await?;
+    apply_implicit_review_decision_record_with_profile_from_source_in(
+        db,
+        profile,
+        input,
+        SOURCE_KIND_USER,
+    )
+    .await
 }
 
-pub(in crate::character) async fn apply_implicit_review_decision_record_from_source_in<C>(
+pub(in crate::character) async fn apply_implicit_review_decision_record_with_profile_from_source_in<
+    C,
+>(
     db: &C,
+    profile: a4n_core::models::character::protagonist_profile::Model,
     input: CharacterImplicitReviewDecisionRecordInput,
     source_kind: &str,
 ) -> Result<AppliedCharacterImplicitDecisionRecord, CharacterDbError>
 where
     C: ConnectionTrait,
 {
-    let profile = require_profile_for_update(db, input.profile_id).await?;
     let chapter_number = require_positive_chapter_number(input.chapter_number, "应用隐性属性复审")?;
     validate_implicit_review_decision_record(&profile, &input)?;
 
@@ -61,8 +69,9 @@ where
             let attribute_key = input.attribute_key.trim().to_string();
             let change_description = format!("隐性属性复审更新: {attribute_key}");
             let cause = format!("隐性属性复审: {}", input.reasoning.trim());
-            let event = modify_profile_attribute_from_source_in(
+            let event = modify_profile_attribute_with_profile_from_source_in(
                 db,
+                profile.clone(),
                 CharacterAttributeValueChangeInput {
                     profile_id: input.profile_id,
                     chapter_number,
@@ -86,8 +95,9 @@ where
             })
         }
         "delete" => {
-            let mark = request_attribute_deletion_from_source_in(
+            let mark = super::super::deletion_marks::request_attribute_deletion_with_profile_in(
                 db,
+                &profile,
                 CharacterAttributeDeletionRequestInput {
                     profile_id: input.profile_id,
                     category: "implicit".to_string(),

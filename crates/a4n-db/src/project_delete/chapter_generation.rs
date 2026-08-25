@@ -14,7 +14,7 @@ where
         chapter, chapter_manga_prompt, chapter_scene, chapter_video_prompt,
     };
 
-    project_db::project_by_id_for_update(db, project_id)
+    project_db::project_write_identity_for_update(db, project_id)
         .await
         .map_err(ProjectDeleteDbError::from)?
         .ok_or(ProjectDeleteDbError::ProjectNotFound { project_id })?;
@@ -41,15 +41,27 @@ where
         .all(db)
         .await?;
     let mut video_query = generated_video::Entity::find()
+        .select_only()
+        .column(generated_video::Column::Id)
+        .column(generated_video::Column::ProjectId)
+        .column(generated_video::Column::FilePath)
+        .column(generated_video::Column::ThumbnailPath)
         .filter(generated_video::Column::ProjectId.eq(project_id))
         .order_by_asc(generated_video::Column::Id);
     if db.get_database_backend() != DbBackend::Sqlite {
         video_query = video_query.lock_exclusive();
     }
-    let generated_videos = video_query.all(db).await?;
-    let generated_video_ids = generated_videos
+    let generated_video_rows = video_query
+        .into_tuple::<(i64, i64, Option<String>, Option<String>)>()
+        .all(db)
+        .await?;
+    let generated_video_ids = generated_video_rows
         .iter()
-        .map(|video| video.id)
+        .map(|(video_id, _, _, _)| *video_id)
+        .collect::<Vec<_>>();
+    let generated_video_refs = generated_video_rows
+        .iter()
+        .map(|(video_id, project_id, _, _)| (*video_id, *project_id))
         .collect::<Vec<_>>();
     let image_query =
         generated_image::Entity::find().filter(generated_image::Column::ProjectId.eq(project_id));
@@ -63,18 +75,26 @@ where
     if db.get_database_backend() != DbBackend::Sqlite {
         image_query = image_query.lock_exclusive();
     }
-    let generated_images = image_query.all(db).await?;
-    let generated_image_ids = generated_images
+    let generated_image_rows = image_query
+        .select_only()
+        .column(generated_image::Column::Id)
+        .column(generated_image::Column::FilePath)
+        .into_tuple::<(i64, String)>()
+        .all(db)
+        .await?;
+    let generated_image_ids = generated_image_rows
         .iter()
-        .map(|image| image.id)
+        .map(|(image_id, _)| *image_id)
         .collect::<Vec<_>>();
-    let mut candidate_media_paths = generated_images
+    let mut candidate_media_paths = generated_image_rows
         .iter()
-        .map(|image| image.file_path.clone())
+        .map(|(_, file_path)| file_path.clone())
         .chain(
-            generated_videos
+            generated_video_rows
                 .iter()
-                .flat_map(|video| [video.file_path.clone(), video.thumbnail_path.clone()])
+                .flat_map(|(_, _, file_path, thumbnail_path)| {
+                    [file_path.clone(), thumbnail_path.clone()]
+                })
                 .flatten(),
         )
         .filter(|path| !path.trim().is_empty())
@@ -92,7 +112,7 @@ where
             .exec(db)
             .await?;
     }
-    crate::video::clear_generated_video_references_record(db, &generated_videos).await?;
+    crate::video::clear_generated_video_references_by_ids(db, &generated_video_refs).await?;
     crate::media::delete_generated_image_target_media_bindings(db, &generated_image_ids).await?;
     crate::media::delete_generated_video_target_media_bindings(db, &generated_video_ids).await?;
 

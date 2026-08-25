@@ -1,4 +1,5 @@
 import React from "react";
+import { useI18n } from "../../i18n";
 
 /**
  * 派生项目头（视频 / 漫画 / Gal）
@@ -31,6 +32,7 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
   stages,
   className = "",
 }) => {
+  const { t } = useI18n();
   return (
     <header
       className={`a4n-page-header shrink-0 flex-col items-stretch !gap-2 py-2 ${className}`.trim()}
@@ -41,11 +43,13 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
           {icon}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-serif text-body-lg font-semibold text-book-text-main">
+          <h1 className="truncate font-serif text-base font-semibold text-book-text-main">
             {title}
           </h1>
           {subtitle != null ? (
-            <p className="mt-0.5 truncate text-small text-book-text-muted">{subtitle}</p>
+            <p className="a4n-derived-project-subtitle mt-0.5 text-small text-book-text-muted">
+              {subtitle}
+            </p>
           ) : null}
         </div>
         {actions != null ? (
@@ -56,7 +60,7 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
       </div>
 
       {context && context.length > 0 ? (
-        <div className="a4n-context-bar" aria-label="项目上下文">
+        <div className="a4n-context-bar" aria-label={t("a11y.projectContext")}>
           {context.map((item) => (
             <span key={item.label} className="a4n-context-chip">
               <span className="text-book-text-muted">{item.label}</span>
@@ -67,7 +71,7 @@ export const DerivedProjectHeader: React.FC<DerivedProjectHeaderProps> = ({
       ) : null}
 
       {stages && stages.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-book-border/45 pt-2" aria-label="工作流阶段">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-book-border/45 pt-2" aria-label={t("a11y.workflowStages")}>
           {stages.map((stage) => (
             <span
               key={stage.id}

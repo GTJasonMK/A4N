@@ -1,6 +1,7 @@
 import type { CanvasMediaAssetSummary } from "../../api/canvas";
 import type { GeneratedImage } from "../../api/image/types";
 import type { GeneratedVideo } from "../../api/video/types";
+import type { MessageTranslator } from "../../i18n";
 import { canvasNodePosition } from "./canvasGraphMapping";
 import {
   CANVAS_REF_TYPE_GENERATED_IMAGE,
@@ -33,8 +34,9 @@ export function importedImageInputNode(
   image: GeneratedImage,
   asset: CanvasMediaAssetSummary,
   index: number,
+  t: MessageTranslator,
 ): StudioNode {
-  const title = image.prompt || `图片 #${image.id}`;
+  const title = image.prompt || t("video.canvas.imported.image", { id: image.id });
   return importedInputNode(asset.id, index, "imported-image", {
     label: title,
     nodeKind: "ImageInputNode",
@@ -56,8 +58,9 @@ export function importedVideoInputNode(
   video: GeneratedVideo,
   asset: CanvasMediaAssetSummary,
   index: number,
+  t: MessageTranslator,
 ): StudioNode {
-  const title = video.prompt || `视频 #${video.id}`;
+  const title = video.prompt || t("video.canvas.imported.video", { id: video.id });
   return importedInputNode(asset.id, index, "imported-video", {
     label: title,
     nodeKind: "VideoInputNode",
@@ -80,8 +83,9 @@ export function importedVideoInputNode(
 export function importedAudioInputNode(
   asset: CanvasMediaAssetSummary,
   index: number,
+  t: MessageTranslator,
 ): StudioNode {
-  const title = asset.file_path?.split("/").pop() || `音频 #${asset.id}`;
+  const title = asset.file_path?.split("/").pop() || t("video.canvas.imported.audio", { id: asset.id });
   return importedInputNode(asset.id, index, "imported-audio", {
     label: title,
     nodeKind: "AudioInputNode",

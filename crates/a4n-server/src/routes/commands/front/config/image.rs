@@ -1,3 +1,4 @@
+use a4n_api_contract::config::{ImageConfigInput, UpdateImageConfigInput};
 use serde_json::Value;
 
 use super::shared::{
@@ -12,12 +13,12 @@ config_web_no_arg_command!(
 );
 config_web_input_command!(
     add_image_config,
-    config_records_actions::ImageConfigInput,
+    ImageConfigInput,
     config_records_actions::add_image_config,
 );
 config_web_update_command!(
     update_image_config,
-    config_records_actions::UpdateImageConfigInput,
+    UpdateImageConfigInput,
     config_records_actions::update_image_config,
 );
 config_web_id_unit_command!(

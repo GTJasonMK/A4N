@@ -18,11 +18,33 @@ import {
   isMangaPagePromptSourceStale,
   type MangaPagePromptSource,
 } from "./mangaTabUtils";
+import type { MessageTranslator } from "../../../i18n";
 
 export type LayoutSummaryItem = {
   key: string;
   label: string;
   value: string;
+};
+
+export type MangaPagePromptLabels = {
+  role: Record<MangaPageRoleV2, string>;
+  pacing: Record<MangaPagePacingV2, string>;
+  importance: Record<MangaPageImportanceV2, string>;
+  readingFlow: Record<MangaReadingFlowV2, string>;
+  pageFunction: string;
+  pagePacing: string;
+  importanceLabel: string;
+  readingFlowLabel: string;
+  pageGoal: string;
+  visualThesis: string;
+  entryState: string;
+  exitState: string;
+  dominantPanel: string;
+  panelCount: string;
+  primaryPortrait: string;
+  primaryImage: string;
+  projectImage: string;
+  otherPortrait: string;
 };
 
 export type MangaPagePrompt = {
@@ -89,74 +111,46 @@ export const missingReferenceBindingLabels = (
     .filter((binding) => binding.boundAsset == null)
     .map((binding) => binding.characterName);
 
-const PAGE_ROLE_LABELS: Record<MangaPageRoleV2, string> = {
-  opening: "开场",
-  setup: "铺垫",
-  rising: "推进",
-  climax: "高潮",
-  falling: "回落",
-  resolution: "收束",
-  transition: "转场",
-};
-
-const PAGE_PACING_LABELS: Record<MangaPagePacingV2, string> = {
-  slow: "舒缓",
-  medium: "适中",
-  fast: "紧凑",
-  explosive: "爆发",
-};
-
-const PAGE_IMPORTANCE_LABELS: Record<MangaPageImportanceV2, string> = {
-  critical: "核心",
-  high: "重要",
-  normal: "常规",
-  low: "辅助",
-};
-
-const READING_FLOW_LABELS: Record<MangaReadingFlowV2, string> = {
-  top_to_bottom_left_to_right: "从上到下、从左到右",
-  z_path: "Z 形",
-  s_path: "S 形",
-  diagonal: "对角线",
-};
-
-const buildLayoutItems = (prompt: MangaPagePromptSummary): LayoutSummaryItem[] => [
+const buildLayoutItems = (
+  prompt: MangaPagePromptSummary,
+  labels: MangaPagePromptLabels,
+): LayoutSummaryItem[] => [
   {
     key: "role",
-    label: "页面功能",
-    value: PAGE_ROLE_LABELS[prompt.page_plan.role],
+    label: labels.pageFunction,
+    value: labels.role[prompt.page_plan.role],
   },
   {
     key: "pacing",
-    label: "页面节奏",
-    value: PAGE_PACING_LABELS[prompt.page_plan.pacing],
+    label: labels.pagePacing,
+    value: labels.pacing[prompt.page_plan.pacing],
   },
   {
     key: "importance",
-    label: "重要度",
-    value: PAGE_IMPORTANCE_LABELS[prompt.page_plan.importance],
+    label: labels.importanceLabel,
+    value: labels.importance[prompt.page_plan.importance],
   },
   {
     key: "reading_flow",
-    label: "阅读动线",
-    value: READING_FLOW_LABELS[prompt.page_plan.reading_flow],
+    label: labels.readingFlowLabel,
+    value: labels.readingFlow[prompt.page_plan.reading_flow],
   },
-  { key: "page_goal", label: "页面目标", value: prompt.page_plan.page_goal },
+  { key: "page_goal", label: labels.pageGoal, value: prompt.page_plan.page_goal },
   {
     key: "visual_thesis",
-    label: "视觉命题",
+    label: labels.visualThesis,
     value: prompt.page_plan.visual_thesis,
   },
-  { key: "entry_state", label: "进入状态", value: prompt.page_plan.entry_state },
-  { key: "exit_state", label: "离开状态", value: prompt.page_plan.exit_state },
+  { key: "entry_state", label: labels.entryState, value: prompt.page_plan.entry_state },
+  { key: "exit_state", label: labels.exitState, value: prompt.page_plan.exit_state },
   {
     key: "dominant_panel_number",
-    label: "主视觉格",
+    label: labels.dominantPanel,
     value: String(prompt.page_plan.dominant_panel_number),
   },
   {
     key: "panel_count",
-    label: "画格数",
+    label: labels.panelCount,
     value: String(prompt.page_plan.panels.length),
   },
 ];
@@ -164,6 +158,7 @@ const buildLayoutItems = (prompt: MangaPagePromptSummary): LayoutSummaryItem[] =
 export const buildPagePrompts = (
   prompts: MangaPagePromptSummary[],
   currentContentHash: string | null,
+  labels: MangaPagePromptLabels,
 ): MangaPagePrompt[] => {
   return [...prompts]
     .sort((a, b) => a.page_number - b.page_number)
@@ -177,7 +172,7 @@ export const buildPagePrompts = (
         sourceStale: isMangaPagePromptSourceStale(source, currentContentHash),
         characterNames: pageCharacterNames(prompt),
         dialogueText: prompt.dialogue_text,
-        layoutItems: buildLayoutItems(prompt),
+        layoutItems: buildLayoutItems(prompt, labels),
         referenceBindings: prompt.reference_bindings.map(referenceBinding),
       };
     });
@@ -203,13 +198,14 @@ export const buildReferenceCandidates = (
   profiles: CharacterProfile[],
   portraits: Portrait[],
   projectImages: GeneratedImage[],
+  t: MessageTranslator,
 ): ReferenceCandidate[] => {
   const names = profileNameById(profiles);
   const portraitCandidates = portraits
     .filter((portrait) => portrait.image_path.trim())
     .map<ReferenceCandidate>((portrait) => {
       const name =
-        names.get(portrait.profile_id) ?? `角色 #${portrait.profile_id}`;
+        names.get(portrait.profile_id) ?? t("comic.prompt.otherPortrait");
       const text = [
         name,
         portrait.portrait_type,
@@ -224,7 +220,7 @@ export const buildReferenceCandidates = (
         assetKind: "character_portrait",
         assetId: portrait.id,
         label: name,
-        subLabel: `${portrait.portrait_type || "角色立绘"}${portrait.is_primary ? " · 主图" : ""}`,
+        subLabel: `${portrait.portrait_type || t("comic.prompt.otherPortrait")}${portrait.is_primary ? ` · ${t("comic.prompt.primaryPortrait")}` : ""}`,
         rank: candidateMatchRank(binding, text, portrait.is_primary ? 10 : 0),
       };
     });
@@ -242,8 +238,8 @@ export const buildReferenceCandidates = (
         key: mangaReferenceAssetKey("generated_image", image.id),
         assetKind: "generated_image",
         assetId: image.id,
-        label: imageTypeLabel(image.image_type),
-        subLabel: image.is_favorite ? "项目图片 · 收藏" : "项目图片",
+        label: imageTypeLabel(image.image_type, t),
+        subLabel: image.is_favorite ? `${t("comic.prompt.projectImage")} · ${t("comic.prompt.favorite")}` : t("comic.prompt.projectImage"),
         rank: candidateMatchRank(binding, text, image.is_favorite ? 8 : 0),
       };
     });

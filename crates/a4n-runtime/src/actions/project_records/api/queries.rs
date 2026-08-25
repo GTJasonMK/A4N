@@ -1,13 +1,13 @@
-use super::super::contracts::{
-    AssetDependencyGraph, AssetGraphNodeDetail, PaginatedProjects, ProjectSummary,
-    SourceSnapshotChapterSummary,
-};
 use super::super::summaries::{
     project_record_by_id, project_summaries_with_family_for_user,
     project_summary_with_family_for_user,
 };
 use crate::AppState;
 use crate::actions::{access, app_error_message};
+use a4n_api_contract::project::{
+    AssetDependencyGraph, AssetGraphNodeDetail, PaginatedProjects, ProjectSummary,
+    SourceSnapshotChapterSummary,
+};
 use a4n_domain::project::ProjectKind;
 use a4n_orchestrator::collaboration::{AccessibleProjectListInput, ProjectAccessScope};
 use a4n_orchestrator::project::project_list_offset;
@@ -76,7 +76,12 @@ pub async fn list_projects(
         })
         .await
         .map_err(|error| error.to_string())?;
-    let items = project_summaries_with_family_for_user(state, user_id, &page_result.items).await?;
+    let projects = page_result
+        .items
+        .into_iter()
+        .map(|project| project.into_model())
+        .collect::<Vec<_>>();
+    let items = project_summaries_with_family_for_user(state, user_id, &projects).await?;
     Ok(PaginatedProjects {
         items,
         total: page_result.total,

@@ -5,8 +5,8 @@ use sea_orm::DatabaseConnection;
 
 use super::identity::{parse_project_override_key, validate_project_override_project_id};
 use super::storage::{
-    MissingProjectMessage, all_prompt_override_settings, ensure_project_exists,
-    project_override_record_content, project_prompt_override_settings,
+    MissingProjectMessage, all_prompt_override_settings, ensure_hydration_projects_exist,
+    ensure_project_exists, project_override_record_content, project_prompt_override_settings,
 };
 use super::{ProjectOverrideHydration, ProjectPromptOverrideSummary, PromptOverrideDbError};
 
@@ -16,9 +16,11 @@ pub async fn project_override_hydration_plan(
     let records = all_prompt_override_settings(db).await?;
     let plan = project_override_hydration_candidates_from_records(&records)?;
 
-    for item in &plan {
-        ensure_project_exists(db, item.identity.project_id, MissingProjectMessage::Hydrate).await?;
-    }
+    let project_ids = plan
+        .iter()
+        .map(|item| item.identity.project_id)
+        .collect::<Vec<_>>();
+    ensure_hydration_projects_exist(db, &project_ids).await?;
 
     Ok(plan)
 }

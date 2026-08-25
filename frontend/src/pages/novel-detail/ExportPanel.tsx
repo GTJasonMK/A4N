@@ -23,43 +23,44 @@ import { cancelWorkflowTask } from "../../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { downloadBase64ExportFile } from "../../utils/downloadFile";
+import { useI18n, type MessageKey } from "../../i18n";
 
 type ExportFormat = "txt" | "markdown" | "epub" | "pdf" | "batch";
 
 const EXPORT_FORMATS: Array<{
   value: ExportFormat;
-  label: string;
-  description: string;
+  labelKey: MessageKey;
+  descriptionKey: MessageKey;
   requiresMetadata: boolean;
 }> = [
   {
     value: "txt",
-    label: "TXT 纯文本",
-    description: "适合阅读、归档和在其他写作工具中继续编辑。",
+    labelKey: "novel.exportPanel.formats.txt",
+    descriptionKey: "novel.exportPanel.formats.txtDescription",
     requiresMetadata: false,
   },
   {
     value: "markdown",
-    label: "Markdown",
-    description: "保留章节层级，适合版本管理和二次排版。",
+    labelKey: "novel.exportPanel.formats.markdown",
+    descriptionKey: "novel.exportPanel.formats.markdownDescription",
     requiresMetadata: true,
   },
   {
     value: "epub",
-    label: "EPUB 电子书",
-    description: "适合电子书阅读器，需要填写书名和作者。",
+    labelKey: "novel.exportPanel.formats.epub",
+    descriptionKey: "novel.exportPanel.formats.epubDescription",
     requiresMetadata: true,
   },
   {
     value: "pdf",
-    label: "PDF",
-    description: "生成固定版式文档，便于分享和打印。",
+    labelKey: "novel.exportPanel.formats.pdf",
+    descriptionKey: "novel.exportPanel.formats.pdfDescription",
     requiresMetadata: false,
   },
   {
     value: "batch",
-    label: "TXT + Markdown",
-    description: "一次下载纯文本和 Markdown 两种文件。",
+    labelKey: "novel.exportPanel.formats.batch",
+    descriptionKey: "novel.exportPanel.formats.batchDescription",
     requiresMetadata: true,
   },
 ];
@@ -85,6 +86,7 @@ export const ExportPanel: React.FC<{
   onBusyChange?: (busy: boolean) => void;
 }> = ({ project, onBusyChange }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const [acting, setActing] = useState<string | null>(null);
   const mountedRef = useRef(false);
@@ -101,6 +103,8 @@ export const ExportPanel: React.FC<{
   const selectedFormatOption = EXPORT_FORMATS.find(
     (format) => format.value === selectedFormat,
   )!;
+  const selectedFormatLabel = t(selectedFormatOption.labelKey);
+  const selectedFormatDescription = t(selectedFormatOption.descriptionKey);
   const selectedMetadata = exportMetadata(meta);
   const projectInput: ExportProjectInput = { project_id: project.id };
   const selectedExportReady =
@@ -156,17 +160,17 @@ export const ExportPanel: React.FC<{
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: `导出${label}`,
-          startMessage: `正在准备导出${label}`,
-          successMessage: `导出${label}完成`,
-          errorMessage: "导出失败",
+          title: t("novel.exportPanel.taskTitle", { format: label }),
+          startMessage: t("novel.exportPanel.taskPreparing", { format: label }),
+          successMessage: t("novel.exportPanel.taskCompleted", { format: label }),
+          errorMessage: t("novel.exportPanel.failed"),
           total: 4,
-          cancelLabel: "停止导出",
-          runningHint: "停止后不会下载未完成的导出结果",
+          cancelLabel: t("novel.exportPanel.stop"),
+          runningHint: t("novel.exportPanel.runningHint"),
         },
         () => {
           if (!isCurrentExport(requestProjectId, requestSeq)) {
-            return Promise.reject(new Error("任务已停止"));
+            return Promise.reject(new Error(t("workflow.cancelled")));
           }
           return fn(taskId);
         },
@@ -175,10 +179,15 @@ export const ExportPanel: React.FC<{
       const files = Array.isArray(r) ? r : [r];
       const fileNames = downloadExportFiles(files);
       setLastResult(fileNames);
-      addToast(files.length > 1 ? `已下载 ${files.length} 个文件` : "下载完成", "success");
+      addToast(
+        files.length > 1
+          ? t("novel.exportPanel.downloadedFiles", { count: files.length })
+          : t("novel.exportPanel.downloadComplete"),
+        "success",
+      );
     } catch (err) {
       if (!isCurrentExport(requestProjectId, requestSeq)) return;
-      const message = extractErrorMessage(err, "导出失败");
+      const message = extractErrorMessage(err, t("novel.exportPanel.failed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (exportSeqRef.current === requestSeq) {
@@ -194,12 +203,12 @@ export const ExportPanel: React.FC<{
     if (!selectedExportReady) return;
     switch (selectedFormat) {
       case "txt":
-        void wrap("txt", "TXT", (taskId) => exportTxtData(projectInput, taskId));
+        void wrap("txt", selectedFormatLabel, (taskId) => exportTxtData(projectInput, taskId));
         return;
       case "markdown": {
         const metadata = selectedMetadata;
         if (!metadata) return;
-        void wrap("markdown", "Markdown", (taskId) =>
+        void wrap("markdown", selectedFormatLabel, (taskId) =>
           exportMarkdownData(
             {
               project_id: project.id,
@@ -213,7 +222,7 @@ export const ExportPanel: React.FC<{
       case "epub": {
         const metadata = selectedMetadata;
         if (!metadata) return;
-        void wrap("epub", "EPUB", (taskId) =>
+        void wrap("epub", selectedFormatLabel, (taskId) =>
           exportEpubData(
             {
               project_id: project.id,
@@ -225,12 +234,12 @@ export const ExportPanel: React.FC<{
         return;
       }
       case "pdf":
-        void wrap("pdf", "PDF", (taskId) => exportPdfData(projectInput, taskId));
+        void wrap("pdf", selectedFormatLabel, (taskId) => exportPdfData(projectInput, taskId));
         return;
       case "batch": {
         const metadata = selectedMetadata;
         if (!metadata) return;
-        void wrap("batch", "TXT + Markdown", (taskId) =>
+        void wrap("batch", selectedFormatLabel, (taskId) =>
           exportBatchData(
             {
               project_id: project.id,
@@ -250,7 +259,7 @@ export const ExportPanel: React.FC<{
   return (
     <div className="space-y-4">
       <label className="flex min-w-0 flex-col gap-1">
-        <span className="text-small text-book-text-muted">导出格式</span>
+        <span className="text-small text-book-text-muted">{t("novel.exportPanel.format")}</span>
         <select
           value={selectedFormat}
           onChange={(event) =>
@@ -261,27 +270,27 @@ export const ExportPanel: React.FC<{
         >
           {EXPORT_FORMATS.map((format) => (
             <option key={format.value} value={format.value}>
-              {format.label}
+              {t(format.labelKey)}
             </option>
           ))}
         </select>
       </label>
 
       <p className="text-small leading-relaxed text-book-text-muted">
-        {selectedFormatOption.description}
+        {selectedFormatDescription}
       </p>
 
       {selectedFormatOption.requiresMetadata ? (
         <section className="border-y border-book-border/45 py-3">
           <div className="mb-2 text-xs font-semibold text-book-text-main">
-            作品信息
+            {t("novel.exportPanel.metadataTitle")}
           </div>
           <p className="mb-2 text-small leading-relaxed text-book-text-muted">
-            书名和作者会写入导出文件，均为必填。
+            {t("novel.exportPanel.metadataHint")}
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
-              <span className="text-small text-book-text-muted">书名</span>
+              <span className="text-small text-book-text-muted">{t("novel.exportPanel.title")}</span>
               <input
                 type="text"
                 value={meta.title}
@@ -293,7 +302,7 @@ export const ExportPanel: React.FC<{
               />
             </label>
             <label className="flex flex-col gap-1">
-              <span className="text-small text-book-text-muted">作者</span>
+              <span className="text-small text-book-text-muted">{t("novel.exportPanel.author")}</span>
               <input
                 type="text"
                 value={meta.author}
@@ -302,7 +311,7 @@ export const ExportPanel: React.FC<{
                 }
                 className="pyqt-input !py-1.5 text-xs"
                 disabled={exportBusy}
-                placeholder="输入作者名"
+                placeholder={t("novel.exportPanel.authorPlaceholder")}
               />
             </label>
           </div>
@@ -323,8 +332,8 @@ export const ExportPanel: React.FC<{
             <Download size={13} />
           )}
           {exportBusy
-            ? `正在导出 ${selectedFormatOption.label}…`
-            : `下载 ${selectedFormatOption.label}`}
+            ? t("novel.exportPanel.exporting", { format: selectedFormatLabel })
+            : t("novel.exportPanel.download", { format: selectedFormatLabel })}
         </BookButton>
       </div>
 
@@ -334,11 +343,11 @@ export const ExportPanel: React.FC<{
           <div className="min-w-0">
             <div className="font-medium text-book-text-main">
               {lastResult.length > 1
-                ? `已下载 ${lastResult.length} 个文件`
-                : "下载完成"}
+                ? t("novel.exportPanel.downloadedFiles", { count: lastResult.length })
+                : t("novel.exportPanel.downloadComplete")}
             </div>
             <div className="mt-0.5 break-all text-book-text-muted">
-              {lastResult.join("、")}
+              {lastResult.join(t("common.listSeparator"))}
             </div>
           </div>
         </div>
@@ -346,8 +355,8 @@ export const ExportPanel: React.FC<{
 
       <details className="a4n-flat-surface overflow-hidden">
         <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-semibold text-book-text-main">
-          <span>结构数据</span>
-          <span className="text-caption font-normal text-book-text-muted">大纲与角色 JSON</span>
+              <span>{t("novel.exportPanel.structuredData")}</span>
+          <span className="text-caption font-normal text-book-text-muted">{t("novel.exportPanel.structuredDataHint")}</span>
         </summary>
         <div className="grid grid-cols-2 gap-2 border-t border-book-border/45 p-3">
           <BookButton
@@ -355,26 +364,26 @@ export const ExportPanel: React.FC<{
             size="sm"
             className="!justify-start !text-xs"
             onClick={() =>
-              void wrap("outline", "大纲 JSON", (taskId) =>
+              void wrap("outline", t("novel.exportPanel.outlineJson"), (taskId) =>
                 exportOutlineJsonData(projectInput, taskId),
               )
             }
             disabled={exportBusy}
           >
-            {spin("outline")} 大纲 JSON
+            {spin("outline")} {t("novel.exportPanel.outlineJson")}
           </BookButton>
           <BookButton
             variant="secondary"
             size="sm"
             className="!justify-start !text-xs"
             onClick={() =>
-              void wrap("characters", "角色 JSON", (taskId) =>
+              void wrap("characters", t("novel.exportPanel.charactersJson"), (taskId) =>
                 exportCharactersJsonData(projectInput, taskId),
               )
             }
             disabled={exportBusy}
           >
-            {spin("characters")} 角色 JSON
+            {spin("characters")} {t("novel.exportPanel.charactersJson")}
           </BookButton>
         </div>
       </details>

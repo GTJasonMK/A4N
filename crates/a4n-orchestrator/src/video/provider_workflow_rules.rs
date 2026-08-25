@@ -1,13 +1,11 @@
 //! 视频 provider 轮询工作流指纹与 business key 纯规则（无 DB）。
 
 use a4n_core::models::ai::generated_video;
+use a4n_domain::video::generated_video_prompt_id;
 use serde_json::{Value, json};
 
 use crate::workflow::UpsertWorkflowRunInput;
-use crate::workflow::{
-    WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
-    WORKFLOW_STATUS_RUNNING,
-};
+use crate::workflow::WORKFLOW_STATUS_RUNNING;
 
 /// 视频 provider job exclusive business key。
 pub fn video_provider_workflow_business_key(video_id: i64) -> Result<String, String> {
@@ -17,21 +15,12 @@ pub fn video_provider_workflow_business_key(video_id: i64) -> Result<String, Str
     Ok(format!("video_provider_job:{video_id}"))
 }
 
-/// 从 metadata 提取 prompt_id（与 Host 历史约定一致）。
-pub fn prompt_id_from_generated_video(video: &generated_video::Model) -> Option<i64> {
-    video
-        .metadata_json
-        .as_ref()
-        .and_then(|metadata| metadata.get("prompt_id"))
-        .and_then(Value::as_i64)
-}
-
 /// 视频 provider 工作流输入指纹。
 pub fn video_provider_workflow_fingerprint(video: &generated_video::Model, job_id: &str) -> Value {
     json!({
         "generated_video_id": video.id,
         "provider_job_id": job_id,
-        "prompt_id": prompt_id_from_generated_video(video),
+        "prompt_id": generated_video_prompt_id(video.metadata_json.as_ref()),
         "config_id": video
             .metadata_json
             .as_ref()
@@ -79,17 +68,6 @@ pub fn video_provider_progress_workflow_run_input(
         resume_block_reason: None,
         error_message: None,
     })
-}
-
-/// 允许的终态/中断状态（用于调用方校验）。
-pub fn is_video_provider_terminal_or_interrupted_status(status: &str) -> bool {
-    matches!(
-        status,
-        WORKFLOW_STATUS_COMPLETED
-            | WORKFLOW_STATUS_FAILED
-            | WORKFLOW_STATUS_INTERRUPTED
-            | "cancelled"
-    )
 }
 
 #[cfg(test)]

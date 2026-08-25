@@ -1,23 +1,29 @@
-export const OBJECT_PROFILE_TYPE_LABELS: Record<string, string> = {
-  prop: "道具",
-  tool: "工具",
-  weapon: "武器",
-  token: "信物",
-  vehicle: "载具",
-  clothing: "服装",
-  location_object: "设施",
-  environment_object: "环境物件",
-  other: "其他",
+import type { MessageKey, MessageTranslator } from "../i18n";
+
+export const OBJECT_PROFILE_TYPE_KEYS: Record<string, MessageKey> = {
+  prop: "novel.objectType.prop",
+  tool: "novel.objectType.tool",
+  weapon: "novel.objectType.weapon",
+  token: "novel.objectType.token",
+  vehicle: "novel.objectType.vehicle",
+  clothing: "novel.objectType.clothing",
+  location_object: "novel.objectType.locationObject",
+  environment_object: "novel.objectType.environmentObject",
+  other: "novel.objectType.other",
 };
 
-export const OBJECT_PROFILE_IMPORTANCE_LABELS: Record<string, string> = {
-  primary: "关键",
-  secondary: "重要",
-  minor: "次要",
+export const OBJECT_PROFILE_IMPORTANCE_KEYS: Record<string, MessageKey> = {
+  primary: "novel.objectImportance.primary",
+  secondary: "novel.objectImportance.secondary",
+  minor: "novel.objectImportance.minor",
 };
 
-export const getObjectProfileTypeLabel = (value: string): string =>
-  value ? (OBJECT_PROFILE_TYPE_LABELS[value] ?? "其他") : "未确定";
+export const getObjectProfileTypeLabel = (
+  value: string,
+  t: MessageTranslator,
+): string => value ? t(OBJECT_PROFILE_TYPE_KEYS[value] ?? "novel.objectType.other") : t("novel.unconfirmed");
 
-export const getObjectProfileImportanceLabel = (value: string): string =>
-  OBJECT_PROFILE_IMPORTANCE_LABELS[value] ?? "未标注";
+export const getObjectProfileImportanceLabel = (
+  value: string,
+  t: MessageTranslator,
+): string => t(OBJECT_PROFILE_IMPORTANCE_KEYS[value] ?? "novel.unlabeled");

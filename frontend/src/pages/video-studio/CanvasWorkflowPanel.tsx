@@ -1,11 +1,12 @@
 import React from "react";
 import { Play, RefreshCw, Square } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
-import type { ProgressEventRecord } from "../../api/progress";
+import type { ProgressEventRecord, ProgressStatus } from "../../api/progress";
 import type { WorkflowRunDetailSummary } from "../../api/streaming";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../utils/progressPresentation";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+import { formatNumber, useI18n, type MessageTranslator } from "../../i18n";
 
 interface CanvasWorkflowPanelProps {
   latestWorkflowRunId: number | null;
@@ -32,6 +33,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   onCancel,
   onResume,
 }) => {
+  const { locale, t } = useI18n();
   const run = detail?.run ?? null;
   const activeTaskId = run?.active_task_id ?? null;
   const activeCheckpoint = latestCheckpointWithStatus(detail?.checkpoints ?? [], "running");
@@ -42,13 +44,22 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   const staleRunning = run ? runningWorkflowLooksStale(run.updated_at) : false;
   const canCancel = Boolean(activeTaskId || run?.status === "running" || run?.status === "pending");
   const canResume = Boolean(run?.can_resume && run.status !== "running" && run.status !== "pending");
+  const runProgressDisplay = run?.progress
+    ? progressDisplayModel({
+        ...run.progress,
+        locale,
+        t,
+        status: canvasProgressStatus(run.status),
+        fallbackStage: canvasWorkflowStepLabel(currentStepKey, t),
+      })
+    : null;
   const resumeTitle = run?.can_resume
-    ? "从未完成节点继续运行"
-    : run?.resume_block_reason ?? "该运行当前不可继续";
+    ? t("video.canvas.workflow.resumeFromIncomplete")
+    : run?.resume_block_reason ?? t("video.canvas.workflow.cannotResume");
   const actionItems: DropdownItem[] = [];
   if (latestWorkflowRunId) {
     actionItems.push({
-      label: "刷新运行记录",
+      label: t("video.canvas.workflow.refresh"),
       icon: loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={12} />,
       disabled: loading,
       onClick: onRefresh,
@@ -56,7 +67,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   }
   if (canResume) {
     actionItems.push({
-      label: "继续运行",
+      label: t("video.canvas.workflow.resume"),
       icon: resuming ? <LoadingSpinner size="sm" /> : <Play size={12} />,
       disabled: resuming,
       onClick: onResume,
@@ -64,7 +75,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
   }
   if (canCancel) {
     actionItems.push({
-      label: "停止运行",
+      label: t("video.canvas.workflow.stop"),
       icon: cancelling ? <LoadingSpinner size="sm" /> : <Square size={12} />,
       danger: true,
       disabled: cancelling,
@@ -72,16 +83,16 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
     });
   }
   return (
-    <section aria-label="工作流运行记录" className="mt-4 border-t border-book-border/70 pt-3 text-xs">
+    <section aria-label={t("video.canvas.workflow.ariaLabel")} className="mt-4 border-t border-book-border/70 pt-3 text-xs">
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-xs font-semibold text-book-text-main">运行状态</h3>
+          <h3 className="text-xs font-semibold text-book-text-main">{t("video.canvas.workflow.status")}</h3>
           <p className="mt-0.5 truncate text-small text-book-text-muted" title={canResume ? resumeTitle : undefined}>
             {run
-              ? canvasWorkflowStepLabel(currentStepKey)
+              ? canvasWorkflowStepLabel(currentStepKey, t)
               : latestWorkflowRunId
-                ? "正在加载最近运行"
-                : "尚未运行"}
+                ? t("video.canvas.workflow.loadingLatest")
+                : t("video.canvas.workflow.notRun")}
           </p>
         </div>
         {actionItems.length > 0 ? <Dropdown items={actionItems} /> : null}
@@ -92,24 +103,29 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
             <LoadingSpinner size="sm" />
             {submittingLabel}
           </div>
-          {!run ? <div className="text-small text-book-text-muted">正在发现运行记录，找到后会自动显示节点进度。</div> : null}
+          {!run ? <div className="text-small text-book-text-muted">{t("video.canvas.workflow.discovering")}</div> : null}
         </div>
       ) : null}
       {!submittingLabel && !latestWorkflowRunId && !run ? (
-        <div className="text-small text-book-text-muted">尚未运行画布节点</div>
+        <div className="text-small text-book-text-muted">{t("video.canvas.workflow.noCanvasRun")}</div>
       ) : submittingLabel && !run ? null : !detail && loading ? (
         <div className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
           <LoadingSpinner size="sm" />
-          加载运行记录
+          {t("video.canvas.workflow.loadHistory")}
         </div>
       ) : run ? (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2 text-small">
             <span className={workflowStatusTextClass(run.status)}>
-              {getOperationStatusLabel(run.status)}
+              {getOperationStatusLabel(run.status, locale)}
             </span>
-            <span className="min-w-0 flex-1 truncate text-book-text-sub" title={run.progress?.message ?? ""}>
-              {run.progress ? `${Math.round(run.progress.percent ?? 0)}% ${run.progress.message}` : "-"}
+            <span className="min-w-0 flex-1 truncate text-book-text-sub" title={runProgressDisplay?.stage ?? ""}>
+              {run.progress ? (
+                <>
+                  <span>{formatNumber(Math.round(runProgressDisplay?.percent ?? 0), locale)}%</span>{" "}
+                  <span>{runProgressDisplay?.detail ?? runProgressDisplay?.stage}</span>
+                </>
+              ) : "-"}
             </span>
           </div>
           {run.progress ? (
@@ -127,65 +143,73 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           ) : null}
           {waitingProvider ? (
             <div role="status" className="rounded-xl border border-warning/50 bg-warning-bg px-2.5 py-2 text-small leading-4 text-warning">
-              视频服务正在生成，请稍候
-              {staleRunning ? "。该运行已长时间无进度更新，可能是旧版本遗留的挂起任务；请重新运行画布生成新的后台轮询。" : ""}
+              {t("video.canvas.workflow.waitingProvider")}
+              {staleRunning ? t("video.canvas.workflow.staleProvider") : ""}
             </div>
           ) : null}
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-small text-book-text-muted">
             <span>
-              已完成 <span className="tabular-nums text-book-text-main">{completedCheckpointCount} / {detail!.checkpoints.length}</span>
+              {t("video.canvas.workflow.completed", {
+                completed: formatNumber(completedCheckpointCount, locale),
+                total: formatNumber(detail!.checkpoints.length, locale),
+              })}
             </span>
             {detail!.generation_runs.length > 0 ? (
               <span>
-                模型调用 <span className="tabular-nums text-book-text-main">{detail!.generation_runs.length}</span>
+                {t("video.canvas.workflow.modelCalls", { count: formatNumber(detail!.generation_runs.length, locale) })}
               </span>
             ) : null}
           </div>
           {events.length > 0 ? (
             <div className="divide-y divide-book-border/45 border-y border-book-border/45">
               {events.slice(0, 5).map((event) => {
-                const percent = progressDisplayModel(event).percent;
+                const display = progressDisplayModel({
+                  ...event,
+                  locale,
+                  t,
+                  fallbackStage: t("video.canvas.workflow.process"),
+                });
                 return (
                   <div key={event.id} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 px-2.5 py-1.5 text-caption">
                     <span className="font-mono text-book-text-muted">
-                      {percent == null ? "-" : `${Math.round(percent)}%`}
+                      {display.percent == null ? "-" : `${formatNumber(Math.round(display.percent), locale)}%`}
                     </span>
-                    <span className="truncate text-book-text-sub" title={event.message}>
-                      {event.message}
+                    <span className="truncate text-book-text-sub" title={display.detail ?? display.stage}>
+                      {display.detail ?? display.stage}
                     </span>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="text-small text-book-text-muted">暂无进度事件</div>
+            <div className="text-small text-book-text-muted">{t("video.canvas.workflow.noEvents")}</div>
           )}
           <details className="rounded border border-book-border/60 bg-book-bg-paper/45 text-caption">
-            <summary className="cursor-pointer px-2.5 py-2 text-book-text-muted">诊断信息</summary>
+            <summary className="cursor-pointer px-2.5 py-2 text-book-text-muted">{t("video.canvas.workflow.diagnostics")}</summary>
             <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/50 px-2.5 py-2">
-              <span className="text-book-text-muted">运行编号</span>
+              <span className="text-book-text-muted">{t("video.canvas.workflow.runId")}</span>
               <span className="font-mono text-book-text-sub">{run.id}</span>
               {run.active_task_id ? (
                 <>
-                  <span className="text-book-text-muted">任务编号</span>
+                  <span className="text-book-text-muted">{t("video.canvas.workflow.taskId")}</span>
                   <span className="break-all font-mono text-book-text-sub">{run.active_task_id}</span>
                 </>
               ) : null}
               {currentStepKey ? (
                 <>
-                  <span className="text-book-text-muted">步骤标识</span>
+                  <span className="text-book-text-muted">{t("video.canvas.workflow.stepId")}</span>
                   <span className="break-all font-mono text-book-text-sub">{currentStepKey}</span>
                 </>
               ) : null}
               {waitingProvider?.generatedVideoId ? (
                 <>
-                  <span className="text-book-text-muted">视频编号</span>
+                  <span className="text-book-text-muted">{t("video.canvas.workflow.videoId")}</span>
                   <span className="font-mono text-book-text-sub">{waitingProvider.generatedVideoId}</span>
                 </>
               ) : null}
               {waitingProvider?.providerJobId ? (
                 <>
-                  <span className="text-book-text-muted">服务任务</span>
+                  <span className="text-book-text-muted">{t("video.canvas.workflow.providerTask")}</span>
                   <span className="break-all font-mono text-book-text-sub">{waitingProvider.providerJobId}</span>
                 </>
               ) : null}
@@ -193,7 +217,7 @@ export const CanvasWorkflowPanel: React.FC<CanvasWorkflowPanelProps> = ({
           </details>
         </div>
       ) : (
-        <div className="text-small text-book-text-muted">运行记录不可用</div>
+        <div className="text-small text-book-text-muted">{t("video.canvas.workflow.unavailable")}</div>
       )}
     </section>
   );
@@ -206,18 +230,26 @@ function workflowStatusTextClass(status: string): string {
   return "text-book-text-muted";
 }
 
-function canvasWorkflowStepLabel(stepKey: string | null): string {
-  if (!stepKey) return "等待开始";
-  if (/^canvas_node:\d+$/.test(stepKey)) return "处理画布节点";
-  const labels: Record<string, string> = {
-    prepare: "准备运行",
-    validate: "检查画布",
-    execute: "运行节点",
-    finalize: "整理结果",
-    video_provider: "生成视频",
-    video_poll: "等待视频服务",
-  };
-  return labels[stepKey] ?? "处理工作流";
+function canvasProgressStatus(status: string): ProgressStatus {
+  if (status === "completed" || status === "success") return "success";
+  if (status === "failed" || status === "error") return "error";
+  if (status === "cancelled" || status === "canceled") return "cancelled";
+  if (status === "pending") return "idle";
+  return "running";
+}
+
+function canvasWorkflowStepLabel(stepKey: string | null, t: MessageTranslator): string {
+  if (!stepKey) return t("video.canvas.workflow.waitingStart");
+  if (/^canvas_node:\d+$/.test(stepKey)) return t("video.canvas.workflow.processingNode");
+  switch (stepKey) {
+    case "prepare": return t("video.canvas.workflow.prepare");
+    case "validate": return t("video.canvas.workflow.validate");
+    case "execute": return t("video.canvas.workflow.execute");
+    case "finalize": return t("video.canvas.workflow.finalize");
+    case "video_provider": return t("video.canvas.workflow.generateVideo");
+    case "video_poll": return t("video.canvas.workflow.waitVideo");
+    default: return t("video.canvas.workflow.process");
+  }
 }
 
 function latestCheckpointWithStatus(

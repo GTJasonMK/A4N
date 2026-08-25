@@ -5,12 +5,12 @@ use serde_json::Value;
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// 大纲 exclusive workflow business key。
-pub fn outline_workflow_business_key(workflow_kind: &str, project_id: i64, mode: &str) -> String {
+fn outline_workflow_business_key(workflow_kind: &str, project_id: i64, mode: &str) -> String {
     format!("{workflow_kind}:project:{project_id}:{mode}")
 }
 
 /// 校验并构造大纲 begin 输入。
-pub fn outline_workflow_run_input(
+pub(crate) fn outline_workflow_run_input(
     project_id: i64,
     workflow_kind: &str,
     mode: &str,

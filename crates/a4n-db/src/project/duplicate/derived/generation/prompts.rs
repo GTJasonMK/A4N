@@ -2,9 +2,7 @@ use std::collections::HashMap;
 
 use a4n_core::models::generation::prompt_artifact;
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::shared::remap_derived_required_id;
@@ -27,26 +25,40 @@ where
         .all(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
-    let mut prompt_id_map = HashMap::new();
-    for prompt in prompts {
-        let generation_spec_id = remap_derived_required_id(
-            spec_id_map,
-            prompt.generation_spec_id,
-            "prompt_artifact.generation_spec_id",
-        )?;
-        let copied = prompt_artifact::ActiveModel {
-            generation_spec_id: Set(generation_spec_id),
-            prompt_kind: Set(prompt.prompt_kind),
-            prompt_text: Set(prompt.prompt_text),
-            renderer_version: Set(prompt.renderer_version),
-            edited_by_user: Set(prompt.edited_by_user),
-            created_at: Set(now),
-            updated_at: Set(now),
-            ..Default::default()
-        }
-        .insert(db)
+    if prompts.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows = prompts
+        .iter()
+        .map(|prompt| {
+            Ok::<_, ProjectDuplicateError>(prompt_artifact::ActiveModel {
+                generation_spec_id: Set(remap_derived_required_id(
+                    spec_id_map,
+                    prompt.generation_spec_id,
+                    "prompt_artifact.generation_spec_id",
+                )?),
+                prompt_kind: Set(prompt.prompt_kind.clone()),
+                prompt_text: Set(prompt.prompt_text.clone()),
+                renderer_version: Set(prompt.renderer_version.clone()),
+                edited_by_user: Set(prompt.edited_by_user),
+                created_at: Set(now),
+                updated_at: Set(now),
+                ..Default::default()
+            })
+        })
+        .collect::<Result<Vec<_>, ProjectDuplicateError>>()?;
+    let inserted = prompt_artifact::Entity::insert_many(rows)
+        .exec_with_returning_many(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
+    if inserted.len() != prompts.len() {
+        return Err(ProjectDuplicateError::InvalidState {
+            current: "复制后的提示词产物数量与源记录不一致".to_string(),
+            operation: "复制派生项目提示词产物".to_string(),
+        });
+    }
+    let mut prompt_id_map = HashMap::with_capacity(prompts.len());
+    for (prompt, copied) in prompts.iter().zip(inserted) {
         prompt_id_map.insert(prompt.id, copied.id);
     }
     Ok(prompt_id_map)

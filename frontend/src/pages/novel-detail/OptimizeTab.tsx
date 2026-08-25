@@ -20,6 +20,7 @@ import { useOptimizeActivityStream } from "./optimize/useOptimizeActivityStream"
 import { useOptimizePatchReviewState } from "./optimize/useOptimizePatchReviewState";
 import { useOptimizeSessionState } from "./optimize/useOptimizeSessionState";
 import { useOptimizeStreamItems } from "./optimize/useOptimizeStreamItems";
+import { useI18n } from "../../i18n";
 
 interface OptimizeTabProps {
   projectId: number;
@@ -39,6 +40,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   onChapterContentChanged,
   onPatchPreviewChange,
 }) => {
+  const { t } = useI18n();
   const { addToast } = useToast();
   const [input, setInput] = useState("");
   const [agentPermissions, setAgentPermissions] = useState(
@@ -93,7 +95,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
     activeChapterId: activeChapter?.id ?? null,
     activeSessionIdRef,
   });
-  const { localItems, progressStreamItems } = activityStream;
+  const { localItems } = activityStream;
 
   const parsedIssues = useMemo(
     () => parseOptimizeIssues(activeSession?.issues),
@@ -109,8 +111,6 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
     localItems,
     optimizeTaskId: displayTaskId,
     parsedIssueCount: parsedIssues.length,
-    progressStreamItems,
-    taskRunning,
     turns,
   });
 
@@ -188,7 +188,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (!mountedRef.current || requestPreviewSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "预览内容优化请求失败"), "error");
+      addToast(extractErrorMessage(err, t("optimize.previewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (mountedRef.current && requestPreviewSeqRef.current === requestSeq) {
@@ -225,7 +225,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
           onSelectChapter={setSelectedChapter}
           onSelectSession={(id) => {
             void openSession(id).catch((err) => {
-              addToast(extractErrorMessage(err, "切换 Agent 会话失败"), "error");
+              addToast(extractErrorMessage(err, t("optimize.switchSessionFailed")), "error");
             });
           }}
         />
@@ -266,7 +266,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="内容优化模型请求预览"
+        fallbackTitle={t("optimize.requestPreviewTitle")}
         onClose={() => {
           requestPreviewSeqRef.current += 1;
           requestPreviewBusySeqRef.current = null;

@@ -22,39 +22,52 @@ where
         portrait_query = portrait_query.lock_exclusive();
     }
     let portrait = portrait_query
+        .select_only()
+        .column(character_portrait::Column::ProjectId)
+        .column(character_portrait::Column::ImagePath)
+        .into_tuple::<(i64, String)>()
         .one(db)
         .await
         .map_err(CharacterPortraitRollbackError::QueryPortrait)?
         .ok_or_else(|| {
             CharacterPortraitRollbackError::NotFound(format!("立绘不存在: {portrait_id}"))
         })?;
-    if portrait.image_path != image_path {
+    if portrait.1 != image_path {
         return Err(CharacterPortraitRollbackError::InvalidArgument(format!(
             "立绘 {portrait_id} 的图片路径与回滚目标不一致"
         )));
     }
     if db.get_database_backend() != DbBackend::Sqlite {
-        novel_project::Entity::find_by_id(portrait.project_id)
+        novel_project::Entity::find_by_id(portrait.0)
+            .select_only()
+            .column(novel_project::Column::Id)
             .lock_exclusive()
+            .into_tuple::<i64>()
             .one(db)
             .await
             .map_err(CharacterPortraitRollbackError::LockMirrorImages)?;
     }
 
     let mut image_query = generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.eq(portrait.project_id))
-        .filter(generated_image::Column::FilePath.eq(&portrait.image_path))
+        .filter(generated_image::Column::ProjectId.eq(portrait.0))
+        .filter(generated_image::Column::FilePath.eq(&portrait.1))
         .order_by_asc(generated_image::Column::Id);
     if db.get_database_backend() != DbBackend::Sqlite {
         image_query = image_query.lock_exclusive();
     }
     let image_ids = image_query
+        .select_only()
+        .column(generated_image::Column::Id)
+        .column(generated_image::Column::MetadataJson)
+        .into_tuple::<(i64, Option<Value>)>()
         .all(db)
         .await
         .map_err(CharacterPortraitRollbackError::LockMirrorImages)?
         .into_iter()
-        .filter(|image| generated_image_matches_portrait(image, portrait_id))
-        .map(|image| image.id)
+        .filter(|(_, metadata_json)| {
+            generated_image_metadata_matches_portrait(metadata_json.as_ref(), portrait_id)
+        })
+        .map(|(image_id, _)| image_id)
         .collect::<Vec<_>>();
 
     crate::video::clear_generated_image_references_record(db, &image_ids)
@@ -98,11 +111,19 @@ where
     Ok(CharacterPortraitRollbackResult { delete_file })
 }
 
+#[cfg(test)]
 pub(in crate::character) fn generated_image_matches_portrait(
     image: &generated_image::Model,
     portrait_id: i64,
 ) -> bool {
-    let metadata_portrait_id = image.metadata_json.as_ref().and_then(|metadata| {
+    generated_image_metadata_matches_portrait(image.metadata_json.as_ref(), portrait_id)
+}
+
+pub(in crate::character) fn generated_image_metadata_matches_portrait(
+    metadata_json: Option<&Value>,
+    portrait_id: i64,
+) -> bool {
+    let metadata_portrait_id = metadata_json.and_then(|metadata| {
         metadata
             .get("portrait_id")
             .or_else(|| metadata.get("character_portrait_id"))
@@ -130,11 +151,19 @@ where
     Ok(result)
 }
 
+#[cfg(test)]
 pub(in crate::character) fn generated_image_matches_any_portrait(
     image: &generated_image::Model,
     portrait_ids: &[i64],
 ) -> bool {
-    let metadata_portrait_id = image.metadata_json.as_ref().and_then(|metadata| {
+    generated_image_metadata_matches_any_portrait(image.metadata_json.as_ref(), portrait_ids)
+}
+
+pub(in crate::character) fn generated_image_metadata_matches_any_portrait(
+    metadata_json: Option<&Value>,
+    portrait_ids: &[i64],
+) -> bool {
+    let metadata_portrait_id = metadata_json.and_then(|metadata| {
         metadata
             .get("portrait_id")
             .or_else(|| metadata.get("character_portrait_id"))

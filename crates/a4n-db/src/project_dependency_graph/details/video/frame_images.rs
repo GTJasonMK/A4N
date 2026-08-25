@@ -1,14 +1,14 @@
 use crate::project_dependency_graph::AssetLineageRecord;
 use crate::project_dependency_graph::details::records::{
-    generated_image_record, lineage_ref, video_prompt_sources,
+    VideoPromptSourceRecord, generated_image_record, lineage_ref, video_prompt_sources_from_record,
 };
 use crate::project_dependency_graph::helpers::video_frame_image_prompt_id;
 use a4n_core::{
     error::AppError,
     models::{ai::generated_image, chapter::chapter_video_prompt},
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
-use std::collections::BTreeMap;
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use std::collections::HashMap;
 
 pub(in crate::project_dependency_graph) async fn video_frame_image_detail_records<C>(
     db: &C,
@@ -19,14 +19,20 @@ where
     C: ConnectionTrait,
 {
     let prompts = chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::VisualPrompt)
+        .column(chapter_video_prompt::Column::MotionPrompt)
+        .column(chapter_video_prompt::Column::NegativePrompt)
         .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
+        .into_model::<VideoPromptSourceRecord>()
         .all(db)
         .await
         .map_err(AppError::Database)?;
     let prompt_by_id = prompts
         .iter()
         .map(|prompt| (prompt.id, prompt))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let images = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
         .order_by_asc(generated_image::Column::Id)
@@ -35,7 +41,9 @@ where
         .map_err(AppError::Database)?;
     let mut records = Vec::new();
     for image in images {
-        if let Some(prompt_id) = video_frame_image_prompt_id(&image) {
+        if let Some(prompt_id) =
+            video_frame_image_prompt_id(&image.image_type, image.metadata_json.as_ref())
+        {
             let mut record =
                 generated_image_record(image.clone(), "video_frame_image", "image_generated");
             if let Some(prompt) = prompt_by_id.get(&prompt_id) {
@@ -46,7 +54,7 @@ where
                     "video_frame_prompt",
                     Some(prompt.id),
                 ));
-                record.prompt_sources = video_prompt_sources(prompt);
+                record.prompt_sources = video_prompt_sources_from_record(prompt);
             } else {
                 record.warnings.push(format!(
                     "图片 metadata 指向的视频提示词 #{} 不存在。",

@@ -17,7 +17,6 @@ import type {
   VideoGenConfig,
 } from "./video";
 import { readPortableItem, writePortableItem } from "../utils/portableStorage";
-import { usesLocalRuntimeSettings as runtimeUsesLocalRuntimeSettings } from "../utils/runtimeMode";
 import {
   DEFAULT_LLM_MAX_TOKENS_CONFIG,
   LLM_RESERVED_REQUEST_OPTION_KEYS,
@@ -91,9 +90,6 @@ const LLM_MAX_TOKEN_KEYS = Object.keys(DEFAULT_LLM_MAX_TOKENS_CONFIG) as Array<
 const DEFAULT_LOCAL_EMBEDDING_NAME = "基础本地哈希向量";
 const DEFAULT_LOCAL_EMBEDDING_MODEL = "local-sha256-hash";
 const DEFAULT_LOCAL_EMBEDDING_DIMENSION = 384;
-export function usesLocalRuntimeSettings(): boolean {
-  return runtimeUsesLocalRuntimeSettings();
-}
 
 function defaultSettings(): LocalRuntimeSettings {
   return {

@@ -1,33 +1,36 @@
 import type { LlmMaxTokensConfig } from "../../../api/config";
 import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
+import type { MessageKey, MessageParams } from "../../../i18n";
+
+type Translate = (key: MessageKey, params?: MessageParams) => string;
 
 type TokenFieldKey = keyof LlmMaxTokensConfig;
 
 export const TOKEN_GROUPS: Array<{
-  title: string;
-  fields: Array<{ key: TokenFieldKey; label: string }>;
+  title: MessageKey;
+  fields: Array<{ key: TokenFieldKey; label: MessageKey }>;
 }> = [
   {
-    title: "基础场景",
+    title: "settingsForm.tokenGroupBasic",
     fields: [
-      { key: "connection_test", label: "连接测试" },
-      { key: "short", label: "短输出" },
-      { key: "standard", label: "常规输出" },
-      { key: "json_standard", label: "结构化 JSON" },
-      { key: "long", label: "长输出" },
-      { key: "extra_long", label: "超长输出" },
+      { key: "connection_test", label: "settingsForm.tokenConnectionTest" },
+      { key: "short", label: "settingsForm.tokenShort" },
+      { key: "standard", label: "settingsForm.tokenStandard" },
+      { key: "json_standard", label: "settingsForm.tokenJsonStandard" },
+      { key: "long", label: "settingsForm.tokenLong" },
+      { key: "extra_long", label: "settingsForm.tokenExtraLong" },
     ],
   },
   {
-    title: "业务生成",
+    title: "settingsForm.tokenGroupGeneration",
     fields: [
-      { key: "chapter_generation", label: "章节正文" },
-      { key: "chapter_analysis", label: "章节分析" },
-      { key: "outline", label: "分部/章节大纲" },
-      { key: "blueprint", label: "故事蓝图" },
-      { key: "character_discovery", label: "角色发现" },
-      { key: "character_sync", label: "角色同步" },
-      { key: "media_prompt", label: "图片/漫画/视频提示词" },
+      { key: "chapter_generation", label: "settingsForm.tokenChapterGeneration" },
+      { key: "chapter_analysis", label: "settingsForm.tokenChapterAnalysis" },
+      { key: "outline", label: "settingsForm.tokenOutline" },
+      { key: "blueprint", label: "settingsForm.tokenBlueprint" },
+      { key: "character_discovery", label: "settingsForm.tokenCharacterDiscovery" },
+      { key: "character_sync", label: "settingsForm.tokenCharacterSync" },
+      { key: "media_prompt", label: "settingsForm.tokenMediaPrompt" },
     ],
   },
 ];
@@ -38,15 +41,19 @@ const TOKEN_FIELD_KEYS = TOKEN_GROUPS.flatMap((group) =>
 
 export function validateMaxTokensConfig(
   value: LlmMaxTokensConfig,
+  t: Translate,
   modelMaxOutputTokens?: number | null,
 ): string | null {
   for (const key of TOKEN_FIELD_KEYS) {
     const numberValue = value[key];
     if (!Number.isInteger(numberValue) || numberValue <= 0) {
-      return `${tokenLabel(key)} 必须为正整数`;
+      return t("settingsForm.tokenPositive", { label: tokenLabel(key, t) });
     }
     if (numberValue > LLM_MAX_TOKEN_LIMIT) {
-      return `${tokenLabel(key)} 不能超过 ${LLM_MAX_TOKEN_LIMIT}`;
+      return t("settingsForm.tokenTooLarge", {
+        label: tokenLabel(key, t),
+        limit: LLM_MAX_TOKEN_LIMIT,
+      });
     }
     if (
       modelMaxOutputTokens != null &&
@@ -54,16 +61,19 @@ export function validateMaxTokensConfig(
       modelMaxOutputTokens > 0 &&
       numberValue > modelMaxOutputTokens
     ) {
-      return `${tokenLabel(key)} 不能超过当前默认模型最大输出 ${modelMaxOutputTokens}`;
+      return t("settingsForm.tokenModelLimit", {
+        label: tokenLabel(key, t),
+        limit: modelMaxOutputTokens,
+      });
     }
   }
   return null;
 }
 
-function tokenLabel(key: TokenFieldKey): string {
+function tokenLabel(key: TokenFieldKey, t: Translate): string {
   for (const group of TOKEN_GROUPS) {
     const field = group.fields.find((item) => item.key === key);
-    if (field) return field.label;
+    if (field) return t(field.label);
   }
   return key;
 }
@@ -71,12 +81,13 @@ function tokenLabel(key: TokenFieldKey): string {
 export function maxTokensSummary(
   form: LlmMaxTokensConfig | null,
   loading: boolean,
+  t: Translate,
   modelMaxOutputTokens?: number | null,
 ): string {
-  if (loading) return "正在加载";
-  if (!form) return "未加载";
+  if (loading) return t("settingsForm.loading");
+  if (!form) return t("settingsForm.notLoaded");
   const modelCap = modelMaxOutputTokens
-    ? ` · 默认模型最大输出 ${modelMaxOutputTokens}`
+    ? ` · ${t("settingsForm.modelMaxOutput", { count: modelMaxOutputTokens })}`
     : "";
-  return `章节 ${form.chapter_generation} · 大纲 ${form.outline} · 角色发现 ${form.character_discovery} · 同步 ${form.character_sync}${modelCap}`;
+  return `${t("settingsForm.chapterBudget", { count: form.chapter_generation })} · ${t("settingsForm.outlineBudget", { count: form.outline })} · ${t("settingsForm.characterDiscoveryBudget", { count: form.character_discovery })} · ${t("settingsForm.characterSyncBudget", { count: form.character_sync })}${modelCap}`;
 }

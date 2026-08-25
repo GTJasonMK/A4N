@@ -14,6 +14,7 @@ import { RequestPreviewModal } from "../../../components/feedback/RequestPreview
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
+import { useI18n } from "../../../i18n";
 
 interface PortraitPromptDialogProps {
   portrait: Portrait;
@@ -25,6 +26,7 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
   onClose,
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [rendered, setRendered] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
@@ -86,7 +88,7 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
       setRendered(result);
     } catch (err) {
       if (!isCurrentPortrait(requestScope)) return;
-      addToast(extractErrorMessage(err, "渲染失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.promptRenderFailed")), "error");
     } finally {
       if (isCurrentPortrait(requestScope)) setBusy(false);
       if (renderBusyRef.current) renderBusyRef.current = false;
@@ -108,7 +110,7 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (!isCurrentPortrait(requestScope) || requestPreviewSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "预览提示词请求失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.promptPreviewFailed")), "error");
       setRequestPreviewOpen(false);
       requestPreviewBusyRef.current = false;
     } finally {
@@ -122,14 +124,14 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
     <Modal
       isOpen
       onClose={onClose}
-      title="人物三视图拆解提示词"
+      title={t("characterDetail.portrait.promptTitle")}
       maxWidthClassName="max-w-2xl"
       footer={
         <div className="flex w-full items-center gap-2">
           <Dropdown
             items={[
               {
-                label: "查看模型请求",
+                label: t("characterDetail.portrait.viewRequest"),
                 icon: <Eye size={12} />,
                 onClick: handlePreview,
                 disabled: busy,
@@ -140,12 +142,12 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
           <BookButton variant="primary" onClick={handleRender} disabled={busy}>
             {busy ? (
               <span className="inline-flex items-center gap-1.5">
-                <LoadingSpinner size="sm" /> 渲染中…
+                <LoadingSpinner size="sm" /> {t("characterDetail.portrait.rendering")}
               </span>
             ) : rendered === null ? (
-              "渲染提示词"
+              t("characterDetail.portrait.renderPrompt")
             ) : (
-              "重新渲染"
+              t("characterDetail.portrait.rerender")
             )}
           </BookButton>
         </div>
@@ -153,16 +155,16 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
     >
       <div className="space-y-3 text-sm">
         <div>
-          <div className="mb-1 text-xs text-book-text-muted">当前提示词</div>
+          <div className="mb-1 text-xs text-book-text-muted">{t("characterDetail.portrait.currentPrompt")}</div>
           <pre className="a4n-flat-surface whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-book-text-sub">
-            {portrait.prompt || "（无）"}
+            {portrait.prompt || t("characterDetail.portrait.none")}
           </pre>
         </div>
         {rendered !== null ? (
           <div>
-            <div className="mb-1 text-xs text-book-text-muted">渲染结果</div>
+            <div className="mb-1 text-xs text-book-text-muted">{t("characterDetail.portrait.renderedResult")}</div>
             <pre className="a4n-flat-surface whitespace-pre-wrap break-words p-3 text-xs leading-relaxed text-book-text-sub">
-              {rendered || "（空）"}
+              {rendered || t("characterDetail.portrait.emptyResult")}
             </pre>
           </div>
         ) : null}
@@ -171,7 +173,7 @@ export const PortraitPromptDialog: React.FC<PortraitPromptDialogProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="人物三视图拆解提示词请求预览"
+        fallbackTitle={t("characterDetail.portrait.promptPreviewTitle")}
         onClose={closeRequestPreview}
       />
     </Modal>

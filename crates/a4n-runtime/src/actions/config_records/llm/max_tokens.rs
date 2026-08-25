@@ -21,10 +21,8 @@ pub async fn update_llm_max_tokens_config(
     require_config_admin(state, caller_user_id).await?;
     state
         .orchestrator()
-        .save_llm_max_tokens_config_validated(input.clone())
-        .await?;
-
-    Ok(input)
+        .save_llm_max_tokens_config_validated(input)
+        .await
 }
 
 pub(super) async fn load_effective_llm_max_tokens_config(

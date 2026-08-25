@@ -16,6 +16,7 @@ import { toMediaSrc } from "../../../utils/mediaSrc";
 import { readFileAsBase64 } from "../../../utils/fileUpload";
 import { imageTypeLabel } from "../images/imageTabUtils";
 import type { ChapterRow } from "../shared";
+import { useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
 import {
   durationLimitsLabel,
   isChapterVideoMaterialImage,
@@ -62,15 +63,18 @@ export interface ReferenceMediaDraft {
 const REFERENCE_MEDIA_KIND_META: Record<
   ReferenceMediaKind,
   {
-    label: string;
+    labelKey: MessageKey;
     field: "image_files" | "video_files" | "audio_files";
     tokenPrefix: string;
   }
 > = {
-  image: { label: "图片", field: "image_files", tokenPrefix: "image_file" },
-  video: { label: "视频", field: "video_files", tokenPrefix: "video_file" },
-  audio: { label: "音频", field: "audio_files", tokenPrefix: "audio_file" },
+  image: { labelKey: "video.reference.image", field: "image_files", tokenPrefix: "image_file" },
+  video: { labelKey: "video.reference.video", field: "video_files", tokenPrefix: "video_file" },
+  audio: { labelKey: "video.reference.audio", field: "audio_files", tokenPrefix: "audio_file" },
 };
+
+const referenceMediaKindLabel = (kind: ReferenceMediaKind, t: MessageTranslator): string =>
+  t(REFERENCE_MEDIA_KIND_META[kind].labelKey);
 
 const REFERENCE_MEDIA_KINDS: ReferenceMediaKind[] = ["image", "video", "audio"];
 const REFERENCE_MEDIA_ACCEPT: Record<ReferenceMediaKind, string> = {
@@ -251,21 +255,25 @@ const buildReferenceMediaPrompt = (
 export const referenceMediaDraftError = (
   prompt: string,
   rowsByKind: ReferenceMediaRowsByKind,
+  t: MessageTranslator,
 ): string | null => {
   const normalizedRowsByKind = normalizeReferenceMediaRowsByKind(rowsByKind);
   for (const kind of REFERENCE_MEDIA_KINDS) {
     const meta = REFERENCE_MEDIA_KIND_META[kind];
     const rows = normalizedRowsByKind[kind];
     if (rows.length > REFERENCE_MEDIA_LIMITS[kind]) {
-      return `${meta.label}最多允许 ${REFERENCE_MEDIA_LIMITS[kind]} 个输入`;
+      return t("video.reference.maxInputs", {
+        label: referenceMediaKindLabel(kind, t),
+        count: REFERENCE_MEDIA_LIMITS[kind],
+      });
     }
     for (const [index, row] of rows.entries()) {
       const token = `@${meta.tokenPrefix}_${index + 1}`;
-      if (row.url && row.upload) return `${token} 不能同时使用 URL 和本地文件`;
-      if (!row.url && !row.upload) return `${token} 缺少 URL 或本地文件`;
+      if (row.url && row.upload) return t("video.reference.urlAndFile", { token });
+      if (!row.url && !row.upload) return t("video.reference.missingUrlOrFile", { token });
       if (row.url && !validReferenceMediaUrl(row.url))
-        return `${token} URL 必须以小写 http:// 或 https:// 开头`;
-      if (!row.usage) return `${token} 缺少用途描述`;
+        return t("video.reference.invalidUrl", { token });
+      if (!row.usage) return t("video.reference.missingUsage", { token });
     }
   }
   const totalMediaCount = REFERENCE_MEDIA_KINDS.reduce(
@@ -273,23 +281,23 @@ export const referenceMediaDraftError = (
     0,
   );
   if (totalMediaCount === 0) {
-    return "至少添加一个图片、视频或音频 URL 或本地文件";
+    return t("video.reference.atLeastOne");
   }
   const builtPrompt = buildReferenceMediaPrompt(prompt, normalizedRowsByKind);
   if ([...builtPrompt].length < REFERENCE_MEDIA_PROMPT_MIN_CHARS) {
-    return `参考媒体 prompt 至少需要 ${REFERENCE_MEDIA_PROMPT_MIN_CHARS} 个字符，请补全画面、动作、风格和媒体用途`;
+    return t("video.reference.promptTooShort", { count: REFERENCE_MEDIA_PROMPT_MIN_CHARS });
   }
   return null;
 };
 
-const assertImageIdSelection = (ids: number[], field: string) => {
+const assertImageIdSelection = (ids: number[], field: string, t: MessageTranslator) => {
   const seen = new Set<number>();
   for (const [index, id] of ids.entries()) {
     if (!Number.isInteger(id) || id <= 0) {
-      throw new Error(`${field}[${index}] 必须是正整数`);
+      throw new Error(t("video.reference.positiveId", { field, index }));
     }
     if (seen.has(id)) {
-      throw new Error(`${field} 包含重复图片 ID：${id}`);
+      throw new Error(t("video.reference.duplicateId", { field, id }));
     }
     seen.add(id);
   }
@@ -299,11 +307,12 @@ const toggleImageIdSelection = (
   ids: number[],
   id: number,
   field: string,
+  t: MessageTranslator,
 ): number[] => {
   if (!Number.isInteger(id) || id <= 0) {
-    throw new Error(`${field} 只能切换正整数图片 ID`);
+    throw new Error(t("video.reference.togglePositiveId", { field }));
   }
-  assertImageIdSelection(ids, field);
+  assertImageIdSelection(ids, field, t);
   return ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id];
 };
 
@@ -349,10 +358,13 @@ export const VideoReferenceInputSlots: React.FC<{
   onClearInvalidGenerationReferences,
   onClearInvalidVideoLibraryImages,
 }) => {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState<ReferenceImageFilter>("all");
   const chatVideoMode = workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO;
-  const generationReferenceLabel = chatVideoMode ? "Chat上传" : "生成参考";
+  const generationReferenceLabel = chatVideoMode
+    ? t("video.reference.chatUpload")
+    : t("video.reference.generationReference");
   const generationReferenceLimit = chatVideoMode
     ? MAX_CHAT_REFERENCE_IMAGES
     : MAX_REFERENCE_IMAGES;
@@ -404,19 +416,19 @@ export const VideoReferenceInputSlots: React.FC<{
   const filterOptions = useMemo(
     () =>
       [
-        { id: "all", label: "全部", count: filterCounts.all },
-        { id: "selected", label: "已选", count: filterCounts.selected },
-        { id: "library", label: "素材库", count: filterCounts.library },
+        { id: "all", label: t("video.reference.all"), count: filterCounts.all },
+        { id: "selected", label: t("video.reference.selected"), count: filterCounts.selected },
+        { id: "library", label: t("video.reference.library"), count: filterCounts.library },
         {
           id: "generation",
           label: generationReferenceLabel,
           count: filterCounts.generation,
         },
-        { id: "chapter", label: "本章", count: filterCounts.chapter },
-        { id: "project", label: "项目", count: filterCounts.project },
+        { id: "chapter", label: t("video.reference.chapter"), count: filterCounts.chapter },
+        { id: "project", label: t("video.reference.project"), count: filterCounts.project },
         {
           id: "profile_material",
-          label: "档案素材",
+          label: t("video.reference.profileMaterial"),
           count: filterCounts.profile_material,
         },
       ] satisfies Array<{
@@ -424,7 +436,7 @@ export const VideoReferenceInputSlots: React.FC<{
         label: string;
         count: number;
       }>,
-    [filterCounts, generationReferenceLabel],
+    [filterCounts, generationReferenceLabel, t],
   );
   const filteredImages = useMemo(
     () =>
@@ -459,7 +471,8 @@ export const VideoReferenceInputSlots: React.FC<{
         toggleImageIdSelection(
           generationReferenceIds,
           imageId,
-          "生成参考图片选择",
+          t("video.reference.selectionField"),
+          t,
         ),
       );
     } catch (err) {
@@ -474,7 +487,7 @@ export const VideoReferenceInputSlots: React.FC<{
       !explicitLibraryIdSet.has(image.id) &&
       videoLibraryImageIds.length >= MAX_VIDEO_LIBRARY_IMAGES
     ) {
-      onSelectionError(`视频素材库最多只能选择 ${MAX_VIDEO_LIBRARY_IMAGES} 张`);
+      onSelectionError(t("video.reference.libraryLimit", { count: MAX_VIDEO_LIBRARY_IMAGES }));
       return;
     }
     try {
@@ -482,7 +495,8 @@ export const VideoReferenceInputSlots: React.FC<{
         toggleImageIdSelection(
           videoLibraryImageIds,
           image.id,
-          "视频素材库图片选择",
+          t("video.reference.librarySelectionField"),
+          t,
         ),
       );
     } catch (err) {
@@ -493,9 +507,14 @@ export const VideoReferenceInputSlots: React.FC<{
     invalidGenerationReferenceIds.length > 0 ||
     invalidVideoLibraryImageIds.length > 0;
   const selectionSummary = [
-    libraryActiveCount > 0 ? `素材库 ${libraryActiveCount}` : null,
+    libraryActiveCount > 0
+      ? t("video.reference.librarySummary", { count: libraryActiveCount })
+      : null,
     generationReferenceIds.length > 0
-      ? `${chatVideoMode ? "上传" : "参考"} ${generationReferenceCountLabel}`
+      ? t("video.reference.referenceSummary", {
+          label: chatVideoMode ? t("video.reference.chatUpload") : t("video.reference.generationReference"),
+          count: generationReferenceCountLabel,
+        })
       : null,
   ].filter((item): item is string => item != null);
   const imageById = useMemo(
@@ -513,7 +532,7 @@ export const VideoReferenceInputSlots: React.FC<{
   return (
     <>
       <section
-        aria-label="片段参考图和素材"
+        aria-label={t("video.reference.sectionAria")}
         className="a4n-flat-surface p-3 sm:p-4"
       >
         <div className="mb-3 flex min-w-0 items-start gap-2">
@@ -521,21 +540,21 @@ export const VideoReferenceInputSlots: React.FC<{
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="text-xs font-medium text-book-text-main">
-                参考图 / 素材
+                {t("video.reference.title")}
               </h3>
               <span className="rounded-full bg-book-bg-tertiary px-2 py-0.5 text-caption text-book-text-muted">
-                可选
+                {t("video.reference.optional")}
               </span>
             </div>
             <div className="mt-0.5 text-caption text-book-text-muted">
-              已选素材会参与提示词或视频请求；按需点击加号继续添加。
+              {t("video.reference.selectedHelp")}
               {selectionSummary.length > 0
-                ? ` 当前：${selectionSummary.join(" · ")}。`
+                ? ` ${t("video.reference.currentSelection", { value: selectionSummary.join(" · ") })}`
                 : ""}
             </div>
           </div>
           {hasInvalidSelection ? (
-            <span className="shrink-0 text-caption text-error">需处理</span>
+            <span className="shrink-0 text-caption text-error">{t("video.reference.needsAttention")}</span>
           ) : null}
         </div>
 
@@ -546,10 +565,10 @@ export const VideoReferenceInputSlots: React.FC<{
             const roles = [
               generationIdSet.has(imageId)
                 ? chatVideoMode
-                  ? "Chat 参考"
-                  : "生成参考"
+                  ? t("video.reference.chatUpload")
+                  : t("video.reference.generationReference")
                 : null,
-              explicitLibraryIdSet.has(imageId) ? "提示词素材" : null,
+              explicitLibraryIdSet.has(imageId) ? t("video.reference.libraryButton") : null,
             ].filter((value): value is string => value != null);
             return (
               <button
@@ -557,7 +576,7 @@ export const VideoReferenceInputSlots: React.FC<{
                 type="button"
                 onClick={() => setOpen(true)}
                 disabled={disabled}
-                aria-label={`管理参考素材 ${imageId}`}
+                aria-label={t("video.reference.manage", { id: imageId })}
                 className={`group min-w-0 overflow-hidden rounded-xl border text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary disabled:cursor-not-allowed disabled:opacity-60 ${
                   image
                     ? "border-book-border/55 bg-book-bg-paper/45 hover:border-book-primary/60"
@@ -572,17 +591,17 @@ export const VideoReferenceInputSlots: React.FC<{
                       className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
                     />
                   ) : image ? (
-                    "无图"
+                    t("video.reference.noImage")
                   ) : (
-                    "素材已失效"
+                    t("video.reference.invalidMedia")
                   )}
                 </span>
                 <span className="block min-w-0 p-2">
                   <span className="block truncate text-small font-medium text-book-text-main">
-                    {image?.prompt || `图片 #${imageId}`}
+                    {image?.prompt || t("video.reference.imageNumber", { id: imageId })}
                   </span>
                   <span className="mt-0.5 block truncate text-caption text-book-text-muted">
-                    {roles.join(" · ") || "已选择"}
+                    {roles.join(" · ") || t("video.reference.selectedLabel")}
                   </span>
                 </span>
               </button>
@@ -593,12 +612,12 @@ export const VideoReferenceInputSlots: React.FC<{
               type="button"
               onClick={() => setOpen(true)}
               disabled={disabled}
-              aria-label="添加参考图或素材"
+              aria-label={t("video.reference.addMedia")}
               className="flex aspect-video min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-book-border/70 bg-book-bg-paper/30 text-small text-book-text-muted transition-colors hover:border-book-primary/70 hover:bg-book-primary/5 hover:text-book-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={18} />
               <span>
-                {selectedIds.length === 0 ? "添加第一张" : "继续添加"}
+                {selectedIds.length === 0 ? t("video.reference.addFirst") : t("video.reference.addMore")}
               </span>
             </button>
           ) : null}
@@ -608,7 +627,7 @@ export const VideoReferenceInputSlots: React.FC<{
       <Modal
         isOpen={open}
         onClose={() => setOpen(false)}
-        title="添加参考图 / 素材"
+        title={t("video.reference.modalTitle")}
         icon={<Images size={15} />}
         maxWidthClassName="max-w-5xl"
         zIndexClassName="z-[70]"
@@ -616,12 +635,12 @@ export const VideoReferenceInputSlots: React.FC<{
       >
         <div className="mb-3 space-y-2 border-b border-book-border/35 pb-3">
           <div className="text-small text-book-text-muted">
-            素材库 {libraryActiveCount} 张 · {generationReferenceLabel}{" "}
+            {t("video.reference.libraryCount", { count: libraryActiveCount })} · {generationReferenceLabel}{" "}
             {generationReferenceCountLabel}
           </div>
           <nav
             role="tablist"
-            aria-label="参考素材筛选"
+            aria-label={t("video.reference.filterAria")}
             className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar"
           >
             {filterOptions.map((option) => (
@@ -654,8 +673,7 @@ export const VideoReferenceInputSlots: React.FC<{
             {invalidGenerationReferenceIds.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span>
-                  生成参考中有 {invalidGenerationReferenceIds.length}{" "}
-                  张图片已不可用
+                  {t("video.reference.invalidGeneration", { count: invalidGenerationReferenceIds.length })}
                 </span>
                 <button
                   type="button"
@@ -663,14 +681,14 @@ export const VideoReferenceInputSlots: React.FC<{
                   disabled={disabled}
                   className="pyqt-btn-secondary !min-h-9 !px-2 text-caption sm:!min-h-[22px]"
                 >
-                  清除不可用
+                  {t("video.reference.clearInvalid")}
                 </button>
               </div>
             )}
             {invalidVideoLibraryImageIds.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span>
-                  素材库中有 {invalidVideoLibraryImageIds.length} 张图片已不可用
+                  {t("video.reference.invalidLibrary", { count: invalidVideoLibraryImageIds.length })}
                 </span>
                 <button
                   type="button"
@@ -678,7 +696,7 @@ export const VideoReferenceInputSlots: React.FC<{
                   disabled={disabled}
                   className="pyqt-btn-secondary !min-h-9 !px-2 text-caption sm:!min-h-[22px]"
                 >
-                  清除不可用
+                  {t("video.reference.clearInvalid")}
                 </button>
               </div>
             )}
@@ -687,11 +705,11 @@ export const VideoReferenceInputSlots: React.FC<{
 
         {images.length === 0 ? (
           <div className="rounded-xl border border-book-border/40 bg-book-bg-paper/35 px-2.5 py-2 text-small text-book-text-muted">
-            当前章节没有可选素材图。
+            {t("video.reference.noChapterImages")}
           </div>
         ) : filteredImages.length === 0 ? (
           <div className="rounded-xl border border-book-border/40 bg-book-bg-paper/35 px-2.5 py-2 text-small text-book-text-muted">
-            没有匹配当前筛选的素材图。
+            {t("video.reference.noMatchingImages")}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
@@ -707,6 +725,7 @@ export const VideoReferenceInputSlots: React.FC<{
                 image,
                 chapter,
                 currentContentHash,
+                t,
               );
               return (
                 <div
@@ -721,7 +740,7 @@ export const VideoReferenceInputSlots: React.FC<{
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      "无图"
+                      t("video.reference.noImage")
                     )}
                     {(autoLibrary ||
                       manualLibrary ||
@@ -729,12 +748,12 @@ export const VideoReferenceInputSlots: React.FC<{
                       profileCandidate) && (
                       <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent px-2 pb-1.5 pt-4 text-right text-caption text-white">
                         {manualLibrary
-                          ? "手动"
+                          ? t("video.reference.manual")
                           : autoLibrary
-                            ? "本章自动"
+                            ? t("video.reference.chapterAutomatic")
                             : generationActive
-                              ? "参考"
-                              : "档案候选"}
+                              ? t("video.reference.reference")
+                              : t("video.reference.profileCandidate")}
                       </span>
                     )}
                   </div>
@@ -744,7 +763,7 @@ export const VideoReferenceInputSlots: React.FC<{
                         {scopeLabel}
                       </span>
                       <span className="min-w-0 shrink-0 truncate text-book-text-muted">
-                        {imageTypeLabel(image.image_type)}
+                        {imageTypeLabel(image.image_type, t)}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-1">
@@ -761,11 +780,11 @@ export const VideoReferenceInputSlots: React.FC<{
                           autoLibrary ? "cursor-default opacity-80" : "",
                         ].join(" ")}
                         title={
-                          autoLibrary ? "自动素材库成员" : "切换素材库输入"
+                          autoLibrary ? t("video.reference.autoLibraryMember") : t("video.reference.toggleLibrary")
                         }
                       >
                         {libraryActive && <Check size={10} />}
-                        素材库
+                        {t("video.reference.libraryButton")}
                       </button>
                       <button
                         type="button"
@@ -780,8 +799,8 @@ export const VideoReferenceInputSlots: React.FC<{
                         ].join(" ")}
                         title={
                           chatVideoMode
-                            ? "切换外部 Chat 上传候选"
-                            : "切换生成参考输入"
+                            ? t("video.reference.toggleChatUpload")
+                            : t("video.reference.toggleGeneration")
                         }
                       >
                         {generationActive && <Check size={10} />}
@@ -842,6 +861,7 @@ export const ReferenceMediaWorkspace: React.FC<{
   onGenerate,
   onImport,
 }) => {
+  const { t } = useI18n();
   const [uploadError, setUploadError] = useState<string | null>(null);
   const durationSupported = isDurationAllowed(durationSecs, durationLimits);
   const rowsByKind: ReferenceMediaRowsByKind = {
@@ -849,11 +869,11 @@ export const ReferenceMediaWorkspace: React.FC<{
     video: videoRows,
     audio: audioRows,
   };
-  const inputError = referenceMediaDraftError(prompt, rowsByKind);
+  const inputError = referenceMediaDraftError(prompt, rowsByKind, t);
   const providerBlockedReason = durationLimits.configError
     ? durationLimits.configError
     : !durationSupported
-      ? "当前时长不在默认视频模型支持范围内"
+      ? t("video.reference.durationUnsupported")
       : (inputError ?? undefined);
   const setRowsByKind: Record<
     ReferenceMediaKind,
@@ -867,17 +887,17 @@ export const ReferenceMediaWorkspace: React.FC<{
   const importRunning = acting === "reference-media-import";
   const operationRunning = generationRunning || importRunning;
   const importBlockedReason = !prompt.trim()
-    ? "参考媒体提示词不能为空"
+    ? t("video.reference.promptEmpty")
     : undefined;
   const secondaryActionItems: React.ComponentProps<typeof Dropdown>["items"] = [
     {
-      label: "查看模型请求",
+      label: t("video.reference.viewRequest"),
       icon: <Eye size={12} />,
       disabled: providerBlockedReason != null || previewing || acting != null,
       onClick: () => void onPreview(),
     },
     {
-      label: "导入已有视频",
+      label: t("video.reference.importVideo"),
       icon: <Upload size={12} />,
       disabled: importBlockedReason != null || acting != null,
       onClick: () => void onImport(),
@@ -889,7 +909,7 @@ export const ReferenceMediaWorkspace: React.FC<{
   const renderMediaRows = (kind: ReferenceMediaKind) => {
     const rows = rowsByKind[kind];
     const setRows = setRowsByKind[kind];
-    const meta = REFERENCE_MEDIA_KIND_META[kind];
+    const label = referenceMediaKindLabel(kind, t);
     const maxRows = REFERENCE_MEDIA_LIMITS[kind];
     const activeCount = activeReferenceMediaRows(rows).length;
 
@@ -911,17 +931,17 @@ export const ReferenceMediaWorkspace: React.FC<{
       const allowedMimes = REFERENCE_MEDIA_ACCEPT[kind].split(",");
       if (!allowedMimes.includes(file.type)) {
         setUploadError(
-          `${meta.label}文件类型不支持：${file.type || file.name}`,
+          t("video.reference.unsupportedType", { label, type: file.type || file.name }),
         );
         return;
       }
       if (file.size > MAX_REFERENCE_MEDIA_UPLOAD_BYTES) {
-        setUploadError(`${meta.label}文件不能超过 20MB`);
+        setUploadError(t("video.reference.fileTooLarge", { label }));
         return;
       }
       try {
         if (!globalThis.crypto?.subtle) {
-          throw new Error("当前环境不支持计算本地文件 SHA-256");
+          throw new Error(t("video.reference.cryptoUnsupported"));
         }
         const [dataBase64, digest] = await Promise.all([
           readFileAsBase64(file),
@@ -942,7 +962,7 @@ export const ReferenceMediaWorkspace: React.FC<{
           uploadMimeType: file.type,
         });
       } catch (error) {
-        setUploadError(extractErrorMessage(error, `读取${meta.label}文件失败`));
+        setUploadError(extractErrorMessage(error, t("video.reference.readFileFailed", { label })));
       }
     };
 
@@ -950,7 +970,7 @@ export const ReferenceMediaWorkspace: React.FC<{
       <section className="border-t border-book-border/35 pt-3">
         <div className="mb-2 flex min-w-0 items-center gap-2">
           <h3 className="text-xs font-medium text-book-text-main">
-            {meta.label}
+            {label}
           </h3>
           <span className="text-caption text-book-text-muted">
             {activeCount} / {maxRows}
@@ -962,10 +982,10 @@ export const ReferenceMediaWorkspace: React.FC<{
                 setRows([...rows, createReferenceMediaBindingRow()])
               }
               className="ml-auto inline-flex min-h-8 items-center gap-1 text-small text-book-text-sub transition-colors hover:text-book-primary"
-              title={`添加${meta.label}`}
+              title={t("video.reference.addItem", { label })}
             >
               <Plus size={12} />
-              添加{meta.label}
+              {t("video.reference.addItem", { label })}
             </button>
           )}
         </div>
@@ -975,14 +995,14 @@ export const ReferenceMediaWorkspace: React.FC<{
               <div key={row.id} className="py-2 first:pt-0 last:pb-0">
                 <div className="mb-1.5 flex min-w-0 items-center gap-2">
                   <span className="text-small font-medium text-book-text-main">
-                    {meta.label} {index + 1}
+                    {t("video.reference.itemNumber", { label, number: index + 1 })}
                   </span>
                   <button
                     type="button"
                     onClick={() => removeRow(row.id)}
                     className="ml-auto pyqt-btn-icon !h-8 !w-8"
-                    title={`删除${meta.label}`}
-                    aria-label={`删除${meta.label} ${index + 1}`}
+                    title={t("video.reference.deleteItem", { label })}
+                    aria-label={t("video.reference.itemNumber", { label, number: index + 1 })}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -1000,13 +1020,13 @@ export const ReferenceMediaWorkspace: React.FC<{
                       })
                     }
                     className="book-control h-10 w-full rounded-xl px-2.5 text-small sm:h-9"
-                    placeholder={`${meta.label} URL（http:// 或 https://）`}
-                    aria-label={`${meta.label} ${index + 1} URL`}
+                    placeholder={t("video.reference.urlPlaceholder", { label })}
+                    aria-label={`${t("video.reference.itemNumber", { label, number: index + 1 })} URL`}
                   />
                   <div className="flex min-w-0 items-center gap-2">
                     <label className="pyqt-btn-secondary inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1 px-2 text-small">
                       <Upload size={12} />
-                      本地文件
+                      {t("video.reference.localFile")}
                       <input
                         type="file"
                         accept={REFERENCE_MEDIA_ACCEPT[kind]}
@@ -1024,7 +1044,7 @@ export const ReferenceMediaWorkspace: React.FC<{
                         title={row.upload?.file_name ?? row.uploadFileName}
                       >
                         {row.upload?.file_name ?? row.uploadFileName}
-                        {!row.upload ? "（刷新后需重新选择该文件）" : ""}
+                        {!row.upload ? t("video.reference.fileReselect") : ""}
                       </span>
                     )}
                   </div>
@@ -1034,8 +1054,8 @@ export const ReferenceMediaWorkspace: React.FC<{
                       updateRow(row.id, { usage: event.target.value })
                     }
                     className="book-control min-h-[58px] w-full resize-y rounded-xl p-2.5 text-small leading-relaxed"
-                    placeholder="描述用途、主体、必须保持的细节"
-                    aria-label={`${meta.label} ${index + 1} 用途`}
+                    placeholder={t("video.reference.usagePlaceholder")}
+                    aria-label={`${t("video.reference.itemNumber", { label, number: index + 1 })} ${t("video.reference.selectedLabel")}`}
                   />
                 </div>
               </div>
@@ -1051,13 +1071,13 @@ export const ReferenceMediaWorkspace: React.FC<{
 
   return (
     <section
-      aria-label="参考媒体生成设置"
+      aria-label={t("video.reference.settingsAria")}
       className="a4n-flat-surface flex h-full min-h-0 flex-col overflow-hidden p-3"
     >
       <div className="mb-3 border-b border-book-border/35 pb-3 text-small text-book-text-muted">
-        视频服务 ·{" "}
+        {t("video.reference.videoService")} ·{" "}
         {activeVideoConfig?.name?.trim() ||
-          (activeVideoConfig ? "已配置" : "尚未配置")}
+          (activeVideoConfig ? t("video.reference.configured") : t("video.reference.notConfigured"))}
       </div>
       {operationRunning ? (
         <div
@@ -1065,28 +1085,27 @@ export const ReferenceMediaWorkspace: React.FC<{
           className="flex min-h-0 flex-1 items-center justify-center gap-2 text-xs text-book-text-muted"
         >
           <LoadingSpinner size="sm" />
-          {generationRunning ? "正在生成参考媒体视频" : "正在导入参考媒体视频"}
+          {generationRunning ? t("video.reference.generatingVideo") : t("video.reference.importingVideo")}
         </div>
       ) : (
         <>
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-2 pr-1 custom-scrollbar">
             <label className="flex min-w-0 flex-col gap-1">
-              <span className="text-xs text-book-text-muted">基础提示词</span>
+              <span className="text-xs text-book-text-muted">{t("video.reference.basePrompt")}</span>
               <textarea
                 value={prompt}
                 onChange={(event) => onPromptChange(event.target.value)}
                 className="book-control min-h-[130px] resize-y rounded-xl p-2.5 text-xs leading-relaxed"
-                placeholder="整体画面、动作、风格、镜头和声音要求"
+                placeholder={t("video.reference.basePromptPlaceholder")}
               />
             </label>
             {renderMediaRows("image")}
             {renderMediaRows("video")}
             {renderMediaRows("audio")}
             <div className="border-t border-book-border/35 pt-2 text-small text-book-text-sub">
-              规划参数：{durationSecs} 秒 · {aspectRatio}
-              。时长、画幅和风格属于共享片段规划；如需修改，请重新生成片段规划。
+              {t("video.reference.planParameters", { duration: durationSecs, aspectRatio })}
               <div className="mt-1 text-caption text-book-text-muted">
-                {durationLimitsLabel(durationLimits)}
+                {durationLimitsLabel(durationLimits, t)}
               </div>
             </div>
             {!durationLimits.configError && !durationSupported && (
@@ -1094,7 +1113,7 @@ export const ReferenceMediaWorkspace: React.FC<{
                 role="status"
                 className="rounded-xl border border-warning/40 bg-warning-bg px-2.5 py-2 text-small text-warning"
               >
-                当前时长不在视频服务支持范围内。
+                {t("video.reference.durationUnsupported")}
               </div>
             )}
             {durationLimits.configError && (
@@ -1120,10 +1139,10 @@ export const ReferenceMediaWorkspace: React.FC<{
               onClick={() => void onSaveDraft()}
               disabled={!draftDirty || savingDraft}
               className="pyqt-btn-secondary inline-flex min-h-9 items-center justify-center gap-1.5 px-3 text-xs"
-              title={draftDirty ? "保存当前片段参考媒体草稿" : "草稿已保存"}
+              title={draftDirty ? t("video.reference.saveDraftTitle") : t("video.reference.draftSavedTitle")}
             >
               {savingDraft ? <LoadingSpinner size="sm" /> : <Check size={12} />}
-              {savingDraft ? "保存中" : draftDirty ? "保存草稿" : "已保存"}
+              {savingDraft ? t("video.reference.saving") : draftDirty ? t("video.reference.saveDraft") : t("video.reference.saved")}
             </button>
             <Dropdown items={secondaryActionItems} />
             {showGeneratePrimary && (
@@ -1134,7 +1153,7 @@ export const ReferenceMediaWorkspace: React.FC<{
                 className="pyqt-btn-primary inline-flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1.5 text-xs"
               >
                 <Images size={12} />
-                生成视频
+                {t("video.reference.generateVideo")}
               </button>
             )}
           </div>

@@ -1,22 +1,25 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 
 use a4n_api_contract::character::{
     CharacterProfileSkippedResult, CharacterProfileSyncBatchStatus, CharacterProfileSyncFailure,
     CharacterProfileSyncedResult, SyncAllCharacterProfilesResult, SyncCharacterProfileResult,
 };
-use a4n_core::{error::AppError, models::character::protagonist_profile};
+use a4n_core::{
+    error::AppError,
+    models::{chapter::chapter, character::protagonist_profile},
+};
 use a4n_prompt::rendering::PromptRenderer;
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::OrchestratorContext;
 
+use super::profile_sync::CharacterProfileSyncAnchorCache;
 use super::{
     CHARACTER_PROFILE_SYNC_STEPS, CharacterProfileSyncAnchorMode,
     CharacterProfileSyncApplicationInput, CharacterProfileSyncPreviewStep,
     CharacterProfileSyncProgress, CharacterProfileSyncStageTracePort, CharacterProfileSyncSubject,
-    CharacterSyncRangeMode, character_identity_key, character_profile_skipped_result,
-    profile_character_keys, sync_rules::profile_sync_skip_reason_for_mode,
+    CharacterSyncRangeMode, character_identity_key, profile_character_keys,
     validate_character_sync_target_chapter,
 };
 
@@ -30,9 +33,10 @@ impl OrchestratorContext {
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<SyncAllCharacterProfilesResult, AppError> {
         progress.report_with_total(0, 1, "正在校验同步目标章节")?;
-        let target_chapter = self
-            .resolve_character_profile_sync_target_chapter(project_id, chapter_number)
-            .await?;
+        let chapters = self.character_sync_chapters(project_id).await?;
+        let target_chapter =
+            validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
+                .map_err(AppError::InvalidArgument)?;
         let profiles = self.protagonist_profiles_for_project(project_id).await?;
 
         if profiles.is_empty() {
@@ -45,15 +49,18 @@ impl OrchestratorContext {
             ));
         }
 
+        let mut anchor_cache = HashMap::new();
         let (synced, skipped, failed) = self
             .run_character_profile_sync_batch(
                 profiles,
+                &chapters,
                 target_chapter,
                 CharacterSyncRangeMode::Incremental,
                 CharacterProfileSyncAnchorMode::EnsureCurrent,
                 prompt_renderer,
                 progress,
                 trace_port,
+                &mut anchor_cache,
             )
             .await?;
         Ok(character_profile_sync_batch_result(
@@ -70,20 +77,30 @@ impl OrchestratorContext {
         chapter_number: i32,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError> {
-        let target_chapter = self
-            .resolve_character_profile_sync_target_chapter(project_id, chapter_number)
-            .await?;
+        let chapters = self.character_sync_chapters(project_id).await?;
+        let target_chapter =
+            validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
+                .map_err(AppError::InvalidArgument)?;
         let profiles = self.protagonist_profiles_for_project(project_id).await?;
+        let mut anchor_cache = HashMap::new();
         let mut steps = Vec::new();
         for profile in profiles {
-            if let Some(step) = self
-                .prepare_character_profile_sync_preview_validated(
+            let prepared = self
+                .prepare_character_profile_sync_context_with_chapters(
                     CharacterProfileSyncApplicationInput {
                         subject: CharacterProfileSyncSubject::Profile(profile),
                         target_chapter,
                         range_mode: CharacterSyncRangeMode::Incremental,
                         anchor_mode: CharacterProfileSyncAnchorMode::RequireExistingCurrent,
                     },
+                    &chapters,
+                    &mut anchor_cache,
+                )
+                .await?;
+            if let Some(step) = self
+                .prepare_character_profile_sync_preview_from_prepared(
+                    prepared,
+                    CharacterSyncRangeMode::Incremental,
                     prompt_renderer,
                 )
                 .await?
@@ -105,9 +122,10 @@ impl OrchestratorContext {
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<AnalysisCharacterProfileSyncResult, AppError> {
         progress.report_with_total(0, 1, "正在按章节分析结果选择待同步角色")?;
-        let target_chapter = self
-            .resolve_character_profile_sync_target_chapter(project_id, chapter_number)
-            .await?;
+        let chapters = self.character_sync_chapters(project_id).await?;
+        let target_chapter =
+            validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
+                .map_err(AppError::InvalidArgument)?;
         let analysis_character_names = analysis
             .map(character_names_from_chapter_analysis)
             .unwrap_or_default();
@@ -176,15 +194,18 @@ impl OrchestratorContext {
             ));
         }
 
+        let mut anchor_cache = HashMap::new();
         let (synced, skipped, failed) = self
             .run_character_profile_sync_batch(
                 matched_profiles,
+                &chapters,
                 target_chapter,
                 CharacterSyncRangeMode::AnalysisResyncFromTarget,
                 CharacterProfileSyncAnchorMode::EnsureCurrent,
                 prompt_renderer,
                 progress,
                 trace_port,
+                &mut anchor_cache,
             )
             .await?;
         Ok(analysis_sync_result(
@@ -200,26 +221,18 @@ impl OrchestratorContext {
         ))
     }
 
-    async fn resolve_character_profile_sync_target_chapter(
-        &self,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<i32, AppError> {
-        let chapters = self.character_sync_chapters(project_id).await?;
-        validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
-            .map_err(AppError::InvalidArgument)
-    }
-
     #[allow(clippy::too_many_arguments)]
     async fn run_character_profile_sync_batch(
         &self,
         profiles: Vec<protagonist_profile::Model>,
+        chapters: &[chapter::Model],
         target_chapter: i32,
         range_mode: CharacterSyncRangeMode,
         anchor_mode: CharacterProfileSyncAnchorMode,
         prompt_renderer: &dyn PromptRenderer,
         progress: CharacterProfileSyncProgress<'_>,
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+        anchor_cache: &mut CharacterProfileSyncAnchorCache,
     ) -> Result<
         (
             Vec<CharacterProfileSyncedResult>,
@@ -245,22 +258,9 @@ impl OrchestratorContext {
                     total / CHARACTER_PROFILE_SYNC_STEPS
                 ),
             )?;
-            let skip_reason =
-                profile_sync_skip_reason_for_mode(&profile, target_chapter, range_mode);
-            if let Some(reason) = skip_reason {
-                skipped.push(character_profile_skipped_result(
-                    &profile,
-                    target_chapter,
-                    reason,
-                ));
-                progress.report_with_total(
-                    base + CHARACTER_PROFILE_SYNC_STEPS,
-                    total,
-                    &format!("角色 {} · {name}：无需同步，跳过", index + 1),
-                )?;
-                continue;
-            }
 
+            // 跳过判定统一由 run_character_profile_sync_validated 在 prepare 之后做：
+            // 只有那里才拿得到正文证据 first_seen，批量层预判会漏掉它。
             let profile_reporter = |current: u32, local_total: u32, message: &str| {
                 let offset = u64::from(current.min(local_total))
                     * u64::from(CHARACTER_PROFILE_SYNC_STEPS)
@@ -271,14 +271,22 @@ impl OrchestratorContext {
                     })?;
                 progress.report_with_total(mapped, total, message)
             };
-            let result = self
-                .run_character_profile_sync_validated(
-                    CharacterProfileSyncApplicationInput {
-                        subject: CharacterProfileSyncSubject::Profile(profile),
-                        target_chapter,
-                        range_mode,
-                        anchor_mode,
-                    },
+            let result = async {
+                let prepared = self
+                    .prepare_character_profile_sync_context_with_chapters(
+                        CharacterProfileSyncApplicationInput {
+                            subject: CharacterProfileSyncSubject::Profile(profile),
+                            target_chapter,
+                            range_mode,
+                            anchor_mode,
+                        },
+                        chapters,
+                        anchor_cache,
+                    )
+                    .await?;
+                self.run_prepared_character_profile_sync_validated(
+                    prepared,
+                    range_mode,
                     prompt_renderer,
                     Some(CharacterProfileSyncProgress {
                         reporter: Some(&profile_reporter),
@@ -286,7 +294,9 @@ impl OrchestratorContext {
                     }),
                     trace_port,
                 )
-                .await;
+                .await
+            }
+            .await;
             match result {
                 Ok(SyncCharacterProfileResult::Synced(result)) => synced.push(result),
                 Ok(SyncCharacterProfileResult::Skipped(result)) => skipped.push(result),

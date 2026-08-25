@@ -15,22 +15,25 @@ use super::super::types::DuplicatedDerivedSourceSnapshot;
 
 macro_rules! copy_derived_snapshot_detail_rows {
     ($db:expr, $source_snapshot_id:expr, $new_snapshot_id:expr, $module:ident, [$($field:ident),+ $(,)?]) => {{
-        for row in $module::Entity::find()
+        let rows = $module::Entity::find()
             .filter($module::Column::SnapshotId.eq($source_snapshot_id))
             .order_by_asc($module::Column::Id)
             .all($db)
             .await
             .map_err(ProjectDuplicateError::Database)?
-        {
-            $module::ActiveModel {
+            .into_iter()
+            .map(|row| $module::ActiveModel {
                 snapshot_id: Set($new_snapshot_id),
                 root_project_id: Set(row.root_project_id),
                 $($field: Set(row.$field),)+
                 ..Default::default()
-            }
-            .insert($db)
-            .await
-            .map_err(ProjectDuplicateError::Database)?;
+            })
+            .collect::<Vec<_>>();
+        if !rows.is_empty() {
+            $module::Entity::insert_many(rows)
+                .exec_without_returning($db)
+                .await
+                .map_err(ProjectDuplicateError::Database)?;
         }
     }};
 }
@@ -72,30 +75,44 @@ where
     .await
     .map_err(ProjectDuplicateError::Database)?;
 
-    let mut chapter_ids = HashMap::new();
-    for chapter in source_snapshot_chapter::Entity::find()
+    let chapters = source_snapshot_chapter::Entity::find()
         .filter(source_snapshot_chapter::Column::SnapshotId.eq(source_snapshot_id))
         .order_by_asc(source_snapshot_chapter::Column::ChapterNumber)
         .all(db)
         .await
-        .map_err(ProjectDuplicateError::Database)?
-    {
-        let copied = source_snapshot_chapter::ActiveModel {
+        .map_err(ProjectDuplicateError::Database)?;
+    let chapter_rows = chapters
+        .iter()
+        .map(|chapter| source_snapshot_chapter::ActiveModel {
             snapshot_id: Set(new_snapshot.id),
             root_project_id: Set(chapter.root_project_id),
             source_chapter_id: Set(chapter.source_chapter_id),
             chapter_number: Set(chapter.chapter_number),
-            title: Set(chapter.title),
-            content: Set(chapter.content),
-            summary: Set(chapter.summary),
-            analysis_data_json: Set(chapter.analysis_data_json),
-            content_hash: Set(chapter.content_hash),
-            analysis_hash: Set(chapter.analysis_hash),
+            title: Set(chapter.title.clone()),
+            content: Set(chapter.content.clone()),
+            summary: Set(chapter.summary.clone()),
+            analysis_data_json: Set(chapter.analysis_data_json.clone()),
+            content_hash: Set(chapter.content_hash.clone()),
+            analysis_hash: Set(chapter.analysis_hash.clone()),
             ..Default::default()
-        }
-        .insert(db)
-        .await
-        .map_err(ProjectDuplicateError::Database)?;
+        })
+        .collect::<Vec<_>>();
+    let inserted_chapters = if chapter_rows.is_empty() {
+        Vec::new()
+    } else {
+        source_snapshot_chapter::Entity::insert_many(chapter_rows)
+            .exec_with_returning_many(db)
+            .await
+            .map_err(ProjectDuplicateError::Database)?
+    };
+    if inserted_chapters.len() != chapters.len() {
+        return Err(ProjectDuplicateError::InvalidState {
+            current: "复制后的源快照章节数量与源记录不一致".to_string(),
+            operation: "复制派生项目源快照章节".to_string(),
+        });
+    }
+    let mut chapter_ids = HashMap::with_capacity(chapters.len());
+    for (chapter, copied) in chapters.iter().zip(inserted_chapters) {
         chapter_ids.insert(chapter.id, copied.id);
     }
     copy_derived_snapshot_detail_rows!(

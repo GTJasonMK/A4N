@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_core::source_spans::SourceSpan;
+use a4n_core::source_spans::SourceSpanIndex;
 use serde_json::Value;
 
 use super::super::super::materialize::analysis_materialize_error;
@@ -10,7 +10,7 @@ use entry::validate_fact_entity;
 pub(super) fn validate_fact_entity_array(
     facts: &Value,
     key: &str,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let values = facts.get(key).and_then(Value::as_array).ok_or_else(|| {
         analysis_materialize_error(format!("chapter_fact_extraction.{key} 必须是数组"))

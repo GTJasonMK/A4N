@@ -54,12 +54,11 @@ pub(crate) fn run() {
             if let Some(server) = app_handle.try_state::<server_process::LocalServerProcess>() {
                 server.stop();
             }
-            if let Some(state) = app_handle.try_state::<a4n_runtime::AppState>() {
-                if let Err(error) =
+            if let Some(state) = app_handle.try_state::<a4n_runtime::AppState>()
+                && let Err(error) =
                     tauri::async_runtime::block_on(state.shutdown_managed_sidecars())
-                {
-                    tracing::error!(%error, "停止 managed sidecars 失败");
-                }
+            {
+                tracing::error!(%error, "停止 managed sidecars 失败");
             }
         }
         _ => {}

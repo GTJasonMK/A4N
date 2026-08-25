@@ -1,7 +1,7 @@
 use crate::project_dependency_graph::AssetLineageRecord;
 use crate::project_dependency_graph::details::records::{
-    db_record_result_with_related, db_related_record, generated_video_prompt_id, lineage_ref,
-    optional_prompt_sources, prompt_source, video_prompt_sources,
+    db_record_result_with_related, db_related_record, lineage_ref, optional_prompt_sources,
+    prompt_source, video_prompt_sources,
 };
 use a4n_core::{
     error::AppError,
@@ -9,7 +9,7 @@ use a4n_core::{
 };
 use a4n_domain::GeneratedMediaReference;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 pub(in crate::project_dependency_graph) async fn generated_video_detail_records<C>(
     db: &C,
@@ -30,11 +30,11 @@ where
     let prompt_by_video = prompts
         .iter()
         .filter_map(|prompt| prompt.generated_video_id.map(|id| (id, prompt)))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let prompt_by_id = prompts
         .iter()
         .map(|prompt| (prompt.id, prompt))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let videos = generated_video::Entity::find()
         .filter(generated_video::Column::ProjectId.is_in(project_ids.iter().copied()))
         .order_by_asc(generated_video::Column::Id)
@@ -45,7 +45,7 @@ where
         .into_iter()
         .map(|video| {
             let prompt = prompt_by_video.get(&video.id).copied().or_else(|| {
-                generated_video_prompt_id(video.metadata_json.as_ref())
+                a4n_domain::video::generated_video_prompt_id(video.metadata_json.as_ref())
                     .and_then(|id| prompt_by_id.get(&id).copied())
             });
             if prompt.is_none() {

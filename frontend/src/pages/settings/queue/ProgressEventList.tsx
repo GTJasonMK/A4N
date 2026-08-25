@@ -1,12 +1,14 @@
 import React from "react";
 import type { ProgressEventRecord } from "../../../api/progress";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
+import { formatTime, useI18n } from "../../../i18n";
 
 interface ProgressEventListProps {
   events: ProgressEventRecord[];
 }
 
 export const ProgressEventList: React.FC<ProgressEventListProps> = ({ events }) => {
+  const { t, locale } = useI18n();
   const visibleEvents = events.slice(-3);
   if (visibleEvents.length === 0) return null;
 
@@ -15,9 +17,11 @@ export const ProgressEventList: React.FC<ProgressEventListProps> = ({ events }) 
       {visibleEvents.map((event) => {
         const display = progressDisplayModel({
           ...event,
-          fallbackStage: "任务执行中",
+          locale,
+          t,
+          fallbackStage: t("settingsQueue.taskRunning"),
         });
-        const detail = display.detail ?? event.message;
+        const detail = display.detail;
         return (
           <li
             key={event.id}
@@ -35,7 +39,7 @@ export const ProgressEventList: React.FC<ProgressEventListProps> = ({ events }) 
               ) : null}
             </span>
             <span className="shrink-0 font-mono text-book-text-muted">
-              {formatEventTime(event.timestamp)}
+              {formatTime(event.timestamp, locale, t("common.unknown"))}
             </span>
           </li>
         );
@@ -43,13 +47,3 @@ export const ProgressEventList: React.FC<ProgressEventListProps> = ({ events }) 
     </ol>
   );
 };
-
-function formatEventTime(timestamp: string): string {
-  const parsed = new Date(timestamp);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}

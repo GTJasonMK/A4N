@@ -5,7 +5,7 @@
   "identifier": "com.a4n.app",
   "build": {
     "frontendDist": "../../frontend/dist",
-    "devUrl": "http://localhost:5173",
+    "devUrl": "http://127.0.0.1:5173",
     "beforeDevCommand": "cd ../frontend && npm run dev",
     "beforeBuildCommand": "cd ../frontend && npm run build"
   },

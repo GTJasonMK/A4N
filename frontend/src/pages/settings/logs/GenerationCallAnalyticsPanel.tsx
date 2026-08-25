@@ -19,18 +19,14 @@ import {
 import { useToast } from "../../../components/feedback/Toast";
 import { useAuthStore } from "../../../store/auth";
 import { logger } from "../../../utils/logger";
-
-const KIND_LABELS: Record<string, string> = {
-  llm: "语言模型",
-  image: "图片",
-  video: "视频",
-};
+import { formatNumber, useI18n } from "../../../i18n";
 
 const CHART_WIDTH = 720;
 const CHART_HEIGHT = 164;
 
 export const GenerationCallAnalyticsPanel: React.FC = () => {
   const { addToast } = useToast();
+  const { t, locale } = useI18n();
   const user = useAuthStore((state) => state.user);
   const [days, setDays] = useState(30);
   const [data, setData] = useState<GenerationCallAnalytics | null>(null);
@@ -83,7 +79,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       setErrorState(null);
     } catch (err) {
       if (!mountedRef.current || requestSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, "读取生成调用分析失败");
+      const message = extractErrorMessage(err, t("settingsLogs.analyticsLoadFailed"));
       setData(null);
       setLoadedKey(requestKey);
       setErrorState({ key: requestKey, message });
@@ -102,7 +98,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [addToast, callerUserId, canReadDiagnostics, days]);
+  }, [addToast, callerUserId, canReadDiagnostics, days, t]);
 
   useEffect(() => {
     void refresh();
@@ -124,24 +120,24 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
 
   const llmOverview = overviewByKind.get("llm");
   const recentLlmDescription = displayLoading
-    ? "正在加载…"
+    ? t("settingsLogs.loading")
     : displayFailed
-      ? "读取失败"
+      ? t("settingsLogs.readFailedShort")
       : displayData && displayData.recent_llm_calls.length > 0
-        ? `${displayData.recent_llm_calls.length} 条记录`
-        : "暂无记录";
+        ? t("settingsLogs.recordCount", { count: displayData.recent_llm_calls.length })
+        : t("settingsLogs.noRecords");
   const recentMediaDescription = displayLoading
-    ? "正在加载…"
+    ? t("settingsLogs.loading")
     : displayFailed
-      ? "读取失败"
+      ? t("settingsLogs.readFailedShort")
       : displayData && displayData.recent_media_calls.length > 0
-        ? `${displayData.recent_media_calls.length} 条记录`
-        : "暂无记录";
+        ? t("settingsLogs.recordCount", { count: displayData.recent_media_calls.length })
+        : t("settingsLogs.noRecords");
 
   if (!canReadDiagnostics) {
     return (
       <div className="border-l-2 border-book-border/70 py-2 pl-4 text-sm text-book-text-muted">
-        服务器诊断数据仅管理员可查看。
+        {t("settingsLogs.adminOnly")}
       </div>
     );
   }
@@ -150,22 +146,22 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
     <section className="flex flex-col gap-3">
       <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs">
         <label className="inline-flex items-center gap-2 text-book-text-muted">
-          统计范围
+          {t("settingsLogs.usageRange")}
           <select
             value={days}
             onChange={(event) => setDays(Number(event.target.value))}
             className="pyqt-input w-28 px-2 py-1"
-            aria-label="生成调用统计范围"
+            aria-label={t("settingsLogs.usageRange")}
           >
-            <option value={7}>最近 7 天</option>
-            <option value={30}>最近 30 天</option>
-            <option value={90}>最近 90 天</option>
-            <option value={180}>最近 180 天</option>
+            <option value={7}>{t("settingsLogs.recentDays", { count: 7 })}</option>
+            <option value={30}>{t("settingsLogs.recentDays", { count: 30 })}</option>
+            <option value={90}>{t("settingsLogs.recentDays", { count: 90 })}</option>
+            <option value={180}>{t("settingsLogs.recentDays", { count: 180 })}</option>
           </select>
         </label>
         <span className="flex-1" />
         <BookIconButton
-          label="刷新生成调用分析"
+          label={t("settingsLogs.refreshAnalytics")}
           size="sm"
           onClick={refresh}
           disabled={loading}
@@ -191,30 +187,31 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
             kind={kind}
             loading={displayLoading}
             failed={displayFailed}
+            locale={locale}
           />
         ))}
       </div>
 
       <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
         <section className="a4n-flat-surface min-w-0 p-3">
-          <h3 className="mb-2 text-xs font-medium">每日调用量</h3>
+          <h3 className="mb-2 text-xs font-medium">{t("settingsLogs.dailyCalls")}</h3>
           {displayData && displayData.daily.length > 0 ? (
             <DailyCallsChart rows={displayData.daily} />
           ) : (
             <EmptyState
               text={
                 displayLoading
-                  ? "加载中..."
+                  ? t("settingsLogs.loading")
                   : displayFailed
-                    ? "当前范围读取失败"
-                    : "暂无调用记录"
+                    ? t("settingsLogs.currentRangeFailed")
+                    : t("settingsLogs.noCallRecords")
               }
             />
           )}
         </section>
 
         <section className="a4n-flat-surface min-w-0 p-3">
-          <h3 className="mb-2 text-xs font-medium">提示词缓存</h3>
+          <h3 className="mb-2 text-xs font-medium">{t("settingsLogs.promptCache")}</h3>
           <CacheSummary
             item={llmOverview}
             loading={displayLoading}
@@ -223,65 +220,65 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
         </section>
       </div>
 
-      <section aria-label="工作流明细" className="space-y-2">
+      <section aria-label={t("settingsLogs.workflowDetails")} className="space-y-2">
         <div className="flex items-baseline gap-2 px-1">
-          <h3 className="text-xs font-medium text-book-text-main">工作流明细</h3>
-          <p className="text-small text-book-text-muted">按调用域查看消耗与生成表现</p>
+          <h3 className="text-xs font-medium text-book-text-main">{t("settingsLogs.workflowDetails")}</h3>
+          <p className="text-small text-book-text-muted">{t("settingsLogs.workflowDetailsHint")}</p>
         </div>
         <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
           <DiagnosticDomainDetails
-            title="语言模型工作流"
-            description="令牌、缓存与耗时"
+            title={t("settingsLogs.llmWorkflow")}
+            description={t("settingsLogs.tokenCacheDuration")}
             domain="llm-workflows"
           >
             <MetricTable
-              emptyText={displayLoading ? "加载中..." : displayFailed ? "当前范围读取失败" : "暂无语言模型调用"}
+              emptyText={displayLoading ? t("settingsLogs.loading") : displayFailed ? t("settingsLogs.currentRangeFailed") : t("settingsLogs.noLlmCalls")}
               rows={displayData?.llm_by_workflow ?? []}
               renderHeader={() => (
                 <>
-                  <th className="py-1 pr-2 text-left">步骤</th>
-                  <th className="px-2 py-1 text-right">调用</th>
-                  <th className="px-2 py-1 text-right">令牌数</th>
-                  <th className="px-2 py-1 text-right">缓存</th>
-                  <th className="py-1 pl-2 text-right">耗时</th>
+                  <th className="py-1 pr-2 text-left">{t("settingsLogs.step")}</th>
+                  <th className="px-2 py-1 text-right">{t("settingsLogs.callsHeader")}</th>
+                  <th className="px-2 py-1 text-right">{t("settingsLogs.tokensHeader")}</th>
+                  <th className="px-2 py-1 text-right">{t("settingsLogs.cacheHeader")}</th>
+                  <th className="py-1 pl-2 text-right">{t("settingsLogs.durationHeader")}</th>
                 </>
               )}
               renderRow={(row) => (
                 <>
                   <td className="min-w-0 py-1 pr-2"><WorkflowLabel workflow={row.workflow} /></td>
-                  <td className="px-2 py-1 text-right">{formatInteger(row.calls)}</td>
-                  <td className="px-2 py-1 text-right">{formatCompact(row.total_tokens)}</td>
-                  <td className="px-2 py-1 text-right">{formatPercent(row.prompt_cache_hit_ratio)}</td>
-                  <td className="py-1 pl-2 text-right">{formatDuration(row.avg_duration_ms)}</td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.calls, locale)}</td>
+                  <td className="px-2 py-1 text-right">{formatCompact(row.total_tokens, locale)}</td>
+                  <td className="px-2 py-1 text-right">{formatPercent(row.prompt_cache_hit_ratio, locale)}</td>
+                  <td className="py-1 pl-2 text-right">{formatDuration(row.avg_duration_ms, locale)}</td>
                 </>
               )}
             />
           </DiagnosticDomainDetails>
 
           <DiagnosticDomainDetails
-            title="图片与视频工作流"
-            description="成功、失败与耗时"
+            title={t("settingsLogs.mediaWorkflow")}
+            description={t("settingsLogs.successFailureDuration")}
             domain="media-workflows"
           >
             <MetricTable
-              emptyText={displayLoading ? "加载中..." : displayFailed ? "当前范围读取失败" : "暂无媒体生成记录"}
+              emptyText={displayLoading ? t("settingsLogs.loading") : displayFailed ? t("settingsLogs.currentRangeFailed") : t("settingsLogs.noMediaCalls")}
               rows={displayData?.media_by_workflow ?? []}
               renderHeader={() => (
                 <>
-                  <th className="py-1 pr-2 text-left">步骤</th>
-                  <th className="px-2 py-1 text-right">调用</th>
-                  <th className="px-2 py-1 text-right">成功</th>
-                  <th className="px-2 py-1 text-right">失败</th>
-                  <th className="py-1 pl-2 text-right">耗时</th>
+                  <th className="py-1 pr-2 text-left">{t("settingsLogs.step")}</th>
+                  <th className="px-2 py-1 text-right">{t("settingsLogs.callsHeader")}</th>
+                  <th className="px-2 py-1 text-right">{t("settingsLogs.successHeader")}</th>
+                  <th className="px-2 py-1 text-right">{t("settingsLogs.failureHeader")}</th>
+                  <th className="py-1 pl-2 text-right">{t("settingsLogs.durationHeader")}</th>
                 </>
               )}
               renderRow={(row) => (
                 <>
-                  <td className="min-w-0 py-1 pr-2"><WorkflowLabel workflow={`${kindLabel(row.kind)} / ${row.workflow}`} /></td>
-                  <td className="px-2 py-1 text-right">{formatInteger(row.calls)}</td>
-                  <td className="px-2 py-1 text-right">{formatInteger(row.success)}</td>
-                  <td className="px-2 py-1 text-right">{formatInteger(row.failed)}</td>
-                  <td className="py-1 pl-2 text-right">{formatDuration(row.avg_duration_ms)}</td>
+                  <td className="min-w-0 py-1 pr-2"><WorkflowLabel workflow={`${kindLabel(row.kind, t)} / ${row.workflow}`} /></td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.calls, locale)}</td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.success, locale)}</td>
+                  <td className="px-2 py-1 text-right">{formatInteger(row.failed, locale)}</td>
+                  <td className="py-1 pl-2 text-right">{formatDuration(row.avg_duration_ms, locale)}</td>
                 </>
               )}
             />
@@ -289,14 +286,14 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
         </div>
       </section>
 
-      <section aria-label="最近调用" className="space-y-2">
+      <section aria-label={t("settingsLogs.recentCalls")} className="space-y-2">
         <div className="flex items-baseline gap-2 px-1">
-          <h3 className="text-xs font-medium text-book-text-main">最近调用</h3>
-          <p className="text-small text-book-text-muted">按需查看逐条记录</p>
+          <h3 className="text-xs font-medium text-book-text-main">{t("settingsLogs.recentCalls")}</h3>
+          <p className="text-small text-book-text-muted">{t("settingsLogs.recentCallsHint")}</p>
         </div>
         <div className="grid grid-cols-1 items-start gap-2 xl:grid-cols-2">
           <DiagnosticDomainDetails
-            title="语言模型调用"
+            title={t("settingsLogs.llmCalls")}
             description={recentLlmDescription}
             domain="recent-llm"
           >
@@ -307,7 +304,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
             />
           </DiagnosticDomainDetails>
           <DiagnosticDomainDetails
-            title="图片与视频调用"
+            title={t("settingsLogs.mediaCalls")}
             description={recentMediaDescription}
             domain="recent-media"
           >
@@ -328,22 +325,33 @@ const OverviewRow: React.FC<{
   kind: string;
   loading: boolean;
   failed: boolean;
-}> = ({ item, kind, loading, failed }) => {
+  locale: ReturnType<typeof useI18n>["locale"];
+}> = ({ item, kind, loading, failed, locale }) => {
+  const { t } = useI18n();
   const unavailable = (loading || failed) && !item;
   const value = unavailable
     ? loading
-      ? "正在加载…"
-      : "读取失败"
+      ? t("settingsLogs.loading")
+      : t("settingsLogs.readFailedShort")
     : kind === "llm"
-      ? `${formatInteger(item?.calls ?? 0)} 次 · ${formatCompact(item?.total_tokens ?? 0)} 令牌 · 缓存命中 ${formatPercent(item?.prompt_cache_hit_ratio ?? null)}`
-      : `${formatInteger(item?.calls ?? 0)} 次 · 成功 ${formatInteger(item?.success ?? 0)} · 失败 ${formatInteger(item?.failed ?? 0)} · 平均 ${formatDuration(item?.avg_duration_ms ?? null)}`;
+      ? t("settingsLogs.llmOverview", {
+          calls: formatInteger(item?.calls ?? 0, locale),
+          tokens: formatCompact(item?.total_tokens ?? 0, locale),
+          cache: formatPercent(item?.prompt_cache_hit_ratio ?? null, locale),
+        })
+      : t("settingsLogs.mediaOverview", {
+          calls: formatInteger(item?.calls ?? 0, locale),
+          success: formatInteger(item?.success ?? 0, locale),
+          failure: formatInteger(item?.failed ?? 0, locale),
+          duration: formatDuration(item?.avg_duration_ms ?? null, locale),
+        });
   return (
     <dl
       className="a4n-flat-surface min-w-0 p-3 text-xs"
       data-generation-kind={kind}
-      aria-label={`${kindLabel(kind)}调用摘要`}
+      aria-label={t("settingsLogs.kindSummary", { kind: kindLabel(kind, t) })}
     >
-      <dt className="font-medium text-book-text-main">{kindLabel(kind)}</dt>
+      <dt className="font-medium text-book-text-main">{kindLabel(kind, t)}</dt>
       <dd
         className={`mt-1 min-w-0 text-small leading-relaxed ${
           failed && !item ? "text-error" : "text-book-text-muted"
@@ -370,16 +378,17 @@ const CacheSummary: React.FC<{
   loading: boolean;
   failed: boolean;
 }> = ({ item, loading, failed }) => {
+  const { t, locale } = useI18n();
   if (loading && !item) {
     return (
       <div className="text-xs text-book-text-muted py-3">
-        正在加载当前范围缓存统计...
+        {t("settingsLogs.loadingCache")}
       </div>
     );
   }
   if (failed && !item) {
     return (
-      <div className="text-xs text-error py-3">当前范围缓存统计读取失败</div>
+      <div className="text-xs text-error py-3">{t("settingsLogs.cacheReadFailed")}</div>
     );
   }
 
@@ -398,17 +407,18 @@ const CacheSummary: React.FC<{
       </div>
       <div className="grid grid-cols-3 gap-2 text-xs">
         <MetricValue
-          label="命中率"
-          value={formatPercent(item?.prompt_cache_hit_ratio ?? null)}
+          label={t("settingsLogs.hitRate")}
+          value={formatPercent(item?.prompt_cache_hit_ratio ?? null, locale)}
         />
-        <MetricValue label="命中令牌" value={formatCompact(hit)} />
-        <MetricValue label="未命中令牌" value={formatCompact(miss)} />
+        <MetricValue label={t("settingsLogs.hitTokens")} value={formatCompact(hit, locale)} />
+        <MetricValue label={t("settingsLogs.missTokens")} value={formatCompact(miss, locale)} />
       </div>
     </div>
   );
 };
 
 const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
+  const { t, locale } = useI18n();
   const visibleRows = rows.slice(-30);
   const maxCalls = Math.max(
     1,
@@ -434,7 +444,7 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
         viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         className="h-44 w-full sm:min-w-[520px]"
         role="img"
-        aria-label="每日生成调用量"
+        aria-label={t("settingsLogs.dailyGenerationCalls")}
       >
         <line
           x1={leftPad}
@@ -444,7 +454,7 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
           className="stroke-book-border"
         />
         <text x={2} y={topPad + 8} className="fill-book-text-muted text-caption">
-          {formatInteger(maxCalls)}
+          {formatInteger(maxCalls, locale)}
         </text>
         {visibleRows.map((row, index) => {
           const x = leftPad + index * (barWidth + barGap);
@@ -499,8 +509,8 @@ const DailyCallsChart: React.FC<{ rows: DailyCallMetric[] }> = ({ rows }) => {
       </svg>
       <div className="flex flex-wrap items-center gap-3 text-small text-book-text-muted">
         <Legend colorClass="bg-info" label="LLM" />
-        <Legend colorClass="bg-success" label="图片" />
-        <Legend colorClass="bg-warning" label="视频" />
+        <Legend colorClass="bg-success" label={t("settingsAdmin.image")} />
+        <Legend colorClass="bg-warning" label={t("settingsAdmin.video")} />
       </div>
     </div>
   );
@@ -588,12 +598,13 @@ const RecentLlmCalls: React.FC<{
   rows: RecentLlmCall[];
   loading: boolean;
   failed: boolean;
-}> = ({ rows, loading, failed }) => (
-  <div className="min-w-0 p-3">
+}> = ({ rows, loading, failed }) => {
+  const { t, locale } = useI18n();
+  return <div className="min-w-0 p-3">
     {rows.length === 0 ? (
       <EmptyState
         text={
-          loading ? "加载中..." : failed ? "当前范围读取失败" : "暂无语言模型调用"
+          loading ? t("settingsLogs.loading") : failed ? t("settingsLogs.currentRangeFailed") : t("settingsLogs.noLlmCalls")
         }
       />
     ) : (
@@ -605,36 +616,39 @@ const RecentLlmCalls: React.FC<{
           >
             <WorkflowLabel workflow={row.workflow} />
             <div className="text-right tabular-nums">
-              <div>{formatTokenValue(row.total_tokens)}</div>
+                <div>{formatTokenValue(row.total_tokens, locale, t)}</div>
               <div className="text-small text-book-text-muted">
-                输入 {formatOptionalCompact(row.prompt_tokens)} / 输出{" "}
-                {formatOptionalCompact(row.completion_tokens)}
+                {t("settingsLogs.inputOutput", {
+                  input: formatOptionalCompact(row.prompt_tokens, locale),
+                  output: formatOptionalCompact(row.completion_tokens, locale),
+                })}
               </div>
               <div className="text-small text-book-text-muted">
-                {formatCacheDetail(row)} / {formatDuration(row.duration_ms)}
+                {formatCacheDetail(row, t, locale)} / {formatDuration(row.duration_ms, locale)}
               </div>
             </div>
           </div>
         ))}
       </div>
     )}
-  </div>
-);
+  </div>;
+};
 
 const RecentMediaCalls: React.FC<{
   rows: RecentMediaCall[];
   loading: boolean;
   failed: boolean;
-}> = ({ rows, loading, failed }) => (
-  <div className="min-w-0 p-3">
+}> = ({ rows, loading, failed }) => {
+  const { locale, t } = useI18n();
+  return <div className="min-w-0 p-3">
     {rows.length === 0 ? (
       <EmptyState
         text={
           loading
-            ? "加载中..."
+            ? t("settingsLogs.loading")
             : failed
-              ? "当前范围读取失败"
-              : "暂无媒体生成记录"
+              ? t("settingsLogs.currentRangeFailed")
+              : t("settingsLogs.noMediaCalls")
         }
       />
     ) : (
@@ -646,7 +660,7 @@ const RecentMediaCalls: React.FC<{
           >
             <div className="min-w-0">
               <div className="font-medium truncate">
-                {kindLabel(row.kind)} / {row.title}
+                {kindLabel(row.kind, t)} / {row.title}
               </div>
               <div
                 className="text-small text-book-text-muted truncate"
@@ -656,76 +670,79 @@ const RecentMediaCalls: React.FC<{
               </div>
             </div>
             <div className="text-right tabular-nums">
-              <div>{statusLabel(row.status)}</div>
+              <div>{statusLabel(row.status, t)}</div>
               <div className="text-small text-book-text-muted">
-                {formatDuration(row.duration_ms)}
+                {formatDuration(row.duration_ms, locale)}
               </div>
             </div>
           </div>
         ))}
       </div>
     )}
-  </div>
-);
+  </div>;
+};
 
 const EmptyState: React.FC<{ text: string }> = ({ text }) => (
   <div className="a4n-empty-state a4n-empty-state--compact text-xs">{text}</div>
 );
 
-function kindLabel(kind: string): string {
-  return KIND_LABELS[kind] ?? "其他调用";
+function kindLabel(kind: string, t: ReturnType<typeof useI18n>["t"]): string {
+  if (kind === "llm") return t("settingsLogs.kindLlm");
+  if (kind === "image") return t("settingsAdmin.image");
+  if (kind === "video") return t("settingsAdmin.video");
+  return t("settingsLogs.otherCall");
 }
 
-function statusLabel(status: string): string {
+function statusLabel(status: string, t: ReturnType<typeof useI18n>["t"]): string {
   if (status === "completed" || status === "success" || status === "succeeded")
-    return "成功";
-  if (status === "failed" || status === "error") return "失败";
-  if (status === "cancelled" || status === "canceled") return "取消";
-  if (status === "pending" || status === "queued" || status === "waiting") return "等待中";
-  if (status === "running" || status === "processing") return "进行中";
-  return "未知状态";
+    return t("settingsAdmin.success");
+  if (status === "failed" || status === "error") return t("settingsAdmin.failure");
+  if (status === "cancelled" || status === "canceled") return t("settingsLogs.cancelled");
+  if (status === "pending" || status === "queued" || status === "waiting") return t("settingsLogs.waiting");
+  if (status === "running" || status === "processing") return t("settingsLogs.running");
+  return t("settingsLogs.unknownStatus");
 }
 
-function formatInteger(value: number): string {
-  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(
-    value,
-  );
+function formatInteger(value: number, locale: ReturnType<typeof useI18n>["locale"]): string {
+  return formatNumber(value, locale, { maximumFractionDigits: 0 });
 }
 
-function formatCompact(value: number): string {
-  return new Intl.NumberFormat("zh-CN", {
+function formatCompact(value: number, locale: ReturnType<typeof useI18n>["locale"]): string {
+  return formatNumber(value, locale, {
     notation: "compact",
     maximumFractionDigits: 1,
-  }).format(value);
+  });
 }
 
-function formatOptionalCompact(value: number | null): string {
-  return value == null ? "-" : formatCompact(value);
+function formatOptionalCompact(value: number | null, locale: ReturnType<typeof useI18n>["locale"]): string {
+  return value == null ? "-" : formatCompact(value, locale);
 }
 
-function formatTokenValue(value: number | null): string {
-  return value == null ? "未返回令牌" : `${formatCompact(value)} 令牌`;
+function formatTokenValue(value: number | null, locale: ReturnType<typeof useI18n>["locale"], t: ReturnType<typeof useI18n>["t"]): string {
+  return value == null ? t("settingsLogs.tokensNotReturned") : t("settingsLogs.tokenValue", { count: formatCompact(value, locale) });
 }
 
-function formatPercent(value: number | null): string {
+function formatPercent(value: number | null, locale: ReturnType<typeof useI18n>["locale"]): string {
   if (value == null) return "-";
-  return `${Math.round(value * 1000) / 10}%`;
+  return `${formatNumber(value * 100, locale, { maximumFractionDigits: 1 })}%`;
 }
 
-function formatCacheDetail(row: RecentLlmCall): string {
+function formatCacheDetail(row: RecentLlmCall, t: ReturnType<typeof useI18n>["t"], locale: ReturnType<typeof useI18n>["locale"]): string {
   const hit = row.prompt_cache_hit_tokens;
   const miss = row.prompt_cache_miss_tokens;
   if (hit == null && miss == null && row.prompt_cache_hit_ratio == null) {
-    return "缓存未返回";
+    return t("settingsLogs.cacheNotReturned");
   }
-  return `缓存 ${formatOptionalCompact(hit)}/${formatOptionalCompact(miss)} (${formatPercent(
-    row.prompt_cache_hit_ratio,
-  )})`;
+  return t("settingsLogs.cacheValue", {
+    hit: formatOptionalCompact(hit, locale),
+    miss: formatOptionalCompact(miss, locale),
+    ratio: formatPercent(row.prompt_cache_hit_ratio, locale),
+  });
 }
 
-function formatDuration(value: number | null): string {
+function formatDuration(value: number | null, locale: ReturnType<typeof useI18n>["locale"]): string {
   if (value == null) return "-";
-  if (value < 1000) return `${value}ms`;
-  if (value < 60_000) return `${Math.round(value / 100) / 10}s`;
-  return `${Math.round(value / 6000) / 10}m`;
+  if (value < 1000) return `${formatNumber(value, locale, { maximumFractionDigits: 0 })}ms`;
+  if (value < 60_000) return `${formatNumber(value / 1000, locale, { maximumFractionDigits: 1 })}s`;
+  return `${formatNumber(value / 60_000, locale, { maximumFractionDigits: 1 })}m`;
 }

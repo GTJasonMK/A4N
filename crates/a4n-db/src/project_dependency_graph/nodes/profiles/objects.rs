@@ -1,14 +1,15 @@
 use std::collections::BTreeMap;
 
-use a4n_core::models::asset::object_profile;
 use serde_json::json;
 
 use super::materials::{MaterialNodeSpec, add_material_image_node};
-use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
+use crate::project_dependency_graph::{
+    GraphBuilder, NodeSeedMetadata, graph::ObjectProfileGraphRow, node,
+};
 
 pub(super) fn add_object_profile_nodes(
     graph: &mut GraphBuilder,
-    profiles: &[object_profile::Model],
+    profiles: &[ObjectProfileGraphRow],
     image_counts: &BTreeMap<i64, u64>,
 ) {
     graph.add_node(node(

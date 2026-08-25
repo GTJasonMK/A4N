@@ -1,16 +1,14 @@
-use a4n_core::{
-    models::{chapter::chapter, project::novel_project},
-    source_spans::source_text_hash,
-};
+use a4n_core::{models::chapter::chapter, source_spans::source_text_hash};
 use sea_orm::{ConnectionTrait, EntityTrait};
 
-use super::contracts::{
-    ResolveChapterSourceError, ResolvedChapterSource, ResolvedChapterSourceKind,
+use super::{
+    ProjectSourceIdentity,
+    contracts::{ResolveChapterSourceError, ResolvedChapterSource},
 };
 
 pub(super) async fn resolve_live_source<C>(
     db: &C,
-    project: &novel_project::Model,
+    project: &ProjectSourceIdentity,
     source_chapter_id: i64,
 ) -> Result<ResolvedChapterSource, ResolveChapterSourceError>
 where
@@ -54,7 +52,6 @@ pub(super) fn live_source_from_chapter(
 ) -> ResolvedChapterSource {
     let content_sha256 = source_text_hash(&chapter.content);
     ResolvedChapterSource {
-        source_kind: ResolvedChapterSourceKind::Live,
         requested_project_id,
         root_project_id: requested_project_id,
         source_chapter_id: chapter.id,

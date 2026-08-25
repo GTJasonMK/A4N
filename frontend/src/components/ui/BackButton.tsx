@@ -1,6 +1,7 @@
 import React from "react";
 import { ArrowLeft } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useI18n } from "../../i18n";
 
 /**
  * 智能返回 hook。
@@ -41,7 +42,7 @@ interface BackButtonProps {
  * 返回按钮：默认 navigate(-1)；如直接进入页面（无 history），跳转到默认目标。
  */
 export const BackButton: React.FC<BackButtonProps> = ({
-  label = "返回",
+  label,
   iconOnly = false,
   defaultTarget = "/",
   onClick,
@@ -49,6 +50,9 @@ export const BackButton: React.FC<BackButtonProps> = ({
   title,
   className = "",
 }) => {
+  const { t } = useI18n();
+  const resolvedLabel = label ?? t("common.back");
+  const resolvedTitle = title ?? t("nav.backToPrevious");
   const smartBack = useSmartBack(defaultTarget);
   const handleClick = () => {
     if (onClick) onClick();
@@ -60,7 +64,8 @@ export const BackButton: React.FC<BackButtonProps> = ({
       <button
         type="button"
         onClick={handleClick}
-        title={title || "返回上一页"}
+        aria-label={resolvedTitle}
+        title={resolvedTitle}
         className={`a4n-icon-button pyqt-btn-icon ${
           size === "sm" ? "h-9 w-9 sm:h-7 sm:w-7" : ""
         } ${className}`}
@@ -74,7 +79,7 @@ export const BackButton: React.FC<BackButtonProps> = ({
     <button
       type="button"
       onClick={handleClick}
-      title={title || "返回上一页"}
+      title={resolvedTitle}
       className={`pyqt-btn-secondary ${
         size === "sm"
           ? "!min-h-9 !px-2 sm:!min-h-[26px]"
@@ -82,7 +87,7 @@ export const BackButton: React.FC<BackButtonProps> = ({
       } text-xs inline-flex items-center gap-1 ${className}`}
     >
       <ArrowLeft size={11} />
-      {label}
+      {resolvedLabel}
     </button>
   );
 };

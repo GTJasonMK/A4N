@@ -1,6 +1,7 @@
 import type { LlmConfigSummary } from "../../api/generated/config";
 import type { ImageGenConfig } from "../../api/image/types";
 import type { VideoGenConfig } from "../../api/video/types";
+import type { MessageTranslator } from "../../i18n";
 
 export type StudioConfigKind = "llm" | "image" | "video";
 
@@ -80,7 +81,7 @@ export function buildStudioConfigOptions(
   };
 }
 
-export function configOptionLabel(option: StudioConfigOption): string {
+export function configOptionLabel(option: StudioConfigOption, t: MessageTranslator): string {
   const meta = [option.provider, option.model].filter(Boolean).join(" / ");
-  return `${option.name}${option.isDefault ? "（默认）" : ""} #${option.id}${meta ? ` - ${meta}` : ""}`;
+  return `${option.name}${option.isDefault ? ` (${t("video.canvas.inspector.defaultConfig")})` : ""} #${option.id}${meta ? ` - ${meta}` : ""}`;
 }

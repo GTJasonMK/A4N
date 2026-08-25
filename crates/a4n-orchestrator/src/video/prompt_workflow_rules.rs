@@ -7,7 +7,7 @@ use super::{ChapterVideoPromptOptions, ChapterVideoSource};
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// 章节视频提示词 exclusive workflow business key。
-pub fn video_prompt_workflow_business_key(
+fn video_prompt_workflow_business_key(
     workflow_kind: &str,
     project_id: i64,
     chapter_id: i64,
@@ -26,7 +26,7 @@ pub fn video_prompt_workflow_business_key(
 }
 
 /// 章节视频提示词工作流输入指纹。
-pub fn video_prompt_workflow_fingerprint(
+fn video_prompt_workflow_fingerprint(
     workflow_kind: &str,
     project_id: i64,
     chapter_id: i64,
@@ -67,7 +67,7 @@ pub fn video_prompt_workflow_fingerprint(
 }
 
 /// 构造章节视频提示词 begin 输入。
-pub fn video_prompt_workflow_run_input(
+pub(crate) fn video_prompt_workflow_run_input(
     workflow_kind: &str,
     project_id: i64,
     chapter_id: i64,
@@ -135,12 +135,12 @@ pub fn video_prompt_workflow_run_input(
 }
 
 /// 视频提示词优化 exclusive workflow business key。
-pub fn video_prompt_optimization_business_key(project_id: i64, prompt_id: i64) -> String {
+fn video_prompt_optimization_business_key(project_id: i64, prompt_id: i64) -> String {
     format!("video_prompt_optimization:{project_id}:{prompt_id}")
 }
 
 /// 构造视频提示词优化 begin 输入。
-pub fn video_prompt_optimization_workflow_run_input(
+pub(crate) fn video_prompt_optimization_workflow_run_input(
     project_id: i64,
     prompt_id: i64,
     chapter_id: i64,

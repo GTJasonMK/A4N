@@ -8,7 +8,6 @@ pub(super) struct ChapterDerivedRagCleanupPlan<'a> {
     pub(super) stale_profile_ids: &'a [i64],
     pub(super) stale_character_state_ids: &'a [i64],
     pub(super) stale_attribute_event_ids: &'a [i64],
-    pub(super) stale_foreshadowing_ids: &'a [i64],
     pub(super) changed_foreshadowing_ids: &'a [i64],
 }
 
@@ -26,7 +25,6 @@ impl<'a> ChapterDerivedRagCleanupPlan<'a> {
             stale_profile_ids: &artifacts.stale_profile_ids,
             stale_character_state_ids: &artifacts.stale_character_state_ids,
             stale_attribute_event_ids: &artifacts.stale_attribute_event_ids,
-            stale_foreshadowing_ids: &artifacts.stale_foreshadowing_ids,
             changed_foreshadowing_ids: &artifacts.changed_foreshadowing_ids,
         }
     }

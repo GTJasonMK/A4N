@@ -31,6 +31,7 @@ import {
   type Stage,
 } from "./inspirationChatUtils";
 import type { Message } from "./shared";
+import { useI18n } from "../../i18n";
 
 type AddToast = (message: string, type: ToastType) => void;
 type BlueprintOperation = "generation" | "refinement";
@@ -58,6 +59,7 @@ export const useBlueprintWorkflow = ({
   nextQuestion,
   addToast,
 }: UseBlueprintWorkflowOptions) => {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [stage, setStage] = useState<Stage>("conversation");
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
@@ -68,7 +70,7 @@ export const useBlueprintWorkflow = ({
   const [refining, setRefining] = useState(false);
   const [blueprintProgressOpen, setBlueprintProgressOpen] = useState(false);
   const [blueprintProgress, setBlueprintProgress] = useState<BlueprintProgressState>(() =>
-    createBlueprintProgressState(),
+    createBlueprintProgressState(t("inspiration.progressPreparing")),
   );
   const [blueprintCancelling, setBlueprintCancelling] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
@@ -115,7 +117,7 @@ export const useBlueprintWorkflow = ({
     setGenerationHandle(null);
     setOperation(null);
     setBlueprintProgressOpen(false);
-    setBlueprintProgress(createBlueprintProgressState());
+    setBlueprintProgress(createBlueprintProgressState(t("inspiration.progressPreparing")));
     setBlueprintCancelling(false);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
@@ -125,7 +127,7 @@ export const useBlueprintWorkflow = ({
     generatingRef.current = false;
     requestPreviewSeqRef.current += 1;
     refineSeqRef.current += 1;
-  }, [projectId]);
+  }, [projectId, t]);
 
   // Reattach a still-active task after a page remount; the persisted target is the owner.
   useEffect(() => {
@@ -146,12 +148,12 @@ export const useBlueprintWorkflow = ({
       setRefining(nextOperation === "refinement");
       setBlueprintProgressOpen(nextOperation === "generation");
     }).catch((error) => {
-      if (active) addToast(extractErrorMessage(error, "恢复蓝图生成任务失败"), "error");
+      if (active) addToast(extractErrorMessage(error, t("inspiration.restoreBlueprintFailed")), "error");
     });
     return () => {
       active = false;
     };
-  }, [addToast, projectId]);
+  }, [addToast, projectId, t]);
 
   useEffect(() => {
     if (!generationHandle || !generationTask.progress) return;
@@ -187,6 +189,7 @@ export const useBlueprintWorkflow = ({
         const persisted = canResolveResult ? await getBlueprint(requestProjectId) : null;
         const consistent = matchesBlueprintTaskResult(persisted, requestProjectId, resultRef);
         const recovery = resolveFormalResultRecovery({
+          t,
           recoveryIssue,
           consistent,
           hasPersisted: Boolean(persisted),
@@ -220,20 +223,20 @@ export const useBlueprintWorkflow = ({
             ...previous,
             status: "success",
             current: previous.total,
-            message: "首版蓝图已生成",
+            message: t("inspiration.blueprintGenerated"),
             error: null,
           }));
           addToast(
             syncWarnings.length > 0
-              ? `首版蓝图已生成，请确认；${syncWarnings.join("；")}`
-              : "首版蓝图已生成，请确认",
+              ? `${t("inspiration.blueprintGeneratedConfirm")}${t("common.summarySeparator")}${syncWarnings.join(t("common.summarySeparator"))}`
+              : t("inspiration.blueprintGeneratedConfirm"),
             syncWarnings.length > 0 ? "info" : "success",
           );
         } else {
           addToast(
             syncWarnings.length > 0
-              ? `蓝图已优化；${syncWarnings.join("；")}`
-              : "蓝图已优化",
+              ? `${t("inspiration.blueprintOptimized")}${t("common.summarySeparator")}${syncWarnings.join(t("common.summarySeparator"))}`
+              : t("inspiration.blueprintOptimized"),
             syncWarnings.length > 0 ? "info" : "success",
           );
         }
@@ -243,21 +246,21 @@ export const useBlueprintWorkflow = ({
         setBlueprintProgress((previous) => ({
           ...previous,
           status: "cancelled",
-          message: "蓝图生成已停止",
+          message: t("inspiration.blueprintStopped"),
           error: null,
         }));
         return;
       }
-      throw new Error(generationTask.error?.message ?? "蓝图生成失败");
+      throw new Error(generationTask.error?.message ?? t("inspiration.blueprintFailed"));
     };
     void finish().catch((error) => {
       if (!isCurrentProject(requestProjectId)) return;
-      const message = extractErrorMessage(error, "蓝图生成失败");
+      const message = extractErrorMessage(error, t("inspiration.blueprintFailed"));
       logger.scoped("InspirationChat").error("blueprint generation failed", { error });
       setBlueprintProgress((previous) => ({
         ...previous,
         status: "error",
-        message: currentOperation === "refinement" ? "蓝图优化失败" : "蓝图生成失败",
+        message: currentOperation === "refinement" ? t("inspiration.blueprintRefineFailed") : t("inspiration.blueprintFailed"),
         error: message,
       }));
       addToast(message, "error");
@@ -283,6 +286,7 @@ export const useBlueprintWorkflow = ({
     operation,
     projectId,
     taskKey,
+    t,
   ]);
 
   const canGenerate = conversationComplete
@@ -350,7 +354,7 @@ export const useBlueprintWorkflow = ({
     try {
       input = buildBlueprintGenerateInput();
     } catch (error) {
-      addToast(extractErrorMessage(error, "灵感对话完成态无效"), "error");
+      addToast(extractErrorMessage(error, t("inspiration.invalidConversation")), "error");
       return;
     }
     if (!input) return;
@@ -359,7 +363,7 @@ export const useBlueprintWorkflow = ({
     setBlueprintConsistencyWarning(null);
     setOperation("generation");
     setBlueprintCancelling(false);
-    setBlueprintProgress({ ...createBlueprintProgressState(), status: "running", message: "启动蓝图生成…" });
+    setBlueprintProgress({ ...createBlueprintProgressState(t("inspiration.progressPreparing")), status: "running", message: t("inspiration.startBlueprint") });
     setBlueprintProgressOpen(true);
     try {
       const handle = await generateBlueprint(input);
@@ -370,9 +374,9 @@ export const useBlueprintWorkflow = ({
       generatingRef.current = false;
       setGenerating(false);
       setOperation(null);
-      addToast(extractErrorMessage(error, "蓝图生成启动失败"), "error");
+      addToast(extractErrorMessage(error, t("inspiration.startBlueprintFailed")), "error");
     }
-  }, [addToast, buildBlueprintGenerateInput, canGenerate, isCurrentProject, project, projectId]);
+  }, [addToast, buildBlueprintGenerateInput, canGenerate, isCurrentProject, project, projectId, t]);
 
   const handlePreviewGenerateBlueprint = useCallback(async () => {
     if (!project || !canGenerate) return;
@@ -387,32 +391,32 @@ export const useBlueprintWorkflow = ({
       if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewData(preview);
     } catch (error) {
       if (requestPreviewSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, "预览蓝图提示词失败"), "error");
+        addToast(extractErrorMessage(error, t("inspiration.previewBlueprintFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
       if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
     }
-  }, [addToast, buildBlueprintGenerateInput, canGenerate, project]);
+  }, [addToast, buildBlueprintGenerateInput, canGenerate, project, t]);
 
   const handleCancelBlueprint = useCallback(async () => {
     if (!generationHandle || operation !== "generation" || blueprintCancelling) return;
     setBlueprintCancelling(true);
-    setBlueprintProgress((previous) => ({ ...previous, message: "正在请求停止蓝图生成…" }));
+    setBlueprintProgress((previous) => ({ ...previous, message: t("inspiration.stopBlueprintRequest") }));
     try {
       await generationClient.cancel(generationHandle);
-      addToast("已请求停止蓝图生成", "info");
+      addToast(t("inspiration.stopBlueprintRequested"), "info");
     } catch (error) {
       setBlueprintCancelling(false);
-      addToast(extractErrorMessage(error, "停止蓝图生成失败"), "error");
+      addToast(extractErrorMessage(error, t("inspiration.stopBlueprintFailed")), "error");
     }
-  }, [addToast, blueprintCancelling, generationHandle, operation]);
+  }, [addToast, blueprintCancelling, generationHandle, operation, t]);
 
   const handleRefineBlueprint = useCallback(async (focus: string) => {
     if (!project || refining) return;
     const requestFocus = focus.trim();
     if (!requestFocus) {
-      addToast("请先说明要调整的方向", "error");
+      addToast(t("inspiration.missingRefineFocus"), "error");
       return;
     }
     const requestSeq = ++refineSeqRef.current;
@@ -427,15 +431,15 @@ export const useBlueprintWorkflow = ({
     } catch (error) {
       setRefining(false);
       setOperation(null);
-      addToast(extractErrorMessage(error, "蓝图优化启动失败"), "error");
+      addToast(extractErrorMessage(error, t("inspiration.startRefineFailed")), "error");
     }
-  }, [addToast, isCurrentProject, project, projectId, refining]);
+  }, [addToast, isCurrentProject, project, projectId, refining, t]);
 
   const handlePreviewRefineBlueprint = useCallback(async (focus: string) => {
     if (!project) return;
     const requestFocus = focus.trim();
     if (!requestFocus) {
-      addToast("请先说明要调整的方向", "error");
+      addToast(t("inspiration.missingRefineFocus"), "error");
       return;
     }
     const requestSeq = ++requestPreviewSeqRef.current;
@@ -447,13 +451,13 @@ export const useBlueprintWorkflow = ({
       if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewData(preview);
     } catch (error) {
       if (requestPreviewSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, "预览蓝图优化提示词失败"), "error");
+        addToast(extractErrorMessage(error, t("inspiration.previewRefineFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
       if (requestPreviewSeqRef.current === requestSeq) setRequestPreviewLoading(false);
     }
-  }, [addToast, project, projectId]);
+  }, [addToast, project, projectId, t]);
 
   const handleConfirmBlueprint = useCallback(() => {
     if (!project) return;

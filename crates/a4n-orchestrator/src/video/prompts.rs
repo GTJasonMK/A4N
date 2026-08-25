@@ -26,7 +26,7 @@ impl OrchestratorContext {
         chapter_id: i64,
         first_frame_number: i32,
         last_frame_number: i32,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_boundary_frame_prompt_candidates(
             self.database.connection(),
             project_id,
@@ -42,7 +42,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_first_frame_prompt_candidates(
             self.database.connection(),
             project_id,
@@ -56,7 +56,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_first_frame_chain_prompt_candidates(
             self.database.connection(),
             project_id,
@@ -71,7 +71,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         shot_number: i32,
-    ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::video::ChapterVideoPromptCandidateRecord>, AppError> {
         a4n_db::video::chapter_video_storyboard_prompt_candidates(
             self.database.connection(),
             project_id,

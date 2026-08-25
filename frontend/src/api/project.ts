@@ -72,6 +72,7 @@ export type NovelProject = Omit<
 };
 
 export type ProjectLifecycleGate = "active" | "deleting" | "resetting";
+export type ProjectLifecycleBlockedReason = Exclude<ProjectLifecycleGate, "active">;
 type SourceSyncStatus = "current" | "root_updated" | "conflict" | "detached";
 
 export type ProjectMemberRole = ApiProjectMemberRole;
@@ -108,12 +109,9 @@ export const hasProjectEditorRole = (project: Pick<NovelProject, "my_role">): bo
 
 export const projectLifecycleBlockedReason = (
   project: Pick<NovelProject, "lifecycle_gate">,
-): string | null => {
+): ProjectLifecycleBlockedReason | null => {
   if (project.lifecycle_gate === "active") return null;
-  if (project.lifecycle_gate === "resetting") {
-    return "项目正在重置并清理资料索引，完成前暂不可编辑";
-  }
-  return "项目正在删除，不能再修改";
+  return project.lifecycle_gate;
 };
 
 export const canEditProjectMaterials = (

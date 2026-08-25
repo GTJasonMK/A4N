@@ -5,7 +5,8 @@ use a4n_core::models::character::{
 };
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter,
+    sea_query::{CaseStatement, Expr},
 };
 
 pub async fn rewind_deletion_marks_after<C>(
@@ -54,25 +55,66 @@ where
     let marks = query.all(db).await?;
 
     let now = Utc::now().naive_utc();
-    let mut summary = CharacterDeletionMarkRewindSummary::default();
+    let mut rewound_ids = Vec::new();
+    let mut rewound_counts = CaseStatement::new();
+    let mut deleted_ids = Vec::new();
     for mark in marks {
         if let Some(retained_count) =
             retained_deletion_mark_count(mark.chapter_number, chapter_number)
         {
-            let mut active: protagonist_deletion_mark::ActiveModel = mark.into();
-            active.consecutive_count = Set(retained_count);
-            active.last_marked_chapter = Set(chapter_number);
-            active.is_executed = Set(false);
-            active.updated_at = Set(now);
-            active.update(db).await?;
-            summary.rewound += 1;
+            rewound_counts = rewound_counts.case(
+                protagonist_deletion_mark::Column::Id.eq(mark.id),
+                Expr::value(retained_count),
+            );
+            rewound_ids.push(mark.id);
         } else {
-            protagonist_deletion_mark::Entity::delete_by_id(mark.id)
-                .exec(db)
-                .await?;
-            summary.deleted += 1;
+            deleted_ids.push(mark.id);
         }
     }
 
-    Ok(summary)
+    if !rewound_ids.is_empty() {
+        let updated = protagonist_deletion_mark::Entity::update_many()
+            .col_expr(
+                protagonist_deletion_mark::Column::ConsecutiveCount,
+                rewound_counts
+                    .finally(Expr::col(
+                        protagonist_deletion_mark::Column::ConsecutiveCount,
+                    ))
+                    .into(),
+            )
+            .col_expr(
+                protagonist_deletion_mark::Column::LastMarkedChapter,
+                Expr::value(chapter_number),
+            )
+            .col_expr(
+                protagonist_deletion_mark::Column::IsExecuted,
+                Expr::value(false),
+            )
+            .col_expr(
+                protagonist_deletion_mark::Column::UpdatedAt,
+                Expr::value(now),
+            )
+            .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile_id))
+            .filter(protagonist_deletion_mark::Column::Id.is_in(rewound_ids.iter().copied()))
+            .exec(db)
+            .await?;
+        if updated.rows_affected != rewound_ids.len() as u64 {
+            return Err(DbErr::Custom(format!(
+                "回退角色删除标记影响 {} 行，预期 {} 行",
+                updated.rows_affected,
+                rewound_ids.len()
+            )));
+        }
+    }
+    if !deleted_ids.is_empty() {
+        protagonist_deletion_mark::Entity::delete_many()
+            .filter(protagonist_deletion_mark::Column::Id.is_in(deleted_ids.iter().copied()))
+            .exec(db)
+            .await?;
+    }
+
+    Ok(CharacterDeletionMarkRewindSummary {
+        rewound: rewound_ids.len() as u64,
+        deleted: deleted_ids.len() as u64,
+    })
 }

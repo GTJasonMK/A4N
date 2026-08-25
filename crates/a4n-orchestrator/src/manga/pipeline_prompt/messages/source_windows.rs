@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 
@@ -48,6 +48,13 @@ pub(super) fn event_source_span_windows(
     let events = events_json
         .as_array()
         .ok_or_else(|| AppError::InvalidArgument("漫画导演事件投影必须是数组".to_string()))?;
+    let source_spans_by_id = source_spans.iter().fold(
+        HashMap::with_capacity(source_spans.len()),
+        |mut spans_by_id, span| {
+            spans_by_id.entry(span.id.as_str()).or_insert(span);
+            spans_by_id
+        },
+    );
 
     for (event_index, event) in events.iter().enumerate() {
         let mut ids = Vec::new();
@@ -65,9 +72,9 @@ pub(super) fn event_source_span_windows(
         }
         let mut text_parts = Vec::new();
         for id in &ids {
-            let span = source_spans
-                .iter()
-                .find(|span| span.id == *id)
+            let span = source_spans_by_id
+                .get(id.as_str())
+                .copied()
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!(
                         "漫画导演事件[{event_index}] 引用了不存在的 source_span_id: {id}"

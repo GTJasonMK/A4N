@@ -74,7 +74,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
             let collaboration = self.state.orchestrator();
             let root_project_id = video_sidecar_root_project_id(
                 self.state.runtime_profile(),
-                &collaboration,
+                collaboration,
                 input.project_id,
             )
             .await
@@ -137,7 +137,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         let collaboration = self.state.orchestrator();
         let root_project_id = video_sidecar_root_project_id(
             self.state.runtime_profile(),
-            &collaboration,
+            collaboration,
             input.project_id,
         )
         .await
@@ -194,8 +194,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 };
                 Ok(ResolvedChapterVideoImageInputs {
                     reference_image_urls: reference_image_provider_inputs_by_ids(
-                        &video,
-                        &collaboration,
+                        video,
+                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -208,8 +208,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     .await
                     .map_err(host_error)?,
                     first_frame_image_url: reference_image_provider_input_by_id(
-                        &video,
-                        &collaboration,
+                        video,
+                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -222,8 +222,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     .await
                     .map_err(host_error)?,
                     last_frame_image_url: reference_image_provider_input_by_id(
-                        &video,
-                        &collaboration,
+                        video,
+                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -240,8 +240,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
             }
             VideoProviderValidationMode::Preview => {
                 let reference_image_urls = reference_image_request_preview_urls_by_ids(
-                    &video,
-                    &collaboration,
+                    video,
+                    collaboration,
                     input.user_id,
                     input.project_id,
                     input.chapter_id,
@@ -250,8 +250,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 .await
                 .map_err(host_error)?;
                 let first_frame_image_url = reference_image_request_preview_url_by_id(
-                    &video,
-                    &collaboration,
+                    video,
+                    collaboration,
                     input.user_id,
                     input.project_id,
                     input.chapter_id,
@@ -260,8 +260,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 .await
                 .map_err(host_error)?;
                 let last_frame_image_url = reference_image_request_preview_url_by_id(
-                    &video,
-                    &collaboration,
+                    video,
+                    collaboration,
                     input.user_id,
                     input.project_id,
                     input.chapter_id,
@@ -310,7 +310,7 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
     ) -> Result<VideoJobState, AppError> {
         let collaboration = self.state.orchestrator();
         let root_project_id =
-            video_sidecar_root_project_id(self.state.runtime_profile(), &collaboration, project_id)
+            video_sidecar_root_project_id(self.state.runtime_profile(), collaboration, project_id)
                 .await
                 .map_err(host_error)?;
         poll_provider_job(
@@ -496,7 +496,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         let collaboration = self.state.orchestrator();
         let root_project_id = video_sidecar_root_project_id(
             self.state.runtime_profile(),
-            &collaboration,
+            collaboration,
             input.project_id,
         )
         .await

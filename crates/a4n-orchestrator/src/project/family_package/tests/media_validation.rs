@@ -1,6 +1,7 @@
 mod basics;
 mod bindings;
 mod galgame;
+mod manga;
 mod source_scope;
 
 use super::*;

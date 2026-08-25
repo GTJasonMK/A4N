@@ -2,7 +2,10 @@ use a4n_api_contract::chapter::CHAPTER_ANALYSIS_PROGRESS_TOTAL;
 use a4n_core::{
     chapter_analysis::validate_saved_chapter_analysis,
     error::AppError,
-    models::{chapter::chapter, generation::workflow_run},
+    models::{
+        chapter::chapter,
+        generation::{workflow_checkpoint, workflow_run},
+    },
 };
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use async_trait::async_trait;
@@ -23,7 +26,8 @@ use crate::{
     project::ChapterDerivedCleanupArtifacts,
     scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress},
     workflow::{
-        CompletedWorkflowCheckpointInput, required_checkpoint_field, required_checkpoint_json,
+        CompletedWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED, required_checkpoint_field,
+        required_checkpoint_json, workflow_checkpoint_fingerprint_sha256,
     },
 };
 
@@ -135,7 +139,7 @@ impl OrchestratorContext {
             .await?
             .is_none()
         {
-            let preview = self
+            let request = self
                 .prepare_object_discovery_request_preview_validated(
                     ObjectDiscoveryInput {
                         project_id: chapter.project_id,
@@ -148,7 +152,7 @@ impl OrchestratorContext {
                 key: OBJECT_DISCOVERY_CALL_KEY.to_string(),
                 title: "物体档案发现初始 LLM 请求".to_string(),
                 prompt_name: OBJECT_DISCOVERY_KIND.to_string(),
-                request: preview.request,
+                request,
             }]);
         }
 
@@ -952,14 +956,77 @@ impl OrchestratorContext {
         {
             return Ok(false);
         }
-        if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
-            let saved = self
-                .chapter_analysis_replacement_cleanup_artifacts(run, chapter)
+        let checkpoint =
+            if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+                let fingerprint = chapter_analysis_phase_fingerprint(
+                    chapter,
+                    CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+                );
+                self.load_completed_workflow_checkpoint(
+                    Some(run.id),
+                    CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+                    &fingerprint,
+                )
                 .await?
-                .is_some();
-            if !saved {
+            } else {
+                None
+            };
+        self.chapter_analysis_run_has_saved_analysis_from_checkpoint(
+            run,
+            chapter,
+            checkpoint.as_ref(),
+        )
+    }
+
+    /// 使用批量读取的 checkpoint 判断章节分析是否已经保存完整结果。
+    pub fn chapter_analysis_run_has_saved_analysis_from_checkpoints(
+        &self,
+        run: &workflow_run::Model,
+        chapter: &chapter::Model,
+        checkpoints: &[workflow_checkpoint::Model],
+    ) -> Result<bool, AppError> {
+        if run.workflow_kind != "chapter_analysis"
+            || run.project_id != Some(chapter.project_id)
+            || run.chapter_id != Some(chapter.id)
+            || !chapter_analysis_run_input_matches(&run.input_fingerprint_json, chapter)
+        {
+            return Ok(false);
+        }
+        if !chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+            return self
+                .chapter_analysis_run_has_saved_analysis_from_checkpoint(run, chapter, None);
+        }
+        let fingerprint =
+            chapter_analysis_phase_fingerprint(chapter, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP);
+        let fingerprint_sha256 = workflow_checkpoint_fingerprint_sha256(&fingerprint)
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        let checkpoint = checkpoints.iter().find(|checkpoint| {
+            checkpoint.step_key == CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP
+                && checkpoint.status == WORKFLOW_STATUS_COMPLETED
+                && checkpoint.input_fingerprint_sha256.as_deref() == Some(&fingerprint_sha256)
+        });
+        self.chapter_analysis_run_has_saved_analysis_from_checkpoint(run, chapter, checkpoint)
+    }
+
+    fn chapter_analysis_run_has_saved_analysis_from_checkpoint(
+        &self,
+        run: &workflow_run::Model,
+        chapter: &chapter::Model,
+        checkpoint: Option<&workflow_checkpoint::Model>,
+    ) -> Result<bool, AppError> {
+        if chapter_analysis_run_uses_replacement_commit(&run.input_fingerprint_json) {
+            let Some(checkpoint) = checkpoint else {
                 return Ok(false);
-            }
+            };
+            let checkpoint_json =
+                required_checkpoint_json(checkpoint, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP)
+                    .map_err(workflow_contract_error)?;
+            require_completed_chapter_analysis_phase(
+                &checkpoint_json,
+                CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+            )
+            .map_err(workflow_contract_error)?;
+            replacement_cleanup_artifacts_from_checkpoint(&checkpoint_json)?;
         }
         let Some(analysis) = chapter.analysis_data.as_ref() else {
             return Ok(false);
@@ -1126,7 +1193,8 @@ mod tests {
     #[test]
     fn replacement_commit_requires_cleanup_artifacts() {
         let error = replacement_cleanup_artifacts_from_checkpoint(&json!({"completed": true}))
-            .expect_err("missing replacement cleanup artifacts must fail explicitly");
+            .err()
+            .expect("missing replacement cleanup artifacts must fail explicitly");
 
         assert!(error.to_string().contains("cleanup_artifacts"));
     }

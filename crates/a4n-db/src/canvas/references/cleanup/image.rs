@@ -1,15 +1,16 @@
 use super::super::config::{
     IMAGE_REF_CONFIG_KEY, config_id_in, remove_config_any_i64_ref, validate_positive_id,
 };
-use super::super::reset::canvas_node_references_generated_image;
+use super::super::reset::canvas_node_references_generated_image_fields;
 use super::scope::canvas_nodes_for_projects;
+use super::{MissingCanvasNodeUpdate, batch_update_missing_canvas_nodes};
 use crate::canvas::CanvasDbError;
-use a4n_core::models::{ai::generated_image, canvas::canvas_node};
+use a4n_core::models::ai::generated_image;
 use a4n_domain::CanvasNodeRefKind;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 pub(crate) async fn mark_canvas_generated_image_refs_missing<C>(
     db: &C,
@@ -26,29 +27,42 @@ where
     }
 
     let image_ids = image_ids.to_vec();
+    let image_id_set = image_ids.iter().copied().collect::<HashSet<_>>();
     let project_ids = generated_image::Entity::find()
+        .select_only()
+        .column(generated_image::Column::ProjectId)
         .filter(generated_image::Column::Id.is_in(image_ids.clone()))
+        .into_tuple::<i64>()
         .all(db)
         .await?
         .into_iter()
-        .map(|image| image.project_id)
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect::<Vec<_>>();
 
     let nodes = canvas_nodes_for_projects(db, &project_ids).await?;
     let now = Utc::now().naive_utc();
+    let mut updates = Vec::new();
     for node in nodes {
-        if !canvas_node_references_generated_image(&node, &image_ids) {
+        if !canvas_node_references_generated_image_fields(
+            node.ref_type.as_deref(),
+            node.ref_id,
+            &node.config_json,
+            &image_id_set,
+        ) {
             continue;
         }
         let primary_ref_matches = node.ref_type.as_deref()
             == Some(CanvasNodeRefKind::GeneratedImage.as_str())
-            && node.ref_id.is_some_and(|id| image_ids.contains(&id));
+            && node.ref_id.is_some_and(|id| image_id_set.contains(&id));
         let missing_ref_id = node
             .ref_id
-            .filter(|id| image_ids.contains(id))
-            .or_else(|| config_id_in(&node.config_json, IMAGE_REF_CONFIG_KEY, &image_ids));
+            .filter(|id| image_id_set.contains(id))
+            .or_else(|| {
+                config_id_in(&node.config_json, IMAGE_REF_CONFIG_KEY, |id| {
+                    image_id_set.contains(id)
+                })
+            });
         let mut config = node.config_json.clone();
         if let Some(object) = config.as_object_mut() {
             object.insert(
@@ -62,19 +76,17 @@ where
             if let Some(id) = missing_ref_id {
                 object.insert("missing_ref_id".to_string(), Value::from(id));
             }
-            remove_config_any_i64_ref(object, IMAGE_REF_CONFIG_KEY, &image_ids);
+            remove_config_any_i64_ref(object, IMAGE_REF_CONFIG_KEY, |id| image_id_set.contains(id));
         }
 
-        let mut active: canvas_node::ActiveModel = node.into();
-        if primary_ref_matches {
-            active.ref_type = Set(None);
-            active.ref_id = Set(None);
-        }
-        active.state = Set("missing".to_string());
-        active.config_json = Set(config);
-        active.updated_at = Set(now);
-        active.update(db).await?;
+        updates.push(MissingCanvasNodeUpdate {
+            id: node.id,
+            ref_type: (!primary_ref_matches)
+                .then(|| node.ref_type.clone())
+                .flatten(),
+            ref_id: (!primary_ref_matches).then_some(node.ref_id).flatten(),
+            config_json: config,
+        });
     }
-
-    Ok(())
+    batch_update_missing_canvas_nodes(db, updates, now).await
 }

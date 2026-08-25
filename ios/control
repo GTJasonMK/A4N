@@ -1,0 +1,9 @@
+Package: A4NRemote
+Name: A4N Remote
+Version: 0.1.0
+Architecture: iphoneos-arm
+Description: Native iOS WebView shell for a remote A4N server.
+Maintainer: A4N
+Author: A4N
+Section: Applications
+Priority: optional

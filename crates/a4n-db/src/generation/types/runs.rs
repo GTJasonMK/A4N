@@ -81,11 +81,3 @@ pub(in crate::generation) struct CreateGenerationRunInput {
     pub(in crate::generation) media_refs_json: Option<Value>,
     pub(in crate::generation) request_json: Option<Value>,
 }
-
-pub(in crate::generation) struct AttachGenerationRunTargetInput {
-    pub(in crate::generation) generation_run_id: i64,
-    pub(in crate::generation) target_kind: String,
-    pub(in crate::generation) target_table: String,
-    pub(in crate::generation) target_id: i64,
-    pub(in crate::generation) role: String,
-}

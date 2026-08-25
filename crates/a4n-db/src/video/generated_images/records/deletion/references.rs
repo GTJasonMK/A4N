@@ -1,7 +1,7 @@
 use crate::video::VideoDbError;
 use a4n_core::{
     models::{
-        ai::generated_video,
+        ai::{generated_image, generated_video},
         chapter::{chapter_manga_prompt, chapter_video_prompt},
     },
     video_execution::{
@@ -10,13 +10,16 @@ use a4n_core::{
     },
 };
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect,
+    sea_query::{Alias, CaseStatement, Expr},
+};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 fn clear_segment_recipe_image_references(
     metadata: &mut Value,
-    image_ids: &BTreeSet<i64>,
+    image_ids: &HashSet<i64>,
 ) -> Result<bool, VideoDbError> {
     let mut recipes = video_segment_recipes_from_metadata(Some(metadata)).map_err(|error| {
         VideoDbError::InvalidArgument(format!(
@@ -81,7 +84,7 @@ fn clear_segment_recipe_image_references(
 
 fn clear_inserted_prompt_image_references(
     metadata: &mut Value,
-    image_ids: &BTreeSet<i64>,
+    image_ids: &HashSet<i64>,
 ) -> Result<bool, VideoDbError> {
     let Some(value) = metadata.get("segment_recipe").cloned() else {
         return Ok(false);
@@ -140,31 +143,54 @@ where
         return Ok(());
     }
 
-    let panels = chapter_manga_prompt::Entity::find()
+    let now = Utc::now().naive_utc();
+    chapter_manga_prompt::Entity::update_many()
+        .col_expr(
+            chapter_manga_prompt::Column::GeneratedImageId,
+            Expr::value(Option::<i64>::None),
+        )
+        .col_expr(chapter_manga_prompt::Column::Status, Expr::value("pending"))
+        .col_expr(chapter_manga_prompt::Column::UpdatedAt, Expr::value(now))
         .filter(chapter_manga_prompt::Column::GeneratedImageId.is_in(image_ids.iter().copied()))
-        .all(db)
+        .exec(db)
         .await?;
-    for panel in panels {
-        let mut active: chapter_manga_prompt::ActiveModel = panel.into();
-        active.generated_image_id = Set(None);
-        active.status = Set("pending".to_string());
-        active.updated_at = Set(Utc::now().naive_utc());
-        active.update(db).await?;
-    }
 
-    let videos = generated_video::Entity::find()
+    generated_video::Entity::update_many()
+        .col_expr(
+            generated_video::Column::SourceImageId,
+            Expr::value(Option::<i64>::None),
+        )
+        .col_expr(generated_video::Column::UpdatedAt, Expr::value(now))
         .filter(generated_video::Column::SourceImageId.is_in(image_ids.iter().copied()))
+        .exec(db)
+        .await?;
+
+    let deleted_image_ids = image_ids.iter().copied().collect::<HashSet<_>>();
+    // Derived video projects may reference root-project images, so project
+    // scope is not sufficient. Chapter-bound images can still be narrowed by
+    // chapter; reusable images and missing IDs keep the legacy full scan.
+    let image_contexts = generated_image::Entity::find()
+        .select_only()
+        .column(generated_image::Column::Id)
+        .column(generated_image::Column::ChapterId)
+        .filter(generated_image::Column::Id.is_in(image_ids.iter().copied()))
+        .into_tuple::<(i64, Option<i64>)>()
         .all(db)
         .await?;
-    for video in videos {
-        let mut active: generated_video::ActiveModel = video.into();
-        active.source_image_id = Set(None);
-        active.updated_at = Set(Utc::now().naive_utc());
-        active.update(db).await?;
-    }
-
-    let deleted_image_ids = image_ids.iter().copied().collect::<BTreeSet<_>>();
-    let plans = chapter_video_prompt::Entity::find()
+    let scoped_chapter_ids = (image_contexts.len() == deleted_image_ids.len()
+        && image_contexts
+            .iter()
+            .all(|(_, chapter_id)| chapter_id.is_some()))
+    .then(|| {
+        image_contexts
+            .into_iter()
+            .filter_map(|(_, chapter_id)| chapter_id)
+            .collect::<HashSet<_>>()
+    });
+    let mut plans = chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::MetadataJson)
         .filter(
             chapter_video_prompt::Column::PromptType
                 .eq(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN),
@@ -172,28 +198,68 @@ where
         .filter(
             chapter_video_prompt::Column::WorkflowMode
                 .eq(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN),
-        )
-        .all(db)
-        .await?;
-    for plan in plans {
-        let Some(mut metadata) = plan.metadata_json.clone() else {
+        );
+    if let Some(chapter_ids) = scoped_chapter_ids.as_ref() {
+        plans = plans
+            .filter(chapter_video_prompt::Column::ChapterId.is_in(chapter_ids.iter().copied()));
+    }
+    let plans = plans.into_tuple::<(i64, Option<Value>)>().all(db).await?;
+    let mut plan_updates = Vec::new();
+    for (plan_id, metadata_json) in plans {
+        let Some(mut metadata) = metadata_json else {
             continue;
         };
         if !clear_segment_recipe_image_references(&mut metadata, &deleted_image_ids)? {
             continue;
         }
-        let mut active: chapter_video_prompt::ActiveModel = plan.into();
-        active.metadata_json = Set(Some(metadata));
-        active.updated_at = Set(Utc::now().naive_utc());
-        active.update(db).await?;
+        plan_updates.push((plan_id, metadata));
+    }
+    if !plan_updates.is_empty() {
+        let mut metadata_case = CaseStatement::new();
+        let mut plan_ids = Vec::with_capacity(plan_updates.len());
+        for (plan_id, metadata) in plan_updates {
+            metadata_case = metadata_case.case(
+                chapter_video_prompt::Column::Id.eq(plan_id),
+                Expr::value(Some(metadata)).cast_as(Alias::new("json")),
+            );
+            plan_ids.push(plan_id);
+        }
+        let updated = chapter_video_prompt::Entity::update_many()
+            .col_expr(
+                chapter_video_prompt::Column::MetadataJson,
+                metadata_case
+                    .finally(Expr::col(chapter_video_prompt::Column::MetadataJson))
+                    .into(),
+            )
+            .col_expr(chapter_video_prompt::Column::UpdatedAt, Expr::value(now))
+            .filter(chapter_video_prompt::Column::Id.is_in(plan_ids.clone()))
+            .exec(db)
+            .await?;
+        if updated.rows_affected != plan_ids.len() as u64 {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "视频图片引用批量更新数量不一致: updated={}, expected={}",
+                updated.rows_affected,
+                plan_ids.len()
+            )));
+        }
     }
 
-    let inserted_prompts = chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::TimelineItemId.is_not_null())
+    let mut inserted_prompts = chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::MetadataJson)
+        .filter(chapter_video_prompt::Column::TimelineItemId.is_not_null());
+    if let Some(chapter_ids) = scoped_chapter_ids.as_ref() {
+        inserted_prompts = inserted_prompts
+            .filter(chapter_video_prompt::Column::ChapterId.is_in(chapter_ids.iter().copied()));
+    }
+    let inserted_prompts = inserted_prompts
+        .into_tuple::<(i64, Option<Value>)>()
         .all(db)
         .await?;
-    for prompt in inserted_prompts {
-        let Some(mut metadata) = prompt.metadata_json.clone() else {
+    let mut inserted_updates = Vec::new();
+    for (prompt_id, metadata_json) in inserted_prompts {
+        let Some(mut metadata) = metadata_json else {
             continue;
         };
         if !clear_inserted_prompt_image_references(&mut metadata, &deleted_image_ids)? {
@@ -207,13 +273,53 @@ where
         .map_err(|error| {
             VideoDbError::InvalidArgument(format!("读取已清理插入片段执行方案失败：{error}"))
         })?;
-        let mut active: chapter_video_prompt::ActiveModel = prompt.into();
-        active.reference_image_ids_json = Set(Some(serde_json::json!(
-            recipe.provider_reference_image_ids()
-        )));
-        active.metadata_json = Set(Some(metadata));
-        active.updated_at = Set(Utc::now().naive_utc());
-        active.update(db).await?;
+        inserted_updates.push((
+            prompt_id,
+            metadata,
+            serde_json::json!(recipe.provider_reference_image_ids()),
+        ));
+    }
+    if !inserted_updates.is_empty() {
+        let mut metadata_case = CaseStatement::new();
+        let mut reference_image_ids_case = CaseStatement::new();
+        let mut prompt_ids = Vec::with_capacity(inserted_updates.len());
+        for (prompt_id, metadata, reference_image_ids_json) in inserted_updates {
+            metadata_case = metadata_case.case(
+                chapter_video_prompt::Column::Id.eq(prompt_id),
+                Expr::value(Some(metadata)).cast_as(Alias::new("json")),
+            );
+            reference_image_ids_case = reference_image_ids_case.case(
+                chapter_video_prompt::Column::Id.eq(prompt_id),
+                Expr::value(Some(reference_image_ids_json)).cast_as(Alias::new("json")),
+            );
+            prompt_ids.push(prompt_id);
+        }
+        let updated = chapter_video_prompt::Entity::update_many()
+            .col_expr(
+                chapter_video_prompt::Column::MetadataJson,
+                metadata_case
+                    .finally(Expr::col(chapter_video_prompt::Column::MetadataJson))
+                    .into(),
+            )
+            .col_expr(
+                chapter_video_prompt::Column::ReferenceImageIdsJson,
+                reference_image_ids_case
+                    .finally(Expr::col(
+                        chapter_video_prompt::Column::ReferenceImageIdsJson,
+                    ))
+                    .into(),
+            )
+            .col_expr(chapter_video_prompt::Column::UpdatedAt, Expr::value(now))
+            .filter(chapter_video_prompt::Column::Id.is_in(prompt_ids.clone()))
+            .exec(db)
+            .await?;
+        if updated.rows_affected != prompt_ids.len() as u64 {
+            return Err(VideoDbError::InvalidArgument(format!(
+                "插入片段图片引用批量更新数量不一致: updated={}, expected={}",
+                updated.rows_affected,
+                prompt_ids.len()
+            )));
+        }
     }
 
     crate::canvas::mark_canvas_generated_image_refs_missing(db, image_ids).await?;
@@ -267,7 +373,7 @@ mod tests {
         });
 
         assert!(
-            clear_segment_recipe_image_references(&mut metadata, &BTreeSet::from([11]),).unwrap()
+            clear_segment_recipe_image_references(&mut metadata, &HashSet::from([11]),).unwrap()
         );
         assert_eq!(
             metadata["segment_recipes"][0]["reference_image_ids"],
@@ -320,7 +426,7 @@ mod tests {
         });
 
         assert!(
-            clear_inserted_prompt_image_references(&mut metadata, &BTreeSet::from([11])).unwrap()
+            clear_inserted_prompt_image_references(&mut metadata, &HashSet::from([11])).unwrap()
         );
         assert_eq!(
             metadata["segment_recipe"]["reference_image_ids"],

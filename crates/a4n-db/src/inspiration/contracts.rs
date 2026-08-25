@@ -1,8 +1,8 @@
-use a4n_core::models::{
-    chapter::chapter,
-    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
+use a4n_core::models::project::{
+    blueprint_character, blueprint_relationship, novel_blueprint, novel_project,
 };
 use sea_orm::DbErr;
+use serde_json::Value;
 
 #[derive(Debug, Clone)]
 pub struct InspirationBlueprintRows {
@@ -15,7 +15,17 @@ pub struct InspirationBlueprintRows {
 pub struct InspirationProjectContextRows {
     pub project: novel_project::Model,
     pub blueprint: Option<InspirationBlueprintRows>,
-    pub recent_chapters: Vec<chapter::Model>,
+    pub recent_chapters: Vec<InspirationRecentChapterRow>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InspirationRecentChapterRow {
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub analysis_data: Option<Value>,
+    pub word_count: i32,
+    pub has_content: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -16,11 +16,9 @@ impl<'a> ScopedHfHubEnv<'a> {
         let guard = HF_HOME_OVERRIDE_LOCK
             .lock()
             .map_err(|_| "fastembed 模型缓存环境锁已损坏".to_string())?;
-        let mut vars = Vec::new();
-
         // fastembed 5.x 在下载时会让 HF_HOME 优先于 with_cache_dir。这里在全局锁
         // 内临时固定 HF_HOME，确保模型写入应用数据目录，而不是用户系统缓存。
-        vars.push(ScopedEnvVar::set("HF_HOME", cache_dir.as_os_str()));
+        let vars = vec![ScopedEnvVar::set("HF_HOME", cache_dir.as_os_str())];
 
         Ok(Self {
             _guard: guard,

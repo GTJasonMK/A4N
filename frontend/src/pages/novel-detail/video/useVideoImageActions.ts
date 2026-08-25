@@ -15,10 +15,12 @@ import {
 } from "../../../api/image";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import type { ToastType } from "../../../components/feedback/Toast";
+import type { MessageTranslator } from "../../../i18n";
 
 type AddToast = (message: string, type: ToastType) => void;
 
 interface UseVideoImageActionsParams {
+  t: MessageTranslator;
   addToast: AddToast;
   images: GeneratedImage[];
   actionScopeKey: string | null;
@@ -27,6 +29,7 @@ interface UseVideoImageActionsParams {
 }
 
 export const useVideoImageActions = ({
+  t,
   addToast,
   images,
   actionScopeKey,
@@ -66,15 +69,15 @@ export const useVideoImageActions = ({
         if (!isCurrentActionScope(requestScope)) return;
         setImages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         setImageDetails((current) => (current?.id === updated.id ? updated : current));
-        addToast(updated.is_favorite ? "已收藏" : "已取消收藏", "success");
+        addToast(updated.is_favorite ? t("video.material.favorited") : t("video.material.unfavorited"), "success");
       } catch (err) {
         if (!isCurrentActionScope(requestScope)) return;
-        addToast(extractErrorMessage(err, "切换素材收藏失败"), "error");
+        addToast(extractErrorMessage(err, t("video.material.favoriteFailed")), "error");
       } finally {
         if (isCurrentActionScope(requestScope)) setImageBusyId(null);
       }
     },
-    [actionScopeKey, addToast, isCurrentActionScope, setImages],
+    [actionScopeKey, addToast, isCurrentActionScope, setImages, t],
   );
 
   const handleOpenImageDetails = useCallback((image: GeneratedImage) => {
@@ -93,7 +96,7 @@ export const useVideoImageActions = ({
       const requestScope = actionScopeKey;
       const score = Number(imageScoreInput);
       if (!Number.isFinite(score)) {
-        addToast("评分必须是数字", "error");
+        addToast(t("video.material.scoreInvalid"), "error");
         return;
       }
       setImageScoringId(image.id);
@@ -102,15 +105,15 @@ export const useVideoImageActions = ({
         if (!isCurrentActionScope(requestScope)) return;
         setImages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         setImageDetails((current) => (current?.id === updated.id ? updated : current));
-        addToast(`已打分 ${score}`, "success");
+        addToast(t("video.material.scored", { score }), "success");
       } catch (err) {
         if (!isCurrentActionScope(requestScope)) return;
-        addToast(extractErrorMessage(err, "打分失败"), "error");
+        addToast(extractErrorMessage(err, t("video.material.scoreFailed")), "error");
       } finally {
         if (isCurrentActionScope(requestScope)) setImageScoringId(null);
       }
     },
-    [actionScopeKey, addToast, imageScoreInput, isCurrentActionScope, setImages],
+    [actionScopeKey, addToast, imageScoreInput, isCurrentActionScope, setImages, t],
   );
 
   const handleUpdateImage = useCallback(
@@ -122,25 +125,25 @@ export const useVideoImageActions = ({
         if (!isCurrentActionScope(requestScope)) return;
         setImages((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
         setImageDetails((current) => (current?.id === updated.id ? updated : current));
-        addToast("图片记录已更新", "success");
+        addToast(t("video.material.imageUpdated"), "success");
       } catch (err) {
         if (!isCurrentActionScope(requestScope)) return;
-        addToast(extractErrorMessage(err, "更新图片记录失败"), "error");
+        addToast(extractErrorMessage(err, t("video.material.updateImageFailed")), "error");
         throw err;
       } finally {
         if (isCurrentActionScope(requestScope)) setImageBusyId(null);
       }
     },
-    [actionScopeKey, addToast, isCurrentActionScope, setImages],
+    [actionScopeKey, addToast, isCurrentActionScope, setImages, t],
   );
 
   const handleDeleteImage = useCallback(
     async (image: GeneratedImage) => {
       const requestScope = actionScopeKey;
       const ok = await confirmDialog({
-        title: "删除图片",
-        message: `删除图片 #${image.id}？相关视频参考图会同步解除关联。`,
-        confirmText: "删除",
+        title: t("video.material.deleteTitle"),
+        message: t("video.material.deleteMessage"),
+        confirmText: t("common.delete"),
         dialogType: "danger",
       });
       if (!ok) return;
@@ -152,10 +155,10 @@ export const useVideoImageActions = ({
         await loadAll();
         if (!isCurrentActionScope(requestScope)) return;
         setImageDetails(null);
-        addToast("已删除", "success");
+        addToast(t("video.material.deleted"), "success");
       } catch (err) {
         if (!isCurrentActionScope(requestScope)) return;
-        addToast(extractErrorMessage(err, "删除失败"), "error");
+        addToast(extractErrorMessage(err, t("video.material.deleteFailed")), "error");
       } finally {
         if (isCurrentActionScope(requestScope)) setImageBusyId(null);
       }
@@ -165,6 +168,7 @@ export const useVideoImageActions = ({
       addToast,
       isCurrentActionScope,
       loadAll,
+      t,
     ],
   );
 

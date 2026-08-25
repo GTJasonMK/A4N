@@ -1,5 +1,5 @@
 use crate::scene_profile::SceneSyncInput;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet};
 
 pub(in crate::scene_profile::application::parsing) fn validate_scene_sync_references(
     input: &SceneSyncInput,
@@ -8,7 +8,7 @@ pub(in crate::scene_profile::application::parsing) fn validate_scene_sync_refere
         .profiles
         .iter()
         .map(|profile| profile.scene_ref.as_str())
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     let occurrence_scene_refs = input
         .occurrences
         .iter()
@@ -18,14 +18,15 @@ pub(in crate::scene_profile::application::parsing) fn validate_scene_sync_refere
                 occurrence.scene_ref.as_str(),
             )
         })
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
+    let scenes_with_occurrences = input
+        .occurrences
+        .iter()
+        .map(|occurrence| occurrence.scene_ref.as_str())
+        .collect::<HashSet<_>>();
 
     for profile in &input.profiles {
-        if !input
-            .occurrences
-            .iter()
-            .any(|occurrence| occurrence.scene_ref == profile.scene_ref)
-        {
+        if !scenes_with_occurrences.contains(profile.scene_ref.as_str()) {
             return Err(format!(
                 "scenes.scene_ref={} 没有对应 occurrences；场景档案必须记录本章出场",
                 profile.scene_ref

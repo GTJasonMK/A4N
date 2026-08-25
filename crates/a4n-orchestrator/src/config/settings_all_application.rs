@@ -1,12 +1,10 @@
 use a4n_api_contract::config::ImportAllConfigsInput;
 use a4n_core::error::AppError;
+use a4n_db::config::{SettingsAllConfigImportInput, SettingsAllConfigRows};
 use async_trait::async_trait;
 use chrono::Utc;
 
-use crate::{
-    OrchestratorContext,
-    config::{SettingsAllConfigImportInput, SettingsAllConfigRows},
-};
+use crate::OrchestratorContext;
 
 use super::settings_export_rules::{
     AllConfigsExport, PromptRow, SETTINGS_ALL_FORMAT_VERSION, import_details_from_counts,

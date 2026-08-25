@@ -16,7 +16,7 @@ use serde_json::{Value, json};
 use super::context::inspiration_project_context;
 use super::validation::required_message_content;
 
-pub async fn build_inspiration_request_from_context(
+pub(super) async fn build_inspiration_request_from_context(
     project_id: i64,
     user_input: &str,
     prompt_renderer: &dyn PromptRenderer,

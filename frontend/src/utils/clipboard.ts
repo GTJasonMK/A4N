@@ -1,3 +1,5 @@
+import { getActiveLocale, translateMessage } from "../i18n";
+
 export async function copyTextToClipboard(text: string): Promise<void> {
   let clipboardError: unknown = null;
   if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
@@ -15,7 +17,7 @@ export async function copyTextToClipboard(text: string): Promise<void> {
     clipboardError instanceof Error && clipboardError.message.trim()
       ? `：${clipboardError.message.trim()}`
       : "";
-  throw new Error(`写入剪贴板失败${detail}`);
+  throw new Error(translateMessage(getActiveLocale(), "errors.clipboardWriteFailed", { detail }));
 }
 
 function copyTextWithTextarea(text: string): boolean {

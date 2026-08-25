@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::manga::MangaPagePromptSourceSummary;
 use a4n_core::error::AppError;
 use serde_json::Value;
 
@@ -24,7 +25,7 @@ pub(super) struct MangaRunContext<'a> {
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) variables: HashMap<String, Value>,
     pub(super) reference_assets: Value,
-    pub(super) source_metadata: Value,
+    pub(super) source_metadata: MangaPagePromptSourceSummary,
     pub(super) reference_assets_metadata: Value,
     pub(super) prompt_fingerprint: Value,
 }

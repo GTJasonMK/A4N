@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::json::extract_character_names_from_value;
 use a4n_core::models::{
     chapter::chapter_outline,
@@ -20,9 +22,13 @@ pub(in crate::chapter_generation::preparation) fn select_generation_characters<'
             })
             .collect::<Vec<_>>()
     } else {
+        let involved_names = involved_names
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
         characters
             .iter()
-            .filter(|character| involved_names.iter().any(|name| name == &character.name))
+            .filter(|character| involved_names.contains(character.name.as_str()))
             .collect::<Vec<_>>()
     };
 
@@ -40,12 +46,15 @@ pub(super) fn select_generation_relationships<'a>(
     if involved_names.is_empty() {
         return relationships.iter().collect();
     }
+    let involved_names = involved_names
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
     relationships
         .iter()
         .filter(|relationship| {
-            involved_names
-                .iter()
-                .any(|name| name == &relationship.character_a || name == &relationship.character_b)
+            involved_names.contains(relationship.character_a.as_str())
+                || involved_names.contains(relationship.character_b.as_str())
         })
         .collect()
 }
@@ -55,6 +64,10 @@ pub(in crate::chapter_generation::preparation) fn select_generation_foreshadowin
     chapter_number: i32,
     involved_names: &[String],
 ) -> Vec<&'a foreshadowing_index::Model> {
+    let involved_name_set = involved_names
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
     foreshadowing
         .iter()
         .filter(|item| {
@@ -71,7 +84,7 @@ pub(in crate::chapter_generation::preparation) fn select_generation_foreshadowin
                         let related = extract_character_names_from_value(value);
                         related
                             .iter()
-                            .any(|name| involved_names.iter().any(|involved| involved == name))
+                            .any(|name| involved_name_set.contains(name.as_str()))
                     }))
         })
         .collect()

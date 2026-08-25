@@ -1,5 +1,5 @@
 use a4n_core::models::project::novel_project;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 use super::{BlueprintDbError, SyncProjectAfterBlueprintInput};
 
@@ -11,17 +11,23 @@ pub async fn sync_project_after_blueprint_record<C>(
 where
     C: ConnectionTrait,
 {
-    let project = novel_project::Entity::find_by_id(input.project_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| BlueprintDbError::NotFound(format!("项目不存在: {}", input.project_id)))?;
-    let mut active: novel_project::ActiveModel = project.into();
-    active.title = Set(input.title);
-    active.status = Set(input.status.as_str().to_string());
-    active.target_chapters = Set(input.target_chapters);
-    active.total_chapters = Set(input.total_chapters);
-    active.chapters_per_part = Set(input.chapters_per_part);
-    active.raw_blueprint = Set(Some(input.raw_blueprint));
-    active.updated_at = Set(input.now);
-    Ok(active.update(db).await?)
+    novel_project::ActiveModel {
+        id: Set(input.project_id),
+        title: Set(input.title),
+        status: Set(input.status.as_str().to_string()),
+        target_chapters: Set(input.target_chapters),
+        total_chapters: Set(input.total_chapters),
+        chapters_per_part: Set(input.chapters_per_part),
+        raw_blueprint: Set(Some(input.raw_blueprint)),
+        updated_at: Set(input.now),
+        ..Default::default()
+    }
+    .update(db)
+    .await
+    .map_err(|error| match error {
+        sea_orm::DbErr::RecordNotFound(_) => {
+            BlueprintDbError::NotFound(format!("项目不存在: {}", input.project_id))
+        }
+        other => BlueprintDbError::Database(other),
+    })
 }

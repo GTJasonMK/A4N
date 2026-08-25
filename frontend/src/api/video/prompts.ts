@@ -136,7 +136,9 @@ export async function startChapterVideoSegmentPlan(
       options,
     },
   };
-  return startVideoGeneration(input, retryOfTaskId);
+  return retryOfTaskId == null
+    ? startVideoGeneration(input)
+    : startVideoGeneration(input, retryOfTaskId);
 }
 
 export async function startChapterVideoInsertedSegmentDraft(
@@ -153,7 +155,9 @@ export async function startChapterVideoInsertedSegmentDraft(
       options,
     },
   };
-  return startVideoGeneration(input, retryOfTaskId);
+  return retryOfTaskId == null
+    ? startVideoGeneration(input)
+    : startVideoGeneration(input, retryOfTaskId);
 }
 
 export async function getChapterVideoTimeline(

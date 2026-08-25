@@ -25,9 +25,13 @@ impl OrchestratorContext {
         let source_input = ChapterShootingScriptSourceInput {
             project_id: input.project_id,
             source_chapter_id: input.source_chapter_id,
+            visual_plan_id: Some(input.visual_plan_id),
         };
         let (source, existing) = self
-            .load_chapter_shooting_script_source(&source_input)
+            .load_chapter_shooting_script_source_record(&source_input)
+            .await?;
+        let visual_plan = self
+            .confirmed_visual_plan_for_shooting_script(&source, Some(input.visual_plan_id))
             .await?;
         let source_spans = source_spans_for_content(
             source.source_chapter_id,
@@ -95,6 +99,12 @@ impl OrchestratorContext {
                 },
             },
             "user_payload": &user_payload,
+            "visual_plan_identity": {
+                "id": visual_plan.record.id,
+                "version": visual_plan.record.plan_version,
+                "sha256": visual_plan.record.plan_sha256,
+            },
+            "visual_plan": &visual_plan.plan,
             "temperature": 0.2,
             "max_tokens_profiles": {
                 "skeleton": llm_token_profiles::LONG,
@@ -110,7 +120,7 @@ impl OrchestratorContext {
             source_spans,
             input_fingerprint_sha256,
             existing,
-            skeleton_system_prompt,
+            visual_plan,
             layout_unit_system_prompt,
             unit_adaptation_system_prompt,
             design_unit_system_prompt,

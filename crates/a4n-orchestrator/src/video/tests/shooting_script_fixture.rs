@@ -4,7 +4,8 @@ use a4n_domain::shooting_script::{
     ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDirectingStatementV1,
     ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
     ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
-    ShootingViewpointModeV1, ShootingViewpointV1,
+    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV1,
+    ShootingVisualPlanSourceV1,
 };
 
 pub(in crate::video) fn test_chapter_shooting_script(
@@ -14,6 +15,7 @@ pub(in crate::video) fn test_chapter_shooting_script(
         beat_index,
         beat_id: beat_id.to_string(),
         source_span_ids: vec![source_span_id.to_string()],
+        user_addition_ids: Vec::new(),
         actor: Some("小宦官".to_string()),
         objective: "确认殿内异常".to_string(),
         obstacle: "昏暗环境遮蔽视线".to_string(),
@@ -44,6 +46,11 @@ pub(in crate::video) fn test_chapter_shooting_script(
             shot_id: shot_id.to_string(),
             title: title.to_string(),
             source_span_ids: vec![source_span_id.to_string()],
+            visual_shot_id: None,
+            planned_start_ms: None,
+            planned_end_ms: None,
+            user_addition_ids: Vec::new(),
+            visual_constraints: None,
             coverage: ShootingCoverageV1::MustShow,
             narrative_purpose: purpose.to_string(),
             subject: "小宦官".to_string(),
@@ -81,6 +88,8 @@ pub(in crate::video) fn test_chapter_shooting_script(
 
     ChapterShootingScriptV1 {
         schema_version: ChapterShootingScriptSchemaVersion::V1,
+        visual_plan_source: None,
+        user_additions: Vec::new(),
         directing_statement: ShootingDirectingStatementV1 {
             central_dramatic_question: "小宦官能否确认暗处异常".to_string(),
             protagonist_throughline: "进入殿内并克制恐惧".to_string(),
@@ -107,6 +116,8 @@ pub(in crate::video) fn test_chapter_shooting_script(
             participants: vec!["小宦官".to_string()],
             focal_character: Some("小宦官".to_string()),
             source_span_ids: vec![source_span_id.to_string()],
+            visual_narrative_unit_id: None,
+            user_addition_ids: Vec::new(),
             dramatic_question: "暗处是否存在威胁".to_string(),
             scene_objective: "确认殿内状况".to_string(),
             scene_obstacle: "昏暗与未知威胁".to_string(),

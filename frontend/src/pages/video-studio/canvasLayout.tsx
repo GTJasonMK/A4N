@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
+import { useI18n } from "../../i18n";
 import { usePersistedState } from "../../hooks/usePersistedState";
 import { clampFiniteRounded } from "../../utils/numberRange";
 
@@ -235,8 +236,9 @@ export const CanvasSidebarResizeHandle: React.FC<CanvasSidebarResizeHandleProps>
   onSetWidth,
   onResetWidth,
 }) => {
+  const { t } = useI18n();
   const minWidth = side === "left" ? CANVAS_LEFT_SIDEBAR_MIN_WIDTH : CANVAS_RIGHT_SIDEBAR_MIN_WIDTH;
-  const label = side === "left" ? "调整左侧节点库宽度" : "调整右侧属性栏宽度";
+  const label = side === "left" ? t("video.canvas.layout.resizeLeft") : t("video.canvas.layout.resizeRight");
   const step = 24;
   return (
     <div
@@ -247,7 +249,7 @@ export const CanvasSidebarResizeHandle: React.FC<CanvasSidebarResizeHandleProps>
       aria-valuemax={maxWidth}
       aria-valuenow={width}
       tabIndex={0}
-      title="拖拽调整侧栏宽度，双击恢复默认宽度"
+      title={t("video.canvas.layout.resizeHint")}
       data-resizing={isResizing ? "1" : undefined}
       className="a4n-studio-sidebar-resize-handle group"
       onPointerDown={(event) => onResizeStart(side, event)}

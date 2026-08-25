@@ -4,8 +4,29 @@ use a4n_core::models::{
     media::media_asset,
 };
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
 };
+
+#[derive(Debug, FromQueryResult)]
+struct ImageScopeRow {
+    id: i64,
+    file_path: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct VideoScopeRow {
+    id: i64,
+    file_path: Option<String>,
+    thumbnail_path: Option<String>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct MediaAssetScopeRow {
+    id: i64,
+    file_path: Option<String>,
+    thumbnail_path: Option<String>,
+}
 
 pub(super) struct MediaWorkflowV2ResetScope {
     pub image_ids: Vec<i64>,
@@ -24,19 +45,33 @@ where
     C: ConnectionTrait,
 {
     let images = generated_image::Entity::find()
+        .select_only()
+        .column(generated_image::Column::Id)
+        .column(generated_image::Column::FilePath)
         .filter(generated_image::Column::ProjectId.eq(project_id))
         .order_by_asc(generated_image::Column::Id)
+        .into_model::<ImageScopeRow>()
         .all(db)
         .await?;
     let videos = generated_video::Entity::find()
+        .select_only()
+        .column(generated_video::Column::Id)
+        .column(generated_video::Column::FilePath)
+        .column(generated_video::Column::ThumbnailPath)
         .filter(generated_video::Column::ProjectId.eq(project_id))
         .order_by_asc(generated_video::Column::Id)
+        .into_model::<VideoScopeRow>()
         .all(db)
         .await?;
     let generated_assets = media_asset::Entity::find()
+        .select_only()
+        .column(media_asset::Column::Id)
+        .column(media_asset::Column::FilePath)
+        .column(media_asset::Column::ThumbnailPath)
         .filter(media_asset::Column::ProjectId.eq(project_id))
         .filter(media_asset::Column::Origin.ne("imported"))
         .order_by_asc(media_asset::Column::Id)
+        .into_model::<MediaAssetScopeRow>()
         .all(db)
         .await?;
     let generation_spec_ids = generation_spec::Entity::find()
@@ -65,19 +100,22 @@ where
         .collect::<Vec<_>>();
     let media_paths = images
         .iter()
-        .map(|row| row.file_path.clone())
+        .map(|row| row.file_path.as_str())
         .chain(
             videos
                 .iter()
-                .flat_map(|row| [row.file_path.clone(), row.thumbnail_path.clone()])
-                .flatten(),
+                .flat_map(|row| [row.file_path.as_ref(), row.thumbnail_path.as_ref()])
+                .flatten()
+                .map(String::as_str),
         )
         .chain(
             generated_assets
                 .iter()
-                .flat_map(|row| [row.file_path.clone(), row.thumbnail_path.clone()])
-                .flatten(),
+                .flat_map(|row| [row.file_path.as_ref(), row.thumbnail_path.as_ref()])
+                .flatten()
+                .map(String::as_str),
         )
+        .map(str::to_owned)
         .filter(|path| !path.trim().is_empty())
         .collect::<Vec<_>>();
 

@@ -2,24 +2,20 @@
 
 use std::collections::HashSet;
 
-use a4n_core::{
-    config::{
-        CreateEmbeddingConfigParams, CreateImageConfigParams, app_config::LlmMaxTokensConfig,
-    },
-    error::AppError,
+use a4n_core::config::{
+    CreateEmbeddingConfigParams, CreateImageConfigParams, app_error_plain_message,
 };
-use a4n_llm::provider::normalize_extra_body_json;
+use a4n_db::config::{
+    SettingsAllConfigImportCounts, SettingsAllEmbeddingConfigRow, SettingsAllImageConfigRow,
+    SettingsAllImportTableCounts, SettingsAllLlmConfigRow, SettingsAllSystemSettingRow,
+    SettingsAllThemeRow, SettingsAllVideoConfigRow,
+};
+use a4n_llm::config::{
+    CreateLlmConfigInput, NormalizedLlmConfig, normalize_create_llm_config_input,
+};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-use crate::{
-    config::{
-        LLM_MAX_TOKENS_SETTING_KEY, SettingsAllConfigImportCounts, SettingsAllEmbeddingConfigRow,
-        SettingsAllImageConfigRow, SettingsAllImportTableCounts, SettingsAllLlmConfigRow,
-        SettingsAllSystemSettingRow, SettingsAllThemeRow, SettingsAllVideoConfigRow,
-    },
-    video::{VideoConfigParams, validate_video_config_params},
-};
+use crate::video::{VideoConfigParams, validate_video_config_params};
 
 pub const SETTINGS_ALL_FORMAT_VERSION: &str = "3.0";
 
@@ -83,14 +79,6 @@ pub fn required_text<'a>(value: &'a str, label: &str, field: &str) -> Result<&'a
     Ok(value)
 }
 
-/// 正整数字段。
-pub fn positive_i32(value: i32, label: &str, field: &str) -> Result<(), String> {
-    if value <= 0 {
-        return Err(format!("{label} {field} 必须为正整数"));
-    }
-    Ok(())
-}
-
 /// 原地 trim String。
 pub fn trim_string(value: &mut String) {
     let trimmed = value.trim();
@@ -99,15 +87,12 @@ pub fn trim_string(value: &mut String) {
     }
 }
 
-/// 默认命名行通用校验骨架。
-pub fn validate_default_named_rows<T>(
+/// 命名行通用校验骨架。
+pub fn validate_named_rows<T>(
     kind: &str,
     rows: &[T],
-    is_default: impl Fn(&T) -> bool,
     name: impl for<'a> Fn(&'a T) -> &'a str,
 ) -> Result<(), String> {
-    ensure_at_most_one_default(kind, rows.iter().filter(|row| is_default(*row)).count())?;
-
     let mut seen_names = HashSet::new();
     let identity_kind = format!("{kind} name");
     for (index, row) in rows.iter().enumerate() {
@@ -146,66 +131,23 @@ pub(super) fn import_details_from_counts(
 }
 
 fn validate_provider_rows(incoming: &AllConfigsExport) -> Result<(), String> {
-    validate_llm_rows(incoming)?;
-    validate_default_named_rows(
-        "嵌入配置",
-        &incoming.embedding_configs,
-        |row| row.is_default,
-        |row| &row.name,
-    )?;
-    validate_default_named_rows(
-        "图片配置",
-        &incoming.image_configs,
-        |row| row.is_default,
-        |row| &row.name,
-    )?;
-    validate_default_named_rows(
-        "视频配置",
-        &incoming.video_configs,
-        |row| row.is_default,
-        |row| &row.name,
-    )
-}
-
-fn validate_llm_rows(incoming: &AllConfigsExport) -> Result<(), String> {
-    validate_default_named_rows(
-        "LLM 配置",
-        &incoming.llm_configs,
-        |row| row.is_default,
-        |row| &row.name,
-    )?;
-    for (index, row) in incoming.llm_configs.iter().enumerate() {
-        let label = format!("LLM 配置 #{}", index + 1);
-        required_text(&row.provider, &label, "provider")?;
-        required_text(&row.base_url, &label, "base_url")?;
-        required_text(&row.model, &label, "model")?;
-        positive_i32(row.max_concurrent, &label, "max_concurrent")?;
-        positive_i32(row.timeout_secs, &label, "timeout_secs")?;
-        positive_i32(row.max_context_tokens, &label, "max_context_tokens")?;
-        positive_i32(row.max_output_tokens, &label, "max_output_tokens")?;
-        if row.max_output_tokens >= row.max_context_tokens {
-            return Err(format!(
-                "{label} max_output_tokens 必须小于 max_context_tokens"
-            ));
-        }
-    }
-    Ok(())
+    validate_named_rows("LLM 配置", &incoming.llm_configs, |row| &row.name)?;
+    validate_named_rows("嵌入配置", &incoming.embedding_configs, |row| &row.name)?;
+    validate_named_rows("图片配置", &incoming.image_configs, |row| &row.name)?;
+    validate_named_rows("视频配置", &incoming.video_configs, |row| &row.name)
 }
 
 fn normalize_provider_rows(incoming: &mut AllConfigsExport) -> Result<(), String> {
     for (index, row) in incoming.llm_configs.iter_mut().enumerate() {
-        let label = format!("LLM 配置 #{}", index + 1);
-        trim_string(&mut row.name);
-        trim_string(&mut row.provider);
-        trim_string(&mut row.base_url);
-        trim_string(&mut row.model);
-        row.extra_body_json =
-            normalize_extra_body_json(row.extra_body_json.clone()).map_err(|error| {
+        let params =
+            normalize_create_llm_config_input(llm_input_from_row(row)).map_err(|error| {
                 format!(
-                    "{label} extra_body_json 规范化失败：{}",
-                    plain_app_error(error)
+                    "LLM 配置 #{} 规范化失败：{}",
+                    index + 1,
+                    app_error_plain_message(error)
                 )
             })?;
+        apply_llm_params_to_row(row, params);
     }
     for (index, row) in incoming.embedding_configs.iter_mut().enumerate() {
         let params =
@@ -262,9 +204,6 @@ fn validate_setting_rows(incoming: &AllConfigsExport) -> Result<(), String> {
         let key = required_text(&row.key, &label, "key")?;
         ensure_unique_identity(&mut setting_keys, "系统设置 key", key)?;
         required_text(&row.category, &label, "category")?;
-        if key == LLM_MAX_TOKENS_SETTING_KEY {
-            validate_llm_max_tokens_setting(incoming, &label, row.value.clone())?;
-        }
     }
     Ok(())
 }
@@ -282,29 +221,32 @@ fn normalize_setting_rows(incoming: &mut AllConfigsExport) {
     }
 }
 
-fn validate_llm_max_tokens_setting(
-    incoming: &AllConfigsExport,
-    label: &str,
-    value: Value,
-) -> Result<(), String> {
-    let config: LlmMaxTokensConfig = serde_json::from_value(value)
-        .map_err(|error| format!("{label} llm_max_tokens 解析失败：{error}"))?;
-    config
-        .validate()
-        .map_err(|error| format!("{label} llm_max_tokens 无效：{error}"))?;
-    if let Some(model_cap) = incoming
-        .llm_configs
-        .iter()
-        .find(|row| row.is_default)
-        .map(|row| usize::try_from(row.max_output_tokens))
-        .transpose()
-        .map_err(|_| format!("{label} 默认 LLM max_output_tokens 必须大于 0"))?
-    {
-        config
-            .validate_against_model_output_cap(model_cap)
-            .map_err(|error| format!("{label} llm_max_tokens 无效：{error}"))?;
+fn llm_input_from_row(row: &SettingsAllLlmConfigRow) -> CreateLlmConfigInput<'_> {
+    CreateLlmConfigInput {
+        name: &row.name,
+        provider: &row.provider,
+        base_url: &row.base_url,
+        api_key_encrypted: row.api_key_encrypted.as_deref(),
+        model: &row.model,
+        max_concurrent: row.max_concurrent,
+        timeout_secs: row.timeout_secs,
+        max_context_tokens: row.max_context_tokens,
+        max_output_tokens: row.max_output_tokens,
+        extra_body_json: row.extra_body_json.clone(),
     }
-    Ok(())
+}
+
+fn apply_llm_params_to_row(row: &mut SettingsAllLlmConfigRow, params: NormalizedLlmConfig) {
+    row.name = params.name;
+    row.provider = params.provider;
+    row.base_url = params.base_url;
+    row.api_key_encrypted = params.api_key_encrypted;
+    row.model = params.model;
+    row.max_concurrent = params.max_concurrent;
+    row.timeout_secs = params.timeout_secs;
+    row.max_context_tokens = params.max_context_tokens;
+    row.max_output_tokens = params.max_output_tokens;
+    row.extra_body_json = params.extra_body_json;
 }
 
 fn embedding_params_from_row(row: &SettingsAllEmbeddingConfigRow) -> CreateEmbeddingConfigParams {
@@ -401,16 +343,6 @@ fn import_detail(label: &str, counts: SettingsAllImportTableCounts) -> String {
     )
 }
 
-fn plain_app_error(error: AppError) -> String {
-    match error {
-        AppError::InvalidArgument(message)
-        | AppError::ConfigError(message)
-        | AppError::LlmError(message)
-        | AppError::Timeout(message) => message,
-        other => other.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,8 +377,6 @@ mod tests {
 
         assert_eq!(required_text("  x  ", "L", "f").unwrap(), "x");
         assert!(required_text("  ", "L", "f").is_err());
-        positive_i32(3, "L", "n").unwrap();
-        assert!(positive_i32(0, "L", "n").is_err());
 
         let mut s = "  ab  ".to_string();
         trim_string(&mut s);
@@ -473,7 +403,7 @@ mod tests {
     }
 
     #[test]
-    fn normalization_reuses_provider_validators() {
+    fn normalization_reuses_canonical_llm_config_rules() {
         let mut export = full_export();
         export.llm_configs.push(SettingsAllLlmConfigRow {
             name: " main ".to_string(),
@@ -494,7 +424,13 @@ mod tests {
 
         assert_eq!(export.llm_configs[0].name, "main");
         assert_eq!(export.llm_configs[0].provider, "openai");
+        assert_eq!(export.llm_configs[0].base_url, "https://example.com/v1");
         assert_eq!(export.llm_configs[0].model, "model");
+
+        export.llm_configs[0].base_url = "http://api.example/v1".to_string();
+        export.llm_configs[0].api_key_encrypted = Some("secret".to_string());
+        let error = normalize_all_configs_export(&mut export).unwrap_err();
+        assert!(error.contains("必须使用 HTTPS"));
     }
 
     #[test]

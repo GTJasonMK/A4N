@@ -8,8 +8,7 @@ fn validate_package_manifest_rejects_galgame_unknown_line_type() {
     let err = validate_package_manifest(&package)
         .expect_err("unknown Galgame line types must be rejected");
 
-    assert!(err.contains("Galgame 行类型无效"));
-    assert!(err.contains("line_id=2301"));
+    assert!(err.contains("Galgame 行 2301 line_type 无效"));
 }
 
 #[test]
@@ -80,13 +79,12 @@ fn validate_package_manifest_rejects_galgame_invalid_position() {
 fn validate_package_manifest_rejects_galgame_dialogue_without_speaker() {
     let mut package = package_with_galgame_project();
     package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].expression = Some("neutral".to_string());
 
     let err = validate_package_manifest(&package)
         .expect_err("dialogue lines must bind speaker_profile_id");
 
     assert!(err.contains("必须绑定 speaker_profile_id"));
-    assert!(err.contains("line_id=2301"));
+    assert!(err.contains("Galgame 行 2301"));
 }
 
 #[test]
@@ -97,7 +95,8 @@ fn validate_package_manifest_rejects_galgame_dialogue_projection_mismatch() {
     package.galgame_lines[0].speaker_profile_id = Some(601);
     package.galgame_lines[0].pose = Some("standing".to_string());
     package.galgame_lines[0].position = Some("center".to_string());
-    package.galgame_lines[0].presentation_json = speaker_galgame_presentation_json(601, "neutral");
+    package.galgame_lines[0].presentation_json =
+        speaker_galgame_presentation_json(601, "neutral", "center");
 
     let err = validate_package_manifest(&package)
         .expect_err("redundant presentation columns must match the canonical document");
@@ -115,7 +114,8 @@ fn validate_package_manifest_rejects_galgame_invalid_expression() {
     package.galgame_lines[0].expression = Some("ecstatic".to_string());
     package.galgame_lines[0].pose = Some("standing".to_string());
     package.galgame_lines[0].position = Some("center".to_string());
-    package.galgame_lines[0].presentation_json = speaker_galgame_presentation_json(601, "ecstatic");
+    package.galgame_lines[0].presentation_json =
+        speaker_galgame_presentation_json(601, "ecstatic", "center");
 
     let err = validate_package_manifest(&package).expect_err("invalid expression must fail");
 

@@ -6,20 +6,20 @@ use crate::{
     shooting_script::{
         context::shooting_context_request,
         contracts::{
-            CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-            CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterScreenplaySkeletonV1,
-            PreparedChapterShootingScriptRequest, ScreenplayLayoutUnitDetailV1,
-            ScreenplaySkeletonUnitV1, ShootingScriptProgressReporter, ShootingScriptStreamReporter,
+            CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
+            ChapterScreenplaySkeletonV1, PreparedChapterShootingScriptRequest,
+            ScreenplayLayoutUnitDetailV1, ScreenplaySkeletonUnitV1, ShootingScriptProgressReporter,
+            ShootingScriptStreamReporter,
         },
-        progress::{SKELETON_STREAM_SPAN, layout_unit_stream_progress, skeleton_stream_progress},
+        progress::{SKELETON_STREAM_SPAN, layout_unit_stream_progress},
     },
 };
 
 use super::validation::{validate_layout_unit_detail, validate_skeleton};
 
 pub(in crate::shooting_script::generation) async fn generate_screenplay_skeleton(
-    orchestrator: &OrchestratorContext,
-    workflow_run_id: i64,
+    _orchestrator: &OrchestratorContext,
+    _workflow_run_id: i64,
     prepared: &PreparedChapterShootingScriptRequest,
     progress: ShootingScriptProgressReporter<'_>,
     stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
@@ -30,48 +30,55 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_skeleton
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在生成或恢复全章叙事骨架",
     )?;
-    let skeleton_request = screenplay_skeleton_request(prepared, workflow_run_id)?;
-    let skeleton_stage = orchestrator
-        .run_shooting_script_stage::<ChapterScreenplaySkeletonV1>(
-            workflow_run_id,
-            "screenplay_skeleton",
-            1,
-            skeleton_request,
-            "章节叙事骨架",
-            skeleton_stream_progress(),
-            CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
-            progress,
-            stream_reporter,
-            cancel_token,
-            |output| validate_skeleton(output, prepared),
-        )
-        .await?;
+    let _ = (stream_reporter, cancel_token);
+    let skeleton = skeleton_from_visual_plan(prepared)?;
+    validate_skeleton(&skeleton, prepared)?;
     progress(
         SKELETON_STREAM_SPAN.end(),
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
-        if skeleton_stage.restored {
-            "叙事骨架已恢复，开始逐单元细化"
-        } else {
-            "叙事骨架已生成，开始逐单元细化"
-        },
+        "已按 confirmed 导演编排锁定全章骨架，开始逐单元细化",
     )?;
-    Ok(skeleton_stage.output)
+    Ok(skeleton)
 }
 
 pub(in crate::shooting_script) async fn restore_screenplay_skeleton(
-    orchestrator: &OrchestratorContext,
-    workflow_run_id: i64,
+    _orchestrator: &OrchestratorContext,
+    _workflow_run_id: i64,
     prepared: &PreparedChapterShootingScriptRequest,
 ) -> Result<Option<ChapterScreenplaySkeletonV1>, AppError> {
-    let request = screenplay_skeleton_request(prepared, workflow_run_id)?;
-    orchestrator
-        .restore_completed_shooting_script_stage(
-            workflow_run_id,
-            "screenplay_skeleton",
-            &request,
-            |output| validate_skeleton(output, prepared),
-        )
-        .await
+    let skeleton = skeleton_from_visual_plan(prepared)?;
+    validate_skeleton(&skeleton, prepared)?;
+    Ok(Some(skeleton))
+}
+
+fn skeleton_from_visual_plan(
+    prepared: &PreparedChapterShootingScriptRequest,
+) -> Result<ChapterScreenplaySkeletonV1, AppError> {
+    let units = prepared
+        .visual_plan
+        .plan
+        .narrative_units
+        .iter()
+        .enumerate()
+        .map(|(offset, unit)| {
+            Ok(ScreenplaySkeletonUnitV1 {
+                scene_identity: unit.id.clone(),
+                sequence_index: unit.sequence_index,
+                narrative_unit_index: u32::try_from(offset + 1).map_err(|_| {
+                    AppError::InvalidArgument("视觉编排叙事单元数量超出 u32 范围".into())
+                })?,
+                timeline_position: unit.timeline_position,
+                intercut_group_id: unit.intercut_group_id.clone(),
+                editing_mode: unit.editing_mode,
+                source_span_ids: unit.source_span_ids.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    Ok(ChapterScreenplaySkeletonV1 {
+        schema_version: "chapter_screenplay_skeleton_v1".into(),
+        directing_statement: prepared.visual_plan.plan.directing_statement.clone(),
+        units,
+    })
 }
 
 pub(in crate::shooting_script::generation) async fn generate_screenplay_layout_unit(
@@ -149,22 +156,6 @@ pub(in crate::shooting_script) async fn restore_screenplay_layout_unit(
             },
         )
         .await
-}
-
-fn screenplay_skeleton_request(
-    prepared: &PreparedChapterShootingScriptRequest,
-    workflow_run_id: i64,
-) -> Result<a4n_llm::provider::ChatRequest, AppError> {
-    shooting_context_request::<serde_json::Value>(
-        prepared,
-        workflow_run_id,
-        CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-        "screenplay_skeleton".into(),
-        prepared.skeleton_system_prompt.clone(),
-        None,
-        "基于全部稳定上下文生成全章叙事骨架。".into(),
-        llm_token_profiles::LONG.into(),
-    )
 }
 
 fn screenplay_layout_unit_request(

@@ -2,7 +2,7 @@ use super::ExpectedRagRecords;
 use crate::state::AppState;
 use a4n_orchestrator::rag::{
     blueprint_metadata_rag_record, blueprint_rag_record, blueprint_world_setting_rag_records,
-    outline_rag_record, part_outline_rag_record,
+    outline_rag_record_from_row, part_outline_rag_record,
 };
 
 pub(super) async fn append_chapter_records(
@@ -39,7 +39,7 @@ pub(super) async fn append_outline_records(
         .await
         .map_err(|e| e.to_string())?;
     for outline in &outlines {
-        let record = outline_rag_record(project_id, outline)?;
+        let record = outline_rag_record_from_row(project_id, outline)?;
         expected.add_rag_record(record)?;
     }
 

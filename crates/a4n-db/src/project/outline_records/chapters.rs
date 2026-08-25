@@ -41,6 +41,9 @@ where
         return Ok(None);
     };
     let is_derived = chapter_outline_provenance::Entity::find_by_id(outline.id)
+        .select_only()
+        .column(chapter_outline_provenance::Column::OutlineId)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .is_some();
@@ -70,6 +73,9 @@ where
         return Ok(None);
     }
     let is_derived = chapter_outline_provenance::Entity::find_by_id(current.id)
+        .select_only()
+        .column(chapter_outline_provenance::Column::OutlineId)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .is_some();

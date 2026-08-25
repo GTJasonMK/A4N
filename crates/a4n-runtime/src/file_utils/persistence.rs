@@ -1,8 +1,7 @@
 use std::{io::Write, path::Path};
 
 use super::{
-    paths::canonicalize_path_in_data_dir,
-    remove_created_file_on_error_sync,
+    canonicalize_path_in_data_dir, remove_created_file_on_error_sync,
     rules::{normalize_relative_data_path, validate_missing_delete_target_parent},
 };
 

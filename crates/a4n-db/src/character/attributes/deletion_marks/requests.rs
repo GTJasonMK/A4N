@@ -9,7 +9,9 @@ use crate::character::{
     CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
     validate_timeline_source_kind,
 };
-use a4n_core::models::character::{attribute_event::SOURCE_KIND_USER, protagonist_deletion_mark};
+use a4n_core::models::character::{
+    attribute_event::SOURCE_KIND_USER, protagonist_deletion_mark, protagonist_profile,
+};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub(in crate::character::attributes) async fn request_attribute_deletion_in<C>(
@@ -19,11 +21,13 @@ pub(in crate::character::attributes) async fn request_attribute_deletion_in<C>(
 where
     C: ConnectionTrait,
 {
-    request_attribute_deletion_from_source_in(db, input, SOURCE_KIND_USER).await
+    let profile = require_profile_for_update(db, input.profile_id).await?;
+    request_attribute_deletion_with_profile_in(db, &profile, input, SOURCE_KIND_USER).await
 }
 
-pub(in crate::character) async fn request_attribute_deletion_from_source_in<C>(
+pub(in crate::character) async fn request_attribute_deletion_with_profile_in<C>(
     db: &C,
+    profile: &protagonist_profile::Model,
     input: CharacterAttributeDeletionRequestInput,
     source_kind: &str,
 ) -> Result<protagonist_deletion_mark::Model, CharacterDbError>
@@ -38,7 +42,6 @@ where
     let source_kind = validate_timeline_source_kind(source_kind)?;
     validate_category(&category)?;
 
-    let profile = require_profile_for_update(db, input.profile_id).await?;
     if attribute_value_in_state(&profile.current_state, &category, &key).is_none() {
         return Err(CharacterDbError::NotFound(format!(
             "角色属性不存在: {category}.{key}"

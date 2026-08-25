@@ -46,12 +46,7 @@ pub(in crate::project_dependency_graph) fn generated_image_record(
         request_snapshot: image
             .metadata_json
             .as_ref()
-            .and_then(|value| {
-                value
-                    .get("provider_request_snapshot")
-                    .or_else(|| value.get("request_snapshot"))
-                    .or_else(|| value.get("generation"))
-            })
+            .and_then(|value| value.get("generation"))
             .cloned(),
         input_status: "missing".to_string(),
         generation_inputs: Vec::new(),

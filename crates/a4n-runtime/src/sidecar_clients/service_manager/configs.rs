@@ -9,6 +9,7 @@ use a4n_service_manager::{
 };
 use a4n_service_protocol::{
     EXPORT_SERVICE_NAME, IMPORT_SERVICE_NAME, PROMPT_SERVICE_NAME, SIDECAR_AUTH_TOKEN_ENV,
+    ServiceCatalogEntry,
 };
 
 use crate::state::RuntimeProfile;
@@ -16,8 +17,8 @@ use crate::state::RuntimeProfile;
 use super::binaries::{sidecar_binary_path, sidecar_executable_name};
 use super::environment::apply_common_sidecar_env;
 use super::specs::{
-    MANAGED_SIDECARS_ENV, SIDECAR_BIN_DIR_ENV, SidecarServiceSpec, capability_service_names,
-    managed_sidecars_enabled, parse_sidecar_addr_env, sidecar_service_specs, sidecar_url_from_spec,
+    MANAGED_SIDECARS_ENV, SIDECAR_BIN_DIR_ENV, capability_service_names, managed_sidecars_enabled,
+    parse_sidecar_addr_env, sidecar_service_specs, sidecar_url_from_spec,
 };
 
 pub(crate) fn runtime_service_manager(
@@ -86,7 +87,7 @@ pub(super) fn runtime_service_configs(
 }
 
 fn managed_sidecar_service(
-    spec: SidecarServiceSpec,
+    spec: ServiceCatalogEntry,
     app_config: &AppConfig,
     reserved_addrs: &mut HashSet<SocketAddr>,
 ) -> Result<ManagedServiceConfig, String> {
@@ -130,7 +131,7 @@ pub(super) fn reserve_managed_loopback_addr(
     }
 }
 
-fn remote_service(spec: SidecarServiceSpec) -> Result<ManagedServiceConfig, String> {
+fn remote_service(spec: ServiceCatalogEntry) -> Result<ManagedServiceConfig, String> {
     let url = sidecar_url_from_spec(&spec)?;
     let mut remote_security = remote_security_from_env(&spec.name)?;
     if !remote_security.has_deployment_credential() && is_loopback_http_url(&url) {

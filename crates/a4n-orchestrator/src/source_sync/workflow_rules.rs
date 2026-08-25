@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// source_sync apply exclusive business key。
-pub fn source_sync_apply_business_key(sync_run_id: i64) -> Result<String, String> {
+fn source_sync_apply_business_key(sync_run_id: i64) -> Result<String, String> {
     if sync_run_id <= 0 {
         return Err("sync_run_id 必须大于 0".to_string());
     }
@@ -14,7 +14,7 @@ pub fn source_sync_apply_business_key(sync_run_id: i64) -> Result<String, String
 }
 
 /// source_sync apply 工作流输入指纹。
-pub fn source_sync_apply_workflow_fingerprint(
+fn source_sync_apply_workflow_fingerprint(
     sync_run_id: i64,
     derived_project_id: i64,
     root_project_id: i64,
@@ -35,7 +35,7 @@ pub fn source_sync_apply_workflow_fingerprint(
 }
 
 /// 构造 source_sync apply begin 输入（status=RUNNING）。
-pub fn source_sync_apply_workflow_run_input(
+pub(crate) fn source_sync_apply_workflow_run_input(
     sync_run_id: i64,
     derived_project_id: i64,
     root_project_id: i64,

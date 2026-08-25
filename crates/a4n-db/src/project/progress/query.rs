@@ -54,11 +54,15 @@ pub async fn project_progress_summaries(
         }
     }
 
-    progress_by_project_id.extend(comic_project_progress_by_project(db, &comic_project_ids).await?);
-    progress_by_project_id.extend(video_project_progress_by_project(db, &video_project_ids).await?);
-    progress_by_project_id
-        .extend(freeform_video_project_progress_by_project(db, &freeform_video_project_ids).await?);
-    progress_by_project_id
-        .extend(galgame_project_progress_by_project(db, &galgame_project_ids).await?);
+    let (comic, video, freeform_video, galgame) = futures::try_join!(
+        comic_project_progress_by_project(db, &comic_project_ids),
+        video_project_progress_by_project(db, &video_project_ids),
+        freeform_video_project_progress_by_project(db, &freeform_video_project_ids),
+        galgame_project_progress_by_project(db, &galgame_project_ids),
+    )?;
+    progress_by_project_id.extend(comic);
+    progress_by_project_id.extend(video);
+    progress_by_project_id.extend(freeform_video);
+    progress_by_project_id.extend(galgame);
     Ok(progress_by_project_id)
 }

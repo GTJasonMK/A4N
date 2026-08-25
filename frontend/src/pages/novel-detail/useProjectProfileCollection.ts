@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { extractErrorMessage } from "../../api";
 import type { ToastType } from "../../components/feedback/Toast";
+import type { MessageTranslator } from "../../i18n";
 
 interface ProjectProfile {
   id: number;
@@ -17,12 +18,14 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
   projectId,
   canEditProfiles,
   entityLabel,
+  t,
   listProfiles,
   addToast,
 }: {
   projectId: number;
   canEditProfiles: boolean;
   entityLabel: string;
+  t: MessageTranslator;
   listProfiles: (projectId: number) => Promise<T[]>;
   addToast: (message: string, type: ToastType) => void;
 }) {
@@ -59,7 +62,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
     (requestProjectId: number): number | null => {
       if (!isCurrentProject(requestProjectId)) return null;
       if (!canEditProfiles) {
-        addToast(`只读协作者不能修改${entityLabel}`, "error");
+        addToast(t("novel.profile.readonlyCannotModify", { name: entityLabel }), "error");
         return null;
       }
       if (actionBusyRef.current) return null;
@@ -67,7 +70,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
       actionSeqRef.current += 1;
       return actionSeqRef.current;
     },
-    [addToast, canEditProfiles, entityLabel, isCurrentProject],
+    [addToast, canEditProfiles, entityLabel, isCurrentProject, t],
   );
 
   const finishAction = useCallback((requestSeq: number) => {
@@ -92,13 +95,13 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
           const nextProfiles = await listProfiles(requestProjectId);
           if (!isCurrentProject(requestProjectId) || loadSeqRef.current !== requestSeq) return;
           if (nextProfiles.some((profile) => profile.project_id !== requestProjectId)) {
-            throw new Error(`${entityLabel}列表返回了其他项目的数据`);
+            throw new Error(t("novel.profile.foreignProjectData", { name: entityLabel }));
           }
           profilesRef.current = nextProfiles;
           setProfiles(nextProfiles);
         } catch (err) {
           if (isCurrentProject(requestProjectId) && loadSeqRef.current === requestSeq) {
-            addToast(extractErrorMessage(err, `加载${entityLabel}失败`), "error");
+            addToast(extractErrorMessage(err, t("novel.profile.loadFailed", { name: entityLabel })), "error");
           }
         } finally {
           if (!silent && isCurrentProject(requestProjectId) && loadSeqRef.current === requestSeq) {
@@ -119,7 +122,7 @@ export function useProjectProfileCollection<T extends ProjectProfile>({
       };
       return loadPromise;
     },
-    [addToast, entityLabel, isCurrentProject, listProfiles, projectId],
+    [addToast, entityLabel, isCurrentProject, listProfiles, projectId, t],
   );
 
   useEffect(() => {

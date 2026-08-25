@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use a4n_core::models::{
     galgame::{galgame_scene, galgame_script},
@@ -33,7 +33,7 @@ pub(in crate::source_sync) fn validate_prepared_galgame_scene_regeneration_recor
         .anchors
         .iter()
         .map(|anchor| anchor.id)
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     for line in &generated_scene.lines {
         let Some(text_anchor_id) = line.text_anchor_id else {
             return Err(SourceSyncDbError::InvalidArgument(format!(

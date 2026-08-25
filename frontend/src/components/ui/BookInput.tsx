@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useId } from 'react';
 
 /**
  * A4N 输入框（iOS 填充底 + soft ring focus）
@@ -13,16 +13,38 @@ interface BookInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const BookInput = forwardRef<HTMLInputElement, BookInputProps>(
-  ({ className = '', label, error, ...props }, ref) => {
+  (
+    {
+      className = '',
+      label,
+      error,
+      id,
+      'aria-describedby': ariaDescribedBy,
+      'aria-invalid': ariaInvalid,
+      ...props
+    },
+    ref,
+  ) => {
+    const generatedId = useId();
+    const inputId = id ?? generatedId;
+    const errorId = error ? `${inputId}-error` : undefined;
+    const describedBy = [ariaDescribedBy, errorId].filter(Boolean).join(' ') || undefined;
+
     return (
       <div className="w-full">
         {label && (
-          <label className="mb-1.5 block text-xs font-semibold text-book-text-sub">
+          <label
+            htmlFor={inputId}
+            className="mb-1.5 block text-xs font-semibold text-book-text-sub"
+          >
             {label}
           </label>
         )}
         <input
           ref={ref}
+          id={inputId}
+          aria-describedby={describedBy}
+          aria-invalid={error ? true : ariaInvalid}
           className={`pyqt-input w-full ${
             error
               ? 'border-error focus:border-error focus:shadow-[0_0_0_1px_rgb(var(--status-error))]'
@@ -30,7 +52,11 @@ export const BookInput = forwardRef<HTMLInputElement, BookInputProps>(
           } ${className}`}
           {...props}
         />
-        {error && <p className="mt-1 text-xs text-error">{error}</p>}
+        {error && (
+          <p id={errorId} role="alert" className="mt-1 text-xs text-error">
+            {error}
+          </p>
+        )}
       </div>
     );
   },
@@ -44,16 +70,38 @@ interface BookTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaEle
 }
 
 export const BookTextarea = forwardRef<HTMLTextAreaElement, BookTextareaProps>(
-  ({ className = '', label, error, ...props }, ref) => {
+  (
+    {
+      className = '',
+      label,
+      error,
+      id,
+      'aria-describedby': ariaDescribedBy,
+      'aria-invalid': ariaInvalid,
+      ...props
+    },
+    ref,
+  ) => {
+    const generatedId = useId();
+    const textareaId = id ?? generatedId;
+    const errorId = error ? `${textareaId}-error` : undefined;
+    const describedBy = [ariaDescribedBy, errorId].filter(Boolean).join(' ') || undefined;
+
     return (
       <div className="w-full">
         {label && (
-          <label className="mb-1.5 block text-xs font-semibold text-book-text-sub">
+          <label
+            htmlFor={textareaId}
+            className="mb-1.5 block text-xs font-semibold text-book-text-sub"
+          >
             {label}
           </label>
         )}
         <textarea
           ref={ref}
+          id={textareaId}
+          aria-describedby={describedBy}
+          aria-invalid={error ? true : ariaInvalid}
           className={`pyqt-input w-full resize-none ${
             error
               ? 'border-error focus:border-error focus:shadow-[0_0_0_1px_rgb(var(--status-error))]'
@@ -61,7 +109,11 @@ export const BookTextarea = forwardRef<HTMLTextAreaElement, BookTextareaProps>(
           } ${className}`}
           {...props}
         />
-        {error && <p className="mt-1 text-xs text-error">{error}</p>}
+        {error && (
+          <p id={errorId} role="alert" className="mt-1 text-xs text-error">
+            {error}
+          </p>
+        )}
       </div>
     );
   },

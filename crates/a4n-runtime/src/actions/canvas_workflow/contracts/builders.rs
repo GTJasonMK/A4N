@@ -1,4 +1,4 @@
-use super::types::{CanvasNodeContract, CanvasPortContract};
+use a4n_api_contract::canvas::{CanvasNodeContract, CanvasPortContract};
 
 pub(super) fn contract(
     kind: &str,

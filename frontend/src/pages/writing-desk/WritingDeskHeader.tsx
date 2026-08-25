@@ -19,6 +19,8 @@ import { BackButton } from "../../components/ui/BackButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { PageHeader } from "../../components/shell/PageHeader";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { useI18n } from "../../i18n";
 
 export type RightPanel = "none" | "rag" | "optimize";
 
@@ -34,6 +36,7 @@ interface WritingDeskHeaderProps {
   leftSidebarVisible: boolean;
   rightPanel: RightPanel;
   dirty: boolean;
+  savingContent: boolean;
   editBlockedReason: string | null;
   activeChapterBusy: boolean;
   activeChapterGeneratingMessage: string;
@@ -53,11 +56,11 @@ interface WritingDeskHeaderProps {
 
 const PANEL_OPTIONS: ReadonlyArray<{
   id: Exclude<RightPanel, "none">;
-  label: string;
+  labelKey: "writing.rag" | "writing.writingAssistant";
   icon: React.ReactNode;
 }> = [
-  { id: "rag", label: "资料检索", icon: <Search size={11} /> },
-  { id: "optimize", label: "写作助手", icon: <Wand2 size={11} /> },
+  { id: "rag", labelKey: "writing.rag", icon: <Search size={11} /> },
+  { id: "optimize", labelKey: "writing.writingAssistant", icon: <Wand2 size={11} /> },
 ];
 
 /**
@@ -75,6 +78,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   leftSidebarVisible,
   rightPanel,
   dirty,
+  savingContent,
   editBlockedReason,
   activeChapterBusy,
   activeChapterGeneratingMessage,
@@ -91,6 +95,8 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   onRightPanelChange,
   onSaveContent,
 }) => {
+  const { t } = useI18n();
+  const panelLabels = new Map(PANEL_OPTIONS.map((panel) => [panel.id, t(panel.labelKey)]));
   const chapterLabels = useMemo(() => {
     const labels = new Map<number, string>();
     chapters.forEach((chapter) => {
@@ -105,31 +111,162 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
     return labels;
   }, [chapters, outlines]);
 
+  const chapterSelect = chapterNumbers.length > 0 ? (
+    <select
+      aria-label={t("writing.chooseChapterTitle")}
+      title={t("writing.chooseChapterTitle")}
+      value={activeNumber == null ? "" : String(activeNumber)}
+      onChange={(event) => {
+        const nextNumber = Number(event.target.value);
+        if (Number.isSafeInteger(nextNumber) && nextNumber > 0) {
+          void onSelectChapter(nextNumber);
+        }
+      }}
+      className="a4n-mobile-chapter-select pyqt-input min-w-0 flex-1 !px-2 text-xs"
+    >
+      {activeNumber == null ? <option value="">{t("writing.chooseChapterTitle")}</option> : null}
+      {chapterNumbers.map((chapterNumber) => {
+        const label = chapterLabels.get(chapterNumber);
+        return (
+          <option key={chapterNumber} value={chapterNumber}>
+            {label ? `${t("writing.chapterLabel", { number: chapterNumber })} · ${label}` : t("writing.chapterLabel", { number: chapterNumber })}
+          </option>
+        );
+      })}
+    </select>
+  ) : null;
+
+  const saveButton = dirty ? (
+    <BookButton
+      variant="primary"
+      size="sm"
+      onClick={onSaveContent}
+      disabled={savingContent || activeChapterBusy || Boolean(editBlockedReason)}
+      className="!w-11 !px-0 !text-xs sm:!w-auto sm:!px-3"
+      title={
+        editBlockedReason ??
+        (savingContent
+          ? t("writing.savingChapterBody")
+          : activeChapterBusy
+            ? activeChapterGeneratingMessage
+            : t("writing.saveChanges"))
+      }
+      aria-label={t("writing.saveChanges")}
+    >
+      {savingContent ? <LoadingSpinner size="sm" /> : <Save size={12} />}
+      <span className="hidden sm:inline">{t("writing.saveChanges")}</span>
+    </BookButton>
+  ) : null;
+
+  if (isMobileLayout) {
+    return (
+      <div className="min-w-0 shrink-0">
+        <PageHeader
+          className="a4n-app-page-header--detail min-w-0 flex-nowrap py-1.5"
+          leading={<BackButton iconOnly title={t("nav.backToPrevious")} onClick={() => void onSmartBack()} />}
+          title={
+            <>
+              {project.title}
+              {activeNumber != null ? (
+                <span className="ml-1.5 font-sans text-body font-medium text-book-text-muted">
+                  · {t("writing.chapterLabel", { number: activeNumber })}
+                </span>
+              ) : null}
+            </>
+          }
+          actions={
+            <>
+              {saveButton}
+              <Dropdown
+                items={[
+                  {
+                    label: t("writing.projectDetails"),
+                    icon: <FileText size={12} />,
+                    onClick: () => void onOpenProjectDetail(),
+                  },
+                  {
+                    label: t("writing.createChapter"),
+                    icon: <Plus size={12} />,
+                    onClick: () => void onCreateChapter(),
+                    disabled: Boolean(editBlockedReason),
+                  },
+                  {
+                    label: t("writing.characterProfiles"),
+                    icon: <Users size={12} />,
+                    onClick: onOpenProfiles,
+                  },
+                ]}
+              />
+            </>
+          }
+        />
+        <div className="flex min-w-0 items-center gap-1.5 border-b border-book-border/50 bg-book-bg-paper/70 px-2 py-1.5">
+          {chapterSelect}
+          <BookIconButton
+            label={t("writing.previousChapter")}
+            onClick={onPrev}
+            disabled={!canGoPrev}
+            title={canGoPrev ? t("writing.previousChapter") : t("writing.firstChapter")}
+            variant="secondary"
+            size="sm"
+          >
+            <ChevronLeft size={13} />
+          </BookIconButton>
+          <BookIconButton
+            label={t("writing.nextChapter")}
+            onClick={onNext}
+            disabled={!canGoNext}
+            title={canGoNext ? t("writing.nextChapter") : t("writing.lastChapter")}
+            variant="secondary"
+            size="sm"
+          >
+            <ChevronRight size={13} />
+          </BookIconButton>
+          <SegmentedControl
+            ariaLabel={t("writing.writingPanels")}
+            variant="panel"
+            value={rightPanel === "none" ? null : rightPanel}
+            allowDeselect
+            onDeselect={() => onRightPanelChange("none")}
+            onChange={(id) => onRightPanelChange(id)}
+            options={PANEL_OPTIONS.map((panel) => ({
+              id: panel.id,
+              label: <span className="sr-only">{panelLabels.get(panel.id)}</span>,
+              icon: panel.icon,
+              disabled: !rightPanelAvailable && rightPanel !== panel.id,
+              title:
+                !rightPanelAvailable && rightPanel !== panel.id
+                  ? rightPanelUnavailableTip
+                  : `${panelLabels.get(panel.id)} (${t("writing.deskAssistant")})`,
+            }))}
+            className="a4n-writing-panel-toggle"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return <PageHeader
     className="a4n-app-page-header--desk a4n-app-page-header--detail h-auto min-w-0 shrink-0 py-2 sm:flex-nowrap sm:overflow-hidden sm:py-0"
     leading={
       <>
-        <BackButton iconOnly title="返回上一页" onClick={() => void onSmartBack()} />
-        {!isMobileLayout ? (
-          <>
-            <BookIconButton
-              label="项目详情"
-              onClick={() => void onOpenProjectDetail()}
-              variant="secondary"
-              size="sm"
-            >
-              <FileText size={13} />
-            </BookIconButton>
-            <BookIconButton
-              label={leftSidebarVisible ? "隐藏左侧栏" : "显示左侧栏"}
-              onClick={onToggleLeftSidebar}
-              variant="secondary"
-              size="sm"
-            >
-              {leftSidebarVisible ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
-            </BookIconButton>
-          </>
-        ) : null}
+        <BackButton iconOnly title={t("nav.backToPrevious")} onClick={() => void onSmartBack()} />
+        <BookIconButton
+          label={t("writing.projectDetails")}
+          onClick={() => void onOpenProjectDetail()}
+          variant="secondary"
+          size="sm"
+        >
+          <FileText size={13} />
+        </BookIconButton>
+        <BookIconButton
+          label={leftSidebarVisible ? t("writing.hideLeftSidebar") : t("writing.showLeftSidebar")}
+          onClick={onToggleLeftSidebar}
+          variant="secondary"
+          size="sm"
+        >
+          {leftSidebarVisible ? <PanelLeftClose size={13} /> : <PanelLeftOpen size={13} />}
+        </BookIconButton>
       </>
     }
     title={
@@ -137,52 +274,28 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
         {project.title}
         {activeNumber != null ? (
           <span className="ml-1.5 font-sans text-body font-medium text-book-text-muted">
-            · 第 {activeNumber} 章
+            · {t("writing.chapterLabel", { number: activeNumber })}
           </span>
         ) : null}
       </>
     }
     actions={
       <>
-        {isMobileLayout && chapterNumbers.length > 0 ? (
-          <select
-            aria-label="选择章节"
-            title="选择章节"
-            value={activeNumber == null ? "" : String(activeNumber)}
-            onChange={(event) => {
-              const nextNumber = Number(event.target.value);
-              if (Number.isSafeInteger(nextNumber) && nextNumber > 0) {
-                void onSelectChapter(nextNumber);
-              }
-            }}
-            className="a4n-mobile-chapter-select pyqt-input min-w-0 max-w-[8rem] !px-2 text-xs"
-          >
-            {activeNumber == null ? <option value="">选择章节</option> : null}
-            {chapterNumbers.map((chapterNumber) => {
-              const label = chapterLabels.get(chapterNumber);
-              return (
-                <option key={chapterNumber} value={chapterNumber}>
-                  {label ? `第 ${chapterNumber} 章 · ${label}` : `第 ${chapterNumber} 章`}
-                </option>
-              );
-            })}
-          </select>
-        ) : null}
         <BookIconButton
-          label="上一章"
+          label={t("writing.previousChapter")}
           onClick={onPrev}
           disabled={!canGoPrev}
-          title={canGoPrev ? "上一章" : "已经是第一章"}
+          title={canGoPrev ? t("writing.previousChapter") : t("writing.firstChapter")}
           variant="secondary"
           size="sm"
         >
           <ChevronLeft size={13} />
         </BookIconButton>
         <BookIconButton
-          label="下一章"
+          label={t("writing.nextChapter")}
           onClick={onNext}
           disabled={!canGoNext}
-          title={canGoNext ? "下一章" : "已经是最后一章"}
+          title={canGoNext ? t("writing.nextChapter") : t("writing.lastChapter")}
           variant="secondary"
           size="sm"
         >
@@ -190,7 +303,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
         </BookIconButton>
 
         <SegmentedControl
-          ariaLabel="写作辅助面板"
+          ariaLabel={t("writing.writingPanels")}
           variant="panel"
           value={rightPanel === "none" ? null : rightPanel}
           allowDeselect
@@ -198,57 +311,18 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           onChange={(id) => onRightPanelChange(id)}
           options={PANEL_OPTIONS.map((panel) => ({
             id: panel.id,
-            label: <span className="hidden sm:inline">{panel.label}</span>,
+            label: <span className="hidden sm:inline">{panelLabels.get(panel.id)}</span>,
             icon: panel.icon,
             disabled: !rightPanelAvailable && rightPanel !== panel.id,
             title:
               !rightPanelAvailable && rightPanel !== panel.id
                 ? rightPanelUnavailableTip
-                : `${panel.label}（写作桌助手）`,
+              : `${panelLabels.get(panel.id)} (${t("writing.deskAssistant")})`,
           }))}
           className="a4n-writing-panel-toggle max-w-full"
         />
 
-        {isMobileLayout ? (
-          <Dropdown
-            items={[
-              {
-                label: "项目详情",
-                icon: <FileText size={12} />,
-                onClick: () => void onOpenProjectDetail(),
-              },
-              {
-                label: "新建章节",
-                icon: <Plus size={12} />,
-                onClick: () => void onCreateChapter(),
-                disabled: Boolean(editBlockedReason),
-              },
-              {
-                label: "角色档案",
-                icon: <Users size={12} />,
-                onClick: onOpenProfiles,
-              },
-            ]}
-          />
-        ) : null}
-
-        {dirty ? (
-          <BookButton
-            variant="primary"
-            size="sm"
-            onClick={onSaveContent}
-            disabled={activeChapterBusy || Boolean(editBlockedReason)}
-            className="!min-h-8 !w-8 !px-0 !text-xs sm:!w-auto sm:!px-3"
-            title={
-              editBlockedReason ??
-              (activeChapterBusy ? activeChapterGeneratingMessage : "保存修改")
-            }
-            aria-label="保存修改"
-          >
-            <Save size={12} />
-            <span className="hidden sm:inline">保存修改</span>
-          </BookButton>
-        ) : null}
+        {saveButton}
       </>
     }
   />

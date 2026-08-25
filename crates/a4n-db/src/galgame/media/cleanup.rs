@@ -6,6 +6,7 @@ mod scenes;
 
 use a4n_core::models::media::media_binding;
 use sea_orm::{Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
+use std::collections::HashSet;
 
 use self::queries::{
     media_asset_ids_for_generation_specs_record, prompt_artifact_ids_for_generation_specs_record,
@@ -52,7 +53,7 @@ where
         bound_media_asset_ids
             .into_iter()
             .chain(provenance_media_asset_ids)
-            .collect(),
+            .collect::<HashSet<_>>(),
     )
     .await?;
     delete_generation_spec_records_by_ids(db, generation_spec_ids, prompt_artifact_ids).await

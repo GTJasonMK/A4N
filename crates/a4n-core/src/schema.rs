@@ -3,4 +3,4 @@
 /// 当前应用代码要求数据库至少已经执行到的最后一项迁移。
 ///
 /// 新增迁移时必须同步更新；`a4n-migration` 的注册顺序测试会阻止二者漂移。
-pub const REQUIRED_SCHEMA_MIGRATION: &str = "profile_record_ownership_default_cleanup";
+pub const REQUIRED_SCHEMA_MIGRATION: &str = "theme_token_layer_cleanup";

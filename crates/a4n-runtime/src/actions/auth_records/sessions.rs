@@ -1,4 +1,4 @@
-use super::contracts::SessionSummary;
+use super::SessionSummary;
 use super::projections::to_session_summary;
 use crate::AppState;
 use a4n_core::error::AppError;

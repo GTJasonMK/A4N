@@ -4,15 +4,24 @@ mod portrait;
 mod target;
 
 use a4n_core::models::project::novel_project;
-use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
+use a4n_domain::project::ProjectKind;
+use sea_orm::{ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect};
 
-use crate::galgame::{GalgameMediaRecordError, PROJECT_KIND_GALGAME};
+use crate::galgame::GalgameMediaRecordError;
+
+#[derive(Debug, FromQueryResult)]
+struct GalgameProjectIdentity {
+    id: i64,
+    project_kind: String,
+    root_project_id: Option<i64>,
+    source_snapshot_id: Option<i64>,
+}
 
 async fn galgame_media_project_context<C>(
     db: &C,
     project_id: i64,
     use_row_lock: bool,
-) -> Result<(novel_project::Model, i64), GalgameMediaRecordError>
+) -> Result<(GalgameProjectIdentity, i64), GalgameMediaRecordError>
 where
     C: ConnectionTrait,
 {
@@ -21,11 +30,17 @@ where
         query = query.lock_exclusive();
     }
     let project = query
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .into_model::<GalgameProjectIdentity>()
         .one(db)
         .await
         .map_err(GalgameMediaRecordError::Database)?
         .ok_or_else(|| GalgameMediaRecordError::NotFound(format!("项目不存在: {project_id}")))?;
-    if project.project_kind != PROJECT_KIND_GALGAME {
+    if project.project_kind != ProjectKind::Galgame.as_str() {
         return Err(GalgameMediaRecordError::InvalidArgument(format!(
             "项目不是 Galgame 派生项目: {}",
             project.id
@@ -41,7 +56,9 @@ where
 }
 
 pub(super) use asset::galgame_bindable_media_asset;
+#[cfg(test)]
 pub(in crate::galgame) use asset::validate_completed_visual_asset;
+pub(in crate::galgame) use asset::validate_completed_visual_asset_record;
 #[cfg(test)]
 pub(in crate::galgame) use asset::validate_galgame_media_asset_source_context;
 pub use generated_image::galgame_generated_image_by_id;

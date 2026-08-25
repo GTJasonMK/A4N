@@ -43,7 +43,7 @@ async fn complete_chat_turn_persists_formal_exchange_once() {
             user_id: 1,
             title: "优化事务测试".to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

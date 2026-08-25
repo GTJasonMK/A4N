@@ -3,7 +3,8 @@ mod preview;
 mod records;
 
 pub(in crate::routes::commands) use pipeline::{
-    cancel_manga_pipeline, get_manga_pipeline_status, resume_manga_pipeline, start_manga_pipeline,
+    cancel_manga_pipeline, get_manga_pipeline_status, list_manga_pipeline_statuses,
+    resume_manga_pipeline, start_manga_pipeline,
 };
 pub(in crate::routes::commands) use preview::{
     preview_resume_manga_pipeline_request, preview_start_manga_pipeline_request,

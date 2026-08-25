@@ -20,7 +20,7 @@ use a4n_db::{
     },
     project::{
         BlueprintCharacterDraft, BlueprintRelationshipDraft, CreateProjectRecordInput,
-        PROJECT_TYPE_NOVEL_LONG, blueprint_sources_need_review, create_project_record,
+        blueprint_sources_need_review, create_project_record,
     },
 };
 use chrono::Utc;
@@ -34,7 +34,7 @@ async fn create_project(db: &sea_orm::DatabaseConnection, description: &str) -> 
             user_id: 1,
             title: "钟楼旧稿".to_string(),
             description: description.to_string(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

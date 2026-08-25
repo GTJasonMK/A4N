@@ -2,17 +2,13 @@ use a4n_api_contract::chapter::{ReorderChapterScenesInput, UpdateChapterSceneInp
 use a4n_core::{error::AppError, models::chapter::chapter_scene};
 use a4n_db::{
     DbHandle,
-    project::{
-        ProjectChapterSceneReorderInput, ProjectChapterSceneReorderScope,
-        ProjectChapterSceneUpdateInput, ProjectGeneratedChapterSceneSaveInput,
-    },
+    project::{ProjectChapterSceneUpdateInput, ProjectGeneratedChapterSceneSaveInput},
 };
 
 use super::OrchestratorContext;
 use crate::project::{
     chapter_scene_update_record_input, project_chapter_scene_record_error_to_app_error,
-    project_chapter_scene_reorder_error_to_app_error,
-    project_generated_chapter_scene_save_error_to_app_error,
+    project_chapter_scene_write_error_to_app_error,
 };
 
 #[derive(Clone)]
@@ -55,22 +51,19 @@ impl ProjectSceneRecordsApplication {
             .map_err(project_chapter_scene_record_error_to_app_error)
     }
 
-    async fn reorder_scope(
-        &self,
-        input: ProjectChapterSceneReorderInput,
-    ) -> Result<ProjectChapterSceneReorderScope, AppError> {
-        a4n_db::project::chapter_scene_reorder_scope(self.database.connection(), input)
+    async fn reorder_project_id(&self, order: &[(i64, i32)]) -> Result<i64, AppError> {
+        a4n_db::project::chapter_scene_reorder_project_id(self.database.connection(), order)
             .await
-            .map_err(project_chapter_scene_reorder_error_to_app_error)
+            .map_err(project_chapter_scene_write_error_to_app_error)
     }
 
     async fn reorder_scenes(
         &self,
-        input: ProjectChapterSceneReorderInput,
+        order: &[(i64, i32)],
     ) -> Result<Vec<chapter_scene::Model>, AppError> {
-        a4n_db::project::reorder_chapter_scene_records(self.database.connection(), input)
+        a4n_db::project::reorder_chapter_scene_records(self.database.connection(), order)
             .await
-            .map_err(project_chapter_scene_reorder_error_to_app_error)
+            .map_err(project_chapter_scene_write_error_to_app_error)
     }
 
     async fn save_generated_scene(
@@ -79,7 +72,7 @@ impl ProjectSceneRecordsApplication {
     ) -> Result<chapter_scene::Model, AppError> {
         a4n_db::project::save_generated_chapter_scene_record(self.database.connection(), input)
             .await
-            .map_err(project_generated_chapter_scene_save_error_to_app_error)
+            .map_err(project_chapter_scene_write_error_to_app_error)
     }
 }
 
@@ -159,18 +152,18 @@ impl OrchestratorContext {
         self.delete_chapter_scene_validated(scene_id).await
     }
 
-    async fn chapter_scene_reorder_scope_validated(
+    async fn chapter_scene_reorder_project_id_validated(
         &self,
-        input: ProjectChapterSceneReorderInput,
-    ) -> Result<ProjectChapterSceneReorderScope, AppError> {
-        self.project_scene_records.reorder_scope(input).await
+        order: &[(i64, i32)],
+    ) -> Result<i64, AppError> {
+        self.project_scene_records.reorder_project_id(order).await
     }
 
     async fn reorder_chapter_scenes_validated(
         &self,
-        input: ProjectChapterSceneReorderInput,
+        order: &[(i64, i32)],
     ) -> Result<Vec<chapter_scene::Model>, AppError> {
-        self.project_scene_records.reorder_scenes(input).await
+        self.project_scene_records.reorder_scenes(order).await
     }
 
     pub async fn reorder_chapter_scenes_for_user_validated(
@@ -178,17 +171,16 @@ impl OrchestratorContext {
         user_id: i64,
         input: ReorderChapterScenesInput,
     ) -> Result<Vec<chapter_scene::Model>, AppError> {
-        let input = ProjectChapterSceneReorderInput { order: input.order };
-        let scope = self
-            .chapter_scene_reorder_scope_validated(input.clone())
+        let project_id = self
+            .chapter_scene_reorder_project_id_validated(&input.order)
             .await?;
         self.verify_project_permission(
-            scope.project_id,
+            project_id,
             user_id,
             crate::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        self.reorder_chapter_scenes_validated(input).await
+        self.reorder_chapter_scenes_validated(&input.order).await
     }
 
     pub(crate) async fn save_generated_chapter_scene_record(

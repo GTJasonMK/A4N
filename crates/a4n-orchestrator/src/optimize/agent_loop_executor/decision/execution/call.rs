@@ -8,13 +8,14 @@ use super::super::super::{
 };
 use super::super::checkpoint::restored_agent_loop_decision;
 use super::contracts::AgentDecisionCallResult;
-use crate::generation::checkpoint::GenerationCheckpointMetadata;
-use crate::generation::generation_public_error;
-use crate::generation::stream::{
-    LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation, generation_usage,
-    provider_usage, publish_generation_usage,
+use crate::generation::{
+    checkpoint::GenerationCheckpointMetadata,
+    generation_finish_reason_text, generation_public_error,
+    stream::{
+        LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation, generation_usage,
+        provider_usage, publish_generation_usage,
+    },
 };
-use a4n_service_protocol::GenerationFinishReason;
 
 pub(super) async fn execute_agent_loop_decision_call(
     context: &OrchestratorContext,
@@ -99,10 +100,7 @@ pub(super) async fn execute_agent_loop_decision_call(
     let response = ChatResponse {
         message: ChatMessage::assistant(output.content),
         usage: output.usage.as_ref().map(provider_usage).transpose()?,
-        finish_reason: Some(match output.finish_reason {
-            GenerationFinishReason::Stop => "stop".to_string(),
-            GenerationFinishReason::ToolCallsComplete => "tool_calls".to_string(),
-        }),
+        finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
     };
     let decision = parse_agent_loop_decision(
         context,

@@ -3,7 +3,7 @@ use crate::source_sync::CONFLICT_STATUS_PENDING;
 use a4n_core::models::source_sync::source_sync_conflict;
 use chrono::Utc;
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 fn conflict_record(
     conflict_scope: &str,
@@ -42,7 +42,7 @@ fn galgame_scene_conflict_match_accepts_scene_target() {
     assert!(is_same_galgame_scene_conflict_record(
         &conflict,
         7,
-        &BTreeSet::new()
+        &HashSet::new()
     ));
 }
 
@@ -55,7 +55,7 @@ fn galgame_scene_conflict_match_accepts_line_refs_and_old_line_ids() {
         json!({"galgame_scene_id": 7}),
     );
     let by_old_line = conflict_record("text_anchor", "galgame_line", 12, json!({}));
-    let old_line_ids = BTreeSet::from([12]);
+    let old_line_ids = HashSet::from([12]);
 
     assert!(is_same_galgame_scene_conflict_record(
         &by_ref,
@@ -78,16 +78,16 @@ fn galgame_scene_conflict_match_rejects_other_scope_or_target() {
     assert!(!is_same_galgame_scene_conflict_record(
         &wrong_scope,
         7,
-        &BTreeSet::new()
+        &HashSet::new()
     ));
     assert!(!is_same_galgame_scene_conflict_record(
         &wrong_scene,
         7,
-        &BTreeSet::new()
+        &HashSet::new()
     ));
     assert!(!is_same_galgame_scene_conflict_record(
         &wrong_kind,
         7,
-        &BTreeSet::new()
+        &HashSet::new()
     ));
 }

@@ -3,8 +3,7 @@ pub use cleanup::cleanup_foreshadowing_for_chapter;
 
 mod contracts;
 pub use contracts::{
-    ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingCleanupResult,
-    ForeshadowingDbError, ForeshadowingRecordInput,
+    ForeshadowingAnalysisDraft, ForeshadowingAnalysisSyncResult, ForeshadowingDbError,
 };
 
 mod records;

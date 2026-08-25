@@ -1,11 +1,6 @@
-use super::{
-    super::shared::has_configured_api_key,
-    contracts::{CreateEmbeddingInput, EmbeddingConfigSummary, UpdateEmbeddingInput},
-};
-use a4n_core::{
-    config::{CreateEmbeddingConfigParams, UpdateEmbeddingConfigParams},
-    models::ai::embedding_config,
-};
+use super::super::shared::has_configured_api_key;
+use a4n_api_contract::config::EmbeddingConfigSummary;
+use a4n_core::models::ai::embedding_config;
 
 pub(super) fn embedding_config_summary(config: &embedding_config::Model) -> EmbeddingConfigSummary {
     EmbeddingConfigSummary {
@@ -22,35 +17,9 @@ pub(super) fn embedding_config_summary(config: &embedding_config::Model) -> Embe
     }
 }
 
-pub(super) fn embedding_create_params(input: CreateEmbeddingInput) -> CreateEmbeddingConfigParams {
-    CreateEmbeddingConfigParams {
-        name: input.name,
-        backend: input.backend,
-        base_url: input.base_url,
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model,
-        dimension: input.dimension,
-        batch_size: input.batch_size,
-        local_model_path: input.local_model_path,
-    }
-}
-
-pub(super) fn embedding_update_params(input: UpdateEmbeddingInput) -> UpdateEmbeddingConfigParams {
-    UpdateEmbeddingConfigParams {
-        name: input.name,
-        backend: input.backend,
-        base_url: input.base_url,
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model,
-        dimension: input.dimension,
-        batch_size: input.batch_size,
-        local_model_path: input.local_model_path,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use a4n_api_contract::config::{CreateEmbeddingInput, UpdateEmbeddingInput};
 
     #[test]
     fn create_embedding_input_requires_batch_size() {

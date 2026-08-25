@@ -1,11 +1,11 @@
 use a4n_core::{
-    chapter_analysis::CHAPTER_ANALYSIS_STAGE_FORESHADOWING_EVENTS,
-    error::AppError,
-    models::{chapter::chapter, character::foreshadowing_index},
+    chapter_analysis::CHAPTER_ANALYSIS_STAGE_FORESHADOWING_EVENTS, error::AppError,
+    models::chapter::chapter,
 };
+use a4n_db::rag::RagForeshadowingRow;
 use a4n_domain::character::ForeshadowingStatus;
 use a4n_llm::provider::ChatRequest;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -48,7 +48,7 @@ pub async fn build_chapter_foreshadowing_events_request(
 
 pub fn chapter_foreshadowing_resolution_context(
     chapter_number: i32,
-    items: &[foreshadowing_index::Model],
+    items: &[RagForeshadowingRow],
 ) -> Value {
     Value::Array(
         items
@@ -78,8 +78,7 @@ pub fn chapter_foreshadowing_resolution_context(
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::models::character::foreshadowing_index;
-    use chrono::Utc;
+    use a4n_db::rag::RagForeshadowingRow;
 
     use super::chapter_foreshadowing_resolution_context;
 
@@ -88,19 +87,15 @@ mod tests {
         setup_chapter: i32,
         payoff_chapter: Option<i32>,
         status: &str,
-    ) -> foreshadowing_index::Model {
-        let now = Utc::now().naive_utc();
-        foreshadowing_index::Model {
+    ) -> RagForeshadowingRow {
+        RagForeshadowingRow {
             id,
-            project_id: 1,
             description: format!("伏笔 {id}"),
             setup_chapter,
             payoff_chapter,
             status: status.to_string(),
             related_characters: None,
             importance: 3,
-            created_at: now,
-            updated_at: now,
         }
     }
 

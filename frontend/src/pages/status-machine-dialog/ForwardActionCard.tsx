@@ -3,7 +3,8 @@ import { ArrowRight } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import type { ProjectStatus } from "../../api/project";
-import { PROJECT_STATUS_LABELS } from "../../api/generated/host";
+import { useI18n } from "../../i18n";
+import { projectStatusLabel } from "./statusLabels";
 
 interface ForwardActionCardProps {
   target: ProjectStatus;
@@ -16,14 +17,15 @@ export const ForwardActionCard: React.FC<ForwardActionCardProps> = ({
   acting,
   onForward,
 }) => {
+  const { t } = useI18n();
   const actionKey = `forward-${target}`;
 
   return (
     <section className="a4n-context-bar min-w-0 justify-between">
       <div className="min-w-0">
-        <div className="text-caption text-book-text-muted">可标记阶段</div>
+        <div className="text-caption text-book-text-muted">{t("statusMachine.canMarkStage")}</div>
         <div className="truncate text-xs font-medium text-book-text-main">
-          {PROJECT_STATUS_LABELS[target]}
+          {projectStatusLabel(target, t)}
         </div>
       </div>
       <BookButton
@@ -35,11 +37,11 @@ export const ForwardActionCard: React.FC<ForwardActionCardProps> = ({
       >
         {acting === actionKey ? (
           <span className="inline-flex items-center gap-1.5">
-            <LoadingSpinner size="sm" /> 推进中…
+            <LoadingSpinner size="sm" /> {t("statusMachine.forwarding")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-1.5">
-            <ArrowRight size={14} /> 推进
+            <ArrowRight size={14} /> {t("statusMachine.forward")}
           </span>
         )}
       </BookButton>

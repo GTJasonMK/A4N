@@ -14,12 +14,15 @@ mod anchors;
 mod common;
 mod galgame;
 mod generation;
+mod manga;
 mod media;
 mod package;
 mod source_snapshots;
 mod source_sync;
 mod text_core;
+mod video;
+mod visual_plan;
 
-pub use common::{snapshot_profile_key, validate_media_bytes};
-pub use media::validate_media_manifest;
-pub use package::validate_package_manifest;
+pub use common::validate_media_bytes;
+pub(crate) use media::validate_media_manifest;
+pub(crate) use package::validate_package_manifest;

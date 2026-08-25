@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::models::{
     character::{
@@ -6,8 +6,9 @@ use a4n_core::models::{
         protagonist_deletion_mark, protagonist_profile,
     },
     generation::{generation_run, generation_run_target},
+    project::blueprint_character,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use serde_json::Value;
 
 use crate::character::attributes::{apply_attribute_to_state, attribute_value_in_state};
@@ -15,7 +16,7 @@ use crate::character::{CharacterDbError, validate_timeline_source_kind};
 
 #[derive(Debug, Clone, Default)]
 pub(in crate::character) struct CharacterAttributeOwnership {
-    protected_from_chapter: BTreeMap<(String, String), i32>,
+    protected_from_chapter: HashMap<String, HashMap<String, i32>>,
 }
 
 impl CharacterAttributeOwnership {
@@ -26,13 +27,16 @@ impl CharacterAttributeOwnership {
         key: &str,
     ) -> bool {
         self.protected_from_chapter
-            .get(&(category.to_string(), key.to_string()))
+            .get(category)
+            .and_then(|attributes| attributes.get(key))
             .is_some_and(|protected_from| *protected_from <= chapter_number)
     }
 
     fn protect(&mut self, chapter_number: i32, category: &str, key: &str) {
         self.protected_from_chapter
-            .entry((category.to_string(), key.to_string()))
+            .entry(category.to_string())
+            .or_default()
+            .entry(key.to_string())
             .and_modify(|current| *current = (*current).min(chapter_number))
             .or_insert(chapter_number);
     }
@@ -114,32 +118,37 @@ where
     C: ConnectionTrait,
 {
     let profile_key = crate::project::normalized_blueprint_identity(&profile.name);
-    let blueprint_owned = crate::project::blueprint_characters_for_project(db, profile.project_id)
+    let blueprint_owned = blueprint_character::Entity::find()
+        .select_only()
+        .column(blueprint_character::Column::Name)
+        .filter(blueprint_character::Column::ProjectId.eq(profile.project_id))
+        .into_tuple::<String>()
+        .all(db)
         .await?
         .into_iter()
-        .any(|character| {
-            crate::project::normalized_blueprint_identity(&character.name) == profile_key
-        });
+        .any(|name| crate::project::normalized_blueprint_identity(&name) == profile_key);
     if blueprint_owned {
         return Ok(false);
     }
 
-    let targets = generation_run_target::Entity::find()
+    let run_ids = generation_run_target::Entity::find()
+        .select_only()
+        .column(generation_run_target::Column::GenerationRunId)
         .filter(generation_run_target::Column::TargetTable.eq("protagonist_profile"))
         .filter(generation_run_target::Column::TargetId.eq(profile.id))
+        .into_tuple::<i64>()
         .all(db)
         .await?;
-    if targets.is_empty() {
+    if run_ids.is_empty() {
         return Ok(false);
     }
-    let run_ids = targets
-        .into_iter()
-        .map(|target| target.generation_run_id)
-        .collect::<BTreeSet<_>>();
     Ok(generation_run::Entity::find()
+        .select_only()
+        .column(generation_run::Column::Id)
         .filter(generation_run::Column::Id.is_in(run_ids))
         .filter(generation_run::Column::Workflow.eq("character_discovery"))
         .filter(generation_run::Column::Status.eq("completed"))
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .is_some())
@@ -161,7 +170,7 @@ fn character_attribute_ownership_from_records(
     let event_attributes = events
         .iter()
         .map(|event| (event.category.as_str(), event.key.as_str()))
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     for (category, key, value) in attribute_entries(&profile.current_state) {
         if event_attributes.contains(&(category.as_str(), key.as_str())) {
             continue;
@@ -196,7 +205,7 @@ fn replay_profile_state_from_records(
     let event_attributes = events
         .iter()
         .map(|event| (event.category.as_str(), event.key.as_str()))
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     for (category, key, value) in attribute_entries(&profile.current_state) {
         if !event_attributes.contains(&(category.as_str(), key.as_str()))
             && attribute_value_in_state(&profile.base_attributes, &category, &key).as_ref()

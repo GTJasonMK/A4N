@@ -4,8 +4,8 @@ mod queries;
 mod upload;
 
 pub use a4n_api_contract::profile::{
-    ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
-    ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
+    ListProfileMaterialsInput, ProfileMaterialGroup, SetProfilePrimaryMaterialInput,
+    UploadProfileMaterialImageInput,
 };
 pub use list::list_profile_materials;
 pub use primary::set_profile_primary_material;

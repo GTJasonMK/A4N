@@ -14,10 +14,11 @@ use self::ids::validate_and_collect_manifest_ids;
 use self::payload::validate_payload_entries;
 use a4n_core::state::validator::parse_project_status;
 
-use crate::project::video_studio_package::{
-    ImportMediaPayload, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage,
+use crate::project::video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
+use crate::project::{
+    ImportMediaPayload, VideoStudioProjectPackage, normalize_project_type, required_text,
+    validate_freeform_video_project,
 };
-use crate::project::{normalize_project_type, required_text, validate_freeform_video_project};
 
 pub(super) fn validate_package_manifest(
     package: &VideoStudioProjectPackage,

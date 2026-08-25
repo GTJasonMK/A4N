@@ -5,6 +5,7 @@ import type { ModelRequestPreview } from "../../api/requestPreview";
 import type { ToastType } from "../../components/feedback/Toast";
 import { nonEmptyText } from "../../utils/text";
 import type { GenerationWordCountRange } from "./generationWordCount";
+import { useI18n } from "../../i18n";
 
 type AddToast = (message: string, type: ToastType) => void;
 
@@ -25,6 +26,7 @@ export function useChapterPromptPreview({
   wordCountRangeError,
   addToast,
 }: UseChapterPromptPreviewParams) {
+  const { t } = useI18n();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [previewData, setPreviewData] = useState<ModelRequestPreview | null>(
@@ -66,15 +68,15 @@ export function useChapterPromptPreview({
 
   const handlePreviewPrompt = useCallback(async () => {
     if (previewBusyRef.current) {
-      addToast("正在生成请求预览", "error");
+      addToast(t("writing.requestPreviewBusy"), "error");
       return;
     }
     if (!activeNumber) {
-      addToast("请先选择一章", "error");
+      addToast(t("writing.selectChapterFirst"), "error");
       return;
     }
     if (wordCountRangeError || !wordCountRange) {
-      addToast(wordCountRangeError ?? "正文字数范围无效", "error");
+      addToast(wordCountRangeError ?? t("writing.wordCountInvalid"), "error");
       return;
     }
 
@@ -98,7 +100,7 @@ export function useChapterPromptPreview({
       setPreviewData(result);
     } catch (err) {
       if (!isCurrentPreview(requestSeq, requestProjectId, requestChapterNumber)) return;
-      addToast(extractErrorMessage(err, "预览失败"), "error");
+      addToast(extractErrorMessage(err, t("writing.requestPreviewFailedGeneric")), "error");
       setPreviewOpen(false);
     } finally {
       if (isCurrentPreview(requestSeq, requestProjectId, requestChapterNumber)) {
@@ -114,6 +116,7 @@ export function useChapterPromptPreview({
     wordCountRange,
     wordCountRangeError,
     writingNotes,
+    t,
   ]);
 
   const closePromptPreview = useCallback(() => {

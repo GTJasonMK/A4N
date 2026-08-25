@@ -1,26 +1,37 @@
-use std::sync::{
-    Arc, Mutex,
-    atomic::{AtomicUsize, Ordering},
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
 
 use a4n_core::models::{
+    ai::{generated_image, generated_video},
+    chapter::{chapter, chapter_manga_prompt, chapter_shooting_script},
+    character::{character_portrait, protagonist_profile},
     media::media_asset,
-    project::{novel_project, project_source_snapshot},
+    project::{novel_project, project_source_snapshot, source_snapshot_chapter},
     user::user,
+};
+use a4n_domain::shooting_script::{
+    ChapterShootingScriptV1, ShootingVisualConstraintsV1, ShootingVisualPlanSourceV1,
 };
 use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
+use serde_json::{Value, json};
 
 use crate::project::{
-    ImportProjectPackageApplicationInput, PROJECT_FAMILY_PACKAGE_VERSION,
-    ProjectPackageFileHostPort, TextCorePackage,
+    FAMILY_PACKAGE_MANIFEST_PATH, ImportProjectPackageApplicationInput,
+    PROJECT_FAMILY_PACKAGE_VERSION, ProjectPackageFileHostPort, hash_json, hash_text,
+    media_file_key, sha256_bytes, validate_family_media_manifest, validate_family_package_manifest,
 };
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
 use super::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    FamilyImportMediaPayload, MediaFileEntry, ProjectFamilyExportRows, ProjectFamilyPackage,
+    ImportMediaPayload, MediaFileEntry, ProjectFamilyExportRows, ProjectFamilyPackage,
     ProjectFamilyTransferHostPort, ReadProjectFamilyPackage, imported_project_family_media_path,
     project_family_export_media_files,
 };
@@ -33,6 +44,48 @@ struct TestProjectFamilyTransferHost {
     read_package: Mutex<Option<ReadProjectFamilyPackage>>,
     written_paths: Vec<String>,
     rollback_calls: AtomicUsize,
+}
+
+#[derive(Default)]
+struct ZipProjectFamilyTransferHost {
+    files: Mutex<HashMap<String, Vec<u8>>>,
+    written_paths: Vec<String>,
+}
+
+impl ZipProjectFamilyTransferHost {
+    fn new(files: HashMap<String, Vec<u8>>) -> Self {
+        Self {
+            files: Mutex::new(files),
+            written_paths: Vec::new(),
+        }
+    }
+
+    fn read_package(package_bytes: &[u8]) -> Result<ReadProjectFamilyPackage, String> {
+        let (manifest, bytes) = a4n_import_core::read_media_package_zip_bytes(
+            package_bytes,
+            FAMILY_PACKAGE_MANIFEST_PATH,
+            "项目族 round-trip 包",
+            "项目族 round-trip 清单",
+        )
+        .map_err(|error| error.to_string())?;
+        let package: ProjectFamilyPackage =
+            a4n_import_core::parse_json_manifest_value(manifest, "项目族 round-trip 清单")
+                .map_err(|error| error.to_string())?;
+        let mut entries = HashMap::new();
+        for entry in &package.media_files {
+            let key = media_file_key(&entry.owner_kind, entry.owner_id, &entry.field);
+            if entries.insert(key, entry.clone()).is_some() {
+                return Err(format!(
+                    "项目族 round-trip 媒体索引重复: owner_kind={}, owner_id={}, field={}",
+                    entry.owner_kind, entry.owner_id, entry.field
+                ));
+            }
+        }
+        Ok(ReadProjectFamilyPackage {
+            package,
+            media_payload: ImportMediaPayload { entries, bytes },
+        })
+    }
 }
 
 impl TestProjectFamilyTransferHost {
@@ -86,6 +139,77 @@ impl ProjectPackageFileHostPort for TestProjectFamilyTransferHost {
 
     async fn rollback_imported_media_files(&mut self) -> Result<(), String> {
         self.rollback_calls.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl ProjectFamilyTransferHostPort for ZipProjectFamilyTransferHost {
+    async fn render_export_package(
+        &self,
+        package: &ProjectFamilyPackage,
+    ) -> Result<Vec<u8>, String> {
+        let files = self.files.lock().expect("round-trip files lock");
+        let entries = package
+            .media_files
+            .iter()
+            .map(|entry| {
+                let bytes = files
+                    .get(&entry.original_path)
+                    .cloned()
+                    .ok_or_else(|| format!("round-trip 导出媒体不存在: {}", entry.original_path))?;
+                Ok(a4n_export_core::ExportZipEntryBytes {
+                    path: entry.package_path.clone(),
+                    bytes,
+                    label: format!("round-trip 媒体 {}", entry.package_path),
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let manifest_bytes = serde_json::to_vec(package).map_err(|error| error.to_string())?;
+        a4n_export_core::render_zip_package(a4n_export_core::ExportZipPackageInput {
+            manifest_path: FAMILY_PACKAGE_MANIFEST_PATH.to_string(),
+            manifest_bytes,
+            manifest_label: "项目族 round-trip 清单".to_string(),
+            entries,
+            package_label: "项目族 round-trip 包".to_string(),
+        })
+        .map_err(|error| error.to_string())
+    }
+
+    async fn read_import_package(
+        &self,
+        package_bytes: Vec<u8>,
+    ) -> Result<ReadProjectFamilyPackage, String> {
+        Self::read_package(&package_bytes)
+    }
+}
+
+#[async_trait]
+impl ProjectPackageFileHostPort for ZipProjectFamilyTransferHost {
+    fn write_imported_media_file(
+        &mut self,
+        relative_path: &str,
+        bytes: &[u8],
+        _label: &str,
+    ) -> Result<(), String> {
+        if self
+            .files
+            .lock()
+            .expect("round-trip files lock")
+            .insert(relative_path.to_string(), bytes.to_vec())
+            .is_some()
+        {
+            return Err(format!("round-trip 导入媒体路径已存在: {relative_path}"));
+        }
+        self.written_paths.push(relative_path.to_string());
+        Ok(())
+    }
+
+    async fn rollback_imported_media_files(&mut self) -> Result<(), String> {
+        let mut files = self.files.lock().expect("round-trip files lock");
+        for path in self.written_paths.drain(..) {
+            files.remove(&path);
+        }
         Ok(())
     }
 }
@@ -254,30 +378,932 @@ fn media_index_and_import_path_preserve_field_and_extension() {
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
     });
+    rows.generated_videos.push(generated_video::Model {
+        id: 11,
+        project_id: 2,
+        chapter_id: None,
+        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+        workflow_mode: None,
+        file_path: Some("projects/2/video/output.webm".to_string()),
+        thumbnail_path: Some("projects/2/video/output.jpg".to_string()),
+        prompt: "prompt".to_string(),
+        negative_prompt: None,
+        model: "test".to_string(),
+        width: 1280,
+        height: 720,
+        duration_secs: 5.0,
+        fps: 24,
+        file_size: None,
+        source_video_id: None,
+        source_image_id: None,
+        status: generated_video::STATUS_COMPLETED.to_string(),
+        provider_job_id: None,
+        error_message: None,
+        timeline_item_id: None,
+        metadata_json: None,
+        is_favorite: false,
+        created_at: Utc::now().naive_utc(),
+        updated_at: Utc::now().naive_utc(),
+    });
 
     let media_files = project_family_export_media_files(&rows).expect("媒体索引应可组装");
-    assert_eq!(media_files.len(), 2);
+    assert_eq!(media_files.len(), 4);
     assert!(
         media_files
             .iter()
-            .any(|entry| entry.package_path == "media/10/file.mp4")
+            .any(|entry| entry.package_path == "media/media_asset/10/file_path.mp4")
     );
     assert!(
         media_files
             .iter()
-            .any(|entry| entry.package_path == "media/10/thumbnail.png")
+            .any(|entry| entry.package_path == "media/media_asset/10/thumbnail_path.png")
+    );
+    assert!(
+        media_files
+            .iter()
+            .any(|entry| entry.package_path == "media/generated_video/11/file_path.webm")
+    );
+    assert!(
+        media_files
+            .iter()
+            .any(|entry| entry.package_path == "media/generated_video/11/thumbnail_path.jpg")
     );
     assert_eq!(
         imported_project_family_media_path(
             20,
-            "video",
+            "media_asset",
             30,
             a4n_core::models::media::media_asset::THUMBNAIL_PATH_FIELD,
             "media/x.png",
         )
         .expect("导入路径应可生成"),
-        "projects/20/media/video/imported_package_30_thumbnail.png"
+        "projects/20/media/media_asset/imported_package_30_thumbnail_path.png"
     );
+}
+
+#[tokio::test]
+async fn manga_family_application_round_trip_remaps_all_owned_identities_and_media_paths() {
+    let (context, database) = setup().await;
+    let owner_user_id = insert_active_user(database.as_ref(), "manga-round-trip").await;
+    let (root, source_files) = seed_manga_family_round_trip(database.as_ref(), owner_user_id).await;
+    let mut host = ZipProjectFamilyTransferHost::new(source_files);
+
+    let exported = context
+        .export_project_family_package_validated(
+            ExportProjectFamilyPackageApplicationInput {
+                user_id: owner_user_id,
+                root_project_id: root.id,
+                include_derived_projects: true,
+            },
+            &host,
+        )
+        .await
+        .expect("完整漫画项目族应可导出真实 ZIP");
+    let original = ZipProjectFamilyTransferHost::read_package(&exported.package_bytes)
+        .expect("真实 ZIP 应可由 import-core 读取");
+    validate_family_package_manifest(&original.package).expect("原始项目族清单应通过严格校验");
+    validate_family_media_manifest(&original.package, &original.media_payload)
+        .expect("原始项目族媒体应通过严格校验");
+
+    let imported = context
+        .import_project_family_package_validated(
+            ImportProjectPackageApplicationInput {
+                user_id: owner_user_id,
+                package_bytes: exported.package_bytes,
+            },
+            &mut host,
+        )
+        .await
+        .expect("完整漫画项目族应通过 application 导入");
+    assert_eq!(imported.len(), 2);
+    let imported_root = imported
+        .iter()
+        .find(|project| project.project_kind == "text")
+        .expect("导入结果应包含根文本项目");
+    assert_ne!(imported_root.id, original.package.root_project_id);
+
+    let reexported = context
+        .export_project_family_package_validated(
+            ExportProjectFamilyPackageApplicationInput {
+                user_id: owner_user_id,
+                root_project_id: imported_root.id,
+                include_derived_projects: true,
+            },
+            &host,
+        )
+        .await
+        .expect("导入后的漫画项目族应可再次导出真实 ZIP");
+    let remapped = ZipProjectFamilyTransferHost::read_package(&reexported.package_bytes)
+        .expect("再次导出的真实 ZIP 应可读取");
+    validate_family_package_manifest(&remapped.package).expect("重映射清单应通过严格校验");
+    validate_family_media_manifest(&remapped.package, &remapped.media_payload)
+        .expect("重映射媒体应通过严格校验");
+
+    let old_root = original
+        .package
+        .projects
+        .iter()
+        .find(|project| project.project_kind == "text")
+        .expect("原始清单应包含根项目");
+    let old_comic = original
+        .package
+        .projects
+        .iter()
+        .find(|project| project.project_kind == "comic")
+        .expect("原始清单应包含漫画派生项目");
+    let new_root = remapped
+        .package
+        .projects
+        .iter()
+        .find(|project| project.project_kind == "text")
+        .expect("重映射清单应包含根项目");
+    let new_comic = remapped
+        .package
+        .projects
+        .iter()
+        .find(|project| project.project_kind == "comic")
+        .expect("重映射清单应包含漫画派生项目");
+    assert_ne!(old_root.id, new_root.id);
+    assert_ne!(old_comic.id, new_comic.id);
+    assert_eq!(remapped.package.root_project_id, new_root.id);
+    assert_eq!(new_comic.root_project_id, Some(new_root.id));
+
+    let old_chapter = &original.package.text_core.chapters[0];
+    let new_chapter = &remapped.package.text_core.chapters[0];
+    let old_profile = &original.package.text_core.character_profiles[0];
+    let new_profile = &remapped.package.text_core.character_profiles[0];
+    let old_snapshot = &original.package.source_snapshots[0];
+    let new_snapshot = &remapped.package.source_snapshots[0];
+    let old_snapshot_chapter = &original.package.source_snapshot_chapters[0];
+    let new_snapshot_chapter = &remapped.package.source_snapshot_chapters[0];
+    assert_ne!(old_chapter.id, new_chapter.id);
+    assert_ne!(old_profile.id, new_profile.id);
+    assert_ne!(old_snapshot.id, new_snapshot.id);
+    assert_ne!(old_snapshot_chapter.id, new_snapshot_chapter.id);
+    assert_eq!(new_chapter.project_id, new_root.id);
+    assert_eq!(new_profile.project_id, new_root.id);
+    assert_eq!(new_snapshot.root_project_id, new_root.id);
+    assert_eq!(new_snapshot_chapter.snapshot_id, new_snapshot.id);
+    assert_eq!(new_snapshot_chapter.root_project_id, new_root.id);
+    assert_eq!(new_snapshot_chapter.source_chapter_id, new_chapter.id);
+    assert_eq!(
+        new_snapshot.chapter_hashes_json[0]["source_chapter_id"],
+        json!(new_chapter.id)
+    );
+    assert_eq!(new_snapshot.profile_hashes_json, json!([]));
+    assert_eq!(new_comic.source_snapshot_id, Some(new_snapshot.id));
+
+    let old_plan = &original.package.chapter_visual_plans[0];
+    let new_plan = &remapped.package.chapter_visual_plans[0];
+    assert_ne!(old_plan.id, new_plan.id);
+    assert_eq!(old_plan.plan_sha256, new_plan.plan_sha256);
+    assert_eq!(old_plan.plan_json, new_plan.plan_json);
+    assert_eq!(new_plan.root_project_id, new_root.id);
+    assert_eq!(new_plan.source_chapter_id, new_chapter.id);
+    assert_eq!(new_plan.source_snapshot_id, Some(new_snapshot.id));
+    assert_eq!(
+        new_plan.source_snapshot_chapter_id,
+        Some(new_snapshot_chapter.id)
+    );
+    assert_eq!(new_plan.author_user_id, owner_user_id);
+    assert_eq!(old_snapshot_chapter.visual_plan_id, Some(old_plan.id));
+    assert_eq!(new_snapshot_chapter.visual_plan_id, Some(new_plan.id));
+    assert_eq!(
+        new_snapshot_chapter.visual_plan_version,
+        Some(new_plan.plan_version)
+    );
+    assert_eq!(
+        new_snapshot_chapter.visual_plan_sha256.as_deref(),
+        Some(new_plan.plan_sha256.as_str())
+    );
+
+    let old_script = &original.package.chapter_shooting_scripts[0];
+    let new_script = &remapped.package.chapter_shooting_scripts[0];
+    assert_ne!(old_script.id, new_script.id);
+    assert_ne!(old_script.script_sha256, new_script.script_sha256);
+    assert_eq!(new_script.root_project_id, new_root.id);
+    assert_eq!(new_script.source_chapter_id, new_chapter.id);
+    assert_eq!(new_script.source_snapshot_id, Some(new_snapshot.id));
+    assert_eq!(
+        new_script.source_snapshot_chapter_id,
+        Some(new_snapshot_chapter.id)
+    );
+    let new_source_revision_key = format!(
+        "snapshot:{}:chapter:{}:{}",
+        new_snapshot.id, new_snapshot_chapter.id, new_script.source_content_sha256
+    );
+    assert_eq!(new_script.source_revision_key, new_source_revision_key);
+    assert_eq!(old_script.visual_plan_id, Some(old_plan.id));
+    assert_eq!(new_script.visual_plan_id, Some(new_plan.id));
+    assert_eq!(new_script.visual_plan_version, Some(new_plan.plan_version));
+    assert_eq!(
+        new_script.visual_plan_sha256.as_deref(),
+        Some(new_plan.plan_sha256.as_str())
+    );
+    let typed_new_script: ChapterShootingScriptV1 =
+        serde_json::from_value(new_script.script_json.clone())
+            .expect("重映射拍摄剧本 JSON 应保持合法");
+    let typed_plan_source = typed_new_script
+        .visual_plan_source
+        .expect("重映射拍摄剧本应保留 visual plan 来源");
+    assert_eq!(typed_plan_source.plan_id, new_plan.id);
+    assert_eq!(typed_plan_source.plan_version, new_plan.plan_version);
+    assert_eq!(typed_plan_source.plan_sha256, new_plan.plan_sha256);
+
+    let old_portrait = &original.package.character_portraits[0];
+    let new_portrait = &remapped.package.character_portraits[0];
+    assert_ne!(old_portrait.id, new_portrait.id);
+    assert_eq!(new_portrait.project_id, new_root.id);
+    assert_eq!(new_portrait.profile_id, new_profile.id);
+    assert_eq!(
+        new_portrait.image_path,
+        format!(
+            "projects/{}/media/character_portrait/imported_package_{}_image_path.png",
+            new_root.id, new_portrait.id
+        )
+    );
+
+    let old_reference_image = original
+        .package
+        .generated_images
+        .iter()
+        .find(|image| image.panel_id.as_deref() == Some("reference"))
+        .expect("原始清单应包含参考图片");
+    let old_result_image = original
+        .package
+        .generated_images
+        .iter()
+        .find(|image| image.panel_id.as_deref() == Some("page-1"))
+        .expect("原始清单应包含结果图片");
+    let new_reference_image = remapped
+        .package
+        .generated_images
+        .iter()
+        .find(|image| image.panel_id.as_deref() == Some("reference"))
+        .expect("重映射清单应包含参考图片");
+    let new_result_image = remapped
+        .package
+        .generated_images
+        .iter()
+        .find(|image| image.panel_id.as_deref() == Some("page-1"))
+        .expect("重映射清单应包含结果图片");
+    assert_ne!(old_reference_image.id, new_reference_image.id);
+    assert_ne!(old_result_image.id, new_result_image.id);
+    for image in [new_reference_image, new_result_image] {
+        assert_eq!(image.project_id, new_comic.id);
+        assert_eq!(image.chapter_id, Some(new_chapter.id));
+        assert_eq!(
+            image.file_path,
+            format!(
+                "projects/{}/media/generated_image/imported_package_{}_file_path.png",
+                new_comic.id, image.id
+            )
+        );
+    }
+
+    let old_prompt = &original.package.chapter_manga_prompts[0];
+    let new_prompt = &remapped.package.chapter_manga_prompts[0];
+    assert_ne!(old_prompt.id, new_prompt.id);
+    assert_eq!(new_prompt.project_id, new_comic.id);
+    assert_eq!(new_prompt.chapter_id, new_chapter.id);
+    assert_eq!(new_prompt.generated_image_id, Some(new_result_image.id));
+    let new_layout = new_prompt
+        .layout
+        .as_ref()
+        .expect("漫画提示词应保留 v2 layout");
+    assert_eq!(
+        new_layout["schema_version"],
+        json!("manga_page_generation_v2")
+    );
+    assert!(new_layout.get("shooting_script_id").is_none());
+    assert!(new_layout.get("shooting_script_revision").is_none());
+    assert_eq!(new_layout["source"]["root_project_id"], json!(new_root.id));
+    assert_eq!(
+        new_layout["source"]["source_chapter_id"],
+        json!(new_chapter.id)
+    );
+    assert_eq!(
+        new_layout["source"]["source_snapshot_id"],
+        json!(new_snapshot.id)
+    );
+    assert_eq!(
+        new_layout["source"]["source_snapshot_chapter_id"],
+        json!(new_snapshot_chapter.id)
+    );
+    assert_eq!(
+        new_layout["source"]["source_revision_key"],
+        json!(new_source_revision_key)
+    );
+    assert_eq!(
+        new_layout["source"]["shooting_script_id"],
+        json!(new_script.id)
+    );
+    assert_eq!(
+        new_layout["reference_bindings"][0]["bound_asset"]["asset_id"],
+        json!(new_portrait.id)
+    );
+    assert_eq!(
+        new_layout["reference_bindings"][0]["bound_asset"]["image_path"],
+        json!(new_portrait.image_path)
+    );
+    assert_eq!(
+        new_layout["reference_bindings"][1]["bound_asset"]["asset_id"],
+        json!(new_reference_image.id)
+    );
+    assert_eq!(
+        new_layout["reference_bindings"][1]["bound_asset"]["image_path"],
+        json!(new_reference_image.file_path)
+    );
+
+    let result_metadata = new_result_image
+        .metadata_json
+        .as_ref()
+        .expect("漫画结果图片应保留 metadata_json");
+    assert_eq!(result_metadata["page_prompt_id"], json!(new_prompt.id));
+    assert_eq!(
+        result_metadata["reference_bindings"][0]["bound_asset"]["asset_id"],
+        json!(new_portrait.id)
+    );
+    assert_eq!(
+        result_metadata["reference_bindings"][1]["bound_asset"]["asset_id"],
+        json!(new_reference_image.id)
+    );
+    assert_eq!(
+        result_metadata["generation"]["chapter_id"],
+        json!(new_chapter.id)
+    );
+    assert_eq!(
+        result_metadata["generation_context"]["reference_bindings"][1]["bound_asset"]["image_path"],
+        json!(new_reference_image.file_path)
+    );
+
+    for (owner_kind, owner_id, field, original_path) in [
+        (
+            "character_portrait",
+            new_portrait.id,
+            "image_path",
+            new_portrait.image_path.as_str(),
+        ),
+        (
+            "generated_image",
+            new_reference_image.id,
+            "file_path",
+            new_reference_image.file_path.as_str(),
+        ),
+        (
+            "generated_image",
+            new_result_image.id,
+            "file_path",
+            new_result_image.file_path.as_str(),
+        ),
+    ] {
+        let entry = remapped
+            .package
+            .media_files
+            .iter()
+            .find(|entry| {
+                entry.owner_kind == owner_kind && entry.owner_id == owner_id && entry.field == field
+            })
+            .expect("重映射 owner 应拥有唯一媒体条目");
+        assert_eq!(entry.original_path, original_path);
+        assert_eq!(
+            entry.package_path,
+            format!("media/{owner_kind}/{owner_id}/{field}.png")
+        );
+        assert!(
+            remapped
+                .media_payload
+                .bytes
+                .contains_key(&entry.package_path)
+        );
+    }
+    assert_eq!(host.written_paths.len(), remapped.package.media_files.len());
+}
+
+async fn seed_manga_family_round_trip(
+    database: &a4n_db::DatabaseConnection,
+    user_id: i64,
+) -> (novel_project::Model, HashMap<String, Vec<u8>>) {
+    let now = Utc::now().naive_utc();
+    let root = insert_project(database, user_id, "text", None).await;
+    let chapter = chapter::ActiveModel {
+        project_id: Set(root.id),
+        outline_id: Set(None),
+        chapter_number: Set(1),
+        title: Set(Some("第一章".to_string())),
+        content: Set("主角推开大厅门并停在暗廊前。".to_string()),
+        word_count: Set(16),
+        status: Set("completed".to_string()),
+        summary: Set(Some("主角发现暗廊异常".to_string())),
+        style_tags: Set(None),
+        analysis_data: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 根章节应可写入");
+    let profile = protagonist_profile::ActiveModel {
+        project_id: Set(root.id),
+        name: Set("主角".to_string()),
+        gender: Set(None),
+        age: Set(None),
+        base_attributes: Set(json!({})),
+        current_state: Set(json!({})),
+        character_arc: Set(None),
+        voice_fingerprint: Set(None),
+        appearance: Set(Some("黑发，深色外套".to_string())),
+        background: Set(None),
+        personality: Set(Some("谨慎".to_string())),
+        last_synced_chapter: Set(1),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 角色档案应可写入");
+    let content_hash = hash_text(&chapter.content);
+    let chapter_hashes = json!([{
+        "source_chapter_id": chapter.id,
+        "chapter_number": chapter.chapter_number,
+        "content_hash": content_hash,
+        "analysis_hash": null
+    }]);
+    let chapter_scope = json!({"start": 1, "end": 1});
+    let profile_hashes = json!([]);
+    let snapshot = project_source_snapshot::ActiveModel {
+        root_project_id: Set(root.id),
+        source_version_hash: Set(hash_json(&json!({
+            "root_project_id": root.id,
+            "chapter_scope": chapter_scope,
+            "chapter_hashes": chapter_hashes,
+            "profile_hashes": profile_hashes,
+            "blueprint_version_id": null
+        }))),
+        blueprint_version_id: Set(None),
+        chapter_scope_json: Set(chapter_scope),
+        chapter_hashes_json: Set(chapter_hashes),
+        profile_hashes_json: Set(profile_hashes),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 源快照应可写入");
+    let snapshot_chapter = source_snapshot_chapter::ActiveModel {
+        snapshot_id: Set(snapshot.id),
+        root_project_id: Set(root.id),
+        source_chapter_id: Set(chapter.id),
+        chapter_number: Set(chapter.chapter_number),
+        title: Set(chapter.title.clone()),
+        content: Set(chapter.content.clone()),
+        summary: Set(chapter.summary.clone()),
+        analysis_data_json: Set(None),
+        content_hash: Set(content_hash.clone()),
+        analysis_hash: Set(None),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 源快照章节应可写入");
+    let comic = novel_project::ActiveModel {
+        user_id: Set(user_id),
+        title: Set("round-trip-comic".to_string()),
+        description: Set("round-trip comic derived project".to_string()),
+        project_type: Set("novel_long".to_string()),
+        project_kind: Set("comic".to_string()),
+        root_project_id: Set(Some(root.id)),
+        source_snapshot_id: Set(Some(snapshot.id)),
+        source_sync_status: Set("current".to_string()),
+        status: Set("draft".to_string()),
+        target_chapters: Set(1),
+        current_chapter: Set(1),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 漫画派生项目应可写入");
+
+    let source = a4n_db::project::ResolvedChapterSource {
+        requested_project_id: comic.id,
+        root_project_id: root.id,
+        source_chapter_id: chapter.id,
+        source_snapshot_id: Some(snapshot.id),
+        source_snapshot_chapter_id: Some(snapshot_chapter.id),
+        chapter_number: chapter.chapter_number,
+        title: chapter.title.clone(),
+        summary: chapter.summary.clone(),
+        analysis_data_json: None,
+        content: chapter.content.clone(),
+        content_sha256: content_hash.clone(),
+        source_revision_key: format!(
+            "snapshot:{}:chapter:{}:{}",
+            snapshot.id, snapshot_chapter.id, content_hash
+        ),
+    };
+    let source_spans = a4n_core::source_spans::source_spans_for_content(
+        chapter.id,
+        chapter.chapter_number,
+        &chapter.content,
+    );
+    let plan = crate::chapter_visual_plan::starter_plan(&source, &source_spans)
+        .expect("round-trip visual plan fixture 应满足领域合同");
+    let draft = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
+        database,
+        a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
+            source,
+            author_user_id: user_id,
+            authoring_mode: a4n_domain::chapter_visual_plan::ChapterVisualPlanAuthoringMode::Manual,
+            expected: None,
+            plan,
+        },
+    )
+    .await
+    .expect("round-trip visual plan 草稿应可写入");
+    let visual_plan = a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
+        database,
+        a4n_db::chapter_visual_plan::ConfirmChapterVisualPlanInput {
+            record_id: draft.record.id,
+            expected_revision: draft.record.revision,
+        },
+    )
+    .await
+    .expect("round-trip visual plan 应可确认")
+    .visual_plan;
+
+    let typed_script = round_trip_shooting_script(&visual_plan);
+    typed_script
+        .validate()
+        .expect("round-trip 拍摄剧本 fixture 应满足领域合同");
+    let script_json = serde_json::to_value(&typed_script).expect("序列化拍摄剧本 fixture");
+    let script_sha256 =
+        sha256_bytes(&serde_json::to_vec(&typed_script).expect("序列化拍摄剧本 fixture 字节"));
+    let source_revision_key = format!(
+        "snapshot:{}:chapter:{}:{}",
+        snapshot.id, snapshot_chapter.id, content_hash
+    );
+    let script = chapter_shooting_script::ActiveModel {
+        root_project_id: Set(root.id),
+        source_chapter_id: Set(chapter.id),
+        source_snapshot_id: Set(Some(snapshot.id)),
+        source_snapshot_chapter_id: Set(Some(snapshot_chapter.id)),
+        source_revision_key: Set(source_revision_key.clone()),
+        source_content_sha256: Set(content_hash.clone()),
+        visual_plan_id: Set(Some(visual_plan.record.id)),
+        visual_plan_version: Set(Some(visual_plan.record.plan_version)),
+        visual_plan_sha256: Set(Some(visual_plan.record.plan_sha256.clone())),
+        input_fingerprint_sha256: Set(sha256_bytes(b"round-trip shooting input")),
+        contract_version: Set("chapter_shooting_script_v1".to_string()),
+        revision: Set(1),
+        script_sha256: Set(script_sha256.clone()),
+        script_json: Set(script_json),
+        workflow_run_id: Set(None),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 拍摄剧本应可写入");
+
+    let portrait_path = format!("projects/{}/portraits/hero.png", root.id);
+    let portrait = character_portrait::ActiveModel {
+        profile_id: Set(profile.id),
+        project_id: Set(root.id),
+        portrait_type: Set("full_body".to_string()),
+        image_path: Set(portrait_path.clone()),
+        prompt: Set("主角全身立绘".to_string()),
+        expression: Set(Some("警惕".to_string())),
+        pose: Set(Some("站立".to_string())),
+        is_primary: Set(true),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 角色立绘应可写入");
+    let reference_image_path = format!("projects/{}/images/reference.png", comic.id);
+    let reference_image_bytes = b"round-trip-reference-image".to_vec();
+    let reference_image = generated_image::ActiveModel {
+        project_id: Set(comic.id),
+        image_type: Set("illustration".to_string()),
+        file_path: Set(reference_image_path.clone()),
+        prompt: Set("主角参考图".to_string()),
+        model: Set("round-trip-model".to_string()),
+        width: Set(512),
+        height: Set(512),
+        file_size: Set(Some(reference_image_bytes.len() as i64)),
+        ai_score: Set(None),
+        is_favorite: Set(false),
+        chapter_id: Set(Some(chapter.id)),
+        panel_id: Set(Some("reference".to_string())),
+        metadata_json: Set(None),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 参考生成图片应可写入");
+    let result_image_path = format!("projects/{}/images/page-1.png", comic.id);
+    let result_image_bytes = b"round-trip-result-image".to_vec();
+    let result_image = generated_image::ActiveModel {
+        project_id: Set(comic.id),
+        image_type: Set("manga_page".to_string()),
+        file_path: Set(result_image_path.clone()),
+        prompt: Set("漫画第一页".to_string()),
+        model: Set("round-trip-model".to_string()),
+        width: Set(1024),
+        height: Set(1536),
+        file_size: Set(Some(result_image_bytes.len() as i64)),
+        ai_score: Set(None),
+        is_favorite: Set(false),
+        chapter_id: Set(Some(chapter.id)),
+        panel_id: Set(Some("page-1".to_string())),
+        metadata_json: Set(None),
+        created_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 漫画结果图片应可写入");
+    let reference_bindings = json!([
+        {
+            "character_name": "主角",
+            "bound_asset": {
+                "asset_kind": "character_portrait",
+                "asset_id": portrait.id,
+                "image_path": portrait.image_path
+            }
+        },
+        {
+            "character_name": "主角参考图",
+            "bound_asset": {
+                "asset_kind": "generated_image",
+                "asset_id": reference_image.id,
+                "image_path": reference_image.file_path
+            }
+        }
+    ]);
+    let layout = round_trip_manga_layout(
+        &root,
+        &chapter,
+        &snapshot,
+        &snapshot_chapter,
+        &script,
+        reference_bindings.clone(),
+    );
+    let prompt = chapter_manga_prompt::ActiveModel {
+        chapter_id: Set(chapter.id),
+        project_id: Set(comic.id),
+        page_number: Set(1),
+        prompt_type: Set("page_generation".to_string()),
+        image_prompt: Set("整页漫画：主角停在暗廊前".to_string()),
+        dialogue_text: Set(None),
+        characters_in_frame: Set(Some(json!(["主角"]))),
+        layout: Set(Some(layout.clone())),
+        generated_image_id: Set(Some(result_image.id)),
+        status: Set("completed".to_string()),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(database)
+    .await
+    .expect("round-trip 漫画提示词应可写入");
+    generated_image::ActiveModel {
+        id: Set(result_image.id),
+        metadata_json: Set(Some(json!({
+            "page_prompt_id": prompt.id,
+            "reference_bindings": reference_bindings,
+            "generation": {"chapter_id": chapter.id},
+            "generation_context": {
+                "reference_bindings": layout["reference_bindings"].clone()
+            }
+        }))),
+        ..Default::default()
+    }
+    .update(database)
+    .await
+    .expect("round-trip 漫画结果图片 metadata 应可更新");
+
+    (
+        root,
+        HashMap::from([
+            (portrait_path, b"round-trip-portrait".to_vec()),
+            (reference_image_path, reference_image_bytes),
+            (result_image_path, result_image_bytes),
+        ]),
+    )
+}
+
+fn round_trip_shooting_script(
+    visual_plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+) -> ChapterShootingScriptV1 {
+    let mut script: ChapterShootingScriptV1 = serde_json::from_str(
+        r#"{
+        "schema_version": "chapter_shooting_script_v1",
+        "directing_statement": {
+            "central_dramatic_question": "主角能否确认异常",
+            "protagonist_throughline": "克制恐惧并继续调查",
+            "audience_experience": "逐步感到紧张",
+            "viewpoint_strategy": "限制在主角感知范围",
+            "visual_strategy": "保持空间关系清晰",
+            "spatial_strategy": "由门口移动到暗廊",
+            "sound_strategy": "用脚步和停顿制造悬念",
+            "rhythm_strategy": "进入、停顿、观察"
+        },
+        "scenes": [{
+            "scene_index": 1,
+            "scene_identity": "hall",
+            "sequence_index": 1,
+            "narrative_unit_index": 1,
+            "timeline_position": 1,
+            "intercut_group_id": null,
+            "editing_mode": "continuity",
+            "transition_contracts": [],
+            "title": "进入大厅",
+            "slugline": "内景 大厅 夜",
+            "location": "大厅",
+            "time_of_day": "夜",
+            "participants": ["主角"],
+            "focal_character": "主角",
+            "source_span_ids": ["span-1"],
+            "dramatic_question": "暗处是否存在威胁",
+            "scene_objective": "确认大厅状况",
+            "scene_obstacle": "昏暗遮蔽视线",
+            "relationship_before": "主角独自行动",
+            "relationship_after": "主角意识到自己可能被观察",
+            "audience_knowledge_before": ["大厅昏暗"],
+            "audience_knowledge_after": ["暗廊可能存在异常"],
+            "withheld_information": ["暗处人物身份"],
+            "viewpoint": {
+                "mode": "limited_third_person",
+                "anchor_character": "主角",
+                "information_strategy": "只展示主角可感知的信息"
+            },
+            "spatial_continuity": {
+                "continuity_intent": "transparent",
+                "primary_axis": "门口到暗廊",
+                "screen_direction": "由左向右",
+                "reorientation_strategy": null
+            },
+            "sound_strategy": "突出脚步和停顿",
+            "entry_state": "主角站在门口",
+            "exit_state": "主角停在暗廊前",
+            "shots": [{
+                "shot_index": 1,
+                "shot_id": "shot-1",
+                "title": "进入",
+                "source_span_ids": ["span-1"],
+                "coverage": "must_show",
+                "narrative_purpose": "建立空间并发现异常",
+                "subject": "主角",
+                "shot_size": "medium",
+                "camera_angle": "eye_level",
+                "camera_height": "eye",
+                "lens_intent": "保持空间关系清晰",
+                "camera_movement": "push_in",
+                "composition": "主角位于画面左侧",
+                "spatial_anchors": ["门口", "暗廊"],
+                "blocking": {"start": "门口", "movement": "走向暗廊", "end": "暗廊前"},
+                "performance_beats": [{
+                    "beat_index": 1,
+                    "beat_id": "beat-1",
+                    "source_span_ids": ["span-1"],
+                    "actor": "主角",
+                    "objective": "确认异常",
+                    "obstacle": "视线受阻",
+                    "visible_action": "放慢脚步观察暗廊",
+                    "reaction": null,
+                    "expression": "紧张",
+                    "gaze": "看向暗廊",
+                    "pose_or_movement": "收紧肩膀",
+                    "dialogue_intent": null,
+                    "audience_question": "暗处是否有人",
+                    "answer_or_delay": "暂不揭示",
+                    "knowledge_delta": ["暗廊存在异常"],
+                    "relationship_delta": null,
+                    "spatial_change": "从门口移动到暗廊",
+                    "entry_state": "谨慎",
+                    "exit_state": "警惕",
+                    "required": true,
+                    "estimated_seconds": 2.0
+                }],
+                "dialogue_cues": [],
+                "sound": {
+                    "dialogue": [],
+                    "environment": ["大厅回声"],
+                    "effects": ["脚步声"],
+                    "music": [],
+                    "silence": ["观察前停顿"]
+                },
+                "camera_start_state": "平视中景",
+                "camera_end_state": "平视中景",
+                "start_state": "主角在门口",
+                "end_state": "主角在暗廊前",
+                "transition_in": "从开门动作开始",
+                "transition_out": "停在暗廊前",
+                "continuity_requirements": ["暗廊保持在画面右侧"],
+                "estimated_natural_seconds": 2.0
+            }]
+        }]
+    }"#,
+    )
+    .expect("round-trip 拍摄剧本 JSON fixture 应匹配领域合同");
+    let unit = &visual_plan.plan.narrative_units[0];
+    let planned_shot = &unit.shots[0];
+    script.visual_plan_source = Some(ShootingVisualPlanSourceV1 {
+        plan_id: visual_plan.record.id,
+        plan_version: visual_plan.record.plan_version,
+        plan_sha256: visual_plan.record.plan_sha256.clone(),
+    });
+    script.user_additions = visual_plan.plan.user_additions.clone();
+    let scene = &mut script.scenes[0];
+    scene.source_span_ids = unit.source_span_ids.clone();
+    scene.visual_narrative_unit_id = Some(unit.id.clone());
+    scene.user_addition_ids = unit.user_addition_ids.clone();
+    let shot = &mut scene.shots[0];
+    shot.shot_id = planned_shot.id.clone();
+    shot.source_span_ids = planned_shot.source_span_ids.clone();
+    shot.visual_shot_id = Some(planned_shot.id.clone());
+    shot.planned_start_ms = Some(planned_shot.start_ms);
+    shot.planned_end_ms = Some(planned_shot.end_ms);
+    shot.user_addition_ids = planned_shot.user_addition_ids.clone();
+    shot.visual_constraints = Some(ShootingVisualConstraintsV1 {
+        keyframes: planned_shot.keyframes.clone(),
+        entity_events: planned_shot.entity_events.clone(),
+        camera_events: planned_shot.camera_events.clone(),
+        sound_events: planned_shot.sound_events.clone(),
+        technique_events: planned_shot.technique_events.clone(),
+        continuity_notes: planned_shot.continuity_notes.clone(),
+    });
+    shot.coverage = planned_shot.coverage;
+    shot.performance_beats[0].source_span_ids = planned_shot.source_span_ids.clone();
+    shot.performance_beats[0].user_addition_ids = planned_shot.user_addition_ids.clone();
+    script
+}
+
+fn round_trip_manga_layout(
+    root: &novel_project::Model,
+    chapter: &chapter::Model,
+    snapshot: &project_source_snapshot::Model,
+    snapshot_chapter: &source_snapshot_chapter::Model,
+    script: &chapter_shooting_script::Model,
+    reference_bindings: Value,
+) -> Value {
+    json!({
+        "schema_version": "manga_page_generation_v2",
+        "page_plan": {
+            "page_number": 1,
+            "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+            "role": "setup",
+            "pacing": "medium",
+            "importance": "normal",
+            "reading_flow": "top_to_bottom_left_to_right",
+            "page_goal": "推进场景",
+            "visual_thesis": "主角与暗廊对峙",
+            "entry_state": "主角站在门口",
+            "exit_state": "主角停在暗廊前",
+            "dominant_panel_number": 1,
+            "panels": [{
+                "panel_number": 1,
+                "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                "function": "dialogue",
+                "size": "dominant",
+                "shot_scale": "medium",
+                "camera_angle": "eye_level",
+                "participants": ["主角"],
+                "composition": "主角位于左侧，暗廊位于右侧",
+                "observable_action": "主角抬头看向暗廊",
+                "reaction": "主角收紧肩膀",
+                "spatial_relationship": "主角在门口，暗廊在前方",
+                "continuity_from_previous": null,
+                "text_layers": []
+            }]
+        },
+        "drawing_prompt": {
+            "schema_version": "manga_page_drawing_prompt_v2",
+            "page_number": 1,
+            "image_prompt": "整页漫画：主角停在暗廊前"
+        },
+        "reference_bindings": reference_bindings,
+        "prompt_fingerprint": {"hash": "round-trip"},
+        "source": {
+            "root_project_id": root.id,
+            "source_chapter_id": chapter.id,
+            "source_snapshot_id": snapshot.id,
+            "source_snapshot_chapter_id": snapshot_chapter.id,
+            "source_revision_key": script.source_revision_key,
+            "content_sha256": script.source_content_sha256,
+            "shooting_script_id": script.id,
+            "shooting_script_revision": 1,
+            "shooting_script_sha256": script.script_sha256
+        }
+    })
 }
 
 async fn setup() -> (OrchestratorContext, Arc<a4n_db::DatabaseConnection>) {
@@ -324,11 +1350,11 @@ async fn insert_project(
                 source_version_hash: Set(format!("family-transfer-snapshot-{root_project_id}")),
                 blueprint_version_id: Set(None),
                 chapter_scope_json: Set(serde_json::json!({
-                    "start_chapter": 1,
-                    "end_chapter": 1
+                    "start": 1,
+                    "end": 1
                 })),
                 chapter_hashes_json: Set(serde_json::json!([])),
-                profile_hashes_json: Set(serde_json::json!({})),
+                profile_hashes_json: Set(serde_json::json!([])),
                 created_at: Set(now),
                 ..Default::default()
             }
@@ -401,13 +1427,18 @@ fn empty_package(root: novel_project::Model) -> ProjectFamilyPackage {
         mode: "project_family".to_string(),
         root_project_id: root.id,
         projects: vec![root],
-        text_core: TextCorePackage::default(),
+        text_core: a4n_db::project::ProjectFamilyTextCoreRows::default(),
         source_snapshots: Vec::new(),
         source_snapshot_chapters: Vec::new(),
         source_snapshot_outlines: Vec::new(),
         source_snapshot_profiles: Vec::new(),
         text_anchors: Vec::new(),
         profile_evidence: Vec::new(),
+        chapter_visual_plans: Vec::new(),
+        chapter_shooting_scripts: Vec::new(),
+        character_portraits: Vec::new(),
+        generated_images: Vec::new(),
+        chapter_manga_prompts: Vec::new(),
         generation_specs: Vec::new(),
         generation_spec_text_anchors: Vec::new(),
         generation_spec_entity_refs: Vec::new(),
@@ -420,6 +1451,8 @@ fn empty_package(root: novel_project::Model) -> ProjectFamilyPackage {
         galgame_scenes: Vec::new(),
         galgame_lines: Vec::new(),
         galgame_choices: Vec::new(),
+        chapter_video_prompts: Vec::new(),
+        generated_videos: Vec::new(),
         video_segments: Vec::new(),
         assembly_timelines: Vec::new(),
         assembly_clips: Vec::new(),
@@ -430,8 +1463,8 @@ fn empty_package(root: novel_project::Model) -> ProjectFamilyPackage {
     }
 }
 
-fn empty_media_payload() -> FamilyImportMediaPayload {
-    FamilyImportMediaPayload {
+fn empty_media_payload() -> ImportMediaPayload {
+    ImportMediaPayload {
         entries: Default::default(),
         bytes: Default::default(),
     }

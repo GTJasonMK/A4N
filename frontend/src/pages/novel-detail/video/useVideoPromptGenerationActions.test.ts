@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChapterRow } from "../shared";
 import type { ChapterVideoPrompt, VideoSegmentExecutionRecipe } from "../../../api/video";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
+import { translateMessage, type MessageTranslator } from "../../../i18n";
 import {
   DEFAULT_VIDEO_OPTIONS,
   videoDurationLimitsFromConfig,
@@ -15,13 +16,17 @@ const mocks = vi.hoisted(() => ({
   confirmDialog: vi.fn(),
 }));
 
-vi.mock("../../../api/video", () => ({
+const t: MessageTranslator = (key, params) => translateMessage("zh-CN", key, params);
+
+vi.mock("../../../api/video", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../api/video")>()),
   startChapterVideoFramePrompts: mocks.startChapterVideoFramePrompts,
   startChapterVideoPrompts: mocks.startChapterVideoPrompts,
   startChapterVideoSegmentPlan: mocks.startChapterVideoSegmentPlan,
 }));
 
-vi.mock("../../../api/image", () => ({
+vi.mock("../../../api/image", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../api/image")>()),
   startImageGeneration: vi.fn(),
   uploadImage: vi.fn(),
   verifyImageGenerationResult: vi.fn(),
@@ -128,6 +133,8 @@ describe("video segment-plan generation actions", () => {
       allFinalVideoPrompts: [],
       currentContentHash: null,
       actionScopeKey: "19:3",
+      locale: "zh-CN",
+      t,
       addToast,
       runProgressTask: vi.fn(),
       loadAll: vi.fn().mockResolvedValue(undefined),
@@ -172,6 +179,8 @@ describe("video segment-plan generation actions", () => {
       allFinalVideoPrompts: [],
       currentContentHash: null,
       actionScopeKey: "19:3",
+      locale: "zh-CN",
+      t,
       addToast: vi.fn(),
       runProgressTask: vi.fn(),
       loadAll: vi.fn().mockResolvedValue(undefined),

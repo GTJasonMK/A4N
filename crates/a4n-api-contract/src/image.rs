@@ -38,6 +38,13 @@ pub struct ListImagesByProjectInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
+pub struct ListImagesByProjectsInput {
+    #[schemars(length(min = 1))]
+    pub project_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
 pub struct ListImagesByChapterInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,

@@ -17,6 +17,7 @@ import { RequestPreviewModal } from "../../components/feedback/RequestPreviewMod
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
+import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../i18n";
 import {
   attributeKeyLabel,
   behaviorTypeLabel,
@@ -36,11 +37,11 @@ const parseReviewParameter = (value: string): number | null => {
   return Math.max(1, Math.min(IMPLICIT_REVIEW_PARAMETER_MAX, Math.floor(parsed)));
 };
 
-const formatPercent = (value: number): string => {
+const formatPercent = (value: number, locale: Locale, t: MessageTranslator): string => {
   if (!Number.isFinite(value)) {
-    throw new Error("隐性属性复审比例不是有效数字");
+    throw new Error(t("characterDetail.implicit.invalidPercent"));
   }
-  return `${Math.round(value * 100)}%`;
+  return `${formatNumber(Math.round(value * 100), locale)}%`;
 };
 
 const implicitReviewScopeKey = (
@@ -55,6 +56,7 @@ export const ImplicitReviewManager: React.FC<{
   onChanged?: () => void | Promise<void>;
 }> = ({ profileId, defaultChapter, onChanged }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const [review, setReview] = useState<ImplicitReview | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
@@ -174,7 +176,7 @@ export const ImplicitReviewManager: React.FC<{
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "加载隐性复审失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.implicit.loadFailed")), "error");
     } finally {
       if (
         isCurrentParams(requestProfileId, requestWindow, requestThreshold) &&
@@ -186,7 +188,7 @@ export const ImplicitReviewManager: React.FC<{
         loadingRef.current = false;
       }
     }
-  }, [addToast, isCurrentParams, profileId]);
+  }, [addToast, isCurrentParams, profileId, t]);
 
   useEffect(() => {
     invalidateReviewScope();
@@ -232,7 +234,7 @@ export const ImplicitReviewManager: React.FC<{
         return;
       }
       setDecisions((current) => ({ ...current, [attributeKey]: decision }));
-      addToast("已生成复审建议", "success");
+      addToast(t("characterDetail.implicit.generated"), "success");
     } catch (err) {
       if (
         !isCurrentParams(requestProfileId, requestWindow, requestThreshold) ||
@@ -240,7 +242,7 @@ export const ImplicitReviewManager: React.FC<{
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "生成复审建议失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.implicit.generateFailed")), "error");
     } finally {
       if (
         isCurrentParams(requestProfileId, requestWindow, requestThreshold) &&
@@ -287,7 +289,7 @@ export const ImplicitReviewManager: React.FC<{
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "预览复审请求失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.implicit.previewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (
@@ -309,7 +311,7 @@ export const ImplicitReviewManager: React.FC<{
     const reason = decision.reasoning.trim();
     const evidence = decision.evidence_summary.trim();
     if (!reason || !evidence) {
-      addToast("复审建议缺少原因或证据，不能应用", "error");
+      addToast(t("characterDetail.implicit.missingReasonEvidence"), "error");
       return;
     }
 
@@ -328,12 +330,18 @@ export const ImplicitReviewManager: React.FC<{
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
 
       if (result.action === "modify") {
-        addToast("已应用隐性属性修改", "success");
+        addToast(t("characterDetail.implicit.applied"), "success");
       } else if (result.action === "mark_deletion" && result.deletion_mark) {
         addToast(
           result.deletion_mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
-            ? `删除标记已达到阈值 ${result.deletion_mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`
-            : `已记录删除标记 ${result.deletion_mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`,
+            ? t("characterDetail.implicit.thresholdReached", {
+                count: result.deletion_mark.consecutive_count,
+                threshold: CHARACTER_DELETION_THRESHOLD,
+              })
+            : t("characterDetail.implicit.marked", {
+                count: result.deletion_mark.consecutive_count,
+                threshold: CHARACTER_DELETION_THRESHOLD,
+              }),
           "success",
         );
       }
@@ -347,7 +355,7 @@ export const ImplicitReviewManager: React.FC<{
       await onChanged?.();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || applySeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "应用复审建议失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.implicit.applyFailed")), "error");
     } finally {
       if (isCurrentProfile(requestProfileId) && applySeqRef.current === requestSeq) {
         setApplyingKey(null);
@@ -370,12 +378,12 @@ export const ImplicitReviewManager: React.FC<{
         <span className="min-w-0 flex-1">
           {review
             ? needsReviewCount > 0
-              ? `${needsReviewCount} 个属性需要复审`
-              : "当前没有需要复审的属性"
-            : "检查隐性属性是否仍符合近期行为"}
+              ? t("characterDetail.implicit.needsReview", { count: needsReviewCount })
+              : t("characterDetail.implicit.noNeedsReview")
+            : t("characterDetail.implicit.hint")}
         </span>
         <BookIconButton
-          label="刷新复审结果"
+          label={t("characterDetail.implicit.refresh")}
           onClick={load}
           variant="secondary"
           size="sm"
@@ -386,11 +394,11 @@ export const ImplicitReviewManager: React.FC<{
       </div>
       <details className="text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
-          复审范围 · 最近 {windowChapters} 章 · 连续 {threshold} 次后提醒
+          {t("characterDetail.implicit.scope", { window: windowChapters, threshold })}
         </summary>
         <div className="mt-1.5 flex flex-wrap items-end gap-2 rounded-xl bg-book-bg-tertiary/40 p-2.5">
           <label className="flex flex-col gap-1">
-            <span className="text-caption">检查章节数</span>
+            <span className="text-caption">{t("characterDetail.implicit.window")}</span>
             <input
               type="number"
               min={1}
@@ -407,7 +415,7 @@ export const ImplicitReviewManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-caption">提醒阈值</span>
+            <span className="text-caption">{t("characterDetail.implicit.threshold")}</span>
             <input
               type="number"
               min={1}
@@ -431,21 +439,21 @@ export const ImplicitReviewManager: React.FC<{
           >
             {loading ? (
               <span className="inline-flex items-center gap-1.5">
-                <LoadingSpinner size="sm" /> 更新中…
+                <LoadingSpinner size="sm" /> {t("characterDetail.implicit.updating")}
               </span>
             ) : (
-              "更新结果"
+              t("characterDetail.implicit.update")
             )}
           </BookButton>
         </div>
       </details>
       {loading ? (
-        <div className="text-small text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">{t("characterDetail.implicit.loading")}</div>
       ) : !hasCurrentReview ? (
-        <div className="text-small text-book-text-muted italic">当前复审参数尚未加载，请刷新</div>
+        <div className="text-small text-book-text-muted italic">{t("characterDetail.implicit.notLoaded")}</div>
       ) : attrs.length === 0 ? (
         <div className="text-small text-book-text-muted italic">
-          尚无隐性属性或行为分类记录
+          {t("characterDetail.implicit.empty")}
         </div>
       ) : (
         <ul className="grid gap-2">
@@ -469,6 +477,8 @@ export const ImplicitReviewManager: React.FC<{
                   current === attr.attribute_key ? null : attr.attribute_key,
                 )
               }
+              locale={locale}
+              t={t}
             />
           ))}
         </ul>
@@ -477,7 +487,7 @@ export const ImplicitReviewManager: React.FC<{
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="隐性属性复审请求预览"
+        fallbackTitle={t("characterDetail.implicit.previewTitle")}
         onClose={() => {
           previewSeqRef.current += 1;
           previewingRef.current = false;
@@ -499,6 +509,8 @@ const ImplicitReviewItem: React.FC<{
   onCheck: () => void;
   onApply: () => void;
   onToggle: () => void;
+  locale: Locale;
+  t: MessageTranslator;
 }> = ({
   attr,
   decision,
@@ -510,19 +522,21 @@ const ImplicitReviewItem: React.FC<{
   onCheck,
   onApply,
   onToggle,
+  locale,
+  t,
 }) => {
   const hasEvidence = attr.evidence.length > 0;
   const menuItems: DropdownItem[] = [];
   if (hasEvidence) {
     menuItems.push({
-      label: "查看模型请求",
+      label: t("characterDetail.implicit.viewRequest"),
       icon: <Eye size={12} />,
       disabled: actionsDisabled || deciding || applying,
       onClick: onPreviewCheck,
     });
     if (decision) {
       menuItems.push({
-        label: "重新生成建议",
+        label: t("characterDetail.implicit.regenerate"),
         icon: <RefreshCw size={12} />,
         disabled: actionsDisabled || deciding || applying,
         onClick: onCheck,
@@ -539,19 +553,19 @@ const ImplicitReviewItem: React.FC<{
       <button type="button" onClick={onToggle} className="w-full text-left">
         <div className="flex min-w-0 items-start gap-2">
           <span className="min-w-0 flex-1 font-medium text-book-text-main">
-            {attributeKeyLabel(attr.attribute_key)}
+            {attributeKeyLabel(attr.attribute_key, t)}
           </span>
-          <span className="shrink-0 text-book-text-sub">{formatPercent(attr.conform_rate)} 符合</span>
+          <span className="shrink-0 text-book-text-sub">{formatPercent(attr.conform_rate, locale, t)} {t("characterDetail.implicit.conform")}</span>
         </div>
         <div className="mt-0.5 truncate text-book-text-sub">{jsonPreview(attr.current_value)}</div>
         <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
-          <span>{attr.conform_count} 条符合</span>
+          <span>{t("characterDetail.implicit.conformCount", { count: attr.conform_count })}</span>
           <span aria-hidden="true">·</span>
-          <span>{attr.non_conform_count} 条不符合</span>
+          <span>{t("characterDetail.implicit.nonConformCount", { count: attr.non_conform_count })}</span>
           {attr.threshold_reached ? (
             <>
               <span aria-hidden="true">·</span>
-              <span className="text-warning">需要复审</span>
+              <span className="text-warning">{t("characterDetail.implicit.needsReviewShort")}</span>
             </>
           ) : null}
         </div>
@@ -568,38 +582,38 @@ const ImplicitReviewItem: React.FC<{
                 >
                   {deciding ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> 生成中…
+                      <LoadingSpinner size="sm" /> {t("characterDetail.implicit.generating")}
                     </span>
                   ) : (
-                    "生成复审建议"
+                    t("characterDetail.implicit.generate")
                   )}
                 </BookButton>
               ) : decision.decision !== "keep" ? (
                 <BookButton onClick={onApply} disabled={actionsDisabled || applying}>
                   {applying ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> 应用中…
+                      <LoadingSpinner size="sm" /> {t("characterDetail.implicit.applying")}
                     </span>
                   ) : (
-                    "应用建议"
+                    t("characterDetail.implicit.apply")
                   )}
                 </BookButton>
               ) : null}
             </div>
           ) : (
-            <div className="text-caption text-book-text-muted">暂无行为证据，暂时无法复审</div>
+            <div className="text-caption text-book-text-muted">{t("characterDetail.implicit.noEvidence")}</div>
           )}
           {decision ? (
             <div className="rounded-xl border-l-2 border-book-primary/55 bg-book-primary/5 px-3 py-2.5 text-caption leading-relaxed">
               <div className="font-medium text-book-text-main">
-                建议{decisionLabel(decision.decision)}
+                {t("characterDetail.implicit.suggest")}{decisionLabel(decision.decision, t)}
                 {decision.suggested_new_value != null
-                  ? ` · 新值：${jsonPreview(decision.suggested_new_value)}`
+                  ? t("characterDetail.implicit.newValue", { value: jsonPreview(decision.suggested_new_value) })
                   : ""}
               </div>
               <div className="mt-1 text-book-text-sub">{decision.reasoning}</div>
               {decision.evidence_summary ? (
-                <div className="mt-1 text-book-text-muted">证据：{decision.evidence_summary}</div>
+                <div className="mt-1 text-book-text-muted">{t("characterDetail.implicit.evidence")}{decision.evidence_summary}</div>
               ) : null}
             </div>
           ) : null}
@@ -608,21 +622,21 @@ const ImplicitReviewItem: React.FC<{
               {attr.evidence.map((item) => (
                 <li key={item.behavior_id} className="py-2.5 text-caption leading-relaxed">
                   <div className="text-book-text-muted">
-                    第 {item.chapter_number} 章 · {behaviorTypeLabel(item.behavior_type)}
+                    {t("characterDetail.implicit.chapter", { chapter: item.chapter_number })} · {behaviorTypeLabel(item.behavior_type, t)}
                   </div>
                   <div className="mt-0.5 text-book-text-sub">{item.behavior_description}</div>
                   {item.original_text ? (
-                    <div className="mt-0.5 text-book-text-muted">原文：{item.original_text}</div>
+                    <div className="mt-0.5 text-book-text-muted">{t("characterDetail.implicit.originalText")}{item.original_text}</div>
                   ) : null}
-                  {listPreview(item.behavior_tags) ? (
+                  {listPreview(item.behavior_tags, t) ? (
                     <div className="mt-0.5 text-book-text-muted">
-                      标签：{listPreview(item.behavior_tags)}
+                      {t("characterDetail.implicit.tags")}{listPreview(item.behavior_tags, t)}
                     </div>
                   ) : null}
                   {jsonPreview(item.classification) ? (
                     <details className="mt-1 text-book-text-muted">
                       <summary className="w-fit cursor-pointer hover:text-book-text-main">
-                        诊断信息
+                        {t("characterDetail.implicit.diagnostics")}
                       </summary>
                       <div className="mt-1 break-words font-mono">
                         {jsonPreview(item.classification)}

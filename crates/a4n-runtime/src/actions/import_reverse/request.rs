@@ -5,7 +5,6 @@ use crate::actions::request_preview::{
 };
 use a4n_core::error::AppError;
 use a4n_llm::provider::ChatRequest;
-use a4n_orchestrator::import_reverse::ReverseEngineerPreviewInput;
 
 async fn build_reverse_request_for_user(
     state: &AppState,
@@ -16,19 +15,10 @@ async fn build_reverse_request_for_user(
         .await?
         .into_input();
     let target = input.target;
-    let variables = input.variables.unwrap_or_default();
     let prompt_renderer = state;
     let request = state
         .orchestrator()
-        .prepare_reverse_engineer_request_validated(ReverseEngineerPreviewInput {
-            project_id: input.project_id,
-            manual_sample: &input.content_sample,
-            auto_context: input.auto_context,
-            context_limit: input.context_limit,
-            variables: &variables,
-            target,
-            prompt_renderer,
-        })
+        .prepare_reverse_engineer_request_validated(input, prompt_renderer)
         .await?;
     Ok((target, request))
 }

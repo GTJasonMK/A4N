@@ -1,5 +1,6 @@
 use a4n_domain::progress::ProgressMeta;
 use a4n_queue::priority::TaskInfo;
+use sea_orm::FromQueryResult;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -64,6 +65,28 @@ pub struct WorkflowRunSummary {
     pub completed_at: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, FromQueryResult)]
+pub struct WorkflowRunRecoveryRecord {
+    pub id: i64,
+    pub business_key: String,
+    pub status: String,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, FromQueryResult)]
+pub struct WorkflowRunStatusRecord {
+    pub id: i64,
+    pub status: String,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, FromQueryResult)]
+pub struct WorkflowRunAccessRecord {
+    pub id: i64,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WorkflowCheckpointSummary {
     pub id: i64,
@@ -105,6 +128,59 @@ pub struct GenerationRunSummary {
     pub error_message: Option<String>,
     pub created_at: String,
     pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub(crate) struct GenerationRunSummaryRecord {
+    pub id: i64,
+    pub workflow_run_id: Option<i64>,
+    pub workflow: String,
+    pub step_key: String,
+    pub call_key: Option<String>,
+    pub title: String,
+    pub model_kind: String,
+    pub provider: Option<String>,
+    pub model: Option<String>,
+    pub status: String,
+    pub input_fingerprint_sha256: Option<String>,
+    pub input_fingerprint_json: Option<Value>,
+    pub raw_response_json: Option<Value>,
+    pub parsed_output_json: Option<Value>,
+    pub validation_json: Option<Value>,
+    pub artifact_refs_json: Option<Value>,
+    pub attempt: i32,
+    pub response_summary_json: Option<Value>,
+    pub error_message: Option<String>,
+    pub created_at: chrono::NaiveDateTime,
+    pub completed_at: Option<chrono::NaiveDateTime>,
+}
+
+impl From<GenerationRunSummaryRecord> for GenerationRunSummary {
+    fn from(run: GenerationRunSummaryRecord) -> Self {
+        Self {
+            id: run.id,
+            workflow_run_id: run.workflow_run_id,
+            workflow: run.workflow,
+            step_key: run.step_key,
+            call_key: run.call_key,
+            title: run.title,
+            model_kind: run.model_kind,
+            provider: run.provider,
+            model: run.model,
+            status: run.status,
+            input_fingerprint_sha256: run.input_fingerprint_sha256,
+            input_fingerprint_json: run.input_fingerprint_json,
+            raw_response_json: run.raw_response_json,
+            parsed_output_json: run.parsed_output_json,
+            validation_json: run.validation_json,
+            artifact_refs_json: run.artifact_refs_json,
+            attempt: run.attempt,
+            response_summary_json: run.response_summary_json,
+            error_message: run.error_message,
+            created_at: run.created_at.to_string(),
+            completed_at: run.completed_at.map(|value| value.to_string()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

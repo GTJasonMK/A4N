@@ -4,12 +4,20 @@ use a4n_core::models::{
 };
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-    TransactionTrait,
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect, TransactionTrait,
 };
 
 use super::provenance::insert_media_asset_with_provenance_record;
 use super::{CreateMediaAssetRecordInput, MediaDbError};
+
+#[derive(Debug, FromQueryResult)]
+struct MediaProjectIdentity {
+    id: i64,
+    project_kind: String,
+    root_project_id: Option<i64>,
+    source_snapshot_id: Option<i64>,
+}
 
 pub async fn create_media_asset_with_provenance_record<C>(
     db: &C,
@@ -48,7 +56,7 @@ where
     if let Some(source_snapshot_id) = input.source_snapshot_id {
         lock_snapshot_backed_media_context_rows(db, input, source_snapshot_id, use_row_lock)
             .await?;
-        let context = crate::project::project_family_context(
+        crate::project::validate_project_family_source_context(
             db,
             input.project_id,
             input.root_project_id,
@@ -59,7 +67,8 @@ where
         if let Some(source_snapshot_chapter_id) = input.source_snapshot_chapter_id {
             crate::project::validate_project_family_snapshot_chapter(
                 db,
-                &context,
+                input.root_project_id,
+                source_snapshot_id,
                 source_snapshot_chapter_id,
                 input.source_chapter_id,
             )
@@ -74,13 +83,22 @@ where
         project_query = project_query.lock_exclusive();
     }
     let project = project_query
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .into_model::<MediaProjectIdentity>()
         .one(db)
         .await
         .map_err(MediaDbError::Database)?
         .ok_or_else(|| MediaDbError::NotFound(format!("项目不存在: {}", input.project_id)))?;
-    if project
-        .source_mode()
-        .map_err(|error| MediaDbError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
+    if ProjectSourceMode::from_identity(
+        &project.project_kind,
+        project.root_project_id,
+        project.source_snapshot_id,
+    )
+    .map_err(|error| MediaDbError::InvalidArgument(format!("项目 {}: {error}", project.id)))?
         != ProjectSourceMode::Freeform
     {
         return Err(MediaDbError::InvalidArgument(
@@ -118,18 +136,27 @@ where
     novel_project::Entity::find()
         .filter(novel_project::Column::Id.is_in(project_ids))
         .order_by_asc(novel_project::Column::Id)
+        .select_only()
+        .column(novel_project::Column::Id)
         .lock_exclusive()
+        .into_tuple::<i64>()
         .all(db)
         .await
         .map_err(MediaDbError::Database)?;
     project_source_snapshot::Entity::find_by_id(source_snapshot_id)
+        .select_only()
+        .column(project_source_snapshot::Column::Id)
         .lock_exclusive()
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map_err(MediaDbError::Database)?;
     if let Some(source_snapshot_chapter_id) = input.source_snapshot_chapter_id {
         source_snapshot_chapter::Entity::find_by_id(source_snapshot_chapter_id)
+            .select_only()
+            .column(source_snapshot_chapter::Column::Id)
             .lock_exclusive()
+            .into_tuple::<i64>()
             .one(db)
             .await
             .map_err(MediaDbError::Database)?;

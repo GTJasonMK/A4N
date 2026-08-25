@@ -3,31 +3,34 @@ import {
   progressDisplayModel,
   type ProgressDisplayModel,
 } from "../../../utils/progressPresentation";
+import type { MessageKey, MessageParams } from "../../../i18n";
+import { formatDateTime, type Locale } from "../../../i18n";
 
-export const taskProgressDisplay = (task: TaskInfoSummary): ProgressDisplayModel => {
+type Translate = (key: MessageKey, params?: MessageParams) => string;
+
+export const taskProgressDisplay = (
+  task: TaskInfoSummary,
+  t: Translate,
+  locale: Locale,
+): ProgressDisplayModel => {
   if (task.progress?.message?.trim()) {
     return progressDisplayModel({
       ...task.progress,
+      locale,
+      t,
       status: task.status === "completed" ? "success" : task.status === "failed" ? "error" : "running",
-      fallbackStage: task.status === "completed" ? "任务已完成" : "任务执行中",
+      fallbackStage: task.status === "completed"
+        ? t("workflow.success")
+        : t("settingsQueue.taskRunning"),
     });
   }
   return progressDisplayModel({
     current: 0,
     total: 1,
-    message: formatTaskCreatedAt(task.created_at),
+    message: formatDateTime(task.created_at, locale, task.created_at),
+    locale,
+    t,
     status: task.status === "cancelled" ? "cancelled" : "idle",
-    fallbackStage: "任务已创建",
-  });
-};
-
-const formatTaskCreatedAt = (value: string): string => {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleString([], {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
+    fallbackStage: t("workflow.ready"),
   });
 };

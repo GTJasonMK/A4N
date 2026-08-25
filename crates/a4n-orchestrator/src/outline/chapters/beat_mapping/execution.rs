@@ -19,7 +19,7 @@ use super::request::{beat_mapping_call_fingerprint_json, build_beat_mapping_requ
 
 impl OrchestratorContext {
     /// 将节拍表映射为指定分部的章节大纲。
-    pub async fn apply_beat_mapping(
+    pub(in crate::outline) async fn apply_beat_mapping(
         &self,
         input: BeatMappingApplyInput<'_, '_>,
     ) -> Result<Vec<chapter_outline::Model>, AppError> {

@@ -1,18 +1,21 @@
 use super::lookups::find_user;
-use crate::collaboration::{CollaborationDbError, ProjectAccessRole, ProjectMemberRole};
-use a4n_core::models::{
-    project::{novel_project, project_member},
-    user::role::ROLE_READ_ONLY,
+use crate::collaboration::{
+    CollaborationDbError, CollaborationRootProject, ProjectAccessRole, ProjectMemberRole,
 };
+use a4n_core::models::{project::project_member, user::role::ROLE_READ_ONLY};
 use a4n_domain::project::ProjectSourceMode;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 
-pub(in crate::collaboration) fn validate_collaboration_root(
-    root: &novel_project::Model,
+pub(in crate::collaboration) fn validate_collaboration_root_identity(
+    project_id: i64,
+    project_kind: &str,
+    root_project_id: Option<i64>,
+    source_snapshot_id: Option<i64>,
 ) -> Result<(), CollaborationDbError> {
-    match root.source_mode().map_err(|error| {
-        CollaborationDbError::InvalidArgument(format!("项目 {}: {error}", root.id))
-    })? {
+    match ProjectSourceMode::from_identity(project_kind, root_project_id, source_snapshot_id)
+        .map_err(|error| {
+            CollaborationDbError::InvalidArgument(format!("项目 {}: {error}", project_id))
+        })? {
         ProjectSourceMode::Self_ | ProjectSourceMode::Freeform => Ok(()),
         ProjectSourceMode::Derived => Err(CollaborationDbError::InvalidArgument(
             "协作权限只能绑定到文本根项目或自由视频项目".to_string(),
@@ -30,7 +33,7 @@ pub(in crate::collaboration) fn parse_stored_member_role(
 
 pub(in crate::collaboration) async fn effective_role_for_root(
     db: &DatabaseConnection,
-    root: &novel_project::Model,
+    root: &CollaborationRootProject,
     user_id: i64,
 ) -> Result<Option<ProjectAccessRole>, CollaborationDbError> {
     let user = find_user(db, user_id).await?;
@@ -42,13 +45,16 @@ pub(in crate::collaboration) async fn effective_role_for_root(
         Some(ProjectAccessRole::Owner)
     } else {
         let member = project_member::Entity::find()
+            .select_only()
+            .column(project_member::Column::Role)
             .filter(project_member::Column::ProjectId.eq(root.id))
             .filter(project_member::Column::UserId.eq(user_id))
+            .into_tuple::<String>()
             .one(db)
             .await
             .map_err(CollaborationDbError::Database)?;
         match member {
-            Some(member) => Some(parse_stored_member_role(&member.role)?.into()),
+            Some(role) => Some(parse_stored_member_role(&role)?.into()),
             None => None,
         }
     };

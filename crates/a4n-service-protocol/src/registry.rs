@@ -81,7 +81,7 @@ pub fn known_service_health(
     }
 }
 
-pub fn expected_capability_label_for_service(service: &str) -> Option<&'static str> {
+pub(crate) fn expected_capability_label_for_service(service: &str) -> Option<&'static str> {
     match service {
         PROMPT_SERVICE_NAME => Some("prompt capability"),
         LLM_SERVICE_NAME => Some("LLM capability"),
@@ -95,7 +95,7 @@ pub fn expected_capability_label_for_service(service: &str) -> Option<&'static s
     }
 }
 
-pub fn required_secret_policy_for_service(service: &str) -> Option<RequiredSecretPolicy> {
+pub(crate) fn required_secret_policy_for_service(service: &str) -> Option<RequiredSecretPolicy> {
     match service {
         PROMPT_SERVICE_NAME => Some(RequiredSecretPolicy::DenyAll {
             rejection_message: "prompt render sidecar 不接收 secret forwarding policy",

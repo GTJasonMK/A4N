@@ -1,7 +1,4 @@
-use a4n_core::{
-    error::AppError,
-    source_spans::{SourceSpan, resolve_source_span_text},
-};
+use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
 use serde_json::Value;
 
 use super::super::super::values::{
@@ -12,7 +9,7 @@ use super::super::super::values::{
 pub(super) fn materialize_planted_entry(
     item: &mut Value,
     index: usize,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let object = item.as_object_mut().ok_or_else(|| {
         analysis_materialize_error(format!("foreshadowing.planted[{index}] 必须是 JSON 对象"))
@@ -57,8 +54,9 @@ pub(super) fn materialize_planted_entry(
         "original_text_span_id",
         &format!("foreshadowing.planted[{index}].original_text_span_id"),
     )?;
-    let original_text =
-        resolve_source_span_text(source_spans, &span_id).map_err(analysis_materialize_error)?;
+    let original_text = source_spans
+        .resolve_text(&span_id)
+        .map_err(analysis_materialize_error)?;
     object.insert("original_text".to_string(), Value::String(original_text));
     object.remove("original_text_span_id");
     Ok(())

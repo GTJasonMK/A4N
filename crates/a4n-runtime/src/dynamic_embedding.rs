@@ -14,14 +14,14 @@ use async_trait::async_trait;
 
 use crate::runtime_config;
 
-pub use contracts::model_identity_from_config;
+pub(crate) use contracts::model_identity_from_config;
 #[cfg(feature = "local-embedding")]
 pub(crate) use contracts::resolve_fastembed_cache_dir;
 pub(crate) use contracts::{positive_usize, required_text};
 use factory::make_provider_from_default_model;
-pub use factory::make_provider_from_model;
+pub(crate) use factory::make_provider_from_model;
 
-pub struct DynamicEmbeddingProvider {
+pub(crate) struct DynamicEmbeddingProvider {
     facade: DynamicProviderFacade,
     metadata_dimension: usize,
     metadata_batch_size: usize,
@@ -29,7 +29,7 @@ pub struct DynamicEmbeddingProvider {
 }
 
 impl DynamicEmbeddingProvider {
-    pub fn new(
+    pub(crate) fn new(
         facade: DynamicProviderFacade,
         metadata_dimension: usize,
         metadata_batch_size: usize,

@@ -1,7 +1,7 @@
 use super::contracts::{BlueprintCharacterDraft, BlueprintRelationshipDraft};
 use a4n_core::models::project::{blueprint_character, blueprint_relationship};
 
-pub fn normalized_blueprint_identity(value: &str) -> String {
+pub(crate) fn normalized_blueprint_identity(value: &str) -> String {
     value
         .split_whitespace()
         .collect::<Vec<_>>()

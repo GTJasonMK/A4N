@@ -1,9 +1,9 @@
-use a4n_api_contract::project::{ProjectKind, ProjectSourceMode, ProjectStatus};
+use a4n_api_contract::project::{
+    ProjectKind, ProjectProgressSummary, ProjectSourceMode, ProjectStatus, ProjectSummary,
+};
 use a4n_core::models::project::novel_project;
 use a4n_orchestrator::collaboration::ProjectAccessInfo;
 use a4n_orchestrator::project::ProjectFamilyMetadata;
-
-use super::super::contracts::{ProjectProgressSummary, ProjectSummary};
 
 pub(in crate::actions::project_records::summaries) fn to_summary(
     project: &novel_project::Model,

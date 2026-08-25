@@ -1,19 +1,19 @@
-use a4n_core::models::{
-    generation::{generation_spec, prompt_artifact},
-    media::{media_asset, media_provenance},
-    project::novel_project,
-};
 use serde_json::json;
 
-use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 use crate::project_dependency_graph::helpers::count_strings;
+use crate::project_dependency_graph::{
+    GraphBuilder, NodeSeedMetadata,
+    graph::{GenerationSpecGraphRow, MediaAssetGraphRow, PromptArtifactGraphRow},
+    node,
+    scope::AssetGraphDerivedProjectRow,
+};
 
 pub(in crate::project_dependency_graph) fn add_generation_nodes(
     graph: &mut GraphBuilder,
-    generation_specs: &[generation_spec::Model],
-    prompt_artifacts: &[prompt_artifact::Model],
-    media_assets: &[media_asset::Model],
-    media_provenance: &[media_provenance::Model],
+    generation_specs: &[GenerationSpecGraphRow],
+    prompt_artifacts: &[PromptArtifactGraphRow],
+    media_assets: &[MediaAssetGraphRow],
+    media_provenance_count: u64,
 ) {
     if generation_specs.is_empty() && prompt_artifacts.is_empty() && media_assets.is_empty() {
         return;
@@ -89,7 +89,7 @@ pub(in crate::project_dependency_graph) fn add_generation_nodes(
             summary: Some("统一 media_asset 表中的图片/视频资产。".to_string()),
             details: json!({
                 "media_kinds": count_strings(media_assets.iter().map(|row| row.media_kind.as_str())),
-                "provenance_count": media_provenance.len(),
+                "provenance_count": media_provenance_count,
             }),
         },
     ));
@@ -103,7 +103,7 @@ pub(in crate::project_dependency_graph) fn add_generation_nodes(
 
 pub(in crate::project_dependency_graph) fn add_derived_project_nodes(
     graph: &mut GraphBuilder,
-    derived_projects: &[novel_project::Model],
+    derived_projects: &[AssetGraphDerivedProjectRow],
 ) {
     if derived_projects.is_empty() {
         return;

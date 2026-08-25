@@ -1,46 +1,71 @@
-use std::collections::BTreeMap;
-
 use a4n_core::models::user::llm_usage_log;
 use chrono::{NaiveDateTime, Utc};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect, sea_query::Expr,
+};
 use serde_json::{Value, json};
 
 use super::{AdminDbError, DailyUsagePoint, UsageLogSummary, UsageTrendsInput};
+
+#[derive(Debug, FromQueryResult)]
+struct DailyUsageRow {
+    day: NaiveDateTime,
+    total_calls: i64,
+    total_tokens: i64,
+    success_count: i64,
+    fail_count: i64,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct TokenSummaryRow {
+    total_prompt_tokens: i64,
+    total_completion_tokens: i64,
+    total_tokens: i64,
+    total_calls: i64,
+    success_count: i64,
+    fail_count: i64,
+}
 
 pub async fn usage_trends(
     db: &DatabaseConnection,
     input: UsageTrendsInput,
 ) -> Result<Vec<DailyUsagePoint>, AdminDbError> {
     let since = usage_trends_since(Utc::now().naive_utc(), input.days)?;
-    let logs = llm_usage_log::Entity::find()
+    let day_expr = Expr::cust("DATE_TRUNC('day', created_at)");
+    let rows = llm_usage_log::Entity::find()
+        .select_only()
+        .column_as(day_expr.clone(), "day")
+        .column_as(Expr::cust("COUNT(*)"), "total_calls")
+        .column_as(
+            Expr::cust("COALESCE(SUM(total_tokens), 0)::bigint"),
+            "total_tokens",
+        )
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE is_success)"),
+            "success_count",
+        )
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE NOT is_success)"),
+            "fail_count",
+        )
         .filter(llm_usage_log::Column::CreatedAt.gte(since))
-        .order_by_asc(llm_usage_log::Column::CreatedAt)
+        .group_by(day_expr)
+        .order_by_asc(Expr::cust("day"))
+        .into_model::<DailyUsageRow>()
         .all(db)
         .await?;
-
-    let mut daily: BTreeMap<String, DailyUsagePoint> = BTreeMap::new();
-    for log in &logs {
-        let date = log.created_at.format("%Y-%m-%d").to_string();
-        let entry = daily
-            .entry(date.clone())
-            .or_insert_with(|| DailyUsagePoint {
-                date: String::new(),
-                total_calls: 0,
-                total_tokens: 0,
-                success_count: 0,
-                fail_count: 0,
-            });
-        entry.date = date;
-        entry.total_calls += 1;
-        entry.total_tokens += log.total_tokens as i64;
-        if log.is_success {
-            entry.success_count += 1;
-        } else {
-            entry.fail_count += 1;
-        }
-    }
-
-    Ok(daily.into_values().collect())
+    rows.into_iter()
+        .map(|row| {
+            Ok(DailyUsagePoint {
+                date: row.day.format("%Y-%m-%d").to_string(),
+                total_calls: count_to_usize(row.total_calls, "total_calls")?,
+                total_tokens: row.total_tokens,
+                success_count: count_to_usize(row.success_count, "success_count")?,
+                fail_count: count_to_usize(row.fail_count, "fail_count")?,
+            })
+        })
+        .collect()
 }
 
 pub async fn usage_by_user(
@@ -61,28 +86,48 @@ pub async fn usage_by_user(
 
 pub async fn token_summary(db: &DatabaseConnection, user_id: i64) -> Result<Value, AdminDbError> {
     validate_positive_i64(user_id, "user_id")?;
-    let logs = llm_usage_log::Entity::find()
+    let row = llm_usage_log::Entity::find()
+        .select_only()
+        .column_as(
+            Expr::cust("COALESCE(SUM(prompt_tokens), 0)::bigint"),
+            "total_prompt_tokens",
+        )
+        .column_as(
+            Expr::cust("COALESCE(SUM(completion_tokens), 0)::bigint"),
+            "total_completion_tokens",
+        )
+        .column_as(
+            Expr::cust("COALESCE(SUM(total_tokens), 0)::bigint"),
+            "total_tokens",
+        )
+        .column_as(Expr::cust("COUNT(*)"), "total_calls")
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE is_success)"),
+            "success_count",
+        )
+        .column_as(
+            Expr::cust("COUNT(*) FILTER (WHERE NOT is_success)"),
+            "fail_count",
+        )
         .filter(llm_usage_log::Column::UserId.eq(user_id))
-        .all(db)
-        .await?;
-
-    let total_prompt: i64 = logs.iter().map(|log| i64::from(log.prompt_tokens)).sum();
-    let total_completion: i64 = logs
-        .iter()
-        .map(|log| i64::from(log.completion_tokens))
-        .sum();
-    let total_tokens = total_prompt + total_completion;
-    let success_count = logs.iter().filter(|log| log.is_success).count();
-    let fail_count = logs.len() - success_count;
+        .into_model::<TokenSummaryRow>()
+        .one(db)
+        .await?
+        .ok_or_else(|| AdminDbError::InvalidArgument("token 汇总查询未返回结果".to_string()))?;
 
     Ok(json!({
-        "total_calls": logs.len(),
-        "total_prompt_tokens": total_prompt,
-        "total_completion_tokens": total_completion,
-        "total_tokens": total_tokens,
-        "success_count": success_count,
-        "fail_count": fail_count,
+        "total_calls": count_to_usize(row.total_calls, "total_calls")?,
+        "total_prompt_tokens": row.total_prompt_tokens,
+        "total_completion_tokens": row.total_completion_tokens,
+        "total_tokens": row.total_tokens,
+        "success_count": count_to_usize(row.success_count, "success_count")?,
+        "fail_count": count_to_usize(row.fail_count, "fail_count")?,
     }))
+}
+
+fn count_to_usize(value: i64, field: &str) -> Result<usize, AdminDbError> {
+    usize::try_from(value)
+        .map_err(|_| AdminDbError::InvalidArgument(format!("{field} 超出当前平台 usize 上限")))
 }
 
 pub(super) fn usage_trends_since(

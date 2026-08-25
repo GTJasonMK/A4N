@@ -9,7 +9,7 @@ use crate::OrchestratorContext;
 
 const ANALYSIS_STAGE_NAME: &str = "逐章分析与资料同步";
 
-pub fn initial_import_progress(
+pub(super) fn initial_import_progress(
     total_chapters: usize,
 ) -> Result<ProjectImportAnalysisProgress, AppError> {
     if total_chapters == 0 {
@@ -36,21 +36,14 @@ pub fn initial_import_progress(
     })
 }
 
-pub fn import_progress_totals_match(
-    progress: &ProjectImportAnalysisProgress,
-    total_chapters: usize,
-) -> bool {
-    progress.stages.generating_analysis_data.total == total_chapters
-}
-
-pub fn completed_import_chapters(
+pub(super) fn completed_import_chapters(
     progress: &ProjectImportAnalysisProgress,
 ) -> Result<usize, AppError> {
     validate_import_progress(progress)?;
     Ok(progress.stages.generating_analysis_data.completed)
 }
 
-pub fn resume_import_progress(
+pub(super) fn resume_import_progress(
     progress: &mut ProjectImportAnalysisProgress,
 ) -> Result<(), AppError> {
     validate_import_progress(progress)?;
@@ -72,7 +65,7 @@ pub fn resume_import_progress(
     Ok(())
 }
 
-pub fn update_import_progress(
+pub(super) fn update_import_progress(
     progress: &mut ProjectImportAnalysisProgress,
     completed: usize,
     message: impl Into<String>,
@@ -101,7 +94,7 @@ pub fn update_import_progress(
     Ok(())
 }
 
-pub fn finish_import_progress(
+pub(super) fn finish_import_progress(
     progress: &mut ProjectImportAnalysisProgress,
 ) -> Result<(), AppError> {
     validate_import_progress(progress)?;
@@ -151,7 +144,7 @@ fn cancel_progress(progress: &mut ProjectImportAnalysisProgress) -> Result<(), A
     Ok(())
 }
 
-pub async fn load_import_progress_optional(
+pub(super) async fn load_import_progress_optional(
     context: &OrchestratorContext,
     project_id: i64,
 ) -> Result<Option<ProjectImportAnalysisProgress>, AppError> {
@@ -169,7 +162,7 @@ pub async fn load_import_progress_optional(
     Ok(Some(progress))
 }
 
-pub async fn load_import_progress(
+pub(super) async fn load_import_progress(
     context: &OrchestratorContext,
     project_id: i64,
 ) -> Result<ProjectImportAnalysisProgress, AppError> {
@@ -181,7 +174,7 @@ pub async fn load_import_progress(
         })
 }
 
-pub async fn save_import_progress(
+pub(super) async fn save_import_progress(
     context: &OrchestratorContext,
     project_id: i64,
     progress: &ProjectImportAnalysisProgress,
@@ -193,7 +186,7 @@ pub async fn save_import_progress(
         .await
 }
 
-pub async fn save_failed_import_progress(
+pub(super) async fn save_failed_import_progress(
     context: &OrchestratorContext,
     project_id: i64,
     error: &str,
@@ -203,7 +196,7 @@ pub async fn save_failed_import_progress(
     save_import_progress(context, project_id, &progress).await
 }
 
-pub async fn cancel_import_progress(
+pub(super) async fn cancel_import_progress(
     context: &OrchestratorContext,
     project_id: i64,
 ) -> Result<(), AppError> {
@@ -212,7 +205,7 @@ pub async fn cancel_import_progress(
     save_import_progress(context, project_id, &progress).await
 }
 
-pub async fn import_analysis_cancelled(
+pub(super) async fn import_analysis_cancelled(
     context: &OrchestratorContext,
     project_id: i64,
 ) -> Result<bool, AppError> {

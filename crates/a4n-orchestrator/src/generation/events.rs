@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{HashMap, VecDeque},
     sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
@@ -222,14 +222,14 @@ impl GenerationAdmissionController {
 
 pub(crate) struct GenerationSessionRegistry {
     admission: GenerationAdmissionController,
-    sessions: Mutex<BTreeMap<String, Arc<GenerationTaskSession>>>,
+    sessions: Mutex<HashMap<String, Arc<GenerationTaskSession>>>,
 }
 
 impl GenerationSessionRegistry {
     pub(crate) fn new(config: GenerationSessionConfig) -> Result<Self, GenerationSessionError> {
         Ok(Self {
             admission: GenerationAdmissionController::new(config)?,
-            sessions: Mutex::new(BTreeMap::new()),
+            sessions: Mutex::new(HashMap::new()),
         })
     }
 
@@ -579,7 +579,7 @@ struct SessionState {
     reserved_through_sequence: u64,
     last_persisted_at_ms: i64,
     unpersisted_event_bytes: usize,
-    next_chunk_indexes: BTreeMap<String, u64>,
+    next_chunk_indexes: HashMap<String, u64>,
     durable_commit_in_flight: bool,
     ordinary_publisher_sealed: Option<String>,
     snapshot_only_covers: Option<u64>,
@@ -800,8 +800,8 @@ fn validate_replay(
     Ok(())
 }
 
-fn replay_chunk_indexes(replay: &VecDeque<GenerationTaskEvent>) -> BTreeMap<String, u64> {
-    let mut indexes = BTreeMap::new();
+fn replay_chunk_indexes(replay: &VecDeque<GenerationTaskEvent>) -> HashMap<String, u64> {
+    let mut indexes = HashMap::new();
     for event in replay {
         if let GenerationEvent::TextDelta(delta) = &event.event {
             indexes.insert(delta.stream_id.clone(), delta.chunk_index.saturating_add(1));
@@ -1152,7 +1152,7 @@ impl GenerationTaskSession {
         Ok(())
     }
 
-    pub(crate) fn replay_after(&self, after_sequence: Option<u64>) -> GenerationReplay {
+    fn replay_after(&self, after_sequence: Option<u64>) -> GenerationReplay {
         let state = self
             .state
             .lock()
@@ -1576,7 +1576,7 @@ fn append_ordinary_locked(
 
 fn apply_event(
     snapshot: &mut GenerationTaskSnapshot,
-    next_chunk_indexes: &mut BTreeMap<String, u64>,
+    next_chunk_indexes: &mut HashMap<String, u64>,
     envelope: &GenerationTaskEvent,
     mode: ApplyMode,
 ) -> Result<(), GenerationSessionError> {
@@ -1772,7 +1772,7 @@ pub(crate) fn apply_committed_envelope_to_snapshot(
     snapshot: &mut GenerationTaskSnapshot,
     envelope: &GenerationTaskEvent,
 ) -> Result<(), GenerationSessionError> {
-    let mut next_chunk_indexes = BTreeMap::new();
+    let mut next_chunk_indexes = HashMap::new();
     apply_event(
         snapshot,
         &mut next_chunk_indexes,
@@ -1783,7 +1783,7 @@ pub(crate) fn apply_committed_envelope_to_snapshot(
 
 fn apply_text_delta(
     snapshot: &mut GenerationTaskSnapshot,
-    next_chunk_indexes: &mut BTreeMap<String, u64>,
+    next_chunk_indexes: &mut HashMap<String, u64>,
     event: &TextDeltaEvent,
 ) -> Result<(), GenerationSessionError> {
     let stream = snapshot
@@ -1919,7 +1919,7 @@ pub(crate) struct CommittedEventPermit {
     snapshot: Option<GenerationTaskSnapshot>,
     replay: Option<VecDeque<GenerationTaskEvent>>,
     replay_bytes: usize,
-    next_chunk_indexes: Option<BTreeMap<String, u64>>,
+    next_chunk_indexes: Option<HashMap<String, u64>>,
     first_sequence: u64,
     last_sequence: u64,
     committed_memory_bytes: usize,

@@ -14,9 +14,9 @@ use async_trait::async_trait;
 use sea_orm::ActiveModelTrait;
 
 use crate::project::{
-    ImportMediaPayload, ImportProjectPackageApplicationInput, PACKAGE_MODE,
-    ProjectPackageFileHostPort, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioMediaFileEntry,
-    VideoStudioProjectPackage, video_studio_media_file_key,
+    ImportMediaPayload, ImportProjectPackageApplicationInput, MediaFileEntry, PACKAGE_MODE,
+    ProjectPackageFileHostPort, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage,
+    media_file_key,
 };
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
@@ -190,7 +190,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
         created_at: source.created_at,
         updated_at: source.updated_at,
     });
-    let entry = VideoStudioMediaFileEntry {
+    let entry = MediaFileEntry {
         owner_kind: CanvasNodeRefKind::MediaAsset.as_str().to_string(),
         owner_id: 10,
         field: FILE_PATH_FIELD.to_string(),
@@ -200,7 +200,7 @@ async fn import_application_builds_canonical_media_path_before_host_write() {
     package.media_files.push(entry.clone());
     let mut entries = HashMap::new();
     entries.insert(
-        video_studio_media_file_key(CanvasNodeRefKind::MediaAsset.as_str(), 10, FILE_PATH_FIELD),
+        media_file_key(CanvasNodeRefKind::MediaAsset.as_str(), 10, FILE_PATH_FIELD),
         entry,
     );
     let mut payload_bytes = HashMap::new();

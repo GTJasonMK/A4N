@@ -16,6 +16,7 @@ import { EmptyHint } from "./shared";
 import { useNovelDetailLoader } from "./useNovelDetailLoader";
 import { nonEmptyText } from "../../utils/text";
 import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+import { formatNumber, useI18n, type Locale } from "../../i18n";
 
 const chapterWordCount = (chapter: ChapterSummary): number => {
   return chapter.word_count == null ? 0 : chapter.word_count;
@@ -26,15 +27,21 @@ const nextImportChapterNumber = (chapters: ChapterSummary[]): number => {
   return Math.max(...chapters.map((chapter) => chapter.chapter_number)) + 1;
 };
 
-const chapterStatusLabel = (status: string | null | undefined): string | null => {
+const chapterStatusLabel = (
+  status: string | null | undefined,
+  locale: Locale,
+): string | null => {
   const normalized = status?.trim().toLowerCase();
   if (!normalized || normalized === "completed") return null;
-  return getOperationStatusLabel(normalized);
+  return getOperationStatusLabel(normalized, locale);
 };
 
-const derivedSyncStatusLabel = (chapter: ChapterSummary): string | null => {
-  if (chapter.derived_sync_status === "running") return "资料同步中";
-  if (chapter.derived_sync_status === "failed") return "资料同步失败";
+const derivedSyncStatusLabel = (
+  chapter: ChapterSummary,
+  t: ReturnType<typeof useI18n>["t"],
+): string | null => {
+  if (chapter.derived_sync_status === "running") return t("writing.materialSyncRunning");
+  if (chapter.derived_sync_status === "failed") return t("writing.materialSyncFailed");
   return null;
 };
 
@@ -45,6 +52,7 @@ interface ChaptersTabProps {
 
 export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChapters }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const navigate = useNavigate();
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [importOpen, setImportOpen] = useState(false);
@@ -74,7 +82,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       throw err;
     }
   }, [projectId]);
-  const { loading, load } = useNovelDetailLoader(loadChapters, "加载章节失败");
+  const { loading, load } = useNovelDetailLoader(loadChapters, t("novel.loadChaptersFailed"));
 
   useEffect(() => {
     mountedRef.current = true;
@@ -109,7 +117,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
   const openImportDialog = () => {
     if (!canEditChapters) {
-      addToast("当前账号没有导入章节的权限", "error");
+      addToast(t("novel.importChapterPermissionDenied"), "error");
       return;
     }
     setImportForm({
@@ -122,7 +130,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
   const openWritingDesk = (chapterNumber?: number) => {
     if (!canEditChapters) {
-      addToast("当前账号没有进入写作桌的权限", "error");
+      addToast(t("novel.writingDeskPermissionDenied"), "error");
       return;
     }
     navigate(chapterNumber ? `/write/${projectId}?chapter=${chapterNumber}` : `/write/${projectId}`);
@@ -130,7 +138,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
 
   const handleImport = async () => {
     if (!canEditChapters) {
-      addToast("当前账号没有导入章节的权限", "error");
+      addToast(t("novel.importChapterPermissionDenied"), "error");
       return;
     }
     const requestProjectId = projectId;
@@ -140,11 +148,11 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       content: importForm.content,
     };
     if (!requestForm.content.trim()) {
-      addToast("请粘贴章节正文", "error");
+      addToast(t("novel.chapterContentRequired"), "error");
       return;
     }
     if (!Number.isInteger(requestForm.chapter_number) || requestForm.chapter_number <= 0) {
-      addToast("章节序号必须是正整数", "error");
+      addToast(t("writing.chapterNumberPositive"), "error");
       return;
     }
     if (importingRef.current) return;
@@ -161,17 +169,17 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       });
       if (!isCurrentImport(requestProjectId, requestSeq)) return;
       const message = imported.derived_sync_status === "failed"
-        ? `已导入第 ${requestForm.chapter_number} 章，但派生资料同步失败；可打开章节重试`
+        ? t("novel.chapterImportedSyncFailed", { chapter: requestForm.chapter_number })
         : imported.derived_sync_status === "running"
-          ? `已导入第 ${requestForm.chapter_number} 章，派生资料正在同步`
-          : `已导入第 ${requestForm.chapter_number} 章`;
+          ? t("novel.chapterImportedSyncRunning", { chapter: requestForm.chapter_number })
+          : t("novel.chapterImported", { chapter: requestForm.chapter_number });
       addToast(message, chapterContentCommitToastType(imported.derived_sync_status));
       setImportOpen(false);
       setImportForm({ chapter_number: requestForm.chapter_number + 1, title: "", content: "" });
       await load({ force: true });
     } catch (err) {
       if (isCurrentImport(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "导入失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.importChapterFailed")), "error");
       }
     } finally {
       if (isCurrentImport(requestProjectId, requestSeq)) {
@@ -197,7 +205,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> 加载章节…
+        <LoadingSpinner size="sm" /> {t("novel.loadingChapters")}
       </div>
     );
   }
@@ -207,7 +215,10 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
       <div className="flex min-h-8 items-center gap-3">
         {displayChapters.length > 0 ? (
           <span className="min-w-0 flex-1 truncate text-xs text-book-text-muted">
-            {displayChapters.length} 章 · {totalWords.toLocaleString("zh-CN")} 字
+            {t("novel.chapterListSummary", {
+              count: formatNumber(displayChapters.length, locale),
+              words: formatNumber(totalWords, locale),
+            })}
           </span>
         ) : null}
         {canEditChapters ? (
@@ -217,7 +228,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
             onClick={openImportDialog}
             className="ml-auto !min-h-8 !text-xs"
           >
-            导入章节
+            {t("novel.importChapter")}
           </BookButton>
         ) : null}
       </div>
@@ -225,8 +236,8 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
         {displayChapters.length === 0 ? (
           <div className="p-4">
             <EmptyHint
-              text="还没有章节。"
-              actionText={canEditChapters ? "进入写作桌生成第一章" : undefined}
+              text={t("writing.noChaptersHint")}
+              actionText={canEditChapters ? t("writing.startWriting") : undefined}
               onAction={canEditChapters ? () => openWritingDesk() : undefined}
             />
           </div>
@@ -247,14 +258,13 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
         )}
       </section>
 
-      {/* 导入章节 Modal */}
       {importOpen && (
         <Modal
           isOpen
           onClose={() => !importing && setImportOpen(false)}
-          title="导入章节"
+          title={t("novel.importChapter")}
           icon={<Upload size={15} />}
-          subtitle="粘贴外部正文并写入当前项目"
+          subtitle={t("novel.importChapterSubtitle")}
           maxWidthClassName="max-w-2xl"
           bodyClassName="px-4 py-4"
           closeOnBackdrop={!importing}
@@ -269,10 +279,10 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
             >
               {importing ? (
                 <span className="inline-flex items-center gap-2">
-                  <LoadingSpinner size="sm" /> 导入中…
+                  <LoadingSpinner size="sm" /> {t("novel.importingChapter")}
                 </span>
               ) : (
-                "确认导入"
+                t("novel.confirmImportChapter")
               )}
             </BookButton>
           }
@@ -280,7 +290,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
           <div className="space-y-3">
             <div className="mb-3 grid gap-3 sm:grid-cols-[100px_1fr]">
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-book-text-sub">章节序号</span>
+                <span className="text-xs text-book-text-sub">{t("novel.chapterNumber")}</span>
                 <input
                   type="number"
                   min={1}
@@ -296,7 +306,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
                 />
               </label>
               <label className="flex flex-col gap-1">
-                <span className="text-xs text-book-text-sub">标题（可选）</span>
+                <span className="text-xs text-book-text-sub">{t("novel.optionalTitle")}</span>
                 <input
                   type="text"
                   value={importForm.title}
@@ -307,7 +317,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
               </label>
             </div>
             <label className="flex flex-col gap-1">
-              <span className="text-xs text-book-text-sub">正文</span>
+              <span className="text-xs text-book-text-sub">{t("novel.chapterBody")}</span>
               <textarea
                 value={importForm.content}
                 onChange={(e) =>
@@ -315,7 +325,7 @@ export const ChaptersTab: React.FC<ChaptersTabProps> = ({ projectId, canEditChap
                 }
                 disabled={importing}
                 spellCheck={false}
-                placeholder="粘贴本章正文；导入后会标记为外部导入"
+                placeholder={t("novel.chapterBodyPlaceholder")}
                 className="book-control min-h-[220px] resize-y rounded-xl p-3 font-serif text-sm leading-relaxed sm:min-h-[280px]"
               />
             </label>
@@ -330,17 +340,18 @@ const ChapterRow: React.FC<{
   chapter: ChapterSummary;
   onOpen?: () => void;
 }> = ({ chapter, onOpen }) => {
-  const status = chapterStatusLabel(chapter.status);
-  const derivedSyncStatus = derivedSyncStatusLabel(chapter);
+  const { locale, t } = useI18n();
+  const status = chapterStatusLabel(chapter.status, locale);
+  const derivedSyncStatus = derivedSyncStatusLabel(chapter, t);
   const content = (
     <>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-medium text-book-text-main">
-          第 {chapter.chapter_number} 章
+          {t("novel.chapterRangeSingle", { number: chapter.chapter_number })}
           {chapter.title?.trim() ? ` · ${chapter.title.trim()}` : ""}
         </div>
         <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
-          <span>{chapterWordCount(chapter).toLocaleString("zh-CN")} 字</span>
+          <span>{t("writing.chapterWordCount", { count: formatNumber(chapterWordCount(chapter), locale) })}</span>
           {status ? (
             <>
               <span aria-hidden="true">·</span>

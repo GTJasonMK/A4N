@@ -1,3 +1,4 @@
+use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_core::error::AppError;
 use a4n_db::{
     canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput},
@@ -25,7 +26,7 @@ use crate::{
 use super::{
     contracts::{
         CanvasLlmTextInput, CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort,
-        CanvasTextNodeExecutionInput, CanvasTextNodeRunSummary,
+        CanvasTextNodeExecutionInput,
     },
     input::{build_canvas_llm_text_input, build_canvas_rendered_prompt},
     request::build_canvas_llm_text_request,
@@ -41,7 +42,7 @@ impl OrchestratorContext {
     pub async fn run_canvas_render_text_node_validated(
         &self,
         input: CanvasTextNodeExecutionInput<'_>,
-    ) -> Result<CanvasTextNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         let checkpoints = self
             .canvas_text_source_checkpoints(input.shared_run.map(|run| run.workflow_run_id))
             .await?;
@@ -124,7 +125,7 @@ impl OrchestratorContext {
         &self,
         input: CanvasTextNodeExecutionInput<'_>,
         llm_port: &dyn CanvasTextGenerationLlmPort,
-    ) -> Result<CanvasTextNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         let checkpoints = self
             .canvas_text_source_checkpoints(input.shared_run.map(|run| run.workflow_run_id))
             .await?;

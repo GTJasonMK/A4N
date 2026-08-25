@@ -29,7 +29,7 @@ pub use intent::{
     insert_file_artifact_cleanup_intent, insert_generation_artifact_unbind_intent,
     insert_generation_provider_job_cleanup_intent,
     insert_generation_staging_artifact_delete_intent, insert_media_workflow_v2_reset_intent,
-    insert_project_deletion_cleanup_intent,
+    insert_media_workflow_v2_reset_intents, insert_project_deletion_cleanup_intent,
 };
 pub use retention::purge_completed_cleanup_audits;
 pub use transitions::{

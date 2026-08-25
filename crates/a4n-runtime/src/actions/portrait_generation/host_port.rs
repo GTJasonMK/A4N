@@ -9,7 +9,6 @@ use a4n_core::{
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use a4n_orchestrator::{
-    config::image_backend_supports_reference_images,
     generation::GeneratedMediaArtifactFile,
     portrait::{
         DecodedPortraitImage, GeneratedPortraitImage, PersistPortraitFileInput,
@@ -51,6 +50,24 @@ pub(super) async fn build_portrait_image_request_preview(
     prompt: &str,
     reference_image_ids: &[i64],
 ) -> Result<PortraitImageRequestPreviewContext, String> {
+    let config = resolve_image_config(state, None).await?;
+    build_portrait_image_request_preview_with_config(
+        state,
+        project_id,
+        prompt,
+        reference_image_ids,
+        &config,
+    )
+    .await
+}
+
+pub(super) async fn build_portrait_image_request_preview_with_config(
+    state: &AppState,
+    project_id: i64,
+    prompt: &str,
+    reference_image_ids: &[i64],
+    config: &image_gen_config::Model,
+) -> Result<PortraitImageRequestPreviewContext, String> {
     let image_ids = a4n_orchestrator::portrait::validate_reference_image_ids(reference_image_ids)?;
     let records = state
         .orchestrator()
@@ -67,7 +84,6 @@ pub(super) async fn build_portrait_image_request_preview(
             },
         )
         .collect::<Vec<_>>();
-    let config = resolve_image_config(state, None).await?;
     let reference_images = sources
         .iter()
         .map(|source| {
@@ -75,7 +91,9 @@ pub(super) async fn build_portrait_image_request_preview(
                 .map_err(|error| error.to_string())
         })
         .collect::<Result<Vec<_>, _>>()?;
-    if !reference_images.is_empty() && !image_backend_supports_reference_images(&config.backend) {
+    if !reference_images.is_empty()
+        && !a4n_core::config::image_backend_supports_reference_images(&config.backend)
+    {
         return Err(format!(
             "当前图片后端 {} 不支持真实参考图输入，请切换到 openai-compatible-image-edit、openai-chat-image 或 cliproxy-image，或移除参考图",
             config.backend
@@ -89,7 +107,7 @@ pub(super) async fn build_portrait_image_request_preview(
             model: config.model.clone(),
             reference_images,
         },
-        config,
+        config: config.clone(),
     })
 }
 
@@ -113,7 +131,8 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
             .iter()
             .map(|source| read_reference_image(self.state, &source.label, &source.file_path))
             .collect::<Result<Vec<_>, _>>()?;
-        if !reference_images.is_empty() && !image_backend_supports_reference_images(&config.backend)
+        if !reference_images.is_empty()
+            && !a4n_core::config::image_backend_supports_reference_images(&config.backend)
         {
             return Err(AppError::InvalidArgument(format!(
                 "当前图片后端 {} 不支持真实参考图输入，请切换到 openai-compatible-image-edit、openai-chat-image 或 cliproxy-image，或移除参考图",

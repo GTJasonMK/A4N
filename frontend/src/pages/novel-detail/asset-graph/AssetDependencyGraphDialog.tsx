@@ -28,6 +28,7 @@ import { Modal } from "../../../components/ui/Modal";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { THEME_APPLIED_EVENT } from "../../../theme/activeTheme";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
+import { formatNumber, useI18n } from "../../../i18n";
 import {
   assetTypeLabel,
   buildLayout,
@@ -37,6 +38,7 @@ import {
   isVideoChainNode,
   kindLabel,
   nodeCenter,
+  primaryAssetIndexNodes,
   preferredInitialNodeId,
   summarizeGraph,
   type PositionedNode,
@@ -63,6 +65,7 @@ const AUTO_OPEN_OBJECT_MAX_FIELDS = 8;
 export const AssetDependencyGraphDialog: React.FC<
   AssetDependencyGraphDialogProps
 > = ({ open, projectId, onClose }) => {
+  const { t } = useI18n();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const networkScrollRef = useRef<HTMLDivElement | null>(null);
   const graphRequestSeqRef = useRef(0);
@@ -111,7 +114,7 @@ export const AssetDependencyGraphDialog: React.FC<
       });
     } catch (err) {
       if (graphRequestSeqRef.current !== requestSeq) return;
-      setError(extractErrorMessage(err, "加载依赖图失败"));
+      setError(extractErrorMessage(err, t("novel.assetGraph.loading")));
     } finally {
       if (graphRequestSeqRef.current === requestSeq) {
         setLoading(false);
@@ -149,7 +152,7 @@ export const AssetDependencyGraphDialog: React.FC<
       window.removeEventListener(THEME_APPLIED_EVENT, handleThemeApplied);
   }, [open]);
 
-  const layout = useMemo(() => buildLayout(graph), [graph]);
+  const layout = useMemo(() => buildLayout(graph, t), [graph, t]);
   const nodeById = useMemo(() => {
     const map = new Map<string, PositionedNode>();
     layout.nodes.forEach((node) => map.set(node.id, node));
@@ -202,7 +205,7 @@ export const AssetDependencyGraphDialog: React.FC<
         if (detailRequestSeqRef.current !== requestSeq) return;
         setNodeDetail(null);
         setSelectedRecordId(null);
-        setDetailError(extractErrorMessage(err, "加载资产来源失败"));
+        setDetailError(extractErrorMessage(err, t("novel.assetGraph.noSourceDetails")));
       })
       .finally(() => {
         if (detailRequestSeqRef.current === requestSeq) setDetailLoading(false);
@@ -213,13 +216,13 @@ export const AssetDependencyGraphDialog: React.FC<
         detailRequestSeqRef.current += 1;
       }
     };
-  }, [open, projectId, selectedNode]);
+  }, [open, projectId, selectedNode, t]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    drawGraph(canvas, layout, graph?.edges ?? [], selectedId);
-  }, [graph?.edges, layout, selectedId, themeVersion]);
+    drawGraph(canvas, layout, graph?.edges ?? [], selectedId, t);
+  }, [graph?.edges, layout, selectedId, t, themeVersion]);
 
   useEffect(() => {
     const container = networkScrollRef.current;
@@ -280,9 +283,9 @@ export const AssetDependencyGraphDialog: React.FC<
   };
 
   const summaryText = [
-    summary.text > 0 ? `文字 ${summary.text}` : null,
-    summary.image > 0 ? `图片 ${summary.image}` : null,
-    summary.video > 0 ? `视频 ${summary.video}` : null,
+    summary.text > 0 ? t("novel.assetGraph.textCount", { count: summary.text }) : null,
+    summary.image > 0 ? t("novel.assetGraph.imageCount", { count: summary.image }) : null,
+    summary.video > 0 ? t("novel.assetGraph.videoCount", { count: summary.video }) : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -292,8 +295,8 @@ export const AssetDependencyGraphDialog: React.FC<
       <Modal
         isOpen={open}
         onClose={onClose}
-        title="内容关联"
-        subtitle="查看文字、图片和视频的来源与下游关系。"
+        title={t("novel.assetGraph.title")}
+        subtitle={t("novel.assetGraph.subtitle")}
         icon={<Network size={15} />}
         maxWidthClassName="max-w-[min(1280px,96vw)]"
         bodyClassName="!overflow-hidden p-0"
@@ -303,8 +306,8 @@ export const AssetDependencyGraphDialog: React.FC<
             onClick={loadGraph}
             disabled={loading}
             className="pyqt-btn-icon !h-9 !w-9 sm:!h-8 sm:!w-8"
-            title="刷新依赖图"
-            aria-label="刷新依赖图"
+            title={t("novel.assetGraph.refresh")}
+            aria-label={t("novel.assetGraph.refreshAria")}
           >
             {loading ? (
               <LoadingSpinner size="sm" />
@@ -318,12 +321,12 @@ export const AssetDependencyGraphDialog: React.FC<
           <div className="shrink-0 border-b border-book-border/45 bg-book-bg-paper px-3 py-2 md:hidden">
             <SegmentedControl
               className="mx-auto"
-              ariaLabel="依赖状态视图"
+              ariaLabel={t("novel.assetGraph.viewAria")}
               value={mobilePane}
               onChange={setMobilePane}
               options={[
-                { id: "graph", label: "关系图" },
-                { id: "details", label: "资产详情" },
+                { id: "graph", label: t("novel.assetGraph.graph") },
+                { id: "details", label: t("novel.assetGraph.details") },
               ]}
             />
           </div>
@@ -336,7 +339,7 @@ export const AssetDependencyGraphDialog: React.FC<
               {loading && !graph ? (
                 <div className="flex h-full items-center justify-center text-sm text-book-text-muted">
                   <LoadingSpinner size="md" className="mr-2" />
-                  正在加载依赖状态…
+                  {t("novel.assetGraph.loading")}
                 </div>
               ) : error ? (
                 <div className="flex h-full items-center justify-center px-6 text-sm text-error">
@@ -377,7 +380,7 @@ export const AssetDependencyGraphDialog: React.FC<
               className={`${mobilePane === "details" ? "block" : "hidden"} min-w-0 overflow-y-auto bg-book-bg-paper px-3 py-3 md:block md:px-4 md:py-4 custom-scrollbar`}
             >
               <p className="text-small leading-relaxed text-book-text-muted">
-                {summaryText || "尚无可展示资产"}
+                {summaryText || t("novel.assetGraph.emptyAssets")}
               </p>
 
               <AssetNodeIndex
@@ -418,14 +421,17 @@ const ZoomControls: React.FC<{
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
-}> = ({ zoom, onZoomIn, onZoomOut, onReset }) => (
+}> = ({ zoom, onZoomIn, onZoomOut, onReset }) => {
+  const { locale, t } = useI18n();
+  const zoomPercent = formatNumber(Math.round(zoom * 100), locale);
+  return (
   <div className="absolute left-3 top-3 z-10 flex w-max items-center gap-1 rounded-2xl border border-book-border/45 bg-book-bg-paper/90 p-1 shadow-[0_8px_24px_-16px_rgb(0_0_0/0.45)] backdrop-blur-xl">
     <button
       type="button"
       onClick={onZoomOut}
       className="pyqt-btn-icon !h-9 !w-9 !rounded-xl sm:!h-8 sm:!w-8"
-      title="缩小"
-      aria-label="缩小依赖图"
+      title={t("novel.assetGraph.zoomOut")}
+      aria-label={t("novel.assetGraph.zoomOutAria")}
     >
       <ZoomOut size={14} />
     </button>
@@ -434,51 +440,47 @@ const ZoomControls: React.FC<{
         type="button"
         onClick={onReset}
         className="inline-flex h-9 min-w-14 items-center justify-center gap-1 rounded-xl px-2 text-caption font-medium tabular-nums text-book-text-muted transition hover:bg-book-bg-tertiary hover:text-book-text-main sm:h-8"
-        title="恢复原始大小"
-        aria-label={`恢复原始大小，当前 ${Math.round(zoom * 100)}%`}
+        title={t("novel.assetGraph.resetZoom")}
+        aria-label={t("novel.assetGraph.resetZoomAria", { percent: zoomPercent })}
       >
         <Maximize2 size={12} />
-        {Math.round(zoom * 100)}%
+        {zoomPercent}%
       </button>
     ) : null}
     <button
       type="button"
       onClick={onZoomIn}
       className="pyqt-btn-icon !h-9 !w-9 !rounded-xl sm:!h-8 sm:!w-8"
-      title="放大"
-      aria-label="放大依赖图"
+      title={t("novel.assetGraph.zoomIn")}
+      aria-label={t("novel.assetGraph.zoomInAria")}
     >
       <ZoomIn size={14} />
     </button>
   </div>
-);
+  );
+};
 
 const AssetNodeIndex: React.FC<{
   nodes: PositionedNode[];
   selectedId: string | null;
   onSelect: (nodeId: string) => void;
 }> = ({ nodes, selectedId, onSelect }) => {
+  const { t } = useI18n();
   const visibleNodes = nodes.filter(
     (node) => node.id !== "project" && node.count > 0,
   );
   const videoNodes = visibleNodes.filter(isVideoChainNode);
-  const selectedNode = visibleNodes.find((node) => node.id === selectedId) ?? null;
-  const primaryNodes = videoNodes.length
-    ? [selectedNode, ...videoNodes].filter(
-        (node, index, nodes): node is PositionedNode =>
-          Boolean(node) && nodes.findIndex((item) => item?.id === node?.id) === index,
-      )
-    : visibleNodes.slice(0, 8);
+  const primaryNodes = primaryAssetIndexNodes(visibleNodes, selectedId);
   if (!primaryNodes.length) return null;
 
   return (
     <section className="mt-4">
       <div className="flex items-center justify-between gap-3 px-1">
         <h3 className="text-xs font-semibold text-book-text-main">
-          {videoNodes.length ? "视频链路" : "资产索引"}
+          {videoNodes.length ? t("novel.assetGraph.videoChain") : t("novel.assetGraph.assetIndex")}
         </h3>
         <span className="text-caption tabular-nums text-book-text-subtle">
-          {primaryNodes.length} 个节点
+          {t("novel.assetGraph.nodeCount", { count: primaryNodes.length })}
         </span>
       </div>
       <div className="a4n-flat-surface mt-2 divide-y divide-book-border/35 overflow-hidden">
@@ -500,7 +502,7 @@ const AssetNodeIndex: React.FC<{
                 {node.label}
               </span>
               <span className="shrink-0 text-caption tabular-nums text-book-text-subtle">
-                {node.count} 项
+                {t("novel.assetGraph.itemCount", { count: node.count })}
               </span>
             </button>
           );
@@ -543,10 +545,11 @@ const SelectedAssetDetails: React.FC<{
   onSelectRecord,
   onOpenInputs,
 }) => {
+  const { locale, t } = useI18n();
   if (!node) {
     return (
       <div className="a4n-flat-surface mt-4 px-3 py-4 text-small text-book-text-subtle">
-        在画布中选择一个节点查看信息。
+        {t("novel.assetGraph.selectNode")}
       </div>
     );
   }
@@ -563,7 +566,7 @@ const SelectedAssetDetails: React.FC<{
   const warningCount =
     (detail?.warnings.length ?? 0) +
     records.reduce((sum, record) => sum + record.warnings.length, 0);
-  const nodeStatus = node.status ? getOperationStatusLabel(node.status) : null;
+  const nodeStatus = node.status ? getOperationStatusLabel(node.status, locale) : null;
 
   return (
     <section className="a4n-flat-surface mt-4 overflow-hidden">
@@ -576,10 +579,10 @@ const SelectedAssetDetails: React.FC<{
         </h3>
         <p className="mt-1 text-small leading-relaxed text-book-text-muted">
           {[
-            kindLabel(node.kind),
-            assetTypeLabel(node.asset_type),
+            kindLabel(node.kind, t),
+            assetTypeLabel(node.asset_type, t),
             nodeStatus,
-            `${node.count} 项`,
+            t("novel.assetGraph.itemCount", { count: node.count }),
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -594,7 +597,7 @@ const SelectedAssetDetails: React.FC<{
       {loading ? (
         <div className="flex items-center border-t border-book-border/35 px-3 py-3 text-small text-book-text-muted">
           <LoadingSpinner size="sm" className="mr-1.5" />
-          正在加载来源记录…
+          {t("novel.assetGraph.loadingRecords")}
         </div>
       ) : error ? (
         <div className="border-t border-error/25 bg-error/5 px-3 py-3 text-small leading-relaxed text-error">
@@ -603,10 +606,10 @@ const SelectedAssetDetails: React.FC<{
       ) : detail ? (
         <>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-book-border/35 px-3 py-2.5 text-small text-book-text-muted">
-            <span>来源 {records.length}</span>
-            {inputCount > 0 ? <span>生成输入 {inputCount}</span> : null}
+            <span>{t("novel.assetGraph.sourceCount", { count: records.length })}</span>
+            {inputCount > 0 ? <span>{t("novel.assetGraph.generationInputCount", { count: inputCount })}</span> : null}
             {warningCount > 0 ? (
-              <span className="text-warning">异常 {warningCount}</span>
+              <span className="text-warning">{t("novel.assetGraph.warningCount", { count: warningCount })}</span>
             ) : null}
           </div>
 
@@ -628,7 +631,7 @@ const SelectedAssetDetails: React.FC<{
         </>
       ) : (
         <div className="border-t border-book-border/35 px-3 py-3 text-small leading-relaxed text-book-text-subtle">
-          当前节点没有返回来源详情。
+          {t("novel.assetGraph.noSourceDetails")}
         </div>
       )}
     </section>
@@ -657,10 +660,11 @@ const RecordPicker: React.FC<{
   selectedRecordId: string | null;
   onSelectRecord: (recordId: string) => void;
 }> = ({ records, selectedRecordId, onSelectRecord }) => {
+  const { locale, t } = useI18n();
   if (!records.length) {
     return (
       <div className="border-t border-book-border/35 px-3 py-3 text-small text-book-text-subtle">
-        没有可展示的具体记录。
+        {t("novel.assetGraph.noRecords")}
       </div>
     );
   }
@@ -668,7 +672,7 @@ const RecordPicker: React.FC<{
   return (
     <section className="border-t border-book-border/35 px-3 py-3">
       <div className="text-small font-semibold text-book-text-main">
-        来源记录
+        {t("novel.assetGraph.sourceRecords")}
       </div>
       <div className="mt-2 divide-y divide-book-border/35 border-y border-book-border/35">
         {records.map((record) => {
@@ -691,14 +695,14 @@ const RecordPicker: React.FC<{
                 </span>
                 {record.generation_inputs.length > 0 ? (
                   <span className="shrink-0 text-caption text-book-text-subtle">
-                    输入 {record.generation_inputs.length}
+                    {t("novel.assetGraph.recordInputCount", { count: record.generation_inputs.length })}
                   </span>
                 ) : null}
               </div>
               <div className="mt-0.5 truncate text-caption text-book-text-subtle">
                 {[
-                  originLabel(record.origin),
-                  record.status ? getOperationStatusLabel(record.status) : null,
+                  originLabel(record.origin, t),
+                  record.status ? getOperationStatusLabel(record.status, locale) : null,
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -716,83 +720,84 @@ const LineageRecordDetails: React.FC<{
   record: AssetLineageRecord | null;
   onOpenInputs: (record: AssetLineageRecord) => void;
 }> = ({ node, record, onOpenInputs }) => {
+  const { locale, t } = useI18n();
   if (!record) return null;
   return (
     <section className="border-t border-book-border/35 px-3 py-3">
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-small">
-        <DetailTerm label="来源" value={originLabel(record.origin)} />
-        <DetailTerm label="资产" value={assetTypeLabel(record.asset_kind)} />
+        <DetailTerm label={t("novel.assetGraph.source")} value={originLabel(record.origin, t)} />
+        <DetailTerm label={t("novel.assetGraph.asset")} value={assetTypeLabel(record.asset_kind, t)} />
         <DetailTerm
-          label="状态"
+          label={t("novel.assetGraph.status")}
           value={
-            record.status ? getOperationStatusLabel(record.status) : "未标记"
+            record.status ? getOperationStatusLabel(record.status, locale) : t("novel.assetGraph.unmarked")
           }
         />
       </dl>
 
       <RefList
-        title="上游"
+        title={t("novel.assetGraph.upstream")}
         refs={record.source_refs}
-        emptyText="没有记录上游来源。"
+        emptyText={t("novel.assetGraph.noUpstream")}
       />
       <RefList
-        title="媒体引用"
+        title={t("novel.assetGraph.mediaReferences")}
         refs={record.media_sources}
-        emptyText="没有媒体引用。"
+        emptyText={t("novel.assetGraph.noMediaReferences")}
       />
       <details className="mt-3 border-t border-book-border/35 pt-1 text-caption text-book-text-muted">
         <summary className="cursor-pointer py-2 hover:text-book-text-main">
-          诊断信息
+          {t("novel.assetGraph.diagnostics")}
         </summary>
         <div className="space-y-2 border-l border-book-border/35 pl-3">
           <dl className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 py-1.5">
-            <DetailTerm label="节点标识" value={node.id} title={node.id} />
-            <DetailTerm label="节点类型" value={node.kind} title={node.kind} />
+            <DetailTerm label={t("novel.assetGraph.nodeId")} value={node.id} title={node.id} />
+            <DetailTerm label={t("novel.assetGraph.nodeKind")} value={node.kind} title={node.kind} />
             <DetailTerm
-              label="节点资产"
+              label={t("novel.assetGraph.nodeAsset")}
               value={node.asset_type}
               title={node.asset_type}
             />
             {node.chapter_id != null ? (
-              <DetailTerm label="章节编号" value={node.chapter_id} />
+              <DetailTerm label={t("novel.assetGraph.chapterNumber")} value={node.chapter_id} />
             ) : null}
             {node.profile_id != null ? (
-              <DetailTerm label="档案编号" value={node.profile_id} />
+              <DetailTerm label={t("novel.assetGraph.profileId")} value={node.profile_id} />
             ) : null}
             {node.record_id != null ? (
-              <DetailTerm label="节点记录" value={node.record_id} />
+              <DetailTerm label={t("novel.assetGraph.nodeRecord")} value={node.record_id} />
             ) : null}
             <DetailTerm
-              label="变更策略"
+              label={t("novel.assetGraph.mutationPolicy")}
               value={node.mutation_policy}
               title={node.mutation_policy}
             />
-            <DetailTerm label="记录标识" value={record.id} title={record.id} />
+            <DetailTerm label={t("novel.assetGraph.recordId")} value={record.id} title={record.id} />
             <DetailTerm
-              label="资产类型"
+              label={t("novel.assetGraph.assetType")}
               value={record.asset_kind}
               title={record.asset_kind}
             />
             {record.asset_id != null ? (
-              <DetailTerm label="资产编号" value={record.asset_id} />
+              <DetailTerm label={t("novel.assetGraph.assetId")} value={record.asset_id} />
             ) : null}
             <DetailTerm
-              label="来源类型"
+              label={t("novel.assetGraph.originType")}
               value={record.origin}
               title={record.origin}
             />
             {record.status ? (
               <DetailTerm
-                label="原始状态"
+                label={t("novel.assetGraph.rawStatus")}
                 value={record.status}
                 title={record.status}
               />
             ) : null}
           </dl>
           <GenerationInputAccess record={record} onOpenInputs={onOpenInputs} />
-          <JsonBlock title="结果原始记录" value={record.result} />
+          <JsonBlock title={t("novel.assetGraph.rawResult")} value={record.result} />
           {record.request_snapshot ? (
-            <JsonBlock title="请求快照" value={record.request_snapshot} />
+            <JsonBlock title={t("novel.assetGraph.requestSnapshot")} value={record.request_snapshot} />
           ) : null}
         </div>
       </details>
@@ -804,60 +809,66 @@ const RefList: React.FC<{
   title: string;
   refs: AssetLineageRef[];
   emptyText: string;
-}> = ({ title, refs, emptyText }) => (
-  <section className="mt-3 border-t border-book-border/35 pt-3">
-    <div className="text-small font-semibold text-book-text-main">{title}</div>
-    {refs.length ? (
-      <div className="mt-1.5 divide-y divide-book-border/30">
-        {refs.slice(0, 6).map((ref) => (
-          <div
-            key={ref.id}
-            className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-small"
-          >
-            <span
-              className="min-w-0 truncate text-book-text-main"
-              title={ref.label}
+}> = ({ title, refs, emptyText }) => {
+  const { t } = useI18n();
+  return (
+    <section className="mt-3 border-t border-book-border/35 pt-3">
+      <div className="text-small font-semibold text-book-text-main">{title}</div>
+      {refs.length ? (
+        <div className="mt-1.5 divide-y divide-book-border/30">
+          {refs.slice(0, 6).map((ref) => (
+            <div
+              key={ref.id}
+              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 py-1.5 text-small"
             >
-              {ref.label}
-            </span>
-            <span className="shrink-0 text-caption text-book-text-subtle">
-              {assetTypeLabel(ref.asset_type)}
-            </span>
-          </div>
-        ))}
-      </div>
-    ) : (
-      <div className="mt-1 text-small text-book-text-subtle">{emptyText}</div>
-    )}
-  </section>
-);
+              <span
+                className="min-w-0 truncate text-book-text-main"
+                title={ref.label}
+              >
+                {ref.label}
+              </span>
+              <span className="shrink-0 text-caption text-book-text-subtle">
+                {assetTypeLabel(ref.asset_type, t)}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-1 text-small text-book-text-subtle">{emptyText}</div>
+      )}
+    </section>
+  );
+};
 
 const GenerationInputAccess: React.FC<{
   record: AssetLineageRecord;
   onOpenInputs: (record: AssetLineageRecord) => void;
 }> = ({ record, onOpenInputs }) => {
+  const { t } = useI18n();
   const inputs = record.generation_inputs;
   return (
     <div className="border-t border-book-border/30 py-2">
       {inputs.length ? (
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0 text-caption text-book-text-muted">
-            生成输入 · {inputs.length} 项 ·{" "}
-            {inputStatusLabel(record.input_status)}
+            {t("novel.assetGraph.generationInputs", {
+              count: inputs.length,
+              status: inputStatusLabel(record.input_status, t),
+            })}
           </div>
           <button
             type="button"
             onClick={() => onOpenInputs(record)}
             className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-caption font-medium text-book-primary transition hover:bg-book-primary/10"
-            title="查看生成该资产的完整输入包"
+            title={t("novel.assetGraph.viewInputsTitle")}
           >
             <FileText size={11} />
-            查看
+            {t("novel.assetGraph.view")}
           </button>
         </div>
       ) : (
         <div className="text-caption leading-relaxed text-book-text-subtle">
-          {generationInputEmptyText(record.input_status)}
+          {generationInputEmptyText(record.input_status, t)}
         </div>
       )}
     </div>
@@ -868,12 +879,13 @@ const PromptViewerModal: React.FC<{
   viewer: InputViewerState | null;
   onClose: () => void;
 }> = ({ viewer, onClose }) => {
+  const { t } = useI18n();
   if (!viewer) return null;
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title="生成输入"
+      title={t("novel.assetGraph.generationInputTitle")}
       subtitle={viewer.recordLabel}
       icon={<FileText size={15} />}
       maxWidthClassName="max-w-5xl"
@@ -885,10 +897,10 @@ const PromptViewerModal: React.FC<{
           <section key={group} className="a4n-flat-surface overflow-hidden">
             <div className="border-b border-book-border/35 px-3 py-2.5">
               <div className="text-xs font-semibold text-book-text-main">
-                {inputGroupLabel(group)}
+                {inputGroupLabel(group, t)}
               </div>
               <div className="mt-0.5 text-caption tabular-nums text-book-text-subtle">
-                {inputs.length} 项
+                {t("novel.assetGraph.inputItems", { count: inputs.length })}
               </div>
             </div>
             <div className="divide-y divide-book-border/35">
@@ -934,12 +946,13 @@ const GenerationInputBody: React.FC<{ input: GenerationInputSource }> = ({
 };
 
 const MessageList: React.FC<{ value: unknown }> = ({ value }) => {
+  const { t } = useI18n();
   if (!Array.isArray(value) || !value.every(isChatMessageLike)) {
     return <StructuredValueView value={value} />;
   }
   if (!value.length) {
     return (
-      <span className="text-body-sm text-book-text-subtle">空消息列表</span>
+      <span className="text-body-sm text-book-text-subtle">{t("novel.assetGraph.emptyMessages")}</span>
     );
   }
   return (
@@ -959,6 +972,7 @@ const MessageBlock: React.FC<{
   message: Record<string, unknown>;
   index: number;
 }> = ({ message, index }) => {
+  const { t } = useI18n();
   const role =
     typeof message.role === "string" && message.role.trim()
       ? message.role
@@ -971,10 +985,10 @@ const MessageBlock: React.FC<{
     <article className="py-2.5">
       <div className="flex items-center justify-between gap-3">
         <span className="text-small font-semibold text-book-text-main">
-          {messageRoleLabel(role)}
+          {messageRoleLabel(role, t)}
         </span>
         <span className="text-caption tabular-nums text-book-text-subtle">
-          消息 {index + 1}
+          {t("novel.assetGraph.messageNumber", { number: index + 1 })}
         </span>
       </div>
       <div className="mt-2">
@@ -997,6 +1011,7 @@ const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({
   value,
   depth = 0,
 }) => {
+  const { t } = useI18n();
   if (value == null) {
     return <span className="text-body-sm text-book-text-subtle">null</span>;
   }
@@ -1012,7 +1027,7 @@ const StructuredValueView: React.FC<{ value: unknown; depth?: number }> = ({
   }
   if (Array.isArray(value)) {
     if (!value.length) {
-      return <span className="text-body-sm text-book-text-subtle">空数组</span>;
+      return <span className="text-body-sm text-book-text-subtle">{t("novel.assetGraph.emptyArray")}</span>;
     }
     if (value.every(isChatMessageLike)) {
       return <MessageList value={value} />;
@@ -1042,8 +1057,9 @@ const StructuredEntriesView: React.FC<{
   entries: Array<[string, unknown]>;
   depth: number;
 }> = ({ entries, depth }) => {
+  const { t } = useI18n();
   if (!entries.length) {
-    return <span className="text-body-sm text-book-text-subtle">空对象</span>;
+    return <span className="text-body-sm text-book-text-subtle">{t("novel.assetGraph.emptyObject")}</span>;
   }
   return (
     <div className="divide-y divide-book-border/25 border-y border-book-border/30">
@@ -1064,6 +1080,7 @@ const StructuredValueItem: React.FC<{
   value: unknown;
   depth: number;
 }> = ({ title, value, depth }) => {
+  const { t } = useI18n();
   if (typeof value === "string") {
     const text = value;
     const compact =
@@ -1085,7 +1102,7 @@ const StructuredValueItem: React.FC<{
         <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-muted hover:text-book-text-main">
           <span>{title}</span>
           <span className="ml-2 font-mono text-caption font-normal text-book-text-subtle">
-            {textSummary(text)}
+            {textSummary(text, t)}
           </span>
         </summary>
         <div className="border-l border-book-border/35 pb-2 pl-3">
@@ -1125,7 +1142,7 @@ const StructuredValueItem: React.FC<{
         <summary className="cursor-pointer py-2 text-small font-semibold text-book-text-muted hover:text-book-text-main">
           <span>{title}</span>
           <span className="ml-2 font-mono text-caption font-normal text-book-text-subtle">
-            {value.length} 条消息
+            {t("novel.assetGraph.messagesSummary", { count: value.length })}
           </span>
         </summary>
         <div className="border-l border-book-border/35 pb-2 pl-3">
@@ -1134,7 +1151,7 @@ const StructuredValueItem: React.FC<{
       </details>
     );
   }
-  const summary = structuredValueSummary(value);
+  const summary = structuredValueSummary(value, t);
   return (
     <details
       open={shouldAutoOpenStructuredValue(value, depth)}
@@ -1162,17 +1179,20 @@ function shouldAutoOpenStructuredValue(value: unknown, depth: number): boolean {
   return true;
 }
 
-function structuredValueSummary(value: unknown): string | null {
-  if (Array.isArray(value)) return `${value.length} 项`;
-  if (isRecord(value)) return `${Object.keys(value).length} 字段`;
+function structuredValueSummary(value: unknown, t: ReturnType<typeof useI18n>["t"]): string | null {
+  if (Array.isArray(value)) return t("novel.assetGraph.arraySummary", { count: value.length });
+  if (isRecord(value)) return t("novel.assetGraph.objectSummary", { count: Object.keys(value).length });
   return null;
 }
 
-function textSummary(text: string): string {
+function textSummary(
+  text: string,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
   const lines = text.split("\n").length;
   return lines > 1
-    ? `${text.length} 字符 / ${lines} 行`
-    : `${text.length} 字符`;
+    ? t("novel.assetGraph.textSummaryLines", { chars: text.length, lines })
+    : t("novel.assetGraph.textSummaryChars", { chars: text.length });
 }
 
 const TextBlock: React.FC<{ text: string }> = ({ text }) => (
@@ -1199,36 +1219,40 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function originLabel(origin: string): string {
-  const labels: Record<string, string> = {
-    derived_text: "文本派生",
-    llm_generated: "模型生成",
-    image_generated: "图片生成",
-    video_generated: "视频生成",
-    uploaded: "用户上传",
-    imported: "导入资产",
-    manual: "手动记录",
-    extracted_frame: "抽帧生成",
-    unknown: "来源不明",
+function originLabel(origin: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const labels: Record<string, Parameters<typeof t>[0]> = {
+    derived_text: "novel.assetGraph.origin.derivedText",
+    llm_generated: "novel.assetGraph.origin.llmGenerated",
+    image_generated: "novel.assetGraph.origin.imageGenerated",
+    video_generated: "novel.assetGraph.origin.videoGenerated",
+    uploaded: "novel.assetGraph.origin.uploaded",
+    imported: "novel.assetGraph.origin.imported",
+    manual: "novel.assetGraph.origin.manual",
+    extracted_frame: "novel.assetGraph.origin.extractedFrame",
+    unknown: "novel.assetGraph.origin.unknown",
   };
-  return labels[origin] ?? "其他来源";
+  return t(labels[origin] ?? "novel.assetGraph.origin.other");
 }
 
-function inputStatusLabel(status: string): string {
-  if (status === "complete") return "完整";
-  if (status === "missing") return "缺失";
-  if (status === "run_without_inputs") return "无快照";
-  if (status === "structural") return "结构来源";
-  if (status === "not_applicable") return "不适用";
-  return "状态未知";
+function inputStatusLabel(status: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const labels: Record<string, Parameters<typeof t>[0]> = {
+    complete: "novel.assetGraph.inputStatus.complete",
+    missing: "novel.assetGraph.inputStatus.missing",
+    run_without_inputs: "novel.assetGraph.inputStatus.runWithoutInputs",
+    structural: "novel.assetGraph.inputStatus.structural",
+    not_applicable: "novel.assetGraph.inputStatus.notApplicable",
+  };
+  return t(labels[status] ?? "novel.assetGraph.inputStatus.unknown");
 }
 
-function generationInputEmptyText(status: string): string {
-  if (status === "structural")
-    return "该记录已有结构化上游，但没有单独的生成输入快照。";
-  if (status === "not_applicable") return "该记录不需要生成输入快照。";
-  if (status === "run_without_inputs") return "生成运行存在，但缺少输入快照。";
-  return "缺少生成输入记录。";
+function generationInputEmptyText(status: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const labels: Record<string, Parameters<typeof t>[0]> = {
+    structural: "novel.assetGraph.inputEmpty.structural",
+    not_applicable: "novel.assetGraph.inputEmpty.notApplicable",
+    run_without_inputs: "novel.assetGraph.inputEmpty.runWithoutInputs",
+    missing: "novel.assetGraph.inputEmpty.missing",
+  };
+  return t(labels[status] ?? "novel.assetGraph.inputEmpty.missing");
 }
 
 function groupGenerationInputs(
@@ -1255,16 +1279,16 @@ function groupGenerationInputs(
   });
 }
 
-function inputGroupLabel(group: string): string {
-  const labels: Record<string, string> = {
-    prompt: "提示词",
-    variables: "输入变量",
-    source_text: "上游文本",
-    media: "参考媒体",
-    request: "模型请求",
-    response: "响应摘要",
+function inputGroupLabel(group: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const labels: Record<string, Parameters<typeof t>[0]> = {
+    prompt: "novel.assetGraph.inputGroup.prompt",
+    variables: "novel.assetGraph.inputGroup.variables",
+    source_text: "novel.assetGraph.inputGroup.sourceText",
+    media: "novel.assetGraph.inputGroup.media",
+    request: "novel.assetGraph.inputGroup.request",
+    response: "novel.assetGraph.inputGroup.response",
   };
-  return labels[group] ?? "其他输入";
+  return t(labels[group] ?? "novel.assetGraph.inputGroup.other");
 }
 
 function isChatMessageLike(value: unknown): value is Record<string, unknown> {
@@ -1272,13 +1296,13 @@ function isChatMessageLike(value: unknown): value is Record<string, unknown> {
   return "content" in value || "role" in value;
 }
 
-function messageRoleLabel(role: string): string {
-  const labels: Record<string, string> = {
-    system: "系统",
-    user: "用户",
-    assistant: "助手",
-    tool: "工具",
-    message: "消息",
+function messageRoleLabel(role: string, t: ReturnType<typeof useI18n>["t"]): string {
+  const labels: Record<string, Parameters<typeof t>[0]> = {
+    system: "novel.assetGraph.messageRole.system",
+    user: "novel.assetGraph.messageRole.user",
+    assistant: "novel.assetGraph.messageRole.assistant",
+    tool: "novel.assetGraph.messageRole.tool",
+    message: "novel.assetGraph.messageRole.message",
   };
-  return labels[role] ?? "消息";
+  return t(labels[role] ?? "novel.assetGraph.messageRole.message");
 }

@@ -1,10 +1,11 @@
-use a4n_core::{models::scene::scene_occurrence, rag::RagDataType};
+use a4n_core::rag::RagDataType;
+use a4n_db::rag::RagSceneOccurrenceRow;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
 use super::super::{RagRecord, rag_chunk_id};
 
 fn scene_occurrence_rag_text(
-    occurrence: &scene_occurrence::Model,
+    occurrence: &RagSceneOccurrenceRow,
     scene_name: &str,
 ) -> Result<String, String> {
     let scene_name = required_rag_text(
@@ -47,7 +48,7 @@ fn scene_occurrence_rag_text(
 
 pub fn scene_occurrence_rag_record(
     project_id: i64,
-    occurrence: &scene_occurrence::Model,
+    occurrence: &RagSceneOccurrenceRow,
     scene_name: &str,
 ) -> Result<RagRecord, String> {
     Ok(RagRecord {

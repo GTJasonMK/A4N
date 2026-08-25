@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RefreshCw } from "lucide-react";
 import { useToast } from "../../components/feedback/Toast";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { BookButton } from "../../components/ui/BookButton";
 import {
   createWorkflowTaskId,
   runTaskWithPolling,
@@ -46,6 +48,7 @@ import {
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
+import { useI18n } from "../../i18n";
 
 /**
  * Embedding 配置 Tab
@@ -64,24 +67,23 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   scope = "local",
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const usesRemoteBackend = scope === "server" || shouldUseHttpBackend();
   const usesLocalDesktopEmbedding =
     scope === "local" && canUseLocalDesktopEmbedding();
   const modelHostLabel = usesRemoteBackend && !usesLocalDesktopEmbedding
-    ? "远程服务器"
-    : "本机";
+    ? t("settingsEmbedding.remoteServer")
+    : t("settingsEmbedding.thisDevice");
   const { runProgressTask } = useProgressTask();
   const [items, setItems] = useState<ConfigItem<EmbeddingForm>[]>([]);
   const [catalog, setCatalog] = useState<ModelProviderCatalog | null>(null);
   const [localModels, setLocalModels] = useState<LocalEmbeddingModel[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busyModel, setBusyModel] = useState<string | null>(null);
   const [downloadInfoByModel, setDownloadInfoByModel] = useState<
     Record<string, EmbeddingModelDownloadInfo>
   >({});
-  const [downloadInfoErrors, setDownloadInfoErrors] = useState<Record<string, string>>(
-    {},
-  );
   const mountedRef = useRef(true);
   const refreshSeqRef = useRef(0);
   const modelActionRef = useRef<string | null>(null);
@@ -112,63 +114,50 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
     const requestSeq = refreshSeqRef.current + 1;
     refreshSeqRef.current = requestSeq;
     setLoading(true);
+    setLoadError(null);
     try {
-      const [list, models, providerCatalog] = await Promise.all([
+      const [listResult, catalogResult] = await Promise.allSettled([
         listEmbeddingConfig(scope),
-        listLocalEmbeddingModels(scope),
         listModelProviderCatalog(),
       ]);
       if (!isCurrentRefresh(requestSeq)) return;
+      if (listResult.status === "rejected") throw listResult.reason;
+      if (catalogResult.status === "rejected") throw catalogResult.reason;
+      const list = listResult.value;
+      const providerCatalog = catalogResult.value;
       for (const config of list) {
         assertCatalogProvider("embedding", config.backend, providerCatalog);
       }
       setItems(list.map(toItem));
-      setLocalModels(models);
       setCatalog(providerCatalog);
-    } catch (err) {
+      setLoading(false);
+
+      // 模型目录是可选数据，不能阻塞配置列表首次显示。
+      void listLocalEmbeddingModels(scope)
+        .then((models) => {
+          if (!isCurrentRefresh(requestSeq)) return;
+          setLocalModels(models);
+        })
+        .catch(() => {
+          if (!isCurrentRefresh(requestSeq)) return;
+          setLocalModels([]);
+          setLoadError(
+            t("settingsEmbedding.directoryReadFailed", { host: modelHostLabel }),
+          );
+        });
+    } catch {
       if (!isCurrentRefresh(requestSeq)) return;
-      addToast(extractErrorMessage(err, "加载 Embedding 配置失败"), "error");
+      setLoadError(
+        t("settingsEmbedding.configLoadFailed", { host: modelHostLabel }),
+      );
     } finally {
       if (isCurrentRefresh(requestSeq)) setLoading(false);
     }
-  }, [addToast, isCurrentRefresh, scope]);
+  }, [isCurrentRefresh, modelHostLabel, scope, t]);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    if (busyModel) return;
-
-    let cancelled = false;
-    const models = localModels.filter(
-      (model) => !downloadInfoByModel[model.name.toLowerCase()],
-    );
-    if (models.length === 0) return;
-
-    void (async () => {
-      for (const model of models) {
-        if (cancelled) return;
-        try {
-          const info = await getEmbeddingModelDownloadInfo(model.name, scope);
-          if (cancelled) return;
-          rememberDownloadInfo(info);
-        } catch (err) {
-          if (cancelled) return;
-          rememberDownloadInfoError(
-            model,
-            extractErrorMessage(err, "模型大小获取失败"),
-          );
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // 后台补齐模型大小；downloadInfoByModel 只用作本轮筛选，避免每次写入都重启循环。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localModels, busyModel, scope]);
 
   const pickFastembedModel = () => preferredFastembedModel(localModels);
 
@@ -185,11 +174,13 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   );
 
   const defaultEmbeddingForm = useMemo((): EmbeddingForm => {
-    if (!usesLocalDesktopEmbedding) return DEFAULT_FORM;
+    if (!usesLocalDesktopEmbedding) {
+      return { ...DEFAULT_FORM, name: t("settingsEmbedding.localHash") };
+    }
     const model = preferredFastembedModel(localModels);
     return {
       ...DEFAULT_FORM,
-      name: "本机 fastembed",
+      name: t("settingsEmbedding.localFastembed"),
       backend: "fastembed",
       model: model?.name ?? DEFAULT_FASTEMBED_MODEL,
       dimension: model?.dimension ?? DEFAULT_FASTEMBED_DIMENSION,
@@ -199,7 +190,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       clear_api_key: false,
       local_model_path: "",
     };
-  }, [localModels, usesLocalDesktopEmbedding]);
+  }, [localModels, t, usesLocalDesktopEmbedding]);
 
   const resolveLocalModel = (modelName: string): LocalEmbeddingModel | null =>
     localModelByName.get(modelName.trim().toLowerCase()) ?? null;
@@ -207,28 +198,11 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   const resolveDownloadInfo = (modelName: string): EmbeddingModelDownloadInfo | null =>
     downloadInfoByModel[modelName.trim().toLowerCase()] ?? null;
 
-  const resolveDownloadInfoError = (modelName: string): string | null =>
-    downloadInfoErrors[modelName.trim().toLowerCase()] ?? null;
-
   const rememberDownloadInfo = (info: EmbeddingModelDownloadInfo) => {
     setDownloadInfoByModel((prev) => ({
       ...prev,
       [info.model_name.toLowerCase()]: info,
       [info.model_code.toLowerCase()]: info,
-    }));
-    setDownloadInfoErrors((prev) => {
-      const next = { ...prev };
-      delete next[info.model_name.toLowerCase()];
-      delete next[info.model_code.toLowerCase()];
-      return next;
-    });
-  };
-
-  const rememberDownloadInfoError = (model: LocalEmbeddingModel, message: string) => {
-    setDownloadInfoErrors((prev) => ({
-      ...prev,
-      [model.name.toLowerCase()]: message,
-      [model.model_code.toLowerCase()]: message,
     }));
   };
 
@@ -255,7 +229,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
   const handleDownloadModel = async (modelName: string) => {
     const model = modelName.trim();
     if (!model) {
-      addToast("请先选择 fastembed 模型", "error");
+      addToast(t("settingsEmbedding.chooseFastembed"), "error");
       return;
     }
 
@@ -268,22 +242,23 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       await runProgressTask(
         {
           cancelTaskId: taskId,
-          title: `下载${modelHostLabel}嵌入模型`,
+          title: t("settingsEmbedding.downloadTitle", { host: modelHostLabel }),
           startMessage: cachedInfo
-            ? formatDownloadStartMessage(cachedInfo)
-            : "正在读取模型文件大小…",
-          successMessage: "模型已下载并可用于 RAG",
-          errorMessage: "模型下载失败",
+            ? formatDownloadStartMessage(cachedInfo, locale, t)
+            : t("settingsEmbedding.readingModelSize"),
+          successMessage: t("settingsEmbedding.downloadSuccess"),
+          errorMessage: t("settingsEmbedding.downloadFailed"),
           total: cachedInfo ? cachedInfo.total_size_bytes : 1,
-          cancelLabel: "停止下载",
-          runningHint: "下载过程中请保持当前窗口打开",
-          formatProgress: formatBytesProgress,
+          cancelLabel: t("settingsEmbedding.stopDownload"),
+          runningHint: t("settingsEmbedding.keepWindowOpen"),
+          formatProgress: (current, total, percent) =>
+            formatBytesProgress(current, total, percent, locale, t),
           cancelTask: (taskId) => cancelEmbeddingModelDownload(taskId, scope),
         },
         async (control) => {
           if (cachedInfo) {
             control.setProgress(
-              formatDownloadStartMessage(cachedInfo),
+              formatDownloadStartMessage(cachedInfo, locale, t),
               cachedInfo.downloaded_size_bytes,
               cachedInfo.total_size_bytes,
             );
@@ -295,7 +270,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               if (!mountedRef.current || modelActionRef.current !== actionKey) return;
               rememberDownloadInfo(info);
               control.setProgress(
-                `正在下载${modelHostLabel}嵌入模型…`,
+                t("settingsEmbedding.downloading", { host: modelHostLabel }),
                 info.downloaded_size_bytes,
                 info.total_size_bytes,
               );
@@ -303,18 +278,18 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
           );
           const latestInfo = await fetchDownloadInfo(model);
           control.setProgress(
-            `正在刷新${modelHostLabel}模型状态…`,
+            t("settingsEmbedding.refreshing", { host: modelHostLabel }),
             latestInfo.downloaded_size_bytes,
             latestInfo.total_size_bytes,
           );
           await refresh();
         },
       );
-      addToast(`模型已下载到${modelHostLabel}`, "success");
+      addToast(t("settingsEmbedding.downloadedTo", { host: modelHostLabel }), "success");
     } catch (err) {
-      const message = extractErrorMessage(err, "模型下载失败");
+      const message = extractErrorMessage(err, t("settingsEmbedding.downloadFailed"));
       if (isCancelledOperation(message)) {
-        addToast("模型下载已停止", "info");
+        addToast(t("settingsEmbedding.downloadStopped"), "info");
       } else {
         addToast(message, "error");
       }
@@ -334,9 +309,12 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
 
     try {
       const ok = await confirmDialog({
-        title: `删除${modelHostLabel}嵌入模型`,
-        message: `确定删除 ${model} 在${modelHostLabel}上的缓存？使用该模型的配置将无法通过连接测试，直到重新下载。`,
-        confirmText: "删除",
+        title: t("settingsEmbedding.deleteTitle", { host: modelHostLabel }),
+        message: t("settingsEmbedding.deleteMessage", {
+          model,
+          host: modelHostLabel,
+        }),
+        confirmText: t("common.delete"),
         dialogType: "danger",
       });
       if (!ok) return;
@@ -345,9 +323,9 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       await deleteLocalEmbeddingModel(model, scope);
       await fetchDownloadInfo(model);
       await refresh();
-      addToast(`${modelHostLabel}模型缓存已删除`, "success");
+      addToast(t("settingsEmbedding.cacheDeleted", { host: modelHostLabel }), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "删除模型失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsEmbedding.deleteFailed")), "error");
     } finally {
       if (modelActionRef.current === actionKey && mountedRef.current) {
         setBusyModel(null);
@@ -361,46 +339,67 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
       {usesRemoteBackend && (
         <div className="rounded border border-warning/30 bg-warning-bg px-3 py-2 text-xs leading-relaxed text-warning">
           {usesLocalDesktopEmbedding
-            ? `项目数据存放在服务器，嵌入模型由当前设备管理。`
-            : "嵌入模型由远程服务器管理，本机缓存不会被直接使用。"}
+            ? t("settingsEmbedding.remoteEmbeddingLocalDevice")
+            : t("settingsEmbedding.remoteEmbeddingOnly")}
         </div>
       )}
+      {loadError ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-2 rounded-xl border border-error/30 bg-error-bg px-3 py-2.5"
+        >
+          <p className="min-w-0 flex-1 text-small leading-relaxed text-book-text-main">
+            {loadError}
+          </p>
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={() => void refresh()}
+            disabled={loading}
+          >
+            <RefreshCw size={13} aria-hidden="true" />
+            {t("common.retry")}
+          </BookButton>
+        </div>
+      ) : null}
       <div className="flex-1 min-h-0">
         <ConfigListPanel<EmbeddingForm>
-          title="Embedding 配置"
+          title={t("settings.embeddingConfig")}
           items={items}
           loading={loading}
           onRefresh={refresh}
           defaultForm={defaultEmbeddingForm}
           validate={(f) => {
             if (usesLocalDesktopEmbedding && f.backend !== "fastembed") {
-              return "远程后端 + 本机 Embedding 模式仅支持 fastembed";
+              return t("settingsEmbedding.remoteFastembedOnly");
             }
-            if (!f.name.trim()) return "请填写配置名称";
-            if (!f.model.trim()) return "请填写模型名";
+            if (!f.name.trim()) return t("settingsForm.nameRequired");
+            if (!f.model.trim()) return t("settingsForm.modelRequired");
             if (!Number.isInteger(f.dimension) || f.dimension <= 0) {
-              return "向量维度必须为正整数";
+              return t("settingsForm.dimensionPositive");
             }
             if (!Number.isInteger(f.batch_size) || f.batch_size <= 0) {
-              return "批量大小必须为正整数";
+              return t("settingsForm.batchPositive");
             }
             if (f.backend === "api" && !f.api_base_url.trim()) {
-              return "API 后端必须填写 Base URL";
+              return t("settingsForm.baseUrlRequired");
             }
             if (f.backend === "fastembed") {
               const model = resolveLocalModel(f.model);
-              if (!model) return "请选择支持的 fastembed 模型";
+              if (!model) return t("settingsForm.selectFastembedModel");
               if (f.dimension !== model.dimension) {
-                return `该模型输出 ${model.dimension} 维，配置维度必须一致`;
+                return t("settingsEmbedding.modelDimensionMismatch", {
+                  count: model.dimension,
+                });
               }
-              if (!model.downloaded) return "请先下载该 fastembed 模型";
+              if (!model.downloaded) return t("settingsForm.fastembedNotDownloaded");
             }
             return null;
           }}
           formatItem={(c) => ({
             primary: c.name,
             secondary: `${embeddingProviderLabels.get(c.backend) ?? c.backend} · ${c.model}`,
-            tertiary: `维度 ${c.dimension} · 批量 ${c.batch_size}`,
+            tertiary: `${t("settingsEmbedding.dimensionUnit", { count: c.dimension })} · ${t("settingsForm.batchSize")} ${c.batch_size}`,
           })}
           renderEditor={(form, setForm) => (
             <EmbeddingConfigEditor
@@ -412,7 +411,6 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               pickFastembedModel={pickFastembedModel}
               resolveLocalModel={resolveLocalModel}
               resolveDownloadInfo={resolveDownloadInfo}
-              resolveDownloadInfoError={resolveDownloadInfoError}
               modelHostLabel={modelHostLabel}
               onDownloadModel={handleDownloadModel}
               onDeleteModel={handleDeleteModel}
@@ -464,7 +462,7 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
             try {
               await testEmbeddingConfig(id, scope);
             } catch (err) {
-              const message = extractErrorMessage(err, "连接测试失败");
+              const message = extractErrorMessage(err, t("settings.connectionTestFailed"));
               if (
                 usesRemoteBackend &&
                 message.includes("本地嵌入模型") &&
@@ -472,8 +470,8 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
               ) {
                 throw new Error(
                   usesLocalDesktopEmbedding
-                    ? `${message}。当前为远程后端 + 本机 Embedding 模式，请在此页面下载模型到本机后重试。`
-                    : `${message}。当前为远程后端模式，请在服务器侧准备对应模型，或切换到服务器可用的 Embedding 后端。`,
+                    ? t("settingsEmbedding.remoteDownloadHintLocal", { message })
+                    : t("settingsEmbedding.remoteDownloadHintServer", { message }),
                 );
               }
               throw err;

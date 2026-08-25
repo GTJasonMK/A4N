@@ -1,24 +1,46 @@
 use super::*;
 use a4n_core::models::{
+    ai::generated_video,
+    chapter::{chapter, chapter_video_prompt},
     media::media_asset,
     project::{blueprint_character, blueprint_version, novel_blueprint, novel_project},
+    scene::scene_profile,
 };
 use chrono::Utc;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::error::Error;
+
+mod remap;
 
 struct FailingMediaImporter;
 
 impl ProjectFamilyMediaFileImporter for FailingMediaImporter {
     fn write_imported_media_field(
         &mut self,
-        _old_asset: &media_asset::Model,
-        _new_asset: &media_asset::Model,
+        _project_id: i64,
+        _owner_kind: &str,
+        _old_owner_id: i64,
+        _new_owner_id: i64,
         _field: &str,
     ) -> Result<Option<String>, ProjectFamilyMediaImportError> {
         Err(ProjectFamilyMediaImportError::Write(
             "test media write failure".to_string(),
         ))
+    }
+}
+
+struct EmptyMediaImporter;
+
+impl ProjectFamilyMediaFileImporter for EmptyMediaImporter {
+    fn write_imported_media_field(
+        &mut self,
+        _project_id: i64,
+        _owner_kind: &str,
+        _old_owner_id: i64,
+        _new_owner_id: i64,
+        _field: &str,
+    ) -> Result<Option<String>, ProjectFamilyMediaImportError> {
+        Ok(None)
     }
 }
 
@@ -99,7 +121,7 @@ async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
         user_id: 99,
         title: "生命周期门禁导入".to_string(),
         description: String::new(),
-        project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        project_type: "novel_long".to_string(),
         project_kind: crate::project::PROJECT_KIND_TEXT.to_string(),
         root_project_id: None,
         source_snapshot_id: None,
@@ -152,7 +174,7 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
         user_id: 99,
         title: "雾城".to_string(),
         description: String::new(),
-        project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        project_type: "novel_long".to_string(),
         project_kind: crate::project::PROJECT_KIND_TEXT.to_string(),
         root_project_id: None,
         source_snapshot_id: None,
@@ -267,7 +289,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
         user_id: user.id,
         title: "媒体失败回滚".to_string(),
         description: String::new(),
-        project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+        project_type: "novel_long".to_string(),
         project_kind: crate::project::PROJECT_KIND_VIDEO.to_string(),
         root_project_id: None,
         source_snapshot_id: None,
@@ -342,5 +364,229 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
             .await
             .unwrap()
             .is_empty()
+    );
+}
+
+#[tokio::test]
+async fn project_family_import_batches_video_reference_fixups() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let user = crate::auth::create_user(
+        &db,
+        "project_family_video_fixups",
+        "project-family-video-fixups@example.invalid",
+        "project-family-video-fixups-password",
+        a4n_core::models::user::role::ROLE_USER,
+    )
+    .await
+    .unwrap();
+    let now = Utc::now().naive_utc();
+    let project = novel_project::Model {
+        id: 1,
+        user_id: 99,
+        title: "视频引用回填".to_string(),
+        description: String::new(),
+        project_type: "novel_long".to_string(),
+        project_kind: crate::project::PROJECT_KIND_VIDEO.to_string(),
+        root_project_id: None,
+        source_snapshot_id: None,
+        source_sync_status: "current".to_string(),
+        status: "draft".to_string(),
+        lifecycle_gate: "active".to_string(),
+        target_chapters: 1,
+        current_chapter: 0,
+        total_chapters: Some(1),
+        chapters_per_part: Some(1),
+        avatar_svg: None,
+        avatar_animal: None,
+        raw_blueprint: None,
+        import_analysis_progress: None,
+        export_config: None,
+        created_at: now,
+        updated_at: now,
+    };
+    let chapter = chapter::Model {
+        id: 2,
+        project_id: project.id,
+        outline_id: None,
+        chapter_number: 1,
+        title: Some("第一章".to_string()),
+        content: "视频正文".to_string(),
+        word_count: 4,
+        status: chapter::STATUS_COMPLETED.to_string(),
+        summary: None,
+        style_tags: None,
+        analysis_data: None,
+        created_at: now,
+        updated_at: now,
+    };
+    let project_id = project.id;
+    let chapter_id = chapter.id;
+    let scene = |id: i64, name: &str, parent_scene_id| scene_profile::Model {
+        id,
+        project_id,
+        ownership_kind: a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC.to_string(),
+        name: name.to_string(),
+        normalized_name: name.to_string(),
+        aliases_json: serde_json::json!([]),
+        scene_type: "interior".to_string(),
+        importance: "primary".to_string(),
+        parent_scene_id,
+        base_description: name.to_string(),
+        visual_description: "布景".to_string(),
+        spatial_layout: "方形".to_string(),
+        atmosphere: "安静".to_string(),
+        entry_points_json: serde_json::json!([]),
+        rules_json: serde_json::json!([]),
+        current_state_json: serde_json::json!({}),
+        first_seen_chapter: 1,
+        last_seen_chapter: 1,
+        evidence_json: serde_json::json!([]),
+        image_prompt_seed: name.to_string(),
+        created_at: now,
+        updated_at: now,
+    };
+    let prompt = |id: i64, shot_number: i32, generated_video_id: i64, metadata_json| {
+        chapter_video_prompt::Model {
+            id,
+            project_id,
+            chapter_id,
+            style: Some("电影感".to_string()),
+            prompt_type: chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN.to_string(),
+            workflow_mode: chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string(),
+            shot_number,
+            title: Some(format!("镜头 {shot_number}")),
+            scene_summary: Some("场景".to_string()),
+            visual_prompt: format!("画面 {shot_number}"),
+            motion_prompt: Some("移动".to_string()),
+            negative_prompt: None,
+            duration_secs: 2,
+            aspect_ratio: Some("16:9".to_string()),
+            reference_image_ids_json: None,
+            status: chapter_video_prompt::STATUS_COMPLETED.to_string(),
+            generated_video_id: Some(generated_video_id),
+            timeline_item_id: Some(900 + id),
+            metadata_json,
+            created_at: now,
+            updated_at: now,
+        }
+    };
+    let video = |id: i64, prompt: &str, source_video_id, metadata_json| generated_video::Model {
+        id,
+        project_id,
+        chapter_id: Some(chapter_id),
+        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+        workflow_mode: Some("storyboard".to_string()),
+        file_path: None,
+        thumbnail_path: None,
+        prompt: prompt.to_string(),
+        negative_prompt: None,
+        model: "test-video".to_string(),
+        width: 640,
+        height: 360,
+        duration_secs: 2.0,
+        fps: 24,
+        file_size: None,
+        source_video_id,
+        source_image_id: None,
+        status: generated_video::STATUS_COMPLETED.to_string(),
+        provider_job_id: Some(format!("old-job-{id}")),
+        error_message: None,
+        timeline_item_id: Some(800 + id),
+        metadata_json,
+        is_favorite: false,
+        created_at: now,
+        updated_at: now,
+    };
+    let package = ProjectFamilyImportPackage {
+        root_project_id: project.id,
+        projects: vec![project],
+        text_core: crate::project::ProjectFamilyTextCoreRows {
+            chapters: vec![chapter],
+            scene_profiles: vec![scene(30, "大厅", None), scene(31, "内室", Some(30))],
+            ..Default::default()
+        },
+        chapter_video_prompts: vec![
+            prompt(
+                20,
+                1,
+                10,
+                Some(serde_json::json!({
+                    "generated_video_id": 11,
+                    "prompt_output_language": "zh_cn"
+                })),
+            ),
+            prompt(
+                21,
+                2,
+                11,
+                Some(serde_json::json!({"prompt_output_language": "en"})),
+            ),
+        ],
+        generated_videos: vec![
+            video(10, "第一段", None, None),
+            video(
+                11,
+                "第二段",
+                Some(10),
+                Some(serde_json::json!({"source_video_id": 10})),
+            ),
+        ],
+        ..Default::default()
+    };
+
+    let imported =
+        import_project_family_package_rows(&db, user.id, &package, &mut EmptyMediaImporter)
+            .await
+            .unwrap();
+    let imported_videos = generated_video::Entity::find()
+        .filter(generated_video::Column::ProjectId.eq(imported[0].id))
+        .order_by_asc(generated_video::Column::Prompt)
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(imported_videos.len(), 2);
+    assert_eq!(imported_videos[0].source_video_id, None);
+    assert_eq!(imported_videos[0].provider_job_id, None);
+    assert_eq!(imported_videos[0].timeline_item_id, None);
+    assert_eq!(
+        imported_videos[1].source_video_id,
+        Some(imported_videos[0].id)
+    );
+    assert_eq!(
+        imported_videos[1].metadata_json,
+        Some(serde_json::json!({"source_video_id": imported_videos[0].id}))
+    );
+
+    let imported_prompts = chapter_video_prompt::Entity::find()
+        .filter(chapter_video_prompt::Column::ProjectId.eq(imported[0].id))
+        .order_by_asc(chapter_video_prompt::Column::ShotNumber)
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(imported_prompts.len(), 2);
+    assert_eq!(
+        imported_prompts[0].generated_video_id,
+        Some(imported_videos[0].id)
+    );
+    assert_eq!(imported_prompts[0].timeline_item_id, None);
+    assert_eq!(
+        imported_prompts[0].metadata_json,
+        Some(serde_json::json!({
+            "generated_video_id": imported_videos[1].id,
+            "prompt_output_language": "zh_cn"
+        }))
+    );
+
+    let imported_scenes = scene_profile::Entity::find()
+        .filter(scene_profile::Column::ProjectId.eq(imported[0].id))
+        .order_by_asc(scene_profile::Column::Id)
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(imported_scenes.len(), 2);
+    assert_eq!(imported_scenes[0].parent_scene_id, None);
+    assert_eq!(
+        imported_scenes[1].parent_scene_id,
+        Some(imported_scenes[0].id)
     );
 }

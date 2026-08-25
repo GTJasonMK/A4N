@@ -11,6 +11,7 @@ import { Edit3 } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { BookButton } from "../ui/BookButton";
 import { isImeCompositionActive } from "../../utils/ime";
+import { getActiveLocale, translateMessage, useI18n } from "../../i18n";
 
 interface PromptDialogOptions {
   title?: string;
@@ -50,12 +51,12 @@ const usePromptDialog = create<PromptDialogStore>((set, get) => ({
     return new Promise<string | null>((resolve) => {
       set({
         current: {
-          title: String(opts.title || "输入内容"),
+          title: String(opts.title || translateMessage(getActiveLocale(), "feedback.inputTitle")),
           message: String(opts.message || ""),
           defaultValue: String(opts.defaultValue || ""),
           placeholder: String(opts.placeholder || ""),
-          confirmText: String(opts.confirmText || "确定"),
-          cancelText: String(opts.cancelText || "取消"),
+          confirmText: String(opts.confirmText || translateMessage(getActiveLocale(), "feedback.confirm")),
+          cancelText: String(opts.cancelText || translateMessage(getActiveLocale(), "feedback.cancel")),
           multiline: Boolean(opts.multiline),
           required: Boolean(opts.required),
           resolve,
@@ -87,6 +88,7 @@ export function PromptDialogHost() {
   const current = usePromptDialog((s) => s.current);
   const cancel = usePromptDialog((s) => s.cancel);
   const submit = usePromptDialog((s) => s.submit);
+  const { t } = useI18n();
   const [value, setValue] = useState("");
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const composingRef = useRef(false);
@@ -193,7 +195,7 @@ export function PromptDialogHost() {
           />
         )}
         <p className="text-small text-book-text-muted">
-          {current.multiline ? "按 Ctrl/⌘ + Enter 提交" : "按 Enter 提交"}
+          {current.multiline ? t("feedback.submitWithShortcut") : t("feedback.submitWithEnter")}
         </p>
       </div>
     </Modal>

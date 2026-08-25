@@ -3,9 +3,10 @@
 //! 持有 `DbHandle`，封装资料列表、按类型图片查询与主素材 upsert/delete。
 
 use a4n_core::error::AppError;
-use a4n_core::models::ai::generated_image;
 use a4n_db::DbHandle;
-use a4n_db::profile_material::{ProfileMaterialDbError, ProfileMaterialListRows};
+use a4n_db::profile_material::{
+    ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows,
+};
 
 use super::OrchestratorContext;
 
@@ -37,12 +38,12 @@ impl ProfileMaterialApplication {
         .map_err(profile_material_db_error)
     }
 
-    async fn profile_material_images_by_type(
+    async fn profile_material_image_identity_rows_by_type(
         &self,
         project_id: i64,
         image_type: &str,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
-        a4n_db::profile_material::profile_material_images_by_type(
+    ) -> Result<Vec<ProfileMaterialImageIdentityRow>, AppError> {
+        a4n_db::profile_material::profile_material_image_identity_rows_by_type(
             self.connection(),
             project_id,
             image_type,
@@ -104,13 +105,13 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn profile_material_images_by_type(
+    pub(crate) async fn profile_material_image_identity_rows_by_type(
         &self,
         project_id: i64,
         image_type: &str,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<ProfileMaterialImageIdentityRow>, AppError> {
         self.profile_material
-            .profile_material_images_by_type(project_id, image_type)
+            .profile_material_image_identity_rows_by_type(project_id, image_type)
             .await
     }
 

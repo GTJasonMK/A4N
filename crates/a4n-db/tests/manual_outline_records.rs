@@ -6,8 +6,8 @@ use a4n_db::{
     outline::{PartOutlineSyncDraft, update_part_outline_and_rebind_chapters_transaction},
     project::{
         CreateProjectRecordInput, DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput,
-        ManualPartOutlineSaveInput, OutlineDeleteTarget, PROJECT_TYPE_NOVEL_LONG,
-        ProjectOutlineRecordError, create_project_record, delete_latest_chapter_outline_records,
+        ManualPartOutlineSaveInput, OutlineDeleteTarget, ProjectOutlineRecordError,
+        create_project_record, delete_latest_chapter_outline_records,
         delete_latest_part_outline_records, save_manual_chapter_outline, save_manual_part_outline,
     },
 };
@@ -22,7 +22,7 @@ async fn create_project(db: &sea_orm::DatabaseConnection, title: &str) -> i64 {
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -416,6 +416,59 @@ async fn deleting_part_preserves_chapter_outlines_and_rejects_stale_confirmation
             .part_id,
         None
     );
+}
+
+#[tokio::test]
+async fn deleting_part_outline_unbinds_multiple_chapter_outlines() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project_id = create_project(&db, "批量解绑分部大纲").await;
+    let part = save_manual_part_outline(
+        &db,
+        ManualPartOutlineSaveInput {
+            project_id,
+            part_id: None,
+            expected_updated_at: None,
+            part_number: 1,
+            start_chapter: 1,
+            end_chapter: 3,
+            title: Some("开端".to_string()),
+            summary: None,
+            theme: None,
+        },
+    )
+    .await
+    .expect("part must save");
+    let mut outlines = Vec::new();
+    for chapter_number in 1..=3 {
+        outlines.push(
+            save_manual_chapter_outline(&db, chapter_input(project_id, chapter_number))
+                .await
+                .expect("chapter outline must save"),
+        );
+    }
+
+    delete_latest_part_outline_records(
+        &db,
+        DeleteLatestOutlineRecordsInput {
+            project_id,
+            targets: vec![OutlineDeleteTarget {
+                id: part.id,
+                expected_updated_at: part.updated_at.to_string(),
+            }],
+        },
+    )
+    .await
+    .expect("current part delete must succeed");
+
+    for outline in outlines {
+        let current = chapter_outline::Entity::find_by_id(outline.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .expect("chapter outline must remain");
+        assert_eq!(current.part_id, None);
+        assert!(current.updated_at > outline.updated_at);
+    }
 }
 
 #[tokio::test]

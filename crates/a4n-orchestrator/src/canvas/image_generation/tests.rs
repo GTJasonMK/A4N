@@ -146,10 +146,6 @@ impl ImageGenerationHostPort for TestImageHost {
     ) -> Result<(), AppError> {
         Ok(())
     }
-
-    async fn sync_project_asset_lineage(&self, _project_id: i64) -> Result<(), AppError> {
-        Ok(())
-    }
 }
 
 fn image_config() -> image_gen_config::Model {

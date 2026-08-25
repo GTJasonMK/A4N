@@ -5,4 +5,4 @@ mod manifest;
 mod provenance;
 mod request;
 
-pub use self::manifest::validate_media_manifest;
+pub(crate) use self::manifest::validate_media_manifest;

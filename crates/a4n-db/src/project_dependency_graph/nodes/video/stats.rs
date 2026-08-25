@@ -1,8 +1,7 @@
-use a4n_core::models::chapter::chapter_video_prompt;
-
+use crate::project_dependency_graph::graph::VideoPromptGraphRow;
 use crate::project_dependency_graph::{
     CHAPTER_VIDEO_PROMPT_TYPES, VIDEO_FRAME_PROMPT_TYPES, VIDEO_SEGMENT_PLAN_PROMPT_TYPES,
-    helpers::prompt_type_in,
+    helpers::prompt_type_str_in,
 };
 
 pub(super) struct VideoPromptStats {
@@ -12,9 +11,7 @@ pub(super) struct VideoPromptStats {
     pub(super) linked_video_count: u64,
 }
 
-pub(super) fn video_prompt_stats(
-    video_prompts: &[chapter_video_prompt::Model],
-) -> VideoPromptStats {
+pub(super) fn video_prompt_stats(video_prompts: &[VideoPromptGraphRow]) -> VideoPromptStats {
     let mut stats = VideoPromptStats {
         segment_plan_count: 0,
         frame_prompt_count: 0,
@@ -23,13 +20,13 @@ pub(super) fn video_prompt_stats(
     };
 
     for row in video_prompts {
-        if prompt_type_in(row, VIDEO_SEGMENT_PLAN_PROMPT_TYPES) {
+        if prompt_type_str_in(&row.prompt_type, VIDEO_SEGMENT_PLAN_PROMPT_TYPES) {
             stats.segment_plan_count += 1;
         }
-        if prompt_type_in(row, VIDEO_FRAME_PROMPT_TYPES) {
+        if prompt_type_str_in(&row.prompt_type, VIDEO_FRAME_PROMPT_TYPES) {
             stats.frame_prompt_count += 1;
         }
-        if prompt_type_in(row, CHAPTER_VIDEO_PROMPT_TYPES) {
+        if prompt_type_str_in(&row.prompt_type, CHAPTER_VIDEO_PROMPT_TYPES) {
             stats.chapter_video_prompt_count += 1;
         }
         if row.generated_video_id.is_some() {

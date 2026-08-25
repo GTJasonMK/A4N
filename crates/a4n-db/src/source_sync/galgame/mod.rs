@@ -7,7 +7,7 @@ mod types;
 
 pub(in crate::source_sync) use candidates::{
     galgame_anchor_conflict_candidates_for_run,
-    galgame_scene_conflict_candidates_for_chapter_change,
+    galgame_scene_conflict_candidates_for_chapter_changes,
 };
 pub(in crate::source_sync) use cleanup::{
     bound_media_asset_ids_for_galgame_scene, delete_media_binding_records_for_galgame_scene,
@@ -19,9 +19,11 @@ pub(in crate::source_sync) use regeneration::apply_galgame_scene_regeneration_re
 pub(in crate::source_sync) use regeneration::validate_prepared_galgame_scene_regeneration_record;
 pub use source::galgame_scene_regeneration_source_record;
 pub use types::{
-    SourceSyncGalgameAnchorConflictCandidateRecord, SourceSyncGalgameSceneConflictCandidateRecord,
-    SourceSyncGalgameSceneLineWriteRecordInput, SourceSyncGalgameSceneRegenerationApplyRecord,
-    SourceSyncGalgameSceneRegenerationSourceRecord, SourceSyncGalgameSceneWriteRecordInput,
+    SourceSyncGalgameAnchorConflictCandidateRecord, SourceSyncGalgameAnchorConflictLineRecord,
+    SourceSyncGalgameAnchorRecord, SourceSyncGalgameSceneConflictCandidateRecord,
+    SourceSyncGalgameSceneConflictSceneRecord, SourceSyncGalgameSceneLineWriteRecordInput,
+    SourceSyncGalgameSceneRegenerationApplyRecord, SourceSyncGalgameSceneRegenerationSourceRecord,
+    SourceSyncGalgameSceneWriteRecordInput,
 };
 
 #[cfg(test)]

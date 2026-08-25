@@ -1,13 +1,13 @@
-use std::collections::HashSet;
-
 use a4n_core::models::ai::{embedding_config, image_gen_config, llm_config};
 use a4n_core::models::chapter::chapter;
 use a4n_core::models::project::novel_project;
 use a4n_core::models::task::task_queue;
 use a4n_core::models::user::{llm_usage_log, theme_config, user};
 use chrono::Utc;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait,
+    QueryFilter, QuerySelect,
 };
 
 use super::{AdminDbError, AdminOverviewSummary, ThemeInfo};
@@ -27,22 +27,37 @@ pub async fn admin_overview_summary(
 ) -> Result<AdminOverviewSummary, AdminDbError> {
     macro_rules! count_rows {
         ($query:expr) => {
-            $query.count(db).await?
+            async { $query.count(db).await.map_err(AdminDbError::from) }
         };
     }
 
-    let total_users = count_rows!(user::Entity::find());
-    let total_projects = count_rows!(novel_project::Entity::find());
-    let total_chapters = count_rows!(chapter::Entity::find());
-    let task_queue_count = count_rows!(task_queue::Entity::find());
-    let pending_tasks =
-        count_rows!(task_queue::Entity::find().filter(task_queue::Column::Status.eq("pending")));
-    let running_tasks =
-        count_rows!(task_queue::Entity::find().filter(task_queue::Column::Status.eq("running")));
-    let total_llm_calls = count_rows!(llm_usage_log::Entity::find());
-    let llm_config_count = count_rows!(llm_config::Entity::find());
-    let embedding_config_count = count_rows!(embedding_config::Entity::find());
-    let image_gen_config_count = count_rows!(image_gen_config::Entity::find());
+    let (
+        total_users,
+        total_projects,
+        total_chapters,
+        task_queue_count,
+        pending_tasks,
+        running_tasks,
+        total_llm_calls,
+        llm_config_count,
+        embedding_config_count,
+        image_gen_config_count,
+        active_theme,
+        daily_active_users,
+    ) = futures::try_join!(
+        count_rows!(user::Entity::find()),
+        count_rows!(novel_project::Entity::find()),
+        count_rows!(chapter::Entity::find()),
+        count_rows!(task_queue::Entity::find()),
+        count_rows!(task_queue::Entity::find().filter(task_queue::Column::Status.eq("pending"))),
+        count_rows!(task_queue::Entity::find().filter(task_queue::Column::Status.eq("running"))),
+        count_rows!(llm_usage_log::Entity::find()),
+        count_rows!(llm_config::Entity::find()),
+        count_rows!(embedding_config::Entity::find()),
+        count_rows!(image_gen_config::Entity::find()),
+        find_active_global_theme(db),
+        daily_active_users(db),
+    )?;
 
     Ok(AdminOverviewSummary {
         total_users,
@@ -55,19 +70,28 @@ pub async fn admin_overview_summary(
         llm_config_count,
         embedding_config_count,
         image_gen_config_count,
-        active_theme: find_active_global_theme(db).await?,
-        daily_active_users: daily_active_users(db).await?,
+        active_theme,
+        daily_active_users,
     })
 }
 
 async fn daily_active_users(db: &DatabaseConnection) -> Result<u64, AdminDbError> {
     let since = Utc::now().naive_utc() - chrono::Duration::hours(24);
-    let recent_logs = llm_usage_log::Entity::find()
+    #[derive(Debug, FromQueryResult)]
+    struct ActiveUserCount {
+        count: i64,
+    }
+    let count = llm_usage_log::Entity::find()
+        .select_only()
+        .column_as(Expr::cust("COUNT(DISTINCT user_id)"), "count")
         .filter(llm_usage_log::Column::CreatedAt.gte(since))
-        .all(db)
-        .await?;
-    let active_ids: HashSet<i64> = recent_logs.into_iter().map(|log| log.user_id).collect();
-    Ok(active_ids.len() as u64)
+        .into_model::<ActiveUserCount>()
+        .one(db)
+        .await?
+        .ok_or_else(|| AdminDbError::InvalidArgument("活跃用户统计查询未返回结果".to_string()))?
+        .count;
+    u64::try_from(count)
+        .map_err(|_| AdminDbError::InvalidArgument("活跃用户数超出 u64 上限".to_string()))
 }
 
 pub(super) async fn find_active_global_theme(

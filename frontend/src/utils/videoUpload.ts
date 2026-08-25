@@ -1,4 +1,5 @@
 import { pickLocalFile } from "./fileUpload";
+import type { MessageTranslator } from "../i18n";
 
 const MAX_UPLOAD_VIDEO_BYTES = 512 * 1024 * 1024;
 
@@ -32,16 +33,20 @@ function videoMimeForUploadFile(file: File): string | null {
 }
 
 export async function pickVideoUploadFile(
-  sizeLabel = "上传视频",
+  t: MessageTranslator,
+  sizeLabel?: string,
 ): Promise<VideoUploadFile | null> {
   const file = await pickLocalFile(supportedVideoAccept());
   if (!file) return null;
   const mimeType = videoMimeForUploadFile(file);
   if (!mimeType) {
-    throw new Error("只支持 MP4/WebM/MOV/M4V 视频，且文件类型必须与扩展名一致");
+    throw new Error(t("video.upload.invalidType"));
   }
   if (file.size > MAX_UPLOAD_VIDEO_BYTES) {
-    throw new Error(`${sizeLabel}不能超过 ${MAX_UPLOAD_VIDEO_BYTES / 1024 / 1024}MB`);
+    throw new Error(t("video.upload.tooLarge", {
+      name: sizeLabel ?? t("video.upload.video"),
+      size: MAX_UPLOAD_VIDEO_BYTES / 1024 / 1024,
+    }));
   }
   return { file, mimeType };
 }

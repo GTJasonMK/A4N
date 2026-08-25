@@ -7,21 +7,27 @@ import {
 } from "../../utils/characterAttributes";
 import { nonEmptyText } from "../../utils/text";
 import { attributeKeyLabel } from "../character-detail-dialog/manageViewUtils";
+import { useI18n, type MessageTranslator } from "../../i18n";
 
 export const describeProfile = (profile: CharacterProfile): string | null =>
   characterAttributeText(profile, "implicit", "personality") ??
   characterAttributeText(profile, "explicit", "background") ??
   characterAttributeText(profile, "explicit", "appearance");
 
-const compactValue = (value: unknown): string | null => {
+const compactValue = (value: unknown, t: MessageTranslator): string | null => {
   if (value == null) return null;
   if (Array.isArray(value)) {
     const parts = value
       .slice(0, 4)
-      .map((item) => compactValue(item))
+      .map((item) => compactValue(item, t))
       .filter((item): item is string => item != null);
     if (parts.length === 0) return null;
-    return `${parts.join("、")}${value.length > 4 ? ` 等 ${value.length} 项` : ""}`;
+    return value.length > 4
+      ? t("characterDetail.valueMore", {
+          value: parts.join(t("common.listSeparator")),
+          count: value.length - parts.length,
+        })
+      : parts.join(t("common.listSeparator"));
   }
   if (typeof value === "object") return null;
   return nonEmptyText(characterAttributeValueText(value));
@@ -51,9 +57,10 @@ export const AttributePreview: React.FC<{
   entries: Array<[string, unknown]>;
   onOpenHistory: (category: CharacterAttributeCategory, key: string) => void;
 }> = ({ label, category, entries, onOpenHistory }) => {
+  const { t } = useI18n();
   const visibleEntries = entries
     .map(([key, value]) => {
-      const text = compactValue(value);
+      const text = compactValue(value, t);
       return text == null ? null : { key, text };
     })
     .filter((entry): entry is { key: string; text: string } => entry != null);
@@ -70,9 +77,9 @@ export const AttributePreview: React.FC<{
               type="button"
               onClick={() => onOpenHistory(category, key)}
               className="flex w-full flex-col gap-1 py-2 text-left transition-colors hover:text-book-primary sm:flex-row sm:items-start sm:justify-between sm:gap-4"
-              title="查看该属性的事件溯源"
+              title={t("characterDetail.attributeHistory")}
             >
-              <span className="font-medium text-book-text-main">{attributeKeyLabel(key)}</span>
+              <span className="font-medium text-book-text-main">{attributeKeyLabel(key, t)}</span>
               <span className="line-clamp-2 min-w-0 leading-relaxed text-book-text-muted sm:max-w-[70%] sm:text-right">
                 {clampText(text)}
               </span>
@@ -82,7 +89,7 @@ export const AttributePreview: React.FC<{
       </ul>
       {visibleEntries.length > 6 && (
         <div className="mt-2 text-caption text-book-text-muted">
-          另有 {visibleEntries.length - 6} 项，进入深度详情查看完整状态和溯源。
+          {t("characterDetail.moreAttributes", { count: visibleEntries.length - 6 })}
         </div>
       )}
     </section>

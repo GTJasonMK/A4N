@@ -4,9 +4,10 @@ use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
 
 use super::{
-    VideoFramePrompt, VideoSegmentPlan, boundary_frame_expected_duration,
-    boundary_frame_expected_segment_numbers, ensure_video_reference_ids_known,
-    frame_prompts_from_rows, validate_direct_prompt_text, validate_reference_label_text,
+    VideoFramePrompt, VideoSegmentPlan, boundary_frame_expected_segment_numbers,
+    boundary_frame_expected_segment_numbers_from_units, ensure_video_reference_ids_known,
+    frame_prompts_from_rows, units_for_frame_mapping, validate_direct_prompt_text,
+    validate_reference_label_text,
 };
 
 pub(super) fn validate_single_boundary_frame_prompt(
@@ -17,13 +18,31 @@ pub(super) fn validate_single_boundary_frame_prompt(
 ) -> Result<(), AppError> {
     let expected_segment_numbers =
         boundary_frame_expected_segment_numbers(segment_plan, frame.frame_number)?;
+    let segment_by_number = segment_index(segment_plan);
+    validate_single_boundary_frame_prompt_with_context(
+        frame,
+        &expected_segment_numbers,
+        &segment_by_number,
+        allowed_reference_ids,
+        required_first_reference_image_id,
+    )
+}
+
+fn validate_single_boundary_frame_prompt_with_context(
+    frame: &VideoFramePrompt,
+    expected_segment_numbers: &[i32],
+    segment_by_number: &HashMap<i32, &VideoSegmentPlan>,
+    allowed_reference_ids: &HashSet<i64>,
+    required_first_reference_image_id: Option<i64>,
+) -> Result<(), AppError> {
     if frame.segment_numbers != expected_segment_numbers {
         return Err(AppError::InvalidArgument(format!(
             "边界帧 #{} segment_numbers 必须为 {:?}，实际为 {:?}",
             frame.frame_number, expected_segment_numbers, frame.segment_numbers
         )));
     }
-    let expected_duration = boundary_frame_expected_duration(segment_plan, &frame.segment_numbers)?;
+    let expected_duration =
+        boundary_frame_expected_duration_from_index(&frame.segment_numbers, segment_by_number)?;
     if frame.duration_secs != expected_duration {
         return Err(AppError::InvalidArgument(format!(
             "边界帧 #{} duration_secs 必须为 {}，实际为 {}",
@@ -31,9 +50,9 @@ pub(super) fn validate_single_boundary_frame_prompt(
         )));
     }
     for segment_number in &frame.segment_numbers {
-        let segment = segment_plan
-            .iter()
-            .find(|segment| segment.segment_number == *segment_number)
+        let segment = segment_by_number
+            .get(segment_number)
+            .copied()
             .ok_or_else(|| {
                 AppError::InvalidArgument(format!(
                     "边界帧 #{} 引用了不存在的片段 {}",
@@ -89,6 +108,8 @@ pub(super) fn validate_partial_boundary_frame_prompts(
     allowed_reference_ids: &HashSet<i64>,
     image_id_by_frame_number: &HashMap<i32, i64>,
 ) -> Result<(), AppError> {
+    let mut units = None;
+    let mut segment_by_number = None;
     for (index, frame) in frames.iter().enumerate() {
         let expected_frame_number = one_based_frame_number(index, "边界帧提示词")?;
         if frame.frame_number != expected_frame_number {
@@ -99,9 +120,20 @@ pub(super) fn validate_partial_boundary_frame_prompts(
                 frame.frame_number
             )));
         }
-        validate_single_boundary_frame_prompt(
+        if units.is_none() {
+            units = Some(units_for_frame_mapping(segment_plan)?);
+            segment_by_number = Some(segment_index(segment_plan));
+        }
+        let expected_segment_numbers = boundary_frame_expected_segment_numbers_from_units(
+            units.as_ref().expect("boundary frame units initialized"),
+            frame.frame_number,
+        )?;
+        validate_single_boundary_frame_prompt_with_context(
             frame,
-            segment_plan,
+            &expected_segment_numbers,
+            segment_by_number
+                .as_ref()
+                .expect("boundary frame segment index initialized"),
             allowed_reference_ids,
             frame
                 .frame_number
@@ -119,6 +151,8 @@ pub(in crate::video) fn boundary_frame_prompt_rows_prefix(
     image_id_by_frame_number: &HashMap<i32, i64>,
 ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
     let mut prefix = Vec::new();
+    let mut units = None;
+    let mut segment_by_number = None;
     for row in rows {
         let expected = one_based_frame_number(prefix.len(), "可复用边界帧提示词")?;
         if row.shot_number == expected {
@@ -143,9 +177,20 @@ pub(in crate::video) fn boundary_frame_prompt_rows_prefix(
                     break;
                 }
             };
-            if let Err(err) = validate_single_boundary_frame_prompt(
+            if units.is_none() {
+                units = Some(units_for_frame_mapping(segment_plan)?);
+                segment_by_number = Some(segment_index(segment_plan));
+            }
+            let expected_segment_numbers = boundary_frame_expected_segment_numbers_from_units(
+                units.as_ref().expect("boundary frame units initialized"),
+                frame.frame_number,
+            )?;
+            if let Err(err) = validate_single_boundary_frame_prompt_with_context(
                 &frame,
-                segment_plan,
+                &expected_segment_numbers,
+                segment_by_number
+                    .as_ref()
+                    .expect("boundary frame segment index initialized"),
                 allowed_reference_ids,
                 frame
                     .frame_number
@@ -167,6 +212,38 @@ pub(in crate::video) fn boundary_frame_prompt_rows_prefix(
         }
     }
     Ok(prefix)
+}
+
+fn segment_index(segment_plan: &[VideoSegmentPlan]) -> HashMap<i32, &VideoSegmentPlan> {
+    segment_plan.iter().fold(
+        HashMap::with_capacity(segment_plan.len()),
+        |mut index, segment| {
+            index.entry(segment.segment_number).or_insert(segment);
+            index
+        },
+    )
+}
+
+fn boundary_frame_expected_duration_from_index(
+    segment_numbers: &[i32],
+    segment_by_number: &HashMap<i32, &VideoSegmentPlan>,
+) -> Result<i32, AppError> {
+    let mut duration = None;
+    for segment_number in segment_numbers {
+        let segment = segment_by_number
+            .get(segment_number)
+            .copied()
+            .ok_or_else(|| {
+                AppError::InvalidArgument(format!("边界帧引用了不存在的片段 {}", segment_number))
+            })?;
+        if duration.is_some_and(|expected| expected != segment.duration_secs) {
+            return Err(AppError::InvalidArgument(
+                "边界帧关联片段时长不一致".to_string(),
+            ));
+        }
+        duration = Some(segment.duration_secs);
+    }
+    duration.ok_or_else(|| AppError::InvalidArgument("边界帧 segment_numbers 不能为空".to_string()))
 }
 
 fn one_based_frame_number(index: usize, label: &str) -> Result<i32, AppError> {

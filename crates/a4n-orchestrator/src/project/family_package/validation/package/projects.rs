@@ -47,13 +47,13 @@ pub(super) fn validate_package_projects(package: &ProjectFamilyPackage) -> Resul
         if project.project_kind == PROJECT_KIND_TEXT && project.id != package.root_project_id {
             return Err(format!("项目族导入包包含非根文本项目: {}", project.id));
         }
-        if project.project_kind == PROJECT_KIND_TEXT {
-            if project.source_sync_status != SOURCE_SYNC_CURRENT {
-                return Err(format!(
-                    "项目族导入包文本项目源同步状态必须是 current: project_id={}, source_sync_status={}",
-                    project.id, project.source_sync_status
-                ));
-            }
+        if project.project_kind == PROJECT_KIND_TEXT
+            && project.source_sync_status != SOURCE_SYNC_CURRENT
+        {
+            return Err(format!(
+                "项目族导入包文本项目源同步状态必须是 current: project_id={}, source_sync_status={}",
+                project.id, project.source_sync_status
+            ));
         }
         if project.project_kind != PROJECT_KIND_TEXT {
             normalize_derived_project_kind(&project.project_kind).map_err(|err| err.to_string())?;

@@ -4,7 +4,7 @@ use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, map_required, remap_profile_id,
 };
 
-pub fn remap_generation_target_id(
+pub(in crate::project_family_import) fn remap_generation_target_id(
     spec: &generation_spec::Model,
     maps: &ImportIdMaps,
     allow_deferred: bool,
@@ -28,6 +28,11 @@ pub fn remap_generation_target_id(
             &maps.source_snapshot_chapter_ids,
             old_id,
             "生成意图 chapter target_entity_id",
+        )?,
+        "chapter_video_prompt" => map_required(
+            &maps.chapter_video_prompt_ids,
+            old_id,
+            "生成意图 chapter_video_prompt target_entity_id",
         )?,
         "galgame_scene" => map_required(
             &maps.galgame_scene_ids,
@@ -59,7 +64,7 @@ pub fn remap_generation_target_id(
     Ok(Some(mapped))
 }
 
-pub fn remap_generation_spec_source_version_hash(
+pub(in crate::project_family_import) fn remap_generation_spec_source_version_hash(
     spec: &generation_spec::Model,
     maps: &ImportIdMaps,
 ) -> Result<String, ProjectFamilyImportError> {

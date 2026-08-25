@@ -6,7 +6,7 @@ pub(crate) fn early_log_dir() -> Result<PathBuf, String> {
     optional_non_empty_env_path("A4N_LOG_DIR")
         .map_err(|error| error.to_string())
         .map(|path| {
-            path.map(|path| resolve_portable_path(path))
+            path.map(resolve_portable_path)
                 .unwrap_or_else(|| AppConfig::default().log_dir)
         })
 }

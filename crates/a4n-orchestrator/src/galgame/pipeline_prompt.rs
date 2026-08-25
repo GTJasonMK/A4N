@@ -13,7 +13,7 @@ pub use messages::{
 };
 pub use source::{
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
-    galgame_speaker_profiles_from_models,
+    galgame_speaker_profiles_from_prompt_records,
 };
 
 #[cfg(test)]

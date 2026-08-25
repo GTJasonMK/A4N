@@ -1,11 +1,6 @@
-use super::{
-    super::shared::has_configured_api_key,
-    contracts::{ImageConfigInput, ImageConfigSummary, UpdateImageConfigInput},
-};
-use a4n_core::{
-    config::{CreateImageConfigParams, UpdateImageConfigParams},
-    models::ai::image_gen_config,
-};
+use super::super::shared::has_configured_api_key;
+use a4n_api_contract::config::ImageConfigSummary;
+use a4n_core::models::ai::image_gen_config;
 
 pub(super) fn image_config_summary(
     config: &image_gen_config::Model,
@@ -27,35 +22,9 @@ pub(super) fn image_config_summary(
     })
 }
 
-pub(super) fn image_create_params(input: ImageConfigInput) -> CreateImageConfigParams {
-    CreateImageConfigParams {
-        name: input.name,
-        backend: input.backend,
-        base_url: input.base_url,
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model,
-        max_concurrent: input.max_concurrent,
-        default_width: input.default_width,
-        default_height: input.default_height,
-    }
-}
-
-pub(super) fn image_update_params(input: UpdateImageConfigInput) -> UpdateImageConfigParams {
-    UpdateImageConfigParams {
-        name: input.name,
-        backend: input.backend,
-        base_url: input.base_url,
-        api_key_encrypted: input.api_key_encrypted,
-        model: input.model,
-        max_concurrent: input.max_concurrent,
-        default_width: input.default_width,
-        default_height: input.default_height,
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use a4n_api_contract::config::UpdateImageConfigInput;
     use serde_json::Value;
 
     #[test]
@@ -72,7 +41,6 @@ mod tests {
         let missing_key = serde_json::from_value::<UpdateImageConfigInput>(base.clone())
             .expect("missing api_key_encrypted should preserve the old key");
         assert_eq!(missing_key.api_key_encrypted, None);
-        assert_eq!(image_update_params(missing_key).api_key_encrypted, None);
 
         let mut clear_value = base.clone();
         clear_value["api_key_encrypted"] = Value::Null;
@@ -85,7 +53,7 @@ mod tests {
         let replace_key = serde_json::from_value::<UpdateImageConfigInput>(replace_value)
             .expect("string api_key_encrypted should replace the old key");
         assert_eq!(
-            image_update_params(replace_key).api_key_encrypted,
+            replace_key.api_key_encrypted,
             Some(Some("sk-new".to_string()))
         );
     }

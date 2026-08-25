@@ -1,14 +1,12 @@
 //! 角色冲突检查工作流指纹纯规则。
 
 use a4n_core::error::AppError;
+use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
 use a4n_llm::provider::ChatRequest;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
-use crate::{
-    character::conflict::CHARACTER_CONFLICT_KIND,
-    generation::generation_checkpoint_fingerprint_sha256,
-};
+use crate::character::conflict::CHARACTER_CONFLICT_KIND;
 
 pub(in crate::character) fn character_conflict_workflow_fingerprint(
     project_id: i64,

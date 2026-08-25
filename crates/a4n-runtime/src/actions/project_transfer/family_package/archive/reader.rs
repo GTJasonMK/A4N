@@ -1,11 +1,12 @@
-use super::super::{FamilyImportMediaPayload, MANIFEST_PATH, ProjectFamilyPackage};
+use super::super::{MANIFEST_PATH, ProjectFamilyPackage};
 use super::payload::read_media_payloads_from_entries;
+use a4n_orchestrator::project::ImportMediaPayload;
 
 pub(in crate::actions::project_transfer) async fn read_project_family_package_bytes(
     runtime_profile: crate::state::RuntimeProfile,
     capabilities: &a4n_capabilities::A4nCapabilities,
     bytes: Vec<u8>,
-) -> Result<(ProjectFamilyPackage, FamilyImportMediaPayload), String> {
+) -> Result<(ProjectFamilyPackage, ImportMediaPayload), String> {
     let (manifest, media_bytes) = crate::sidecar_clients::read_import_media_package_zip(
         runtime_profile,
         capabilities,
@@ -24,7 +25,7 @@ pub(in crate::actions::project_transfer) async fn read_project_family_package_by
 #[cfg(test)]
 pub(super) fn read_project_family_package_reader<R: std::io::Read + std::io::Seek>(
     reader: R,
-) -> Result<(ProjectFamilyPackage, FamilyImportMediaPayload), String> {
+) -> Result<(ProjectFamilyPackage, ImportMediaPayload), String> {
     let (manifest, media_bytes) = a4n_import_core::read_media_package_zip_reader(
         reader,
         MANIFEST_PATH,

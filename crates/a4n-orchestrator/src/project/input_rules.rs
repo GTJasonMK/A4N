@@ -1,20 +1,5 @@
 //! 项目 Host 输入与复制/重置路径的纯校验规则（无 DB、无运行时依赖）。
 
-use a4n_core::models::project::novel_project;
-
-use super::ProjectSourceMode;
-
-/// 复制项目时的落库路径选择（不含权限与文件副作用）。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProjectDuplicatePath {
-    /// 非 freeform 文本项目：纯文本复制。
-    Text,
-    /// 非 freeform 派生项目：含媒体复制。
-    Derived,
-    /// freeform 项目：自由画布复制。
-    Freeform,
-}
-
 /// 一页制分页：page 从 1 起，计算 offset。
 pub fn project_list_offset(page: u64, limit: u64) -> Result<u64, String> {
     page.checked_sub(1)
@@ -37,68 +22,9 @@ pub fn optional_text(value: Option<&str>) -> String {
     value.map(str::trim).unwrap_or_default().to_string()
 }
 
-/// 按项目身份选择 duplicate 落库路径。
-pub fn resolve_project_duplicate_path(
-    project: &novel_project::Model,
-) -> Result<ProjectDuplicatePath, String> {
-    project
-        .source_mode()
-        .map(|source_mode| match source_mode {
-            ProjectSourceMode::Self_ => ProjectDuplicatePath::Text,
-            ProjectSourceMode::Derived => ProjectDuplicatePath::Derived,
-            ProjectSourceMode::Freeform => ProjectDuplicatePath::Freeform,
-        })
-        .map_err(|error| format!("项目 {}: {error}", project.id))
-}
-
-/// 是否走「自由画布视频生成数据重置」专用入口。
-pub fn is_freeform_video_generated_data_reset_project(
-    project: &novel_project::Model,
-) -> Result<bool, String> {
-    project
-        .source_mode()
-        .map(|source_mode| source_mode == ProjectSourceMode::Freeform)
-        .map_err(|error| format!("项目 {}: {error}", project.id))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn project(
-        kind: &str,
-        root_project_id: Option<i64>,
-        source_snapshot_id: Option<i64>,
-    ) -> novel_project::Model {
-        let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
-            .unwrap()
-            .and_hms_opt(0, 0, 0)
-            .unwrap();
-        novel_project::Model {
-            id: 1,
-            user_id: 1,
-            title: "t".into(),
-            description: String::new(),
-            project_type: "novel_long".into(),
-            project_kind: kind.into(),
-            root_project_id,
-            source_snapshot_id,
-            source_sync_status: "current".into(),
-            status: "draft".into(),
-            lifecycle_gate: "active".into(),
-            target_chapters: 0,
-            current_chapter: 0,
-            total_chapters: None,
-            chapters_per_part: None,
-            avatar_svg: None,
-            avatar_animal: None,
-            raw_blueprint: None,
-            import_analysis_progress: None,
-            export_config: None,
-            created_at: ts,
-            updated_at: ts,
-        }
-    }
 
     #[test]
     fn project_list_offset_uses_one_based_pages() {
@@ -118,37 +44,5 @@ mod tests {
         assert!(required_text("  ", "项目标题").is_err());
         assert_eq!(optional_text(None), "");
         assert_eq!(optional_text(Some(" 简介 ")), "简介");
-    }
-
-    #[test]
-    fn resolve_project_duplicate_path_covers_modes() {
-        assert_eq!(
-            resolve_project_duplicate_path(&project("text", None, None)),
-            Ok(ProjectDuplicatePath::Text)
-        );
-        assert_eq!(
-            resolve_project_duplicate_path(&project("galgame", Some(1), Some(2))),
-            Ok(ProjectDuplicatePath::Derived)
-        );
-        assert_eq!(
-            resolve_project_duplicate_path(&project("video", None, None)),
-            Ok(ProjectDuplicatePath::Freeform)
-        );
-    }
-
-    #[test]
-    fn freeform_video_reset_path_only_for_video_freeform() {
-        assert_eq!(
-            is_freeform_video_generated_data_reset_project(&project("video", None, None)),
-            Ok(true)
-        );
-        assert_eq!(
-            is_freeform_video_generated_data_reset_project(&project("text", None, None)),
-            Ok(false)
-        );
-        assert_eq!(
-            is_freeform_video_generated_data_reset_project(&project("video", Some(1), Some(2))),
-            Ok(false)
-        );
     }
 }

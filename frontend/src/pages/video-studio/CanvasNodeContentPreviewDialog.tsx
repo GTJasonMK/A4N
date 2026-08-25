@@ -8,6 +8,7 @@ import { Modal } from "../../components/ui/Modal";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { toMediaSrc } from "../../utils/mediaSrc";
 import { videoPlaybackDataToObjectUrl } from "../../utils/videoPlayback";
+import { useI18n, type MessageTranslator } from "../../i18n";
 import { nodeDisplayTitle, nodeKindMeta } from "./StudioCanvasNode";
 import { configNumber, configObject, configPositiveNumber, configText } from "./canvasConfig";
 import { isOutputNodeKind, isProbeNodeKind, nodeHasProviderRequest } from "./canvasNodeKinds";
@@ -43,10 +44,11 @@ export const CanvasNodeContentPreviewDialog: React.FC<CanvasNodeContentPreviewDi
   onClose,
   onCopyError,
 }) => {
+  const { t } = useI18n();
   const [copied, setCopied] = useState(false);
-  const preview = useMemo(() => (node ? buildNodeContentPreview(node) : null), [node]);
+  const preview = useMemo(() => (node ? buildNodeContentPreview(node, t) : null), [node, t]);
   const copyValue = preview?.text || preview?.filePath || "";
-  const copyLabel = preview?.text ? "复制文本" : "复制路径";
+  const copyLabel = preview?.text ? t("video.canvas.preview.copyText") : t("video.canvas.preview.copyPath");
 
   useEffect(() => {
     if (!node) setCopied(false);
@@ -60,7 +62,7 @@ export const CanvasNodeContentPreviewDialog: React.FC<CanvasNodeContentPreviewDi
       window.setTimeout(() => setCopied(false), 1200);
     } catch (err) {
       setCopied(false);
-      onCopyError(extractErrorMessage(err, "复制节点内容失败"));
+      onCopyError(extractErrorMessage(err, t("video.canvas.preview.copyFailed")));
     }
   };
 
@@ -68,18 +70,18 @@ export const CanvasNodeContentPreviewDialog: React.FC<CanvasNodeContentPreviewDi
     <Modal
       isOpen={node !== null}
       onClose={onClose}
-      title={preview ? `${preview.title} 内容查看` : "节点内容查看"}
+      title={preview ? t("video.canvas.preview.title", { name: preview.title }) : t("video.canvas.preview.fallbackTitle")}
       subtitle={
         node && preview
-          ? `${preview.kindLabel} · ${contentTypeLabel(preview.dataType)}`
-          : "查看节点当前保存或观察到的内容"
+          ? `${preview.kindLabel} · ${contentTypeLabel(preview.dataType, t)}`
+          : t("video.canvas.preview.subtitle")
       }
       icon={<Eye size={15} />}
       maxWidthClassName="max-w-[min(96vw,72rem)]"
       bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
       footer={
         <div className="flex w-full items-center justify-end gap-2">
-          {copied ? <span className="text-xs text-success">已复制</span> : null}
+          {copied ? <span className="text-xs text-success">{t("video.canvas.preview.copied")}</span> : null}
           <BookButton
             variant="secondary"
             size="sm"
@@ -98,6 +100,7 @@ export const CanvasNodeContentPreviewDialog: React.FC<CanvasNodeContentPreviewDi
 };
 
 const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview }> = ({ preview }) => {
+  const { t } = useI18n();
   const mediaPath = preview.dataType === "image" ? preview.filePath || preview.thumbnailPath : preview.filePath;
   const mediaSrc = mediaPath ? toMediaSrc(mediaPath) : "";
   const posterSrc = preview.thumbnailPath ? toMediaSrc(preview.thumbnailPath) : undefined;
@@ -108,7 +111,7 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
     handleVideoLoadStart,
     handleVideoLoaded,
     handleVideoError,
-  } = useCanvasVideoPreviewSource(preview);
+  } = useCanvasVideoPreviewSource(preview, t);
   const hasContent = Boolean(preview.text || mediaSrc || videoSrc);
 
   return (
@@ -142,7 +145,7 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
           {videoLoading ? (
             <div className="flex min-h-[18rem] items-center justify-center gap-2 text-book-text-muted">
               <LoadingSpinner size="md" />
-              正在加载本地视频文件
+              {t("video.canvas.preview.loadingVideo")}
             </div>
           ) : null}
           {videoLoadError ? (
@@ -165,7 +168,7 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
       {preview.metadataRows.length > 0 ? (
         <details className="rounded-xl border border-book-border/70 bg-book-bg-paper/60">
           <summary className="cursor-pointer px-3 py-2 text-small text-book-text-muted">
-            诊断信息
+            {t("video.canvas.preview.diagnostics")}
           </summary>
           <div className="grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1 border-t border-book-border/60 px-3 py-2 text-small">
             {preview.metadataRows.map(([label, value]) => (
@@ -181,7 +184,7 @@ const CanvasNodeContentPreviewBody: React.FC<{ preview: CanvasNodeContentPreview
   );
 };
 
-function buildNodeContentPreview(node: StudioNode): CanvasNodeContentPreview {
+function buildNodeContentPreview(node: StudioNode, t: MessageTranslator): CanvasNodeContentPreview {
   const config = node.data.config;
   const output = configObject(config, "output");
   const dataType = contentDataTypeForNode(node);
@@ -202,27 +205,22 @@ function buildNodeContentPreview(node: StudioNode): CanvasNodeContentPreview {
     configText(config, "thumbnail_path"),
     configText(output, "thumbnail_path"),
   ]);
-  const metadataRows = nodeContentMetadataRows(node, dataType, filePath, thumbnailPath);
+  const metadataRows = nodeContentMetadataRows(node, dataType, filePath, thumbnailPath, t);
 
   return {
-    title: nodeDisplayTitle(node.data),
-    kindLabel: nodeKindMeta(node.data.nodeKind).label,
+    title: nodeDisplayTitle(node.data, t),
+    kindLabel: nodeKindMeta(node.data.nodeKind, t).label,
     dataType,
     text,
     filePath,
     thumbnailPath,
     generatedVideoId: nodeContentGeneratedVideoId(node),
     metadataRows,
-    emptyMessage: nodeContentEmptyMessage(node, dataType),
+    emptyMessage: nodeContentEmptyMessage(node, dataType, t),
   };
 }
 
-export function nodeHasContentPreview(node: StudioNode): boolean {
-  const preview = buildNodeContentPreview(node);
-  return Boolean(preview.text || preview.filePath || preview.thumbnailPath || preview.generatedVideoId);
-}
-
-function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview): {
+function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview, t: MessageTranslator): {
   videoSrc: string;
   videoLoading: boolean;
   videoLoadError: string | null;
@@ -260,14 +258,14 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview): {
       .catch((err) => {
         if (cancelled) return;
         setVideoLoading(false);
-        setVideoLoadError(extractErrorMessage(err, "无法读取本地视频文件"));
+        setVideoLoadError(extractErrorMessage(err, t("video.canvas.preview.readVideoFailed")));
       });
 
     return () => {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [preview.dataType, preview.filePath, preview.generatedVideoId]);
+  }, [preview.dataType, preview.filePath, preview.generatedVideoId, t]);
 
   const handleVideoLoadStart = useCallback(() => {
     setVideoLoading(true);
@@ -283,10 +281,10 @@ function useCanvasVideoPreviewSource(preview: CanvasNodeContentPreview): {
     const detail = event.currentTarget.error?.message?.trim();
     setVideoLoadError(
       detail
-        ? `内置播放器无法播放该视频：${detail}`
-        : "内置播放器无法解码该视频。文件已保存，可以复制路径后用本地播放器检查。",
+        ? t("video.canvas.preview.playbackFailed", { detail })
+        : t("video.canvas.preview.decodeFailed"),
     );
-  }, []);
+  }, [t]);
 
   return { videoSrc, videoLoading, videoLoadError, handleVideoLoadStart, handleVideoLoaded, handleVideoError };
 }
@@ -306,9 +304,10 @@ function nodeContentMetadataRows(
   dataType: CanvasNodeContentType,
   filePath: string,
   thumbnailPath: string,
+  t: MessageTranslator,
 ): Array<[string, string]> {
   const config = node.data.config;
-  const rows: Array<[string, string]> = [["类型", contentTypeLabel(dataType)]];
+  const rows: Array<[string, string]> = [[t("video.canvas.preview.type"), contentTypeLabel(dataType, t)]];
   const canvasTextAssetId = configPositiveNumber(config, "canvas_text_asset_id");
   const generatedImageId =
     configPositiveNumber(config, "generated_image_id") ??
@@ -320,18 +319,18 @@ function nodeContentMetadataRows(
   const durationSecs = configNumber(config, "duration_secs");
   const sourceNodeIds = config["source_node_ids"];
 
-  if (canvasTextAssetId) rows.push(["文本资产", `#${canvasTextAssetId}`]);
-  if (generatedImageId) rows.push(["图片", `#${generatedImageId}`]);
-  if (generatedVideoId) rows.push(["视频", `#${generatedVideoId}`]);
-  if (mediaAssetId) rows.push(["媒体", `#${mediaAssetId}`]);
-  if (filePath) rows.push(["文件", filePath]);
-  if (thumbnailPath) rows.push(["缩略图", thumbnailPath]);
-  if (durationSecs !== "") rows.push(["时长", `${durationSecs}s`]);
+  if (canvasTextAssetId) rows.push([t("video.canvas.preview.textAsset"), `#${canvasTextAssetId}`]);
+  if (generatedImageId) rows.push([t("video.canvas.preview.image"), `#${generatedImageId}`]);
+  if (generatedVideoId) rows.push([t("video.canvas.preview.video"), `#${generatedVideoId}`]);
+  if (mediaAssetId) rows.push([t("video.canvas.preview.media"), `#${mediaAssetId}`]);
+  if (filePath) rows.push([t("video.canvas.preview.file"), filePath]);
+  if (thumbnailPath) rows.push([t("video.canvas.preview.thumbnail"), thumbnailPath]);
+  if (durationSecs !== "") rows.push([t("video.canvas.preview.duration"), `${durationSecs}s`]);
   if (Array.isArray(sourceNodeIds) && sourceNodeIds.length > 0) {
-    rows.push(["来源节点", sourceNodeIds.map(String).join(", ")]);
+    rows.push([t("video.canvas.preview.sourceNodes"), sourceNodeIds.map(String).join(", ")]);
   }
   if (node.data.refType && node.data.refId) {
-    rows.push(["引用", `${node.data.refType} #${node.data.refId}`]);
+    rows.push([t("video.canvas.preview.reference"), `${node.data.refType} #${node.data.refId}`]);
   }
   return rows;
 }
@@ -368,32 +367,32 @@ function normalizeContentDataType(value: string): CanvasNodeContentType {
     : "unknown";
 }
 
-function contentTypeLabel(dataType: CanvasNodeContentType): string {
+function contentTypeLabel(dataType: CanvasNodeContentType, t: MessageTranslator): string {
   switch (dataType) {
     case "text":
-      return "文本";
+      return t("video.canvas.dataType.text");
     case "image":
-      return "图片";
+      return t("video.canvas.dataType.image");
     case "video":
-      return "视频";
+      return t("video.canvas.dataType.video");
     case "audio":
-      return "音频";
+      return t("video.canvas.dataType.audio");
     default:
-      return "未知";
+      return t("common.unknown");
   }
 }
 
-function nodeContentEmptyMessage(node: StudioNode, dataType: CanvasNodeContentType): string {
+function nodeContentEmptyMessage(node: StudioNode, dataType: CanvasNodeContentType, t: MessageTranslator): string {
   if (isProbeNodeKind(node.data.nodeKind)) {
-    return `该探针尚未观察到${contentTypeLabel(dataType)}内容。请运行经过该探针的工作流后再查看。`;
+    return t("video.canvas.preview.probeEmpty", { type: contentTypeLabel(dataType, t) });
   }
   if (isOutputNodeKind(node.data.nodeKind)) {
-    return `该输出节点尚未保存${contentTypeLabel(dataType)}结果。请运行画布或运行到该输出节点后再查看。`;
+    return t("video.canvas.preview.outputEmpty", { type: contentTypeLabel(dataType, t) });
   }
   if (nodeHasProviderRequest(node)) {
-    return "该节点会调用外部模型，请使用“模型请求”查看将发送的内容。";
+    return t("video.canvas.preview.providerHint");
   }
-  return "该节点当前没有可查看的保存内容。";
+  return t("video.canvas.preview.noSavedContent");
 }
 
 function firstNonEmptyString(values: string[]): string {

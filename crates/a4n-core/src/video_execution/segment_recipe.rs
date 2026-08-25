@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use a4n_domain::VideoAspectRatio;
 use schemars::JsonSchema;
@@ -360,14 +360,28 @@ pub fn carry_forward_video_segment_recipes(
     prompt_output_language: &str,
 ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, String> {
     let mut recipes = default_video_segment_recipes(next_segments, style, prompt_output_language)?;
+    let previous_by_anchor = previous_segments
+        .iter()
+        .zip(previous_recipes)
+        .enumerate()
+        .fold(
+            HashMap::with_capacity(previous_segments.len().min(previous_recipes.len())),
+            |mut by_anchor, (index, (segment, _))| {
+                by_anchor
+                    .entry(video_segment_recipe_anchor_key(segment))
+                    .or_insert(index);
+                by_anchor
+            },
+        );
     for (next, recipe) in next_segments.iter().zip(&mut recipes) {
-        let Some((previous_segment, previous)) = previous_segments
-            .iter()
-            .zip(previous_recipes)
-            .find(|(segment, _)| video_segments_share_recipe_anchor(segment, next))
+        let Some(previous_index) = previous_by_anchor
+            .get(&video_segment_recipe_anchor_key(next))
+            .copied()
         else {
             continue;
         };
+        let previous_segment = &previous_segments[previous_index];
+        let previous = &previous_recipes[previous_index];
         *recipe = previous.clone();
         recipe.segment_number = next.segment_number;
         recipe.style = style.trim().to_string();
@@ -393,6 +407,18 @@ pub fn carry_forward_video_segment_recipes(
     Ok(recipes)
 }
 
+fn video_segment_recipe_anchor_key(
+    segment: &VideoSegmentPlanV2,
+) -> (String, i32, i32, Vec<String>, Vec<String>) {
+    (
+        segment.source_shot_id.clone(),
+        segment.segment_index_in_shot,
+        segment.shot_segment_count,
+        segment.covered_beat_ids.clone(),
+        segment.source_span_ids.clone(),
+    )
+}
+
 pub fn video_segments_share_recipe_anchor(
     left: &VideoSegmentPlanV2,
     right: &VideoSegmentPlanV2,
@@ -416,7 +442,7 @@ pub fn video_segment_recipes_from_metadata(
     let mut recipes = serde_json::from_value::<Vec<VideoSegmentExecutionRecipeV1>>(value.clone())
         .map_err(|error| format!("片段执行方案 metadata 无效：{error}"))?;
     recipes.sort_by_key(|recipe| recipe.segment_number);
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for recipe in &recipes {
         recipe.validate()?;
         if !seen.insert(recipe.segment_number) {
@@ -460,10 +486,17 @@ pub fn validate_video_segment_recipes_for_plan(
             recipes.len()
         ));
     }
+    let recipes_by_number = recipes.iter().fold(
+        HashMap::with_capacity(recipes.len()),
+        |mut by_number, recipe| {
+            by_number.entry(recipe.segment_number).or_insert(recipe);
+            by_number
+        },
+    );
     for segment in segments {
-        let recipe = recipes
-            .iter()
-            .find(|recipe| recipe.segment_number == segment.segment_number)
+        let recipe = recipes_by_number
+            .get(&segment.segment_number)
+            .copied()
             .ok_or_else(|| format!("片段 {} 缺少执行方案", segment.segment_number))?;
         recipe.validate_for_plan(segment, plan_style)?;
     }
@@ -568,7 +601,7 @@ pub fn update_video_segment_recipe_metadata(
 }
 
 fn validate_positive_unique_ids(ids: &[i64], field: &str) -> Result<(), String> {
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for id in ids {
         if *id <= 0 {
             return Err(format!("片段执行方案 {field} 只能包含正整数"));

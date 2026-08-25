@@ -1,7 +1,7 @@
-use a4n_core::models::ai::{generated_image, generated_video};
 use serde_json::json;
 
 use super::stats::VideoPromptStats;
+use crate::project_dependency_graph::graph::{GeneratedImageGraphRow, GeneratedVideoGraphRow};
 use crate::project_dependency_graph::{
     builder::{GraphBuilder, NodeSeedMetadata, node},
     helpers::{count_strings, first_available_graph_source, video_frame_image_prompt_id},
@@ -10,13 +10,15 @@ use crate::project_dependency_graph::{
 pub(super) fn add_video_output_nodes(
     graph: &mut GraphBuilder,
     chapter_count: u64,
-    generated_images: &[generated_image::Model],
-    generated_videos: &[generated_video::Model],
+    generated_images: &[GeneratedImageGraphRow],
+    generated_videos: &[GeneratedVideoGraphRow],
     prompt_stats: &VideoPromptStats,
 ) {
     let frame_image_count = generated_images
         .iter()
-        .filter(|image| video_frame_image_prompt_id(image).is_some())
+        .filter(|image| {
+            video_frame_image_prompt_id(&image.image_type, image.metadata_json.as_ref()).is_some()
+        })
         .count() as u64;
     graph.add_node(node(
         "video_frame_images",

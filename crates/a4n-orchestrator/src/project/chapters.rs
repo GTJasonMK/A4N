@@ -1,4 +1,3 @@
-mod outlines;
 mod readiness;
 mod records;
 #[cfg(test)]

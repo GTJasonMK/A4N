@@ -1,9 +1,25 @@
 use a4n_core::models::project::novel_project;
 use a4n_core::models::task::task_queue;
 use a4n_domain::project::{ProjectKind, ProjectStatus};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
+};
 
 use super::{AdminDbError, AdminProjectSummary, TaskQueueSummary};
+
+#[derive(Debug, FromQueryResult)]
+struct AdminProjectSummaryRow {
+    id: i64,
+    user_id: i64,
+    title: String,
+    project_type: String,
+    project_kind: String,
+    status: String,
+    target_chapters: i32,
+    current_chapter: i32,
+    total_chapters: Option<i32>,
+}
 
 pub async fn pending_tasks(db: &DatabaseConnection) -> Result<Vec<TaskQueueSummary>, AdminDbError> {
     let mut tasks = task_queue::Entity::find()
@@ -23,7 +39,18 @@ pub async fn all_project_summaries(
     db: &DatabaseConnection,
 ) -> Result<Vec<AdminProjectSummary>, AdminDbError> {
     let projects = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::UserId)
+        .column(novel_project::Column::Title)
+        .column(novel_project::Column::ProjectType)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::Status)
+        .column(novel_project::Column::TargetChapters)
+        .column(novel_project::Column::CurrentChapter)
+        .column(novel_project::Column::TotalChapters)
         .order_by_desc(novel_project::Column::CreatedAt)
+        .into_model::<AdminProjectSummaryRow>()
         .all(db)
         .await?;
     projects.iter().map(project_summary).collect()
@@ -58,9 +85,7 @@ fn task_summary(task: &task_queue::Model) -> TaskQueueSummary {
     }
 }
 
-pub(super) fn project_summary(
-    project: &novel_project::Model,
-) -> Result<AdminProjectSummary, AdminDbError> {
+fn project_summary(project: &AdminProjectSummaryRow) -> Result<AdminProjectSummary, AdminDbError> {
     let project_kind = ProjectKind::parse(&project.project_kind).ok_or_else(|| {
         AdminDbError::InvalidArgument(format!(
             "项目 #{} 的 project_kind 无效: {}",

@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "variables": {},
+  "scenarios": [
+    {
+      "name": "read current user",
+      "description": "Verify authenticated identity without changing account state.",
+      "command": "get_current_user",
+      "args": {}
+    },
+    {
+      "name": "list own sessions",
+      "description": "Verify session metadata remains readable without rotating credentials.",
+      "command": "list_sessions",
+      "args": {}
+    },
+    {
+      "name": "list projects",
+      "description": "Exercise the paginated project catalog without creating test data.",
+      "command": "list_projects",
+      "args": {
+        "page": 1,
+        "pageSize": 20
+      }
+    },
+    {
+      "name": "list provider catalog",
+      "description": "Verify all provider families are advertised by the Server.",
+      "command": "list_model_provider_catalog",
+      "args": {}
+    },
+    {
+      "name": "list llm configs",
+      "description": "Verify LLM config summaries are readable and secret-free.",
+      "command": "list_llm_config",
+      "args": {}
+    },
+    {
+      "name": "list image configs",
+      "description": "Verify image config summaries are readable and secret-free.",
+      "command": "list_image_configs",
+      "args": {}
+    },
+    {
+      "name": "list video configs",
+      "description": "Verify video config summaries are readable and secret-free.",
+      "command": "list_video_configs",
+      "args": {}
+    },
+    {
+      "name": "list embedding configs",
+      "description": "Verify embedding config summaries are readable and secret-free.",
+      "command": "list_embedding_config",
+      "args": {}
+    },
+    {
+      "name": "test virtual llm runtime",
+      "description": "Exercise CLI -> Server -> embedded LLM runtime -> virtual chat completions.",
+      "command": "test_llm_config",
+      "args": {
+        "configId": 900001
+      }
+    },
+    {
+      "name": "test virtual image runtime",
+      "description": "Exercise CLI -> Server -> embedded image runtime -> virtual PNG generation.",
+      "command": "test_image_config",
+      "args": {
+        "configId": 900002
+      }
+    },
+    {
+      "name": "test virtual embedding runtime",
+      "description": "Exercise CLI -> Server -> embedding runtime -> virtual 8-dimensional vectors.",
+      "command": "test_embedding_config",
+      "args": {
+        "configId": 900004
+      }
+    },
+    {
+      "name": "read llm token budgets",
+      "description": "Verify the shared generation budget contract.",
+      "command": "get_llm_max_tokens_config",
+      "args": {}
+    },
+    {
+      "name": "read queue stats",
+      "description": "Verify task queue observability without submitting work.",
+      "command": "get_queue_stats",
+      "args": {}
+    },
+    {
+      "name": "read task history",
+      "description": "Verify bounded task history pagination.",
+      "command": "get_task_history",
+      "args": {
+        "offset": 0,
+        "limit": 20
+      }
+    },
+    {
+      "name": "list active workflows",
+      "description": "Verify active workflow discovery without resuming or cancelling runs.",
+      "command": "list_active_workflows",
+      "args": {}
+    },
+    {
+      "name": "list workflow runs",
+      "description": "Verify bounded workflow history without changing workflow state.",
+      "command": "list_workflow_runs",
+      "args": {
+        "input": {
+          "resumable_only": false,
+          "limit": 20
+        }
+      }
+    },
+    {
+      "name": "list prompt categories",
+      "description": "Verify prompt registry category discovery.",
+      "command": "prompt_list_categories",
+      "args": {}
+    },
+    {
+      "name": "list prompts",
+      "description": "Verify the prompt registry can be loaded without mutation.",
+      "command": "prompt_list",
+      "args": {}
+    },
+    {
+      "name": "list themes",
+      "description": "Verify theme reads without activating or editing a theme.",
+      "command": "list_themes",
+      "args": {}
+    },
+    {
+      "name": "list own project invites",
+      "description": "Verify collaboration inbox reads without accepting or declining invitations.",
+      "command": "list_my_project_invites",
+      "args": {}
+    }
+  ],
+  "skips": {
+    "apply_assembly_postprocess_edit": "Destructive media edit; requires an isolated disposable project and explicit --allow-destructive.",
+    "apply_optimization_patches": "Destructive content patch; requires an isolated disposable project and explicit --allow-destructive.",
+    "apply_source_sync_decisions": "Destructive source synchronization; requires an isolated disposable project and explicit --allow-destructive.",
+    "cancel_admin_task": "Cancellation changes shared task state and requires an exact disposable task plus explicit --allow-destructive.",
+    "cancel_embedding_model_download": "Cancellation changes local model state and requires an exact disposable download plus explicit --allow-destructive.",
+    "cancel_galgame_pipeline": "Cancellation changes workflow state and requires an exact disposable run plus explicit --allow-destructive.",
+    "cancel_generation_task": "Cancellation changes task state and requires an exact disposable task plus explicit --allow-destructive.",
+    "cancel_import_analysis": "Cancellation changes import state and requires an exact disposable project plus explicit --allow-destructive.",
+    "cancel_manga_pipeline": "Cancellation changes workflow state and requires an exact disposable run plus explicit --allow-destructive.",
+    "cancel_task": "Cancellation changes task state and requires an exact disposable task plus explicit --allow-destructive.",
+    "cancel_workflow": "Cancellation changes workflow state and requires an exact disposable run plus explicit --allow-destructive.",
+    "change_user_password": "Credential mutation is intentionally outside this reusable smoke ledger.",
+    "cleanup_orphan_project_data_dirs": "Filesystem cleanup requires isolated fixtures and explicit --allow-destructive.",
+    "confirm_chapter_visual_plan": "Confirmation replaces project-owned planning state and requires an isolated disposable chapter plus explicit --allow-destructive.",
+    "confirm_reverse_engineering_candidate": "Confirmation commits workflow output and requires an isolated disposable project plus explicit --allow-destructive.",
+    "create_user": "Persistent account creation is intentionally outside this reusable smoke ledger.",
+    "decline_project_invite": "Invitation mutation requires an isolated disposable invite plus explicit --allow-destructive.",
+    "delete_chapter_scene": "Deletion requires an isolated disposable scene plus explicit --allow-destructive.",
+    "delete_chapter_video_prompt": "Deletion requires an isolated disposable prompt plus explicit --allow-destructive.",
+    "delete_embedding_config": "Provider configuration deletion requires isolated settings plus explicit --allow-destructive.",
+    "delete_foreshadowing": "Deletion requires an isolated disposable record plus explicit --allow-destructive.",
+    "delete_galgame_line": "Deletion requires an isolated disposable script plus explicit --allow-destructive.",
+    "delete_image": "Deletion requires an isolated disposable asset plus explicit --allow-destructive.",
+    "delete_import_review": "Deletion requires an isolated disposable review plus explicit --allow-destructive.",
+    "delete_inserted_segment": "Deletion requires an isolated disposable timeline plus explicit --allow-destructive.",
+    "delete_latest_chapter_outlines": "Bulk deletion requires an isolated disposable project plus explicit --allow-destructive.",
+    "delete_latest_parts": "Bulk deletion requires an isolated disposable project plus explicit --allow-destructive.",
+    "delete_llm_config": "Provider configuration deletion requires isolated settings plus explicit --allow-destructive.",
+    "delete_local_embedding_model": "Local model deletion requires an isolated runtime plus explicit --allow-destructive.",
+    "delete_manga_by_chapter": "Bulk deletion requires an isolated disposable chapter plus explicit --allow-destructive.",
+    "delete_manga_prompt": "Deletion requires an isolated disposable manga project plus explicit --allow-destructive.",
+    "delete_object_profile": "Deletion requires an isolated disposable profile plus explicit --allow-destructive.",
+    "delete_optimize_session": "Deletion requires an isolated disposable optimization session plus explicit --allow-destructive.",
+    "delete_profile": "Deletion requires an isolated disposable profile plus explicit --allow-destructive.",
+    "delete_project": "Project deletion requires an isolated disposable project plus explicit --allow-destructive.",
+    "delete_scene_profile": "Deletion requires an isolated disposable profile plus explicit --allow-destructive.",
+    "delete_theme": "Deletion requires an isolated disposable theme plus explicit --allow-destructive.",
+    "delete_video": "Deletion requires an isolated disposable asset plus explicit --allow-destructive.",
+    "detach_derived_project": "Detaching changes project lineage and requires an isolated disposable family plus explicit --allow-destructive.",
+    "disable_user": "Account disabling is intentionally outside this reusable smoke ledger.",
+    "discard_chapter_visual_plan_draft": "Discarding state requires an isolated disposable chapter plus explicit --allow-destructive.",
+    "discard_pending_optimize_patch_sets": "Discarding state requires an isolated disposable session plus explicit --allow-destructive.",
+    "download_embedding_model": "Local model installation depends on the local-embedding runtime feature and machine-specific storage.",
+    "execute_attribute_deletion": "Deletion requires an isolated disposable profile plus explicit --allow-destructive.",
+    "get_embedding_model_download_info": "Local model inspection depends on the local-embedding runtime feature and machine-specific storage.",
+    "leave_project": "Membership removal requires an isolated disposable collaboration project plus explicit --allow-destructive.",
+    "list_local_embedding_models": "Local model discovery depends on the local-embedding runtime feature; the virtual provider uses remote embeddings.",
+    "login_user": "The runner performs stdin-only login; credentials must not be duplicated in a ledger.",
+    "oauth2_authorize_url": "Requires a configured external OAuth provider and browser callback infrastructure.",
+    "oauth2_callback": "Requires a real one-time OAuth code and external callback infrastructure.",
+    "prompt_remove_project_override": "Removal requires an isolated disposable override plus explicit --allow-destructive.",
+    "prompt_reset": "Reset replaces persisted prompt state and requires isolated settings plus explicit --allow-destructive.",
+    "refresh_token": "Token rotation is owned by the CLI session and must not embed session credentials in a ledger.",
+    "register_user": "Persistent account creation is intentionally outside this reusable smoke ledger.",
+    "reject_import_review": "Rejection changes import state and requires an isolated disposable review plus explicit --allow-destructive.",
+    "remove_image_config": "Provider configuration deletion requires isolated settings plus explicit --allow-destructive.",
+    "remove_project_member": "Membership removal requires an isolated disposable collaboration project plus explicit --allow-destructive.",
+    "remove_video_config": "Provider configuration deletion requires isolated settings plus explicit --allow-destructive.",
+    "request_attribute_deletion": "Deletion workflow requires an isolated disposable profile plus explicit --allow-destructive.",
+    "reset_deletion_marks": "Reset changes profile deletion state and requires isolated fixtures plus explicit --allow-destructive.",
+    "reset_project_generated_data": "Bulk reset requires an isolated disposable project plus explicit --allow-destructive.",
+    "restore_blueprint_version": "Restore replaces blueprint state and requires an isolated disposable project plus explicit --allow-destructive.",
+    "revoke_project_invite": "Invitation mutation requires an isolated disposable invite plus explicit --allow-destructive.",
+    "revoke_session": "Session revocation could invalidate the runner login and requires explicit --allow-destructive.",
+    "rollback_project_status": "Rollback changes project lifecycle state and requires an isolated disposable project plus explicit --allow-destructive.",
+    "rollback_to_chapter": "Rollback deletes later profile state and requires an isolated disposable project plus explicit --allow-destructive.",
+    "select_segment_video": "Selection replaces timeline state and requires an isolated disposable project plus explicit --allow-destructive.",
+    "trim_video": "Media mutation requires an isolated disposable video plus explicit --allow-destructive.",
+    "unbind_galgame_media": "Unbinding changes project media state and requires isolated fixtures plus explicit --allow-destructive.",
+    "update_assembly_push_status": "Status mutation can change media lifecycle state and requires isolated fixtures plus explicit --allow-destructive.",
+    "update_user_role": "Privilege mutation is intentionally outside this reusable smoke ledger."
+  }
+}

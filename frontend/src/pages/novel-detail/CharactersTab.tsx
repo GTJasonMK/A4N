@@ -22,9 +22,11 @@ import { CharacterProfilesPanel } from "./characters/CharacterProfilesPanel";
 import { CharacterPortraitsPanel } from "./characters/CharacterPortraitsPanel";
 import type { CharactersSubTab } from "./characters/characterUtils";
 import { useChapterAnalysisLoader } from "./useNovelDetailLoader";
+import { useI18n } from "../../i18n";
 
 export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [subTab, setSubTab] = useState<CharactersSubTab>("profile");
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
@@ -58,7 +60,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   const { loading, load } = useChapterAnalysisLoader(
     projectId,
     loadProfiles,
-    "加载角色失败",
+    t("characterDetail.loadFailed"),
   );
 
   useEffect(() => {
@@ -85,7 +87,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   const handleSave = async () => {
     const name = form.name.trim();
     if (!name) {
-      addToast("请填写角色姓名", "error");
+      addToast(t("characterDetail.nameRequiredError"), "error");
       return;
     }
     if (saveInFlightRef.current) return;
@@ -120,10 +122,18 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
       setEditingProfile(null);
       addToast(
         result.warnings.length > 0
-          ? `${editingProfile ? "角色初始档案已更新" : `已创建角色：${name}`}；${result.warnings.join("；")}`
+          ? t(
+              editingProfile
+                ? "characterDetail.profileUpdatedWithWarnings"
+                : "characterDetail.profileCreatedWithWarnings",
+              {
+                ...(editingProfile ? {} : { name }),
+                warnings: result.warnings.join(t("common.summarySeparator")),
+              },
+            )
           : editingProfile
-            ? "角色初始档案已更新"
-            : `已创建角色：${name}`,
+            ? t("characterDetail.profileUpdated")
+            : t("characterDetail.profileCreated", { name }),
         result.warnings.length > 0 ? "info" : "success",
       );
       await load({ silent: true, force: true });
@@ -135,7 +145,9 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
         addToast(
           extractErrorMessage(
             err,
-            editingProfile ? "更新角色初始档案失败" : "创建角色失败",
+            editingProfile
+              ? t("characterDetail.profileSaveFailed")
+              : t("characterDetail.profileCreateFailed"),
           ),
           "error",
         );
@@ -157,7 +169,7 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
   if (displayLoading) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <LoadingSpinner size="sm" /> 加载角色…
+        <LoadingSpinner size="sm" /> {t("characterDetail.loadingProfiles")}
       </div>
     );
   }
@@ -166,17 +178,17 @@ export const CharactersTab: React.FC<{ projectId: number }> = ({ projectId }) =>
     <div className="content-main flex min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <SegmentedControl
-          ariaLabel="人物工作区"
+          ariaLabel={t("characterDetail.profileWorkspaceAria")}
           value={subTab}
           onChange={setSubTab}
           options={[
-            { id: "profile" as const, label: "档案" },
-            { id: "portrait" as const, label: "立绘" },
+            { id: "profile" as const, label: t("characterDetail.profileTab") },
+            { id: "portrait" as const, label: t("characterDetail.portraitTab") },
           ]}
         />
         {subTab === "profile" ? (
           <BookButton variant="primary" size="sm" onClick={openCreate} disabled={saving}>
-            <UserPlus size={12} /> 新建角色
+            <UserPlus size={12} /> {t("characterDetail.createProfile")}
           </BookButton>
         ) : null}
       </div>

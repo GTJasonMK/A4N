@@ -1,7 +1,5 @@
-mod contracts;
 mod optimization;
 mod pipeline;
-mod projections;
 mod records;
 
 use crate::{AppState, actions::dependency_conflict::delete_downstream_images_if_requested};
@@ -23,13 +21,10 @@ impl MangaPromptDownstreamCleanupPort for RuntimeMangaDownstreamCleanup<'_> {
     }
 }
 
-pub use contracts::{
-    BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaChapterInput,
-    MangaPagePromptSourceSummary, MangaPagePromptSummary, MangaPipelineStatusSummary,
-    MangaReferenceBindingSummary, OptimizeMangaPromptInput, UpdateMangaPromptInput,
-};
 pub use optimization::optimize_manga_prompt;
-pub use pipeline::{cancel_manga_pipeline, get_manga_pipeline_status};
+pub use pipeline::{
+    cancel_manga_pipeline, get_manga_pipeline_status, list_manga_pipeline_statuses,
+};
 pub use records::{
     bind_manga_reference_image, delete_manga_by_chapter, delete_manga_prompt,
     list_manga_page_prompts, update_manga_prompt,

@@ -21,6 +21,7 @@ import {
   isTauriRuntime,
   shouldUseHttpBackend,
 } from "../utils/runtimeMode";
+import { getActiveLocale, translateMessage } from "../i18n";
 
 export type UnlistenFn = () => void;
 
@@ -89,7 +90,7 @@ export async function listenAppEvent<T>(
   handler: EventHandler<T>,
 ): Promise<UnlistenFn> {
   if (!canListenAppEvents()) {
-    throw new Error("当前环境不支持 Tauri 事件监听");
+    throw new Error(translateMessage(getActiveLocale(), "errors.runtimeEventsUnsupported"));
   }
   const unlisten: TauriUnlistenFn = await tauriListen<T>(channel, handler);
   return unlisten;

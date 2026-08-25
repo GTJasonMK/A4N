@@ -3,15 +3,16 @@ use super::super::{
     types::CharacterAttributeEventInsertInput,
 };
 use super::validation::validate_operation;
+#[cfg(test)]
+use crate::character::profile::require_profile_for_update;
 use crate::character::profile::{
-    CharacterProfileCurrentStateUpdate, profile_current_state_fields, require_profile_for_update,
-    update_profile_current_state,
+    CharacterProfileCurrentStateUpdate, profile_current_state_fields, update_profile_current_state,
 };
 use crate::character::{
     CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
     validate_timeline_source_kind,
 };
-use a4n_core::models::character::attribute_event;
+use a4n_core::models::character::{attribute_event, protagonist_profile};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
 
 pub(in crate::character::attributes) fn default_attribute_change_description(
@@ -54,6 +55,7 @@ where
     .await
 }
 
+#[cfg(test)]
 pub(in crate::character::attributes) async fn record_attribute_event_in<C>(
     db: &C,
     input: CharacterAttributeEventInsertInput,
@@ -61,32 +63,61 @@ pub(in crate::character::attributes) async fn record_attribute_event_in<C>(
 where
     C: ConnectionTrait,
 {
-    validate_chapter_number(input.chapter_number)?;
-    let category = input.category.trim().to_string();
-    let key = require_non_empty(&input.key, "属性 key")?;
-    let operation = input.operation.trim().to_string();
-    let source_kind = validate_timeline_source_kind(&input.source_kind)?;
-    let change_description = require_non_empty(&input.change_description, "属性变更摘要")?;
-    let cause = require_non_empty(&input.cause, "属性变更原因")?;
-    let evidence = require_non_empty(&input.evidence, "属性变更证据")?;
-    validate_category(&category)?;
-    validate_operation(&operation)?;
-
+    let input = normalize_attribute_event_input(input)?;
     let profile = require_profile_for_update(db, input.profile_id).await?;
+    record_attribute_event_for_profile_in(db, profile, input).await
+}
+
+pub(in crate::character::attributes) async fn record_attribute_event_with_profile_in<C>(
+    db: &C,
+    profile: protagonist_profile::Model,
+    input: CharacterAttributeEventInsertInput,
+) -> Result<attribute_event::Model, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
+    let input = normalize_attribute_event_input(input)?;
+    record_attribute_event_for_profile_in(db, profile, input).await
+}
+
+fn normalize_attribute_event_input(
+    mut input: CharacterAttributeEventInsertInput,
+) -> Result<CharacterAttributeEventInsertInput, CharacterDbError> {
+    validate_chapter_number(input.chapter_number)?;
+    input.category = input.category.trim().to_string();
+    input.key = require_non_empty(&input.key, "属性 key")?;
+    input.operation = input.operation.trim().to_string();
+    input.source_kind = validate_timeline_source_kind(&input.source_kind)?;
+    input.change_description = require_non_empty(&input.change_description, "属性变更摘要")?;
+    input.cause = require_non_empty(&input.cause, "属性变更原因")?;
+    input.evidence = require_non_empty(&input.evidence, "属性变更证据")?;
+    validate_category(&input.category)?;
+    validate_operation(&input.operation)?;
+    Ok(input)
+}
+
+async fn record_attribute_event_for_profile_in<C>(
+    db: &C,
+    profile: protagonist_profile::Model,
+    input: CharacterAttributeEventInsertInput,
+) -> Result<attribute_event::Model, CharacterDbError>
+where
+    C: ConnectionTrait,
+{
     let event = insert_attribute_event(
         db,
         CharacterAttributeEventInsertInput {
             profile_id: input.profile_id,
             chapter_number: input.chapter_number,
-            source_kind,
-            category: category.clone(),
-            key: key.clone(),
-            operation: operation.clone(),
+            source_kind: input.source_kind,
+            category: input.category.clone(),
+            key: input.key.clone(),
+            operation: input.operation.clone(),
             old_value: input.old_value,
             new_value: input.new_value,
-            change_description,
-            cause,
-            evidence,
+            change_description: input.change_description,
+            cause: input.cause,
+            evidence: input.evidence,
         },
     )
     .await?;
@@ -94,9 +125,9 @@ where
     let mut next_state = profile.current_state.clone();
     apply_attribute_to_state(
         &mut next_state,
-        &category,
-        &key,
-        &operation,
+        &input.category,
+        &input.key,
+        &input.operation,
         event.new_value.clone(),
     )?;
     let fields = profile_current_state_fields(next_state);
@@ -115,8 +146,8 @@ where
     )
     .await?;
 
-    if matches!(operation.as_str(), "add" | "modify") {
-        reset_pending_deletion_marks(db, input.profile_id, &category, &key).await?;
+    if matches!(input.operation.as_str(), "add" | "modify") {
+        reset_pending_deletion_marks(db, input.profile_id, &input.category, &input.key).await?;
     }
 
     Ok(event)

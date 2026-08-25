@@ -4,10 +4,7 @@ use a4n_core::{
 };
 use chrono::Utc;
 
-use super::{
-    contracts::ResolvedChapterSourceKind, live::live_source_from_chapter,
-    snapshot::snapshot_source_from_chapter,
-};
+use super::{live::live_source_from_chapter, snapshot::snapshot_source_from_chapter};
 
 fn chapter(content: &str) -> chapter::Model {
     let now = Utc::now().naive_utc();
@@ -32,7 +29,6 @@ fn chapter(content: &str) -> chapter::Model {
 fn live_revision_identity_contains_content_hash() {
     let source = live_source_from_chapter(4, chapter("正文"));
 
-    assert_eq!(source.source_kind, ResolvedChapterSourceKind::Live);
     assert_eq!(
         source.source_revision_key,
         format!("live:9:{}", source.content_sha256)
@@ -59,10 +55,12 @@ fn snapshot_revision_identity_contains_snapshot_chapter_and_hash() {
             analysis_data_json: None,
             content_hash: source_text_hash(content),
             analysis_hash: None,
+            visual_plan_id: None,
+            visual_plan_version: None,
+            visual_plan_sha256: None,
         },
     );
 
-    assert_eq!(source.source_kind, ResolvedChapterSourceKind::Snapshot);
     assert_eq!(
         source.source_revision_key,
         format!("snapshot:6:chapter:12:{}", source.content_sha256)

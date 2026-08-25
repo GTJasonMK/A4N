@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use a4n_core::error::AppError;
 use a4n_domain::shooting_script::ShootingCoverageV1;
@@ -14,7 +14,7 @@ pub fn shooting_script_projection_from_value(
 ) -> Result<GalgameShootingScriptProjection, AppError> {
     let raw: ShootingScriptProjectionRaw = from_value(value, context)?;
     require_nonempty(raw.scenes.as_slice(), &format!("{context}.scenes"))?;
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     let mut scenes = Vec::with_capacity(raw.scenes.len());
     for scene in raw.scenes {
         require_positive(scene.index, &format!("{context}.scenes[].index"))?;
@@ -49,7 +49,7 @@ pub fn shooting_script_projection_from_value(
         let source_span_id_set = source_span_ids
             .iter()
             .map(String::as_str)
-            .collect::<BTreeSet<_>>();
+            .collect::<HashSet<_>>();
         require_nonempty(scene.beats.as_slice(), &format!("{context}.scenes[].beats"))?;
         let mut has_must_show = false;
         let mut beats = Vec::with_capacity(scene.beats.len());
@@ -219,7 +219,7 @@ pub fn script_adaptation_from_value(
             Ok(GalgamePipelineBranchSceneLineDraft { branch_id, lines })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
-    let mut branch_ids = BTreeSet::new();
+    let mut branch_ids = HashSet::new();
     for branch in &branch_scene_lines {
         if !branch_ids.insert(branch.branch_id.as_str()) {
             return Err(invalid(format!(

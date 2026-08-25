@@ -8,7 +8,11 @@ use a4n_core::models::{
     project::text_anchor,
     source_sync::source_sync_run,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, sea_query::Expr};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,
+    sea_query::{CaseStatement, Expr},
+};
+use std::collections::{HashMap, HashSet};
 
 pub async fn rebind_generation_spec_anchor_records<C>(
     db: &C,
@@ -30,51 +34,91 @@ where
     }
 
     let spec = generation_spec_for_run(db, run, generation_spec_id).await?;
+    let mut new_anchor_ids = HashSet::new();
+    let mut old_anchor_ids = HashSet::new();
     for mapping in anchor_mappings {
         validate_positive_id(mapping.old_text_anchor_id, "old_text_anchor_id")?;
         validate_positive_id(mapping.new_text_anchor_id, "new_text_anchor_id")?;
+        if !old_anchor_ids.insert(mapping.old_text_anchor_id) {
+            return Err(SourceSyncDbError::InvalidArgument(format!(
+                "旧文本锚点 {} 在映射中重复",
+                mapping.old_text_anchor_id
+            )));
+        }
+        new_anchor_ids.insert(mapping.new_text_anchor_id);
+    }
+    let anchors_by_id = text_anchor::Entity::find()
+        .filter(text_anchor::Column::Id.is_in(new_anchor_ids.iter().copied()))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|anchor| (anchor.id, anchor))
+        .collect::<HashMap<_, _>>();
+    let existing_refs = generation_spec_text_anchor::Entity::find()
+        .filter(generation_spec_text_anchor::Column::GenerationSpecId.eq(generation_spec_id))
+        .all(db)
+        .await?;
+    let existing_anchor_ids = existing_refs
+        .iter()
+        .map(|reference| reference.text_anchor_id)
+        .collect::<HashSet<_>>();
+    for mapping in anchor_mappings {
         validate_new_anchor_for_snapshot(
-            db,
+            &anchors_by_id,
             run.root_project_id,
             run.to_snapshot_id,
             mapping.new_text_anchor_id,
-        )
-        .await?;
-        let result = generation_spec_text_anchor::Entity::update_many()
-            .col_expr(
-                generation_spec_text_anchor::Column::TextAnchorId,
-                Expr::value(mapping.new_text_anchor_id),
-            )
-            .filter(generation_spec_text_anchor::Column::GenerationSpecId.eq(generation_spec_id))
-            .filter(
-                generation_spec_text_anchor::Column::TextAnchorId.eq(mapping.old_text_anchor_id),
-            )
-            .exec(db)
-            .await?;
-        if result.rows_affected == 0 {
+        )?;
+        if !existing_anchor_ids.contains(&mapping.old_text_anchor_id) {
             return Err(SourceSyncDbError::InvalidArgument(format!(
                 "生成意图 {} 未引用旧文本锚点 {}",
                 generation_spec_id, mapping.old_text_anchor_id
             )));
         }
     }
+    let mut text_anchor_id_case = CaseStatement::new();
+    for mapping in anchor_mappings {
+        text_anchor_id_case = text_anchor_id_case.case(
+            generation_spec_text_anchor::Column::TextAnchorId.eq(mapping.old_text_anchor_id),
+            Expr::value(mapping.new_text_anchor_id),
+        );
+    }
+    let expected_rows = existing_refs
+        .iter()
+        .filter(|reference| old_anchor_ids.contains(&reference.text_anchor_id))
+        .count() as u64;
+    let updated = generation_spec_text_anchor::Entity::update_many()
+        .col_expr(
+            generation_spec_text_anchor::Column::TextAnchorId,
+            text_anchor_id_case
+                .finally(Expr::col(generation_spec_text_anchor::Column::TextAnchorId))
+                .into(),
+        )
+        .filter(generation_spec_text_anchor::Column::GenerationSpecId.eq(generation_spec_id))
+        .filter(
+            generation_spec_text_anchor::Column::TextAnchorId.is_in(old_anchor_ids.iter().copied()),
+        )
+        .exec(db)
+        .await?;
+    if updated.rows_affected != expected_rows {
+        return Err(SourceSyncDbError::InvalidArgument(format!(
+            "生成意图 {} 锚点重绑定影响 {} 行，预期 {} 行",
+            generation_spec_id, updated.rows_affected, expected_rows
+        )));
+    }
     ensure_generation_spec_anchors_belong_to_snapshot(db, generation_spec_id, run.to_snapshot_id)
         .await?;
     update_generation_spec_to_snapshot_record(db, &spec, run.to_snapshot_id).await
 }
 
-async fn validate_new_anchor_for_snapshot<C>(
-    db: &C,
+fn validate_new_anchor_for_snapshot(
+    anchors_by_id: &HashMap<i64, text_anchor::Model>,
     root_project_id: i64,
     to_snapshot_id: i64,
     new_anchor_id: i64,
-) -> Result<(), SourceSyncDbError>
-where
-    C: ConnectionTrait,
-{
-    let anchor = text_anchor::Entity::find_by_id(new_anchor_id)
-        .one(db)
-        .await?
+) -> Result<(), SourceSyncDbError> {
+    let anchor = anchors_by_id
+        .get(&new_anchor_id)
         .ok_or_else(|| SourceSyncDbError::NotFound(format!("文本锚点不存在: {new_anchor_id}")))?;
     if anchor.project_id != root_project_id || anchor.source_snapshot_id != Some(to_snapshot_id) {
         return Err(SourceSyncDbError::InvalidArgument(format!(
@@ -103,13 +147,21 @@ where
             generation_spec_id
         )));
     }
+    let anchor_ids = refs
+        .iter()
+        .map(|item| item.text_anchor_id)
+        .collect::<HashSet<_>>();
+    let anchors_by_id = text_anchor::Entity::find()
+        .filter(text_anchor::Column::Id.is_in(anchor_ids.iter().copied()))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|anchor| (anchor.id, anchor))
+        .collect::<HashMap<_, _>>();
     for item in refs {
-        let anchor = text_anchor::Entity::find_by_id(item.text_anchor_id)
-            .one(db)
-            .await?
-            .ok_or_else(|| {
-                SourceSyncDbError::NotFound(format!("文本锚点不存在: {}", item.text_anchor_id))
-            })?;
+        let anchor = anchors_by_id.get(&item.text_anchor_id).ok_or_else(|| {
+            SourceSyncDbError::NotFound(format!("文本锚点不存在: {}", item.text_anchor_id))
+        })?;
         if anchor.source_snapshot_id != Some(snapshot_id) {
             return Err(SourceSyncDbError::InvalidArgument(format!(
                 "生成意图 {} 仍引用非目标快照文本锚点 {}",

@@ -6,7 +6,10 @@ use a4n_db::chapter_content::ChapterContentImportError;
 use crate::project::PROJECT_KIND_TEXT;
 
 /// 项目 kind 必须为文本项目。
-pub fn ensure_text_project_kind(project_kind: &str, operation: &str) -> Result<(), AppError> {
+pub(super) fn ensure_text_project_kind(
+    project_kind: &str,
+    operation: &str,
+) -> Result<(), AppError> {
     if project_kind != PROJECT_KIND_TEXT {
         return Err(AppError::InvalidArgument(format!(
             "{operation}只能作用于文本项目"

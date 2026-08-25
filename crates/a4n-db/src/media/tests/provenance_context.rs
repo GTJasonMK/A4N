@@ -23,7 +23,7 @@ async fn text_project_with_chapter(db: &DatabaseConnection, title: &str) -> nove
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -114,13 +114,14 @@ async fn additional_snapshot(
     db: &DatabaseConnection,
     root_project_id: i64,
 ) -> project_source_snapshot::Model {
-    crate::project::create_source_snapshot_record(
+    crate::project::create_source_snapshot_in_record(
         db,
         root_project_id,
         crate::project::DerivedChapterScope {
             start_chapter: 1,
             end_chapter: 1,
         },
+        Utc::now().naive_utc(),
     )
     .await
     .unwrap()

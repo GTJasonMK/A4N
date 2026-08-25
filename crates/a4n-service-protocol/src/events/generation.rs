@@ -437,7 +437,7 @@ pub struct GenerationError {
     pub stage_code: String,
     #[schemars(length(max = MAX_KEY_BYTES))]
     pub trace_id: Option<String>,
-    pub source_error: Option<ServiceError>,
+    pub source_error: Option<Box<ServiceError>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

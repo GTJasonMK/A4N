@@ -13,6 +13,19 @@ where
     generated_video::Entity::find_by_id(video_id).one(db).await
 }
 
+pub async fn generated_videos_by_ids<C: ConnectionTrait>(
+    db: &C,
+    video_ids: &[i64],
+) -> Result<Vec<generated_video::Model>, DbErr> {
+    if video_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    generated_video::Entity::find()
+        .filter(generated_video::Column::Id.is_in(video_ids.iter().copied()))
+        .all(db)
+        .await
+}
+
 pub async fn generated_videos_for_chapter<C>(
     db: &C,
     project_id: i64,

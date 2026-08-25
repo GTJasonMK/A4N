@@ -30,6 +30,7 @@ import type {
   CharacterDetailInitialEventFilter,
   CharacterDetailTab,
 } from "./character-detail-dialog/characterDetailUtils";
+import { useI18n, type MessageTranslator } from "../i18n";
 
 export type { CharacterDetailInitialEventFilter } from "./character-detail-dialog/characterDetailUtils";
 
@@ -78,17 +79,24 @@ const conflictScopeKey = (draft: ConflictScopeDraft): string => {
   return `${start}:${end}`;
 };
 
-const conflictScopeFromDraft = (draft: ConflictScopeDraft): CharacterConflictScope => ({
-  start_chapter: optionalChapterInput(draft.startChapter, "起始章节"),
-  end_chapter: optionalChapterInput(draft.endChapter, "结束章节"),
+const conflictScopeFromDraft = (
+  draft: ConflictScopeDraft,
+  t: MessageTranslator,
+): CharacterConflictScope => ({
+  start_chapter: optionalChapterInput(draft.startChapter, t("characterDetail.startChapter"), t),
+  end_chapter: optionalChapterInput(draft.endChapter, t("characterDetail.endChapter"), t),
 });
 
-const optionalChapterInput = (value: string, label: string): number | null => {
+const optionalChapterInput = (
+  value: string,
+  label: string,
+  t: MessageTranslator,
+): number | null => {
   const trimmed = value.trim();
   if (!trimmed) return null;
   const numeric = Number(trimmed);
   if (!Number.isInteger(numeric)) {
-    throw new Error(`${label}必须是整数`);
+    throw new Error(t("characterDetail.invalidChapterInteger", { label }));
   }
   return numeric;
 };
@@ -107,12 +115,14 @@ const ConflictScopeControls: React.FC<{
   onChange,
   onUseCurrentChapter,
   onClear,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <div className="flex flex-col gap-2 border-b border-book-border/45 pb-3">
     <div className="flex flex-wrap items-end gap-2">
-      <span className="text-small font-semibold text-book-text-muted">检查范围</span>
+      <span className="text-small font-semibold text-book-text-muted">{t("characterDetail.checkScope")}</span>
       <label className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
-        <span>起始章</span>
+        <span>{t("characterDetail.startChapter")}</span>
         <input
           type="number"
           min={1}
@@ -127,7 +137,7 @@ const ConflictScopeControls: React.FC<{
         />
       </label>
       <label className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
-        <span>结束章</span>
+        <span>{t("characterDetail.endChapter")}</span>
         <input
           type="number"
           min={1}
@@ -148,17 +158,18 @@ const ConflictScopeControls: React.FC<{
         disabled={disabled || activeChapterNumber == null}
       >
         <span className="inline-flex items-center gap-1.5">
-          <LocateFixed size={13} /> 当前章
+          <LocateFixed size={13} /> {t("characterDetail.currentChapter")}
         </span>
       </BookButton>
       <BookButton variant="secondary" size="sm" onClick={onClear} disabled={disabled}>
         <span className="inline-flex items-center gap-1.5">
-          <RotateCcw size={13} /> 全项目
+          <RotateCcw size={13} /> {t("characterDetail.wholeProject")}
         </span>
       </BookButton>
     </div>
   </div>
-);
+  );
+};
 
 export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   open,
@@ -171,6 +182,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   onChanged,
   onEditInitial,
 }) => {
+  const { t } = useI18n();
   const addToast = useToast((state) => state.addToast);
   const [tab, setTab] = useState<CharacterDetailTab>("arc");
   const [arc, setArc] = useState<CharacterCacheValue<unknown> | null>(null);
@@ -296,7 +308,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           if (!cancelled) setVoice({ key: cacheKey, value: data });
         }
       } catch (err) {
-        if (!cancelled) addToast(extractErrorMessage(err, "加载失败"), "error");
+        if (!cancelled) addToast(extractErrorMessage(err, t("characterDetail.loadFailed")), "error");
       } finally {
         if (!cancelled) setLoadingTab(null);
       }
@@ -307,7 +319,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     return () => {
       cancelled = true;
     };
-  }, [addToast, characterCacheKey, currentArc, currentVoice, name, open, projectId, tab]);
+  }, [addToast, characterCacheKey, currentArc, currentVoice, name, open, projectId, tab, t]);
 
   const handleRefresh = async () => {
     if (!name || !characterCacheKey || tab === "manage") return;
@@ -326,10 +338,10 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       }
       let requestConflictScope: CharacterConflictScope;
       try {
-        requestConflictScope = conflictScopeFromDraft(conflictScopeDraft);
+        requestConflictScope = conflictScopeFromDraft(conflictScopeDraft, t);
       } catch (err) {
         refreshingRef.current = false;
-        addToast(extractErrorMessage(err, "章节范围无效"), "error");
+        addToast(extractErrorMessage(err, t("characterDetail.invalidChapterRange")), "error");
         return;
       }
       const cacheKey = conflictCacheKey;
@@ -341,17 +353,17 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-            title: "角色一致性检查",
-            startMessage: "正在准备角色一致性检查",
-            successMessage: "角色一致性检查完成",
-            errorMessage: "角色一致性检查失败",
+            title: t("characterDetail.consistencyCheck"),
+            startMessage: t("characterDetail.preparingConsistencyCheck"),
+            successMessage: t("characterDetail.consistencyCheckComplete"),
+            errorMessage: t("characterDetail.consistencyCheckFailed"),
             total: 4,
-            cancelLabel: "停止检查",
-            runningHint: "角色任务执行过程中已完成的数据会保留",
+            cancelLabel: t("characterDetail.stopCheck"),
+            runningHint: t("characterDetail.taskDataKept"),
           },
           () => {
             if (!isCurrentDialogScope(requestScope)) {
-              return Promise.reject(new Error("任务已停止"));
+              return Promise.reject(new Error(t("characterDetail.taskStopped")));
             }
             return checkCharacterConflict(
               requestProjectId,
@@ -371,7 +383,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         setConflicts({ key: cacheKey, value: rows });
       } catch (err) {
         if (!isCurrentDialogScope(requestScope) || refreshSeqRef.current !== requestSeq) return;
-        const message = extractErrorMessage(err, "角色一致性检查失败");
+        const message = extractErrorMessage(err, t("characterDetail.consistencyCheckFailed"));
         addToast(message, isCancelledOperation(message) ? "info" : "error");
       } finally {
         if (isCurrentDialogScope(requestScope) && refreshSeqRef.current === requestSeq) {
@@ -427,7 +439,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       }
     } catch (err) {
       if (!isCurrentDialogScope(requestScope) || refreshSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "刷新失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.refreshFailed")), "error");
     } finally {
       if (isCurrentDialogScope(requestScope) && refreshSeqRef.current === requestSeq) {
         setLoadingTab((current) => (current === requestTab ? null : current));
@@ -448,15 +460,17 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     const requestChapterNumber = activeChapterNumber;
     const cacheKey = characterCacheKey;
     if (!requestChapterNumber) {
-      addToast("请先选择要同步的章节", "error");
+      addToast(t("characterDetail.chooseChapterToSync"), "error");
       syncingRef.current = false;
       return;
     }
-    const targetText = `同步到第 ${requestChapterNumber} 章`;
     const ok = await confirmDialog({
-      title: "同步角色档案",
-      message: `将「${requestName}」的角色档案${targetText}？\n\n会从上次同步断点开始分析章节，并写入事件溯源、行为记录、删除候选、状态索引和快照。`,
-      confirmText: "开始同步",
+      title: t("characterDetail.syncTitle"),
+      message: t("characterDetail.syncMessage", {
+        name: requestName,
+        chapter: requestChapterNumber,
+      }),
+      confirmText: t("characterDetail.startSync"),
       dialogType: "warning",
     });
     if (!ok) {
@@ -480,16 +494,16 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: `同步角色 · ${requestName}`,
-          startMessage: "正在准备角色同步",
-          successMessage: "角色同步完成",
-          errorMessage: "同步失败",
-          cancelLabel: "停止同步",
-          runningHint: "角色任务执行过程中已完成的数据会保留",
+          title: t("characterDetail.syncTitleWithName", { name: requestName }),
+          startMessage: t("characterDetail.preparingSync"),
+          successMessage: t("characterDetail.syncComplete"),
+          errorMessage: t("characterDetail.syncFailed"),
+          cancelLabel: t("characterDetail.stopSync"),
+          runningHint: t("characterDetail.taskDataKept"),
         },
         () => {
           if (!isCurrentCharacterScope(requestScope)) {
-            return Promise.reject(new Error("任务已停止"));
+            return Promise.reject(new Error(t("characterDetail.taskStopped")));
           }
           return syncCharacterFromChapters(
             requestProjectId,
@@ -501,17 +515,47 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       );
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
       if (result.status === "skipped") {
-        addToast("角色档案无需同步", "info");
-      } else if (result.state_rag_error || !result.state_rag_indexed) {
-        const ragError = result.state_rag_error?.trim();
-        addToast(
-          `同步完成，但状态 RAG 未完全更新：${
-            ragError ? ragError : "后端未返回错误详情"
-          }`,
-          "error",
-        );
+        addToast(t("characterDetail.noSyncNeeded"), "info");
       } else {
-        addToast("同步完成", "success");
+        const ragIssues: string[] = [];
+        const stateRagError = result.state_rag_error?.trim();
+        if (stateRagError) {
+          ragIssues.push(t("characterDetail.stateRagIssue", { error: stateRagError }));
+        } else if (!result.state_rag_indexed) {
+          ragIssues.push(t("characterDetail.stateRagNotIndexed"));
+        }
+        const attributeEventRagError = result.attribute_event_rag_error?.trim();
+        if (attributeEventRagError) {
+          ragIssues.push(t("characterDetail.attributeEventRagIssue", { error: attributeEventRagError }));
+        } else if (!result.attribute_event_rag_indexed) {
+          ragIssues.push(t("characterDetail.attributeEventRagNotIndexed"));
+        }
+        const ragIssue = ragIssues.length > 0 ? ragIssues.join(t("common.summarySeparator")) : null;
+        const rewindNotice =
+          result.cleared_through_chapter > result.synced_chapter
+            ? t("characterDetail.rewindNotice", {
+                from: result.cleared_through_chapter,
+                to: result.synced_chapter,
+                count:
+                  result.cleared_attribute_events +
+                  result.cleared_behaviors +
+                  result.cleared_state_indexes +
+                  result.cleared_snapshots,
+              })
+            : null;
+        if (ragIssue) {
+          addToast(
+            t("characterDetail.syncCompleteWithRagIssue", {
+              issue: ragIssue,
+              notice: rewindNotice ? ` ${rewindNotice}` : "",
+            }),
+            "error",
+          );
+        } else if (rewindNotice) {
+          addToast(t("characterDetail.syncCompleteWithNotice", { notice: rewindNotice }), "info");
+        } else {
+          addToast(t("characterDetail.syncSuccess"), "success");
+        }
       }
       setArc(null);
       setVoice(null);
@@ -529,7 +573,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           });
         } catch (err) {
           if (!isCurrentDialogScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-          addToast(extractErrorMessage(err, "同步完成，但刷新弧光失败"), "error");
+          addToast(extractErrorMessage(err, t("characterDetail.refreshArcFailed")), "error");
         }
       } else if (tab === "voice") {
         try {
@@ -541,12 +585,12 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           });
         } catch (err) {
           if (!isCurrentDialogScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-          addToast(extractErrorMessage(err, "同步完成，但刷新声音指纹失败"), "error");
+          addToast(extractErrorMessage(err, t("characterDetail.refreshVoiceFailed")), "error");
         }
       }
     } catch (err) {
       if (!isCurrentCharacterScope(requestScope) || syncSeqRef.current !== requestSeq) return;
-      const message = extractErrorMessage(err, "同步失败");
+      const message = extractErrorMessage(err, t("characterDetail.syncFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
       await onChanged?.();
     } finally {
@@ -574,7 +618,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
       setRequestPreviewData(data);
     } catch (err) {
       if (!isCurrentDialogScope(scope) || requestPreviewSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "预览角色请求失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.previewRequestFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (isCurrentDialogScope(scope) && requestPreviewSeqRef.current === requestSeq) {
@@ -590,9 +634,9 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     const requestProjectId = projectId;
     let requestConflictScope: CharacterConflictScope;
     try {
-      requestConflictScope = conflictScopeFromDraft(conflictScopeDraft);
+      requestConflictScope = conflictScopeFromDraft(conflictScopeDraft, t);
     } catch (err) {
-      addToast(extractErrorMessage(err, "章节范围无效"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.invalidChapterRange")), "error");
       return;
     }
     await openRequestPreview(requestScope, () =>
@@ -606,7 +650,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
 
   const setConflictScopeToCurrentChapter = () => {
     if (!activeChapterNumber) {
-      addToast("请先选择当前章节", "error");
+      addToast(t("characterDetail.chooseCurrentChapter"), "error");
       return;
     }
     const value = String(activeChapterNumber);
@@ -626,7 +670,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
     const requestProjectId = projectId;
     const requestChapterNumber = activeChapterNumber;
     if (!requestChapterNumber) {
-      addToast("请先选择要同步的章节", "error");
+      addToast(t("characterDetail.chooseChapterToSync"), "error");
       return;
     }
     await openRequestPreview(requestScope, () =>
@@ -645,14 +689,14 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const tabActionItems: DropdownItem[] = [];
   if (onEditInitial && character.initial_profile_editable) {
     tabActionItems.push({
-      label: "编辑初始档案",
+      label: t("characterDetail.editInitialProfile"),
       onClick: () => onEditInitial(character),
       icon: <Pencil size={12} />,
     });
   }
   if (tab === "manage" && activeChapterNumber != null) {
     tabActionItems.push({
-      label: syncing ? "正在从章节同步" : "从当前章节同步",
+      label: syncing ? t("characterDetail.syncingFromChapter") : t("characterDetail.syncFromCurrentChapter"),
       onClick: () => void handleSync(),
       icon: syncing ? <LoadingSpinner size="sm" /> : <Sparkles size={12} />,
       disabled: syncing || syncingRef.current,
@@ -661,14 +705,14 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
   const requestPreviewItems: DropdownItem[] = [];
   if (tab === "conflict") {
     requestPreviewItems.push({
-      label: "一致性检查请求",
+      label: t("characterDetail.consistencyRequest"),
       onClick: handlePreviewConflict,
       icon: <Eye size={12} />,
     });
   }
   if (activeChapterNumber != null) {
     requestPreviewItems.push({
-      label: "章节同步请求",
+      label: t("characterDetail.chapterSyncRequest"),
       onClick: handlePreviewSync,
       icon: <Eye size={12} />,
     });
@@ -692,11 +736,11 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
           >
             {syncing ? (
               <span className="inline-flex items-center gap-2">
-                <LoadingSpinner size="sm" /> 同步中…
+                <LoadingSpinner size="sm" /> {t("characterDetail.syncing")}
               </span>
             ) : (
               <span className="inline-flex items-center gap-2">
-                <Sparkles size={14} /> 从章节同步
+                <Sparkles size={14} /> {t("characterDetail.syncFromChapter")}
               </span>
             )}
           </BookButton>
@@ -753,7 +797,7 @@ export const CharacterDetailDialog: React.FC<CharacterDetailDialogProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="角色模型请求"
+        fallbackTitle={t("characterDetail.modelRequest")}
         onClose={() => {
           requestPreviewSeqRef.current += 1;
           setRequestPreviewOpen(false);

@@ -2,17 +2,14 @@ use std::io::{Cursor, Write};
 
 use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
 use a4n_core::models::{media::media_asset, project::novel_project};
+use a4n_db::project::{PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT};
 use a4n_domain::CanvasNodeRefKind;
 use a4n_orchestrator::media::MEDIA_STATUS_COMPLETED;
-use a4n_orchestrator::project::{
-    PACKAGE_MODE, PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT, VIDEO_STUDIO_PACKAGE_VERSION,
-    VideoStudioMediaFileEntry,
-};
+use a4n_orchestrator::project::{MANIFEST_PATH, MediaFileEntry, VideoStudioProjectPackage};
 use serde_json::json;
 use sha2::Digest;
 use zip::{ZipWriter, write::SimpleFileOptions};
 
-use super::super::{MANIFEST_PATH, VideoStudioProjectPackage};
 use super::reader::read_video_studio_package_reader;
 
 fn now() -> chrono::NaiveDateTime {
@@ -48,9 +45,9 @@ fn freeform_project() -> novel_project::Model {
 
 fn package() -> VideoStudioProjectPackage {
     VideoStudioProjectPackage {
-        version: VIDEO_STUDIO_PACKAGE_VERSION.to_string(),
+        version: "test".to_string(),
         exported_at: now().to_string(),
-        mode: PACKAGE_MODE.to_string(),
+        mode: "test".to_string(),
         project: freeform_project(),
         canvas_graphs: Vec::new(),
         canvas_nodes: Vec::new(),
@@ -150,7 +147,7 @@ fn read_video_studio_package_accepts_declared_media_file() {
         created_at: now(),
         updated_at: now(),
     });
-    package.media_files.push(VideoStudioMediaFileEntry {
+    package.media_files.push(MediaFileEntry {
         owner_kind: CanvasNodeRefKind::MediaAsset.as_str().to_string(),
         owner_id: 10,
         field: FILE_PATH_FIELD.to_string(),

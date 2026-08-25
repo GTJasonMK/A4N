@@ -12,7 +12,7 @@ async fn insert_project(db: &DatabaseConnection) -> novel_project::Model {
             user_id: 1,
             title: "导出测试项目".to_string(),
             description: "验证导出边界行为".to_string(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

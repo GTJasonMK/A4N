@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::{
     error::AppError,
@@ -63,8 +63,8 @@ where
     let image_by_id = images
         .iter()
         .map(|image| (image.id, image))
-        .collect::<BTreeMap<_, _>>();
-    let mut linked_ids = BTreeSet::new();
+        .collect::<HashMap<_, _>>();
+    let mut linked_ids = HashSet::new();
     let mut records = Vec::new();
     for prompt in prompts {
         if let Some(image_id) = prompt.generated_image_id {

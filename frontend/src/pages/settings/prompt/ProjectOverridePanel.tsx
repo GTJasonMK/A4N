@@ -13,8 +13,8 @@ import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import { formatUiDateTime } from "../../../utils/dateTime";
 import { PromptProjectSelect } from "./PromptProjectSelect";
+import { formatDateTime, useI18n } from "../../../i18n";
 
 interface ProjectOverridePanelProps {
   prompt: PromptEntry;
@@ -24,6 +24,7 @@ interface ProjectOverridePanelProps {
 
 export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prompt, content, dirty }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t, locale } = useI18n();
   const [projectId, setProjectId] = useState<number | null>(null);
   const [overrides, setOverrides] = useState<ProjectPromptOverrideSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +62,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
       setOverrides(next);
     } catch (error) {
       if (mountedRef.current && listSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, "加载项目覆盖失败"), "error");
+        addToast(extractErrorMessage(error, t("settingsPrompt.loadOverrideFailed")), "error");
       }
     } finally {
       if (mountedRef.current && listSeqRef.current === requestSeq) setLoading(false);
@@ -83,9 +84,9 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
     const targetProjectId = projectIdRef.current;
     if (targetProjectId == null || mutationBusyRef.current) return;
     const ok = await confirmDialog({
-      title: currentOverride ? "更新项目独立版本" : "设置项目独立版本",
-      message: "所选项目将使用当前编辑器中的提示词内容，其他项目不受影响。是否继续？",
-      confirmText: currentOverride ? "更新" : "设置",
+      title: currentOverride ? t("settingsPrompt.updateOverride") : t("settingsPrompt.setOverride"),
+      message: t("settingsPrompt.overrideMessage"),
+      confirmText: currentOverride ? t("common.update") : t("common.set"),
       dialogType: "warning",
     });
     if (!ok || !mountedRef.current || projectIdRef.current !== targetProjectId) return;
@@ -101,11 +102,11 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
         content,
       });
       if (!mountedRef.current || mutationSeqRef.current !== requestSeq) return;
-      addToast(currentOverride ? "项目独立版本已更新" : "项目独立版本已设置", "success");
+      addToast(currentOverride ? t("settingsPrompt.overrideUpdated") : t("settingsPrompt.overrideSet"), "success");
       if (projectIdRef.current === targetProjectId) await loadOverridesForProject(targetProjectId);
     } catch (error) {
       if (mountedRef.current && mutationSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, "设置项目独立版本失败"), "error");
+        addToast(extractErrorMessage(error, t("settingsPrompt.setOverrideFailed")), "error");
       }
     } finally {
       if (mutationSeqRef.current === requestSeq) mutationBusyRef.current = false;
@@ -117,9 +118,9 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
     const targetProjectId = projectIdRef.current;
     if (targetProjectId == null || !currentOverride || mutationBusyRef.current) return;
     const ok = await confirmDialog({
-      title: "移除项目独立版本",
-      message: "移除后，所选项目会重新使用全局提示词内容。",
-      confirmText: "移除",
+      title: t("settingsPrompt.removeOverride"),
+      message: t("settingsPrompt.removeOverrideMessage"),
+      confirmText: t("common.remove"),
       dialogType: "warning",
     });
     if (!ok || !mountedRef.current || projectIdRef.current !== targetProjectId) return;
@@ -131,11 +132,11 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
     try {
       await promptRemoveProjectOverride({ project_id: targetProjectId, name: prompt.name });
       if (!mountedRef.current || mutationSeqRef.current !== requestSeq) return;
-      addToast("项目已恢复使用全局内容", "success");
+      addToast(t("settingsPrompt.overrideRemoved"), "success");
       if (projectIdRef.current === targetProjectId) await loadOverridesForProject(targetProjectId);
     } catch (error) {
       if (mountedRef.current && mutationSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(error, "移除项目独立版本失败"), "error");
+        addToast(extractErrorMessage(error, t("settingsPrompt.removeOverrideFailed")), "error");
       }
     } finally {
       if (mutationSeqRef.current === requestSeq) mutationBusyRef.current = false;
@@ -146,35 +147,35 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
   return (
     <details className="py-2.5">
       <summary className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-book-text-sub">
-        <GitBranch size={11} /> 项目独立版本
+        <GitBranch size={11} /> {t("settingsPrompt.projectOverride")}
       </summary>
       <div className="mt-2 grid gap-2 text-xs">
         <PromptProjectSelect
           value={projectId}
           onChange={handleProjectChange}
-          ariaLabel="选择使用独立提示词的项目"
+          ariaLabel={t("settingsPrompt.selectOverrideProject")}
           className="w-full"
         />
         {projectId == null ? (
-          <div className="text-small text-book-text-muted">选择项目后可查看或设置独立内容。</div>
+          <div className="text-small text-book-text-muted">{t("settingsPrompt.selectProjectHint")}</div>
         ) : loading ? (
           <div className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
-            <LoadingSpinner size="sm" /> 正在读取项目设置…
+            <LoadingSpinner size="sm" /> {t("settingsPrompt.loadingProjectOverride")}
           </div>
         ) : dirty ? (
           <div className="border-l border-warning/45 pl-2.5 text-small text-warning">
-            请先保存当前提示词，再更新项目独立版本。
+            {t("settingsPrompt.saveBeforeOverride")}
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2 border-l border-book-border/45 pl-2.5">
             <div className="min-w-0 flex-1 text-small text-book-text-muted">
               {currentOverride
-                ? `正在使用独立内容 · 更新于 ${formatUiDateTime(currentOverride.updated_at)}`
-                : "当前使用全局内容"}
+                ? t("settingsPrompt.usingOverride", { date: formatDateTime(currentOverride.updated_at, locale) })
+                : t("settingsPrompt.usingGlobal")}
             </div>
             <BookButton size="sm" onClick={() => void handleSetOverride()} disabled={setting || removing}>
               {setting ? <LoadingSpinner size="sm" /> : null}
-              {setting ? "保存中…" : currentOverride ? "更新为当前内容" : "使用当前内容"}
+              {setting ? t("settingsPrompt.saving") : currentOverride ? t("settingsPrompt.updateWithCurrent") : t("settingsPrompt.useCurrent")}
             </BookButton>
             {currentOverride && !setting ? (
               removing ? (
@@ -185,7 +186,7 @@ export const ProjectOverridePanel: React.FC<ProjectOverridePanelProps> = ({ prom
                 <Dropdown
                   items={[
                     {
-                      label: "恢复全局内容",
+                      label: t("settingsPrompt.restoreGlobal"),
                       icon: <Trash2 size={12} />,
                       danger: true,
                       onClick: () => void handleRemoveOverride(),

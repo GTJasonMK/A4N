@@ -1,12 +1,12 @@
-use a4n_core::models::project::{blueprint_version, novel_blueprint};
 use serde_json::json;
 
+use crate::project_dependency_graph::graph::{BlueprintGraphRow, BlueprintVersionGraphRow};
 use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 
 pub(super) fn add_blueprint_nodes(
     graph: &mut GraphBuilder,
-    blueprints: &[novel_blueprint::Model],
-    blueprint_versions: &[blueprint_version::Model],
+    blueprints: &[BlueprintGraphRow],
+    blueprint_versions: &[BlueprintVersionGraphRow],
 ) {
     graph.add_node(node(
         "blueprint",

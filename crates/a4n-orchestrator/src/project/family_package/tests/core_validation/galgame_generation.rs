@@ -80,11 +80,7 @@ fn validate_package_manifest_rejects_galgame_cg_invalid_importance() {
 fn validate_package_manifest_accepts_generation_galgame_portrait_params() {
     let mut package = package_with_galgame_project();
     add_frozen_character_profile(&mut package, 601);
-    package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].speaker_profile_id = Some(601);
-    package.galgame_lines[0].expression = Some("smile".to_string());
-    package.galgame_lines[0].pose = Some("standing".to_string());
-    package.galgame_lines[0].position = Some("left".to_string());
+    set_galgame_speaker_line(&mut package.galgame_lines[0], 601, "smile", "left");
     let mut spec = generation_spec_for_source_snapshot(901);
     spec.project_id = 2;
     spec.root_project_id = 1;
@@ -104,10 +100,7 @@ fn validate_package_manifest_accepts_generation_galgame_portrait_params() {
 fn validate_package_manifest_rejects_galgame_portrait_source_chapter_context() {
     let mut package = package_with_galgame_project();
     add_frozen_character_profile(&mut package, 601);
-    package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].speaker_profile_id = Some(601);
-    package.galgame_lines[0].expression = Some("smile".to_string());
-    package.galgame_lines[0].pose = Some("standing".to_string());
+    set_galgame_speaker_line(&mut package.galgame_lines[0], 601, "smile", "left");
     let mut spec = generation_spec_for_source_snapshot(901);
     spec.project_id = 2;
     spec.root_project_id = 1;
@@ -154,10 +147,7 @@ fn validate_package_manifest_rejects_galgame_portrait_source_line_character_mism
         .text_core
         .character_profiles
         .push(character_profile_record(602));
-    package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].speaker_profile_id = Some(602);
-    package.galgame_lines[0].expression = Some("smile".to_string());
-    package.galgame_lines[0].pose = Some("standing".to_string());
+    set_galgame_speaker_line(&mut package.galgame_lines[0], 602, "smile", "left");
     let mut spec = generation_spec_for_source_snapshot(901);
     spec.project_id = 2;
     spec.root_project_id = 1;
@@ -179,10 +169,7 @@ fn validate_package_manifest_rejects_galgame_portrait_source_line_character_mism
 fn validate_package_manifest_rejects_galgame_portrait_source_line_variant_mismatch() {
     let mut package = package_with_galgame_project();
     add_frozen_character_profile(&mut package, 601);
-    package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].speaker_profile_id = Some(601);
-    package.galgame_lines[0].expression = Some("sad".to_string());
-    package.galgame_lines[0].pose = Some("standing".to_string());
+    set_galgame_speaker_line(&mut package.galgame_lines[0], 601, "sad", "left");
     let mut spec = generation_spec_for_source_snapshot(901);
     spec.project_id = 2;
     spec.root_project_id = 1;
@@ -203,10 +190,7 @@ fn validate_package_manifest_rejects_galgame_portrait_source_line_variant_mismat
 fn validate_package_manifest_rejects_galgame_portrait_invalid_position_samples() {
     let mut package = package_with_galgame_project();
     add_frozen_character_profile(&mut package, 601);
-    package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].speaker_profile_id = Some(601);
-    package.galgame_lines[0].expression = Some("smile".to_string());
-    package.galgame_lines[0].pose = Some("standing".to_string());
+    set_galgame_speaker_line(&mut package.galgame_lines[0], 601, "smile", "left");
     let mut spec = generation_spec_for_source_snapshot(901);
     spec.project_id = 2;
     spec.root_project_id = 1;
@@ -235,11 +219,7 @@ fn validate_package_manifest_rejects_galgame_portrait_invalid_position_samples()
 fn validate_package_manifest_rejects_galgame_portrait_position_sample_mismatch() {
     let mut package = package_with_galgame_project();
     add_frozen_character_profile(&mut package, 601);
-    package.galgame_lines[0].line_type = "dialogue".to_string();
-    package.galgame_lines[0].speaker_profile_id = Some(601);
-    package.galgame_lines[0].expression = Some("smile".to_string());
-    package.galgame_lines[0].pose = Some("standing".to_string());
-    package.galgame_lines[0].position = Some("right".to_string());
+    set_galgame_speaker_line(&mut package.galgame_lines[0], 601, "smile", "right");
     let mut spec = generation_spec_for_source_snapshot(901);
     spec.project_id = 2;
     spec.root_project_id = 1;

@@ -1,0 +1,108 @@
+import { describe, expect, it } from "vitest";
+import {
+  clearLocalePreference,
+  localeFromNavigator,
+  normalizeLocale,
+  resolveInitialLocale,
+  writeLocalePreference,
+} from "./locale";
+import { formatDate, formatNumber } from "./format";
+import zhCN from "./messages/zh-CN";
+import enUS from "./messages/en-US";
+import { translateMessage } from "./translate";
+
+const flattenKeys = (value: Record<string, unknown>, prefix = ""): string[] =>
+  Object.entries(value).flatMap(([key, child]) => {
+    const full = prefix ? `${prefix}.${key}` : key;
+    return typeof child === "string"
+      ? [full]
+      : flattenKeys(child as Record<string, unknown>, full);
+  });
+
+describe("locale resolution", () => {
+  it("normalizes supported browser language ranges", () => {
+    expect(normalizeLocale("en")).toBe("en-US");
+    expect(normalizeLocale("en-GB")).toBe("en-US");
+    expect(normalizeLocale("zh")).toBe("zh-CN");
+    expect(normalizeLocale("zh-TW")).toBe("zh-CN");
+    expect(normalizeLocale("ja-JP")).toBeNull();
+    expect(localeFromNavigator(["ja-JP", "en-GB"], "ja-JP")).toBe("en-US");
+  });
+
+  it("prefers stored locale over navigator locale", () => {
+    const storage = new Map<string, string>();
+    const localStorage = {
+      get length() {
+        return storage.size;
+      },
+      key: (index: number) => Array.from(storage.keys())[index] ?? null,
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        storage.set(key, value);
+      },
+      removeItem: (key: string) => storage.delete(key),
+      clear: () => storage.clear(),
+    } as unknown as Storage;
+    const previousNavigator = globalThis.navigator;
+    const previousStorage = globalThis.localStorage;
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { languages: ["en-US"], language: "en-US" },
+    });
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: localStorage,
+    });
+    clearLocalePreference();
+    expect(resolveInitialLocale()).toBe("en-US");
+    writeLocalePreference("zh-CN");
+    expect(resolveInitialLocale()).toBe("zh-CN");
+    clearLocalePreference();
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: previousNavigator,
+    });
+    Object.defineProperty(globalThis, "localStorage", {
+      configurable: true,
+      value: previousStorage,
+    });
+  });
+});
+
+describe("translation contracts", () => {
+  it("keeps locale key sets identical", () => {
+    const zhKeys = flattenKeys(zhCN).sort();
+    const enKeys = flattenKeys(enUS).sort();
+    expect(enKeys).toEqual(zhKeys);
+  });
+
+  it("interpolates and rejects invalid parameters", () => {
+    expect(translateMessage("en-US", "writing.chapterLabel", { number: 3 })).toBe(
+      "Chapter 3",
+    );
+    expect(
+      translateMessage("en-US", "feedback.progressCount", {
+        current: 1234567,
+        total: 2000000,
+      }),
+    ).toBe("1,234,567/2,000,000");
+    expect(translateMessage("en-US", "agent.projectLabel", { id: 1234567 })).toBe(
+      "Project 1234567",
+    );
+    expect(() =>
+      translateMessage("en-US", "writing.chapterLabel", {}),
+    ).toThrow(/missing=number/);
+    expect(() =>
+      translateMessage("en-US", "writing.chapterLabel", { number: 3, extra: 1 }),
+    ).toThrow(/extra=extra/);
+  });
+});
+
+describe("locale formatting", () => {
+  it("formats numbers and dates with the active locale", () => {
+    expect(formatNumber(1234567, "en-US")).toBe("1,234,567");
+    expect(formatNumber(1234567, "zh-CN")).toBe("1,234,567");
+    expect(formatDate("2020-01-02T00:00:00Z", "en-US")).toMatch(/2020/);
+    expect(formatDate("2020-01-02T00:00:00Z", "zh-CN")).toMatch(/2020/);
+  });
+});

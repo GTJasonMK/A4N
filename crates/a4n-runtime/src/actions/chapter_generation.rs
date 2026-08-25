@@ -50,7 +50,7 @@ pub async fn start_chapter_generation_typed(
                 .orchestrator()
                 .run_chapter_generation_task(
                     ChapterGenerationApplicationContext {
-                        prompt_renderer: prompt_renderer,
+                        prompt_renderer,
                         runtime_embedding_identity,
                     },
                     worker_input,
@@ -79,7 +79,7 @@ pub async fn preview_chapter_prompt(
         .preview_chapter_generation_request_validated(
             user_id,
             ChapterGenerationApplicationContext {
-                prompt_renderer: prompt_renderer,
+                prompt_renderer,
                 runtime_embedding_identity,
             },
             input,

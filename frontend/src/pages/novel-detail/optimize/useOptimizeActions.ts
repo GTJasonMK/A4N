@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { extractErrorMessage } from "../../../api";
+import { useI18n } from "../../../i18n";
 import {
   applyOptimizationPatches,
   createOptimizationAnalysisSession,
@@ -99,6 +100,7 @@ export function useOptimizeActions({
   activityStream,
   patchReviewState,
 }: UseOptimizeActionsParams) {
+  const { t } = useI18n();
   const {
     activeChapter,
     activeSession,
@@ -198,7 +200,7 @@ export function useOptimizeActions({
       setOptimizeGenerationHandle(active.handle);
     }).catch((error) => {
       if (!cancelled) {
-        addToast(extractErrorMessage(error, "恢复内容优化对话任务失败"), "error");
+        addToast(extractErrorMessage(error, t("optimize.restoreTaskFailed")), "error");
       }
     }).finally(() => {
       if (!cancelled) generationRestoreBusyRef.current = false;
@@ -213,6 +215,7 @@ export function useOptimizeActions({
     projectId,
     setActiveSessionIdentity,
     setOptimizeGenerationHandle,
+    t,
   ]);
 
   const rawGenerationText = generationTask.text("raw_json");
@@ -253,6 +256,7 @@ export function useOptimizeActions({
     clearLlmStreamPreview,
     optimizeGenerationHandle,
     rawGenerationText,
+    t,
   ]);
 
   useEffect(() => {
@@ -290,16 +294,17 @@ export function useOptimizeActions({
 
     const finish = async () => {
       if (sessionId == null) {
-        throw new Error("内容优化 generation 缺少目标会话");
+        throw new Error(t("optimize.missingSession"));
       }
       if (generationKind == null) {
-        throw new Error("内容优化 generation 缺少任务类型");
+        throw new Error(t("optimize.missingTaskType"));
       }
 
       if (generationTask.taskStatus === "completed" || recoveryIssue) {
         const resultRef = generationTask.resultRef;
         if (!resultRef) {
           const missingRef = resolveFormalResultRecovery({
+            t,
             recoveryIssue,
             consistent: false,
             hasPersisted: false,
@@ -339,6 +344,7 @@ export function useOptimizeActions({
           setTurns(nextTurns);
         }
         const recovery = resolveFormalResultRecovery({
+          t,
           recoveryIssue,
           consistent: Boolean(persisted && revision === resultRef.revision),
           hasPersisted: Boolean(persisted),
@@ -355,7 +361,7 @@ export function useOptimizeActions({
           throw new Error(
             recovery.kind === "unrecoverable"
               ? recovery.message
-              : "生成结果一致性校验失败，正式 Turn 不可用",
+              : t("optimize.resultConsistencyFailed"),
           );
         }
         // readonly：正式 Turn 已加载到 session/turns，只读核对并显式告警，不发成功 toast。
@@ -363,7 +369,7 @@ export function useOptimizeActions({
           if (!isCurrentTask()) return;
           appendLocalItem({
             kind: "error",
-            title: "结果校验失败",
+            title: t("optimize.resultCheckFailed"),
             content: recovery.warning ?? recovery.message,
           });
           clearGeneration();
@@ -389,8 +395,8 @@ export function useOptimizeActions({
           if (generationKind === "optimization_patch" && !proposal) {
             appendLocalItem({
               kind: "agent",
-              title: "没有安全补丁",
-              content: persisted.final_reply || "模型没有生成可安全唯一定位的局部补丁。",
+              title: t("optimize.noPatch"),
+              content: persisted.final_reply || t("optimize.unsafePatch"),
             });
           }
         }
@@ -398,25 +404,25 @@ export function useOptimizeActions({
         clearGeneration();
         addToast(
           generationKind === "optimization_analysis"
-            ? "内容优化分析完成"
+            ? t("optimize.analysisCompleted")
             : generationKind === "optimization_patch"
-              ? "局部修复补丁已生成"
-              : "内容优化 Agent 对话完成",
+              ? t("optimize.patchGenerated")
+              : t("optimize.chatCompleted"),
           "success",
         );
         return;
       }
 
       const taskLabel = generationKind === "optimization_analysis"
-        ? "内容优化分析"
+        ? t("optimize.taskLabelAnalysis")
         : generationKind === "optimization_patch"
-          ? "局部补丁生成"
-          : "内容优化 Agent 对话";
+          ? t("optimize.taskLabelPatch")
+          : t("optimize.taskLabelChat");
       const message = generationTask.taskStatus === "cancelled"
-        ? `${taskLabel}已取消`
+        ? t("optimize.taskCancelled", { task: taskLabel })
         : generationTask.taskStatus === "interrupted"
-          ? `${taskLabel}已中断`
-          : generationTask.error?.message?.trim() || `${taskLabel}失败`;
+          ? t("optimize.taskInterrupted", { task: taskLabel })
+          : generationTask.error?.message?.trim() || t("optimize.taskFailed", { task: taskLabel });
       await refreshSessions();
       if (activeSessionIdRef.current === sessionId) {
         await openSession(sessionId);
@@ -424,7 +430,7 @@ export function useOptimizeActions({
       if (!isCurrentTask()) return;
       appendLocalItem({
         kind: generationTask.taskStatus === "cancelled" ? "agent" : "error",
-        title: generationTask.taskStatus === "cancelled" ? "任务已停止" : "执行失败",
+        title: generationTask.taskStatus === "cancelled" ? t("optimize.taskStopped") : t("optimize.executionFailed"),
         content: message,
       });
       clearGeneration();
@@ -439,10 +445,10 @@ export function useOptimizeActions({
           state: "consistency_error",
         });
       }
-      const message = extractErrorMessage(error, "内容优化 generation 结果校验失败");
+      const message = extractErrorMessage(error, t("optimize.resultCheckFailed"));
       appendLocalItem({
         kind: "error",
-        title: "结果校验失败",
+        title: t("optimize.resultCheckFailed"),
         content: message,
       });
       clearGeneration();
@@ -468,6 +474,7 @@ export function useOptimizeActions({
     setOptimizeGenerationHandle,
     setPendingPatchState,
     setTurns,
+    t,
   ]);
 
   const beginAction = useCallback((key: string): boolean => {
@@ -484,20 +491,20 @@ export function useOptimizeActions({
     async (title: string): Promise<string | null> => {
       const name = await promptDialog({
         title,
-        message: activeChapter ? `当前章节：${chapterOptionLabel(activeChapter)}` : "",
-        placeholder: "例如：本章逻辑优化",
+        message: activeChapter ? t("optimize.readyHint", { chapter: chapterOptionLabel(activeChapter, t) }) : "",
+        placeholder: t("optimize.sessionNamePlaceholder"),
         required: true,
-        confirmText: "创建",
+        confirmText: t("optimize.create"),
       });
       const trimmed = name?.trim();
       if (!trimmed) return null;
       if (chapterSessions.some((session) => session.name?.trim() === trimmed)) {
-        addToast(`本章已存在名为「${trimmed}」的内容优化会话`, "error");
+        addToast(t("optimize.duplicateSession", { name: trimmed }), "error");
         return null;
       }
       return trimmed;
     },
-    [activeChapter, addToast, chapterSessions],
+    [activeChapter, addToast, chapterSessions, t],
   );
 
   const toggleAutomaticWriteback = useCallback(() => {
@@ -514,7 +521,7 @@ export function useOptimizeActions({
       sessionName?: string | null,
     ) => {
       if (!activeChapter) {
-        throw new Error("请先选择一个已生成章节");
+        throw new Error(t("optimize.chooseGeneratedChapter"));
       }
       const name = sessionName?.trim();
       const session =
@@ -529,7 +536,7 @@ export function useOptimizeActions({
           : await createOptimizationAnalysisSession({
               project_id: projectId,
               chapter_number: activeChapter.chapter_number,
-              name: requireSessionName(name),
+              name: requireSessionName(name, t),
               mode: "full",
               scope: null,
               permissions: agentPermissions,
@@ -557,6 +564,7 @@ export function useOptimizeActions({
       refreshSessions,
       setActiveSessionIdentity,
       setOptimizeGenerationHandle,
+      t,
     ],
   );
 
@@ -590,7 +598,7 @@ export function useOptimizeActions({
   const createChatSession = useCallback(
     async (name: string) => {
       if (!activeChapter) {
-        throw new Error("请先选择一个已生成章节");
+        throw new Error(t("optimize.chooseGeneratedChapter"));
       }
       const session = await createOptimizationChatSession({
         project_id: projectId,
@@ -610,12 +618,13 @@ export function useOptimizeActions({
       projectId,
       refreshSessions,
       setActiveSessionIdentity,
+      t,
     ],
   );
 
   const ensureAgentSession = useCallback(async () => {
     if (!activeChapter) {
-      throw new Error("请先选择一个已生成章节");
+      throw new Error(t("optimize.chooseGeneratedChapter"));
     }
     if (
       activeSession &&
@@ -638,7 +647,7 @@ export function useOptimizeActions({
     if (latest) {
       return openSession(latest.id);
     }
-    const name = await promptSessionName("新建 Agent 会话");
+    const name = await promptSessionName(t("optimize.sessionNameTitle"));
     if (!name) return null;
     return createChatSession(name);
   }, [
@@ -649,6 +658,7 @@ export function useOptimizeActions({
     openSession,
     promptSessionName,
     sessions,
+    t,
   ]);
 
   const runProposePatches = useCallback(
@@ -677,6 +687,7 @@ export function useOptimizeActions({
       setActiveSession,
       setActiveSessionIdentity,
       setOptimizeGenerationHandle,
+      t,
     ],
   );
 
@@ -686,7 +697,7 @@ export function useOptimizeActions({
       if (!proposal || taskRunning) return;
       const patches = patchesOverride ?? proposal.patches;
       if (patches.length === 0) {
-        addToast("没有已接受的补丁可同步", "info");
+        addToast(t("optimize.noAcceptedPatches"), "info");
         return;
       }
 
@@ -701,18 +712,21 @@ export function useOptimizeActions({
         clearPendingPatchState();
         appendLocalItem({
           kind: "tool",
-          title: "补丁已应用",
-          content: `已应用 ${result.applied_count} 个局部补丁，当前字数 ${result.word_count}`,
+          title: t("optimize.patchesApplied"),
+          content: t("optimize.appliedPatchSummary", {
+            count: result.applied_count,
+            words: result.word_count,
+          }),
         });
         await load();
         await onChapterContentChanged?.(result.chapter_id);
         await refreshSessions();
         await openSession(proposal.session_id);
       } catch (err) {
-        const message = extractErrorMessage(err, "应用局部补丁失败");
+        const message = extractErrorMessage(err, t("optimize.applyFailed"));
         appendLocalItem({
           kind: isCancelledOperation(message) ? "agent" : "error",
-          title: isCancelledOperation(message) ? "任务已停止" : "应用失败",
+          title: isCancelledOperation(message) ? t("optimize.taskStopped") : t("optimize.applyCancelled"),
           content: message,
         });
         addToast(message, isCancelledOperation(message) ? "info" : "error");
@@ -734,6 +748,7 @@ export function useOptimizeActions({
       refreshSessions,
       setCancellingOptimize,
       taskRunning,
+      t,
     ],
   );
 
@@ -747,16 +762,16 @@ export function useOptimizeActions({
       clearPendingPatchState();
       appendLocalItem({
         kind: "agent",
-        title: "补丁已丢弃",
-        content: "已丢弃当前待应用局部补丁。",
+        title: t("optimize.patchDiscarded"),
+        content: t("optimize.discardedPatchSummary"),
       });
       await refreshSessions();
       await openSession(proposal.session_id);
     } catch (err) {
-      const message = extractErrorMessage(err, "记录丢弃补丁事件失败");
+      const message = extractErrorMessage(err, t("optimize.recordDiscardFailed"));
       appendLocalItem({
         kind: "error",
-        title: "丢弃失败",
+        title: t("optimize.discardFailed"),
         content: message,
       });
       addToast(message, "error");
@@ -773,6 +788,7 @@ export function useOptimizeActions({
     pendingPatchProposal,
     refreshSessions,
     taskRunning,
+    t,
   ]);
 
   const syncAcceptedPatches = useCallback(() => {
@@ -783,7 +799,7 @@ export function useOptimizeActions({
         (patchReviewDecisions[patch.patch_id] ?? "pending") === "pending",
     );
     if (hasPending) {
-      addToast("请先逐条接受或拒绝所有补丁", "error");
+      addToast(t("optimize.reviewAllPatches"), "error");
       return;
     }
     const accepted = proposal.patches.filter(
@@ -801,6 +817,7 @@ export function useOptimizeActions({
     patchReviewDecisions,
     pendingPatchProposal,
     taskRunning,
+    t,
   ]);
 
   const patchPreviewController = useMemo<OptimizationPatchPreviewController | null>(() => {
@@ -849,7 +866,7 @@ export function useOptimizeActions({
       const instruction = rawInstruction.trim();
       if (!instruction || taskRunning) return;
       if (!activeChapter) {
-        addToast("请先选择章节", "error");
+        addToast(t("optimize.selectChapterError"), "error");
         return;
       }
       const actionKey = `submit-${kind}`;
@@ -865,7 +882,7 @@ export function useOptimizeActions({
               : null;
           const sessionName = currentSession
             ? null
-            : await promptSessionName("新建分析会话");
+            : await promptSessionName(t("optimize.sessionNameTitle"));
           if (!currentSession && !sessionName) return;
           appendLocalItem({
             kind: "user",
@@ -894,8 +911,8 @@ export function useOptimizeActions({
           if (!currentSession || sessionIssues.length === 0) {
             appendLocalItem({
               kind: "agent",
-              title: "需要先分析",
-              content: "生成局部修复补丁需要先得到问题列表。请先点击“分析”完成本章诊断。",
+              title: t("optimize.needAnalysis"),
+              content: t("optimize.needAnalysisMessage"),
             });
             return;
           }
@@ -913,10 +930,10 @@ export function useOptimizeActions({
         setInput("");
         await runChat(sessionForTurn.id, instruction);
       } catch (err) {
-        const message = extractErrorMessage(err, "内容优化 Agent 执行失败");
+        const message = extractErrorMessage(err, t("optimize.executeFailed"));
         appendLocalItem({
           kind: isCancelledOperation(message) ? "agent" : "error",
-          title: isCancelledOperation(message) ? "任务已停止" : "执行失败",
+          title: isCancelledOperation(message) ? t("optimize.taskStopped") : t("optimize.executionFailed"),
           content: message,
         });
         addToast(message, isCancelledOperation(message) ? "info" : "error");
@@ -949,6 +966,7 @@ export function useOptimizeActions({
       setInput,
       taskRunning,
       turns,
+      t,
     ],
   );
 
@@ -960,7 +978,7 @@ export function useOptimizeActions({
       const instruction = rawInstruction.trim();
       if (!instruction || taskRunning) return null;
       if (!activeChapter) {
-        addToast("请先选择章节", "error");
+        addToast(t("optimize.selectChapterError"), "error");
         return null;
       }
 
@@ -983,7 +1001,7 @@ export function useOptimizeActions({
         return previewCreateOptimizationAnalysisSessionRequest({
           project_id: projectId,
           chapter_number: activeChapter.chapter_number,
-          name: "请求预览",
+          name: t("optimize.previewName"),
           mode: "full",
           scope: null,
           permissions: agentPermissions,
@@ -1000,7 +1018,7 @@ export function useOptimizeActions({
             : null;
         const sessionIssues = parseOptimizeIssues(currentSession?.issues);
         if (!currentSession || sessionIssues.length === 0) {
-          addToast("生成局部修复补丁需要先完成本章分析", "error");
+          addToast(t("optimize.needAnalysisForPatches"), "error");
           return null;
         }
         return previewProposeOptimizationPatchesRequest({
@@ -1017,7 +1035,7 @@ export function useOptimizeActions({
           ? activeSession
           : null;
       if (!sessionForTurn) {
-        addToast("预览对话请求需要先打开本章已有 Agent 会话；发送消息会按需创建新会话。", "error");
+        addToast(t("optimize.previewChatNeedsSession"), "error");
         return null;
       }
       return previewSendOptimizationMessageRequest({
@@ -1033,6 +1051,7 @@ export function useOptimizeActions({
       agentPermissions,
       projectId,
       taskRunning,
+      t,
     ],
   );
 
@@ -1055,29 +1074,29 @@ export function useOptimizeActions({
     setCancellingOptimize(true);
     appendLocalItem({
       kind: "agent",
-      title: "停止请求",
-      content: "已请求停止当前 Agent 任务，正在等待后端到达取消点。",
+      title: t("optimize.stopRequest"),
+      content: t("optimize.stopRequestMessage"),
     });
     try {
       const sessionId = generationSessionIdRef.current ?? activeSessionIdRef.current;
       if (sessionId) {
         await recordOptimizeAgentEvent(
           sessionId,
-          "用户请求停止当前 Agent 任务，正在等待后端到达取消点。",
+          t("optimize.stopRequestMessage"),
         ).catch((err) => {
           appendLocalItem({
             kind: "error",
-            title: "停止事件未落库",
-            content: extractErrorMessage(err, "记录停止事件失败"),
+            title: t("optimize.stopEventNotPersisted"),
+            content: extractErrorMessage(err, t("optimize.recordStopFailed")),
           });
         });
       }
       await generationTask.cancel();
     } catch (err) {
-      const message = extractErrorMessage(err, "停止优化任务失败");
+      const message = extractErrorMessage(err, t("optimize.stopTaskFailed"));
       appendLocalItem({
         kind: "error",
-        title: "停止失败",
+        title: t("optimize.stopFailed"),
         content: message,
       });
       addToast(message, "error");
@@ -1090,6 +1109,7 @@ export function useOptimizeActions({
     appendLocalItem,
     generationTask,
     setCancellingOptimize,
+    t,
   ]);
 
   const handleNewChatSession = useCallback(async () => {
@@ -1097,12 +1117,12 @@ export function useOptimizeActions({
     const actionKey = "new-chat-session";
     if (!beginAction(actionKey)) return;
     try {
-      const name = await promptSessionName("新建 Agent 会话");
+      const name = await promptSessionName(t("optimize.sessionNameTitle"));
       if (!name) return;
       const session = await createChatSession(name);
-      addToast(`已创建会话「${sessionDisplayName(session)}」`, "success");
+      addToast(t("optimize.sessionCreated", { name: sessionDisplayName(session, t) }), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "创建 Agent 会话失败"), "error");
+      addToast(extractErrorMessage(err, t("optimize.createSessionFailed")), "error");
     } finally {
       finishAction(actionKey);
     }
@@ -1114,6 +1134,7 @@ export function useOptimizeActions({
     finishAction,
     promptSessionName,
     taskRunning,
+    t,
   ]);
 
   const handleRefresh = useCallback(async () => {
@@ -1123,27 +1144,25 @@ export function useOptimizeActions({
       await load();
       if (activeSessionId) {
         await openSession(activeSessionId).catch((err) => {
-          addToast(extractErrorMessage(err, "刷新会话失败"), "error");
+          addToast(extractErrorMessage(err, t("optimize.refreshSessionFailed")), "error");
         });
       }
     } finally {
       finishAction(actionKey);
     }
-  }, [activeSessionId, addToast, beginAction, finishAction, load, openSession]);
+  }, [activeSessionId, addToast, beginAction, finishAction, load, openSession, t]);
 
   const handleDeleteSession = useCallback(async () => {
     if (!activeSession || taskRunning) return;
     const actionKey = `delete-session-${activeSession.id}`;
     if (!beginAction(actionKey)) return;
     const sessionId = activeSession.id;
-    const name = sessionDisplayName(activeSession);
+    const name = sessionDisplayName(activeSession, t);
     const confirmed = await confirmDialog({
-      title: "删除优化会话",
-      message:
-        `将删除内容优化会话「${name}」及其消息记录。\n\n` +
-        "这不会删除章节正文，也不会回滚已经应用到正文的局部补丁。此操作不可撤销。",
-      confirmText: "删除会话",
-      cancelText: "取消",
+      title: t("optimize.deleteSessionTitle"),
+      message: t("optimize.deleteSessionMessage", { name }),
+      confirmText: t("optimize.deleteSessionConfirm"),
+      cancelText: t("common.cancel"),
       dialogType: "danger",
     });
     if (!confirmed) {
@@ -1157,7 +1176,7 @@ export function useOptimizeActions({
       setActiveSession(null);
       setTurns([]);
       clearPendingPatchState();
-      addToast(`已删除会话「${name}」`, "success");
+      addToast(t("optimize.sessionDeleted", { name }), "success");
       const nextSessions = await refreshSessions();
       const nextSession = activeChapter
         ? nextSessions.find(
@@ -1170,7 +1189,7 @@ export function useOptimizeActions({
         await openSession(nextSession.id);
       }
     } catch (err) {
-      addToast(extractErrorMessage(err, "删除优化会话失败"), "error");
+      addToast(extractErrorMessage(err, t("optimize.deleteSessionFailed")), "error");
     } finally {
       finishAction(actionKey);
     }
@@ -1187,6 +1206,7 @@ export function useOptimizeActions({
     setActiveSessionIdentity,
     setTurns,
     taskRunning,
+    t,
   ]);
 
   return {

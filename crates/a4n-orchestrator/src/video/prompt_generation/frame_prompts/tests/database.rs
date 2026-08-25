@@ -66,6 +66,7 @@ async fn boundary_frame_image_lookup_accepts_root_project_images_for_video_proje
         reference_image_ids_json: Set(Some(json!([]))),
         status: Set("completed".to_string()),
         metadata_json: Set(Some(json!({
+            "prompt_output_language": "zh_cn",
             "boundary_frame": frame(1, vec![])
         }))),
         created_at: Set(now),

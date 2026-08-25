@@ -4,13 +4,14 @@ use std::collections::HashSet;
 
 use a4n_core::models::project::{novel_project, project_source_snapshot};
 use a4n_db::project::ProjectFamilyExportRows;
+use a4n_domain::clear_canvas_transfer_runtime_identity;
 use chrono::Utc;
 
-use super::{MediaFileEntry, PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage};
-use crate::project::required_path_extension;
+use super::{PROJECT_FAMILY_PACKAGE_VERSION, ProjectFamilyPackage};
+use crate::project::{MediaFileEntry, required_path_extension};
 
 /// 校验根项目与派生项目归属同一用户且挂在正确 root 下。
-pub fn validate_export_same_user(
+fn validate_export_same_user(
     root: &novel_project::Model,
     derived_projects: &[novel_project::Model],
 ) -> Result<(), String> {
@@ -29,7 +30,7 @@ pub fn validate_export_same_user(
 }
 
 /// 校验导出行中的源快照覆盖派生引用。
-pub fn validate_export_snapshot_coverage(
+fn validate_export_snapshot_coverage(
     expected_ids: &[i64],
     snapshots: &[project_source_snapshot::Model],
 ) -> Result<(), String> {
@@ -46,15 +47,16 @@ pub fn validate_export_snapshot_coverage(
 }
 
 /// 组装导出 manifest（`media_files` 由 Host 根据磁盘填充）。
-pub fn assemble_project_family_export_package(
+pub(crate) fn assemble_project_family_export_package(
     root: novel_project::Model,
     derived_projects: Vec<novel_project::Model>,
     mode: &str,
-    export_rows: ProjectFamilyExportRows,
+    mut export_rows: ProjectFamilyExportRows,
     media_files: Vec<MediaFileEntry>,
 ) -> Result<ProjectFamilyPackage, String> {
     validate_export_same_user(&root, &derived_projects)?;
     validate_export_snapshot_coverage(&export_rows.snapshot_ids, &export_rows.source_snapshots)?;
+    prepare_rows_for_export(&mut export_rows)?;
 
     let mut projects = Vec::with_capacity(1 + derived_projects.len());
     projects.push(root.clone());
@@ -73,6 +75,13 @@ pub fn assemble_project_family_export_package(
         source_snapshot_profiles: export_rows.source_snapshot_profiles,
         text_anchors: export_rows.text_anchors,
         profile_evidence: export_rows.profile_evidence,
+        chapter_visual_plans: export_rows.chapter_visual_plans,
+        chapter_shooting_scripts: export_rows.chapter_shooting_scripts,
+        character_portraits: export_rows.character_portraits,
+        generated_images: export_rows.generated_images,
+        chapter_manga_prompts: export_rows.chapter_manga_prompts,
+        chapter_video_prompts: export_rows.chapter_video_prompts,
+        generated_videos: export_rows.generated_videos,
         generation_specs: export_rows.generation_specs,
         generation_spec_text_anchors: export_rows.generation_spec_text_anchors,
         generation_spec_entity_refs: export_rows.generation_spec_entity_refs,
@@ -95,14 +104,71 @@ pub fn assemble_project_family_export_package(
     })
 }
 
-/// 导出媒体包内相对路径：`media/{id}/{field}.{ext}`。
-pub fn family_media_package_path(
-    media_asset_id: i64,
+fn prepare_rows_for_export(rows: &mut ProjectFamilyExportRows) -> Result<(), String> {
+    for script in &mut rows.chapter_shooting_scripts {
+        script.workflow_run_id = None;
+    }
+    for image in &mut rows.generated_images {
+        if let Some(metadata) = image.metadata_json.as_mut() {
+            clear_canvas_transfer_runtime_identity(metadata);
+        }
+    }
+    for prompt in &mut rows.chapter_video_prompts {
+        if prompt.status == a4n_core::models::chapter::chapter_video_prompt::STATUS_RUNNING {
+            return Err(format!(
+                "项目族不能导出运行中的章节视频提示词: chapter_video_prompt_id={}",
+                prompt.id
+            ));
+        }
+        if prompt.timeline_item_id.is_some() {
+            return Err(format!(
+                "项目族不能导出已绑定时间线项的章节视频提示词: chapter_video_prompt_id={}",
+                prompt.id
+            ));
+        }
+        if let Some(metadata) = prompt.metadata_json.as_mut() {
+            clear_canvas_transfer_runtime_identity(metadata);
+        }
+    }
+    for video in &mut rows.generated_videos {
+        if !a4n_core::models::ai::generated_video::is_terminal_status(&video.status) {
+            return Err(format!(
+                "项目族不能导出非终态生成视频: generated_video_id={}, status={}",
+                video.id, video.status
+            ));
+        }
+        if video.timeline_item_id.is_some() {
+            return Err(format!(
+                "项目族不能导出已绑定时间线项的生成视频: generated_video_id={}",
+                video.id
+            ));
+        }
+        video.provider_job_id = None;
+        if let Some(metadata) = video.metadata_json.as_mut() {
+            clear_canvas_transfer_runtime_identity(metadata);
+        }
+    }
+    for spec in &mut rows.generation_specs {
+        clear_canvas_transfer_runtime_identity(&mut spec.params_json);
+    }
+    for provenance in &mut rows.media_provenance {
+        provenance.provider_job_id = None;
+        if let Some(request) = provenance.request_snapshot_json.as_mut() {
+            clear_canvas_transfer_runtime_identity(request);
+        }
+    }
+    Ok(())
+}
+
+/// 导出媒体包内相对路径：`media/{owner_kind}/{owner_id}/{field}.{ext}`。
+pub(crate) fn family_media_package_path(
+    owner_kind: &str,
+    owner_id: i64,
     field: &str,
     original_path: &str,
 ) -> Result<String, String> {
     let extension = required_path_extension(original_path, "媒体文件")?;
-    Ok(format!("media/{media_asset_id}/{field}.{extension}"))
+    Ok(format!("media/{owner_kind}/{owner_id}/{field}.{extension}"))
 }
 
 #[cfg(test)]
@@ -167,11 +233,111 @@ mod tests {
 
     #[test]
     fn family_media_package_path_requires_extension() {
-        let err = family_media_package_path(1, "file", "noext").unwrap_err();
+        let err = family_media_package_path("media_asset", 1, "file_path", "noext").unwrap_err();
         assert!(err.contains("扩展名"));
         assert_eq!(
-            family_media_package_path(3, "thumbnail", "a/b.png").unwrap(),
-            "media/3/thumbnail.png"
+            family_media_package_path("media_asset", 3, "thumbnail_path", "a/b.png").unwrap(),
+            "media/media_asset/3/thumbnail_path.png"
         );
+    }
+
+    #[test]
+    fn prepare_rows_rejects_active_or_timeline_video_rows() {
+        let mut rows = ProjectFamilyExportRows {
+            chapter_video_prompts: vec![video_prompt(
+                a4n_core::models::chapter::chapter_video_prompt::STATUS_RUNNING,
+            )],
+            ..Default::default()
+        };
+        assert!(prepare_rows_for_export(&mut rows).is_err());
+
+        rows.chapter_video_prompts[0].status =
+            a4n_core::models::chapter::chapter_video_prompt::STATUS_PENDING.to_string();
+        rows.chapter_video_prompts[0].timeline_item_id = Some(7);
+        assert!(prepare_rows_for_export(&mut rows).is_err());
+
+        rows.chapter_video_prompts.clear();
+        rows.generated_videos = vec![generated_video(
+            a4n_core::models::ai::generated_video::STATUS_INTERRUPTED,
+        )];
+        assert!(prepare_rows_for_export(&mut rows).is_err());
+    }
+
+    #[test]
+    fn prepare_rows_clears_video_runtime_identity() {
+        let mut rows = ProjectFamilyExportRows {
+            generated_videos: vec![generated_video(
+                a4n_core::models::ai::generated_video::STATUS_COMPLETED,
+            )],
+            ..Default::default()
+        };
+
+        prepare_rows_for_export(&mut rows).expect("terminal video should export");
+
+        let video = &rows.generated_videos[0];
+        assert_eq!(video.provider_job_id, None);
+        let metadata = video.metadata_json.as_ref().unwrap();
+        assert!(metadata.get("workflow_run_id").is_none());
+        assert!(metadata["nested"].get("config_id").is_none());
+    }
+
+    fn video_prompt(status: &str) -> a4n_core::models::chapter::chapter_video_prompt::Model {
+        a4n_core::models::chapter::chapter_video_prompt::Model {
+            id: 10,
+            project_id: 2,
+            chapter_id: 3,
+            style: None,
+            prompt_type: "video_prompt".to_string(),
+            workflow_mode: "boundary_frames".to_string(),
+            shot_number: 1,
+            title: None,
+            scene_summary: None,
+            visual_prompt: "prompt".to_string(),
+            motion_prompt: None,
+            negative_prompt: None,
+            duration_secs: 6,
+            aspect_ratio: Some("16:9".to_string()),
+            reference_image_ids_json: None,
+            status: status.to_string(),
+            generated_video_id: None,
+            timeline_item_id: None,
+            metadata_json: None,
+            created_at: dt(),
+            updated_at: dt(),
+        }
+    }
+
+    fn generated_video(status: &str) -> a4n_core::models::ai::generated_video::Model {
+        a4n_core::models::ai::generated_video::Model {
+            id: 20,
+            project_id: 2,
+            chapter_id: Some(3),
+            video_type: "chapter_video".to_string(),
+            workflow_mode: Some("boundary_frames".to_string()),
+            file_path: Some("video.mp4".to_string()),
+            thumbnail_path: None,
+            prompt: "prompt".to_string(),
+            negative_prompt: None,
+            model: "test".to_string(),
+            width: 1280,
+            height: 720,
+            duration_secs: 6.0,
+            fps: 24,
+            file_size: Some(3),
+            source_video_id: None,
+            source_image_id: None,
+            status: status.to_string(),
+            provider_job_id: Some("job-20".to_string()),
+            error_message: None,
+            timeline_item_id: None,
+            metadata_json: Some(serde_json::json!({
+                "workflow_run_id": 9,
+                "nested": {"config_id": 8},
+                "prompt_id": 10
+            })),
+            is_favorite: false,
+            created_at: dt(),
+            updated_at: dt(),
+        }
     }
 }

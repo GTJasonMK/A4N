@@ -14,7 +14,7 @@ use a4n_db::outline::{
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction};
 use serde_json::{Value, json};
 
-pub async fn load_part_generation_context<C>(
+pub(in crate::outline) async fn load_part_generation_context<C>(
     db: &C,
     project_id: i64,
     requested_part_count: Option<i32>,
@@ -65,7 +65,7 @@ where
     })
 }
 
-pub async fn load_chapter_outline_generation_context<C>(
+pub(in crate::outline) async fn load_chapter_outline_generation_context<C>(
     db: &C,
     project_id: i64,
 ) -> Result<ChapterOutlineGenerationContext, AppError>
@@ -103,6 +103,7 @@ where
     Ok(ChapterOutlineGenerationContext {
         blueprint_payload,
         parts: rows.parts,
+        chapter_outlines: rows.chapter_outlines,
         source_snapshot,
     })
 }

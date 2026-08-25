@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import afnLogoUrl from "../../assets/afn-logo.svg";
+import { useI18n } from "../../i18n";
 
 interface Particle {
   x: number;
@@ -16,6 +17,7 @@ interface Particle {
 export const ParticleLogoWithSubtitle: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDark, setIsDark] = useState(false);
+  const { t } = useI18n();
 
   // 检测暗色模式
   useEffect(() => {
@@ -44,6 +46,7 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     const edgeSoftZone = 28;
 
     const particles: Particle[] = [];
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let mouse = { x: -1000, y: -1000, active: false };
 
     const randomInsideCanvas = (span: number) => edgePadding + Math.random() * (span - edgePadding * 2);
@@ -149,13 +152,32 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
           }
         }
 
-        animate();
+        if (reducedMotion) {
+          particles.forEach((particle) => {
+            particle.x = particle.targetX;
+            particle.y = particle.targetY;
+          });
+          drawParticles();
+        } else {
+          animate();
+        }
       };
 
       img.src = afnLogoUrl;
     };
 
-    let animationId: number;
+    let animationId: number | null = null;
+    const drawParticles = () => {
+      ctx.clearRect(0, 0, width, height);
+
+      particles.forEach((p) => {
+        ctx.fillStyle = p.color.replace("rgb", "rgba").replace(")", `, ${p.opacity})`);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    };
+
     const animate = () => {
       ctx.clearRect(0, 0, width, height);
 
@@ -203,7 +225,7 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     extractLogoPixels();
 
     return () => {
-      cancelAnimationFrame(animationId);
+      if (animationId != null) cancelAnimationFrame(animationId);
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseleave", handleMouseLeave);
     };
@@ -213,7 +235,9 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     <canvas
       ref={canvasRef}
       style={{ width: "100%", maxWidth: "360px", height: "auto", aspectRatio: "13 / 6" }}
-      className="block cursor-pointer"
+      className="block"
+      role="img"
+      aria-label={t("a11y.brandMark")}
     />
   );
 };

@@ -112,12 +112,16 @@ pub async fn settings_all_config_rows(
                 mode: row.mode.parse().map_err(|error| {
                     AppError::ConfigError(format!("主题 {} 的持久化 mode 无效：{error}", row.id))
                 })?,
-                css_variables: serde_json::from_value(row.css_variables).map_err(|error| {
+                document: serde_json::from_value::<a4n_domain::ThemeDocument>(
+                    row.theme_document.clone(),
+                )
+                .map_err(|error| {
                     AppError::ConfigError(format!(
-                        "主题 {} 的持久化 css_variables 无效：{error}",
+                        "主题 {} 的持久化 theme_document 无效：{error}",
                         row.id
                     ))
-                })?,
+                })?
+                .without_resource_references(),
                 is_system_default: row.is_system_default,
                 is_active: row.is_active,
             })

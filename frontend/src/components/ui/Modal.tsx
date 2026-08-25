@@ -1,7 +1,8 @@
-import React, { useEffect, useId, useRef } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { getPortalRoot } from './portalRoot';
+import { useI18n } from '../../i18n';
 
 type ModalTone = 'default' | 'info' | 'success' | 'warning' | 'danger';
 
@@ -33,29 +34,63 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
-const openModalStack: symbol[] = [];
-let bodyOverflowBeforeModal: string | null = null;
+const MODAL_EXIT_MS = 180;
 
-const registerModal = (modalId: symbol) => {
-  if (openModalStack.includes(modalId)) return;
+interface ModalEntry {
+  id: symbol;
+  layerElement: HTMLElement | null;
+}
+
+const openModalStack: ModalEntry[] = [];
+let bodyOverflowBeforeModal: string | null = null;
+const bodyInertBeforeModal = new Map<HTMLElement, boolean>();
+
+const setInert = (element: HTMLElement, inert: boolean) => {
+  element.toggleAttribute('inert', inert);
+};
+
+const updateModalInert = () => {
+  if (typeof document === 'undefined') return;
+  const portalRoot = document.getElementById('a4n-portal-root');
+
+  if (openModalStack.length > 0) {
+    for (const child of Array.from(document.body.children)) {
+      if (child === portalRoot || !(child instanceof HTMLElement)) continue;
+      if (!bodyInertBeforeModal.has(child)) bodyInertBeforeModal.set(child, child.hasAttribute('inert'));
+      setInert(child, true);
+    }
+  }
+
+  const top = openModalStack[openModalStack.length - 1]?.id;
+  for (const entry of openModalStack) {
+    if (entry.layerElement) setInert(entry.layerElement, entry.id !== top);
+  }
+};
+
+const registerModal = (modalId: symbol, layerElement: HTMLElement | null) => {
+  if (openModalStack.some((entry) => entry.id === modalId)) return;
   if (openModalStack.length === 0) {
     bodyOverflowBeforeModal = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
   }
-  openModalStack.push(modalId);
+  openModalStack.push({ id: modalId, layerElement });
+  updateModalInert();
 };
 
 const unregisterModal = (modalId: symbol) => {
-  const index = openModalStack.lastIndexOf(modalId);
+  const index = openModalStack.findIndex((entry) => entry.id === modalId);
   if (index >= 0) openModalStack.splice(index, 1);
+  updateModalInert();
   if (openModalStack.length === 0 && bodyOverflowBeforeModal != null) {
     document.body.style.overflow = bodyOverflowBeforeModal;
     bodyOverflowBeforeModal = null;
+    for (const [element, inert] of bodyInertBeforeModal) setInert(element, inert);
+    bodyInertBeforeModal.clear();
   }
 };
 
 const isTopModal = (modalId: symbol): boolean =>
-  openModalStack[openModalStack.length - 1] === modalId;
+  openModalStack[openModalStack.length - 1]?.id === modalId;
 
 const getFocusableElements = (container: HTMLElement | null): HTMLElement[] => {
   if (!container) return [];
@@ -90,18 +125,54 @@ export const Modal: React.FC<ModalProps> = ({
   closeOnEscape = true,
   showCloseButton = true,
 }) => {
+  const { t } = useI18n();
   const titleId = useId();
+  const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const modalIdRef = useRef(Symbol('modal'));
+  const [rendered, setRendered] = useState(isOpen);
+  const [isExiting, setIsExiting] = useState(false);
+  const renderedRef = useRef(isOpen);
+  const exitingRef = useRef(false);
+  const closeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    if (!isOpen || typeof document === 'undefined') return undefined;
+    if (isOpen) {
+      if (closeTimerRef.current != null) {
+        window.clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
+      renderedRef.current = true;
+      exitingRef.current = false;
+      setRendered(true);
+      setIsExiting(false);
+      return;
+    }
+
+    if (!renderedRef.current || exitingRef.current) return;
+    exitingRef.current = true;
+    setIsExiting(true);
+    closeTimerRef.current = window.setTimeout(() => {
+      renderedRef.current = false;
+      exitingRef.current = false;
+      closeTimerRef.current = null;
+      setIsExiting(false);
+      setRendered(false);
+    }, MODAL_EXIT_MS);
+  }, [isOpen]);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current != null) window.clearTimeout(closeTimerRef.current);
+  }, []);
+
+  useEffect(() => {
+    if (!rendered || typeof document === 'undefined') return undefined;
 
     previousActiveElementRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    registerModal(modalIdRef.current);
+    registerModal(modalIdRef.current, layerRef.current);
 
     const raf = window.requestAnimationFrame(() => {
       focusFirstElement(dialogRef.current);
@@ -117,10 +188,10 @@ export const Modal: React.FC<ModalProps> = ({
         });
       }
     };
-  }, [isOpen]);
+  }, [rendered]);
 
   useEffect(() => {
-    if (!isOpen) return undefined;
+    if (!rendered || isExiting) return undefined;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isTopModal(modalIdRef.current)) return;
@@ -159,9 +230,9 @@ export const Modal: React.FC<ModalProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [closeOnEscape, isOpen, onClose]);
+  }, [closeOnEscape, isExiting, onClose, rendered]);
 
-  if (!isOpen) return null;
+  if (!rendered) return null;
 
   const portalContainer = getPortalRoot();
 
@@ -195,7 +266,9 @@ export const Modal: React.FC<ModalProps> = ({
 
   return createPortal(
     <div
-      className={`fixed inset-0 ${zIndexClassName} flex items-end justify-center p-0 sm:items-center sm:p-4`}
+      ref={layerRef}
+      className={`a4n-modal-layer fixed inset-0 ${zIndexClassName} flex items-end justify-center p-0 sm:items-center sm:p-4`}
+      data-modal-state={isExiting ? 'exiting' : 'entering'}
     >
       <div
         className="dialog-backdrop absolute inset-0"
@@ -208,12 +281,12 @@ export const Modal: React.FC<ModalProps> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`a4n-modal-panel dialog-panel relative z-10 flex max-h-[calc(100dvh-0.75rem)] w-full flex-col overflow-hidden rounded-b-none sm:max-h-[90vh] sm:rounded-[var(--pyqt-radius-xl)] ${maxWidthClassName} ${className}`}
+        className={`a4n-modal-panel dialog-panel relative z-10 flex max-h-[calc(100dvh-env(safe-area-inset-top)-env(safe-area-inset-bottom))] w-full flex-col overflow-hidden rounded-b-none sm:max-h-[90vh] sm:rounded-[var(--pyqt-radius-xl)] ${maxWidthClassName} ${className}`}
         onClick={(e) => e.stopPropagation()}
       >
         {tone !== 'default' ? <div className={`h-0.5 shrink-0 ${toneClass.accent}`} /> : null}
 
-        <div className="flex shrink-0 items-start gap-3 border-b border-book-border/55 bg-book-bg-paper/95 px-4 py-3 sm:px-5">
+        <div className="a4n-dialog-section flex shrink-0 items-start gap-3 border-b border-book-border/55 px-4 py-3 sm:px-5">
           <div className="flex min-w-0 flex-1 items-start gap-2.5">
             {icon ? (
               <span
@@ -237,10 +310,11 @@ export const Modal: React.FC<ModalProps> = ({
           {headerExtra ? <div className="shrink-0">{headerExtra}</div> : null}
           {showCloseButton ? (
             <button
+              type="button"
               onClick={requestClose}
               className="a4n-icon-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted hover:bg-book-bg-tertiary hover:text-book-text-main focus-visible:outline focus-visible:outline-1 focus-visible:outline-book-primary sm:h-8 sm:w-8"
-              aria-label="关闭弹窗"
-              title="关闭 (Esc)"
+              aria-label={t("a11y.close")}
+              title={`${t("common.close")} (Esc)`}
             >
               <X size={14} />
             </button>
@@ -252,7 +326,7 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
 
         {footer ? (
-          <div className="shrink-0 border-t border-book-border/55 bg-book-bg-paper/95 px-4 py-3 sm:px-5">
+          <div className="a4n-dialog-section shrink-0 border-t border-book-border/55 px-4 py-3 sm:px-5">
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
               {footer}
             </div>

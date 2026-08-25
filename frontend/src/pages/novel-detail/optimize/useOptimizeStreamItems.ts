@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useI18n } from "../../../i18n";
 import type { ChapterSummary } from "../../../api/chapter";
 import type { OptimizeSession, OptimizeTurn } from "../../../api/optimize";
 import {
@@ -20,8 +21,6 @@ interface UseOptimizeStreamItemsParams {
   localItems: StreamItem[];
   optimizeTaskId: string | null;
   parsedIssueCount: number;
-  progressStreamItems: StreamItem[];
-  taskRunning: boolean;
   turns: OptimizeTurn[];
 }
 
@@ -34,20 +33,19 @@ export const useOptimizeStreamItems = ({
   localItems,
   optimizeTaskId,
   parsedIssueCount,
-  progressStreamItems,
-  taskRunning,
   turns,
-}: UseOptimizeStreamItemsParams): StreamItem[] =>
-  useMemo(() => {
+}: UseOptimizeStreamItemsParams): StreamItem[] => {
+  const { t } = useI18n();
+  return useMemo(() => {
     const items: StreamItem[] = [];
     const activityItems: StreamItem[] = [];
-    const conversationItems = turnsToConversationItems(turns);
+    const conversationItems = turnsToConversationItems(turns, t);
     if (loading) {
       items.push({
         id: "loading",
         kind: "agent",
-        title: "读取状态",
-        content: "正在加载章节和内容优化会话",
+        title: t("optimize.loadingStatus"),
+        content: t("optimize.loadingSessions"),
       });
     }
 
@@ -55,15 +53,15 @@ export const useOptimizeStreamItems = ({
       items.push({
         id: "empty-chapter",
         kind: "agent",
-        title: "等待章节",
-        content: isPinned ? "写作桌当前没有可优化章节" : "请选择一个章节后输入优化要求",
+        title: t("optimize.waitingChapter"),
+        content: isPinned ? t("optimize.pinnedNoChapter") : t("optimize.selectChapterHint"),
       });
     } else if (!activeSession) {
       items.push({
         id: `chapter-${activeChapter.id}-ready`,
         kind: "agent",
-        title: "等待指令",
-        content: `当前章节：${chapterOptionLabel(activeChapter)}。普通提问会直接进入对话；明确要求分析或生成补丁时才启动对应任务。`,
+        title: t("optimize.waitingInstruction"),
+        content: t("optimize.readyHint", { chapter: chapterOptionLabel(activeChapter, t) }),
       });
     }
 
@@ -71,8 +69,12 @@ export const useOptimizeStreamItems = ({
       items.push({
         id: `session-${activeSession.id}-state`,
         kind: "agent",
-        title: sessionDisplayName(activeSession),
-        content: `${statusLabel(activeSession.status)} · 已发现 ${parsedIssueCount} 个问题 · 已应用 ${activeSession.fixes_applied} 个补丁`,
+        title: sessionDisplayName(activeSession, t),
+        content: t("optimize.sessionSummary", {
+          status: statusLabel(activeSession.status, t),
+          issues: parsedIssueCount,
+          patches: activeSession.fixes_applied,
+        }),
         timestamp: activeSession.updated_at,
       });
     }
@@ -92,44 +94,7 @@ export const useOptimizeStreamItems = ({
       activityItems.push(item);
     }
 
-    const visibleProgressItems = sortStreamActivityItems(
-      progressStreamItems.filter(
-        (item) =>
-          item.taskId === optimizeTaskId &&
-          streamItemBelongsToContext(item, activeChapter?.id ?? null, activeSessionId),
-      ),
-    );
     mergeOpenProcessStepsIntoRunningStream(activityItems, optimizeTaskId ?? null);
-    if (taskRunning && visibleProgressItems.length > 0) {
-      const last = visibleProgressItems[visibleProgressItems.length - 1];
-      const currentProcessIndex = activityItems.length - 1;
-      const currentProcess = activityItems[currentProcessIndex];
-      if (currentProcess && currentProcess.kind !== "user" && currentProcess.steps) {
-        const keepModelStream = currentProcess.activity === "llm_response";
-        activityItems[currentProcessIndex] = {
-          ...currentProcess,
-          title: keepModelStream ? currentProcess.title : "Agent 运行中",
-          content: keepModelStream ? currentProcess.content : last.content,
-          timestamp: last.timestamp,
-          status: keepModelStream ? currentProcess.status : last.status,
-          current: last.current,
-          total: last.total,
-          steps: [...currentProcess.steps, ...visibleProgressItems],
-        };
-      } else {
-        activityItems.push({
-          id: `progress-turn-${optimizeTaskId ?? "active"}`,
-          kind: last.kind === "error" ? "error" : "assistant",
-          title: "Agent 运行中",
-          content: last.content,
-          timestamp: last.timestamp,
-          status: last.status,
-          current: last.current,
-          total: last.total,
-          steps: visibleProgressItems,
-        });
-      }
-    }
 
     items.push(...sortStreamActivityItems(activityItems));
     return items;
@@ -142,10 +107,10 @@ export const useOptimizeStreamItems = ({
     localItems,
     optimizeTaskId,
     parsedIssueCount,
-    progressStreamItems,
-    taskRunning,
     turns,
+    t,
   ]);
+};
 
 function mergeOpenProcessStepsIntoRunningStream(
   items: StreamItem[],
@@ -196,5 +161,5 @@ function mergeOpenProcessStepsIntoRunningStream(
 }
 
 function isOpenProcessBubble(item: StreamItem): boolean {
-  return item.id.startsWith("message-process-") || item.title === "Agent 过程";
+  return item.id.startsWith("message-process-");
 }

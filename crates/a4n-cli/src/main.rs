@@ -3,6 +3,7 @@ mod config;
 mod context;
 mod local;
 mod output;
+mod page;
 mod routing;
 mod shell;
 mod sse;
@@ -189,6 +190,11 @@ enum Command {
     Context {
         #[command(subcommand)]
         command: ContextCommand,
+    },
+    /// 根据当前 GUI 页面上下文操作 Page Session
+    Page {
+        #[command(subcommand)]
+        command: page::PageCommand,
     },
 }
 
@@ -620,6 +626,7 @@ impl Command {
             Self::Media { command } => format!("media {}", command.label()),
             Self::Config { command } => format!("config {}", command.label()),
             Self::Context { command } => format!("context {}", command.label()),
+            Self::Page { command } => format!("page {}", command.label()),
         }
     }
 
@@ -910,11 +917,11 @@ async fn run(cli: Cli, output: OutputOptions) -> Result<()> {
     }
 }
 
-struct CliRuntime {
-    client: ApiClient,
-    output: OutputOptions,
-    context: SessionContext,
-    no_input: bool,
+pub(crate) struct CliRuntime {
+    pub(crate) client: ApiClient,
+    pub(crate) output: OutputOptions,
+    pub(crate) context: SessionContext,
+    pub(crate) no_input: bool,
 }
 
 struct AutoAgentActivity {
@@ -1153,6 +1160,7 @@ async fn execute_command(runtime: &mut CliRuntime, command: Command) -> Result<(
         Command::Media { command } => run_media(&mut runtime.client, command, &output).await,
         Command::Config { command } => run_config(&mut runtime.client, command, &output),
         Command::Context { command } => run_context(runtime, command, &output).await,
+        Command::Page { command } => page::run(runtime, command, &output).await,
     }
 }
 
@@ -1318,12 +1326,44 @@ fn shell_completions() -> Vec<String> {
     values
 }
 
-struct CallFiles<'a> {
-    set_base64: &'a [String],
-    set_text: &'a [String],
-    save_base64: &'a [String],
-    save_text: &'a [String],
-    force: bool,
+#[cfg(test)]
+mod shell_catalog_tests {
+    use super::shell_completions;
+    use a4n_api_contract::command_manifest::API_COMMANDS;
+
+    #[test]
+    fn shell_completions_include_builtin_subcommands_and_host_api_commands() {
+        let completions = shell_completions();
+        for value in [
+            "exit",
+            "help",
+            "quit",
+            "project",
+            "project list",
+            "call list_projects",
+        ] {
+            assert!(
+                completions.iter().any(|item| item == value),
+                "missing {value}"
+            );
+        }
+        for command in API_COMMANDS {
+            assert!(
+                completions
+                    .iter()
+                    .any(|item| item == &format!("call {command}")),
+                "missing API completion {command}"
+            );
+        }
+    }
+}
+
+pub(crate) struct CallFiles<'a> {
+    pub(crate) set_base64: &'a [String],
+    pub(crate) set_text: &'a [String],
+    pub(crate) save_base64: &'a [String],
+    pub(crate) save_text: &'a [String],
+    pub(crate) force: bool,
 }
 
 async fn run_call(
@@ -1339,7 +1379,7 @@ async fn run_call(
     print_json(&value, output)
 }
 
-async fn invoke_call(
+pub(crate) async fn invoke_call(
     client: &mut ApiClient,
     context: &SessionContext,
     command: &str,
@@ -1375,7 +1415,10 @@ async fn invoke_call(
     Ok(value)
 }
 
-fn request_secret_values(descriptor: &catalog::CommandDescriptor, args: &Value) -> Vec<String> {
+pub(crate) fn request_secret_values(
+    descriptor: &catalog::CommandDescriptor,
+    args: &Value,
+) -> Vec<String> {
     let mut secrets = descriptor
         .secret_pointers
         .iter()
@@ -1418,7 +1461,6 @@ fn apply_context_args(
             continue;
         }
         let value = match field {
-            "userId" => context.user_id,
             "projectId" => context.project_id,
             "chapterId" => context.chapter_id,
             "snapshotId" => context.snapshot_id,
@@ -1843,8 +1885,8 @@ fn agent_update_body(
     project_id: Option<i64>,
     chapter_id: Option<i64>,
 ) -> Result<Value> {
-    if let Some(status) = &status {
-        if ![
+    if let Some(status) = &status
+        && ![
             "idle",
             "running",
             "paused",
@@ -1853,14 +1895,13 @@ fn agent_update_body(
             "offline",
         ]
         .contains(&status.as_str())
-        {
-            bail!("status 必须是 idle、running、paused、completed、failed 或 offline");
-        }
+    {
+        bail!("status 必须是 idle、running、paused、completed、failed 或 offline");
     }
-    if let Some(progress) = progress {
-        if !progress.is_finite() || !(0.0..=100.0).contains(&progress) {
-            bail!("progress 必须在 0 到 100 之间");
-        }
+    if let Some(progress) = progress
+        && (!progress.is_finite() || !(0.0..=100.0).contains(&progress))
+    {
+        bail!("progress 必须在 0 到 100 之间");
     }
     Ok(json!({
         "status": status,
@@ -2704,7 +2745,7 @@ fn read_source(source: &str, label: &str) -> Result<String> {
     Ok(source.to_string())
 }
 
-fn read_json_source(source: &str) -> Result<Value> {
+pub(crate) fn read_json_source(source: &str) -> Result<Value> {
     serde_json::from_str(&read_source(source, "JSON ")?).context("输入不是有效 JSON")
 }
 
@@ -3071,12 +3112,15 @@ fn print_json(value: &Value, output: &OutputOptions) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use serde_json::json;
+    use tempfile::TempDir;
     use uuid::Uuid;
 
     use super::{
-        AgentCommand, Command, RuntimeConfigSnapshot, SessionContext, apply_context_args,
-        apply_runtime_config, catalog, prepare_outputs, query_path, read_json_source,
-        request_secret_values, save_outputs, set_json_pointer,
+        AgentCommand, Command, RuntimeConfigSnapshot, SessionContext, agent_update_body,
+        apply_context_args, apply_runtime_config, catalog, decode_pointer_token,
+        parse_file_assignment, prepare_outputs, query_path, read_json_source, read_password,
+        read_password_pair, request_secret_values, save_outputs, set_json_pointer, task_path,
+        trim_secret_line, validate_attempt, validate_non_empty, validate_optional_positive,
     };
 
     #[test]
@@ -3149,6 +3193,104 @@ mod tests {
     }
 
     #[test]
+    fn file_pointer_validation_covers_arrays_escaping_and_atomic_output_failures() {
+        assert_eq!(
+            decode_pointer_token("name~0part~1value").unwrap(),
+            "name~part/value"
+        );
+        assert!(decode_pointer_token("bad~2escape").is_err());
+
+        let mut input = json!({"items": [{"name": "old"}]});
+        set_json_pointer(&mut input, "/items/0/name", json!("new")).unwrap();
+        assert_eq!(input["items"][0]["name"], "new");
+        for (pointer, expected) in [
+            ("", "empty pointer"),
+            ("/items/1/name", "array bounds"),
+            ("/items/name", "array index"),
+            ("/items/0/name/child", "scalar parent"),
+            ("/items/0/bad~2escape", "pointer escape"),
+        ] {
+            assert!(
+                set_json_pointer(&mut input, pointer, json!("x")).is_err(),
+                "{expected}"
+            );
+        }
+
+        let temp = TempDir::new().unwrap();
+        let output = temp.path().join("artifact.bin");
+        assert!(parse_file_assignment("data.bin", true).is_err());
+        assert!(parse_file_assignment("data=/tmp/artifact", false).is_err());
+        assert!(parse_file_assignment("/data=", true).is_err());
+        assert!(prepare_outputs(&[], &[], true).is_err());
+        assert!(
+            prepare_outputs(
+                &[
+                    format!("/one={}", output.display()),
+                    format!("/two={}", output.display())
+                ],
+                &[],
+                false,
+            )
+            .is_err()
+        );
+
+        let first = temp.path().join("first.bin");
+        let second = temp.path().join("second.bin");
+        let specs = [
+            format!("/first={}", first.display()),
+            format!("/second={}", second.display()),
+        ];
+        let assignments = prepare_outputs(&specs, &[], false).unwrap();
+        let mut response = json!({"first": "aGVsbG8=", "second": "not-base64%%%"});
+        assert!(save_outputs(&mut response, &assignments, false).is_err());
+        assert!(
+            !first.exists(),
+            "decode all outputs before writing any file"
+        );
+        assert!(!second.exists());
+    }
+
+    #[test]
+    fn cli_scalar_validation_rejects_empty_ranges_and_invalid_agent_progress() {
+        assert!(validate_attempt(0).is_err());
+        assert!(validate_non_empty("  ", "task_id").is_err());
+        assert!(validate_optional_positive(Some(0), "project_id").is_err());
+        assert!(validate_optional_positive(None, "project_id").is_ok());
+        assert_eq!(
+            task_path("task/id", 2, "/snapshot").unwrap(),
+            "/generation-tasks/task%2Fid/snapshot?attempt=2"
+        );
+        assert!(task_path("", 1, "").is_err());
+        assert!(task_path("task", 0, "").is_err());
+
+        assert!(read_password(false).is_err());
+        assert!(read_password_pair(false).is_err());
+        assert!(trim_secret_line("\n".into()).is_err());
+        assert_eq!(trim_secret_line("secret\r\n".into()).unwrap(), "secret");
+
+        assert!(
+            agent_update_body(Some("unknown".into()), None, None, None, None, None, None).is_err()
+        );
+        assert!(agent_update_body(None, None, None, Some(f32::NAN), None, None, None).is_err());
+        assert!(agent_update_body(None, None, None, Some(100.1), None, None, None).is_err());
+        let body = agent_update_body(
+            Some("running".into()),
+            Some("phase".into()),
+            Some("summary".into()),
+            Some(25.0),
+            Some("task-1".into()),
+            Some(7),
+            Some(8),
+        )
+        .unwrap();
+        assert_eq!(body["status"], "running");
+        assert_eq!(body["progress"], 25.0);
+        assert_eq!(body["current_task_id"], "task-1");
+        assert_eq!(body["project_id"], 7);
+        assert_eq!(body["chapter_id"], 8);
+    }
+
+    #[test]
     fn call_context_injects_only_explicit_resource_identity() {
         let mut context = SessionContext::load(None, "http://localhost/api").unwrap();
         context.bind_user(7).unwrap();
@@ -3160,7 +3302,7 @@ mod tests {
         let mut user_args = json!({});
         let user_descriptor = catalog::command_descriptor("create_scene_profile").unwrap();
         apply_context_args(&mut user_args, &user_descriptor, &context).unwrap();
-        assert_eq!(user_args["userId"], 7);
+        assert_eq!(user_args, json!({}));
 
         let mut admin_args = json!({});
         let admin_descriptor = catalog::command_descriptor("list_all_users").unwrap();

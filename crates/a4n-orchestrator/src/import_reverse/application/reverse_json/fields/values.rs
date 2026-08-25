@@ -1,5 +1,6 @@
-use a4n_core::import_reverse::json::optional_string;
 use serde_json::Value;
+
+use crate::import_reverse::json::optional_string;
 
 pub(crate) fn required_string(value: &Value, key: &str, context: &str) -> Result<String, String> {
     optional_string(value, key).ok_or_else(|| format!("{context} 缺少必填字符串字段 {key}"))

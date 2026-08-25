@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
@@ -634,12 +634,19 @@ fn committed_video_prompt_shot(
     after: &[ChapterVideoPromptSummary],
     identity: &VideoPromptTargetIdentity,
 ) -> Option<i32> {
+    let before_by_id = before
+        .iter()
+        .fold(HashMap::with_capacity(before.len()), |mut rows, row| {
+            rows.entry(row.id).or_insert(row);
+            rows
+        });
     after
         .iter()
         .filter(|row| video_prompt_matches(row, identity))
         .find(|row| {
-            let previous = before.iter().find(|previous| previous.id == row.id);
-            previous.is_none_or(|previous| previous.updated_at != row.updated_at)
+            before_by_id
+                .get(&row.id)
+                .is_none_or(|previous| previous.updated_at != row.updated_at)
         })
         .map(|row| row.shot_number)
 }

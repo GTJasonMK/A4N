@@ -96,39 +96,3 @@ fn request_envelope_validation_can_defer_secret_policy_to_handler() {
     )
     .expect("handler-specific secret policy should run after envelope validation");
 }
-
-#[test]
-fn request_envelope_validation_enforces_local_user_secret_policy() {
-    let mut request = service_request(LLM_CHAT_CAPABILITY_VERSION, json!({}));
-    request.secret_policy = SecretForwardingPolicy {
-        scope: SecretMaterialScope::TrustedRemote,
-        allow_system_secret: false,
-        allow_user_secret: true,
-        allow_upload_token: false,
-    };
-
-    let error = validate_service_request_envelope(
-        &request,
-        LLM_CHAT_CAPABILITY_VERSION,
-        "LLM capability",
-        RequiredSecretPolicy::LocalUserSecretForwarding {
-            rejection_message: "provider API key 只能转发给本地 sidecar",
-        },
-    )
-    .expect_err("local user secret forwarding required");
-
-    assert_eq!(error.code, ServiceErrorCode::Unauthorized);
-    assert!(error.message.contains("本地 sidecar"));
-    assert_eq!(error.retryable, Some(false));
-
-    request.secret_policy = SecretForwardingPolicy::local_user_secret();
-    validate_service_request_envelope(
-        &request,
-        LLM_CHAT_CAPABILITY_VERSION,
-        "LLM capability",
-        RequiredSecretPolicy::LocalUserSecretForwarding {
-            rejection_message: "provider API key 只能转发给本地 sidecar",
-        },
-    )
-    .expect("local user secret policy should pass");
-}

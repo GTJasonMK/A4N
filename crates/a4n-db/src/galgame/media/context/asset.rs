@@ -1,5 +1,6 @@
 use crate::galgame::{
-    GalgameMediaRecordError, GalgameTargetContext, MEDIA_KIND_IMAGE, MEDIA_STATUS_COMPLETED,
+    GalgameCompletedVisualAssetRecord, GalgameMediaRecordError, GalgameTargetContext,
+    MEDIA_KIND_IMAGE, MEDIA_STATUS_COMPLETED,
 };
 use a4n_core::models::{generation::generation_spec, media::media_asset};
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
@@ -96,26 +97,59 @@ where
     Ok(asset)
 }
 
+#[cfg(test)]
 pub(in crate::galgame) fn validate_completed_visual_asset(
     spec: &generation_spec::Model,
     asset: &media_asset::Model,
 ) -> Result<(), GalgameMediaRecordError> {
-    if asset.project_id != spec.project_id || asset.root_project_id != spec.root_project_id {
+    validate_completed_visual_asset_fields(
+        spec,
+        asset.id,
+        asset.project_id,
+        asset.root_project_id,
+        &asset.media_kind,
+        &asset.status,
+    )
+}
+
+pub(in crate::galgame) fn validate_completed_visual_asset_record(
+    spec: &generation_spec::Model,
+    asset: &GalgameCompletedVisualAssetRecord,
+) -> Result<(), GalgameMediaRecordError> {
+    validate_completed_visual_asset_fields(
+        spec,
+        asset.id,
+        asset.project_id,
+        asset.root_project_id,
+        &asset.media_kind,
+        &asset.status,
+    )
+}
+
+fn validate_completed_visual_asset_fields(
+    spec: &generation_spec::Model,
+    asset_id: i64,
+    project_id: i64,
+    root_project_id: i64,
+    media_kind: &str,
+    status: &str,
+) -> Result<(), GalgameMediaRecordError> {
+    if project_id != spec.project_id || root_project_id != spec.root_project_id {
         return Err(GalgameMediaRecordError::InvalidArgument(format!(
             "Galgame 视觉生成意图已完成但绑定媒体项目族不一致: spec_id={}, media_asset_id={}",
-            spec.id, asset.id
+            spec.id, asset_id
         )));
     }
-    if asset.media_kind != MEDIA_KIND_IMAGE {
+    if media_kind != MEDIA_KIND_IMAGE {
         return Err(GalgameMediaRecordError::InvalidArgument(format!(
             "Galgame 视觉生成意图已完成但绑定媒体类型不是 image: spec_id={}, media_asset_id={}, media_kind={}",
-            spec.id, asset.id, asset.media_kind
+            spec.id, asset_id, media_kind
         )));
     }
-    if asset.status != MEDIA_STATUS_COMPLETED {
+    if status != MEDIA_STATUS_COMPLETED {
         return Err(GalgameMediaRecordError::InvalidArgument(format!(
             "Galgame 视觉生成意图已完成但绑定媒体未完成: spec_id={}, media_asset_id={}, status={}",
-            spec.id, asset.id, asset.status
+            spec.id, asset_id, status
         )));
     }
     Ok(())

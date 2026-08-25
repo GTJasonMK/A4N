@@ -29,91 +29,107 @@ import {
   chapterEventImportanceLabel,
   chapterEventTypeLabel,
 } from "../../utils/chapterAnalysisPresentation";
+import { getChapterSyncFailurePresentation } from "../../utils/workflowPresentation";
+import {
+  useI18n,
+  type MessageKey,
+  type MessageTranslator,
+} from "../../i18n";
 
-const FORESHADOWING_CATEGORY_LABELS: Record<string, string> = {
-  character_secret: "角色秘密",
-  plot_twist: "剧情转折",
-  item_mystery: "物品谜团",
-  world_rule: "世界规则",
+const FORESHADOWING_CATEGORY_LABELS: Record<string, MessageKey> = {
+  character_secret: "writing.analysisDetails.foreshadowingCharacterSecret",
+  plot_twist: "writing.analysisDetails.foreshadowingPlotTwist",
+  item_mystery: "writing.analysisDetails.foreshadowingItemMystery",
+  world_rule: "writing.analysisDetails.foreshadowingWorldRule",
 };
 
 const knownLabel = (
-  labels: Record<string, string>,
+  labels: Record<string, MessageKey>,
   value: string | null,
-): string | null => (value ? (labels[value] ?? null) : null);
+  t: MessageTranslator,
+): string | null => {
+  const key = value ? labels[value] : undefined;
+  return key ? t(key) : null;
+};
 
 const ANALYSIS_CARD_CLASS =
   "a4n-flat-surface mb-2 break-inside-avoid p-3 sm:p-4";
 
 const MATERIAL_SYNC_ROWS: ReadonlyArray<{
   key: keyof ChapterMaterialSyncState;
-  label: string;
+  label: MessageKey;
 }> = [
-  { key: "content_index", label: "正文索引" },
-  { key: "outline_and_foreshadowing", label: "章纲与伏笔" },
-  { key: "objects", label: "物品档案" },
-  { key: "characters", label: "角色资料" },
-  { key: "scenes", label: "场景资料" },
+  { key: "content_index", label: "writing.analysisDetails.syncRowContentIndex" },
+  { key: "outline_and_foreshadowing", label: "writing.analysisDetails.syncRowOutlineForeshadowing" },
+  { key: "objects", label: "writing.analysisDetails.syncRowObjects" },
+  { key: "characters", label: "writing.analysisDetails.syncRowCharacters" },
+  { key: "scenes", label: "writing.analysisDetails.syncRowScenes" },
 ];
 
 const MATERIAL_SYNC_STATUS: Record<
   ChapterMaterialSyncStatus,
-  { label: string; className: string }
+  { label: MessageKey; className: string }
 > = {
-  completed: { label: "已完成", className: "bg-success/10 text-success" },
+  completed: { label: "writing.analysisDetails.statusCompleted", className: "bg-success/10 text-success" },
   not_analyzed: {
-    label: "未分析",
+    label: "writing.analysisDetails.statusNotAnalyzed",
     className: "bg-book-bg-tertiary text-book-text-muted",
   },
   needs_analysis: {
-    label: "需重新分析",
+    label: "writing.analysisDetails.statusNeedsAnalysis",
     className: "bg-warning/10 text-warning",
   },
-  pending: { label: "待同步", className: "bg-warning/10 text-warning" },
-  running: { label: "同步中", className: "bg-info/10 text-info" },
-  failed: { label: "同步失败", className: "bg-error/10 text-error" },
+  pending: { label: "writing.analysisDetails.statusPending", className: "bg-warning/10 text-warning" },
+  running: { label: "writing.analysisDetails.statusRunning", className: "bg-info/10 text-info" },
+  failed: { label: "writing.analysisDetails.statusFailed", className: "bg-error/10 text-error" },
   unknown: {
-    label: "待核对",
+    label: "writing.analysisDetails.statusUnknown",
     className: "bg-book-bg-tertiary text-book-text-muted",
   },
 };
 
-const MATERIAL_UPDATE_LABELS: Record<string, string> = {
-  "outline:created": "生成本章章纲",
-  "outline:updated": "更新自动章纲",
-  "outline:existing": "保留当前自动章纲",
-  "outline:preserved": "保留用户章纲",
-  "foreshadowing:created": "新增伏笔",
-  "foreshadowing:updated": "更新伏笔",
-  "foreshadowing:existing": "保留已有伏笔",
-  "foreshadowing:resolved": "回收伏笔",
-  "object:created": "新增物品",
-  "object:updated": "补充已有物品",
-  "character:created": "新增角色",
-  "character:existing": "关联已有角色",
-  "character:preserved": "保留用户角色资料",
-  "character:synced": "同步角色状态",
-  "scene:synced": "关联场景",
+const MATERIAL_UPDATE_LABELS: Record<string, MessageKey> = {
+  "outline:created": "writing.analysisDetails.updateOutlineCreated",
+  "outline:updated": "writing.analysisDetails.updateOutlineUpdated",
+  "outline:existing": "writing.analysisDetails.updateOutlineExisting",
+  "outline:preserved": "writing.analysisDetails.updateOutlinePreserved",
+  "foreshadowing:created": "writing.analysisDetails.updateForeshadowingCreated",
+  "foreshadowing:updated": "writing.analysisDetails.updateForeshadowingUpdated",
+  "foreshadowing:existing": "writing.analysisDetails.updateForeshadowingExisting",
+  "foreshadowing:resolved": "writing.analysisDetails.updateForeshadowingResolved",
+  "object:created": "writing.analysisDetails.updateObjectCreated",
+  "object:updated": "writing.analysisDetails.updateObjectUpdated",
+  "character:created": "writing.analysisDetails.updateCharacterCreated",
+  "character:existing": "writing.analysisDetails.updateCharacterExisting",
+  "character:preserved": "writing.analysisDetails.updateCharacterPreserved",
+  "character:synced": "writing.analysisDetails.updateCharacterSynced",
+  "scene:synced": "writing.analysisDetails.updateSceneSynced",
 };
 
 export const materialUpdateDetails = (
   updates: ChapterMaterialUpdate[],
+  t: MessageTranslator,
 ): string[] =>
   updates.map((update) => {
-    const label =
+    const label = t(
       MATERIAL_UPDATE_LABELS[`${update.material_kind}:${update.action}`] ??
-      "同步资料";
-    return `${label}「${update.name}」`;
+        "writing.analysisDetails.updateFallback",
+    );
+    return t("writing.analysisDetails.updateItem", { label, name: update.name });
   });
 
 export const materialUpdateSummary = (
   updates: ChapterMaterialUpdate[],
+  t: MessageTranslator,
 ): string | null => {
-  const details = materialUpdateDetails(updates);
+  const details = materialUpdateDetails(updates, t);
   if (details.length === 0) return null;
   const visible = details.slice(0, 8);
   const remaining = updates.length - visible.length;
-  return `${visible.join("；")}${remaining > 0 ? `；另 ${remaining} 项` : ""}`;
+    return t("writing.analysisDetails.updateSummaryValue", {
+    details: visible.join(t("common.listSeparator")),
+    remaining: remaining > 0 ? t("writing.analysisDetails.moreUpdates", { count: remaining }) : "",
+  });
 };
 
 export const objectProfilesForChapter = (
@@ -134,20 +150,20 @@ const MaterialSyncPanel: React.FC<{
   state: ChapterMaterialSyncState;
   updates: ChapterMaterialUpdate[];
 }> = ({ state, updates }) => {
-  const updateDetails = materialUpdateDetails(updates);
-  const updateSummary = materialUpdateSummary(updates);
+  const { t } = useI18n();
+  const updateDetails = materialUpdateDetails(updates, t);
+  const updateSummary = materialUpdateSummary(updates, t);
   return (
     <section
       className="a4n-flat-surface p-3 sm:p-4"
-      aria-label="本章资料同步状态"
+      aria-label={t("writing.analysisDetails.syncAria")}
     >
       <div className="mb-2">
         <div className="text-small font-semibold text-book-text-main">
-          当前正文的资料更新
+          {t("writing.analysisDetails.syncHeading")}
         </div>
         <p className="mt-0.5 text-caption text-book-text-muted">
-          已完成表示系统已检查并同步，不代表本章一定识别出了对应条目。
-          用户手工资料不会被静默覆盖；分部大纲和蓝图只在你主动操作时更新。
+          {t("writing.analysisDetails.syncDescription")}
         </p>
       </div>
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -160,12 +176,12 @@ const MaterialSyncPanel: React.FC<{
               className="min-w-0 rounded-lg bg-book-bg/55 px-2.5 py-2"
             >
               <dt className="truncate text-caption text-book-text-muted">
-                {label}
+                {t(label)}
               </dt>
               <dd
                 className={`mt-1 w-fit rounded-full px-2 py-0.5 text-caption font-medium ${presentation.className}`}
               >
-                {presentation.label}
+                {t(presentation.label)}
               </dd>
             </div>
           );
@@ -173,10 +189,10 @@ const MaterialSyncPanel: React.FC<{
       </dl>
       {updateSummary && updateDetails.length > 8 ? (
         <details className="mt-2 text-caption leading-relaxed text-book-text-sub">
-          <summary className="cursor-pointer">本次分析：{updateSummary}</summary>
+          <summary className="cursor-pointer">{t("writing.analysisDetails.updateSummary", { summary: updateSummary })}</summary>
           <ul
             className="mt-1.5 list-disc space-y-1 pl-5"
-            aria-label="其余资料更新明细"
+            aria-label={t("writing.analysisDetails.otherUpdatesAria")}
           >
             {updateDetails.slice(8).map((detail, index) => (
               <li key={`${detail}-${index}`}>{detail}</li>
@@ -185,7 +201,7 @@ const MaterialSyncPanel: React.FC<{
         </details>
       ) : updateSummary ? (
         <p className="mt-2 text-caption leading-relaxed text-book-text-sub">
-          本次分析：{updateSummary}
+          {t("writing.analysisDetails.updateSummary", { summary: updateSummary })}
         </p>
       ) : null}
     </section>
@@ -229,6 +245,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   onResumeSync,
   onPreviewResumeSync,
 }) => {
+  const { t } = useI18n();
   const [objectProfiles, setObjectProfiles] = useState<ObjectProfile[]>([]);
   const [objectProfilesError, setObjectProfilesError] = useState<string | null>(
     null,
@@ -277,19 +294,23 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   const syncFailure = ["failed", "interrupted", "cancelled"].includes(
     analysisSyncStatus ?? "",
   )
-    ? (analysisSyncError ?? "本章分析尚未完成，可继续现有进度或重新分析。")
+      ? getChapterSyncFailurePresentation(
+        analysisSyncError,
+        t("writing.analysisDetails.syncFailureFallback"),
+        t,
+      )
     : null;
   const needsReanalysis = Object.values(materialSync).includes("needs_analysis");
   if (!root) {
     const emptyStateTitle = generating
-      ? `正在分析第 ${chapterNumber} 章…`
+      ? t("writing.analysisDetails.emptyAnalyzing", { chapter: chapterNumber })
       : canResumeSync
-        ? `第 ${chapterNumber} 章分析可继续`
+        ? t("writing.analysisDetails.emptyCanResume", { chapter: chapterNumber })
         : analysisBlockedReason
-          ? `第 ${chapterNumber} 章暂时无法生成分析`
+          ? t("writing.analysisDetails.emptyBlocked", { chapter: chapterNumber })
           : needsReanalysis
-            ? `第 ${chapterNumber} 章正文已变化，需重新分析`
-            : `第 ${chapterNumber} 章尚未生成分析`;
+            ? t("writing.analysisDetails.emptyNeedsReanalysis", { chapter: chapterNumber })
+            : t("writing.analysisDetails.emptyNotGenerated", { chapter: chapterNumber });
 
     return (
       <div className="h-full min-h-0 overflow-y-auto p-4 text-xs">
@@ -312,11 +333,21 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               }`}
             >
               {analysisBlockedReason ??
-                syncFailure ??
+                syncFailure?.summary ??
                 (needsReanalysis
-                  ? "旧分析不再对应当前正文，重新分析后才会更新章纲、角色、场景、物品和伏笔。"
-                  : "生成后可查看摘要、章节要素、关键事件与角色状态。")}
+                  ? t("writing.analysisDetails.staleDescription")
+                  : t("writing.analysisDetails.generatedDescription"))}
             </p>
+            {!analysisBlockedReason && syncFailure?.detail ? (
+              <details className="mt-2 max-w-sm text-left text-caption text-book-text-muted">
+                <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
+                  {t("writing.diagnostics")}
+                </summary>
+                <pre className="mt-1.5 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-book-bg-tertiary/70 p-2 font-mono leading-relaxed custom-scrollbar">
+                  {syncFailure.detail}
+                </pre>
+              </details>
+            ) : null}
             {!generating && (canResumeSync || canGenerate) ? (
               <div className="mt-4 flex w-full max-w-xs items-center gap-2">
                 {canGenerate ? (
@@ -324,10 +355,10 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                     items={[
                       {
                         label: canResumeSync
-                          ? "预览重新分析请求"
+                          ? t("writing.analysisDetails.previewResumeRequest")
                           : needsReanalysis
-                            ? "预览重新分析请求"
-                            : "预览模型请求",
+                            ? t("writing.analysisDetails.previewResumeRequest")
+                            : t("writing.analysisDetails.previewModelRequest"),
                         icon: <Eye size={12} />,
                         onClick: () => void onPreviewGenerate(),
                       },
@@ -348,10 +379,10 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                 >
                   <Sparkles size={13} />
                   {canResumeSync
-                    ? "继续分析"
+                    ? t("writing.analysisDetails.continueAnalysis")
                     : needsReanalysis
-                      ? "重新分析"
-                      : "生成分析"}
+                      ? t("writing.analysisDetails.regenerateAnalysis")
+                      : t("writing.analysisDetails.generateAnalysis")}
                 </BookButton>
               </div>
             ) : null}
@@ -375,23 +406,23 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
   const keywords = analysisTextList(summaries?.keywords, { limit: 8 });
   const metadataRows = [
     {
-      label: "角色",
-      value: analysisTextList(metadata?.characters, { limit: 12 }).join("、"),
+      label: t("writing.analysisDetails.metadataCharacters"),
+      value: analysisTextList(metadata?.characters, { limit: 12 }).join(t("common.listSeparator")),
     },
     {
-      label: "地点",
-      value: analysisTextList(metadata?.locations, { limit: 8 }).join("、"),
+      label: t("writing.analysisDetails.metadataLocations"),
+      value: analysisTextList(metadata?.locations, { limit: 8 }).join(t("common.listSeparator")),
     },
     {
-      label: "物品",
-      value: analysisTextList(metadata?.items, { limit: 8 }).join("、"),
+      label: t("writing.analysisDetails.metadataObjects"),
+      value: analysisTextList(metadata?.items, { limit: 8 }).join(t("common.listSeparator")),
     },
     {
-      label: "标签",
-      value: analysisTextList(metadata?.tags, { limit: 8 }).join("、"),
+      label: t("writing.analysisDetails.metadataTags"),
+      value: analysisTextList(metadata?.tags, { limit: 8 }).join(t("common.listSeparator")),
     },
-    { label: "基调", value: firstText(metadata, ["tone"]) },
-    { label: "时间", value: firstText(metadata, ["timeline_marker"]) },
+    { label: t("writing.analysisDetails.metadataTone"), value: firstText(metadata, ["tone"]) },
+    { label: t("writing.analysisDetails.metadataTime"), value: firstText(metadata, ["timeline_marker"]) },
   ].filter((row): row is { label: string; value: string } =>
     Boolean(row.value),
   );
@@ -415,7 +446,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
     ...(canResumeSync && analysisSyncHasSavedAnalysis
       ? [
           {
-            label: "预览同步请求",
+            label: t("writing.analysisDetails.previewSyncRequest"),
             icon: <Eye size={12} />,
             onClick: () => void onPreviewResumeSync(),
           },
@@ -424,7 +455,9 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
     ...(canGenerate
       ? [
           {
-            label: canResumeSync ? "预览重新分析请求" : "预览分析请求",
+            label: canResumeSync
+              ? t("writing.analysisDetails.previewResumeRequest")
+              : t("writing.analysisDetails.previewAnalysisRequest"),
             icon: <Eye size={12} />,
             onClick: () => void onPreviewGenerate(),
           },
@@ -434,7 +467,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
       ? [
           { type: "divider" as const },
           {
-            label: "重新分析",
+            label: t("writing.analysisDetails.regenerateAnalysis"),
             icon: <Sparkles size={12} />,
             onClick: () => void onGenerate(),
           },
@@ -451,9 +484,21 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
           </p>
         ) : null}
         {!analysisBlockedReason && syncFailure ? (
-          <p className="min-w-0 text-small leading-relaxed text-error sm:mr-auto sm:flex-1">
-            {syncFailure}
-          </p>
+          <div className="min-w-0 sm:mr-auto sm:flex-1">
+            <p className="text-small leading-relaxed text-error">
+              {syncFailure.summary}
+            </p>
+            {syncFailure.detail ? (
+              <details className="mt-1 text-caption text-book-text-muted">
+                <summary className="w-fit cursor-pointer hover:text-book-text-main">
+                  {t("writing.diagnostics")}
+                </summary>
+                <pre className="mt-1.5 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-book-bg-tertiary/70 p-2 font-mono leading-relaxed custom-scrollbar">
+                  {syncFailure.detail}
+                </pre>
+              </details>
+            ) : null}
+          </div>
         ) : null}
         {generating || canResumeSync || canGenerate ? (
           <div className="flex items-center gap-2 sm:contents">
@@ -480,12 +525,12 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                   <Sparkles size={13} />
                 )}
                 {generating
-                  ? "处理中…"
+                  ? t("writing.analysisDetails.processing")
                   : canResumeSync
                     ? analysisSyncHasSavedAnalysis
-                      ? "继续同步"
-                      : "继续分析"
-                    : "重新分析"}
+                      ? t("writing.analysisDetails.continueSync")
+                      : t("writing.analysisDetails.continueAnalysis")
+                    : t("writing.analysisDetails.regenerateAnalysis")}
               </span>
             </BookButton>
           </div>
@@ -498,7 +543,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
         {summary || keywords.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
             <h3 className="mb-2 text-small font-semibold text-book-text-main">
-              摘要
+              {t("writing.analysisDetails.summary")}
             </h3>
             {summary ? (
               <p className="whitespace-pre-wrap leading-relaxed">{summary}</p>
@@ -507,7 +552,9 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               <p
                 className={`${summary ? "mt-2" : ""} text-small text-book-text-muted`}
               >
-                关键词：{keywords.join("、")}
+                {t("writing.analysisDetails.keywords", {
+                  value: keywords.join(t("common.listSeparator")),
+                })}
               </p>
             ) : null}
           </section>
@@ -516,7 +563,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
         {metadataRows.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
             <h3 className="mb-2 text-small font-semibold text-book-text-main">
-              章节要素
+              {t("writing.analysisDetails.chapterElements")}
             </h3>
             <dl className="space-y-2">
               {metadataRows.map(({ label, value }) => (
@@ -535,7 +582,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
         {keyEvents.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
             <h3 className="mb-2 text-small font-semibold text-book-text-main">
-              关键事件
+              {t("writing.analysisDetails.keyEvents")}
             </h3>
             <ul className="divide-y divide-book-border/35">
               {keyEvents.map((event, idx) => {
@@ -550,9 +597,11 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                 });
                 const eventType = chapterEventTypeLabel(
                   firstText(event, ["type"]),
+                  t,
                 );
                 const importance = chapterEventImportanceLabel(
                   firstText(event, ["importance"]),
+                  t,
                 );
                 const detail = [eventType, importance, ...involved]
                   .filter(Boolean)
@@ -579,19 +628,19 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
 
         <section className={ANALYSIS_CARD_CLASS}>
           <h3 className="mb-2 text-small font-semibold text-book-text-main">
-            识别物体
+            {t("writing.analysisDetails.identifiedObjects")}
           </h3>
           {objectProfilesLoading ? (
             <div className="flex items-center gap-2 text-small text-book-text-muted">
               <LoadingSpinner size="sm" />
-              正在同步物体档案…
+              {t("writing.analysisDetails.objectProfilesLoading")}
             </div>
           ) : objectProfilesError ? (
             <div>
-              <p className="text-small text-error">物体档案暂时无法加载。</p>
+              <p className="text-small text-error">{t("writing.analysisDetails.objectProfilesLoadFailed")}</p>
               <details className="mt-2 text-caption text-book-text-muted">
                 <summary className="w-fit cursor-pointer hover:text-book-text-main">
-                  诊断信息
+                  {t("writing.diagnostics")}
                 </summary>
                 <pre className="mt-1.5 whitespace-pre-wrap break-all rounded-lg bg-book-bg-tertiary/70 p-2 font-mono leading-relaxed">
                   {objectProfilesError}
@@ -606,8 +655,8 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                     {item.name}
                   </div>
                   <div className="mt-0.5 text-small text-book-text-muted">
-                    {getObjectProfileImportanceLabel(item.importance)} ·{" "}
-                    {getObjectProfileTypeLabel(item.object_type)}
+                    {getObjectProfileImportanceLabel(item.importance, t)} ·{" "}
+                    {getObjectProfileTypeLabel(item.object_type, t)}
                   </div>
                   {item.story_usage ? (
                     <div className="mt-1 line-clamp-2 leading-relaxed text-book-text-sub">
@@ -619,7 +668,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
             </ul>
           ) : (
             <p className="text-small text-book-text-muted">
-              本章尚未同步出物体档案。
+              {t("writing.analysisDetails.noObjectProfiles")}
             </p>
           )}
         </section>
@@ -627,7 +676,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
         {stateRows.length > 0 ? (
           <section className={ANALYSIS_CARD_CLASS}>
             <h3 className="mb-2 text-small font-semibold text-book-text-main">
-              角色状态
+              {t("writing.analysisDetails.characterStates")}
             </h3>
             <ul className="divide-y divide-book-border/35">
               {stateRows.map(({ name, data }) => {
@@ -661,7 +710,9 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                       ) : null}
                       {changes.length > 0 && (
                         <div className="mt-1 text-small leading-relaxed text-book-text-sub">
-                          变化：{changes.join("；")}
+                          {t("writing.analysisDetails.changes", {
+                            value: changes.join(t("common.listSeparator")),
+                          })}
                         </div>
                       )}
                     </div>
@@ -675,13 +726,13 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
         {hasForeshadowing ? (
           <section className={ANALYSIS_CARD_CLASS}>
             <h3 className="mb-2 text-small font-semibold text-book-text-main">
-              伏笔
+              {t("writing.analysisDetails.foreshadowing")}
             </h3>
             <div className="space-y-3">
               {planted.length > 0 && (
                 <div>
                   <div className="mb-1 text-small text-book-text-muted">
-                    埋设
+                    {t("writing.analysisDetails.planted")}
                   </div>
                   <ul className="divide-y divide-book-border/35">
                     {planted.map((item, idx) => {
@@ -691,9 +742,11 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
                         knownLabel(
                           FORESHADOWING_CATEGORY_LABELS,
                           firstText(item, ["category", "type"]),
+                          t,
                         ),
                         chapterEventImportanceLabel(
                           firstText(item, ["priority", "importance"]),
+                          t,
                         ),
                       ].filter((tag): tag is string => tag != null);
                       return (
@@ -718,7 +771,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               {resolved.length > 0 && (
                 <div>
                   <div className="mb-1 text-small text-book-text-muted">
-                    回收
+                    {t("writing.analysisDetails.resolved")}
                   </div>
                   <ul className="divide-y divide-book-border/35">
                     {resolved.map((item, idx) => {
@@ -743,7 +796,7 @@ export const AnalysisSubTab: React.FC<AnalysisSubTabProps> = ({
               {tensions.length > 0 && (
                 <div>
                   <div className="mb-1 text-small text-book-text-muted">
-                    悬念
+                    {t("writing.analysisDetails.tensions")}
                   </div>
                   <ul className="divide-y divide-book-border/35">
                     {tensions.map((item) => (

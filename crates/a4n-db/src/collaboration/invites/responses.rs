@@ -1,7 +1,7 @@
 use crate::collaboration::{
     CollaborationDbError, INVITE_STATUS_ACCEPTED, INVITE_STATUS_DECLINED, INVITE_STATUS_EXPIRED,
     INVITE_STATUS_PENDING, INVITE_STATUS_REVOKED, ProjectAccessRole, find_invite, find_project,
-    parse_stored_member_role, resolve_root_project_model, update_pending_invite_status,
+    parse_stored_member_role, resolve_root_project, update_pending_invite_status,
     verify_project_permission,
 };
 use a4n_core::models::project::{project_invite, project_member};
@@ -48,7 +48,7 @@ pub async fn accept_project_invite(
         return Err(CollaborationDbError::InvalidState("邀请已过期".to_string()));
     }
     let root = find_project(&tx, invite.project_id).await?;
-    if root.user_id == user_id {
+    if root.1 == user_id {
         return Err(CollaborationDbError::InvalidState(
             "项目所有者不需要接受邀请".to_string(),
         ));
@@ -110,7 +110,7 @@ pub async fn revoke_project_invite(
     invite_id: i64,
 ) -> Result<(), CollaborationDbError> {
     verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Manager).await?;
-    let root = resolve_root_project_model(db, project_id).await?;
+    let root = resolve_root_project(db, project_id).await?;
     let invite = find_invite(db, invite_id).await?;
     if invite.project_id != root.id {
         return Err(CollaborationDbError::Forbidden(

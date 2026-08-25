@@ -4,56 +4,60 @@ import type {
   ShootingCoverageV1,
   ShootingShotSizeV1,
 } from "../api/shootingScript";
+import type { MessageKey } from "../i18n";
 
-const SHOT_SIZE_LABELS: Record<ShootingShotSizeV1, string> = {
-  extreme_wide: "大远景",
-  wide: "远景",
-  medium_wide: "中远景",
-  medium: "中景",
-  medium_close_up: "中近景",
-  close_up: "近景",
-  extreme_close_up: "特写",
-  insert: "插入镜头",
+type Translator = (key: MessageKey) => string;
+
+const SHOT_SIZE_LABELS: Record<ShootingShotSizeV1, MessageKey> = {
+  extreme_wide: "shootingScript.editor.cameraExtremeWide",
+  wide: "shootingScript.editor.cameraWide",
+  medium_wide: "shootingScript.editor.cameraMediumWide",
+  medium: "shootingScript.editor.cameraMedium",
+  medium_close_up: "shootingScript.editor.cameraMediumCloseUp",
+  close_up: "shootingScript.editor.cameraCloseUp",
+  extreme_close_up: "shootingScript.editor.cameraExtremeCloseUp",
+  insert: "shootingScript.editor.cameraInsert",
 };
 
-const CAMERA_ANGLE_LABELS: Record<ShootingCameraAngleV1, string> = {
-  eye_level: "平视",
-  high: "俯拍",
-  low: "仰拍",
-  overhead: "顶拍",
-  dutch: "倾斜构图",
-  subjective: "主观视角",
+const CAMERA_ANGLE_LABELS: Record<ShootingCameraAngleV1, MessageKey> = {
+  eye_level: "shootingScript.editor.angleEyeLevel",
+  high: "shootingScript.editor.angleHigh",
+  low: "shootingScript.editor.angleLow",
+  overhead: "shootingScript.editor.angleOverhead",
+  dutch: "shootingScript.editor.angleDutch",
+  subjective: "shootingScript.editor.angleSubjective",
 };
 
-const CAMERA_MOVEMENT_LABELS: Record<ShootingCameraMovementV1, string> = {
-  locked: "固定机位",
-  pan: "横摇",
-  tilt: "纵摇",
-  push_in: "推近",
-  pull_out: "拉远",
-  track: "跟拍",
-  dolly: "轨道移动",
-  crane: "升降",
-  handheld: "手持",
-  steadicam: "稳定器跟拍",
-  whip_pan: "甩摇",
+const CAMERA_MOVEMENT_LABELS: Record<ShootingCameraMovementV1, MessageKey> = {
+  locked: "shootingScript.editor.cameraLocked",
+  pan: "shootingScript.editor.cameraPan",
+  tilt: "shootingScript.editor.cameraTilt",
+  push_in: "shootingScript.editor.cameraPushIn",
+  pull_out: "shootingScript.editor.cameraPullOut",
+  track: "shootingScript.editor.cameraTrack",
+  dolly: "shootingScript.editor.cameraDolly",
+  crane: "shootingScript.editor.cameraCrane",
+  handheld: "shootingScript.editor.cameraHandheld",
+  steadicam: "shootingScript.editor.cameraSteadicam",
+  whip_pan: "shootingScript.editor.cameraWhipPan",
 };
 
-const COVERAGE_LABELS: Record<ShootingCoverageV1, string> = {
-  must_show: "必须呈现",
-  should_show: "建议呈现",
-  optional: "可选镜头",
+const COVERAGE_LABELS: Record<ShootingCoverageV1, MessageKey> = {
+  must_show: "shootingScript.editor.coverageMustShow",
+  should_show: "shootingScript.editor.coverageShouldShow",
+  optional: "shootingScript.editor.coverageOptional",
 };
 
-export const shootingShotSizeLabel = (value: ShootingShotSizeV1): string =>
-  SHOT_SIZE_LABELS[value];
+export const shootingShotSizeLabel = (value: ShootingShotSizeV1, t: Translator): string =>
+  t(SHOT_SIZE_LABELS[value]);
 
-export const shootingCameraAngleLabel = (value: ShootingCameraAngleV1): string =>
-  CAMERA_ANGLE_LABELS[value];
+export const shootingCameraAngleLabel = (value: ShootingCameraAngleV1, t: Translator): string =>
+  t(CAMERA_ANGLE_LABELS[value]);
 
 export const shootingCameraMovementLabel = (
   value: ShootingCameraMovementV1,
-): string => CAMERA_MOVEMENT_LABELS[value];
+  t: Translator,
+): string => t(CAMERA_MOVEMENT_LABELS[value]);
 
-export const shootingCoverageLabel = (value: ShootingCoverageV1): string =>
-  COVERAGE_LABELS[value];
+export const shootingCoverageLabel = (value: ShootingCoverageV1, t: Translator): string =>
+  t(COVERAGE_LABELS[value]);

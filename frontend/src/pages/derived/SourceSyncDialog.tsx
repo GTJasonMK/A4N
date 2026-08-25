@@ -8,6 +8,7 @@ import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { Modal } from "../../components/ui/Modal";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { formatNumber, useI18n, type MessageKey, type MessageTranslator, type Locale } from "../../i18n";
 
 interface SourceSyncDialogProps {
   open: boolean;
@@ -19,52 +20,81 @@ interface SourceSyncDialogProps {
   onChanged: () => void | Promise<void>;
 }
 
-const SEVERITY_LABELS: Record<string, string> = {
-  info: "普通更新",
-  warning: "需确认",
-  blocking: "阻塞冲突",
+const SEVERITY_KEYS: Record<string, MessageKey> = {
+  info: "novel.sourceSyncDialog.severityInfo",
+  warning: "novel.sourceSyncDialog.severityWarning",
+  blocking: "novel.sourceSyncDialog.severityBlocking",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  current: "当前源文本",
-  root_updated: "根文本已更新",
-  conflict: "存在冲突",
-  detached: "已分离",
+const STATUS_KEYS: Record<string, MessageKey> = {
+  current: "novel.sourceSyncDialog.statusCurrent",
+  root_updated: "novel.sourceSyncDialog.statusRootUpdated",
+  conflict: "novel.sourceSyncDialog.statusConflict",
+  detached: "novel.sourceSyncDialog.statusDetached",
 };
 
-const TARGET_KIND_LABELS: Record<string, string> = {
-  chapter: "章节",
-  segment: "视频片段",
-  galgame_scene: "GALGame 场次",
-  galgame_line: "GALGame 台词",
-  character: "人物资料",
-  object: "物品资料",
-  scene: "场景资料",
+const TARGET_KIND_KEYS: Record<string, MessageKey> = {
+  chapter: "novel.sourceSyncDialog.targetChapter",
+  segment: "novel.sourceSyncDialog.targetSegment",
+  galgame_scene: "novel.sourceSyncDialog.targetGalgameScene",
+  galgame_line: "novel.sourceSyncDialog.targetGalgameLine",
+  character: "novel.sourceSyncDialog.targetCharacter",
+  object: "novel.sourceSyncDialog.targetObject",
+  scene: "novel.sourceSyncDialog.targetScene",
 };
 
-const CONFLICT_STATUS_LABELS: Record<string, string> = {
-  pending: "待处理",
-  resolved: "已按来源处理",
-  ignored: "已保留当前内容",
+const CONFLICT_STATUS_KEYS: Record<string, MessageKey> = {
+  pending: "novel.sourceSyncDialog.conflictPending",
+  resolved: "novel.sourceSyncDialog.conflictResolved",
+  ignored: "novel.sourceSyncDialog.conflictIgnored",
 };
 
-const SOURCE_CHANGE_LABELS: Record<string, string> = {
-  added: "来源新增",
-  updated: "来源已更新",
-  reordered: "来源顺序变化",
-  deleted: "来源已删除",
-  moved: "来源位置变化",
-  split: "来源内容已拆分",
+const SOURCE_CHANGE_KEYS: Record<string, MessageKey> = {
+  added: "novel.sourceSyncDialog.sourceAdded",
+  updated: "novel.sourceSyncDialog.sourceUpdated",
+  reordered: "novel.sourceSyncDialog.sourceReordered",
+  deleted: "novel.sourceSyncDialog.sourceDeleted",
+  moved: "novel.sourceSyncDialog.sourceMoved",
+  split: "novel.sourceSyncDialog.sourceSplit",
 };
 
-const LOCAL_STATE_LABELS: Record<string, string> = {
-  user_edited: "已由用户编辑",
-  generated: "已有生成内容",
-  imported: "已有导入内容",
-  assembled: "已进入成片装配",
-  clean: "当前内容未修改",
-  draft: "当前内容为草稿",
+const LOCAL_STATE_KEYS: Record<string, MessageKey> = {
+  user_edited: "novel.sourceSyncDialog.localUserEdited",
+  generated: "novel.sourceSyncDialog.localGenerated",
+  imported: "novel.sourceSyncDialog.localImported",
+  assembled: "novel.sourceSyncDialog.localAssembled",
+  clean: "novel.sourceSyncDialog.localClean",
+  draft: "novel.sourceSyncDialog.localDraft",
 };
+
+const SUMMARY_KEY_KEYS: Record<string, MessageKey> = {
+  title: "novel.sourceSyncDialog.summaryTitle",
+  text: "novel.sourceSyncDialog.summaryText",
+  content: "novel.sourceSyncDialog.summaryText",
+  summary: "novel.sourceSyncDialog.summarySummary",
+  chapter_number: "novel.sourceSyncDialog.summaryChapter",
+  scene_index: "novel.sourceSyncDialog.summaryScene",
+  line_index: "novel.sourceSyncDialog.summaryLine",
+  status: "novel.sourceSyncDialog.summaryStatus",
+  source_text: "novel.sourceSyncDialog.summarySourceText",
+  local_text: "novel.sourceSyncDialog.summaryLocalText",
+  name: "novel.sourceSyncDialog.summaryName",
+  chapter_title: "novel.sourceSyncDialog.summaryChapterTitle",
+  scene_title: "novel.sourceSyncDialog.summarySceneTitle",
+  old_text: "novel.sourceSyncDialog.summaryOldText",
+  new_text: "novel.sourceSyncDialog.summaryNewText",
+  reason: "novel.sourceSyncDialog.summaryReason",
+  page_number: "novel.sourceSyncDialog.summaryPage",
+  panel_number: "novel.sourceSyncDialog.summaryPanel",
+  segment_index: "novel.sourceSyncDialog.summarySegment",
+};
+
+const labelFrom = (
+  keys: Record<string, MessageKey>,
+  value: string,
+  t: MessageTranslator,
+  fallback: MessageKey = "novel.sourceSyncDialog.unknown",
+): string => t(keys[value] ?? fallback);
 
 export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   open,
@@ -76,6 +106,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
   onChanged,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [plan, setPlan] = useState<SourceSyncPlanSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -173,11 +204,11 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
   const handlePreview = async () => {
     if (!canEditSourceSync) {
-      addToast("当前账号没有同步此派生项目的权限", "error");
+      addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
     if (previewBusyRef.current) {
-      addToast("正在检查来源更新", "error");
+      addToast(t("novel.sourceSyncDialog.checkingUpdates"), "error");
       return;
     }
     previewBusyRef.current = true;
@@ -190,10 +221,10 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       const data = await previewSourceSync(targetProjectId);
       if (!isCurrentAction(targetScope, previewSeqRef, requestSeq)) return;
       setPlan(data);
-      addToast("同步计划已生成", "success");
+      addToast(t("novel.sourceSyncDialog.planGenerated"), "success");
     } catch (err) {
       if (isCurrentAction(targetScope, previewSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "检查来源更新失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.previewFailed")), "error");
       }
     } finally {
       if (isCurrentAction(targetScope, previewSeqRef, requestSeq)) {
@@ -205,11 +236,11 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
   const handleApplyUnconflicted = async () => {
     if (!canEditSourceSync) {
-      addToast("当前账号没有同步此派生项目的权限", "error");
+      addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
     if (applyBusyRef.current) {
-      addToast("正在应用无冲突项", "error");
+      addToast(t("novel.sourceSyncDialog.applyingUnconflicted"), "error");
       return;
     }
     applyBusyRef.current = true;
@@ -222,8 +253,8 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       applyBusyRef.current = false;
       addToast(
         requestPlan.run.status === "completed"
-          ? "当前同步计划已完成"
-          : "当前同步计划没有可继续应用的无冲突项",
+          ? t("novel.sourceSyncDialog.planCompleted")
+          : t("novel.sourceSyncDialog.noUnconflictedItems"),
         "error",
       );
       return;
@@ -239,13 +270,13 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
         decisions: [],
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
-      addToast("无冲突项已应用", "success");
+      addToast(t("novel.sourceSyncDialog.unconflictedApplied"), "success");
       await onChanged();
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "应用无冲突项失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.applyUnconflictedFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -258,12 +289,12 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
   const handleKeepLocal = async (conflict: SourceSyncConflictSummary) => {
     if (!canEditSourceSync) {
-      addToast("当前账号没有同步此派生项目的权限", "error");
+      addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
     if (conflict.status !== "pending") return;
     if (applyBusyRef.current) {
-      addToast("正在应用同步决策", "error");
+      addToast(t("novel.sourceSyncDialog.applyingDecision"), "error");
       return;
     }
     applyBusyRef.current = true;
@@ -274,7 +305,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     }
     if (!canMutateSourceSyncRunStatus(requestPlan.run.status)) {
       applyBusyRef.current = false;
-      addToast("当前同步计划已完成", "error");
+      addToast(t("novel.sourceSyncDialog.planCompleted"), "error");
       return;
     }
     const targetProjectId = projectId;
@@ -301,11 +332,11 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
-      addToast("已保留当前本地内容", "success");
+      addToast(t("novel.sourceSyncDialog.keptLocal"), "success");
       await onChanged();
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "应用同步决策失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.applyDecisionFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -318,23 +349,23 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
   const handleRegenerateScene = async (conflict: SourceSyncConflictSummary) => {
     if (!canEditSourceSync) {
-      addToast("当前账号没有同步此派生项目的权限", "error");
+      addToast(t("novel.sourceSyncDialog.permissionSync"), "error");
       return;
     }
     if (conflict.status !== "pending") return;
     const sceneId = galgameSceneIdForConflict(conflict);
     if (!sceneId) {
-      addToast("该冲突无法定位 GALGame 场", "error");
+      addToast(t("novel.sourceSyncDialog.cannotLocateScene"), "error");
       return;
     }
     if (applyBusyRef.current) {
-      addToast("正在应用同步决策", "error");
+      addToast(t("novel.sourceSyncDialog.applyingDecision"), "error");
       return;
     }
     const ok = await confirmDialog({
-      title: "重建 GALGame 场",
-      message: "将根据最新来源内容重建该场，旧行、选择支、背景、CG 生成设置和媒体绑定会失效。确定继续？",
-      confirmText: "重建场",
+      title: t("novel.sourceSyncDialog.regenerateTitle"),
+      message: t("novel.sourceSyncDialog.regenerateMessage"),
+      confirmText: t("novel.sourceSyncDialog.regenerateConfirm"),
       dialogType: "warning",
     });
     if (!ok) return;
@@ -346,7 +377,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     }
     if (!canMutateSourceSyncRunStatus(requestPlan.run.status)) {
       applyBusyRef.current = false;
-      addToast("当前同步计划已完成", "error");
+      addToast(t("novel.sourceSyncDialog.planCompleted"), "error");
       return;
     }
     const targetProjectId = projectId;
@@ -371,11 +402,11 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       });
       if (!isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) return;
       setPlan(updatedPlan);
-      addToast("GALGame 场已重建", "success");
+      addToast(t("novel.sourceSyncDialog.sceneRegenerated"), "success");
       await onChanged();
     } catch (err) {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "重建 GALGame 场失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.regenerateFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, applySeqRef, requestSeq)) {
@@ -388,11 +419,11 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
   const handleDetach = async () => {
     if (!canEditSourceSync) {
-      addToast("当前账号没有分离此派生项目的权限", "error");
+      addToast(t("novel.sourceSyncDialog.detachPermission"), "error");
       return;
     }
     if (detachBusyRef.current) {
-      addToast("正在分离派生项目", "error");
+      addToast(t("novel.sourceSyncDialog.detaching"), "error");
       return;
     }
     detachBusyRef.current = true;
@@ -401,9 +432,9 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     detachSeqRef.current = requestSeq;
     setDetachConfirming(true);
     const ok = await confirmDialog({
-      title: "分离派生项目",
-      message: "分离后该项目不再跟随原项目更新，当前来源内容会保留为固定版本。确定继续？",
-      confirmText: "分离项目",
+      title: t("novel.sourceSyncDialog.detachTitle"),
+      message: t("novel.sourceSyncDialog.detachMessage"),
+      confirmText: t("novel.sourceSyncDialog.detachConfirm"),
       dialogType: "warning",
     });
     if (!ok) {
@@ -422,12 +453,12 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     try {
       await detachDerivedProject(targetProjectId);
       if (!isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) return;
-      addToast("派生项目已分离", "success");
+      addToast(t("novel.sourceSyncDialog.detached"), "success");
       setPlan(null);
       await onChanged();
     } catch (err) {
       if (isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
-        addToast(extractErrorMessage(err, "分离派生项目失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.sourceSyncDialog.detachFailed")), "error");
       }
     } finally {
       if (isCurrentMutation(targetProjectId, detachSeqRef, requestSeq)) {
@@ -448,7 +479,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
     <Modal
       isOpen={open}
       onClose={handleClose}
-      title="来源同步"
+      title={t("novel.sourceSyncDialog.title")}
       subtitle={projectTitle}
       icon={<GitCompare size={15} />}
       maxWidthClassName="max-w-5xl"
@@ -461,7 +492,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
             <Dropdown
               items={[
                 {
-                  label: "分离来源项目",
+                  label: t("novel.sourceSyncDialog.detachSourceProject"),
                   onClick: handleDetach,
                   danger: true,
                   icon: <Unplug size={12} />,
@@ -478,7 +509,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
             className="!min-h-8 !text-xs"
           >
             {loading ? <LoadingSpinner size="sm" /> : <RefreshCw size={13} />}
-            {plan ? "重新检查" : "检查更新"}
+            {plan ? t("novel.sourceSyncDialog.recheck") : t("novel.sourceSyncDialog.checkUpdate")}
           </BookButton>
           {canApplyUnconflicted ? (
             <BookButton
@@ -493,7 +524,7 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
               ) : (
                 <CheckCircle2 size={13} />
               )}
-              应用安全更新
+              {t("novel.sourceSyncDialog.applySafeUpdates")}
             </BookButton>
           ) : null}
         </div>
@@ -502,24 +533,41 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
       <div className="space-y-4">
         <section className="flex flex-wrap gap-x-5 gap-y-1 text-xs leading-relaxed">
           <span>
-            <span className="text-book-text-muted">来源状态</span>{" "}
+            <span className="text-book-text-muted">{t("novel.sourceSyncDialog.sourceStatus")}</span>{" "}
             <span className="font-medium text-book-text-main">
-              {STATUS_LABELS[sourceSyncStatus] ?? "状态未知"}
+              {labelFrom(STATUS_KEYS, sourceSyncStatus, t)}
             </span>
           </span>
           <span>
-            <span className="text-book-text-muted">更新检查</span>{" "}
-            <span className="font-medium text-book-text-main">{plan ? "已完成" : "尚未检查"}</span>
+            <span className="text-book-text-muted">{t("novel.sourceSyncDialog.updateCheck")}</span>{" "}
+            <span className="font-medium text-book-text-main">
+              {plan ? t("novel.sourceSyncDialog.checked") : t("novel.sourceSyncDialog.notChecked")}
+            </span>
           </span>
           {plan ? (
             <span>
-              <span className="text-book-text-muted">需要处理</span>{" "}
+              <span className="text-book-text-muted">{t("novel.sourceSyncDialog.needsAttention")}</span>{" "}
               <span className="font-medium text-book-text-main">
                 {[
-                  conflictCounts.info > 0 ? `普通 ${conflictCounts.info}` : null,
-                  conflictCounts.warning > 0 ? `确认 ${conflictCounts.warning}` : null,
-                  conflictCounts.blocking > 0 ? `阻塞 ${conflictCounts.blocking}` : null,
-                ].filter(Boolean).join(" · ") || "无需处理"}
+                  conflictCounts.info > 0
+                    ? t("novel.sourceSyncDialog.severityCount", {
+                        label: t("novel.sourceSyncDialog.severityInfo"),
+                        count: conflictCounts.info,
+                      })
+                    : null,
+                  conflictCounts.warning > 0
+                    ? t("novel.sourceSyncDialog.severityCount", {
+                        label: t("novel.sourceSyncDialog.severityWarning"),
+                        count: conflictCounts.warning,
+                      })
+                    : null,
+                  conflictCounts.blocking > 0
+                    ? t("novel.sourceSyncDialog.severityCount", {
+                        label: t("novel.sourceSyncDialog.severityBlocking"),
+                        count: conflictCounts.blocking,
+                      })
+                    : null,
+                ].filter(Boolean).join(t("novel.sourceSyncDialog.countSeparator")) || t("novel.sourceSyncDialog.noAttention")}
               </span>
             </span>
           ) : null}
@@ -527,17 +575,19 @@ export const SourceSyncDialog: React.FC<SourceSyncDialogProps> = ({
 
         {!plan ? (
           <p className="text-sm leading-relaxed text-book-text-muted">
-            点击“检查更新”只会比较来源与当前项目，不会修改任何内容。
+            {t("novel.sourceSyncDialog.explanation")}
           </p>
         ) : plan.conflicts.length === 0 ? (
           <div className="rounded-[var(--pyqt-radius-lg)] border border-success/30 bg-success/10 px-4 py-4 text-sm text-book-text-main">
-            {planCanResolveConflicts ? "没有需要人工处理的冲突，可以应用安全更新。" : "本次来源同步已完成。"}
+            {planCanResolveConflicts
+              ? t("novel.sourceSyncDialog.noManualConflicts")
+              : t("novel.sourceSyncDialog.completed")}
           </div>
         ) : (
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-semibold text-book-text-main">
               <AlertTriangle size={13} className="text-warning" />
-              冲突清单
+              {t("novel.sourceSyncDialog.conflictList")}
             </div>
             <div className="space-y-2">
               {plan.conflicts.map((conflict) => (
@@ -577,6 +627,7 @@ const ConflictRow: React.FC<{
   onKeepLocal: () => void;
   onRegenerateScene: () => void;
 }> = ({ conflict, disabled, applying, onKeepLocal, onRegenerateScene }) => {
+  const { t } = useI18n();
   const showActions = conflict.status === "pending" && (!disabled || applying);
   return (
     <article className="a4n-flat-surface overflow-hidden">
@@ -584,14 +635,14 @@ const ConflictRow: React.FC<{
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <h3 className="font-semibold text-book-text-main">
-              {TARGET_KIND_LABELS[conflict.target_kind] ?? "关联内容"}
+              {labelFrom(TARGET_KIND_KEYS, conflict.target_kind, t, "novel.sourceSyncDialog.relatedContent")}
             </h3>
             <span className={severityClass(conflict.severity)}>
-              {SEVERITY_LABELS[conflict.severity] ?? "普通更新"}
+              {labelFrom(SEVERITY_KEYS, conflict.severity, t)}
             </span>
           </div>
           <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-            {SOURCE_CHANGE_LABELS[conflict.source_change_kind] ?? "来源已变化"} · {LOCAL_STATE_LABELS[conflict.local_state_kind] ?? "当前项目有改动"} · {CONFLICT_STATUS_LABELS[conflict.status] ?? "状态未知"}
+            {labelFrom(SOURCE_CHANGE_KEYS, conflict.source_change_kind, t)} · {labelFrom(LOCAL_STATE_KEYS, conflict.local_state_kind, t)} · {labelFrom(CONFLICT_STATUS_KEYS, conflict.status, t)}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -599,7 +650,7 @@ const ConflictRow: React.FC<{
             <Dropdown
               items={[
                 {
-                  label: "根据来源重建场",
+                  label: t("novel.sourceSyncDialog.regenerateScene"),
                   onClick: onRegenerateScene,
                   icon: <RefreshCw size={12} />,
                 },
@@ -615,28 +666,28 @@ const ConflictRow: React.FC<{
               className="!text-xs"
             >
               {applying ? <LoadingSpinner size="sm" /> : <CheckCircle2 size={13} />}
-              保留当前
+              {t("novel.sourceSyncDialog.keepCurrent")}
             </BookButton>
           ) : null}
         </div>
       </div>
       <div className="grid border-t border-book-border/40 text-small leading-relaxed text-book-text-muted md:grid-cols-2 md:divide-x md:divide-book-border/40">
-        <JsonSummary title="源文本变化" value={conflict.source_summary_json} />
-        <JsonSummary title="当前项目" value={conflict.local_summary_json} />
+        <JsonSummary title={t("novel.sourceSyncDialog.sourceSummary")} value={conflict.source_summary_json} />
+        <JsonSummary title={t("novel.sourceSyncDialog.localSummary")} value={conflict.local_summary_json} />
       </div>
       <details className="border-t border-book-border/40 px-3 py-2 text-caption text-book-text-muted">
         <summary className="w-fit cursor-pointer rounded px-1 py-0.5 transition-colors hover:bg-book-bg-tertiary hover:text-book-text-main">
-          诊断信息
+          {t("novel.sourceSyncDialog.diagnostics")}
         </summary>
         <div className="mt-2 space-y-2">
           <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-x-2 gap-y-1 font-mono">
-            <dt>冲突范围</dt>
+            <dt>{t("novel.sourceSyncDialog.conflictScope")}</dt>
             <dd className="min-w-0 break-all">{conflict.conflict_scope}</dd>
-            <dt>目标定位</dt>
+            <dt>{t("novel.sourceSyncDialog.targetLocation")}</dt>
             <dd className="min-w-0 break-all">{conflict.target_kind} · {conflict.target_id}</dd>
-            <dt>来源状态</dt>
+            <dt>{t("novel.sourceSyncDialog.sourceStatus")}</dt>
             <dd className="min-w-0 break-all">{conflict.source_change_kind}</dd>
-            <dt>本地状态</dt>
+            <dt>{t("novel.sourceSyncDialog.localState")}</dt>
             <dd className="min-w-0 break-all">{conflict.local_state_kind}</dd>
           </dl>
           <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-book-bg-tertiary/45 p-2 font-mono">
@@ -665,12 +716,15 @@ function galgameSceneIdForConflict(conflict: SourceSyncConflictSummary): number 
   return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
 }
 
-const JsonSummary: React.FC<{ title: string; value: Record<string, unknown> }> = ({ title, value }) => (
-  <div className="min-w-0 px-3 py-2.5">
-    <div className="mb-1 text-caption font-medium text-book-text-sub">{title}</div>
-    <div className="break-words text-book-text-sub">{formatSummary(value)}</div>
-  </div>
-);
+const JsonSummary: React.FC<{ title: string; value: Record<string, unknown> }> = ({ title, value }) => {
+  const { locale, t } = useI18n();
+  return (
+    <div className="min-w-0 px-3 py-2.5">
+      <div className="mb-1 text-caption font-medium text-book-text-sub">{title}</div>
+      <div className="break-words text-book-text-sub">{formatSummary(value, t, locale)}</div>
+    </div>
+  );
+};
 
 function severityClass(severity: string): string {
   if (severity === "blocking") {
@@ -682,62 +736,66 @@ function severityClass(severity: string): string {
   return "text-small font-semibold text-book-primary";
 }
 
-function formatSummary(value: Record<string, unknown>): string {
+function formatSummary(
+  value: Record<string, unknown>,
+  t: MessageTranslator,
+  locale: Locale,
+): string {
   const entries = Object.entries(value).filter(
-    ([key, item]) => key in SUMMARY_KEY_LABELS && item != null && item !== "",
+    ([key, item]) => key in SUMMARY_KEY_KEYS && item != null && item !== "",
   );
-  if (entries.length === 0) return "有相关内容变化，可展开诊断信息查看定位信息。";
+  if (entries.length === 0) return t("novel.sourceSyncDialog.summaryEmpty");
   return entries
     .slice(0, 6)
-    .map(([key, item]) => `${summaryKeyLabel(key)}：${formatValue(key, item)}`)
-    .join("；");
+    .map(([key, item]) => t("novel.sourceSyncDialog.summaryItem", {
+      label: summaryKeyLabel(key, t),
+      value: formatValue(key, item, t, locale),
+    }))
+    .join(t("common.summarySeparator"));
 }
 
-const SUMMARY_KEY_LABELS: Record<string, string> = {
-  title: "标题",
-  text: "内容",
-  content: "内容",
-  summary: "摘要",
-  chapter_number: "章节",
-  scene_index: "场次",
-  line_index: "行号",
-  status: "状态",
-  source_text: "来源内容",
-  local_text: "当前内容",
-  name: "名称",
-  chapter_title: "章节标题",
-  scene_title: "场次标题",
-  old_text: "原内容",
-  new_text: "新内容",
-  reason: "变化原因",
-  page_number: "页码",
-  panel_number: "分镜",
-  segment_index: "片段",
-};
-
-function summaryKeyLabel(key: string): string {
-  return SUMMARY_KEY_LABELS[key] ?? "其他信息";
+function summaryKeyLabel(key: string, t: MessageTranslator): string {
+  return t(SUMMARY_KEY_KEYS[key] ?? "novel.sourceSyncDialog.unknown");
 }
 
-function formatValue(key: string, value: unknown): string {
-  if (key === "chapter_number" && typeof value === "number") return `第 ${value} 章`;
-  if (key === "page_number" && typeof value === "number") return `第 ${value} 页`;
-  if (key === "panel_number" && typeof value === "number") return `分镜 ${value}`;
-  if (key === "scene_index" && typeof value === "number") return `场次 ${value + 1}`;
-  if (key === "line_index" && typeof value === "number") return `第 ${value + 1} 行`;
-  if (key === "segment_index" && typeof value === "number") return `片段 ${value + 1}`;
+function formatValue(
+  key: string,
+  value: unknown,
+  t: MessageTranslator,
+  locale: Locale,
+): string {
+  if (key === "chapter_number" && typeof value === "number") {
+    return t("novel.sourceSyncDialog.chapterValue", { number: formatNumber(value, locale) });
+  }
+  if (key === "page_number" && typeof value === "number") {
+    return t("novel.sourceSyncDialog.pageValue", { number: formatNumber(value, locale) });
+  }
+  if (key === "panel_number" && typeof value === "number") {
+    return t("novel.sourceSyncDialog.panelValue", { number: formatNumber(value, locale) });
+  }
+  if (key === "scene_index" && typeof value === "number") {
+    return t("novel.sourceSyncDialog.sceneValue", { number: formatNumber(value + 1, locale) });
+  }
+  if (key === "line_index" && typeof value === "number") {
+    return t("novel.sourceSyncDialog.lineValue", { number: formatNumber(value + 1, locale) });
+  }
+  if (key === "segment_index" && typeof value === "number") {
+    return t("novel.sourceSyncDialog.segmentValue", { number: formatNumber(value + 1, locale) });
+  }
   if (typeof value === "string") return value;
-  if (typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "是" : "否";
+  if (typeof value === "number") return formatNumber(value, locale);
+  if (typeof value === "boolean") return value ? t("novel.sourceSyncDialog.booleanYes") : t("novel.sourceSyncDialog.booleanNo");
   if (Array.isArray(value)) {
     const readable = value.filter((item) => typeof item === "string" || typeof item === "number");
     return readable.length === value.length && readable.length <= 4
-      ? readable.join("、")
-      : `${value.length} 项`;
+      ? readable.map((item) => typeof item === "number" ? formatNumber(item, locale) : item).join(t("common.listSeparator"))
+      : t("novel.sourceSyncDialog.itemCount", { count: value.length });
   }
   if (value && typeof value === "object") {
     const count = Object.keys(value as Record<string, unknown>).length;
-    return count > 0 ? `${count} 项信息` : "无";
+    return count > 0
+      ? t("novel.sourceSyncDialog.infoCount", { count: formatNumber(count, locale) })
+      : t("novel.sourceSyncDialog.none");
   }
-  return "—";
+  return t("novel.sourceSyncDialog.unknownValue");
 }

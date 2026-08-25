@@ -1,6 +1,7 @@
 import type { MangaPagePromptSummary } from "../../../api/manga";
 import type { ChapterRow } from "../shared";
 import { nonEmptyText } from "../../../utils/text";
+import type { MessageTranslator } from "../../../i18n";
 
 export type MangaPagePromptSource = {
   content_sha256: string;
@@ -9,11 +10,13 @@ export type MangaPagePromptSource = {
 
 export const MANGA_PIPELINE_TOTAL_STEPS = 7;
 
-export const chapterHeading = (chapter: ChapterRow): string => {
+export const chapterHeading = (
+  chapter: ChapterRow,
+  t: MessageTranslator,
+): string => {
   const title = nonEmptyText(chapter.title);
-  return title
-    ? `第 ${chapter.chapter_number} 章 · ${title}`
-    : `第 ${chapter.chapter_number} 章`;
+  const heading = t("comic.chapter.heading", { number: chapter.chapter_number });
+  return title ? `${heading} · ${title}` : heading;
 };
 
 export const extractMangaPagePromptSource = (
@@ -42,33 +45,36 @@ export const countStaleMangaPagePrompts = (
     ),
   ).length;
 
-export const mangaStageLabel = (stage: string | null | undefined): string => {
+export const mangaStageLabel = (
+  stage: string | null | undefined,
+  t: MessageTranslator,
+): string => {
   switch (stage) {
     case "character_binding":
-      return "角色绑定";
+      return t("comic.pipelineStages.characterBinding");
     case "speech_selection":
-      return "对话旁白";
+      return t("comic.pipelineStages.dialogueNarration");
     case "visual_anchor_extraction":
-      return "视觉锚点";
+      return t("comic.pipelineStages.visualAnchor");
     case "item_extraction":
-      return "关键物品";
+      return t("comic.pipelineStages.keyObjects");
     case "comic_synthesis":
-      return "章节综合";
+      return t("comic.pipelineStages.chapterSynthesis");
     case "page_planning":
-      return "分页规划";
+      return t("comic.pipelineStages.pagination");
     case "drawing_prompt":
-      return "整页提示词";
+      return t("comic.pipelineStages.pagePrompt");
     case "persisting":
-      return "写入结果";
+      return t("comic.pipelineStages.resultWritten");
     case "completed":
-      return "已完成";
+      return t("comic.pipelineStages.completed");
     case "failed":
-      return "失败";
+      return t("comic.pipelineStages.failed");
     case "interrupted":
-      return "已中断";
+      return t("comic.pipelineStages.interrupted");
     case "cancelled":
-      return "已取消";
+      return t("comic.pipelineStages.cancelled");
     default:
-      return stage || "未开始";
+      return stage || t("comic.pipelineStages.notStarted");
   }
 };

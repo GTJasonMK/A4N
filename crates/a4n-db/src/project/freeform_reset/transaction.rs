@@ -40,9 +40,8 @@ where
     }
 
     let targets = freeform_generated_reset_targets_in(&txn, project_id, true).await?;
-    let _generation_cleanup =
-        delete_project_generation_runs(&txn, project_id, &targets.image_ids, &targets.video_ids)
-            .await?;
+    delete_project_generation_runs(&txn, project_id, &targets.image_ids, &targets.video_ids)
+        .await?;
     let task_cleanup = delete_project_task_queue_records(&txn, project_id).await?;
     let artifact_link_cleanup = delete_project_generated_artifact_links(
         &txn,
@@ -52,7 +51,7 @@ where
         &targets.prompt_artifact_ids,
     )
     .await?;
-    let _workflow_cleanup = delete_project_workflow_runs(&txn, project_id).await?;
+    delete_project_workflow_runs(&txn, project_id).await?;
     crate::canvas::mark_freeform_canvas_generated_refs_missing(&txn, project_id, &targets).await?;
     let artifact_row_cleanup = delete_project_generated_artifact_rows(
         &txn,
@@ -78,9 +77,15 @@ where
     txn.commit().await?;
 
     Ok(FreeformVideoGeneratedDataResetResult {
-        task_cleanup,
-        artifact_link_cleanup,
-        artifact_row_cleanup,
+        deleted_tasks: task_cleanup.deleted_tasks,
+        deleted_task_dependencies: task_cleanup.deleted_task_dependencies,
+        deleted_generation_specs: artifact_row_cleanup.deleted_generation_specs,
+        deleted_prompt_artifacts: artifact_link_cleanup.deleted_prompt_artifacts,
+        deleted_media_assets: artifact_row_cleanup.deleted_media_assets,
+        deleted_media_provenance: artifact_link_cleanup.deleted_media_provenance,
+        deleted_media_bindings: artifact_link_cleanup.deleted_media_bindings,
+        deleted_generated_images: artifact_row_cleanup.deleted_generated_images,
+        deleted_generated_videos: artifact_row_cleanup.deleted_generated_videos,
         media_paths,
     })
 }

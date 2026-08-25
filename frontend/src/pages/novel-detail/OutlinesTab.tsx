@@ -44,6 +44,7 @@ import {
 } from "./outlines/outlineTabUtils";
 import { isCancelledOperation } from "../../utils/cancellation";
 import { useOutlineGeneration } from "./outlines/useOutlineGeneration";
+import { useI18n } from "../../i18n";
 
 export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) => {
   const projectId = project.id;
@@ -54,9 +55,10 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       ? project.chapters_per_part
       : "";
   const { addToast } = useToast();
+  const { t } = useI18n();
   const addOutlineMutationToast = (message: string, warnings: string[]) => {
     addToast(
-      warnings.length > 0 ? `${message}；${warnings.join("；")}` : message,
+      warnings.length > 0 ? `${message}${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}` : message,
       warnings.length > 0 ? "info" : "success",
     );
   };
@@ -143,18 +145,18 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     (requestProjectId: number): number | null => {
       if (!isProjectCurrent(requestProjectId)) return null;
       if (!canEditOutlines) {
-        addToast("只读协作者不能修改章节大纲", "error");
+        addToast(t("outline.readOnlyEdit"), "error");
         return null;
       }
       if (actionBusyRef.current) {
-        addToast("已有大纲操作进行中，请等待当前操作完成", "error");
+        addToast(t("outline.operationInProgress"), "error");
         return null;
       }
       actionBusyRef.current = true;
       actionSeqRef.current += 1;
       return actionSeqRef.current;
     },
-    [addToast, canEditOutlines, isProjectCurrent],
+    [addToast, canEditOutlines, isProjectCurrent, t],
   );
 
   const finishAction = useCallback((requestSeq: number) => {
@@ -172,7 +174,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     (requestProjectId: number): number | null => {
       if (!isProjectCurrent(requestProjectId)) return null;
       if (!canEditOutlines) {
-        addToast("只读协作者不能预览大纲生成请求", "error");
+        addToast(t("outline.readOnlyPreview"), "error");
         return null;
       }
       if (previewBusyRef.current) return null;
@@ -180,7 +182,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       previewSeqRef.current += 1;
       return previewSeqRef.current;
     },
-    [addToast, canEditOutlines, isProjectCurrent],
+    [addToast, canEditOutlines, isProjectCurrent, t],
   );
 
   const finishPreview = useCallback((requestSeq: number) => {
@@ -193,17 +195,17 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     (requestProjectId: number): boolean => {
       if (!isProjectCurrent(requestProjectId)) return false;
       if (!canEditOutlines) {
-        addToast("只读协作者不能修改章节大纲", "error");
+        addToast(t("outline.readOnlyEdit"), "error");
         return false;
       }
       if (actionBusyRef.current || confirmBusyRef.current) {
-        addToast("已有大纲操作进行中，请等待当前操作完成", "error");
+        addToast(t("outline.operationInProgress"), "error");
         return false;
       }
       confirmBusyRef.current = true;
       return true;
     },
-    [addToast, canEditOutlines, isProjectCurrent],
+    [addToast, canEditOutlines, isProjectCurrent, t],
   );
 
   const finishConfirmAction = useCallback(() => {
@@ -244,7 +246,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       return true;
     } catch (err) {
       if (isLoadCurrent(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "加载大纲失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.loadFailed")), "error");
       }
       return false;
     } finally {
@@ -341,7 +343,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleGenerateParts = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能生成分部大纲", "error");
+      addToast(t("outline.readOnlyGenerateParts"), "error");
       return;
     }
     const requestedPartCount = typeof partCount === "number" ? partCount : null;
@@ -349,31 +351,35 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       typeof chaptersPerPart === "number" ? chaptersPerPart : null;
 
     if (!isPositiveInteger(requestedPartCount)) {
-      addToast("生成部数必须为正整数", "error");
+      addToast(t("outline.partCountPositive"), "error");
       return;
     }
     if (
       requestedChaptersPerPart !== null &&
       !isPositiveInteger(requestedChaptersPerPart)
     ) {
-      addToast("每部章数必须为正整数", "error");
+      addToast(t("outline.chaptersPerPartPositive"), "error");
       return;
     }
     const actionSeq = beginAction(requestProjectId);
     if (actionSeq == null) return;
     const extendingParts = partsRef.current.length > 0;
-    const progressActionLabel = extendingParts ? "追加分部大纲" : "生成分部大纲";
+    const progressActionLabel = extendingParts
+      ? t("outline.appendParts")
+      : t("outline.generateParts");
     const successMessage = extendingParts
-      ? `已追加 ${requestedPartCount} 个分部`
-      : `已生成 ${requestedPartCount} 个分部`;
+      ? t("outline.partsAppended", { count: requestedPartCount })
+      : t("outline.partsGenerated", { count: requestedPartCount });
     setGeneratingParts(true);
     try {
       const warnings = await runOutlineGeneration(
         {
           title: progressActionLabel,
-          startMessage: `模型正在${progressActionLabel}，耗时可能较长…`,
+          startMessage: t("outline.modelGeneratingParts", { action: progressActionLabel }),
           successMessage,
-          errorMessage: extendingParts ? "追加分部失败" : "生成分部失败",
+          errorMessage: extendingParts
+            ? t("outline.partsAppendFailed")
+            : t("outline.partsGenerationFailed"),
           total: 3,
         },
         {
@@ -387,7 +393,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         },
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          control.setProgress("正在刷新…", 2);
+          control.setProgress(t("outline.refreshing"), 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
@@ -399,7 +405,9 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         await load({ showLoading: false });
         const message = extractErrorMessage(
           err,
-          extendingParts ? "追加分部失败" : "生成分部失败",
+          extendingParts
+            ? t("outline.partsAppendFailed")
+            : t("outline.partsGenerationFailed"),
         );
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
@@ -412,14 +420,14 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handlePreviewGenerateParts = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能预览大纲生成请求", "error");
+      addToast(t("outline.readOnlyPreview"), "error");
       return;
     }
     const requestedPartCount = typeof partCount === "number" ? partCount : null;
     const requestedChaptersPerPart =
       typeof chaptersPerPart === "number" ? chaptersPerPart : null;
     if (!isPositiveInteger(requestedPartCount)) {
-      addToast("生成部数必须为正整数", "error");
+      addToast(t("outline.partCountPositive"), "error");
       return;
     }
     const previewSeq = beginPreview(requestProjectId);
@@ -438,7 +446,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       setRequestPreviewData(preview);
     } catch (err) {
       if (isPreviewCurrent(requestProjectId, previewSeq)) {
-        addToast(extractErrorMessage(err, "预览分部提示词失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.previewPartsFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -450,12 +458,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleGenerateChapterOutlines = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能生成章节大纲", "error");
+      addToast(t("outline.readOnlyGenerateChapters"), "error");
       return;
     }
     const requestedChapterCount = chapterCount;
     if (chapterCount <= 0) {
-      addToast("章数必须大于 0", "error");
+      addToast(t("outline.chapterCountPositive"), "error");
       return;
     }
     const actionSeq = beginAction(requestProjectId);
@@ -467,10 +475,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       const existingOutlineCount = outlinesRef.current.length;
       const warnings = await runOutlineGeneration(
         {
-          title: existingOutlineCount > 0 ? "继续生成章纲" : "生成章节大纲",
-          startMessage: `模型正在生成第 ${startChapter} 章起的 ${requestedChapterCount} 个章纲…`,
-          successMessage: `已追加生成 ${requestedChapterCount} 个章纲`,
-          errorMessage: "生成章纲失败",
+          title:
+            existingOutlineCount > 0
+              ? t("outline.continueChaptersTitle")
+              : t("outline.generateChaptersTitle"),
+          startMessage: t("outline.generatingChapters", {
+            start: startChapter,
+            count: requestedChapterCount,
+          }),
+          successMessage: t("outline.chaptersGenerated", { count: requestedChapterCount }),
+          errorMessage: t("outline.chaptersGenerationFailed"),
           total: 3,
         },
         {
@@ -483,17 +497,17 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         },
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          control.setProgress("正在刷新…", 2);
+          control.setProgress(t("outline.refreshing"), 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast(`已追加生成 ${requestedChapterCount} 个章纲`, warnings);
+      addOutlineMutationToast(t("outline.chaptersGenerated", { count: requestedChapterCount }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await load({ showLoading: false });
-        const message = extractErrorMessage(err, "生成章纲失败");
+        const message = extractErrorMessage(err, t("outline.chaptersGenerationFailed"));
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
     } finally {
@@ -505,12 +519,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handlePreviewGenerateChapterOutlines = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能预览大纲生成请求", "error");
+      addToast(t("outline.readOnlyPreview"), "error");
       return;
     }
     const requestedChapterCount = chapterCount;
     if (requestedChapterCount <= 0) {
-      addToast("章数必须大于 0", "error");
+      addToast(t("outline.chapterCountPositive"), "error");
       return;
     }
     const previewSeq = beginPreview(requestProjectId);
@@ -530,7 +544,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       setRequestPreviewData(preview);
     } catch (err) {
       if (isPreviewCurrent(requestProjectId, previewSeq)) {
-        addToast(extractErrorMessage(err, "预览章纲提示词失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.previewChaptersFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -541,7 +555,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   const startEdit = (o: ChapterOutline) => {
     if (!canEditOutlines) {
-      addToast("只读协作者不能编辑章节大纲", "error");
+      addToast(t("outline.readOnlyEdit"), "error");
       return;
     }
     setEditingId(o.id);
@@ -559,19 +573,19 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleSaveOutline = async (o: ChapterOutline) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能编辑章节大纲", "error");
+      addToast(t("outline.readOnlyEdit"), "error");
       return;
     }
     if (o.project_id !== requestProjectId) {
-      addToast("章纲不属于当前项目，无法保存", "error");
+      addToast(t("outline.outlineNotInProject"), "error");
       return;
     }
     if (!editForm.title.trim() && !editForm.summary.trim()) {
-      addToast("章节标题和章节摘要至少填写一项", "error");
+      addToast(t("outline.titleSummaryRequired"), "error");
       return;
     }
     if (!o.updated_at) {
-      addToast("章节大纲版本缺失，请刷新后重试", "error");
+      addToast(t("outline.versionMissing"), "error");
       return;
     }
     const actionSeq = beginAction(requestProjectId);
@@ -588,12 +602,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         summary: formSnapshot.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast(`已保存第 ${o.chapter_number} 章章纲`, result.warnings);
+      addOutlineMutationToast(t("outline.chapterSaved", { chapter: o.chapter_number }), result.warnings);
       cancelEdit();
       await load();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "保存失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setSavingId(null);
@@ -613,11 +627,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleSaveManualChapter = async (form: ManualChapterOutlineForm) => {
     const requestProjectId = projectId;
     if (!Number.isInteger(form.chapterNumber) || form.chapterNumber <= 0) {
-      addToast("章节号必须为正整数", "error");
+      addToast(t("outline.chapterNumberPositive"), "error");
       return;
     }
     if (!form.title.trim() && !form.summary.trim()) {
-      addToast("章节标题和章节摘要至少填写一项", "error");
+      addToast(t("outline.titleSummaryRequired"), "error");
       return;
     }
     const actionSeq = beginAction(requestProjectId);
@@ -633,12 +647,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         summary: form.summary,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast(`已建立第 ${form.chapterNumber} 章正式章纲`, result.warnings);
+      addOutlineMutationToast(t("outline.chapterCreated", { chapter: form.chapterNumber }), result.warnings);
       setManualChapterInitial(null);
       await load({ showLoading: false });
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "保存章节大纲失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.saveChapterFailed")), "error");
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setManualSaving(null);
@@ -690,17 +704,17 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       form.startChapter <= 0 ||
       form.endChapter < form.startChapter
     ) {
-      addToast("请填写有效的分部编号和章节范围", "error");
+      addToast(t("outline.validPartRange"), "error");
       return;
     }
     const editor = manualPartEditor;
     if (!editor) return;
     if (editor.part && editor.part.project_id !== requestProjectId) {
-      addToast("分部大纲不属于当前项目，无法保存", "error");
+      addToast(t("outline.partNotInProject"), "error");
       return;
     }
     if (editor.part && !editor.part.updated_at) {
-      addToast("分部大纲版本缺失，请刷新后重试", "error");
+      addToast(t("outline.partVersionMissing"), "error");
       return;
     }
     const actionSeq = beginAction(requestProjectId);
@@ -719,12 +733,12 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         theme: form.theme,
       });
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast(`已保存第 ${form.partNumber} 部正式大纲`, result.warnings);
+      addOutlineMutationToast(t("outline.partSaved", { part: form.partNumber }), result.warnings);
       setManualPartEditor(null);
       await load({ showLoading: false });
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "保存分部大纲失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.savePartFailed")), "error");
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setManualSaving(null);
@@ -735,11 +749,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleRegenOutline = async (o: ChapterOutline) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能重新生成章节大纲", "error");
+      addToast(t("outline.readOnlyRegenerateChapter"), "error");
       return;
     }
     if (o.project_id !== requestProjectId) {
-      addToast("章纲不属于当前项目，无法重新生成", "error");
+      addToast(t("outline.outlineNotInProjectRegenerate"), "error");
       return;
     }
     const actionSeq = beginAction(requestProjectId);
@@ -748,10 +762,10 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const warnings = await runOutlineGeneration(
         {
-          title: `重新生成第 ${o.chapter_number} 章章纲`,
-          startMessage: `模型正在重写第 ${o.chapter_number} 章章纲…`,
-          successMessage: `已重新生成第 ${o.chapter_number} 章章纲`,
-          errorMessage: "重新生成失败",
+          title: t("outline.regenerateChapterTitle", { chapter: o.chapter_number }),
+          startMessage: t("outline.rewritingChapter", { chapter: o.chapter_number }),
+          successMessage: t("outline.regeneratedChapter", { chapter: o.chapter_number }),
+          errorMessage: t("outline.regenerateFailed"),
           total: 3,
         },
         {
@@ -764,16 +778,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         },
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          control.setProgress("正在刷新…", 2);
+          control.setProgress(t("outline.refreshing"), 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast(`已重新生成第 ${o.chapter_number} 章章纲`, warnings);
+      addOutlineMutationToast(t("outline.regeneratedChapter", { chapter: o.chapter_number }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        const message = extractErrorMessage(err, "重新生成失败");
+        const message = extractErrorMessage(err, t("outline.regenerateFailed"));
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
     } finally {
@@ -785,11 +799,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handlePreviewRegenOutline = async (o: ChapterOutline) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能预览大纲生成请求", "error");
+      addToast(t("outline.readOnlyPreview"), "error");
       return;
     }
     if (o.project_id !== requestProjectId) {
-      addToast("章纲不属于当前项目，无法预览", "error");
+      addToast(t("outline.outlineNotInProjectDelete"), "error");
       return;
     }
     const previewSeq = beginPreview(requestProjectId);
@@ -807,7 +821,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       setRequestPreviewData(preview);
     } catch (err) {
       if (isPreviewCurrent(requestProjectId, previewSeq)) {
-        addToast(extractErrorMessage(err, "预览重生成提示词失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.previewRegenerateFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -819,11 +833,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleDeleteOutline = async (o: ChapterOutline) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能删除章节大纲", "error");
+      addToast(t("outline.readOnlyDeleteChapter"), "error");
       return;
     }
     if (o.project_id !== requestProjectId) {
-      addToast("章纲不属于当前项目，无法删除", "error");
+      addToast(t("outline.outlineNotInProjectDelete"), "error");
       return;
     }
     if (!beginConfirmAction(requestProjectId)) return;
@@ -831,18 +845,20 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     const outlineIndex = requestOutlines.findIndex((x) => x.id === o.id);
     if (outlineIndex < 0) {
       finishConfirmAction();
-      addToast("章纲列表已变化，请重新选择", "error");
+      addToast(t("outline.outlineListChanged"), "error");
       return;
     }
     const targets = requestOutlines.slice(outlineIndex);
     const count = targets.length;
     const lastChapterNumber = requestOutlines[requestOutlines.length - 1]?.chapter_number;
     const ok = await confirmDialog({
-      title: "删除后续章纲",
-      message:
-        `确认删除第 ${o.chapter_number} 章及其之后所有章纲？` +
-        `\n\n将删除第 ${o.chapter_number} 章到第 ${lastChapterNumber} 章，共 ${count} 个章纲；已有正文会保留。`,
-      confirmText: "删除",
+      title: t("outline.deleteFollowingTitle"),
+      message: t("outline.deleteFollowingMessage", {
+        chapter: o.chapter_number,
+        lastChapter: lastChapterNumber,
+        count,
+      }),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -863,11 +879,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast(`已删除最近 ${count} 个章纲`, result.warnings);
+      addOutlineMutationToast(t("outline.deletedChapters", { count }), result.warnings);
       await load();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "删除失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setDelActing(null);
@@ -878,23 +894,21 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleDeleteLatestParts = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能删除分部大纲", "error");
+      addToast(t("outline.readOnlyDeleteParts"), "error");
       return;
     }
     const requestPartCount = delPartCount;
     const requestParts = partsRef.current;
     const availableParts = requestParts.length;
     if (requestPartCount <= 0 || requestPartCount > availableParts) {
-      addToast(`输入 1 ~ ${availableParts} 之间的数字`, "error");
+      addToast(t("outline.partCountRange", { count: availableParts }), "error");
       return;
     }
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
-      title: "删除分部大纲",
-      message:
-        `删除最近 ${requestPartCount} 个分部？不可撤销。` +
-        "\n\n这些分部范围内的章节大纲会保留，并转为未归属。",
-      confirmText: "删除",
+      title: t("outline.deletePartsTitle"),
+      message: t("outline.deletePartsMessage", { count: requestPartCount }),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -916,11 +930,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const result = await deleteLatestParts(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast(`已删除最近 ${requestPartCount} 个分部`, result.warnings);
+      addOutlineMutationToast(t("outline.deletedParts", { count: requestPartCount }), result.warnings);
       await load();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "删除失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setDelActing(null);
@@ -931,21 +945,21 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleDeleteLatestOutlines = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能删除章节大纲", "error");
+      addToast(t("outline.readOnlyDeleteOutlines"), "error");
       return;
     }
     const requestChapterCount = delChapterCount;
     const requestOutlines = outlinesRef.current;
     const availableOutlines = requestOutlines.length;
     if (requestChapterCount <= 0 || requestChapterCount > availableOutlines) {
-      addToast(`输入 1 ~ ${availableOutlines} 之间的数字`, "error");
+      addToast(t("outline.outlineCountRange", { count: availableOutlines }), "error");
       return;
     }
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
-      title: "删除章纲",
-      message: `删除最近 ${requestChapterCount} 个章纲？不可撤销。已有正文会保留。`,
-      confirmText: "删除",
+      title: t("outline.deleteOutlinesTitle"),
+      message: t("outline.deleteOutlinesMessage", { count: requestChapterCount }),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -968,13 +982,13 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       const result = await deleteLatestChapterOutlines(requestProjectId, targets);
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
       addOutlineMutationToast(
-        `已删除最近 ${requestChapterCount} 个章纲`,
+        t("outline.deletedOutlines", { count: requestChapterCount }),
         result.warnings,
       );
       await load();
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        addToast(extractErrorMessage(err, "删除失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.saveFailed")), "error");
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setDelActing(null);
@@ -985,7 +999,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handleRegenLastPart = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能重新生成分部大纲", "error");
+      addToast(t("outline.readOnlyRegenerateParts"), "error");
       return;
     }
     const actionSeq = beginAction(requestProjectId);
@@ -994,10 +1008,10 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     try {
       const warnings = await runOutlineGeneration(
         {
-          title: "重新生成最后一部",
-          startMessage: "模型正在重写最后一部大纲…",
-          successMessage: "最后一部已重新生成",
-          errorMessage: "重新生成失败",
+          title: t("outline.regenerateLastPartTitle"),
+          startMessage: t("outline.regenerateLastPartStart"),
+          successMessage: t("outline.regeneratedLastPart"),
+          errorMessage: t("outline.regenerateFailed"),
           total: 3,
         },
         {
@@ -1009,16 +1023,16 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         },
         async (control) => {
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
-          control.setProgress("正在刷新…", 2);
+          control.setProgress(t("outline.refreshing"), 2);
           await load({ showLoading: false });
           if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      addOutlineMutationToast("最后一部已重新生成", warnings);
+      addOutlineMutationToast(t("outline.regeneratedLastPart"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        const message = extractErrorMessage(err, "重新生成失败");
+        const message = extractErrorMessage(err, t("outline.regenerateFailed"));
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
     } finally {
@@ -1030,7 +1044,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const handlePreviewRegenLastPart = async () => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
-      addToast("只读协作者不能预览大纲生成请求", "error");
+      addToast(t("outline.readOnlyPreview"), "error");
       return;
     }
     const previewSeq = beginPreview(requestProjectId);
@@ -1047,7 +1061,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
       setRequestPreviewData(preview);
     } catch (err) {
       if (isPreviewCurrent(requestProjectId, previewSeq)) {
-        addToast(extractErrorMessage(err, "预览最后一部重生成提示词失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.previewLastPartFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -1069,7 +1083,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   if (loading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> 加载大纲…
+        <LoadingSpinner size="sm" /> {t("outline.loading")}
       </div>
     );
   }
@@ -1091,7 +1105,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         onCreatePart={() => openManualPart(null)}
         onOpenAdvanced={() => {
           if (!canEditOutlines) {
-            addToast("只读协作者不能使用大纲高级工具", "error");
+            addToast(t("outline.readOnlyTools"), "error");
             return;
           }
           setAdvancedOpen(true);
@@ -1120,7 +1134,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         onSave={(outline) => void handleSaveOutline(outline)}
         onOpenAction={(outline) => {
           if (!canEditOutlines) {
-            addToast("只读协作者不能修改章节大纲", "error");
+            addToast(t("outline.readOnlyEdit"), "error");
             return;
           }
           setOutlineAction(outline);
@@ -1200,7 +1214,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="大纲请求预览"
+        fallbackTitle={t("outline.requestPreviewTitle")}
         onClose={closeRequestPreview}
       />
     </div>

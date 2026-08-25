@@ -23,6 +23,7 @@ import {
   type MetadataField,
 } from "./imageMetadata";
 import { imageTypeLabel } from "./imageTabUtils";
+import { useI18n } from "../../../i18n";
 
 type ImageDialogTab = "overview" | "metadata" | "manage";
 
@@ -42,11 +43,11 @@ interface ImageActionDialogProps {
 
 const IMAGE_DIALOG_TABS: Array<{
   id: ImageDialogTab;
-  label: string;
+  labelKey: "novel.imageLibrary.overviewTab" | "novel.imageLibrary.metadataTab" | "novel.imageLibrary.manageTab";
 }> = [
-  { id: "overview", label: "概览" },
-  { id: "metadata", label: "来源" },
-  { id: "manage", label: "管理" },
+  { id: "overview", labelKey: "novel.imageLibrary.overviewTab" },
+  { id: "metadata", labelKey: "novel.imageLibrary.metadataTab" },
+  { id: "manage", labelKey: "novel.imageLibrary.manageTab" },
 ];
 
 export function ImageActionDialog({
@@ -63,6 +64,7 @@ export function ImageActionDialog({
   onDelete,
 }: ImageActionDialogProps) {
   const addToast = useToast((state) => state.addToast);
+  const { locale, t } = useI18n();
   const [tab, setTab] = useState<ImageDialogTab>("overview");
   const [copied, setCopied] = useState(false);
   const [editPrompt, setEditPrompt] = useState("");
@@ -99,19 +101,23 @@ export function ImageActionDialog({
 
   const busy = busyId != null || scoringId != null || savingEdit;
   const src = toMediaSrc(image.file_path);
-  const generationFields = imageGenerationMetadataFields(image);
-  const sourceFields = imageSourceMetadataFields(image);
-  const businessFields = imageBusinessMetadataFields(image);
-  const snapshotFields = imagePromptSnapshotFields(image);
+  const generationFields = imageGenerationMetadataFields(image, t, locale);
+  const sourceFields = imageSourceMetadataFields(image, t, locale);
+  const businessFields = imageBusinessMetadataFields(image, t, locale);
+  const snapshotFields = imagePromptSnapshotFields(image, t, locale);
   const detailSections = [
-    { title: "生成信息", fields: generationFields },
-    { title: "业务来源", fields: businessFields },
-    { title: "正文来源", fields: sourceFields },
-    { title: "提示词快照", fields: snapshotFields },
+    { title: t("novel.imageLibrary.generationInfo"), fields: generationFields },
+    { title: t("novel.imageLibrary.businessSource"), fields: businessFields },
+    { title: t("novel.imageLibrary.contentSource"), fields: sourceFields },
+    { title: t("novel.imageLibrary.promptSnapshot"), fields: snapshotFields },
   ].filter((section) => section.fields.length > 0);
   const systemManagedImageType = image.is_system_managed;
-  const overviewFields = imageBaseMetadataFields(image).filter(
-    (field) => !["图片类型", "模型", "尺寸"].includes(field.label),
+  const overviewFields = imageBaseMetadataFields(image, t, locale).filter(
+    (field) => ![
+      t("novel.imageLibrary.imageType"),
+      t("novel.imageLibrary.model"),
+      t("novel.imageLibrary.size"),
+    ].includes(field.label),
   );
   const editDirty =
     editPrompt.trim() !== image.prompt.trim() ||
@@ -131,7 +137,7 @@ export function ImageActionDialog({
       window.setTimeout(() => setCopied(false), 1200);
     } catch (err) {
       setCopied(false);
-      addToast(extractErrorMessage(err, "复制图片数据失败"), "error");
+      addToast(extractErrorMessage(err, t("errors.requestFailed")), "error");
     }
   };
 
@@ -163,8 +169,8 @@ export function ImageActionDialog({
     <Modal
       isOpen
       onClose={onClose}
-      title={imageTypeLabel(image.image_type)}
-      subtitle={`${image.width} × ${image.height}${image.is_favorite ? " · 已收藏" : ""}`}
+      title={imageTypeLabel(image.image_type, t)}
+      subtitle={`${image.width} × ${image.height}${image.is_favorite ? ` · ${t("novel.imageLibrary.favorite")}` : ""}`}
       icon={<ImageIcon size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
@@ -173,10 +179,10 @@ export function ImageActionDialog({
       showCloseButton={!busy}
     >
       <SegmentedControl
-        ariaLabel="图片详情栏目"
+        ariaLabel={t("novel.imageLibrary.detailsTabs")}
         value={activeTab}
         onChange={setTab}
-        options={visibleTabs}
+        options={visibleTabs.map((item) => ({ id: item.id, label: t(item.labelKey) }))}
         className="mb-4 w-full [&_.a4n-seg__btn]:flex-1 sm:w-auto sm:[&_.a4n-seg__btn]:flex-none"
       />
 
@@ -187,17 +193,17 @@ export function ImageActionDialog({
               {src ? (
                 <img
                   src={src}
-                  alt={`${imageTypeLabel(image.image_type)}预览`}
+                  alt={t("novel.imageLibrary.alt", { type: imageTypeLabel(image.image_type, t) })}
                   className="h-full w-full object-contain"
                 />
               ) : (
-                "无图"
+                t("novel.imageLibrary.noImage")
               )}
             </div>
           </div>
           <div className="min-w-0 space-y-4">
-            <MetadataSection title="基础信息" fields={overviewFields} />
-            <MetadataTextBlock title="生成提示词" text={image.prompt} />
+            <MetadataSection title={t("novel.imageLibrary.overviewTab")} fields={overviewFields} empty={t("novel.imageLibrary.noRecord")} />
+            <MetadataTextBlock title={t("novel.imageLibrary.promptTitle")} text={image.prompt} />
           </div>
         </div>
       ) : activeTab === "metadata" ? (
@@ -214,12 +220,12 @@ export function ImageActionDialog({
               ))}
             </div>
           ) : (
-            <div className="py-8 text-center text-xs text-book-text-muted">没有可展示的图片详情。</div>
+            <div className="py-8 text-center text-xs text-book-text-muted">{t("novel.imageLibrary.noDetails")}</div>
           )}
           <details className="a4n-flat-surface overflow-hidden">
             <summary className="flex cursor-pointer items-center justify-between gap-3 px-3 py-2.5 text-xs font-medium text-book-text-sub">
-              <span>诊断信息</span>
-              <span className="text-caption font-normal text-book-text-muted">原始生成记录</span>
+              <span>{t("novel.imageLibrary.diagnostics")}</span>
+              <span className="text-caption font-normal text-book-text-muted">{t("novel.imageLibrary.rawRecord")}</span>
             </summary>
             <div className="border-t border-book-border/40">
               <div className="flex justify-end px-3 pt-2">
@@ -229,7 +235,7 @@ export function ImageActionDialog({
                   className="pyqt-btn-secondary inline-flex !min-h-7 items-center gap-1 !px-3 text-small"
                 >
                   <Clipboard size={11} />
-                  {copied ? "已复制" : "复制 JSON"}
+                  {copied ? t("novel.imageLibrary.copied") : t("novel.imageLibrary.copyJson")}
                 </button>
               </div>
           <pre className="whitespace-pre-wrap break-words p-3 font-mono text-caption leading-relaxed text-book-text-sub">
@@ -256,9 +262,9 @@ export function ImageActionDialog({
                   className="mt-0.5 shrink-0 text-book-primary"
                 />
                 <span className="min-w-0">
-                  <span className="block text-xs font-medium text-book-text-main">加入收藏</span>
+                  <span className="block text-xs font-medium text-book-text-main">{t("novel.imageLibrary.addFavorite")}</span>
                   <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
-                    在图库中通过收藏筛选快速找到这张图片
+                    {t("novel.imageLibrary.favoriteHint")}
                   </span>
                 </span>
               </span>
@@ -278,9 +284,9 @@ export function ImageActionDialog({
 
             <section className="a4n-flat-surface space-y-3 p-3">
               <div>
-                <h3 className="text-xs font-semibold text-book-text-main">生成提示词</h3>
+                <h3 className="text-xs font-semibold text-book-text-main">{t("novel.imageLibrary.promptTitle")}</h3>
                 <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-                  修改这张图片保存的提示词记录
+                  {t("novel.imageLibrary.promptHint")}
                 </p>
               </div>
               <label className="grid gap-1 text-small text-book-text-muted">
@@ -295,11 +301,11 @@ export function ImageActionDialog({
               {!systemManagedImageType ? (
                 <details className="rounded-[12px] border border-book-border/45 bg-book-bg-paper/30">
                   <summary className="cursor-pointer px-3 py-2.5 text-small font-medium text-book-text-sub">
-                    高级记录字段
+                    {t("novel.imageLibrary.advancedFields")}
                   </summary>
                   <div className="grid gap-2 border-t border-book-border/40 px-3 py-3">
                     <label className="grid gap-1 text-small text-book-text-muted">
-                      素材分类
+                      {t("novel.imageLibrary.assetCategory")}
                       <input
                         value={editType}
                         onChange={(event) => setEditType(event.target.value)}
@@ -308,12 +314,12 @@ export function ImageActionDialog({
                       />
                     </label>
                     <label className="grid gap-1 text-small text-book-text-muted">
-                      关联分镜标识
+                      {t("novel.imageLibrary.panelId")}
                       <input
                         value={editPanelId}
                         onChange={(event) => setEditPanelId(event.target.value)}
                         className="pyqt-input !px-2 !py-1 text-xs"
-                        placeholder="可留空"
+                        placeholder={t("novel.imageLibrary.optional")}
                         disabled={savingEdit || busy}
                       />
                     </label>
@@ -336,16 +342,16 @@ export function ImageActionDialog({
                   className="w-full !text-xs sm:w-auto"
                 >
                   {savingEdit ? <LoadingSpinner size="sm" /> : <Save size={11} />}
-                  保存修改
+                  {t("novel.imageLibrary.saveChanges")}
                 </BookButton>
               </div>
             </section>
 
             <section className="a4n-flat-surface space-y-3 p-3">
               <div>
-                <h3 className="text-xs font-semibold text-book-text-main">质量评分</h3>
+                <h3 className="text-xs font-semibold text-book-text-main">{t("novel.imageLibrary.qualityScore")}</h3>
                 <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-                  使用 0 到 1 之间的数值记录质量评价
+                  {t("novel.imageLibrary.qualityHint")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -355,10 +361,10 @@ export function ImageActionDialog({
                   max="1"
                   step="0.01"
                   inputMode="decimal"
-                  aria-label="质量评分"
+                  aria-label={t("novel.imageLibrary.scoreAria")}
                   value={scoreInput}
                   onChange={(event) => onScoreInputChange(event.target.value)}
-                  placeholder="例如：0.8"
+                  placeholder={t("novel.imageLibrary.scorePlaceholder")}
                   className="pyqt-input min-w-0 flex-1 !px-3 !py-1 text-xs sm:max-w-40"
                 />
                 <BookButton
@@ -371,7 +377,7 @@ export function ImageActionDialog({
                   {scoringId === image.id ? (
                     <LoadingSpinner size="sm" />
                   ) : (
-                    "保存评分"
+                    t("novel.imageLibrary.saveScore")
                   )}
                 </BookButton>
               </div>
@@ -380,11 +386,11 @@ export function ImageActionDialog({
 
           <details className="a4n-flat-surface overflow-hidden">
             <summary className="cursor-pointer px-3 py-2.5 text-small font-medium text-book-text-sub">
-              危险操作
+              {t("novel.imageLibrary.dangerZone")}
             </summary>
             <div className="flex flex-col gap-3 border-t border-book-border/40 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-small leading-relaxed text-book-text-muted">
-                删除后会解除关联并移除这条图片记录。
+                {t("novel.imageLibrary.deleteHint")}
               </p>
               <BookButton
                 variant="danger"
@@ -393,7 +399,7 @@ export function ImageActionDialog({
                 onClick={() => onDelete(image)}
                 className="w-full shrink-0 !text-xs sm:w-auto"
               >
-                <Trash2 size={12} /> 删除图片
+                <Trash2 size={12} /> {t("novel.imageLibrary.deleteTitle")}
               </BookButton>
             </div>
           </details>
@@ -406,7 +412,7 @@ export function ImageActionDialog({
 function MetadataSection({
   title,
   fields,
-  empty = "没有记录。",
+  empty = "—",
   embedded = false,
 }: {
   title: string;

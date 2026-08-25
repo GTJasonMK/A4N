@@ -56,7 +56,7 @@ where
         rewind_ai_deletion_marks_after(&tx, input.profile_id, input.start_chapter - 1).await?;
 
     let baseline_fields = profile_current_state_fields(input.baseline_state.clone());
-    update_profile_current_state(
+    let baseline_profile = update_profile_current_state(
         &tx,
         profile,
         CharacterProfileCurrentStateUpdate {
@@ -75,6 +75,7 @@ where
     let write_summary = write_steps::apply_character_sync_write_steps_in(
         &tx,
         input.profile_id,
+        baseline_profile,
         write_steps,
         &ownership,
     )

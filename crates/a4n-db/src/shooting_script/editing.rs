@@ -1,7 +1,8 @@
 use a4n_core::models::project::novel_project;
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait};
 
 use super::{
+    codec::stored_visual_plan_identity,
     contracts::{
         EditChapterShootingScriptOutcome, EditStoredChapterShootingScriptInput,
         ShootingScriptDbError, UpdateChapterShootingScriptInput,
@@ -22,12 +23,19 @@ pub async fn edit_chapter_shooting_script_and_invalidate(
             expected_revision: input.expected_revision,
         });
     }
+    let visual_plan = stored_visual_plan_identity(&current.record)?.ok_or_else(|| {
+        ShootingScriptDbError::InvalidState(
+            "历史拍摄剧本未绑定视觉方案，不能继续编辑；请重新生成绑定当前视觉方案的拍摄剧本"
+                .to_string(),
+        )
+    })?;
     let shooting_script = update_chapter_shooting_script(
         &tx,
         UpdateChapterShootingScriptInput {
             record_id: input.record_id,
             expected_revision: input.expected_revision,
             input_fingerprint_sha256: current.record.input_fingerprint_sha256.clone(),
+            visual_plan,
             script: input.script,
             workflow_run_id: None,
         },
@@ -41,24 +49,26 @@ pub async fn edit_chapter_shooting_script_and_invalidate(
         });
     }
     let invalidated_project_ids = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
         .filter(novel_project::Column::RootProjectId.eq(current.record.root_project_id))
         .filter(novel_project::Column::ProjectKind.is_in(["comic", "video", "galgame"]))
+        .into_tuple::<i64>()
         .all(&tx)
-        .await?
-        .into_iter()
-        .map(|project| project.id)
-        .collect::<Vec<_>>();
-    for project_id in &invalidated_project_ids {
-        crate::cleanup_outbox::insert_media_workflow_v2_reset_intent(
-            &tx,
-            format!(
-                "shooting-script-edit:{}:revision:{}:project:{}",
-                shooting_script.record.id, shooting_script.record.revision, project_id
-            ),
-            crate::cleanup_outbox::MediaWorkflowV2ResetPayload::new(*project_id),
-        )
         .await?;
-    }
+    crate::cleanup_outbox::insert_media_workflow_v2_reset_intents(
+        &tx,
+        invalidated_project_ids.iter().map(|project_id| {
+            (
+                format!(
+                    "shooting-script-edit:{}:revision:{}:project:{}",
+                    shooting_script.record.id, shooting_script.record.revision, project_id
+                ),
+                crate::cleanup_outbox::MediaWorkflowV2ResetPayload::new(*project_id),
+            )
+        }),
+    )
+    .await?;
     tx.commit().await?;
     Ok(EditChapterShootingScriptOutcome {
         shooting_script,

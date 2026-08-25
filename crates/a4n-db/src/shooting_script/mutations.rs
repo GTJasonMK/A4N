@@ -8,7 +8,7 @@ use sea_orm::{
 };
 
 use super::{
-    codec::{parse_record, serialize_script},
+    codec::{parse_record, serialize_script, validate_script_visual_plan_identity},
     contracts::{
         InsertChapterShootingScriptInput, ParsedChapterShootingScript, ShootingScriptDbError,
         UpdateChapterShootingScriptInput,
@@ -26,7 +26,9 @@ where
 {
     validate_source(&input.source)?;
     validate_sha256(&input.input_fingerprint_sha256, "input_fingerprint_sha256")?;
+    validate_visual_plan_identity(&input.visual_plan)?;
     validate_workflow_run_id(input.workflow_run_id)?;
+    validate_script_visual_plan_identity(&input.script, &input.visual_plan)?;
     let (script_json, script_sha256) = serialize_script(&input.script)?;
     let now = Utc::now().naive_utc();
     let record = chapter_shooting_script::ActiveModel {
@@ -37,6 +39,9 @@ where
         source_snapshot_chapter_id: Set(input.source.source_snapshot_chapter_id),
         source_revision_key: Set(input.source.source_revision_key),
         source_content_sha256: Set(input.source.content_sha256),
+        visual_plan_id: Set(Some(input.visual_plan.id)),
+        visual_plan_version: Set(Some(input.visual_plan.version)),
+        visual_plan_sha256: Set(Some(input.visual_plan.sha256)),
         input_fingerprint_sha256: Set(input.input_fingerprint_sha256),
         contract_version: Set(CHAPTER_SHOOTING_SCRIPT_V1.to_string()),
         revision: Set(1),
@@ -65,7 +70,9 @@ where
         ));
     }
     validate_sha256(&input.input_fingerprint_sha256, "input_fingerprint_sha256")?;
+    validate_visual_plan_identity(&input.visual_plan)?;
     validate_workflow_run_id(input.workflow_run_id)?;
+    validate_script_visual_plan_identity(&input.script, &input.visual_plan)?;
     let (script_json, script_sha256) = serialize_script(&input.script)?;
     let current = chapter_shooting_script::Entity::find()
         .filter(chapter_shooting_script::Column::Id.eq(input.record_id))
@@ -78,6 +85,9 @@ where
         })?;
     if current.script_sha256 == script_sha256
         && current.input_fingerprint_sha256 == input.input_fingerprint_sha256
+        && current.visual_plan_id == Some(input.visual_plan.id)
+        && current.visual_plan_version == Some(input.visual_plan.version)
+        && current.visual_plan_sha256 == Some(input.visual_plan.sha256.clone())
     {
         return parse_record(current);
     }
@@ -89,6 +99,18 @@ where
         .col_expr(
             chapter_shooting_script::Column::InputFingerprintSha256,
             Expr::value(input.input_fingerprint_sha256),
+        )
+        .col_expr(
+            chapter_shooting_script::Column::VisualPlanId,
+            Expr::value(Some(input.visual_plan.id)),
+        )
+        .col_expr(
+            chapter_shooting_script::Column::VisualPlanVersion,
+            Expr::value(Some(input.visual_plan.version)),
+        )
+        .col_expr(
+            chapter_shooting_script::Column::VisualPlanSha256,
+            Expr::value(Some(input.visual_plan.sha256)),
         )
         .col_expr(
             chapter_shooting_script::Column::Revision,
@@ -121,4 +143,15 @@ where
         });
     }
     chapter_shooting_script_by_id(db, input.record_id).await
+}
+
+fn validate_visual_plan_identity(
+    identity: &super::contracts::ChapterVisualPlanIdentity,
+) -> Result<(), ShootingScriptDbError> {
+    if identity.id <= 0 || identity.version <= 0 {
+        return Err(ShootingScriptDbError::InvalidArgument(
+            "visual plan id 和 version 必须大于 0".into(),
+        ));
+    }
+    validate_sha256(&identity.sha256, "visual_plan_sha256")
 }

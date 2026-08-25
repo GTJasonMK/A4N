@@ -1,6 +1,7 @@
 use a4n_core::error::AppError;
 use a4n_core::models::user::{invite_code, user, user_session};
 use a4n_db::DbHandle;
+use a4n_domain::auth::UserSummary;
 
 use super::OrchestratorContext;
 use crate::auth::{BootstrapAdminInput, required_session_id, required_session_user_id};
@@ -21,6 +22,10 @@ impl AuthApplication {
 
     async fn current_user(&self, user_id: i64) -> Result<user::Model, AppError> {
         a4n_db::auth::current_user(self.database.connection(), user_id).await
+    }
+
+    async fn current_user_summary(&self, user_id: i64) -> Result<UserSummary, AppError> {
+        a4n_db::auth::current_user_summary(self.database.connection(), user_id).await
     }
 
     async fn require_existing_user_or_bootstrap_admin(
@@ -75,8 +80,16 @@ impl AuthApplication {
         user_id: i64,
         email: Option<&str>,
         avatar_url: Option<Option<&str>>,
+        page_cli_enabled: Option<bool>,
     ) -> Result<user::Model, AppError> {
-        a4n_db::auth::update_profile(self.database.connection(), user_id, email, avatar_url).await
+        a4n_db::auth::update_profile(
+            self.database.connection(),
+            user_id,
+            email,
+            avatar_url,
+            page_cli_enabled,
+        )
+        .await
     }
 
     async fn change_user_password(
@@ -165,7 +178,7 @@ impl AuthApplication {
         a4n_db::auth::create_invite_code(self.database.connection(), code, created_by_user_id).await
     }
 
-    async fn list_auth_users(&self) -> Result<Vec<user::Model>, AppError> {
+    async fn list_auth_users(&self) -> Result<Vec<UserSummary>, AppError> {
         a4n_db::auth::list_users(self.database.connection()).await
     }
 
@@ -208,6 +221,10 @@ impl OrchestratorContext {
 
     pub async fn current_user(&self, user_id: i64) -> Result<user::Model, AppError> {
         self.auth.current_user(user_id).await
+    }
+
+    pub async fn current_user_summary(&self, user_id: i64) -> Result<UserSummary, AppError> {
+        self.auth.current_user_summary(user_id).await
     }
 
     pub async fn require_existing_user_or_bootstrap_admin(
@@ -263,9 +280,10 @@ impl OrchestratorContext {
         user_id: i64,
         email: Option<&str>,
         avatar_url: Option<Option<&str>>,
+        page_cli_enabled: Option<bool>,
     ) -> Result<user::Model, AppError> {
         self.auth
-            .update_user_profile(user_id, email, avatar_url)
+            .update_user_profile(user_id, email, avatar_url, page_cli_enabled)
             .await
     }
 
@@ -332,7 +350,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn list_auth_users(&self) -> Result<Vec<user::Model>, AppError> {
+    pub async fn list_auth_users(&self) -> Result<Vec<UserSummary>, AppError> {
         self.auth.list_auth_users().await
     }
 

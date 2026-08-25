@@ -1,10 +1,12 @@
-use super::context::{video_chapter_record, video_project_record};
+use super::context::{VideoProjectIdentity, video_chapter_project_id_record, video_project_record};
 use super::rules::validate_positive_image_i64;
 use crate::video::VideoDbError;
-use a4n_core::models::{ai::generated_image, chapter::chapter, project::novel_project};
+use a4n_core::models::{ai::generated_image, project::novel_project};
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
-use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
-use std::collections::BTreeMap;
+use sea_orm::{
+    ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
+use std::collections::HashMap;
 
 pub async fn ensure_image_chapter_belongs_to_project_record<C>(
     db: &C,
@@ -15,8 +17,8 @@ where
     C: ConnectionTrait,
 {
     let project = video_project_record(db, project_id).await?;
-    let chapter = video_chapter_record(db, chapter_id).await?;
-    ensure_image_chapter_project_match(&project, &chapter, project_id, chapter_id)
+    let chapter_project_id = video_chapter_project_id_record(db, chapter_id).await?;
+    ensure_image_chapter_project_match(&project, chapter_project_id, project_id, chapter_id)
 }
 
 async fn ensure_image_chapter_belongs_to_projects_record<C>(
@@ -36,25 +38,31 @@ where
     normalized_project_ids.dedup();
 
     let projects = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
         .filter(novel_project::Column::Id.is_in(normalized_project_ids.iter().copied()))
+        .into_model::<VideoProjectIdentity>()
         .all(db)
         .await?;
     let projects_by_id = projects
         .into_iter()
         .map(|project| (project.id, project))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     for project_id in &normalized_project_ids {
         if !projects_by_id.contains_key(project_id) {
             return Err(VideoDbError::NotFound(format!("项目不存在: {project_id}")));
         }
     }
 
-    let chapter = video_chapter_record(db, chapter_id).await?;
+    let chapter_project_id = video_chapter_project_id_record(db, chapter_id).await?;
     for project_id in normalized_project_ids {
         let project = projects_by_id
             .get(&project_id)
             .expect("missing projects checked above");
-        ensure_image_chapter_project_match(project, &chapter, project_id, chapter_id)?;
+        ensure_image_chapter_project_match(project, chapter_project_id, project_id, chapter_id)?;
     }
     Ok(())
 }
@@ -89,17 +97,17 @@ where
 }
 
 fn ensure_image_chapter_project_match(
-    project: &novel_project::Model,
-    chapter: &chapter::Model,
+    project: &VideoProjectIdentity,
+    chapter_project_id: i64,
     project_id: i64,
     chapter_id: i64,
 ) -> Result<(), VideoDbError> {
     match project.project_kind.as_str() {
-        "text" if chapter.project_id == project.id => Ok(()),
+        "text" if chapter_project_id == project.id => Ok(()),
         "text" => Err(VideoDbError::InvalidArgument(format!(
             "章节 #{chapter_id} 不属于文本项目 {project_id}"
         ))),
-        "comic" | "video" | "galgame" if project.root_project_id == Some(chapter.project_id) => {
+        "comic" | "video" | "galgame" if project.root_project_id == Some(chapter_project_id) => {
             Ok(())
         }
         "comic" | "video" | "galgame" => Err(VideoDbError::InvalidArgument(format!(

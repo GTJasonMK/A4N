@@ -11,6 +11,7 @@ import type {
   ProgressEvent,
   UsageEvent,
 } from "../api/generated/generationContracts";
+import type { MessageTranslator } from "../i18n";
 import { utf8ByteLength } from "./text";
 
 const EVENT_SCHEMA_VERSION = 1;
@@ -75,10 +76,11 @@ export function generationTaskRecoveryIssue(
 
 export function generationTaskRecoveryIssueMessage(
   issue: GenerationTaskRecoveryIssue,
+  t: MessageTranslator,
 ): string {
-  if (issue === "expired") return "生成任务恢复快照已过期";
-  if (issue === "corrupt") return "生成任务恢复快照已损坏";
-  return "生成结果一致性校验失败";
+  if (issue === "expired") return t("feedback.generationRecovery.snapshotExpired");
+  if (issue === "corrupt") return t("feedback.generationRecovery.snapshotCorrupt");
+  return t("feedback.generationRecovery.consistencyFailed");
 }
 
 /** 正式结果恢复的产品域；四个文本 generation 共用同一裁决。 */
@@ -91,6 +93,7 @@ type FormalResultRecoveryDomain =
 type FormalResultRecoveryKind = "ok" | "readonly" | "unrecoverable";
 
 interface FormalResultRecoveryInput {
+  t: MessageTranslator;
   recoveryIssue: GenerationTaskRecoveryIssue | null;
   /** 正式对象存在且 revision/id 与 result_ref 一致 */
   consistent: boolean;
@@ -118,8 +121,8 @@ export function resolveFormalResultRecovery(
   input: FormalResultRecoveryInput,
 ): FormalResultRecoveryOutcome {
   const issueMessage = input.recoveryIssue
-    ? generationTaskRecoveryIssueMessage(input.recoveryIssue)
-    : "生成结果一致性校验失败";
+    ? generationTaskRecoveryIssueMessage(input.recoveryIssue, input.t)
+    : input.t("feedback.generationRecovery.consistencyFailed");
   if (!input.recoveryIssue && input.consistent) {
     return {
       kind: "ok",
@@ -131,7 +134,7 @@ export function resolveFormalResultRecovery(
   }
   const shouldMarkConsistencyError = input.recoveryIssue == null;
   if (input.hasPersisted) {
-    const { message, warning } = formalResultReadonlyCopy(input.domain, issueMessage);
+    const { message, warning } = formalResultReadonlyCopy(input.domain, issueMessage, input.t);
     return {
       kind: "readonly",
       issueMessage,
@@ -148,6 +151,7 @@ export function resolveFormalResultRecovery(
       input.domain,
       issueMessage,
       input.hasResultRef,
+      input.t,
     ),
     warning: null,
   };
@@ -156,27 +160,28 @@ export function resolveFormalResultRecovery(
 function formalResultReadonlyCopy(
   domain: FormalResultRecoveryDomain,
   issueMessage: string,
+  t: MessageTranslator,
 ): { message: string; warning: string } {
   switch (domain) {
     case "chapter":
       return {
-        message: `${issueMessage}，已只读加载正式章节供核对`,
-        warning: `${issueMessage}，已只读加载正式章节供核对`,
+        message: t("feedback.generationRecovery.readonlyChapter", { issue: issueMessage }),
+        warning: t("feedback.generationRecovery.readonlyChapter", { issue: issueMessage }),
       };
     case "blueprint":
       return {
-        message: `${issueMessage}，已只读加载正式蓝图供核对`,
-        warning: `${issueMessage}，当前展示正式蓝图，只供核对`,
+        message: t("feedback.generationRecovery.readonlyBlueprint", { issue: issueMessage }),
+        warning: t("feedback.generationRecovery.readonlyBlueprintWarning", { issue: issueMessage }),
       };
     case "optimize_turn":
       return {
-        message: `${issueMessage}，已只读加载正式 Turn 供核对`,
-        warning: `${issueMessage}，已只读加载正式 Turn 供核对`,
+        message: t("feedback.generationRecovery.readonlyOptimizeTurn", { issue: issueMessage }),
+        warning: t("feedback.generationRecovery.readonlyOptimizeTurn", { issue: issueMessage }),
       };
     case "inspiration_message":
       return {
-        message: `${issueMessage}，以下内容来自正式消息，只供核对`,
-        warning: `${issueMessage}，以下内容来自正式消息，只供核对`,
+        message: t("feedback.generationRecovery.readonlyInspirationMessage", { issue: issueMessage }),
+        warning: t("feedback.generationRecovery.readonlyInspirationMessage", { issue: issueMessage }),
       };
   }
 }
@@ -185,22 +190,23 @@ function formalResultUnrecoverableCopy(
   domain: FormalResultRecoveryDomain,
   issueMessage: string,
   hasResultRef: boolean,
+  t: MessageTranslator,
 ): string {
   if (!hasResultRef) {
     if (domain === "chapter") {
-      return `${issueMessage}，且没有正式结果引用，无法恢复；已恢复编辑器快照`;
+      return t("feedback.generationRecovery.noResultRefChapter", { issue: issueMessage });
     }
-    return `${issueMessage}，且没有正式结果引用，无法恢复`;
+    return t("feedback.generationRecovery.noResultRef", { issue: issueMessage });
   }
   switch (domain) {
     case "chapter":
-      return `${issueMessage}，正式章节不可用，已恢复编辑器快照`;
+      return t("feedback.generationRecovery.unavailableChapter", { issue: issueMessage });
     case "blueprint":
-      return `${issueMessage}，正式蓝图不可用`;
+      return t("feedback.generationRecovery.unavailableBlueprint", { issue: issueMessage });
     case "optimize_turn":
-      return `${issueMessage}，正式 Turn 不可用`;
+      return t("feedback.generationRecovery.unavailableOptimizeTurn", { issue: issueMessage });
     case "inspiration_message":
-      return `${issueMessage}，正式消息不可用，请稍后从历史记录重新加载`;
+      return t("feedback.generationRecovery.unavailableInspirationMessage", { issue: issueMessage });
   }
 }
 
@@ -531,32 +537,42 @@ function queueForRecovery(
 }
 
 function drainPending(state: GenerationTaskViewState): GenerationTaskViewState {
-  let current = { ...state, pendingEvents: state.pendingEvents.slice() };
-  while (current.pendingEvents.length) {
-    const event = current.pendingEvents[0];
+  const pendingEvents = state.pendingEvents;
+  let pendingIndex = 0;
+  let current: GenerationTaskViewState = { ...state, pendingEvents: [] };
+  const withRemaining = (): GenerationTaskViewState => ({
+    ...current,
+    pendingEvents: pendingEvents.slice(pendingIndex),
+  });
+  while (pendingIndex < pendingEvents.length) {
+    const event = pendingEvents[pendingIndex];
     if (event.sequence < current.nextSequence) {
-      current.pendingEvents.shift();
+      pendingIndex += 1;
       current.pendingBytes = Math.max(0, current.pendingBytes - eventBytes(event));
       continue;
     }
     if (event.sequence > current.nextSequence) break;
-    current.pendingEvents.shift();
+    pendingIndex += 1;
     current.pendingBytes = Math.max(0, current.pendingBytes - eventBytes(event));
     const expectedSequence = current.nextSequence;
     current = applyContiguousEvent(current, event);
-    if (current.clientState === "protocol_error") return current;
+    if (current.clientState === "protocol_error") return withRemaining();
     if (
       current.recoveryState === "required"
-      && !current.pendingEvents.length
+      && pendingIndex >= pendingEvents.length
       && current.nextSequence === expectedSequence
     ) {
-      return current;
+      return withRemaining();
     }
   }
-  if (!current.pendingEvents.length && current.recoveryState === "required") {
-    return { ...current, clientState: "attached", recoveryState: "idle" };
+  if (pendingIndex >= pendingEvents.length && current.recoveryState === "required") {
+    return {
+      ...withRemaining(),
+      clientState: "attached",
+      recoveryState: "idle",
+    };
   }
-  return current;
+  return withRemaining();
 }
 
 function validStatusTransition(

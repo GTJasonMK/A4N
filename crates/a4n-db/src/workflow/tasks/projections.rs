@@ -1,6 +1,7 @@
 use crate::workflow::{PersistedTaskInfo, WorkflowReadError, is_terminal_workflow_status};
-use a4n_core::models::{generation::workflow_checkpoint, task::task_queue};
+use a4n_core::models::task::task_queue;
 use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskStatus};
+use sea_orm::FromQueryResult;
 use serde_json::Value;
 use std::collections::BTreeSet;
 
@@ -39,8 +40,15 @@ pub(in crate::workflow) fn persisted_task_info_from_row(
     })
 }
 
+#[derive(Debug, FromQueryResult)]
+pub(in crate::workflow) struct WorkflowCheckpointVideoRefs {
+    pub(in crate::workflow) status: String,
+    pub(in crate::workflow) artifact_generated_video_id: Option<Value>,
+    pub(in crate::workflow) input_generated_video_id: Option<Value>,
+}
+
 pub(in crate::workflow) fn generated_video_ids_for_active_checkpoints(
-    checkpoints: &[workflow_checkpoint::Model],
+    checkpoints: &[WorkflowCheckpointVideoRefs],
 ) -> Vec<i64> {
     let mut video_ids = BTreeSet::new();
     for checkpoint in checkpoints {
@@ -48,17 +56,15 @@ pub(in crate::workflow) fn generated_video_ids_for_active_checkpoints(
             continue;
         }
         if let Some(video_id) = checkpoint
-            .artifacts_json
+            .artifact_generated_video_id
             .as_ref()
-            .and_then(|value| value.get("generated_video_id"))
             .and_then(Value::as_i64)
         {
             video_ids.insert(video_id);
         }
         if let Some(video_id) = checkpoint
-            .input_fingerprint_json
+            .input_generated_video_id
             .as_ref()
-            .and_then(|value| value.get("generated_video_id"))
             .and_then(Value::as_i64)
         {
             video_ids.insert(video_id);

@@ -18,8 +18,25 @@
 
 ## Integration test inventory
 
-- Mock HTTP server tests for auth, command routing, error status mapping, media download and SSE reconnect.
-- CLI subprocess tests for `--help`, `capabilities`, `--agent`, non-interactive failure and destructive authorization.
+- Mock HTTP server tests for auth, command routing, all documented HTTP exit classes,
+  media download, raw requests (inline/file/stdin bodies, all unsafe methods and overwrite
+  protection), file input/output and SSE reconnect/chunking/CRLF/multiline/malformed-frame
+  handling.
+- CLI subprocess tests for capabilities, project/chapter/task/workflow/Agent semantic commands,
+  auth stdin flows, config/context persistence, output modes, non-interactive failure,
+  destructive authorization, Agent lease tracking and secret redaction. Coverage also includes
+  workflow event de-duplication, access-token refresh retry, Agent heartbeat failure headers,
+  and empty local status/log/stop plus remote-start gating.
+- Page CLI subprocess tests cover session listing, one-time-code attach from argument/stdin,
+  status/context/command discovery, manifest availability and destructive gates, operation
+  tracking with sensitive-target redaction, navigation, pause/resume/cancel/takeover/detach,
+  credential cleanup, request ordering, header isolation and chunked CRLF SSE parsing.
+- Manifest-wide CLI smoke invokes every current descriptor through the real Server. Default
+  arguments are generated from each descriptor schema; writes and destructive calls therefore
+  require an isolated database and `--execute-writes --allow-destructive`. The report records
+  successful business calls separately from expected prerequisite/permission rejections and
+  fails on missing commands, malformed envelopes, provider failures, or internal errors. The
+  Rust suite still verifies destructive gates before network access.
 - Real `a4n-server` tests against a migrated PostgreSQL test database.
 
 ## End-to-end workflows
@@ -31,6 +48,8 @@
 - Canvas execution, source synchronization, export and collaboration.
 - Provider configuration, task/workflow watching and RAG maintenance.
 - `doctor` and `local` startup with migration, managed sidecars and owned-process cleanup.
+- Page CLI attach, current-page context/command execution, visible operation lifecycle,
+  navigation and user takeover controls.
 
 ## Agent smoke scenario
 
@@ -52,6 +71,10 @@
 ## Release gates
 
 - `timeout 60s cargo test -p a4n-cli -- --test-threads=1`
+- `python3 scripts/tests/test_cli_contract_runner.py`
+- `python3 scripts/tests/test_mock_openai_provider.py`
+- `python3 scripts/tests/run_all_workflows_e2e.py ...` with an isolated full Server and admin
+  account.
 - `cd frontend && npm run check:web-api-parity`
 - `./scripts/build.sh --check`
 - CLI subprocess smoke from outside the repository working directory.
@@ -59,65 +82,35 @@
 
 ## Results
 
-Last focused run: 2026-07-31
+Last focused run: 2026-08-23
 
 ```text
-$ CARGO_PROFILE_DEV_DEBUG=0 CARGO_INCREMENTAL=0 timeout 60s \
-    cargo test -p a4n-cli -- --test-threads=1
+$ cargo test -p a4n-cli --bin a4n -- --test-threads=1
+test result: ok. 57 passed; 0 failed; 0 ignored
 
-running 36 tests
-test client::tests::api_paths_cannot_escape_the_configured_api_root ... ok
-test client::tests::concurrent_clients_reuse_the_single_rotated_token_pair ... ok
-test client::tests::environment_access_tokens_cannot_report_a_fake_logout ... ok
-test client::tests::extracts_both_api_error_contracts ... ok
-test client::tests::failed_config_writes_do_not_mutate_client_state ... ok
-test client::tests::logout_clears_local_tokens_even_when_server_rejects_it ... ok
-test client::tests::redacts_known_secrets_from_api_errors ... ok
-test client::tests::redacts_overlapping_secrets_longest_first ... ok
-test client::tests::refreshes_once_retries_and_persists_tokens ... ok
-test client::tests::reload_rejects_tokens_without_a_server_owner ... ok
-test client::tests::sensitive_field_detection_does_not_hide_token_metrics ... ok
-test client::tests::stale_clients_do_not_restore_cleared_tokens ... ok
-test client::tests::successful_json_responses_are_redacted_with_request_secrets ... ok
-test config::tests::normalizes_server_root_and_existing_api_path ... ok
-test config::tests::rejects_credentials_and_non_http_urls ... ok
-test context::tests::concurrent_context_updates_fail_instead_of_overwriting ... ok
-test context::tests::context_clears_children_and_rejects_other_server ... ok
-test context::tests::failed_persistence_does_not_mutate_in_memory_context ... ok
-test local::tests::blank_process_output_is_not_treated_as_a_live_process ... ok
-test local::tests::bundled_onnxruntime_is_added_to_the_server_loader_path ... ok
-test local::tests::installed_sidecars_support_portable_macos_and_system_layouts ... ok
-test local::tests::local_endpoints_reject_remote_server_and_parse_postgres ... ok
-test local::tests::log_tail_handles_utf8_truncation_and_logs_remain_private ... ok
-test local::tests::owned_local_state_reports_stale_and_mismatched_processes ... ok
-test local::tests::server_health_requires_the_a4n_meta_identity ... ok
-test output::tests::agent_metadata_extracts_stable_references ... ok
-test routing::tests::generation_start_adds_client_request_identity ... ok
-test routing::tests::generic_commands_use_the_command_endpoint ... ok
-test routing::tests::project_list_uses_the_same_query_mapping_as_web ... ok
-test shell::tests::shell_tokenizes_without_shell_expansion_and_hides_secrets ... ok
-test sse::tests::detects_both_sse_delimiters ... ok
-test sse::tests::parses_generation_event_and_ignores_keep_alive ... ok
-test tests::call_context_injects_user_and_admin_caller_ids ... ok
-test tests::file_json_pointers_create_inputs_and_decode_outputs_without_overwrite ... ok
-test tests::inline_json_and_query_values_are_parsed ... ok
-test tests::profile_updates_preserve_missing_and_explicit_null ... ok
+$ cargo test -p a4n-cli --test cli_e2e -- --test-threads=1
+test result: ok. 49 passed; 0 failed; 0 ignored
 
-test result: ok. 36 passed; 0 failed; 0 ignored
+$ cargo test -p a4n-server page_sessions --lib -- --test-threads=1
+test result: ok. 7 passed; 0 failed; 0 ignored
 
-running 5 tests
-test agent_capabilities_and_safety_gates_work_outside_repository ... ok
-test connection_failures_use_the_network_exit_contract ... ok
-test failed_forced_download_preserves_existing_file ... ok
-test health_rejects_a_non_a4n_server ... ok
-test task_and_workflow_terminal_states_use_stable_exit_codes ... ok
+$ cd frontend && npm run test:run
+Test Files  70 passed (70)
+Tests       245 passed (245)
 
-test result: ok. 5 passed; 0 failed; 0 ignored
+$ cd frontend && npm run build
+✓ built successfully
+
+$ python3 scripts/tests/test_cli_contract_runner.py
+Ran 23 tests - OK
+
+$ python3 scripts/tests/test_mock_openai_provider.py
+Ran 14 tests - OK
 ```
 
 本轮额外通过的门禁：
 
-- `a4n-api-contract`: 12 passed.
+- `cargo test -p a4n-api-contract --lib`: 78 passed.
 - Linux 与 `x86_64-pc-windows-msvc` 的 `a4n-cli --all-targets --no-deps` clippy 均以
   `-D warnings` 通过；`cargo machete crates/a4n-cli` 未发现未使用依赖。
 - `a4n-server --no-default-features` check 通过。
@@ -137,6 +130,14 @@ test result: ok. 5 passed; 0 failed; 0 ignored
   header，不出现在请求 URL 或 Server 日志中。
 - 完整用户流程和最终媒体/包验证记录在
   [`CLI用户操作流程测试报告.md`](../../CLI用户操作流程测试报告.md)。
+- `run_cli_contract_e2e.py --ledger cli_contract_core_workflow.json` 通过：13 个核心场景、
+  12 个不同 descriptor，真实完成项目创建、LLM 任务、embedding、图片/视频 provider、
+  task/workflow watch 和 Markdown 导出。
+- `run_all_workflows_e2e.py` 通过：manifest `385/385` descriptor 已调用，`missing=0`、
+  `real_failure=0`；本次 `business_success=158`、`destructive_success=9`，另有
+  `expected_state_rejection=213` 和 `permission_rejection=5`。后两类保留了当前错误
+  合同和退出码，不计入业务成功。全量授权写入必须使用隔离数据库并同时传入
+  `--execute-writes --allow-destructive`。
 
 Coverage gaps:
 
@@ -148,11 +149,30 @@ Coverage gaps:
 - 本 Linux 主机没有重新生成完整三平台 release archive。
 - 商业 provider 的可用性、额度和网络行为仍属于外部系统检查。
 
-## GUI/CLI parity refinement (2026-08-16)
+## GUI/CLI parity and Agent lifecycle refinement (2026-08-23)
 
-- `cargo test -p a4n-api-contract --lib`: 75 passed.
-- `cargo test -p a4n-cli --bin a4n`: 39 passed.
-- `cargo test -p a4n-cli --test cli_e2e`: 6 passed.
+- `cargo test -p a4n-api-contract --lib`: 78 passed.
+- `cargo test -p a4n-cli --bin a4n`: 57 passed.
+- `cargo test -p a4n-cli --test cli_e2e`: 49 passed.
+- `cargo test -p a4n-server page_sessions --lib`: 7 passed.
+- `cd frontend && npm run test:run`: 70 files / 245 tests passed.
+- `cd frontend && npm run build`: passed.
 - `npm run check:web-api-parity`: passed.
-- Manifest v11 exposes 376 Host API commands and 13 desktop-runtime equivalents;
+- Manifest v12 exposes 385 Host API commands and 13 desktop-runtime equivalents;
   opaque argument/result schemas are both zero.
+
+## Coverage accounting
+
+- The Rust subprocess suite covers the public semantic CLI surface with a deterministic mock
+  Server, and its manifest-wide smoke invokes all 385 current descriptors against a real full
+  Server with an administrator session and virtual Provider. The default run reaches the Server
+  for non-destructive descriptors and checks the CLI gate for destructive descriptors; use the
+  authorized mode only with isolated fixtures. It does not claim that every descriptor has a
+  successful business fixture: the report keeps successful calls and expected state/permission
+  errors separate.
+- `scripts/tests/cli_contract_scenarios.json` remains a reusable virtual-Provider smoke ledger,
+  not the manifest-wide test. Its classification is intentionally partial and should not be used
+  as the all-command invocation count; use `run_all_workflows_e2e.py` for that count and
+  `cli_contract_core_workflow.json` for successful end-to-end business paths.
+- No line/branch coverage threshold is configured yet, so test counts must not be reported as a
+  percentage coverage result.

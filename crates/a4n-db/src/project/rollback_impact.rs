@@ -3,22 +3,40 @@ mod contracts;
 pub use contracts::ProjectRollbackImpactReadError;
 
 use a4n_core::{
-    models::{
-        ai::{generated_image, generated_video},
-        asset::object_profile,
-        chapter::{chapter, chapter_outline, part_outline},
-        project::{
-            blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-        },
-        scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
-        task::task_queue,
-    },
+    models::chapter::{chapter_outline, part_outline},
     state::rollback::CleanupAction,
 };
 use a4n_domain::project::ProjectRollbackImpactSummary;
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
+    QuerySelect, Statement,
 };
+
+const BLUEPRINT_ROLLBACK_COUNTS_SQL: &str = r#"
+SELECT
+    (SELECT COUNT(*)::BIGINT FROM novel_blueprint WHERE project_id = $1) AS current_blueprint_count,
+    (SELECT COUNT(*)::BIGINT FROM blueprint_version WHERE project_id = $1) AS version_count,
+    (SELECT COUNT(*)::BIGINT FROM blueprint_character WHERE project_id = $1) AS character_count,
+    (SELECT COUNT(*)::BIGINT FROM blueprint_relationship WHERE project_id = $1) AS relationship_count
+"#;
+
+const CHAPTER_ROLLBACK_COUNTS_SQL: &str = r#"
+SELECT
+    (SELECT COUNT(*)::BIGINT FROM chapter WHERE project_id = $1) AS chapter_count,
+    (SELECT MIN(chapter_number) FROM chapter WHERE project_id = $1) AS chapter_start,
+    (SELECT MAX(chapter_number) FROM chapter WHERE project_id = $1) AS chapter_end,
+    (SELECT COUNT(*)::BIGINT
+       FROM generated_image
+      WHERE project_id = $1
+        AND chapter_id IN (SELECT id FROM chapter WHERE project_id = $1)) AS media_image_count,
+    (SELECT COUNT(*)::BIGINT FROM generated_video WHERE project_id = $1) AS media_video_count,
+    (SELECT COUNT(*)::BIGINT FROM task_queue WHERE project_id = $1) AS task_count,
+    (SELECT COUNT(*)::BIGINT FROM object_profile WHERE project_id = $1) AS object_profile_count,
+    (SELECT COUNT(*)::BIGINT FROM scene_profile WHERE project_id = $1) AS scene_profile_count,
+    (SELECT COUNT(*)::BIGINT FROM scene_occurrence WHERE project_id = $1) AS scene_occurrence_count,
+    (SELECT COUNT(*)::BIGINT FROM scene_transition WHERE project_id = $1) AS scene_transition_count,
+    (SELECT COUNT(*)::BIGINT FROM scene_entity_state WHERE project_id = $1) AS scene_entity_state_count
+"#;
 
 pub async fn project_rollback_impacts(
     db: &DatabaseConnection,
@@ -48,109 +66,76 @@ async fn chapter_rollback_impact(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<ProjectRollbackImpactSummary, ProjectRollbackImpactReadError> {
-    let chapters = chapter::Entity::find()
-        .select_only()
-        .column(chapter::Column::Id)
-        .column(chapter::Column::ChapterNumber)
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .into_tuple::<(i64, i32)>()
-        .all(db)
+    let Some(row) = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            CHAPTER_ROLLBACK_COUNTS_SQL,
+            [project_id.into()],
+        ))
         .await
-        .map_err(|error| ProjectRollbackImpactReadError::database("读取项目章节失败", error))?;
-    let chapter_ids = chapters.iter().map(|(id, _)| *id).collect::<Vec<_>>();
-    let chapter_numbers = chapters
-        .iter()
-        .map(|(_, chapter_number)| *chapter_number)
-        .collect::<Vec<_>>();
-    let media_image_count = if chapter_ids.is_empty() {
-        0
-    } else {
-        count_i32(
-            generated_image::Entity::find()
-                .filter(generated_image::Column::ProjectId.eq(project_id))
-                .filter(generated_image::Column::ChapterId.is_in(chapter_ids))
-                .count(db)
-                .await
-                .map_err(|error| {
-                    ProjectRollbackImpactReadError::database("统计章节生成图片失败", error)
-                })?,
-            "章节生成图片数量",
-        )?
+        .map_err(|error| ProjectRollbackImpactReadError::database("统计章节回滚影响失败", error))?
+    else {
+        return Err(ProjectRollbackImpactReadError::database(
+            "统计章节回滚影响失败",
+            DbErr::RecordNotFound("章节回滚影响计数查询没有返回结果".to_string()),
+        ));
     };
-    let media_video_count = count_i32(
-        generated_video::Entity::find()
-            .filter(generated_video::Column::ProjectId.eq(project_id))
-            .count(db)
-            .await
-            .map_err(|error| {
-                ProjectRollbackImpactReadError::database("统计项目生成视频失败", error)
-            })?,
+    let chapter_count = count_i32_from_row(&row, "chapter_count", "读取项目章节失败", "章节数量")?;
+    let chapter_start: Option<i32> = row
+        .try_get("", "chapter_start")
+        .map_err(|error| ProjectRollbackImpactReadError::database("读取项目章节失败", error))?;
+    let chapter_end: Option<i32> = row
+        .try_get("", "chapter_end")
+        .map_err(|error| ProjectRollbackImpactReadError::database("读取项目章节失败", error))?;
+    let media_image_count = count_i32_from_row(
+        &row,
+        "media_image_count",
+        "统计章节生成图片失败",
+        "章节生成图片数量",
+    )?;
+    let media_video_count = count_i32_from_row(
+        &row,
+        "media_video_count",
+        "统计项目生成视频失败",
         "项目生成视频数量",
     )?;
-    let task_count = count_i32(
-        task_queue::Entity::find()
-            .filter(task_queue::Column::ProjectId.eq(project_id))
-            .count(db)
-            .await
-            .map_err(|error| ProjectRollbackImpactReadError::database("统计项目任务失败", error))?,
-        "项目任务数量",
-    )?;
-    let object_profile_count = count_i32(
-        object_profile::Entity::find()
-            .filter(object_profile::Column::ProjectId.eq(project_id))
-            .count(db)
-            .await
-            .map_err(|error| {
-                ProjectRollbackImpactReadError::database("统计项目对象档案失败", error)
-            })?,
+    let task_count = count_i32_from_row(&row, "task_count", "统计项目任务失败", "项目任务数量")?;
+    let object_profile_count = count_i32_from_row(
+        &row,
+        "object_profile_count",
+        "统计项目对象档案失败",
         "项目对象档案数量",
     )?;
-    let scene_profile_count = count_i32(
-        scene_profile::Entity::find()
-            .filter(scene_profile::Column::ProjectId.eq(project_id))
-            .count(db)
-            .await
-            .map_err(|error| {
-                ProjectRollbackImpactReadError::database("统计项目场景档案失败", error)
-            })?,
+    let scene_profile_count = count_i32_from_row(
+        &row,
+        "scene_profile_count",
+        "统计项目场景档案失败",
         "项目场景档案数量",
     )?;
-    let scene_occurrence_count = count_i32(
-        scene_occurrence::Entity::find()
-            .filter(scene_occurrence::Column::ProjectId.eq(project_id))
-            .count(db)
-            .await
-            .map_err(|error| {
-                ProjectRollbackImpactReadError::database("统计项目场景出现记录失败", error)
-            })?,
+    let scene_occurrence_count = count_i32_from_row(
+        &row,
+        "scene_occurrence_count",
+        "统计项目场景出现记录失败",
         "项目场景出现记录数量",
     )?;
-    let scene_transition_count = count_i32(
-        scene_transition::Entity::find()
-            .filter(scene_transition::Column::ProjectId.eq(project_id))
-            .count(db)
-            .await
-            .map_err(|error| {
-                ProjectRollbackImpactReadError::database("统计项目场景转场失败", error)
-            })?,
+    let scene_transition_count = count_i32_from_row(
+        &row,
+        "scene_transition_count",
+        "统计项目场景转场失败",
         "项目场景转场数量",
     )?;
-    let scene_entity_state_count = count_i32(
-        scene_entity_state::Entity::find()
-            .filter(scene_entity_state::Column::ProjectId.eq(project_id))
-            .count(db)
-            .await
-            .map_err(|error| {
-                ProjectRollbackImpactReadError::database("统计项目场景实体状态失败", error)
-            })?,
+    let scene_entity_state_count = count_i32_from_row(
+        &row,
+        "scene_entity_state_count",
+        "统计项目场景实体状态失败",
         "项目场景实体状态数量",
     )?;
 
     Ok(ProjectRollbackImpactSummary {
         title: "删除章节正文与派生数据".to_string(),
-        count: len_i32(chapter_numbers.len(), "章节数量")?,
-        chapter_start: chapter_numbers.iter().min().copied(),
-        chapter_end: chapter_numbers.iter().max().copied(),
+        count: chapter_count,
+        chapter_start,
+        chapter_end,
         part_start: None,
         part_end: None,
         note: Some(format!(
@@ -209,45 +194,33 @@ async fn blueprint_rollback_impact(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<ProjectRollbackImpactSummary, ProjectRollbackImpactReadError> {
+    let Some(row) = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            BLUEPRINT_ROLLBACK_COUNTS_SQL,
+            [project_id.into()],
+        ))
+        .await
+        .map_err(|error| ProjectRollbackImpactReadError::database("统计蓝图回滚影响失败", error))?
+    else {
+        return Err(ProjectRollbackImpactReadError::database(
+            "统计蓝图回滚影响失败",
+            DbErr::RecordNotFound("蓝图回滚影响计数查询没有返回结果".to_string()),
+        ));
+    };
     let counts = [
-        count_i32(
-            novel_blueprint::Entity::find()
-                .filter(novel_blueprint::Column::ProjectId.eq(project_id))
-                .count(db)
-                .await
-                .map_err(|error| {
-                    ProjectRollbackImpactReadError::database("统计当前蓝图失败", error)
-                })?,
+        count_i32_from_row(
+            &row,
+            "current_blueprint_count",
+            "统计当前蓝图失败",
             "当前蓝图数量",
         )?,
-        count_i32(
-            blueprint_version::Entity::find()
-                .filter(blueprint_version::Column::ProjectId.eq(project_id))
-                .count(db)
-                .await
-                .map_err(|error| {
-                    ProjectRollbackImpactReadError::database("统计蓝图版本失败", error)
-                })?,
-            "蓝图版本数量",
-        )?,
-        count_i32(
-            blueprint_character::Entity::find()
-                .filter(blueprint_character::Column::ProjectId.eq(project_id))
-                .count(db)
-                .await
-                .map_err(|error| {
-                    ProjectRollbackImpactReadError::database("统计蓝图角色失败", error)
-                })?,
-            "蓝图角色数量",
-        )?,
-        count_i32(
-            blueprint_relationship::Entity::find()
-                .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
-                .count(db)
-                .await
-                .map_err(|error| {
-                    ProjectRollbackImpactReadError::database("统计蓝图角色关系失败", error)
-                })?,
+        count_i32_from_row(&row, "version_count", "统计蓝图版本失败", "蓝图版本数量")?,
+        count_i32_from_row(&row, "character_count", "统计蓝图角色失败", "蓝图角色数量")?,
+        count_i32_from_row(
+            &row,
+            "relationship_count",
+            "统计蓝图角色关系失败",
             "蓝图角色关系数量",
         )?,
     ];
@@ -267,6 +240,20 @@ async fn blueprint_rollback_impact(
         part_end: None,
         note: Some("会重置蓝图、角色和关系版本数据。".to_string()),
     })
+}
+
+fn count_i32_from_row(
+    row: &sea_orm::QueryResult,
+    column: &str,
+    operation: &'static str,
+    label: &str,
+) -> Result<i32, ProjectRollbackImpactReadError> {
+    let count: i64 = row
+        .try_get("", column)
+        .map_err(|error| ProjectRollbackImpactReadError::database(operation, error))?;
+    let count = u64::try_from(count)
+        .map_err(|_| ProjectRollbackImpactReadError::InvalidArgument(format!("{label}为负数")))?;
+    count_i32(count, label)
 }
 
 fn count_i32(count: u64, label: &str) -> Result<i32, ProjectRollbackImpactReadError> {

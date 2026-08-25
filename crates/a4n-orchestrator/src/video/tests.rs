@@ -1,7 +1,6 @@
 use a4n_core::models::ai::{generated_image, generated_video};
 use a4n_core::models::canvas::{canvas_graph, canvas_node};
 use a4n_core::models::chapter::{chapter, chapter_video_prompt};
-use a4n_core::models::character::protagonist_profile;
 use a4n_core::models::generation::{generation_run, generation_run_target, workflow_run};
 use a4n_core::models::project::novel_project;
 use a4n_domain::image::{
@@ -118,29 +117,94 @@ async fn insert_video_chapter(
 ) -> chapter::Model {
     let chapter =
         insert_video_chapter_without_shooting_script(db, project_id, chapter_number).await;
+    insert_confirmed_visual_plan_and_shooting_script(db, project_id, &chapter).await;
+    chapter
+}
+
+async fn insert_confirmed_visual_plan_and_shooting_script(
+    db: &DatabaseConnection,
+    project_id: i64,
+    chapter: &chapter::Model,
+) -> (
+    a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+    a4n_db::shooting_script::ParsedChapterShootingScript,
+) {
     let source = a4n_db::project::resolve_chapter_source(db, project_id, chapter.id)
         .await
         .expect("video test chapter source should resolve");
-    let source_span = a4n_core::source_spans::source_spans_for_content(
+    let source_spans = a4n_core::source_spans::source_spans_for_content(
         chapter.id,
-        chapter_number,
+        chapter.chapter_number,
         &chapter.content,
+    );
+    let plan = crate::chapter_visual_plan::starter_plan(&source, &source_spans)
+        .expect("starter plan should be valid");
+    let draft = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
+        db,
+        a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
+            source: source.clone(),
+            author_user_id: 1,
+            authoring_mode: a4n_domain::chapter_visual_plan::ChapterVisualPlanAuthoringMode::Manual,
+            expected: None,
+            plan,
+        },
     )
-    .into_iter()
-    .next()
-    .expect("video test chapter should have a source span");
-    a4n_db::shooting_script::insert_chapter_shooting_script(
+    .await
+    .expect("video test visual plan should insert");
+    let plan = a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
+        db,
+        a4n_db::chapter_visual_plan::ConfirmChapterVisualPlanInput {
+            record_id: draft.record.id,
+            expected_revision: draft.record.revision,
+        },
+    )
+    .await
+    .expect("video test visual plan should confirm")
+    .visual_plan;
+    let source_span = source_spans
+        .first()
+        .expect("video test chapter should have a source span");
+    let visual_unit = plan.plan.narrative_units.first().expect("visual unit");
+    let visual_shot = visual_unit.shots.first().expect("visual shot");
+    let mut script = test_chapter_shooting_script(&source_span.id);
+    script.visual_plan_source = Some(ShootingVisualPlanSourceV1 {
+        plan_id: plan.record.id,
+        plan_version: plan.record.plan_version,
+        plan_sha256: plan.record.plan_sha256.clone(),
+    });
+    for scene in &mut script.scenes {
+        scene.visual_narrative_unit_id = Some(visual_unit.id.clone());
+        for shot in &mut scene.shots {
+            shot.visual_shot_id = Some(visual_shot.id.clone());
+            shot.planned_start_ms = Some(visual_shot.start_ms);
+            shot.planned_end_ms = Some(visual_shot.end_ms);
+            shot.visual_constraints = Some(ShootingVisualConstraintsV1 {
+                keyframes: visual_shot.keyframes.clone(),
+                entity_events: visual_shot.entity_events.clone(),
+                camera_events: visual_shot.camera_events.clone(),
+                sound_events: visual_shot.sound_events.clone(),
+                technique_events: visual_shot.technique_events.clone(),
+                continuity_notes: visual_shot.continuity_notes.clone(),
+            });
+        }
+    }
+    let script = a4n_db::shooting_script::insert_chapter_shooting_script(
         db,
         a4n_db::shooting_script::InsertChapterShootingScriptInput {
             source,
             input_fingerprint_sha256: "1".repeat(64),
-            script: test_chapter_shooting_script(&source_span.id),
+            visual_plan: a4n_db::shooting_script::ChapterVisualPlanIdentity {
+                id: plan.record.id,
+                version: plan.record.plan_version,
+                sha256: plan.record.plan_sha256.clone(),
+            },
+            script,
             workflow_run_id: None,
         },
     )
     .await
     .expect("video test shooting script should insert");
-    chapter
+    (plan, script)
 }
 
 pub(in crate::video) async fn insert_video_chapter_without_shooting_script(
@@ -215,6 +279,53 @@ async fn insert_video_prompt_with_metadata(
     metadata_json: Option<Value>,
 ) -> chapter_video_prompt::Model {
     let now = fixed_time(3);
+    let metadata_json = metadata_json.unwrap_or_else(|| json!({}));
+    let metadata_json = Some(metadata_json).map(|mut metadata| {
+        if let Some(object) = metadata.as_object_mut() {
+            object
+                .entry("prompt_output_language".to_string())
+                .or_insert_with(|| Value::String("zh_cn".to_string()));
+            let source_content_sha256 = object
+                .get("source")
+                .and_then(Value::as_object)
+                .and_then(|source| source.get("content_sha256"))
+                .cloned()
+                .unwrap_or_else(|| Value::String("same".to_string()));
+            object
+                .entry("video_execution_identity".to_string())
+                .or_insert_with(|| {
+                    json!({
+                        "contract_epoch": 1,
+                        "source_content_sha256": source_content_sha256,
+                        "style_sha256": "style",
+                        "duration_secs": 6,
+                        "aspect_ratio": "16:9",
+                        "segment_plan_prompt_id": 1,
+                        "source_shot_id": "shot-1",
+                        "segment_index_in_shot": 1,
+                        "segment_sha256": "segment-1",
+                        "segment_recipe_fingerprint": "recipe-1"
+                    })
+                });
+        } else {
+            metadata = json!({
+                "prompt_output_language": "zh_cn",
+                "video_execution_identity": {
+                    "contract_epoch": 1,
+                    "source_content_sha256": "same",
+                    "style_sha256": "style",
+                    "duration_secs": 6,
+                    "aspect_ratio": "16:9",
+                    "segment_plan_prompt_id": 1,
+                    "source_shot_id": "shot-1",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": "segment-1",
+                    "segment_recipe_fingerprint": "recipe-1"
+                }
+            });
+        }
+        metadata
+    });
     chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),

@@ -22,11 +22,13 @@ pub(crate) async fn delete_records(
     let payload = request.payload;
     let store = state.store.clone();
     let result = state
-        .persist_mutation(async move {
-            store.delete(&payload.collection, payload.filter).await
-        })
+        .persist_mutation(async move { store.delete(&payload.collection, payload.filter).await })
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn drop_collection(
@@ -40,11 +42,13 @@ pub(crate) async fn drop_collection(
     let collection = request.payload.collection;
     let store = state.store.clone();
     let result = state
-        .persist_mutation(async move {
-            store.drop_collection(&collection).await
-        })
+        .persist_mutation(async move { store.drop_collection(&collection).await })
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn metadata_by_ids(
@@ -60,7 +64,11 @@ pub(crate) async fn metadata_by_ids(
         .store
         .metadata_by_ids(&payload.collection, &payload.ids)
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn metadata_by_filter(
@@ -76,7 +84,11 @@ pub(crate) async fn metadata_by_filter(
         .store
         .metadata_by_filter(&payload.collection, payload.filter)
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn completeness_report_by_ids(
@@ -92,5 +104,9 @@ pub(crate) async fn completeness_report_by_ids(
         .store
         .completeness_report_by_ids(&payload.collection, &payload.expected_ids)
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }

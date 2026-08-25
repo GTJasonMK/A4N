@@ -296,3 +296,44 @@ async fn profile_cascade_preserves_other_portrait_with_shared_path() {
             .is_some()
     );
 }
+
+#[tokio::test]
+async fn profile_batch_cascade_deletes_profiles_in_one_scope() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        1,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "角色档案批量删除测试".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let base_attributes = || {
+        json!({
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {}
+        })
+    };
+    let profile_a = create_profile(&db, project.id, "角色批量 A", base_attributes())
+        .await
+        .unwrap();
+    let profile_b = create_profile(&db, project.id, "角色批量 B", base_attributes())
+        .await
+        .unwrap();
+
+    delete_profiles_cascade_in(&db, project.id, &[profile_a.id, profile_b.id])
+        .await
+        .expect("profiles in one project scope should be deleted together");
+
+    assert_eq!(
+        protagonist_profile::Entity::find()
+            .filter(protagonist_profile::Column::Id.is_in([profile_a.id, profile_b.id]))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
+}

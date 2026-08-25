@@ -5,6 +5,7 @@ import {
   type CanvasGraphDocument,
   type CanvasGraphInput,
 } from "../../api/canvas";
+import type { MessageTranslator } from "../../i18n";
 import { edgeRoleLabel } from "./StudioCanvasNode";
 import {
   configText,
@@ -132,7 +133,7 @@ export function defaultConfigForNode(kind: string): Record<string, unknown> {
   return {};
 }
 
-export function toFlowEdge(edge: CanvasGraphDocument["edges"][number]): StudioEdge {
+export function toFlowEdge(edge: CanvasGraphDocument["edges"][number], t: MessageTranslator): StudioEdge {
   return {
     id: String(edge.id),
     source: String(edge.source_node_id),
@@ -140,7 +141,7 @@ export function toFlowEdge(edge: CanvasGraphDocument["edges"][number]): StudioEd
     sourceHandle: edge.source_port,
     targetHandle: edge.target_port,
     type: "smoothstep",
-    label: edgeRoleLabel(edge.role),
+    label: edgeRoleLabel(edge.role, t),
     className: "a4n-studio-edge",
     labelBgPadding: [6, 3],
     labelBgBorderRadius: 4,
@@ -174,46 +175,51 @@ export function canvasNodePosition(index: number): { x: number; y: number } {
   };
 }
 
-export async function persistCanvasTextAssets(projectId: number, nodes: StudioNode[]): Promise<StudioNode[]> {
-  let nextNodes = nodes;
-  for (const node of nodes) {
-    if (node.data.nodeKind !== "TextInputNode") continue;
-    const content = configText(node.data.config, "content").trim();
-    if (!content) continue;
-    const textKind = configText(node.data.config, "text_kind") || "freeform";
-    const title =
-      configText(node.data.config, "title") ||
-      firstLine(content) ||
-      node.data.label ||
-      "文本";
-    const existingId = node.data.refType === "canvas_text_asset" ? node.data.refId : null;
-    const asset = await saveCanvasTextAsset(projectId, {
-      id: existingId,
-      title,
-      text_kind: textKind,
-      content,
-    });
-    nextNodes = nextNodes.map((item) =>
-      item.id === node.id
-        ? {
-            ...item,
-            data: {
-              ...item.data,
-              label: title,
-              refType: "canvas_text_asset",
-              refId: asset.id,
-              config: {
-                ...item.data.config,
-                title,
-                text_kind: asset.text_kind,
-                content: asset.content,
-              },
-            },
-          }
-        : item,
-    );
-  }
-  return nextNodes;
+export async function persistCanvasTextAssets(projectId: number, nodes: StudioNode[], t: MessageTranslator): Promise<StudioNode[]> {
+  const updates = await Promise.all(
+    nodes.flatMap((node) => {
+      if (node.data.nodeKind !== "TextInputNode") return [];
+      const content = configText(node.data.config, "content").trim();
+      if (!content) return [];
+      const textKind = configText(node.data.config, "text_kind") || "freeform";
+      const title =
+        configText(node.data.config, "title") ||
+        firstLine(content) ||
+        node.data.label ||
+        t("video.canvas.inspector.text");
+      const existingId =
+        node.data.refType === "canvas_text_asset" ? node.data.refId : null;
+      return [
+        saveCanvasTextAsset(projectId, {
+          id: existingId,
+          title,
+          text_kind: textKind,
+          content,
+        }).then((asset) => ({ nodeId: node.id, title, asset })),
+      ];
+    }),
+  );
+  if (updates.length === 0) return nodes;
+  const updatesByNodeId = new Map(updates.map((update) => [update.nodeId, update]));
+  return nodes.map((node) => {
+    const update = updatesByNodeId.get(node.id);
+    if (!update) return node;
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        label: update.title,
+        refType: "canvas_text_asset",
+        refId: update.asset.id,
+        config: {
+          ...node.data.config,
+          title: update.title,
+          text_kind: update.asset.text_kind,
+          content: update.asset.content,
+        },
+      },
+    };
+  });
 }
 
 export function toCanvasGraphInput(

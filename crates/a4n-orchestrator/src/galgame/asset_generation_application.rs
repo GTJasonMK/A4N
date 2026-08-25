@@ -4,7 +4,7 @@ use a4n_core::{
 };
 use async_trait::async_trait;
 use serde_json::{Value, json};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use super::{
     GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE,
@@ -15,7 +15,11 @@ use super::{
     GalgameTargetContext, GalgameTargetEntityKind, RunGalgameAssetGenerationInput,
 };
 use crate::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING};
-use crate::{OrchestratorContext, media::GeneratedImageSummary, portrait::PortraitSummary};
+use crate::{
+    OrchestratorContext,
+    media::{GenerateGalgameImageInput, GeneratedImageSummary},
+    portrait::{GeneratePortraitInput, PortraitSummary},
+};
 
 const GALGAME_PORTRAIT_VARIANT_STYLE: &str =
     "Galgame 视觉小说角色立绘表情差分；必须保持参考图中的角色身份、服装、体型比例和美术风格一致。";
@@ -32,39 +36,16 @@ pub trait GalgameAssetGenerationHostPort: Send + Sync {
     async fn generate_visual_image(
         &self,
         user_id: i64,
-        input: GalgameVisualImageGenerationInput,
+        input: GenerateGalgameImageInput,
     ) -> Result<GeneratedImageSummary, AppError>;
 
     async fn generate_portrait_image(
         &self,
         user_id: i64,
-        input: GalgamePortraitImageGenerationInput,
+        input: GeneratePortraitInput,
     ) -> Result<PortraitSummary, AppError>;
 
     fn validate_data_file(&self, relative_path: &str, label: &str) -> Result<(), AppError>;
-}
-
-#[derive(Debug, Clone)]
-pub struct GalgameVisualImageGenerationInput {
-    pub project_id: i64,
-    pub prompt: String,
-    pub image_type: String,
-    pub config_id: Option<i64>,
-    pub chapter_id: Option<i64>,
-    pub generation_spec_id: i64,
-    pub target_kind: GalgameGenerationTargetKind,
-    pub target_entity_kind: GalgameTargetEntityKind,
-    pub target_entity_id: i64,
-}
-
-#[derive(Debug, Clone)]
-pub struct GalgamePortraitImageGenerationInput {
-    pub project_id: i64,
-    pub character_name: String,
-    pub style: String,
-    pub expression: String,
-    pub pose: String,
-    pub reference_image_ids: Vec<i64>,
 }
 
 impl OrchestratorContext {
@@ -203,16 +184,17 @@ async fn run_visual_spec(
     let image = match host
         .generate_visual_image(
             user_id,
-            GalgameVisualImageGenerationInput {
+            GenerateGalgameImageInput {
                 project_id: input.project_id,
                 prompt: prompt.prompt_text.clone(),
                 image_type: plan.image_type.to_string(),
                 config_id: input.config_id,
                 chapter_id: spec.source_chapter_id,
                 generation_spec_id: spec.id,
-                target_kind: plan.target_kind,
-                target_entity_kind: plan.target_entity_kind(),
+                target_kind: plan.target_kind.to_string(),
+                target_entity_kind: plan.target_entity_kind().to_string(),
                 target_entity_id: plan.target_entity_id,
+                workflow_run_id: None,
             },
         )
         .await
@@ -294,12 +276,12 @@ async fn run_portrait_spec(
     let portrait = match host
         .generate_portrait_image(
             user_id,
-            GalgamePortraitImageGenerationInput {
+            GeneratePortraitInput {
                 project_id: spec.root_project_id,
                 character_name: profile.name.clone(),
-                style: GALGAME_PORTRAIT_VARIANT_STYLE.to_string(),
-                expression: plan.expression.clone(),
-                pose: plan.pose.clone(),
+                style: Some(GALGAME_PORTRAIT_VARIANT_STYLE.to_string()),
+                expression: Some(plan.expression.clone()),
+                pose: Some(plan.pose.clone()),
                 reference_image_ids,
             },
         )
@@ -774,7 +756,7 @@ fn required_i64_array(value: &Value, field: &str, id: i64) -> Result<Vec<i64>, A
                 field
             ))
         })?;
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     a.iter()
         .map(|v| {
             let n = v.as_i64().filter(|n| *n > 0).ok_or_else(|| {
@@ -828,7 +810,7 @@ fn validate_input(input: &RunGalgameAssetGenerationInput) -> Result<(), AppError
     if input.limit.is_some_and(|limit| limit == 0) {
         return Err(AppError::InvalidArgument("limit 必须大于 0".to_string()));
     }
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for spec_id in &input.generation_spec_ids {
         if *spec_id <= 0 {
             return Err(AppError::InvalidArgument(

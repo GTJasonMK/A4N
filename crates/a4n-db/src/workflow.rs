@@ -36,8 +36,9 @@ pub use inputs::{
 mod summaries;
 pub use summaries::{
     CancelWorkflowRunPersistenceResult, GenerationRunSummary, PersistedTaskInfo,
-    TaskProgressEventSummary, WorkflowCheckpointSummary, WorkflowRunDetailSummary,
-    WorkflowRunProgressSummary, WorkflowRunSummary,
+    TaskProgressEventSummary, WorkflowCheckpointSummary, WorkflowRunAccessRecord,
+    WorkflowRunDetailSummary, WorkflowRunProgressSummary, WorkflowRunRecoveryRecord,
+    WorkflowRunStatusRecord, WorkflowRunSummary,
 };
 
 mod validation;
@@ -50,15 +51,21 @@ mod runs;
 pub use runs::{
     claim_exclusive_workflow_run, completed_workflow_checkpoint_by_fingerprint,
     delete_workflow_checkpoints_by_keys, latest_workflow_run_by_business_key,
-    latest_workflow_run_by_business_key_for_update, list_workflow_run_models, list_workflow_runs,
-    mark_workflow_current_step, mark_workflow_status,
+    latest_workflow_run_by_business_key_for_update,
+    latest_workflow_run_recovery_records_by_business_keys,
+    latest_workflow_run_status_record_by_business_key, latest_workflow_runs_by_business_keys,
+    list_workflow_run_models, list_workflow_runs, mark_workflow_current_step, mark_workflow_status,
     mutate_completed_workflow_checkpoint_artifacts_unless_step_exists,
     record_workflow_progress_event, resume_or_upsert_workflow_run, resume_workflow_run,
     upsert_workflow_checkpoint, upsert_workflow_checkpoint_in_transaction, upsert_workflow_run,
     upsert_workflow_run_in_transaction, workflow_checkpoint_model_by_step_in,
-    workflow_checkpoint_models, workflow_progress_events, workflow_run_detail,
+    workflow_checkpoint_models, workflow_checkpoint_models_for_runs,
+    workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
+    workflow_progress_events, workflow_run_access_record_by_active_task_id, workflow_run_detail,
     workflow_run_model_by_active_task_id, workflow_run_model_by_id,
-    workflow_run_model_optional_by_id, workflow_run_summary_by_id, workflow_runs_by_project_kind,
+    workflow_run_model_optional_by_id, workflow_run_models_by_ids,
+    workflow_run_status_record_by_id, workflow_run_statuses_by_ids, workflow_run_summary_by_id,
+    workflow_runs_by_project_kind,
 };
 #[cfg(test)]
 pub(in crate::workflow) use runs::{
@@ -67,19 +74,18 @@ pub(in crate::workflow) use runs::{
     validate_workflow_progress_range, validate_workflow_run_input, workflow_fingerprint_matches,
     workflow_run_progress_summary, workflow_run_summary,
 };
-pub(in crate::workflow) use runs::{
-    locked_workflow_run_by_id, trim_workflow_progress_events, workflow_checkpoints,
-};
+pub(in crate::workflow) use runs::{locked_workflow_run_by_id, trim_workflow_progress_events};
 
 mod tasks;
 pub(crate) use tasks::task_info_from_row;
+#[cfg(test)]
+pub(in crate::workflow) use tasks::{
+    WorkflowCheckpointVideoRefs, generated_video_ids_for_active_checkpoints,
+    persisted_task_info_from_row,
+};
 pub use tasks::{
     cancel_workflow_run_persistence, persisted_task_by_id, persisted_task_history,
     recover_stale_in_process_workflows,
-};
-#[cfg(test)]
-pub(in crate::workflow) use tasks::{
-    generated_video_ids_for_active_checkpoints, persisted_task_info_from_row,
 };
 
 mod llm_checkpoint;

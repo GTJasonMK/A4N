@@ -1,7 +1,7 @@
 use super::super::types::{SettingsAllConfigImportError, settings_all_config_database};
 use a4n_core::config::app_config::LlmMaxTokensConfig;
 use a4n_core::models::ai::llm_config;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde_json::Value;
 
 pub(in crate::config::settings_all) async fn validate_llm_max_tokens_import_against_current_default<
@@ -20,14 +20,17 @@ where
         SettingsAllConfigImportError::InvalidArgument(format!("llm_max_tokens 无效：{err}"))
     })?;
     let Some(default_model) = llm_config::Entity::find()
+        .select_only()
+        .column(llm_config::Column::MaxOutputTokens)
         .filter(llm_config::Column::IsDefault.eq(true))
+        .into_tuple::<i32>()
         .one(db)
         .await
         .map_err(|source| settings_all_config_database("读取默认 LLM 配置失败", source))?
     else {
         return Ok(());
     };
-    let model_cap = usize::try_from(default_model.max_output_tokens)
+    let model_cap = usize::try_from(default_model)
         .ok()
         .filter(|value| *value > 0)
         .ok_or_else(|| {

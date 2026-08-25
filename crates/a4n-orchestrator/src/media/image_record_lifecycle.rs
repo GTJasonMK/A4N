@@ -42,6 +42,36 @@ impl OrchestratorContext {
         self.generated_images_for_project(project_id).await
     }
 
+    pub async fn list_generated_images_for_projects_for_user_validated(
+        &self,
+        user_id: i64,
+        project_ids: Vec<i64>,
+    ) -> Result<Vec<generated_image::Model>, AppError> {
+        let mut normalized_project_ids = Vec::with_capacity(project_ids.len());
+        let mut seen = HashSet::with_capacity(project_ids.len());
+        for project_id in project_ids {
+            if seen.insert(project_id) {
+                normalized_project_ids.push(project_id);
+            }
+        }
+        if normalized_project_ids.is_empty() {
+            return Err(AppError::InvalidArgument(
+                "project_ids 不能为空".to_string(),
+            ));
+        }
+        self.verify_project_permissions(
+            &normalized_project_ids,
+            user_id,
+            ProjectAccessRole::Viewer,
+        )
+        .await?;
+        let mut rows = self
+            .generated_images_for_projects(&normalized_project_ids)
+            .await?;
+        sort_generated_images_by_project_order(&mut rows, &normalized_project_ids);
+        Ok(rows)
+    }
+
     pub async fn list_chapter_images_for_user_validated(
         &self,
         user_id: i64,
@@ -210,6 +240,71 @@ impl OrchestratorContext {
         self.verify_project_permission(image.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         Ok(image)
+    }
+}
+
+fn sort_generated_images_by_project_order(
+    rows: &mut [generated_image::Model],
+    project_ids: &[i64],
+) {
+    let project_order = project_ids
+        .iter()
+        .enumerate()
+        .map(|(index, project_id)| (*project_id, index))
+        .collect::<HashMap<_, _>>();
+    rows.sort_by(|left, right| {
+        project_order[&left.project_id]
+            .cmp(&project_order[&right.project_id])
+            .then_with(|| right.created_at.cmp(&left.created_at))
+    });
+}
+
+#[cfg(test)]
+mod project_image_sort_tests {
+    use chrono::{Duration, Utc};
+
+    use super::sort_generated_images_by_project_order;
+    use a4n_core::models::ai::generated_image;
+
+    fn image(
+        id: i64,
+        project_id: i64,
+        created_at: chrono::NaiveDateTime,
+    ) -> generated_image::Model {
+        generated_image::Model {
+            id,
+            project_id,
+            image_type: String::new(),
+            file_path: String::new(),
+            prompt: String::new(),
+            model: String::new(),
+            width: 1,
+            height: 1,
+            file_size: None,
+            ai_score: None,
+            is_favorite: false,
+            chapter_id: None,
+            panel_id: None,
+            metadata_json: None,
+            created_at,
+        }
+    }
+
+    #[test]
+    fn project_image_sort_keeps_source_priority_then_newest() {
+        let now = Utc::now().naive_utc();
+        let mut rows = vec![
+            image(3, 2, now),
+            image(1, 1, now - Duration::seconds(2)),
+            image(2, 1, now),
+        ];
+
+        sort_generated_images_by_project_order(&mut rows, &[1, 2]);
+
+        assert_eq!(
+            rows.iter().map(|row| row.id).collect::<Vec<_>>(),
+            vec![2, 1, 3]
+        );
     }
 }
 

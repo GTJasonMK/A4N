@@ -23,9 +23,9 @@ use a4n_db::{
         outline_generation_source_snapshot, sync_chapter_outline_records_by_number,
     },
     project::{
-        ChapterSourceSnapshot, CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG,
-        ProjectChapterOutlineUpdateInput, RetrospectiveChapterOutlineAction,
-        RetrospectiveChapterOutlineUpsertInput, character_sync_chapters, create_project_record,
+        ChapterSourceSnapshot, CreateProjectRecordInput, ProjectChapterOutlineUpdateInput,
+        RetrospectiveChapterOutlineAction, RetrospectiveChapterOutlineUpsertInput,
+        character_sync_chapters, create_project_record,
         delete_automatic_chapter_outlines_for_source_change,
         formal_chapter_outline_by_project_number, update_chapter_outline_record,
         upsert_retrospective_chapter_outline_checked,
@@ -37,7 +37,7 @@ use a4n_db::{
     },
     text_anchor::{
         EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind,
-        delete_chapter_content_profile_evidence_records, merge_profile_evidence_records,
+        delete_chapter_content_profile_evidence_records, merge_profile_evidence_records_batch,
         rebuild_chapter_content_anchor_records,
     },
 };
@@ -58,7 +58,7 @@ async fn create_project(db: &sea_orm::DatabaseConnection, title: &str) -> i64 {
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -310,8 +310,7 @@ async fn outline_generation_lock_orders_new_material_before_generated_write() {
 
     let error = lock_outline_generation_sources(&db, project_id, &snapshot)
         .await
-        .err()
-        .expect("new character must invalidate the old source snapshot");
+        .expect_err("new character must invalidate the old source snapshot");
     assert_outline_source_changed(error);
 }
 
@@ -386,8 +385,7 @@ async fn outline_generation_does_not_write_while_project_is_resetting() {
 
     let error = lock_outline_generation_sources(&db, project_id, &snapshot)
         .await
-        .err()
-        .expect("resetting project must reject outline writes");
+        .expect_err("resetting project must reject outline writes");
     assert!(matches!(
         error,
         OutlineDbError::InvalidState { current, .. }
@@ -1039,16 +1037,18 @@ async fn character_discovery_profile_run_and_evidence_roll_back_together() {
     )
     .await
     .expect("first discovered profile must be staged");
-    merge_profile_evidence_records(
+    merge_profile_evidence_records_batch(
         &tx,
         project_id,
         None,
         TextAnchorProfileKind::Character,
-        first.id,
-        vec![TextAnchorEvidenceInput {
-            text_anchor_id: anchor.id,
-            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
-        }],
+        vec![(
+            first.id,
+            vec![TextAnchorEvidenceInput {
+                text_anchor_id: anchor.id,
+                evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+            }],
+        )],
     )
     .await
     .expect("first evidence must be staged");
@@ -1066,16 +1066,18 @@ async fn character_discovery_profile_run_and_evidence_roll_back_together() {
     )
     .await
     .expect("second discovered profile must be staged");
-    merge_profile_evidence_records(
+    merge_profile_evidence_records_batch(
         &tx,
         project_id,
         None,
         TextAnchorProfileKind::Character,
-        second.id,
-        vec![TextAnchorEvidenceInput {
-            text_anchor_id: i64::MAX,
-            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
-        }],
+        vec![(
+            second.id,
+            vec![TextAnchorEvidenceInput {
+                text_anchor_id: i64::MAX,
+                evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+            }],
+        )],
     )
     .await
     .expect_err("invalid second evidence must abort the batch");
@@ -1225,13 +1227,12 @@ async fn chapter_source_change_invalidates_old_profile_evidence_without_deleting
         text_anchor_id: anchor_id,
         evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
     };
-    merge_profile_evidence_records(
+    merge_profile_evidence_records_batch(
         &db,
         project_id,
         None,
         TextAnchorProfileKind::Object,
-        object.id,
-        vec![bind(first_anchor.id)],
+        vec![(object.id, vec![bind(first_anchor.id)])],
     )
     .await
     .expect("old evidence must be bound");
@@ -1257,13 +1258,12 @@ async fn chapter_source_change_invalidates_old_profile_evidence_without_deleting
             .is_some()
     );
 
-    merge_profile_evidence_records(
+    merge_profile_evidence_records_batch(
         &db,
         project_id,
         None,
         TextAnchorProfileKind::Object,
-        object.id,
-        vec![bind(first_anchor.id)],
+        vec![(object.id, vec![bind(first_anchor.id)])],
     )
     .await
     .expect("evidence must be rebound for rebuild regression");

@@ -26,18 +26,36 @@ pub(in crate::source_sync) async fn prepare_decision_execution_context(
                 .as_str()
                 .to_string(),
         })?;
+    let regenerate_conflict_ids = decisions
+        .iter()
+        .filter(|decision| decision.strategy == SourceSyncResolutionStrategy::RegenerateScene)
+        .map(|decision| decision.conflict_id)
+        .collect::<Vec<_>>();
+    let conflicts = a4n_db::source_sync::source_sync_conflicts_for_decisions(
+        service.database.connection(),
+        run.id,
+        &regenerate_conflict_ids,
+        "prepare_source_sync_decision",
+    )
+    .await
+    .map_err(source_sync_db_error)?;
+    let speaker_profiles = service
+        .speaker_profiles_for_root_project(run.root_project_id)
+        .await?;
     for decision in decisions {
         if decision.strategy != SourceSyncResolutionStrategy::RegenerateScene {
             continue;
         }
-        let conflict = a4n_db::source_sync::source_sync_conflict_for_decision(
-            service.database.connection(),
-            run.id,
-            decision.conflict_id,
-            "prepare_source_sync_decision",
-        )
-        .await
-        .map_err(source_sync_db_error)?;
+        let conflict =
+            conflicts
+                .get(&decision.conflict_id)
+                .ok_or_else(|| AppError::InvalidState {
+                    current: format!(
+                        "missing_source_sync_conflict_for_decision_{}",
+                        decision.conflict_id
+                    ),
+                    operation: "prepare_source_sync_decision".to_string(),
+                })?;
         let payload: RegenerateGalgameScenePayload =
             parse_decision_payload(&decision.decision_payload_json)?;
         let plan = build_prepared_galgame_scene_regeneration_plan(
@@ -46,6 +64,7 @@ pub(in crate::source_sync) async fn prepare_decision_execution_context(
             &conflict,
             &payload,
             galgame_execution,
+            &speaker_profiles,
         )
         .await?;
         prepared

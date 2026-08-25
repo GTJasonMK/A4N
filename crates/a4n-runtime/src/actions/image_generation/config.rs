@@ -45,7 +45,7 @@ pub(super) async fn resolve_system_default_image_template_with_user_key(
         .map_err(|err| err.to_string())?;
     model.api_key_encrypted = crate::runtime_config::current_system_image_api_key();
     if model.api_key_encrypted.is_none()
-        && a4n_orchestrator::config::image_backend_requires_api_key(&model.backend)
+        && a4n_core::config::image_backend_requires_api_key(&model.backend)
     {
         return Err("使用系统默认图片配置需要先在用户配置页填写并保存你的个人 API Key".to_string());
     }

@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use a4n_core::source_spans::SourceSpan;
+use a4n_core::source_spans::SourceSpanIndex;
 use serde_json::Value;
 
 use super::super::values::analysis_materialize_error;
@@ -9,7 +9,7 @@ use entry::materialize_key_event;
 
 pub(in crate::chapter_analysis::owner) fn materialize_key_event_source_spans(
     root: &mut serde_json::Map<String, Value>,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let Some(events) = root.get_mut("key_events").and_then(Value::as_array_mut) else {
         return Err(analysis_materialize_error(

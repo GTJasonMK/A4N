@@ -13,17 +13,6 @@ pub(in crate::video_prompt::sync) async fn record_chapter_video_prompt_generatio
 where
     C: ConnectionTrait,
 {
-    if crate::generation::generation_run_exists_for_target_output(
-        db,
-        "chapter_video_prompt",
-        row.id,
-        &trace.prompt_name,
-        &trace.response_text,
-    )
-    .await?
-    {
-        return Ok(());
-    }
     let source_refs_json = row
         .metadata_json
         .as_ref()

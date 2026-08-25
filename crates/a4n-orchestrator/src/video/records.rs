@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::{
     error::AppError,
@@ -24,6 +24,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::Value;
 
+use a4n_api_contract::video::GeneratedVideoSummary;
 pub use a4n_api_contract::video::{
     AssemblyPushAction, UpdateAssemblyPushStatusInput, UpdateGeneratedVideoInput,
 };
@@ -179,6 +180,36 @@ pub struct VideoGenerationRecordInput {
     pub prompt_id: Option<i64>,
 }
 
+pub fn generated_video_summary(video: &generated_video::Model) -> GeneratedVideoSummary {
+    GeneratedVideoSummary {
+        id: video.id,
+        project_id: video.project_id,
+        chapter_id: video.chapter_id,
+        video_type: video.video_type.clone(),
+        workflow_mode: video.workflow_mode.clone(),
+        file_path: video.file_path.clone(),
+        thumbnail_path: video.thumbnail_path.clone(),
+        prompt: video.prompt.clone(),
+        negative_prompt: video.negative_prompt.clone(),
+        model: video.model.clone(),
+        width: video.width,
+        height: video.height,
+        duration_secs: video.duration_secs,
+        fps: video.fps,
+        file_size: video.file_size,
+        source_video_id: video.source_video_id,
+        source_image_id: video.source_image_id,
+        status: video.status.clone(),
+        provider_job_id: video.provider_job_id.clone(),
+        error_message: video.error_message.clone(),
+        metadata_json: video.metadata_json.clone(),
+        timeline_item_id: video.timeline_item_id,
+        is_favorite: video.is_favorite,
+        created_at: video.created_at.to_string(),
+        updated_at: video.updated_at.to_string(),
+    }
+}
+
 impl crate::OrchestratorContext {
     pub(crate) async fn create_video_generation_record_validated(
         &self,
@@ -296,8 +327,6 @@ impl crate::OrchestratorContext {
         recipe.adopted_video_id = Some(video_id);
         self.update_chapter_video_segment_recipe(plan.id, recipe)
             .await?;
-        self.sync_project_asset_lineage_after_commit(project_id, "同步视频方案资产谱系")
-            .await;
         Ok(selected)
     }
 
@@ -468,6 +497,20 @@ impl crate::OrchestratorContext {
                     })?,
             )
             .map_err(|error| AppError::InvalidArgument(format!("当前片段规划无效：{error}")))?;
+        let segments_by_number = segments.iter().fold(
+            HashMap::with_capacity(segments.len()),
+            |mut by_number, segment| {
+                by_number.entry(segment.segment_number).or_insert(segment);
+                by_number
+            },
+        );
+        let videos_by_id =
+            videos
+                .iter()
+                .fold(HashMap::with_capacity(videos.len()), |mut by_id, video| {
+                    by_id.entry(video.id).or_insert(video);
+                    by_id
+                });
         let plan_style = plan
             .style
             .as_deref()
@@ -490,9 +533,9 @@ impl crate::OrchestratorContext {
                 continue;
             };
             let segment_number = recipe.segment_number;
-            let segment = segments
-                .iter()
-                .find(|segment| segment.segment_number == segment_number)
+            let segment = segments_by_number
+                .get(&segment_number)
+                .copied()
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!(
                         "片段 {segment_number} 的执行方案不属于当前规划"
@@ -504,7 +547,7 @@ impl crate::OrchestratorContext {
                 Some(recipe),
                 (&segment.source_shot_id, segment.segment_index_in_shot),
             )?;
-            let Some(video) = videos.iter().find(|video| video.id == video_id) else {
+            let Some(video) = videos_by_id.get(&video_id).copied() else {
                 continue;
             };
             if video.project_id == project_id
@@ -520,27 +563,39 @@ impl crate::OrchestratorContext {
                     video.metadata_json.as_ref(),
                     &expected_identity,
                 )
+                && !adopted.insert(video_id)
             {
-                if !adopted.insert(video_id) {
-                    return Err(AppError::InvalidArgument(format!(
-                        "视频 #{video_id} 被多个片段重复采用"
-                    )));
-                }
+                return Err(AppError::InvalidArgument(format!(
+                    "视频 #{video_id} 被多个片段重复采用"
+                )));
             }
         }
         let prompts = self
-            .chapter_video_prompts_for_chapter(project_id, chapter_id)
+            .chapter_video_prompt_video_binding_records_for_chapter(project_id, chapter_id)
             .await?;
+        let prompt_count = prompts.len();
+        let prompts_by_id = prompts.into_iter().fold(
+            HashMap::with_capacity(prompt_count),
+            |mut by_id, (prompt_id, video_id)| {
+                by_id.entry(prompt_id).or_insert(video_id);
+                by_id
+            },
+        );
         for item in snapshot.items.iter().filter(|item| {
             item.item_kind == a4n_db::video::TIMELINE_INSERTED_KIND
                 && item.status == a4n_db::video::TIMELINE_ACTIVE_STATUS
         }) {
             let current_video_id = item
                 .insert_plan_prompt_id
-                .and_then(|prompt_id| prompts.iter().find(|prompt| prompt.id == prompt_id))
-                .and_then(|prompt| prompt.generated_video_id);
-            let Some(video_id) =
-                super::timeline::current_timeline_item_video_id(item, current_video_id, videos)?
+                .and_then(|prompt_id| prompts_by_id.get(&prompt_id).copied().flatten());
+            let video_candidates = current_video_id
+                .and_then(|video_id| videos_by_id.get(&video_id).copied())
+                .map_or(&[][..], std::slice::from_ref);
+            let Some(video_id) = super::timeline::current_timeline_item_video_id(
+                item,
+                current_video_id,
+                video_candidates,
+            )?
             else {
                 continue;
             };
@@ -1081,9 +1136,8 @@ impl crate::OrchestratorContext {
                 "当前片段参考媒体提示词不能为空".to_string(),
             ));
         }
-        let options =
-            validate_reference_media_import_options(recipe.duration_secs, &recipe.aspect_ratio)
-                .map_err(AppError::InvalidArgument)?;
+        validate_reference_media_import_options(recipe.duration_secs, &recipe.aspect_ratio)
+            .map_err(AppError::InvalidArgument)?;
         let plan_identity = plan
             .metadata_json
             .as_ref()
@@ -1122,7 +1176,7 @@ impl crate::OrchestratorContext {
                 "provider_backend": "external-import",
                 "reference_media": {
                     "functionMode": "omni_reference",
-                    "aspect_ratio": options.aspect_ratio,
+                    "aspect_ratio": recipe.aspect_ratio,
                 },
                 "import": {
                     "external": true,
@@ -1182,14 +1236,25 @@ impl crate::OrchestratorContext {
             ));
         }
         let mut seen = HashSet::new();
-        let mut sources = Vec::with_capacity(video_ids.len());
-        for video_id in video_ids {
+        for &video_id in &video_ids {
             if !seen.insert(video_id) {
                 return Err(AppError::InvalidArgument(format!(
                     "AssembleNode 视频片段重复: {video_id}"
                 )));
             }
-            let video = self.required_video_record(video_id).await?;
+        }
+        let videos_by_id = self
+            .generated_videos_by_ids(&video_ids)
+            .await?
+            .into_iter()
+            .map(|video| (video.id, video))
+            .collect::<std::collections::HashMap<_, _>>();
+        let mut sources = Vec::with_capacity(video_ids.len());
+        for video_id in video_ids {
+            let video = videos_by_id
+                .get(&video_id)
+                .cloned()
+                .ok_or_else(|| AppError::NotFound("视频不存在".to_string()))?;
             if video.project_id != project_id {
                 return Err(AppError::InvalidArgument(format!(
                     "视频 #{video_id} 不属于项目 {project_id}"

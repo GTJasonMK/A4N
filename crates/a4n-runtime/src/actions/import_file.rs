@@ -8,8 +8,8 @@ use a4n_core::error::AppError;
 
 use crate::{AppState, actions::import_review};
 
-pub use a4n_api_contract::import::ImportProjectTextUploadInput;
-pub use a4n_api_contract::import_review::ImportReviewSummary;
+use a4n_api_contract::import::ImportProjectTextUploadInput;
+use a4n_api_contract::import_review::ImportReviewSummary;
 
 pub async fn import_project_text_upload(
     state: &AppState,
@@ -20,7 +20,7 @@ pub async fn import_project_text_upload(
     let chapters =
         parse_import_file_bytes(&upload.file_type, &upload.file_bytes, &upload.file_name)
             .map_err(AppError::InvalidArgument)?;
-    a4n_orchestrator::import_analysis::ingest::create_import_analysis_reviews_for_user_validated(
+    a4n_orchestrator::import_analysis::create_import_analysis_reviews_for_user_validated(
         state.orchestrator(),
         user_id,
         upload.project_id,

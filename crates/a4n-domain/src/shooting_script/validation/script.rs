@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use super::ShootingScriptValidationError;
 use super::rules::{invalid, positive_index, require_index, required_text};
@@ -10,14 +10,45 @@ use crate::shooting_script::{
 pub(super) fn validate_script(
     script: &ChapterShootingScriptV1,
 ) -> Result<(), ShootingScriptValidationError> {
+    if let Some(source) = &script.visual_plan_source {
+        if source.plan_id <= 0 || source.plan_version <= 0 {
+            return invalid("visual_plan_source", "plan_id 和 plan_version 必须大于 0");
+        }
+        if source.plan_sha256.len() != 64
+            || !source
+                .plan_sha256
+                .bytes()
+                .all(|byte| byte.is_ascii_hexdigit())
+        {
+            return invalid(
+                "visual_plan_source.plan_sha256",
+                "必须是 64 位十六进制 SHA-256",
+            );
+        }
+    }
+    let mut user_addition_ids = HashSet::new();
+    for (offset, addition) in script.user_additions.iter().enumerate() {
+        required_text(&addition.id, &format!("user_additions[{offset}].id"))?;
+        required_text(
+            &addition.description,
+            &format!("user_additions[{offset}].description"),
+        )?;
+        required_text(
+            &addition.rationale,
+            &format!("user_additions[{offset}].rationale"),
+        )?;
+        if !user_addition_ids.insert(addition.id.as_str()) {
+            return invalid(format!("user_additions[{offset}].id"), "全章必须唯一");
+        }
+    }
     validate_statement(&script.directing_statement)?;
     if script.scenes.is_empty() {
         return invalid("scenes", "至少包含一个场景");
     }
-    let mut shot_ids = BTreeSet::new();
-    let mut beat_ids = BTreeSet::new();
-    let mut narrative_units = BTreeSet::new();
-    let mut timeline_positions = BTreeSet::new();
+    let mut shot_ids = HashSet::new();
+    let mut beat_ids = HashSet::new();
+    let mut narrative_units = HashSet::new();
+    let mut timeline_positions = HashSet::new();
     for (scene_offset, scene) in script.scenes.iter().enumerate() {
         let scene_path = format!("scenes[{scene_offset}]");
         require_index(
@@ -60,7 +91,14 @@ pub(super) fn validate_script(
                 "交叉剪辑或平行行动必须指定分组",
             );
         }
-        validate_scene(scene, &scene_path, &mut shot_ids, &mut beat_ids)?;
+        validate_scene(
+            scene,
+            &scene_path,
+            &mut shot_ids,
+            &mut beat_ids,
+            &user_addition_ids,
+            script.visual_plan_source.is_some(),
+        )?;
     }
     for (scene_offset, scene) in script.scenes.iter().enumerate() {
         for (transition_offset, transition) in scene.transition_contracts.iter().enumerate() {
@@ -89,7 +127,7 @@ pub(super) fn validate_script(
                 message: "场景数量超出 u32 范围".into(),
             })
         })
-        .collect::<Result<BTreeSet<_>, _>>()?;
+        .collect::<Result<HashSet<_>, _>>()?;
     if timeline_positions != expected_positions {
         return invalid("scenes[].timeline_position", "必须从 1 连续覆盖全部场景");
     }

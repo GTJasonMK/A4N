@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use a4n_core::{
     error::AppError,
@@ -31,7 +31,7 @@ where
     let spec_by_id = specs
         .iter()
         .map(|spec| (spec.id, spec))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let artifacts = prompt_artifact::Entity::find()
         .filter(prompt_artifact::Column::GenerationSpecId.is_in(specs.iter().map(|spec| spec.id)))
         .order_by_asc(prompt_artifact::Column::Id)

@@ -6,16 +6,26 @@ import {
   getProjectTypeLabel,
   getProjectWorkspaceRoute,
 } from "./projectRouting";
+import { translateMessage, type MessageKey, type MessageParams } from "../i18n";
+
+const t = (key: MessageKey, params?: MessageParams): string =>
+  translateMessage("zh-CN", key, params);
 
 describe("project type labels", () => {
   it("accepts only canonical project_type values", () => {
     expect(
-      ["novel_long", "novel_short", "script", "prose"].map(getProjectTypeLabel),
+      ["novel_long", "novel_short", "script", "prose"].map((value) =>
+        getProjectTypeLabel(value, t),
+      ),
     ).toEqual(["长篇小说", "短篇故事", "剧本", "散文"]);
 
-    expect(["novel", "text", "video", "comic", "manga", "galgame"].map(getProjectTypeLabel))
+    expect(
+      ["novel", "text", "video", "comic", "manga", "galgame"].map((value) =>
+        getProjectTypeLabel(value, t),
+      ),
+    )
       .toEqual(["未知类型", "未知类型", "未知类型", "未知类型", "未知类型", "未知类型"]);
-    expect(getProjectTypeLabel("")).toBe("未知类型");
+    expect(getProjectTypeLabel("", t)).toBe("未知类型");
   });
 });
 
@@ -30,7 +40,7 @@ describe("nonlinear text project entry", () => {
   it("opens draft text projects in project details instead of forcing inspiration", () => {
     expect(getProjectPrimaryRoute(draftProject)).toBe("/novel/12");
     expect(getProjectHomeEntryRoute(draftProject)).toBe("/novel/12");
-    expect(getProjectPrimaryLabel(draftProject)).toBe("进入项目详情");
+    expect(getProjectPrimaryLabel(draftProject, t)).toBe("进入项目详情");
     expect(getProjectWorkspaceRoute(draftProject)).toBe("/write/12");
   });
 });

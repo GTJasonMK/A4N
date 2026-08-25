@@ -16,8 +16,9 @@ use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
 use a4n_db::video::{
-    CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
-    UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
+    ChapterVideoPromptTimelineRecord, CreateGeneratedImageRecordDraftInput,
+    CreateGeneratedVideoRecordDraftInput, UpdateGeneratedImageRecordInput,
+    UpdateGeneratedVideoRecordInput,
 };
 use a4n_db::video_prompt::{ChapterVideoPromptPatch, VideoPromptDownstreamDependencies};
 use sea_orm::DatabaseConnection;
@@ -29,7 +30,7 @@ use crate::video::video_db_error;
 use crate::workflow::{
     UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_FAILED,
     WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,
-    WorkflowProgressEventInput,
+    WorkflowProgressEventInput, WorkflowRunRecoveryRecord,
 };
 
 fn terminal_workflow_status_label(status: &str) -> &'static str {
@@ -101,7 +102,7 @@ impl VideoApplication {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<generated_image::Reference>, AppError> {
         a4n_db::video::generated_images_for_video_prompt_references(
             self.connection(),
             project_id,
@@ -120,6 +121,15 @@ impl VideoApplication {
             .map_err(video_db_error)
     }
 
+    pub(super) async fn generated_image_ids_by_ids(
+        &self,
+        image_ids: &[i64],
+    ) -> Result<Vec<i64>, AppError> {
+        a4n_db::video::generated_image_ids_by_ids(self.connection(), image_ids)
+            .await
+            .map_err(video_db_error)
+    }
+
     pub(super) async fn generated_images_for_project(
         &self,
         project_id: i64,
@@ -127,6 +137,15 @@ impl VideoApplication {
         a4n_db::video::generated_images_for_project(self.connection(), project_id)
             .await
             .map_err(AppError::Database)
+    }
+
+    pub(super) async fn generated_images_for_projects(
+        &self,
+        project_ids: &[i64],
+    ) -> Result<Vec<generated_image::Model>, AppError> {
+        a4n_db::video::generated_images_for_projects(self.connection(), project_ids)
+            .await
+            .map_err(video_db_error)
     }
 
     pub(super) async fn generated_images_for_chapter(
@@ -215,7 +234,7 @@ impl VideoApplication {
 
     pub(super) async fn video_tail_frame_images(
         &self,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<(i64, String, Option<serde_json::Value>)>, AppError> {
         a4n_db::video::video_tail_frame_images(self.connection())
             .await
             .map_err(video_db_error)
@@ -298,6 +317,15 @@ impl VideoApplication {
         video_id: i64,
     ) -> Result<Option<generated_video::Model>, AppError> {
         a4n_db::video::generated_video_by_id(self.connection(), video_id)
+            .await
+            .map_err(AppError::Database)
+    }
+
+    pub(super) async fn generated_videos_by_ids(
+        &self,
+        video_ids: &[i64],
+    ) -> Result<Vec<generated_video::Model>, AppError> {
+        a4n_db::video::generated_videos_by_ids(self.connection(), video_ids)
             .await
             .map_err(AppError::Database)
     }
@@ -401,6 +429,20 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
+    pub(super) async fn mark_generated_videos_error_status_and_prompt_records(
+        &self,
+        inputs: &[a4n_db::video::GeneratedVideoErrorStatusBatchInput],
+        message: &str,
+    ) -> Result<Vec<i64>, AppError> {
+        a4n_db::video::mark_generated_videos_error_status_and_prompt_records(
+            self.connection(),
+            inputs,
+            message,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
     pub(super) async fn mark_generated_video_job_and_prompt_record(
         &self,
         video_id: i64,
@@ -458,6 +500,34 @@ impl VideoApplication {
         a4n_db::video::chapter_video_prompts_for_chapter(self.connection(), project_id, chapter_id)
             .await
             .map_err(AppError::Database)
+    }
+
+    pub(super) async fn chapter_video_prompt_timeline_records_for_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<ChapterVideoPromptTimelineRecord>, AppError> {
+        a4n_db::video::chapter_video_prompt_timeline_records_for_chapter(
+            self.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(AppError::Database)
+    }
+
+    pub(super) async fn chapter_video_prompt_video_binding_records_for_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<(i64, Option<i64>)>, AppError> {
+        a4n_db::video::chapter_video_prompt_video_binding_records_for_chapter(
+            self.connection(),
+            project_id,
+            chapter_id,
+        )
+        .await
+        .map_err(AppError::Database)
     }
 
     pub(super) async fn chapter_video_prompts_for_batch_generation(
@@ -602,13 +672,45 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
-    pub(super) async fn chapter_video_prompt_has_generated_frame_image(
+    pub(super) async fn ensure_chapter_video_prompt_stages_mutable(
         &self,
-        prompt: &chapter_video_prompt::Model,
-    ) -> Result<bool, AppError> {
-        a4n_db::video_prompt::chapter_video_prompt_has_generated_frame_image(
+        prompts: &[chapter_video_prompt::Model],
+        operation: &str,
+    ) -> Result<(), AppError> {
+        a4n_db::video_prompt::ensure_chapter_video_prompt_stages_mutable(
             self.connection(),
-            prompt,
+            prompts,
+            operation,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn ensure_chapter_video_prompt_stages_mutable_ignoring(
+        &self,
+        prompts: &[chapter_video_prompt::Model],
+        operation: &str,
+        ignored_prompt_ids: &BTreeSet<i64>,
+    ) -> Result<(), AppError> {
+        a4n_db::video_prompt::ensure_chapter_video_prompt_stages_mutable_ignoring(
+            self.connection(),
+            prompts,
+            operation,
+            ignored_prompt_ids,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(
+        &self,
+        prompts: &[chapter_video_prompt::Model],
+        operation: &str,
+    ) -> Result<(), AppError> {
+        a4n_db::video_prompt::ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(
+            self.connection(),
+            prompts,
+            operation,
         )
         .await
         .map_err(video_db_error)
@@ -830,9 +932,70 @@ impl OrchestratorContext {
         let active_ids = self
             .active_generated_video_ids_for_config(config_id)
             .await?;
+        let active_videos = self.video.generated_videos_by_ids(&active_ids).await?;
+        let videos_by_id = active_videos
+            .into_iter()
+            .map(|video| (video.id, video))
+            .collect::<std::collections::HashMap<_, _>>();
+        let provider_business_keys = videos_by_id
+            .values()
+            .filter(|video| {
+                video
+                    .provider_job_id
+                    .as_deref()
+                    .map(str::trim)
+                    .is_some_and(|job_id| !job_id.is_empty())
+            })
+            .map(|video| format!("video_provider_job:{}", video.id))
+            .collect::<Vec<_>>();
+        let provider_workflow_runs = self
+            .latest_workflow_run_recovery_records_by_business_keys(&provider_business_keys)
+            .await?;
+        let provider_workflow_runs_by_key = provider_workflow_runs
+            .into_iter()
+            .map(|run| (run.business_key.clone(), run))
+            .collect::<std::collections::HashMap<_, _>>();
+        let canvas_workflow_run_ids = videos_by_id
+            .values()
+            .filter_map(|video| {
+                video
+                    .metadata_json
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("canvas"))
+                    .and_then(|canvas| canvas.get("workflow_run_id"))
+                    .and_then(serde_json::Value::as_i64)
+            })
+            .collect::<std::collections::HashSet<_>>();
+        let canvas_workflow_runs_by_id = self
+            .workflow_run_statuses_by_ids(
+                &canvas_workflow_run_ids.iter().copied().collect::<Vec<_>>(),
+            )
+            .await?
+            .into_iter()
+            .map(|run| (run.0, run))
+            .collect::<std::collections::HashMap<_, _>>();
         let mut retained = Vec::with_capacity(active_ids.len());
         for video_id in active_ids {
-            if self.reconcile_interrupted_provider_video(video_id).await? {
+            let Some(video) = videos_by_id.get(&video_id) else {
+                continue;
+            };
+            let provider_workflow_run =
+                provider_workflow_runs_by_key.get(&format!("video_provider_job:{video_id}"));
+            let canvas_workflow_run = video
+                .metadata_json
+                .as_ref()
+                .and_then(|metadata| metadata.get("canvas"))
+                .and_then(|canvas| canvas.get("workflow_run_id"))
+                .and_then(serde_json::Value::as_i64)
+                .and_then(|workflow_run_id| canvas_workflow_runs_by_id.get(&workflow_run_id));
+            if self
+                .reconcile_interrupted_provider_video(
+                    video,
+                    provider_workflow_run,
+                    canvas_workflow_run,
+                )
+                .await?
+            {
                 continue;
             }
             retained.push(video_id);
@@ -840,10 +1003,12 @@ impl OrchestratorContext {
         Ok(retained)
     }
 
-    async fn reconcile_interrupted_provider_video(&self, video_id: i64) -> Result<bool, AppError> {
-        let Some(video) = self.video.generated_video_by_id(video_id).await? else {
-            return Ok(true);
-        };
+    async fn reconcile_interrupted_provider_video(
+        &self,
+        video: &generated_video::Model,
+        provider_workflow_run: Option<&WorkflowRunRecoveryRecord>,
+        canvas_workflow_run: Option<&(i64, String)>,
+    ) -> Result<bool, AppError> {
         if video
             .provider_job_id
             .as_deref()
@@ -854,15 +1019,12 @@ impl OrchestratorContext {
             return Ok(false);
         }
         if self
-            .reconcile_terminal_canvas_workflow_video(&video)
+            .reconcile_terminal_canvas_workflow_video(&video, canvas_workflow_run)
             .await?
         {
             return Ok(true);
         }
-        let Some(run) = self
-            .latest_workflow_run_by_business_key(&format!("video_provider_job:{video_id}"))
-            .await?
-        else {
+        let Some(run) = provider_workflow_run else {
             return Ok(false);
         };
         if run.status != WORKFLOW_STATUS_INTERRUPTED {
@@ -874,7 +1036,7 @@ impl OrchestratorContext {
             .unwrap_or("视频 provider 轮询已中断，可稍后恢复轮询");
         self.mark_generated_video_interrupted_validated(
             video.id,
-            crate::video::prompt_id_from_generated_video(&video),
+            a4n_domain::video::generated_video_prompt_id(video.metadata_json.as_ref()),
             message,
         )
         .await?;
@@ -884,8 +1046,9 @@ impl OrchestratorContext {
     async fn reconcile_terminal_canvas_workflow_video(
         &self,
         video: &generated_video::Model,
+        canvas_workflow_run: Option<&(i64, String)>,
     ) -> Result<bool, AppError> {
-        let Some(workflow_run_id) = video
+        let Some(_workflow_run_id) = video
             .metadata_json
             .as_ref()
             .and_then(|metadata| metadata.get("canvas"))
@@ -894,26 +1057,23 @@ impl OrchestratorContext {
         else {
             return Ok(false);
         };
-        let Some(run) = self
-            .workflow_run_model_optional_by_id(workflow_run_id)
-            .await?
-        else {
+        let Some(run) = canvas_workflow_run else {
             return Ok(false);
         };
         if !matches!(
-            run.status.as_str(),
+            run.1.as_str(),
             WORKFLOW_STATUS_CANCELLED | WORKFLOW_STATUS_FAILED | WORKFLOW_STATUS_SUPERSEDED
         ) {
             return Ok(false);
         }
         let message = format!(
             "所属画布运行 #{} 已{}",
-            run.id,
-            terminal_workflow_status_label(&run.status)
+            run.0,
+            terminal_workflow_status_label(&run.1)
         );
         self.mark_generated_video_interrupted_validated(
             video.id,
-            crate::video::prompt_id_from_generated_video(video),
+            a4n_domain::video::generated_video_prompt_id(video.metadata_json.as_ref()),
             &message,
         )
         .await?;
@@ -924,7 +1084,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         chapter_id: i64,
-    ) -> Result<Vec<generated_image::Model>, AppError> {
+    ) -> Result<Vec<generated_image::Reference>, AppError> {
         self.video
             .generated_images_for_video_prompt_references(project_id, chapter_id)
             .await
@@ -937,11 +1097,25 @@ impl OrchestratorContext {
         self.video.generated_images_by_ids(image_ids).await
     }
 
+    pub(crate) async fn generated_image_ids_by_ids(
+        &self,
+        image_ids: &[i64],
+    ) -> Result<Vec<i64>, AppError> {
+        self.video.generated_image_ids_by_ids(image_ids).await
+    }
+
     pub(crate) async fn generated_images_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<generated_image::Model>, AppError> {
         self.video.generated_images_for_project(project_id).await
+    }
+
+    pub(crate) async fn generated_images_for_projects(
+        &self,
+        project_ids: &[i64],
+    ) -> Result<Vec<generated_image::Model>, AppError> {
+        self.video.generated_images_for_projects(project_ids).await
     }
 
     pub(crate) async fn generated_images_for_valid_chapter(
@@ -1033,7 +1207,9 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn video_tail_frame_images(&self) -> Result<Vec<generated_image::Model>, AppError> {
+    pub async fn video_tail_frame_images(
+        &self,
+    ) -> Result<Vec<(i64, String, Option<serde_json::Value>)>, AppError> {
         self.video.video_tail_frame_images().await
     }
 
@@ -1132,6 +1308,13 @@ impl OrchestratorContext {
         self.video.generated_video_by_id(video_id).await
     }
 
+    pub(crate) async fn generated_videos_by_ids(
+        &self,
+        video_ids: &[i64],
+    ) -> Result<Vec<generated_video::Model>, AppError> {
+        self.video.generated_videos_by_ids(video_ids).await
+    }
+
     pub async fn resolve_video_config_for_provider_job(
         &self,
         project_id: Option<i64>,
@@ -1213,13 +1396,9 @@ impl OrchestratorContext {
         video_id: i64,
         duration_secs: f32,
     ) -> Result<generated_video::Model, AppError> {
-        let updated = self
-            .video
+        self.video
             .update_generated_video_duration_record(video_id, duration_secs)
-            .await?;
-        self.sync_project_asset_lineage_after_commit(updated.project_id, "同步视频实际时长")
-            .await;
-        Ok(updated)
+            .await
     }
 
     pub async fn delete_generated_image_record_with_cleanup(
@@ -1282,20 +1461,11 @@ impl OrchestratorContext {
         status: &str,
         message: &str,
     ) -> Result<generated_video::Model, AppError> {
-        let updated = self
-            .video
+        self.video
             .mark_generated_video_error_status_and_prompt_record(
                 video_id, prompt_id, status, message,
             )
-            .await?;
-        if status == generated_video::STATUS_FAILED {
-            self.sync_project_asset_lineage_after_commit(
-                updated.project_id,
-                "同步失败视频资产谱系",
-            )
-            .await;
-        }
-        Ok(updated)
+            .await
     }
 
     /// 内部写路径：无 job id 门禁；对外请用 `*_validated`。
@@ -1347,8 +1517,7 @@ impl OrchestratorContext {
         metadata_json: Option<Value>,
         prompt_id: Option<i64>,
     ) -> Result<generated_video::Model, AppError> {
-        let updated = self
-            .video
+        self.video
             .mark_generated_video_completed_and_link_prompt_record(
                 video_id,
                 file_path,
@@ -1357,10 +1526,7 @@ impl OrchestratorContext {
                 metadata_json,
                 prompt_id,
             )
-            .await?;
-        self.sync_project_asset_lineage_after_commit(updated.project_id, "同步完成视频资产谱系")
-            .await;
-        Ok(updated)
+            .await
     }
 
     /// poll/失败路径：校验后将视频标 failed，并 fail 关联 generation_run。
@@ -1383,13 +1549,13 @@ impl OrchestratorContext {
                 message,
             )
             .await?;
-        let runs = self
+        let updated_run_count = self
             .generation
             .fail_generation_runs_for_target("generated_video", video_id, message.to_string(), None)
             .await?;
         crate::video::ensure_provider_generation_run_updated(
             video_id,
-            runs.len(),
+            updated_run_count,
             "标记 provider 视频生成失败",
         )
         .map_err(AppError::InvalidArgument)?;
@@ -1415,13 +1581,13 @@ impl OrchestratorContext {
                 message,
             )
             .await?;
-        let runs = self
+        let updated_run_count = self
             .generation
             .cancel_generation_runs_for_target("generated_video", video_id, message.to_string())
             .await?;
         crate::video::ensure_provider_generation_run_updated(
             video_id,
-            runs.len(),
+            updated_run_count,
             "取消 provider 视频生成",
         )
         .map_err(AppError::InvalidArgument)?;
@@ -1472,7 +1638,7 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         crate::video::ensure_positive_generated_video_id(video.id)
             .map_err(AppError::InvalidArgument)?;
-        let runs = self
+        let updated_run_count = self
             .generation
             .complete_generation_runs_for_target(
                 "generated_video",
@@ -1489,7 +1655,7 @@ impl OrchestratorContext {
             .await?;
         crate::video::ensure_provider_generation_run_updated(
             video.id,
-            runs.len(),
+            updated_run_count,
             "完成 provider 视频生成",
         )
         .map_err(AppError::InvalidArgument)?;
@@ -1513,6 +1679,26 @@ impl OrchestratorContext {
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
         self.video
             .chapter_video_prompts_for_chapter(project_id, chapter_id)
+            .await
+    }
+
+    pub(crate) async fn chapter_video_prompt_timeline_records_for_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<ChapterVideoPromptTimelineRecord>, AppError> {
+        self.video
+            .chapter_video_prompt_timeline_records_for_chapter(project_id, chapter_id)
+            .await
+    }
+
+    pub(crate) async fn chapter_video_prompt_video_binding_records_for_chapter(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<(i64, Option<i64>)>, AppError> {
+        self.video
+            .chapter_video_prompt_video_binding_records_for_chapter(project_id, chapter_id)
             .await
     }
 
@@ -1632,12 +1818,40 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn frame_prompt_has_generated_image(
+    pub(crate) async fn ensure_prompt_stages_mutable(
         &self,
-        prompt: &chapter_video_prompt::Model,
-    ) -> Result<bool, AppError> {
+        prompts: &[chapter_video_prompt::Model],
+        operation: &str,
+    ) -> Result<(), AppError> {
         self.video
-            .chapter_video_prompt_has_generated_frame_image(prompt)
+            .ensure_chapter_video_prompt_stages_mutable(prompts, operation)
+            .await
+    }
+
+    pub(crate) async fn ensure_prompt_stages_mutable_ignoring(
+        &self,
+        prompts: &[chapter_video_prompt::Model],
+        operation: &str,
+        ignored_prompt_ids: &BTreeSet<i64>,
+    ) -> Result<(), AppError> {
+        self.video
+            .ensure_chapter_video_prompt_stages_mutable_ignoring(
+                prompts,
+                operation,
+                ignored_prompt_ids,
+            )
+            .await
+    }
+
+    pub(crate) async fn ensure_prompt_stages_mutable_skipping_generated_images(
+        &self,
+        prompts: &[chapter_video_prompt::Model],
+        operation: &str,
+    ) -> Result<(), AppError> {
+        self.video
+            .ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(
+                prompts, operation,
+            )
             .await
     }
 
@@ -1706,7 +1920,7 @@ impl OrchestratorContext {
         let business_key = crate::video::video_provider_workflow_business_key(video.id)
             .map_err(AppError::InvalidArgument)?;
         if let Some(run) = self
-            .latest_workflow_run_by_business_key(&business_key)
+            .latest_workflow_run_status_record_by_business_key(&business_key)
             .await?
         {
             return self
@@ -1838,7 +2052,7 @@ impl OrchestratorContext {
         let business_key = crate::video::video_provider_workflow_business_key(video.id)
             .map_err(AppError::InvalidArgument)?;
         let run = match self
-            .latest_workflow_run_by_business_key(&business_key)
+            .latest_workflow_run_status_record_by_business_key(&business_key)
             .await?
         {
             Some(run)
@@ -1853,15 +2067,15 @@ impl OrchestratorContext {
             {
                 return Ok(());
             }
-            Some(run) => run,
+            Some(run) => run.id,
             None => {
                 let input = crate::video::video_provider_progress_workflow_run_input(video, job_id)
                     .map_err(AppError::InvalidArgument)?;
-                self.begin_workflow_run_validated(input).await?
+                self.begin_workflow_run_validated(input).await?.id
             }
         };
         self.upsert_workflow_checkpoint(a4n_db::workflow::UpsertWorkflowCheckpointInput {
-            workflow_run_id: run.id,
+            workflow_run_id: run,
             step_key: "provider_job".to_string(),
             step_order: 1,
             status: status.to_string(),
@@ -1886,7 +2100,7 @@ impl OrchestratorContext {
             a4n_db::generation::AttachGenerationRunsToWorkflowInput {
                 target_table: "generated_video".to_string(),
                 target_id: video.id,
-                workflow_run_id: run.id,
+                workflow_run_id: run,
                 call_key: Some("provider_job".to_string()),
                 input_fingerprint_sha256: Some(fingerprint_sha),
                 input_fingerprint_json: Some(fingerprint),
@@ -1894,7 +2108,7 @@ impl OrchestratorContext {
             },
         )
         .await?;
-        self.mark_workflow_status(run.id, status, can_resume, error_message)
+        self.mark_workflow_status(run, status, can_resume, error_message)
             .await?;
         Ok(())
     }

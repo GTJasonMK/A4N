@@ -2,24 +2,41 @@ import { apiInvoke } from "./index";
 import { idNum, type ApiId as Id } from "./shared";
 import type {
   CreateThemeInput,
+  DeleteThemeResourceInput,
   Theme,
+  ThemePackageExport,
+  ThemePackageUploadInput,
+  ThemePreferenceSummary,
+  ThemeResourceSummary,
+  ThemeResourceUploadInput,
+  UpdateThemePreferenceInput,
   UpdateThemeInput,
 } from "./generated/theme";
 
 export type {
   CreateThemeInput,
+  DeleteThemeResourceInput,
   Theme,
+  ThemeAppearance,
+  ThemeBackgroundSettings,
+  ThemeDocument,
   ThemeMode,
+  ThemePackageExport,
+  ThemePackageUploadInput,
+  ThemePreferenceSummary,
+  ThemeResourceSummary,
+  ThemeResourceUploadInput,
   UpdateThemeInput,
+  UpdateThemePreferenceInput,
 } from "./generated/theme";
 
 /**
  * Theme API wrapper。
  *
  * 关键约定：
- *  - theme 由当前登录用户、name、mode、css_variables 描述，不是 css_variables only
+ *  - theme 由当前登录用户、name、mode、版本化 document 描述
  *  - mode 仅允许 "light" / "dark"
- *  - update_theme(theme_id, input: { name?, mode?, css_variables? }) 平铺 + input
+ *  - update_theme(theme_id, input: { name?, mode?, document? }) 平铺 + input
  *  - delete_theme / activate_theme / export_theme 用 theme_id
  *  - create_theme / import_theme 的主题 owner 来自当前登录用户
  *  - 用户身份只来自 Host 认证上下文，不进入业务参数
@@ -37,12 +54,12 @@ export async function listThemes(): Promise<Theme[]> {
 // 主题创建与更新
 // ============================================================================
 
-/** 后端 create_theme(input: { name, mode, css_variables }) */
+/** 后端 create_theme(input: { name, mode, document }) */
 export async function createTheme(input: CreateThemeInput): Promise<Theme> {
   return apiInvoke<Theme>("create_theme", { input });
 }
 
-/** 后端 update_theme(theme_id, input: { name?, mode?, css_variables? }) —— 平铺 + input */
+/** 后端 update_theme(theme_id, input: { name?, mode?, document? }) —— 平铺 + input */
 export async function updateTheme(
   themeId: Id,
   input: UpdateThemeInput,
@@ -84,4 +101,38 @@ export async function importTheme(themeJson: string): Promise<Theme> {
   return apiInvoke<Theme>("import_theme", {
     input,
   });
+}
+
+export async function getThemePreference(): Promise<ThemePreferenceSummary> {
+  return apiInvoke<ThemePreferenceSummary>("get_theme_preference");
+}
+
+export async function updateThemePreference(
+  input: UpdateThemePreferenceInput,
+): Promise<ThemePreferenceSummary> {
+  return apiInvoke<ThemePreferenceSummary>("update_theme_preference", { input });
+}
+
+export async function uploadThemeResource(
+  input: ThemeResourceUploadInput,
+): Promise<ThemeResourceSummary> {
+  return apiInvoke<ThemeResourceSummary>("upload_theme_resource", { input });
+}
+
+export async function deleteThemeResource(resourceId: Id): Promise<void> {
+  return apiInvoke<void>("delete_theme_resource", {
+    input: { resource_id: idNum(resourceId) } satisfies DeleteThemeResourceInput,
+  });
+}
+
+export async function exportThemePackage(themeId: Id): Promise<ThemePackageExport> {
+  return apiInvoke<ThemePackageExport>("export_theme_package", {
+    themeId: idNum(themeId),
+  });
+}
+
+export async function importThemePackage(
+  input: ThemePackageUploadInput,
+): Promise<Theme> {
+  return apiInvoke<Theme>("import_theme_package", { input });
 }

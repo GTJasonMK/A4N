@@ -4,8 +4,9 @@ import type { ProgressDialogStatus } from "../../../components/feedback/Progress
 export const formalReverseNotice = (
   successMessage: string,
   warnings: string[],
+  separator: string,
 ): { message: string; tone: "info" | "success" } => ({
-  message: warnings.length > 0 ? `${successMessage}；${warnings.join("；")}` : successMessage,
+  message: warnings.length > 0 ? `${successMessage}${separator}${warnings.join(separator)}` : successMessage,
   tone: warnings.length > 0 ? "info" : "success",
 });
 

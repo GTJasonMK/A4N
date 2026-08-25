@@ -1,6 +1,6 @@
 use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 
 use super::{ChapterContentEditError, EditChapterContentInput, assign_chapter_content};
 
@@ -20,7 +20,10 @@ where
         ChapterContentEditError::InvalidArgument("章节正文字符数超出 i32 范围".to_string())
     })?;
 
-    let chapter = chapter::Entity::find_by_id(input.chapter_id)
+    let status = chapter::Entity::find_by_id(input.chapter_id)
+        .select_only()
+        .column(chapter::Column::Status)
+        .into_tuple::<String>()
         .one(db)
         .await
         .map_err(ChapterContentEditError::database)?
@@ -28,15 +31,18 @@ where
             ChapterContentEditError::NotFound(format!("章节不存在: {}", input.chapter_id))
         })?;
 
-    if chapter.is_generating() {
+    if status == chapter::STATUS_GENERATING {
         return Err(ChapterContentEditError::InvalidState {
-            current: chapter.status,
+            current: status,
             operation: "保存章节正文".to_string(),
         });
     }
 
     let now = Utc::now().naive_utc();
-    let mut active: chapter::ActiveModel = chapter.into();
+    let mut active = chapter::ActiveModel {
+        id: Set(input.chapter_id),
+        ..Default::default()
+    };
     assign_chapter_content(
         &mut active,
         input.content,

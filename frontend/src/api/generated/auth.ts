@@ -10,6 +10,7 @@ export interface UserSummary {
   last_login_at: string | null;
   oauth_provider: string | null;
   oauth_subject: string | null;
+  page_cli_enabled: boolean;
   role: string;
   updated_at: string | null;
   username: string;
@@ -30,6 +31,7 @@ export interface LoginInput {
 export interface UpdateProfileInput {
   avatar_url?: string | null;
   email?: string;
+  page_cli_enabled?: boolean | null;
 }
 
 export interface ChangePasswordInput {

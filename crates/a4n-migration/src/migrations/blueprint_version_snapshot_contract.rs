@@ -431,13 +431,13 @@ INSERT INTO "user" (
 );
 
 INSERT INTO novel_project (
-    id, user_id, title, description, project_type, project_kind, source_mode,
+    id, user_id, title, description, project_type, project_kind,
     root_project_id, source_snapshot_id, source_sync_status, status, lifecycle_gate, target_chapters,
     current_chapter, total_chapters, chapters_per_part, avatar_svg,
     avatar_animal, raw_blueprint, import_analysis_progress, export_config,
     created_at, updated_at
 ) VALUES (
-    92001, 91001, '雾城', '', 'novel_long', 'text', 'self',
+    92001, 91001, '雾城', '', 'novel_long', 'text',
     NULL, NULL, 'current', 'blueprint_ready', 'active', 1,
     0, 1, NULL, NULL, NULL, '{"legacy":true}', NULL, NULL, NOW(), NOW()
 );

@@ -3,7 +3,7 @@ use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_llm::provider::{ChatRequest, ChatResponse};
 use async_trait::async_trait;
 
-use crate::canvas::{CanvasNodeRunHandle, CanvasNodeRunSummary};
+use crate::canvas::CanvasNodeRunHandle;
 
 #[derive(Debug, Clone)]
 pub(super) struct CanvasRenderedPrompt {
@@ -27,15 +27,12 @@ pub(super) struct CanvasLlmTextInput {
     pub source_node_ids: Vec<i64>,
 }
 
-pub type CanvasTextNodeRunHandle = CanvasNodeRunHandle;
-pub type CanvasTextNodeRunSummary = CanvasNodeRunSummary;
-
 pub struct CanvasTextNodeExecutionInput<'a> {
     pub project_id: i64,
     pub graph_id: i64,
     pub node: &'a canvas_node::Model,
     pub document: &'a CanvasGraphRecordDocument,
-    pub shared_run: Option<CanvasTextNodeRunHandle>,
+    pub shared_run: Option<CanvasNodeRunHandle>,
     pub mode: &'a str,
 }
 

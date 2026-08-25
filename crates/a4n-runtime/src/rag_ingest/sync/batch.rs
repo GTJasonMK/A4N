@@ -88,10 +88,10 @@ async fn sync_records(
         .await
         .map_err(|error| error.to_string())?;
     stats.add_deleted(deleted)?;
-    if deleted > 0 {
-        if let Some(progress) = progress.as_deref_mut() {
-            progress.stage(format!("已清理过期 RAG 记录 {deleted} 个"))?;
-        }
+    if deleted > 0
+        && let Some(progress) = progress
+    {
+        progress.stage(format!("已清理过期 RAG 记录 {deleted} 个"))?;
     }
     Ok(stats)
 }

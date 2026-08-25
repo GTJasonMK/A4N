@@ -5,8 +5,9 @@ use serde_json::{Value, json};
 
 use super::super::{CharacterSyncPersistenceInput, CharacterSyncStoredSnapshotsRecord};
 use super::projection::{
-    character_sync_attribute_events_at_chapter, character_sync_count_items_at_chapter,
-    character_sync_items_at_chapter,
+    character_sync_attribute_events_by_chapter, character_sync_attribute_events_from_index,
+    character_sync_item_count_from_index, character_sync_items_by_chapter,
+    character_sync_items_from_index,
 };
 use crate::character::CharacterDbError;
 use crate::character::attributes::{
@@ -33,6 +34,7 @@ where
         input.target_chapter,
     )
     .await?;
+    let events_by_chapter = character_sync_attribute_events_by_chapter(&events);
 
     let mut attributes = input.baseline_state.clone();
     let mut event_index = 0usize;
@@ -43,6 +45,11 @@ where
         .iter()
         .map(|state| (state.chapter_number, state))
         .collect::<BTreeMap<_, _>>();
+    let behaviors_by_chapter = character_sync_items_by_chapter(&input.behaviors)?;
+    let classification_suggestions_by_chapter =
+        character_sync_items_by_chapter(&input.classification_suggestions)?;
+    let deletion_candidates_by_chapter =
+        character_sync_items_by_chapter(&input.deletion_candidates)?;
     let mut state_indexes = Vec::with_capacity(input.selected_chapter_numbers.len());
 
     for chapter_number in &input.selected_chapter_numbers {
@@ -60,10 +67,9 @@ where
             event_index += 1;
         }
 
-        let changes_in_chapter = events
-            .iter()
-            .filter(|event| event.chapter_number == *chapter_number)
-            .count();
+        let changes =
+            character_sync_attribute_events_from_index(&events_by_chapter, *chapter_number);
+        let changes_in_chapter = changes.as_array().map_or(0, Vec::len);
         let chapter_state = chapter_state_by_number.get(chapter_number).ok_or_else(|| {
             CharacterDbError::Internal(format!("第 {chapter_number} 章缺少状态索引摘要"))
         })?;
@@ -81,25 +87,21 @@ where
             "current_location": chapter_state.current_location.clone(),
             "current_goal": chapter_state.current_goal.clone(),
             "emotional_state": chapter_state.emotional_state.clone(),
-            "changes": character_sync_attribute_events_at_chapter(&events, *chapter_number),
+            "changes": changes,
             "changes_in_chapter": changes_in_chapter,
-            "behaviors": character_sync_items_at_chapter(&input.behaviors, *chapter_number)?,
-            "behaviors_in_chapter": character_sync_count_items_at_chapter(
-                &input.behaviors,
+            "behaviors": character_sync_items_from_index(&behaviors_by_chapter, *chapter_number),
+            "behaviors_in_chapter":
+                character_sync_item_count_from_index(&behaviors_by_chapter, *chapter_number),
+            "classification_suggestions": character_sync_items_from_index(
+                &classification_suggestions_by_chapter,
                 *chapter_number,
-            )?,
-            "classification_suggestions": character_sync_items_at_chapter(
-                &input.classification_suggestions,
+            ),
+            "classification_suggestions_applied": character_sync_item_count_from_index(
+                &classification_suggestions_by_chapter,
                 *chapter_number,
-            )?,
-            "classification_suggestions_applied": character_sync_count_items_at_chapter(
-                &input.classification_suggestions,
-                *chapter_number,
-            )?,
-            "deletion_candidates": character_sync_items_at_chapter(
-                &input.deletion_candidates,
-                *chapter_number,
-            )?,
+            ),
+            "deletion_candidates":
+                character_sync_items_from_index(&deletion_candidates_by_chapter, *chapter_number),
             "implicit_review_decisions": if *chapter_number == input.target_chapter {
                 input.implicit_review_decisions.clone()
             } else {

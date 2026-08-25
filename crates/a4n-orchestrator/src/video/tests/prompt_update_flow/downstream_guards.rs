@@ -118,7 +118,19 @@ async fn delete_prompt_rejects_segment_plan_when_frame_prompts_exist() {
         0,
         json!({
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
-            "source": {"content_sha256": "same"}
+            "source": {"content_sha256": "same"},
+            "video_execution_identity": {
+                "contract_epoch": 1,
+                "source_content_sha256": "same",
+                "style_sha256": "style",
+                "duration_secs": 6,
+                "aspect_ratio": "16:9",
+                "segment_identities": [{
+                    "source_shot_id": "shot-1",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": "segment-1"
+                }]
+            }
         }),
     )
     .await;
@@ -132,7 +144,19 @@ async fn delete_prompt_rejects_segment_plan_when_frame_prompts_exist() {
         json!({
             "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
-            "source": {"content_sha256": "same"}
+            "source": {"content_sha256": "same"},
+            "video_execution_identity": {
+                "contract_epoch": 1,
+                "source_content_sha256": "same",
+                "style_sha256": "style",
+                "duration_secs": 6,
+                "aspect_ratio": "16:9",
+                "segment_plan_prompt_id": segment.id,
+                "source_shot_id": "shot-1",
+                "segment_index_in_shot": 1,
+                "segment_sha256": "segment-1",
+                "segment_recipe_fingerprint": "recipe-1"
+            }
         }),
     )
     .await;

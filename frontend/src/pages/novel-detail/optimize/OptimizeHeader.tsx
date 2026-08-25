@@ -5,6 +5,7 @@ import type { ChapterSummary } from "../../../api/chapter";
 import type { OptimizeSession } from "../../../api/optimize";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { useI18n } from "../../../i18n";
 import {
   chapterOptionLabel,
   sessionDisplayName,
@@ -95,26 +96,27 @@ export function OptimizeHeader({
   onSelectChapter,
   onSelectSession,
 }: OptimizeHeaderProps) {
+  const { t } = useI18n();
   const chapterOptions = useMemo<HeaderSelectOption<number | "">[]>(
     () => [
-      { value: "", label: "选择章节" },
+      { value: "", label: t("optimize.selectChapter") },
       ...chapters.map((chapter) => ({
         value: chapter.id,
-        label: chapterOptionLabel(chapter),
+        label: chapterOptionLabel(chapter, t),
       })),
     ],
-    [chapters],
+    [chapters, t],
   );
   const sessionOptions = useMemo<HeaderSelectOption<number | "">[]>(
     () => [
-      { value: "", label: "选择会话" },
+      { value: "", label: t("optimize.selectSession") },
       ...chapterSessions.map((session) => ({
         value: session.id,
-        label: sessionDisplayName(session),
-        description: statusLabel(session.status),
+        label: sessionDisplayName(session, t),
+        description: statusLabel(session.status, t),
       })),
     ],
-    [chapterSessions],
+    [chapterSessions, t],
   );
 
   return (
@@ -122,28 +124,28 @@ export function OptimizeHeader({
       <div className="w-full min-w-0 sm:flex-1 sm:basis-36">
         <div className="flex min-w-0 items-center gap-2 text-xs font-semibold text-book-text-main">
           <span className="truncate">
-            {activeChapter ? chapterOptionLabel(activeChapter) : "选择章节开始优化"}
+            {activeChapter ? chapterOptionLabel(activeChapter, t) : t("optimize.chooseChapter")}
           </span>
           {taskRunning ? (
             <span className="inline-flex shrink-0 items-center gap-1 text-small text-book-primary" role="status">
               <LoadingSpinner size="sm" />
-              运行中
+              {t("optimize.running")}
             </span>
           ) : null}
         </div>
         <div className="mt-0.5 truncate text-small text-book-text-muted">
-          {activeSession ? sessionDisplayName(activeSession) : activeChapter ? "尚未分析" : "选择章节后可分析问题或继续对话"}
+          {activeSession ? sessionDisplayName(activeSession, t) : activeChapter ? t("optimize.noAnalysis") : t("optimize.chooseChapterHint")}
         </div>
       </div>
 
-      <div className="flex w-full min-w-0 flex-nowrap items-center justify-end gap-1 sm:flex-1 sm:basis-40">
+      <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1 sm:flex-1 sm:basis-40">
         {!isPinned ? (
           <HeaderSelect
             value={selectedChapter}
             options={chapterOptions}
             onChange={onSelectChapter}
             disabled={taskRunning}
-            title="选择要优化的章节"
+            title={t("optimize.chooseChapterToOptimize")}
             className="flex-1 basis-28"
           />
         ) : null}
@@ -155,13 +157,13 @@ export function OptimizeHeader({
               if (typeof id === "number") onSelectSession(id);
             }}
             disabled={taskRunning}
-            title="切换本章历史会话"
+            title={t("optimize.switchSession")}
             className="flex-1 basis-24"
           />
         ) : null}
         {activeChapter ? (
           <BookIconButton
-            label="新建优化会话"
+            label={t("optimize.newSession")}
             variant="secondary"
             size="sm"
             onClick={onNewChatSession}
@@ -174,7 +176,7 @@ export function OptimizeHeader({
           <Dropdown
             items={[
               {
-                label: "删除当前会话",
+                label: t("optimize.deleteSession"),
                 onClick: onDeleteSession,
                 danger: true,
                 icon: <Trash2 size={12} />,
@@ -183,7 +185,7 @@ export function OptimizeHeader({
           />
         ) : null}
         <BookIconButton
-          label="刷新优化状态"
+          label={t("optimize.refreshStatus")}
           variant="secondary"
           size="sm"
           onClick={onRefresh}

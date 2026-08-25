@@ -8,6 +8,7 @@ import {
   VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
 } from "../../api/project";
 import { ImportsTab } from "../novel-detail/ImportsTab";
+import { useI18n, type MessageKey } from "../../i18n";
 
 export type CreateMode = "ai" | "free" | "video_canvas";
 
@@ -20,26 +21,26 @@ interface ProjectCreationDialogProps {
 
 const CREATE_MODE_OPTIONS: Array<{
   id: CreateMode;
-  label: string;
-  description: string;
+  labelKey: MessageKey;
+  descriptionKey: MessageKey;
   icon: React.ReactNode;
 }> = [
   {
     id: "ai",
-    label: "AI 辅助创作",
-    description: "从一个想法开始，由 AI 引导完成灵感、蓝图、大纲和正文",
+    labelKey: "novel.createModeAi",
+    descriptionKey: "novel.createModeAiDescription",
     icon: <Sparkles size={14} />,
   },
   {
     id: "free",
-    label: "自由创作",
-    description: "从已有设定、大纲、正文或空白章节开始，按需要使用 AI 补全",
+    labelKey: "novel.createModeFree",
+    descriptionKey: "novel.createModeFreeDescription",
     icon: <Plus size={14} />,
   },
   {
     id: "video_canvas",
-    label: "视频画布项目",
-    description: "用节点编排文本、提示词、图片、视频和模型调用",
+    labelKey: "novel.createModeCanvas",
+    descriptionKey: "novel.createModeCanvasDescription",
     icon: <Film size={14} />,
   },
 ];
@@ -50,15 +51,15 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
   onClose,
   onSelectMode,
 }) => {
-  if (!open) return null;
+  const { t } = useI18n();
 
   return (
     <Modal
-      isOpen
+      isOpen={open}
       onClose={() => !creating && onClose()}
-      title="新建项目"
+      title={t("novel.newProject")}
       icon={<Plus size={15} />}
-      subtitle="选择创作模式"
+      subtitle={t("novel.selectMode")}
       maxWidthClassName="max-w-xl"
       bodyClassName="px-4 py-4"
       closeOnBackdrop={!creating}
@@ -78,9 +79,9 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
               {option.icon}
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium text-book-text-main">{option.label}</span>
+              <span className="block text-sm font-medium text-book-text-main">{t(option.labelKey)}</span>
               <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
-                {option.description}
+                {t(option.descriptionKey)}
               </span>
             </span>
             <ChevronRight
@@ -92,7 +93,7 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
       </div>
       {creating && (
         <div className="mt-3 inline-flex items-center gap-2 text-xs text-book-text-muted">
-          <LoadingSpinner size="sm" /> 创建中…
+          <LoadingSpinner size="sm" /> {t("novel.creating")}
         </div>
       )}
     </Modal>
@@ -116,15 +117,15 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
   onSelectFile,
   onImport,
 }) => {
-  if (!open) return null;
+  const { t } = useI18n();
 
   return (
     <Modal
-      isOpen
+      isOpen={open}
       onClose={() => !importing && onClose()}
-      title="导入项目"
+      title={t("novel.importProject")}
       icon={<Upload size={15} />}
-      subtitle="从项目包恢复项目"
+      subtitle={t("novel.restoringProject")}
       maxWidthClassName="max-w-md"
       bodyClassName="px-4 py-4"
       closeOnBackdrop={!importing}
@@ -139,31 +140,31 @@ export const ProjectImportDialog: React.FC<ProjectImportDialogProps> = ({
           >
             {importing ? (
               <span className="inline-flex items-center gap-2">
-                <LoadingSpinner size="sm" /> 导入中…
+                <LoadingSpinner size="sm" /> {t("novel.importing")}
               </span>
             ) : (
-              "确认导入"
+              t("novel.confirmImport")
             )}
           </BookButton>
         </div>
       }
     >
       <p className="text-xs text-book-text-muted leading-relaxed mb-3">
-        从 <code>{PROJECT_FAMILY_PACKAGE_SUFFIX}</code> 项目族包或{" "}
-        <code>{VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX}</code> 视频画布项目包恢复项目和媒体资产。
-        <br />
-        请选择本地文件上传导入。
+        {t("novel.restorePackageHelp", {
+          familySuffix: PROJECT_FAMILY_PACKAGE_SUFFIX,
+          videoSuffix: VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX,
+        })}
       </p>
       {importFileName && (
         <div className="mb-3 rounded-xl border border-book-border bg-book-bg-soft px-3 py-2 text-xs text-book-text-sub">
-          已选择：
+          {t("novel.selectedFile")}
           <span className="break-all text-book-text-main">{importFileName}</span>
         </div>
       )}
       <div className="flex items-center gap-2">
         <BookButton variant="secondary" onClick={onSelectFile} disabled={importing}>
           <span className="inline-flex items-center gap-1">
-            <FolderOpen size={14} /> 选择文件
+            <FolderOpen size={14} /> {t("novel.chooseFile")}
           </span>
         </BookButton>
       </div>
@@ -180,15 +181,15 @@ export const ProjectTextImportDialog: React.FC<ProjectTextImportDialogProps> = (
   projectId,
   onClose,
 }) => {
+  const { t } = useI18n();
   const [writeBusy, setWriteBusy] = useState(false);
-
-  if (projectId == null) return null;
+  const open = projectId != null;
 
   return (
     <Modal
-      isOpen
+      isOpen={open}
       onClose={() => !writeBusy && onClose()}
-      title="导入项目文本"
+      title={t("novel.importText")}
       maxWidthClassName="max-w-5xl"
       bodyClassName="p-0"
       closeOnBackdrop={!writeBusy}
@@ -196,7 +197,9 @@ export const ProjectTextImportDialog: React.FC<ProjectTextImportDialogProps> = (
       showCloseButton={!writeBusy}
     >
       <div className="p-3">
-        <ImportsTab projectId={projectId} onBusyChange={setWriteBusy} />
+        {projectId != null ? (
+          <ImportsTab projectId={projectId} onBusyChange={setWriteBusy} />
+        ) : null}
       </div>
     </Modal>
   );

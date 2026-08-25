@@ -3,6 +3,7 @@ import { ScrollText } from "lucide-react";
 import { Modal } from "../../../components/ui/Modal";
 import { WorldObjectView } from "./WorldReadViews";
 import { stringifyPretty, type WorldObject } from "./worldTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface WorldDetailModalProps {
   open: boolean;
@@ -15,12 +16,13 @@ export const WorldDetailModal: React.FC<WorldDetailModalProps> = ({
   worldObject,
   onClose,
 }) => {
+  const { t } = useI18n();
   return (
     <Modal
       isOpen={open}
       onClose={onClose}
-      title="完整世界观"
-      subtitle="世界规则、地点、阵营与其他扩展设定"
+      title={t("novel.world.detailTitle")}
+      subtitle={t("novel.world.detailSubtitle")}
       icon={<ScrollText size={15} />}
       maxWidthClassName="max-w-5xl"
       bodyClassName="px-4 py-4"
@@ -29,7 +31,7 @@ export const WorldDetailModal: React.FC<WorldDetailModalProps> = ({
       {worldObject ? (
         <details className="mt-4 text-caption text-book-text-muted">
           <summary className="w-fit cursor-pointer text-xs hover:text-book-text-main">
-            诊断信息
+            {t("novel.world.diagnostics")}
           </summary>
           <pre className="mt-1 whitespace-pre-wrap break-words rounded-[10px] bg-book-bg-tertiary/45 p-3 font-mono text-caption leading-relaxed text-book-text-sub">
             {stringifyPretty(worldObject)}

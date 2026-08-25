@@ -1,6 +1,6 @@
-use a4n_core::models::asset::object_profile;
-use a4n_core::models::scene::scene_profile;
 use serde_json::Value;
+
+use a4n_db::video::VideoProfileRelevanceRow;
 
 use crate::video::ChapterVideoSourceContext;
 
@@ -26,7 +26,7 @@ pub(super) fn source_relevance_text(source: &ChapterVideoSourceContext<'_>) -> S
 }
 
 pub(super) fn scene_profile_relevance(
-    scene: &scene_profile::Model,
+    scene: &VideoProfileRelevanceRow,
     chapter_number: i32,
     source_text: &str,
 ) -> Option<usize> {
@@ -41,7 +41,7 @@ pub(super) fn scene_profile_relevance(
 }
 
 pub(super) fn object_profile_relevance(
-    object: &object_profile::Model,
+    object: &VideoProfileRelevanceRow,
     chapter_number: i32,
     source_text: &str,
 ) -> Option<usize> {

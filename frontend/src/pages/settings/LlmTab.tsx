@@ -35,6 +35,7 @@ import {
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
+import { useI18n } from "../../i18n";
 
 /**
  * LLM 配置 Tab
@@ -48,6 +49,7 @@ interface LlmTabProps {
 }
 
 export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
+  const { t } = useI18n();
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<LlmForm>[];
@@ -62,14 +64,14 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
       return {
         ...toLlmItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_LLM_CONFIG_ID,
-        deleteDisabledReason: "系统默认 LLM 模板由管理员维护，不能在用户配置页删除。",
+        deleteDisabledReason: t("settings.systemTemplateCannotDelete", { name: "LLM" }),
       };
     });
     return { items, catalog: providerCatalog };
-  }, [serverScope]);
+  }, [serverScope, t]);
   const { items, catalog, loading, refresh } = useConfigItems(
     loadItems,
-    "加载 LLM 配置失败",
+    t("settings.loadConfigFailed", { name: t("settings.llmConfig") }),
   );
 
   const defaultModelOutputCap =
@@ -85,16 +87,16 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
 
       <div className="min-h-0 md:flex-1">
         <ConfigListPanel<LlmForm>
-          title="LLM 配置"
+          title={t("settings.llmConfig")}
           items={items}
           loading={loading}
           onRefresh={refresh}
           defaultForm={DEFAULT_LLM_FORM}
-          validate={validateLlmForm}
-          activeLabel={serverScope ? "全局默认" : "当前默认"}
-          activateText={serverScope ? "设为全局默认" : "设为默认"}
-          activateSuccessMessage={serverScope ? "已设为系统全局默认" : "已设为当前默认"}
-          activateErrorMessage={serverScope ? "设置系统全局默认失败" : "设置默认失败"}
+          validate={(form) => validateLlmForm(form, t)}
+          activeLabel={serverScope ? t("settings.globalDefault") : t("settings.currentDefault")}
+          activateText={serverScope ? t("settings.setGlobalDefault") : t("settings.setDefault")}
+          activateSuccessMessage={serverScope ? t("settings.globalDefaultSuccess") : t("settings.setDefaultSuccess")}
+          activateErrorMessage={serverScope ? t("settings.globalDefaultFailed") : t("settings.setDefaultFailed")}
           formatItem={formatLlmItem}
           renderEditor={(form, setForm, context) => (
             <LlmConfigEditor
@@ -108,12 +110,12 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
             />
           )}
           onCreate={async (form) => {
-            await (serverScope ? createServerLlmConfig : createLlmConfig)(toCreateLlmInput(form));
+            await (serverScope ? createServerLlmConfig : createLlmConfig)(toCreateLlmInput(form, t));
           }}
           onUpdate={async (id, form) => {
             await (serverScope ? updateServerLlmConfig : updateLlmConfig)(
               id,
-              toUpdateLlmInput(form),
+              toUpdateLlmInput(form, t),
             );
           }}
           onDelete={serverScope ? deleteServerLlmConfig : deleteLlmConfig}

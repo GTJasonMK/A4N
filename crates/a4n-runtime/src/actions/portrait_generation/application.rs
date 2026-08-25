@@ -16,8 +16,7 @@ pub async fn generate_portrait_prompt(
     input: GeneratePortraitPromptInput,
 ) -> Result<String, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
-    let variables =
-        crate::actions::template_variables::parse_template_variables(input.variables.as_ref())?;
+    let variables = a4n_prompt::variables::parse_template_variables(input.variables.as_ref())?;
     let prompt_renderer = state;
     state
         .orchestrator()

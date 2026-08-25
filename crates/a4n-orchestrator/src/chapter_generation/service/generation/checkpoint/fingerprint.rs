@@ -1,5 +1,5 @@
 use a4n_core::error::AppError;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 

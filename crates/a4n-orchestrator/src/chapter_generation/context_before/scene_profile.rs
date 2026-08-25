@@ -1,6 +1,6 @@
 use super::shared::truncate_chars;
-use crate::chapter_generation::non_empty_trimmed;
 use crate::OrchestratorContext;
+use crate::chapter_generation::non_empty_trimmed;
 use a4n_core::models::scene::scene_profile;
 use serde_json::Value;
 

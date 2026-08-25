@@ -8,7 +8,6 @@ use a4n_db::DbHandle;
 use a4n_db::import_reverse::ReverseContextRows;
 
 use super::OrchestratorContext;
-use crate::import_reverse::ReverseEngineeringTarget;
 
 #[derive(Clone)]
 pub(super) struct ImportReverseApplication {
@@ -48,31 +47,5 @@ impl OrchestratorContext {
         self.import_reverse
             .reverse_context_rows(project_id, include_blueprint_context)
             .await
-    }
-
-    /// 导入逆向工程：校验后创建 workflow_run（RUNNING）。
-    pub(crate) async fn begin_import_reverse_workflow_validated(
-        &self,
-        project_id: i64,
-        target: ReverseEngineeringTarget,
-        content_sample: &str,
-        auto_context: bool,
-        context_limit: Option<i64>,
-        auto_context_source_sha256: Option<&str>,
-        variables: &std::collections::HashMap<String, serde_json::Value>,
-        active_task_id: Option<&str>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
-        let input = crate::import_reverse::import_reverse_workflow_run_input(
-            project_id,
-            target,
-            content_sample,
-            auto_context,
-            context_limit,
-            auto_context_source_sha256,
-            variables,
-            active_task_id,
-        )
-        .map_err(AppError::InvalidArgument)?;
-        self.begin_workflow_run_validated(input).await
     }
 }

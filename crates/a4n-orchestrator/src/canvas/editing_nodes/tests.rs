@@ -515,7 +515,7 @@ async fn run_node(
     host: &dyn CanvasEditingNodeHostPort,
     shared_run: Option<CanvasNodeRunHandle>,
     mode: &str,
-) -> Result<crate::canvas::CanvasNodeRunSummary, AppError> {
+) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
     setup
         .context
         .run_canvas_editing_node_validated(

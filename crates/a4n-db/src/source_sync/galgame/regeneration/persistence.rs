@@ -3,7 +3,7 @@ use a4n_core::models::{
     source_sync::source_sync_run,
 };
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
+use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
 use crate::source_sync::SourceSyncDbError;
 use crate::source_sync::galgame::{
@@ -30,8 +30,10 @@ where
 {
     let now = Utc::now().naive_utc();
     let new_line_count = generated_scene.lines.len();
-    for line in generated_scene.lines {
-        galgame_line::ActiveModel {
+    let line_inserts = generated_scene
+        .lines
+        .into_iter()
+        .map(|line| galgame_line::ActiveModel {
             scene_id: Set(scene.id),
             line_index: Set(line.line_index),
             line_type: Set(line.line_type),
@@ -45,9 +47,12 @@ where
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
-        .await?;
+        })
+        .collect::<Vec<_>>();
+    if !line_inserts.is_empty() {
+        galgame_line::Entity::insert_many(line_inserts)
+            .exec_without_returning(db)
+            .await?;
     }
 
     let mut active_scene: galgame_scene::ActiveModel = scene.clone().into();

@@ -31,6 +31,7 @@ pub use system_settings::{
     LLM_MAX_TOKENS_SETTING_KEY, llm_max_tokens_config, save_llm_max_tokens_config,
 };
 pub use theme::{
-    activate_theme, create_theme, delete_theme, list_themes_visible_to_user, theme_by_id,
-    update_theme,
+    activate_theme, create_theme, delete_theme, delete_theme_resource, list_theme_resources,
+    list_theme_resources_for_themes, list_themes_visible_to_user, theme_by_id, theme_preference,
+    theme_resource_by_id, update_theme, upsert_theme_preference, upsert_theme_resource,
 };

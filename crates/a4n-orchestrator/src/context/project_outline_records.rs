@@ -1,16 +1,14 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::outline::{
+    DeleteLatestOutlineRecordsInput, SaveChapterOutlineInput, SavePartOutlineInput,
+    UpdateChapterOutlineInput,
+};
 use a4n_core::{
     error::AppError,
     models::chapter::{chapter_outline, part_outline},
 };
-use a4n_db::{
-    DbHandle,
-    project::{
-        DeleteLatestOutlineRecordsInput, ManualChapterOutlineSaveInput, ManualPartOutlineSaveInput,
-        OutlineGenerationProgressRows, ProjectChapterOutlineUpdateInput,
-    },
-};
+use a4n_db::{DbHandle, project::OutlineGenerationProgressRows};
 
 use super::OrchestratorContext;
 use crate::project::{
@@ -81,7 +79,7 @@ impl ProjectOutlineRecordsApplication {
     /// 规范化标题/摘要/结构化字段后更新章节大纲。
     async fn update_chapter_outline_validated(
         &self,
-        input: ProjectChapterOutlineUpdateInput,
+        input: UpdateChapterOutlineInput,
     ) -> Result<chapter_outline::Model, AppError> {
         let input = normalize_chapter_outline_update_input(input)?;
         a4n_db::project::update_chapter_outline_record(self.database.connection(), input)
@@ -91,8 +89,16 @@ impl ProjectOutlineRecordsApplication {
 
     async fn save_manual_chapter_outline_validated(
         &self,
-        input: ManualChapterOutlineSaveInput,
+        input: SaveChapterOutlineInput,
     ) -> Result<chapter_outline::Model, AppError> {
+        let input = a4n_db::project::ManualChapterOutlineSaveInput {
+            project_id: input.project_id,
+            outline_id: input.outline_id,
+            expected_updated_at: input.expected_updated_at,
+            chapter_number: input.chapter_number,
+            title: input.title,
+            summary: input.summary,
+        };
         a4n_db::project::save_manual_chapter_outline(self.database.connection(), input)
             .await
             .map_err(project_outline_record_error_to_app_error)
@@ -100,8 +106,19 @@ impl ProjectOutlineRecordsApplication {
 
     async fn save_manual_part_outline_validated(
         &self,
-        input: ManualPartOutlineSaveInput,
+        input: SavePartOutlineInput,
     ) -> Result<part_outline::Model, AppError> {
+        let input = a4n_db::project::ManualPartOutlineSaveInput {
+            project_id: input.project_id,
+            part_id: input.part_id,
+            expected_updated_at: input.expected_updated_at,
+            part_number: input.part_number,
+            start_chapter: input.start_chapter,
+            end_chapter: input.end_chapter,
+            title: input.title,
+            summary: input.summary,
+            theme: input.theme,
+        };
         a4n_db::project::save_manual_part_outline(self.database.connection(), input)
             .await
             .map_err(project_outline_record_error_to_app_error)
@@ -111,6 +128,7 @@ impl ProjectOutlineRecordsApplication {
         &self,
         input: DeleteLatestOutlineRecordsInput,
     ) -> Result<(), AppError> {
+        let input = delete_latest_outline_records_input(input);
         a4n_db::project::delete_latest_part_outline_records(self.database.connection(), input)
             .await
             .map_err(project_outline_record_error_to_app_error)
@@ -120,6 +138,7 @@ impl ProjectOutlineRecordsApplication {
         &self,
         input: DeleteLatestOutlineRecordsInput,
     ) -> Result<(), AppError> {
+        let input = delete_latest_outline_records_input(input);
         a4n_db::project::delete_latest_chapter_outline_records(self.database.connection(), input)
             .await
             .map_err(project_outline_record_error_to_app_error)
@@ -204,7 +223,7 @@ impl OrchestratorContext {
     /// 更新章节大纲：ID 门禁 + 可选字段规范化后落库。
     pub async fn update_chapter_outline_validated(
         &self,
-        input: ProjectChapterOutlineUpdateInput,
+        input: UpdateChapterOutlineInput,
     ) -> Result<chapter_outline::Model, AppError> {
         self.project_outline_records
             .update_chapter_outline_validated(input)
@@ -213,7 +232,7 @@ impl OrchestratorContext {
 
     pub async fn save_manual_chapter_outline_validated(
         &self,
-        input: ManualChapterOutlineSaveInput,
+        input: SaveChapterOutlineInput,
     ) -> Result<chapter_outline::Model, AppError> {
         self.project_outline_records
             .save_manual_chapter_outline_validated(input)
@@ -222,7 +241,7 @@ impl OrchestratorContext {
 
     pub async fn save_manual_part_outline_validated(
         &self,
-        input: ManualPartOutlineSaveInput,
+        input: SavePartOutlineInput,
     ) -> Result<part_outline::Model, AppError> {
         self.project_outline_records
             .save_manual_part_outline_validated(input)
@@ -285,8 +304,8 @@ impl OrchestratorContext {
 }
 
 fn normalize_chapter_outline_update_input(
-    input: ProjectChapterOutlineUpdateInput,
-) -> Result<ProjectChapterOutlineUpdateInput, AppError> {
+    input: UpdateChapterOutlineInput,
+) -> Result<a4n_db::project::ProjectChapterOutlineUpdateInput, AppError> {
     ensure_positive_project_id(input.project_id)?;
     if input.outline_id <= 0 {
         return Err(AppError::InvalidArgument(
@@ -315,7 +334,7 @@ fn normalize_chapter_outline_update_input(
         Some(value) => Some(require_outline_json_array(value, "key_scenes")?),
         None => None,
     };
-    Ok(ProjectChapterOutlineUpdateInput {
+    Ok(a4n_db::project::ProjectChapterOutlineUpdateInput {
         project_id: input.project_id,
         outline_id: input.outline_id,
         expected_updated_at,
@@ -324,6 +343,22 @@ fn normalize_chapter_outline_update_input(
         beats,
         key_scenes,
     })
+}
+
+fn delete_latest_outline_records_input(
+    input: DeleteLatestOutlineRecordsInput,
+) -> a4n_db::project::DeleteLatestOutlineRecordsInput {
+    a4n_db::project::DeleteLatestOutlineRecordsInput {
+        project_id: input.project_id,
+        targets: input
+            .targets
+            .into_iter()
+            .map(|target| a4n_db::project::OutlineDeleteTarget {
+                id: target.id,
+                expected_updated_at: target.expected_updated_at,
+            })
+            .collect(),
+    }
 }
 
 fn require_non_empty_outline_text(value: &str, field: &str) -> Result<String, AppError> {

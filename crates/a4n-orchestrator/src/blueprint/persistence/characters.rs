@@ -1,7 +1,7 @@
 use a4n_core::blueprint::ParsedBlueprintCharacter;
 use a4n_db::project::BlueprintCharacterDraft;
 
-pub fn blueprint_character_drafts(
+pub(in crate::blueprint) fn blueprint_character_drafts(
     characters: &[ParsedBlueprintCharacter],
 ) -> Vec<BlueprintCharacterDraft> {
     characters

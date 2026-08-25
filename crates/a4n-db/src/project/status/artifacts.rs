@@ -1,11 +1,18 @@
 use super::ProjectStatusReadError;
 use crate::project::validate_positive_i64;
-use a4n_core::models::{
-    chapter::{chapter, chapter_outline, part_outline},
-    project::novel_blueprint,
-};
+use a4n_core::models::chapter::chapter;
 use a4n_domain::project::ProjectStatusArtifacts;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
+    QuerySelect, Statement,
+};
+
+const STATUS_ARTIFACT_FLAGS_SQL: &str = r#"
+SELECT
+    EXISTS (SELECT 1 FROM novel_blueprint WHERE project_id = $1) AS has_blueprint,
+    EXISTS (SELECT 1 FROM part_outline WHERE project_id = $1) AS has_part_outline,
+    EXISTS (SELECT 1 FROM chapter_outline WHERE project_id = $1) AS has_chapter_outline
+"#;
 
 pub async fn project_status_artifacts(
     db: &DatabaseConnection,
@@ -13,35 +20,29 @@ pub async fn project_status_artifacts(
 ) -> Result<ProjectStatusArtifacts, ProjectStatusReadError> {
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectStatusReadError::InvalidArgument)?;
-    let has_blueprint = novel_blueprint::Entity::find()
-        .select_only()
-        .column(novel_blueprint::Column::Id)
-        .filter(novel_blueprint::Column::ProjectId.eq(project_id))
-        .into_tuple::<i64>()
-        .one(db)
+    let Some(row) = db
+        .query_one(Statement::from_sql_and_values(
+            DbBackend::Postgres,
+            STATUS_ARTIFACT_FLAGS_SQL,
+            [project_id.into()],
+        ))
         .await
-        .map_err(|error| ProjectStatusReadError::database("读取项目蓝图", error))?
-        .is_some();
-
-    let has_part_outline = part_outline::Entity::find()
-        .select_only()
-        .column(part_outline::Column::Id)
-        .filter(part_outline::Column::ProjectId.eq(project_id))
-        .into_tuple::<i64>()
-        .one(db)
-        .await
-        .map_err(|error| ProjectStatusReadError::database("读取项目分部大纲", error))?
-        .is_some();
-
-    let has_chapter_outline = chapter_outline::Entity::find()
-        .select_only()
-        .column(chapter_outline::Column::Id)
-        .filter(chapter_outline::Column::ProjectId.eq(project_id))
-        .into_tuple::<i64>()
-        .one(db)
-        .await
-        .map_err(|error| ProjectStatusReadError::database("读取项目章节大纲", error))?
-        .is_some();
+        .map_err(|error| ProjectStatusReadError::database("读取项目状态产物", error))?
+    else {
+        return Err(ProjectStatusReadError::database(
+            "读取项目状态产物",
+            DbErr::RecordNotFound("项目状态产物查询没有返回结果".to_string()),
+        ));
+    };
+    let has_blueprint: bool = row
+        .try_get("", "has_blueprint")
+        .map_err(|error| ProjectStatusReadError::database("读取项目蓝图", error))?;
+    let has_part_outline: bool = row
+        .try_get("", "has_part_outline")
+        .map_err(|error| ProjectStatusReadError::database("读取项目分部大纲", error))?;
+    let has_chapter_outline: bool = row
+        .try_get("", "has_chapter_outline")
+        .map_err(|error| ProjectStatusReadError::database("读取项目章节大纲", error))?;
 
     let has_chapter_content = chapter::Entity::find()
         .select_only()

@@ -1,7 +1,11 @@
 use std::collections::BTreeSet;
 
 use a4n_core::error::AppError;
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_core::models::{
+    chapter::chapter_shooting_script,
+    project::source_snapshot_chapter,
+    source_sync::{source_sync_conflict, source_sync_run},
+};
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 
 use super::spans::galgame_regeneration_source_spans;
@@ -9,7 +13,7 @@ use crate::OrchestratorContext;
 use crate::galgame::{
     GalgameChapterShootingScript, GalgamePipelinePromptChapter, GalgamePipelinePromptContext,
     GalgamePipelineSourceSpan, GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
-    galgame_shooting_script_projection,
+    GalgameSpeakerProfile, galgame_shooting_script_projection,
 };
 use crate::source_sync::contracts::{
     GalgameSourceSyncExecutionContext, RegenerateGalgameScenePayload,
@@ -23,6 +27,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
     conflict: &source_sync_conflict::Model,
     payload: &RegenerateGalgameScenePayload,
     galgame_execution: GalgameSourceSyncExecutionContext<'_>,
+    speaker_profiles: &[GalgameSpeakerProfile],
 ) -> Result<GalgameSceneRegenerationPlan, AppError> {
     let source = a4n_db::source_sync::galgame_scene_regeneration_source_record(
         service.database.connection(),
@@ -32,9 +37,6 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
     )
     .await
     .map_err(source_sync_db_error)?;
-    let speaker_profiles = service
-        .speaker_profiles_for_root_project(run.root_project_id)
-        .await?;
     let source_spans =
         galgame_regeneration_source_spans(&source.new_snapshot_chapter, &source.anchors);
     let prompt_chapter = GalgamePipelinePromptChapter {
@@ -47,14 +49,18 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
         content: source.new_snapshot_chapter.content.clone(),
         source_spans: source_spans.clone(),
     };
+    let visual_plan = source_sync_visual_plan_identity(&source.new_snapshot_chapter)?;
     let shooting_script = service
         .require_current_chapter_shooting_script(
             crate::shooting_script::ChapterShootingScriptSourceInput {
                 project_id: run.derived_project_id,
                 source_chapter_id: source.new_snapshot_chapter.source_chapter_id,
+                visual_plan_id: Some(visual_plan.id),
             },
         )
         .await?;
+    let shooting_record = &shooting_script.shooting_script.record;
+    ensure_source_sync_shooting_script_visual_plan(shooting_record, &visual_plan)?;
     let projection = galgame_shooting_script_projection(&GalgamePipelinePromptContext {
         project_id: run.derived_project_id,
         root_project_id: run.root_project_id,
@@ -68,7 +74,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
                 source_snapshot_chapter_id: span.source_snapshot_chapter_id,
             })
             .collect(),
-        speaker_profiles: speaker_profiles.clone(),
+        speaker_profiles: speaker_profiles.to_vec(),
         shooting_scripts: vec![GalgameChapterShootingScript {
             source_chapter_id: source.new_snapshot_chapter.source_chapter_id,
             source_snapshot_chapter_id: source.new_snapshot_chapter.id,
@@ -127,7 +133,7 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
                 background_note: source.scene.background_note.clone(),
                 directing_scene,
                 source_spans,
-                speaker_profiles,
+                speaker_profiles: speaker_profiles.to_vec(),
             },
             galgame_execution.prompt_renderer,
         )
@@ -144,4 +150,152 @@ pub(super) async fn build_prepared_galgame_scene_regeneration_plan(
         &new_anchor_ids,
     )?;
     Ok(plan)
+}
+
+fn source_sync_visual_plan_identity(
+    chapter: &source_snapshot_chapter::Model,
+) -> Result<a4n_db::shooting_script::ChapterVisualPlanIdentity, AppError> {
+    match (
+        chapter.visual_plan_id,
+        chapter.visual_plan_version,
+        chapter.visual_plan_sha256.clone(),
+    ) {
+        (Some(id), Some(version), Some(sha256)) if id > 0 && version > 0 => {
+            Ok(a4n_db::shooting_script::ChapterVisualPlanIdentity {
+                id,
+                version,
+                sha256,
+            })
+        }
+        _ => Err(AppError::NotFound(format!(
+            "源同步目标快照第 {} 章缺少已确认的导演编排方案",
+            chapter.chapter_number
+        ))),
+    }
+}
+
+fn ensure_source_sync_shooting_script_visual_plan(
+    shooting_script: &chapter_shooting_script::Model,
+    visual_plan: &a4n_db::shooting_script::ChapterVisualPlanIdentity,
+) -> Result<(), AppError> {
+    if shooting_script.visual_plan_id == Some(visual_plan.id)
+        && shooting_script.visual_plan_version == Some(visual_plan.version)
+        && shooting_script.visual_plan_sha256.as_deref() == Some(visual_plan.sha256.as_str())
+    {
+        return Ok(());
+    }
+    Err(AppError::InvalidState {
+        current: format!(
+            "source_sync_shooting_script_visual_plan_mismatch_{}",
+            shooting_script.id
+        ),
+        operation: SourceSyncResolutionStrategy::RegenerateScene
+            .as_str()
+            .to_string(),
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::NaiveDate;
+    use serde_json::json;
+
+    use super::*;
+
+    fn snapshot_chapter() -> source_snapshot_chapter::Model {
+        source_snapshot_chapter::Model {
+            id: 10,
+            snapshot_id: 20,
+            root_project_id: 30,
+            source_chapter_id: 40,
+            chapter_number: 5,
+            title: Some("第五章".to_string()),
+            content: "正文".to_string(),
+            summary: None,
+            analysis_data_json: None,
+            content_hash: "a".repeat(64),
+            analysis_hash: None,
+            visual_plan_id: Some(50),
+            visual_plan_version: Some(3),
+            visual_plan_sha256: Some("b".repeat(64)),
+        }
+    }
+
+    fn shooting_script() -> chapter_shooting_script::Model {
+        let now = NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        chapter_shooting_script::Model {
+            id: 60,
+            root_project_id: 30,
+            source_chapter_id: 40,
+            source_snapshot_id: Some(20),
+            source_snapshot_chapter_id: Some(10),
+            source_revision_key: "snapshot:20:chapter:10".to_string(),
+            source_content_sha256: "a".repeat(64),
+            visual_plan_id: Some(50),
+            visual_plan_version: Some(3),
+            visual_plan_sha256: Some("b".repeat(64)),
+            input_fingerprint_sha256: "c".repeat(64),
+            contract_version: "chapter_shooting_script_v1".to_string(),
+            revision: 1,
+            script_sha256: "d".repeat(64),
+            script_json: json!({}),
+            workflow_run_id: None,
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn target_snapshot_requires_complete_confirmed_visual_plan_identity() {
+        for chapter in [
+            source_snapshot_chapter::Model {
+                visual_plan_id: None,
+                ..snapshot_chapter()
+            },
+            source_snapshot_chapter::Model {
+                visual_plan_version: None,
+                ..snapshot_chapter()
+            },
+            source_snapshot_chapter::Model {
+                visual_plan_sha256: None,
+                ..snapshot_chapter()
+            },
+        ] {
+            let error = source_sync_visual_plan_identity(&chapter)
+                .expect_err("incomplete target snapshot identity must fail");
+            assert!(error.to_string().contains("缺少已确认的导演编排方案"));
+        }
+    }
+
+    #[test]
+    fn shooting_script_must_match_snapshot_visual_plan_id_version_and_hash() {
+        let identity = source_sync_visual_plan_identity(&snapshot_chapter()).unwrap();
+        ensure_source_sync_shooting_script_visual_plan(&shooting_script(), &identity).unwrap();
+
+        for script in [
+            chapter_shooting_script::Model {
+                visual_plan_id: Some(51),
+                ..shooting_script()
+            },
+            chapter_shooting_script::Model {
+                visual_plan_version: Some(4),
+                ..shooting_script()
+            },
+            chapter_shooting_script::Model {
+                visual_plan_sha256: Some("e".repeat(64)),
+                ..shooting_script()
+            },
+        ] {
+            let error = ensure_source_sync_shooting_script_visual_plan(&script, &identity)
+                .expect_err("any visual plan identity mismatch must fail");
+            assert!(
+                error
+                    .to_string()
+                    .contains("source_sync_shooting_script_visual_plan_mismatch_60")
+            );
+        }
+    }
 }

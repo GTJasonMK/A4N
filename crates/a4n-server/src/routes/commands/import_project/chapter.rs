@@ -3,6 +3,7 @@ mod content;
 mod generation;
 mod scenes;
 mod shooting_script;
+mod visual_plan;
 
 pub(in crate::routes::commands) use analysis::{
     generate_chapter_analysis, preview_chapter_analysis_request,
@@ -22,4 +23,10 @@ pub(in crate::routes::commands) use shooting_script::{
     edit_chapter_shooting_script, generate_chapter_shooting_script,
     generate_next_chapter_shooting_script_unit, get_chapter_shooting_script,
     get_chapter_shooting_script_unit_progress,
+};
+pub(in crate::routes::commands) use visual_plan::{
+    apply_chapter_visual_plan_proposal, confirm_chapter_visual_plan,
+    discard_chapter_visual_plan_draft, generate_chapter_visual_plan_draft, get_chapter_visual_plan,
+    preview_chapter_visual_plan_request, propose_chapter_visual_plan_revision,
+    save_chapter_visual_plan_draft,
 };

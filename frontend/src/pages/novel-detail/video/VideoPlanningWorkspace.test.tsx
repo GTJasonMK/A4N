@@ -10,6 +10,7 @@ import {
   DEFAULT_VIDEO_OPTIONS,
   videoDurationLimitsFromConfig,
 } from "./videoTabUtils";
+import { I18nProvider } from "../../../i18n";
 
 const durationLimits = videoDurationLimitsFromConfig(null);
 const shootingScenes = [
@@ -80,7 +81,8 @@ describe("VideoPlanningWorkspace", () => {
 
   it("keeps completed preview segments visible after generation stops", () => {
     const html = renderToStaticMarkup(
-      <VideoPlanningWorkspace
+      <I18nProvider initialLocale="zh-CN">
+        <VideoPlanningWorkspace
         prompt={null}
         previewSegments={[{ segment_number: 1, title: "已生成片段" }]}
         draft={{
@@ -124,7 +126,8 @@ describe("VideoPlanningWorkspace", () => {
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
         onDelete={vi.fn()}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("已保存草稿");
@@ -137,7 +140,8 @@ describe("VideoPlanningWorkspace", () => {
 
   it("shows persisted segments while checkpoint drafts are still loading", () => {
     const html = renderToStaticMarkup(
-      <VideoPlanningWorkspace
+      <I18nProvider initialLocale="zh-CN">
+        <VideoPlanningWorkspace
         prompt={persistedPrompt}
         previewSegments={[]}
         draft={null}
@@ -152,7 +156,8 @@ describe("VideoPlanningWorkspace", () => {
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
         onDelete={vi.fn()}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("正式片段");
@@ -161,7 +166,8 @@ describe("VideoPlanningWorkspace", () => {
 
   it("keeps unaffected segments visible while a draft replaces its shot", () => {
     const html = renderToStaticMarkup(
-      <VideoPlanningWorkspace
+      <I18nProvider initialLocale="zh-CN">
+        <VideoPlanningWorkspace
         prompt={{
           ...persistedPrompt,
           metadata_json: {
@@ -208,7 +214,8 @@ describe("VideoPlanningWorkspace", () => {
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
         onDelete={vi.fn()}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("已发布片段");
@@ -221,7 +228,8 @@ describe("VideoPlanningWorkspace", () => {
 
   it("ends draft loading with an explicit retry state", () => {
     const html = renderToStaticMarkup(
-      <VideoPlanningWorkspace
+      <I18nProvider initialLocale="zh-CN">
+        <VideoPlanningWorkspace
         prompt={null}
         previewSegments={[]}
         draft={null}
@@ -236,7 +244,8 @@ describe("VideoPlanningWorkspace", () => {
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
         onDelete={vi.fn()}
-      />,
+        />
+      </I18nProvider>,
     );
 
     expect(html).toContain("加载已保存的片段规划失败：workflow 查询失败");

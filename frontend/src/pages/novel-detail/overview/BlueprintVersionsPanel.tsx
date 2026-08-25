@@ -12,9 +12,10 @@ import {
   restoreBlueprintVersion,
   type BlueprintVersion,
 } from "../../../api/blueprint";
-import { formatUiDateTime } from "../../../utils/dateTime";
+import { formatDateTime, useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
 
-const blueprintVersionLabel = (version: string): string => `版本 ${version}`;
+const blueprintVersionLabel = (version: string, t: MessageTranslator): string =>
+  t("novel.blueprintVersions.versionLabel", { version });
 
 interface BlueprintVersionsPanelProps {
   projectId: number;
@@ -26,6 +27,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   onMutated,
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const [versions, setVersions] = useState<BlueprintVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
@@ -77,7 +79,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "加载蓝图版本失败"), "error");
+      addToast(extractErrorMessage(err, t("novel.blueprintVersions.loadFailed")), "error");
     } finally {
       if (loadSeqRef.current === requestSeq) loadingRef.current = false;
       if (
@@ -88,7 +90,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
         setLoading(false);
       }
     }
-  }, [addToast, projectId]);
+  }, [addToast, projectId, t]);
 
   useLayoutEffect(() => {
     activeProjectRef.current = projectId;
@@ -134,7 +136,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   const handleDiff = async () => {
     if (diffingRef.current || restoringRef.current != null) return;
     if (picked.length !== 2) {
-      addToast("请勾选两个版本进行对比", "error");
+      addToast(t("novel.blueprintVersions.selectTwo"), "error");
       return;
     }
     const requestProjectId = projectId;
@@ -165,7 +167,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "对比失败"), "error");
+      addToast(extractErrorMessage(err, t("novel.blueprintVersions.diffFailed")), "error");
     } finally {
       if (diffSeqRef.current === requestSeq) diffingRef.current = false;
       if (
@@ -181,12 +183,12 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   const handleRestore = async (version: BlueprintVersion) => {
     if (restoringRef.current != null) return;
     const requestProjectId = projectId;
-    const versionLabel = blueprintVersionLabel(version.version);
+    const versionLabel = blueprintVersionLabel(version.version, t);
     restoringRef.current = version.version;
     const ok = await confirmDialog({
-      title: "恢复蓝图版本",
-      message: `恢复到${versionLabel}？\n\n当前蓝图会被覆盖，但版本仓库会保留全部历史。`,
-      confirmText: "恢复",
+      title: t("novel.blueprintVersions.restoreTitle"),
+      message: t("novel.blueprintVersions.restoreMessage", { version: versionLabel }),
+      confirmText: t("novel.blueprintVersions.restore"),
       dialogType: "warning",
     });
     if (!ok) {
@@ -213,8 +215,11 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
       addToast(
         result.warnings.length > 0
-          ? `已恢复到${versionLabel}；${result.warnings.join("；")}`
-          : `已恢复到${versionLabel}`,
+          ? t("novel.blueprintVersions.restoredWithWarnings", {
+              version: versionLabel,
+              warnings: result.warnings.join(t("common.summarySeparator")),
+            })
+          : t("novel.blueprintVersions.restored", { version: versionLabel }),
         result.warnings.length > 0 ? "info" : "success",
       );
       await onMutated();
@@ -222,7 +227,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       await load();
     } catch (err) {
       if (!mountedRef.current || activeProjectRef.current !== requestProjectId) return;
-      addToast(extractErrorMessage(err, "恢复失败"), "error");
+      addToast(extractErrorMessage(err, t("novel.blueprintVersions.restoreFailed")), "error");
     } finally {
       if (restoringRef.current === version.version) restoringRef.current = null;
       if (mountedRef.current && activeProjectRef.current === requestProjectId) setRestoring(null);
@@ -234,14 +239,14 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-small leading-relaxed text-book-text-muted">
           {versions.length > 0
-            ? `共 ${versions.length} 个版本；选择两个版本可查看差异`
-            : "每次保存或优化蓝图都会生成版本记录"}
+            ? t("novel.blueprintVersions.summary", { count: versions.length })
+            : t("novel.blueprintVersions.emptySummary")}
         </p>
         <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
           <Dropdown
             items={[
               {
-                label: loading ? "正在刷新…" : "刷新版本",
+                label: loading ? t("novel.blueprintVersions.refreshing") : t("novel.blueprintVersions.refresh"),
                 icon: loading ? <LoadingSpinner size="sm" /> : undefined,
                 onClick: load,
                 disabled: loading || restoring != null,
@@ -258,10 +263,10 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
             >
               {diffing ? (
                 <span className="inline-flex items-center gap-2">
-                  <LoadingSpinner size="sm" /> 对比中…
+                  <LoadingSpinner size="sm" /> {t("novel.blueprintVersions.comparing")}
                 </span>
               ) : (
-                "对比已选版本"
+                t("novel.blueprintVersions.compareSelected")
               )}
             </BookButton>
           ) : null}
@@ -270,18 +275,18 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
 
       {loading && versions.length === 0 ? (
         <div className="text-xs text-book-text-muted inline-flex items-center gap-2">
-          <LoadingSpinner size="sm" /> 加载版本…
+          <LoadingSpinner size="sm" /> {t("novel.blueprintVersions.loading")}
         </div>
       ) : versions.length === 0 ? (
         <div className="text-xs text-book-text-muted py-3">
-          尚无蓝图版本记录。每次 AI 优化 / 保存蓝图会自动创建新版本。
+          {t("novel.blueprintVersions.empty")}
         </div>
       ) : (
         <>
           <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
             {versions.map((version) => {
               const isPicked = picked.includes(version.version);
-              const versionLabel = blueprintVersionLabel(version.version);
+              const versionLabel = blueprintVersionLabel(version.version, t);
               return (
                 <li
                   key={version.id}
@@ -292,7 +297,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                   <button
                     type="button"
                     aria-pressed={isPicked}
-                    aria-label={`选择${versionLabel}`}
+                    aria-label={t("novel.blueprintVersions.select", { version: versionLabel })}
                     onClick={() => togglePick(version.version)}
                     className={`mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-book-primary/35 ${
                       isPicked
@@ -306,7 +311,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                     <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="font-medium text-book-text-main">{versionLabel}</span>
                       <time className="text-caption tabular-nums text-book-text-muted">
-                        {formatUiDateTime(version.created_at)}
+                        {formatDateTime(version.created_at, locale)}
                       </time>
                       <span className="text-caption text-book-text-muted">
                         {version.created_by}
@@ -328,7 +333,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
                     <Dropdown
                       items={[
                         {
-                          label: "恢复此版本",
+                          label: t("novel.blueprintVersions.restoreThis"),
                           danger: true,
                           onClick: () => void handleRestore(version),
                         },
@@ -342,7 +347,7 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
           {diff != null && (
             <div className="mt-3 pt-3 border-t border-book-border/30">
               <div className="text-xs text-book-text-muted mb-1.5">
-                已选版本差异
+                {t("novel.blueprintVersions.selectedDiff")}
               </div>
               <BlueprintDiffSummary diff={diff} />
             </div>
@@ -353,24 +358,25 @@ export const BlueprintVersionsPanel: React.FC<BlueprintVersionsPanelProps> = ({
   );
 };
 
-const BLUEPRINT_DIFF_LABELS: Record<string, string> = {
-  title: "标题",
-  genre: "类型",
-  style: "写作风格",
-  tone: "情感基调",
-  target_audience: "目标读者",
-  full_synopsis: "完整梗概",
-  world_setting: "世界观",
-  total_chapters: "目标章节",
-  characters: "角色",
-  added: "新增",
-  removed: "删除",
-  changed: "修改",
-  old: "原内容",
-  new: "新内容",
+const BLUEPRINT_DIFF_LABELS: Record<string, MessageKey> = {
+  title: "novel.blueprintVersions.diffLabels.title",
+  genre: "novel.blueprintVersions.diffLabels.genre",
+  style: "novel.blueprintVersions.diffLabels.style",
+  tone: "novel.blueprintVersions.diffLabels.tone",
+  target_audience: "novel.blueprintVersions.diffLabels.targetAudience",
+  full_synopsis: "novel.blueprintVersions.diffLabels.fullSynopsis",
+  world_setting: "novel.blueprintVersions.diffLabels.worldSetting",
+  total_chapters: "novel.blueprintVersions.diffLabels.totalChapters",
+  characters: "novel.blueprintVersions.diffLabels.characters",
+  added: "novel.blueprintVersions.diffLabels.added",
+  removed: "novel.blueprintVersions.diffLabels.removed",
+  changed: "novel.blueprintVersions.diffLabels.changed",
+  old: "novel.blueprintVersions.diffLabels.old",
+  new: "novel.blueprintVersions.diffLabels.new",
 };
 
 const BlueprintDiffSummary: React.FC<{ diff: unknown }> = ({ diff }) => {
+  const { t } = useI18n();
   if (typeof diff === "string") {
     return <div className="a4n-flat-surface whitespace-pre-wrap break-words p-3 text-small leading-relaxed text-book-text-sub">{diff}</div>;
   }
@@ -379,17 +385,17 @@ const BlueprintDiffSummary: React.FC<{ diff: unknown }> = ({ diff }) => {
       ? Object.entries(diff as Record<string, unknown>)
       : [];
   if (entries.length === 0) {
-    return <div className="text-small text-book-text-muted">没有可展示的差异</div>;
+    return <div className="text-small text-book-text-muted">{t("novel.blueprintVersions.noDiff")}</div>;
   }
   return (
     <div className="a4n-flat-surface divide-y divide-book-border/40">
         {entries.map(([key, value]) => (
           <div key={key} className="grid gap-1 px-3 py-2 text-small sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
             <span className="font-medium text-book-text-muted">
-              {BLUEPRINT_DIFF_LABELS[key] ?? key}
+              {BLUEPRINT_DIFF_LABELS[key] ? t(BLUEPRINT_DIFF_LABELS[key]) : key}
             </span>
             <span className="min-w-0 whitespace-pre-wrap break-words text-book-text-sub">
-              {formatBlueprintDiffValue(value)}
+              {formatBlueprintDiffValue(value, t)}
             </span>
           </div>
         ))}
@@ -397,17 +403,25 @@ const BlueprintDiffSummary: React.FC<{ diff: unknown }> = ({ diff }) => {
   );
 };
 
-function formatBlueprintDiffValue(value: unknown): string {
-  if (value == null) return "未记录";
-  if (typeof value === "string") return value.trim() || "未记录";
+function formatBlueprintDiffValue(
+  value: unknown,
+  t: MessageTranslator,
+): string {
+  if (value == null) return t("novel.blueprintVersions.notRecorded");
+  if (typeof value === "string") return value.trim() || t("novel.blueprintVersions.notRecorded");
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   if (Array.isArray(value)) {
-    return value.map(formatBlueprintDiffValue).filter(Boolean).join("、") || "未记录";
+    return value
+      .map((item) => formatBlueprintDiffValue(item, t))
+      .filter(Boolean)
+      .join(t("common.listSeparator")) || t("novel.blueprintVersions.notRecorded");
   }
   if (typeof value === "object") {
     return Object.entries(value as Record<string, unknown>)
-      .map(([key, item]) => `${BLUEPRINT_DIFF_LABELS[key] ?? key}：${formatBlueprintDiffValue(item)}`)
-      .join("；");
+      .map(([key, item]) =>
+        `${BLUEPRINT_DIFF_LABELS[key] ? t(BLUEPRINT_DIFF_LABELS[key]) : key}: ${formatBlueprintDiffValue(item, t)}`,
+      )
+      .join(t("common.summarySeparator"));
   }
   return String(value);
 }

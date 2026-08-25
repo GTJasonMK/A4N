@@ -1,4 +1,5 @@
 import React from "react";
+import { useI18n } from "../../i18n";
 import { type ChapterSummary } from "../../api/chapter";
 import { isDerivedChapterOutline, type ChapterOutline } from "../../api/outline";
 
@@ -42,6 +43,7 @@ export const AssistantContextPanel: React.FC<AssistantContextPanelProps> = ({
   outlines,
   activeNumber,
 }) => {
+  const { t } = useI18n();
   const previousTail = previousChapterTail(chapters, activeNumber);
   const nextOutline = nextOutlineText(outlines, activeNumber);
 
@@ -49,17 +51,17 @@ export const AssistantContextPanel: React.FC<AssistantContextPanelProps> = ({
 
   return (
     <details className="text-xs text-book-text-muted">
-      <summary className="w-fit cursor-pointer hover:text-book-text-main">参考上下文</summary>
+      <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("writing.contextReference")}</summary>
       <div className="a4n-flat-surface mt-2 divide-y divide-book-border/40 overflow-hidden leading-relaxed">
         {previousTail && (
           <section className="px-3 py-2.5">
-            <div className="mb-1 font-semibold text-book-text-main">前章末尾</div>
+            <div className="mb-1 font-semibold text-book-text-main">{t("writing.previousChapterEnding")}</div>
             <div className="line-clamp-4 whitespace-pre-wrap">…{previousTail}</div>
           </section>
         )}
         {nextOutline && (
           <section className="px-3 py-2.5">
-            <div className="mb-1 font-semibold text-book-text-main">下章章纲</div>
+            <div className="mb-1 font-semibold text-book-text-main">{t("writing.nextChapterOutline")}</div>
             <div className="line-clamp-3">
               {nextOutline.title && (
                 <span className="text-book-text-main">{nextOutline.title}</span>

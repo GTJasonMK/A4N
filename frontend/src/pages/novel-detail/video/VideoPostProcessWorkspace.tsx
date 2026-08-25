@@ -28,11 +28,14 @@ import {
 } from "../../../utils/videoUpload";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { useVideoPlaybackSource } from "./useVideoPlaybackSource";
+import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../../../i18n";
 import {
   assemblyPushIndex,
   assemblyPushSourceIds,
   assemblyPushStatus,
+  formatVideoDuration,
   formatVideoCreatedAt,
+  latestNonRejectedAssemblyPush,
 } from "./videoTabUtils";
 
 interface VideoPostProcessWorkspaceProps {
@@ -47,13 +50,10 @@ const MARKER_MIN_GAP_SECS = 0.05;
 const VIDEO_SEEK_TOLERANCE_SECS = 0.05;
 const VIDEO_FRAME_PRESENTATION_TIMEOUT_MS = 750;
 
-const formatSeconds = (value: number): string => {
-  if (!Number.isFinite(value) || value <= 0) return "0s";
-  if (value < 60) return `${Math.round(value)}s`;
-  const minutes = Math.floor(value / 60);
-  const seconds = Math.round(value - minutes * 60);
-  return `${minutes}m ${seconds}s`;
-};
+const formatPreciseSeconds = (value: number, locale: Locale, t: MessageTranslator): string =>
+  t("video.postprocess.preciseSeconds", {
+    value: formatNumber(value, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+  });
 
 const editPushId = (video: GeneratedVideo): number | null => {
   const value = asRecord(
@@ -62,21 +62,22 @@ const editPushId = (video: GeneratedVideo): number | null => {
   return Number.isInteger(value) && Number(value) > 0 ? Number(value) : null;
 };
 
-const editOperationLabel: Record<string, string> = {
-  insert: "插入",
-  delete: "删除",
-  replace: "替换",
+const editOperationLabel: Record<string, MessageKey> = {
+  insert: "video.chapter.postprocessInsert",
+  delete: "video.chapter.postprocessDelete",
+  replace: "video.chapter.postprocessReplace",
 };
 
-const PUSH_STATUS_LABELS: Record<string, string> = {
-  pending: "待确认",
-  accepted: "已同意",
-  rejected: "已拒绝",
+const PUSH_STATUS_LABELS: Record<string, MessageKey> = {
+  pending: "video.chapter.postprocessPending",
+  accepted: "video.chapter.postprocessAccepted",
+  rejected: "video.chapter.postprocessRejected",
 };
 
 export const VideoPostProcessWorkspace: React.FC<
   VideoPostProcessWorkspaceProps
 > = ({ projectId, chapter, videos, onToast, onRefresh }) => {
+  const { locale, t } = useI18n();
   const pushes = useMemo(
     () =>
       videos
@@ -117,18 +118,16 @@ export const VideoPostProcessWorkspace: React.FC<
     return map;
   }, [videos]);
 
-  const latestPush = useMemo(
-    () =>
-      [...pushes]
-        .reverse()
-        .find((push) => assemblyPushStatus(push) !== "rejected") ?? null,
+  const pushById = useMemo(
+    () => new Map(pushes.map((push) => [push.id, push] as const)),
     [pushes],
   );
+  const latestPush = useMemo(() => latestNonRejectedAssemblyPush(pushes), [pushes]);
   const [selectedPushId, setSelectedPushId] = useState<number | null>(null);
   const selectedPush =
     selectedPushId == null
       ? null
-      : (pushes.find((push) => push.id === selectedPushId) ?? null);
+      : (pushById.get(selectedPushId) ?? null);
   const versions = selectedPush
     ? (editsByPushId.get(selectedPush.id) ?? [])
     : [];
@@ -346,11 +345,11 @@ export const VideoPostProcessWorkspace: React.FC<
 
   useEffect(() => {
     setSelectedPushId((current) => {
-      if (current != null && pushes.some((push) => push.id === current))
+      if (current != null && pushById.has(current))
         return current;
       return latestPush?.id ?? pushes[0]?.id ?? null;
     });
-  }, [latestPush?.id, pushes]);
+  }, [latestPush?.id, pushById, pushes]);
 
   const duration = Math.max(
     0.1,
@@ -385,15 +384,15 @@ export const VideoPostProcessWorkspace: React.FC<
     ? assemblyPushSourceIds(selectedPush)
     : null;
   const editDisabledReason = !selectedPush
-    ? "没有可编辑推送"
+    ? t("video.postprocess.noEditablePush")
     : selectedPushIndex == null ||
         selectedPushStatus == null ||
         selectedPushSourceIds == null
-      ? "推送记录无效，不能编辑"
+      ? t("video.postprocess.invalidPush")
       : selectedPushStatus === "rejected"
-        ? "已拒绝推送不能编辑"
+        ? t("video.postprocess.rejectedCannotEdit")
         : !editableLatest
-          ? "只能编辑当前最新推送"
+          ? t("video.postprocess.latestOnly")
           : null;
 
   const appendMarker = (rawValue: number) => {
@@ -619,15 +618,15 @@ export const VideoPostProcessWorkspace: React.FC<
       if (!isCurrentScope(requestScope)) return;
       onToast(
         action === "accept"
-          ? "已同意最新推送"
+          ? t("video.postprocess.acceptedLatest")
           : action === "reject"
-            ? "已拒绝最新推送"
-            : "已撤销最新推送同意",
+            ? t("video.postprocess.rejectedLatest")
+            : t("video.postprocess.undoAcceptedLatest"),
         "success",
       );
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, "更新推送状态失败"), "error");
+      onToast(extractErrorMessage(err, t("video.postprocess.updateStatusFailed")), "error");
     } finally {
       finishAction(requestScope);
       if (isCurrentScope(requestScope)) setActing(null);
@@ -638,21 +637,21 @@ export const VideoPostProcessWorkspace: React.FC<
     if (!selectedPush || editDisabledReason) return;
     const requestScope = scopeKey;
     if (operation === "insert" && singleMarker == null) {
-      onToast("插入操作需要先添加一根时间线标记", "error");
+      onToast(t("video.postprocess.insertNeedMarker"), "error");
       return;
     }
     if (operation === "replace" && !selectedRange) {
-      onToast("替换操作需要先添加两根时间线标记", "error");
+      onToast(t("video.postprocess.replaceNeedMarkers"), "error");
       return;
     }
     if (!beginAction()) return;
     setActing(`edit-${operation}`);
     let upload: VideoUploadFile | null = null;
     try {
-      upload = await pickVideoUploadFile();
+      upload = await pickVideoUploadFile(t);
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
+      onToast(extractErrorMessage(err, t("video.postprocess.filePickerFailed")), "error");
       return;
     } finally {
       if (!upload) {
@@ -682,10 +681,10 @@ export const VideoPostProcessWorkspace: React.FC<
       clearMarkers();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
-      onToast(`已${editOperationLabel[operation]}上传片段`, "success");
+      onToast(t("video.postprocess.editUploaded", { operation: t(editOperationLabel[operation]) }), "success");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, "应用后处理编辑失败"), "error");
+      onToast(extractErrorMessage(err, t("video.postprocess.applyEditFailed")), "error");
     } finally {
       finishAction(requestScope);
       if (isCurrentScope(requestScope)) setActing(null);
@@ -694,7 +693,7 @@ export const VideoPostProcessWorkspace: React.FC<
 
   const applyDelete = async () => {
     if (!selectedPush || editDisabledReason || !selectedRange) {
-      onToast("删除操作需要先在最新推送上添加两根时间线标记", "error");
+      onToast(t("video.postprocess.deleteNeedMarkers"), "error");
       return;
     }
     const requestScope = scopeKey;
@@ -710,10 +709,10 @@ export const VideoPostProcessWorkspace: React.FC<
       clearMarkers();
       await onRefresh();
       if (!isCurrentScope(requestScope)) return;
-      onToast("已删除选中片段", "success");
+      onToast(t("video.postprocess.deletedSelection"), "success");
     } catch (err) {
       if (!isCurrentScope(requestScope)) return;
-      onToast(extractErrorMessage(err, "删除后处理片段失败"), "error");
+      onToast(extractErrorMessage(err, t("video.postprocess.deleteFailed")), "error");
     } finally {
       finishAction(requestScope);
       if (isCurrentScope(requestScope)) setActing(null);
@@ -724,7 +723,7 @@ export const VideoPostProcessWorkspace: React.FC<
     editableLatest && selectedPushStatus === "pending"
       ? [
           {
-            label: "拒绝此推送",
+            label: t("video.postprocess.rejectPush"),
             icon: <X size={12} />,
             danger: true,
             onClick: () => void handlePushStatus("reject"),
@@ -733,7 +732,7 @@ export const VideoPostProcessWorkspace: React.FC<
       : editableLatest && selectedPushStatus === "accepted"
         ? [
             {
-              label: "撤销同意",
+              label: t("video.postprocess.undoAccept"),
               icon: <RotateCcw size={12} />,
               onClick: () => void handlePushStatus("undo"),
             },
@@ -743,7 +742,7 @@ export const VideoPostProcessWorkspace: React.FC<
     ...(markers.length > 0
       ? [
           {
-            label: "清除竖线",
+            label: t("video.postprocess.clearMarkers"),
             icon: <RotateCcw size={12} />,
             onClick: clearMarkers,
           },
@@ -753,7 +752,7 @@ export const VideoPostProcessWorkspace: React.FC<
       ? [
           { type: "divider" as const },
           {
-            label: "删除选中区间",
+            label: t("video.postprocess.deleteSelection"),
             icon: <Scissors size={12} />,
             danger: true,
             onClick: () => void applyDelete(),
@@ -765,14 +764,18 @@ export const VideoPostProcessWorkspace: React.FC<
   const editActing = acting?.startsWith("edit-") ?? false;
   const markerSummary =
     markers.length === 0
-      ? "点击剪辑条添加插入点；添加第二根竖线可选择区间。"
+      ? t("video.postprocess.markerHint")
       : singleMarker != null
-        ? `插入位置 ${singleMarker.toFixed(2)}s`
+        ? t("video.postprocess.insertPosition", { time: formatPreciseSeconds(singleMarker, locale, t) })
         : selectedRange
-          ? `已选择 ${selectedRange.start.toFixed(2)}s–${selectedRange.end.toFixed(2)}s · ${(
-              selectedRange.end - selectedRange.start
-            ).toFixed(2)}s`
-          : `两根竖线至少需要间隔 ${MARKER_MIN_GAP_SECS.toFixed(2)}s`;
+          ? t("video.postprocess.selectedRange", {
+              start: formatPreciseSeconds(selectedRange.start, locale, t),
+              end: formatPreciseSeconds(selectedRange.end, locale, t),
+              duration: formatPreciseSeconds(selectedRange.end - selectedRange.start, locale, t),
+            })
+          : t("video.postprocess.markerGapRequired", {
+              gap: formatPreciseSeconds(MARKER_MIN_GAP_SECS, locale, t),
+            });
   const timelineReadout = videoPlaying ? playbackTimeSecs : markerValue;
 
   if (pushes.length === 0) {
@@ -784,10 +787,10 @@ export const VideoPostProcessWorkspace: React.FC<
           </div>
           <div className="max-w-sm">
             <h3 className="text-sm font-medium text-book-text-main">
-              还没有待处理的成片
+              {t("video.postprocess.emptyTitle")}
             </h3>
             <p className="mt-1 text-xs leading-relaxed text-book-text-muted">
-              从成片合成阶段推送预览后，才能在这里确认和调整剪辑。
+              {t("video.postprocess.emptyDescription")}
             </p>
           </div>
         </div>
@@ -799,9 +802,9 @@ export const VideoPostProcessWorkspace: React.FC<
     <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[220px_minmax(0,1fr)]">
       <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden">
         <div className="flex shrink-0 items-baseline justify-between gap-3 border-b border-book-border/35 px-3 py-2.5">
-          <h3 className="text-xs font-medium text-book-text-main">推送批次</h3>
+          <h3 className="text-xs font-medium text-book-text-main">{t("video.postprocess.pushBatches")}</h3>
           <span className="text-caption text-book-text-muted">
-            {pushes.length} 批
+            {t("video.postprocess.batchCount", { count: pushes.length })}
           </span>
         </div>
         <ul className="flex min-h-0 divide-x divide-book-border/35 overflow-x-auto custom-scrollbar xl:flex-1 xl:flex-col xl:divide-x-0 xl:divide-y xl:overflow-x-hidden xl:overflow-y-auto">
@@ -837,15 +840,15 @@ export const VideoPostProcessWorkspace: React.FC<
                   }`}
                 >
                   <div className="text-xs font-medium text-book-text-main">
-                    {pushIndex == null ? "批次无效" : `批次 ${pushIndex}`}
+                    {pushIndex == null ? t("video.postprocess.invalidBatch") : t("video.chapter.timelineItem", { number: pushIndex })}
                   </div>
                   <div className="mt-1 text-caption text-book-text-muted">
                     {sourceIds == null
-                      ? "来源无效"
-                      : `${sourceIds.length} 个片段`}
+                      ? t("video.postprocess.invalidSource")
+                      : t("video.postprocess.segmentCount", { count: sourceIds.length })}
                     <span className="mx-1">·</span>
                     <span className={statusTone}>
-                      {status == null ? "状态无效" : PUSH_STATUS_LABELS[status]}
+                      {status == null ? t("video.postprocess.invalidStatus") : t(PUSH_STATUS_LABELS[status])}
                     </span>
                   </div>
                 </button>
@@ -860,20 +863,19 @@ export const VideoPostProcessWorkspace: React.FC<
           <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 pb-2">
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-medium text-book-text-main">
-                后处理预览
+                {t("video.postprocess.previewTitle")}
               </h3>
               {currentVideo && selectedPush ? (
                 <p className="mt-1 text-caption leading-relaxed text-book-text-muted">
                   {selectedPushIndex == null
-                    ? "批次无效"
-                    : `批次 ${selectedPushIndex}`}{" "}
+                    ? t("video.postprocess.invalidBatch")
+                    : t("video.chapter.timelineItem", { number: selectedPushIndex })}{" "}
                   ·{" "}
                   {selectedPushStatus == null
-                    ? "状态无效"
-                    : PUSH_STATUS_LABELS[selectedPushStatus]}{" "}
-                  · {formatSeconds(currentVideo.duration_secs)} · 第{" "}
-                  {versions.length + 1} 版
-                  {` · ${formatVideoCreatedAt(currentVideo.updated_at)}`}
+                    ? t("video.postprocess.invalidStatus")
+                    : t(PUSH_STATUS_LABELS[selectedPushStatus])}{" "}
+                  · {formatVideoDuration(currentVideo.duration_secs, locale, t)} · {t("video.postprocess.version", { number: versions.length + 1 })}
+                  {` · ${formatVideoCreatedAt(currentVideo.updated_at, locale, t)}`}
                 </p>
               ) : null}
             </div>
@@ -898,7 +900,7 @@ export const VideoPostProcessWorkspace: React.FC<
                     className="!min-h-8 !px-3"
                   >
                     <Check size={12} />
-                    同意推送
+                    {t("video.postprocess.acceptPush")}
                   </BookButton>
                 ) : null}
               </>
@@ -975,7 +977,7 @@ export const VideoPostProcessWorkspace: React.FC<
               <div className="flex h-full min-h-[280px] items-center justify-center bg-book-bg-tertiary">
                 <EmptyHint
                   text={
-                    currentVideo ? "正在加载后处理视频。" : "暂无推送视频。"
+                    currentVideo ? t("video.postprocess.loadingVideo") : t("video.postprocess.noPushVideo")
                   }
                 />
               </div>
@@ -997,7 +999,7 @@ export const VideoPostProcessWorkspace: React.FC<
               <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/35 text-xs text-white">
                 <span className="inline-flex items-center gap-1.5 rounded-xl bg-black/55 px-2.5 py-1.5 backdrop-blur-sm">
                   <LoadingSpinner size="sm" />
-                  正在加载视频
+                  {t("video.postprocess.loadingVideo")}
                 </span>
               </div>
             )}
@@ -1016,7 +1018,7 @@ export const VideoPostProcessWorkspace: React.FC<
           <div className="mb-1.5 flex min-h-10 min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-book-border/35 pb-1.5 xl:flex-nowrap">
             <div className="min-w-0">
               <h3 className="text-xs font-medium text-book-text-main">
-                剪辑条
+                {t("video.postprocess.editBar")}
               </h3>
               {editDisabledReason ? (
                 <p className="mt-0.5 text-caption text-book-text-muted">
@@ -1044,7 +1046,7 @@ export const VideoPostProcessWorkspace: React.FC<
                     className="!min-h-8 !px-3 text-small"
                   >
                     <Upload size={12} />
-                    上传并插入
+                    {t("video.postprocess.uploadInsert")}
                   </BookButton>
                 ) : selectedRange ? (
                   <BookButton
@@ -1055,7 +1057,7 @@ export const VideoPostProcessWorkspace: React.FC<
                     className="!min-h-8 !px-3 text-small"
                   >
                     <Upload size={12} />
-                    上传并替换
+                    {t("video.postprocess.uploadReplace")}
                   </BookButton>
                 ) : null}
               </div>
@@ -1068,31 +1070,31 @@ export const VideoPostProcessWorkspace: React.FC<
               className="flex min-h-24 items-center justify-center gap-2 text-xs text-book-text-muted"
             >
               <LoadingSpinner size="sm" />
-              正在应用后处理编辑
+              {t("video.postprocess.applyingEdit")}
             </div>
           ) : editDisabledReason || !currentVideo ? (
             <div className="flex min-h-20 items-center justify-center text-xs text-book-text-muted">
-              当前批次不可编辑。
+              {t("video.postprocess.currentBatchNotEditable")}
             </div>
           ) : (
             <div>
               <div className="grid grid-cols-3 text-caption tabular-nums text-book-text-muted">
-                <span>0s</span>
+                <span>{formatPreciseSeconds(0, locale, t)}</span>
                 <span className="justify-self-center">
-                  {timelineReadout.toFixed(2)}s
+                  {formatPreciseSeconds(timelineReadout, locale, t)}
                 </span>
-                <span className="justify-self-end">{duration.toFixed(2)}s</span>
+                <span className="justify-self-end">{formatPreciseSeconds(duration, locale, t)}</span>
               </div>
               <div
                 ref={timelineRef}
                 role="button"
-                aria-label="视频剪辑时间轴"
+                aria-label={t("video.postprocess.timelineAria")}
                 tabIndex={0}
                 aria-disabled={markers.length >= 2 || undefined}
                 title={
                   markers.length >= 2
-                    ? "已添加两根竖线，请先清除"
-                    : "点击剪辑条添加竖线"
+                    ? t("video.postprocess.twoMarkersClearFirst")
+                    : t("video.postprocess.clickToAddMarker")
                 }
                 onClick={handleTimelineClick}
                 onKeyDown={(event) => {
@@ -1123,7 +1125,7 @@ export const VideoPostProcessWorkspace: React.FC<
                     key={`marker-${index}`}
                     role="slider"
                     tabIndex={0}
-                    aria-label={`剪辑竖线 ${index + 1}`}
+                    aria-label={t("video.postprocess.markerAria", { number: index + 1 })}
                     aria-keyshortcuts="Delete Backspace"
                     aria-valuemin={0}
                     aria-valuemax={duration}
@@ -1234,7 +1236,7 @@ export const VideoPostProcessWorkspace: React.FC<
                     style={{
                       left: `${Math.min(100, Math.max(0, (marker / duration) * 100))}%`,
                     }}
-                    title={`${marker.toFixed(2)}s`}
+                    title={formatPreciseSeconds(marker, locale, t)}
                   >
                     <span className="absolute left-1/2 top-1 h-8 w-0.5 -translate-x-1/2 bg-book-primary" />
                     <span

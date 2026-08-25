@@ -37,6 +37,7 @@ pub(super) fn validate_generation_specs(
             source_snapshot_id,
             &refs.snapshot_chapters,
             &refs.snapshot_profiles,
+            &refs.chapter_video_prompt_ids,
             &refs.video_segment_ids,
             &refs.assembly_timeline_ids,
             &refs.galgame_scripts,

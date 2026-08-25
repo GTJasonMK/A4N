@@ -88,7 +88,7 @@ pub(super) fn character_sheet_generation_fields() -> Map<String, Value> {
     fields
 }
 
-pub fn character_sheet_seed_instruction() -> String {
+pub(super) fn character_sheet_seed_instruction() -> String {
     let views = REQUIRED_VIEWS.join("、");
     let breakdowns = BREAKDOWN_SECTIONS.join("；");
     let layout = LAYOUT_SPEC.join("；");

@@ -1,5 +1,6 @@
-use a4n_core::models::project::{source_snapshot_chapter, text_anchor};
-use chrono::Utc;
+use a4n_db::galgame::{
+    GalgamePipelinePromptChapterSourceRecord, GalgamePipelinePromptTextAnchorRecord,
+};
 use serde_json::json;
 
 use super::*;
@@ -69,19 +70,19 @@ fn character_staging_message_includes_speaker_profiles() {
     assert!(message.contains("\"林晓雨\""));
 }
 
-fn snapshot_chapter(id: i64, chapter_number: i32, content: &str) -> source_snapshot_chapter::Model {
-    source_snapshot_chapter::Model {
+fn snapshot_chapter(
+    id: i64,
+    chapter_number: i32,
+    content: &str,
+) -> GalgamePipelinePromptChapterSourceRecord {
+    GalgamePipelinePromptChapterSourceRecord {
         id,
-        snapshot_id: 10,
-        root_project_id: 1,
         source_chapter_id: 5,
         chapter_number,
         title: Some("测试章节".to_string()),
         content: content.to_string(),
         summary: Some("章节摘要".to_string()),
-        analysis_data_json: None,
         content_hash: "hash".to_string(),
-        analysis_hash: None,
     }
 }
 
@@ -92,21 +93,13 @@ fn text_anchor(
     start_offset: i32,
     end_offset: i32,
     quote: &str,
-) -> text_anchor::Model {
-    text_anchor::Model {
+) -> GalgamePipelinePromptTextAnchorRecord {
+    GalgamePipelinePromptTextAnchorRecord {
         id,
-        project_id: 1,
-        source_chapter_id: Some(5),
-        source_snapshot_id: Some(10),
         source_snapshot_chapter_id: Some(source_snapshot_chapter_id),
-        source_kind: "chapter".to_string(),
-        source_id: 5,
         paragraph_index,
         start_offset,
         end_offset,
         quote: quote.to_string(),
-        quote_hash: "quote_hash".to_string(),
-        source_version_hash: "source_hash".to_string(),
-        created_at: Utc::now().naive_utc(),
     }
 }

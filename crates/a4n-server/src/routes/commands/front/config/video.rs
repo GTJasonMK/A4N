@@ -3,6 +3,7 @@ use super::shared::{
     config_web_no_arg_command, config_web_update_command,
 };
 use crate::routes::commands::config_records_actions;
+use a4n_api_contract::config::{UpdateVideoConfigInput, VideoConfigInput};
 
 config_web_no_arg_command!(
     list_video_configs,
@@ -10,12 +11,12 @@ config_web_no_arg_command!(
 );
 config_web_input_command!(
     add_video_config,
-    config_records_actions::VideoConfigInput,
+    VideoConfigInput,
     config_records_actions::add_video_config,
 );
 config_web_update_command!(
     update_video_config,
-    config_records_actions::UpdateVideoConfigInput,
+    UpdateVideoConfigInput,
     config_records_actions::update_video_config,
 );
 config_web_id_unit_command!(

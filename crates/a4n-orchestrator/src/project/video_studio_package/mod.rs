@@ -2,8 +2,6 @@
 //!
 //! Orchestrator 负责包合同与导入导出编排；Host 只执行 zip 和物理文件 IO。
 
-use std::collections::HashMap;
-
 use a4n_core::models::{
     ai::{generated_image, generated_video},
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
@@ -15,13 +13,17 @@ use a4n_core::models::{
 use a4n_db::canvas::VideoStudioProjectImportRows;
 use serde::{Deserialize, Serialize};
 
+use crate::project::{ImportMediaPayload, MediaFileEntry};
+
 mod export_assembly;
 mod validation;
 
+pub use validation::MediaEntryOwnerIndex;
+
 /// 视频画布项目包版本号。
-pub const VIDEO_STUDIO_PACKAGE_VERSION: &str = "video_studio_project_v2";
+pub(crate) const VIDEO_STUDIO_PACKAGE_VERSION: &str = "video_studio_project_v2";
 /// 视频画布项目包 mode。
-pub const PACKAGE_MODE: &str = "video_studio_project";
+pub(crate) const PACKAGE_MODE: &str = "video_studio_project";
 /// zip 内清单路径。
 pub const MANIFEST_PATH: &str = "a4n-video-studio-project.json";
 
@@ -46,29 +48,12 @@ pub struct VideoStudioProjectPackage {
     pub video_segments: Vec<video_segment::Model>,
     pub assembly_timelines: Vec<assembly_timeline::Model>,
     pub assembly_clips: Vec<assembly_clip::Model>,
-    pub media_files: Vec<VideoStudioMediaFileEntry>,
-}
-
-/// 包内媒体文件索引项。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VideoStudioMediaFileEntry {
-    pub owner_kind: String,
-    pub owner_id: i64,
-    pub field: String,
-    pub original_path: String,
-    pub package_path: String,
-}
-
-/// 导入时已解出的媒体字节与清单索引。
-#[derive(Debug)]
-pub struct ImportMediaPayload {
-    pub entries: HashMap<(String, i64, String), VideoStudioMediaFileEntry>,
-    pub bytes: HashMap<String, Vec<u8>>,
+    pub media_files: Vec<MediaFileEntry>,
 }
 
 impl VideoStudioProjectPackage {
     /// 转为 DB 导入行（不含 media_files 索引）。
-    pub fn into_import_rows(self) -> VideoStudioProjectImportRows {
+    pub(crate) fn into_import_rows(self) -> VideoStudioProjectImportRows {
         VideoStudioProjectImportRows {
             project: self.project,
             canvas_graphs: self.canvas_graphs,
@@ -89,16 +74,11 @@ impl VideoStudioProjectPackage {
     }
 }
 
-/// 视频画布包媒体索引键（owner_kind + owner_id + field）。
-pub fn media_file_key(owner_kind: &str, owner_id: i64, field: &str) -> (String, i64, String) {
-    (owner_kind.to_string(), owner_id, field.to_string())
-}
-
 /// 组装视频画布导出 manifest。
-pub use export_assembly::assemble_video_studio_export_package;
+pub(crate) use export_assembly::assemble_video_studio_export_package;
 
 /// 校验包 manifest 与媒体 payload 一致性（纯规则，无 DB）。
-pub fn validate_package_manifest(
+pub(crate) fn validate_package_manifest(
     package: &VideoStudioProjectPackage,
     media_payload: &ImportMediaPayload,
 ) -> Result<(), String> {
@@ -108,7 +88,7 @@ pub fn validate_package_manifest(
 /// 校验媒体清单项 owner 引用（包读取时用）。
 pub fn validate_media_entry_owner(
     package: &VideoStudioProjectPackage,
-    entry: &VideoStudioMediaFileEntry,
+    entry: &MediaFileEntry,
 ) -> Result<(), String> {
     validation::validate_media_entry_owner(package, entry)
 }
@@ -116,7 +96,7 @@ pub fn validate_media_entry_owner(
 /// 校验媒体字节与记录字段一致性（包读取时用）。
 pub fn validate_media_entry_bytes(
     package: &VideoStudioProjectPackage,
-    entry: &VideoStudioMediaFileEntry,
+    entry: &MediaFileEntry,
     bytes: &[u8],
 ) -> Result<(), String> {
     validation::validate_media_entry_bytes(package, entry, bytes)

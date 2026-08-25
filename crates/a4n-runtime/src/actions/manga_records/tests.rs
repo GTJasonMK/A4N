@@ -1,4 +1,4 @@
-use super::{OptimizeMangaPromptInput, UpdateMangaPromptInput};
+use a4n_api_contract::manga::{OptimizeMangaPromptInput, UpdateMangaPromptInput};
 use serde_json::json;
 
 #[test]

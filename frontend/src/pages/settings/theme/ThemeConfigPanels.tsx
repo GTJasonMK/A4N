@@ -1,10 +1,12 @@
-import React from "react";
-import { Plus, Upload } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Archive, Download, Plus, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
-import { type ThemeMode } from "../../../api/theme";
+import { type Theme, type ThemeMode } from "../../../api/theme";
+import { pickLocalFile } from "../../../utils/fileUpload";
+import { useI18n } from "../../../i18n";
 
 interface CreateThemePanelProps {
   name: string;
@@ -24,51 +26,54 @@ export const CreateThemePanel: React.FC<CreateThemePanelProps> = ({
   onNameChange,
   onModeChange,
   onCreate,
-}) => (
-  <details className="a4n-flat-surface overflow-hidden">
-    <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
-      <Plus size={13} />
-      <span>创建新主题</span>
-      <span className="ml-auto text-small text-book-text-muted">从亮色或暗色模板开始</span>
-    </summary>
-    <div className="border-t border-book-border/35 p-4">
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-        <BookInput
-          label="主题名称"
-          value={name}
-          onChange={(event) => onNameChange(event.target.value)}
-          placeholder="例如：柔和暖色"
-          disabled={disabled}
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <SegmentedControl
-            ariaLabel="主题明暗模式"
-            value={mode}
-            onChange={onModeChange}
-            options={[
-              { id: "light", label: "亮色", disabled },
-              { id: "dark", label: "暗色", disabled },
-            ]}
+}) => {
+  const { t } = useI18n();
+  return (
+    <details className="a4n-flat-surface shrink-0 overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
+        <Plus size={13} />
+        <span>{t("settingsTheme.create")}</span>
+        <span className="ml-auto text-small text-book-text-muted">{t("settingsTheme.createHint")}</span>
+      </summary>
+      <div className="border-t border-book-border/35 p-4">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <BookInput
+            label={t("settingsTheme.name")}
+            value={name}
+            onChange={(event) => onNameChange(event.target.value)}
+            placeholder={t("settingsTheme.namePlaceholder")}
+            disabled={disabled}
           />
-          <BookButton
-            variant="primary"
-            onClick={onCreate}
-            disabled={disabled || name.trim().length === 0}
-          >
-            {creating ? (
-              <span className="inline-flex items-center gap-1.5">
-                <LoadingSpinner size="sm" /> 创建中…
-              </span>
-            ) : (
-              "创建"
-            )}
-          </BookButton>
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl
+              ariaLabel={t("settingsTheme.mode")}
+              value={mode}
+              onChange={onModeChange}
+              options={[
+                { id: "light", label: t("settingsTheme.light"), disabled },
+                { id: "dark", label: t("settingsTheme.dark"), disabled },
+              ]}
+            />
+            <BookButton
+              variant="primary"
+              onClick={onCreate}
+              disabled={disabled || name.trim().length === 0}
+            >
+              {creating ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <LoadingSpinner size="sm" /> {t("settingsTheme.creating")}
+                </span>
+              ) : (
+                t("settingsTheme.create")
+              )}
+            </BookButton>
+          </div>
         </div>
+        <p className="mt-2 text-small text-book-text-muted">{t("settingsTheme.createAfter")}</p>
       </div>
-      <p className="mt-2 text-small text-book-text-muted">创建后可立即切换使用。</p>
-    </div>
-  </details>
-);
+    </details>
+  );
+};
 
 interface SingleThemeImportPanelProps {
   importText: string;
@@ -84,36 +89,133 @@ export const SingleThemeImportPanel: React.FC<SingleThemeImportPanelProps> = ({
   disabled,
   onImportTextChange,
   onImport,
-}) => (
-  <details className="a4n-flat-surface group overflow-hidden">
-    <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
-      <Upload size={13} />
-      <span>导入主题</span>
-      <span className="ml-auto text-small text-book-text-muted">低频工具</span>
-    </summary>
-    <div className="border-t border-book-border/35 p-4">
-      <textarea
-        value={importText}
-        onChange={(event) => onImportTextChange(event.target.value)}
-        disabled={disabled}
-        placeholder="粘贴导出的主题配置…"
-        className="pyqt-input h-24 w-full resize-y text-xs font-mono"
-      />
-      <div className="flex justify-end mt-2">
-        <BookButton
-          variant="primary"
-          onClick={onImport}
-          disabled={disabled || importText.trim().length === 0}
-        >
-          {importing ? (
-            <span className="inline-flex items-center gap-1.5">
-              <LoadingSpinner size="sm" /> 导入中…
-            </span>
-          ) : (
-            "导入"
-          )}
-        </BookButton>
+}) => {
+  const { t } = useI18n();
+  return (
+    <details className="a4n-flat-surface group shrink-0 overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
+        <Upload size={13} />
+        <span>{t("settingsTheme.import")}</span>
+        <span className="ml-auto text-small text-book-text-muted">{t("settingsTheme.importHint")}</span>
+      </summary>
+      <div className="border-t border-book-border/35 p-4">
+        <textarea
+          value={importText}
+          onChange={(event) => onImportTextChange(event.target.value)}
+          disabled={disabled}
+          placeholder={t("settingsTheme.importPlaceholder")}
+          className="pyqt-input h-24 w-full resize-y text-xs font-mono"
+        />
+        <div className="mt-2 flex justify-end">
+          <BookButton
+            variant="primary"
+            onClick={onImport}
+            disabled={disabled || importText.trim().length === 0}
+          >
+            {importing ? (
+              <span className="inline-flex items-center gap-1.5">
+                <LoadingSpinner size="sm" /> {t("settingsTheme.importing")}
+              </span>
+            ) : (
+              t("settingsTheme.import")
+            )}
+          </BookButton>
+        </div>
       </div>
-    </div>
-  </details>
-);
+    </details>
+  );
+};
+
+interface ThemePackagePanelProps {
+  themes: Theme[];
+  exportingId: number | null;
+  importing: boolean;
+  disabled: boolean;
+  onExport: (themeId: number) => void;
+  onImport: (file: File) => void;
+}
+
+export const ThemePackagePanel: React.FC<ThemePackagePanelProps> = ({
+  themes,
+  exportingId,
+  importing,
+  disabled,
+  onExport,
+  onImport,
+}) => {
+  const { t } = useI18n();
+  const [selectedId, setSelectedId] = useState<number | null>(themes[0]?.id ?? null);
+  const [picking, setPicking] = useState(false);
+
+  useEffect(() => {
+    if (selectedId == null || !themes.some((theme) => theme.id === selectedId)) {
+      setSelectedId(themes[0]?.id ?? null);
+    }
+  }, [selectedId, themes]);
+
+  const handleImport = async () => {
+    if (disabled || importing || picking) return;
+    setPicking(true);
+    try {
+      const file = await pickLocalFile(".zip,application/zip,application/x-zip-compressed");
+      if (file) onImport(file);
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  return (
+    <details className="a4n-flat-surface shrink-0 overflow-hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
+        <Archive size={13} />
+        <span>{t("settingsTheme.package")}</span>
+        <span className="ml-auto text-small text-book-text-muted">{t("settingsTheme.packageHint")}</span>
+      </summary>
+      <div className="grid gap-3 border-t border-book-border/35 p-4 sm:grid-cols-2">
+        <div className="min-w-0">
+          <label htmlFor="theme-package-theme" className="mb-1 block text-xs text-book-text-sub">
+            {t("settingsTheme.packageTheme")}
+          </label>
+          <div className="flex min-w-0 flex-wrap gap-2">
+            <select
+              id="theme-package-theme"
+              value={selectedId ?? ""}
+              onChange={(event) => setSelectedId(Number(event.target.value))}
+              disabled={disabled || themes.length === 0}
+              className="pyqt-input min-w-0 flex-1 !min-h-9 !px-2 text-xs"
+            >
+              {themes.map((theme) => (
+                <option key={theme.id} value={theme.id}>{theme.name}</option>
+              ))}
+            </select>
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={() => selectedId != null && onExport(selectedId)}
+              disabled={disabled || selectedId == null || exportingId != null}
+            >
+              {exportingId != null ? <LoadingSpinner size="sm" /> : <Download size={13} />}
+              {exportingId != null ? t("settingsTheme.exportingPackage") : t("settingsTheme.exportPackage")}
+            </BookButton>
+          </div>
+          <p className="mt-2 text-small text-book-text-muted">{t("settingsTheme.packageFormatHint")}</p>
+        </div>
+        <div className="flex min-w-0 flex-col justify-between gap-2 rounded-[var(--pyqt-radius-md)] border border-dashed border-book-border/45 bg-book-bg-tertiary/20 p-3">
+          <div>
+            <div className="text-xs font-medium text-book-text-sub">{t("settingsTheme.importPackage")}</div>
+            <p className="mt-1 text-small leading-relaxed text-book-text-muted">{t("settingsTheme.importPackageHint")}</p>
+          </div>
+          <BookButton
+            variant="secondary"
+            size="sm"
+            onClick={() => void handleImport()}
+            disabled={disabled || importing || picking}
+          >
+            {importing || picking ? <LoadingSpinner size="sm" /> : <Upload size={13} />}
+            {importing || picking ? t("settingsTheme.importingPackage") : t("settingsTheme.importPackage")}
+          </BookButton>
+        </div>
+      </div>
+    </details>
+  );
+};

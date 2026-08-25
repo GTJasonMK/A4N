@@ -18,7 +18,7 @@ use super::preparation::{
 };
 
 impl OrchestratorContext {
-    pub async fn regenerate_last_part(
+    pub(in crate::outline) async fn regenerate_last_part(
         &self,
         project_id: i64,
         prompt_renderer: &dyn PromptRenderer,
@@ -31,7 +31,7 @@ impl OrchestratorContext {
     }
 
     /// 重新生成指定分部。
-    pub async fn regenerate_part_outline(
+    pub(in crate::outline) async fn regenerate_part_outline(
         &self,
         project_id: i64,
         part_id: i64,

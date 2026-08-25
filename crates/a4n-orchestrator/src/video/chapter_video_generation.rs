@@ -1,14 +1,17 @@
+use std::collections::HashMap;
+
 use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
 use a4n_core::{
     error::AppError,
     models::{
         ai::{generated_video, video_gen_config},
-        chapter::chapter_video_prompt,
+        chapter::{chapter_video_prompt, chapter_video_timeline_item},
     },
     source_spans::{metadata_source_content_sha256, source_text_hash},
     video_execution::{
         VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
-        resolve_video_segment_number, video_segment_recipes_for_plan_from_metadata,
+        VideoSegmentPlanV2, validate_video_segment_recipes_for_plan,
+        video_segment_recipes_from_metadata,
     },
 };
 use a4n_db::collaboration::ProjectAccessRole;
@@ -24,6 +27,7 @@ use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
 
+use super::boundary_frame_rules::latest_boundary_frame_image_ids;
 use super::chapter_video_request_rules::{
     BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
     append_provider_input_note, append_video_request_prompt_length_context,
@@ -34,16 +38,17 @@ use super::chapter_video_request_rules::{
     video_request_prompt_length_context,
 };
 use super::{
-    NEWAPI_VIDEO_BACKEND, ProviderGenerationWorkflow, ProviderImageInputTransport,
-    VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoGenerationRecordInput,
-    VideoProviderExecutionInput, VideoProviderHostPort, VideoProviderRequestBody,
-    VideoProviderRequestInput, VideoProviderValidationMode, boundary_frame_numbers_for_prompt,
-    ensure_newapi_first_frame_image_supported, first_frame_prompt_matches_video_prompt,
-    frame_prompt_matches_video_prompt, latest_boundary_frame_image_id, latest_storyboard_image_id,
-    linked_video_preview_config_id, prompt_provider_workflow_for_recipe,
-    reference_ids_with_storyboard_image, reference_image_ids, required_prompt_source_prompt_type,
-    required_video_execution_identity, storyboard_prompt_matches_video_prompt,
-    tail_frame_image_belongs_to_video, validate_video_duration_for_config_secs,
+    NEWAPI_VIDEO_BACKEND, PromptChainFields, ProviderGenerationWorkflow,
+    ProviderImageInputTransport, VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress,
+    VideoGenerationRecordInput, VideoProviderExecutionInput, VideoProviderHostPort,
+    VideoProviderRequestBody, VideoProviderRequestInput, VideoProviderValidationMode,
+    boundary_frame_numbers_for_prompt, ensure_newapi_first_frame_image_supported,
+    first_frame_prompt_matches_video_prompt, frame_prompt_matches_video_prompt,
+    latest_storyboard_image_id, linked_video_preview_config_id,
+    prompt_provider_workflow_for_recipe, reference_ids_with_storyboard_image, reference_image_ids,
+    required_prompt_source_prompt_type, required_video_execution_identity,
+    storyboard_prompt_matches_video_prompt, tail_frame_reference_belongs_to_video,
+    validate_video_duration_for_config_secs,
 };
 
 #[derive(Debug, Clone, Deserialize)]
@@ -71,6 +76,19 @@ pub struct ChapterVideoRequestPreview {
     pub request_kind: &'static str,
     pub request_title: &'static str,
     pub note: String,
+}
+
+#[derive(Default)]
+struct VideoPromptValidationCache {
+    shared_segment_plans: HashMap<i64, chapter_video_prompt::Model>,
+    shared_segment_indexes: HashMap<i64, SharedSegmentValidationIndex>,
+    inserted_timeline_items: HashMap<(i64, i64), HashMap<i64, chapter_video_timeline_item::Model>>,
+}
+
+#[derive(Default)]
+struct SharedSegmentValidationIndex {
+    segment_numbers_by_shot: HashMap<String, HashMap<i32, i32>>,
+    recipes_by_number: HashMap<i32, VideoSegmentExecutionRecipeV1>,
 }
 
 #[derive(Debug, Clone)]
@@ -649,6 +667,7 @@ impl OrchestratorContext {
         if rows.len() != unique_prompt_ids.len() {
             return Err(invalid_argument("部分视频提示词不存在，不能批量生成视频"));
         }
+        let mut validation_cache = VideoPromptValidationCache::default();
         for row in &rows {
             if row.project_id != input.project_id || row.chapter_id != input.chapter_id {
                 return Err(invalid_argument(format!(
@@ -662,7 +681,7 @@ impl OrchestratorContext {
                     row.id
                 )));
             }
-            self.require_current_segment_recipe_for_video_prompt(row)
+            self.require_current_segment_recipe_for_video_prompt_cached(row, &mut validation_cache)
                 .await?;
             super::ensure_provider_generation_workflow(row).map_err(AppError::InvalidArgument)?;
             if row.status == chapter_video_prompt::STATUS_RUNNING {
@@ -678,6 +697,18 @@ impl OrchestratorContext {
     async fn require_current_segment_recipe_for_video_prompt(
         &self,
         prompt: &chapter_video_prompt::Model,
+    ) -> Result<VideoPromptExecutionContract, AppError> {
+        self.require_current_segment_recipe_for_video_prompt_cached(
+            prompt,
+            &mut VideoPromptValidationCache::default(),
+        )
+        .await
+    }
+
+    async fn require_current_segment_recipe_for_video_prompt_cached(
+        &self,
+        prompt: &chapter_video_prompt::Model,
+        cache: &mut VideoPromptValidationCache,
     ) -> Result<VideoPromptExecutionContract, AppError> {
         let metadata = prompt
             .metadata_json
@@ -700,19 +731,27 @@ impl OrchestratorContext {
                 .ok_or_else(|| {
                     invalid_argument(format!("插入片段提示词 #{} 缺少有效时间线项 ID", prompt.id))
                 })?;
-            let timeline = self
-                .chapter_video_timeline_by_scope(
-                    prompt.project_id,
-                    prompt.chapter_id,
-                    chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
-                )
-                .await?
-                .ok_or_else(|| invalid_argument("当前章节不存在插入片段时间线"))?;
-            let snapshot = self.chapter_video_timeline_snapshot(timeline.id).await?;
-            let item = snapshot
-                .items
-                .iter()
-                .find(|item| item.id == item_id)
+            let timeline_key = (prompt.project_id, prompt.chapter_id);
+            if !cache.inserted_timeline_items.contains_key(&timeline_key) {
+                let timeline = self
+                    .chapter_video_timeline_by_scope(
+                        prompt.project_id,
+                        prompt.chapter_id,
+                        chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+                    )
+                    .await?
+                    .ok_or_else(|| invalid_argument("当前章节不存在插入片段时间线"))?;
+                let snapshot = self.chapter_video_timeline_snapshot(timeline.id).await?;
+                cache
+                    .inserted_timeline_items
+                    .insert(timeline_key, timeline_items_by_id(snapshot.items));
+            }
+            let items_by_id = cache
+                .inserted_timeline_items
+                .get(&timeline_key)
+                .expect("inserted timeline items are loaded");
+            let item = items_by_id
+                .get(&item_id)
                 .ok_or_else(|| invalid_argument(format!("插入片段时间线项 #{item_id} 不存在")))?;
             if item.item_kind != a4n_db::video::TIMELINE_INSERTED_KIND
                 || item.status != a4n_db::video::TIMELINE_ACTIVE_STATUS
@@ -769,29 +808,99 @@ impl OrchestratorContext {
             .and_then(Value::as_i64)
             .and_then(|value| i32::try_from(value).ok())
             .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少镜头内序号", prompt.id)))?;
-        let plan = self
-            .require_current_shared_segment_plan(prompt.project_id, prompt.chapter_id, plan_id)
-            .await?;
-        let segment_number = resolve_video_segment_number(
-            plan.metadata_json.as_ref(),
-            source_shot_id,
-            segment_index_in_shot,
-        )
-        .map_err(AppError::InvalidArgument)?;
-        let plan_style = plan
-            .style
-            .as_deref()
-            .map(str::trim)
-            .filter(|style| !style.is_empty())
-            .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
-        let recipe =
-            video_segment_recipes_for_plan_from_metadata(plan.metadata_json.as_ref(), plan_style)
-                .map_err(AppError::InvalidArgument)?
-                .into_iter()
-                .find(|recipe| recipe.segment_number == segment_number)
+        if !cache.shared_segment_plans.contains_key(&plan_id) {
+            let plan = self
+                .require_current_shared_segment_plan(prompt.project_id, prompt.chapter_id, plan_id)
+                .await?;
+            cache.shared_segment_plans.insert(plan_id, plan);
+        }
+        let plan = cache
+            .shared_segment_plans
+            .get(&plan_id)
+            .expect("shared segment plan is loaded");
+        let segment_number = if !cache.shared_segment_indexes.contains_key(&plan_id) {
+            let source_shot_id = source_shot_id.trim();
+            if source_shot_id.is_empty() || segment_index_in_shot <= 0 {
+                return Err(invalid_argument(
+                    "稳定片段目标必须提供镜头 ID 和正整数镜头内序号",
+                ));
+            }
+            let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
+                plan.metadata_json
+                    .as_ref()
+                    .and_then(|metadata| metadata.get("segments"))
+                    .cloned()
+                    .ok_or_else(|| invalid_argument("片段规划 metadata_json 缺少 segments"))?,
+            )
+            .map_err(|error| invalid_argument(format!("片段规划 segments 无效：{error}")))?;
+            let mut segment_numbers_by_shot = HashMap::with_capacity(segments.len());
+            for segment in &segments {
+                segment_numbers_by_shot
+                    .entry(segment.source_shot_id.clone())
+                    .or_insert_with(HashMap::new)
+                    .entry(segment.segment_index_in_shot)
+                    .or_insert(segment.segment_number);
+            }
+            let segment_number = segment_numbers_by_shot
+                .get(source_shot_id)
+                .and_then(|by_index| by_index.get(&segment_index_in_shot))
+                .copied()
                 .ok_or_else(|| {
-                    invalid_argument(format!("当前规划缺少片段 {segment_number} 的执行方案"))
+                    invalid_argument(format!(
+                        "当前片段规划不存在镜头 {source_shot_id} 的第 {segment_index_in_shot} 个片段"
+                    ))
                 })?;
+            let plan_style = plan
+                .style
+                .as_deref()
+                .map(str::trim)
+                .filter(|style| !style.is_empty())
+                .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
+            let recipes = video_segment_recipes_from_metadata(plan.metadata_json.as_ref())
+                .map_err(AppError::InvalidArgument)?;
+            validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)
+                .map_err(AppError::InvalidArgument)?;
+            let recipe_count = recipes.len();
+            let recipes_by_number = recipes.into_iter().fold(
+                HashMap::with_capacity(recipe_count),
+                |mut by_number, recipe| {
+                    by_number.entry(recipe.segment_number).or_insert(recipe);
+                    by_number
+                },
+            );
+            cache.shared_segment_indexes.insert(
+                plan_id,
+                SharedSegmentValidationIndex {
+                    segment_numbers_by_shot,
+                    recipes_by_number,
+                },
+            );
+            segment_number
+        } else {
+            let segment_number = resolve_cached_segment_number(
+                cache
+                    .shared_segment_indexes
+                    .get(&plan_id)
+                    .expect("shared segment index is loaded"),
+                source_shot_id,
+                segment_index_in_shot,
+            )
+            .map_err(AppError::InvalidArgument)?;
+            plan.style
+                .as_deref()
+                .map(str::trim)
+                .filter(|style| !style.is_empty())
+                .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
+            segment_number
+        };
+        let recipe = cache
+            .shared_segment_indexes
+            .get(&plan_id)
+            .and_then(|index| index.recipes_by_number.get(&segment_number))
+            .cloned()
+            .ok_or_else(|| {
+                invalid_argument(format!("当前规划缺少片段 {segment_number} 的执行方案"))
+            })?;
         let plan_identity = plan
             .metadata_json
             .as_ref()
@@ -936,31 +1045,33 @@ impl OrchestratorContext {
                 last_frame_number,
             )
             .await?;
-        let first_prompt_id = frame_prompts
-            .iter()
-            .filter(|frame| frame_prompt_matches_video_prompt(prompt, frame))
-            .find(|frame| frame.shot_number == first_frame_number)
-            .map(|frame| frame.id);
-        let last_prompt_id = frame_prompts
-            .iter()
-            .filter(|frame| frame_prompt_matches_video_prompt(prompt, frame))
-            .find(|frame| frame.shot_number == last_frame_number)
-            .map(|frame| frame.id);
+        let mut first_prompt_id = None;
+        let mut last_prompt_id = None;
+        for frame in &frame_prompts {
+            if !frame_prompt_matches_video_prompt(prompt, frame) {
+                continue;
+            }
+            if first_prompt_id.is_none() && frame.shot_number() == first_frame_number {
+                first_prompt_id = Some(frame.id);
+            }
+            if last_prompt_id.is_none() && frame.shot_number() == last_frame_number {
+                last_prompt_id = Some(frame.id);
+            }
+            if first_prompt_id.is_some() && last_prompt_id.is_some() {
+                break;
+            }
+        }
         if first_prompt_id.is_none() && last_prompt_id.is_none() {
             return Ok(BoundaryFrameImageIds::default());
         }
         let images = self
             .generated_images_for_video_prompt_references(project_id, chapter_id)
             .await?;
+        let (first_image_id, last_image_id) =
+            latest_boundary_frame_image_ids(&images, (first_prompt_id, last_prompt_id));
         Ok(BoundaryFrameImageIds {
-            first: frame_prompts
-                .iter()
-                .find(|frame| Some(frame.id) == first_prompt_id)
-                .and_then(|frame| latest_boundary_frame_image_id(&images, frame)),
-            last: frame_prompts
-                .iter()
-                .find(|frame| Some(frame.id) == last_prompt_id)
-                .and_then(|frame| latest_boundary_frame_image_id(&images, frame)),
+            first: first_image_id,
+            last: last_image_id,
         })
     }
 
@@ -1019,7 +1130,7 @@ impl OrchestratorContext {
                 .await?;
             return Ok(images
                 .iter()
-                .find(|image| tail_frame_image_belongs_to_video(image, source_video_id))
+                .find(|image| tail_frame_reference_belongs_to_video(image, source_video_id))
                 .map(|image| image.id));
         }
         Err(invalid_argument(
@@ -1047,6 +1158,37 @@ impl OrchestratorContext {
             .await?;
         Ok(latest_storyboard_image_id(&images, storyboard_prompt))
     }
+}
+
+fn resolve_cached_segment_number(
+    index: &SharedSegmentValidationIndex,
+    source_shot_id: &str,
+    segment_index_in_shot: i32,
+) -> Result<i32, String> {
+    let source_shot_id = source_shot_id.trim();
+    if source_shot_id.is_empty() || segment_index_in_shot <= 0 {
+        return Err("稳定片段目标必须提供镜头 ID 和正整数镜头内序号".to_string());
+    }
+    index
+        .segment_numbers_by_shot
+        .get(source_shot_id)
+        .and_then(|by_index| by_index.get(&segment_index_in_shot))
+        .copied()
+        .ok_or_else(|| {
+            format!("当前片段规划不存在镜头 {source_shot_id} 的第 {segment_index_in_shot} 个片段")
+        })
+}
+
+fn timeline_items_by_id(
+    items: Vec<chapter_video_timeline_item::Model>,
+) -> HashMap<i64, chapter_video_timeline_item::Model> {
+    let item_count = items.len();
+    items
+        .into_iter()
+        .fold(HashMap::with_capacity(item_count), |mut by_id, item| {
+            by_id.entry(item.id).or_insert(item);
+            by_id
+        })
 }
 
 fn inserted_video_execution_identity(
@@ -1122,4 +1264,59 @@ fn joined_ids(ids: &[i64]) -> String {
 
 fn invalid_argument(message: impl Into<String>) -> AppError {
     AppError::InvalidArgument(message.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn index() -> SharedSegmentValidationIndex {
+        SharedSegmentValidationIndex {
+            segment_numbers_by_shot: HashMap::from([(
+                "shot-a".to_string(),
+                HashMap::from([(1, 7), (2, 8)]),
+            )]),
+            recipes_by_number: HashMap::new(),
+        }
+    }
+
+    #[test]
+    fn cached_segment_lookup_keeps_contract() {
+        let index = index();
+        assert_eq!(resolve_cached_segment_number(&index, " shot-a ", 1), Ok(7));
+        assert_eq!(
+            resolve_cached_segment_number(&index, "missing", 1),
+            Err("当前片段规划不存在镜头 missing 的第 1 个片段".to_string())
+        );
+        assert_eq!(
+            resolve_cached_segment_number(&index, "shot-a", 0),
+            Err("稳定片段目标必须提供镜头 ID 和正整数镜头内序号".to_string())
+        );
+    }
+
+    #[test]
+    fn cached_timeline_item_lookup_keeps_first_duplicate() {
+        let first = chapter_video_timeline_item::Model {
+            id: 7,
+            timeline_id: 1,
+            position: Some(1),
+            item_kind: "inserted".to_string(),
+            status: "active".to_string(),
+            native_source_shot_id: None,
+            native_segment_index_in_shot: None,
+            insert_plan_prompt_id: Some(10),
+            workflow_run_id: None,
+            created_at: chrono::Utc::now().naive_utc(),
+            updated_at: chrono::Utc::now().naive_utc(),
+        };
+        let second = chapter_video_timeline_item::Model {
+            insert_plan_prompt_id: Some(11),
+            ..first.clone()
+        };
+        let items = timeline_items_by_id(vec![first, second]);
+        assert_eq!(
+            items.get(&7).and_then(|item| item.insert_plan_prompt_id),
+            Some(10)
+        );
+    }
 }

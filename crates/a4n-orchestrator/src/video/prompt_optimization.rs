@@ -10,7 +10,13 @@ use a4n_core::{
     },
     source_spans::source_text_hash as source_content_sha256,
 };
-use a4n_db::video_prompt::ChapterVideoPromptPatch;
+use a4n_db::{
+    generation::{
+        GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
+        RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
+    },
+    video_prompt::ChapterVideoPromptPatch,
+};
 use a4n_llm::{
     context::{
         COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
@@ -24,10 +30,6 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    generation::{
-        GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
-        RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
-    },
     structured_llm::parse_strict_json_response,
     workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };

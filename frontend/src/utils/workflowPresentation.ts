@@ -1,102 +1,160 @@
-const WORKFLOW_STATUS_LABELS: Record<string, string> = {
-  idle: "未运行",
-  draft: "草稿",
-  imported: "已导入",
-  ready: "就绪",
-  pending: "等待中",
-  needs_analysis: "尚未分析",
-  analyzing: "分析中",
-  reviewing: "审核中",
-  queued: "排队中",
-  running: "运行中",
-  completed: "已完成",
-  success: "成功",
-  failed: "失败",
-  error: "错误",
-  interrupted: "已中断",
-  cancelled: "已取消",
-  canceled: "已取消",
-  paused: "已暂停",
-  blocked: "已阻塞",
-  generating: "生成中",
-  generated: "已生成",
-  deleted: "已删除",
-  approved: "已通过",
-  accepted: "已接受",
-  rejected: "已拒绝",
-  modified: "已修改",
-  stale: "已过期",
-  unknown: "待核对",
+import type { Locale } from "../i18n/locale";
+import {
+  translateMessage,
+  type MessageKey,
+  type MessageTranslator,
+} from "../i18n/translate";
+
+const WORKFLOW_STATUS_KEYS: Record<string, MessageKey> = {
+  idle: "workflow.idle",
+  draft: "workflow.draft",
+  imported: "workflow.imported",
+  ready: "workflow.ready",
+  pending: "workflow.pending",
+  needs_analysis: "workflow.needsAnalysis",
+  analyzing: "workflow.analyzing",
+  reviewing: "workflow.reviewing",
+  queued: "workflow.queued",
+  running: "workflow.runningStatus",
+  completed: "workflow.success",
+  success: "workflow.successStatus",
+  failed: "workflow.failed",
+  error: "workflow.error",
+  interrupted: "workflow.interrupted",
+  cancelled: "workflow.cancelled",
+  canceled: "workflow.cancelled",
+  paused: "workflow.paused",
+  blocked: "workflow.blocked",
+  generating: "workflow.generating",
+  generated: "workflow.generated",
+  deleted: "workflow.deleted",
+  approved: "workflow.approved",
+  accepted: "workflow.accepted",
+  rejected: "workflow.rejected",
+  modified: "workflow.modified",
+  stale: "workflow.stale",
+  unknown: "workflow.unknownStatus",
 };
 
-export const getOperationStatusLabel = (value: string | null | undefined): string => {
+export const getOperationStatusLabel = (
+  value: string | null | undefined,
+  locale: Locale,
+): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
-  return WORKFLOW_STATUS_LABELS[normalized] ?? "未知状态";
+  const key = WORKFLOW_STATUS_KEYS[normalized] ?? "workflow.unknownStatus";
+  return translateMessage(locale, key);
 };
 
-const TASK_TYPE_LABELS: Record<string, string> = {
-  llm_call: "语言模型调用",
-  chapter_generation: "章节生成",
-  image_generation: "图片生成",
-  video_generation: "视频生成",
-  video_poll: "视频轮询",
-  source_sync: "源文本同步",
-  assembly: "成片合成",
-  embedding_call: "文本向量计算",
-  rag_ingestion: "知识库入库",
-  import_analysis: "导入分析",
-  export_generation: "导出生成",
-  embedding_download: "模型下载",
+export interface ChapterSyncFailurePresentation {
+  summary: string;
+  detail: string | null;
+  recommendedAction: "embedding_settings" | null;
+}
+
+/**
+ * 将章节同步的内部错误收敛为作者能执行的恢复建议；原始错误仍作为诊断信息保留。
+ */
+export const getChapterSyncFailurePresentation = (
+  error: string | null | undefined,
+  fallback: string,
+  t: MessageTranslator,
+): ChapterSyncFailurePresentation => {
+  const detail = String(error ?? "").trim() || null;
+  if (!detail) {
+    return { summary: fallback, detail: null, recommendedAction: null };
+  }
+
+  if (/vector dimension error|expected dim:\s*\d+\s*,\s*got\s*\d+/i.test(detail)) {
+    return {
+      summary: t("writing.syncFailureEmbeddingMismatch"),
+      detail,
+      recommendedAction: "embedding_settings",
+    };
+  }
+
+  if (/chapter_analysis_host|状态无效|不允许操作.*更新场景档案/i.test(detail)) {
+    return {
+      summary: t("writing.syncFailureState"),
+      detail,
+      recommendedAction: null,
+    };
+  }
+
+  return { summary: fallback, detail, recommendedAction: null };
 };
 
-const TASK_PRIORITY_LABELS: Record<string, string> = {
-  high: "高优先级",
-  medium: "中优先级",
-  low: "低优先级",
+const TASK_TYPE_LABELS: Record<string, MessageKey> = {
+  llm_call: "workflow.taskLanguageCall",
+  chapter_generation: "workflow.taskChapterGeneration",
+  image_generation: "workflow.taskImageGeneration",
+  video_generation: "workflow.taskVideoGeneration",
+  video_poll: "workflow.taskVideoPoll",
+  source_sync: "workflow.taskSourceSync",
+  assembly: "workflow.taskAssembly",
+  embedding_call: "workflow.taskEmbeddingCall",
+  rag_ingestion: "workflow.taskRagIngestion",
+  import_analysis: "workflow.taskImportAnalysis",
+  export_generation: "workflow.taskExportGeneration",
+  embedding_download: "workflow.taskEmbeddingDownload",
 };
 
-const WORKFLOW_KIND_LABELS: Record<string, string> = {
-  video_provider_job: "视频任务",
-  video_canvas_graph: "视频画布",
-  chapter_analysis: "章节分析",
-  chapter_content_sync: "章节资料同步",
-  source_sync: "源文本同步",
-  import_analysis: "导入分析",
-  rag_ingestion: "RAG 入库",
+const TASK_PRIORITY_LABELS: Record<string, MessageKey> = {
+  high: "workflow.priorityHigh",
+  medium: "workflow.priorityMedium",
+  low: "workflow.priorityLow",
 };
 
-const WORKFLOW_MODE_LABELS: Record<string, string> = {
-  full: "完整运行",
-  fresh: "重新运行",
-  start: "首次运行",
-  resume: "续传",
-  retry: "重试",
-  incremental: "增量更新",
-  content_change: "正文变更同步",
-  boundary_frames: "首尾帧",
-  first_frame_chain: "首帧串联",
-  storyboard: "分镜",
-  chat_video: "Chat 视频",
-  reference_media: "参考媒体",
+const WORKFLOW_KIND_LABELS: Record<string, MessageKey> = {
+  video_provider_job: "workflow.kindVideoProvider",
+  video_canvas_graph: "workflow.kindVideoCanvas",
+  chapter_analysis: "workflow.kindChapterAnalysis",
+  chapter_content_sync: "workflow.kindChapterSync",
+  source_sync: "workflow.kindSourceSync",
+  import_analysis: "workflow.kindImportAnalysis",
+  rag_ingestion: "workflow.kindRagIngestion",
+};
+
+const WORKFLOW_MODE_LABELS: Record<string, MessageKey> = {
+  full: "workflow.modeFull",
+  fresh: "workflow.modeFresh",
+  start: "workflow.modeStart",
+  resume: "workflow.modeResume",
+  retry: "workflow.modeRetry",
+  incremental: "workflow.modeIncremental",
+  content_change: "workflow.modeContentChange",
+  boundary_frames: "workflow.modeBoundaryFrames",
+  first_frame_chain: "workflow.modeFirstFrameChain",
+  storyboard: "workflow.modeStoryboard",
+  chat_video: "workflow.modeChatVideo",
+  reference_media: "workflow.modeReferenceMedia",
 };
 
 const mappedLabel = (
   value: string | null | undefined,
-  labels: Record<string, string>,
-  fallback = "未知",
+  labels: Record<string, MessageKey>,
+  fallback: MessageKey,
+  locale: Locale,
 ): string => {
   const normalized = String(value ?? "").trim().toLowerCase();
-  return labels[normalized] ?? fallback;
+  return translateMessage(locale, labels[normalized] ?? fallback);
 };
 
-export const getTaskTypeLabel = (value: string | null | undefined): string =>
-  mappedLabel(value, TASK_TYPE_LABELS, "任务");
+export const getTaskTypeLabel = (
+  value: string | null | undefined,
+  locale: Locale,
+): string => mappedLabel(value, TASK_TYPE_LABELS, "workflow.taskChapterGeneration", locale);
 
-export const getTaskPriorityLabel = (value: string | null | undefined): string =>
-  mappedLabel(value, TASK_PRIORITY_LABELS, "普通优先级");
+export const getTaskPriorityLabel = (
+  value: string | null | undefined,
+  locale: Locale,
+): string => mappedLabel(value, TASK_PRIORITY_LABELS, "workflow.priorityMedium", locale);
 
-export const getWorkflowKindLabel = (value: string | null | undefined): string =>
-  mappedLabel(value, WORKFLOW_KIND_LABELS, "工作流");
+export const getWorkflowKindLabel = (
+  value: string | null | undefined,
+  locale: Locale,
+): string => mappedLabel(value, WORKFLOW_KIND_LABELS, "workflow.kindChapterAnalysis", locale);
 
-export const getWorkflowModeLabel = (value: string | null | undefined): string =>
-  mappedLabel(value, WORKFLOW_MODE_LABELS, "默认模式");
+export const getWorkflowModeLabel = (
+  value: string | null | undefined,
+  locale: Locale,
+): string => mappedLabel(value, WORKFLOW_MODE_LABELS, "workflow.modeFull", locale);

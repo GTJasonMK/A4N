@@ -1,6 +1,5 @@
 use super::contracts::*;
 use super::*;
-use a4n_core::models::ai::video_gen_config;
 use serde_json::json;
 
 fn valid_params() -> VideoConfigParams {
@@ -19,31 +18,6 @@ fn valid_params() -> VideoConfigParams {
         duration_mode: VIDEO_DURATION_MODE_RANGE.to_string(),
         supported_durations_json: None,
         default_fps: 24,
-    }
-}
-
-fn video_model() -> video_gen_config::Model {
-    let params = validate_video_config_params(valid_params()).expect("valid video config");
-    let now = chrono::Utc::now().naive_utc();
-    video_gen_config::Model {
-        id: 1,
-        name: params.name,
-        backend: params.backend,
-        base_url: Some(params.base_url),
-        api_key_encrypted: params.api_key_encrypted,
-        model: params.model,
-        max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
-        default_duration_secs: params.default_duration_secs,
-        min_duration_secs: params.min_duration_secs,
-        max_duration_secs: params.max_duration_secs,
-        duration_mode: params.duration_mode,
-        supported_durations_json: params.supported_durations_json,
-        default_fps: params.default_fps,
-        is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 
@@ -137,22 +111,6 @@ fn validate_video_config_params_allows_template_without_api_key() {
         .expect("video config templates may omit user-owned API keys");
 
     assert_eq!(params.api_key_encrypted, None);
-}
-
-#[test]
-fn pick_provider_for_config_requires_api_key_at_request_boundary() {
-    let mut cfg = video_model();
-    cfg.api_key_encrypted = None;
-
-    let err = match pick_provider_for_config(&cfg) {
-        Ok(_) => panic!("provider requests still require a key"),
-        Err(err) => err,
-    };
-
-    #[cfg(feature = "embedded-media-providers")]
-    assert!(err.contains("视频生成配置缺少 api_key_encrypted"));
-    #[cfg(not(feature = "embedded-media-providers"))]
-    assert!(err.contains("视频 provider 未启用"));
 }
 
 #[test]

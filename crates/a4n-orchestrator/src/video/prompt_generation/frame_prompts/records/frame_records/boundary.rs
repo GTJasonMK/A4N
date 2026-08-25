@@ -7,7 +7,10 @@ use crate::video::{
     prompt_json::{VideoFramePrompt, VideoSegmentPlan, validate_reference_label_text},
 };
 
-use super::super::super::{boundary_frame_expected_segment_numbers, expected_boundary_frame_count};
+use super::super::super::{
+    boundary_frame_expected_segment_numbers_from_units, expected_boundary_frame_count,
+    units_for_frame_mapping,
+};
 
 pub(in crate::video) fn validate_frame_prompts(
     frame_prompts: &[VideoFramePrompt],
@@ -23,6 +26,8 @@ pub(in crate::video) fn validate_frame_prompts(
             expected_frame_count
         )));
     }
+    let mut units = None;
+    let mut known_segment_numbers = None;
     for (idx, frame) in frame_prompts.iter().enumerate() {
         let expected_frame_number = i32::try_from(idx)
             .map_err(|_| {
@@ -40,8 +45,21 @@ pub(in crate::video) fn validate_frame_prompts(
                 frame.frame_number
             )));
         }
+        if units.is_none() {
+            units = Some(units_for_frame_mapping(segment_plan)?);
+            known_segment_numbers = Some(
+                segment_plan
+                    .iter()
+                    .map(|segment| segment.segment_number)
+                    .collect::<HashSet<_>>(),
+            );
+        }
+        let units = units.as_ref().expect("boundary frame units initialized");
+        let known_segment_numbers = known_segment_numbers
+            .as_ref()
+            .expect("boundary frame segment index initialized");
         let expected_segment_numbers =
-            boundary_frame_expected_segment_numbers(segment_plan, frame.frame_number)?;
+            boundary_frame_expected_segment_numbers_from_units(&units, frame.frame_number)?;
         if frame.segment_numbers != expected_segment_numbers {
             return Err(AppError::InvalidArgument(format!(
                 "视频首尾帧提示词 frame_number {} segment_numbers 必须为 {:?}，实际为 {:?}",
@@ -55,10 +73,7 @@ pub(in crate::video) fn validate_frame_prompts(
             )));
         }
         for segment_number in &frame.segment_numbers {
-            if !segment_plan
-                .iter()
-                .any(|segment| segment.segment_number == *segment_number)
-            {
+            if !known_segment_numbers.contains(segment_number) {
                 return Err(AppError::InvalidArgument(format!(
                     "视频首尾帧提示词 frame_number {} 引用了不存在的片段 {}",
                     frame.frame_number, segment_number

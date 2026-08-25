@@ -1,34 +1,47 @@
 use a4n_core::error::AppError;
 use a4n_domain::manga::{
-    MANGA_PAGE_GENERATION_V2, MangaPageV3, MangaPanelV2, MangaTextLayerKindV2,
+    MangaPageGenerationSchemaVersion, MangaPageV3, MangaPanelV2, MangaTextLayerKindV2,
 };
 use serde_json::json;
+use std::collections::HashMap;
 
 use super::super::output_sync::MangaPagePromptDraft;
 use super::super::reference_assets::page_reference_bindings;
 use super::contracts::MangaPipelinePersistInput;
+use a4n_domain::manga::MangaPageGenerationLayoutV2;
 
 pub(super) fn pipeline_drafts(
     input: &MangaPipelinePersistInput<'_>,
 ) -> Result<Vec<MangaPagePromptDraft>, AppError> {
     let plan = input.plan;
+    let page_prompts = input.page_prompts.iter().fold(
+        HashMap::with_capacity(input.page_prompts.len()),
+        |mut by_page, prompt| {
+            by_page.entry(prompt.page_number).or_insert(prompt);
+            by_page
+        },
+    );
+    let page_traces = input.page_traces.iter().fold(
+        HashMap::with_capacity(input.page_traces.len()),
+        |mut by_page, trace| {
+            by_page.entry(trace.page_number).or_insert(trace);
+            by_page
+        },
+    );
     let mut drafts = Vec::new();
     for page in &plan.pages {
         let page_number = database_index(page.page_number, "漫画页码")?;
-        let drawing = input
-            .page_prompts
-            .iter()
-            .find(|prompt| prompt.page_number == page.page_number)
+        let drawing = page_prompts
+            .get(&page.page_number)
+            .copied()
             .ok_or_else(|| {
                 AppError::InvalidArgument(format!(
                     "第 {} 页缺少 manga_page_drawing_prompt_v2 输出",
                     page.page_number
                 ))
             })?;
-        let generation_trace = input
-            .page_traces
-            .iter()
-            .find(|trace| trace.page_number == page.page_number)
+        let generation_trace = page_traces
+            .get(&page.page_number)
             .map(|trace| trace.trace.clone());
         drafts.push(MangaPagePromptDraft {
             chapter_id: input.chapter_id,
@@ -37,19 +50,15 @@ pub(super) fn pipeline_drafts(
             image_prompt: drawing.image_prompt.clone(),
             dialogue_text: page_dialogue_text(page)?,
             characters_in_frame: Some(json!(page_characters(page))),
-            layout: Some(json!({
-                "schema_version": MANGA_PAGE_GENERATION_V2,
-                "shooting_script_id": plan.shooting_script_id,
-                "shooting_script_revision": plan.shooting_script_revision,
-                "page_plan": page,
-                "drawing_prompt": drawing,
-                "reference_bindings": page_reference_bindings(
-                    page,
-                    input.reference_assets_metadata,
-                ).map_err(AppError::InvalidArgument)?,
-                "prompt_fingerprint": input.prompt_fingerprint,
-                "source": input.source_metadata,
-            })),
+            layout: Some(serde_json::to_value(MangaPageGenerationLayoutV2 {
+                schema_version: MangaPageGenerationSchemaVersion::V2,
+                page_plan: page.clone(),
+                drawing_prompt: drawing.clone(),
+                reference_bindings: page_reference_bindings(page, input.reference_assets_metadata)
+                    .map_err(AppError::InvalidArgument)?,
+                prompt_fingerprint: input.prompt_fingerprint.clone(),
+                source: input.source_metadata.clone(),
+            })?),
             status: "pending".to_string(),
             generation_traces: generation_trace.into_iter().collect(),
         });

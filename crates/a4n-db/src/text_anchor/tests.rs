@@ -1,14 +1,17 @@
 use super::*;
-use a4n_core::models::{
-    asset::object_profile,
-    chapter::chapter,
-    project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
-};
 use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
+use a4n_core::{
+    models::{
+        asset::object_profile,
+        chapter::chapter,
+        project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
+    },
+    source_spans::source_text_hash,
+};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
-    Set,
+    ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, PaginatorTrait,
+    QueryFilter, Set,
 };
 use serde_json::json;
 
@@ -23,7 +26,7 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -125,16 +128,18 @@ async fn rebuild_current_chapter_anchors_replaces_existing_rows() {
         .await
         .unwrap();
     let object = object_profile_record(&db, project.id).await;
-    merge_profile_evidence_records(
+    merge_profile_evidence_records_batch(
         &db,
         project.id,
         None,
         TextAnchorProfileKind::Object,
-        object.id,
-        vec![TextAnchorEvidenceInput {
-            text_anchor_id: first[0].id,
-            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
-        }],
+        vec![(
+            object.id,
+            vec![TextAnchorEvidenceInput {
+                text_anchor_id: first[0].id,
+                evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+            }],
+        )],
     )
     .await
     .unwrap();
@@ -234,16 +239,18 @@ async fn merge_profile_evidence_persists_anchor_binding() {
         .unwrap()
         .remove(0);
 
-    let evidence = merge_profile_evidence_records(
+    let evidence = merge_profile_evidence_records_batch(
         &db,
         project.id,
         None,
         TextAnchorProfileKind::Object,
-        object.id,
-        vec![TextAnchorEvidenceInput {
-            text_anchor_id: anchor.id,
-            evidence_role: "first_seen".to_string(),
-        }],
+        vec![(
+            object.id,
+            vec![TextAnchorEvidenceInput {
+                text_anchor_id: anchor.id,
+                evidence_role: "first_seen".to_string(),
+            }],
+        )],
     )
     .await
     .unwrap();
@@ -252,6 +259,276 @@ async fn merge_profile_evidence_persists_anchor_binding() {
     assert_eq!(evidence[0].profile_kind, "object");
     assert_eq!(evidence[0].profile_id, object.id);
     assert_eq!(evidence[0].text_anchor_id, anchor.id);
+}
+
+#[tokio::test]
+async fn merge_profile_evidence_batches_new_rows_and_preserves_input_order() {
+    let db = setup_db().await;
+    let project = text_project(&db, "批量档案证据").await;
+    let chapter = chapter_record(&db, project.id, 1, "第一句。第二句。第三句。").await;
+    let object = object_profile_record(&db, project.id).await;
+    let anchors = rebuild_chapter_content_anchor_records(&db, project.id, chapter.id)
+        .await
+        .unwrap();
+    let expected = vec![anchors[2].id, anchors[0].id, anchors[1].id, anchors[2].id];
+
+    let evidence = merge_profile_evidence_records_batch(
+        &db,
+        project.id,
+        None,
+        TextAnchorProfileKind::Object,
+        vec![(
+            object.id,
+            expected
+                .iter()
+                .copied()
+                .map(|text_anchor_id| TextAnchorEvidenceInput {
+                    text_anchor_id,
+                    evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+                })
+                .collect(),
+        )],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        evidence
+            .iter()
+            .map(|row| row.text_anchor_id)
+            .collect::<Vec<_>>(),
+        expected
+    );
+    assert_eq!(
+        profile_evidence::Entity::find()
+            .filter(profile_evidence::Column::ProfileId.eq(object.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        4
+    );
+}
+
+#[tokio::test]
+async fn merge_profile_evidence_batch_binds_multiple_profiles_in_one_call() {
+    let db = setup_db().await;
+    let project = text_project(&db, "多档案批量证据").await;
+    let chapter = chapter_record(&db, project.id, 1, "第一句。第二句。").await;
+    let first = object_profile_record(&db, project.id).await;
+    let mut second_active: object_profile::ActiveModel = first.clone().into();
+    second_active.id = NotSet;
+    second_active.name = Set("银色钥匙".to_string());
+    second_active.normalized_name = Set("银色钥匙".to_string());
+    let second = second_active.insert(&db).await.unwrap();
+    let anchors = rebuild_chapter_content_anchor_records(&db, project.id, chapter.id)
+        .await
+        .unwrap();
+
+    let evidence = merge_profile_evidence_records_batch(
+        &db,
+        project.id,
+        None,
+        TextAnchorProfileKind::Object,
+        vec![
+            (
+                first.id,
+                vec![TextAnchorEvidenceInput {
+                    text_anchor_id: anchors[0].id,
+                    evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+                }],
+            ),
+            (
+                second.id,
+                vec![TextAnchorEvidenceInput {
+                    text_anchor_id: anchors[1].id,
+                    evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+                }],
+            ),
+        ],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(evidence.len(), 2);
+    assert_eq!(evidence[0].profile_id, first.id);
+    assert_eq!(evidence[1].profile_id, second.id);
+}
+
+#[tokio::test]
+async fn rebuild_content_anchors_batches_rows_and_preserves_span_order() {
+    let db = setup_db().await;
+    let project = text_project(&db, "批量文本锚点").await;
+    let chapter = chapter_record(&db, project.id, 1, "第一句。第二句。第三句。").await;
+
+    let anchors = rebuild_chapter_content_anchor_records(&db, project.id, chapter.id)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        anchors
+            .iter()
+            .map(|anchor| anchor.start_offset)
+            .collect::<Vec<_>>(),
+        vec![0, 4, 8]
+    );
+    assert_eq!(
+        text_anchor::Entity::find()
+            .filter(text_anchor::Column::ProjectId.eq(project.id))
+            .filter(text_anchor::Column::SourceId.eq(chapter.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        3
+    );
+}
+
+#[tokio::test]
+async fn batch_current_anchor_read_keeps_chapter_order() {
+    let db = setup_db().await;
+    let project = text_project(&db, "批量当前正文锚点").await;
+    let first = chapter_record(&db, project.id, 1, "第一章第一句。第二句。").await;
+    let second = chapter_record(&db, project.id, 2, "第二章正文。").await;
+    rebuild_chapter_content_anchor_records(&db, project.id, first.id)
+        .await
+        .unwrap();
+    rebuild_chapter_content_anchor_records(&db, project.id, second.id)
+        .await
+        .unwrap();
+
+    let rows =
+        read_current_chapter_content_anchor_records_batch(&db, project.id, &[second.id, first.id])
+            .await
+            .unwrap();
+    assert_eq!(
+        rows.iter().map(|row| row.chapter.id).collect::<Vec<_>>(),
+        vec![second.id, first.id]
+    );
+    assert!(rows.iter().all(|row| !row.anchors.is_empty()));
+}
+
+#[tokio::test]
+async fn ensure_anchor_batch_rebuilds_stale_rows_and_clears_evidence() {
+    let db = setup_db().await;
+    let project = text_project(&db, "批量过期正文锚点").await;
+    let chapter = chapter_record(&db, project.id, 1, "旧正文。旧正文的第二句。").await;
+    let chapter_id = chapter.id;
+    let old_anchors = rebuild_chapter_content_anchor_records(&db, project.id, chapter.id)
+        .await
+        .unwrap();
+    let object = object_profile_record(&db, project.id).await;
+    merge_profile_evidence_records_batch(
+        &db,
+        project.id,
+        None,
+        TextAnchorProfileKind::Object,
+        vec![(
+            object.id,
+            vec![TextAnchorEvidenceInput {
+                text_anchor_id: old_anchors[0].id,
+                evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+            }],
+        )],
+    )
+    .await
+    .unwrap();
+
+    let mut updated: chapter::ActiveModel = chapter.into();
+    let new_content = "新正文。新正文的第二句。".to_string();
+    updated.content = Set(new_content.clone());
+    updated.update(&db).await.unwrap();
+
+    let rows = ensure_chapter_content_anchor_records_batch(&db, project.id, &[chapter_id])
+        .await
+        .unwrap();
+    let anchors = &rows[0];
+    let current_hash = source_text_hash(&new_content);
+    assert!(!anchors.is_empty());
+    assert!(
+        anchors
+            .iter()
+            .all(|anchor| anchor.source_version_hash == current_hash)
+    );
+    assert!(anchors.iter().any(|anchor| anchor.quote == "新正文"));
+    assert_eq!(
+        profile_evidence::Entity::find()
+            .filter(profile_evidence::Column::ProfileId.eq(object.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn ensure_anchor_batch_rebuilds_multiple_stale_chapters_in_input_order() {
+    let db = setup_db().await;
+    let project = text_project(&db, "多章节批量过期正文锚点").await;
+    let first = chapter_record(&db, project.id, 1, "旧一章。旧一章第二句。").await;
+    let second = chapter_record(&db, project.id, 2, "旧二章。旧二章第二句。").await;
+    let first_anchors = rebuild_chapter_content_anchor_records(&db, project.id, first.id)
+        .await
+        .unwrap();
+    let second_anchors = rebuild_chapter_content_anchor_records(&db, project.id, second.id)
+        .await
+        .unwrap();
+    let object = object_profile_record(&db, project.id).await;
+    merge_profile_evidence_records_batch(
+        &db,
+        project.id,
+        None,
+        TextAnchorProfileKind::Object,
+        vec![(
+            object.id,
+            vec![
+                TextAnchorEvidenceInput {
+                    text_anchor_id: first_anchors[0].id,
+                    evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+                },
+                TextAnchorEvidenceInput {
+                    text_anchor_id: second_anchors[0].id,
+                    evidence_role: EVIDENCE_ROLE_APPEARANCE.to_string(),
+                },
+            ],
+        )],
+    )
+    .await
+    .unwrap();
+
+    let first_id = first.id;
+    let second_id = second.id;
+    let mut first_update: chapter::ActiveModel = first.into();
+    first_update.content = Set("新一章。新一章第二句。".to_string());
+    first_update.update(&db).await.unwrap();
+    let mut second_update: chapter::ActiveModel = second.into();
+    second_update.content = Set("新二章。新二章第二句。".to_string());
+    second_update.update(&db).await.unwrap();
+
+    let groups =
+        ensure_chapter_content_anchor_records_batch(&db, project.id, &[second_id, first_id])
+            .await
+            .unwrap();
+    assert_eq!(groups.len(), 2);
+    assert_eq!(groups[0][0].quote, "新二章");
+    assert_eq!(groups[1][0].quote, "新一章");
+    assert!(
+        groups
+            .iter()
+            .flatten()
+            .all(|anchor| anchor.source_version_hash
+                == source_text_hash(if anchor.source_id == second_id {
+                    "新二章。新二章第二句。"
+                } else {
+                    "新一章。新一章第二句。"
+                }))
+    );
+    assert_eq!(
+        profile_evidence::Entity::find()
+            .filter(profile_evidence::Column::ProfileId.eq(object.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
 }
 
 #[tokio::test]
@@ -264,16 +541,18 @@ async fn earliest_profile_evidence_chapter_requires_the_current_chapter_source()
         .await
         .unwrap()
         .remove(0);
-    merge_profile_evidence_records(
+    merge_profile_evidence_records_batch(
         &db,
         project.id,
         None,
         TextAnchorProfileKind::Object,
-        object.id,
-        vec![TextAnchorEvidenceInput {
-            text_anchor_id: anchor.id,
-            evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
-        }],
+        vec![(
+            object.id,
+            vec![TextAnchorEvidenceInput {
+                text_anchor_id: anchor.id,
+                evidence_role: EVIDENCE_ROLE_FIRST_SEEN.to_string(),
+            }],
+        )],
     )
     .await
     .unwrap();

@@ -3,7 +3,7 @@ use a4n_core::models::chapter::part_outline;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 
-pub fn validate_chapter_outline_generation_request(
+pub(in crate::outline) fn validate_chapter_outline_generation_request(
     start_chapter: i32,
     count: i32,
 ) -> Result<i32, AppError> {
@@ -22,7 +22,7 @@ pub fn validate_chapter_outline_generation_request(
         .ok_or_else(|| AppError::InvalidArgument("章节大纲生成范围溢出".to_string()))
 }
 
-pub fn chapter_outline_generation_manifest_user_message(
+pub(in crate::outline) fn chapter_outline_generation_manifest_user_message(
     focus_part: Option<&part_outline::Model>,
     start_chapter: i32,
     count: i32,
@@ -56,7 +56,7 @@ pub fn chapter_outline_generation_manifest_user_message(
     )
 }
 
-pub fn parse_beat_sheet_json(beat_sheet: &str) -> Result<Value, AppError> {
+pub(in crate::outline) fn parse_beat_sheet_json(beat_sheet: &str) -> Result<Value, AppError> {
     let trimmed = beat_sheet.trim();
     if trimmed.is_empty() {
         return Err(AppError::InvalidArgument("beat_sheet 不能为空".to_string()));
@@ -76,7 +76,7 @@ pub fn parse_beat_sheet_json(beat_sheet: &str) -> Result<Value, AppError> {
     Ok(value)
 }
 
-pub fn beat_mapping_manifest_user_message(
+pub(in crate::outline) fn beat_mapping_manifest_user_message(
     part: &part_outline::Model,
     beat_sheet: &Value,
     count: i32,
@@ -113,6 +113,6 @@ pub fn beat_mapping_manifest_user_message(
     )
 }
 
-pub fn chapter_outline_generation_max_tokens(count: i32) -> usize {
+pub(in crate::outline) fn chapter_outline_generation_max_tokens(count: i32) -> usize {
     1_200 + count as usize * 900
 }

@@ -1,6 +1,10 @@
-use crate::project::ProjectFamilyTextCoreRows;
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use crate::project::{MediaFileEntry, ProjectFamilyTextCoreRows};
 use a4n_core::models::{
+    ai::{generated_image, generated_video},
+    chapter::{
+        chapter_manga_prompt, chapter_shooting_script, chapter_video_prompt, chapter_visual_plan,
+    },
+    character::character_portrait,
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{
         generation_spec, generation_spec_entity_ref, generation_spec_media_ref,
@@ -15,14 +19,9 @@ use a4n_core::models::{
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
-pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v3";
+pub const PROJECT_FAMILY_PACKAGE_VERSION: &str = "project_family_v5";
 pub const MANIFEST_PATH: &str = "a4n-project-family.json";
-pub const MEDIA_FILE_FIELDS: [(&str, &str); 2] = [
-    (FILE_PATH_FIELD, "file"),
-    (THUMBNAIL_PATH_FIELD, "thumbnail"),
-];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectFamilyPackage {
@@ -38,6 +37,13 @@ pub struct ProjectFamilyPackage {
     pub source_snapshot_profiles: Vec<source_snapshot_profile::Model>,
     pub text_anchors: Vec<text_anchor::Model>,
     pub profile_evidence: Vec<profile_evidence::Model>,
+    pub chapter_visual_plans: Vec<chapter_visual_plan::Model>,
+    pub chapter_shooting_scripts: Vec<chapter_shooting_script::Model>,
+    pub character_portraits: Vec<character_portrait::Model>,
+    pub generated_images: Vec<generated_image::Model>,
+    pub chapter_manga_prompts: Vec<chapter_manga_prompt::Model>,
+    pub chapter_video_prompts: Vec<chapter_video_prompt::Model>,
+    pub generated_videos: Vec<generated_video::Model>,
     pub generation_specs: Vec<generation_spec::Model>,
     pub generation_spec_text_anchors: Vec<generation_spec_text_anchor::Model>,
     pub generation_spec_entity_refs: Vec<generation_spec_entity_ref::Model>,
@@ -60,16 +66,3 @@ pub struct ProjectFamilyPackage {
 }
 
 pub type TextCorePackage = ProjectFamilyTextCoreRows;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MediaFileEntry {
-    pub media_asset_id: i64,
-    pub field: String,
-    pub original_path: String,
-    pub package_path: String,
-}
-
-pub struct FamilyImportMediaPayload {
-    pub entries: HashMap<(i64, String), MediaFileEntry>,
-    pub bytes: HashMap<String, Vec<u8>>,
-}

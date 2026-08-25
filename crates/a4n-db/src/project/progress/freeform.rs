@@ -1,7 +1,7 @@
 use super::shared::{ProgressCounts, progress_count_detail, project_progress};
 use super::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_core::models::ai::generated_video;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 const FREEFORM_VIDEO_PROGRESS_TYPES: [&str; 3] = [
@@ -18,18 +18,22 @@ pub(super) async fn freeform_video_project_progress_by_project(
         return Ok(HashMap::new());
     }
     let videos = generated_video::Entity::find()
+        .select_only()
+        .column(generated_video::Column::Id)
+        .column(generated_video::Column::ProjectId)
+        .column(generated_video::Column::Status)
         .filter(generated_video::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(generated_video::Column::VideoType.is_in(FREEFORM_VIDEO_PROGRESS_TYPES))
+        .into_tuple::<(i64, i64, String)>()
         .all(db)
         .await
         .map_err(|error| ProjectProgressReadError::database("查询自由画布生成视频失败", error))?;
     let mut counts_by_project: HashMap<i64, ProgressCounts> = HashMap::new();
-    for video in videos {
-        counts_by_project.entry(video.project_id).or_default().add(
-            "generated_video",
-            video.id,
-            &video.status,
-        )?;
+    for (id, project_id, status) in videos {
+        counts_by_project
+            .entry(project_id)
+            .or_default()
+            .add("generated_video", id, &status)?;
     }
     let mut progress = HashMap::with_capacity(project_ids.len());
     for project_id in project_ids {

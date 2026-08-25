@@ -31,7 +31,7 @@ pub async fn update_chapter_outline_record(
     }
 
     let txn = db.begin().await?;
-    let project = crate::project::project_by_id_for_update(&txn, input.project_id)
+    let project = crate::project::project_write_identity_for_update(&txn, input.project_id)
         .await?
         .ok_or_else(|| {
             ProjectChapterOutlineUpdateError::NotFound(format!("项目不存在: {}", input.project_id))
@@ -342,7 +342,7 @@ where
             "项目 ID 必须大于 0".to_string(),
         ));
     }
-    let project = crate::project::project_by_id_for_update(db, project_id)
+    let project = crate::project::project_write_identity_for_update(db, project_id)
         .await?
         .ok_or_else(|| {
             ProjectOutlineRecordError::InvalidArgument(format!("项目不存在: {project_id}"))

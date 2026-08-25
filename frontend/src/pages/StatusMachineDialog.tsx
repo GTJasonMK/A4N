@@ -10,7 +10,6 @@ import {
   type ProjectStatus,
   type ProjectStatusMachineSummary,
 } from "../api/project";
-import { PROJECT_STATUS_LABELS } from "../api/generated/host";
 import { useToast } from "../components/feedback/Toast";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { Modal } from "../components/ui/Modal";
@@ -18,6 +17,8 @@ import { ForwardActionCard } from "./status-machine-dialog/ForwardActionCard";
 import { RollbackCard } from "./status-machine-dialog/RollbackCard";
 import { StatusFlowView } from "./status-machine-dialog/StatusFlowView";
 import { StatusHistoryPanel } from "./status-machine-dialog/StatusHistoryPanel";
+import { useI18n } from "../i18n";
+import { projectStatusLabel } from "./status-machine-dialog/statusLabels";
 
 interface StatusMachineDialogProps {
   open: boolean;
@@ -37,6 +38,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
   onMutated,
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [machine, setMachine] = useState<ProjectStatusMachineSummary | null>(null);
   const [loadingMachine, setLoadingMachine] = useState(false);
   const [acting, setActing] = useState<string | null>(null);
@@ -86,14 +88,14 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     } catch (err) {
       if (isCurrentRequest(requestScope, machineSeqRef, requestSeq)) {
         setMachine(null);
-        addToast(extractErrorMessage(err, "加载项目状态机失败"), "error");
+        addToast(extractErrorMessage(err, t("statusMachine.loadFailed")), "error");
       }
     } finally {
       if (isCurrentRequest(requestScope, machineSeqRef, requestSeq)) {
         setLoadingMachine(false);
       }
     }
-  }, [addToast, isCurrentRequest, project.id, scopeKey]);
+  }, [addToast, isCurrentRequest, project.id, scopeKey, t]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -143,7 +145,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         return true;
       } catch (err) {
         if (isCurrentMutation(requestProjectId, requestSeq)) {
-          addToast(extractErrorMessage(err, "操作失败"), "error");
+          addToast(extractErrorMessage(err, t("statusMachine.actionFailed")), "error");
         }
         return false;
       } finally {
@@ -151,28 +153,28 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         if (isCurrentMutation(requestProjectId, requestSeq)) setActing(null);
       }
     },
-    [addToast, isCurrentMutation, loadMachine, onMutated, open, project.id],
+    [addToast, isCurrentMutation, loadMachine, onMutated, open, project.id, t],
   );
 
   const handleForward = useCallback(
     async (target: ProjectStatus) => {
       if (!canForwardStatus) {
-        addToast("当前账号没有推进项目状态的权限", "error");
+        addToast(t("statusMachine.noForwardPermission"), "error");
         return;
       }
       await executeStatusAction(
         `forward-${target}`,
         () => forwardProjectStatus(project.id, target),
-        `已推进至「${PROJECT_STATUS_LABELS[target]}」`,
+        t("statusMachine.forwardSuccess", { status: projectStatusLabel(target, t) }),
       );
     },
-    [addToast, canForwardStatus, executeStatusAction, project.id],
+    [addToast, canForwardStatus, executeStatusAction, project.id, t],
   );
 
   const handleRollbackPreview = useCallback(
     async (target: ProjectStatus) => {
       if (!canRollbackStatus || !machine) {
-        addToast("当前账号没有回滚项目状态的权限", "error");
+        addToast(t("statusMachine.noRollbackPermission"), "error");
         return;
       }
       const requestScope = scopeKey;
@@ -189,7 +191,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         setRollbackPreview(data);
       } catch (err) {
         if (isCurrentRequest(requestScope, rollbackPreviewSeqRef, requestSeq)) {
-          addToast(extractErrorMessage(err, "预览失败"), "error");
+          addToast(extractErrorMessage(err, t("statusMachine.previewFailed")), "error");
         }
       } finally {
         if (
@@ -200,7 +202,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
         }
       }
     },
-    [addToast, canRollbackStatus, isCurrentRequest, machine, project.id, scopeKey],
+    [addToast, canRollbackStatus, isCurrentRequest, machine, project.id, scopeKey, t],
   );
 
   const clearRollbackPreview = useCallback(() => {
@@ -212,7 +214,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
 
   const handleConfirmRollback = useCallback(async () => {
     if (!canRollbackStatus) {
-      addToast("当前账号没有回滚项目状态的权限", "error");
+      addToast(t("statusMachine.noRollbackPermission"), "error");
       return;
     }
     if (!rollbackTarget) return;
@@ -220,7 +222,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     const completed = await executeStatusAction(
       `rollback-${rollbackTarget}`,
       () => rollbackProjectStatus(project.id, rollbackTarget),
-      `已回滚至「${PROJECT_STATUS_LABELS[rollbackTarget]}」`,
+      t("statusMachine.rollbackSuccess", { status: projectStatusLabel(rollbackTarget, t) }),
     );
     if (completed && mountedRef.current && activeProjectIdRef.current === requestProjectId) {
       clearRollbackPreview();
@@ -232,6 +234,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     executeStatusAction,
     project.id,
     rollbackTarget,
+    t,
   ]);
 
   return (
@@ -240,7 +243,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
       onClose={() => {
         if (!actionBusy) onClose();
       }}
-      title="项目阶段"
+      title={t("statusMachine.title")}
       subtitle={project.title}
       maxWidthClassName="max-w-xl"
       bodyClassName="px-4 py-4"
@@ -250,7 +253,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
     >
       {loadingMachine && !machine ? (
         <div className="a4n-flat-surface inline-flex items-center gap-2 p-3 text-xs text-book-text-muted">
-          <LoadingSpinner size="sm" /> 正在加载项目状态机…
+          <LoadingSpinner size="sm" /> {t("statusMachine.loading")}
         </div>
       ) : machine ? (
         <div className="flex flex-col gap-3">
@@ -281,7 +284,7 @@ export const StatusMachineDialog: React.FC<StatusMachineDialogProps> = ({
           <StatusHistoryPanel history={machine.history} />
         </div>
       ) : (
-        <div className="a4n-flat-surface p-3 text-xs text-danger">项目状态机加载失败。</div>
+        <div className="a4n-flat-surface p-3 text-xs text-danger">{t("statusMachine.loadFailed")}</div>
       )}
     </Modal>
   );

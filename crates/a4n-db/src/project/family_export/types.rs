@@ -1,7 +1,11 @@
 use a4n_core::models::{
+    ai::{generated_image, generated_video},
     asset::object_profile,
-    chapter::{chapter, chapter_outline, part_outline},
-    character::protagonist_profile,
+    chapter::{
+        chapter, chapter_manga_prompt, chapter_outline, chapter_shooting_script,
+        chapter_video_prompt, chapter_visual_plan, part_outline,
+    },
+    character::{character_portrait, protagonist_profile},
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{
         generation_spec, generation_spec_entity_ref, generation_spec_media_ref,
@@ -65,6 +69,13 @@ pub struct ProjectFamilyExportRows {
     pub source_snapshot_profiles: Vec<source_snapshot_profile::Model>,
     pub text_anchors: Vec<text_anchor::Model>,
     pub profile_evidence: Vec<profile_evidence::Model>,
+    pub chapter_visual_plans: Vec<chapter_visual_plan::Model>,
+    pub chapter_shooting_scripts: Vec<chapter_shooting_script::Model>,
+    pub character_portraits: Vec<character_portrait::Model>,
+    pub generated_images: Vec<generated_image::Model>,
+    pub chapter_manga_prompts: Vec<chapter_manga_prompt::Model>,
+    pub chapter_video_prompts: Vec<chapter_video_prompt::Model>,
+    pub generated_videos: Vec<generated_video::Model>,
     pub generation_specs: Vec<generation_spec::Model>,
     pub generation_spec_text_anchors: Vec<generation_spec_text_anchor::Model>,
     pub generation_spec_entity_refs: Vec<generation_spec_entity_ref::Model>,

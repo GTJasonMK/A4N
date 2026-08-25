@@ -320,12 +320,28 @@ pub(in crate::video::prompt_generation::frame_prompts) fn merge_incremental_segm
         .iter()
         .map(|segment| segment.source_shot_id.clone())
         .collect::<HashSet<_>>();
+    let new_recipes_by_number = new_recipes.iter().fold(
+        HashMap::with_capacity(new_recipes.len()),
+        |mut by_number, recipe| {
+            by_number.entry(recipe.segment_number).or_insert(recipe);
+            by_number
+        },
+    );
+    let previous_recipes_by_number = previous.map(|(_, recipes)| {
+        recipes.iter().fold(
+            HashMap::with_capacity(recipes.len()),
+            |mut by_number, recipe| {
+                by_number.entry(recipe.segment_number).or_insert(recipe);
+                by_number
+            },
+        )
+    });
     let new_pairs = new_segments
         .into_iter()
         .map(|segment| {
-            let recipe = new_recipes
-                .iter()
-                .find(|recipe| recipe.segment_number == segment.segment_number)
+            let recipe = new_recipes_by_number
+                .get(&segment.segment_number)
+                .copied()
                 .cloned()
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!(
@@ -338,7 +354,7 @@ pub(in crate::video::prompt_generation::frame_prompts) fn merge_incremental_segm
         .collect::<Result<Vec<_>, AppError>>()?;
     let mut pairs = Vec::new();
     let mut inserted_new = false;
-    if let Some((previous_segments, previous_recipes)) = previous {
+    if let Some((previous_segments, _)) = previous {
         for segment in previous_segments {
             if replaced_shots.contains(segment.source_shot_id.as_str()) {
                 if !inserted_new {
@@ -347,9 +363,9 @@ pub(in crate::video::prompt_generation::frame_prompts) fn merge_incremental_segm
                 }
                 continue;
             }
-            let recipe = previous_recipes
-                .iter()
-                .find(|recipe| recipe.segment_number == segment.segment_number)
+            let recipe = previous_recipes_by_number
+                .as_ref()
+                .and_then(|by_number| by_number.get(&segment.segment_number).copied())
                 .cloned()
                 .ok_or_else(|| {
                     AppError::InvalidArgument(format!(

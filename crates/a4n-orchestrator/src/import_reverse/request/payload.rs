@@ -9,7 +9,7 @@ use super::output_contract::reverse_output_contract;
 mod source_artifact;
 mod validation;
 
-pub fn build_reverse_engineer_user_message(
+pub(super) fn build_reverse_engineer_user_message(
     target: ReverseEngineeringTarget,
 ) -> Result<String, AppError> {
     let prompt_name = target.prompt_name();

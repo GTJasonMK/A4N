@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 
 use a4n_core::models::canvas::canvas_node;
 use a4n_db::canvas::CanvasGraphRecordDocument;
@@ -26,20 +26,19 @@ pub(super) fn runnable_canvas_node_ids(
     target_node_id: Option<i64>,
 ) -> Result<Vec<i64>, String> {
     let order = topological_canvas_node_ids(document)?;
-    let allowed = match target_node_id {
-        Some(node_id) => upstream_canvas_node_ids(document, node_id)?,
-        None => document.nodes.iter().map(|node| node.id).collect(),
-    };
+    let allowed = target_node_id
+        .map(|node_id| upstream_canvas_node_ids(document, node_id))
+        .transpose()?;
+    let runnable_ids = document
+        .nodes
+        .iter()
+        .filter(|node| is_runnable_canvas_node(node))
+        .map(|node| node.id)
+        .collect::<HashSet<_>>();
     Ok(order
         .into_iter()
-        .filter(|node_id| allowed.contains(node_id))
-        .filter(|node_id| {
-            document
-                .nodes
-                .iter()
-                .find(|node| node.id == *node_id)
-                .is_some_and(is_runnable_canvas_node)
-        })
+        .filter(|node_id| allowed.as_ref().is_none_or(|ids| ids.contains(node_id)))
+        .filter(|node_id| runnable_ids.contains(node_id))
         .collect())
 }
 

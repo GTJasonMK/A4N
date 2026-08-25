@@ -1,15 +1,16 @@
-use super::projections::generated_video_ids_for_active_checkpoints;
+use super::projections::{WorkflowCheckpointVideoRefs, generated_video_ids_for_active_checkpoints};
 use crate::workflow::{
     CancelWorkflowRunPersistenceResult, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,
     WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_SUPERSEDED, WorkflowWriteError,
     is_terminal_workflow_status, locked_workflow_run_by_id, required_text,
-    trim_workflow_progress_events, validate_positive_i64, workflow_checkpoints,
+    trim_workflow_progress_events, validate_positive_i64,
 };
 use a4n_core::models::generation::{workflow_checkpoint, workflow_progress_event, workflow_run};
 use chrono::Utc;
+use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, QueryFilter,
-    QueryOrder, Set, TransactionTrait,
+    QueryOrder, QuerySelect, Set, TransactionTrait,
 };
 use serde_json::json;
 
@@ -32,7 +33,30 @@ pub async fn cancel_workflow_run_persistence(
         tx.commit().await.map_err(WorkflowWriteError::Database)?;
         return Ok(result);
     }
-    let checkpoints = workflow_checkpoints(&tx, workflow_run_id).await?;
+    let checkpoints = workflow_checkpoint::Entity::find()
+        .select_only()
+        .column(workflow_checkpoint::Column::Status)
+        .column_as(
+            Expr::col(workflow_checkpoint::Column::ArtifactsJson)
+                .get_json_field("generated_video_id"),
+            "artifact_generated_video_id",
+        )
+        .column_as(
+            Expr::col(workflow_checkpoint::Column::InputFingerprintJson)
+                .get_json_field("generated_video_id"),
+            "input_generated_video_id",
+        )
+        .filter(workflow_checkpoint::Column::WorkflowRunId.eq(workflow_run_id))
+        .filter(workflow_checkpoint::Column::Status.is_not_in([
+            WORKFLOW_STATUS_COMPLETED,
+            WORKFLOW_STATUS_FAILED,
+            WORKFLOW_STATUS_CANCELLED,
+            WORKFLOW_STATUS_SUPERSEDED,
+        ]))
+        .into_model::<WorkflowCheckpointVideoRefs>()
+        .all(&tx)
+        .await
+        .map_err(WorkflowWriteError::Database)?;
     let result = CancelWorkflowRunPersistenceResult {
         workflow_run_id,
         active_task_id: run.active_task_id.clone(),

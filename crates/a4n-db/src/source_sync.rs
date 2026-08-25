@@ -18,14 +18,15 @@ mod snapshots;
 pub use candidates::{
     SourceSyncAnchorConflictCandidateRecord, SourceSyncProfileGenerationSpecRefRecord,
     anchor_conflict_candidates_for_run, generation_specs_for_profile_ref,
-    generation_specs_for_source_chapter, local_state_for_generation_spec,
+    generation_specs_for_profile_refs, generation_specs_for_source_chapter,
+    generation_specs_for_source_chapters, local_states_for_generation_specs,
 };
 pub use conflicts::{
     SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput, detach_derived_project_record,
-    source_sync_conflict_for_decision,
+    source_sync_conflict_for_decision, source_sync_conflicts_for_decisions,
 };
 pub(in crate::source_sync) use conflicts::{
-    insert_source_sync_conflict_record, insert_source_sync_decision_record,
+    insert_source_sync_conflict_records, insert_source_sync_decision_record,
     resolve_source_sync_conflict_record,
 };
 pub use decisions::{
@@ -38,14 +39,15 @@ pub use dry_run::{
 };
 use galgame::validate_prepared_galgame_scene_regeneration_record;
 pub use galgame::{
-    SourceSyncGalgameAnchorConflictCandidateRecord, SourceSyncGalgameSceneConflictCandidateRecord,
-    SourceSyncGalgameSceneLineWriteRecordInput, SourceSyncGalgameSceneRegenerationApplyRecord,
-    SourceSyncGalgameSceneRegenerationSourceRecord, SourceSyncGalgameSceneWriteRecordInput,
-    galgame_scene_regeneration_source_record,
+    SourceSyncGalgameAnchorConflictCandidateRecord, SourceSyncGalgameAnchorConflictLineRecord,
+    SourceSyncGalgameAnchorRecord, SourceSyncGalgameSceneConflictCandidateRecord,
+    SourceSyncGalgameSceneConflictSceneRecord, SourceSyncGalgameSceneLineWriteRecordInput,
+    SourceSyncGalgameSceneRegenerationApplyRecord, SourceSyncGalgameSceneRegenerationSourceRecord,
+    SourceSyncGalgameSceneWriteRecordInput, galgame_scene_regeneration_source_record,
 };
 pub(in crate::source_sync) use galgame::{
     apply_galgame_scene_regeneration_record, galgame_anchor_conflict_candidates_for_run,
-    galgame_scene_conflict_candidates_for_chapter_change,
+    galgame_scene_conflict_candidates_for_chapter_changes,
 };
 pub use generation_specs::{
     SourceSyncAnchorMappingRecord, SourceSyncEntityRefRecordInput,
@@ -61,7 +63,7 @@ pub(in crate::source_sync) use generation_specs::{
     generation_spec_for_source_sync_run, insert_generation_spec_ref_records,
     insert_manual_source_sync_prompt_artifact_record, rebind_generation_spec_anchor_records,
     render_and_insert_source_sync_prompt_artifact_record, replace_generation_spec_ref_records,
-    source_snapshot_chapter_for_source, update_generation_spec_params_record,
+    source_snapshot_chapter_id_for_source, update_generation_spec_params_record,
     update_generation_spec_to_snapshot_record,
 };
 pub use plan::SourceSyncPlanRecord;

@@ -74,6 +74,25 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
     })?;
     ledger.add_pack(LlmContextLedgerPackInput {
         scope_kind: "chapter".into(),
+        pack_kind: "confirmed_chapter_visual_plan".into(),
+        source_refs_json: Some(json!({
+            "visual_plan_id": prepared.visual_plan.record.id,
+            "visual_plan_version": prepared.visual_plan.record.plan_version,
+            "visual_plan_sha256": prepared.visual_plan.record.plan_sha256,
+        })),
+        config_identity_json: json!({
+            "contract":"chapter_visual_plan_v1",
+            "kind":"confirmed_visual_plan"
+        }),
+        required: true,
+        stable_prefix: true,
+        variants: vec![LlmContextLedgerPackDraft::new(
+            COMPRESSION_FULL_RAW,
+            serde_json::to_value(&prepared.visual_plan.plan)?,
+        )],
+    })?;
+    ledger.add_pack(LlmContextLedgerPackInput {
+        scope_kind: "chapter".into(),
         pack_kind: "shooting_source_spans".into(),
         source_refs_json: Some(json!({
             "source_revision_key": prepared.source.source_revision_key,
@@ -109,32 +128,34 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
 #[cfg(test)]
 mod tests {
     use a4n_core::source_spans::source_spans_for_content;
-    use a4n_db::project::{ResolvedChapterSource, ResolvedChapterSourceKind};
+    use a4n_db::project::ResolvedChapterSource;
 
     use super::*;
 
     fn prepared() -> PreparedChapterShootingScriptRequest {
         let content = "甲进入教室。乙抬头看他。".to_string();
+        let source = ResolvedChapterSource {
+            requested_project_id: 1,
+            root_project_id: 1,
+            source_chapter_id: 3,
+            source_snapshot_id: None,
+            source_snapshot_chapter_id: None,
+            chapter_number: 1,
+            title: Some("测试".into()),
+            summary: None,
+            analysis_data_json: None,
+            content: content.clone(),
+            content_sha256: "content-hash".into(),
+            source_revision_key: "revision-1".into(),
+        };
+        let source_spans = source_spans_for_content(3, 1, &content);
+        let visual_plan = super::super::contracts::visual_plan_fixture(&source, &source_spans);
         PreparedChapterShootingScriptRequest {
-            source: ResolvedChapterSource {
-                source_kind: ResolvedChapterSourceKind::Live,
-                requested_project_id: 1,
-                root_project_id: 1,
-                source_chapter_id: 3,
-                source_snapshot_id: None,
-                source_snapshot_chapter_id: None,
-                chapter_number: 1,
-                title: Some("测试".into()),
-                summary: None,
-                analysis_data_json: None,
-                content: content.clone(),
-                content_sha256: "content-hash".into(),
-                source_revision_key: "revision-1".into(),
-            },
-            source_spans: source_spans_for_content(3, 1, &content),
+            source,
+            source_spans,
             input_fingerprint_sha256: "fingerprint".into(),
             existing: None,
-            skeleton_system_prompt: "skeleton".into(),
+            visual_plan,
             layout_unit_system_prompt: "layout".into(),
             unit_adaptation_system_prompt: "adaptation".into(),
             design_unit_system_prompt: "design".into(),

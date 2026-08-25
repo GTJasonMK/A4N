@@ -4,8 +4,6 @@
 
 pub(in crate::chapter_generation) mod generation;
 mod generation_lifecycle;
-mod locks;
-mod records;
 mod response_json;
 
 #[cfg(test)]
@@ -20,7 +18,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
 use a4n_db::SharedDatabaseConnection;
-use locks::chapter_generation_lock_is_active;
 
 type ChapterGenerationKey = (i64, i32);
 type ChapterGenerationLock = Arc<AsyncMutex<()>>;
@@ -38,15 +35,5 @@ impl ChapterGenerationService {
             db,
             generation_locks: Arc::new(DashMap::new()),
         }
-    }
-
-    pub fn active_generation_chapter(
-        &self,
-        project_id: i64,
-        chapter_numbers: &[i32],
-    ) -> Option<i32> {
-        chapter_numbers.iter().copied().find(|chapter_number| {
-            chapter_generation_lock_is_active(&self.generation_locks, project_id, *chapter_number)
-        })
     }
 }

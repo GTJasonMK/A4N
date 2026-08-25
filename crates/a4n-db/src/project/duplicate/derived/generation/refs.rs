@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_core::models::generation::{
     generation_spec_entity_ref, generation_spec_media_ref, generation_spec_text_anchor,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::shared::remap_derived_required_id;
@@ -27,23 +27,29 @@ macro_rules! copy_derived_generation_spec_ref_rows {
                 .all(db)
                 .await
                 .map_err(ProjectDuplicateError::Database)?;
-            for item in refs {
-                $module::ActiveModel {
-                    generation_spec_id: Set(remap_derived_required_id(
-                        spec_id_map,
-                        item.generation_spec_id,
-                        $spec_label,
-                    )?),
-                    $target_field: Set(remap_derived_required_id(
-                        $target_map,
-                        item.$target_field,
-                        $target_label,
-                    )?),
-                    role: Set(item.role),
-                }
-                .insert(db)
-                .await
-                .map_err(ProjectDuplicateError::Database)?;
+            let inserts = refs
+                .into_iter()
+                .map(|item| {
+                    Ok($module::ActiveModel {
+                        generation_spec_id: Set(remap_derived_required_id(
+                            spec_id_map,
+                            item.generation_spec_id,
+                            $spec_label,
+                        )?),
+                        $target_field: Set(remap_derived_required_id(
+                            $target_map,
+                            item.$target_field,
+                            $target_label,
+                        )?),
+                        role: Set(item.role),
+                    })
+                })
+                .collect::<Result<Vec<_>, ProjectDuplicateError>>()?;
+            if !inserts.is_empty() {
+                $module::Entity::insert_many(inserts)
+                    .exec_without_returning(db)
+                    .await
+                    .map_err(ProjectDuplicateError::Database)?;
             }
             Ok(())
         }
@@ -75,20 +81,26 @@ where
         .all(db)
         .await
         .map_err(ProjectDuplicateError::Database)?;
-    for item in refs {
-        generation_spec_entity_ref::ActiveModel {
-            generation_spec_id: Set(remap_derived_required_id(
-                spec_id_map,
-                item.generation_spec_id,
-                "generation_spec_entity_ref.generation_spec_id",
-            )?),
-            entity_kind: Set(item.entity_kind),
-            entity_id: Set(item.entity_id),
-            role: Set(item.role),
-        }
-        .insert(db)
-        .await
-        .map_err(ProjectDuplicateError::Database)?;
+    let inserts = refs
+        .into_iter()
+        .map(|item| {
+            Ok(generation_spec_entity_ref::ActiveModel {
+                generation_spec_id: Set(remap_derived_required_id(
+                    spec_id_map,
+                    item.generation_spec_id,
+                    "generation_spec_entity_ref.generation_spec_id",
+                )?),
+                entity_kind: Set(item.entity_kind),
+                entity_id: Set(item.entity_id),
+                role: Set(item.role),
+            })
+        })
+        .collect::<Result<Vec<_>, ProjectDuplicateError>>()?;
+    if !inserts.is_empty() {
+        generation_spec_entity_ref::Entity::insert_many(inserts)
+            .exec_without_returning(db)
+            .await
+            .map_err(ProjectDuplicateError::Database)?;
     }
     Ok(())
 }

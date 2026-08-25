@@ -1,11 +1,11 @@
 use super::super::{SourceSyncDbError, generation_specs, validate_positive_id};
-use super::types::SourceSyncGalgameSceneRegenerationSourceRecord;
+use super::types::{SourceSyncGalgameAnchorRecord, SourceSyncGalgameSceneRegenerationSourceRecord};
 use a4n_core::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
     project::{source_snapshot_chapter, text_anchor},
     source_sync::{source_sync_conflict, source_sync_run},
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn galgame_scene_regeneration_source_record<C>(
     db: &C,
@@ -37,13 +37,16 @@ where
     let scene_id = match conflict.target_kind.as_str() {
         "galgame_scene" => conflict.target_id,
         "galgame_line" => {
-            let line = galgame_line::Entity::find_by_id(conflict.target_id)
+            let line_scene_id = galgame_line::Entity::find_by_id(conflict.target_id)
+                .select_only()
+                .column(galgame_line::Column::SceneId)
+                .into_tuple::<i64>()
                 .one(db)
                 .await?
                 .ok_or_else(|| {
                     SourceSyncDbError::NotFound(format!("Galgame 行不存在: {}", conflict.target_id))
                 })?;
-            line.scene_id
+            line_scene_id
         }
         other => {
             return Err(SourceSyncDbError::InvalidArgument(format!(
@@ -105,12 +108,19 @@ where
     )
     .await?;
     let anchors = text_anchor::Entity::find()
+        .select_only()
+        .column(text_anchor::Column::Id)
+        .column(text_anchor::Column::ParagraphIndex)
+        .column(text_anchor::Column::StartOffset)
+        .column(text_anchor::Column::EndOffset)
+        .column(text_anchor::Column::Quote)
         .filter(text_anchor::Column::ProjectId.eq(run.root_project_id))
         .filter(text_anchor::Column::SourceSnapshotId.eq(run.to_snapshot_id))
         .filter(text_anchor::Column::SourceSnapshotChapterId.eq(new_snapshot_chapter.id))
         .order_by_asc(text_anchor::Column::ParagraphIndex)
         .order_by_asc(text_anchor::Column::StartOffset)
         .order_by_asc(text_anchor::Column::EndOffset)
+        .into_tuple::<(i64, i32, i32, i32, String)>()
         .all(db)
         .await?;
     if anchors.is_empty() {
@@ -125,6 +135,17 @@ where
         script,
         old_snapshot_chapter,
         new_snapshot_chapter,
-        anchors,
+        anchors: anchors
+            .into_iter()
+            .map(|(id, paragraph_index, start_offset, end_offset, quote)| {
+                SourceSyncGalgameAnchorRecord {
+                    id,
+                    paragraph_index,
+                    start_offset,
+                    end_offset,
+                    quote,
+                }
+            })
+            .collect(),
     })
 }

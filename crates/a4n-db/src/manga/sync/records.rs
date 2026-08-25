@@ -1,19 +1,25 @@
-use crate::manga::{MangaPagePromptSyncDraft, MangaPipelineDbError};
+use crate::manga::MangaPagePromptSyncDraft;
 use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use sea_orm::{ActiveModelTrait, Set};
+use sea_orm::Set;
 
-pub(super) async fn persist_manga_prompt_draft<C>(
-    existing: Option<chapter_manga_prompt::Model>,
+pub(super) fn manga_prompt_active_model(
     draft: MangaPagePromptSyncDraft,
     now: chrono::NaiveDateTime,
-    db: &C,
-) -> Result<chapter_manga_prompt::Model, MangaPipelineDbError>
-where
-    C: sea_orm::ConnectionTrait,
-{
-    match existing {
-        Some(existing) => update_manga_prompt_from_draft(existing, draft, now, db).await,
-        None => insert_manga_prompt_from_draft(draft, now, db).await,
+) -> chapter_manga_prompt::ActiveModel {
+    chapter_manga_prompt::ActiveModel {
+        chapter_id: Set(draft.chapter_id),
+        project_id: Set(draft.project_id),
+        page_number: Set(draft.page_number),
+        prompt_type: Set(MANGA_PAGE_PROMPT_TYPE.to_string()),
+        image_prompt: Set(draft.image_prompt),
+        dialogue_text: Set(draft.dialogue_text),
+        characters_in_frame: Set(draft.characters_in_frame),
+        layout: Set(draft.layout),
+        generated_image_id: Set(None),
+        status: Set(draft.status),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
     }
 }
 
@@ -30,59 +36,29 @@ fn manga_prompt_content_matches(
         && existing.layout == draft.layout
 }
 
-async fn update_manga_prompt_from_draft<C>(
-    existing: chapter_manga_prompt::Model,
+pub(super) fn manga_prompt_updated_model(
+    existing: &chapter_manga_prompt::Model,
     draft: MangaPagePromptSyncDraft,
     now: chrono::NaiveDateTime,
-    db: &C,
-) -> Result<chapter_manga_prompt::Model, MangaPipelineDbError>
-where
-    C: sea_orm::ConnectionTrait,
-{
-    let content_matches = manga_prompt_content_matches(&existing, &draft);
+) -> Option<chapter_manga_prompt::Model> {
+    let content_matches = manga_prompt_content_matches(existing, &draft);
     let keep_rendered_image = content_matches && existing.generated_image_id.is_some();
     if content_matches && (keep_rendered_image || existing.status == draft.status) {
-        return Ok(existing);
+        return None;
     }
-    let mut active: chapter_manga_prompt::ActiveModel = existing.into();
-    active.chapter_id = Set(draft.chapter_id);
-    active.project_id = Set(draft.project_id);
-    active.page_number = Set(draft.page_number);
-    active.image_prompt = Set(draft.image_prompt);
-    active.dialogue_text = Set(draft.dialogue_text);
-    active.characters_in_frame = Set(draft.characters_in_frame);
-    active.layout = Set(draft.layout);
+    let mut updated = existing.clone();
+    updated.chapter_id = draft.chapter_id;
+    updated.project_id = draft.project_id;
+    updated.page_number = draft.page_number;
+    updated.image_prompt = draft.image_prompt;
+    updated.dialogue_text = draft.dialogue_text;
+    updated.characters_in_frame = draft.characters_in_frame;
+    updated.layout = draft.layout;
     if !keep_rendered_image {
-        active.generated_image_id = Set(None);
-        active.status = Set(draft.status);
+        updated.generated_image_id = None;
+        updated.status = draft.status;
     }
-    active.updated_at = Set(now);
-    Ok(active.update(db).await?)
-}
-
-async fn insert_manga_prompt_from_draft<C>(
-    draft: MangaPagePromptSyncDraft,
-    now: chrono::NaiveDateTime,
-    db: &C,
-) -> Result<chapter_manga_prompt::Model, MangaPipelineDbError>
-where
-    C: sea_orm::ConnectionTrait,
-{
-    Ok(chapter_manga_prompt::ActiveModel {
-        chapter_id: Set(draft.chapter_id),
-        project_id: Set(draft.project_id),
-        page_number: Set(draft.page_number),
-        prompt_type: Set(MANGA_PAGE_PROMPT_TYPE.to_string()),
-        image_prompt: Set(draft.image_prompt),
-        dialogue_text: Set(draft.dialogue_text),
-        characters_in_frame: Set(draft.characters_in_frame),
-        layout: Set(draft.layout),
-        generated_image_id: Set(None),
-        status: Set(draft.status),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
-    }
-    .insert(db)
-    .await?)
+    updated.updated_at =
+        std::cmp::max(now, existing.updated_at + chrono::Duration::microseconds(1));
+    Some(updated)
 }

@@ -3,8 +3,7 @@ use a4n_core::error::AppError;
 use a4n_db::project::{
     BlueprintRestoreError, BlueprintSyncError, ForeshadowingDbError, ProjectChapterContextError,
     ProjectChapterOutlineUpdateError, ProjectChapterSceneRecordError,
-    ProjectChapterSceneReorderError, ProjectGeneratedChapterSceneSaveError,
-    ProjectOutlineRecordError,
+    ProjectChapterSceneWriteError, ProjectOutlineRecordError,
 };
 
 pub(crate) fn blueprint_restore_error_to_app(error: BlueprintRestoreError) -> AppError {
@@ -71,27 +70,15 @@ pub(crate) fn project_outline_record_error_to_app_error(
     }
 }
 
-pub(crate) fn project_chapter_scene_reorder_error_to_app_error(
-    error: ProjectChapterSceneReorderError,
+pub(crate) fn project_chapter_scene_write_error_to_app_error(
+    error: ProjectChapterSceneWriteError,
 ) -> AppError {
     match error {
-        ProjectChapterSceneReorderError::InvalidArgument(message) => {
+        ProjectChapterSceneWriteError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        ProjectChapterSceneReorderError::NotFound(message) => AppError::NotFound(message),
-        ProjectChapterSceneReorderError::Database(error) => AppError::Database(error),
-    }
-}
-
-pub(crate) fn project_generated_chapter_scene_save_error_to_app_error(
-    error: ProjectGeneratedChapterSceneSaveError,
-) -> AppError {
-    match error {
-        ProjectGeneratedChapterSceneSaveError::InvalidArgument(message) => {
-            AppError::InvalidArgument(message)
-        }
-        ProjectGeneratedChapterSceneSaveError::NotFound(message) => AppError::NotFound(message),
-        ProjectGeneratedChapterSceneSaveError::Database(error) => AppError::Database(error),
+        ProjectChapterSceneWriteError::NotFound(message) => AppError::NotFound(message),
+        ProjectChapterSceneWriteError::Database(error) => AppError::Database(error),
     }
 }
 

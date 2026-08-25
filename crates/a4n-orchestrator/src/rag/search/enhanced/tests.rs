@@ -1,4 +1,5 @@
-use a4n_core::{models::character::foreshadowing_index, rag::RagDataType};
+use a4n_core::rag::RagDataType;
+use a4n_db::rag::PendingForeshadowingSearchRow;
 use a4n_rag_core::{
     memory_store::MemoryVectorStore,
     vector_store::{EmbeddingRecord, SearchFilter, SearchResult, VectorStore},
@@ -58,19 +59,12 @@ fn foreshadowing(
     description: &str,
     importance: i32,
     related_characters: Option<serde_json::Value>,
-) -> foreshadowing_index::Model {
-    let now = chrono::Utc::now().naive_utc();
-    foreshadowing_index::Model {
+) -> PendingForeshadowingSearchRow {
+    PendingForeshadowingSearchRow {
         id,
-        project_id: 1,
         description: description.to_string(),
-        setup_chapter: 1,
-        payoff_chapter: None,
-        status: "pending".to_string(),
         related_characters,
         importance,
-        created_at: now,
-        updated_at: now,
     }
 }
 
@@ -132,7 +126,7 @@ fn enhanced_rag_identity_mismatch_keeps_original_error_contract() {
     assert!(validate_embedding_identity_match(&expected, &expected).is_ok());
     let error = validate_embedding_identity_match(&actual, &expected)
         .expect_err("mismatched identity should reject");
-    assert!(error.to_string().contains("项目期望"));
+    assert!(error.to_string().contains("服务器期望"));
     assert!(error.to_string().contains("客户端提交"));
 }
 
@@ -231,7 +225,7 @@ async fn enhanced_rag_vector_execution_validates_identity_and_vectors() {
     .await
     .err()
     .expect("mismatched identity should reject");
-    assert!(mismatched.to_string().contains("项目期望"));
+    assert!(mismatched.to_string().contains("服务器期望"));
 
     let prepared = prepared_search(vec![EnhancedRagQuery {
         label: "主查询",

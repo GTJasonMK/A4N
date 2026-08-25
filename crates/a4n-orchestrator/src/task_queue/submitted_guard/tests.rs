@@ -1,8 +1,8 @@
 use a4n_core::models::generation::workflow_run;
 use a4n_core::models::task::task_queue;
 use a4n_db::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING, upsert_workflow_run};
-use a4n_queue::priority::{TaskKind, TaskPriority};
 use a4n_queue::TaskWorkflowContext;
+use a4n_queue::priority::{TaskKind, TaskPriority};
 use sea_orm::EntityTrait;
 
 use super::super::PersistentTaskQueue;

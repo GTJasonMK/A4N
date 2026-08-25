@@ -3,6 +3,7 @@ import { Pencil, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { useI18n, type MessageTranslator } from "../../i18n";
 
 /**
  * NovelDetail 各 Tab 共用的辅助组件与类型。
@@ -25,9 +26,14 @@ export function isChapterGenerating(chapter: Pick<ChapterRow, "status"> | null |
 export function chapterGeneratingMessage(
   chapter: Pick<ChapterRow, "chapter_number" | "status"> | null | undefined,
   operation: string,
+  t: MessageTranslator,
 ): string {
-  const prefix = chapter?.chapter_number ? `第 ${chapter.chapter_number} 章` : "当前章节";
-  return `${prefix}正在生成中，请等待完成后再${operation}`;
+  return chapter?.chapter_number != null
+    ? t("novel.chapterGeneratingWithNumber", {
+        number: chapter.chapter_number,
+        operation,
+      })
+    : t("novel.chapterGeneratingCurrent", { operation });
 }
 
 export const EmptyHint: React.FC<{
@@ -57,11 +63,12 @@ export function DetailRow({ label, value }: { label: string; value: string }) {
 }
 
 export function ProfileEvidence({ items }: { items: string[] }) {
+  const { t } = useI18n();
   if (items.length === 0) return null;
   return (
     <details className="a4n-flat-surface overflow-hidden">
       <summary className="cursor-pointer px-3 py-2.5 text-small font-medium text-book-text-main">
-        依据 · {items.length} 条
+        {t("novel.evidenceCount", { count: items.length })}
       </summary>
       <ul className="space-y-1 border-t border-book-border/40 px-3 py-2.5">
         {items.map((item, index) => (
@@ -87,14 +94,15 @@ export function ProfileDetailActions({
   onDelete: () => void;
   onGenerate: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="flex items-center justify-end gap-2 pt-1">
       {!busy ? (
         <Dropdown
           items={[
-            { label: "编辑档案", icon: <Pencil size={12} />, onClick: onEdit },
+            { label: t("novel.editProfile"), icon: <Pencil size={12} />, onClick: onEdit },
             { type: "divider" },
-            { label: "删除档案", onClick: onDelete, danger: true },
+            { label: t("novel.deleteProfile"), onClick: onDelete, danger: true },
           ]}
         />
       ) : null}
@@ -107,7 +115,7 @@ export function ProfileDetailActions({
       >
         <span className="inline-flex items-center gap-1">
           {generating ? <LoadingSpinner size="sm" /> : <Sparkles size={12} />}
-          生成素材图
+          {t("novel.generateMaterialImage")}
         </span>
       </BookButton>
     </div>
@@ -129,8 +137,14 @@ export function splitLines(value: string): string[] {
     .filter(Boolean);
 }
 
-export function chapterRangeText(first: number, last: number): string {
-  return first === last ? `第 ${first} 章` : `第 ${first}-${last} 章`;
+export function chapterRangeText(
+  first: number,
+  last: number,
+  t: MessageTranslator,
+): string {
+  return first === last
+    ? t("novel.chapterRangeSingle", { number: first })
+    : t("novel.chapterRange", { start: first, end: last });
 }
 
 export function profileChapterRangeText(
@@ -138,18 +152,22 @@ export function profileChapterRangeText(
   last: number,
   evidence: unknown,
   ownershipKind: string,
+  t: MessageTranslator,
 ): string {
   if (ownershipKind === "user" && stringList(evidence).length === 0) {
-    return "出场章节待正文确认";
+    return t("novel.appearancePendingConfirmation");
   }
-  return chapterRangeText(first, last);
+  return chapterRangeText(first, last, t);
 }
 
-export function profileOwnershipLabel(value: string): string {
-  if (value === "user") return "用户资料";
-  if (value === "ai_sync") return "AI 同步资料";
-  if (value === "legacy_unknown") return "历史来源";
-  return "来源异常";
+export function profileOwnershipLabel(
+  value: string,
+  t: MessageTranslator,
+): string {
+  if (value === "user") return t("novel.profileSourceUser");
+  if (value === "ai_sync") return t("novel.profileSourceAiSync");
+  if (value === "legacy_unknown") return t("novel.profileSourceLegacy");
+  return t("novel.profileSourceUnknown");
 }
 
 export function TextField({

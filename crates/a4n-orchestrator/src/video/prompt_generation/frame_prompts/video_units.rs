@@ -288,6 +288,13 @@ pub(super) fn boundary_frame_expected_segment_numbers(
     frame_number: i32,
 ) -> Result<Vec<i32>, AppError> {
     let units = units_for_frame_mapping(segment_plan)?;
+    boundary_frame_expected_segment_numbers_from_units(&units, frame_number)
+}
+
+pub(in crate::video) fn boundary_frame_expected_segment_numbers_from_units(
+    units: &[VideoUnitPlan],
+    frame_number: i32,
+) -> Result<Vec<i32>, AppError> {
     if frame_number < 1 || frame_number as usize > units.len() + 1 {
         return Err(AppError::InvalidArgument(format!(
             "边界帧 frame_number {} 超出视频单元范围",
@@ -295,15 +302,18 @@ pub(super) fn boundary_frame_expected_segment_numbers(
         )));
     }
     let mut numbers = Vec::new();
+    let mut seen = HashSet::new();
     if frame_number > 1 {
         extend_unique_numbers(
             &mut numbers,
+            &mut seen,
             &units[(frame_number - 2) as usize].source_segment_numbers(),
         );
     }
     if (frame_number as usize) <= units.len() {
         extend_unique_numbers(
             &mut numbers,
+            &mut seen,
             &units[(frame_number - 1) as usize].source_segment_numbers(),
         );
     }
@@ -366,7 +376,7 @@ pub(super) fn boundary_frame_expected_duration(
     duration.ok_or_else(|| AppError::InvalidArgument("边界帧 segment_numbers 不能为空".to_string()))
 }
 
-fn units_for_frame_mapping(
+pub(in crate::video) fn units_for_frame_mapping(
     segment_plan: &[VideoSegmentPlan],
 ) -> Result<Vec<VideoUnitPlan>, AppError> {
     let duration_secs = segment_plan
@@ -376,9 +386,9 @@ fn units_for_frame_mapping(
     video_units_for_segment_plan(segment_plan, duration_secs)
 }
 
-fn extend_unique_numbers(target: &mut Vec<i32>, source: &[i32]) {
+fn extend_unique_numbers(target: &mut Vec<i32>, seen: &mut HashSet<i32>, source: &[i32]) {
     for number in source {
-        if !target.contains(number) {
+        if seen.insert(*number) {
             target.push(*number);
         }
     }

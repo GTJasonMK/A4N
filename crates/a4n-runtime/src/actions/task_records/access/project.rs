@@ -6,20 +6,34 @@ use crate::{
     },
 };
 use a4n_core::error::AppError;
+use a4n_domain::collaboration::ProjectAccessRole;
+use std::collections::HashSet;
 
-pub(super) async fn project_visible_to_user(
+pub(in crate::actions::task_records) async fn project_ids_visible_to_user(
     state: &AppState,
     user_id: i64,
-    project_id: i64,
-) -> Result<bool, String> {
-    match access::verify_project_editor(state, user_id, project_id).await {
-        Ok(()) => Ok(true),
-        Err(AppError::Forbidden(_)) | Err(AppError::NotFound(_)) => Ok(false),
+    project_ids: &[i64],
+) -> Result<HashSet<i64>, String> {
+    let project_ids = project_ids
+        .iter()
+        .copied()
+        .filter(|project_id| *project_id > 0)
+        .collect::<Vec<_>>();
+    if project_ids.is_empty() {
+        return Ok(HashSet::new());
+    }
+    match state
+        .orchestrator()
+        .project_ids_with_permission(&project_ids, user_id, ProjectAccessRole::Editor)
+        .await
+    {
+        Ok(project_ids) => Ok(project_ids.into_iter().collect()),
+        Err(AppError::Forbidden(_)) | Err(AppError::NotFound(_)) => Ok(HashSet::new()),
         Err(err) => Err(err.to_string()),
     }
 }
 
-pub(super) async fn verify_task_project_access(
+pub(in crate::actions::task_records) async fn verify_task_project_access(
     state: &AppState,
     user_id: i64,
     project_id: Option<i64>,

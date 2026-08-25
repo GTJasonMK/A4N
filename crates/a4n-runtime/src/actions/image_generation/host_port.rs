@@ -165,14 +165,6 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         .await
         .map_err(|error| host_error(format!("{label}：{error}")))
     }
-
-    async fn sync_project_asset_lineage(&self, project_id: i64) -> Result<(), AppError> {
-        self.state
-            .orchestrator()
-            .sync_project_asset_lineage(project_id)
-            .await
-            .map(|_| ())
-    }
 }
 
 fn host_error(error: String) -> AppError {

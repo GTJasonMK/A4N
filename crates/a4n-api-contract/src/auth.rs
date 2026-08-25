@@ -38,11 +38,13 @@ pub struct UpdateProfileInput {
     )]
     #[schemars(with = "Option<String>")]
     pub avatar_url: Option<Option<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub page_cli_enabled: Option<bool>,
 }
 
 impl UpdateProfileInput {
     pub fn is_empty(&self) -> bool {
-        self.email.is_none() && self.avatar_url.is_none()
+        self.email.is_none() && self.avatar_url.is_none() && self.page_cli_enabled.is_none()
     }
 }
 

@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use a4n_core::models::character::foreshadowing_index;
 use a4n_domain::character::ForeshadowingStatus;
@@ -9,7 +9,8 @@ use sea_orm::{
 };
 use serde_json::Value;
 
-use super::{ForeshadowingDbError, ForeshadowingRecordInput};
+use super::ForeshadowingDbError;
+use a4n_domain::character::ForeshadowingRecordInput;
 
 pub async fn foreshadowing_records_by_project(
     db: &DatabaseConnection,
@@ -63,15 +64,19 @@ pub async fn update_foreshadowing_record(
     let input = normalize_record_input(input)?;
     let tx = db.begin().await?;
     lock_project_for_write(&tx, project_id, "更新伏笔").await?;
-    let existing = record_for_update(&tx, project_id, foreshadowing_id).await?;
-    require_current_version(&existing, expected_updated_at, "保存旧伏笔表单")?;
+    let (existing_id, existing_updated_at) =
+        record_version_for_update(&tx, project_id, foreshadowing_id).await?;
+    require_current_version(existing_updated_at, expected_updated_at, "保存旧伏笔表单")?;
     ensure_unique_description(&tx, project_id, Some(foreshadowing_id), &input).await?;
 
     let updated_at = std::cmp::max(
         Utc::now().naive_utc(),
-        existing.updated_at + chrono::Duration::microseconds(1),
+        existing_updated_at + chrono::Duration::microseconds(1),
     );
-    let mut active: foreshadowing_index::ActiveModel = existing.into();
+    let mut active = foreshadowing_index::ActiveModel {
+        id: Set(existing_id),
+        ..Default::default()
+    };
     active.description = Set(input.description);
     active.setup_chapter = Set(input.setup_chapter);
     active.payoff_chapter = Set(input.payoff_chapter);
@@ -93,7 +98,7 @@ pub async fn delete_foreshadowing_record(
     let tx = db.begin().await?;
     lock_project_for_write(&tx, project_id, "删除伏笔").await?;
     let existing = record_for_update(&tx, project_id, foreshadowing_id).await?;
-    require_current_version(&existing, expected_updated_at, "删除旧伏笔记录")?;
+    require_current_version(existing.updated_at, expected_updated_at, "删除旧伏笔记录")?;
     foreshadowing_index::Entity::delete_by_id(existing.id)
         .exec(&tx)
         .await?;
@@ -109,7 +114,7 @@ pub(super) async fn lock_project_for_write<C>(
 where
     C: ConnectionTrait,
 {
-    let project = crate::project::project_by_id_for_update(db, project_id)
+    let project = crate::project::project_write_identity_for_update(db, project_id)
         .await?
         .ok_or(ForeshadowingDbError::ProjectNotFound { project_id })?;
     if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {
@@ -143,6 +148,32 @@ where
         })
 }
 
+async fn record_version_for_update<C>(
+    db: &C,
+    project_id: i64,
+    foreshadowing_id: i64,
+) -> Result<(i64, chrono::NaiveDateTime), ForeshadowingDbError>
+where
+    C: ConnectionTrait,
+{
+    let mut query = foreshadowing_index::Entity::find_by_id(foreshadowing_id)
+        .select_only()
+        .column(foreshadowing_index::Column::Id)
+        .column(foreshadowing_index::Column::UpdatedAt)
+        .filter(foreshadowing_index::Column::ProjectId.eq(project_id));
+    if db.get_database_backend() != DbBackend::Sqlite {
+        query = query.lock_exclusive();
+    }
+    query
+        .into_tuple::<(i64, chrono::NaiveDateTime)>()
+        .one(db)
+        .await?
+        .ok_or(ForeshadowingDbError::RecordNotFound {
+            project_id,
+            foreshadowing_id,
+        })
+}
+
 async fn ensure_unique_description<C>(
     db: &C,
     project_id: i64,
@@ -153,13 +184,15 @@ where
     C: ConnectionTrait,
 {
     let mut query = foreshadowing_index::Entity::find()
+        .select_only()
+        .column(foreshadowing_index::Column::Id)
         .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
         .filter(foreshadowing_index::Column::SetupChapter.eq(input.setup_chapter))
         .filter(foreshadowing_index::Column::Description.eq(input.description.clone()));
     if let Some(excluded_id) = excluded_id {
         query = query.filter(foreshadowing_index::Column::Id.ne(excluded_id));
     }
-    if query.one(db).await?.is_some() {
+    if query.into_tuple::<i64>().one(db).await?.is_some() {
         return Err(ForeshadowingDbError::InvalidArgument(format!(
             "第 {} 章已经存在同名伏笔：{}",
             input.setup_chapter, input.description
@@ -169,7 +202,7 @@ where
 }
 
 fn require_current_version(
-    existing: &foreshadowing_index::Model,
+    updated_at: chrono::NaiveDateTime,
     expected_updated_at: &str,
     operation: &str,
 ) -> Result<(), ForeshadowingDbError> {
@@ -178,7 +211,7 @@ fn require_current_version(
             "缺少伏笔资料版本，请刷新后重试".to_string(),
         ));
     }
-    if existing.updated_at.to_string() != expected_updated_at.trim() {
+    if updated_at.to_string() != expected_updated_at.trim() {
         return Err(ForeshadowingDbError::InvalidState {
             current: "foreshadowing_source_changed".to_string(),
             operation: format!("{operation}；伏笔资料已经变化，请刷新后重新编辑"),
@@ -219,7 +252,7 @@ fn normalize_record_input(
         ));
     }
 
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     let related_characters = input
         .related_characters
         .into_iter()

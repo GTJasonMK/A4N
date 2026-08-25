@@ -1,8 +1,7 @@
-use crate::{
-    OrchestratorContext, collaboration::ProjectAccessRole, import_review::ImportReviewCreateInput,
-};
+use crate::{OrchestratorContext, collaboration::ProjectAccessRole};
 use a4n_core::error::AppError;
 use a4n_core::models::project::import_review_queue;
+use a4n_db::import_review::ImportReviewCreateInput;
 use a4n_import_core::file_parsers::ParsedChapter;
 
 pub async fn create_import_analysis_reviews_for_user_validated(

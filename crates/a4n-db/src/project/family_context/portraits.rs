@@ -1,8 +1,9 @@
-use super::super::{PROJECT_KIND_COMIC, PROJECT_KIND_TEXT};
-use super::context::find_project_for_family;
+use super::context::project_family_access_row;
 use super::contracts::{MangaCharacterPortraitRefSummary, ProjectFamilyDbError};
 use a4n_core::models::character::{character_portrait, protagonist_profile};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder};
+use a4n_domain::project::ProjectKind;
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
+use std::collections::HashMap;
 
 pub async fn manga_character_portrait_refs(
     db: &DatabaseConnection,
@@ -10,8 +11,12 @@ pub async fn manga_character_portrait_refs(
 ) -> Result<Vec<MangaCharacterPortraitRefSummary>, ProjectFamilyDbError> {
     let profile_project_id = manga_profile_project_id(db, project_id).await?;
     let profiles = protagonist_profile::Entity::find()
+        .select_only()
+        .column(protagonist_profile::Column::Id)
+        .column(protagonist_profile::Column::Name)
         .filter(protagonist_profile::Column::ProjectId.eq(profile_project_id))
         .order_by_asc(protagonist_profile::Column::Id)
+        .into_tuple::<(i64, String)>()
         .all(db)
         .await?;
     if profiles.is_empty() {
@@ -28,76 +33,132 @@ pub async fn manga_character_portrait_refs(
         return Ok(Vec::new());
     }
 
+    let portrait_by_profile = portrait_index(&portraits);
+
     let mut character_portraits = Vec::new();
-    for profile in profiles {
-        let profile_portraits = portraits
-            .iter()
-            .filter(|portrait| portrait.profile_id == profile.id)
-            .collect::<Vec<_>>();
-        if profile_portraits.is_empty() {
+    for (profile_id, profile_name) in profiles {
+        let Some(portrait) = portrait_by_profile.get(&profile_id) else {
             continue;
-        }
-        let portrait = profile_portraits
-            .into_iter()
-            .find(|portrait| portrait.is_primary)
-            .ok_or_else(|| {
-                ProjectFamilyDbError::InvalidArgument(format!(
-                    "角色档案 #{} 已有立绘但没有主立绘",
-                    profile.id
-                ))
-            })?;
+        };
+        let portrait = portrait.as_ref().ok_or_else(|| {
+            ProjectFamilyDbError::InvalidArgument(format!(
+                "角色档案 #{} 已有立绘但没有主立绘",
+                profile_id
+            ))
+        })?;
         if portrait.image_path.trim().is_empty() {
             return Err(ProjectFamilyDbError::InvalidArgument(format!(
                 "角色档案 #{} 的主立绘 #{} 缺少图片路径",
-                profile.id, portrait.id
+                profile_id, portrait.id
             )));
         }
-        if profile.name.trim().is_empty() {
+        if profile_name.trim().is_empty() {
             return Err(ProjectFamilyDbError::InvalidArgument(format!(
                 "角色档案 #{} 名称为空",
-                profile.id
+                profile_id
             )));
         }
         if portrait.prompt.trim().is_empty() {
             return Err(ProjectFamilyDbError::InvalidArgument(format!(
                 "角色档案 #{} 的主立绘 #{} 缺少提示词",
-                profile.id, portrait.id
+                profile_id, portrait.id
             )));
         }
         if portrait.portrait_type.trim().is_empty() {
             return Err(ProjectFamilyDbError::InvalidArgument(format!(
                 "角色档案 #{} 的主立绘 #{} 缺少立绘类型",
-                profile.id, portrait.id
+                profile_id, portrait.id
             )));
         }
         character_portraits.push(MangaCharacterPortraitRefSummary {
-            profile_id: profile.id,
+            profile_id,
             portrait_id: portrait.id,
-            character_name: profile.name.clone(),
+            character_name: profile_name,
             image_path: portrait.image_path.clone(),
             prompt: portrait.prompt.clone(),
             portrait_type: portrait.portrait_type.clone(),
             expression: portrait.expression.clone(),
             pose: portrait.pose.clone(),
-            is_primary: portrait.is_primary,
         });
     }
 
     Ok(character_portraits)
 }
 
+fn portrait_index(
+    portraits: &[character_portrait::Model],
+) -> HashMap<i64, Option<&character_portrait::Model>> {
+    let mut index = HashMap::with_capacity(portraits.len());
+    for portrait in portraits {
+        let primary = portrait.is_primary.then_some(portrait);
+        index
+            .entry(portrait.profile_id)
+            .and_modify(|current: &mut Option<&character_portrait::Model>| {
+                if current.is_none() && primary.is_some() {
+                    *current = primary;
+                }
+            })
+            .or_insert(primary);
+    }
+    index
+}
+
 async fn manga_profile_project_id(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<i64, ProjectFamilyDbError> {
-    let project = find_project_for_family(db, project_id).await?;
-    match project.project_kind.as_str() {
-        PROJECT_KIND_TEXT => Ok(project.id),
-        PROJECT_KIND_COMIC => project.root_project_id.ok_or_else(|| {
+    let project = project_family_access_row(db, project_id).await?;
+    match ProjectKind::parse(&project.project_kind) {
+        Some(ProjectKind::Text) => Ok(project.id),
+        Some(ProjectKind::Comic) => project.root_project_id.ok_or_else(|| {
             ProjectFamilyDbError::InvalidArgument(format!("漫画项目缺少根文本项目: {}", project.id))
         }),
-        other => Err(ProjectFamilyDbError::InvalidArgument(format!(
-            "项目 {project_id} 不是文本项目或漫画项目: {other}"
+        _ => Err(ProjectFamilyDbError::InvalidArgument(format!(
+            "项目 {project_id} 不是文本项目或漫画项目: {}",
+            project.project_kind
         ))),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::portrait_index;
+    use a4n_core::models::character::character_portrait;
+    use chrono::Utc;
+
+    fn portrait(id: i64, profile_id: i64, is_primary: bool) -> character_portrait::Model {
+        character_portrait::Model {
+            id,
+            profile_id,
+            project_id: 1,
+            portrait_type: String::new(),
+            image_path: String::new(),
+            prompt: String::new(),
+            expression: None,
+            pose: None,
+            is_primary,
+            created_at: Utc::now().naive_utc(),
+        }
+    }
+
+    #[test]
+    fn portrait_index_keeps_presence_and_first_primary() {
+        let portraits = vec![
+            portrait(1, 10, false),
+            portrait(2, 10, true),
+            portrait(3, 10, true),
+            portrait(4, 11, false),
+        ];
+        let index = portrait_index(&portraits);
+
+        assert_eq!(
+            index
+                .get(&10)
+                .and_then(Option::as_ref)
+                .map(|portrait| portrait.id),
+            Some(2)
+        );
+        assert!(matches!(index.get(&11), Some(None)));
+        assert!(!index.contains_key(&12));
     }
 }

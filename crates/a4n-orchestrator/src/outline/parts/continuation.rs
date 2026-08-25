@@ -17,7 +17,7 @@ use super::contracts::{PartOutlineJsonInput, PartOutlineRequestInput};
 use super::requests::build_part_outline_request;
 
 impl OrchestratorContext {
-    pub async fn continue_part_outline(
+    pub(in crate::outline) async fn continue_part_outline(
         &self,
         input: PartOutlineContinuationInput<'_>,
     ) -> Result<part_outline::Model, AppError> {
@@ -82,7 +82,7 @@ impl OrchestratorContext {
         Ok(part)
     }
 
-    pub async fn preview_continue_part_outline_request(
+    pub(in crate::outline) async fn preview_continue_part_outline_request(
         &self,
         project_id: i64,
         part_number: i32,

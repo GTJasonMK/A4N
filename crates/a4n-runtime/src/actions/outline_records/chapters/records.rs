@@ -2,12 +2,10 @@ use super::super::{
     ChapterOutlineSummary, DeleteLatestOutlineRecordsInput, OutlineMutationResult,
     SaveChapterOutlineInput, SaveChapterOutlineResult, UpdateChapterOutlineInput,
     UpdateChapterOutlineResult, chapter_outline_summary, outline_material_sync_warnings,
-    project_outline_delete_input,
 };
 use crate::AppState;
 use crate::actions::access as project_access;
 use a4n_core::error::AppError;
-use a4n_orchestrator::project::{ManualChapterOutlineSaveInput, ProjectChapterOutlineUpdateInput};
 
 pub async fn list_chapter_outlines(
     state: &AppState,
@@ -44,7 +42,7 @@ pub async fn delete_latest_chapter_outlines(
     let project_id = input.project_id;
     state
         .orchestrator()
-        .delete_latest_chapter_outline_records_validated(project_outline_delete_input(input))
+        .delete_latest_chapter_outline_records_validated(input)
         .await?;
     Ok(OutlineMutationResult {
         warnings: outline_material_sync_warnings(state, project_id).await,
@@ -60,14 +58,7 @@ pub async fn save_chapter_outline(
     let project_id = input.project_id;
     let saved = state
         .orchestrator()
-        .save_manual_chapter_outline_validated(ManualChapterOutlineSaveInput {
-            project_id,
-            outline_id: input.outline_id,
-            expected_updated_at: input.expected_updated_at,
-            chapter_number: input.chapter_number,
-            title: input.title,
-            summary: input.summary,
-        })
+        .save_manual_chapter_outline_validated(input)
         .await?;
     Ok(SaveChapterOutlineResult {
         outline: chapter_outline_summary(&saved, None),
@@ -81,20 +72,13 @@ pub async fn update_chapter_outline(
     input: UpdateChapterOutlineInput,
 ) -> Result<UpdateChapterOutlineResult, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
+    let project_id = input.project_id;
     let updated = state
         .orchestrator()
-        .update_chapter_outline_validated(ProjectChapterOutlineUpdateInput {
-            project_id: input.project_id,
-            outline_id: input.outline_id,
-            expected_updated_at: input.expected_updated_at,
-            title: input.title,
-            summary: input.summary,
-            beats: input.beats,
-            key_scenes: input.key_scenes,
-        })
+        .update_chapter_outline_validated(input)
         .await?;
     Ok(UpdateChapterOutlineResult {
         outline: chapter_outline_summary(&updated, None),
-        warnings: outline_material_sync_warnings(state, input.project_id).await,
+        warnings: outline_material_sync_warnings(state, project_id).await,
     })
 }

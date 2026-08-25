@@ -13,10 +13,13 @@ pub(super) async fn list_all_users(state: &AppState) -> Result<Vec<UserSummary>,
         .list_auth_users()
         .await
         .map_err(app_error_message)?;
-    Ok(users.iter().map(to_user_summary).collect())
+    Ok(users)
 }
 
-pub(super) async fn create_user(state: &AppState, input: CreateUserInput) -> Result<UserSummary, String> {
+pub(super) async fn create_user(
+    state: &AppState,
+    input: CreateUserInput,
+) -> Result<UserSummary, String> {
     let user = state
         .orchestrator()
         .create_auth_user(&input.username, &input.email, &input.password, &input.role)

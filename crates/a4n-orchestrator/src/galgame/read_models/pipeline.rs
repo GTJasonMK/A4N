@@ -1,12 +1,55 @@
-use a4n_core::error::AppError;
+use a4n_api_contract::galgame::{
+    GalgamePipelineStatusSummary, GalgameWorkflowCheckpointSummary, GalgameWorkflowRunSummary,
+};
+use a4n_core::{
+    error::AppError,
+    models::generation::{workflow_checkpoint, workflow_run},
+};
 use a4n_db::galgame::GalgamePipelinePromptContextRecord;
 
 use crate::galgame::{
     GalgameChapterShootingScript, GalgamePipelinePromptContext, OrchestratorContext,
     galgame_pipeline_source_spans_from_prompt_chapters, galgame_prompt_chapter_from_snapshot,
-    galgame_speaker_profiles_from_models, validate_positive_id,
+    galgame_speaker_profiles_from_prompt_records, validate_positive_id,
 };
-use crate::shooting_script::ChapterShootingScriptSourceInput;
+use crate::shooting_script::errors::resolve_source_error;
+
+pub(in crate::galgame) fn galgame_pipeline_status_summary(
+    run: Option<workflow_run::Model>,
+    checkpoints: Vec<workflow_checkpoint::Model>,
+) -> GalgamePipelineStatusSummary {
+    GalgamePipelineStatusSummary {
+        run: run.map(|run| GalgameWorkflowRunSummary {
+            id: run.id,
+            status: run.status,
+            mode: run.mode,
+            current_step_key: run.current_step_key,
+            progress_json: run.progress_json,
+            active_task_id: run.active_task_id,
+            can_resume: run.can_resume,
+            resume_block_reason: run.resume_block_reason,
+            error_message: run.error_message,
+            created_at: run.created_at.to_string(),
+            updated_at: run.updated_at.to_string(),
+            completed_at: run.completed_at.map(|value| value.to_string()),
+        }),
+        checkpoints: checkpoints
+            .into_iter()
+            .map(|checkpoint| GalgameWorkflowCheckpointSummary {
+                id: checkpoint.id,
+                step_key: checkpoint.step_key,
+                step_order: checkpoint.step_order,
+                status: checkpoint.status,
+                checkpoint_json: checkpoint.checkpoint_json,
+                artifacts_json: checkpoint.artifacts_json,
+                error_message: checkpoint.error_message,
+                created_at: checkpoint.created_at.to_string(),
+                updated_at: checkpoint.updated_at.to_string(),
+                completed_at: checkpoint.completed_at.map(|value| value.to_string()),
+            })
+            .collect(),
+    }
+}
 
 impl OrchestratorContext {
     pub async fn galgame_pipeline_prompt_context(
@@ -22,20 +65,33 @@ impl OrchestratorContext {
         )
         .await
         .map_err(AppError::Database)?;
+        let root_project_id = context.root_project.id;
+        let source_snapshot_id = context.source_snapshot.id;
         let mut context = galgame_pipeline_prompt_context_from_record(
             context.project.id,
-            context.root_project.id,
-            context.source_snapshot.id,
+            root_project_id,
+            source_snapshot_id,
             record,
         )?;
+        let source_chapter_ids = context
+            .chapters
+            .iter()
+            .map(|chapter| chapter.source_chapter_id)
+            .collect::<Vec<_>>();
+        let sources = a4n_db::project::resolve_snapshot_sources(
+            self.database.connection(),
+            project_id,
+            root_project_id,
+            source_snapshot_id,
+            &source_chapter_ids,
+        )
+        .await
+        .map_err(resolve_source_error)?;
+        let resolved_scripts = self
+            .require_current_chapter_shooting_scripts_for_resolved_sources(sources)
+            .await?;
         let mut shooting_scripts = Vec::with_capacity(context.chapters.len());
-        for chapter in &context.chapters {
-            let resolved = self
-                .require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
-                    project_id,
-                    source_chapter_id: chapter.source_chapter_id,
-                })
-                .await?;
+        for (chapter, resolved) in context.chapters.iter().zip(resolved_scripts) {
             if resolved.source.source_snapshot_chapter_id
                 != Some(chapter.source_snapshot_chapter_id)
                 || resolved.source.chapter_number != chapter.chapter_number
@@ -87,7 +143,7 @@ pub(crate) fn galgame_pipeline_prompt_context_from_record(
         project_id,
         root_project_id,
         source_snapshot_id,
-        speaker_profiles: galgame_speaker_profiles_from_models(&record.speaker_profiles),
+        speaker_profiles: galgame_speaker_profiles_from_prompt_records(&record.speaker_profiles),
         chapters: prompt_chapters,
         source_spans,
         shooting_scripts: Vec::new(),

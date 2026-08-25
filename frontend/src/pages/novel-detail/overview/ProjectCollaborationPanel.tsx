@@ -18,24 +18,25 @@ import { useToast } from "../../../components/feedback/Toast";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
-import { PROJECT_ACCESS_ROLE_LABELS } from "../../../utils/projectRouting";
+import { getProjectAccessRoleLabel } from "../../../utils/projectRouting";
+import { useI18n } from "../../../i18n";
 
 interface ProjectCollaborationPanelProps {
   project: NovelProject;
   onRefresh: () => Promise<void>;
 }
 
-const MEMBER_ROLE_OPTIONS: Array<{ value: ProjectMemberRole; label: string }> = [
-  { value: "manager", label: "管理员" },
-  { value: "editor", label: "编辑者" },
-  { value: "viewer", label: "只读成员" },
-];
-
 export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps> = ({
   project,
   onRefresh,
 }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
+  const memberRoleOptions: Array<{ value: ProjectMemberRole; label: string }> = [
+    { value: "manager", label: t("novel.managerRole") },
+    { value: "editor", label: t("novel.editorRole") },
+    { value: "viewer", label: t("novel.viewerRole") },
+  ];
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invites, setInvites] = useState<ProjectInvite[]>([]);
   const [identity, setIdentity] = useState("");
@@ -66,7 +67,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       setInvites(nextInvites);
     } catch (err) {
       if (mountedRef.current && loadSeqRef.current === requestSeq) {
-        addToast(extractErrorMessage(err, "加载协作成员失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.collaborationActions.loadFailed")), "error");
       }
     } finally {
       if (mountedRef.current && loadSeqRef.current === requestSeq) {
@@ -115,12 +116,12 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
       });
       if (!mountedRef.current) return;
       setIdentity("");
-      addToast("邀请已发送", "success");
+      addToast(t("novel.collaborationActions.inviteSent"), "success");
       await load();
       await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "邀请失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.collaborationActions.inviteFailed")), "error");
       }
     } finally {
       submittingRef.current = false;
@@ -134,12 +135,12 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await updateProjectMemberRole(rootProjectId, member.user_id, nextRole);
       if (!mountedRef.current) return;
-      addToast("成员角色已更新", "success");
+      addToast(t("novel.collaborationActions.roleUpdated"), "success");
       await load();
       await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "更新成员角色失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.collaborationActions.roleUpdateFailed")), "error");
       }
     } finally {
       finishAction(actionKey);
@@ -150,9 +151,9 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     const actionKey = `remove:${member.user_id}`;
     if (!beginAction(actionKey)) return;
     const ok = await confirmDialog({
-      title: "移除协作者",
-      message: `确定要移除「${member.username}」吗？`,
-      confirmText: "移除",
+      title: t("novel.collaborationActions.removeTitle"),
+      message: t("novel.collaborationActions.removeMessage", { username: member.username }),
+      confirmText: t("common.remove"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -162,12 +163,12 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await removeProjectMember(rootProjectId, member.user_id);
       if (!mountedRef.current) return;
-      addToast("协作者已移除", "success");
+      addToast(t("novel.collaborationActions.removed"), "success");
       await load();
       await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "移除协作者失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.collaborationActions.removeFailed")), "error");
       }
     } finally {
       finishAction(actionKey);
@@ -180,12 +181,12 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await revokeProjectInvite(rootProjectId, invite.id);
       if (!mountedRef.current) return;
-      addToast("邀请已撤销", "success");
+      addToast(t("novel.collaborationActions.inviteRevoked"), "success");
       await load();
       await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "撤销邀请失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.collaborationActions.revokeFailed")), "error");
       }
     } finally {
       finishAction(actionKey);
@@ -196,9 +197,9 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     const actionKey = "leave";
     if (!beginAction(actionKey)) return;
     const ok = await confirmDialog({
-      title: "离开项目",
-      message: "离开后你将无法再访问该项目，除非项目成员重新邀请你。",
-      confirmText: "离开项目",
+      title: t("novel.collaborationActions.leaveTitle"),
+      message: t("novel.collaborationActions.leaveMessage"),
+      confirmText: t("novel.collaborationActions.leave"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -208,11 +209,11 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     try {
       await leaveProject(rootProjectId);
       if (!mountedRef.current) return;
-      addToast("已离开项目", "success");
+      addToast(t("novel.collaborationActions.left"), "success");
       await onRefresh();
     } catch (err) {
       if (mountedRef.current) {
-        addToast(extractErrorMessage(err, "离开项目失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.collaborationActions.leaveFailed")), "error");
       }
     } finally {
       finishAction(actionKey);
@@ -223,13 +224,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-small leading-relaxed text-book-text-muted">
-          {loading ? "正在加载成员…" : `共 ${members.length} 位成员`}
+          {loading ? t("novel.collaborationActions.loading") : t("novel.collaborationActions.memberCount", { count: members.length })}
         </p>
         {canLeave ? (
           <Dropdown
             items={[
               {
-                label: "离开项目",
+                label: t("novel.collaborationActions.leave"),
                 onClick: () => void handleLeave(),
                 disabled: busyActionKeys.has("leave"),
                 danger: true,
@@ -244,7 +245,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
           <input
             value={identity}
             onChange={(event) => setIdentity(event.target.value)}
-            placeholder="用户名或邮箱"
+            placeholder={t("novel.collaborationActions.identityPlaceholder")}
             className="pyqt-input col-span-2 h-9 min-w-0 sm:col-span-1"
           />
           <select
@@ -252,7 +253,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
             onChange={(event) => setRole(event.target.value as ProjectMemberRole)}
             className="pyqt-input h-9 w-full"
           >
-            {MEMBER_ROLE_OPTIONS.map((item) => (
+                {memberRoleOptions.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
@@ -265,13 +266,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
             onClick={() => void handleInvite()}
           >
             <span className="inline-flex items-center gap-1.5">
-              <UserPlus size={13} /> 邀请
+              <UserPlus size={13} /> {t("novel.collaborationActions.invite")}
             </span>
           </BookButton>
         </div>
       )}
 
-      <ul aria-label="项目成员" className="space-y-2">
+      <ul aria-label={t("novel.collaborationActions.membersAria")} className="space-y-2">
         {members.map((member) => (
           <li
             key={`${member.user_id}:${member.role}`}
@@ -287,14 +288,14 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
               {canManage && member.role !== "owner" ? (
                 <select
                   value={member.role}
-                  aria-label={`调整 ${member.username} 的角色`}
+                  aria-label={t("novel.collaborationActions.adjustRole", { username: member.username })}
                   disabled={busyActionKeys.has(`role:${member.user_id}`)}
                   onChange={(event) =>
                     void handleRoleChange(member, event.target.value as ProjectMemberRole)
                   }
                   className="pyqt-input h-8 w-24 text-small sm:w-28"
                 >
-                  {MEMBER_ROLE_OPTIONS.map((item) => (
+                  {memberRoleOptions.map((item) => (
                     <option key={item.value} value={item.value}>
                       {item.label}
                     </option>
@@ -302,14 +303,14 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                 </select>
               ) : (
                 <span className="text-small text-book-text-muted">
-                  {PROJECT_ACCESS_ROLE_LABELS[member.role]}
+                  {getProjectAccessRoleLabel(member.role, t)}
                 </span>
               )}
               {canManage && member.role !== "owner" ? (
                 <Dropdown
                   items={[
                     {
-                      label: "移除成员",
+                      label: t("novel.collaborationActions.removeMember"),
                       onClick: () => void handleRemove(member),
                       disabled: busyActionKeys.has(`remove:${member.user_id}`),
                       danger: true,
@@ -324,8 +325,8 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
 
       {canManage && invites.length > 0 && (
         <section className="mt-4">
-          <div className="text-small font-semibold text-book-text-muted">待处理邀请</div>
-          <ul aria-label="待处理邀请" className="mt-2 space-y-2">
+          <div className="text-small font-semibold text-book-text-muted">{t("novel.collaborationActions.pendingInvites")}</div>
+          <ul aria-label={t("novel.collaborationActions.pendingInvites")} className="mt-2 space-y-2">
             {invites.map((invite) => (
               <li
                 key={invite.id}
@@ -336,13 +337,13 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                     {invite.invitee_username}
                   </span>
                   <span className="mt-0.5 block text-book-text-muted">
-                    {PROJECT_ACCESS_ROLE_LABELS[invite.role]}
+                    {getProjectAccessRoleLabel(invite.role, t)}
                   </span>
                 </span>
                 <Dropdown
                   items={[
                     {
-                      label: "撤销邀请",
+                      label: t("novel.collaborationActions.revokeInvite"),
                       onClick: () => void handleRevoke(invite),
                       disabled: busyActionKeys.has(`revoke:${invite.id}`),
                       danger: true,

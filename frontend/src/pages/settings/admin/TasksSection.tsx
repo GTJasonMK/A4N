@@ -16,22 +16,11 @@ import {
   getOperationStatusLabel,
 } from "../../../utils/workflowPresentation";
 import { useAdminSectionLoader } from "./useAdminSectionLoader";
-
-const formatTaskDate = (value: string | null): string => {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "时间未知";
-  return parsed.toLocaleString("zh-CN", {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-};
+import { formatDateTime, useI18n } from "../../../i18n";
 
 export const TasksSection: React.FC = () => {
   const { addToast } = useToast();
+  const { t, locale } = useI18n();
   const [tasks, setTasks] = useState<TaskQueueSummary[]>([]);
   const [cancellingIds, setCancellingIds] = useState<Set<string>>(new Set());
   const tasksRef = useRef(tasks);
@@ -42,7 +31,7 @@ export const TasksSection: React.FC = () => {
 
   const loadTasks = useCallback(() => listPendingTasks(), []);
   const { loading, load } =
-    useAdminSectionLoader("admin-tasks", loadTasks, setTasks, "加载失败", {
+    useAdminSectionLoader("admin-tasks", loadTasks, setTasks, t("settingsAdmin.loadFailed"), {
       intervalMs: 5000,
     });
 
@@ -57,16 +46,16 @@ export const TasksSection: React.FC = () => {
   const handleCancel = async (id: string) => {
     if (cancellingIdsRef.current.has(id)) return;
     if (!tasksRef.current.some((task) => task.id === id)) {
-      addToast("任务已不在待处理列表中", "info");
+      addToast(t("settingsAdmin.taskMissing"), "info");
       return;
     }
     setTaskCancelling(id, true);
     try {
       await cancelAdminTask(id);
-      addToast("已取消任务", "success");
+      addToast(t("settingsAdmin.taskCancelled"), "success");
       await load();
     } catch (err) {
-      addToast(extractErrorMessage(err, "取消失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.cancelFailed")), "error");
     } finally {
       setTaskCancelling(id, false);
     }
@@ -75,38 +64,38 @@ export const TasksSection: React.FC = () => {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-h-8 items-center gap-2 text-xs text-book-text-muted">
-        <span>{tasks.length} 个待处理任务 · 每 5 秒更新</span>
+        <span>{t("settingsAdmin.pendingTasks", { count: tasks.length })}</span>
         <span className="flex-1" />
-        <BookIconButton label="立即刷新任务" onClick={load} size="sm" disabled={loading}>
+        <BookIconButton label={t("settingsAdmin.refreshTasks")} onClick={load} size="sm" disabled={loading}>
           <RefreshCw size={14} className={loading ? "animate-spin" : undefined} />
         </BookIconButton>
       </div>
       {loading && tasks.length === 0 ? (
         <div className="a4n-flat-surface inline-flex items-center justify-center gap-1.5 py-4 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" />
-          正在加载待处理任务…
+          {t("settingsAdmin.loadPendingTasks")}
         </div>
       ) : tasks.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--framed text-xs">
-          无待处理任务
+          {t("settingsAdmin.noPendingTasks")}
         </div>
       ) : (
         <ul className="space-y-2.5">
-          {tasks.map((t) => (
-            <li key={t.id} className="a4n-flat-surface p-3 text-xs">
+          {tasks.map((task) => (
+            <li key={task.id} className="a4n-flat-surface p-3 text-xs">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
                 <div className="min-w-0">
                   <div className="truncate font-medium text-book-text-main">
-                    {getTaskTypeLabel(t.task_type)}
+                    {getTaskTypeLabel(task.task_type, locale)}
                   </div>
                   <div className="mt-1 truncate text-small text-book-text-muted">
-                    {[getOperationStatusLabel(t.status), getTaskPriorityLabel(t.priority), formatTaskDate(t.created_at)]
+                    {[getOperationStatusLabel(task.status, locale), getTaskPriorityLabel(task.priority, locale), formatDateTime(task.created_at, locale, t("settingsAdmin.unknownDate"))]
                       .filter(Boolean)
                       .join(" · ")}
                   </div>
                 </div>
                 <span className="ml-auto">
-                  {cancellingIds.has(t.id) ? (
+                  {cancellingIds.has(task.id) ? (
                     <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
                       <LoadingSpinner size="sm" />
                     </span>
@@ -114,10 +103,10 @@ export const TasksSection: React.FC = () => {
                     <Dropdown
                       items={[
                         {
-                          label: "取消任务",
+                          label: t("settingsQueue.cancelTask"),
                           icon: <X size={12} />,
                           danger: true,
-                          onClick: () => void handleCancel(t.id),
+                          onClick: () => void handleCancel(task.id),
                         },
                       ]}
                     />
@@ -126,15 +115,15 @@ export const TasksSection: React.FC = () => {
               </div>
               <details className="mt-1 text-small text-book-text-muted">
                 <summary className="w-fit cursor-pointer select-none rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
-                  诊断信息
+                  {t("settingsAdmin.diagnostics")}
                 </summary>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 rounded-md bg-book-bg-tertiary/45 p-2 font-mono">
-                  <span title={t.id}>ID {t.id}</span>
-                  {t.project_id != null ? <span>项目 {t.project_id}</span> : null}
-                  {t.task_scope ? <span>范围 {t.task_scope}</span> : null}
-                  {t.root_project_id != null ? <span>根项目 {t.root_project_id}</span> : null}
-                  {t.source_snapshot_id != null ? <span>源快照 {t.source_snapshot_id}</span> : null}
-                  {t.dag_id ? <span>DAG {t.dag_id}</span> : null}
+                  <span title={task.id}>ID {task.id}</span>
+                  {task.project_id != null ? <span>{t("settingsAdmin.project", { id: task.project_id })}</span> : null}
+                  {task.task_scope ? <span>{t("settingsAdmin.scope", { scope: task.task_scope })}</span> : null}
+                  {task.root_project_id != null ? <span>{t("settingsAdmin.taskRootProject", { id: task.root_project_id })}</span> : null}
+                  {task.source_snapshot_id != null ? <span>{t("settingsAdmin.taskSourceSnapshot", { id: task.source_snapshot_id })}</span> : null}
+                  {task.dag_id ? <span>DAG {task.dag_id}</span> : null}
                 </div>
               </details>
             </li>

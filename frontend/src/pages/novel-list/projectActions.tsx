@@ -15,6 +15,7 @@ import {
   type ProjectKind,
 } from "../../api/project";
 import type { ProjectActionItems } from "./ProjectLists";
+import type { MessageKey } from "../../i18n";
 
 type DerivedProjectKind = Exclude<ProjectKind, "text">;
 
@@ -31,6 +32,7 @@ interface ProjectActionHandlers {
 export const createProjectActions = (
   project: NovelProject,
   handlers: ProjectActionHandlers,
+  t: (key: MessageKey) => string,
 ): ProjectActionItems => {
   const isOwner = project.my_role === "owner";
   const canEdit = canEditProjectMaterials(project);
@@ -38,40 +40,40 @@ export const createProjectActions = (
     project.project_kind === "text"
       ? [
           {
-            label: "查看档案",
+            label: t("novel.viewProfile"),
             icon: <BookOpenText size={14} />,
             onClick: () => handlers.onOpenDetails(project),
           },
           ...(canEdit
             ? [
                 {
-                  label: "灵感对话",
+                  label: t("novel.inspiration"),
                   icon: <Sparkles size={14} />,
                   onClick: () => handlers.onOpenInspiration(project),
                 },
                 {
-                  label: "创建漫画项目",
+                  label: t("novel.createComic"),
                   icon: <PanelsTopLeft size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "comic"),
                 },
                 {
-                  label: "创建视频项目",
+                  label: t("novel.createVideo"),
                   icon: <Film size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "video"),
                 },
                 {
-                  label: "创建 GALGame 项目",
+                  label: t("novel.createGalgame"),
                   icon: <Gamepad2 size={14} />,
                   onClick: () => handlers.onCreateDerivedProject(project, "galgame"),
                 },
                 { type: "divider" as const },
                 {
-                  label: "复制为新项目",
+                  label: t("novel.duplicate"),
                   icon: <Copy size={14} />,
                   onClick: () => handlers.onDuplicate(project),
                 },
                 {
-                  label: "导入文本到此项目",
+                  label: t("novel.importTextToProject"),
                   icon: <Upload size={14} />,
                   onClick: () => handlers.onImportText(project),
                 },
@@ -86,13 +88,13 @@ export const createProjectActions = (
       ? [
           ...(textProjectActions.length ? [{ type: "divider" as const }] : []),
           {
-            label: project.project_kind === "text" ? "导出项目族" : "导出派生项目包",
+            label: project.project_kind === "text" ? t("novel.exportFamily") : t("novel.exportDerived"),
             icon: <Download size={14} />,
             onClick: () => handlers.onExport(project),
           },
           { type: "divider" as const },
           {
-            label: "删除项目",
+            label: t("novel.deleteProject"),
             icon: <Trash2 size={14} />,
             onClick: () => handlers.onDelete(project),
             disabled: project.lifecycle_gate !== "active",

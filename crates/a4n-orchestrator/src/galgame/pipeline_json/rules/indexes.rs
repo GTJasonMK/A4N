@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use a4n_core::error::AppError;
 
@@ -75,7 +75,7 @@ pub(in crate::galgame::pipeline_json) fn ensure_unique_indexes<I>(
 where
     I: IntoIterator<Item = i32>,
 {
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for index in indexes {
         if !seen.insert(index) {
             return Err(invalid(format!("{label} 重复: {index}")));

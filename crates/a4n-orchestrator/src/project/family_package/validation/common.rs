@@ -1,13 +1,5 @@
 use super::*;
 
-pub fn snapshot_profile_key(kind: &str, id: i64) -> String {
-    let snapshot_kind = match kind {
-        "character_profile" => "character",
-        value => value,
-    };
-    format!("{snapshot_kind}/{id}")
-}
-
 pub fn validate_media_bytes(asset: &media_asset::Model, bytes: &[u8]) -> Result<(), String> {
     let expected_size = asset
         .file_size

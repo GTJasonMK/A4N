@@ -87,7 +87,9 @@ pub(super) async fn ensure_galgame_pipeline_not_cancelled(
     service: &OrchestratorContext,
     workflow_run_id: i64,
 ) -> Result<(), AppError> {
-    let run = service.workflow_run_model_by_id(workflow_run_id).await?;
+    let run = service
+        .workflow_run_status_record_by_id(workflow_run_id)
+        .await?;
     if run.status == WORKFLOW_STATUS_CANCELLED {
         return Err(AppError::Cancelled);
     }

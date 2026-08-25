@@ -5,6 +5,7 @@ mod error;
 mod generation;
 mod media;
 mod meta;
+pub(crate) mod page_sessions;
 mod temp_media;
 
 pub use commands::dispatch_runtime_command;
@@ -32,6 +33,49 @@ pub fn api_router(state: ServerState) -> Router {
         )
         .route("/agents/{agent_id}/heartbeat", post(agents::update))
         .route("/agents/events", get(agents::events))
+        .route(
+            "/ui-sessions",
+            get(page_sessions::list).post(page_sessions::create),
+        )
+        .route("/ui-sessions/events", get(page_sessions::events))
+        .route("/ui-sessions/{session_id}", get(page_sessions::get))
+        .route(
+            "/ui-sessions/{session_id}/authorize",
+            post(page_sessions::authorize),
+        )
+        .route(
+            "/ui-sessions/{session_id}/attach",
+            post(page_sessions::attach),
+        )
+        .route("/ui-sessions/attach", post(page_sessions::attach_by_code))
+        .route(
+            "/ui-sessions/{session_id}/commands",
+            get(page_sessions::commands),
+        )
+        .route(
+            "/ui-sessions/{session_id}/context",
+            patch(page_sessions::context),
+        )
+        .route(
+            "/ui-sessions/{session_id}/heartbeat",
+            post(page_sessions::heartbeat),
+        )
+        .route(
+            "/ui-sessions/{session_id}/operations",
+            post(page_sessions::start_operation),
+        )
+        .route(
+            "/ui-sessions/{session_id}/operations/{operation_id}",
+            patch(page_sessions::update_operation),
+        )
+        .route(
+            "/ui-sessions/{session_id}/navigate",
+            post(page_sessions::navigate),
+        )
+        .route(
+            "/ui-sessions/{session_id}/control/{action}",
+            post(page_sessions::control),
+        )
         .route(
             "/commands/{cmd}",
             post(commands::invoke).layer(DefaultBodyLimit::max(COMMAND_BODY_LIMIT_BYTES)),

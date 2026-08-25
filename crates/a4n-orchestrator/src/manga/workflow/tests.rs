@@ -1,6 +1,6 @@
 use super::*;
-use crate::manga::MangaCharacterPortraitRef;
 use crate::manga::pipeline_state::MangaPipelineStage;
+use a4n_db::project::MangaCharacterPortraitRefSummary;
 
 #[test]
 fn manga_pipeline_stage_keys_are_owned_by_stage_enum() {
@@ -24,22 +24,19 @@ fn manga_pipeline_stage_keys_are_owned_by_stage_enum() {
 
 #[test]
 fn manga_pipeline_identity_and_fingerprint_preserve_source_and_portrait_ids() {
-    let context = MangaReferenceContext {
-        character_portraits: vec![MangaCharacterPortraitRef {
-            profile_id: 1,
-            portrait_id: 20,
-            character_name: "林岚".to_string(),
-            image_path: "portrait.png".to_string(),
-            prompt: "portrait".to_string(),
-            portrait_type: "primary".to_string(),
-            expression: None,
-            pose: None,
-            is_primary: true,
-        }],
-    };
+    let character_portraits = vec![MangaCharacterPortraitRefSummary {
+        profile_id: 1,
+        portrait_id: 20,
+        character_name: "林岚".to_string(),
+        image_path: "portrait.png".to_string(),
+        prompt: "portrait".to_string(),
+        portrait_type: "primary".to_string(),
+        expression: None,
+        pose: None,
+    }];
 
     assert_eq!(manga_pipeline_business_key(3, 7), "manga_pipeline:3:7");
-    let fingerprint = manga_pipeline_fingerprint("正文", &context);
+    let fingerprint = manga_pipeline_fingerprint("正文", &character_portraits);
     assert_eq!(fingerprint["source"]["content_chars"], 2);
     assert_eq!(
         fingerprint["reference_assets"]["character_portraits"][0]["portrait_id"],
@@ -48,5 +45,9 @@ fn manga_pipeline_identity_and_fingerprint_preserve_source_and_portrait_ids() {
     assert_eq!(
         fingerprint["reference_assets"]["character_portraits"][0]["prompt"],
         "portrait"
+    );
+    assert_eq!(
+        fingerprint["reference_assets"]["character_portraits"][0]["is_primary"],
+        true
     );
 }

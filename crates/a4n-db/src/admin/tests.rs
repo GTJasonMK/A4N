@@ -2,12 +2,12 @@ use std::error::Error;
 
 use a4n_core::models::task::task_queue;
 use a4n_core::models::user::{llm_usage_log, theme_config};
-use chrono::{NaiveDate, Utc};
+use chrono::{Duration, NaiveDate, NaiveDateTime, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, Set};
 
 use super::overview::find_active_global_theme;
-use super::resources::priority_rank;
-use super::usage::{usage_trends_since, validate_positive_i64};
+use super::resources::{all_project_summaries, priority_rank};
+use super::usage::{token_summary, usage_trends, usage_trends_since, validate_positive_i64};
 use super::{AdminDbError, admin_overview_summary};
 
 async fn setup_db() -> DatabaseConnection {
@@ -101,7 +101,11 @@ async fn insert_theme(
         user_id: Set(user_id),
         name: Set(name.to_string()),
         mode: Set("dark".to_string()),
-        css_variables: Set(serde_json::json!({})),
+        theme_document: Set(serde_json::json!({
+            "version": 1,
+            "tokens": {},
+            "backgrounds": {}
+        })),
         is_system_default: Set(is_system_default),
         is_active: Set(is_active),
         created_at: Set(now),
@@ -142,24 +146,78 @@ async fn insert_task(db: &DatabaseConnection, id: &str) {
 }
 
 async fn insert_llm_usage_log(db: &DatabaseConnection, id: i64) {
-    let now = Utc::now().naive_utc();
+    insert_llm_usage_log_at(db, id, 1, Utc::now().naive_utc(), 10, 20, 30, true).await;
+}
+
+async fn insert_llm_usage_log_at(
+    db: &DatabaseConnection,
+    id: i64,
+    user_id: i64,
+    created_at: NaiveDateTime,
+    prompt_tokens: i32,
+    completion_tokens: i32,
+    total_tokens: i32,
+    is_success: bool,
+) {
     llm_usage_log::Entity::insert(llm_usage_log::ActiveModel {
         id: Set(id),
-        user_id: Set(1),
+        user_id: Set(user_id),
         project_id: Set(None),
         model: Set("gpt-4o".to_string()),
         operation: Set("chat".to_string()),
-        prompt_tokens: Set(10),
-        completion_tokens: Set(20),
-        total_tokens: Set(30),
+        prompt_tokens: Set(prompt_tokens),
+        completion_tokens: Set(completion_tokens),
+        total_tokens: Set(total_tokens),
         latency_ms: Set(100),
-        is_success: Set(true),
+        is_success: Set(is_success),
         error_message: Set(None),
-        created_at: Set(now),
+        created_at: Set(created_at),
     })
     .exec(db)
     .await
     .unwrap();
+}
+
+#[tokio::test]
+async fn usage_aggregates_preserve_daily_and_token_contracts() {
+    let db = setup_db().await;
+    let now = Utc::now().naive_utc();
+    insert_llm_usage_log_at(&db, 1, 7, now - Duration::hours(1), 10, 20, 30, true).await;
+    insert_llm_usage_log_at(&db, 2, 7, now - Duration::hours(2), 5, 6, 11, false).await;
+    insert_llm_usage_log_at(&db, 3, 7, now - Duration::hours(26), 100, 200, 300, true).await;
+    insert_llm_usage_log_at(&db, 4, 8, now - Duration::hours(1), 99, 99, 198, true).await;
+
+    let summary = token_summary(&db, 7)
+        .await
+        .expect("token summary query should succeed");
+    assert_eq!(summary["total_calls"], 3);
+    assert_eq!(summary["total_prompt_tokens"], 115);
+    assert_eq!(summary["total_completion_tokens"], 226);
+    assert_eq!(summary["total_tokens"], 341);
+    assert_eq!(summary["success_count"], 2);
+    assert_eq!(summary["fail_count"], 1);
+
+    let empty_summary = token_summary(&db, 99)
+        .await
+        .expect("empty token summary query should succeed");
+    assert_eq!(empty_summary["total_calls"], 0);
+    assert_eq!(empty_summary["total_tokens"], 0);
+
+    let trends = usage_trends(&db, super::UsageTrendsInput { days: 2 })
+        .await
+        .expect("usage trends query should succeed");
+    assert_eq!(trends.len(), 2);
+    let today = now.format("%Y-%m-%d").to_string();
+    let yesterday = (now - Duration::days(1)).format("%Y-%m-%d").to_string();
+    let today_point = trends
+        .iter()
+        .find(|point| point.date == today)
+        .expect("today aggregate should exist");
+    assert_eq!(today_point.total_calls, 3);
+    assert_eq!(today_point.total_tokens, 239);
+    assert_eq!(today_point.success_count, 2);
+    assert_eq!(today_point.fail_count, 1);
+    assert_eq!(trends[0].date, yesterday);
 }
 
 #[tokio::test]
@@ -205,4 +263,31 @@ async fn admin_overview_reports_task_queue_and_real_llm_usage_counts_separately(
         Some("active-global")
     );
     assert_eq!(overview.daily_active_users, 1);
+}
+
+#[tokio::test]
+async fn project_summaries_keep_contract_fields_with_narrow_rows() {
+    let db = setup_db().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "管理员项目摘要".to_string(),
+            description: "不应进入摘要投影".to_string(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let summaries = all_project_summaries(&db)
+        .await
+        .expect("admin project summaries should be readable");
+    let summary = summaries
+        .iter()
+        .find(|summary| summary.id == project.id)
+        .expect("created project summary should be returned");
+    assert_eq!(summary.title, "管理员项目摘要");
+    assert_eq!(summary.user_id, 1);
+    assert_eq!(summary.current_chapter, project.current_chapter);
 }

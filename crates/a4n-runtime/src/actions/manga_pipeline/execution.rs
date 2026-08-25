@@ -21,7 +21,7 @@ pub async fn run_manga_pipeline(
             chapter_number,
             task_id,
             resume_from_checkpoint,
-            prompt_renderer: prompt_renderer,
+            prompt_renderer,
         })
         .await
 }

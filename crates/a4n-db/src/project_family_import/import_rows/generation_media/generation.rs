@@ -1,7 +1,7 @@
 use a4n_core::models::generation::{
     generation_spec, generation_spec_entity_ref, generation_spec_text_anchor, prompt_artifact,
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
+use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, Set};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional, map_required,
@@ -60,49 +60,63 @@ pub(in crate::project_family_import::import_rows) async fn insert_generation_row
             active.params_json = Set(remap_generation_spec_params_json(spec, maps)?);
         }
     );
-    for record in &package.generation_spec_text_anchors {
-        generation_spec_text_anchor::ActiveModel {
-            generation_spec_id: Set(map_required(
-                &maps.generation_spec_ids,
-                record.generation_spec_id,
-                "生成意图锚点 generation_spec_id",
-            )?),
-            text_anchor_id: Set(map_required(
-                &maps.text_anchor_ids,
-                record.text_anchor_id,
-                "生成意图锚点 text_anchor_id",
-            )?),
-            role: Set(record.role.clone()),
-        }
-        .insert(txn)
-        .await
-        .map_err(|source| ProjectFamilyImportError::DatabaseContext {
-            context: "导入生成意图锚点引用失败",
-            source,
-        })?;
+    let anchor_ref_inserts = package
+        .generation_spec_text_anchors
+        .iter()
+        .map(|record| {
+            Ok(generation_spec_text_anchor::ActiveModel {
+                generation_spec_id: Set(map_required(
+                    &maps.generation_spec_ids,
+                    record.generation_spec_id,
+                    "生成意图锚点 generation_spec_id",
+                )?),
+                text_anchor_id: Set(map_required(
+                    &maps.text_anchor_ids,
+                    record.text_anchor_id,
+                    "生成意图锚点 text_anchor_id",
+                )?),
+                role: Set(record.role.clone()),
+            })
+        })
+        .collect::<Result<Vec<_>, ProjectFamilyImportError>>()?;
+    if !anchor_ref_inserts.is_empty() {
+        generation_spec_text_anchor::Entity::insert_many(anchor_ref_inserts)
+            .exec_without_returning(txn)
+            .await
+            .map_err(|source| ProjectFamilyImportError::DatabaseContext {
+                context: "导入生成意图锚点引用失败",
+                source,
+            })?;
     }
-    for record in &package.generation_spec_entity_refs {
-        generation_spec_entity_ref::ActiveModel {
-            generation_spec_id: Set(map_required(
-                &maps.generation_spec_ids,
-                record.generation_spec_id,
-                "生成意图实体 generation_spec_id",
-            )?),
-            entity_kind: Set(record.entity_kind.clone()),
-            entity_id: Set(remap_profile_id(
-                &record.entity_kind,
-                record.entity_id,
-                maps,
-                "生成意图实体 entity_id",
-            )?),
-            role: Set(record.role.clone()),
-        }
-        .insert(txn)
-        .await
-        .map_err(|source| ProjectFamilyImportError::DatabaseContext {
-            context: "导入生成意图实体引用失败",
-            source,
-        })?;
+    let entity_ref_inserts = package
+        .generation_spec_entity_refs
+        .iter()
+        .map(|record| {
+            Ok(generation_spec_entity_ref::ActiveModel {
+                generation_spec_id: Set(map_required(
+                    &maps.generation_spec_ids,
+                    record.generation_spec_id,
+                    "生成意图实体 generation_spec_id",
+                )?),
+                entity_kind: Set(record.entity_kind.clone()),
+                entity_id: Set(remap_profile_id(
+                    &record.entity_kind,
+                    record.entity_id,
+                    maps,
+                    "生成意图实体 entity_id",
+                )?),
+                role: Set(record.role.clone()),
+            })
+        })
+        .collect::<Result<Vec<_>, ProjectFamilyImportError>>()?;
+    if !entity_ref_inserts.is_empty() {
+        generation_spec_entity_ref::Entity::insert_many(entity_ref_inserts)
+            .exec_without_returning(txn)
+            .await
+            .map_err(|source| ProjectFamilyImportError::DatabaseContext {
+                context: "导入生成意图实体引用失败",
+                source,
+            })?;
     }
     insert_mapped_import_rows!(
         txn,

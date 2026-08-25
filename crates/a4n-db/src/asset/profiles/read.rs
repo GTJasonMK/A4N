@@ -1,5 +1,5 @@
 use a4n_core::models::{asset::object_profile, project::novel_project};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::asset::AssetDbError;
 
@@ -28,6 +28,22 @@ where
     C: ConnectionTrait,
 {
     object_profile::Entity::find_by_id(object_profile_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| AssetDbError::NotFound("物体档案不存在".to_string()))
+}
+
+pub async fn object_profile_project_id<C>(
+    db: &C,
+    object_profile_id: i64,
+) -> Result<i64, AssetDbError>
+where
+    C: ConnectionTrait,
+{
+    object_profile::Entity::find_by_id(object_profile_id)
+        .select_only()
+        .column(object_profile::Column::ProjectId)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .ok_or_else(|| AssetDbError::NotFound("物体档案不存在".to_string()))
@@ -62,6 +78,9 @@ where
         ));
     }
     novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .map(|_| ())

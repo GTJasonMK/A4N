@@ -1,4 +1,7 @@
 use super::*;
+use a4n_core::models::canvas::{canvas_edge, canvas_node};
+use chrono::Utc;
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::{Value, json};
 
 fn node(ref_type: Option<&str>, ref_id: Option<i64>) -> CanvasNodeRecordInput {
@@ -61,6 +64,74 @@ fn assemble_clip_edge(source: &str, target: &str, order_index: i64) -> CanvasEdg
         })),
         ..typed_edge(source, target, "video", "clip", "assembly_clip")
     }
+}
+
+#[tokio::test]
+async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        1,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "画布拓扑批量保存".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let nodes = (0..20)
+        .map(|index| {
+            node_with_kind(
+                "LlmTextNode",
+                &format!("node-{index}"),
+                None,
+                None,
+                json!({}),
+            )
+        })
+        .collect::<Vec<_>>();
+    let edges = (1..20)
+        .map(|index| {
+            typed_edge(
+                &format!("node-{}", index - 1),
+                &format!("node-{index}"),
+                "text",
+                "input",
+                "context",
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let document = save_canvas_graph_record(
+        &db,
+        project.id,
+        graph_input(nodes, edges),
+        Utc::now().naive_utc(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(document.nodes.len(), 20);
+    assert_eq!(document.edges.len(), 19);
+    for (index, edge) in document.edges.iter().enumerate() {
+        assert_eq!(edge.source_node_id, document.nodes[index].id);
+        assert_eq!(edge.target_node_id, document.nodes[index + 1].id);
+    }
+
+    let stored_nodes = canvas_node::Entity::find()
+        .filter(canvas_node::Column::GraphId.eq(document.graph.id))
+        .order_by_asc(canvas_node::Column::Id)
+        .all(&db)
+        .await
+        .unwrap();
+    let stored_edges = canvas_edge::Entity::find()
+        .filter(canvas_edge::Column::GraphId.eq(document.graph.id))
+        .order_by_asc(canvas_edge::Column::Id)
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(stored_nodes.len(), 20);
+    assert_eq!(stored_edges.len(), 19);
 }
 
 #[test]

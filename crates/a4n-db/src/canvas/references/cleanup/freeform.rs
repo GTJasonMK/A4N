@@ -1,10 +1,13 @@
 use super::super::config::validate_positive_id;
-use super::super::{clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node};
+use super::super::reset::{
+    ResetTargetLookup, clear_reset_generated_ref_payload_with_lookup,
+    reset_missing_canvas_ref_for_fields_with_lookup,
+};
 use super::scope::canvas_nodes_for_projects;
+use super::{MissingCanvasNodeUpdate, batch_update_missing_canvas_nodes};
 use crate::canvas::CanvasDbError;
-use a4n_core::models::canvas::canvas_node;
 use chrono::Utc;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
+use sea_orm::ConnectionTrait;
 use serde_json::Value;
 
 pub(crate) async fn mark_freeform_canvas_generated_refs_missing<C>(
@@ -25,10 +28,17 @@ where
         return Ok(());
     }
 
+    let lookup = ResetTargetLookup::from_targets(targets);
     let nodes = canvas_nodes_for_projects(db, std::slice::from_ref(&project_id)).await?;
     let now = Utc::now().naive_utc();
+    let mut updates = Vec::new();
     for node in nodes {
-        let Some(missing_ref) = reset_missing_canvas_ref_for_node(&node, targets) else {
+        let Some(missing_ref) = reset_missing_canvas_ref_for_fields_with_lookup(
+            node.ref_type.as_deref(),
+            node.ref_id,
+            &node.config_json,
+            &lookup,
+        ) else {
             continue;
         };
         let mut config = node.config_json.clone();
@@ -45,19 +55,19 @@ where
                 "missing_ref_id".to_string(),
                 Value::from(missing_ref.ref_id),
             );
-            clear_reset_generated_ref_payload(object, targets);
+            clear_reset_generated_ref_payload_with_lookup(object, &lookup);
         }
 
-        let mut active: canvas_node::ActiveModel = node.into();
-        if missing_ref.clear_node_ref {
-            active.ref_type = Set(None);
-            active.ref_id = Set(None);
-        }
-        active.state = Set("missing".to_string());
-        active.config_json = Set(config);
-        active.updated_at = Set(now);
-        active.update(db).await?;
+        updates.push(MissingCanvasNodeUpdate {
+            id: node.id,
+            ref_type: (!missing_ref.clear_node_ref)
+                .then(|| node.ref_type.clone())
+                .flatten(),
+            ref_id: (!missing_ref.clear_node_ref)
+                .then_some(node.ref_id)
+                .flatten(),
+            config_json: config,
+        });
     }
-
-    Ok(())
+    batch_update_missing_canvas_nodes(db, updates, now).await
 }

@@ -1,4 +1,5 @@
 import {
+  canvasDataTypeLabel,
   nodeKindMeta,
   nodeStateClass,
   stateLabel,
@@ -14,6 +15,7 @@ import {
   studioNodeOutputPortsForData,
   type StudioNodeContract,
 } from "./nodeContracts";
+import type { MessageTranslator } from "../../i18n";
 
 export const NODE_DRAG_KIND = "application/a4n-studio-node-kind";
 export const NODE_DRAG_LABEL = "application/a4n-studio-node-label";
@@ -24,6 +26,7 @@ export function setNodeTemplateDragImage(
   label: string,
   zoom: number,
   contract: StudioNodeContract | null,
+  t: MessageTranslator,
 ): void {
   const nodeWidth = 218;
   const nodeHeight = 132;
@@ -36,7 +39,7 @@ export function setNodeTemplateDragImage(
     state: "ready",
     config: defaultConfigForNode(kind),
   };
-  const meta = nodeKindMeta(kind);
+  const meta = nodeKindMeta(kind, t);
   const inputPorts = contract ? studioNodeInputPortsForData(data, contract) : [];
   const outputPorts = contract ? studioNodeOutputPortsForData(data, contract) : [];
 
@@ -84,13 +87,13 @@ export function setNodeTemplateDragImage(
   title.textContent = label;
   const category = document.createElement("div");
   category.className = "truncate text-[10px] text-book-text-muted";
-  category.textContent = contract ? studioCategoryLabel(contract.category) : "未知节点";
+  category.textContent = contract ? studioCategoryLabel(contract.category, t) : t("video.canvas.unknownNode");
   titleBox.append(title, category);
   header.appendChild(titleBox);
 
   const state = document.createElement("span");
   state.className = `a4n-studio-state-pill ${nodeStateClass("ready")}`;
-  state.textContent = stateLabel("ready");
+  state.textContent = stateLabel("ready", t);
   header.appendChild(state);
   preview.appendChild(header);
 
@@ -98,7 +101,7 @@ export function setNodeTemplateDragImage(
   body.className = "flex min-h-[58px] flex-col justify-between gap-2 px-2 py-2";
   const bodyText = document.createElement("p");
   bodyText.className = "line-clamp-2 text-[10px] leading-4 text-book-text-sub";
-  bodyText.textContent = dragPreviewBodyText(kind);
+  bodyText.textContent = dragPreviewBodyText(kind, t);
   const footer = document.createElement("div");
   footer.className = "flex items-center justify-between gap-2 text-[10px] text-book-text-muted";
   const subtitle = document.createElement("span");
@@ -148,27 +151,31 @@ function nodeKindDragGlyph(kind: string): string {
   return "*";
 }
 
-function dragPreviewBodyText(kind: string): string {
+function dragPreviewBodyText(kind: string, t: MessageTranslator): string {
   switch (kind) {
     case "RenderTextNode":
-      return "按模板生成文本";
+      return t("video.canvas.body.renderText");
     case "LlmTextNode": {
       const outputKind = configText(defaultConfigForNode(kind), "output_kind");
-      return outputKind ? `输出类型：${outputKind}` : "等待配置";
+      return outputKind
+        ? t("video.canvas.body.inputMode", { mode: canvasDataTypeLabel(outputKind, t) })
+        : t("video.canvas.body.waitingConfig");
     }
     case "GenerateImageNode":
-      return "接收上游提示词生成图片";
+      return t("video.canvas.body.generateImage");
     case "GenerateVideoNode": {
       const mode = parseGenerateVideoInputMode(defaultConfigForNode(kind).input_mode);
-      return mode ? `输入模式：${generateVideoInputModeLabel(mode)}` : "缺少输入模式";
+      return mode
+        ? t("video.canvas.body.inputMode", { mode: generateVideoInputModeLabel(mode, t) })
+        : t("video.canvas.body.missingInputMode");
     }
     case "ExtractFrameNode":
-      return "抽取视频帧";
+      return t("video.canvas.node.extractFrame");
     case "TrimVideoNode":
-      return "设置裁剪起止时间";
+      return t("video.canvas.body.trimDefault");
     case "AssembleVideoNode":
-      return "接收视频片段并输出视频";
+      return t("video.canvas.body.assembleVideo");
     default:
-      return "等待配置";
+      return t("video.canvas.body.waitingConfig");
   }
 }

@@ -6,7 +6,7 @@ use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, hash_json, map_required,
 };
 
-pub fn remap_source_snapshot_outline_payload(
+pub(in crate::project_family_import) fn remap_source_snapshot_outline_payload(
     outline: &source_snapshot_outline::Model,
     maps: &ImportIdMaps,
 ) -> Result<(Value, String), ProjectFamilyImportError> {
@@ -57,7 +57,7 @@ pub fn remap_source_snapshot_outline_payload(
     Ok((payload, payload_hash))
 }
 
-pub fn remap_snapshot_outline_source_id(
+pub(in crate::project_family_import) fn remap_snapshot_outline_source_id(
     outline: &source_snapshot_outline::Model,
     maps: &ImportIdMaps,
 ) -> Result<i64, ProjectFamilyImportError> {

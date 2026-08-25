@@ -9,8 +9,6 @@ use a4n_orchestrator::GenerationTaskAccessError;
 use crate::AppState;
 use crate::actions::request_preview::{ModelRequestPreview, chat_status_preview_for_state};
 
-use super::projections::blueprint_summary;
-
 pub async fn start_blueprint_generation_typed(
     state: &AppState,
     user_id: i64,
@@ -44,11 +42,10 @@ pub async fn get_blueprint(
     user_id: i64,
     project_id: i64,
 ) -> Result<Option<BlueprintSummary>, AppError> {
-    Ok(state
+    state
         .orchestrator()
-        .novel_blueprint_for_user_validated(user_id, project_id)
-        .await?
-        .map(|(blueprint, needs_review)| blueprint_summary(&blueprint, needs_review)))
+        .blueprint_summary_for_user_validated(user_id, project_id)
+        .await
 }
 
 pub async fn preview_generate_blueprint_request(

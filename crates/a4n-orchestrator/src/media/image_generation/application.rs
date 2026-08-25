@@ -6,11 +6,11 @@ use a4n_core::{
     models::{
         asset::object_profile,
         chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE, Model as MangaPagePrompt},
+        project::novel_project,
         scene::scene_profile,
     },
     source_spans::{
-        ChapterSourceContext, metadata_source_content_sha256, source_metadata,
-        source_text_hash as source_content_sha256,
+        ChapterSourceContext, source_metadata, source_text_hash as source_content_sha256,
     },
 };
 use a4n_domain::{
@@ -26,8 +26,7 @@ use serde_json::{Value, json};
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    config::image_backend_supports_reference_images,
-    manga::ensure_manga_source_can_write,
+    manga::{ensure_manga_source_can_write, manga_page_generation_layout},
     profile_material::{
         ProfileMaterialStyleMetadata, object_profile_content, object_profile_image_prompt,
         profile_material_metadata, scene_profile_content, scene_profile_image_prompt,
@@ -558,28 +557,17 @@ impl OrchestratorContext {
                     input.chapter_number, input.page_number
                 ))
             })?;
-        ensure_manga_page_panels_match_current_source(
-            std::slice::from_ref(&page_prompt),
-            &chapter.content,
-        )?;
+        ensure_manga_page_panels_match_current_source(&page_prompt, &chapter.content)?;
         let panel_id = format!("page{}", input.page_number);
-        let reference_bindings = page_prompt
-            .layout
-            .as_ref()
-            .and_then(|layout| layout.get("reference_bindings"))
-            .cloned()
-            .ok_or_else(|| {
-                AppError::InvalidArgument(format!(
-                    "漫画提示词 #{} 缺少 reference_bindings，请重新生成漫画提示词",
-                    page_prompt.id
-                ))
-            })?;
+        let layout =
+            manga_page_generation_layout(&page_prompt).map_err(AppError::InvalidArgument)?;
+        let reference_bindings = layout.reference_bindings;
         let reference_images = collect_bound_reference_images(host, &reference_bindings)?;
         let reference_image_count = reference_images.len();
         let config = host.resolve_image_config(None).await?;
         let reference_image_mode = if reference_images.is_empty() {
             "none".to_string()
-        } else if image_backend_supports_reference_images(&config.backend) {
+        } else if a4n_core::config::image_backend_supports_reference_images(&config.backend) {
             "image_input".to_string()
         } else {
             return Err(AppError::InvalidArgument(format!(
@@ -680,6 +668,17 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
+        self.resolve_image_chapter_binding_for_project(project_id, &project, chapter_id, access)
+            .await
+    }
+
+    async fn resolve_image_chapter_binding_for_project(
+        &self,
+        project_id: i64,
+        project: &novel_project::Model,
+        chapter_id: Option<i64>,
+        access: ImageChapterBindingAccess,
+    ) -> Result<(Option<i64>, Option<Value>), AppError> {
         let Some(chapter_id) = chapter_id else {
             return Ok((None, None));
         };
@@ -719,7 +718,7 @@ impl OrchestratorContext {
                 let snapshot_id = project.source_snapshot_id.ok_or_else(|| {
                     AppError::InvalidArgument(format!("派生项目缺少源文本快照: {project_id}"))
                 })?;
-                self.source_snapshot_chapter_by_snapshot_and_source(snapshot_id, chapter.id)
+                self.source_snapshot_chapter_content_by_snapshot_and_source(snapshot_id, chapter.id)
                     .await?
                     .ok_or_else(|| {
                         AppError::NotFound(format!(
@@ -727,7 +726,6 @@ impl OrchestratorContext {
                             chapter.id
                         ))
                     })?
-                    .content
             }
             other => {
                 return Err(AppError::InvalidArgument(format!(
@@ -752,6 +750,7 @@ impl OrchestratorContext {
     ) -> Result<Vec<PreparedBatchImageJob>, AppError> {
         let mut jobs = Vec::with_capacity(requests.len());
         let mut video_frame_requests = BTreeSet::<(String, i64)>::new();
+        let mut project = None;
         for (index, item) in requests.iter().enumerate() {
             ensure_batch_image_item_shape(index, item).map_err(AppError::InvalidArgument)?;
             let prompt = item
@@ -789,9 +788,17 @@ impl OrchestratorContext {
                 optional_json_i64_field(item, "config_id").map_err(AppError::InvalidArgument)?;
             let mut reference_image_ids =
                 batch_item_reference_image_ids(item).map_err(AppError::InvalidArgument)?;
+            if project.is_none() {
+                project = Some(
+                    self.project_by_id(project_id)
+                        .await?
+                        .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?,
+                );
+            }
             let (chapter_id, source_metadata) = self
-                .resolve_image_chapter_binding(
+                .resolve_image_chapter_binding_for_project(
                     project_id,
+                    project.as_ref().expect("batch project is loaded"),
                     chapter_id,
                     if enforce_generation_locks {
                         ImageChapterBindingAccess::Writable
@@ -1170,14 +1177,12 @@ fn profile_image_metadata(material: &ProfileImageMaterial) -> Value {
 
 pub(super) fn collect_bound_reference_images(
     host: &dyn ImageGenerationHostPort,
-    bindings: &Value,
+    bindings: &[MangaReferenceBindingSummary],
 ) -> Result<Vec<ImageReference>, AppError> {
-    let bindings = serde_json::from_value::<Vec<MangaReferenceBindingSummary>>(bindings.clone())
-        .map_err(|error| AppError::InvalidArgument(format!("漫画参考图绑定合同无效: {error}")))?;
     let mut references = Vec::new();
-    for (index, binding) in bindings.into_iter().enumerate() {
+    for (index, binding) in bindings.iter().enumerate() {
         let binding_context = format!("reference_bindings[{index}]");
-        let asset = binding.bound_asset.ok_or_else(|| {
+        let asset = binding.bound_asset.as_ref().ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "参考图“{}”尚未绑定，无法生成漫画页图片",
                 binding.character_name
@@ -1201,33 +1206,22 @@ pub(super) fn collect_bound_reference_images(
 }
 
 fn ensure_manga_page_panels_match_current_source(
-    panels: &[chapter_manga_prompt::Model],
+    page_prompt: &chapter_manga_prompt::Model,
     current_content: &str,
 ) -> Result<(), AppError> {
     let current_hash = source_content_sha256(current_content);
-    for panel in panels {
-        let source = panel
-            .layout
-            .as_ref()
-            .and_then(|layout| layout.get("source"));
-        if source.is_none() {
-            return Err(AppError::InvalidArgument(format!(
-                "漫画提示词 #{} 缺少章节来源信息，请重新生成漫画提示词",
-                panel.id
-            )));
-        }
-        let Some(source_hash) = metadata_source_content_sha256(panel.layout.as_ref()) else {
-            return Err(AppError::InvalidArgument(format!(
-                "漫画提示词 #{} 缺少章节正文指纹，请重新生成漫画提示词",
-                panel.id
-            )));
-        };
-        if source_hash != current_hash {
-            return Err(AppError::InvalidArgument(format!(
-                "漫画提示词 #{} 基于旧章节正文，请重新生成漫画提示词",
-                panel.id
-            )));
-        }
+    let layout = manga_page_generation_layout(page_prompt).map_err(AppError::InvalidArgument)?;
+    if layout.source.content_sha256.trim().is_empty() {
+        return Err(AppError::InvalidArgument(format!(
+            "漫画提示词 #{} 缺少章节正文指纹，请重新生成漫画提示词",
+            page_prompt.id
+        )));
+    }
+    if layout.source.content_sha256 != current_hash {
+        return Err(AppError::InvalidArgument(format!(
+            "漫画提示词 #{} 基于旧章节正文，请重新生成漫画提示词",
+            page_prompt.id
+        )));
     }
     Ok(())
 }

@@ -26,120 +26,213 @@ where
 
     let current_chapter_outline = match current_chapter.outline_id {
         Some(outline_id) => chapter_outline::Entity::find_by_id(outline_id)
+            .select_only()
+            .column(chapter_outline::Column::ChapterNumber)
+            .column(chapter_outline::Column::Title)
+            .column(chapter_outline::Column::Summary)
+            .column(chapter_outline::Column::Beats)
+            .column(chapter_outline::Column::KeyScenes)
+            .column(chapter_outline::Column::PacingScore)
+            .column(chapter_outline::Column::ForeshadowingSetup)
+            .column(chapter_outline::Column::ForeshadowingPayoff)
+            .column(chapter_outline::Column::CharactersInvolved)
+            .column(chapter_outline::Column::WordCountTarget)
+            .into_model::<OptimizationChapterOutlineRecord>()
             .one(db)
             .await
             .map_err(OptimizeDbError::Database)?,
         None => chapter_outline::Entity::find()
             .filter(chapter_outline::Column::ProjectId.eq(input.project_id))
             .filter(chapter_outline::Column::ChapterNumber.eq(current_chapter.chapter_number))
+            .select_only()
+            .column(chapter_outline::Column::ChapterNumber)
+            .column(chapter_outline::Column::Title)
+            .column(chapter_outline::Column::Summary)
+            .column(chapter_outline::Column::Beats)
+            .column(chapter_outline::Column::KeyScenes)
+            .column(chapter_outline::Column::PacingScore)
+            .column(chapter_outline::Column::ForeshadowingSetup)
+            .column(chapter_outline::Column::ForeshadowingPayoff)
+            .column(chapter_outline::Column::CharactersInvolved)
+            .column(chapter_outline::Column::WordCountTarget)
+            .into_model::<OptimizationChapterOutlineRecord>()
             .one(db)
             .await
             .map_err(OptimizeDbError::Database)?,
     };
 
-    let project = if input.read_project_detail {
-        novel_project::Entity::find_by_id(input.project_id)
-            .one(db)
-            .await
-            .map_err(OptimizeDbError::Database)?
-    } else {
-        None
-    };
+    let project_id = input.project_id;
+    let read_project_detail = input.read_project_detail;
+    let read_blueprint = input.read_blueprint;
+    let read_outlines = input.read_outlines;
+    let read_character_profiles = input.read_character_profiles;
+    let read_foreshadowing = input.read_foreshadowing;
+    let chapter_number = current_chapter.chapter_number;
 
-    let blueprint = if input.read_blueprint {
-        match novel_blueprint::Entity::find()
-            .filter(novel_blueprint::Column::ProjectId.eq(input.project_id))
-            .one(db)
-            .await
-            .map_err(OptimizeDbError::Database)?
-        {
-            Some(blueprint) => {
-                let characters = blueprint_character::Entity::find()
-                    .filter(blueprint_character::Column::ProjectId.eq(input.project_id))
-                    .all(db)
+    // These projections have no dependency on one another. Keep the current chapter and its
+    // outline as the only serial reads, then let the pool overlap the remaining round trips.
+    let (
+        project_result,
+        blueprint_result,
+        part_outlines_result,
+        chapter_outlines_result,
+        character_profiles_result,
+        foreshadowing_result,
+        previous_chapters_result,
+        next_chapters_result,
+    ) = futures::join!(
+        async {
+            if read_project_detail {
+                novel_project::Entity::find_by_id(project_id)
+                    .one(db)
                     .await
-                    .map_err(OptimizeDbError::Database)?;
-                let relationships = blueprint_relationship::Entity::find()
-                    .filter(blueprint_relationship::Column::ProjectId.eq(input.project_id))
-                    .all(db)
-                    .await
-                    .map_err(OptimizeDbError::Database)?;
-                Some(OptimizationBlueprintRows {
-                    blueprint,
-                    characters,
-                    relationships,
-                })
+                    .map_err(OptimizeDbError::Database)
+            } else {
+                Ok::<Option<novel_project::Model>, OptimizeDbError>(None)
             }
-            None => None,
-        }
-    } else {
-        None
-    };
-
-    let part_outlines = if input.read_outlines {
-        part_outline::Entity::find()
-            .filter(part_outline::Column::ProjectId.eq(input.project_id))
-            .order_by_asc(part_outline::Column::PartNumber)
-            .all(db)
-            .await
-            .map_err(OptimizeDbError::Database)?
-    } else {
-        Vec::new()
-    };
-
-    let chapter_outlines = if input.read_outlines {
-        chapter_outline::Entity::find()
-            .filter(chapter_outline::Column::ProjectId.eq(input.project_id))
-            .order_by_asc(chapter_outline::Column::ChapterNumber)
-            .all(db)
-            .await
-            .map_err(OptimizeDbError::Database)?
-    } else {
-        Vec::new()
-    };
-
-    let character_profiles = if input.read_character_profiles {
-        protagonist_profile::Entity::find()
-            .filter(protagonist_profile::Column::ProjectId.eq(input.project_id))
-            .order_by_asc(protagonist_profile::Column::Id)
-            .all(db)
-            .await
-            .map_err(OptimizeDbError::Database)?
-    } else {
-        Vec::new()
-    };
-
-    let foreshadowing_index = if input.read_foreshadowing {
-        foreshadowing_index::Entity::find()
-            .filter(foreshadowing_index::Column::ProjectId.eq(input.project_id))
-            .order_by_asc(foreshadowing_index::Column::SetupChapter)
-            .all(db)
-            .await
-            .map_err(OptimizeDbError::Database)?
-    } else {
-        Vec::new()
-    };
-
-    let mut previous_chapters = chapter::Entity::find()
-        .filter(chapter::Column::ProjectId.eq(input.project_id))
-        .filter(chapter::Column::Status.ne("deleted"))
-        .filter(chapter::Column::ChapterNumber.lt(current_chapter.chapter_number))
-        .order_by_desc(chapter::Column::ChapterNumber)
-        .limit(3)
-        .all(db)
-        .await
-        .map_err(OptimizeDbError::Database)?;
-    previous_chapters.reverse();
-
-    let next_chapters = chapter::Entity::find()
-        .filter(chapter::Column::ProjectId.eq(input.project_id))
-        .filter(chapter::Column::Status.ne("deleted"))
-        .filter(chapter::Column::ChapterNumber.gt(current_chapter.chapter_number))
-        .order_by_asc(chapter::Column::ChapterNumber)
-        .limit(2)
-        .all(db)
-        .await
-        .map_err(OptimizeDbError::Database)?;
+        },
+        async {
+            if !read_blueprint {
+                return Ok::<Option<OptimizationBlueprintRows>, OptimizeDbError>(None);
+            }
+            let Some(blueprint) = novel_blueprint::Entity::find()
+                .filter(novel_blueprint::Column::ProjectId.eq(project_id))
+                .one(db)
+                .await
+                .map_err(OptimizeDbError::Database)?
+            else {
+                return Ok(None);
+            };
+            let (characters_result, relationships_result) = futures::join!(
+                blueprint_character::Entity::find()
+                    .filter(blueprint_character::Column::ProjectId.eq(project_id))
+                    .all(db),
+                blueprint_relationship::Entity::find()
+                    .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
+                    .all(db),
+            );
+            Ok(Some(OptimizationBlueprintRows {
+                blueprint,
+                characters: characters_result.map_err(OptimizeDbError::Database)?,
+                relationships: relationships_result.map_err(OptimizeDbError::Database)?,
+            }))
+        },
+        async {
+            if read_outlines {
+                part_outline::Entity::find()
+                    .filter(part_outline::Column::ProjectId.eq(project_id))
+                    .order_by_asc(part_outline::Column::PartNumber)
+                    .all(db)
+                    .await
+                    .map_err(OptimizeDbError::Database)
+            } else {
+                Ok::<Vec<part_outline::Model>, OptimizeDbError>(Vec::new())
+            }
+        },
+        async {
+            if read_outlines {
+                chapter_outline::Entity::find()
+                    .select_only()
+                    .column(chapter_outline::Column::ChapterNumber)
+                    .column(chapter_outline::Column::Title)
+                    .column(chapter_outline::Column::Summary)
+                    .column(chapter_outline::Column::Beats)
+                    .column(chapter_outline::Column::KeyScenes)
+                    .column(chapter_outline::Column::PacingScore)
+                    .column(chapter_outline::Column::ForeshadowingSetup)
+                    .column(chapter_outline::Column::ForeshadowingPayoff)
+                    .column(chapter_outline::Column::CharactersInvolved)
+                    .column(chapter_outline::Column::WordCountTarget)
+                    .filter(chapter_outline::Column::ProjectId.eq(project_id))
+                    .order_by_asc(chapter_outline::Column::ChapterNumber)
+                    .into_model::<OptimizationChapterOutlineRecord>()
+                    .all(db)
+                    .await
+                    .map_err(OptimizeDbError::Database)
+            } else {
+                Ok::<Vec<OptimizationChapterOutlineRecord>, OptimizeDbError>(Vec::new())
+            }
+        },
+        async {
+            if read_character_profiles {
+                protagonist_profile::Entity::find()
+                    .filter(protagonist_profile::Column::ProjectId.eq(project_id))
+                    .order_by_asc(protagonist_profile::Column::Id)
+                    .all(db)
+                    .await
+                    .map_err(OptimizeDbError::Database)
+            } else {
+                Ok::<Vec<protagonist_profile::Model>, OptimizeDbError>(Vec::new())
+            }
+        },
+        async {
+            if read_foreshadowing {
+                foreshadowing_index::Entity::find()
+                    .select_only()
+                    .column(foreshadowing_index::Column::Id)
+                    .column(foreshadowing_index::Column::Description)
+                    .column(foreshadowing_index::Column::SetupChapter)
+                    .column(foreshadowing_index::Column::PayoffChapter)
+                    .column(foreshadowing_index::Column::Status)
+                    .column(foreshadowing_index::Column::RelatedCharacters)
+                    .column(foreshadowing_index::Column::Importance)
+                    .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
+                    .order_by_asc(foreshadowing_index::Column::SetupChapter)
+                    .into_model::<crate::rag::RagForeshadowingRow>()
+                    .all(db)
+                    .await
+                    .map_err(OptimizeDbError::Database)
+            } else {
+                Ok::<Vec<crate::rag::RagForeshadowingRow>, OptimizeDbError>(Vec::new())
+            }
+        },
+        async {
+            let mut chapters = chapter::Entity::find()
+                .filter(chapter::Column::ProjectId.eq(project_id))
+                .filter(chapter::Column::Status.ne("deleted"))
+                .filter(chapter::Column::ChapterNumber.lt(chapter_number))
+                .select_only()
+                .column(chapter::Column::ChapterNumber)
+                .column(chapter::Column::Title)
+                .column(chapter::Column::Summary)
+                .column(chapter::Column::WordCount)
+                .column(chapter::Column::AnalysisData)
+                .order_by_desc(chapter::Column::ChapterNumber)
+                .limit(3)
+                .into_model::<OptimizationChapterSummaryRecord>()
+                .all(db)
+                .await
+                .map_err(OptimizeDbError::Database)?;
+            chapters.reverse();
+            Ok::<Vec<OptimizationChapterSummaryRecord>, OptimizeDbError>(chapters)
+        },
+        async {
+            chapter::Entity::find()
+                .filter(chapter::Column::ProjectId.eq(project_id))
+                .filter(chapter::Column::Status.ne("deleted"))
+                .filter(chapter::Column::ChapterNumber.gt(chapter_number))
+                .select_only()
+                .column(chapter::Column::ChapterNumber)
+                .column(chapter::Column::Title)
+                .column(chapter::Column::Summary)
+                .column(chapter::Column::WordCount)
+                .column(chapter::Column::AnalysisData)
+                .order_by_asc(chapter::Column::ChapterNumber)
+                .limit(2)
+                .into_model::<OptimizationChapterSummaryRecord>()
+                .all(db)
+                .await
+                .map_err(OptimizeDbError::Database)
+        },
+    );
+    let project = project_result?;
+    let blueprint = blueprint_result?;
+    let part_outlines = part_outlines_result?;
+    let chapter_outlines = chapter_outlines_result?;
+    let character_profiles = character_profiles_result?;
+    let foreshadowing_index = foreshadowing_result?;
+    let previous_chapters = previous_chapters_result?;
+    let next_chapters = next_chapters_result?;
 
     Ok(Some(OptimizationContextRows {
         current_chapter,

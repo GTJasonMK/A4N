@@ -18,5 +18,5 @@ pub use profiles::{
     character_states_for_profiles_before_chapter, object_profiles_before_chapter,
     protagonist_profiles_for_project, protagonist_profiles_for_project_in,
     scene_profiles_before_chapter, snapshot_profile_ids_for_chapter,
-    snapshot_reference_for_profile_chapter,
+    snapshot_reference_for_profile_chapter, snapshot_references_for_profiles_chapter,
 };

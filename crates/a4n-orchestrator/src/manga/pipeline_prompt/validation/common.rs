@@ -11,5 +11,5 @@ pub(super) use fields::{
     validate_manga_nullable_string, validate_manga_positive_i64, validate_manga_string_array,
 };
 pub(super) use source::{
-    validate_manga_characters_object_shape, validate_manga_source_span_id_array,
+    SourceSpanIndex, validate_manga_characters_object_shape, validate_manga_source_span_id_array,
 };

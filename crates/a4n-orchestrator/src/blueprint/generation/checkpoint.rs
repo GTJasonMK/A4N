@@ -50,8 +50,7 @@ mod tests {
             "阶段 2/4：世界观",
             r#"{"world_setting":{}}"#,
         )
-        .err()
-        .expect("mismatched checkpoint must fail");
+        .expect_err("mismatched checkpoint must fail");
 
         assert!(
             error

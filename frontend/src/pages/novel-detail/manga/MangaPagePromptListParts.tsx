@@ -1,30 +1,32 @@
 import React from "react";
 import type { LayoutSummaryItem } from "./mangaPagePromptModel";
+import { useI18n, type MessageTranslator } from "../../../i18n";
 
 export type MangaPageDetailView = "prompt" | "image";
 
-export const statusLabel = (status: string): string => {
+export const statusLabel = (status: string, t: MessageTranslator): string => {
   switch (status) {
     case "completed":
-      return "完成";
+      return t("comic.prompt.statusCompleted");
     case "failed":
-      return "失败";
+      return t("comic.prompt.statusFailed");
     case "generating":
-      return "生成中";
+      return t("comic.prompt.statusGenerating");
     case "cancelled":
-      return "取消";
+      return t("comic.prompt.statusCancelled");
     case "pending":
-      return "待生成";
+      return t("comic.prompt.statusPending");
     default:
-      return "未知状态";
+      return t("comic.prompt.statusUnknown");
   }
 };
 
 export const LayoutSummaryGrid: React.FC<{ items: LayoutSummaryItem[] }> = ({ items }) => {
+  const { t } = useI18n();
   if (items.length === 0) {
     return (
       <div className="border-l-2 border-book-border/70 pl-2 text-xs text-book-text-muted">
-        暂无构图字段。
+        {t("comic.prompt.layoutEmpty")}
       </div>
     );
   }

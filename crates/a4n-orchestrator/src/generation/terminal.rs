@@ -268,7 +268,7 @@ impl GenerationTerminalCoordinator {
         Ok(outcome)
     }
 
-    pub(crate) async fn begin_finalizing(
+    async fn begin_finalizing(
         &self,
         session: &Arc<GenerationTaskSession>,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {

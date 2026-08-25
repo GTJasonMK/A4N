@@ -1,6 +1,7 @@
 use a4n_core::models::{project::novel_project, scene::scene_profile};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 
 use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
@@ -24,6 +25,19 @@ pub async fn scene_profile_by_id(
     scene_profile_id: i64,
 ) -> SceneProfileDbResult<scene_profile::Model> {
     scene_profile::Entity::find_by_id(scene_profile_id)
+        .one(db)
+        .await?
+        .ok_or_else(|| SceneProfileDbError::NotFound("场景档案不存在".to_string()))
+}
+
+pub async fn scene_profile_project_id(
+    db: &DatabaseConnection,
+    scene_profile_id: i64,
+) -> SceneProfileDbResult<i64> {
+    scene_profile::Entity::find_by_id(scene_profile_id)
+        .select_only()
+        .column(scene_profile::Column::ProjectId)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .ok_or_else(|| SceneProfileDbError::NotFound("场景档案不存在".to_string()))
@@ -55,6 +69,9 @@ where
         ));
     }
     novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .map(|_| ())

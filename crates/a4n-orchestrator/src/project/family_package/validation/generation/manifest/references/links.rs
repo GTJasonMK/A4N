@@ -1,6 +1,6 @@
 use crate::media::MEDIA_STATUS_COMPLETED;
 
-use crate::project::family_package::{ProjectFamilyPackage, validation::snapshot_profile_key};
+use crate::project::{ProjectFamilyPackage, snapshot_profile_key};
 
 use super::super::super::targets::required_generation_spec_source_snapshot_id;
 use super::context::GenerationReferenceContext;

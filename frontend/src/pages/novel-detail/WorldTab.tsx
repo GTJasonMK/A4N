@@ -14,6 +14,7 @@ import {
   type WorldEditMode,
   worldSettingSaveNotice,
 } from "./world/worldTabUtils";
+import { useI18n } from "../../i18n";
 
 interface WorldTabProps {
   projectId: number;
@@ -27,6 +28,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   onCreateBlueprint,
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [loading, setLoading] = useState(true);
   const [worldValue, setWorldValue] = useState<unknown | null>(null);
@@ -78,14 +80,14 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setBlueprint(null);
       setWorldValue(null);
-      addToast(extractErrorMessage(err, "加载世界观失败"), "error");
+      addToast(extractErrorMessage(err, t("novel.world.loadFailed")), "error");
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);
         setLoading(false);
       }
     }
-  }, [addToast, isCurrentLoad, projectId]);
+  }, [addToast, isCurrentLoad, projectId, t]);
 
   useEffect(() => {
     void load();
@@ -108,7 +110,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
 
   const handleStartEdit = () => {
     if (!canEditWorld) {
-      addToast("当前账号没有编辑世界观的权限", "error");
+      addToast(t("novel.world.permissionDenied"), "error");
       return;
     }
     const draft = createWorldEditDraft(normalizedWorld);
@@ -120,7 +122,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
 
   const handleSave = async () => {
     if (!canEditWorld) {
-      addToast("当前账号没有编辑世界观的权限", "error");
+      addToast(t("novel.world.permissionDenied"), "error");
       return;
     }
 
@@ -132,11 +134,11 @@ export const WorldTab: React.FC<WorldTabProps> = ({
       try {
         payload = jsonDraft.trim() ? JSON.parse(jsonDraft) : {};
       } catch {
-        addToast("JSON 格式有误，请检查后再保存", "error");
+        addToast(t("novel.world.invalidJson"), "error");
         return;
       }
       if (!isRecord(payload)) {
-        addToast("世界观 JSON 需要是对象格式", "error");
+        addToast(t("novel.world.invalidObject"), "error");
         return;
       }
     }
@@ -151,13 +153,13 @@ export const WorldTab: React.FC<WorldTabProps> = ({
         world_setting: payload,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      const notice = worldSettingSaveNotice(result.warnings);
+      const notice = worldSettingSaveNotice(result.warnings, t);
       addToast(notice.message, notice.type);
       setEditing(false);
       await load();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      addToast(extractErrorMessage(err, "保存失败"), "error");
+      addToast(extractErrorMessage(err, t("novel.world.saveFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) {
         setSaving(false);
@@ -175,7 +177,7 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   if (displayLoading) {
     return (
       <div className="text-xs text-book-text-muted flex items-center gap-2">
-        <LoadingSpinner size="sm" /> 加载中…
+        <LoadingSpinner size="sm" /> {t("novel.world.loading")}
       </div>
     );
   }

@@ -11,38 +11,44 @@ import {
 } from "../../../api/image";
 import { asJsonRecord as asRecord } from "../../../utils/jsonRecord";
 import type { ChapterRow } from "../shared";
+import type { MessageKey, MessageTranslator } from "../../../i18n";
 
 export type ImageScope = "chapter" | "project";
 
-export const CHAPTER_SCOPE_OPTIONS: Array<{ id: ImageScope; label: string }> = [
-  { id: "chapter", label: "本章图像" },
-  { id: "project", label: "项目图库" },
+export const CHAPTER_SCOPE_OPTIONS: Array<{ id: ImageScope; labelKey: MessageKey }> = [
+  { id: "chapter", labelKey: "novel.imageLibrary.chapterScope" },
+  { id: "project", labelKey: "novel.imageLibrary.projectScope" },
 ];
 
-const IMAGE_TYPE_LABELS: Record<string, string> = {
-  scene: "场景",
-  manga_page: "整页漫画",
-  portrait: "立绘",
-  cover: "封面",
-  illustration: "插图",
-  [IMAGE_TYPE_SCENE_MATERIAL]: "场景素材",
-  [IMAGE_TYPE_OBJECT_MATERIAL]: "物品素材",
-  [IMAGE_TYPE_VIDEO_KEY_FRAME]: "视频关键帧",
-  [IMAGE_TYPE_VIDEO_START_FRAME]: "视频首帧",
-  [IMAGE_TYPE_VIDEO_STORYBOARD_FRAME]: "视频分镜板",
-  [IMAGE_TYPE_VIDEO_TAIL_FRAME]: "视频续接帧",
-  [IMAGE_TYPE_CANVAS]: "画布图片",
-  [IMAGE_TYPE_CANVAS_FRAME]: "画布帧",
-  portrait_reference: "立绘参考",
-  chapter_reference: "章节参考",
-  project_reference: "项目参考",
-  galgame_background: "Galgame 背景",
-  galgame_cg: "Galgame CG",
+const IMAGE_TYPE_LABEL_KEYS: Record<string, MessageKey> = {
+  scene: "novel.imageLibrary.scene",
+  manga_page: "novel.imageLibrary.mangaPage",
+  portrait: "novel.imageLibrary.portrait",
+  cover: "novel.imageLibrary.cover",
+  illustration: "novel.imageLibrary.illustration",
+  [IMAGE_TYPE_SCENE_MATERIAL]: "novel.imageLibrary.sceneMaterial",
+  [IMAGE_TYPE_OBJECT_MATERIAL]: "novel.imageLibrary.objectMaterial",
+  [IMAGE_TYPE_VIDEO_KEY_FRAME]: "novel.imageLibrary.videoKeyFrame",
+  [IMAGE_TYPE_VIDEO_START_FRAME]: "novel.imageLibrary.videoStartFrame",
+  [IMAGE_TYPE_VIDEO_STORYBOARD_FRAME]: "novel.imageLibrary.videoStoryboardFrame",
+  [IMAGE_TYPE_VIDEO_TAIL_FRAME]: "novel.imageLibrary.videoTailFrame",
+  [IMAGE_TYPE_CANVAS]: "novel.imageLibrary.canvasImage",
+  [IMAGE_TYPE_CANVAS_FRAME]: "novel.imageLibrary.canvasFrame",
+  portrait_reference: "novel.imageLibrary.portraitReference",
+  chapter_reference: "novel.imageLibrary.chapterReference",
+  project_reference: "novel.imageLibrary.projectReference",
+  galgame_background: "novel.imageLibrary.galgameBackground",
+  galgame_cg: "novel.imageLibrary.otherMaterial",
 };
 
-export function imageTypeLabel(value: string | null | undefined): string {
+export function imageTypeLabel(
+  value: string | null | undefined,
+  t: MessageTranslator,
+): string {
   const normalized = String(value ?? "").trim();
-  return normalized ? IMAGE_TYPE_LABELS[normalized] ?? "其他素材" : "其他素材";
+  return normalized && IMAGE_TYPE_LABEL_KEYS[normalized]
+    ? t(IMAGE_TYPE_LABEL_KEYS[normalized])
+    : t("novel.imageLibrary.otherMaterial");
 }
 
 function numberOrNull(value: unknown): number | null {
@@ -90,11 +96,25 @@ export function getImageGroupKey(img: GeneratedImage, chapterScoped: boolean): s
   return `type:${imageType ?? "other"}`;
 }
 
-export function getImageGroupTitle(key: string, count: number): string {
-  if (key.startsWith("page:")) return `第 ${key.slice("page:".length)} 页 · ${count} 张`;
-  if (key.startsWith("panel:")) return `第 ${key.slice("panel:".length)} 格 · ${count} 张`;
+export function getImageGroupTitle(
+  key: string,
+  count: number,
+  t: MessageTranslator,
+): string {
+  if (key.startsWith("page:")) {
+    return t("novel.imageLibrary.pageGroup", {
+      number: key.slice("page:".length),
+      count,
+    });
+  }
+  if (key.startsWith("panel:")) {
+    return t("novel.imageLibrary.panelGroup", {
+      number: key.slice("panel:".length),
+      count,
+    });
+  }
   const type = key.slice("type:".length);
-  return `${imageTypeLabel(type)} · ${count} 张`;
+  return t("novel.imageLibrary.group", { type: imageTypeLabel(type, t), count });
 }
 
 function groupSortKey(key: string): [number, number, string] {

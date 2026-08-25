@@ -8,6 +8,7 @@ import {
   getGenerationTaskViewState,
   useGenerationTasksStore,
 } from "../store/generationTasks";
+import { getActiveLocale, translateMessage } from "../i18n";
 
 const mocks = vi.hoisted(() => ({
   apiInvoke: vi.fn(),
@@ -154,7 +155,9 @@ describe("generation web transport", () => {
     const { generationClient } = await import("./generationTasks");
 
     await expect(generationClient.attach(handle)).rejects.toThrow(
-      "generation SSE event type 无效: legacy_generation_event",
+      translateMessage(getActiveLocale(), "errors.generationSseInvalidEvent", {
+        event: "legacy_generation_event",
+      }),
     );
   });
 
@@ -199,7 +202,7 @@ describe("generation web transport", () => {
     const { generationClient } = await import("./generationTasks");
 
     await expect(generationClient.waitForTerminal(handle)).rejects.toThrow(
-      "生成结果一致性校验失败",
+      translateMessage(getActiveLocale(), "errors.generationConsistencyFailed"),
     );
 
     const task = getGenerationTaskViewState(taskId, 1);

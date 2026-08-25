@@ -1,8 +1,8 @@
-import { useEffect, useRef } from "react";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronRight, XCircle } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { formatConfigTestTime } from "./testResultUtils";
 import type { ConfigItem, ConfigItemMeta, ConfigTestResult } from "./types";
+import { useI18n } from "../../../i18n";
 
 interface ConfigListSidebarProps<C> {
   title: string;
@@ -29,32 +29,18 @@ export function ConfigListSidebar<C>({
   activeLabel,
   onSelect,
 }: ConfigListSidebarProps<C>) {
-  const selectedRef = useRef<HTMLButtonElement | null>(null);
-
-  useEffect(() => {
-    if (creating || selectedId == null) return;
-    if (!window.matchMedia("(max-width: 767px)").matches) return;
-    const frame = window.requestAnimationFrame(() => {
-      selectedRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [creating, items.length, selectedId]);
-
+  const { locale, t } = useI18n();
   return (
-    <aside className="max-h-48 overflow-y-auto overflow-x-hidden md:max-h-none custom-scrollbar">
+    <aside className="max-h-none overflow-visible md:min-h-0 md:overflow-y-auto md:overflow-x-hidden custom-scrollbar">
       {loading && items.length === 0 ? (
         <div className="flex items-center justify-center h-20 text-xs text-book-text-muted">
-          <LoadingSpinner size="sm" className="mr-2" /> 加载…
+          <LoadingSpinner size="sm" className="mr-2" /> {t("common.loading")}
         </div>
       ) : items.length === 0 ? (
         <div className="a4n-empty-state a4n-empty-state--compact text-xs leading-relaxed">
-          尚未配置任何 {title}。
+          {t("settings.noConfig", { name: title })}
           <br />
-          点击左上角"新增"开始。
+          {t("settings.clickCreateToStart")}
         </div>
       ) : (
         <ul className="grid gap-2 p-px auto-rows-max content-start">
@@ -66,12 +52,11 @@ export function ConfigListSidebar<C>({
             return (
               <li key={item.id}>
                 <button
-                  ref={selected ? selectedRef : undefined}
                   type="button"
                   onClick={() => onSelect(item.id)}
                   disabled={busy}
                   aria-current={selected ? "true" : undefined}
-                  className={`group w-full rounded-xl border bg-book-bg-paper px-3 py-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`group w-full rounded-xl border bg-book-bg-paper px-3 py-2.5 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-book-primary disabled:cursor-not-allowed disabled:opacity-60 ${
                     selected
                       ? "border-book-primary/55 bg-book-primary/10 shadow-[inset_3px_0_0_var(--color-book-primary)]"
                       : "border-book-border/40 hover:border-book-primary/35 hover:bg-book-bg-tertiary"
@@ -89,14 +74,14 @@ export function ConfigListSidebar<C>({
                               ? "text-success"
                               : "text-error"
                           }`}
-                          title={`${formatConfigTestTime(testResult.testedAt)} · ${testResult.message}`}
+                          title={`${formatConfigTestTime(testResult.testedAt, {}, locale)} · ${testResult.message}`}
                         >
                           {testResult.status === "success" ? (
                             <CheckCircle2 size={10} />
                           ) : (
                             <XCircle size={10} />
                           )}
-                          {testResult.status === "success" ? "通过" : "失败"}
+                          {testResult.status === "success" ? t("common.passed") : t("workflow.failed")}
                         </span>
                       ) : null}
                       {item.isActive && (
@@ -105,8 +90,17 @@ export function ConfigListSidebar<C>({
                         </span>
                       )}
                       {item.readonly && !item.isActive ? (
-                        <span className="text-book-text-muted">只读</span>
+                        <span className="text-book-text-muted">{t("common.readOnly")}</span>
                       ) : null}
+                      <ChevronRight
+                        size={13}
+                        aria-hidden="true"
+                        className={
+                          selected
+                            ? "text-book-primary"
+                            : "text-book-text-muted transition-transform group-hover:translate-x-0.5"
+                        }
+                      />
                     </span>
                   </div>
                   {meta.secondary && (

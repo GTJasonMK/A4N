@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_core::models::{
     canvas::{canvas_edge, canvas_graph, canvas_node},
     generation::workflow_run,
@@ -26,7 +27,6 @@ use super::{
 };
 use crate::{
     OrchestratorContext,
-    canvas::CanvasNodeRunSummary,
     test_support::TestOrchestratorBuilder,
     workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED},
 };
@@ -328,7 +328,7 @@ impl CanvasGraphExecutionHostPort for TestGraphHostPort {
     async fn execute_node(
         &self,
         input: CanvasGraphNodeExecutionInput<'_>,
-    ) -> Result<CanvasNodeRunSummary, String> {
+    ) -> Result<CanvasRunSummary, String> {
         self.executed_node_ids
             .lock()
             .expect("execution mutex")
@@ -336,7 +336,7 @@ impl CanvasGraphExecutionHostPort for TestGraphHostPort {
         if self.fail_node_id == Some(input.node.id) {
             return Err(format!("模拟节点失败: {}", input.node.id));
         }
-        Ok(CanvasNodeRunSummary {
+        Ok(CanvasRunSummary {
             workflow_run_id: input.shared_run.workflow_run_id,
             project_id: input.project_id,
             graph_id: input.graph_id,

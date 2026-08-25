@@ -17,6 +17,7 @@ import { useToast } from "../../../components/feedback/Toast";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
+import { useI18n } from "../../../i18n";
 import { AgeVariantDialog } from "./AgeVariantDialog";
 import { PortraitActionDialog } from "./PortraitActionDialog";
 import { PortraitGalleryGrid } from "./PortraitGalleryGrid";
@@ -29,6 +30,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   projectId,
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const [portraits, setPortraits] = useState<Portrait[]>([]);
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
@@ -97,14 +99,14 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       if (!isCurrentLoad(requestProjectId, requestSeq)) return;
       setPortraits([]);
       setProfiles([]);
-      addToast(extractErrorMessage(err, "加载人物三视图拆解失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.missingFailed")), "error");
     } finally {
       if (isCurrentLoad(requestProjectId, requestSeq)) {
         setLoadedProjectId(requestProjectId);
         setLoading(false);
       }
     }
-  }, [addToast, isCurrentLoad, projectId]);
+  }, [addToast, isCurrentLoad, projectId, t]);
 
   useEffect(() => {
     void load();
@@ -168,26 +170,26 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         runProgressTask,
         handle,
         {
-          title: "补齐人物三视图拆解",
-          startMessage: "正在统计缺失三视图的角色…",
-          successMessage: "人物三视图拆解补齐完成",
-          errorMessage: "生成人物三视图拆解失败",
+          title: t("characterDetail.portrait.batchMissing"),
+          startMessage: t("characterDetail.portrait.missingStart"),
+          successMessage: t("characterDetail.portrait.missingSuccess"),
+          errorMessage: t("characterDetail.portrait.missingFailed"),
           total: 1,
-          cancelLabel: "停止生成",
+          cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
           const generated = await verifyPortraitGenerationResult(task, requestProjectId);
-          if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
+          if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
           await load();
-          if (!isCurrentProject(requestProjectId)) throw new Error("任务已停止");
+          if (!isCurrentProject(requestProjectId)) throw new Error(t("characterDetail.taskStopped"));
           return generated.length;
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      addToast(`已为 ${createdCount} 位角色生成人物三视图拆解`, "success");
+      addToast(t("characterDetail.portrait.batchGenerated", { count: createdCount }), "success");
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      const message = extractErrorMessage(err, "生成人物三视图拆解失败");
+      const message = extractErrorMessage(err, t("characterDetail.portrait.missingFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentProject(requestProjectId)) {
@@ -218,7 +220,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
       }
-      addToast(extractErrorMessage(err, "预览补齐人物三视图拆解请求失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.missingPreviewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) {
@@ -245,25 +247,25 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         runProgressTask,
         handle,
         {
-          title: "重绘人物三视图拆解",
-          startMessage: "正在准备重绘人物三视图拆解",
-          successMessage: "人物三视图拆解重绘完成",
-          errorMessage: "重绘失败",
+          title: t("characterDetail.portrait.redrawTitle"),
+          startMessage: t("characterDetail.portrait.redrawStart"),
+          successMessage: t("characterDetail.portrait.redrawSuccess"),
+          errorMessage: t("characterDetail.portrait.redrawFailed"),
           total: 4,
-          cancelLabel: "停止生成",
+          cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
           await verifyPortraitGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentProject(requestProjectId)) return;
-      addToast("已重绘人物三视图拆解", "success");
+      addToast(t("characterDetail.portrait.redrawSuccess"), "success");
       await load();
       if (!isCurrentProject(requestProjectId)) return;
       setActionPortrait(null);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      const message = extractErrorMessage(err, "重绘失败");
+      const message = extractErrorMessage(err, t("characterDetail.portrait.redrawFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentProject(requestProjectId)) finishPortraitAction(portrait.id);
@@ -293,7 +295,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
       }
-      addToast(extractErrorMessage(err, "预览重绘人物三视图拆解请求失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.redrawPreviewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (isCurrentProject(requestProjectId) && requestPreviewSeqRef.current === requestSeq) {
@@ -311,13 +313,13 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     try {
       await setPrimaryPortrait(portrait.id);
       if (!isCurrentProject(requestProjectId)) return;
-      addToast("已设为主图", "success");
+      addToast(t("characterDetail.portrait.primarySet"), "success");
       await load();
       if (!isCurrentProject(requestProjectId)) return;
       setActionPortrait(null);
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      addToast(extractErrorMessage(err, "设置主图失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.primarySetFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) finishPortraitAction(portrait.id);
     }
@@ -342,7 +344,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   if (displayLoading) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <LoadingSpinner size="sm" /> 加载人物三视图拆解…
+        <LoadingSpinner size="sm" /> {t("characterDetail.portrait.loading")}
       </div>
     );
   }
@@ -369,7 +371,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         onOpenActions={setActionPortrait}
         emptyText={
           selectedProfile
-            ? `${selectedProfile.name} 暂无人物三视图或立绘，可使用「生成单个」或上传素材。`
+            ? t("characterDetail.portrait.emptySelected", { name: selectedProfile.name })
             : undefined
         }
       />
@@ -439,7 +441,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="人物三视图拆解请求预览"
+        fallbackTitle={t("characterDetail.portrait.requestPreviewTitle")}
         onClose={() => {
           requestPreviewSeqRef.current += 1;
           requestPreviewBusyRef.current = false;

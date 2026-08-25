@@ -46,7 +46,7 @@ pub(super) async fn text_project(db: &DatabaseConnection, title: &str) -> novel_
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

@@ -1,5 +1,5 @@
 use crate::actions::config_records::shared::has_configured_api_key;
-pub use a4n_api_contract::config::{CreateLlmInput, LlmConfigSummary, UpdateLlmInput};
+pub(super) use a4n_api_contract::config::{CreateLlmInput, LlmConfigSummary, UpdateLlmInput};
 use a4n_core::models::ai::llm_config;
 
 pub(super) fn llm_config_summary(config: &llm_config::Model) -> LlmConfigSummary {

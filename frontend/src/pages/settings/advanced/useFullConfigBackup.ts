@@ -6,6 +6,7 @@ import { useToast } from "../../../components/feedback/Toast";
 import { useAuthStore } from "../../../store/auth";
 import { loadAndApplyActiveTheme } from "../../../theme/activeTheme";
 import { downloadTextFile } from "../../../utils/downloadFile";
+import { useI18n } from "../../../i18n";
 
 const FULL_CONFIG_SCOPE =
   "LLM / Embedding / Image / Video / Prompts / Themes / SystemSettings";
@@ -21,6 +22,7 @@ const createDefaultConfigFileName = () => {
 export const useFullConfigBackup = () => {
   const { addToast } = useToast();
   const { user } = useAuthStore();
+  const { t } = useI18n();
   const [overwrite, setOverwrite] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -57,10 +59,10 @@ export const useFullConfigBackup = () => {
         "application/json;charset=utf-8",
       );
       setLastExportPath(fileName);
-      addToast(`已导出全量配置文件：${fileName}`, "success");
+      addToast(t("settingsAdvanced.exportedFile", { name: fileName }), "success");
     } catch (err) {
       if (isCurrentUser(requestUserId)) {
-        addToast(extractErrorMessage(err, "导出全量配置失败"), "error");
+        addToast(extractErrorMessage(err, t("settingsAdvanced.exportFailed")), "error");
       }
     } finally {
       operationInFlightRef.current = false;
@@ -74,35 +76,37 @@ export const useFullConfigBackup = () => {
     setImporting(true);
     const requestOverwrite = overwrite;
     const requestUserId = user?.id ?? null;
-    let errorFallback = "读取配置文件失败";
+    let errorFallback = t("settingsAdvanced.readFileFailed");
     try {
       const settingsJson = await file.text();
       if (!isCurrentUser(requestUserId)) return;
 
       const trimmedSettingsJson = settingsJson.trim();
       if (!trimmedSettingsJson) {
-        addToast("配置文件内容为空", "error");
+        addToast(t("settingsAdvanced.emptyFile"), "error");
         return;
       }
 
       const ok = await confirmDialog({
-        title: "导入全量配置",
-        message: `将从文件「${file.name}」导入全项目配置（${FULL_CONFIG_SCOPE}），${
-          requestOverwrite ? "覆盖同名项" : "保留同名项（仅插入新项）"
-        }，确认继续？`,
-        confirmText: "导入",
+        title: t("settingsAdvanced.importTitle"),
+        message: t("settingsAdvanced.importMessage", {
+          name: file.name,
+          scope: FULL_CONFIG_SCOPE,
+          mode: requestOverwrite ? t("settingsAdvanced.overwrite") : t("settingsAdvanced.keepExisting"),
+        }),
+        confirmText: t("settingsAdvanced.import"),
         dialogType: "warning",
       });
       if (!ok) return;
       if (!isCurrentUser(requestUserId)) return;
 
-      errorFallback = "导入全量配置失败";
+      errorFallback = t("settingsAdvanced.importFailed");
       const details = await importAllConfigs({
         settings_json: trimmedSettingsJson,
         overwrite: requestOverwrite,
       });
       if (!isCurrentUser(requestUserId)) return;
-      addToast(`全量导入完成：${details.join("；")}`, "success");
+      addToast(t("settingsAdvanced.importedDetails", { details: details.join(t("common.summarySeparator")) }), "success");
       await loadAndApplyActiveTheme(requestUserId);
     } catch (err) {
       if (isCurrentUser(requestUserId)) {

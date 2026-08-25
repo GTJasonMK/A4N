@@ -139,8 +139,20 @@ mod tests {
         let db = crate::test_support::connect_test_database().await;
         db.execute_unprepared(
             r#"
-ALTER TABLE novel_project ADD COLUMN parent_project_id BIGINT;
-ALTER TABLE novel_project ADD COLUMN derived_project_status TEXT;
+ALTER TABLE novel_project ADD COLUMN IF NOT EXISTS source_mode TEXT;
+UPDATE novel_project
+SET source_mode = CASE
+    WHEN project_kind = 'text'
+         AND root_project_id IS NULL
+         AND source_snapshot_id IS NULL THEN 'self'
+    WHEN project_kind = 'video'
+         AND root_project_id IS NULL
+         AND source_snapshot_id IS NULL THEN 'freeform'
+    ELSE 'derived'
+END
+WHERE source_mode IS NULL;
+ALTER TABLE novel_project ADD COLUMN IF NOT EXISTS parent_project_id BIGINT;
+ALTER TABLE novel_project ADD COLUMN IF NOT EXISTS derived_project_status TEXT;
 CREATE TABLE project_derivation (
     id BIGSERIAL PRIMARY KEY,
     root_project_id BIGINT NOT NULL,

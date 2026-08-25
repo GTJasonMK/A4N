@@ -2,24 +2,140 @@ mod family;
 mod generation;
 mod root;
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_image, generated_video},
-        asset::object_profile,
-        chapter::{
-            chapter, chapter_manga_prompt, chapter_outline, chapter_shooting_script,
-            chapter_video_prompt, part_outline,
-        },
-        character::{character_portrait, protagonist_profile},
-        generation::{generation_spec, prompt_artifact},
-        media::{media_asset, media_provenance},
-        project::{blueprint_version, novel_blueprint},
-        scene::scene_profile,
-        user::conversation,
-    },
-};
-use sea_orm::ConnectionTrait;
+use a4n_core::error::AppError;
+use sea_orm::{ConnectionTrait, FromQueryResult};
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct VideoPromptGraphRow {
+    pub(in crate::project_dependency_graph) prompt_type: String,
+    pub(in crate::project_dependency_graph) generated_video_id: Option<i64>,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct ConversationGraphRow {
+    pub(in crate::project_dependency_graph) message_count: i32,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct BlueprintGraphRow {
+    pub(in crate::project_dependency_graph) current_version: String,
+    pub(in crate::project_dependency_graph) one_sentence_summary: Option<String>,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct BlueprintVersionGraphRow {
+    pub(in crate::project_dependency_graph) version: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct PartOutlineGraphRow {
+    pub(in crate::project_dependency_graph) start_chapter: i32,
+    pub(in crate::project_dependency_graph) end_chapter: i32,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct ChapterOutlineGraphRow {
+    pub(in crate::project_dependency_graph) chapter_number: i32,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct ChapterGraphRow {
+    pub(in crate::project_dependency_graph) id: i64,
+    pub(in crate::project_dependency_graph) content: String,
+    pub(in crate::project_dependency_graph) word_count: i32,
+    pub(in crate::project_dependency_graph) has_analysis: bool,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct VisualPlanGraphRow {
+    pub(in crate::project_dependency_graph) source_chapter_id: i64,
+    pub(in crate::project_dependency_graph) source_snapshot_id: Option<i64>,
+    pub(in crate::project_dependency_graph) source_content_sha256: String,
+    pub(in crate::project_dependency_graph) status: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct MangaPromptGraphRow {
+    pub(in crate::project_dependency_graph) chapter_id: i64,
+    pub(in crate::project_dependency_graph) generated_image_id: Option<i64>,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct GeneratedImageGraphRow {
+    pub(in crate::project_dependency_graph) image_type: String,
+    pub(in crate::project_dependency_graph) metadata_json: Option<serde_json::Value>,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct GeneratedVideoGraphRow {
+    pub(in crate::project_dependency_graph) status: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct ShootingScriptGraphRow {
+    pub(in crate::project_dependency_graph) source_chapter_id: i64,
+    pub(in crate::project_dependency_graph) source_snapshot_id: Option<i64>,
+    pub(in crate::project_dependency_graph) source_content_sha256: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct CharacterProfileGraphRow {
+    pub(in crate::project_dependency_graph) id: i64,
+    pub(in crate::project_dependency_graph) name: String,
+    pub(in crate::project_dependency_graph) base_attributes: serde_json::Value,
+    pub(in crate::project_dependency_graph) appearance: Option<String>,
+    pub(in crate::project_dependency_graph) last_synced_chapter: i32,
+}
+
+impl CharacterProfileGraphRow {
+    pub(in crate::project_dependency_graph) fn first_seen_chapter(&self) -> Option<i32> {
+        a4n_core::models::character::protagonist_profile::first_seen_chapter_from_attributes(
+            &self.base_attributes,
+        )
+    }
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct ObjectProfileGraphRow {
+    pub(in crate::project_dependency_graph) id: i64,
+    pub(in crate::project_dependency_graph) name: String,
+    pub(in crate::project_dependency_graph) visual_description: String,
+    pub(in crate::project_dependency_graph) first_seen_chapter: i32,
+    pub(in crate::project_dependency_graph) last_seen_chapter: i32,
+    pub(in crate::project_dependency_graph) importance: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct SceneProfileGraphRow {
+    pub(in crate::project_dependency_graph) id: i64,
+    pub(in crate::project_dependency_graph) name: String,
+    pub(in crate::project_dependency_graph) visual_description: String,
+    pub(in crate::project_dependency_graph) first_seen_chapter: i32,
+    pub(in crate::project_dependency_graph) last_seen_chapter: i32,
+    pub(in crate::project_dependency_graph) importance: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct PortraitGraphRow {
+    pub(in crate::project_dependency_graph) profile_id: i64,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct GenerationSpecGraphRow {
+    pub(in crate::project_dependency_graph) id: i64,
+    pub(in crate::project_dependency_graph) target_kind: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct PromptArtifactGraphRow {
+    pub(in crate::project_dependency_graph) prompt_kind: String,
+}
+
+#[derive(Debug, FromQueryResult)]
+pub(in crate::project_dependency_graph) struct MediaAssetGraphRow {
+    pub(in crate::project_dependency_graph) id: i64,
+    pub(in crate::project_dependency_graph) media_kind: String,
+}
 
 use self::{
     family::{FamilyAssetGraphRecords, load_family_asset_graph_records},
@@ -28,25 +144,26 @@ use self::{
 };
 
 pub(super) struct AssetGraphRecords {
-    pub(super) conversations: Vec<conversation::Model>,
-    pub(super) blueprints: Vec<novel_blueprint::Model>,
-    pub(super) blueprint_versions: Vec<blueprint_version::Model>,
-    pub(super) part_outlines: Vec<part_outline::Model>,
-    pub(super) chapter_outlines: Vec<chapter_outline::Model>,
-    pub(super) chapters: Vec<chapter::Model>,
-    pub(super) shooting_scripts: Vec<chapter_shooting_script::Model>,
-    pub(super) character_profiles: Vec<protagonist_profile::Model>,
-    pub(super) object_profiles: Vec<object_profile::Model>,
-    pub(super) scene_profiles: Vec<scene_profile::Model>,
-    pub(super) portraits: Vec<character_portrait::Model>,
-    pub(super) manga_prompts: Vec<chapter_manga_prompt::Model>,
-    pub(super) video_prompts: Vec<chapter_video_prompt::Model>,
-    pub(super) generated_images: Vec<generated_image::Model>,
-    pub(super) generated_videos: Vec<generated_video::Model>,
-    pub(super) generation_specs: Vec<generation_spec::Model>,
-    pub(super) prompt_artifacts: Vec<prompt_artifact::Model>,
-    pub(super) media_assets: Vec<media_asset::Model>,
-    pub(super) media_provenance: Vec<media_provenance::Model>,
+    pub(super) conversations: Vec<ConversationGraphRow>,
+    pub(super) blueprints: Vec<BlueprintGraphRow>,
+    pub(super) blueprint_versions: Vec<BlueprintVersionGraphRow>,
+    pub(super) part_outlines: Vec<PartOutlineGraphRow>,
+    pub(super) chapter_outlines: Vec<ChapterOutlineGraphRow>,
+    pub(super) chapters: Vec<ChapterGraphRow>,
+    pub(super) visual_plans: Vec<VisualPlanGraphRow>,
+    pub(super) shooting_scripts: Vec<ShootingScriptGraphRow>,
+    pub(super) character_profiles: Vec<CharacterProfileGraphRow>,
+    pub(super) object_profiles: Vec<ObjectProfileGraphRow>,
+    pub(super) scene_profiles: Vec<SceneProfileGraphRow>,
+    pub(super) portraits: Vec<PortraitGraphRow>,
+    pub(super) manga_prompts: Vec<MangaPromptGraphRow>,
+    pub(super) video_prompts: Vec<VideoPromptGraphRow>,
+    pub(super) generated_images: Vec<GeneratedImageGraphRow>,
+    pub(super) generated_videos: Vec<GeneratedVideoGraphRow>,
+    pub(super) generation_specs: Vec<GenerationSpecGraphRow>,
+    pub(super) prompt_artifacts: Vec<PromptArtifactGraphRow>,
+    pub(super) media_assets: Vec<MediaAssetGraphRow>,
+    pub(super) media_provenance_count: u64,
 }
 
 impl AssetGraphRecords {
@@ -62,6 +179,7 @@ impl AssetGraphRecords {
             part_outlines,
             chapter_outlines,
             chapters,
+            visual_plans,
             shooting_scripts,
             character_profiles,
             object_profiles,
@@ -78,7 +196,7 @@ impl AssetGraphRecords {
             generation_specs,
             prompt_artifacts,
             media_assets,
-            media_provenance,
+            media_provenance_count,
         } = load_generation_asset_graph_records(db, family_project_ids).await?;
 
         Ok(Self {
@@ -88,6 +206,7 @@ impl AssetGraphRecords {
             part_outlines,
             chapter_outlines,
             chapters,
+            visual_plans,
             shooting_scripts,
             character_profiles,
             object_profiles,
@@ -100,7 +219,7 @@ impl AssetGraphRecords {
             generation_specs,
             prompt_artifacts,
             media_assets,
-            media_provenance,
+            media_provenance_count,
         })
     }
 }

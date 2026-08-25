@@ -6,7 +6,7 @@ use super::super::{
     generate_portrait_prompt, generate_scene_profile_image_prompt, get_character_arc_status,
     get_character_voice_fingerprint, get_primary_portrait, get_project_asset_dependency_graph,
     get_project_asset_dependency_graph_node_detail, list_foreshadowing, list_image_configs,
-    list_images_by_chapter, list_images_by_project, list_object_profiles,
+    list_images_by_chapter, list_images_by_project, list_images_by_projects, list_object_profiles,
     list_portraits_by_project, list_profile_materials, list_scene_profiles,
     preview_batch_images_request, preview_check_character_conflict_request,
     preview_discover_character_profiles_request, preview_generate_age_variant_request,
@@ -45,6 +45,7 @@ pub(super) async fn try_dispatch(
             preview_batch_images_request(state, user_id, args).await?
         }
         "list_images_by_project" => list_images_by_project(state, user_id, args).await?,
+        "list_images_by_projects" => list_images_by_projects(state, user_id, args).await?,
         "list_images_by_chapter" => list_images_by_chapter(state, user_id, args).await?,
         "list_profile_materials" => list_profile_materials(state, user_id, args).await?,
         "upload_profile_material_image" => {

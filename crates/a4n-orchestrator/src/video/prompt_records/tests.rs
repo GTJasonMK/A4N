@@ -163,6 +163,7 @@ mod tests {
             "contract_version": CHAT_VIDEO_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
             "generation_reference_image_ids": [1],
+            "prompt_output_language": "zh_cn",
             "generation_asset_fingerprint": asset_fingerprint.clone()
         }));
 

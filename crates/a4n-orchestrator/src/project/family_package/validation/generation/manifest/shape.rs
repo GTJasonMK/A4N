@@ -1,9 +1,10 @@
-use crate::generation::{
+use a4n_db::generation::{
     is_valid_generation_entity_kind, is_valid_generation_entity_role,
     is_valid_generation_media_ref_role, is_valid_generation_prompt_kind,
     is_valid_generation_spec_status, is_valid_generation_spec_target_entity_kind,
     is_valid_generation_spec_target_kind, is_valid_generation_text_anchor_role,
 };
+use a4n_domain::canvas_transfer_runtime_identity_key;
 
 use crate::project::family_package::ProjectFamilyPackage;
 
@@ -34,6 +35,12 @@ pub(super) fn validate_generation_shape_manifest(
             "项目族导入包生成意图参数必须是 JSON 对象: generation_spec_id={}",
             spec.id
         );
+        if let Some(key) = canvas_transfer_runtime_identity_key(&spec.params_json) {
+            return Err(format!(
+                "项目族导入包生成意图 params_json 不能携带运行身份 {key}: generation_spec_id={}",
+                spec.id
+            ));
+        }
     }
 
     for record in &package.generation_spec_text_anchors {

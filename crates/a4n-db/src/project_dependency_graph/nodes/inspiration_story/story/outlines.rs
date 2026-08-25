@@ -1,13 +1,13 @@
-use a4n_core::models::chapter::{chapter_outline, part_outline};
 use serde_json::json;
 
-use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
+use crate::project_dependency_graph::graph::{ChapterOutlineGraphRow, PartOutlineGraphRow};
 use crate::project_dependency_graph::helpers::outline_range_summary;
+use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 
 pub(super) fn add_outline_nodes(
     graph: &mut GraphBuilder,
-    part_outlines: &[part_outline::Model],
-    chapter_outlines: &[chapter_outline::Model],
+    part_outlines: &[PartOutlineGraphRow],
+    chapter_outlines: &[ChapterOutlineGraphRow],
 ) {
     graph.add_node(node(
         "part_outlines",

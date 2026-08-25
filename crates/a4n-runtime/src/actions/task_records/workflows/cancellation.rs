@@ -61,7 +61,7 @@ pub async fn cancel_workflow(
         }
         if let Some(run) = state
             .orchestrator()
-            .workflow_run_model_by_active_task_id(task_id)
+            .workflow_run_access_record_by_active_task_id(task_id)
             .await
             .map_err(app_error_message)?
         {

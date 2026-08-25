@@ -11,7 +11,7 @@ pub(crate) const IMPORT_REVERSE_WORKFLOW_KIND: &str = "import_reverse_engineer";
 pub(crate) const IMPORT_REVERSE_WORKFLOW_MODE: &str = "reverse";
 
 /// import_reverse exclusive business key。
-pub fn import_reverse_business_key(
+pub(super) fn import_reverse_business_key(
     project_id: i64,
     target: ReverseEngineeringTarget,
 ) -> Result<String, String> {
@@ -25,7 +25,7 @@ pub fn import_reverse_business_key(
 }
 
 /// import_reverse 工作流输入指纹。
-pub fn import_reverse_workflow_fingerprint(
+fn import_reverse_workflow_fingerprint(
     project_id: i64,
     target: ReverseEngineeringTarget,
     content_sample: &str,
@@ -56,7 +56,7 @@ pub fn import_reverse_workflow_fingerprint(
 }
 
 /// 构造 import_reverse begin 输入（status=RUNNING）。
-pub fn import_reverse_workflow_run_input(
+pub(super) fn import_reverse_workflow_run_input(
     project_id: i64,
     target: ReverseEngineeringTarget,
     content_sample: &str,

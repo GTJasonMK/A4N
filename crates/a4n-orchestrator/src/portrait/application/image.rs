@@ -2,19 +2,16 @@ use a4n_core::{
     error::AppError,
     models::character::{character_portrait, protagonist_profile},
 };
+use a4n_db::generation::{
+    GenerationRunCheckpointContext, GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
+    RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
+};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    OrchestratorContext,
-    character::CharacterPortraitCreateInput,
-    generation::{
-        GenerationRunCheckpointContext, GenerationRunTraceTarget,
-        RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
-        generation_checkpoint_fingerprint_sha256,
-    },
-    portrait::validate_reference_image_ids,
-    video::CreateGeneratedImageRecordDraftInput,
+    OrchestratorContext, character::CharacterPortraitCreateInput,
+    portrait::validate_reference_image_ids, video::CreateGeneratedImageRecordDraftInput,
 };
 
 use super::{

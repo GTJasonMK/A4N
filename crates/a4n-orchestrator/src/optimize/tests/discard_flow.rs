@@ -26,7 +26,7 @@ async fn discarding_pending_patch_sets_updates_patches_and_records_one_event() {
             user_id: user.id,
             title: "内容优化丢弃事务".to_string(),
             description: String::new(),
-            project_type: a4n_db::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -106,6 +106,35 @@ async fn discarding_pending_patch_sets_updates_patches_and_records_one_event() {
     .await
     .unwrap()
     .unwrap();
+    let mut patch_set_ids = vec![patch_set.id];
+    for index in 2..=3 {
+        let extra = a4n_db::optimize::create_optimization_patch_set(
+            database.as_ref(),
+            OptimizationPatchSetCreateInput {
+                turn_id: turn.id,
+                session_id: session.id,
+                chapter_id: chapter.id,
+                base_content_hash: format!("hash-{index}"),
+                status: "pending".to_string(),
+                summary: format!("待丢弃-{index}"),
+                patch_decision: "pending".to_string(),
+                patch_apply_status: "pending".to_string(),
+                patches: vec![OptimizationPatchCreateInput {
+                    patch_id: format!("patch-{index}"),
+                    issue_id: None,
+                    operation: "replace".to_string(),
+                    old_text: "原始".to_string(),
+                    new_text: format!("优化-{index}"),
+                    reason: "测试".to_string(),
+                    risk: None,
+                }],
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        patch_set_ids.push(extra.id);
+    }
     let context = TestOrchestratorBuilder::new(Arc::clone(&database))
         .build()
         .await;
@@ -118,13 +147,21 @@ async fn discarding_pending_patch_sets_updates_patches_and_records_one_event() {
     let patch_sets = a4n_db::optimize::optimization_patch_sets(database.as_ref(), session.id)
         .await
         .unwrap();
-    assert_eq!(patch_sets[0].id, patch_set.id);
-    assert_eq!(patch_sets[0].status, "rejected");
-    let patches = a4n_db::optimize::optimization_patch_set_patches(database.as_ref(), patch_set.id)
-        .await
-        .unwrap();
-    assert_eq!(patches[0].decision, "rejected");
-    assert_eq!(patches[0].apply_status, "pending");
+    assert_eq!(patch_sets.len(), patch_set_ids.len());
+    for patch_set_id in patch_set_ids {
+        let patch_set = patch_sets
+            .iter()
+            .find(|patch_set| patch_set.id == patch_set_id)
+            .expect("patch set should remain present");
+        assert_eq!(patch_set.status, "rejected");
+        let patches =
+            a4n_db::optimize::optimization_patch_set_patches(database.as_ref(), patch_set_id)
+                .await
+                .unwrap();
+        assert_eq!(patches.len(), 1);
+        assert_eq!(patches[0].decision, "rejected");
+        assert_eq!(patches[0].apply_status, "pending");
+    }
     let events = a4n_db::optimize::optimization_session_messages(database.as_ref(), session.id)
         .await
         .unwrap()

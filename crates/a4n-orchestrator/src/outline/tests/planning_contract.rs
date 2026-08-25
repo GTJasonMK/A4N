@@ -39,13 +39,8 @@ fn validate_part_generation_inputs_accepts_part_count_and_part_size() {
 #[test]
 fn resolve_part_generation_plan_defaults_to_one_part() {
     let plan = resolve_part_generation_plan(None, Some(20), Some(25), Some(10)).unwrap();
-    assert_eq!(
-        plan,
-        PartGenerationPlan {
-            chapters_per_part: 20,
-            requested_part_count: 1,
-        }
-    );
+    assert_eq!(plan.chapters_per_part, 20);
+    assert_eq!(plan.requested_part_count, 1);
 }
 
 #[test]

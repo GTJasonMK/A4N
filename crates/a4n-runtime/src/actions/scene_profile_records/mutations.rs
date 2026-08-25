@@ -1,14 +1,12 @@
 use super::{
     CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteResult,
-    SceneProfileMutationResult, UpdateSceneProfileInput, conflicts, draft, projections,
+    SceneProfileMutationResult, UpdateSceneProfileInput, conflicts, projections,
 };
 use crate::{
     AppState,
     actions::{
         access,
-        dependency_conflict::{
-            delete_downstream_images_if_requested, downstream_cleanup_warnings,
-        },
+        dependency_conflict::{delete_downstream_images_if_requested, downstream_cleanup_warnings},
     },
 };
 
@@ -20,7 +18,7 @@ pub async fn create_scene_profile(
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let profile = state
         .orchestrator()
-        .create_scene_profile_validated(input.project_id, draft::into_draft(input.profile))
+        .create_scene_profile_validated(input.project_id, input.profile)
         .await
         .map_err(|error| error.to_string())?;
     Ok(SceneProfileMutationResult {
@@ -36,7 +34,7 @@ pub async fn update_scene_profile(
 ) -> Result<SceneProfileMutationResult, String> {
     let scene_profile = state.orchestrator();
     let project_id =
-        conflicts::scene_profile_project_id(&scene_profile, input.scene_profile_id).await?;
+        conflicts::scene_profile_project_id(scene_profile, input.scene_profile_id).await?;
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let downstream = conflicts::resolve_scene_profile_downstream_conflict(
         state.orchestrator(),
@@ -47,7 +45,7 @@ pub async fn update_scene_profile(
     )
     .await?;
     let profile = scene_profile
-        .update_scene_profile_validated(input.scene_profile_id, draft::into_draft(input.profile))
+        .update_scene_profile_validated(input.scene_profile_id, input.profile)
         .await
         .map_err(|error| error.to_string())?;
     let mut warnings = downstream_cleanup_warnings(
@@ -67,7 +65,7 @@ pub async fn delete_scene_profile(
 ) -> Result<SceneProfileDeleteResult, String> {
     let scene_profile = state.orchestrator();
     let project_id =
-        conflicts::scene_profile_project_id(&scene_profile, input.scene_profile_id).await?;
+        conflicts::scene_profile_project_id(scene_profile, input.scene_profile_id).await?;
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let downstream = conflicts::resolve_scene_profile_downstream_conflict(
         state.orchestrator(),

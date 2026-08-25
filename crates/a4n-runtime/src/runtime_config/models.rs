@@ -1,9 +1,7 @@
 use a4n_core::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
 use chrono::Utc;
 
-use super::contracts::{
-    RuntimeEmbeddingConfig, RuntimeImageConfig, RuntimeLlmConfig, RuntimeVideoConfig,
-};
+use super::{RuntimeEmbeddingConfig, RuntimeImageConfig, RuntimeLlmConfig, RuntimeVideoConfig};
 
 fn now() -> chrono::NaiveDateTime {
     Utc::now().naive_utc()

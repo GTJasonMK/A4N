@@ -33,7 +33,7 @@ impl OrchestratorContext {
         &self,
         input: CanvasEditingNodeExecutionInput<'_>,
         host_port: &dyn CanvasEditingNodeHostPort,
-    ) -> Result<crate::canvas::CanvasNodeRunSummary, AppError> {
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
         let checkpoints = match input.shared_run {
             Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
             None => None,

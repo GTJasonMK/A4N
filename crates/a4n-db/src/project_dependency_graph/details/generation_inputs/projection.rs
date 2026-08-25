@@ -1,12 +1,24 @@
-use a4n_core::models::generation::generation_run;
+use sea_orm::FromQueryResult;
 use serde_json::Value;
 
 use super::rules::{has_structural_lineage, should_expect_generation_inputs};
 use crate::project_dependency_graph::{AssetLineageRecord, GenerationInputSource};
 
+#[derive(Debug, Clone, FromQueryResult)]
+pub(super) struct GenerationRunInputRecord {
+    pub(super) id: i64,
+    pub(super) rendered_messages_json: Option<Value>,
+    pub(super) rendered_prompts_json: Option<Value>,
+    pub(super) input_variables_json: Option<Value>,
+    pub(super) source_refs_json: Option<Value>,
+    pub(super) media_refs_json: Option<Value>,
+    pub(super) request_json: Option<Value>,
+    pub(super) response_summary_json: Option<Value>,
+}
+
 pub(super) fn apply_generation_runs(
     record: &mut AssetLineageRecord,
-    runs: &[generation_run::Model],
+    runs: &[GenerationRunInputRecord],
 ) {
     let inputs = generation_inputs_from_runs(runs);
 
@@ -32,7 +44,7 @@ pub(super) fn apply_generation_runs(
     record.generation_inputs = inputs;
 }
 
-fn generation_inputs_from_runs(runs: &[generation_run::Model]) -> Vec<GenerationInputSource> {
+fn generation_inputs_from_runs(runs: &[GenerationRunInputRecord]) -> Vec<GenerationInputSource> {
     let mut inputs = Vec::new();
     for run in runs {
         push_json_input(

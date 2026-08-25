@@ -13,6 +13,7 @@ pub use contracts::{
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
     ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
     ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
-    ShootingViewpointModeV1, ShootingViewpointV1,
+    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV1,
+    ShootingVisualPlanSourceV1,
 };
 pub use validation::ShootingScriptValidationError;

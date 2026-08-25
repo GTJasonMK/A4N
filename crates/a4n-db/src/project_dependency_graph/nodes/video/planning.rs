@@ -1,7 +1,9 @@
-use a4n_core::models::chapter::{chapter, chapter_shooting_script};
 use serde_json::json;
 
 use super::stats::VideoPromptStats;
+use crate::project_dependency_graph::graph::{
+    ChapterGraphRow, ShootingScriptGraphRow, VisualPlanGraphRow,
+};
 use crate::project_dependency_graph::{
     builder::{GraphBuilder, NodeSeedMetadata, node},
     helpers::first_available_graph_source,
@@ -9,10 +11,40 @@ use crate::project_dependency_graph::{
 
 pub(super) fn add_video_planning_nodes(
     graph: &mut GraphBuilder,
-    chapters: &[chapter::Model],
-    shooting_scripts: &[chapter_shooting_script::Model],
+    chapters: &[ChapterGraphRow],
+    visual_plans: &[VisualPlanGraphRow],
+    shooting_scripts: &[ShootingScriptGraphRow],
     prompt_stats: &VideoPromptStats,
 ) {
+    let visual_plan_count = visual_plans.len() as u64;
+    graph.add_node(node(
+        "chapter_visual_plans",
+        "text",
+        "chapter_visual_plan",
+        "导演编排",
+        visual_plan_count,
+        7,
+        NodeSeedMetadata {
+            status: None,
+            editable: true,
+            needs_visualization: true,
+            visualized: true,
+            summary: Some("位于章节正文与拍摄剧本之间的结构化时序舞台方案。".to_string()),
+            details: json!({
+                "confirmed": visual_plans.iter().filter(|plan| plan.status == "confirmed").count(),
+                "draft": visual_plans.iter().filter(|plan| plan.status == "draft").count(),
+            }),
+        },
+    ));
+    if !chapters.is_empty() {
+        graph.add_edge(
+            "chapters",
+            "chapter_visual_plans",
+            "directs",
+            visual_plan_count,
+        );
+    }
+
     let shooting_script_count = shooting_scripts.len() as u64;
     graph.add_node(node(
         "chapter_shooting_script",
@@ -30,9 +62,12 @@ pub(super) fn add_video_planning_nodes(
             details: json!({}),
         },
     ));
-    if !chapters.is_empty() {
+    if let Some(source) = first_available_graph_source(&[
+        ("chapter_visual_plans", visual_plan_count),
+        ("chapters", chapters.len() as u64),
+    ]) {
         graph.add_edge(
-            "chapters",
+            source,
             "chapter_shooting_script",
             "derives",
             shooting_script_count,

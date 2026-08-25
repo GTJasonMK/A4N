@@ -124,6 +124,37 @@ async fn test_text_search() {
 }
 
 #[tokio::test]
+async fn replacing_record_removes_old_bm25_terms() {
+    let store = MemoryVectorStore::new();
+
+    store
+        .add_embeddings(
+            "test",
+            vec![make_record("1", "苹果 香蕉", make_embedding(1.0, 0.0, 0.0))],
+        )
+        .await
+        .unwrap();
+    store
+        .add_embeddings(
+            "test",
+            vec![make_record("1", "电脑 编程", make_embedding(1.0, 0.0, 0.0))],
+        )
+        .await
+        .unwrap();
+
+    assert!(
+        store
+            .search_text("test", "苹果", 5, None)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    let results = store.search_text("test", "电脑", 5, None).await.unwrap();
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].id, "1");
+}
+
+#[tokio::test]
 async fn test_hybrid_search() {
     let store = MemoryVectorStore::new();
 

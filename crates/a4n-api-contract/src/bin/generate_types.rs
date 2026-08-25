@@ -1,5 +1,5 @@
 use a4n_api_contract::command_manifest::{
-    API_COMMANDS, RuntimeConfigPolicy, command_runtime_config_policy,
+    API_COMMANDS, CommandDescriptor, RuntimeConfigPolicy, command_runtime_config_policy,
 };
 use a4n_api_contract::generation_tasks::GENERATION_START_ROUTES;
 use a4n_api_contract::{
@@ -22,12 +22,11 @@ use a4n_api_contract::{
     },
     canvas::{
         CanvasEdgeInput, CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphInput,
-        CanvasGraphSummary, CanvasNodeContract, CanvasNodeInput, CanvasNodeSummary,
-        CanvasMediaAssetSummary, CanvasPortContract, CanvasRunSummary, CanvasTextAssetInput,
-        CanvasTextAssetSummary,
-        GetCanvasGraphInput, GetCanvasNodeContractsInput, ImportCanvasMediaInput,
-        ImportedCanvasMedia, PreviewCanvasNodeRequestInput, RunCanvasGraphInput,
-        RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
+        CanvasGraphSummary, CanvasMediaAssetSummary, CanvasNodeContract, CanvasNodeInput,
+        CanvasNodeSummary, CanvasPortContract, CanvasRunSummary, CanvasTextAssetInput,
+        CanvasTextAssetSummary, GetCanvasGraphInput, GetCanvasNodeContractsInput,
+        ImportCanvasMediaInput, ImportedCanvasMedia, PreviewCanvasNodeRequestInput,
+        RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput, SaveCanvasTextAssetInput,
     },
     chapter::{
         CHAPTER_ANALYSIS_PROGRESS_TOTAL, CHAPTER_SCENE_PROGRESS_TOTAL, ChapterAnalysisInput,
@@ -36,6 +35,22 @@ use a4n_api_contract::{
         ChapterSceneSummary, ChapterSummary, GenerateChapterSceneInput, ImportChapterInput,
         PreparedGenerationRagEmbeddingRequest, ReorderChapterScenesInput,
         UpdateChapterContentInput, UpdateChapterSceneInput,
+    },
+    chapter_visual_plan::{
+        ApplyChapterVisualPlanProposalInput, ChapterVisualPlanAuthoringMode,
+        ChapterVisualPlanProposalView, ChapterVisualPlanRecordInput,
+        ChapterVisualPlanRecordSummary, ChapterVisualPlanSchemaVersion, ChapterVisualPlanSetView,
+        ChapterVisualPlanSourceInput, ChapterVisualPlanSourceSpanView, ChapterVisualPlanSourceView,
+        ChapterVisualPlanStatus, ChapterVisualPlanV1, ChapterVisualPlanView,
+        ConfirmedChapterVisualPlanView, GenerateChapterVisualPlanDraftInput,
+        ProposeChapterVisualPlanRevisionInput, SaveChapterVisualPlanDraftInput,
+        SourceSpanDispositionKindV1, SourceSpanDispositionV1, VisualCameraEventKindV1,
+        VisualCameraEventV1, VisualCameraStateV1, VisualEntityEventKindV1, VisualEntityEventV1,
+        VisualEntityKindV1, VisualEntityStateV1, VisualEntityV1, VisualFacingV1, VisualFrameV1,
+        VisualInterpolationV1, VisualKeyframeV1, VisualNarrativeUnitV1, VisualRectV1,
+        VisualRelationKindV1, VisualRelationV1, VisualShotPlanV1, VisualSoundEventKindV1,
+        VisualSoundEventV1, VisualTechniqueEventV1, VisualTechniqueKindV1, VisualTransitionV1,
+        VisualUserAdditionKindV1, VisualUserAdditionV1,
     },
     character::{
         AddProfileAttributeInput, ApplyImplicitUpdateDecisionInput,
@@ -95,8 +110,8 @@ use a4n_api_contract::{
     },
     image::{
         DeleteImageInput, GeneratedImageSummary, ListImagesByChapterInput,
-        ListImagesByProjectInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
-        UploadImageInput,
+        ListImagesByProjectInput, ListImagesByProjectsInput, ListVideoReferenceImagesInput,
+        UpdateGeneratedImageInput, UploadImageInput,
     },
     image_generation::{
         GenerateBatchImagesInput, GeneratePageImageInput, GenerateSceneImageInput,
@@ -128,9 +143,10 @@ use a4n_api_contract::{
         MangaPagePlanSchemaVersion, MangaPagePromptSourceSummary, MangaPagePromptSummary,
         MangaPageRoleV2, MangaPageV3, MangaPanelFunctionV2, MangaPanelSizeV2, MangaPanelV2,
         MangaPipelineResumeInput, MangaPipelineStartInput, MangaPipelineStatusSummary,
-        MangaReadingFlowV2, MangaReferenceAssetKind, MangaReferenceBindingSummary,
-        MangaShootingBeatRefV3, MangaShotScaleV2, MangaTextLayerKindV2, MangaTextLayerV2,
-        MangaTextPlacementV2, OptimizeMangaPromptInput, UpdateMangaPromptInput,
+        MangaPipelineStatusesInput, MangaReadingFlowV2, MangaReferenceAssetKind,
+        MangaReferenceBindingSummary, MangaShootingBeatRefV3, MangaShotScaleV2,
+        MangaTextLayerKindV2, MangaTextLayerV2, MangaTextPlacementV2, OptimizeMangaPromptInput,
+        UpdateMangaPromptInput,
     },
     optimize::{
         AnalyzeChapterInput, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
@@ -151,6 +167,12 @@ use a4n_api_contract::{
         RegeneratePartsInput, SaveChapterOutlineInput, SaveChapterOutlineResult,
         SavePartOutlineInput, SavePartOutlineResult, UpdateChapterOutlineInput,
         UpdateChapterOutlineResult,
+    },
+    page::{
+        PageAttachResponse, PageAuthorization, PageCommandAvailability, PageCommandManifest,
+        PageContext, PageNavigationInput, PageOperationInput, PageOperationStatus,
+        PageOperationUpdate, PageOperationView, PageSessionCreateResponse, PageSessionEvent,
+        PageSessionStatus, PageSessionView,
     },
     portrait::{
         GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
@@ -205,13 +227,14 @@ use a4n_api_contract::{
         ChapterShootingScriptRecordSummary, ChapterShootingScriptSchemaVersion,
         ChapterShootingScriptSourceInput, ChapterShootingScriptUnitProgressView,
         ChapterShootingScriptV1, ChapterShootingScriptView, EditChapterShootingScriptInput,
-        EditedChapterShootingScriptView, ShootingBlockingV1, ShootingCameraAngleV1,
-        ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
-        ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1,
-        ShootingEditingModeV1, ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1,
-        ShootingShotV1, ShootingSoundDesignV1, ShootingSpatialContinuityV1,
-        ShootingTransitionContractV1, ShootingTransitionTypeV1, ShootingViewpointModeV1,
-        ShootingViewpointV1,
+        EditedChapterShootingScriptView, GenerateChapterShootingScriptInput, ShootingBlockingV1,
+        ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
+        ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
+        ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
+        ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
+        ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
+        ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV1,
+        ShootingVisualPlanSourceV1,
     },
     source_sync::{
         ApplySourceSyncInput, SourceSyncChangeKind, SourceSyncConflictSeverity,
@@ -224,7 +247,12 @@ use a4n_api_contract::{
         CancelTaskInput, GetTaskHistoryInput, QueueSlotStatsSummary, QueueStatsSummary,
         TaskInfoSummary, TaskProgressSummary,
     },
-    theme::{CreateThemeInput, ThemeMode, ThemeSummary, UpdateThemeInput},
+    theme::{
+        CreateThemeInput, DeleteThemeResourceInput, ThemeAppearance, ThemeBackgroundSettings,
+        ThemeDocument, ThemeMode, ThemePackageExport, ThemePackageUploadInput,
+        ThemePreferenceSummary, ThemeResourceSummary, ThemeResourceUploadInput, ThemeSummary,
+        UpdateThemeInput, UpdateThemePreferenceInput,
+    },
     video::{
         ApplyAssemblyPostprocessEditInput, AssembledChapterVideoClipSummary,
         AssembledChapterVideoPreview, AssemblyPostprocessOperation, AssemblyPushAction,
@@ -265,7 +293,8 @@ use a4n_domain::profile_material::{
 use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind, ProgressSeverity};
 use a4n_domain::{
     DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,
-    LLM_RESERVED_REQUEST_OPTION_KEYS,
+    LLM_RESERVED_REQUEST_OPTION_KEYS, THEME_DOCUMENT_VERSION, THEME_GLOBAL_ROUTE_FAMILY,
+    THEME_ROUTE_FAMILIES, THEME_TOKEN_NAMES,
 };
 use schemars::JsonSchema;
 use serde_json::Value;
@@ -276,8 +305,19 @@ fn main() {
         "// @generated by `cargo run -p a4n-api-contract --bin generate_types -- --write`.\n",
         "// Do not edit this file; change the Rust contract and regenerate it.\n\n",
         &typescript_enum::<ThemeMode>("ThemeMode"),
+        &typescript_enum::<ThemeAppearance>("ThemeAppearance"),
+        &typescript_theme_constants(),
+        &typescript_interface::<ThemeBackgroundSettings>("ThemeBackgroundSettings"),
+        &typescript_interface::<ThemeDocument>("ThemeDocument"),
         &typescript_interface::<CreateThemeInput>("CreateThemeInput"),
         &typescript_interface::<UpdateThemeInput>("UpdateThemeInput"),
+        &typescript_interface::<ThemeResourceSummary>("ThemeResourceSummary"),
+        &typescript_interface::<ThemeResourceUploadInput>("ThemeResourceUploadInput"),
+        &typescript_interface::<DeleteThemeResourceInput>("DeleteThemeResourceInput"),
+        &typescript_interface::<ThemePreferenceSummary>("ThemePreferenceSummary"),
+        &typescript_interface::<UpdateThemePreferenceInput>("UpdateThemePreferenceInput"),
+        &typescript_interface::<ThemePackageUploadInput>("ThemePackageUploadInput"),
+        &typescript_interface::<ThemePackageExport>("ThemePackageExport"),
         &typescript_interface::<ThemeSummary>("ThemeSummary"),
         "export type Theme = ThemeSummary;\n",
     ]
@@ -296,6 +336,28 @@ fn main() {
         &typescript_interface::<TokenPairSummary>("TokenPairSummary"),
         &typescript_interface::<AuthResult>("AuthResult"),
         &typescript_interface::<RefreshTokenInput>("RefreshTokenInput"),
+    ]
+    .concat();
+
+    let page_output = [
+        "// @generated by `cargo run -p a4n-api-contract --bin generate_types -- --write`.\n",
+        "// Do not edit this file; change the Rust contract and regenerate it.\n\n",
+        &typescript_enum::<RuntimeConfigPolicy>("RuntimeConfigPolicy"),
+        &typescript_interface::<CommandDescriptor>("CommandDescriptor"),
+        &typescript_enum::<PageSessionStatus>("PageSessionStatus"),
+        &typescript_enum::<PageOperationStatus>("PageOperationStatus"),
+        &typescript_interface::<PageContext>("PageContext"),
+        &typescript_interface::<PageOperationView>("PageOperationView"),
+        &typescript_interface::<PageSessionView>("PageSessionView"),
+        &typescript_interface::<PageSessionEvent>("PageSessionEvent"),
+        &typescript_interface::<PageAuthorization>("PageAuthorization"),
+        &typescript_interface::<PageSessionCreateResponse>("PageSessionCreateResponse"),
+        &typescript_interface::<PageAttachResponse>("PageAttachResponse"),
+        &typescript_interface::<PageOperationInput>("PageOperationInput"),
+        &typescript_interface::<PageOperationUpdate>("PageOperationUpdate"),
+        &typescript_interface::<PageNavigationInput>("PageNavigationInput"),
+        &typescript_interface::<PageCommandAvailability>("PageCommandAvailability"),
+        &typescript_interface::<PageCommandManifest>("PageCommandManifest"),
     ]
     .concat();
 
@@ -429,6 +491,7 @@ fn main() {
         &typescript_interface::<RecentMediaCall>("RecentMediaCall"),
         &typescript_interface::<GenerationCallAnalytics>("GenerationCallAnalytics"),
         &typescript_interface::<ListImagesByProjectInput>("ListImagesByProjectInput"),
+        &typescript_interface::<ListImagesByProjectsInput>("ListImagesByProjectsInput"),
         &typescript_interface::<ListImagesByChapterInput>("ListImagesByChapterInput"),
         &typescript_interface::<ListVideoReferenceImagesInput>("ListVideoReferenceImagesInput"),
         &typescript_interface::<GeneratedImageSummary>("GeneratedImage"),
@@ -463,6 +526,7 @@ fn main() {
         &typescript_interface::<OptimizeMangaPromptInput>("OptimizeMangaPromptInput"),
         &typescript_interface::<DeleteMangaPromptInput>("DeleteMangaPromptInput"),
         &typescript_interface::<MangaPipelineStatusSummary>("MangaPipelineStatusSummary"),
+        &typescript_interface::<MangaPipelineStatusesInput>("MangaPipelineStatusesInput"),
         &typescript_enum::<MangaPagePlanSchemaVersion>("MangaPagePlanSchemaVersion"),
         &typescript_enum::<MangaPageDrawingPromptSchemaVersion>(
             "MangaPageDrawingPromptSchemaVersion",
@@ -834,6 +898,55 @@ fn main() {
         &typescript_interface::<DeleteForeshadowingInput>("DeleteForeshadowingInput"),
         &typescript_interface::<ForeshadowingSummary>("ForeshadowingSummary"),
         &typescript_interface::<ForeshadowingWriteResult>("ForeshadowingWriteResult"),
+        &typescript_enum::<ChapterVisualPlanSchemaVersion>("ChapterVisualPlanSchemaVersion"),
+        &typescript_enum::<ChapterVisualPlanStatus>("ChapterVisualPlanStatus"),
+        &typescript_enum::<ChapterVisualPlanAuthoringMode>("ChapterVisualPlanAuthoringMode"),
+        &typescript_enum::<VisualEntityKindV1>("VisualEntityKindV1"),
+        &typescript_enum::<VisualUserAdditionKindV1>("VisualUserAdditionKindV1"),
+        &typescript_enum::<VisualInterpolationV1>("VisualInterpolationV1"),
+        &typescript_enum::<VisualFacingV1>("VisualFacingV1"),
+        &typescript_enum::<VisualRelationKindV1>("VisualRelationKindV1"),
+        &typescript_enum::<VisualEntityEventKindV1>("VisualEntityEventKindV1"),
+        &typescript_enum::<VisualCameraEventKindV1>("VisualCameraEventKindV1"),
+        &typescript_enum::<VisualSoundEventKindV1>("VisualSoundEventKindV1"),
+        &typescript_enum::<VisualTechniqueKindV1>("VisualTechniqueKindV1"),
+        &typescript_enum::<SourceSpanDispositionKindV1>("SourceSpanDispositionKindV1"),
+        &typescript_interface::<VisualFrameV1>("VisualFrameV1"),
+        &typescript_interface::<VisualEntityV1>("VisualEntityV1"),
+        &typescript_interface::<VisualUserAdditionV1>("VisualUserAdditionV1"),
+        &typescript_interface::<VisualRectV1>("VisualRectV1"),
+        &typescript_interface::<VisualEntityStateV1>("VisualEntityStateV1"),
+        &typescript_interface::<VisualCameraStateV1>("VisualCameraStateV1"),
+        &typescript_interface::<VisualRelationV1>("VisualRelationV1"),
+        &typescript_interface::<VisualKeyframeV1>("VisualKeyframeV1"),
+        &typescript_interface::<VisualEntityEventV1>("VisualEntityEventV1"),
+        &typescript_interface::<VisualCameraEventV1>("VisualCameraEventV1"),
+        &typescript_interface::<VisualSoundEventV1>("VisualSoundEventV1"),
+        &typescript_interface::<VisualTechniqueEventV1>("VisualTechniqueEventV1"),
+        &typescript_interface::<VisualShotPlanV1>("VisualShotPlanV1"),
+        &typescript_interface::<VisualNarrativeUnitV1>("VisualNarrativeUnitV1"),
+        &typescript_interface::<VisualTransitionV1>("VisualTransitionV1"),
+        &typescript_interface::<SourceSpanDispositionV1>("SourceSpanDispositionV1"),
+        &typescript_interface::<ChapterVisualPlanV1>("ChapterVisualPlanV1"),
+        &typescript_interface::<ChapterVisualPlanSourceInput>("ChapterVisualPlanSourceInput"),
+        &typescript_interface::<SaveChapterVisualPlanDraftInput>("SaveChapterVisualPlanDraftInput"),
+        &typescript_interface::<ChapterVisualPlanRecordInput>("ChapterVisualPlanRecordInput"),
+        &typescript_interface::<GenerateChapterVisualPlanDraftInput>(
+            "GenerateChapterVisualPlanDraftInput",
+        ),
+        &typescript_interface::<ProposeChapterVisualPlanRevisionInput>(
+            "ProposeChapterVisualPlanRevisionInput",
+        ),
+        &typescript_interface::<ApplyChapterVisualPlanProposalInput>(
+            "ApplyChapterVisualPlanProposalInput",
+        ),
+        &typescript_interface::<ChapterVisualPlanRecordSummary>("ChapterVisualPlanRecordSummary"),
+        &typescript_interface::<ChapterVisualPlanSourceSpanView>("ChapterVisualPlanSourceSpanView"),
+        &typescript_interface::<ChapterVisualPlanSourceView>("ChapterVisualPlanSourceView"),
+        &typescript_interface::<ChapterVisualPlanView>("ChapterVisualPlanView"),
+        &typescript_interface::<ChapterVisualPlanSetView>("ChapterVisualPlanSetView"),
+        &typescript_interface::<ConfirmedChapterVisualPlanView>("ConfirmedChapterVisualPlanView"),
+        &typescript_interface::<ChapterVisualPlanProposalView>("ChapterVisualPlanProposalView"),
         &typescript_enum::<ChapterShootingScriptSchemaVersion>(
             "ChapterShootingScriptSchemaVersion",
         ),
@@ -854,11 +967,16 @@ fn main() {
         &typescript_interface::<ShootingPerformanceBeatV1>("ShootingPerformanceBeatV1"),
         &typescript_interface::<ShootingDialogueCueV1>("ShootingDialogueCueV1"),
         &typescript_interface::<ShootingSoundDesignV1>("ShootingSoundDesignV1"),
+        &typescript_interface::<ShootingVisualPlanSourceV1>("ShootingVisualPlanSourceV1"),
+        &typescript_interface::<ShootingVisualConstraintsV1>("ShootingVisualConstraintsV1"),
         &typescript_interface::<ShootingShotV1>("ShootingShotV1"),
         &typescript_interface::<ShootingSceneV1>("ShootingSceneV1"),
         &typescript_interface::<ChapterShootingScriptV1>("ChapterShootingScriptV1"),
         &typescript_interface::<ChapterShootingScriptSourceInput>(
             "ChapterShootingScriptSourceInput",
+        ),
+        &typescript_interface::<GenerateChapterShootingScriptInput>(
+            "GenerateChapterShootingScriptInput",
         ),
         &typescript_interface::<EditChapterShootingScriptInput>("EditChapterShootingScriptInput"),
         &typescript_interface::<ChapterShootingScriptRecordSummary>(
@@ -929,16 +1047,18 @@ fn main() {
         Some("--write") => {
             write_generated("theme.ts", &theme_output);
             write_generated("auth.ts", &auth_output);
+            write_generated("page.ts", &page_output);
             write_generated("config.ts", &config_output);
             write_generated("host.ts", &host_output);
         }
         Some("--check") => {
             check_generated("theme.ts", &theme_output);
             check_generated("auth.ts", &auth_output);
+            check_generated("page.ts", &page_output);
             check_generated("config.ts", &config_output);
             check_generated("host.ts", &host_output);
         }
-        _ => print!("{theme_output}{auth_output}{config_output}{host_output}"),
+        _ => print!("{theme_output}{auth_output}{page_output}{config_output}{host_output}"),
     }
 }
 
@@ -1019,6 +1139,26 @@ fn typescript_enum<T: JsonSchema>(name: &str) -> String {
         })
         .collect::<Vec<_>>();
     format!("export type {name} = {};\n\n", variants.join(" | "))
+}
+
+fn typescript_theme_constants() -> String {
+    let routes = THEME_ROUTE_FAMILIES
+        .iter()
+        .map(|route| format!("{route:?}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let tokens = THEME_TOKEN_NAMES
+        .iter()
+        .map(|token| format!("{token:?}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "export const THEME_DOCUMENT_VERSION = {THEME_DOCUMENT_VERSION};\n\
+         export const THEME_GLOBAL_ROUTE_FAMILY = {THEME_GLOBAL_ROUTE_FAMILY:?};\n\
+         export const THEME_ROUTE_FAMILIES = [{routes}] as const;\n\
+         export type ThemeRouteFamily = (typeof THEME_ROUTE_FAMILIES)[number];\n\
+         export const THEME_TOKEN_NAMES = [{tokens}] as const;\n\n"
+    )
 }
 
 fn typescript_project_status() -> String {

@@ -9,10 +9,6 @@ pub enum RuntimeProfile {
 }
 
 impl RuntimeProfile {
-    pub fn from_env() -> Result<Self, AppError> {
-        Ok(Self::configured_from_env()?.unwrap_or_else(Self::default_for_build))
-    }
-
     pub fn configured_from_env() -> Result<Option<Self>, AppError> {
         optional_non_empty_env_string("A4N_RUNTIME_PROFILE")?
             .map(|value| Self::parse(&value))
@@ -27,7 +23,7 @@ impl RuntimeProfile {
         }
     }
 
-    pub fn parse(value: &str) -> Result<Self, AppError> {
+    pub(crate) fn parse(value: &str) -> Result<Self, AppError> {
         match value.trim().to_ascii_lowercase().as_str() {
             "" => Err(AppError::ConfigError(
                 "A4N_RUNTIME_PROFILE 不能为空；可选值: full, minimal, sidecar".to_string(),
@@ -77,7 +73,7 @@ impl RuntimeProfile {
         matches!(self, Self::Full)
     }
 
-    pub fn uses_sidecars(self) -> bool {
+    pub(crate) fn uses_sidecars(self) -> bool {
         matches!(self, Self::Sidecar)
     }
 

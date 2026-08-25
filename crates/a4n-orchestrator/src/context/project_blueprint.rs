@@ -1,4 +1,4 @@
-use a4n_api_contract::blueprint::SaveBlueprintInput;
+use a4n_api_contract::blueprint::{BlueprintSummary, BlueprintVersionSummary, SaveBlueprintInput};
 use a4n_core::event::bridge::InternalEvent;
 use a4n_core::{
     error::AppError,
@@ -12,8 +12,7 @@ use serde_json::{Map, Value};
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
 use crate::project::{
-    BlueprintRestoreResult, blueprint_restore_error_to_app, project_mutation_error_to_app_error,
-    required_text,
+    blueprint_restore_error_to_app, project_mutation_error_to_app_error, required_text,
 };
 
 /// 项目蓝图读模型与生成/精炼写路径 owner。
@@ -76,7 +75,7 @@ impl ProjectBlueprintApplication {
         &self,
         project_id: i64,
         version: &str,
-    ) -> Result<BlueprintRestoreResult, AppError> {
+    ) -> Result<a4n_db::blueprint::VersionedBlueprintMutationResult, AppError> {
         a4n_db::project::restore_blueprint_version_record(self.connection(), project_id, version)
             .await
             .map_err(blueprint_restore_error_to_app)
@@ -104,11 +103,11 @@ impl ProjectBlueprintApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn novel_blueprint_for_user_validated(
+    pub async fn blueprint_summary_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<Option<(novel_blueprint::Model, bool)>, AppError> {
+    ) -> Result<Option<BlueprintSummary>, AppError> {
         self.verify_project_permission(
             project_id,
             user_id,
@@ -122,7 +121,7 @@ impl OrchestratorContext {
             .project_blueprint
             .sources_need_review(&blueprint)
             .await?;
-        Ok(Some((blueprint, needs_review)))
+        Ok(Some(blueprint_summary(blueprint, needs_review)))
     }
 
     pub async fn novel_blueprint_for_project(
@@ -132,25 +131,23 @@ impl OrchestratorContext {
         self.project_blueprint.current(project_id).await
     }
 
-    pub async fn blueprint_versions_for_user_validated(
+    pub async fn blueprint_version_summaries_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<Vec<blueprint_version::Model>, AppError> {
+    ) -> Result<Vec<BlueprintVersionSummary>, AppError> {
         self.verify_project_permission(
             project_id,
             user_id,
             crate::collaboration::ProjectAccessRole::Viewer,
         )
         .await?;
-        self.blueprint_versions_by_project(project_id).await
-    }
-
-    pub async fn blueprint_versions_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<blueprint_version::Model>, AppError> {
-        self.project_blueprint.versions(project_id).await
+        self.project_blueprint
+            .versions(project_id)
+            .await?
+            .into_iter()
+            .map(blueprint_version_summary)
+            .collect()
     }
 
     pub(crate) async fn blueprint_version_by_project_version(
@@ -165,7 +162,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         version: &str,
-    ) -> Result<BlueprintRestoreResult, AppError> {
+    ) -> Result<a4n_db::blueprint::VersionedBlueprintMutationResult, AppError> {
         let result = self.project_blueprint.restore(project_id, version).await?;
         // 事件在 DB 成功后由 context 发布，runtime 不再旁路 orchestrator 发事件。
         if let Some(status_change) = &result.status_change {
@@ -178,7 +175,7 @@ impl OrchestratorContext {
         }
         self.publish_internal_event(InternalEvent::BlueprintUpdated {
             project_id,
-            version: result.version.clone(),
+            version: result.blueprint.current_version.clone(),
         })?;
         Ok(result)
     }
@@ -213,7 +210,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         version: &str,
-    ) -> Result<BlueprintRestoreResult, AppError> {
+    ) -> Result<a4n_db::blueprint::VersionedBlueprintMutationResult, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.restore_blueprint_version_record(project_id, version)
@@ -316,6 +313,71 @@ impl OrchestratorContext {
     }
 }
 
+fn blueprint_summary(
+    blueprint: novel_blueprint::Model,
+    sources_need_review: bool,
+) -> BlueprintSummary {
+    BlueprintSummary {
+        id: blueprint.id,
+        project_id: blueprint.project_id,
+        title: blueprint.title,
+        genre: blueprint.genre,
+        style: blueprint.style,
+        tone: blueprint.tone,
+        target_audience: blueprint.target_audience,
+        one_sentence_summary: blueprint.one_sentence_summary,
+        full_synopsis: blueprint.full_synopsis,
+        world_setting: blueprint.world_setting,
+        current_version: blueprint.current_version,
+        total_chapters: blueprint.total_chapters,
+        chapters_per_part: blueprint.chapters_per_part,
+        source_review_status: if sources_need_review {
+            "needs_review"
+        } else {
+            "not_required"
+        }
+        .to_string(),
+    }
+}
+
+fn blueprint_version_summary(
+    version: blueprint_version::Model,
+) -> Result<BlueprintVersionSummary, AppError> {
+    Ok(BlueprintVersionSummary {
+        id: version.id,
+        version: version.version,
+        change_description: persisted_version_text(
+            version.change_description.as_deref(),
+            version.id,
+            "change_description",
+        )?,
+        created_at: version.created_at.to_string(),
+        created_by: persisted_version_text(
+            version.created_by.as_deref(),
+            version.id,
+            "created_by",
+        )?,
+    })
+}
+
+fn persisted_version_text(
+    value: Option<&str>,
+    version_id: i64,
+    field: &str,
+) -> Result<String, AppError> {
+    let value = value.ok_or_else(|| AppError::InvalidState {
+        current: format!("blueprint_version {version_id} 缺少 {field}"),
+        operation: "读取蓝图版本".to_string(),
+    })?;
+    if value.is_empty() || value.trim() != value {
+        return Err(AppError::InvalidState {
+            current: format!("blueprint_version {version_id} 的 {field} 非规范"),
+            operation: "读取蓝图版本".to_string(),
+        });
+    }
+    Ok(value.to_string())
+}
+
 fn blueprint_json_diff(left: &Value, right: &Value) -> Value {
     match (left, right) {
         (Value::Object(left), Value::Object(right)) => {
@@ -345,7 +407,10 @@ fn blueprint_json_diff(left: &Value, right: &Value) -> Value {
 
 #[cfg(test)]
 mod version_diff_tests {
-    use super::blueprint_json_diff;
+    use a4n_core::models::project::blueprint_version;
+    use chrono::NaiveDate;
+
+    use super::{blueprint_json_diff, blueprint_version_summary};
     use serde_json::json;
 
     #[test]
@@ -365,5 +430,50 @@ mod version_diff_tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn blueprint_version_summary_rejects_missing_or_noncanonical_metadata() {
+        let version = blueprint_version::Model {
+            id: 7,
+            project_id: 3,
+            version: "1.0".to_string(),
+            change_description: Some("自动生成首版蓝图".to_string()),
+            blueprint_data: json!({}),
+            created_at: NaiveDate::from_ymd_opt(2026, 1, 1)
+                .unwrap()
+                .and_hms_opt(0, 0, 0)
+                .unwrap(),
+            created_by: Some("system".to_string()),
+        };
+        let summary = blueprint_version_summary(version.clone()).unwrap();
+        assert_eq!(summary.change_description, "自动生成首版蓝图");
+        assert_eq!(summary.created_by, "system");
+
+        for (change_description, created_by, expected) in [
+            (None, version.created_by.clone(), "缺少 change_description"),
+            (
+                Some(" 自动生成首版蓝图 ".to_string()),
+                version.created_by.clone(),
+                "change_description 非规范",
+            ),
+            (version.change_description.clone(), None, "缺少 created_by"),
+            (
+                version.change_description.clone(),
+                Some(" system ".to_string()),
+                "created_by 非规范",
+            ),
+        ] {
+            let mut invalid = version.clone();
+            invalid.change_description = change_description;
+            invalid.created_by = created_by;
+            assert!(
+                blueprint_version_summary(invalid)
+                    .err()
+                    .unwrap()
+                    .to_string()
+                    .contains(expected)
+            );
+        }
     }
 }

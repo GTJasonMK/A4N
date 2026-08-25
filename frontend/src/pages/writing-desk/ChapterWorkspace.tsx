@@ -1,19 +1,48 @@
-import React, { useEffect, useLayoutEffect, useRef } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef } from "react";
+import { AlertTriangle, CheckCircle2, CircleDot, Settings } from "lucide-react";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
 import type { ChapterRow } from "../novel-detail/shared";
-import { ImagesTab } from "../novel-detail/ImagesTab";
-import { ShootingScriptTab } from "../novel-detail/ShootingScriptTab";
-import { AnalysisSubTab } from "./AnalysisSubTab";
-import { InlineOptimizationPatchPreview } from "./InlineOptimizationPatchPreview";
 import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
-import { getOperationStatusLabel } from "../../utils/workflowPresentation";
+import {
+  getChapterSyncFailurePresentation,
+  getOperationStatusLabel,
+} from "../../utils/workflowPresentation";
 import { BookButton } from "../../components/ui/BookButton";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { formatNumber, useI18n, type MessageKey } from "../../i18n";
+
+const AnalysisSubTab = lazy(() =>
+  import("./AnalysisSubTab").then((module) => ({
+    default: module.AnalysisSubTab,
+  })),
+);
+const ImagesTab = lazy(() =>
+  import("../novel-detail/ImagesTab").then((module) => ({
+    default: module.ImagesTab,
+  })),
+);
+const ChapterVisualPlanTab = lazy(() =>
+  import("../novel-detail/ChapterVisualPlanTab").then((module) => ({
+    default: module.ChapterVisualPlanTab,
+  })),
+);
+const ShootingScriptTab = lazy(() =>
+  import("../novel-detail/ShootingScriptTab").then((module) => ({
+    default: module.ShootingScriptTab,
+  })),
+);
+const InlineOptimizationPatchPreview = lazy(() =>
+  import("./InlineOptimizationPatchPreview").then((module) => ({
+    default: module.InlineOptimizationPatchPreview,
+  })),
+);
 
 export type BottomTab =
   | "content"
   | "analysis"
   | "images"
+  | "visual_plan"
   | "shooting_script";
 
 interface ChapterWorkspaceProps {
@@ -26,6 +55,8 @@ interface ChapterWorkspaceProps {
   activeChapterGeneratingMessage: string;
   analysisBlockedReason: string | null;
   editorContent: string;
+  dirty: boolean;
+  savingContent: boolean;
   optimizationPatchPreview: OptimizationPatchPreviewController | null;
   autoScrollEditorContent: boolean;
   wordCount: number;
@@ -38,14 +69,16 @@ interface ChapterWorkspaceProps {
   onResumeAnalysisSync: () => void | Promise<void>;
   onPreviewResumeAnalysisSync: () => void | Promise<void>;
   onResumeDerivedSync: () => void | Promise<void>;
+  onOpenEmbeddingSettings: () => void | Promise<void>;
   canEdit: boolean;
 }
 
-const TABS: ReadonlyArray<readonly [BottomTab, string]> = [
-  ["content", "正文"],
-  ["analysis", "分析"],
-  ["images", "图像"],
-  ["shooting_script", "剧本改编"],
+const TABS: ReadonlyArray<readonly [BottomTab, MessageKey]> = [
+  ["content", "writing.body"],
+  ["analysis", "writing.analysis"],
+  ["images", "writing.images"],
+  ["visual_plan", "writing.visualPlan"],
+  ["shooting_script", "shootingScript.title"],
 ];
 
 const selectedChapterTitle = (
@@ -71,6 +104,8 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   activeChapterGeneratingMessage,
   analysisBlockedReason,
   editorContent,
+  dirty,
+  savingContent,
   optimizationPatchPreview,
   autoScrollEditorContent,
   wordCount,
@@ -83,8 +118,10 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   onResumeAnalysisSync,
   onPreviewResumeAnalysisSync,
   onResumeDerivedSync,
+  onOpenEmbeddingSettings,
   canEdit,
 }) => {
+  const { locale, t } = useI18n();
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
   const shouldAutoScrollRef = useRef(true);
   const lastScrollTopRef = useRef(0);
@@ -94,6 +131,13 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   );
   const derivedSyncFailed = derivedSyncIncomplete &&
     activeChapter?.derived_sync_status !== "running";
+  const derivedSyncFailure = derivedSyncFailed
+    ? getChapterSyncFailurePresentation(
+        activeChapter?.derived_sync_error,
+        t("writing.syncIncomplete"),
+        t,
+      )
+    : null;
 
   const editorIsNearBottom = () => {
     const editor = editorRef.current;
@@ -135,59 +179,116 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
   }, [autoScrollEditorContent, bottomTab, editorContent]);
 
   return (
-    <section aria-label="章节编辑区" className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-book-bg p-2.5 sm:p-3">
+    <section aria-label={t("writing.editArea")} className="a4n-writing-workspace flex min-h-0 min-w-0 flex-col overflow-hidden p-2.5 sm:p-3">
       {activeNumber == null ? (
         <div className="a4n-empty-state a4n-empty-state--compact m-auto text-sm">
-          请从左侧选择一章
+          {t("writing.chooseFromSidebar")}
         </div>
       ) : (
         <>
           <div className="mb-2.5 flex min-w-0 shrink-0 flex-wrap items-center gap-2">
-            <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-body-lg font-semibold text-book-text-main">
-              {selectedChapterTitle(activeChapter, activeOutline) || `第 ${activeNumber} 章`}
+            <h2 className="min-w-0 flex-1 truncate px-1 py-1 font-serif text-base font-semibold text-book-text-main">
+              {selectedChapterTitle(activeChapter, activeOutline) || t("writing.chapterLabel", { number: activeNumber })}
             </h2>
             <div className="flex min-w-0 shrink-0 items-center gap-2">
               <span className="text-small text-book-text-muted">
-                {wordCount.toLocaleString()} 字
+                {formatNumber(wordCount, locale)} {t("units.words")}
                 {activeChapter?.status
-                  ? ` · ${getOperationStatusLabel(activeChapter.status)}`
-                  : ""}
+                  ? ` · ${getOperationStatusLabel(activeChapter.status, locale)}`
+                    : ""}
               </span>
+              {activeChapter ? (
+                <span
+                  className="a4n-writing-save-state"
+                  data-state={savingContent ? "saving" : dirty ? "dirty" : "saved"}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {savingContent ? (
+                    <LoadingSpinner size="sm" />
+                  ) : dirty ? (
+                    <CircleDot size={12} aria-hidden="true" />
+                  ) : (
+                    <CheckCircle2 size={12} aria-hidden="true" />
+                  )}
+                  <span>
+                    {savingContent
+                      ? t("writing.savingChapterBody")
+                      : dirty
+                        ? t("writing.unsavedChanges")
+                        : t("writing.savedChanges")}
+                  </span>
+                </span>
+              ) : null}
             </div>
           </div>
 
           {activeChapter && derivedSyncIncomplete ? (
             <div
-              className={`mb-2.5 flex shrink-0 flex-wrap items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+              role={derivedSyncFailed ? "alert" : "status"}
+              className={`mb-2.5 flex shrink-0 flex-wrap items-start gap-2 rounded-xl border px-3 py-2.5 ${
                 derivedSyncFailed
-                  ? "border-error/35 bg-error/5 text-error"
+                  ? "border-error/35 bg-error-bg/70 text-book-text-main"
                   : "border-book-border bg-book-bg-paper text-book-text-muted"
               }`}
             >
-              <span className="min-w-0 flex-1">
-                {derivedSyncFailed
-                  ? activeChapter.derived_sync_error ||
-                    "正文已保存，但角色状态、场景索引或资料检索副本尚未同步完成。"
-                  : "正文已保存，正在使旧角色状态、场景和检索索引失效。"}
-              </span>
-              {activeChapter.derived_sync_can_resume ? (
-                <BookButton
-                  variant="secondary"
-                  size="sm"
-                  onClick={onResumeDerivedSync}
-                >
-                  重试资料同步
-                </BookButton>
+              {derivedSyncFailed ? (
+                <AlertTriangle
+                  size={16}
+                  className="mt-0.5 shrink-0 text-error"
+                  aria-hidden="true"
+                />
               ) : null}
+              <div className="min-w-0 flex-1">
+                <p className="text-small font-semibold text-book-text-main">
+                  {derivedSyncFailed ? t("writing.syncIncomplete") : t("writing.syncingMaterials")}
+                </p>
+                <p className="mt-0.5 text-small leading-relaxed text-book-text-sub">
+                  {derivedSyncFailure?.summary ??
+                    t("writing.syncDescription")}
+                </p>
+                {derivedSyncFailure?.detail ? (
+                  <details className="mt-1.5 text-caption text-book-text-muted">
+                    <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">
+                      {t("writing.diagnostics")}
+                    </summary>
+                    <pre className="mt-1.5 max-h-28 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-book-bg/70 p-2 font-mono leading-relaxed custom-scrollbar">
+                      {derivedSyncFailure.detail}
+                    </pre>
+                  </details>
+                ) : null}
+              </div>
+              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+                {derivedSyncFailure?.recommendedAction ===
+                "embedding_settings" ? (
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={onOpenEmbeddingSettings}
+                  >
+                    <Settings size={13} aria-hidden="true" />
+                    {t("writing.checkEmbedding")}
+                  </BookButton>
+                ) : null}
+                {activeChapter.derived_sync_can_resume ? (
+                  <BookButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={onResumeDerivedSync}
+                  >
+                    {t("writing.retryMaterialSync")}
+                  </BookButton>
+                ) : null}
+              </div>
             </div>
           ) : null}
 
           <nav
-            className="tab-bar flex min-w-0 shrink-0 flex-wrap border-b border-book-border/80 bg-book-bg-paper/70"
+            className="a4n-writing-tabs tab-bar flex min-w-0 shrink-0 border-b border-book-border/80"
             role="tablist"
-            aria-label="章节工作区"
+            aria-label={t("writing.chapterWorkspace")}
           >
-            {TABS.map(([id, label]) => (
+            {TABS.map(([id, labelKey]) => (
               <button
                 key={id}
                 type="button"
@@ -197,17 +298,22 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                 data-active={bottomTab === id ? "1" : undefined}
                 className="pyqt-tab"
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
           </nav>
 
-          <div className="mt-2 min-h-0 min-w-0 flex-1">
+          <div
+            key={bottomTab}
+            className="a4n-writing-tab-panel mt-2 min-h-0 min-w-0 flex-1"
+          >
             {bottomTab === "content" && (
               optimizationPatchPreview ? (
-                <InlineOptimizationPatchPreview
-                  preview={optimizationPatchPreview}
-                />
+                <Suspense fallback={<WorkspaceTabFallback text={t("common.loading")} />}>
+                  <InlineOptimizationPatchPreview
+                    preview={optimizationPatchPreview}
+                  />
+                </Suspense>
               ) : (
                 <textarea
                   ref={editorRef}
@@ -218,62 +324,79 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
                   title={activeChapterBusy ? activeChapterGeneratingMessage : undefined}
                   placeholder={
                     activeChapter
-                      ? "开始写作…"
-                      : "本章尚未生成。可打开右侧『资料检索』或『正文优化』，也可以直接输入正文。"
+                      ? t("writing.startWriting")
+                      : t("writing.chapterNotGenerated")
                   }
-                  aria-label="章节正文"
+                  aria-label={t("writing.chapterBody")}
                   className="book-control block h-full w-full resize-none rounded-xl px-4 py-3 font-serif text-sm leading-[2] !shadow-none sm:px-5 sm:py-4"
                 />
               )
             )}
             {bottomTab === "analysis" && activeChapter && (
-              <AnalysisSubTab
-                projectId={projectId}
-                chapterNumber={activeChapter.chapter_number}
-                analysis={activeChapter.analysis_data}
-                materialSync={activeChapter.material_sync}
-                materialUpdates={activeChapter.material_updates}
-                analysisSyncStatus={activeChapter.analysis_sync_status}
-                analysisSyncError={activeChapter.analysis_sync_error}
-                analysisSyncHasSavedAnalysis={
-                  activeChapter.analysis_sync_has_saved_analysis
-                }
-                generating={generatingAnalysis}
-                analysisBlockedReason={analysisBlockedReason}
-                canGenerate={
-                  !activeChapterBusy &&
-                  !!activeChapter.content.trim() &&
-                  !analysisBlockedReason
-                }
-                onGenerate={onGenerateAnalysis}
-                onPreviewGenerate={onPreviewGenerateAnalysis}
-                canResumeSync={
-                  !activeChapterBusy &&
-                  !!activeChapter.content.trim() &&
-                  !analysisBlockedReason &&
-                  activeChapter.analysis_sync_can_resume
-                }
-                onResumeSync={onResumeAnalysisSync}
-                onPreviewResumeSync={onPreviewResumeAnalysisSync}
-              />
+              <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingAnalysis")} />}>
+                <AnalysisSubTab
+                  projectId={projectId}
+                  chapterNumber={activeChapter.chapter_number}
+                  analysis={activeChapter.analysis_data}
+                  materialSync={activeChapter.material_sync}
+                  materialUpdates={activeChapter.material_updates}
+                  analysisSyncStatus={activeChapter.analysis_sync_status}
+                  analysisSyncError={activeChapter.analysis_sync_error}
+                  analysisSyncHasSavedAnalysis={
+                    activeChapter.analysis_sync_has_saved_analysis
+                  }
+                  generating={generatingAnalysis}
+                  analysisBlockedReason={analysisBlockedReason}
+                  canGenerate={
+                    !activeChapterBusy &&
+                    !!activeChapter.content.trim() &&
+                    !analysisBlockedReason
+                  }
+                  onGenerate={onGenerateAnalysis}
+                  onPreviewGenerate={onPreviewGenerateAnalysis}
+                  canResumeSync={
+                    !activeChapterBusy &&
+                    !!activeChapter.content.trim() &&
+                    !analysisBlockedReason &&
+                    activeChapter.analysis_sync_can_resume
+                  }
+                  onResumeSync={onResumeAnalysisSync}
+                  onPreviewResumeSync={onPreviewResumeAnalysisSync}
+                />
+              </Suspense>
             )}
             {bottomTab === "images" && (
               <div className="h-full min-h-0 overflow-y-auto custom-scrollbar">
-                <ImagesTab projectId={projectId} fixedChapter={activeChapterContext} />
+                <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingImages")} />}>
+                  <ImagesTab projectId={projectId} fixedChapter={activeChapterContext} />
+                </Suspense>
+              </div>
+            )}
+            {bottomTab === "visual_plan" && (
+              <div className="h-full min-h-0 overflow-y-auto custom-scrollbar lg:overflow-hidden">
+                <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingVisualPlan")} />}>
+                  <ChapterVisualPlanTab
+                    projectId={projectId}
+                    canEdit={canEdit}
+                    chapter={activeChapter}
+                  />
+                </Suspense>
               </div>
             )}
             {bottomTab === "shooting_script" && (
               <div className="h-full min-h-0 overflow-y-auto custom-scrollbar">
-                <ShootingScriptTab
-                  projectId={projectId}
-                  canEdit={canEdit}
-                  chapter={activeChapter}
-                />
+                <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingShootingScript")} />}>
+                  <ShootingScriptTab
+                    projectId={projectId}
+                    canEdit={canEdit}
+                    chapter={activeChapter}
+                  />
+                </Suspense>
               </div>
             )}
             {bottomTab === "analysis" && !activeChapter && (
               <div className="a4n-empty-state a4n-empty-state--compact m-auto text-xs">
-                请先选择已生成的章节
+                {t("writing.chooseGeneratedChapter")}
               </div>
             )}
           </div>
@@ -282,3 +405,10 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
     </section>
   );
 };
+
+const WorkspaceTabFallback: React.FC<{ text: string }> = ({ text }) => (
+  <div className="flex h-full min-h-40 items-center justify-center text-xs text-book-text-muted">
+    <LoadingSpinner size="sm" className="mr-2" />
+    {text}
+  </div>
+);

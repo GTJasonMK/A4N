@@ -1,4 +1,8 @@
 use super::super::contracts::*;
+use super::super::{
+    MangaPageGenerationLayoutV2, MangaPagePromptSourceSummary, MangaReferenceBindingSummary,
+};
+use serde_json::json;
 
 fn beat_ref() -> MangaShootingBeatRefV3 {
     MangaShootingBeatRefV3 {
@@ -85,4 +89,45 @@ fn rejects_panel_beat_outside_page() {
 
     let error = plan.validate().expect_err("foreign beat ref must fail");
     assert_eq!(error.path, "pages[0].panels[0].beat_refs");
+}
+
+#[test]
+fn page_generation_layout_keeps_script_identity_only_in_source() {
+    let page = valid_plan().pages.remove(0);
+    let mut layout = MangaPageGenerationLayoutV2 {
+        schema_version: MangaPageGenerationSchemaVersion::V2,
+        page_plan: page,
+        drawing_prompt: MangaPageDrawingPromptV2 {
+            schema_version: MangaPageDrawingPromptSchemaVersion::V2,
+            page_number: 1,
+            image_prompt: "整页漫画".to_string(),
+        },
+        reference_bindings: vec![MangaReferenceBindingSummary {
+            character_name: "主角".to_string(),
+            bound_asset: None,
+        }],
+        prompt_fingerprint: json!({"sha256": "fingerprint"}),
+        source: MangaPagePromptSourceSummary {
+            root_project_id: 1,
+            source_chapter_id: 2,
+            source_snapshot_id: None,
+            source_snapshot_chapter_id: None,
+            source_revision_key: "live:2:content".to_string(),
+            content_sha256: "content".to_string(),
+            shooting_script_id: 3,
+            shooting_script_revision: 1,
+            shooting_script_sha256: "script".to_string(),
+        },
+    };
+
+    layout.validate(1).expect("canonical layout should pass");
+    let serialized = serde_json::to_value(&layout).expect("layout should serialize");
+    assert!(serialized.get("shooting_script_id").is_none());
+    assert!(serialized.get("shooting_script_revision").is_none());
+
+    layout.source.shooting_script_id = 0;
+    let error = layout
+        .validate(1)
+        .expect_err("invalid source script identity must fail");
+    assert_eq!(error.path, "source.shooting_script_id");
 }

@@ -11,6 +11,7 @@ import {
   CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT,
 } from "../../api/canvas";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { useI18n } from "../../i18n";
 import {
   canvasDataTypeLabel,
   edgeRoleLabel,
@@ -18,7 +19,6 @@ import {
   nodePreviewSrc,
   nodeValidationIssues,
 } from "./StudioCanvasNode";
-import { nodeHasContentPreview } from "./CanvasNodeContentPreviewDialog";
 import {
   configNumber,
   configObject,
@@ -31,7 +31,7 @@ import {
   type StudioConfigOptionsByKind,
 } from "./canvasConfig";
 import { assembleClipEdges, edgeOrderIndex } from "./canvasAssemblyEdges";
-import { isProbeNodeKind } from "./canvasNodeKinds";
+import { isProbeNodeKind, nodeHasContentPreview } from "./canvasNodeKinds";
 import {
   CANVAS_REF_TYPE_GENERATED_IMAGE,
   CANVAS_REF_TYPE_GENERATED_VIDEO,
@@ -43,6 +43,7 @@ import {
 } from "./canvasNodeRefs";
 import {
   parseGenerateVideoInputMode,
+  studioPortLabel,
   studioNodeInputPortsForData,
   studioNodeOutputPortsForData,
   useStudioNodeContract,
@@ -52,12 +53,6 @@ import type { StudioEdge, StudioNode } from "./types";
 const INSPECTOR_CONTROL_CLASS =
   "pyqt-input mt-1 w-full !px-2.5 !py-1.5 text-xs";
 const INSPECTOR_TEXTAREA_CLASS = `${INSPECTOR_CONTROL_CLASS} resize-none leading-relaxed`;
-const CANVAS_INPUT_REFERENCE_LABELS: Record<string, string> = {
-  [CANVAS_REF_TYPE_GENERATED_IMAGE]: "图片资源编号",
-  [CANVAS_REF_TYPE_GENERATED_VIDEO]: "视频资源编号",
-  [CANVAS_REF_TYPE_MEDIA_ASSET]: "音频资源编号",
-};
-
 interface NodeConfigEditorProps {
   node: StudioNode;
   nodes: StudioNode[];
@@ -85,7 +80,8 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
   configOptions,
   onPreviewContent,
 }) => {
-  const issues = nodeValidationIssues(node.data);
+  const { t } = useI18n();
+  const issues = nodeValidationIssues(node.data, t);
   const previewSrc = nodePreviewSrc(node.data);
   return (
     <div className="space-y-3 text-xs">
@@ -106,10 +102,10 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           ))}
         </div>
       ) : null}
-      <InspectorSection title="输入">
+      <InspectorSection title={t("video.canvas.inspector.input")}>
         <NodeInputSummary node={node} nodes={nodes} edges={edges} />
       </InspectorSection>
-      <InspectorSection title="参数">
+      <InspectorSection title={t("video.canvas.inspector.parameters")}>
         <NodeConfigEditor
           node={node}
           nodes={nodes}
@@ -121,15 +117,15 @@ export const NodeInspector: React.FC<NodeInspectorProps> = ({
           configOptions={configOptions}
         />
       </InspectorSection>
-      <InspectorSection title="输出">
+      <InspectorSection title={t("video.canvas.inspector.output")}>
         <NodeOutputSummary node={node} onPreviewContent={onPreviewContent} />
       </InspectorSection>
       <details className="border-t border-book-border/70 pt-3 text-caption text-book-text-muted">
-        <summary className="cursor-pointer">诊断信息</summary>
+        <summary className="cursor-pointer">{t("video.canvas.inspector.diagnostics")}</summary>
         <div className="mt-2 grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-xl bg-book-bg-tertiary/45 p-2.5">
-          <span>节点编号</span>
+          <span>{t("video.canvas.inspector.nodeId")}</span>
           <span className="font-mono text-book-text-sub">{node.id}</span>
-          <span>节点类型</span>
+          <span>{t("video.canvas.inspector.nodeType")}</span>
           <span className="break-all font-mono text-book-text-sub">{node.data.nodeKind}</span>
         </div>
       </details>
@@ -149,24 +145,32 @@ const NodeInputSummary: React.FC<{ node: StudioNode; nodes: StudioNode[]; edges:
   nodes,
   edges,
 }) => {
+  const { t } = useI18n();
   const contract = useStudioNodeContract(node.data.nodeKind);
   if (!contract) {
-    return <div className="text-small text-warning">节点合同缺失：{node.data.nodeKind}</div>;
+    return <div className="text-small text-warning">{t("video.canvas.inspector.missingContract", { kind: node.data.nodeKind })}</div>;
   }
   const inputPorts = studioNodeInputPortsForData(node.data, contract);
   if (inputPorts.length === 0) {
-    return <div className="text-small text-book-text-muted">该节点是输入源，不需要上游输入。</div>;
+    return <div className="text-small text-book-text-muted">{t("video.canvas.inspector.inputNodeHint")}</div>;
   }
   const nodesById = new Map(nodes.map((item) => [item.id, item]));
+  const incomingByPort = new Map<string, StudioEdge[]>();
+  for (const edge of edges) {
+    if (edge.target !== node.id || edge.targetHandle == null) continue;
+    const rows = incomingByPort.get(edge.targetHandle) ?? [];
+    rows.push(edge);
+    incomingByPort.set(edge.targetHandle, rows);
+  }
   return (
     <div className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
       {inputPorts.map((port) => {
-        const incoming = edges.filter((edge) => edge.target === node.id && edge.targetHandle === port.id);
+        const incoming = incomingByPort.get(port.id) ?? [];
         return (
           <section key={port.id} className="p-2.5">
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="font-medium text-book-text-main">{port.label}</span>
-              <span className="text-caption text-book-text-muted">{canvasDataTypeLabel(port.data_type)}</span>
+              <span className="font-medium text-book-text-main">{studioPortLabel(node.data.nodeKind, port, t)}</span>
+              <span className="text-caption text-book-text-muted">{canvasDataTypeLabel(port.data_type, t)}</span>
             </div>
             {incoming.length > 0 ? (
               <div className="space-y-1">
@@ -176,16 +180,16 @@ const NodeInputSummary: React.FC<{ node: StudioNode; nodes: StudioNode[]; edges:
                     <div
                       key={edge.id}
                       className="truncate text-small text-book-text-sub"
-                      title={`${source ? nodeDisplayTitle(source.data) : edge.source} · ${edge.sourceHandle ?? "默认输出"}`}
+                      title={`${source ? nodeDisplayTitle(source.data, t) : edge.source} · ${edge.sourceHandle ?? t("video.canvas.inspector.defaultOutput")}`}
                     >
-                      {source ? nodeDisplayTitle(source.data) : edge.source}
+                      {source ? nodeDisplayTitle(source.data, t) : edge.source}
                     </div>
                   );
                 })}
               </div>
             ) : (
               <div className={`text-small ${port.required ? "text-warning" : "text-book-text-muted"}`}>
-                {port.required ? "缺少必需输入" : "未连接"}
+                {port.required ? t("video.canvas.inspector.requiredInput") : t("video.canvas.inspector.notConnected")}
               </div>
             )}
           </section>
@@ -199,11 +203,12 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
   node,
   onPreviewContent,
 }) => {
+  const { t } = useI18n();
   const contract = useStudioNodeContract(node.data.nodeKind);
   const renderedPrompt = configText(node.data.config, "prompt_text").trim();
   const filePath = configText(node.data.config, "file_path").trim();
   const thumbnailPath = configText(node.data.config, "thumbnail_path").trim();
-  const reference = node.data.refType ? "已关联" : "";
+  const reference = node.data.refType ? t("video.canvas.inspector.linked") : "";
   const mediaAssetId =
     configPositiveNumber(node.data.config, "media_asset_id") ??
     nodeMediaAssetRefId(node.data);
@@ -216,48 +221,48 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
   const outputPorts = contract ? studioNodeOutputPortsForData(node.data, contract) : [];
 
   if (!contract) {
-    return <div className="text-small text-warning">节点合同缺失：{node.data.nodeKind}</div>;
+    return <div className="text-small text-warning">{t("video.canvas.inspector.missingContract", { kind: node.data.nodeKind })}</div>;
   }
   if (contract.category === "operation") {
-    return <FunctionalNodeOutputSummary outputPorts={outputPorts} />;
+    return <FunctionalNodeOutputSummary nodeKind={node.data.nodeKind} outputPorts={outputPorts} />;
   }
   const output = configObject(node.data.config, "output");
   const outputRows = [
-    ["引用", reference],
-    ["媒体", mediaAssetId ? "已绑定" : ""],
-    ["图片", generatedImageId ? "已生成" : ""],
-    ["视频", generatedVideoId ? "已生成" : ""],
-    ["文件", filePath ? fileName(filePath) : ""],
-    ["缩略图", thumbnailPath ? fileName(thumbnailPath) : ""],
+    [t("video.canvas.inspector.reference"), reference],
+    [t("video.canvas.inspector.media"), mediaAssetId ? t("video.canvas.inspector.bound") : ""],
+    [t("video.canvas.inspector.image"), generatedImageId ? t("video.canvas.inspector.generated") : ""],
+    [t("video.canvas.inspector.video"), generatedVideoId ? t("video.canvas.inspector.generated") : ""],
+    [t("video.canvas.inspector.file"), filePath ? fileName(filePath) : ""],
+    [t("video.canvas.inspector.thumbnail"), thumbnailPath ? fileName(thumbnailPath) : ""],
   ].filter((row): row is [string, string] => typeof row[1] === "string" && row[1].trim().length > 0);
   const technicalRows = [
-    ["引用", node.data.refType ? `${node.data.refType} #${node.data.refId ?? "-"}` : ""],
-    ["媒体编号", mediaAssetId ? String(mediaAssetId) : ""],
-    ["图片编号", generatedImageId ? String(generatedImageId) : ""],
-    ["视频编号", generatedVideoId ? String(generatedVideoId) : ""],
-    ["文件路径", filePath],
-    ["缩略图路径", thumbnailPath],
+    [t("video.canvas.inspector.reference"), node.data.refType ? `${node.data.refType} #${node.data.refId ?? "-"}` : ""],
+    [t("video.canvas.inspector.mediaId"), mediaAssetId ? String(mediaAssetId) : ""],
+    [t("video.canvas.inspector.imageId"), generatedImageId ? String(generatedImageId) : ""],
+    [t("video.canvas.inspector.videoId"), generatedVideoId ? String(generatedVideoId) : ""],
+    [t("video.canvas.inspector.filePath"), filePath],
+    [t("video.canvas.inspector.thumbnailPath"), thumbnailPath],
   ].filter((row): row is [string, string] => row[1].trim().length > 0);
   if (outputPorts.length === 0 && contract.outputs.length > 0) {
-    return <div className="text-small text-book-text-muted">完成参数配置后显示可用输出端口。</div>;
+    return <div className="text-small text-book-text-muted">{t("video.canvas.inspector.outputPortsReady")}</div>;
   }
   if (outputPorts.length === 0 && outputRows.length === 0 && Object.keys(output).length === 0 && !renderedPrompt) {
-    return <div className="text-small text-book-text-muted">该节点是终点节点，运行后在这里显示最终交付结果。</div>;
+    return <div className="text-small text-book-text-muted">{t("video.canvas.inspector.terminalOutput")}</div>;
   }
   return (
     <div className="space-y-2">
       {nodeHasContentPreview(node) ? (
         <BookButton variant="secondary" size="sm" onClick={() => onPreviewContent(node)}>
           <Eye size={13} />
-          查看内容
+          {t("video.canvas.inspector.viewContent")}
         </BookButton>
       ) : null}
       {outputPorts.length > 0 ? (
         <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-small">
           {outputPorts.map((port) => (
             <React.Fragment key={port.id}>
-              <span className="text-book-text-muted">{port.label}</span>
-              <span className="text-book-text-main">{canvasDataTypeLabel(port.data_type)}</span>
+              <span className="text-book-text-muted">{studioPortLabel(node.data.nodeKind, port, t)}</span>
+              <span className="text-book-text-main">{canvasDataTypeLabel(port.data_type, t)}</span>
             </React.Fragment>
           ))}
         </div>
@@ -282,7 +287,7 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
       {technicalRows.length > 0 ? (
         <details className="rounded-xl bg-book-bg-tertiary/35">
           <summary className="cursor-pointer px-2.5 py-2 text-caption text-book-text-muted">
-            诊断信息
+            {t("video.canvas.inspector.diagnostics")}
           </summary>
           <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/40 px-2.5 py-2 text-caption">
             {technicalRows.map(([label, value]) => (
@@ -299,48 +304,51 @@ const NodeOutputSummary: React.FC<{ node: StudioNode; onPreviewContent: (node: S
 };
 
 const FunctionalNodeOutputSummary: React.FC<{
+  nodeKind: string;
   outputPorts: Array<{ id: string; label: string; data_type: string }>;
-}> = ({ outputPorts }) => {
+}> = ({ nodeKind, outputPorts }) => {
+  const { t } = useI18n();
   return (
     <div className="space-y-2">
       {outputPorts.length > 0 ? (
         <div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-small">
           {outputPorts.map((port) => (
             <React.Fragment key={port.id}>
-              <span className="text-book-text-muted">{port.label}</span>
-              <span className="text-book-text-main">{canvasDataTypeLabel(port.data_type)}</span>
+              <span className="text-book-text-muted">{studioPortLabel(nodeKind, port, t)}</span>
+              <span className="text-book-text-main">{canvasDataTypeLabel(port.data_type, t)}</span>
             </React.Fragment>
           ))}
         </div>
       ) : null}
-      <div className="text-small text-book-text-muted">操作节点只传递运行输出；最终结果在输出节点中展示。</div>
+      <div className="text-small text-book-text-muted">{t("video.canvas.inspector.operationOutput")}</div>
     </div>
   );
 };
 
-export const EdgeInspector: React.FC<{ edge: StudioEdge }> = ({ edge }) => (
-  <div className="space-y-2 text-xs">
-    <div className="border-b border-book-border/70 pb-3">
-      <div className="text-sm font-semibold text-book-text-main">{edgeRoleLabel(edge.data?.role ?? "")}</div>
-      <div className="mt-1 text-small text-book-text-muted">连接两个节点并传递运行结果</div>
-    </div>
-    <details className="rounded-xl border border-book-border/65 bg-book-bg-paper/65">
-      <summary className="cursor-pointer px-2.5 py-2 text-small text-book-text-muted">诊断信息</summary>
-      <div className="grid grid-cols-[70px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/50 px-2.5 py-2 text-small">
-        <span className="text-book-text-muted">连接类型</span>
-        <span className="font-mono text-book-text-main">{edge.data?.role ?? "-"}</span>
-        <span className="text-book-text-muted">来源端口</span>
-        <span className="truncate font-mono text-book-text-main">{edge.sourceHandle ?? "-"}</span>
-        <span className="text-book-text-muted">目标端口</span>
-        <span className="truncate font-mono text-book-text-main">{edge.targetHandle ?? "-"}</span>
-        <span className="text-book-text-muted">顺序</span>
-        <span className="truncate font-mono text-book-text-main">
-          {edgeOrderIndex(edge) ?? "-"}
-        </span>
+export const EdgeInspector: React.FC<{ edge: StudioEdge }> = ({ edge }) => {
+  const { t } = useI18n();
+  return (
+    <div className="space-y-2 text-xs">
+      <div className="border-b border-book-border/70 pb-3">
+        <div className="text-sm font-semibold text-book-text-main">{edgeRoleLabel(edge.data?.role ?? "", t)}</div>
+        <div className="mt-1 text-small text-book-text-muted">{t("video.canvas.inspector.edgeDescription")}</div>
       </div>
-    </details>
-  </div>
-);
+      <details className="rounded-xl border border-book-border/65 bg-book-bg-paper/65">
+        <summary className="cursor-pointer px-2.5 py-2 text-small text-book-text-muted">{t("video.canvas.inspector.diagnostics")}</summary>
+        <div className="grid grid-cols-[70px_minmax(0,1fr)] gap-x-2 gap-y-1 border-t border-book-border/50 px-2.5 py-2 text-small">
+          <span className="text-book-text-muted">{t("video.canvas.inspector.connectionType")}</span>
+          <span className="font-mono text-book-text-main">{edge.data?.role ?? "-"}</span>
+          <span className="text-book-text-muted">{t("video.canvas.inspector.sourcePort")}</span>
+          <span className="truncate font-mono text-book-text-main">{edge.sourceHandle ?? "-"}</span>
+          <span className="text-book-text-muted">{t("video.canvas.inspector.targetPort")}</span>
+          <span className="truncate font-mono text-book-text-main">{edge.targetHandle ?? "-"}</span>
+          <span className="text-book-text-muted">{t("video.canvas.inspector.order")}</span>
+          <span className="truncate font-mono text-book-text-main">{edgeOrderIndex(edge) ?? "-"}</span>
+        </div>
+      </details>
+    </div>
+  );
+};
 
 const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   node,
@@ -352,11 +360,10 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   onMoveAssembleClip,
   configOptions,
 }) => {
+  const { t } = useI18n();
   const config = node.data.config;
   const inputRefType = defaultRefTypeForNode(node.data.nodeKind);
-  const inputReferenceLabel = inputRefType
-    ? CANVAS_INPUT_REFERENCE_LABELS[inputRefType]
-    : undefined;
+  const inputReferenceLabel = inputRefType ? canvasInputReferenceLabel(inputRefType, t) : undefined;
   if (inputRefType && inputReferenceLabel) {
     return (
       <ReferenceEditor
@@ -371,7 +378,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "TextInputNode") {
     return (
       <label className="block text-caption text-book-text-muted">
-        文本
+        {t("video.canvas.inspector.text")}
         <textarea
           value={configText(config, "content")}
           onChange={(event) => onChange({ content: event.target.value, title: firstLine(event.target.value) })}
@@ -386,7 +393,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     return (
       <div className="space-y-3">
         <label className="block text-caption text-book-text-muted">
-          标题
+          {t("video.canvas.inspector.title")}
           <input
             type="text"
             value={configText(config, "title")}
@@ -396,15 +403,15 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           />
         </label>
         <label className="block text-caption text-book-text-muted">
-          展示模式
+          {t("video.canvas.inspector.displayMode")}
           <select
             value={configText(config, "display_mode") || "summary"}
             disabled={disabled}
             onChange={(event) => onChange({ display_mode: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
           >
-            <option value="summary">摘要</option>
-            <option value="detail">详细</option>
+            <option value="summary">{t("video.canvas.inspector.summary")}</option>
+            <option value="detail">{t("video.canvas.inspector.detail")}</option>
           </select>
         </label>
         <ProbeObservationSummary config={config} displayMode={configText(config, "display_mode") || "summary"} />
@@ -415,26 +422,26 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     return (
       <div className="space-y-2">
         <label className="block text-caption text-book-text-muted">
-          模板
+          {t("video.canvas.inspector.template")}
           <textarea
             value={configText(config, "template")}
-            onChange={(event) => onChange({ template: event.target.value, title: firstLine(event.target.value) || "渲染提示词" })}
+            onChange={(event) => onChange({ template: event.target.value, title: firstLine(event.target.value) || t("video.canvas.inspector.canvasPrompt") })}
             disabled={disabled}
             rows={7}
             className={INSPECTOR_TEXTAREA_CLASS}
           />
         </label>
         <label className="block text-caption text-book-text-muted">
-          文本类型
+          {t("video.canvas.inspector.textType")}
           <select
             value={configText(config, "output_kind")}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
           >
-            <option value={CANVAS_PROMPT_KIND}>画布提示词</option>
-            <option value={CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT}>视频文本</option>
-            <option value={CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT}>图片文本</option>
+            <option value={CANVAS_PROMPT_KIND}>{t("video.canvas.inspector.canvasPrompt")}</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT}>{t("video.canvas.inspector.videoText")}</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT}>{t("video.canvas.inspector.imageText")}</option>
           </select>
         </label>
       </div>
@@ -444,33 +451,33 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     return (
       <div className="space-y-3">
         <ConfigSelect
-          label="LLM配置"
+          label={t("video.canvas.inspector.llmConfig")}
           value={configPositiveNumber(config, "llm_config_id")}
           options={configOptions.llm}
           disabled={disabled}
           onChange={(value) => onChange({ llm_config_id: value })}
         />
-        <label className="block text-caption text-book-text-muted">指令</label>
+        <label className="block text-caption text-book-text-muted">{t("video.canvas.inspector.instruction")}</label>
         <textarea
           value={configText(config, "instruction")}
-          onChange={(event) => onChange({ instruction: event.target.value, title: firstLine(event.target.value) || "LLM改写" })}
+          onChange={(event) => onChange({ instruction: event.target.value, title: firstLine(event.target.value) || t("video.canvas.inspector.instruction") })}
           disabled={disabled}
           rows={5}
           className={`${INSPECTOR_TEXTAREA_CLASS} !mt-0`}
         />
         <label className="block text-caption text-book-text-muted">
-          输出类型
+          {t("video.canvas.inspector.outputType")}
           <select
             value={configText(config, "output_kind")}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
           >
-            <option value={CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT}>镜头脚本</option>
-            <option value={CANVAS_TEXT_OUTPUT_KIND_STORYBOARD}>分镜</option>
-            <option value={CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION}>视觉描述</option>
-            <option value={CANVAS_TEXT_OUTPUT_KIND_DIALOGUE}>对白</option>
-            <option value={CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN}>节奏计划</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_SHOT_SCRIPT}>{t("video.canvas.inspector.shotScript")}</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_STORYBOARD}>{t("video.canvas.inspector.storyboard")}</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION}>{t("video.canvas.inspector.visualDescription")}</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_DIALOGUE}>{t("video.canvas.inspector.dialogue")}</option>
+            <option value={CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN}>{t("video.canvas.inspector.rhythmPlan")}</option>
           </select>
         </label>
       </div>
@@ -481,28 +488,28 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     return (
       <div className="space-y-2">
         <ConfigSelect
-          label="视频配置"
+          label={t("video.canvas.inspector.videoConfig")}
           value={configPositiveNumber(config, "video_config_id")}
           options={configOptions.video}
           disabled={disabled}
           onChange={(value) => onChange({ video_config_id: value })}
         />
         <label className="block text-caption text-book-text-muted">
-          输入模式
+          {t("video.canvas.inspector.inputMode")}
           <select
             value={inputMode ?? ""}
             disabled={disabled}
             onChange={(event) => onChange({ input_mode: event.target.value })}
             className={INSPECTOR_CONTROL_CLASS}
           >
-            {inputMode == null ? <option value="" disabled>缺少输入模式</option> : null}
-            <option value="text_only">仅提示词</option>
-            <option value="first_frame">首帧</option>
-            <option value="first_end_frame">首尾帧</option>
-            <option value="reference_images">参考图</option>
+            {inputMode == null ? <option value="" disabled>{t("video.canvas.inspector.missingInputMode")}</option> : null}
+            <option value="text_only">{t("video.canvas.inspector.textOnly")}</option>
+            <option value="first_frame">{t("video.canvas.inspector.firstFrame")}</option>
+            <option value="first_end_frame">{t("video.canvas.inspector.firstEndFrame")}</option>
+            <option value="reference_images">{t("video.canvas.inspector.referenceImages")}</option>
           </select>
         </label>
-        <label className="block text-caption text-book-text-muted">负面提示词</label>
+        <label className="block text-caption text-book-text-muted">{t("video.canvas.inspector.negativePrompt")}</label>
         <textarea
           value={configText(config, "negative_prompt")}
           onChange={(event) => onChange({ negative_prompt: event.target.value })}
@@ -511,9 +518,9 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           className={`${INSPECTOR_TEXTAREA_CLASS} !mt-0`}
         />
         <div className="grid grid-cols-2 gap-2">
-          <NumberField label="宽" value={configNumber(config, "width")} disabled={disabled} onChange={(value) => onChange({ width: value })} />
-          <NumberField label="高" value={configNumber(config, "height")} disabled={disabled} onChange={(value) => onChange({ height: value })} />
-          <NumberField label="秒" value={configNumber(config, "duration_secs")} disabled={disabled} onChange={(value) => onChange({ duration_secs: value })} />
+          <NumberField label={t("video.canvas.inspector.width")} value={configNumber(config, "width")} disabled={disabled} onChange={(value) => onChange({ width: value })} />
+          <NumberField label={t("video.canvas.inspector.height")} value={configNumber(config, "height")} disabled={disabled} onChange={(value) => onChange({ height: value })} />
+          <NumberField label={t("video.canvas.inspector.seconds")} value={configNumber(config, "duration_secs")} disabled={disabled} onChange={(value) => onChange({ duration_secs: value })} />
           <NumberField label="FPS" value={configNumber(config, "fps")} disabled={disabled} onChange={(value) => onChange({ fps: value })} />
         </div>
       </div>
@@ -522,7 +529,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "GenerateImageNode") {
     return (
       <ConfigSelect
-        label="图片配置"
+        label={t("video.canvas.inspector.imageConfig")}
         value={configPositiveNumber(config, "image_config_id")}
         options={configOptions.image}
         disabled={disabled}
@@ -533,7 +540,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "VideoOutputNode") {
     return (
       <label className="block text-caption text-book-text-muted">
-        输出标题
+        {t("video.canvas.inspector.outputTitle")}
         <input
           type="text"
           value={configText(config, "title")}
@@ -547,8 +554,8 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
   if (node.data.nodeKind === "TrimVideoNode") {
     return (
       <div className="grid grid-cols-2 gap-2">
-        <NumberField label="开始秒" value={configNumber(config, "start_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ start_secs: value })} />
-        <NumberField label="结束秒" value={configNumber(config, "end_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ end_secs: value })} />
+        <NumberField label={t("video.canvas.inspector.startSeconds")} value={configNumber(config, "start_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ start_secs: value })} />
+        <NumberField label={t("video.canvas.inspector.endSeconds")} value={configNumber(config, "end_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ end_secs: value })} />
       </div>
     );
   }
@@ -557,20 +564,20 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     return (
       <div className="space-y-3">
         <label className="block text-caption text-book-text-muted">
-          抽帧类型
+          {t("video.canvas.inspector.frameType")}
           <select
             value={frameKind}
             disabled={disabled}
             onChange={(event) => onChange({ frame_kind: event.target.value, at_secs: event.target.value === "time" ? configNumber(config, "at_secs") : undefined })}
             className={INSPECTOR_CONTROL_CLASS}
           >
-            <option value="first">首帧</option>
-            <option value="tail">尾帧</option>
-            <option value="time">指定时间</option>
+            <option value="first">{t("video.canvas.inspector.firstFrame")}</option>
+            <option value="tail">{t("video.canvas.inspector.tailFrame")}</option>
+            <option value="time">{t("video.canvas.inspector.specifiedTime")}</option>
           </select>
         </label>
         {frameKind === "time" ? (
-          <NumberField label="时间秒" value={configNumber(config, "at_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ at_secs: value })} />
+          <NumberField label={t("video.canvas.inspector.timeSeconds")} value={configNumber(config, "at_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ at_secs: value })} />
         ) : null}
       </div>
     );
@@ -579,7 +586,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     return (
       <div className="space-y-3">
         <label className="block text-caption text-book-text-muted">
-          标题
+          {t("video.canvas.inspector.title")}
           <input
             type="text"
             value={configText(config, "title")}
@@ -602,6 +609,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
 };
 
 const ProbeObservationSummary: React.FC<{ config: Record<string, unknown>; displayMode: string }> = ({ config, displayMode }) => {
+  const { t } = useI18n();
   const dataType = configText(config, "observed_data_type");
   const observedText = configText(config, "observed_text").trim();
   const filePath = configText(config, "file_path").trim();
@@ -611,40 +619,40 @@ const ProbeObservationSummary: React.FC<{ config: Record<string, unknown>; displ
   const generatedVideoId = configPositiveNumber(config, "generated_video_id");
   const durationSecs = configNumber(config, "duration_secs");
   if (!dataType && !observedText && !filePath && !thumbnailPath && !mediaAssetId && !generatedImageId && !generatedVideoId) {
-    return <div className="text-small text-book-text-muted">尚未观察到运行结果</div>;
+    return <div className="text-small text-book-text-muted">{t("video.canvas.inspector.observedEmpty")}</div>;
   }
   return (
     <div className="a4n-flat-surface p-2.5 text-small">
       <div className="grid grid-cols-[64px_minmax(0,1fr)] gap-x-2 gap-y-1">
-        <span className="text-book-text-muted">类型</span>
-        <span className="text-book-text-main">{canvasDataTypeLabel(dataType)}</span>
+        <span className="text-book-text-muted">{t("video.canvas.preview.type")}</span>
+        <span className="text-book-text-main">{canvasDataTypeLabel(dataType, t)}</span>
         {generatedImageId ? (
           <>
-            <span className="text-book-text-muted">图片</span>
-            <span className="text-book-text-main">已生成</span>
+            <span className="text-book-text-muted">{t("video.canvas.inspector.image")}</span>
+            <span className="text-book-text-main">{t("video.canvas.inspector.generated")}</span>
           </>
         ) : null}
         {generatedVideoId ? (
           <>
-            <span className="text-book-text-muted">视频</span>
-            <span className="text-book-text-main">已生成</span>
+            <span className="text-book-text-muted">{t("video.canvas.inspector.video")}</span>
+            <span className="text-book-text-main">{t("video.canvas.inspector.generated")}</span>
           </>
         ) : null}
         {mediaAssetId ? (
           <>
-            <span className="text-book-text-muted">媒体</span>
-            <span className="text-book-text-main">已绑定</span>
+            <span className="text-book-text-muted">{t("video.canvas.inspector.media")}</span>
+            <span className="text-book-text-main">{t("video.canvas.inspector.bound")}</span>
           </>
         ) : null}
         {durationSecs !== "" ? (
           <>
-            <span className="text-book-text-muted">时长</span>
+            <span className="text-book-text-muted">{t("video.canvas.inspector.duration")}</span>
             <span className="text-book-text-main">{durationSecs}s</span>
           </>
         ) : null}
         {filePath || thumbnailPath ? (
           <>
-            <span className="text-book-text-muted">文件</span>
+            <span className="text-book-text-muted">{t("video.canvas.inspector.file")}</span>
             <span className="truncate text-book-text-main" title={filePath || thumbnailPath}>
               {(filePath || thumbnailPath).split("/").pop()}
             </span>
@@ -681,12 +689,13 @@ const AssembleClipOrderEditor: React.FC<AssembleClipOrderEditorProps> = ({
   disabled,
   onMove,
 }) => {
+  const { t } = useI18n();
   const clips = assembleClipEdges(assembleNode.id, nodes, edges);
   return (
     <div className="space-y-2">
-      <div className="text-caption font-medium text-book-text-muted">成片轨道</div>
+      <div className="text-caption font-medium text-book-text-muted">{t("video.canvas.inspector.finishedTrack")}</div>
       {clips.length === 0 ? (
-        <div className="text-small text-book-text-muted">暂无片段连线</div>
+        <div className="text-small text-book-text-muted">{t("video.canvas.inspector.noClipEdges")}</div>
       ) : (
         <ol className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
           {clips.map(({ edge, source, orderIndex }, index) => (
@@ -702,7 +711,7 @@ const AssembleClipOrderEditor: React.FC<AssembleClipOrderEditorProps> = ({
               </div>
               <div className="flex items-center justify-end gap-1">
                 <BookIconButton
-                  label="上移片段"
+                  label={t("video.canvas.inspector.moveClipUp")}
                   variant="ghost"
                   size="sm"
                   disabled={disabled || index === 0}
@@ -712,7 +721,7 @@ const AssembleClipOrderEditor: React.FC<AssembleClipOrderEditorProps> = ({
                   <ArrowUp size={12} />
                 </BookIconButton>
                 <BookIconButton
-                  label="下移片段"
+                  label={t("video.canvas.inspector.moveClipDown")}
                   variant="ghost"
                   size="sm"
                   disabled={disabled || index === clips.length - 1}
@@ -738,19 +747,22 @@ interface ReferenceEditorProps {
   onChange: (refType: string | null, refId: number | null) => void;
 }
 
-const ReferenceEditor: React.FC<ReferenceEditorProps> = ({ label, refType, refId, disabled, onChange }) => (
-  <details className="a4n-flat-surface overflow-hidden">
-    <summary className="cursor-pointer px-2.5 py-2.5 text-small text-book-text-muted">高级引用</summary>
-    <div className="border-t border-book-border/60 p-2">
-      <NumberField
-        label={label}
-        value={refId ?? ""}
-        disabled={disabled}
-        onChange={(value) => onChange(refType, value)}
-      />
-    </div>
-  </details>
-);
+const ReferenceEditor: React.FC<ReferenceEditorProps> = ({ label, refType, refId, disabled, onChange }) => {
+  const { t } = useI18n();
+  return (
+    <details className="a4n-flat-surface overflow-hidden">
+      <summary className="cursor-pointer px-2.5 py-2.5 text-small text-book-text-muted">{t("video.canvas.inspector.advancedReference")}</summary>
+      <div className="border-t border-book-border/60 p-2">
+        <NumberField
+          label={label}
+          value={refId ?? ""}
+          disabled={disabled}
+          onChange={(value) => onChange(refType, value)}
+        />
+      </div>
+    </details>
+  );
+};
 
 interface NumberFieldProps {
   label: string;
@@ -783,6 +795,7 @@ interface ConfigSelectProps {
 }
 
 const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disabled, onChange }) => {
+  const { t } = useI18n();
   const selectedOption = value == null ? null : options.find((option) => option.id === value) ?? null;
   const selectedMissing = value != null && selectedOption == null;
   return (
@@ -794,23 +807,23 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
         onChange={(event) => onChange(numberOrNull(event.target.value, 1))}
         className={INSPECTOR_CONTROL_CLASS}
       >
-        <option value="">{options.length === 0 ? "暂无可用配置" : "使用默认配置"}</option>
+        <option value="">{options.length === 0 ? t("video.canvas.inspector.noConfigAvailable") : t("video.canvas.inspector.defaultConfig")}</option>
         {selectedMissing ? (
-          <option value={value}>已删除或不可用配置</option>
+          <option value={value}>{t("video.canvas.inspector.unavailableConfig")}</option>
         ) : null}
         {options.map((option) => (
           <option key={option.id} value={option.id}>
-            {configOptionLabel(option)}
+            {configOptionLabel(option, t)}
           </option>
         ))}
       </select>
       {selectedOption ? (
-        <div className="mt-1 truncate text-caption text-book-text-sub" title={configOptionLabel(selectedOption)}>
-          当前：{configOptionLabel(selectedOption)}
+        <div className="mt-1 truncate text-caption text-book-text-sub" title={configOptionLabel(selectedOption, t)}>
+          {t("video.canvas.inspector.currentConfig", { name: configOptionLabel(selectedOption, t) })}
         </div>
       ) : selectedMissing ? (
-        <div className="mt-1 text-caption text-warning" title={`配置编号 ${value}`}>
-          当前配置已不可用，请重新选择。
+        <div className="mt-1 text-caption text-warning" title={String(value)}>
+          {t("video.canvas.inspector.unavailableCurrentConfig")}
         </div>
       ) : null}
     </label>
@@ -819,4 +832,17 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
 
 function fileName(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+}
+
+function canvasInputReferenceLabel(refType: string, t: ReturnType<typeof useI18n>["t"]): string | undefined {
+  switch (refType) {
+    case CANVAS_REF_TYPE_GENERATED_IMAGE:
+      return t("video.canvas.inspector.generatedImageReference");
+    case CANVAS_REF_TYPE_GENERATED_VIDEO:
+      return t("video.canvas.inspector.generatedVideoReference");
+    case CANVAS_REF_TYPE_MEDIA_ASSET:
+      return t("video.canvas.inspector.mediaAssetReference");
+    default:
+      return undefined;
+  }
 }

@@ -1,5 +1,5 @@
 use a4n_core::source_spans::source_spans_for_content;
-use a4n_db::project::{ResolvedChapterSource, ResolvedChapterSourceKind};
+use a4n_db::project::ResolvedChapterSource;
 use a4n_domain::shooting_script::{
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingTransitionContractV1,
     ShootingTransitionTypeV1,
@@ -21,26 +21,29 @@ use super::{
 
 fn prepared() -> PreparedChapterShootingScriptRequest {
     let content = "甲进入房间。乙从窗边回头。".to_string();
+    let source = ResolvedChapterSource {
+        requested_project_id: 1,
+        root_project_id: 1,
+        source_chapter_id: 3,
+        source_snapshot_id: None,
+        source_snapshot_chapter_id: None,
+        chapter_number: 1,
+        title: None,
+        summary: None,
+        analysis_data_json: None,
+        content: content.clone(),
+        content_sha256: "hash".into(),
+        source_revision_key: "revision".into(),
+    };
+    let source_spans = source_spans_for_content(3, 1, &content);
+    let visual_plan =
+        crate::shooting_script::contracts::visual_plan_fixture(&source, &source_spans);
     PreparedChapterShootingScriptRequest {
-        source: ResolvedChapterSource {
-            source_kind: ResolvedChapterSourceKind::Live,
-            requested_project_id: 1,
-            root_project_id: 1,
-            source_chapter_id: 3,
-            source_snapshot_id: None,
-            source_snapshot_chapter_id: None,
-            chapter_number: 1,
-            title: None,
-            summary: None,
-            analysis_data_json: None,
-            content: content.clone(),
-            content_sha256: "hash".into(),
-            source_revision_key: "revision".into(),
-        },
-        source_spans: source_spans_for_content(3, 1, &content),
+        source,
+        source_spans,
         input_fingerprint_sha256: "fingerprint".into(),
         existing: None,
-        skeleton_system_prompt: String::new(),
+        visual_plan,
         layout_unit_system_prompt: String::new(),
         unit_adaptation_system_prompt: String::new(),
         design_unit_system_prompt: String::new(),
@@ -49,12 +52,11 @@ fn prepared() -> PreparedChapterShootingScriptRequest {
 
 #[test]
 fn skeleton_rejects_duplicate_timeline_positions_before_checkpoint_completion() {
-    let prepared = prepared();
-    let span_ids = prepared
-        .source_spans
-        .iter()
-        .map(|span| span.id.clone())
-        .collect::<Vec<_>>();
+    let mut prepared = prepared();
+    let mut second = prepared.visual_plan.plan.narrative_units[0].clone();
+    second.id = "unit_2".into();
+    second.sequence_index = 2;
+    prepared.visual_plan.plan.narrative_units.push(second);
     let skeleton = ChapterScreenplaySkeletonV1 {
         schema_version: "chapter_screenplay_skeleton_v1".into(),
         directing_statement: ShootingDirectingStatementV1 {
@@ -67,26 +69,22 @@ fn skeleton_rejects_duplicate_timeline_positions_before_checkpoint_completion() 
             sound_strategy: "声音".into(),
             rhythm_strategy: "节奏".into(),
         },
-        units: vec![
-            ScreenplaySkeletonUnitV1 {
-                scene_identity: "room-a".into(),
-                sequence_index: 1,
-                narrative_unit_index: 1,
-                timeline_position: 1,
-                intercut_group_id: None,
-                editing_mode: ShootingEditingModeV1::Continuity,
-                source_span_ids: span_ids.clone(),
-            },
-            ScreenplaySkeletonUnitV1 {
-                scene_identity: "room-b".into(),
-                sequence_index: 2,
-                narrative_unit_index: 2,
-                timeline_position: 1,
-                intercut_group_id: None,
-                editing_mode: ShootingEditingModeV1::Continuity,
-                source_span_ids: span_ids,
-            },
-        ],
+        units: prepared
+            .visual_plan
+            .plan
+            .narrative_units
+            .iter()
+            .enumerate()
+            .map(|(offset, unit)| ScreenplaySkeletonUnitV1 {
+                scene_identity: unit.id.clone(),
+                sequence_index: unit.sequence_index,
+                narrative_unit_index: u32::try_from(offset + 1).expect("test unit index"),
+                timeline_position: unit.timeline_position,
+                intercut_group_id: unit.intercut_group_id.clone(),
+                editing_mode: unit.editing_mode,
+                source_span_ids: unit.source_span_ids.clone(),
+            })
+            .collect(),
     };
 
     let error = validate_skeleton(&skeleton, &prepared)

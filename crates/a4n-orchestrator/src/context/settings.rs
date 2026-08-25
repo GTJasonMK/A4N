@@ -1,16 +1,12 @@
 use super::OrchestratorContext;
-use crate::config::{
-    DefaultLlmOutputCapRow, ProviderConfigKind, SettingsAllConfigImportCounts,
-    SettingsAllConfigImportInput, SettingsAllConfigRows,
-};
-use crate::video::{
-    UpdateVideoConfigParams, VideoConfigParams, validate_video_config_model,
-    validate_video_config_params,
+use crate::video::{VideoConfigParams, validate_video_config_model, validate_video_config_params};
+use a4n_api_contract::config::{
+    CreateEmbeddingInput, CreateLlmInput, ImageConfigInput, UpdateEmbeddingInput,
+    UpdateImageConfigInput, UpdateLlmInput, UpdateVideoConfigInput, VideoConfigInput,
 };
 use a4n_core::{
     config::{
-        CreateEmbeddingConfigParams, CreateImageConfigParams, UpdateEmbeddingConfigParams,
-        UpdateImageConfigParams, app_config::LlmMaxTokensConfig,
+        CreateEmbeddingConfigParams, CreateImageConfigParams, app_config::LlmMaxTokensConfig,
         ensure_default_config_delete_allowed, validate_embedding_config_model,
         validate_embedding_config_params, validate_image_config_model,
         validate_image_config_params,
@@ -25,10 +21,11 @@ use a4n_db::{
     DbHandle,
     config::{
         EmbeddingConfigRecordInput, ImageConfigRecordInput, LlmConfigRecordInput,
-        VideoConfigRecordInput,
+        ProviderConfigKind, SettingsAllConfigImportCounts, SettingsAllConfigImportInput,
+        SettingsAllConfigRows, VideoConfigRecordInput,
     },
 };
-use a4n_domain::{ThemeCssVariables, ThemeMode};
+use a4n_domain::{ThemeDocument, ThemeMode};
 use a4n_llm::config::{
     CreateLlmConfigInput, NormalizedLlmConfig, UpdateLlmConfigInput,
     normalize_create_llm_config_input, normalize_update_llm_config_input,
@@ -74,16 +71,10 @@ impl ConfigApplication {
         user_id: Option<i64>,
         name: &str,
         mode: ThemeMode,
-        css_variables: ThemeCssVariables,
+        document: ThemeDocument,
     ) -> Result<theme_config::Model, AppError> {
-        a4n_db::config::create_theme(
-            self.database.connection(),
-            user_id,
-            name,
-            mode,
-            css_variables,
-        )
-        .await
+        a4n_db::config::create_theme(self.database.connection(), user_id, name, mode, document)
+            .await
     }
 
     async fn update_theme_record(
@@ -91,10 +82,9 @@ impl ConfigApplication {
         theme: theme_config::Model,
         name: Option<&str>,
         mode: Option<ThemeMode>,
-        css_variables: Option<ThemeCssVariables>,
+        document: Option<ThemeDocument>,
     ) -> Result<theme_config::Model, AppError> {
-        a4n_db::config::update_theme(self.database.connection(), theme, name, mode, css_variables)
-            .await
+        a4n_db::config::update_theme(self.database.connection(), theme, name, mode, document).await
     }
 
     async fn delete_theme_record(&self, theme_id: i64) -> Result<(), AppError> {
@@ -103,6 +93,73 @@ impl ConfigApplication {
 
     async fn activate_theme(&self, theme_id: i64) -> Result<theme_config::Model, AppError> {
         a4n_db::config::activate_theme(self.database.connection(), theme_id).await
+    }
+
+    async fn list_theme_resources(
+        &self,
+        theme_id: i64,
+    ) -> Result<Vec<a4n_core::models::user::theme_resource::Model>, AppError> {
+        a4n_db::config::list_theme_resources(self.database.connection(), theme_id).await
+    }
+
+    async fn list_theme_resources_for_themes(
+        &self,
+        theme_ids: &[i64],
+    ) -> Result<Vec<a4n_core::models::user::theme_resource::Model>, AppError> {
+        a4n_db::config::list_theme_resources_for_themes(self.database.connection(), theme_ids).await
+    }
+
+    async fn theme_resource_by_id(
+        &self,
+        resource_id: i64,
+    ) -> Result<Option<a4n_core::models::user::theme_resource::Model>, AppError> {
+        a4n_db::config::theme_resource_by_id(self.database.connection(), resource_id).await
+    }
+
+    async fn upsert_theme_resource(
+        &self,
+        theme_id: i64,
+        resource_key: &str,
+        file_name: &str,
+        mime_type: &str,
+        file_path: &str,
+        sha256: &str,
+        byte_size: i64,
+    ) -> Result<a4n_core::models::user::theme_resource::Model, AppError> {
+        a4n_db::config::upsert_theme_resource(
+            self.database.connection(),
+            theme_id,
+            resource_key,
+            file_name,
+            mime_type,
+            file_path,
+            sha256,
+            byte_size,
+        )
+        .await
+    }
+
+    async fn delete_theme_resource(
+        &self,
+        resource_id: i64,
+    ) -> Result<a4n_core::models::user::theme_resource::Model, AppError> {
+        a4n_db::config::delete_theme_resource(self.database.connection(), resource_id).await
+    }
+
+    async fn theme_preference(
+        &self,
+        user_id: i64,
+    ) -> Result<Option<a4n_core::models::user::theme_preference::Model>, AppError> {
+        a4n_db::config::theme_preference(self.database.connection(), user_id).await
+    }
+
+    async fn upsert_theme_preference(
+        &self,
+        user_id: i64,
+        appearance: a4n_domain::ThemeAppearance,
+    ) -> Result<a4n_core::models::user::theme_preference::Model, AppError> {
+        a4n_db::config::upsert_theme_preference(self.database.connection(), user_id, appearance)
+            .await
     }
 
     async fn list_llm_config_records(&self) -> Result<Vec<llm_config::Model>, AppError> {
@@ -116,9 +173,20 @@ impl ConfigApplication {
     /// 规范化 LLM 创建输入后落库。
     async fn create_llm_config_validated(
         &self,
-        input: CreateLlmConfigInput<'_>,
+        input: CreateLlmInput,
     ) -> Result<llm_config::Model, AppError> {
-        let normalized = normalize_create_llm_config_input(input)?;
+        let normalized = normalize_create_llm_config_input(CreateLlmConfigInput {
+            name: &input.name,
+            provider: &input.provider,
+            base_url: &input.base_url,
+            api_key_encrypted: input.api_key_encrypted.as_deref(),
+            model: &input.model,
+            max_concurrent: input.max_concurrent,
+            timeout_secs: input.timeout_secs,
+            max_context_tokens: input.max_context_tokens,
+            max_output_tokens: input.max_output_tokens,
+            extra_body_json: input.extra_body_json,
+        })?;
         a4n_db::config::create_llm_config_record(
             self.database.connection(),
             llm_record_input(normalized),
@@ -130,10 +198,27 @@ impl ConfigApplication {
     async fn update_llm_config_validated(
         &self,
         config_id: i64,
-        input: UpdateLlmConfigInput<'_>,
+        input: UpdateLlmInput,
     ) -> Result<llm_config::Model, AppError> {
         let existing = self.llm_config_by_id(config_id).await?;
-        let normalized = normalize_update_llm_config_input(&existing, input)?;
+        let normalized = normalize_update_llm_config_input(
+            &existing,
+            UpdateLlmConfigInput {
+                name: &input.name,
+                provider: &input.provider,
+                base_url: &input.base_url,
+                api_key_encrypted: input
+                    .api_key_encrypted
+                    .as_ref()
+                    .map(|value| value.as_deref()),
+                model: &input.model,
+                max_concurrent: input.max_concurrent,
+                timeout_secs: input.timeout_secs,
+                max_context_tokens: input.max_context_tokens,
+                max_output_tokens: input.max_output_tokens,
+                extra_body_json: input.extra_body_json,
+            },
+        )?;
         if existing.is_default {
             self.ensure_llm_max_tokens_fits_model_output(normalized.max_output_tokens)
                 .await?;
@@ -195,9 +280,18 @@ impl ConfigApplication {
     /// 校验图片配置参数后创建。
     async fn create_image_config_validated(
         &self,
-        params: CreateImageConfigParams,
+        input: ImageConfigInput,
     ) -> Result<image_gen_config::Model, AppError> {
-        let params = validate_image_config_params(params)?;
+        let params = validate_image_config_params(CreateImageConfigParams {
+            name: input.name,
+            backend: input.backend,
+            base_url: input.base_url,
+            api_key_encrypted: input.api_key_encrypted,
+            model: input.model,
+            max_concurrent: input.max_concurrent,
+            default_width: input.default_width,
+            default_height: input.default_height,
+        })?;
         a4n_db::config::create_image_config_record(
             self.database.connection(),
             image_record_input(params),
@@ -209,22 +303,20 @@ impl ConfigApplication {
     async fn update_image_config_validated(
         &self,
         config_id: i64,
-        params: UpdateImageConfigParams,
+        input: UpdateImageConfigInput,
     ) -> Result<image_gen_config::Model, AppError> {
         let existing = self.image_config_by_id(config_id).await?;
-        let api_key_encrypted = params
-            .api_key_encrypted
-            .clone()
-            .unwrap_or_else(|| existing.api_key_encrypted.clone());
+        let api_key_encrypted =
+            merge_api_key_update(input.api_key_encrypted, existing.api_key_encrypted.clone());
         let params = validate_image_config_params(CreateImageConfigParams {
-            name: params.name,
-            backend: params.backend,
-            base_url: params.base_url,
+            name: input.name,
+            backend: input.backend,
+            base_url: input.base_url,
             api_key_encrypted,
-            model: params.model,
-            max_concurrent: params.max_concurrent,
-            default_width: params.default_width,
-            default_height: params.default_height,
+            model: input.model,
+            max_concurrent: input.max_concurrent,
+            default_width: input.default_width,
+            default_height: input.default_height,
         })?;
         a4n_db::config::update_image_config_record(
             self.database.connection(),
@@ -282,9 +374,25 @@ impl ConfigApplication {
     /// 校验视频配置参数后创建。
     async fn create_video_config_validated(
         &self,
-        params: VideoConfigParams,
+        input: VideoConfigInput,
     ) -> Result<video_gen_config::Model, AppError> {
-        let params = validate_video_config_params(params).map_err(AppError::InvalidArgument)?;
+        let params = validate_video_config_params(VideoConfigParams {
+            name: input.name,
+            backend: input.backend,
+            base_url: input.base_url,
+            api_key_encrypted: input.api_key_encrypted,
+            model: input.model,
+            max_concurrent: input.max_concurrent,
+            default_width: input.default_width,
+            default_height: input.default_height,
+            default_duration_secs: input.default_duration_secs,
+            min_duration_secs: input.min_duration_secs,
+            max_duration_secs: input.max_duration_secs,
+            duration_mode: input.duration_mode.to_string(),
+            supported_durations_json: input.supported_durations_json,
+            default_fps: input.default_fps,
+        })
+        .map_err(AppError::InvalidArgument)?;
         a4n_db::config::create_video_config_record(
             self.database.connection(),
             video_record_input(params),
@@ -296,28 +404,26 @@ impl ConfigApplication {
     async fn update_video_config_validated(
         &self,
         config_id: i64,
-        params: UpdateVideoConfigParams,
+        input: UpdateVideoConfigInput,
     ) -> Result<video_gen_config::Model, AppError> {
         let existing = self.video_config_by_id(config_id).await?;
-        let api_key_encrypted = params
-            .api_key_encrypted
-            .clone()
-            .unwrap_or_else(|| existing.api_key_encrypted.clone());
+        let api_key_encrypted =
+            merge_api_key_update(input.api_key_encrypted, existing.api_key_encrypted.clone());
         let params = validate_video_config_params(VideoConfigParams {
-            name: params.name,
-            backend: params.backend,
-            base_url: params.base_url,
+            name: input.name,
+            backend: input.backend,
+            base_url: input.base_url,
             api_key_encrypted,
-            model: params.model,
-            max_concurrent: params.max_concurrent,
-            default_width: params.default_width,
-            default_height: params.default_height,
-            default_duration_secs: params.default_duration_secs,
-            min_duration_secs: params.min_duration_secs,
-            max_duration_secs: params.max_duration_secs,
-            duration_mode: params.duration_mode,
-            supported_durations_json: params.supported_durations_json,
-            default_fps: params.default_fps,
+            model: input.model,
+            max_concurrent: input.max_concurrent,
+            default_width: input.default_width,
+            default_height: input.default_height,
+            default_duration_secs: input.default_duration_secs,
+            min_duration_secs: input.min_duration_secs,
+            max_duration_secs: input.max_duration_secs,
+            duration_mode: input.duration_mode.to_string(),
+            supported_durations_json: input.supported_durations_json,
+            default_fps: input.default_fps,
         })
         .map_err(AppError::InvalidArgument)?;
         a4n_db::config::update_video_config_record(
@@ -378,9 +484,18 @@ impl ConfigApplication {
     /// 校验嵌入配置参数后创建。
     async fn create_embedding_config_validated(
         &self,
-        params: CreateEmbeddingConfigParams,
+        input: CreateEmbeddingInput,
     ) -> Result<embedding_config::Model, AppError> {
-        let params = validate_embedding_config_params(params)?;
+        let params = validate_embedding_config_params(CreateEmbeddingConfigParams {
+            name: input.name,
+            backend: input.backend,
+            base_url: input.base_url,
+            api_key_encrypted: input.api_key_encrypted,
+            model: input.model,
+            dimension: input.dimension,
+            batch_size: input.batch_size,
+            local_model_path: input.local_model_path,
+        })?;
         a4n_db::config::create_embedding_config_record(
             self.database.connection(),
             embedding_record_input(params),
@@ -392,13 +507,11 @@ impl ConfigApplication {
     async fn update_embedding_config_validated(
         &self,
         config_id: i64,
-        input: UpdateEmbeddingConfigParams,
+        input: UpdateEmbeddingInput,
     ) -> Result<embedding_config::Model, AppError> {
         let existing = self.embedding_config_by_id(config_id).await?;
-        let requested_api_key = match &input.api_key_encrypted {
-            Some(inner) => inner.clone(),
-            None => existing.api_key_encrypted.clone(),
-        };
+        let requested_api_key =
+            merge_api_key_update(input.api_key_encrypted, existing.api_key_encrypted.clone());
         let params = validate_embedding_config_params(CreateEmbeddingConfigParams {
             name: input.name,
             backend: input.backend,
@@ -489,20 +602,14 @@ impl ConfigApplication {
         a4n_db::config::llm_max_tokens_config(self.database.connection()).await
     }
 
-    async fn save_llm_max_tokens_config(
-        &self,
-        config: &LlmMaxTokensConfig,
-    ) -> Result<(), AppError> {
-        a4n_db::config::save_llm_max_tokens_config(self.database.connection(), config).await
-    }
-
     /// 校验全局 max_tokens 预算与默认模型输出上限后落库。
     async fn save_llm_max_tokens_config_validated(
         &self,
         config: LlmMaxTokensConfig,
     ) -> Result<LlmMaxTokensConfig, AppError> {
         config.validate().map_err(AppError::InvalidArgument)?;
-        for model in self.default_llm_output_cap_rows().await? {
+        for model in a4n_db::config::default_llm_output_cap_rows(self.database.connection()).await?
+        {
             let model_cap = positive_model_output_cap(model.max_output_tokens)?;
             config
                 .validate_against_model_output_cap(model_cap)
@@ -513,14 +620,8 @@ impl ConfigApplication {
                     ))
                 })?;
         }
-        self.save_llm_max_tokens_config(&config).await?;
+        a4n_db::config::save_llm_max_tokens_config(self.database.connection(), &config).await?;
         Ok(config)
-    }
-
-    pub(crate) async fn default_llm_output_cap_rows(
-        &self,
-    ) -> Result<Vec<DefaultLlmOutputCapRow>, AppError> {
-        a4n_db::config::default_llm_output_cap_rows(self.database.connection()).await
     }
 
     async fn validate_settings_all_config_import_defaults(
@@ -578,10 +679,10 @@ impl OrchestratorContext {
         user_id: i64,
         name: String,
         mode: ThemeMode,
-        css_variables: ThemeCssVariables,
+        document: ThemeDocument,
     ) -> Result<theme_config::Model, AppError> {
         self.settings
-            .create_theme_record(Some(user_id), &name, mode, css_variables)
+            .create_theme_record(Some(user_id), &name, mode, document)
             .await
     }
 
@@ -590,10 +691,10 @@ impl OrchestratorContext {
         theme: theme_config::Model,
         name: Option<String>,
         mode: Option<ThemeMode>,
-        css_variables: Option<ThemeCssVariables>,
+        document: Option<ThemeDocument>,
     ) -> Result<theme_config::Model, AppError> {
         self.settings
-            .update_theme_record(theme, name.as_deref(), mode, css_variables)
+            .update_theme_record(theme, name.as_deref(), mode, document)
             .await
     }
 
@@ -603,6 +704,76 @@ impl OrchestratorContext {
 
     pub async fn activate_theme(&self, theme_id: i64) -> Result<theme_config::Model, AppError> {
         self.settings.activate_theme(theme_id).await
+    }
+
+    pub async fn list_theme_resources(
+        &self,
+        theme_id: i64,
+    ) -> Result<Vec<a4n_core::models::user::theme_resource::Model>, AppError> {
+        self.settings.list_theme_resources(theme_id).await
+    }
+
+    pub async fn list_theme_resources_for_themes(
+        &self,
+        theme_ids: &[i64],
+    ) -> Result<Vec<a4n_core::models::user::theme_resource::Model>, AppError> {
+        self.settings
+            .list_theme_resources_for_themes(theme_ids)
+            .await
+    }
+
+    pub async fn theme_resource_by_id(
+        &self,
+        resource_id: i64,
+    ) -> Result<Option<a4n_core::models::user::theme_resource::Model>, AppError> {
+        self.settings.theme_resource_by_id(resource_id).await
+    }
+
+    pub async fn upsert_theme_resource(
+        &self,
+        theme_id: i64,
+        resource_key: &str,
+        file_name: &str,
+        mime_type: &str,
+        file_path: &str,
+        sha256: &str,
+        byte_size: i64,
+    ) -> Result<a4n_core::models::user::theme_resource::Model, AppError> {
+        self.settings
+            .upsert_theme_resource(
+                theme_id,
+                resource_key,
+                file_name,
+                mime_type,
+                file_path,
+                sha256,
+                byte_size,
+            )
+            .await
+    }
+
+    pub async fn delete_theme_resource(
+        &self,
+        resource_id: i64,
+    ) -> Result<a4n_core::models::user::theme_resource::Model, AppError> {
+        self.settings.delete_theme_resource(resource_id).await
+    }
+
+    pub async fn theme_preference(
+        &self,
+        user_id: i64,
+    ) -> Result<Option<a4n_core::models::user::theme_preference::Model>, AppError> {
+        self.settings.theme_preference(user_id).await
+    }
+
+    pub async fn upsert_theme_preference(
+        &self,
+        user_id: i64,
+        appearance: a4n_domain::ThemeAppearance,
+    ) -> Result<a4n_core::models::user::theme_preference::Model, AppError> {
+        self.settings
+            .upsert_theme_preference(user_id, appearance)
+            .await
     }
 
     pub async fn list_llm_config_records(&self) -> Result<Vec<llm_config::Model>, AppError> {
@@ -616,7 +787,7 @@ impl OrchestratorContext {
     /// 创建 LLM 配置：规范化后落库。
     pub async fn create_llm_config_validated(
         &self,
-        input: CreateLlmConfigInput<'_>,
+        input: CreateLlmInput,
     ) -> Result<llm_config::Model, AppError> {
         self.settings.create_llm_config_validated(input).await
     }
@@ -625,7 +796,7 @@ impl OrchestratorContext {
     pub async fn update_llm_config_validated(
         &self,
         config_id: i64,
-        input: UpdateLlmConfigInput<'_>,
+        input: UpdateLlmInput,
     ) -> Result<llm_config::Model, AppError> {
         self.settings
             .update_llm_config_validated(config_id, input)
@@ -667,19 +838,19 @@ impl OrchestratorContext {
     /// 创建图片配置：校验参数后落库。
     pub async fn create_image_config_validated(
         &self,
-        params: CreateImageConfigParams,
+        input: ImageConfigInput,
     ) -> Result<image_gen_config::Model, AppError> {
-        self.settings.create_image_config_validated(params).await
+        self.settings.create_image_config_validated(input).await
     }
 
     /// 更新图片配置：读库、合并 api_key、校验后落库。
     pub async fn update_image_config_validated(
         &self,
         config_id: i64,
-        params: UpdateImageConfigParams,
+        input: UpdateImageConfigInput,
     ) -> Result<image_gen_config::Model, AppError> {
         self.settings
-            .update_image_config_validated(config_id, params)
+            .update_image_config_validated(config_id, input)
             .await
     }
 
@@ -720,19 +891,19 @@ impl OrchestratorContext {
     /// 创建视频配置：校验参数后落库。
     pub async fn create_video_config_validated(
         &self,
-        params: VideoConfigParams,
+        input: VideoConfigInput,
     ) -> Result<video_gen_config::Model, AppError> {
-        self.settings.create_video_config_validated(params).await
+        self.settings.create_video_config_validated(input).await
     }
 
     /// 更新视频配置：读库、合并 api_key、校验后落库。
     pub async fn update_video_config_validated(
         &self,
         config_id: i64,
-        params: UpdateVideoConfigParams,
+        input: UpdateVideoConfigInput,
     ) -> Result<video_gen_config::Model, AppError> {
         self.settings
-            .update_video_config_validated(config_id, params)
+            .update_video_config_validated(config_id, input)
             .await
     }
 
@@ -787,18 +958,16 @@ impl OrchestratorContext {
     /// 创建嵌入配置：校验参数后落库。
     pub async fn create_embedding_config_validated(
         &self,
-        params: CreateEmbeddingConfigParams,
+        input: CreateEmbeddingInput,
     ) -> Result<embedding_config::Model, AppError> {
-        self.settings
-            .create_embedding_config_validated(params)
-            .await
+        self.settings.create_embedding_config_validated(input).await
     }
 
     /// 更新嵌入配置：完整替换字段并保留未提交的 API Key。
     pub async fn update_embedding_config_validated(
         &self,
         config_id: i64,
-        input: UpdateEmbeddingConfigParams,
+        input: UpdateEmbeddingInput,
     ) -> Result<embedding_config::Model, AppError> {
         self.settings
             .update_embedding_config_validated(config_id, input)
@@ -966,5 +1135,28 @@ fn embedding_record_input(params: CreateEmbeddingConfigParams) -> EmbeddingConfi
         dimension: params.dimension,
         batch_size: params.batch_size,
         local_model_path: params.local_model_path,
+    }
+}
+
+fn merge_api_key_update(
+    update: Option<Option<String>>,
+    existing: Option<String>,
+) -> Option<String> {
+    update.unwrap_or(existing)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_api_key_update;
+
+    #[test]
+    fn api_key_update_preserves_clears_and_replaces_explicitly() {
+        let existing = Some("saved".to_string());
+        assert_eq!(merge_api_key_update(None, existing.clone()), existing);
+        assert_eq!(merge_api_key_update(Some(None), Some("saved".into())), None);
+        assert_eq!(
+            merge_api_key_update(Some(Some("new".into())), Some("saved".into())),
+            Some("new".into())
+        );
     }
 }

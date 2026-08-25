@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, models::media::media_asset, models::project::novel_project};
+use a4n_core::{error::AppError, models::project::novel_project};
 use a4n_db::project_family_import::{
     ProjectFamilyMediaFileImporter, ProjectFamilyMediaImportError,
 };
@@ -7,11 +7,11 @@ use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    ExportedProjectPackage, FamilyImportMediaPayload, ImportProjectPackageApplicationInput,
+    ExportedProjectPackage, ImportMediaPayload, ImportProjectPackageApplicationInput,
     ProjectFamilyExportSelection, ProjectFamilyPackage, ProjectFamilyTransferHostPort,
     ProjectPackageTransferError, assemble_project_family_export_package,
-    import_result_with_file_rollback, imported_project_family_media_path, media_asset_path,
-    media_file_key, project_family_export_media_files, validate_family_media_manifest,
+    import_result_with_file_rollback, imported_project_family_media_path, media_file_key,
+    project_family_export_media_files, validate_family_media_manifest,
     validate_family_package_manifest,
 };
 
@@ -154,7 +154,7 @@ impl OrchestratorContext {
 
 struct ProjectFamilyImportMediaWriter<'a, Host> {
     host_port: &'a mut Host,
-    media_payload: &'a FamilyImportMediaPayload,
+    media_payload: &'a ImportMediaPayload,
 }
 
 impl<Host> ProjectFamilyMediaFileImporter for ProjectFamilyImportMediaWriter<'_, Host>
@@ -163,25 +163,19 @@ where
 {
     fn write_imported_media_field(
         &mut self,
-        old_asset: &media_asset::Model,
-        new_asset: &media_asset::Model,
+        project_id: i64,
+        owner_kind: &str,
+        old_owner_id: i64,
+        new_owner_id: i64,
         field: &str,
     ) -> Result<Option<String>, ProjectFamilyMediaImportError> {
-        let old_value =
-            media_asset_path(old_asset, field).map_err(ProjectFamilyMediaImportError::Write)?;
-        if old_value.is_none() {
+        let Some(entry) =
+            self.media_payload
+                .entries
+                .get(&media_file_key(owner_kind, old_owner_id, field))
+        else {
             return Ok(None);
-        }
-        let entry = self
-            .media_payload
-            .entries
-            .get(&media_file_key(old_asset.id, field))
-            .ok_or_else(|| {
-                ProjectFamilyMediaImportError::Write(format!(
-                    "媒体资产缺少文件条目: {} {field}",
-                    old_asset.id
-                ))
-            })?;
+        };
         let bytes = self
             .media_payload
             .bytes
@@ -193,9 +187,9 @@ where
                 ))
             })?;
         let relative_path = imported_project_family_media_path(
-            new_asset.project_id,
-            &new_asset.media_kind,
-            new_asset.id,
+            project_id,
+            owner_kind,
+            new_owner_id,
             field,
             &entry.package_path,
         )

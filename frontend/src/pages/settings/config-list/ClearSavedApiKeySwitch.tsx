@@ -1,4 +1,5 @@
 import React from "react";
+import { useI18n } from "../../../i18n";
 
 interface ClearSavedApiKeySwitchProps {
   checked: boolean;
@@ -8,7 +9,9 @@ interface ClearSavedApiKeySwitchProps {
 
 export const ClearSavedApiKeySwitch: React.FC<
   ClearSavedApiKeySwitchProps
-> = ({ checked, disabled = false, onChange }) => (
+> = ({ checked, disabled = false, onChange }) => {
+  const { t } = useI18n();
+  return (
   <button
     type="button"
     role="switch"
@@ -19,10 +22,10 @@ export const ClearSavedApiKeySwitch: React.FC<
   >
     <span className="min-w-0 flex-1">
       <span className="block text-xs font-medium text-book-text-sub">
-        保存时清除密钥
+        {t("settings.clearApiKeyOnSave")}
       </span>
       <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
-        {checked ? "保存配置后移除当前密钥" : "保留当前已保存的密钥"}
+        {checked ? t("settings.removeSavedApiKey") : t("settings.keepSavedApiKey")}
       </span>
     </span>
     <span
@@ -38,4 +41,5 @@ export const ClearSavedApiKeySwitch: React.FC<
       />
     </span>
   </button>
-);
+  );
+};

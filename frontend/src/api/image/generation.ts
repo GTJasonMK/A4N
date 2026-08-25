@@ -21,6 +21,7 @@ import type {
 } from "../generated/host";
 import { listImagesByProject } from "./queries";
 import type { GeneratedImage } from "./types";
+import { getActiveLocale, translateMessage } from "../../i18n";
 
 type ImageGenerationInput = Omit<StartImageGenerationInput, "meta">;
 
@@ -53,7 +54,7 @@ export async function verifyImageGenerationResult(
     artifactIdPrefix: "generated-image:",
     recordInScope: (image) => image.project_id === project,
     recordRevision: imageRevision,
-    errorMessage: "图片生成已结束，但正式结果校验失败",
+    errorMessage: translateMessage(getActiveLocale(), "errors.mediaGenerationConsistencyFailed"),
   });
 }
 

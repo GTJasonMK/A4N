@@ -1,7 +1,7 @@
 use crate::video::VideoDbError;
 use a4n_core::models::chapter::chapter_video_prompt;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 pub(crate) async fn delete_chapter_video_prompt_records<C>(
     db: &C,
@@ -13,7 +13,7 @@ where
     let prompt_ids = prompts
         .iter()
         .map(|prompt| prompt.id)
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     if prompt_ids.is_empty() {
         return Ok(0);
     }

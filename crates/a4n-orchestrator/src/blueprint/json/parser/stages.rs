@@ -4,7 +4,7 @@ use super::super::world::validate_world_setting;
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-pub fn validate_story_core_stage(value: &Value) -> Result<(), AppError> {
+pub(in crate::blueprint) fn validate_story_core_stage(value: &Value) -> Result<(), AppError> {
     for key in [
         "title",
         "target_audience",
@@ -19,17 +19,17 @@ pub fn validate_story_core_stage(value: &Value) -> Result<(), AppError> {
     Ok(())
 }
 
-pub fn validate_world_stage(value: &Value) -> Result<(), AppError> {
+pub(in crate::blueprint) fn validate_world_stage(value: &Value) -> Result<(), AppError> {
     let world_setting = required_object_clone(value, "world_setting", "blueprint")?;
     validate_world_setting(&world_setting)
 }
 
-pub fn validate_characters_stage(value: &Value) -> Result<(), AppError> {
+pub(in crate::blueprint) fn validate_characters_stage(value: &Value) -> Result<(), AppError> {
     parse_characters(required_array(value, "characters", "blueprint")?)?;
     Ok(())
 }
 
-pub fn validate_relationships_stage(value: &Value) -> Result<(), AppError> {
+pub(in crate::blueprint) fn validate_relationships_stage(value: &Value) -> Result<(), AppError> {
     parse_relationships(required_array(value, "relationships", "blueprint")?)?;
     Ok(())
 }

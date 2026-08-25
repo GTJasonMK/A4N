@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 use a4n_core::models::chapter::{chapter_outline, part_outline};
 
@@ -37,7 +37,7 @@ fn validate_part_outline_records_with_action(
     parts: &[part_outline::Model],
     action: &str,
 ) -> Result<(), OutlineDbError> {
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     let mut ranges = Vec::with_capacity(parts.len());
     for part in parts {
         if !seen.insert(part.part_number) {

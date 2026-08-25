@@ -8,7 +8,7 @@ use a4n_core::json_contract::{
 };
 use a4n_core::profile_text::normalize_importance_value;
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 pub(super) struct ParsedSceneProfiles {
     pub(super) drafts: Vec<SceneProfileDraft>,
@@ -20,7 +20,7 @@ pub(super) fn parse_scene_profiles(
     context: &SceneProfileSyncRequestContext,
 ) -> Result<ParsedSceneProfiles, String> {
     let scenes = required_array(root, "scenes", "root")?;
-    let mut refs = BTreeSet::new();
+    let mut refs = HashSet::new();
     let mut drafts = Vec::with_capacity(scenes.len());
     let mut evidence_refs = Vec::with_capacity(scenes.len());
     for (index, scene) in scenes.iter().enumerate() {

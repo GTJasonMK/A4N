@@ -6,9 +6,7 @@ pub(crate) use content::{
     blueprint_restore_error_to_app, foreshadowing_db_error_to_app_error,
     project_chapter_context_error_to_app_error, project_chapter_outline_update_error_to_app_error,
     project_chapter_scene_record_error_to_app_error,
-    project_chapter_scene_reorder_error_to_app_error,
-    project_generated_chapter_scene_save_error_to_app_error,
-    project_outline_record_error_to_app_error,
+    project_chapter_scene_write_error_to_app_error, project_outline_record_error_to_app_error,
 };
 pub(crate) use family::{
     project_basic_record_error_to_app_error, project_family_error_to_app_error,

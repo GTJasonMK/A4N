@@ -52,6 +52,12 @@ pub async fn rollback_project_status_record(
                 )
                 .await?;
                 candidate_media_paths.extend(cleanup.candidate_media_paths);
+                project_db::delete_project_chapter_adaptation_records(
+                    &tx,
+                    project_id,
+                    project_db::ProjectChapterAdaptationDeleteScope::CurrentProjectContent,
+                )
+                .await?;
                 delete_project_profile_scene_data(&tx, project_id).await?;
                 project_db::delete_project_task_queue_records(&tx, project_id).await?;
                 chapter::Entity::delete_many()

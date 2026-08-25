@@ -9,6 +9,7 @@ import type { VideoProviderDescriptor } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import type { VideoForm } from "./types";
+import { useI18n } from "../../../i18n";
 
 interface VideoConfigEditorProps {
   form: VideoForm;
@@ -29,6 +30,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
   templateLocked = false,
   providers,
 }) => {
+  const { t } = useI18n();
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
   const selectedProvider = providers.find(
@@ -63,17 +65,17 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
 
   return (
     <>
-      <FormField label="配置名称" required>
+      <FormField label={t("settingsForm.configName")} required>
         <BookInput
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
-          placeholder="例如：Runway / 可灵 / 内网视频模型"
+          placeholder={t("settingsForm.configNamePlaceholder")}
           disabled={structureDisabled}
         />
       </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField label="视频服务商">
+        <FormField label={t("settingsForm.videoProvider")}>
           <select
             value={form.provider}
             onChange={(event) => {
@@ -81,7 +83,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
                 (item) => item.id === event.target.value,
               );
               if (!provider)
-                throw new Error(`video provider 未注册：${event.target.value}`);
+                throw new Error(t("settingsForm.providerNotRegistered", { provider: event.target.value }));
               setForm({
                 ...form,
                 provider: provider.id,
@@ -103,11 +105,11 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             ))}
           </select>
         </FormField>
-        <FormField label="模型" required>
+        <FormField label={t("settingsForm.model")} required>
           <ModelDiscoveryField
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
-            placeholder="例如：video-01 / kling-v1 / runway-gen3"
+            placeholder={t("settingsForm.videoModelPlaceholder")}
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
@@ -116,7 +118,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="接口地址">
+      <FormField label={t("settingsForm.endpoint")}>
         <BookInput
           value={form.api_base_url}
           onChange={(event) =>
@@ -128,11 +130,11 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
       </FormField>
 
       <FormField
-        label="访问密钥"
+        label={t("settingsForm.apiKey")}
         hint={
           templateLocked
-            ? "只保存为你的个人密钥；系统默认模板不会共享管理员密钥"
-            : "存储于本地数据库，不会上传到任何外部服务"
+            ? t("settingsForm.personalApiKeyHint")
+            : t("settingsForm.localApiKeyHint")
         }
       >
         <BookInput
@@ -164,7 +166,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
       ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <FormField label="尺寸">
+        <FormField label={t("settingsForm.size")}>
           <select
             value={form.size}
             onChange={(event) => setForm({ ...form, size: event.target.value })}
@@ -178,7 +180,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             ))}
           </select>
         </FormField>
-        <FormField label="时长模式">
+        <FormField label={t("settingsForm.durationMode")}>
           <div className="grid grid-cols-2 overflow-hidden rounded border border-book-border bg-book-bg-paper">
             {VIDEO_DURATION_MODES.map((mode) => {
               const active = form.duration_mode === mode.value;
@@ -195,13 +197,15 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
                       : "text-book-text-sub hover:bg-book-bg-tertiary"
                   }`}
                 >
-                  {mode.label}
+                  {mode.value === "range"
+                    ? t("settingsForm.range")
+                    : t("settingsForm.fixed")}
                 </button>
               );
             })}
           </div>
         </FormField>
-        <FormField label="默认时长">
+        <FormField label={t("settingsForm.defaultDuration")}>
           <BookInput
             type="number"
             min={providerMinDuration}
@@ -227,7 +231,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
             disabled={structureDisabled}
           />
         </FormField>
-        <FormField label="并发">
+        <FormField label={t("settingsForm.concurrency")}>
           <BookInput
             type="number"
             min={1}
@@ -244,7 +248,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
 
       {form.duration_mode === "range" ? (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <FormField label="最小时长">
+          <FormField label={t("settingsForm.minDuration")}>
             <BookInput
               type="number"
               min={providerMinDuration}
@@ -260,7 +264,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
               disabled={structureDisabled}
             />
           </FormField>
-          <FormField label="最大时长">
+          <FormField label={t("settingsForm.maxDuration")}>
             <BookInput
               type="number"
               min={providerMinDuration}
@@ -279,15 +283,15 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
         </div>
       ) : (
         <FormField
-          label="固定时长档位"
-          hint="逗号或空格分隔秒数，例如 5,10。固定模式下只能从这些秒数中生成。"
+          label={t("settingsForm.fixedDuration")}
+          hint={t("settingsForm.fixedDurationHint")}
         >
           <BookInput
             value={form.supported_durations_text}
             onChange={(event) =>
               setForm({ ...form, supported_durations_text: event.target.value })
             }
-            placeholder="例如：5, 10"
+            placeholder={t("settingsForm.fixedDurationPlaceholder")}
             disabled={structureDisabled}
           />
         </FormField>

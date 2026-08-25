@@ -1,5 +1,6 @@
 use a4n_core::{error::AppError, models::character::protagonist_profile};
 use sea_orm::{ConnectionTrait, TransactionTrait};
+use std::collections::HashMap;
 
 use super::super::{
     ChapterDerivedCleanupArtifacts, chapter_cleanup_profile_state_should_restore_base,
@@ -19,6 +20,29 @@ where
     if profiles.is_empty() {
         return Ok(ChapterDerivedCleanupArtifacts::default());
     }
+
+    let restored_chapter = chapter_number - 1;
+    let snapshot_profile_ids = profiles
+        .iter()
+        .filter(|profile| {
+            profile.last_synced_chapter >= chapter_number
+                && !profile
+                    .first_seen_chapter()
+                    .is_some_and(|first_seen| first_seen >= chapter_number)
+                && !chapter_cleanup_profile_state_should_restore_base(profile, restored_chapter)
+        })
+        .map(|profile| profile.id)
+        .collect::<Vec<_>>();
+    let snapshots = a4n_db::project::snapshot_references_for_profiles_chapter(
+        db,
+        &snapshot_profile_ids,
+        restored_chapter,
+    )
+    .await
+    .map_err(crate::project::project_chapter_context_error_to_app_error)?
+    .into_iter()
+    .map(|snapshot| (snapshot.profile_id, snapshot))
+    .collect::<HashMap<_, _>>();
 
     let mut artifacts = ChapterDerivedCleanupArtifacts::default();
 
@@ -52,9 +76,11 @@ where
         artifacts.extend_character_timeline(deleted);
 
         if should_rewind {
-            let restored_chapter = chapter_number - 1;
-            let restored_state =
-                profile_state_at_or_before_chapter(db, &profile, restored_chapter).await?;
+            let restored_state = profile_state_at_or_before_chapter(
+                &profile,
+                restored_chapter,
+                snapshots.get(&profile.id),
+            )?;
             a4n_db::character::rewind_deletion_marks_after(db, profile.id, restored_chapter)
                 .await
                 .map_err(AppError::Database)?;
@@ -81,26 +107,19 @@ where
     Ok(artifacts)
 }
 
-async fn profile_state_at_or_before_chapter<C>(
-    db: &C,
+fn profile_state_at_or_before_chapter(
     profile: &protagonist_profile::Model,
     chapter_number: i32,
-) -> Result<serde_json::Value, AppError>
-where
-    C: ConnectionTrait,
-{
+    snapshot: Option<&a4n_core::models::character::snapshot_reference::Model>,
+) -> Result<serde_json::Value, AppError> {
     if chapter_cleanup_profile_state_should_restore_base(profile, chapter_number) {
         return Ok(profile.base_attributes.clone());
     }
 
-    let snapshot =
-        a4n_db::project::snapshot_reference_for_profile_chapter(db, profile.id, chapter_number)
-            .await
-            .map_err(crate::project::project_chapter_context_error_to_app_error)?
-            .ok_or_else(|| AppError::InvalidState {
-                current: format!("角色 {} 缺少第 {} 章快照", profile.name, chapter_number),
-                operation: "回滚角色档案状态".to_string(),
-            })?;
+    let snapshot = snapshot.ok_or_else(|| AppError::InvalidState {
+        current: format!("角色 {} 缺少第 {} 章快照", profile.name, chapter_number),
+        operation: "回滚角色档案状态".to_string(),
+    })?;
 
     a4n_db::character::snapshot_attributes_from_data(&snapshot.data, chapter_number)
         .map_err(crate::character::character_db_error)

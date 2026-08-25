@@ -4,6 +4,7 @@ import {
   RIGHT_PANEL_MIN_WIDTH,
   type ResizableRightPanel,
 } from "./rightPanelLayout";
+import { useI18n } from "../../i18n";
 
 interface RightPanelResizeHandleProps {
   panel: ResizableRightPanel;
@@ -27,16 +28,18 @@ export const RightPanelResizeHandle: React.FC<RightPanelResizeHandleProps> = ({
   onResizeEnd,
   onSetWidth,
   onResetWidth,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <div
     role="separator"
     aria-orientation="vertical"
-    aria-label="调整右侧边栏宽度"
+    aria-label={t("writing.resizeRightPanel")}
     aria-valuemin={RIGHT_PANEL_MIN_WIDTH}
     aria-valuemax={maxWidth}
     aria-valuenow={width}
     tabIndex={0}
-    title="拖拽调整右侧边栏宽度，双击恢复默认宽度"
+    title={t("writing.resizeRightPanelHint")}
     data-resizing={isResizing ? "1" : undefined}
     className="group relative z-20 flex touch-none select-none items-center justify-center cursor-col-resize bg-book-border/40 outline-none transition-colors hover:bg-book-primary/20 focus-visible:bg-book-primary/25 active:bg-book-primary/30 data-[resizing=1]:bg-book-primary/25"
     onPointerDown={onResizeStart}
@@ -77,4 +80,5 @@ export const RightPanelResizeHandle: React.FC<RightPanelResizeHandleProps> = ({
       <GripVertical size={14} />
     </div>
   </div>
-);
+  );
+};

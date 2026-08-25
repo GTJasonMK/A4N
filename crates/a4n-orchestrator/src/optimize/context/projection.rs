@@ -1,13 +1,17 @@
-use a4n_core::models::character::{foreshadowing_index, protagonist_profile};
+use a4n_core::models::character::protagonist_profile;
 use a4n_core::models::project::novel_project;
 use a4n_core::{
     chapter_analysis::summary_text,
-    models::chapter::{chapter, chapter_outline, part_outline},
+    models::chapter::{chapter, part_outline},
 };
 use serde_json::{Value, json};
 
 use a4n_core::source_spans::source_span_prompt_values;
 use a4n_core::source_spans::source_spans_for_chapters;
+use a4n_db::{
+    optimize::{OptimizationChapterOutlineRecord, OptimizationChapterSummaryRecord},
+    rag::RagForeshadowingRow,
+};
 
 pub(super) fn optimization_project_context(project: &novel_project::Model) -> Value {
     json!({
@@ -30,36 +34,38 @@ pub(super) fn optimization_chapter_context(ch: &chapter::Model) -> Value {
     json!({
         "chapter_number": ch.chapter_number,
         "title": ch.title.as_deref().map(str::trim).filter(|title| !title.is_empty()),
-        "summary": optimization_chapter_summary(ch),
+        "summary": optimization_chapter_summary_parts(ch.analysis_data.as_ref(), ch.summary.as_deref()),
         "word_count": ch.word_count,
         "status": ch.status,
         "source_spans": source_span_prompt_values(&source_spans),
     })
 }
 
-pub(super) fn optimization_chapter_summary_context(ch: &chapter::Model) -> Value {
+pub(super) fn optimization_chapter_summary_context(ch: &OptimizationChapterSummaryRecord) -> Value {
     json!({
         "chapter_number": ch.chapter_number,
         "title": ch.title.as_deref().map(str::trim).filter(|title| !title.is_empty()),
-        "summary": optimization_chapter_summary(ch),
+        "summary": optimization_chapter_summary_parts(ch.analysis_data.as_ref(), ch.summary.as_deref()),
         "word_count": ch.word_count,
     })
 }
 
-fn optimization_chapter_summary(ch: &chapter::Model) -> Option<String> {
-    ch.analysis_data
+fn optimization_chapter_summary_parts(
+    analysis_data: Option<&Value>,
+    summary: Option<&str>,
+) -> Option<String> {
+    analysis_data
         .as_ref()
-        .and_then(summary_text)
+        .and_then(|value| summary_text(value))
         .or_else(|| {
-            ch.summary
-                .as_deref()
+            summary
                 .map(str::trim)
                 .filter(|summary| !summary.is_empty())
                 .map(ToOwned::to_owned)
         })
 }
 
-pub(super) fn optimization_outline_context(outline: &chapter_outline::Model) -> Value {
+pub(super) fn optimization_outline_context(outline: &OptimizationChapterOutlineRecord) -> Value {
     json!({
         "chapter_number": outline.chapter_number,
         "title": outline.title.as_deref().map(str::trim).filter(|title| !title.is_empty()),
@@ -105,7 +111,7 @@ pub(super) fn optimization_character_profile_context(
     })
 }
 
-pub(super) fn optimization_foreshadowing_context(item: &foreshadowing_index::Model) -> Value {
+pub(super) fn optimization_foreshadowing_context(item: &RagForeshadowingRow) -> Value {
     json!({
         "description": item.description,
         "setup_chapter": item.setup_chapter,

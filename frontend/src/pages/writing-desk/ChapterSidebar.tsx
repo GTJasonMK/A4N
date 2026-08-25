@@ -2,8 +2,8 @@ import React, { useMemo, useState } from "react";
 import { Plus, RefreshCw, Search } from "lucide-react";
 import { type ChapterSummary } from "../../api/chapter";
 import {
-  chapterOutlineSourceLabel,
   isDerivedChapterOutline,
+  isRetrospectiveChapterOutline,
   type ChapterOutline,
 } from "../../api/outline";
 import { BookIconButton } from "../../components/ui/BookButton";
@@ -11,6 +11,7 @@ import { Modal } from "../../components/ui/Modal";
 import { ChapterCard } from "./ChapterCard";
 import { WritingContextCards } from "./WritingContextCards";
 import { countChapterBodyCharacters } from "./wordCount";
+import { useI18n } from "../../i18n";
 
 interface ChapterSidebarProps {
   projectId: number;
@@ -74,6 +75,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
   onCreateChapter,
   onSelectChapter,
 }) => {
+  const { t } = useI18n();
   const [outlineDetailOpen, setOutlineDetailOpen] = useState(false);
   const chaptersByNumber = useMemo(
     () => new Map(chapters.map((chapter) => [chapter.chapter_number, chapter])),
@@ -85,13 +87,22 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
   );
   const currentOutlineTitle = activeOutline ? outlineTitle(activeOutline) : null;
   const currentOutlineSummary = activeOutline ? outlineSummary(activeOutline) : null;
+  const outlineSourceLabel = activeOutline
+    ? isRetrospectiveChapterOutline(activeOutline)
+      ? t("writing.outlineRetrospective")
+      : isDerivedChapterOutline(activeOutline)
+        ? t("writing.outlineCandidate")
+        : t("writing.outlineChapter")
+    : t("writing.outlineChapter");
   const currentOutlineLabel = activeOutline
-    ? `本章${chapterOutlineSourceLabel(activeOutline)}`
-    : "本章章纲";
+    ? t("writing.outlineChapterWithSource", {
+        source: outlineSourceLabel,
+      })
+    : t("writing.outlineChapter");
 
   return (
     <aside
-      className="grid h-full min-h-0 min-w-0 gap-2 overflow-hidden border-r border-book-border/80 bg-book-bg-paper p-2.5"
+      className="a4n-writing-sidebar grid h-full min-h-0 min-w-0 gap-2 overflow-hidden border-r border-book-border/80 p-2.5"
       style={{ gridTemplateRows: SIDEBAR_GRID_ROWS }}
     >
       <WritingContextCards
@@ -106,16 +117,19 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
         style={{ gridTemplateRows: CHAPTER_LIST_GRID_ROWS }}
       >
         <div className="flex min-w-0 items-center gap-2 px-1 py-1">
-          <h2 className="min-w-0 flex-1 text-xs font-semibold text-book-text-main">章节</h2>
+          <h2 className="min-w-0 flex-1 text-xs font-semibold text-book-text-main">{t("writing.chapterWorkspace")}</h2>
           {chapterNumbers.length > 0 ? (
             <span className="text-caption text-book-text-muted">
               {filteredChapterNumbers.length === chapterNumbers.length
-                ? `${chapterNumbers.length} 章`
-                : `${filteredChapterNumbers.length} / ${chapterNumbers.length} 章`}
+                ? t("writing.chapterCount", { count: chapterNumbers.length })
+                : t("writing.chapterCountFiltered", {
+                    filtered: filteredChapterNumbers.length,
+                    total: chapterNumbers.length,
+                  })}
             </span>
           ) : null}
           <BookIconButton
-            label="新建章节"
+            label={t("writing.newChapter")}
             onClick={() => void onCreateChapter()}
             variant="secondary"
             size="sm"
@@ -123,7 +137,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             <Plus size={12} />
           </BookIconButton>
           <BookIconButton
-            label="刷新章节"
+            label={t("common.refresh")}
             onClick={() => void onRefreshChapters()}
             variant="secondary"
             size="sm"
@@ -136,7 +150,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             type="text"
             value={chapterQuery}
             onChange={(event) => onChapterQueryChange(event.target.value)}
-            placeholder="搜索章节、标题、章纲…"
+            placeholder={t("writing.chapterSearchPlaceholder")}
             className="pyqt-input w-full pl-8 pr-8 text-xs"
           />
           <Search
@@ -148,15 +162,15 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
               type="button"
               onClick={onClearChapterQuery}
               className="absolute right-1 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full text-small text-book-text-muted hover:bg-book-primary/10 hover:text-book-primary sm:right-1.5 sm:h-5 sm:w-5"
-              aria-label="清空章节搜索"
-              title="清空搜索"
+              aria-label={t("writing.clearChapterSearch")}
+              title={t("writing.clearSearch")}
             >
               ×
             </button>
           )}
         </div>
         <div className="custom-scrollbar mt-2 min-h-0 min-w-0 overflow-y-auto pr-1">
-          <ul className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
+          <ul className="a4n-motion-stagger a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
             {filteredChapterNumbers.map((chapterNumber) => {
               const chapter = chaptersByNumber.get(chapterNumber);
               const outline = outlinesByNumber.get(chapterNumber);
@@ -181,11 +195,11 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             })}
           </ul>
           {chapterNumbers.length > 0 && filteredChapterNumbers.length === 0 && (
-            <div className="mt-4 text-center text-xs text-book-text-muted">没有匹配的章节</div>
+            <div className="mt-4 text-center text-xs text-book-text-muted">{t("writing.noMatchingChapters")}</div>
           )}
           {!chapters.length && !outlines.length && chapterNumbers.length === 0 && (
             <div className="mt-4 text-center text-xs text-book-text-muted">
-              暂无章节，点击上方“新建章节”即可开始写作。
+              {t("writing.noChaptersHint")}
             </div>
           )}
         </div>
@@ -197,14 +211,14 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             type="button"
             onClick={() => setOutlineDetailOpen(true)}
             className="w-full rounded-xl px-2 py-2 text-left text-small leading-snug text-book-text-sub transition-colors hover:bg-book-bg-tertiary/55"
-            title={`查看${currentOutlineLabel}`}
+            title={t("writing.viewOutline", { label: currentOutlineLabel })}
           >
             <div className="flex min-w-0 items-center gap-1.5">
               <span className="shrink-0 font-semibold text-book-text-muted">
                 {currentOutlineLabel}
               </span>
               <span className="min-w-0 flex-1 truncate font-semibold text-book-text-main">
-                {currentOutlineTitle ?? `第 ${activeOutline.chapter_number} 章`}
+                {currentOutlineTitle ?? t("writing.chapterLabel", { number: activeOutline.chapter_number })}
               </span>
             </div>
             {currentOutlineSummary ? (
@@ -214,7 +228,7 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
             ) : null}
           </button>
         ) : (
-          <p className="px-2 py-2 text-small text-book-text-muted">本章暂无章纲</p>
+          <p className="px-2 py-2 text-small text-book-text-muted">{t("writing.noOutlineForChapter")}</p>
         )}
       </div>
 
@@ -228,18 +242,20 @@ export const ChapterSidebar: React.FC<ChapterSidebarProps> = ({
           <div className="space-y-3 text-xs leading-relaxed text-book-text-sub">
             <div>
               <div className="mb-1 text-small font-semibold text-book-text-muted">
-                第 {activeOutline.chapter_number} 章
+                {t("writing.chapterLabel", { number: activeOutline.chapter_number })}
               </div>
               <div className="font-serif text-base font-semibold text-book-text-main">
-                {currentOutlineTitle ?? "未命名章节"}
+                {currentOutlineTitle ?? t("writing.unnamedChapter")}
               </div>
             </div>
             <div className="whitespace-pre-wrap text-book-text-main">
-              {currentOutlineSummary ?? "本章章纲暂无摘要。"}
+              {currentOutlineSummary ?? t("writing.outlineSummaryMissing")}
             </div>
             {isDerivedChapterOutline(activeOutline) ? (
               <div className="text-caption text-book-text-muted">
-                {chapterOutlineSourceLabel(activeOutline)}来自自动分析，不会自动作为下一次正文生成计划。
+                {t("writing.derivedOutlineNote", {
+                  source: outlineSourceLabel,
+                })}
               </div>
             ) : null}
           </div>

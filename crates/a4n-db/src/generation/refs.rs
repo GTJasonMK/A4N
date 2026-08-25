@@ -3,9 +3,9 @@ mod records;
 mod required;
 mod rules;
 
-pub(crate) use entities::validate_entity_ref;
+pub(crate) use entities::validate_entity_refs;
 pub(crate) use records::{
-    insert_generation_entity_ref, insert_generation_media_ref, insert_generation_text_anchor_ref,
+    insert_generation_entity_refs, insert_generation_media_refs, insert_generation_text_anchor_refs,
 };
 pub(crate) use required::validate_required_prompt_refs;
 

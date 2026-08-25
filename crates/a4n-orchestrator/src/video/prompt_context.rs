@@ -25,7 +25,7 @@ pub(super) use self::ledger::{
 pub(super) use self::project_context::{video_context_character_names, video_profile_context};
 pub(super) use self::public_context::final_video_prompt_public_context;
 pub(super) use self::validation::validate_prompt_options;
-pub use self::validation::validate_prompt_options_with_reference_limit;
+pub(super) use self::validation::validate_prompt_options_with_reference_limit;
 
 pub(super) fn video_source_metadata(source: &ChapterVideoSourceContext<'_>) -> Value {
     source_metadata_with_flags(

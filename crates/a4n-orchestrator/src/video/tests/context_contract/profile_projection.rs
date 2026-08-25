@@ -21,10 +21,7 @@ fn video_context_character_names_collects_analysis_names() {
 
 #[test]
 fn video_profile_context_is_visual_compact_without_database_metadata() {
-    let now = fixed_time(1);
-    let profile = protagonist_profile::Model {
-        id: 42,
-        project_id: 7,
+    let profile = a4n_db::video::VideoPromptProtagonistProfileRecord {
         name: "林岚".to_string(),
         gender: Some("女".to_string()),
         age: Some("二十岁".to_string()),
@@ -37,14 +34,9 @@ fn video_profile_context_is_visual_compact_without_database_metadata() {
             "implicit_attributes": {},
             "social_attributes": {}
         }),
-        character_arc: None,
-        voice_fingerprint: None,
         appearance: Some("短发黑衣".to_string()),
         background: Some("旧城调查员".to_string()),
         personality: Some("冷静".to_string()),
-        last_synced_chapter: 3,
-        created_at: now,
-        updated_at: now,
     };
 
     let value = video_profile_context(&profile);

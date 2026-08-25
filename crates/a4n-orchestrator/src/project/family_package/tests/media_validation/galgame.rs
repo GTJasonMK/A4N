@@ -20,7 +20,7 @@ fn validate_media_manifest_accepts_galgame_line_binding_target() {
     let mut package = package_with_valid_media_binding_target("galgame_line");
     package.media_assets = vec![completed_media_asset_with_kind(MEDIA_KIND_IMAGE)];
     package.media_bindings = vec![media_binding_record("galgame_line", "cg")];
-    let media_payload = media_payload_for_assets(&package.media_assets);
+    let media_payload = media_payload_for_assets(&mut package);
 
     validate_media_manifest(&package, &media_payload)
         .expect("galgame line media binding target present in package should import");
@@ -61,7 +61,7 @@ fn validate_media_manifest_accepts_galgame_audio_binding_media_kind() {
     let mut package = package_with_valid_media_binding_target("galgame_line");
     package.media_assets = vec![completed_media_asset_with_kind(MEDIA_KIND_AUDIO)];
     package.media_bindings = vec![media_binding_record("galgame_line", "bgm")];
-    let media_payload = media_payload_for_assets(&package.media_assets);
+    let media_payload = media_payload_for_assets(&mut package);
 
     validate_media_manifest(&package, &media_payload)
         .expect("galgame bgm binding should accept audio media assets");
@@ -88,7 +88,7 @@ fn validate_media_manifest_rejects_galgame_binding_project_mismatch() {
     asset.project_id = 3;
     package.media_assets = vec![asset];
     package.media_bindings = vec![media_binding_record("galgame_scene", "background")];
-    let media_payload = media_payload_for_assets(&package.media_assets);
+    let media_payload = media_payload_for_assets(&mut package);
 
     let err = validate_media_manifest(&package, &media_payload)
         .expect_err("Galgame media binding asset must belong to the target project");
@@ -118,7 +118,7 @@ fn validate_media_manifest_rejects_galgame_binding_source_snapshot_mismatch() {
         });
     package.media_assets = vec![asset];
     package.media_bindings = vec![media_binding_record("galgame_line", "cg")];
-    let media_payload = media_payload_for_assets(&package.media_assets);
+    let media_payload = media_payload_for_assets(&mut package);
 
     let err = validate_media_manifest(&package, &media_payload)
         .expect_err("Galgame media binding source snapshot must match target script");

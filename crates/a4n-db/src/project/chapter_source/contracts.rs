@@ -2,17 +2,9 @@ use sea_orm::DbErr;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ResolvedChapterSourceKind {
-    Live,
-    Snapshot,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ResolvedChapterSource {
-    pub source_kind: ResolvedChapterSourceKind,
     pub requested_project_id: i64,
     pub root_project_id: i64,
     pub source_chapter_id: i64,

@@ -1,7 +1,7 @@
 use a4n_core::error::AppError;
 use serde_json::Value;
 
-use a4n_core::source_spans::SourceSpan;
+use a4n_core::source_spans::{SourceSpan, SourceSpanIndex};
 
 mod entities;
 mod pipeline;
@@ -19,6 +19,7 @@ pub fn materialize_analysis_source_spans(
     let mut root = raw.as_object().cloned().ok_or_else(|| {
         AppError::InvalidArgument("chapter_analysis 必须返回 JSON 对象".to_string())
     })?;
-    pipeline::materialize_entity_source_spans(&mut root, source_spans)?;
+    let source_span_index = SourceSpanIndex::new(source_spans);
+    pipeline::materialize_entity_source_spans(&mut root, &source_span_index)?;
     Ok(Value::Object(root))
 }

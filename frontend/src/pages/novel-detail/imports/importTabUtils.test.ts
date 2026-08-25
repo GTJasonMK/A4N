@@ -37,7 +37,7 @@ describe("import tab presentation", () => {
   });
 
   it("reports committed material sync warnings as information", () => {
-    expect(formalReverseNotice("蓝图已归纳并写入正式资料", ["资料检索索引更新失败"])).toEqual({
+    expect(formalReverseNotice("蓝图已归纳并写入正式资料", ["资料检索索引更新失败"], "；")).toEqual({
       message: "蓝图已归纳并写入正式资料；资料检索索引更新失败",
       tone: "info",
     });

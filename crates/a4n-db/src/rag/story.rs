@@ -2,7 +2,21 @@ use a4n_core::models::{
     chapter::{chapter, chapter_outline, part_outline},
     project::novel_blueprint,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
+};
+use serde_json::Value;
+
+#[derive(Clone, Debug, PartialEq, FromQueryResult)]
+pub struct RagChapterOutlineRow {
+    pub id: i64,
+    pub chapter_number: i32,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub beats: Option<Value>,
+    pub key_scenes: Option<Value>,
+}
 
 pub async fn chapters_for_rag_ingest(
     db: &impl ConnectionTrait,
@@ -17,9 +31,17 @@ pub async fn chapters_for_rag_ingest(
 pub async fn chapter_outlines_for_rag_ingest(
     db: &impl ConnectionTrait,
     project_id: i64,
-) -> Result<Vec<chapter_outline::Model>, DbErr> {
+) -> Result<Vec<RagChapterOutlineRow>, DbErr> {
     chapter_outline::Entity::find()
+        .select_only()
+        .column(chapter_outline::Column::Id)
+        .column(chapter_outline::Column::ChapterNumber)
+        .column(chapter_outline::Column::Title)
+        .column(chapter_outline::Column::Summary)
+        .column(chapter_outline::Column::Beats)
+        .column(chapter_outline::Column::KeyScenes)
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
+        .into_model::<RagChapterOutlineRow>()
         .all(db)
         .await
 }

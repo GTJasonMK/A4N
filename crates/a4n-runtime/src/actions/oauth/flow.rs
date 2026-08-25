@@ -4,8 +4,8 @@ use a4n_orchestrator::auth::{oauth2_state, required_authorization_code};
 
 use crate::AppState;
 
-use super::contracts::{OAuth2AuthorizeInput, OAuth2CallbackInput};
 use super::provider::{DEFAULT_OAUTH2_REDIRECT_URI, oauth2_provider_from_env};
+use super::{OAuth2AuthorizeInput, OAuth2CallbackInput};
 
 pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, AppError> {
     let provider = oauth2_provider_from_env(input.provider.trim(), DEFAULT_OAUTH2_REDIRECT_URI)?;

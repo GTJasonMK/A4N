@@ -4,7 +4,4 @@
 
 mod rules;
 
-pub use a4n_api_contract::import_review::DedupResult as ImportDedupResult;
-pub use a4n_db::import_review::{AcceptedImportReview, ImportReviewCreateInput};
-
 pub(crate) use rules::calculate_import_dedup;

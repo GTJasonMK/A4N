@@ -4,42 +4,6 @@ use a4n_core::models::chapter::chapter_video_prompt;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
-pub(crate) async fn insert_chapter_video_prompt_record<C>(
-    db: &C,
-    input: ChapterVideoPromptRecordFields,
-    status: String,
-    now: NaiveDateTime,
-) -> Result<chapter_video_prompt::Model, VideoDbError>
-where
-    C: ConnectionTrait,
-{
-    chapter_video_prompt::ActiveModel {
-        project_id: Set(input.project_id),
-        chapter_id: Set(input.chapter_id),
-        style: Set(input.style),
-        prompt_type: Set(input.prompt_type),
-        workflow_mode: Set(input.workflow_mode),
-        shot_number: Set(input.shot_number),
-        title: Set(input.title),
-        scene_summary: Set(input.scene_summary),
-        visual_prompt: Set(input.visual_prompt),
-        motion_prompt: Set(input.motion_prompt),
-        negative_prompt: Set(input.negative_prompt),
-        duration_secs: Set(input.duration_secs),
-        aspect_ratio: Set(input.aspect_ratio),
-        reference_image_ids_json: Set(input.reference_image_ids_json),
-        status: Set(status),
-        generated_video_id: Set(None),
-        metadata_json: Set(input.metadata_json),
-        created_at: Set(now),
-        updated_at: Set(now),
-        ..Default::default()
-    }
-    .insert(db)
-    .await
-    .map_err(VideoDbError::Database)
-}
-
 pub(crate) async fn replace_chapter_video_prompt_record<C>(
     db: &C,
     existing: chapter_video_prompt::Model,

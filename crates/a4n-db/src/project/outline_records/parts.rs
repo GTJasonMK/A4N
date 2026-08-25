@@ -30,3 +30,22 @@ where
         .await
         .map_err(ProjectOutlineRecordError::Database)
 }
+
+pub async fn part_outlines_by_ids<C>(
+    db: &C,
+    part_ids: &[i64],
+) -> Result<Vec<part_outline::Model>, ProjectOutlineRecordError>
+where
+    C: ConnectionTrait,
+{
+    if part_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    part_outline::Entity::find()
+        .filter(part_outline::Column::Id.is_in(part_ids.iter().copied()))
+        .order_by_asc(part_outline::Column::PartNumber)
+        .order_by_asc(part_outline::Column::Id)
+        .all(db)
+        .await
+        .map_err(ProjectOutlineRecordError::Database)
+}

@@ -12,6 +12,7 @@ use a4n_core::models::chapter::chapter;
 use a4n_db::DbHandle;
 use a4n_db::optimize::{OptimizationChapterPatchWriteInput, OptimizationSessionMessageInsertInput};
 use sea_orm::TransactionTrait;
+use std::collections::HashMap;
 
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
@@ -108,13 +109,16 @@ impl OptimizeApplication {
             .map_err(optimize_db_error)
     }
 
-    async fn optimization_patch_set_patches(
+    async fn optimization_patch_set_patches_for_sets(
         &self,
-        patch_set_id: i64,
+        patch_set_ids: &[i64],
     ) -> Result<Vec<optimization_patch::Model>, AppError> {
-        a4n_db::optimize::optimization_patch_set_patches(self.database.connection(), patch_set_id)
-            .await
-            .map_err(optimize_db_error)
+        a4n_db::optimize::optimization_patch_set_patches_for_sets(
+            self.database.connection(),
+            patch_set_ids,
+        )
+        .await
+        .map_err(optimize_db_error)
     }
 
     async fn matching_pending_optimization_patch_sets(
@@ -133,16 +137,16 @@ impl OptimizeApplication {
         .map_err(optimize_db_error)
     }
 
-    async fn update_optimization_patch_set_status(
+    async fn update_optimization_patch_sets_status(
         &self,
-        patch_set: optimization_patch_set::Model,
+        patch_set_ids: &[i64],
         patch_set_status: &str,
         patch_decision: &str,
         patch_apply_status: &str,
     ) -> Result<(), AppError> {
-        a4n_db::optimize::update_optimization_patch_set_status(
+        a4n_db::optimize::update_optimization_patch_sets_status(
             self.database.connection(),
-            patch_set,
+            patch_set_ids,
             patch_set_status,
             patch_decision,
             patch_apply_status,
@@ -160,11 +164,11 @@ impl OptimizeApplication {
             .map_err(optimize_db_error)
     }
 
-    async fn optimization_turn_events(
+    async fn optimization_turn_events_for_turns(
         &self,
-        turn_id: i64,
+        turn_ids: &[i64],
     ) -> Result<Vec<optimization_turn_event::Model>, AppError> {
-        a4n_db::optimize::optimization_turn_events(self.database.connection(), turn_id)
+        a4n_db::optimize::optimization_turn_events_for_turns(self.database.connection(), turn_ids)
             .await
             .map_err(optimize_db_error)
     }
@@ -223,16 +227,16 @@ impl OrchestratorContext {
             .await
     }
 
-    pub(crate) async fn update_optimization_patch_set_status(
+    pub(crate) async fn update_optimization_patch_sets_status(
         &self,
-        patch_set: optimization_patch_set::Model,
+        patch_set_ids: &[i64],
         patch_set_status: &str,
         patch_decision: &str,
         patch_apply_status: &str,
     ) -> Result<(), AppError> {
         self.optimize
-            .update_optimization_patch_set_status(
-                patch_set,
+            .update_optimization_patch_sets_status(
+                patch_set_ids,
                 patch_set_status,
                 patch_decision,
                 patch_apply_status,
@@ -264,17 +268,19 @@ impl OrchestratorContext {
         )
         .await
         .map_err(optimize_db_error)?;
-        for patch_set in patch_sets {
-            a4n_db::optimize::update_optimization_patch_set_status(
-                &transaction,
-                patch_set,
-                rejected_status,
-                rejected_decision,
-                pending_apply_status,
-            )
-            .await
-            .map_err(optimize_db_error)?;
-        }
+        let patch_set_ids = patch_sets
+            .iter()
+            .map(|patch_set| patch_set.id)
+            .collect::<Vec<_>>();
+        a4n_db::optimize::update_optimization_patch_sets_status(
+            &transaction,
+            &patch_set_ids,
+            rejected_status,
+            rejected_decision,
+            pending_apply_status,
+        )
+        .await
+        .map_err(optimize_db_error)?;
         a4n_db::optimize::insert_optimization_session_message(
             &transaction,
             OptimizationSessionMessageInsertInput {
@@ -329,12 +335,22 @@ impl OrchestratorContext {
     > {
         self.optimize_session_for_user(user_id, session_id).await?;
         let turns = self.optimize.optimization_turns(session_id).await?;
-        let mut output = Vec::with_capacity(turns.len());
-        for turn in turns {
-            let events = self.optimize.optimization_turn_events(turn.id).await?;
-            output.push((turn, events));
+        let turn_ids = turns.iter().map(|turn| turn.id).collect::<Vec<_>>();
+        let events = self
+            .optimize
+            .optimization_turn_events_for_turns(&turn_ids)
+            .await?;
+        let mut events_by_turn = HashMap::<i64, Vec<optimization_turn_event::Model>>::new();
+        for event in events {
+            events_by_turn.entry(event.turn_id).or_default().push(event);
         }
-        Ok(output)
+        Ok(turns
+            .into_iter()
+            .map(|turn| {
+                let events = events_by_turn.remove(&turn.id).unwrap_or_default();
+                (turn, events)
+            })
+            .collect())
     }
 
     pub async fn optimize_patch_sets_for_user(
@@ -350,15 +366,28 @@ impl OrchestratorContext {
     > {
         self.optimize_session_for_user(user_id, session_id).await?;
         let patch_sets = self.optimize.optimization_patch_sets(session_id).await?;
-        let mut output = Vec::with_capacity(patch_sets.len());
-        for patch_set in patch_sets {
-            let patches = self
-                .optimize
-                .optimization_patch_set_patches(patch_set.id)
-                .await?;
-            output.push((patch_set, patches));
+        let patch_set_ids = patch_sets
+            .iter()
+            .map(|patch_set| patch_set.id)
+            .collect::<Vec<_>>();
+        let patches = self
+            .optimize
+            .optimization_patch_set_patches_for_sets(&patch_set_ids)
+            .await?;
+        let mut patches_by_set = HashMap::<i64, Vec<optimization_patch::Model>>::new();
+        for patch in patches {
+            patches_by_set
+                .entry(patch.patch_set_id)
+                .or_default()
+                .push(patch);
         }
-        Ok(output)
+        Ok(patch_sets
+            .into_iter()
+            .map(|patch_set| {
+                let patches = patches_by_set.remove(&patch_set.id).unwrap_or_default();
+                (patch_set, patches)
+            })
+            .collect())
     }
 
     pub async fn delete_optimize_session_for_user_validated(

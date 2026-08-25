@@ -1,11 +1,12 @@
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use a4n_core::models::{
     generation::{generation_spec, prompt_artifact},
     media::media_asset,
 };
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
+    QuerySelect,
 };
 
 use crate::media::{MediaDbError, MediaProvenanceRecordInput};
@@ -13,6 +14,34 @@ use crate::media::{MediaDbError, MediaProvenanceRecordInput};
 use super::context::validate_provenance_source_context;
 
 const MEDIA_STATUS_COMPLETED: &str = "completed";
+
+#[derive(Debug, FromQueryResult)]
+struct PromptArtifactReferenceRow {
+    id: i64,
+    generation_spec_id: i64,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct GenerationSpecReferenceRow {
+    id: i64,
+    project_id: i64,
+    root_project_id: i64,
+    source_snapshot_id: Option<i64>,
+    source_snapshot_chapter_id: Option<i64>,
+    source_chapter_id: Option<i64>,
+}
+
+#[derive(Debug, FromQueryResult)]
+struct MediaAssetReferenceRow {
+    id: i64,
+    project_id: i64,
+    root_project_id: i64,
+    source_snapshot_id: Option<i64>,
+    source_snapshot_chapter_id: Option<i64>,
+    source_chapter_id: Option<i64>,
+    status: String,
+    file_path: Option<String>,
+}
 
 pub(super) async fn validate_media_provenance_refs<C>(
     db: &C,
@@ -24,12 +53,16 @@ where
 {
     let use_row_lock = db.get_database_backend() != DbBackend::Sqlite;
     let referenced_artifact = if let Some(prompt_artifact_id) = input.prompt_artifact_id {
-        let mut artifact_query = prompt_artifact::Entity::find_by_id(prompt_artifact_id);
+        let mut artifact_query = prompt_artifact::Entity::find_by_id(prompt_artifact_id)
+            .select_only()
+            .column(prompt_artifact::Column::Id)
+            .column(prompt_artifact::Column::GenerationSpecId);
         if use_row_lock {
             artifact_query = artifact_query.lock_exclusive();
         }
         Some(
             artifact_query
+                .into_model::<PromptArtifactReferenceRow>()
                 .one(db)
                 .await
                 .map_err(MediaDbError::Database)?
@@ -51,17 +84,28 @@ where
         Vec::new()
     } else {
         let mut specs_query = generation_spec::Entity::find()
+            .select_only()
+            .column(generation_spec::Column::Id)
+            .column(generation_spec::Column::ProjectId)
+            .column(generation_spec::Column::RootProjectId)
+            .column(generation_spec::Column::SourceSnapshotId)
+            .column(generation_spec::Column::SourceSnapshotChapterId)
+            .column(generation_spec::Column::SourceChapterId)
             .filter(generation_spec::Column::Id.is_in(generation_spec_ids))
             .order_by_asc(generation_spec::Column::Id);
         if use_row_lock {
             specs_query = specs_query.lock_exclusive();
         }
-        specs_query.all(db).await.map_err(MediaDbError::Database)?
+        specs_query
+            .into_model::<GenerationSpecReferenceRow>()
+            .all(db)
+            .await
+            .map_err(MediaDbError::Database)?
     };
     let specs_by_id = generation_specs
         .into_iter()
         .map(|spec| (spec.id, spec))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
 
     let referenced_spec = if let Some(generation_spec_id) = input.generation_spec_id {
         let spec = specs_by_id.get(&generation_spec_id).ok_or_else(|| {
@@ -119,11 +163,21 @@ where
     }
 
     if let Some(source_media_asset_id) = input.source_media_asset_id {
-        let mut source_query = media_asset::Entity::find_by_id(source_media_asset_id);
+        let mut source_query = media_asset::Entity::find_by_id(source_media_asset_id)
+            .select_only()
+            .column(media_asset::Column::Id)
+            .column(media_asset::Column::ProjectId)
+            .column(media_asset::Column::RootProjectId)
+            .column(media_asset::Column::SourceSnapshotId)
+            .column(media_asset::Column::SourceSnapshotChapterId)
+            .column(media_asset::Column::SourceChapterId)
+            .column(media_asset::Column::Status)
+            .column(media_asset::Column::FilePath);
         if use_row_lock {
             source_query = source_query.lock_exclusive();
         }
         let source = source_query
+            .into_model::<MediaAssetReferenceRow>()
             .one(db)
             .await
             .map_err(MediaDbError::Database)?

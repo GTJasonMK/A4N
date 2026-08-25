@@ -2,14 +2,6 @@ use a4n_core::structured_progress::{FieldMilestone, ProgressSpan, StructuredJson
 
 use crate::structured_llm::StructuredLlmProgress;
 
-const SKELETON_FIELDS: &[FieldMilestone] = &[
-    FieldMilestone::new("scene_identity", "场景身份", 1),
-    FieldMilestone::new("sequence_index", "段落编排", 1),
-    FieldMilestone::new("timeline_position", "时间线位置", 1),
-    FieldMilestone::new("editing_mode", "剪辑模式", 1),
-    FieldMilestone::new("source_span_ids", "来源锚点", 1),
-];
-
 const LAYOUT_UNIT_FIELDS: &[FieldMilestone] = &[
     FieldMilestone::new("transition_contracts", "转场合同", 2),
     FieldMilestone::new("title", "场景标题", 1),
@@ -46,18 +38,6 @@ pub(super) const SKELETON_STREAM_SPAN: ProgressSpan = ProgressSpan::new(2, 6);
 pub(super) const LAYOUT_UNIT_STREAM_SPAN: ProgressSpan = ProgressSpan::new(6, 16);
 pub(super) const UNIT_ADAPTATION_STREAM_SPAN: ProgressSpan = ProgressSpan::new(18, 46);
 pub(super) const DESIGN_STREAM_SPAN: ProgressSpan = ProgressSpan::new(50, 90);
-
-pub(super) fn skeleton_stream_progress() -> StructuredLlmProgress {
-    StructuredLlmProgress {
-        spec: StructuredJsonProgressSpec {
-            root_array_key: "units",
-            item_label: "叙事单元",
-            expected_items: None,
-            milestones: SKELETON_FIELDS,
-        },
-        span: SKELETON_STREAM_SPAN,
-    }
-}
 
 pub(super) fn layout_unit_stream_progress(
     unit_offset: usize,

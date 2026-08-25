@@ -1,4 +1,6 @@
+use a4n_api_contract::galgame::GalgamePipelineStatusSummary;
 use a4n_core::{error::AppError, models::generation::workflow_run};
+use a4n_domain::project::ProjectKind;
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::{
@@ -9,8 +11,8 @@ use crate::{
 
 use super::{
     GALGAME_PIPELINE_WORKFLOW_KIND, GalgameAssetPlan, GalgamePipelineRunOptions,
-    GalgamePipelineStartStage, GalgamePipelineStatusReadModel, GalgameProgressReporter,
-    GalgameScriptDetail, PROJECT_KIND_GALGAME, galgame_pipeline_workflow_run_input,
+    GalgamePipelineStartStage, GalgameProgressReporter, GalgameScriptDetail,
+    galgame_pipeline_workflow_run_input,
 };
 
 pub struct GalgamePipelineApplicationInput {
@@ -231,14 +233,14 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         project_id: i64,
-    ) -> Result<GalgamePipelineStatusReadModel, AppError> {
+    ) -> Result<GalgamePipelineStatusSummary, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
         let project = self
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if project.project_kind != PROJECT_KIND_GALGAME {
+        if project.project_kind != ProjectKind::Galgame.as_str() {
             return Err(AppError::InvalidArgument(format!(
                 "项目不是 Galgame 派生项目: {}",
                 project.id
@@ -248,6 +250,7 @@ impl OrchestratorContext {
             .workflow_run_models(ListWorkflowRunsInput {
                 project_id: Some(project.id),
                 chapter_id: None,
+                chapter_ids: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: None,
                 resumable_only: Some(false),
@@ -260,7 +263,10 @@ impl OrchestratorContext {
             Some(run) => self.workflow_checkpoint_models(run.id).await?,
             None => Vec::new(),
         };
-        Ok(GalgamePipelineStatusReadModel { run, checkpoints })
+        Ok(super::read_models::galgame_pipeline_status_summary(
+            run,
+            checkpoints,
+        ))
     }
 
     pub async fn run_galgame_pipeline_validated(
@@ -272,7 +278,7 @@ impl OrchestratorContext {
             .project_by_id(input.project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {}", input.project_id)))?;
-        if project.project_kind != PROJECT_KIND_GALGAME {
+        if project.project_kind != ProjectKind::Galgame.as_str() {
             return Err(AppError::InvalidArgument(format!(
                 "项目不是 Galgame 派生项目: {}",
                 project.id
@@ -333,7 +339,7 @@ impl OrchestratorContext {
             .project_by_id(project_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-        if project.project_kind != PROJECT_KIND_GALGAME {
+        if project.project_kind != ProjectKind::Galgame.as_str() {
             return Err(AppError::InvalidArgument(format!(
                 "项目不是 Galgame 派生项目: {}",
                 project.id
@@ -343,6 +349,7 @@ impl OrchestratorContext {
             .workflow_run_models(ListWorkflowRunsInput {
                 project_id: Some(project.id),
                 chapter_id: None,
+                chapter_ids: None,
                 workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
                 status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
                 resumable_only: Some(false),

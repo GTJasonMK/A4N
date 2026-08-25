@@ -7,6 +7,7 @@ use a4n_core::models::{
     generation::{generation_spec, prompt_artifact},
     project::{novel_project, source_snapshot_profile},
 };
+use a4n_domain::project::ProjectKind;
 use chrono::Utc;
 #[cfg(test)]
 use sea_orm::DbErr;
@@ -17,7 +18,6 @@ use sea_orm::{
 #[cfg(test)]
 use std::collections::BTreeSet;
 
-const PROJECT_KIND_GALGAME: &str = "galgame";
 const GALGAME_ENTITY_SCENE: &str = "galgame_scene";
 const GALGAME_ENTITY_LINE: &str = "galgame_line";
 const GALGAME_ENTITY_CHARACTER_PROFILE: &str = "character_profile";
@@ -74,17 +74,24 @@ fn require_galgame_generation_text<'a>(
 mod types;
 pub use types::{
     CompletedGalgameVisualBindingRecords, GalgameAssetPlanSpecRecordError,
-    GalgameAssetPlanSpecRecordInput, GalgameAssetPlanningReadModel, GalgameContextRecordError,
-    GalgameGenerationRecordError, GalgameGenerationSpecUpsert, GalgameGenerationSpecUpsertInput,
-    GalgameGenerationSpecUpsertOutcome, GalgameLineRecordError, GalgameLineReorderRecordError,
-    GalgameMediaBindingReadModel, GalgameMediaBindingResult, GalgameMediaRecordError,
-    GalgamePersistValidationScopeReadModel, GalgamePipelinePromptChapterRecord,
-    GalgamePipelinePromptContextRecord, GalgamePortraitSpecTargetInput, GalgameProjectRecordError,
-    GalgamePromptArtifactUpsertInput, GalgameSceneRecordError, GalgameScriptDetailReadModel,
-    GalgameScriptRecordError, GalgameTargetContext, InsertGalgameLineRecordInput,
-    PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput, PersistGalgameSceneRecordInput,
-    PersistGalgameScriptRecordInput, ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput,
-    UpdateGalgameSceneRecordInput,
+    GalgameAssetPlanSpecRecordInput, GalgameAssetPlanningReadModel,
+    GalgameAssetPlanningSceneRecord, GalgameAssetPlanningSourceChapterRecord,
+    GalgameCompletedVisualAssetRecord, GalgameCompletedVisualBindingRecord,
+    GalgameContextRecordError, GalgameGenerationRecordError, GalgameGenerationSpecUpsert,
+    GalgameGenerationSpecUpsertInput, GalgameGenerationSpecUpsertOutcome, GalgameLineRecordError,
+    GalgameLineReorderRecordError, GalgameMediaAssetReadRecord, GalgameMediaBindingReadModel,
+    GalgameMediaBindingReadRecord, GalgameMediaBindingResult, GalgameMediaRecordError,
+    GalgamePersistValidationScopeReadModel, GalgamePersistValidationSourceSnapshotChapterRecord,
+    GalgamePersistValidationSpeakerProfileRecord, GalgamePersistValidationTextAnchorRecord,
+    GalgamePipelinePromptChapterRecord, GalgamePipelinePromptChapterSourceRecord,
+    GalgamePipelinePromptContextRecord, GalgamePipelinePromptSpeakerProfileRecord,
+    GalgamePipelinePromptTextAnchorRecord, GalgamePortraitSpecTargetInput,
+    GalgamePortraitSpecTargetProfile, GalgameProjectRecordError, GalgamePromptArtifactUpsertInput,
+    GalgameSceneRecordError, GalgameScriptDetailChoiceRecord, GalgameScriptDetailReadModel,
+    GalgameScriptDetailSceneRecord, GalgameScriptDetailScriptRecord, GalgameScriptRecordError,
+    GalgameTargetContext, InsertGalgameLineRecordInput, PersistGalgameChoiceRecordInput,
+    PersistGalgameLineRecordInput, PersistGalgameSceneRecordInput, PersistGalgameScriptRecordInput,
+    ReplaceGalgameChoiceRecordInput, UpdateGalgameLineRecordInput, UpdateGalgameSceneRecordInput,
 };
 pub(in crate::galgame) use types::{
     GalgameGenerationSpecEntityRefRecordInput, GalgameGenerationSpecRefsRecordInput,
@@ -98,6 +105,8 @@ pub use read_models::{
     galgame_scene_in_project_record, galgame_script_detail_read_model,
     galgame_speaker_profile_in_root_project_record, galgame_speaker_profile_records,
     galgame_text_anchor_in_source_snapshot_record,
+    validate_galgame_speaker_profile_in_root_project,
+    validate_galgame_text_anchor_in_source_snapshot,
 };
 
 mod generation_specs;

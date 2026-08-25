@@ -413,14 +413,11 @@ pub(crate) async fn start(
     ) {
         Ok(child) => child,
         Err(error) => {
-            if let (Some(pid), Some(marker)) = (qdrant_pid, qdrant_marker.as_deref()) {
-                if let Err(cleanup_error) =
+            if let (Some(pid), Some(marker)) = (qdrant_pid, qdrant_marker.as_deref())
+                && let Err(cleanup_error) =
                     stop_owned_processes(None, Some((pid, marker)), true).await
-                {
-                    bail!(
-                        "启动 A4N Server 失败: {error:#}；同时清理 Qdrant 失败: {cleanup_error:#}"
-                    );
-                }
+            {
+                bail!("启动 A4N Server 失败: {error:#}；同时清理 Qdrant 失败: {cleanup_error:#}");
             }
             return Err(error);
         }
@@ -1351,6 +1348,8 @@ fn executable_name(name: &str) -> OsString {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::Path;
     use std::process::Command;
 
     use tempfile::TempDir;
@@ -1358,10 +1357,13 @@ mod tests {
     use tokio::net::TcpListener;
 
     use super::{
-        LocalStateInspection, configure_onnxruntime_environment, database_endpoint,
-        endpoint_from_url, log_stdio, non_empty_command_line, onnxruntime_library_name,
-        qdrant_http_port, runtime_loader_path_var, server_endpoint, server_healthy, tail_lines,
+        LocalPaths, LocalState, LocalStateInspection, StartOptions,
+        configure_onnxruntime_environment, database_endpoint, endpoint_from_url,
+        load_state_unlocked, log_stdio, non_empty_command_line, onnxruntime_library_name,
+        qdrant_http_port, runtime_loader_path_var, server_endpoint, server_healthy, spawn_server,
+        stop, tail_lines,
     };
+    use crate::local::MANAGED_SIDECARS_ENV;
 
     #[test]
     fn local_endpoints_reject_remote_server_and_parse_postgres() {
@@ -1490,6 +1492,159 @@ mod tests {
                 std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
                 0o600
             );
+        }
+    }
+
+    #[test]
+    fn local_state_rejects_schema_unknown_fields_and_partial_qdrant_identity() {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join("local.json");
+        let valid = serde_json::json!({
+            "schema_version": 1,
+            "server_pid": 123,
+            "server_marker": "a4n-server",
+            "server_url": "http://127.0.0.1:8080/api",
+            "server_log": directory.path().join("server.log"),
+            "qdrant_pid": null,
+            "qdrant_marker": null,
+            "qdrant_log": null
+        });
+
+        fs::write(&path, serde_json::to_vec(&valid).unwrap()).unwrap();
+        assert!(load_state_unlocked(&path).unwrap().is_some());
+
+        let mut invalid_schema = valid.clone();
+        invalid_schema["schema_version"] = serde_json::json!(99);
+        fs::write(&path, serde_json::to_vec(&invalid_schema).unwrap()).unwrap();
+        assert!(load_state_unlocked(&path).is_err());
+
+        let mut unknown = valid.clone();
+        unknown["unexpected"] = serde_json::json!(true);
+        fs::write(&path, serde_json::to_vec(&unknown).unwrap()).unwrap();
+        assert!(load_state_unlocked(&path).is_err());
+
+        let mut partial_qdrant = valid;
+        partial_qdrant["qdrant_pid"] = serde_json::json!(1234);
+        fs::write(&path, serde_json::to_vec(&partial_qdrant).unwrap()).unwrap();
+        assert!(load_state_unlocked(&path).is_err());
+    }
+
+    #[tokio::test]
+    async fn stale_state_is_removed_but_pid_identity_mismatch_is_never_killed() {
+        let directory = TempDir::new().unwrap();
+        let config = directory.path().join("cli.json");
+        let paths = LocalPaths::new(&config);
+        let stale = LocalState {
+            schema_version: 1,
+            server_pid: u32::MAX,
+            server_marker: "a4n-server".into(),
+            server_url: "http://127.0.0.1:8080/api".into(),
+            server_log: paths.server_log.clone(),
+            qdrant_pid: None,
+            qdrant_marker: None,
+            qdrant_log: None,
+        };
+        fs::write(&paths.state, serde_json::to_vec(&stale).unwrap()).unwrap();
+        let stopped = stop(&config, false).await.unwrap();
+        assert_eq!(stopped["state_removed"], true);
+        assert!(!paths.state.exists());
+
+        let occupied = LocalState {
+            server_pid: std::process::id(),
+            server_marker: "marker-that-cannot-match-this-test-process".into(),
+            ..stale
+        };
+        fs::write(&paths.state, serde_json::to_vec(&occupied).unwrap()).unwrap();
+        let error = stop(&config, true).await.unwrap_err();
+        assert!(format!("{error:#}").contains("拒绝终止"));
+        assert!(paths.state.exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn start_profiles_pass_expected_server_environment() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let directory = TempDir::new().unwrap();
+        let script = directory.path().join("fake-server.sh");
+        let sidecars = directory.path().join("sidecars");
+        fs::create_dir_all(&sidecars).unwrap();
+        fs::write(sidecars.join(onnxruntime_library_name()), b"runtime").unwrap();
+        let script_body = |env_path: &Path| format!("#!/bin/sh\nenv > '{}'\n", env_path.display());
+
+        for (name, options, qdrant_url, expected_profile, expected_managed) in [
+            (
+                "managed",
+                StartOptions {
+                    managed_sidecars: true,
+                    qdrant: true,
+                    full: false,
+                },
+                Some("http://127.0.0.1:6334"),
+                "sidecar",
+                "1",
+            ),
+            (
+                "external",
+                StartOptions {
+                    managed_sidecars: false,
+                    qdrant: false,
+                    full: false,
+                },
+                None,
+                "sidecar",
+                "0",
+            ),
+            (
+                "external-qdrant",
+                StartOptions {
+                    managed_sidecars: true,
+                    qdrant: false,
+                    full: false,
+                },
+                Some("http://127.0.0.1:6334"),
+                "sidecar",
+                "1",
+            ),
+            (
+                "full",
+                StartOptions {
+                    managed_sidecars: false,
+                    qdrant: true,
+                    full: true,
+                },
+                Some("http://127.0.0.1:6334"),
+                "full",
+                "0",
+            ),
+        ] {
+            let env_path = directory.path().join(format!("{name}.env"));
+            fs::write(&script, script_body(&env_path)).unwrap();
+            fs::set_permissions(&script, fs::Permissions::from_mode(0o700)).unwrap();
+            let paths = LocalPaths::new(&directory.path().join(format!("{name}.json")));
+            let mut child = spawn_server(
+                &script,
+                "127.0.0.1:39000".parse().unwrap(),
+                None,
+                &paths,
+                options,
+                Some(&sidecars),
+                qdrant_url,
+            )
+            .unwrap();
+            let status = child.wait().unwrap();
+            assert!(status.success());
+            let env = fs::read_to_string(env_path).unwrap();
+            assert!(env.contains(&format!("A4N_RUNTIME_PROFILE={expected_profile}")));
+            assert!(env.contains(&format!("{MANAGED_SIDECARS_ENV}={expected_managed}")));
+            match qdrant_url {
+                Some(url) => assert!(env.contains(&format!("A4N_QDRANT_URL={url}"))),
+                None => assert!(!env.contains("A4N_QDRANT_URL=")),
+            }
+            if options.managed_sidecars || options.full {
+                assert!(env.contains("ORT_LIB_PATH="));
+                assert!(env.contains(&format!("{}=", runtime_loader_path_var())));
+            }
         }
     }
 

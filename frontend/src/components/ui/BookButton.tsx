@@ -51,7 +51,9 @@ export const BookButton: React.FC<BookButtonProps> = ({
       type={type ?? 'button'}
       className={`a4n-touch-target ${variants[variant]} ${
         isPyqtVariant ? sizes[size] : ghostSizes[size]
-      } min-w-0 max-w-full whitespace-normal text-center sm:whitespace-nowrap disabled:cursor-not-allowed ${className}`}
+      } min-w-0 max-w-full whitespace-normal text-center sm:whitespace-nowrap disabled:cursor-not-allowed ${
+        isPyqtVariant ? '' : 'disabled:opacity-50'
+      } ${className}`}
       {...props}
     >
       {children}

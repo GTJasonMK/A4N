@@ -2,35 +2,43 @@ use sea_orm::{ConnectionTrait, DbErr};
 
 mod prompt_records;
 pub use prompt_records::{
-    ChapterVideoPromptRecordFields, UpdateChapterVideoPromptRecordInput,
+    ChapterVideoPromptCandidateRecord, ChapterVideoPromptRecordFields,
+    ChapterVideoPromptTimelineRecord, UpdateChapterVideoPromptRecordInput,
     chapter_video_boundary_frame_prompt_candidates,
     chapter_video_first_frame_chain_prompt_candidates, chapter_video_first_frame_prompt_candidates,
-    chapter_video_prompt_by_id, chapter_video_prompt_records_for_types,
-    chapter_video_prompt_scope_by_id, chapter_video_prompt_segment_plan_records,
-    chapter_video_prompt_workflow_records, chapter_video_prompt_workflow_shot_records,
-    chapter_video_prompts_for_batch_generation, chapter_video_prompts_for_chapter,
-    chapter_video_storyboard_prompt_candidates, completed_shared_segment_plan_id_for_source_hash,
-    update_chapter_video_prompt_record,
+    chapter_video_prompt_by_id, chapter_video_prompt_ids_for_types,
+    chapter_video_prompt_records_for_types, chapter_video_prompt_scope_by_id,
+    chapter_video_prompt_segment_plan_records, chapter_video_prompt_timeline_records_for_chapter,
+    chapter_video_prompt_video_binding_records_for_chapter, chapter_video_prompt_workflow_records,
+    chapter_video_prompt_workflow_shot_records, chapter_video_prompts_for_batch_generation,
+    chapter_video_prompts_for_chapter, chapter_video_storyboard_prompt_candidates,
+    completed_shared_segment_plan_id_for_source_hash, update_chapter_video_prompt_record,
 };
 pub(crate) use prompt_records::{
+    PromptDependencyRecord, chapter_video_prompt_dependency_records,
     chapter_video_prompt_previous_frame_candidates, chapter_video_prompt_record,
-    chapter_video_prompt_sibling_records, chapter_video_prompt_sync_candidates,
-    delete_chapter_video_prompt_records, ensure_chapter_video_prompt_not_running,
-    frame_chapter_video_prompt_record, insert_chapter_video_prompt_record,
+    chapter_video_prompt_sibling_dependency_records, chapter_video_prompt_sibling_records,
+    chapter_video_prompt_sync_candidates, delete_chapter_video_prompt_records,
+    ensure_chapter_video_prompt_not_running, frame_chapter_video_prompt_record,
     replace_chapter_video_prompt_record, update_chapter_video_prompt_metadata_record,
 };
 
 mod generated_images;
 pub(crate) use generated_images::clear_generated_image_references_record;
 pub(crate) use generated_images::generated_images_for_chapter_by_id_desc;
+pub(crate) use generated_images::validated_video_reference_image_records_batch;
+pub(crate) use generated_images::video_project_record;
 pub use generated_images::{
     CreateGeneratedImageRecordDraftInput, UpdateGeneratedImageRecordInput,
-    VideoProfileMaterialReadModel, VideoProjectContextReadModel, create_generated_image_record,
+    VideoProfileMaterialReadModel, VideoProfilePrimaryMaterialRow, VideoProfileRelevanceRow,
+    VideoProjectContextReadModel, VideoProjectIdentity, VideoPromptBlueprintCharacterRecord,
+    VideoPromptProtagonistProfileRecord, create_generated_image_record,
     create_generated_image_record_with_generation_run_checkpoint,
     delete_generated_image_record_with_cleanup, delete_manga_page_image_records,
     ensure_image_chapter_belongs_to_project_record, ensure_video_chapter_belongs_to_project_record,
-    ensure_video_reference_images_available_record, generated_image_by_id, generated_images_by_ids,
-    generated_images_for_chapter, generated_images_for_project,
+    ensure_video_reference_images_available_record, generated_image_by_id, generated_image_exists,
+    generated_image_ids_by_ids, generated_images_by_ids, generated_images_for_chapter,
+    generated_images_for_project, generated_images_for_projects,
     generated_images_for_projects_chapter_by_id_desc, generated_images_for_video_prompt_references,
     update_generated_image_record, validated_video_reference_image_records,
     video_asset_project_ids_record, video_chapter_record, video_library_chapter_image_records,
@@ -40,16 +48,18 @@ pub use generated_images::{
 };
 
 mod generated_videos;
-pub(crate) use generated_videos::clear_generated_video_references_record;
+pub(crate) use generated_videos::clear_generated_video_references_by_ids;
 pub use generated_videos::{
-    CreateGeneratedVideoRecordDraftInput, UpdateGeneratedVideoRecordInput,
-    create_generated_video_record, create_generated_video_record_with_generation_run,
+    CreateGeneratedVideoRecordDraftInput, GeneratedVideoErrorStatusBatchInput,
+    UpdateGeneratedVideoRecordInput, create_generated_video_record,
+    create_generated_video_record_with_generation_run,
     create_prompt_generated_video_record_with_generation_run,
     delete_generated_video_record_with_cleanup, delete_missing_generated_video_references_record,
-    generated_video_by_id, generated_videos_by_provider_job_id, generated_videos_for_chapter,
-    mark_generated_video_completed_and_link_prompt_record,
+    generated_video_by_id, generated_videos_by_ids, generated_videos_by_provider_job_id,
+    generated_videos_for_chapter, mark_generated_video_completed_and_link_prompt_record,
     mark_generated_video_error_status_and_prompt_record,
-    mark_generated_video_job_and_prompt_record, merge_video_provider_response_metadata,
+    mark_generated_video_job_and_prompt_record,
+    mark_generated_videos_error_status_and_prompt_records, merge_video_provider_response_metadata,
     missing_video_reference_project_ids, recover_stale_generated_videos_without_provider_job,
     update_generated_video_duration_record, update_generated_video_record,
     update_generated_video_waiting_status_and_prompt_record,
@@ -117,7 +127,7 @@ where
     C: ConnectionTrait,
 {
     let project_id = validate_positive_video_i64(project_id, "project_id")?;
-    let project = crate::project::project_by_id_for_update(db, project_id)
+    let project = crate::project::project_write_identity_for_update(db, project_id)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(format!("项目不存在: {project_id}")))?;
     if project.lifecycle_gate != crate::generation::PROJECT_GATE_ACTIVE {

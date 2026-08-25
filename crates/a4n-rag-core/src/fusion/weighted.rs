@@ -9,6 +9,7 @@ const RAG_RRF_K: f32 = 60.0;
 struct FusionEntry {
     result: SearchResult,
     fused_score: f32,
+    representative_multiplier: f32,
 }
 
 pub fn fuse_weighted_rag_results<F>(
@@ -21,16 +22,27 @@ where
     let mut fused: HashMap<String, FusionEntry> = HashMap::new();
     for (query_weight, results) in batches {
         for (rank, result) in results.into_iter().enumerate() {
+            let temporal_multiplier_value = temporal_multiplier(&result);
             let contribution =
-                query_weight * temporal_multiplier(&result) * rag_data_type_weight(&result)
+                query_weight * temporal_multiplier_value * rag_data_type_weight(&result)
                     / (RAG_RRF_K + rank as f32 + 1.0);
-            let entry = fused
-                .entry(result.id.clone())
-                .or_insert_with(|| FusionEntry {
-                    result,
-                    fused_score: 0.0,
-                });
-            entry.fused_score += contribution;
+            match fused.entry(result.id.clone()) {
+                std::collections::hash_map::Entry::Occupied(mut entry) => {
+                    let entry = entry.get_mut();
+                    if temporal_multiplier_value > entry.representative_multiplier {
+                        entry.result = result;
+                        entry.representative_multiplier = temporal_multiplier_value;
+                    }
+                    entry.fused_score += contribution;
+                }
+                std::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(FusionEntry {
+                        result,
+                        fused_score: contribution,
+                        representative_multiplier: temporal_multiplier_value,
+                    });
+                }
+            }
         }
     }
 

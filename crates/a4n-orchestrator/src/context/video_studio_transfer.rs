@@ -8,8 +8,8 @@ use crate::project::{
     ExportVideoStudioProjectApplicationInput, ExportedProjectPackage, ImportMediaPayload,
     ImportProjectPackageApplicationInput, ProjectPackageTransferError,
     VideoStudioProjectTransferHostPort, assemble_video_studio_export_package,
-    import_result_with_file_rollback, required_package_extension, validate_package_manifest,
-    video_studio_export_media_files, video_studio_media_file_key,
+    import_result_with_file_rollback, media_file_key, required_package_extension,
+    validate_package_manifest, video_studio_export_media_files,
 };
 
 impl OrchestratorContext {
@@ -101,7 +101,7 @@ where
         folder: &str,
         stem: &str,
     ) -> Result<Option<String>, VideoStudioProjectImportMediaError> {
-        let key = video_studio_media_file_key(owner_kind, owner_id, field);
+        let key = media_file_key(owner_kind, owner_id, field);
         let Some(entry) = self.media_payload.entries.get(&key) else {
             return Ok(None);
         };

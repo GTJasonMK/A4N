@@ -5,12 +5,15 @@ use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD
 
 use super::super::assets::validate_media_asset_source_context;
 use super::context::MediaManifestContext;
-use crate::project::family_package::{FamilyImportMediaPayload, ProjectFamilyPackage};
-use crate::project::{media_asset_path, media_file_key};
+use crate::project::{
+    ImportMediaPayload, family_package::ProjectFamilyPackage, media_asset_path, media_file_key,
+};
+
+const MEDIA_ASSET_OWNER: &str = "media_asset";
 
 pub(super) fn validate_media_assets(
     package: &ProjectFamilyPackage,
-    media_payload: &FamilyImportMediaPayload,
+    media_payload: &ImportMediaPayload,
     context: &MediaManifestContext<'_>,
 ) -> Result<(), String> {
     for asset in &package.media_assets {
@@ -51,16 +54,20 @@ pub(super) fn validate_media_assets(
             &context.source_snapshot_chapters,
         )?;
         if media_asset_path(asset, FILE_PATH_FIELD)?.is_some()
-            && !media_payload
-                .entries
-                .contains_key(&media_file_key(asset.id, FILE_PATH_FIELD))
+            && !media_payload.entries.contains_key(&media_file_key(
+                MEDIA_ASSET_OWNER,
+                asset.id,
+                FILE_PATH_FIELD,
+            ))
         {
             return Err(format!("媒体资产缺少文件包条目: {}", asset.id));
         }
         if media_asset_path(asset, THUMBNAIL_PATH_FIELD)?.is_some()
-            && !media_payload
-                .entries
-                .contains_key(&media_file_key(asset.id, THUMBNAIL_PATH_FIELD))
+            && !media_payload.entries.contains_key(&media_file_key(
+                MEDIA_ASSET_OWNER,
+                asset.id,
+                THUMBNAIL_PATH_FIELD,
+            ))
         {
             return Err(format!("媒体资产缺少缩略图包条目: {}", asset.id));
         }

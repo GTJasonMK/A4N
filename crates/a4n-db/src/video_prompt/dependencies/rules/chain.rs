@@ -1,12 +1,92 @@
+use crate::video::PromptDependencyRecord;
 use crate::video_prompt::PromptStage;
 use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_core::source_spans::metadata_source_content_sha256;
 use serde_json::Value;
 
+pub(in crate::video_prompt::dependencies) trait PromptDependencyFields {
+    fn id(&self) -> i64;
+    fn project_id(&self) -> i64;
+    fn chapter_id(&self) -> i64;
+    fn style(&self) -> Option<&str>;
+    fn prompt_type(&self) -> &str;
+    fn workflow_mode(&self) -> &str;
+    fn aspect_ratio(&self) -> Option<&str>;
+    fn metadata_json(&self) -> Option<&Value>;
+}
+
+impl PromptDependencyFields for chapter_video_prompt::Model {
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn project_id(&self) -> i64 {
+        self.project_id
+    }
+
+    fn chapter_id(&self) -> i64 {
+        self.chapter_id
+    }
+
+    fn style(&self) -> Option<&str> {
+        self.style.as_deref()
+    }
+
+    fn prompt_type(&self) -> &str {
+        &self.prompt_type
+    }
+
+    fn workflow_mode(&self) -> &str {
+        &self.workflow_mode
+    }
+
+    fn aspect_ratio(&self) -> Option<&str> {
+        self.aspect_ratio.as_deref()
+    }
+
+    fn metadata_json(&self) -> Option<&Value> {
+        self.metadata_json.as_ref()
+    }
+}
+
+impl PromptDependencyFields for PromptDependencyRecord {
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn project_id(&self) -> i64 {
+        self.project_id
+    }
+
+    fn chapter_id(&self) -> i64 {
+        self.chapter_id
+    }
+
+    fn style(&self) -> Option<&str> {
+        self.style.as_deref()
+    }
+
+    fn prompt_type(&self) -> &str {
+        &self.prompt_type
+    }
+
+    fn workflow_mode(&self) -> &str {
+        &self.workflow_mode
+    }
+
+    fn aspect_ratio(&self) -> Option<&str> {
+        self.aspect_ratio.as_deref()
+    }
+
+    fn metadata_json(&self) -> Option<&Value> {
+        self.metadata_json.as_ref()
+    }
+}
+
 pub(in crate::video_prompt::dependencies) fn prompt_stage(
-    row: &chapter_video_prompt::Model,
+    row: &impl PromptDependencyFields,
 ) -> Option<PromptStage> {
-    match row.prompt_type.as_str() {
+    match row.prompt_type() {
         chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => Some(PromptStage::SegmentPlan),
         chapter_video_prompt::PROMPT_TYPE_FRAME
         | chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME
@@ -17,8 +97,8 @@ pub(in crate::video_prompt::dependencies) fn prompt_stage(
     }
 }
 
-fn prompt_workflow_mode(row: &chapter_video_prompt::Model) -> Option<&str> {
-    match row.workflow_mode.as_str() {
+fn prompt_workflow_mode(row: &impl PromptDependencyFields) -> Option<&str> {
+    match row.workflow_mode() {
         mode @ (chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
         | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
         | chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO
@@ -27,11 +107,14 @@ fn prompt_workflow_mode(row: &chapter_video_prompt::Model) -> Option<&str> {
     }
 }
 
-pub(in crate::video_prompt::dependencies) fn prompt_same_generation_chain(
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+pub(in crate::video_prompt::dependencies) fn prompt_same_generation_chain<
+    L: PromptDependencyFields,
+    R: PromptDependencyFields,
+>(
+    left: &L,
+    right: &R,
 ) -> bool {
-    if left.project_id != right.project_id || left.chapter_id != right.chapter_id {
+    if left.project_id() != right.project_id() || left.chapter_id() != right.chapter_id() {
         return false;
     }
     let left_stage = prompt_stage(left);
@@ -41,12 +124,12 @@ pub(in crate::video_prompt::dependencies) fn prompt_same_generation_chain(
     if !shared_upstream && prompt_workflow_mode(left) != prompt_workflow_mode(right) {
         return false;
     }
-    if left.style != right.style || left.aspect_ratio != right.aspect_ratio {
+    if left.style() != right.style() || left.aspect_ratio() != right.aspect_ratio() {
         return false;
     }
     let source_matches = match (
-        metadata_source_content_sha256(left.metadata_json.as_ref()),
-        metadata_source_content_sha256(right.metadata_json.as_ref()),
+        metadata_source_content_sha256(left.metadata_json()),
+        metadata_source_content_sha256(right.metadata_json()),
     ) {
         (Some(left_hash), Some(right_hash)) => left_hash == right_hash,
         (None, None) => true,
@@ -55,21 +138,19 @@ pub(in crate::video_prompt::dependencies) fn prompt_same_generation_chain(
     source_matches && prompt_execution_scope_matches(left, right)
 }
 
-fn prompt_execution_scope_matches(
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+fn prompt_execution_scope_matches<L: PromptDependencyFields, R: PromptDependencyFields>(
+    left: &L,
+    right: &R,
 ) -> bool {
     let Some(left_identity) = left
-        .metadata_json
-        .as_ref()
+        .metadata_json()
         .and_then(|metadata| metadata.get("video_execution_identity"))
         .and_then(Value::as_object)
     else {
         return false;
     };
     let Some(right_identity) = right
-        .metadata_json
-        .as_ref()
+        .metadata_json()
         .and_then(|metadata| metadata.get("video_execution_identity"))
         .and_then(Value::as_object)
     else {
@@ -94,11 +175,11 @@ fn prompt_execution_scope_matches(
         .get("segment_plan_prompt_id")
         .and_then(Value::as_i64);
     if prompt_is_shared_video_upstream(left) {
-        return right_plan == Some(left.id)
+        return right_plan == Some(left.id())
             && segment_identity_exists_in_plan(left_identity, right_identity);
     }
     if prompt_is_shared_video_upstream(right) {
-        return left_plan == Some(right.id)
+        return left_plan == Some(right.id())
             && segment_identity_exists_in_plan(right_identity, left_identity);
     }
     let same_segment = left_plan.is_some()
@@ -145,14 +226,14 @@ fn identity_fields_match(
     })
 }
 
-fn video_and_frame_prompt_pair(
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+fn video_and_frame_prompt_pair<L: PromptDependencyFields, R: PromptDependencyFields>(
+    left: &L,
+    right: &R,
 ) -> bool {
-    (left.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
-        && is_frame_prompt(&right.prompt_type))
-        || (right.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
-            && is_frame_prompt(&left.prompt_type))
+    (left.prompt_type() == chapter_video_prompt::PROMPT_TYPE_VIDEO
+        && is_frame_prompt(right.prompt_type()))
+        || (right.prompt_type() == chapter_video_prompt::PROMPT_TYPE_VIDEO
+            && is_frame_prompt(left.prompt_type()))
 }
 
 fn is_frame_prompt(prompt_type: &str) -> bool {
@@ -165,20 +246,23 @@ fn is_frame_prompt(prompt_type: &str) -> bool {
     )
 }
 
-pub(in crate::video_prompt::dependencies) fn prompt_same_frame_reference_chain(
-    current: &chapter_video_prompt::Model,
-    previous: &chapter_video_prompt::Model,
+pub(in crate::video_prompt::dependencies) fn prompt_same_frame_reference_chain<
+    L: PromptDependencyFields,
+    R: PromptDependencyFields,
+>(
+    current: &L,
+    previous: &R,
 ) -> bool {
     if !prompt_same_generation_chain(current, previous)
-        || current.prompt_type != previous.prompt_type
-        || current.workflow_mode != previous.workflow_mode
+        || current.prompt_type() != previous.prompt_type()
+        || current.workflow_mode() != previous.workflow_mode()
     {
         return false;
     }
-    let Some(current_metadata) = current.metadata_json.as_ref() else {
+    let Some(current_metadata) = current.metadata_json() else {
         return false;
     };
-    let Some(previous_metadata) = previous.metadata_json.as_ref() else {
+    let Some(previous_metadata) = previous.metadata_json() else {
         return false;
     };
     if current_metadata.get("contract_version") != previous_metadata.get("contract_version") {
@@ -187,7 +271,7 @@ pub(in crate::video_prompt::dependencies) fn prompt_same_frame_reference_chain(
     if current_metadata.get("source_prompt_type") != previous_metadata.get("source_prompt_type") {
         return false;
     }
-    if prompt_type_uses_generation_assets(&current.prompt_type)
+    if prompt_type_uses_generation_assets(current.prompt_type())
         && current_metadata
             .get("generation_asset_fingerprint")
             .is_none()
@@ -214,15 +298,15 @@ fn prompt_type_uses_generation_assets(prompt_type: &str) -> bool {
     )
 }
 
-fn prompt_is_shared_video_upstream(row: &chapter_video_prompt::Model) -> bool {
-    row.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
-        && row.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+fn prompt_is_shared_video_upstream(row: &impl PromptDependencyFields) -> bool {
+    row.workflow_mode() == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN
+        && row.prompt_type() == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
 }
 
 pub(in crate::video_prompt::dependencies) fn prompt_stage_label(
-    row: &chapter_video_prompt::Model,
+    row: &impl PromptDependencyFields,
 ) -> &'static str {
-    match row.prompt_type.as_str() {
+    match row.prompt_type() {
         chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN => "视频片段规划",
         chapter_video_prompt::PROMPT_TYPE_FRAME => "边界帧提示词",
         chapter_video_prompt::PROMPT_TYPE_FIRST_FRAME => "首帧提示词",

@@ -25,24 +25,6 @@ pub struct VideoConfigParams {
     pub default_fps: i32,
 }
 
-#[derive(Debug, Clone)]
-pub struct UpdateVideoConfigParams {
-    pub name: String,
-    pub backend: String,
-    pub base_url: String,
-    pub api_key_encrypted: Option<Option<String>>,
-    pub model: String,
-    pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
-    pub default_duration_secs: i32,
-    pub min_duration_secs: i32,
-    pub max_duration_secs: i32,
-    pub duration_mode: String,
-    pub supported_durations_json: Option<Value>,
-    pub default_fps: i32,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct VideoDurationCapabilityValues {
     pub(super) duration_mode: String,

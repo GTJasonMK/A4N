@@ -17,11 +17,14 @@ pub async fn character_portrait_project_id(
         ));
     }
     let portrait = character_portrait::Entity::find_by_id(portrait_id)
+        .select_only()
+        .column(character_portrait::Column::ProjectId)
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map_err(ProjectFamilyDbError::Database)?
         .ok_or_else(|| ProjectFamilyDbError::NotFound(format!("立绘不存在: {portrait_id}")))?;
-    Ok(portrait.project_id)
+    Ok(portrait)
 }
 
 pub async fn protagonist_profile_project_id(
@@ -34,11 +37,14 @@ pub async fn protagonist_profile_project_id(
         ));
     }
     let profile = protagonist_profile::Entity::find_by_id(profile_id)
+        .select_only()
+        .column(protagonist_profile::Column::ProjectId)
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map_err(ProjectFamilyDbError::Database)?
         .ok_or_else(|| ProjectFamilyDbError::NotFound(format!("角色档案不存在: {profile_id}")))?;
-    Ok(profile.project_id)
+    Ok(profile)
 }
 
 pub async fn primary_material_image_ids_for_projects<C>(

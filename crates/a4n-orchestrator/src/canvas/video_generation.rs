@@ -1,3 +1,4 @@
+use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_core::{
     error::AppError,
     models::{
@@ -22,7 +23,7 @@ use tokio::time::{Duration, Instant};
 
 use crate::{
     OrchestratorContext,
-    canvas::{CanvasNodeRunHandle, CanvasNodeRunSummary},
+    canvas::CanvasNodeRunHandle,
     project::ProjectSourceMode,
     workflow::{
         WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
@@ -224,7 +225,7 @@ impl OrchestratorContext {
         &self,
         input: CanvasVideoNodeExecutionInput<'_>,
         host_port: &dyn CanvasVideoGenerationHostPort,
-    ) -> Result<CanvasNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         self.verify_project_permission(
             input.project_id,
             input.user_id,
@@ -729,7 +730,7 @@ impl OrchestratorContext {
         lifecycle: &crate::canvas::CanvasNodeLifecycle,
         generation_spec_id: i64,
         video: generated_video::Model,
-    ) -> Result<CanvasNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         match video.status.as_str() {
             WORKFLOW_STATUS_FAILED => {
                 let error = video
@@ -763,7 +764,7 @@ impl OrchestratorContext {
                 let failed = self
                     .fail_workflow_run_validated(lifecycle.run.workflow_run_id, &error)
                     .await?;
-                Ok(CanvasNodeRunSummary {
+                Ok(CanvasRunSummary {
                     workflow_run_id: failed.id,
                     project_id: lifecycle.project_id,
                     graph_id: lifecycle.graph_id,
@@ -788,7 +789,7 @@ impl OrchestratorContext {
                     false,
                 )
                 .await?;
-                Ok(CanvasNodeRunSummary {
+                Ok(CanvasRunSummary {
                     workflow_run_id: lifecycle.run.workflow_run_id,
                     project_id: lifecycle.project_id,
                     graph_id: lifecycle.graph_id,

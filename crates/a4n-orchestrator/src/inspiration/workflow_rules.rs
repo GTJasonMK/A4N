@@ -1,15 +1,15 @@
 //! 灵感对话工作流指纹与 business key 纯规则（无 DB）。
 
 use a4n_core::error::AppError;
+use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
 use a4n_llm::provider::ChatRequest;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};
 
-use crate::generation::generation_checkpoint_fingerprint_sha256;
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
 
 /// 灵感对话工作流输入指纹。
-pub fn inspiration_workflow_fingerprint(
+fn inspiration_workflow_fingerprint(
     project_id: i64,
     mode: &str,
     request: &ChatRequest,
@@ -33,7 +33,7 @@ pub fn inspiration_workflow_fingerprint(
 }
 
 /// 灵感对话 exclusive business key。
-pub fn inspiration_business_key(fingerprint: &Value) -> Result<String, AppError> {
+fn inspiration_business_key(fingerprint: &Value) -> Result<String, AppError> {
     Ok(format!(
         "inspiration_conversation:{}",
         generation_checkpoint_fingerprint_sha256(fingerprint)?
@@ -41,7 +41,7 @@ pub fn inspiration_business_key(fingerprint: &Value) -> Result<String, AppError>
 }
 
 /// 构造灵感对话 begin 输入（status=RUNNING）。
-pub fn inspiration_workflow_run_input(
+pub(crate) fn inspiration_workflow_run_input(
     project_id: i64,
     mode: &str,
     request: &ChatRequest,

@@ -13,6 +13,7 @@ import {
   InspirationProgressContent,
 } from "./inspiration/InspirationGuidePanel";
 import { useInspirationChatController } from "./inspiration/useInspirationChatController";
+import { useI18n } from "../i18n";
 
 /**
  * 灵感对话页。
@@ -22,12 +23,13 @@ import { useInspirationChatController } from "./inspiration/useInspirationChatCo
  */
 export const InspirationChat: React.FC = () => {
   const chat = useInspirationChatController();
+  const { t } = useI18n();
   const [progressOpen, setProgressOpen] = useState(false);
 
   if (!chat.project) {
     return (
       <div className="h-full flex items-center justify-center text-book-text-muted">
-        <LoadingSpinner size="lg" className="mr-2" /> 加载项目…
+        <LoadingSpinner size="lg" className="mr-2" /> {t("inspiration.loadingProject")}
       </div>
     );
   }
@@ -97,8 +99,8 @@ export const InspirationChat: React.FC = () => {
 
       <ProgressDialog
         open={chat.blueprintProgressOpen}
-        title="生成首版蓝图"
-        subtitle="正在把灵感对话整理为可写作的项目蓝图"
+        title={t("inspiration.blueprintTitle")}
+        subtitle={t("inspiration.blueprintSubtitle")}
         status={chat.blueprintProgress.status}
         current={chat.blueprintProgress.current}
         total={chat.blueprintProgress.total}
@@ -106,20 +108,20 @@ export const InspirationChat: React.FC = () => {
         error={chat.blueprintProgress.error}
         streamText={chat.blueprintStreamText}
         onClose={() => chat.setBlueprintProgressOpen(false)}
-        closeLabel={chat.blueprintProgress.status === "success" ? "查看蓝图" : "关闭"}
+        closeLabel={chat.blueprintProgress.status === "success" ? t("inspiration.viewBlueprint") : t("inspiration.close")}
         onCancel={
           chat.canCancelBlueprintGeneration
             ? () => void chat.handleCancelBlueprint()
             : undefined
         }
         cancelling={chat.blueprintCancelling}
-        cancelLabel="停止生成"
+        cancelLabel={t("inspiration.stopGeneration")}
       />
       <Modal
         isOpen={progressOpen && chat.stage === "conversation"}
         onClose={() => setProgressOpen(false)}
-        title="创作进度"
-        subtitle="已确认的信息会随对话自动整理"
+        title={t("inspiration.progressTitle")}
+        subtitle={t("inspiration.progressSubtitle")}
         icon={<ListChecks size={15} />}
         maxWidthClassName="max-w-md"
         bodyClassName="px-4 py-4"
@@ -135,14 +137,14 @@ export const InspirationChat: React.FC = () => {
         open={chat.requestPreviewOpen}
         loading={chat.requestPreviewLoading}
         data={chat.requestPreviewData}
-        fallbackTitle="灵感对话请求预览"
+        fallbackTitle={t("inspiration.chatRequestPreview")}
         onClose={() => chat.setRequestPreviewOpen(false)}
       />
       <RequestPreviewModal
         open={chat.blueprintRequestPreviewOpen}
         loading={chat.blueprintRequestPreviewLoading}
         data={chat.blueprintRequestPreviewData}
-        fallbackTitle="蓝图请求预览"
+        fallbackTitle={t("inspiration.blueprintRequestPreview")}
         onClose={() => chat.setBlueprintRequestPreviewOpen(false)}
       />
     </div>

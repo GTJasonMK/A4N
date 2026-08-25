@@ -25,6 +25,9 @@ pub struct Model {
     /// 头像 URL
     pub avatar_url: Option<String>,
 
+    /// 是否允许当前账户使用基于 GUI 页面上下文的 Page CLI
+    pub page_cli_enabled: bool,
+
     pub is_active: bool,
     /// 内部破坏性操作门禁：active / disabling / disabled
     #[serde(skip)]

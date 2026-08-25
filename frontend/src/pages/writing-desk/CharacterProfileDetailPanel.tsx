@@ -4,7 +4,6 @@ import { type CharacterProfile } from "../../api/character";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import {
-  CHARACTER_ATTRIBUTE_LABELS,
   characterAttributeEntries,
   characterAttributeText,
   type CharacterAttributeCategory,
@@ -14,6 +13,7 @@ import {
   ProfileField,
   describeProfile,
 } from "./CharacterProfileDisplay";
+import { useI18n } from "../../i18n";
 
 export const CharacterProfileDetailPanel: React.FC<{
   profile: CharacterProfile | null;
@@ -26,15 +26,16 @@ export const CharacterProfileDetailPanel: React.FC<{
   ) => void;
   onDelete: (profile: CharacterProfile) => void | Promise<void>;
 }> = ({ profile, onCreate, onOpenDetail, onOpenHistory, onDelete }) => {
+  const { t } = useI18n();
   if (!profile) {
     return (
-      <section className="min-h-0 min-w-0 p-4" aria-label="人物档案详情">
+      <section className="min-h-0 min-w-0 p-4" aria-label={t("characterDetail.profileDetailAria")}>
         <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
           <User size={28} className="text-book-text-muted" />
-          <div className="text-sm font-semibold text-book-text-main">尚无角色档案</div>
+          <div className="text-sm font-semibold text-book-text-main">{t("characterDetail.noProfile")}</div>
           <BookButton variant="primary" onClick={onCreate}>
             <span className="inline-flex items-center gap-1.5">
-              <UserPlus size={14} /> 新建角色
+              <UserPlus size={14} /> {t("characterDetail.createProfile")}
             </span>
           </BookButton>
         </div>
@@ -51,12 +52,12 @@ export const CharacterProfileDetailPanel: React.FC<{
     gender,
     age,
     profile.last_synced_chapter > 0
-      ? `已同步至第 ${profile.last_synced_chapter} 章`
-      : "尚未同步章节状态",
+      ? t("characterDetail.syncedChapterStatus", { chapter: profile.last_synced_chapter })
+      : t("characterDetail.notSyncedChapterStatus"),
   ].filter((value): value is string => Boolean(value));
 
   return (
-    <section className="min-h-0 min-w-0 p-4" aria-label="人物档案详情">
+    <section className="min-h-0 min-w-0 p-4" aria-label={t("characterDetail.profileDetailAria")}>
       <div className="flex h-full min-h-0 flex-col">
         <div className="mb-3 flex flex-col gap-3 border-b border-book-border/50 pb-3 sm:flex-row sm:items-center">
           <div className="min-w-0 flex-1">
@@ -67,7 +68,7 @@ export const CharacterProfileDetailPanel: React.FC<{
             <Dropdown
               items={[
                 {
-                  label: "删除角色档案",
+                  label: t("characterDetail.deleteProfile"),
                   icon: <Trash2 size={12} />,
                   danger: true,
                   onClick: () => void onDelete(profile),
@@ -80,7 +81,7 @@ export const CharacterProfileDetailPanel: React.FC<{
               className="min-w-0 flex-1 sm:flex-none"
               onClick={() => onOpenDetail(profile)}
             >
-              <Sparkles size={13} /> 深度详情
+              <Sparkles size={13} /> {t("characterDetail.deepDetails")}
             </BookButton>
           </div>
         </div>
@@ -89,28 +90,28 @@ export const CharacterProfileDetailPanel: React.FC<{
           <div className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
             {describeProfile(profile) ? (
               <section className="px-3 py-3 sm:px-4">
-                <h3 className="mb-2 text-small font-semibold text-book-text-main">角色概况</h3>
+                <h3 className="mb-2 text-small font-semibold text-book-text-main">{t("characterDetail.profileOverview")}</h3>
                 <dl className="space-y-2">
-                  <ProfileField label="性格" value={personality} />
-                  <ProfileField label="背景" value={background} />
-                  <ProfileField label="外观" value={appearance} />
+                  <ProfileField label={t("characterDetail.labels.personality")} value={personality} />
+                  <ProfileField label={t("characterDetail.labels.background")} value={background} />
+                  <ProfileField label={t("characterDetail.labels.appearance")} value={appearance} />
                 </dl>
               </section>
             ) : null}
             <AttributePreview
-              label={CHARACTER_ATTRIBUTE_LABELS.explicit}
+              label={t("characterDetail.labels.explicit")}
               category="explicit"
               entries={characterAttributeEntries(profile, "explicit")}
               onOpenHistory={(category, key) => onOpenHistory(profile, category, key)}
             />
             <AttributePreview
-              label={CHARACTER_ATTRIBUTE_LABELS.implicit}
+              label={t("characterDetail.labels.implicit")}
               category="implicit"
               entries={characterAttributeEntries(profile, "implicit")}
               onOpenHistory={(category, key) => onOpenHistory(profile, category, key)}
             />
             <AttributePreview
-              label={CHARACTER_ATTRIBUTE_LABELS.social}
+              label={t("characterDetail.labels.social")}
               category="social"
               entries={characterAttributeEntries(profile, "social")}
               onOpenHistory={(category, key) => onOpenHistory(profile, category, key)}

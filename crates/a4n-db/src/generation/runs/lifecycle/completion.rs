@@ -1,4 +1,4 @@
-use super::super::status::update_generation_run_status;
+use super::super::status::update_generation_run_record;
 use super::creation::record_started_generation_run_with_checkpoint;
 use crate::generation::{
     GenerationDbError, GenerationRunCheckpointContext, RUN_STATUS_COMPLETED,
@@ -49,14 +49,7 @@ where
         checkpoint,
     )
     .await?;
-    update_generation_run_status(
-        db,
-        run.id,
-        RUN_STATUS_COMPLETED,
-        response_summary_json,
-        None,
-    )
-    .await
+    update_generation_run_record(db, run, RUN_STATUS_COMPLETED, response_summary_json, None).await
 }
 
 pub async fn record_completed_run_with_checkpoint_transaction(

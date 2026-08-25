@@ -1,6 +1,7 @@
 use super::facts::video_progress_facts_from_rows;
+use super::identity::{GeneratedVideoProgressRow, VideoPromptProgressRow};
 use super::status::video_project_progress_from_counts;
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_core::models::chapter::chapter_video_prompt;
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use serde_json::json;
 
@@ -19,30 +20,17 @@ fn video_prompt_row(
     id: i64,
     shot_number: i32,
     status: &str,
-    generated_video_id: Option<i64>,
+    _generated_video_id: Option<i64>,
     updated_at: NaiveDateTime,
-) -> chapter_video_prompt::Model {
-    chapter_video_prompt::Model {
+) -> VideoPromptProgressRow {
+    VideoPromptProgressRow {
         id,
         project_id: 9,
         chapter_id: 3,
-        style: None,
         prompt_type: chapter_video_prompt::PROMPT_TYPE_VIDEO.to_string(),
         workflow_mode: "first_frame_chain".to_string(),
         shot_number,
-        title: Some(format!("镜头 {shot_number}")),
-        scene_summary: None,
-        visual_prompt: "visual".to_string(),
-        motion_prompt: None,
-        negative_prompt: None,
-        duration_secs: 6,
-        aspect_ratio: Some("16:9".to_string()),
-        reference_image_ids_json: None,
         status: status.to_string(),
-        generated_video_id,
-        timeline_item_id: None,
-        metadata_json: None,
-        created_at: test_time(0),
         updated_at,
     }
 }
@@ -53,35 +41,17 @@ fn generated_video_row(
     prompt_id: i64,
     status: &str,
     updated_at: NaiveDateTime,
-) -> generated_video::Model {
-    generated_video::Model {
+) -> GeneratedVideoProgressRow {
+    GeneratedVideoProgressRow {
         id,
         project_id: 9,
         chapter_id: Some(3),
-        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("first_frame_chain".to_string()),
-        file_path: None,
-        thumbnail_path: None,
-        prompt: "prompt".to_string(),
-        negative_prompt: None,
-        model: "test-video-model".to_string(),
-        width: 1024,
-        height: 576,
-        duration_secs: 6.0,
-        fps: 24,
-        file_size: None,
-        source_video_id: None,
-        source_image_id: None,
         status: status.to_string(),
-        provider_job_id: None,
-        error_message: None,
-        timeline_item_id: None,
         metadata_json: Some(json!({
             "prompt_id": prompt_id,
             "shot_number": shot_number
         })),
-        is_favorite: false,
-        created_at: test_time(0),
         updated_at,
     }
 }

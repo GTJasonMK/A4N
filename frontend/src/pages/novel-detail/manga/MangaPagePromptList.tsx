@@ -41,8 +41,10 @@ import {
   findGeneratedPageImage,
   missingReferenceBindingLabels,
   sumPipelinePrompts,
+  type MangaPagePromptLabels,
   type MangaPagePrompt,
 } from "./mangaPagePromptModel";
+import { useI18n } from "../../../i18n";
 
 interface MangaPagePromptListProps {
   prompts: MangaPagePromptSummary[];
@@ -89,9 +91,53 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   onOptimizePrompt,
   onDeletePrompt,
 }) => {
+  const { t } = useI18n();
+  const pagePromptLabels = useMemo<MangaPagePromptLabels>(() => ({
+    role: {
+      opening: t("comic.prompt.roleOpening"),
+      setup: t("comic.prompt.roleSetup"),
+      rising: t("comic.prompt.roleRising"),
+      climax: t("comic.prompt.roleClimax"),
+      falling: t("comic.prompt.roleFalling"),
+      resolution: t("comic.prompt.roleResolution"),
+      transition: t("comic.prompt.roleTransition"),
+    },
+    pacing: {
+      slow: t("comic.prompt.pacingSlow"),
+      medium: t("comic.prompt.pacingMedium"),
+      fast: t("comic.prompt.pacingFast"),
+      explosive: t("comic.prompt.pacingExplosive"),
+    },
+    importance: {
+      critical: t("comic.prompt.importanceCritical"),
+      high: t("comic.prompt.importanceHigh"),
+      normal: t("comic.prompt.importanceNormal"),
+      low: t("comic.prompt.importanceLow"),
+    },
+    readingFlow: {
+      top_to_bottom_left_to_right: t("comic.prompt.flowTopToBottom"),
+      z_path: t("comic.prompt.flowZPath"),
+      s_path: t("comic.prompt.flowSPath"),
+      diagonal: t("comic.prompt.flowDiagonal"),
+    },
+    pageFunction: t("comic.prompt.pageFunction"),
+    pagePacing: t("comic.prompt.pagePacing"),
+    importanceLabel: t("comic.prompt.importance"),
+    readingFlowLabel: t("comic.prompt.readingFlow"),
+    pageGoal: t("comic.prompt.pageGoal"),
+    visualThesis: t("comic.prompt.visualThesis"),
+    entryState: t("comic.prompt.entryState"),
+    exitState: t("comic.prompt.exitState"),
+    dominantPanel: t("comic.prompt.dominantPanel"),
+    panelCount: t("comic.prompt.panelCount"),
+    primaryPortrait: t("comic.prompt.primaryPortrait"),
+    primaryImage: t("comic.prompt.primaryImage"),
+    projectImage: t("comic.prompt.projectImage"),
+    otherPortrait: t("comic.prompt.otherPortrait"),
+  }), [t]);
   const pagePrompts = useMemo(
-    () => buildPagePrompts(prompts, currentContentHash),
-    [currentContentHash, prompts],
+    () => buildPagePrompts(prompts, currentContentHash, pagePromptLabels),
+    [currentContentHash, pagePromptLabels, prompts],
   );
   const [selectedPage, setSelectedPage] = useState<number | null>(null);
   const [detailView, setDetailView] = useState<MangaPageDetailView>("prompt");
@@ -176,13 +222,13 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   const pipelineFailed = pipelineStatus?.failed ?? 0;
   const pipelineCheckpointLabel = pipelineStatus?.has_checkpoint
     ? pipelineStatus.checkpoint_valid
-      ? "可用"
-      : "过期"
-    : "无";
+      ? t("comic.prompt.available")
+      : t("comic.prompt.expired")
+    : t("comic.prompt.none");
   if (promptsLoading) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center gap-2 text-xs text-book-text-muted">
-        <LoadingSpinner size="sm" /> 加载整页提示词…
+        <LoadingSpinner size="sm" /> {t("comic.prompt.loading")}
       </div>
     );
   }
@@ -190,7 +236,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   if (pagePrompts.length === 0) {
     return (
       <div className="flex h-full min-h-0 items-center justify-center">
-        <EmptyHint text="本章尚未生成整页漫画提示词。" />
+        <EmptyHint text={t("comic.prompt.empty")} />
       </div>
     );
   }
@@ -215,7 +261,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
         }
         title={
           missingBindings.length > 0
-            ? `请先绑定参考图：${missingBindings.join("、")}`
+            ? t("comic.prompt.missingBindings", { items: missingBindings.join(t("common.listSeparator")) })
             : undefined
         }
       >
@@ -226,7 +272,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
         ) : (
           <ImagePlus size={13} />
         )}
-        {generated ? "更新图片" : "生成图片"}
+        {generated ? t("common.update") : t("comic.prompt.generateImage")}
       </BookButton>
     );
   };
@@ -265,7 +311,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
   const activePromptDownstreamHint =
     activePage?.prompt.generated_image_id != null
-      ? "该提示词已有成图，修改、优化或删除时需要选择如何处理下游图片"
+      ? t("comic.prompt.downstreamImage")
       : undefined;
   const optimizingActivePrompt =
     activePage != null && optimizingPromptId === activePage.prompt.id;
@@ -274,25 +320,28 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     : [];
   const activePageImageBlocked = activeMissingBindings.length > 0;
   const pageSummaryParts = [
-    `${pagePrompts.length} 页`,
-    `成图 ${linkedImageCount}/${pagePrompts.length}`,
-    bindingCount > 0 ? `参考图 ${boundBindingCount}/${bindingCount}` : "",
+    t("comic.prompt.pageCount", { count: pagePrompts.length }),
+    t("comic.prompt.generatedCount", { linked: linkedImageCount, total: pagePrompts.length }),
+    bindingCount > 0 ? t("comic.prompt.referenceCount", { bound: boundBindingCount, total: bindingCount }) : "",
     missingBindingCount > 0
-      ? `参考图待绑定 ${missingBindingCount}`
+      ? t("comic.prompt.missingReferenceCount", { count: missingBindingCount })
       : "",
     pipelineStatus
-      ? `流水线 ${pipelineCompleted}/${pipelinePromptCount || pagePrompts.length}`
+      ? t("comic.prompt.pipelineCount", {
+          completed: pipelineCompleted,
+          total: pipelinePromptCount || pagePrompts.length,
+        })
       : "",
-    pipelineFailed > 0 ? `失败 ${pipelineFailed}` : "",
-    pipelineStatus?.has_checkpoint ? `断点 ${pipelineCheckpointLabel}` : "",
-    staleCount > 0 ? `${staleCount} 页需更新` : "",
+    pipelineFailed > 0 ? t("comic.prompt.failedCount", { count: pipelineFailed }) : "",
+    pipelineStatus?.has_checkpoint ? t("comic.prompt.checkpoint", { status: pipelineCheckpointLabel }) : "",
+    staleCount > 0 ? t("comic.prompt.staleCount", { count: staleCount }) : "",
   ].filter(Boolean);
   const activePromptMenuItems: DropdownItem[] = [];
   const activePageMenuItems: DropdownItem[] = [];
   if (activePage && canEditManga) {
     if (onPreviewPageImage) {
       activePageMenuItems.push({
-        label: "查看生成图片请求",
+        label: t("comic.prompt.viewRequest"),
         icon: <Eye size={12} />,
         disabled:
           actionsDisabled ||
@@ -309,7 +358,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
       !activePage.sourceStale
     ) {
       activePageMenuItems.push({
-        label: "重新生成图片",
+        label: t("comic.prompt.regenerateImage"),
         icon: <RefreshCw size={12} />,
         disabled:
           actionsDisabled ||
@@ -323,7 +372,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     if (onDeletePrompt && !actionsDisabled && !chapterLocked) {
       if (activePageMenuItems.length > 0) activePageMenuItems.push({ type: "divider" });
       activePageMenuItems.push({
-        label: "删除当前页提示词",
+        label: t("comic.prompt.deleteCurrent"),
         icon: <Trash2 size={12} />,
         danger: true,
         onClick: () => void onDeletePrompt(activePage.prompt),
@@ -333,7 +382,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   if (activePage && canEditManga && editingPromptId !== activePage.prompt.id) {
     if (onOptimizePrompt) {
       activePromptMenuItems.push({
-        label: "优化提示词",
+        label: t("comic.prompt.optimize"),
         icon: <Wand2 size={12} />,
         disabled: chapterLocked || actionsDisabled || optimizingActivePrompt,
         onClick: () => void onOptimizePrompt(activePage.prompt),
@@ -341,7 +390,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
     }
     if (onUpdatePrompt) {
       activePromptMenuItems.push({
-        label: "编辑提示词",
+        label: t("comic.prompt.edit"),
         icon: <Pencil size={12} />,
         disabled: chapterLocked || actionsDisabled,
         onClick: () => beginPromptEdit(activePage),
@@ -352,7 +401,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
   return (
     <div className="flex h-full min-h-0 flex-col">
         <div className="mb-3 shrink-0">
-          <h2 className="text-sm font-semibold text-book-text-main">整页漫画</h2>
+          <h2 className="text-sm font-semibold text-book-text-main">{t("comic.prompt.pageTitle")}</h2>
           <p
             className={`mt-1 text-small leading-relaxed ${
               pipelineFailed > 0 || staleCount > 0
@@ -373,22 +422,22 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
         >
           {hasMultiplePages ? (
             <nav
-              aria-label="漫画页列表"
+              aria-label={t("comic.prompt.listLabel")}
               className="min-w-0 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden xl:min-h-0 xl:overflow-x-hidden xl:overflow-y-auto xl:border-r xl:border-book-border/50 xl:pb-0 xl:pr-2"
             >
               <div className="flex min-w-max gap-1.5 xl:min-w-0 xl:flex-col xl:gap-0 xl:overflow-hidden xl:rounded-xl xl:border xl:border-book-border/50 xl:bg-book-bg-paper/30">
                 {pagePrompts.map((page) => {
                   const selected = page.pageNumber === activePage?.pageNumber;
                   const imageLabel =
-                    page.prompt.generated_image_id != null
-                      ? "已生成"
-                      : "未生成";
-                  const pageStatus = statusLabel(page.prompt.status);
+                      page.prompt.generated_image_id != null
+                      ? t("comic.prompt.generatedStatus")
+                      : t("comic.prompt.pendingStatus");
+                  const pageStatus = statusLabel(page.prompt.status, t);
                   const pageMeta = [
                     imageLabel,
-                    pageStatus !== "完成" && pageStatus !== "待生成" ? pageStatus : "",
-                    page.promptCount > 1 ? `${page.promptCount} 条记录` : "",
-                    page.sourceStale ? "需更新" : "",
+                    page.prompt.status !== "completed" && page.prompt.status !== "pending" ? pageStatus : "",
+                    page.promptCount > 1 ? t("comic.prompt.recordCount", { count: page.promptCount }) : "",
+                    page.sourceStale ? t("comic.prompt.staleStatus") : "",
                   ].filter(Boolean);
                   return (
                     <button
@@ -402,7 +451,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                           : "border-book-border/50 bg-book-bg-paper/45 text-book-text-sub hover:border-book-primary/35 hover:bg-book-bg-tertiary/55 hover:text-book-text-main xl:border-transparent xl:bg-transparent"
                       }`}
                     >
-                      <span className="block text-xs font-semibold">第 {page.pageNumber} 页</span>
+                      <span className="block text-xs font-semibold">{t("comic.prompt.pageHeading", { page: page.pageNumber })}</span>
                       <div
                         className={`mt-0.5 truncate text-caption ${
                           selected ? "text-book-primary" : "text-book-text-muted"
@@ -424,14 +473,14 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <h3 className="text-sm font-semibold text-book-text-main">
-                        第 {activePage.pageNumber} 页
+                        {t("comic.prompt.pageHeading", { page: activePage.pageNumber })}
                       </h3>
                       <p className="mt-1 text-small text-book-text-muted">
                         {[
-                          statusLabel(activePage.prompt.status),
-                          activePage.prompt.generated_image_id != null ? "已有成图" : "尚未生成",
-                          activePage.sourceStale ? "来源需更新" : "",
-                          activePage.promptCount > 1 ? `${activePage.promptCount} 条记录` : "",
+                          statusLabel(activePage.prompt.status, t),
+                          activePage.prompt.generated_image_id != null ? t("comic.prompt.hasImage") : t("comic.prompt.noImage"),
+                          activePage.sourceStale ? t("comic.prompt.sourceStale") : "",
+                          activePage.promptCount > 1 ? t("comic.prompt.recordCount", { count: activePage.promptCount }) : "",
                         ].filter(Boolean).join(" · ")}
                       </p>
                     </div>
@@ -443,7 +492,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                           role="status"
                           className="inline-flex min-h-8 items-center gap-1.5 px-1 text-small text-book-text-muted"
                         >
-                          <LoadingSpinner size="sm" /> 正在重新生成
+                          <LoadingSpinner size="sm" /> {t("comic.prompt.regenerating")}
                         </span>
                       ) : null}
                       {activePageMenuItems.length > 0 ? <Dropdown items={activePageMenuItems} /> : null}
@@ -454,12 +503,12 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
 
                 <div className="border-b border-book-border/40 px-3 py-2">
                   <SegmentedControl
-                    ariaLabel="整页漫画查看方式"
+                    ariaLabel={t("comic.prompt.pageTitle")}
                     value={detailView}
                     onChange={setDetailView}
                     options={[
-                      { id: "prompt", label: "提示词与参考图" },
-                      { id: "image", label: "成图" },
+                      { id: "prompt", label: t("comic.prompt.promptAndReferences") },
+                      { id: "image", label: t("comic.prompt.imageView") },
                     ]}
                   />
                 </div>
@@ -478,7 +527,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       <div className="mb-2 flex items-center justify-between gap-2">
                         <h3 className="flex items-center gap-1.5 text-xs font-semibold text-book-text-main">
                           <FileText size={12} className="text-book-primary" />
-                          整页生成提示词
+                          {t("comic.prompt.pageTitle")}
                         </h3>
                         {canEditManga && editingPromptId === activePage.prompt.id ? (
                           <div className="flex items-center gap-1.5">
@@ -489,7 +538,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                               disabled={actionsDisabled || promptSaving}
                             >
                               <X size={12} />
-                              取消
+                              {t("comic.prompt.cancel")}
                             </BookButton>
                             <BookButton
                               size="sm"
@@ -508,7 +557,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                               ) : (
                                 <Save size={12} />
                               )}
-                              保存
+                              {t("comic.prompt.save")}
                             </BookButton>
                           </div>
                         ) : activePromptMenuItems.length > 0 ? (
@@ -533,7 +582,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       <section className="py-3 first:pt-0">
                         <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-book-text-sub">
                           <Link2 size={12} />
-                          参考图绑定
+                          {t("comic.prompt.referenceBindings")}
                         </h3>
                         <ReferenceBindingsPanel
                           page={activePage}
@@ -556,7 +605,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                       <section className="py-3">
                         <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-book-text-sub">
                           <FileText size={12} />
-                          构图设计
+                          {t("comic.prompt.layout")}
                         </h3>
                         <LayoutSummaryGrid items={activePage.layoutItems} />
                       </section>
@@ -565,18 +614,18 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
                         <div className="grid gap-1 px-3 py-2 md:grid-cols-[88px_minmax(0,1fr)] md:gap-3">
                           <div className="flex items-center gap-1.5 text-small font-medium text-book-text-muted">
                             <Users size={11} />
-                            角色
+                            {t("comic.prompt.characters")}
                           </div>
                           <div className="text-xs leading-relaxed text-book-text-main">
                             {activePage.characterNames.length > 0
-                              ? activePage.characterNames.join("、")
+                              ? activePage.characterNames.join(t("common.listSeparator"))
                               : "—"}
                           </div>
                         </div>
                         <div className="grid gap-1 px-3 py-2 md:grid-cols-[88px_minmax(0,1fr)] md:gap-3">
                           <div className="flex items-center gap-1.5 text-small font-medium text-book-text-muted">
                             <MessageSquareText size={11} />
-                            文字
+                            {t("comic.prompt.text")}
                           </div>
                           <div className="line-clamp-4 text-xs leading-relaxed text-book-text-main">
                             {activePage.dialogueText ?? "—"}
@@ -594,7 +643,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
         <Modal
           isOpen={imagePreview != null}
           onClose={() => setImagePreview(null)}
-          title={imagePreview ? `第 ${imagePreview.pageNumber} 页成图` : "成图"}
+          title={imagePreview ? t("comic.prompt.pageHeading", { page: imagePreview.pageNumber }) : t("comic.prompt.imageView")}
           subtitle={
             imagePreview
               ? `${imagePreview.image.width}×${imagePreview.image.height}`
@@ -608,7 +657,7 @@ export const MangaPagePromptList: React.FC<MangaPagePromptListProps> = ({
             <div className="flex min-h-[60vh] items-center justify-center p-3 sm:p-5">
               <img
                 src={imagePreview.src}
-                alt={`第 ${imagePreview.pageNumber} 页漫画成图`}
+                alt={t("comic.prompt.alt", { page: imagePreview.pageNumber })}
                 className="max-h-[78vh] w-full object-contain"
               />
             </div>

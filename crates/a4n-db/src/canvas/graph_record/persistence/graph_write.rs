@@ -1,12 +1,14 @@
-use a4n_core::models::{canvas::canvas_graph, project::novel_project};
+use a4n_core::models::canvas::canvas_graph;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 
-use super::context::{default_canvas_record_graph_kind, normalize_canvas_record_graph_kind};
+use super::context::{
+    CanvasProjectIdentity, default_canvas_record_graph_kind, normalize_canvas_record_graph_kind,
+};
 use crate::canvas::{CanvasDbError, CanvasGraphRecordInput};
 
 pub(super) async fn upsert_canvas_graph_record<C>(
     db: &C,
-    project: &novel_project::Model,
+    project: &CanvasProjectIdentity,
     project_id: i64,
     input: &CanvasGraphRecordInput,
     now: chrono::NaiveDateTime,

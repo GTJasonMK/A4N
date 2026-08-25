@@ -1,17 +1,31 @@
 use crate::video::{VideoDbError, validate_positive_video_i64};
 use a4n_core::models::{chapter::chapter, project::novel_project};
 use a4n_domain::project::ProjectSourceMode;
-use sea_orm::{ConnectionTrait, EntityTrait};
+use sea_orm::{ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect};
 
-pub(in crate::video) async fn video_project_record<C>(
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct VideoProjectIdentity {
+    pub id: i64,
+    pub project_kind: String,
+    pub root_project_id: Option<i64>,
+    pub source_snapshot_id: Option<i64>,
+}
+
+pub(crate) async fn video_project_record<C>(
     db: &C,
     project_id: i64,
-) -> Result<novel_project::Model, VideoDbError>
+) -> Result<VideoProjectIdentity, VideoDbError>
 where
     C: ConnectionTrait,
 {
     validate_positive_video_i64(project_id, "project_id")?;
     novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .into_model::<VideoProjectIdentity>()
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(format!("项目不存在: {project_id}")))
@@ -31,6 +45,23 @@ where
         .ok_or_else(|| VideoDbError::NotFound(format!("章节不存在: {chapter_id}")))
 }
 
+pub(crate) async fn video_chapter_project_id_record<C>(
+    db: &C,
+    chapter_id: i64,
+) -> Result<i64, VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    validate_positive_video_i64(chapter_id, "chapter_id")?;
+    chapter::Entity::find_by_id(chapter_id)
+        .select_only()
+        .column(chapter::Column::ProjectId)
+        .into_tuple::<i64>()
+        .one(db)
+        .await?
+        .ok_or_else(|| VideoDbError::NotFound(format!("章节不存在: {chapter_id}")))
+}
+
 pub async fn ensure_video_chapter_belongs_to_project_record<C>(
     db: &C,
     project_id: i64,
@@ -40,13 +71,13 @@ where
     C: ConnectionTrait,
 {
     let project = video_project_record(db, project_id).await?;
-    let chapter = video_chapter_record(db, chapter_id).await?;
+    let chapter_project_id = video_chapter_project_id_record(db, chapter_id).await?;
     match project.project_kind.as_str() {
-        "text" if chapter.project_id == project.id => Ok(()),
+        "text" if chapter_project_id == project.id => Ok(()),
         "text" => Err(VideoDbError::InvalidArgument(format!(
             "章节 #{chapter_id} 不属于文本项目 {project_id}"
         ))),
-        "video" if project.root_project_id == Some(chapter.project_id) => Ok(()),
+        "video" if project.root_project_id == Some(chapter_project_id) => Ok(()),
         "video" => Err(VideoDbError::InvalidArgument(format!(
             "章节 #{chapter_id} 不属于视频项目 {project_id} 绑定的根文本项目"
         ))),
@@ -67,7 +98,12 @@ where
     match project.project_kind.as_str() {
         "text" => Ok(vec![project.id]),
         "video"
-            if project.source_mode().map_err(|error| {
+            if ProjectSourceMode::from_identity(
+                &project.project_kind,
+                project.root_project_id,
+                project.source_snapshot_id,
+            )
+            .map_err(|error| {
                 VideoDbError::InvalidArgument(format!("项目 {project_id}: {error}"))
             })? == ProjectSourceMode::Freeform =>
         {

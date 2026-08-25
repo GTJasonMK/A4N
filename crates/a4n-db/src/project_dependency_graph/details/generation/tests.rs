@@ -29,7 +29,7 @@ fn generation_spec(
         target_entity_id: Some(1),
         status: "completed".to_string(),
         source_version_hash: "hash".to_string(),
-        params_json: json!({"legacy_table": "generated_video", "legacy_id": 8}),
+        params_json: json!({}),
         created_at: now,
         updated_at: now,
     }
@@ -94,7 +94,7 @@ fn provenance(
 }
 
 #[test]
-fn prompt_and_spec_projection_preserve_missing_and_legacy_contracts() {
+fn prompt_and_spec_projection_preserve_missing_source_contracts() {
     let artifact = prompt_artifact();
     let missing_spec = prompt_artifact_record(artifact.clone(), None);
     assert_eq!(missing_spec.input_status, "missing");
@@ -107,7 +107,7 @@ fn prompt_and_spec_projection_preserve_missing_and_legacy_contracts() {
     assert_eq!(complete_artifact.source_refs[0].id, "generation_spec:11");
 
     let spec_record = generation_spec_record(spec);
-    assert_eq!(spec_record.label, "generated_video #8");
+    assert_eq!(spec_record.label, "chapter_video #11");
     assert_eq!(spec_record.input_status, "missing");
     assert_eq!(spec_record.source_refs[0].id, "chapter:1");
     assert!(spec_record.warnings[0].contains("source_snapshot_chapter_id"));

@@ -2,6 +2,7 @@ import React from "react";
 import { ArrowRight } from "lucide-react";
 import { importanceRank } from "./storyEventUtils";
 import type { ChapterStorySection } from "./types";
+import { useI18n } from "../../../i18n";
 
 interface ChapterEventSectionProps {
   section: ChapterStorySection;
@@ -18,7 +19,9 @@ const importanceClass = (importance: string): string => {
 export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
   section,
   onOpenChapter,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <section className="a4n-flat-surface p-3 sm:p-4">
     <div className="mb-2 flex min-w-0 items-start gap-3">
       <div className="min-w-0 flex-1">
@@ -26,12 +29,12 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
           {section.title}
         </h3>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-small text-book-text-muted">
-          <span>第 {section.chapter.chapter_number} 章</span>
-          {!section.hasAnalysis ? <span>未分析</span> : null}
+          <span>{t("writing.chapterLabel", { number: section.chapter.chapter_number })}</span>
+          {!section.hasAnalysis ? <span>{t("novel.storyEvents.notAnalyzed")}</span> : null}
           {section.timelineMarker ? <span>{section.timelineMarker}</span> : null}
           {section.tone ? <span>{section.tone}</span> : null}
           {section.locations.length > 0 ? (
-            <span>{section.locations.slice(0, 3).join("、")}</span>
+            <span>{section.locations.slice(0, 3).join(t("common.listSeparator"))}</span>
           ) : null}
         </div>
       </div>
@@ -40,8 +43,8 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
           type="button"
           onClick={() => onOpenChapter(section.chapter.chapter_number)}
           className="pyqt-btn-icon !h-9 !w-9 sm:!h-7 sm:!w-7"
-          aria-label={`打开第 ${section.chapter.chapter_number} 章`}
-          title={`打开第 ${section.chapter.chapter_number} 章`}
+          aria-label={t("novel.storyEvents.openChapter", { number: section.chapter.chapter_number })}
+          title={t("novel.storyEvents.openChapter", { number: section.chapter.chapter_number })}
         >
           <ArrowRight size={12} />
         </button>
@@ -55,10 +58,10 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
     {(section.characters.length > 0 || section.keywords.length > 0) && (
       <div className="mb-2 space-y-0.5 text-small leading-relaxed text-book-text-muted">
         {section.characters.length > 0 ? (
-          <div>人物 · {section.characters.slice(0, 8).join("、")}</div>
+          <div>{t("novel.storyEvents.characters", { value: section.characters.slice(0, 8).join(t("common.listSeparator")) })}</div>
         ) : null}
         {section.keywords.length > 0 ? (
-          <div>关键词 · {section.keywords.slice(0, 6).join("、")}</div>
+          <div>{t("novel.storyEvents.keywords", { value: section.keywords.slice(0, 6).join(t("common.listSeparator")) })}</div>
         ) : null}
       </div>
     )}
@@ -81,7 +84,7 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
                 {event.involvedCharacters.length > 0 ? (
                   <>
                     <span aria-hidden="true">·</span>
-                    <span>{event.involvedCharacters.join("、")}</span>
+                    <span>{event.involvedCharacters.join(t("common.listSeparator"))}</span>
                   </>
                 ) : null}
               </div>
@@ -90,16 +93,17 @@ export const ChapterEventSection: React.FC<ChapterEventSectionProps> = ({
         ))}
       </ol>
     ) : (
-      <div className="text-xs text-book-text-muted">本章暂无关键事件。</div>
+      <div className="text-xs text-book-text-muted">{t("novel.storyEvents.noKeyEvents")}</div>
     )}
 
     {(section.plantedCount > 0 || section.resolvedCount > 0 || section.tensionCount > 0) && (
       <div className="mt-2 text-small text-book-text-muted">
-        伏笔
-        {section.plantedCount > 0 ? ` · 埋设 ${section.plantedCount}` : ""}
-        {section.resolvedCount > 0 ? ` · 回收 ${section.resolvedCount}` : ""}
-        {section.tensionCount > 0 ? ` · 悬念 ${section.tensionCount}` : ""}
+        {t("novel.storyEvents.foreshadowing")}
+        {section.plantedCount > 0 ? ` · ${t("novel.storyEvents.planted", { count: section.plantedCount })}` : ""}
+        {section.resolvedCount > 0 ? ` · ${t("novel.storyEvents.resolved", { count: section.resolvedCount })}` : ""}
+        {section.tensionCount > 0 ? ` · ${t("novel.storyEvents.tensions", { count: section.tensionCount })}` : ""}
       </div>
     )}
   </section>
-);
+  );
+};

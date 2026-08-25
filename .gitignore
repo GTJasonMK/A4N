@@ -69,11 +69,13 @@ CLAUDE.md
 # Keep local working documents ignored; only active contracts and migration notes are tracked.
 docs/*
 !docs/TEST_DATABASE.md
+!docs/virtual-provider-cli-e2e.md
 !docs/重构/
 docs/重构/*
 !docs/重构/rag-qdrant-migration.md
 !docs/重构/全量增量生成迁移清单.md
 !docs/重构/*清理记录.md
+!docs/重构/前后端性能治理记录.md
 # OS/editor noise
 .DS_Store
 Thumbs.db

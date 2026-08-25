@@ -22,12 +22,25 @@ import {
   SnapshotDeltaView,
   SnapshotDetail,
 } from "./SnapshotViews";
+import { useI18n, type MessageTranslator } from "../../i18n";
 
-const snapshotReferenceCountText = (snapshot: SnapshotReference): string =>
-  `显性 ${snapshot.attribute_counts.explicit} / 隐性 ${snapshot.attribute_counts.implicit} / 社会 ${snapshot.attribute_counts.social}`;
+const snapshotReferenceCountText = (
+  snapshot: SnapshotReference,
+  t: MessageTranslator,
+): string =>
+  t("characterDetail.snapshot.attributeCounts", {
+    explicit: t("characterDetail.labels.explicit"),
+    explicitCount: snapshot.attribute_counts.explicit,
+    implicit: t("characterDetail.labels.implicit"),
+    implicitCount: snapshot.attribute_counts.implicit,
+    social: t("characterDetail.labels.social"),
+    socialCount: snapshot.attribute_counts.social,
+  });
 
-const rollbackChapterLabel = (chapter: number): string =>
-  chapter === 0 ? "初始状态" : `第${chapter}章`;
+const rollbackChapterLabel = (chapter: number, t: MessageTranslator): string =>
+  chapter === 0
+    ? t("characterDetail.snapshot.initialState")
+    : t("characterDetail.snapshot.chapterCompact", { chapter });
 
 const rollbackChapterOptions = (
   conflict: ProfileSyncConflict | null,
@@ -60,6 +73,7 @@ export const SnapshotManager: React.FC<{
   onChanged?: () => void | Promise<void>;
 }> = ({ profileId, onChanged }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [snapshots, setSnapshots] = useState<SnapshotReference[]>([]);
   const [conflict, setConflict] = useState<ProfileSyncConflict | null>(null);
   const [loading, setLoading] = useState(false);
@@ -233,7 +247,7 @@ export const SnapshotManager: React.FC<{
         )
       )
         return;
-      addToast(extractErrorMessage(err, "加载快照失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")), "error");
     } finally {
       if (
         isCurrentLoad(
@@ -294,7 +308,7 @@ export const SnapshotManager: React.FC<{
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, snapshotViewSeqRef, requestSeq))
         return;
-      addToast(extractErrorMessage(err, "加载快照失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.snapshot.loadFailed")), "error");
     }
   };
 
@@ -318,7 +332,7 @@ export const SnapshotManager: React.FC<{
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, chapterStateSeqRef, requestSeq))
         return;
-      addToast(extractErrorMessage(err, "加载章节状态失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.snapshot.chapterStateFailed")), "error");
     }
   };
 
@@ -347,7 +361,7 @@ export const SnapshotManager: React.FC<{
       setDelta(nextDelta);
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, diffSeqRef, requestSeq)) return;
-      addToast(extractErrorMessage(err, "对比失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.snapshot.compareFailed")), "error");
     } finally {
       if (isCurrentRequest(requestProfileId, diffSeqRef, requestSeq)) {
         setDiffing(false);
@@ -364,14 +378,14 @@ export const SnapshotManager: React.FC<{
     rollingBackRef.current = true;
     const requestProfileId = profileId;
     const requestRollbackChapter = rollbackChapter;
-    const targetText = rollbackChapterLabel(requestRollbackChapter);
+    const targetText = rollbackChapterLabel(requestRollbackChapter, t);
     const ok = await confirmDialog({
-      title: "回滚角色快照",
+      title: t("characterDetail.snapshot.rollbackTitle"),
       message:
         requestRollbackChapter === 0
-          ? "回滚到初始状态？全部属性事件、行为、状态索引、快照引用和删除保护计数都会被清空，档案会恢复为创建时的初始属性。"
-          : `回滚到${targetText}？此后的事件、行为、状态索引和快照引用会被删除，跨过该章节的删除保护计数会截断到回滚点。`,
-      confirmText: "回滚",
+          ? t("characterDetail.snapshot.rollbackInitialMessage")
+          : t("characterDetail.snapshot.rollbackMessage", { target: targetText }),
+      confirmText: t("characterDetail.snapshot.rollback"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -393,7 +407,16 @@ export const SnapshotManager: React.FC<{
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
       addToast(
-        `已删除 ${r.deleted_events} 个事件 / ${r.deleted_behaviors} 条行为 / ${r.deleted_state_indexes} 个状态索引 / ${r.deleted_state_rag} 条状态 RAG / ${r.deleted_attribute_event_rag} 条属性事件 RAG / ${r.deleted_snapshots} 个快照引用；删除标记 ${r.deleted_deletion_marks} 个删除 / ${r.rewound_deletion_marks} 个截断`,
+        t("characterDetail.snapshot.rollbackSummary", {
+          events: r.deleted_events,
+          behaviors: r.deleted_behaviors,
+          indexes: r.deleted_state_indexes,
+          stateRag: r.deleted_state_rag,
+          eventRag: r.deleted_attribute_event_rag,
+          snapshots: r.deleted_snapshots,
+          deletedMarks: r.deleted_deletion_marks,
+          rewoundMarks: r.rewound_deletion_marks,
+        }),
         "success",
       );
       await load();
@@ -403,7 +426,7 @@ export const SnapshotManager: React.FC<{
     } catch (err) {
       if (!isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq))
         return;
-      addToast(extractErrorMessage(err, "回滚失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.snapshot.rollbackFailed")), "error");
     } finally {
       if (isCurrentRequest(requestProfileId, rollbackSeqRef, requestSeq)) {
         setRollingBack(false);
@@ -427,7 +450,7 @@ export const SnapshotManager: React.FC<{
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-end gap-2 text-xs">
         <label className="flex flex-col gap-1 text-book-text-muted">
-          起始章
+          {t("characterDetail.snapshot.startChapter")}
           <input
             type="number"
             min={1}
@@ -442,11 +465,11 @@ export const SnapshotManager: React.FC<{
               }
             }}
             className="pyqt-input !w-20 !px-2 !py-1"
-            placeholder="全部"
+            placeholder={t("characterDetail.behavior.all")}
           />
         </label>
         <label className="flex flex-col gap-1 text-book-text-muted">
-          结束章
+          {t("characterDetail.snapshot.endChapter")}
           <input
             type="number"
             min={1}
@@ -461,7 +484,7 @@ export const SnapshotManager: React.FC<{
               }
             }}
             className="pyqt-input !w-20 !px-2 !py-1"
-            placeholder="全部"
+            placeholder={t("characterDetail.behavior.all")}
           />
         </label>
         <BookButton
@@ -472,26 +495,26 @@ export const SnapshotManager: React.FC<{
         >
           {loading ? (
             <span className="inline-flex items-center gap-1.5">
-              <LoadingSpinner size="sm" /> 刷新中…
+              <LoadingSpinner size="sm" /> {t("characterDetail.snapshot.refreshing")}
             </span>
           ) : (
-            "刷新"
+            t("characterDetail.snapshot.refresh")
           )}
         </BookButton>
         {hasCurrentSnapshots && snapshots.length > 0 ? (
           <span className="pb-1 text-caption text-book-text-muted">
-            {snapshots.length} 个快照
+            {t("characterDetail.snapshot.count", { count: snapshots.length })}
           </span>
         ) : null}
       </div>
       <details className="a4n-flat-surface px-3 py-2">
         <summary className="cursor-pointer text-small font-medium text-book-text-main">
-          比较与回滚
+          {t("characterDetail.snapshot.compareRollback")}
         </summary>
         <div className="mt-3 grid gap-3 lg:grid-cols-2">
           <section>
             <div className="mb-1.5 text-caption font-medium text-book-text-muted">
-              比较章节状态
+              {t("characterDetail.snapshot.compareChapterState")}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <select
@@ -504,10 +527,10 @@ export const SnapshotManager: React.FC<{
                 disabled={snapshotChapters.length === 0}
                 className="pyqt-input !w-24 !px-2 !py-1"
               >
-                <option value={0}>初始</option>
+                <option value={0}>{t("characterDetail.snapshot.initial")}</option>
                 {snapshotChapters.map((chapter) => (
                   <option key={chapter} value={chapter}>
-                    第{chapter}章
+                    {t("characterDetail.snapshot.chapterCompact", { chapter })}
                   </option>
                 ))}
               </select>
@@ -522,11 +545,11 @@ export const SnapshotManager: React.FC<{
                 className="pyqt-input !w-24 !px-2 !py-1"
               >
                 {snapshotChapters.length === 0 ? (
-                  <option value="">无快照</option>
+                  <option value="">{t("characterDetail.snapshot.noSnapshot")}</option>
                 ) : (
                   snapshotChapters.map((chapter) => (
                     <option key={chapter} value={chapter}>
-                      第{chapter}章
+                      {t("characterDetail.snapshot.chapterCompact", { chapter })}
                     </option>
                   ))
                 )}
@@ -537,13 +560,13 @@ export const SnapshotManager: React.FC<{
                 onClick={handleChapterDiff}
                 disabled={!canDiffChapters || diffing}
               >
-                {diffing ? "生成中" : "生成差异"}
+                {diffing ? t("characterDetail.snapshot.generating") : t("characterDetail.snapshot.generateDiff")}
               </BookButton>
             </div>
           </section>
           <section className="border-l-2 border-error/35 pl-3">
             <div className="mb-1.5 text-caption font-medium text-book-text-muted">
-              回滚角色状态
+              {t("characterDetail.snapshot.rollbackState")}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <select
@@ -560,11 +583,11 @@ export const SnapshotManager: React.FC<{
                 className="pyqt-input !w-28 !px-2 !py-1"
               >
                 {rollbackChapters.length === 0 ? (
-                  <option value="">无快照</option>
+                  <option value="">{t("characterDetail.snapshot.noSnapshot")}</option>
                 ) : (
                   rollbackChapters.map((chapter) => (
                     <option key={chapter} value={chapter}>
-                      {rollbackChapterLabel(chapter)}
+                      {rollbackChapterLabel(chapter, t)}
                     </option>
                   ))
                 )}
@@ -575,17 +598,17 @@ export const SnapshotManager: React.FC<{
                 disabled={!canRollback || rollingBack}
                 className="pyqt-btn-secondary !min-h-9 !border-error/50 !px-2 text-small !text-error hover:!bg-error-bg sm:!min-h-[26px]"
               >
-                {rollingBack ? "回滚中" : "回滚"}
+                {rollingBack ? t("characterDetail.snapshot.rollingBack") : t("characterDetail.snapshot.rollback")}
               </button>
             </div>
           </section>
         </div>
       </details>
       {loading ? (
-        <div className="text-small text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">{t("characterDetail.snapshot.loading")}</div>
       ) : !hasCurrentSnapshots ? (
         <div className="text-small text-book-text-muted italic">
-          当前快照范围尚未加载，请刷新
+          {t("characterDetail.snapshot.notLoaded")}
         </div>
       ) : (
         <>
@@ -598,31 +621,36 @@ export const SnapshotManager: React.FC<{
               }`}
             >
               <div className="leading-relaxed">
-                档案同步至第 {conflict.last_synced_chapter} 章 · 当前最大章节{" "}
-                {conflict.max_available_chapter}
+                {t("characterDetail.snapshot.syncStatus", {
+                  synced: conflict.last_synced_chapter,
+                  max: conflict.max_available_chapter,
+                })}
               </div>
               {conflict.has_conflict ? (
                 <div className="mt-1 font-medium">
-                  同步状态超过当前章节范围，请回滚到可用快照后再继续同步。
+                  {t("characterDetail.snapshot.syncOutOfRange")}
                 </div>
               ) : null}
               {conflict.available_snapshot_chapters.length > 0 && (
                 <div className="mt-1 text-caption">
-                  可回滚快照：第{" "}
-                  {conflict.available_snapshot_chapters.join("、")} 章
+                  {t("characterDetail.snapshot.availableSnapshots", {
+                    chapters: conflict.available_snapshot_chapters
+                      .map((chapter) => t("characterDetail.snapshot.chapterCompact", { chapter }))
+                      .join(t("common.listSeparator")),
+                  })}
                 </div>
               )}
               {conflict.has_conflict &&
                 conflict.available_snapshot_chapters.length === 0 && (
                   <div className="mt-1 text-caption">
-                    没有可用快照，可回滚到初始状态后重新同步。
+                    {t("characterDetail.snapshot.noAvailableSnapshot")}
                   </div>
                 )}
             </div>
           )}
           {snapshots.length === 0 ? (
             <div className="text-small text-book-text-muted italic">
-              尚无快照引用
+              {t("characterDetail.snapshot.empty")}
             </div>
           ) : (
             <ul className="a4n-flat-surface divide-y divide-book-border/45">
@@ -632,14 +660,13 @@ export const SnapshotManager: React.FC<{
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1">
                         <div className="font-medium text-book-text-main">
-                          第 {s.chapter_number} 章
+                          {t("characterDetail.chapter", { chapter: s.chapter_number })}
                           <span className="ml-2 text-caption font-normal text-book-text-muted">
-                            变化 {s.changes_in_chapter} · 行为{" "}
-                            {s.behaviors_in_chapter}
+                            {t("characterDetail.snapshot.changes", { count: s.changes_in_chapter })} · {t("characterDetail.snapshot.behaviors", { count: s.behaviors_in_chapter })}
                           </span>
                         </div>
                         <div className="mt-1 text-caption leading-relaxed text-book-text-muted">
-                          {snapshotReferenceCountText(s)}
+                          {snapshotReferenceCountText(s, t)}
                           {s.state_summary ? ` · ${s.state_summary}` : ""}
                         </div>
                       </div>
@@ -648,14 +675,14 @@ export const SnapshotManager: React.FC<{
                         onClick={() => void handleViewState(s.chapter_number)}
                         className="shrink-0 rounded-lg px-1.5 py-0.5 text-caption text-book-primary hover:bg-book-primary/10"
                       >
-                        状态
+                        {t("characterDetail.snapshot.state")}
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleView(s.snapshot_hash)}
                         className="shrink-0 rounded-lg px-1.5 py-0.5 text-caption text-book-primary hover:bg-book-primary/10"
                       >
-                        详情
+                        {t("characterDetail.snapshot.details")}
                       </button>
                     </div>
                   </li>

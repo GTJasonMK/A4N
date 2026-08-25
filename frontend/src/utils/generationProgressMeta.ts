@@ -15,7 +15,8 @@ export function generationProgressMeta(
   return {
     taskKind,
     stageCode: event.stage_code,
-    stageLabel: event.message,
+    // Transport events carry a provider-locale message; the UI resolves stageCode/phaseKind.
+    stageLabel: event.stage_code,
     phaseKind: event.phase_kind,
     detail: null,
     unitLabel: event.unit_label ?? null,

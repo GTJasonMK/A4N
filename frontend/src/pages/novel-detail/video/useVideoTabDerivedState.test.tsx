@@ -13,6 +13,10 @@ import {
   type VideoSegmentWorkflowMode,
 } from "../../../api/video";
 import { useVideoTabDerivedState } from "./useVideoTabDerivedState";
+import { translateMessage, type MessageTranslator } from "../../../i18n";
+
+const t: MessageTranslator = (key, params) =>
+  translateMessage("zh-CN", key, params);
 
 const executionIdentity = {
   contract_epoch: 5,
@@ -255,6 +259,7 @@ const Probe = ({
     recipeFingerprint,
     frameRecipeFingerprint: null,
     continuitySourceVideoId: null,
+    t,
   });
   return (
     <div
@@ -300,6 +305,7 @@ const ReferenceProbe = ({
     recipeFingerprint,
     frameRecipeFingerprint: "frame-recipe",
     continuitySourceVideoId: null,
+    t,
   });
   return (
     <div
@@ -329,6 +335,7 @@ const StatusProbe = () => {
     recipeFingerprint: "recipe-chat",
     frameRecipeFingerprint: null,
     continuitySourceVideoId: null,
+    t,
   });
   return (
     <div

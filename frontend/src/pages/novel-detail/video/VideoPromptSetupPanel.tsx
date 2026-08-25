@@ -17,16 +17,16 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
+import { useI18n } from "../../../i18n";
 import {
   promptOutputLanguageOfPrompt,
-  PROMPT_OUTPUT_LANGUAGE_LABELS,
+  promptOutputLanguageLabel,
   videoGuidanceConfigurationError,
-  VIDEO_WORKFLOW_MODE_LABELS,
+  videoWorkflowModeLabel,
   type VideoSegmentCardPlan,
 } from "./videoTabUtils";
 import { promptTitle } from "./videoGenerationDisplay";
 import {
-  gapLabel,
   insertedSegmentGapKey,
   timelineGaps,
   type InsertedSegmentGap,
@@ -78,6 +78,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
   onInsertSegment,
   onOpenInsertedSegment,
 }) => {
+  const { locale, t } = useI18n();
   const promptsBySegment = useMemo(() => {
     const groups = new Map<number, ChapterVideoPrompt[]>();
     for (const prompt of prompts) {
@@ -93,16 +94,16 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     const selected = selectedPromptId === prompt.id;
     const promptOutputLanguage = promptOutputLanguageOfPrompt(prompt);
     const metadata = [
-      `${prompt.duration_secs} 秒`,
+      t("video.chapter.seconds", { count: prompt.duration_secs }),
       promptOutputLanguage == null
-        ? "输出语言无效"
-        : PROMPT_OUTPUT_LANGUAGE_LABELS[promptOutputLanguage],
-      getOperationStatusLabel(prompt.status),
-      prompt.generated_video_id != null ? "已生成视频" : null,
+        ? t("video.outputLanguageInvalid")
+        : promptOutputLanguageLabel(promptOutputLanguage, t),
+      getOperationStatusLabel(prompt.status, locale),
+      prompt.generated_video_id != null ? t("video.chapter.generatedVideo") : null,
     ].filter((value): value is string => Boolean(value));
     const deleteBlockedReason =
       prompt.status === "running"
-        ? `片段 ${prompt.shot_number} 正在运行，不能删除`
+        ? t("video.chapter.promptRunningCannot", { operation: t("common.delete") })
         : null;
 
     return (
@@ -120,7 +121,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           className="min-w-0 flex-1 px-3 py-2.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary"
         >
           <div className="truncate text-xs font-medium text-book-text-main">
-            {promptTitle(prompt)}
+            {promptTitle(prompt, t)}
           </div>
           <div className="mt-1 text-caption text-book-text-muted">
             {metadata.join(" · ")}
@@ -135,7 +136,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             <Dropdown
               items={[
                 {
-                  label: "删除视频提示词",
+                  label: t("video.chapter.deletePrompt"),
                   danger: true,
                   icon: <Trash2 size={12} />,
                   onClick: () => void onDeletePrompt(prompt),
@@ -154,7 +155,8 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
       onClick={() => void onLoad()}
       disabled={loading}
       className="pyqt-btn-icon !h-9 !w-9 shrink-0 sm:!h-7 sm:!w-7"
-      title="刷新"
+      title={t("video.chapter.refresh")}
+      aria-label={t("video.chapter.refresh")}
     >
       <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />
     </button>
@@ -169,7 +171,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
       return (
         <section className="flex min-h-20 items-center gap-3">
           <div className="min-w-0 flex-1">
-            <EmptyHint text="请先生成片段规划。规划完成后即可配置当前片段。" />
+            <EmptyHint text={t("video.chapter.choosePlanFirst")} />
           </div>
           {refreshButton}
         </section>
@@ -188,6 +190,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           recipe.workflow_mode,
           shotNumber,
           recipe.guidance_mode,
+          t,
         )
       : null;
 
@@ -196,8 +199,8 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
         <section className="flex min-w-0 items-center gap-3">
           <div role="alert" className="min-w-0 flex-1 text-caption text-error">
             {planningDraftVisible
-              ? "该片段已增量生成；等待片段规划完成落库后即可选择执行方案。"
-              : "当前片段缺少执行方案，无法生成；请重新生成片段规划。"}
+              ? t("video.chapter.recipeIncrementalPending")
+              : t("video.chapter.recipeMissing")}
           </div>
           {refreshButton}
         </section>
@@ -205,44 +208,44 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
     }
 
     return (
-      <section aria-label="当前片段配置" className="min-w-0">
+      <section aria-label={t("video.chapter.currentSegmentConfig")} className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
           <div className="shrink-0">
             <div className="text-caption font-medium text-book-text-main">
-              生成方式
+              {t("video.chapter.workflowMode")}
             </div>
             <div className="mt-0.5 text-caption text-book-text-muted">
-              切换后自动保存
+              {t("video.chapter.autosave")}
             </div>
           </div>
           <SegmentedControl
-            ariaLabel={`片段 ${shotNumber} 生成方案`}
+            ariaLabel={t("video.chapter.selectedSegmentRecipe", { number: shotNumber })}
             value={modeInputError ? null : recipe.workflow_mode}
             onChange={(mode) => void onWorkflowModeChange(mode, shotNumber)}
             options={[
               {
                 id: VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES,
-                label: "首尾帧",
+                label: t("video.chapter.frameBoundary"),
                 disabled: busy,
               },
               {
                 id: VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN,
-                label: "首帧续接",
+                label: t("video.chapter.frameContinuity"),
                 disabled: busy,
               },
               {
                 id: VIDEO_WORKFLOW_MODE_STORYBOARD,
-                label: "分镜",
+                label: t("video.chapter.storyboard"),
                 disabled: busy,
               },
               {
                 id: VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA,
-                label: "参考媒体",
+                label: t("video.chapter.referenceMedia"),
                 disabled: busy,
               },
               {
                 id: VIDEO_WORKFLOW_MODE_CHAT_VIDEO,
-                label: "Chat",
+                label: t("video.chapter.chat"),
                 disabled: busy,
               },
             ]}
@@ -250,7 +253,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           <div className="flex min-w-[12rem] flex-1 items-center gap-2 text-caption">
             {savingRecipe ? (
               <span className="inline-flex items-center gap-1 text-book-text-muted">
-                <LoadingSpinner size="sm" /> 保存方案
+                <LoadingSpinner size="sm" /> {t("video.chapter.saveRecipe")}
               </span>
             ) : finalPromptBlockedReason ? (
               <span className="line-clamp-2 text-warning">
@@ -259,13 +262,13 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             ) : (
               <span className="text-book-text-muted">
                 {recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
-                  ? "在下方配置媒体并生成视频"
-                  : "在下方填充素材并继续生成"}
+                  ? t("video.chapter.recipeStatusHelp")
+                  : t("video.chapter.recipeStatusContinue")}
               </span>
             )}
             {recipe.adopted_video_id != null ? (
               <span className="ml-auto shrink-0 text-success">
-                已采用视频 #{recipe.adopted_video_id}
+                {t("video.chapter.adoptedVideo", { id: recipe.adopted_video_id })}
               </span>
             ) : null}
           </div>
@@ -274,7 +277,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
 
         {variants.length > 0 ? (
           <ul
-            aria-label={`片段 ${shotNumber} 提示词版本`}
+            aria-label={t("video.chapter.promptVersion", { number: shotNumber })}
             className="mt-3 grid max-h-40 grid-cols-1 gap-px overflow-y-auto rounded-[var(--pyqt-radius-md)] border border-book-border/40 bg-book-border/35 custom-scrollbar"
           >
             {variants.map(renderPromptRow)}
@@ -327,16 +330,16 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
       finalPromptBlockedReasons.get(shotNumber) ?? null;
     const cardStatus =
       recipe?.adopted_video_id != null
-        ? "已采用成片"
+        ? t("video.chapter.segmentStatusAdopted")
         : variants.some((prompt) => prompt.generated_video_id != null)
-          ? "已有候选视频"
+          ? t("video.chapter.segmentStatusHasVideo")
           : variants.length > 0
-            ? `${variants.length} 条提示词`
+            ? t("video.chapter.segmentStatusPromptCount", { count: variants.length })
             : recipe?.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
-              ? "无需最终提示词"
+              ? t("video.chapter.segmentStatusNoFinal")
               : finalPromptBlockedReason
-                ? "待补充输入"
-                : "待生成提示词";
+                ? t("video.chapter.segmentStatusNeedsInput")
+                : t("video.chapter.segmentStatusNeedsPrompt");
 
     return (
       <section
@@ -352,7 +355,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           onClick={() => void onSelectSegment(shotNumber)}
           aria-current={selectedCard ? "true" : undefined}
           data-video-segment={shotNumber}
-          title={selectedCard ? "再次点击打开片段配置" : "选择片段"}
+          title={selectedCard ? t("video.chapter.reopenConfig") : t("video.chapter.chooseSegmentAction")}
           className={`block w-full min-w-0 p-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-book-primary ${
             selectedCard ? "bg-book-primary/6" : "hover:bg-book-bg-tertiary/45"
           }`}
@@ -361,11 +364,11 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-xs font-semibold text-book-text-main">
-                  片段 {timelineItem?.display_index ?? shotNumber}
+                  {t("video.chapter.segment", { number: timelineItem?.display_index ?? shotNumber })}
                 </span>
                 {timelineItem && timelineItem.display_index !== shotNumber ? (
                   <span className="text-caption text-book-text-muted">
-                    原生 #{shotNumber}
+                    {t("video.chapter.nativeShot", { number: shotNumber })}
                   </span>
                 ) : null}
                 <span className="text-caption text-book-text-muted">
@@ -395,8 +398,8 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
           ) : null}
           <div className="mt-2 text-caption text-book-text-sub">
             {recipe
-              ? VIDEO_WORKFLOW_MODE_LABELS[recipe.workflow_mode]
-              : "缺少执行方案"}
+              ? videoWorkflowModeLabel(recipe.workflow_mode, t)
+              : t("video.chapter.noExecutionRecipe")}
           </div>
         </button>
       </section>
@@ -421,14 +424,14 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2">
                 <span className="text-xs font-semibold text-book-text-main">
-                  片段 {item.display_index}
+                  {t("video.chapter.segment", { number: item.display_index })}
                 </span>
                 <span className="rounded-full bg-book-primary/12 px-1.5 py-0.5 text-caption text-book-primary">
-                  插入
+                  {t("video.chapter.insertClip")}
                 </span>
               </div>
               <div className="mt-0.5 truncate text-xs font-medium text-book-text-main">
-                {item.title ?? "未命名插入片段"}
+                {item.title ?? t("video.chapter.insertSegment")}
               </div>
             </div>
             <span
@@ -441,39 +444,36 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
               }`}
             >
               {promptMissing
-                ? "数据不完整"
+                ? t("video.chapter.dataIncomplete")
                 : needsReanchor
-                  ? "需重新定位"
+                  ? t("video.chapter.needsRelocation")
                   : item.generated_video_id != null
-                    ? "已有视频"
-                    : "待生成视频"}
+                    ? t("video.chapter.segmentStatusHasVideo")
+                    : t("video.chapter.waitingVideo")}
             </span>
           </div>
           <div className="mt-2 text-caption text-book-text-sub">
-            点击编辑提示词、移动位置或生成视频
+            {t("video.chapter.editSegmentHint")}
           </div>
         </button>
       </section>
     );
   };
 
-  const renderGap = (
-    gap: InsertedSegmentGap,
-    items: VideoTimelineItemSummary[],
-  ) => {
+  const renderGap = (gap: InsertedSegmentGap) => {
     const blocked = gapBlocked(gap);
     return (
       <button
         type="button"
-        aria-label={`在${gapLabel(gap, items)}插入片段`}
-        title={blocked ? "请先重新定位相邻的插入片段" : "插入片段"}
+        aria-label={t("video.chapter.insertSegment")}
+        title={blocked ? t("video.chapter.insertSegmentDisabled") : t("video.chapter.insertSegment")}
         disabled={loading || acting != null || blocked}
         onClick={() => onInsertSegment(gap)}
-        className="group flex h-6 w-full items-center gap-2 px-1 text-caption text-book-text-muted transition-colors hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-45"
+        className="a4n-touch-target group flex min-h-11 w-full items-center gap-2 px-1 text-caption text-book-text-muted transition-colors hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-6"
       >
         <span className="min-w-0 flex-1 border-t border-dashed border-book-border/60 group-hover:border-book-primary/55" />
         <span className="inline-flex shrink-0 items-center gap-1">
-          <Plus size={10} /> 插入
+          <Plus size={10} /> {t("video.chapter.insertClip")}
         </span>
         <span className="min-w-0 flex-1 border-t border-dashed border-book-border/60 group-hover:border-book-primary/55" />
       </button>
@@ -485,10 +485,10 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
       <div className="mb-3 flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <div className="text-xs font-medium text-book-text-main">
-            片段执行方案
+            {t("video.chapter.segmentPlan")}
           </div>
           <div className="mt-0.5 text-caption text-book-text-muted">
-            点击片段进行配置；使用卡片间的“插入”补充镜头
+            {t("video.chapter.segmentPlanHelp")}
           </div>
         </div>
         {refreshButton}
@@ -506,7 +506,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
                 <React.Fragment
                   key={`timeline-gap-${insertedSegmentGapKey(gap)}`}
                 >
-                  {renderGap(gap, timeline.items)}
+                  {renderGap(gap)}
                   {nextItem?.kind === "inserted"
                     ? renderInsertedCard(nextItem)
                     : nextItem?.segment_number != null
@@ -520,7 +520,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
             })}
           </div>
         ) : segmentCards.length === 0 ? (
-          <EmptyHint text="请先生成片段规划。规划完成后，每个片段会在这里独立选择生成方案。" />
+          <EmptyHint text={t("video.chapter.configureAfterPlan")} />
         ) : (
           <div className="space-y-2">
             {timeline ? (
@@ -528,7 +528,7 @@ export const VideoPromptSetupPanel: React.FC<VideoPromptSetupPanelProps> = ({
                 role="alert"
                 className="rounded-lg border border-warning/35 bg-warning-bg px-2.5 py-2 text-caption text-warning"
               >
-                时间线与当前片段规划尚未同步，插入入口暂时停用；刷新后再试。
+                {t("video.chapter.timelineOutOfSync")}
               </div>
             ) : null}
             {segmentCards.map((card) => renderNativeCard(card))}

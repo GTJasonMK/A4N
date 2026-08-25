@@ -2,11 +2,11 @@
 
 use a4n_core::models::chapter::chapter_video_prompt;
 
-use super::{prompt_chain_matches, prompt_source_type_matches};
+use super::{PromptChainFields, prompt_chain_matches, prompt_source_type_matches};
 
-pub fn first_frame_prompt_matches_video_prompt(
+pub fn first_frame_prompt_matches_video_prompt<P: PromptChainFields>(
     video_prompt: &chapter_video_prompt::Model,
-    first_frame_prompt: &chapter_video_prompt::Model,
+    first_frame_prompt: &P,
 ) -> bool {
     prompt_chain_matches(
         chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
@@ -16,6 +16,6 @@ pub fn first_frame_prompt_matches_video_prompt(
         && prompt_uses_shared_segment_source(first_frame_prompt)
 }
 
-fn prompt_uses_shared_segment_source(prompt: &chapter_video_prompt::Model) -> bool {
+fn prompt_uses_shared_segment_source<P: PromptChainFields>(prompt: &P) -> bool {
     prompt_source_type_matches(prompt, chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN)
 }

@@ -49,8 +49,7 @@ fn restored_galgame_llm_stage_output_rejects_mismatched_checkpoint() {
         "galgame_test",
         Ok,
     )
-    .err()
-    .expect("mismatched checkpoint must fail");
+    .expect_err("mismatched checkpoint must fail");
 
     assert!(
         error

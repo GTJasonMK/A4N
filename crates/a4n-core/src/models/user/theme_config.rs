@@ -16,9 +16,9 @@ pub struct Model {
     /// 主题模式：light / dark
     pub mode: String,
 
-    /// CSS 变量（JSON）
+    /// 版本化、受控的主题文档。
     #[sea_orm(column_type = "Json")]
-    pub css_variables: serde_json::Value,
+    pub theme_document: serde_json::Value,
 
     /// 是否是系统默认
     pub is_system_default: bool,

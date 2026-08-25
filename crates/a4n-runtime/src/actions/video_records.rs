@@ -29,11 +29,11 @@ pub(in crate::actions::video_records) use deletion::{
     append_video_record_cleanup_error, delete_video_record_cleanup_error,
 };
 pub(crate) use imports::import_canvas_video;
-pub(crate) use imports::{assemble_canvas_videos, extract_canvas_video_frame};
 pub use imports::{
     UploadAssemblyInsertVideoInput, UploadChapterVideoInput, UploadReferenceMediaVideoInput,
     trim_video, upload_assembly_insert_video, upload_chapter_video, upload_reference_media_video,
 };
+pub(crate) use imports::{assemble_canvas_videos, extract_canvas_video_frame};
 use playback::MAX_INLINE_PLAYBACK_VIDEO_BYTES;
 pub use playback::{load_video_playback_data, load_video_scrub_playback_data};
 pub use records::{list_videos_by_chapter, select_segment_video, update_video};

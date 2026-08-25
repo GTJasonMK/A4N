@@ -3,10 +3,8 @@ pub(in crate::sidecar_clients::service_manager) use a4n_service_protocol::{
 };
 use a4n_service_protocol::{ServiceCatalogEntry, service_catalog};
 
-pub(in crate::sidecar_clients::service_manager) type SidecarServiceSpec = ServiceCatalogEntry;
-
-pub(in crate::sidecar_clients::service_manager) fn sidecar_service_specs() -> Vec<SidecarServiceSpec>
-{
+pub(in crate::sidecar_clients::service_manager) fn sidecar_service_specs()
+-> Vec<ServiceCatalogEntry> {
     service_catalog().expect("embedded sidecar service catalog must be valid")
 }
 

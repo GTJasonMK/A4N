@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, source_spans::SourceSpan};
+use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
 use serde_json::Value;
 
 use super::super::super::super::values::{
@@ -10,7 +10,7 @@ pub(super) fn materialize_metadata_entity(
     value: &Value,
     key: &str,
     index: usize,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<Value, AppError> {
     let object = value.as_object().ok_or_else(|| {
         analysis_materialize_error(format!(

@@ -1,7 +1,10 @@
 use super::*;
-use a4n_core::models::user::{conversation, message};
+use a4n_core::models::{
+    chapter::chapter,
+    user::{conversation, message},
+};
 use sea_orm::{
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
     TransactionTrait,
 };
 
@@ -16,7 +19,7 @@ async fn text_project(db: &DatabaseConnection, title: &str) -> novel_project::Mo
             user_id: 1,
             title: title.to_string(),
             description: String::new(),
-            project_type: crate::project::PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -92,4 +95,48 @@ async fn insert_exchange_persists_user_then_assistant_and_updates_count() {
     assert_eq!(messages[0].content, "继续深化主角");
     assert_eq!(messages[1].role, "assistant");
     assert_eq!(messages[1].content, "可以从时间循环切入。");
+}
+
+#[tokio::test]
+async fn context_rows_keep_recent_chapter_filter_semantics_with_projection() {
+    let db = setup_db().await;
+    let project = text_project(&db, "灵感章节上下文").await;
+    let now = chrono::Utc::now().naive_utc();
+
+    for (chapter_number, content, summary) in [
+        (1, "\u{3000}\t", None),
+        (2, "正文", None),
+        (3, " ", Some("摘要")),
+    ] {
+        chapter::Entity::insert(chapter::ActiveModel {
+            id: sea_orm::ActiveValue::NotSet,
+            project_id: Set(project.id),
+            outline_id: Set(None),
+            chapter_number: Set(chapter_number),
+            title: Set(Some(format!("第{chapter_number}章"))),
+            content: Set(content.to_string()),
+            word_count: Set(content.chars().count() as i32),
+            status: Set(chapter::STATUS_DRAFT.to_string()),
+            summary: Set(summary.map(str::to_string)),
+            style_tags: Set(None),
+            analysis_data: Set(None),
+            created_at: Set(now),
+            updated_at: Set(now),
+        })
+        .exec(&db)
+        .await
+        .unwrap();
+    }
+
+    let rows = inspiration_project_context_rows(&db, project.id)
+        .await
+        .unwrap();
+    assert_eq!(rows.recent_chapters.len(), 3);
+    assert_eq!(rows.recent_chapters[0].chapter_number, 1);
+    assert!(!rows.recent_chapters[0].has_content);
+    assert_eq!(rows.recent_chapters[1].chapter_number, 2);
+    assert!(rows.recent_chapters[1].has_content);
+    assert_eq!(rows.recent_chapters[2].chapter_number, 3);
+    assert!(!rows.recent_chapters[2].has_content);
+    assert_eq!(rows.recent_chapters[2].summary.as_deref(), Some("摘要"));
 }

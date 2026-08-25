@@ -1,14 +1,13 @@
 use a4n_core::error::AppError;
 use serde_json::{Map, Value};
 
-use a4n_core::source_spans::SourceSpan;
-use a4n_core::source_spans::resolve_source_span_text;
+pub(in crate::manga::pipeline_prompt::validation) use a4n_core::source_spans::SourceSpanIndex;
 
 use super::fields::{reject_manga_unknown_fields, required_manga_enum, required_manga_string};
 
 pub(in crate::manga::pipeline_prompt::validation) fn validate_manga_source_span_id_array(
     value: &Value,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
     path: &str,
 ) -> Result<(), AppError> {
     let ids = value
@@ -26,7 +25,8 @@ pub(in crate::manga::pipeline_prompt::validation) fn validate_manga_source_span_
             .ok_or_else(|| {
                 AppError::InvalidArgument(format!("{path}[{index}] 必须是非空字符串"))
             })?;
-        resolve_source_span_text(source_spans, source_span_id)
+        source_spans
+            .resolve_text(source_span_id)
             .map_err(|err| AppError::InvalidArgument(format!("{path}[{index}] 无效：{err}")))?;
     }
     Ok(())
@@ -34,7 +34,7 @@ pub(in crate::manga::pipeline_prompt::validation) fn validate_manga_source_span_
 
 pub(in crate::manga::pipeline_prompt::validation) fn validate_manga_characters_object_shape(
     characters: &Map<String, Value>,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
     path: &str,
 ) -> Result<(), AppError> {
     for (name, character) in characters {

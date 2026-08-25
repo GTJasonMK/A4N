@@ -1,9 +1,7 @@
-use a4n_core::{
-    error::AppError,
-    models::{
-        character::protagonist_profile,
-        project::{source_snapshot_chapter, text_anchor},
-    },
+use a4n_core::error::AppError;
+use a4n_db::galgame::{
+    GalgamePipelinePromptChapterSourceRecord, GalgamePipelinePromptSpeakerProfileRecord,
+    GalgamePipelinePromptTextAnchorRecord,
 };
 
 use super::{
@@ -12,8 +10,8 @@ use super::{
 };
 
 pub fn galgame_prompt_chapter_from_snapshot(
-    chapter: &source_snapshot_chapter::Model,
-    anchors: &[text_anchor::Model],
+    chapter: &GalgamePipelinePromptChapterSourceRecord,
+    anchors: &[GalgamePipelinePromptTextAnchorRecord],
 ) -> Result<GalgamePipelinePromptChapter, AppError> {
     let mut source_spans = anchors
         .iter()
@@ -74,8 +72,8 @@ pub fn galgame_pipeline_source_spans_from_prompt_chapters(
         .collect()
 }
 
-pub fn galgame_speaker_profiles_from_models(
-    profiles: &[protagonist_profile::Model],
+pub fn galgame_speaker_profiles_from_prompt_records(
+    profiles: &[GalgamePipelinePromptSpeakerProfileRecord],
 ) -> Vec<GalgameSpeakerProfile> {
     profiles
         .iter()

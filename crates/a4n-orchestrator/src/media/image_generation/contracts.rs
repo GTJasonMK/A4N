@@ -225,6 +225,4 @@ pub trait ImageGenerationHostPort: Send + Sync {
         relative_path: &str,
         label: &str,
     ) -> Result<(), AppError>;
-
-    async fn sync_project_asset_lineage(&self, project_id: i64) -> Result<(), AppError>;
 }

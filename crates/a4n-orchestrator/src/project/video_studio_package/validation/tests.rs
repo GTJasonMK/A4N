@@ -18,11 +18,11 @@ use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::CanvasNodeRefKind;
 
 use crate::media::MEDIA_STATUS_COMPLETED;
-use crate::project::video_studio_package::{
-    ImportMediaPayload, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioMediaFileEntry,
-    VideoStudioProjectPackage, media_file_key,
+use crate::project::video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
+use crate::project::{
+    ImportMediaPayload, MediaFileEntry, PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT,
+    VideoStudioProjectPackage, media_file_key, sha256_bytes,
 };
-use crate::project::{PROJECT_KIND_VIDEO, SOURCE_SYNC_CURRENT, sha256_bytes};
 
 use super::{validate_media_entry_bytes, validate_package_manifest};
 

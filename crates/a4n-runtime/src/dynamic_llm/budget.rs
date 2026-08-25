@@ -1,10 +1,18 @@
-use super::contracts::EffectiveLlmPreviewBudget;
 use a4n_core::config::app_config::LlmMaxTokensConfig;
 use a4n_core::error::AppError;
 use a4n_core::models::ai::llm_config;
 use a4n_llm::provider::ChatRequest;
 
-pub fn resolve_effective_llm_preview_budget_for_config(
+#[derive(Debug, Clone)]
+pub(crate) struct EffectiveLlmPreviewBudget {
+    pub(crate) model_name: String,
+    pub(crate) max_context_tokens: usize,
+    pub(crate) max_output_tokens: usize,
+    pub(crate) output_token_reserve: usize,
+    pub(crate) output_token_source: String,
+}
+
+pub(crate) fn resolve_effective_llm_preview_budget_for_config(
     model: llm_config::Model,
     request: &ChatRequest,
     max_tokens_config: Option<&LlmMaxTokensConfig>,

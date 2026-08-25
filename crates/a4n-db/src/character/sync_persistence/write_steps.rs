@@ -6,19 +6,24 @@ use crate::character::CharacterDbError;
 use crate::character::attributes::{
     AppliedCharacterImplicitDecisionAction, CharacterAttributeDeletionExecutionInput,
     CharacterAttributeDeletionRequestInput, CharacterImplicitReviewDecisionRecordInput,
-    add_profile_attribute_from_source_in, apply_implicit_review_decision_record_from_source_in,
-    execute_ready_attribute_deletion_from_source_in, modify_profile_attribute_from_source_in,
-    request_attribute_deletion_from_source_in,
+    add_profile_attribute_with_profile_from_source_in, apply_attribute_to_state,
+    apply_implicit_review_decision_record_with_profile_from_source_in,
+    execute_ready_attribute_deletion_with_profile_from_source_in,
+    modify_profile_attribute_with_profile_from_source_in,
+    request_attribute_deletion_with_profile_in,
 };
 use crate::character::behavior::record_behavior_in;
+use crate::character::profile_current_state_fields;
 use crate::character::timeline::CharacterAttributeOwnership;
 use a4n_core::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
+use a4n_core::models::character::{attribute_event, protagonist_profile};
 use a4n_domain::character::CHARACTER_DELETION_THRESHOLD;
 use sea_orm::ConnectionTrait;
 
 pub(super) async fn apply_character_sync_write_steps_in<C>(
     db: &C,
     profile_id: i64,
+    mut profile: protagonist_profile::Model,
     steps: Vec<CharacterSyncWriteStepRecordInput>,
     ownership: &CharacterAttributeOwnership,
 ) -> Result<CharacterSyncWriteSummary, CharacterDbError>
@@ -49,8 +54,9 @@ where
                     );
                     continue;
                 }
-                let recorded = record_character_sync_attribute_event(db, event).await?;
-                summary.attribute_event_ids.push(recorded.id);
+                let recorded = record_character_sync_attribute_event(db, &profile, event).await?;
+                apply_recorded_event_to_profile(&mut profile, &recorded.event)?;
+                summary.attribute_event_ids.push(recorded.event.id);
                 summary.changes_applied += 1;
                 if recorded.from_classification {
                     summary.classification_suggestions_applied += 1;
@@ -87,7 +93,8 @@ where
                     );
                     continue;
                 }
-                apply_character_sync_deletion_candidate(db, candidate, &mut summary).await?;
+                apply_character_sync_deletion_candidate(db, &mut profile, candidate, &mut summary)
+                    .await?;
             }
             CharacterSyncWriteStepRecordInput::ImplicitReview(decision) => {
                 if decision.profile_id != profile_id {
@@ -100,7 +107,13 @@ where
                 {
                     continue;
                 }
-                apply_character_sync_implicit_review_decision(db, decision, &mut summary).await?;
+                apply_character_sync_implicit_review_decision(
+                    db,
+                    &mut profile,
+                    decision,
+                    &mut summary,
+                )
+                .await?;
             }
         }
     }
@@ -151,12 +164,13 @@ fn implicit_review_mutates_protected_attribute(
 }
 
 struct RecordedCharacterSyncAttributeEvent {
-    id: i64,
+    event: attribute_event::Model,
     from_classification: bool,
 }
 
 async fn record_character_sync_attribute_event<C>(
     db: &C,
+    profile: &protagonist_profile::Model,
     event: CharacterSyncAttributeEventRecordInput,
 ) -> Result<RecordedCharacterSyncAttributeEvent, CharacterDbError>
 where
@@ -166,10 +180,22 @@ where
     let operation = event.operation.trim();
     let recorded = match operation {
         "add" => {
-            add_profile_attribute_from_source_in(db, event.change, SOURCE_KIND_AI_SYNC).await?
+            add_profile_attribute_with_profile_from_source_in(
+                db,
+                profile.clone(),
+                event.change,
+                SOURCE_KIND_AI_SYNC,
+            )
+            .await?
         }
         "modify" => {
-            modify_profile_attribute_from_source_in(db, event.change, SOURCE_KIND_AI_SYNC).await?
+            modify_profile_attribute_with_profile_from_source_in(
+                db,
+                profile.clone(),
+                event.change,
+                SOURCE_KIND_AI_SYNC,
+            )
+            .await?
         }
         other => {
             return Err(CharacterDbError::InvalidArgument(format!(
@@ -178,13 +204,14 @@ where
         }
     };
     Ok(RecordedCharacterSyncAttributeEvent {
-        id: recorded.id,
+        event: recorded,
         from_classification,
     })
 }
 
 async fn apply_character_sync_deletion_candidate<C>(
     db: &C,
+    profile: &mut protagonist_profile::Model,
     candidate: CharacterAttributeDeletionRequestInput,
     summary: &mut CharacterSyncWriteSummary,
 ) -> Result<(), CharacterDbError>
@@ -194,12 +221,13 @@ where
     let evidence = candidate.evidence.clone();
     let chapter_number = candidate.chapter_number;
     let mark =
-        request_attribute_deletion_from_source_in(db, candidate, SOURCE_KIND_AI_SYNC).await?;
+        request_attribute_deletion_with_profile_in(db, profile, candidate, SOURCE_KIND_AI_SYNC)
+            .await?;
     summary.deletions_marked += 1;
 
     if !mark.is_executed && mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD {
         let event_cause = format!("连续{}次标记删除", mark.consecutive_count);
-        let (event, _) = execute_ready_attribute_deletion_from_source_in(
+        let (event, _) = execute_ready_attribute_deletion_with_profile_from_source_in(
             db,
             CharacterAttributeDeletionExecutionInput {
                 profile_id: mark.profile_id,
@@ -210,8 +238,10 @@ where
                 chapter_number,
             },
             SOURCE_KIND_AI_SYNC,
+            profile.clone(),
         )
         .await?;
+        apply_recorded_event_to_profile(profile, &event)?;
         summary.attribute_event_ids.push(event.id);
         summary.deletions_executed += 1;
         summary.changes_applied += 1;
@@ -222,15 +252,20 @@ where
 
 async fn apply_character_sync_implicit_review_decision<C>(
     db: &C,
+    profile: &mut protagonist_profile::Model,
     decision: CharacterImplicitReviewDecisionRecordInput,
     summary: &mut CharacterSyncWriteSummary,
 ) -> Result<(), CharacterDbError>
 where
     C: ConnectionTrait,
 {
-    let applied =
-        apply_implicit_review_decision_record_from_source_in(db, decision, SOURCE_KIND_AI_SYNC)
-            .await?;
+    let applied = apply_implicit_review_decision_record_with_profile_from_source_in(
+        db,
+        profile.clone(),
+        decision,
+        SOURCE_KIND_AI_SYNC,
+    )
+    .await?;
 
     match applied.action {
         AppliedCharacterImplicitDecisionAction::Keep => {}
@@ -238,6 +273,7 @@ where
             let event = applied.event.ok_or_else(|| {
                 CharacterDbError::Internal("隐性属性复审修改缺少属性事件".to_string())
             })?;
+            apply_recorded_event_to_profile(profile, &event)?;
             summary.attribute_event_ids.push(event.id);
             summary.changes_applied += 1;
             summary.implicit_reviews_applied += 1;
@@ -252,5 +288,27 @@ where
             summary.implicit_reviews_applied += 1;
         }
     }
+    Ok(())
+}
+
+fn apply_recorded_event_to_profile(
+    profile: &mut protagonist_profile::Model,
+    event: &attribute_event::Model,
+) -> Result<(), CharacterDbError> {
+    let mut next_state = profile.current_state.clone();
+    apply_attribute_to_state(
+        &mut next_state,
+        &event.category,
+        &event.key,
+        &event.operation,
+        event.new_value.clone(),
+    )?;
+    let fields = profile_current_state_fields(next_state);
+    profile.gender = fields.gender;
+    profile.age = fields.age;
+    profile.appearance = fields.appearance;
+    profile.background = fields.background;
+    profile.personality = fields.personality;
+    profile.current_state = fields.current_state;
     Ok(())
 }

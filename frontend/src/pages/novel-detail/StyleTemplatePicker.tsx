@@ -2,6 +2,49 @@ import React, { useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { VisualStyleTemplate } from "./styleTemplates";
 import { renderVisualStyleTemplate } from "./styleTemplates";
+import { useI18n, type MessageKey } from "../../i18n";
+
+const STYLE_TEMPLATE_KEYS: Record<
+  string,
+  { name: MessageKey; summary: MessageKey }
+> = {
+  "cinematic-realism": {
+    name: "common.stylePicker.templates.cinematicRealismName",
+    summary: "common.stylePicker.templates.cinematicRealismSummary",
+  },
+  "anime-cel": {
+    name: "common.stylePicker.templates.animeCelName",
+    summary: "common.stylePicker.templates.animeCelSummary",
+  },
+  "kyoani-everyday-anime": {
+    name: "common.stylePicker.templates.kyoaniEverydayAnimeName",
+    summary: "common.stylePicker.templates.kyoaniEverydayAnimeSummary",
+  },
+  "fantasy-concept": {
+    name: "common.stylePicker.templates.fantasyConceptName",
+    summary: "common.stylePicker.templates.fantasyConceptSummary",
+  },
+  "watercolor-storybook": {
+    name: "common.stylePicker.templates.watercolorStorybookName",
+    summary: "common.stylePicker.templates.watercolorStorybookSummary",
+  },
+  "ink-oriental": {
+    name: "common.stylePicker.templates.inkOrientalName",
+    summary: "common.stylePicker.templates.inkOrientalSummary",
+  },
+  "noir-thriller": {
+    name: "common.stylePicker.templates.noirThrillerName",
+    summary: "common.stylePicker.templates.noirThrillerSummary",
+  },
+  "cyberpunk-neon": {
+    name: "common.stylePicker.templates.cyberpunkNeonName",
+    summary: "common.stylePicker.templates.cyberpunkNeonSummary",
+  },
+  "retro-film": {
+    name: "common.stylePicker.templates.retroFilmName",
+    summary: "common.stylePicker.templates.retroFilmSummary",
+  },
+};
 
 interface StyleTemplatePickerProps {
   label: string;
@@ -20,12 +63,21 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
   rows = 4,
   onChange,
 }) => {
+  const { t } = useI18n();
   const matchedTemplate = useMemo(
     () => templates.find((template) => renderVisualStyleTemplate(template) === value) ?? null,
     [templates, value],
   );
   const [customMode, setCustomMode] = useState(matchedTemplate == null);
   const selectedTemplate = customMode ? null : matchedTemplate;
+  const templateName = (template: VisualStyleTemplate): string => {
+    const keys = STYLE_TEMPLATE_KEYS[template.id];
+    return keys ? t(keys.name) : template.name;
+  };
+  const templateSummary = (template: VisualStyleTemplate): string => {
+    const keys = STYLE_TEMPLATE_KEYS[template.id];
+    return keys ? t(keys.summary) : template.summary;
+  };
 
   useEffect(() => {
     setCustomMode(matchedTemplate == null);
@@ -53,14 +105,14 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
           value={selectedTemplate?.id ?? "custom"}
           onChange={(event) => applyTemplate(event.target.value)}
           disabled={disabled}
-          title={selectedTemplate?.name ?? "自定义风格"}
-          aria-label={`${label}模板`}
+          title={selectedTemplate ? templateName(selectedTemplate) : t("common.stylePicker.custom")}
+          aria-label={t("common.stylePicker.templateAria", { label })}
           className="pyqt-input w-full !py-1.5 text-xs sm:min-w-[10rem]"
         >
-          <option value="custom">自定义风格</option>
+          <option value="custom">{t("common.stylePicker.custom")}</option>
           {templates.map((template) => (
             <option key={template.id} value={template.id}>
-              {template.name}
+              {templateName(template)}
             </option>
           ))}
         </select>
@@ -69,7 +121,7 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
       {selectedTemplate ? (
         <div className="border-y border-book-border/45 py-2.5">
           <p className="text-small leading-relaxed text-book-text-muted">
-            {selectedTemplate.summary}
+            {templateSummary(selectedTemplate)}
           </p>
           <details className="group mt-1.5">
             <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg px-1.5 text-small text-book-text-muted transition-colors hover:bg-book-bg-tertiary/55 hover:text-book-text-main [&::-webkit-details-marker]:hidden">
@@ -77,20 +129,20 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
                 size={12}
                 className="shrink-0 transition-transform group-open:rotate-90"
               />
-              查看风格细节
+              {t("common.stylePicker.details")}
             </summary>
             <div className="mt-1 divide-y divide-book-border/35 border-y border-book-border/35">
-              <StyleField label="关键词" value={selectedTemplate.fields.styleNames} />
-              <StyleField label="整体" value={selectedTemplate.fields.tone} />
-              <StyleField label="光影" value={selectedTemplate.fields.lighting} />
-              <StyleField label="色彩" value={selectedTemplate.fields.color} />
-              <StyleField label="构图" value={selectedTemplate.fields.composition} />
-              <StyleField label="镜头" value={selectedTemplate.fields.camera} />
-              <StyleField label="材质" value={selectedTemplate.fields.material} />
-              <StyleField label="氛围" value={selectedTemplate.fields.atmosphere} />
-              <StyleField label="细节" value={selectedTemplate.fields.detail} />
-              <StyleField label="运动" value={selectedTemplate.fields.motion} />
-              <StyleField label="避免" value={selectedTemplate.fields.avoid} />
+              <StyleField label={t("common.stylePicker.styleNames")} value={selectedTemplate.fields.styleNames} />
+              <StyleField label={t("common.stylePicker.tone")} value={selectedTemplate.fields.tone} />
+              <StyleField label={t("common.stylePicker.lighting")} value={selectedTemplate.fields.lighting} />
+              <StyleField label={t("common.stylePicker.color")} value={selectedTemplate.fields.color} />
+              <StyleField label={t("common.stylePicker.composition")} value={selectedTemplate.fields.composition} />
+              <StyleField label={t("common.stylePicker.camera")} value={selectedTemplate.fields.camera} />
+              <StyleField label={t("common.stylePicker.material")} value={selectedTemplate.fields.material} />
+              <StyleField label={t("common.stylePicker.atmosphere")} value={selectedTemplate.fields.atmosphere} />
+              <StyleField label={t("common.stylePicker.detail")} value={selectedTemplate.fields.detail} />
+              <StyleField label={t("common.stylePicker.motion")} value={selectedTemplate.fields.motion} />
+              <StyleField label={t("common.stylePicker.avoid")} value={selectedTemplate.fields.avoid} />
             </div>
           </details>
         </div>
@@ -101,8 +153,8 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
           disabled={disabled}
           rows={rows}
           className="pyqt-input min-h-[88px] w-full resize-y !px-2.5 !py-2 leading-relaxed"
-          placeholder="描述期望的画面风格、光影、色彩、构图和需要避免的效果。"
-          aria-label={`${label}自定义说明`}
+          placeholder={t("common.stylePicker.customPlaceholder")}
+          aria-label={t("common.stylePicker.customDescriptionAria", { label })}
         />
       )}
     </div>

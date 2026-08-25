@@ -14,14 +14,16 @@ pub(super) use blueprint::{
     restore_blueprint_version, save_blueprint, sync_blueprint_materials, update_world_setting,
 };
 pub(super) use chapter::{
-    delete_chapter_scene, edit_chapter_shooting_script, generate_chapter_analysis,
-    generate_chapter_scene, generate_chapter_shooting_script,
+    apply_chapter_visual_plan_proposal, confirm_chapter_visual_plan, delete_chapter_scene,
+    discard_chapter_visual_plan_draft, edit_chapter_shooting_script, generate_chapter_analysis,
+    generate_chapter_scene, generate_chapter_shooting_script, generate_chapter_visual_plan_draft,
     generate_next_chapter_shooting_script_unit, get_chapter_shooting_script,
-    get_chapter_shooting_script_unit_progress, import_chapter, list_chapter_scenes, list_chapters,
-    prepare_chapter_generation_rag_embedding, preview_chapter_analysis_request,
-    preview_chapter_prompt, preview_chapter_scene_request,
-    preview_resume_chapter_analysis_sync_request, reorder_chapter_scenes,
-    resume_chapter_analysis_sync, update_chapter_content, update_chapter_scene,
+    get_chapter_shooting_script_unit_progress, get_chapter_visual_plan, import_chapter,
+    list_chapter_scenes, list_chapters, prepare_chapter_generation_rag_embedding,
+    preview_chapter_analysis_request, preview_chapter_prompt, preview_chapter_scene_request,
+    preview_chapter_visual_plan_request, preview_resume_chapter_analysis_sync_request,
+    propose_chapter_visual_plan_revision, reorder_chapter_scenes, resume_chapter_analysis_sync,
+    save_chapter_visual_plan_draft, update_chapter_content, update_chapter_scene,
 };
 pub(super) use export::{
     export_batch_data, export_characters_json_data, export_epub_data, export_markdown_data,

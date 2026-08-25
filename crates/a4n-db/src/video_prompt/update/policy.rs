@@ -147,6 +147,16 @@ struct SegmentPlanRecipeUpdateRow {
     metadata_json: Option<Value>,
 }
 
+#[derive(Debug, FromQueryResult)]
+struct AdoptedVideoValidationRow {
+    project_id: i64,
+    chapter_id: Option<i64>,
+    workflow_mode: Option<String>,
+    file_path: Option<String>,
+    status: String,
+    metadata_json: Option<Value>,
+}
+
 pub async fn update_chapter_video_segment_recipe<C>(
     db: &C,
     prompt_id: i64,
@@ -213,7 +223,7 @@ where
         db,
         plan.project_id,
         plan.chapter_id,
-        &source_text_hash(&chapter.content),
+        &source_text_hash(&chapter),
     )
     .await?;
     if current_prompt_id != Some(plan.id) {
@@ -264,6 +274,14 @@ where
     C: ConnectionTrait,
 {
     let video = generated_video::Entity::find_by_id(video_id)
+        .select_only()
+        .column(generated_video::Column::ProjectId)
+        .column(generated_video::Column::ChapterId)
+        .column(generated_video::Column::WorkflowMode)
+        .column(generated_video::Column::FilePath)
+        .column(generated_video::Column::Status)
+        .column(generated_video::Column::MetadataJson)
+        .into_model::<AdoptedVideoValidationRow>()
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound(format!("视频 #{video_id} 不存在")))?;

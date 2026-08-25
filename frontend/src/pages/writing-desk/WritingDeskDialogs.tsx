@@ -3,6 +3,7 @@ import { ScenesDialog } from "../ScenesDialog";
 import { CharacterProfilesModal } from "./CharacterProfilesModal";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
+import { useI18n } from "../../i18n";
 
 interface WritingDeskDialogsProps {
   projectId: number;
@@ -38,7 +39,9 @@ export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({
   onPreviewClose,
   onProfilesClose,
   onCharacterMaterialSync,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <>
     <ScenesDialog
       open={scenesOpen}
@@ -52,7 +55,7 @@ export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({
       open={previewOpen}
       loading={previewing}
       data={previewData}
-      fallbackTitle={`章节生成请求预览${activeNumber != null ? ` · 第 ${activeNumber} 章` : ""}`}
+      fallbackTitle={`${t("writing.chapterGenerationPreview")}${activeNumber != null ? ` · ${t("writing.chapterLabel", { number: activeNumber })}` : ""}`}
       onClose={onPreviewClose}
     />
 
@@ -66,4 +69,5 @@ export const WritingDeskDialogs: React.FC<WritingDeskDialogsProps> = ({
       onMaterialSync={onCharacterMaterialSync}
     />
   </>
-);
+  );
+};

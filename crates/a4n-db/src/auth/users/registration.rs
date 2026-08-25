@@ -96,6 +96,7 @@ where
         oauth_provider: Set(None),
         oauth_subject: Set(None),
         avatar_url: Set(None),
+        page_cli_enabled: Set(false),
         is_active: Set(true),
         created_at: Set(now),
         updated_at: Set(now),

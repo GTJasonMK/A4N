@@ -6,11 +6,11 @@
 
 pub mod admin;
 pub mod asset;
-pub mod asset_lineage_sync;
 pub mod auth;
 pub mod blueprint;
 pub mod canvas;
 pub mod chapter_content;
+pub mod chapter_visual_plan;
 pub mod character;
 pub mod cleanup_outbox;
 pub mod collaboration;

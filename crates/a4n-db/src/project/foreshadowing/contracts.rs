@@ -1,5 +1,4 @@
 use a4n_core::models::character::foreshadowing_index;
-pub use a4n_domain::character::ForeshadowingRecordInput;
 use sea_orm::DbErr;
 use serde_json::Value;
 
@@ -31,12 +30,6 @@ pub enum ForeshadowingDbError {
     Database(#[from] DbErr),
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct ForeshadowingCleanupResult {
-    pub stale_ids: Vec<i64>,
-    pub changed_ids: Vec<i64>,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForeshadowingAnalysisDraft {
     pub description: String,
@@ -51,5 +44,4 @@ pub struct ForeshadowingAnalysisSyncResult {
     pub updated: Vec<foreshadowing_index::Model>,
     pub existing: Vec<foreshadowing_index::Model>,
     pub resolved: Vec<foreshadowing_index::Model>,
-    pub stale_ids: Vec<i64>,
 }

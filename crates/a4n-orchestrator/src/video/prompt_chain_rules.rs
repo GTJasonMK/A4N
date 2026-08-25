@@ -5,10 +5,84 @@ use serde_json::Value;
 
 use super::prompt_records::expected_contract_version;
 
-pub fn prompt_chain_matches(
+pub trait PromptChainFields {
+    fn id(&self) -> i64;
+    fn prompt_type(&self) -> &str;
+    fn workflow_mode(&self) -> &str;
+    fn shot_number(&self) -> i32;
+    fn metadata_json(&self) -> Option<&Value>;
+}
+
+impl PromptChainFields for chapter_video_prompt::Model {
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn prompt_type(&self) -> &str {
+        &self.prompt_type
+    }
+
+    fn workflow_mode(&self) -> &str {
+        &self.workflow_mode
+    }
+
+    fn shot_number(&self) -> i32 {
+        self.shot_number
+    }
+
+    fn metadata_json(&self) -> Option<&Value> {
+        self.metadata_json.as_ref()
+    }
+}
+
+impl PromptChainFields for a4n_db::video::ChapterVideoPromptCandidateRecord {
+    fn id(&self) -> i64 {
+        self.id
+    }
+
+    fn prompt_type(&self) -> &str {
+        &self.prompt_type
+    }
+
+    fn workflow_mode(&self) -> &str {
+        &self.workflow_mode
+    }
+
+    fn shot_number(&self) -> i32 {
+        self.shot_number
+    }
+
+    fn metadata_json(&self) -> Option<&Value> {
+        self.metadata_json.as_ref()
+    }
+}
+
+impl<T: PromptChainFields + ?Sized> PromptChainFields for &T {
+    fn id(&self) -> i64 {
+        (**self).id()
+    }
+
+    fn prompt_type(&self) -> &str {
+        (**self).prompt_type()
+    }
+
+    fn workflow_mode(&self) -> &str {
+        (**self).workflow_mode()
+    }
+
+    fn shot_number(&self) -> i32 {
+        (**self).shot_number()
+    }
+
+    fn metadata_json(&self) -> Option<&Value> {
+        (**self).metadata_json()
+    }
+}
+
+pub fn prompt_chain_matches<L: PromptChainFields, R: PromptChainFields>(
     workflow_mode: &str,
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+    left: &L,
+    right: &R,
 ) -> bool {
     prompt_workflow_matches_chain(left, workflow_mode)
         && prompt_workflow_matches_chain(right, workflow_mode)
@@ -16,34 +90,29 @@ pub fn prompt_chain_matches(
         && video_execution_identity_matches(left, right)
 }
 
-fn prompt_workflow_matches_chain(
-    prompt: &chapter_video_prompt::Model,
-    workflow_mode: &str,
-) -> bool {
-    prompt.workflow_mode == workflow_mode
-        || (prompt.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
-            && prompt.workflow_mode == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
+fn prompt_workflow_matches_chain<P: PromptChainFields>(prompt: &P, workflow_mode: &str) -> bool {
+    prompt.workflow_mode() == workflow_mode
+        || (prompt.prompt_type() == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN
+            && prompt.workflow_mode() == chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN)
 }
 
-pub fn prompt_source_type_matches(prompt: &chapter_video_prompt::Model, expected: &str) -> bool {
-    metadata_text(prompt.metadata_json.as_ref(), "source_prompt_type") == Some(expected)
+pub fn prompt_source_type_matches<P: PromptChainFields>(prompt: &P, expected: &str) -> bool {
+    metadata_text(prompt.metadata_json(), "source_prompt_type") == Some(expected)
 }
 
-fn video_execution_identity_matches(
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+fn video_execution_identity_matches<L: PromptChainFields, R: PromptChainFields>(
+    left: &L,
+    right: &R,
 ) -> bool {
     let Some(left_identity) = left
-        .metadata_json
-        .as_ref()
+        .metadata_json()
         .and_then(|metadata| metadata.get("video_execution_identity"))
         .and_then(Value::as_object)
     else {
         return false;
     };
     let Some(right_identity) = right
-        .metadata_json
-        .as_ref()
+        .metadata_json()
         .and_then(|metadata| metadata.get("video_execution_identity"))
         .and_then(Value::as_object)
     else {
@@ -69,9 +138,9 @@ fn video_execution_identity_matches(
     base_matches && segment_execution_scope_matches(left, right, left_identity, right_identity)
 }
 
-fn segment_execution_scope_matches(
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+fn segment_execution_scope_matches<L: PromptChainFields, R: PromptChainFields>(
+    left: &L,
+    right: &R,
     left_identity: &serde_json::Map<String, Value>,
     right_identity: &serde_json::Map<String, Value>,
 ) -> bool {
@@ -81,12 +150,12 @@ fn segment_execution_scope_matches(
     let right_plan = right_identity
         .get("segment_plan_prompt_id")
         .and_then(Value::as_i64);
-    if left.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
-        return right_plan == Some(left.id)
+    if left.prompt_type() == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
+        return right_plan == Some(left.id())
             && segment_identity_exists_in_plan(left_identity, right_identity);
     }
-    if right.prompt_type == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
-        return left_plan == Some(right.id)
+    if right.prompt_type() == chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN {
+        return left_plan == Some(right.id())
             && segment_identity_exists_in_plan(right_identity, left_identity);
     }
     let same_segment = left_plan.is_some()
@@ -134,14 +203,14 @@ fn identity_fields_match(
     })
 }
 
-fn video_and_frame_prompt_pair(
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+fn video_and_frame_prompt_pair<L: PromptChainFields, R: PromptChainFields>(
+    left: &L,
+    right: &R,
 ) -> bool {
-    (left.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
-        && is_frame_prompt(&right.prompt_type))
-        || (right.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
-            && is_frame_prompt(&left.prompt_type))
+    (left.prompt_type() == chapter_video_prompt::PROMPT_TYPE_VIDEO
+        && is_frame_prompt(right.prompt_type()))
+        || (right.prompt_type() == chapter_video_prompt::PROMPT_TYPE_VIDEO
+            && is_frame_prompt(left.prompt_type()))
 }
 
 fn is_frame_prompt(prompt_type: &str) -> bool {
@@ -162,17 +231,17 @@ fn metadata_text<'a>(metadata: Option<&'a Value>, key: &str) -> Option<&'a str> 
         .filter(|value| !value.is_empty())
 }
 
-fn current_chain_contract_versions_match(
+fn current_chain_contract_versions_match<L: PromptChainFields, R: PromptChainFields>(
     workflow_mode: &str,
-    left: &chapter_video_prompt::Model,
-    right: &chapter_video_prompt::Model,
+    left: &L,
+    right: &R,
 ) -> bool {
-    let Some(left_expected) = expected_contract_version(workflow_mode, &left.prompt_type) else {
+    let Some(left_expected) = expected_contract_version(workflow_mode, left.prompt_type()) else {
         return false;
     };
-    let Some(right_expected) = expected_contract_version(workflow_mode, &right.prompt_type) else {
+    let Some(right_expected) = expected_contract_version(workflow_mode, right.prompt_type()) else {
         return false;
     };
-    metadata_text(left.metadata_json.as_ref(), "contract_version") == Some(left_expected)
-        && metadata_text(right.metadata_json.as_ref(), "contract_version") == Some(right_expected)
+    metadata_text(left.metadata_json(), "contract_version") == Some(left_expected)
+        && metadata_text(right.metadata_json(), "contract_version") == Some(right_expected)
 }

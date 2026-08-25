@@ -1,4 +1,6 @@
 use super::*;
+use sea_orm::sea_query::{CaseStatement, Expr};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 pub(super) async fn insert_galgame_rows(
     txn: &DatabaseTransaction,
@@ -55,6 +57,8 @@ pub(super) async fn insert_galgame_rows(
             active.next_scene_id = Set(None);
         }
     );
+    let mut next_scene_id_case = CaseStatement::new();
+    let mut scene_ids = Vec::new();
     for scene in &package.galgame_scenes {
         let Some(next_scene_id) = scene.next_scene_id else {
             continue;
@@ -65,27 +69,34 @@ pub(super) async fn insert_galgame_rows(
             next_scene_id,
             "Galgame 场 next_scene_id",
         )?;
-        let stored = galgame_scene::Entity::find_by_id(new_scene_id)
-            .one(txn)
-            .await
-            .map_err(|source| ProjectFamilyImportError::DatabaseContext {
-                context: "读取导入 Galgame 场失败",
-                source,
-            })?
-            .ok_or_else(|| {
-                ProjectFamilyImportError::InvalidPackage(format!(
-                    "导入 Galgame 场不存在: {new_scene_id}"
-                ))
-            })?;
-        let mut active: galgame_scene::ActiveModel = stored.into();
-        active.next_scene_id = Set(Some(new_next_scene_id));
-        active
-            .update(txn)
+        next_scene_id_case = next_scene_id_case.case(
+            galgame_scene::Column::Id.eq(new_scene_id),
+            Expr::value(Some(new_next_scene_id)),
+        );
+        scene_ids.push(new_scene_id);
+    }
+    if !scene_ids.is_empty() {
+        let updated = galgame_scene::Entity::update_many()
+            .col_expr(
+                galgame_scene::Column::NextSceneId,
+                next_scene_id_case
+                    .finally(Expr::col(galgame_scene::Column::NextSceneId))
+                    .into(),
+            )
+            .filter(galgame_scene::Column::Id.is_in(scene_ids.clone()))
+            .exec(txn)
             .await
             .map_err(|source| ProjectFamilyImportError::DatabaseContext {
                 context: "更新 Galgame 场 next_scene_id 失败",
                 source,
             })?;
+        if updated.rows_affected != scene_ids.len() as u64 {
+            return Err(ProjectFamilyImportError::invalid_package(format!(
+                "更新 Galgame 场 next_scene_id 数量不一致: updated={}, expected={}",
+                updated.rows_affected,
+                scene_ids.len()
+            )));
+        }
     }
     insert_mapped_import_rows!(
         txn,

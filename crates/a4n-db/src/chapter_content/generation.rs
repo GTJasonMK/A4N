@@ -1,6 +1,8 @@
 use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
 use chrono::NaiveDateTime;
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
+};
 
 use super::{
     ChapterGenerationExistingRecord, ChapterGenerationLifecycleError,
@@ -17,9 +19,15 @@ pub async fn begin_chapter_generation_record<C>(
 where
     C: ConnectionTrait,
 {
-    let Some(chapter) = chapter::Entity::find()
+    let Some((chapter_id, status, title, summary)) = chapter::Entity::find()
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::ChapterNumber.eq(chapter_number))
+        .select_only()
+        .column(chapter::Column::Id)
+        .column(chapter::Column::Status)
+        .column(chapter::Column::Title)
+        .column(chapter::Column::Summary)
+        .into_tuple::<(i64, String, Option<String>, Option<String>)>()
         .one(db)
         .await
         .map_err(ChapterGenerationLifecycleError::database)?
@@ -27,26 +35,28 @@ where
         return Ok(None);
     };
 
-    if chapter.is_generating() {
+    if status == chapter::STATUS_GENERATING {
         return Err(ChapterGenerationLifecycleError::InvalidState {
-            current: chapter.status,
+            current: status,
             operation: format!("生成第{chapter_number}章"),
         });
     }
+    let previous_status = status;
 
-    let previous_status = chapter.status.clone();
-    let mut active: chapter::ActiveModel = chapter.into();
-    active.status = Set(chapter::STATUS_GENERATING.to_string());
-    active.updated_at = Set(now);
-    let chapter = active
-        .update(db)
-        .await
-        .map_err(ChapterGenerationLifecycleError::database)?;
+    chapter::ActiveModel {
+        id: Set(chapter_id),
+        status: Set(chapter::STATUS_GENERATING.to_string()),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .update(db)
+    .await
+    .map_err(ChapterGenerationLifecycleError::database)?;
     Ok(Some(ChapterGenerationExistingRecord {
-        id: chapter.id,
+        id: chapter_id,
         previous_status,
-        title: chapter.title,
-        summary: chapter.summary,
+        title,
+        summary,
     }))
 }
 
@@ -59,7 +69,10 @@ pub async fn restore_chapter_generation_status_record<C>(
 where
     C: ConnectionTrait,
 {
-    let Some(current) = chapter::Entity::find_by_id(chapter_id)
+    let Some(status) = chapter::Entity::find_by_id(chapter_id)
+        .select_only()
+        .column(chapter::Column::Status)
+        .into_tuple::<String>()
         .one(db)
         .await
         .map_err(ChapterGenerationLifecycleError::database)?
@@ -67,17 +80,19 @@ where
         return Ok(false);
     };
 
-    if !current.is_generating() {
+    if status != chapter::STATUS_GENERATING {
         return Ok(false);
     }
 
-    let mut active: chapter::ActiveModel = current.into();
-    active.status = Set(previous_status);
-    active.updated_at = Set(now);
-    active
-        .update(db)
-        .await
-        .map_err(ChapterGenerationLifecycleError::database)?;
+    chapter::ActiveModel {
+        id: Set(chapter_id),
+        status: Set(previous_status),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .update(db)
+    .await
+    .map_err(ChapterGenerationLifecycleError::database)?;
     Ok(true)
 }
 
@@ -109,21 +124,27 @@ where
     };
     let updated_chapter = match input.existing_chapter_id {
         Some(chapter_id) => {
-            let current = chapter::Entity::find_by_id(chapter_id)
+            let status = chapter::Entity::find_by_id(chapter_id)
+                .select_only()
+                .column(chapter::Column::Status)
+                .into_tuple::<String>()
                 .one(db)
                 .await
                 .map_err(ChapterGenerationLifecycleError::database)?
                 .ok_or_else(|| {
                     ChapterGenerationLifecycleError::NotFound(format!("章节不存在: {chapter_id}"))
                 })?;
-            if !current.is_generating() {
+            if status != chapter::STATUS_GENERATING {
                 return Err(ChapterGenerationLifecycleError::InvalidState {
-                    current: current.status,
+                    current: status,
                     operation: "完成章节生成".to_string(),
                 });
             }
 
-            let mut active: chapter::ActiveModel = current.into();
+            let mut active = chapter::ActiveModel {
+                id: Set(chapter_id),
+                ..Default::default()
+            };
             assign_chapter_content(
                 &mut active,
                 input.content,

@@ -10,7 +10,7 @@ use super::super::types::{
 use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_core::models::media::{media_asset, media_provenance};
 use a4n_domain::CanvasNodeRefKind;
-use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
+use sea_orm::{ConnectionTrait, EntityTrait, Set};
 
 pub(in crate::canvas::transfer) async fn import_video_studio_media_assets<C, Writer>(
     context: &mut VideoStudioProjectImportMediaRowsContext<'_, C, Writer>,
@@ -20,6 +20,7 @@ where
     C: ConnectionTrait,
     Writer: VideoStudioProjectImportMediaFileWriter,
 {
+    let mut rows = Vec::with_capacity(assets.len());
     for asset in assets {
         let folder = match asset.media_kind.as_str() {
             "image" => "media/image",
@@ -54,7 +55,7 @@ where
                 "imported_package_media_thumbnail",
             )
             .map_err(VideoStudioProjectImportError::MediaWrite)?;
-        let row = media_asset::ActiveModel {
+        rows.push(media_asset::ActiveModel {
             project_id: Set(context.project_id),
             root_project_id: Set(context.project_id),
             source_chapter_id: Set(None),
@@ -74,10 +75,23 @@ where
             created_at: Set(context.now),
             updated_at: Set(context.now),
             ..Default::default()
-        }
-        .insert(context.db)
+        });
+    }
+    if rows.is_empty() {
+        return Ok(());
+    }
+    let inserted = media_asset::Entity::insert_many(rows)
+        .exec_with_returning_many(context.db)
         .await
         .map_err(VideoStudioProjectImportError::Database)?;
+    if inserted.len() != assets.len() {
+        return Err(VideoStudioProjectImportError::InvalidPackage(format!(
+            "媒体资产批量写入返回行数不一致: inserted={}, expected={}",
+            inserted.len(),
+            assets.len()
+        )));
+    }
+    for (asset, row) in assets.iter().zip(inserted) {
         context.maps.media_asset_ids.insert(asset.id, row.id);
     }
     Ok(())
@@ -92,59 +106,65 @@ pub(in crate::canvas::transfer) async fn import_video_studio_media_provenance<C>
 where
     C: ConnectionTrait,
 {
-    for record in records {
-        media_provenance::ActiveModel {
-            media_asset_id: Set(remap_video_studio_required_id(
-                &maps.media_asset_ids,
-                record.media_asset_id,
-                "media_provenance.media_asset_id",
-            )?),
-            generation_spec_id: Set(record
-                .generation_spec_id
-                .map(|old_id| {
-                    remap_video_studio_required_id(
-                        &maps.generation_spec_ids,
-                        old_id,
-                        "media_provenance.generation_spec_id",
-                    )
-                })
-                .transpose()?),
-            prompt_artifact_id: Set(record
-                .prompt_artifact_id
-                .map(|old_id| {
-                    remap_video_studio_required_id(
-                        &maps.prompt_artifact_ids,
-                        old_id,
-                        "media_provenance.prompt_artifact_id",
-                    )
-                })
-                .transpose()?),
-            provider_job_id: Set(None),
-            source_media_asset_id: Set(record
-                .source_media_asset_id
-                .map(|old_id| {
-                    remap_video_studio_required_id(
-                        &maps.media_asset_ids,
-                        old_id,
-                        "media_provenance.source_media_asset_id",
-                    )
-                })
-                .transpose()?),
-            source_external_path: Set(remap_video_studio_source_external_path(
-                record.source_external_path.as_deref(),
-                maps,
-            )?),
-            imported_from_user: Set(record.imported_from_user),
-            request_snapshot_json: Set(record
-                .request_snapshot_json
-                .clone()
-                .map(|value| remap_video_studio_canvas_metadata(value, maps))
-                .transpose()?),
-            created_at: Set(now),
-        }
-        .insert(db)
-        .await
-        .map_err(VideoStudioProjectImportError::Database)?;
+    let inserts = records
+        .iter()
+        .map(|record| {
+            Ok(media_provenance::ActiveModel {
+                media_asset_id: Set(remap_video_studio_required_id(
+                    &maps.media_asset_ids,
+                    record.media_asset_id,
+                    "media_provenance.media_asset_id",
+                )?),
+                generation_spec_id: Set(record
+                    .generation_spec_id
+                    .map(|old_id| {
+                        remap_video_studio_required_id(
+                            &maps.generation_spec_ids,
+                            old_id,
+                            "media_provenance.generation_spec_id",
+                        )
+                    })
+                    .transpose()?),
+                prompt_artifact_id: Set(record
+                    .prompt_artifact_id
+                    .map(|old_id| {
+                        remap_video_studio_required_id(
+                            &maps.prompt_artifact_ids,
+                            old_id,
+                            "media_provenance.prompt_artifact_id",
+                        )
+                    })
+                    .transpose()?),
+                provider_job_id: Set(None),
+                source_media_asset_id: Set(record
+                    .source_media_asset_id
+                    .map(|old_id| {
+                        remap_video_studio_required_id(
+                            &maps.media_asset_ids,
+                            old_id,
+                            "media_provenance.source_media_asset_id",
+                        )
+                    })
+                    .transpose()?),
+                source_external_path: Set(remap_video_studio_source_external_path(
+                    record.source_external_path.as_deref(),
+                    maps,
+                )?),
+                imported_from_user: Set(record.imported_from_user),
+                request_snapshot_json: Set(record
+                    .request_snapshot_json
+                    .clone()
+                    .map(|value| remap_video_studio_canvas_metadata(value, maps))
+                    .transpose()?),
+                created_at: Set(now),
+            })
+        })
+        .collect::<Result<Vec<_>, VideoStudioProjectImportError>>()?;
+    if !inserts.is_empty() {
+        media_provenance::Entity::insert_many(inserts)
+            .exec_without_returning(db)
+            .await
+            .map_err(VideoStudioProjectImportError::Database)?;
     }
     Ok(())
 }

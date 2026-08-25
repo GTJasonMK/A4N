@@ -4,6 +4,7 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import type { WorldObject } from "./worldTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface WorldPanelHeaderProps {
   editing: boolean;
@@ -30,15 +31,16 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
   onSave,
   onOpenDetail,
 }) => {
+  const { t } = useI18n();
   const description = editing
-    ? "调整世界规则、关键地点、主要阵营和其他扩展设定"
+    ? t("novel.world.editingDescription")
     : !hasBlueprint
-      ? "先录入基础蓝图，再在这里维护世界规则"
+      ? t("novel.world.noBlueprintDescription")
       : hasWorldContent
         ? worldObject
-          ? "集中查看故事世界的核心规则、地点与阵营"
-          : "当前世界观以纯文本记录"
-        : "尚未建立世界观，可以从核心规则开始";
+          ? t("novel.world.structuredDescription")
+          : t("novel.world.textDescription")
+        : t("novel.world.emptyDescription");
   const headerClassName = editing
     ? "mb-4 flex flex-col gap-3 border-b border-book-border/45 pb-3 sm:flex-row sm:items-center sm:justify-between"
     : "flex flex-col gap-3 px-1 sm:flex-row sm:items-center sm:justify-between";
@@ -47,7 +49,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
     <header className={headerClassName}>
       <div className="min-w-0">
         <h2 className="text-sm font-semibold text-book-text-main">
-          {editing ? "编辑世界观" : "世界观设定"}
+          {editing ? t("novel.world.editTitle") : t("novel.world.title")}
         </h2>
         <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
           {description}
@@ -60,7 +62,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
               <Dropdown
                 items={[
                   {
-                    label: "查看完整设定",
+                    label: t("novel.world.viewFull"),
                     icon: <ScrollText size={12} />,
                     onClick: onOpenDetail,
                   },
@@ -74,7 +76,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
                 onClick={onStartEdit}
                 className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
-                <Edit3 size={12} /> 编辑世界观
+                <Edit3 size={12} /> {t("novel.world.edit")}
               </BookButton>
             ) : null}
           </>
@@ -87,7 +89,7 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
               disabled={saving}
               className="!text-xs"
             >
-              退出编辑
+              {t("novel.world.cancelEdit")}
             </BookButton>
             <BookButton
               variant="primary"
@@ -98,10 +100,10 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
             >
               {saving ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 保存中…
+                  <LoadingSpinner size="sm" /> {t("novel.world.saving")}
                 </span>
               ) : (
-                "保存世界观"
+                t("novel.world.save")
               )}
             </BookButton>
           </>

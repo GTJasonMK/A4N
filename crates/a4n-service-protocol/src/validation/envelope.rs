@@ -10,7 +10,7 @@ use super::context::validate_service_request_context;
 use super::errors::{unauthorized_error, version_mismatch_error};
 use super::policy::RequiredSecretPolicy;
 
-pub fn validate_service_request_envelope<T>(
+pub(crate) fn validate_service_request_envelope<T>(
     request: &ServiceRequest<T>,
     expected_capability_version: &str,
     capability_label: &str,
@@ -50,17 +50,12 @@ pub fn validate_service_request_envelope<T>(
                 return Err(unauthorized_error(rejection_message.to_string()));
             }
         }
-        RequiredSecretPolicy::LocalUserSecretForwarding { rejection_message } => {
-            if !request.secret_policy.is_local_user_secret_only() {
-                return Err(unauthorized_error(rejection_message.to_string()));
-            }
-        }
     }
 
     Ok(())
 }
 
-pub fn validate_known_service_request_envelope<T>(
+pub(crate) fn validate_known_service_request_envelope<T>(
     request: &ServiceRequest<T>,
     service: &str,
 ) -> Result<(), ServiceError> {
@@ -89,7 +84,7 @@ pub fn validate_known_service_request_envelope<T>(
     )
 }
 
-pub fn validate_known_service_request<T>(
+pub(crate) fn validate_known_service_request<T>(
     request: &ServiceRequest<T>,
     service: &str,
 ) -> Result<(), ServiceError> {

@@ -21,7 +21,9 @@ use crate::character::{
     CharacterProfileRecordDeletionResult, CharacterProfileRollbackResult,
     CharacterRecordLifecycleError, CharacterSyncPersistenceInput,
     CharacterTimelineRollbackLifecycleResult, PortraitNamedPromptProfileRows,
-    PortraitPromptProfileRows, character_db_error, character_profile_delete_error, profiles,
+    PortraitPromptProfileRows, character_db_error, character_portrait_record_error,
+    character_portrait_rollback_error, character_profile_create_error,
+    character_profile_delete_error,
 };
 use crate::character::{
     CHARACTER_SNAPSHOT_ENTITY_TYPE, CharacterSyncConflictReadModel,
@@ -30,10 +32,6 @@ use crate::character::{
 };
 use crate::collaboration::ProjectAccessRole;
 use crate::project::required_text;
-use profiles::errors::{
-    character_portrait_record_error, character_portrait_rollback_error,
-    character_profile_create_error,
-};
 
 #[derive(Clone)]
 pub(super) struct CharacterApplication {
@@ -1046,6 +1044,10 @@ impl OrchestratorContext {
     }
 
     /// 角色档案同步 application 内部创建/恢复 workflow_run（RUNNING）。
+    ///
+    /// 走 begin_or_resume 而非裸 upsert：同一角色 + 同一目标章节已有 RUNNING 运行时必须
+    /// 报冲突，否则两个并发同步会接管同一行 workflow_run，各自跑完整套 LLM 后由 DB 乐观锁
+    /// 淘汰一个。失败/中断的运行则按 checkpoint 恢复。
     pub(crate) async fn begin_character_profile_sync_workflow_validated(
         &self,
         project_id: i64,
@@ -1087,7 +1089,7 @@ impl OrchestratorContext {
             base_attributes,
             chapter_data,
         );
-        self.upsert_workflow_run(crate::workflow::UpsertWorkflowRunInput {
+        self.begin_or_resume_workflow_run_validated(crate::workflow::UpsertWorkflowRunInput {
             business_key: crate::character::character_profile_sync_business_key(
                 profile_id,
                 target_chapter,

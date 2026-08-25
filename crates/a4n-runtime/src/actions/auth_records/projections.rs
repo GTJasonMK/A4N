@@ -1,4 +1,4 @@
-use super::contracts::{SessionSummary, UserSummary};
+use super::{SessionSummary, UserSummary};
 use a4n_core::models::user::{user, user_session};
 
 pub(crate) fn to_user_summary(user: &user::Model) -> UserSummary {
@@ -10,6 +10,7 @@ pub(crate) fn to_user_summary(user: &user::Model) -> UserSummary {
         oauth_provider: user.oauth_provider.clone(),
         oauth_subject: user.oauth_subject.clone(),
         avatar_url: user.avatar_url.clone(),
+        page_cli_enabled: user.page_cli_enabled,
         is_active: user.is_active,
         created_at: Some(user.created_at.to_string()),
         updated_at: Some(user.updated_at.to_string()),

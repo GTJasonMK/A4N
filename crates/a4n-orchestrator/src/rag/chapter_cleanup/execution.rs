@@ -58,14 +58,6 @@ impl OrchestratorContext {
                 plan.chapter_number, plan.stale_attribute_event_ids
             )
         })?;
-        self.delete_foreshadowing_rag_by_ids(plan.project_id, plan.stale_foreshadowing_ids)
-            .await
-            .map_err(|error| {
-                format!(
-                    "清理伏笔 RAG 数据失败：chapter_number={}, foreshadowing_ids={:?}：{error}",
-                    plan.chapter_number, plan.stale_foreshadowing_ids
-                )
-            })?;
         self.reingest_foreshadowing_rag_by_ids(plan.project_id, plan.changed_foreshadowing_ids)
             .await
             .map_err(|error| {

@@ -11,7 +11,7 @@ use super::preparation::prepare_beat_mapping;
 use super::request::build_beat_mapping_request;
 
 impl OrchestratorContext {
-    pub async fn preview_beat_mapping_request(
+    pub(in crate::outline) async fn preview_beat_mapping_request(
         &self,
         project_id: i64,
         part_id: i64,

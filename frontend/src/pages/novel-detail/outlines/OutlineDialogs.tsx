@@ -9,11 +9,12 @@ import {
   partHeading,
 } from "./outlineTabUtils";
 import {
-  chapterOutlineSourceLabel,
   isDerivedChapterOutline,
+  isRetrospectiveChapterOutline,
   type ChapterOutline,
   type PartOutline,
 } from "../../../api/outline";
+import { useI18n } from "../../../i18n";
 
 export interface ManualChapterOutlineForm {
   chapterNumber: number;
@@ -41,6 +42,7 @@ export function ManualChapterOutlineDialog({
   onClose: () => void;
   onSave: (form: ManualChapterOutlineForm) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [form, setForm] = useState(initial);
   const formId = "manual-chapter-outline-form";
 
@@ -50,8 +52,8 @@ export function ManualChapterOutlineDialog({
       onClose={() => {
         if (!saving) onClose();
       }}
-      title="直接录入章节大纲"
-      subtitle="保存后立即成为正式写作计划；不会先生成 AI 候选。"
+      title={t("outline.dialogs.directChapterTitle")}
+      subtitle={t("outline.dialogs.directChapterSubtitle")}
       maxWidthClassName="max-w-2xl"
       closeOnBackdrop={!saving}
       closeOnEscape={!saving}
@@ -59,10 +61,10 @@ export function ManualChapterOutlineDialog({
       footer={
         <>
           <BookButton variant="secondary" disabled={saving} onClick={onClose}>
-            取消
+            {t("outline.dialogs.cancel")}
           </BookButton>
           <BookButton type="submit" form={formId} disabled={saving}>
-            {saving ? "保存中…" : "保存正式章纲"}
+            {saving ? t("outline.dialogs.saving") : t("outline.dialogs.saveChapter")}
           </BookButton>
         </>
       }
@@ -76,7 +78,7 @@ export function ManualChapterOutlineDialog({
         }}
       >
         <label className="block text-small text-book-text-muted">
-          章节号
+          {t("outline.dialogs.chapterNumber")}
           <input
             type="number"
             min={1}
@@ -91,7 +93,7 @@ export function ManualChapterOutlineDialog({
           />
         </label>
         <label className="block text-small text-book-text-muted">
-          章节标题（可稍后补充）
+          {t("outline.dialogs.chapterTitle")}
           <input
             type="text"
             value={form.title}
@@ -101,17 +103,17 @@ export function ManualChapterOutlineDialog({
           />
         </label>
         <label className="block text-small text-book-text-muted">
-          章节摘要（可稍后补充）
+          {t("outline.dialogs.chapterSummary")}
           <textarea
             value={form.summary}
             disabled={saving}
             onChange={(event) => setForm({ ...form, summary: event.target.value })}
-            placeholder="本章发生什么、人物动机和结尾悬念"
+            placeholder={t("outline.dialogs.chapterSummaryPlaceholder")}
             className="book-control mt-1 min-h-32 w-full resize-y p-3 text-sm leading-6"
           />
         </label>
         <p className="text-caption leading-relaxed text-book-text-muted">
-          标题和摘要至少填写一项。若章节号落在已有分部范围内，系统会自动建立归属。
+          {t("outline.dialogs.chapterRequiredHint")}
         </p>
       </form>
     </Modal>
@@ -131,6 +133,7 @@ export function ManualPartOutlineDialog({
   onClose: () => void;
   onSave: (form: ManualPartOutlineForm) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const [form, setForm] = useState(initial);
   const formId = "manual-part-outline-form";
 
@@ -140,8 +143,8 @@ export function ManualPartOutlineDialog({
       onClose={() => {
         if (!saving) onClose();
       }}
-      title={part ? `编辑第 ${part.part_number} 部` : "直接录入分部大纲"}
-      subtitle="保存后立即更新正式分部；章节空档允许保留，范围重叠会被拒绝。"
+      title={part ? t("outline.dialogs.editPartTitle", { part: part.part_number }) : t("outline.dialogs.directPartTitle")}
+      subtitle={t("outline.dialogs.directPartSubtitle")}
       maxWidthClassName="max-w-2xl"
       closeOnBackdrop={!saving}
       closeOnEscape={!saving}
@@ -149,10 +152,10 @@ export function ManualPartOutlineDialog({
       footer={
         <>
           <BookButton variant="secondary" disabled={saving} onClick={onClose}>
-            取消
+            {t("outline.dialogs.cancel")}
           </BookButton>
           <BookButton type="submit" form={formId} disabled={saving}>
-            {saving ? "保存中…" : "保存正式分部"}
+            {saving ? t("outline.dialogs.saving") : t("outline.dialogs.savePart")}
           </BookButton>
         </>
       }
@@ -167,7 +170,7 @@ export function ManualPartOutlineDialog({
       >
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <label className="block text-small text-book-text-muted">
-            分部编号
+            {t("outline.dialogs.partNumber")}
             <input
               type="number"
               min={1}
@@ -182,7 +185,7 @@ export function ManualPartOutlineDialog({
             />
           </label>
           <label className="block text-small text-book-text-muted">
-            起始章节
+            {t("outline.dialogs.startChapter")}
             <input
               type="number"
               min={1}
@@ -197,7 +200,7 @@ export function ManualPartOutlineDialog({
             />
           </label>
           <label className="block text-small text-book-text-muted">
-            结束章节
+            {t("outline.dialogs.endChapter")}
             <input
               type="number"
               min={1}
@@ -213,7 +216,7 @@ export function ManualPartOutlineDialog({
           </label>
         </div>
         <label className="block text-small text-book-text-muted">
-          分部标题（可稍后补充）
+          {t("outline.dialogs.partTitle")}
           <input
             type="text"
             value={form.title}
@@ -223,7 +226,7 @@ export function ManualPartOutlineDialog({
           />
         </label>
         <label className="block text-small text-book-text-muted">
-          分部主题（可稍后补充）
+          {t("outline.dialogs.partTheme")}
           <input
             type="text"
             value={form.theme}
@@ -233,17 +236,17 @@ export function ManualPartOutlineDialog({
           />
         </label>
         <label className="block text-small text-book-text-muted">
-          分部摘要（可稍后补充）
+          {t("outline.dialogs.partSummary")}
           <textarea
             value={form.summary}
             disabled={saving}
             onChange={(event) => setForm({ ...form, summary: event.target.value })}
-            placeholder="这一阶段的目标、转折和结束状态"
+            placeholder={t("outline.dialogs.partSummaryPlaceholder")}
             className="book-control mt-1 min-h-32 w-full resize-y p-3 text-sm leading-6"
           />
         </label>
         <p className="text-caption leading-relaxed text-book-text-muted">
-          调整范围只会重新计算章纲归属，不会删除已有章节大纲。
+          {t("outline.dialogs.partRangeHint")}
         </p>
       </form>
     </Modal>
@@ -259,12 +262,13 @@ export function PartDetailDialog({
   onClose: () => void;
   onEdit?: (part: PartOutline) => void;
 }) {
+  const { t } = useI18n();
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title={partHeading(part)}
-      subtitle="分部大纲详情"
+      title={partHeading(part, t)}
+      subtitle={t("outline.dialogs.partDetails")}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-5 py-5"
       footer={
@@ -275,7 +279,7 @@ export function PartDetailDialog({
               onEdit(part);
             }}
           >
-            编辑正式分部
+            {t("outline.dialogs.editPart")}
           </BookButton>
         ) : undefined
       }
@@ -287,7 +291,7 @@ export function PartDetailDialog({
       ) : null}
       {nonEmptyText(part.theme) ? (
         <div className="mt-4 text-small leading-6 text-book-text-muted">
-          主题：{nonEmptyText(part.theme)}
+          {t("outline.dialogs.theme")}{nonEmptyText(part.theme)}
         </div>
       ) : null}
     </Modal>
@@ -301,15 +305,21 @@ export function ChapterOutlineDetailDialog({
   outline: ChapterOutline;
   onClose: () => void;
 }) {
+  const { t } = useI18n();
+  const sourceLabel = isRetrospectiveChapterOutline(outline)
+    ? t("outline.chapterSection.sourceRetrospective")
+    : isDerivedChapterOutline(outline)
+      ? t("outline.chapterSection.sourceAnalysis")
+      : t("outline.chapterSection.sourceChapter");
   return (
     <Modal
       isOpen
       onClose={onClose}
-      title={chapterOutlineHeading(outline)}
+      title={chapterOutlineHeading(outline, t)}
       subtitle={
         isDerivedChapterOutline(outline)
-          ? `自动分析${chapterOutlineSourceLabel(outline)}`
-          : "章节大纲详情"
+          ? t("outline.dialogs.autoAnalysis", { source: sourceLabel })
+          : t("outline.dialogs.chapterDetails")
       }
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-5 py-5"
@@ -321,7 +331,7 @@ export function ChapterOutlineDetailDialog({
       ) : null}
       {isDerivedChapterOutline(outline) ? (
         <p className="mt-3 text-small leading-relaxed text-book-text-muted">
-          自动分析结果用于记录已发生内容；编辑后才会作为当前写作计划使用。
+          {t("outline.dialogs.autoAnalysisSource")}
         </p>
       ) : null}
     </Modal>
@@ -351,6 +361,7 @@ export function ChapterOutlineActionDialog({
   onPreviewRegenerate,
   onDelete,
 }: ChapterOutlineActionDialogProps) {
+  const { t } = useI18n();
   if (!outline) return null;
 
   const busy = disabled || regenId != null || delActing != null;
@@ -362,8 +373,8 @@ export function ChapterOutlineActionDialog({
       onClose={() => {
         if (!busy) onClose();
       }}
-      title={`第 ${outline.chapter_number} 章操作`}
-      subtitle={chapterOutlineHeading(outline)}
+      title={t("outline.dialogs.chapterActions", { chapter: outline.chapter_number })}
+      subtitle={chapterOutlineHeading(outline, t)}
       icon={<MoreHorizontal size={15} />}
       maxWidthClassName="max-w-md"
       bodyClassName="px-4 py-4"
@@ -374,11 +385,11 @@ export function ChapterOutlineActionDialog({
       <div className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
         <OutlineActionButton
           icon={<Pencil size={14} />}
-          title="编辑章纲"
+          title={t("outline.dialogs.editOutline")}
           description={
             isDerivedChapterOutline(outline)
-              ? "修改后将接管为本章写作计划。"
-              : "修改本章标题和摘要。"
+              ? t("outline.dialogs.editOutlineOwnPlan")
+              : t("outline.dialogs.editOutlineDescription")
           }
           disabled={busy}
           onClick={() => {
@@ -388,8 +399,8 @@ export function ChapterOutlineActionDialog({
         />
         <OutlineActionButton
           icon={<Eye size={14} />}
-          title="预览重生成提示词"
-          description="直接查看本章纲重生成将发送给模型的完整请求。"
+          title={t("outline.dialogs.previewRegenerate")}
+          description={t("outline.dialogs.previewRegenerateDescription")}
           disabled={busy}
           onClick={() => onPreviewRegenerate(outline)}
         />
@@ -400,8 +411,8 @@ export function ChapterOutlineActionDialog({
               className={regenId === outline.id ? "animate-spin" : undefined}
             />
           }
-          title="重新生成本章纲"
-          description="基于当前正式资料和前后文重写这一章的章节大纲。"
+          title={t("outline.dialogs.regenerateOutline")}
+          description={t("outline.dialogs.regenerateDescription")}
           disabled={busy}
           onClick={async () => {
             await onRegenerate(outline);
@@ -410,8 +421,8 @@ export function ChapterOutlineActionDialog({
         />
         <OutlineActionButton
           icon={<Trash2 size={14} />}
-          title="从本章删除到结尾"
-          description="删除当前章及其之后所有章纲，用于从中途重新规划。"
+          title={t("outline.dialogs.deleteFollowing")}
+          description={t("outline.dialogs.deleteFollowingDescription")}
           tone="danger"
           disabled={busy || delActing === deleteOutlinesAction}
           onClick={async () => {

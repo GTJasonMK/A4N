@@ -1,3 +1,4 @@
+use a4n_api_contract::profile::SceneProfileInput;
 use a4n_core::error::AppError;
 use a4n_core::profile_text::{
     normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
@@ -9,13 +10,40 @@ use serde_json::json;
 use super::super::contracts::SceneProfileDraft;
 use super::super::rules::normalize_scene_type_value;
 
-/// 将场景档案草稿规范化为 DB 写入 DTO（runtime 可直接交给 orchestrator）。
+/// 将 API 场景档案输入转换并规范化为 DB 写入 DTO。
 pub fn normalize_scene_profile_record_input(
-    draft: SceneProfileDraft,
+    input: SceneProfileInput,
 ) -> Result<SceneProfileRecordInput, AppError> {
+    let draft = manual_scene_profile_draft(input);
     let normalized = normalize_scene_name(&draft.name)?;
     let draft = normalize_manual_profile_draft(draft)?;
     Ok(scene_profile_record_input(draft, normalized))
+}
+
+fn manual_scene_profile_draft(input: SceneProfileInput) -> SceneProfileDraft {
+    SceneProfileDraft {
+        scene_ref: input.name.clone(),
+        scene_profile_id: None,
+        name: input.name,
+        aliases: input.aliases,
+        scene_type: input.scene_type,
+        importance: input.importance,
+        parent_scene_id: input.parent_scene_id,
+        base_description: input.base_description,
+        visual_description: input.visual_description,
+        spatial_layout: input.spatial_layout,
+        atmosphere: input.atmosphere,
+        entry_points: input
+            .entry_points_json
+            .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
+        rules: input
+            .rules_json
+            .unwrap_or_else(|| serde_json::Value::Array(Vec::new())),
+        first_seen_chapter: input.first_seen_chapter,
+        last_seen_chapter: input.last_seen_chapter,
+        evidence: input.evidence,
+        image_prompt_seed: input.image_prompt_seed,
+    }
 }
 
 pub(super) fn normalize_scene_name(name: &str) -> Result<String, AppError> {

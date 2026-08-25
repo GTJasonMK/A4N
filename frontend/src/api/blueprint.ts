@@ -21,6 +21,7 @@ import type {
   SaveBlueprintInput,
   UpdateWorldSettingInput,
 } from "./generated/host";
+import { getActiveLocale, translateMessage } from "../i18n";
 
 /**
  * Blueprint API wrapper —— 对齐 crates/a4n-tauri/src/commands/blueprint.rs
@@ -72,7 +73,7 @@ export async function loadBlueprintTaskResult(
 ): Promise<Blueprint> {
   const blueprint = await getBlueprint(projectId);
   if (!matchesBlueprintTaskResult(blueprint, projectId, resultRef)) {
-    throw new Error("蓝图任务已完成，但正式蓝图与任务结果不一致，请刷新后重试");
+    throw new Error(translateMessage(getActiveLocale(), "errors.blueprintConsistencyFailed"));
   }
   return blueprint;
 }
@@ -87,7 +88,9 @@ export async function syncBlueprintMaterials(
     return result.warnings;
   } catch (error) {
     return [
-      `资料检索索引更新失败：${extractErrorMessage(error, "同步命令调用失败")}。可在项目操作中重新同步资料索引`,
+      translateMessage(getActiveLocale(), "errors.blueprintSyncFailed", {
+        error: extractErrorMessage(error, translateMessage(getActiveLocale(), "errors.requestFailed")),
+      }),
     ];
   }
 }

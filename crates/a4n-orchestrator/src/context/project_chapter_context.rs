@@ -69,7 +69,7 @@ impl ProjectChapterContextApplication {
     async fn create_foreshadowing_record(
         &self,
         project_id: i64,
-        input: a4n_db::project::ForeshadowingRecordInput,
+        input: a4n_domain::character::ForeshadowingRecordInput,
     ) -> Result<foreshadowing_index::Model, AppError> {
         a4n_db::project::create_foreshadowing_record(self.database.connection(), project_id, input)
             .await
@@ -81,7 +81,7 @@ impl ProjectChapterContextApplication {
         project_id: i64,
         foreshadowing_id: i64,
         expected_updated_at: &str,
-        input: a4n_db::project::ForeshadowingRecordInput,
+        input: a4n_domain::character::ForeshadowingRecordInput,
     ) -> Result<foreshadowing_index::Model, AppError> {
         a4n_db::project::update_foreshadowing_record(
             self.database.connection(),
@@ -191,7 +191,7 @@ impl OrchestratorContext {
     pub async fn create_foreshadowing_record(
         &self,
         project_id: i64,
-        input: a4n_db::project::ForeshadowingRecordInput,
+        input: a4n_domain::character::ForeshadowingRecordInput,
     ) -> Result<foreshadowing_index::Model, AppError> {
         self.project_chapter_context
             .create_foreshadowing_record(project_id, input)
@@ -203,7 +203,7 @@ impl OrchestratorContext {
         project_id: i64,
         foreshadowing_id: i64,
         expected_updated_at: &str,
-        input: a4n_db::project::ForeshadowingRecordInput,
+        input: a4n_domain::character::ForeshadowingRecordInput,
     ) -> Result<foreshadowing_index::Model, AppError> {
         self.project_chapter_context
             .update_foreshadowing_record(project_id, foreshadowing_id, expected_updated_at, input)

@@ -4,7 +4,7 @@ use super::shared::{
 };
 use super::{ProjectProgressReadError, ProjectProgressSummary};
 use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 const MANGA_PIPELINE_WORKFLOW_KIND: &str = "manga_pipeline";
@@ -17,17 +17,22 @@ pub(super) async fn comic_project_progress_by_project(
         return Ok(HashMap::new());
     }
     let rows = chapter_manga_prompt::Entity::find()
+        .select_only()
+        .column(chapter_manga_prompt::Column::Id)
+        .column(chapter_manga_prompt::Column::ProjectId)
+        .column(chapter_manga_prompt::Column::Status)
         .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
+        .into_tuple::<(i64, i64, String)>()
         .all(db)
         .await
         .map_err(|error| ProjectProgressReadError::database("查询漫画页面提示词失败", error))?;
     let mut counts_by_project: HashMap<i64, ProgressCounts> = HashMap::new();
-    for row in rows {
-        counts_by_project.entry(row.project_id).or_default().add(
+    for (id, project_id, status) in rows {
+        counts_by_project.entry(project_id).or_default().add(
             "chapter_manga_prompt",
-            row.id,
-            &row.status,
+            id,
+            &status,
         )?;
     }
     let mut pipeline_by_project = latest_pipeline_states_by_project(

@@ -12,12 +12,12 @@ use a4n_llm::context::context_aware_system_user_request;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 
 use self::context::build_reverse_engineer_context;
-pub use contracts::ReverseEngineerRequestInput;
+pub(in crate::import_reverse) use contracts::ReverseEngineerRequestInput;
 use payload::{build_reverse_engineer_user_message, reverse_engineer_source_artifact};
 
 use super::IMPORT_REVERSE_WORKFLOW_KIND;
 
-pub async fn build_reverse_engineer_request(
+pub(in crate::import_reverse) async fn build_reverse_engineer_request(
     input: ReverseEngineerRequestInput<'_>,
 ) -> Result<ChatRequest, AppError> {
     let ReverseEngineerRequestInput {

@@ -1,19 +1,13 @@
 import type { CharacterProfile } from "../api/character";
 import { asJsonRecord } from "./jsonRecord";
 
-export const CHARACTER_ATTRIBUTE_LABELS = {
-  explicit: "显性属性",
-  implicit: "隐性属性",
-  social: "社会关系",
-} as const;
-
 const CHARACTER_ATTRIBUTE_KEYS = {
   explicit: "explicit_attributes",
   implicit: "implicit_attributes",
   social: "social_attributes",
 } as const;
 
-export type CharacterAttributeCategory = keyof typeof CHARACTER_ATTRIBUTE_LABELS;
+export type CharacterAttributeCategory = keyof typeof CHARACTER_ATTRIBUTE_KEYS;
 
 const characterAttributeRecord = (
   profile: CharacterProfile,

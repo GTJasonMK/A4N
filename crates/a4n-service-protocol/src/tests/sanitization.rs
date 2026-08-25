@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use crate::{
+use crate::sanitization::{
     contains_unredacted_sensitive_value, redact_sensitive_message, redact_sensitive_value,
 };
 

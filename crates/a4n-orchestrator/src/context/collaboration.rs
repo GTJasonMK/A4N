@@ -1,14 +1,28 @@
 use std::collections::HashMap;
 
 use a4n_core::error::AppError;
-use a4n_db::DbHandle;
+use a4n_db::{DbHandle, collaboration::CollaborationDbError};
 
 use super::OrchestratorContext;
 use crate::collaboration::{
     AccessibleProjectListInput, AccessibleProjectsPage, CollaborationRootProject,
     ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole, ProjectInviteSummary,
-    ProjectMemberRole, ProjectMemberSummary, collaboration_db_error_to_app_error,
+    ProjectMemberRole, ProjectMemberSummary,
 };
+
+fn collaboration_db_error_to_app_error(error: CollaborationDbError) -> AppError {
+    match error {
+        CollaborationDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
+        CollaborationDbError::NotFound(message) => AppError::NotFound(message),
+        CollaborationDbError::Forbidden(message) => AppError::Forbidden(message),
+        CollaborationDbError::InvalidState(message) => AppError::InvalidState {
+            current: message,
+            operation: "执行项目协作操作".to_string(),
+        },
+        CollaborationDbError::Internal(message) => AppError::Internal(anyhow::anyhow!(message)),
+        CollaborationDbError::Database(error) => AppError::Database(error),
+    }
+}
 
 #[derive(Clone)]
 pub(super) struct CollaborationApplication {
@@ -85,6 +99,22 @@ impl CollaborationApplication {
         required: ProjectAccessRole,
     ) -> Result<(), AppError> {
         a4n_db::collaboration::verify_project_permissions(
+            self.database.connection(),
+            project_ids,
+            user_id,
+            required,
+        )
+        .await
+        .map_err(collaboration_db_error_to_app_error)
+    }
+
+    async fn project_ids_with_permission(
+        &self,
+        project_ids: &[i64],
+        user_id: i64,
+        required: ProjectAccessRole,
+    ) -> Result<Vec<i64>, AppError> {
+        a4n_db::collaboration::project_ids_with_permission(
             self.database.connection(),
             project_ids,
             user_id,
@@ -276,6 +306,17 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         self.collaboration
             .verify_project_permissions(project_ids, user_id, required)
+            .await
+    }
+
+    pub async fn project_ids_with_permission(
+        &self,
+        project_ids: &[i64],
+        user_id: i64,
+        required: ProjectAccessRole,
+    ) -> Result<Vec<i64>, AppError> {
+        self.collaboration
+            .project_ids_with_permission(project_ids, user_id, required)
             .await
     }
 

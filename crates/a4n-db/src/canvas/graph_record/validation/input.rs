@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::canvas::CanvasDbError;
 
@@ -20,9 +20,9 @@ pub(in crate::canvas::graph_record) fn validate_canvas_graph_record_input(
         input.viewport_json.as_ref(),
         "canvas_graph.viewport_json",
     )?;
-    let mut client_ids = BTreeSet::new();
-    let mut nodes_by_client_id = BTreeMap::<String, &CanvasNodeRecordInput>::new();
-    let mut edge_keys = BTreeSet::new();
+    let mut client_ids = HashSet::new();
+    let mut nodes_by_client_id = HashMap::<String, &CanvasNodeRecordInput>::new();
+    let mut edge_keys = HashSet::new();
     let mut assemble_clip_orders = BTreeMap::<String, Vec<i64>>::new();
 
     for node in &input.nodes {

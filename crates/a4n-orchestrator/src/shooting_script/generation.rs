@@ -17,7 +17,7 @@ use self::{
     },
 };
 use super::{
-    ChapterShootingScriptSourceInput,
+    ChapterShootingScriptSourceInput, GenerateChapterShootingScriptInput,
     assembly::{assemble_available_shooting_script, assemble_chapter_shooting_script},
     contracts::{
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
@@ -40,6 +40,7 @@ fn shared_workflow_source(source: &ResolvedChapterSource) -> ChapterShootingScri
     ChapterShootingScriptSourceInput {
         project_id: source.root_project_id,
         source_chapter_id: source.source_chapter_id,
+        visual_plan_id: None,
     }
 }
 
@@ -59,7 +60,9 @@ impl OrchestratorContext {
         &self,
         source: ChapterShootingScriptSourceInput,
     ) -> Result<Option<ChapterShootingScriptUnitProgress>, AppError> {
-        let (requested_source, current) = self.load_chapter_shooting_script_source(&source).await?;
+        let (requested_source, _) = self
+            .load_chapter_shooting_script_source_record(&source)
+            .await?;
         let workflow_source = shared_workflow_source(&requested_source);
         let run = self
             .workflow_runs_by_project_kind(
@@ -80,6 +83,14 @@ impl OrchestratorContext {
                 project_id: workflow_source.project_id,
                 source_chapter_id: workflow_source.source_chapter_id,
                 workflow_run_id: run.id,
+                visual_plan_id: self
+                    .confirmed_visual_plan_for_shooting_script(
+                        &requested_source,
+                        source.visual_plan_id,
+                    )
+                    .await?
+                    .record
+                    .id,
             })
             .await?;
         if prepared.source.content_sha256 != requested_source.content_sha256 {
@@ -116,12 +127,19 @@ impl OrchestratorContext {
         if scenes.is_empty() {
             return Ok(None);
         }
-        let script =
-            assemble_available_shooting_script(&skeleton.directing_statement, &plan_units, scenes)?;
+        let script = assemble_available_shooting_script(
+            &skeleton.directing_statement,
+            &plan_units,
+            scenes,
+            &prepared.visual_plan,
+        )?;
         let completed_unit_count = script.scenes.len();
         let resolved = if completed_unit_count == total_unit_count
             && run.status == crate::workflow::WORKFLOW_STATUS_COMPLETED
         {
+            let (_, current) = self
+                .load_current_chapter_shooting_script_source(&source)
+                .await?;
             Some(ResolvedChapterShootingScript {
                 source: requested_source,
                 shooting_script: current.ok_or_else(|| AppError::InvalidState {
@@ -144,7 +162,7 @@ impl OrchestratorContext {
     pub async fn generate_chapter_shooting_script_for_user_validated(
         &self,
         user_id: i64,
-        source: ChapterShootingScriptSourceInput,
+        source: GenerateChapterShootingScriptInput,
         progress: ShootingScriptProgressReporter<'_>,
         stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
         cancel_token: Option<&CancellationToken>,
@@ -165,7 +183,7 @@ impl OrchestratorContext {
     pub async fn generate_next_chapter_shooting_script_unit_for_user_validated(
         &self,
         user_id: i64,
-        source: ChapterShootingScriptSourceInput,
+        source: GenerateChapterShootingScriptInput,
         progress: ShootingScriptProgressReporter<'_>,
         stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
         cancel_token: Option<&CancellationToken>,
@@ -235,7 +253,7 @@ impl OrchestratorContext {
 
     async fn generate_chapter_shooting_script_with_progress(
         &self,
-        source: ChapterShootingScriptSourceInput,
+        source: GenerateChapterShootingScriptInput,
         progress: ShootingScriptProgressReporter<'_>,
         stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
         cancel_token: Option<&CancellationToken>,
@@ -267,10 +285,23 @@ impl OrchestratorContext {
 
     async fn begin_chapter_shooting_script_generation(
         &self,
-        source: &ChapterShootingScriptSourceInput,
+        source: &GenerateChapterShootingScriptInput,
         active_task_id: Option<&str>,
     ) -> Result<RegenerateChapterShootingScriptInput, AppError> {
-        let (_, existing) = self.load_chapter_shooting_script_source(source).await?;
+        let source_input = ChapterShootingScriptSourceInput {
+            project_id: source.project_id,
+            source_chapter_id: source.source_chapter_id,
+            visual_plan_id: Some(source.visual_plan_id),
+        };
+        let (resolved_source, existing) = self
+            .load_chapter_shooting_script_source_record(&source_input)
+            .await?;
+        let visual_plan = self
+            .confirmed_visual_plan_for_shooting_script(
+                &resolved_source,
+                Some(source.visual_plan_id),
+            )
+            .await?;
         let target_revision =
             match existing {
                 Some(existing) => existing.record.revision.checked_add(1).ok_or_else(|| {
@@ -288,6 +319,9 @@ impl OrchestratorContext {
             source.project_id,
             source.source_chapter_id,
             target_revision,
+            visual_plan.record.id,
+            visual_plan.record.plan_version,
+            &visual_plan.record.plan_sha256,
             active_task_id,
         )
         .map_err(AppError::InvalidArgument)?;
@@ -298,6 +332,7 @@ impl OrchestratorContext {
             project_id: source.project_id,
             source_chapter_id: source.source_chapter_id,
             workflow_run_id: workflow.id,
+            visual_plan_id: visual_plan.record.id,
         })
     }
 
@@ -377,6 +412,7 @@ impl OrchestratorContext {
                     &skeleton.directing_statement,
                     &plan_units,
                     scenes,
+                    &prepared.visual_plan,
                 )?;
                 progress(
                     92,
@@ -395,8 +431,12 @@ impl OrchestratorContext {
             }
         }
 
-        let script =
-            assemble_chapter_shooting_script(&skeleton.directing_statement, &plan_units, scenes)?;
+        let script = assemble_chapter_shooting_script(
+            &skeleton.directing_statement,
+            &plan_units,
+            scenes,
+            &prepared.visual_plan,
+        )?;
         progress(
             94,
             progress_total,
@@ -407,6 +447,11 @@ impl OrchestratorContext {
                 prepared.source,
                 prepared.existing,
                 prepared.input_fingerprint_sha256,
+                a4n_db::shooting_script::ChapterVisualPlanIdentity {
+                    id: prepared.visual_plan.record.id,
+                    version: prepared.visual_plan.record.plan_version,
+                    sha256: prepared.visual_plan.record.plan_sha256,
+                },
                 script,
                 workflow_run_id,
             )
@@ -420,14 +465,13 @@ impl OrchestratorContext {
 
 #[cfg(test)]
 mod tests {
-    use a4n_db::project::{ResolvedChapterSource, ResolvedChapterSourceKind};
+    use a4n_db::project::ResolvedChapterSource;
 
     use super::shared_workflow_source;
 
     #[test]
     fn derived_project_reads_partial_workflow_from_shared_root_project() {
         let source = ResolvedChapterSource {
-            source_kind: ResolvedChapterSourceKind::Snapshot,
             requested_project_id: 25,
             root_project_id: 24,
             source_chapter_id: 6,

@@ -5,6 +5,9 @@ const choiceDialog = vi.hoisted(() => vi.fn());
 vi.mock("../../components/feedback/ConfirmDialog", () => ({ choiceDialog }));
 
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
+import { translateMessage, type MessageTranslator } from "../../i18n";
+
+const t: MessageTranslator = (key, params) => translateMessage("zh-CN", key, params);
 
 beforeEach(() => choiceDialog.mockReset());
 
@@ -16,6 +19,7 @@ it("rejects newly appeared downstream dependencies when none were observed", asy
       downstreamLabel: "下游",
       downstreamCount: 0,
       operation: "更新",
+      t,
     }),
   ).resolves.toBe("reject");
   expect(choiceDialog).not.toHaveBeenCalled();

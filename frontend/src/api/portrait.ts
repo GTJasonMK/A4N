@@ -22,6 +22,7 @@ import type {
   SetPrimaryPortraitInput,
   UploadPortraitInput,
 } from "./generated/host";
+import { getActiveLocale, translateMessage } from "../i18n";
 
 export type Portrait = PortraitSummary;
 
@@ -60,7 +61,7 @@ export async function verifyPortraitGenerationResult(
     artifactIdPrefix: "portrait:",
     recordInScope: (portrait) => portrait.project_id === project,
     recordRevision: portraitRevision,
-    errorMessage: "立绘生成已结束，但正式结果校验失败",
+    errorMessage: translateMessage(getActiveLocale(), "errors.mediaGenerationConsistencyFailed"),
   });
 }
 

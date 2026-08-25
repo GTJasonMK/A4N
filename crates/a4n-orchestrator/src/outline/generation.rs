@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
@@ -88,6 +88,12 @@ impl OrchestratorContext {
                         "part_ids 数量必须在 1..=1024".to_string(),
                     ));
                 }
+                let mut parts_by_id = self
+                    .get_parts(part_ids)
+                    .await?
+                    .into_iter()
+                    .map(|part| (part.id, part))
+                    .collect::<HashMap<_, _>>();
                 let mut seen = HashSet::with_capacity(part_ids.len());
                 for part_id in part_ids {
                     if !seen.insert(*part_id) {
@@ -95,8 +101,16 @@ impl OrchestratorContext {
                             "part_ids 包含重复分部: {part_id}"
                         )));
                     }
-                    self.ensure_outline_part_project(input.project_id, *part_id)
-                        .await?;
+                    require_positive_i64(*part_id, "part_id")?;
+                    let part = parts_by_id
+                        .remove(part_id)
+                        .ok_or_else(|| AppError::NotFound(format!("分部大纲不存在: {part_id}")))?;
+                    if part.project_id != input.project_id {
+                        return Err(AppError::NotFound(format!(
+                            "项目 {} 不存在分部大纲 {}",
+                            input.project_id, part_id
+                        )));
+                    }
                 }
             }
             OutlineGenerationOperation::GenerateChapterOutlinesByCount {

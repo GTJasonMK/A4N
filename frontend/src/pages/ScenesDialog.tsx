@@ -19,6 +19,7 @@ import { cancelWorkflowTask } from "../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
+import { formatNumber, useI18n } from "../i18n";
 import { SceneGenerationPanel } from "./scenes-dialog/SceneGenerationPanel";
 import { SceneList } from "./scenes-dialog/SceneList";
 import {
@@ -45,6 +46,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
   aiActionBlockedReason,
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const [scenes, setScenes] = useState<ChapterSceneSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -140,7 +142,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       setLoadError(null);
     } catch (err) {
       if (loadSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
-      const message = extractErrorMessage(err, "加载场景失败");
+      const message = extractErrorMessage(err, t("scenes.loadFailed"));
       setScenes([]);
       setExpanded(new Set());
       setEditingId(null);
@@ -155,7 +157,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
         loadInFlightScopeRef.current = null;
       }
     }
-  }, [addToast, chapterId]);
+  }, [addToast, chapterId, t]);
 
   useLayoutEffect(() => {
     activeScopeRef.current = scopeKey;
@@ -241,7 +243,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
         timeline_position: editForm.timeline_position ?? null,
       });
       if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
-      addToast("场景已保存", "success");
+      addToast(t("scenes.saved"), "success");
       if (isCurrentScope(requestScope)) {
         setEditingId(null);
         setEditForm({});
@@ -249,7 +251,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       }
     } catch (err) {
       if (!isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) return;
-      addToast(extractErrorMessage(err, "保存失败"), "error");
+      addToast(extractErrorMessage(err, t("scenes.saveFailed")), "error");
     } finally {
       if (isCurrentMutation(requestChapterId, saveSeqRef, requestSeq)) setSaving(false);
       if (saveSeqRef.current === requestSeq) {
@@ -279,13 +281,13 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
-          title: `生成场景 ${nextNumber}`,
-          startMessage: "正在准备场景生成",
-          successMessage: "场景已生成",
-          errorMessage: "生成场景失败",
+          title: t("scenes.generateTitle", { number: formatNumber(nextNumber, locale) }),
+          startMessage: t("scenes.preparing"),
+          successMessage: t("scenes.generated"),
+          errorMessage: t("scenes.generateFailed"),
           total: CHAPTER_SCENE_PROGRESS_TOTAL,
-          cancelLabel: "停止生成",
-          runningHint: "场景生成停止后，已经保存的场景会保留",
+          cancelLabel: t("scenes.stopGeneration"),
+          runningHint: t("scenes.stopHint"),
         },
         () =>
           generateChapterScene(
@@ -298,11 +300,11 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
           ),
       );
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
-      addToast(`已生成场景 ${s.scene_number}`, "success");
+      addToast(t("scenes.generatedNumber", { number: formatNumber(s.scene_number, locale) }), "success");
       if (isCurrentScope(requestScope)) await load({ force: true });
     } catch (err) {
       if (!isCurrentMutation(requestChapterId, generateSeqRef, requestSeq)) return;
-      const message = extractErrorMessage(err, "生成场景失败");
+      const message = extractErrorMessage(err, t("scenes.generateFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
       if (isCurrentScope(requestScope)) await load({ force: true });
     } finally {
@@ -338,7 +340,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (previewSeqRef.current !== requestSeq || !isCurrentScope(requestScope)) return;
-      addToast(extractErrorMessage(err, "预览场景生成请求失败"), "error");
+      addToast(extractErrorMessage(err, t("scenes.previewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (previewSeqRef.current === requestSeq && isCurrentScope(requestScope)) {
@@ -358,11 +360,11 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     if (!startAction(actionKey)) return;
     const title = nonEmptyText(s.title);
     const ok = await confirmDialog({
-      title: "删除场景",
+      title: t("scenes.deleteTitle"),
       message: title
-        ? `删除场景 ${s.scene_number}「${title}」？不可撤销。`
-        : `删除场景 ${s.scene_number}？不可撤销。`,
-      confirmText: "删除",
+        ? t("scenes.deleteWithTitle", { number: formatNumber(s.scene_number, locale), title })
+        : t("scenes.deleteWithoutTitle", { number: formatNumber(s.scene_number, locale) }),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -376,11 +378,11 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
     try {
       await deleteChapterScene(s.id);
       if (!isCurrentChapter(requestChapterId)) return;
-      addToast("场景已删除", "success");
+      addToast(t("scenes.deleted"), "success");
       if (isCurrentScope(requestScope)) await load({ force: true });
     } catch (err) {
       if (!isCurrentChapter(requestChapterId)) return;
-      addToast(extractErrorMessage(err, "删除失败"), "error");
+      addToast(extractErrorMessage(err, t("scenes.deleteFailed")), "error");
     } finally {
       if (isCurrentChapter(requestChapterId)) {
         finishAction(actionKey);
@@ -413,7 +415,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       if (isCurrentScope(requestScope)) await load({ force: true });
     } catch (err) {
       if (!isCurrentChapter(requestChapterId)) return;
-      addToast(extractErrorMessage(err, "排序失败"), "error");
+      addToast(extractErrorMessage(err, t("scenes.reorderFailed")), "error");
     } finally {
       if (isCurrentChapter(requestChapterId)) {
         finishAction(actionKey);
@@ -429,12 +431,12 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
       <Modal
         isOpen={open}
         onClose={onClose}
-        title="章节场景"
+        title={t("scenes.chapterScenes")}
         subtitle={
           chapterNumber != null
-            ? `第 ${chapterNumber} 章${scenes.length > 0 ? ` · ${scenes.length} 个场景` : ""}`
+            ? `${t("scenes.chapterSummary", { chapter: formatNumber(chapterNumber, locale) })}${scenes.length > 0 ? ` · ${t("scenes.sceneCount", { count: formatNumber(scenes.length, locale) })}` : ""}`
             : scenes.length > 0
-              ? `${scenes.length} 个场景`
+              ? t("scenes.sceneCount", { count: formatNumber(scenes.length, locale) })
               : undefined
         }
         maxWidthClassName="max-w-3xl"
@@ -475,7 +477,7 @@ export const ScenesDialog: React.FC<ScenesDialogProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="场景生成请求预览"
+        fallbackTitle={t("scenes.generateTitle", { number: formatNumber(nextSceneNumber, locale) })}
         onClose={() => {
           previewSeqRef.current += 1;
           previewingRef.current = false;

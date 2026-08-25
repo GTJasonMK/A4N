@@ -5,7 +5,7 @@ use a4n_core::models::{
     character::character_portrait,
     media::media_asset,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::BTreeSet;
 
 pub(crate) async fn project_generated_media_paths<C>(
@@ -18,41 +18,55 @@ where
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectCleanupDbError::InvalidArgument)?;
     let mut paths = BTreeSet::new();
-    for image in generated_image::Entity::find()
+    for file_path in generated_image::Entity::find()
+        .select_only()
+        .column(generated_image::Column::FilePath)
         .filter(generated_image::Column::ProjectId.eq(project_id))
+        .into_tuple::<String>()
         .all(db)
         .await?
     {
-        paths.insert(image.file_path);
+        paths.insert(file_path);
     }
-    for video in generated_video::Entity::find()
+    for (file_path, thumbnail_path) in generated_video::Entity::find()
+        .select_only()
+        .column(generated_video::Column::FilePath)
+        .column(generated_video::Column::ThumbnailPath)
         .filter(generated_video::Column::ProjectId.eq(project_id))
+        .into_tuple::<(Option<String>, Option<String>)>()
         .all(db)
         .await?
     {
-        if let Some(path) = video.file_path {
+        if let Some(path) = file_path {
             paths.insert(path);
         }
-        if let Some(path) = video.thumbnail_path {
+        if let Some(path) = thumbnail_path {
             paths.insert(path);
         }
     }
-    for portrait in character_portrait::Entity::find()
+    for image_path in character_portrait::Entity::find()
+        .select_only()
+        .column(character_portrait::Column::ImagePath)
         .filter(character_portrait::Column::ProjectId.eq(project_id))
+        .into_tuple::<String>()
         .all(db)
         .await?
     {
-        paths.insert(portrait.image_path);
+        paths.insert(image_path);
     }
-    for asset in media_asset::Entity::find()
+    for (file_path, thumbnail_path) in media_asset::Entity::find()
+        .select_only()
+        .column(media_asset::Column::FilePath)
+        .column(media_asset::Column::ThumbnailPath)
         .filter(media_asset::Column::ProjectId.eq(project_id))
+        .into_tuple::<(Option<String>, Option<String>)>()
         .all(db)
         .await?
     {
-        if let Some(path) = asset.file_path {
+        if let Some(path) = file_path {
             paths.insert(path);
         }
-        if let Some(path) = asset.thumbnail_path {
+        if let Some(path) = thumbnail_path {
             paths.insert(path);
         }
     }

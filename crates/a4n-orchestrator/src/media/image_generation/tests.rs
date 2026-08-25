@@ -3,6 +3,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_core::{
     error::AppError,
     models::{
@@ -16,9 +17,10 @@ use a4n_db::{
     DatabaseConnection,
     project::{
         CreateDerivedProjectParams, CreateFreeformVideoProjectParams, DerivedChapterScope,
-        PROJECT_KIND_COMIC, create_derived_project_record, create_freeform_video_project_record,
+        create_derived_project_record, create_freeform_video_project_record,
     },
 };
+use a4n_domain::project::ProjectKind;
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -111,19 +113,20 @@ fn profile_image_inputs_enforce_documented_contract() {
 #[test]
 fn manga_page_reference_bindings_require_an_asset_for_every_slot() {
     let host = TestImageGenerationHost::default();
-    let mut bindings = json!([{
+    let mut bindings = serde_json::from_value::<Vec<MangaReferenceBindingSummary>>(json!([{
         "character_name": "林岚",
         "bound_asset": null
-    }]);
+    }]))
+    .expect("valid binding fixture");
 
     let error =
         collect_bound_reference_images(&host, &bindings).expect_err("参考图未绑定时必须拒绝成图");
     assert!(error.to_string().contains("参考图“林岚”尚未绑定"));
 
-    bindings[0]["bound_asset"] = json!({
-        "asset_kind": "generated_image",
-        "asset_id": 7,
-        "image_path": "generated/lin-lan.png"
+    bindings[0].bound_asset = Some(a4n_domain::manga::MangaBoundReferenceAsset {
+        asset_kind: a4n_domain::manga::MangaReferenceAssetKind::GeneratedImage,
+        asset_id: 7,
+        image_path: "generated/lin-lan.png".to_string(),
     });
     let references =
         collect_bound_reference_images(&host, &bindings).expect("bound_asset 应是唯一绑定状态");
@@ -137,14 +140,12 @@ struct TestImageGenerationHost {
     persist_calls: AtomicUsize,
     validate_calls: AtomicUsize,
     remove_calls: AtomicUsize,
-    lineage_calls: AtomicUsize,
     removed_paths: Mutex<Vec<String>>,
     fail_generate: bool,
     fail_generate_call: Option<usize>,
     fail_persist: bool,
     fail_validate: bool,
     fail_remove: bool,
-    fail_lineage: bool,
     delete_workflow_on_generate: Option<Arc<DatabaseConnection>>,
 }
 
@@ -261,17 +262,6 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
             return Err(AppError::InvalidState {
                 current: "file".to_string(),
                 operation: "测试图片清理失败".to_string(),
-            });
-        }
-        Ok(())
-    }
-
-    async fn sync_project_asset_lineage(&self, _project_id: i64) -> Result<(), AppError> {
-        self.lineage_calls.fetch_add(1, Ordering::SeqCst);
-        if self.fail_lineage {
-            return Err(AppError::InvalidState {
-                current: "lineage".to_string(),
-                operation: "测试 lineage 同步失败".to_string(),
             });
         }
         Ok(())
@@ -831,7 +821,7 @@ async fn primary_and_finalize_failures_are_both_returned() {
         .expect_err("主错误和 finalize 错误必须同时返回");
     let message = error.to_string();
 
-    assert!(message.contains("工作流失败状态写入失败"));
+    assert!(message.contains("工作流终态写入失败"));
     assert!(message.contains("未找到") || message.contains("数据库"));
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.remove_calls.load(Ordering::SeqCst), 0);
@@ -950,7 +940,7 @@ async fn insert_manga_page_fixture(
         1,
         CreateDerivedProjectParams {
             root_project_id: root_project.id,
-            derived_kind: PROJECT_KIND_COMIC.to_string(),
+            derived_kind: ProjectKind::Comic.as_str().to_string(),
             title: "漫画派生项目".to_string(),
             description: String::new(),
             chapter_scope: DerivedChapterScope {
@@ -1068,38 +1058,6 @@ async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
             .as_slice(),
         ["generated/old-page1.png"]
     );
-    assert_eq!(host.lineage_calls.load(Ordering::SeqCst), 1);
-}
-
-#[tokio::test]
-async fn manga_page_lineage_failure_keeps_committed_workflow_completed() {
-    let (database, context) = setup_context().await;
-    let (project_id, chapter, page_prompt, _old_image) =
-        insert_manga_page_fixture(database.as_ref()).await;
-    let host = TestImageGenerationHost {
-        fail_lineage: true,
-        ..Default::default()
-    };
-
-    let outcome = context
-        .run_image_generation_validated(
-            &host,
-            manga_page_execution_input(project_id, chapter.id, page_prompt.id),
-            &ImageGenerationProgress::none(),
-        )
-        .await
-        .expect("资产谱系是可回填投影，不得覆盖已提交结果");
-
-    assert!(outcome.summary.id > 0);
-    let workflow = workflow_run::Entity::find()
-        .filter(workflow_run::Column::ProjectId.eq(project_id))
-        .filter(workflow_run::Column::WorkflowKind.eq("image_generation"))
-        .one(database.as_ref())
-        .await
-        .expect("应可读取 workflow")
-        .expect("完成 workflow 应存在");
-    assert_eq!(workflow.status, "completed");
-    assert_eq!(host.lineage_calls.load(Ordering::SeqCst), 1);
 }
 
 #[test]

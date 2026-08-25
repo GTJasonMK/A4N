@@ -1,5 +1,4 @@
 mod contracts;
-pub mod errors;
 mod sync;
 mod traces;
 

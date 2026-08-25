@@ -91,7 +91,7 @@ wait_for_qdrant() {
     local pid="$1"
     local log="$2"
     for _ in {1..300}; do
-        if curl -fsS --max-time 1 http://127.0.0.1:6333/readyz >/dev/null \
+        if curl -fsS --max-time 1 http://127.0.0.1:6333/readyz >/dev/null 2>&1 \
             && (exec 3<>/dev/tcp/127.0.0.1/6334) 2>/dev/null; then
             return
         fi

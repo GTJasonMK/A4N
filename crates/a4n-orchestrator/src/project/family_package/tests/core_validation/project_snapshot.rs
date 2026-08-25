@@ -81,13 +81,16 @@ fn validate_package_manifest_rejects_missing_project_snapshot_reference() {
 #[test]
 fn validate_package_manifest_rejects_source_snapshot_wrong_root() {
     let mut package = package_with_derived_project();
-    package.source_snapshots[0].root_project_id = 99;
+    let mut snapshot = package.source_snapshots[0].clone();
+    snapshot.id = 902;
+    snapshot.root_project_id = 99;
+    package.source_snapshots.push(snapshot);
 
     let err = validate_package_manifest(&package)
         .expect_err("source snapshots must belong to the package root project");
 
     assert!(err.contains("源文本快照不属于根项目"));
-    assert!(err.contains("source_snapshot_id=901"));
+    assert!(err.contains("source_snapshot_id=902"));
     assert!(err.contains("root_project_id=99"));
 }
 

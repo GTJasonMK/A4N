@@ -1,4 +1,4 @@
-use super::locking::generated_image_for_delete;
+use super::locking::{GeneratedImageDeleteContext, generated_image_for_delete};
 use super::references::clear_generated_image_references_record;
 use crate::video::VideoDbError;
 use a4n_core::models::{ai::generated_image, asset::profile_primary_material};
@@ -6,7 +6,7 @@ use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Transactio
 
 async fn delete_locked_generated_image_record_in<C>(
     db: &C,
-    image: &generated_image::Model,
+    image: &GeneratedImageDeleteContext,
 ) -> Result<(), VideoDbError>
 where
     C: ConnectionTrait,

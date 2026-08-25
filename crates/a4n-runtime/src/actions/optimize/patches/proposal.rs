@@ -31,9 +31,7 @@ pub async fn start_optimize_patch_generation_typed(
             worker_state
                 .orchestrator()
                 .run_optimize_patch_generation_task(
-                    OptimizePatchGenerationApplicationContext {
-                        prompt_renderer: prompt_renderer,
-                    },
+                    OptimizePatchGenerationApplicationContext { prompt_renderer },
                     user_id,
                     input,
                     handle,

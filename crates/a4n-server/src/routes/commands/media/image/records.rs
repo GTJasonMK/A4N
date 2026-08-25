@@ -17,6 +17,19 @@ pub(in crate::routes::commands) async fn list_images_by_project(
     to_value(images)
 }
 
+pub(in crate::routes::commands) async fn list_images_by_projects(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input: image_records_actions::ListImagesByProjectsInput =
+        strict_command_input(args, "list_images_by_projects")?;
+    let images = image_records_actions::list_images_by_projects(state.runtime(), user_id, input)
+        .await
+        .map_err(ApiError::bad_request)?;
+    to_value(images)
+}
+
 pub(in crate::routes::commands) async fn list_images_by_chapter(
     state: &ServerState,
     user_id: i64,

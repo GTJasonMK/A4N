@@ -53,14 +53,7 @@ pub(crate) fn project_cleanup_error_to_app_error(
         a4n_db::project::ProjectCleanupDbError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
         }
-        a4n_db::project::ProjectCleanupDbError::NotFound(message) => AppError::NotFound(message),
-        a4n_db::project::ProjectCleanupDbError::InvalidState { current, operation } => {
-            AppError::InvalidState { current, operation }
-        }
         a4n_db::project::ProjectCleanupDbError::Database { source } => AppError::Database(source),
-        a4n_db::project::ProjectCleanupDbError::Generation { source } => {
-            crate::generation::generation_error(source)
-        }
         a4n_db::project::ProjectCleanupDbError::Video { source } => match source {
             a4n_db::video::VideoDbError::InvalidArgument(message) => {
                 AppError::InvalidArgument(message)
@@ -109,14 +102,9 @@ pub(crate) fn freeform_generated_reset_error_to_app_error(
         a4n_db::project::FreeformGeneratedResetDbError::ProjectCleanup { source } => {
             project_cleanup_error_to_app_error(source)
         }
-        a4n_db::project::FreeformGeneratedResetDbError::Canvas { source } => match source {
-            a4n_db::canvas::CanvasDbError::InvalidArgument(message) => {
-                AppError::InvalidArgument(message)
-            }
-            a4n_db::canvas::CanvasDbError::NotFound(message) => AppError::NotFound(message),
-            a4n_db::canvas::CanvasDbError::Forbidden(message) => AppError::Forbidden(message),
-            a4n_db::canvas::CanvasDbError::Database(source) => AppError::Database(source),
-        },
+        a4n_db::project::FreeformGeneratedResetDbError::Canvas { source } => {
+            crate::canvas::canvas_db_error(source)
+        }
         a4n_db::project::FreeformGeneratedResetDbError::Database { source } => {
             AppError::Database(source)
         }

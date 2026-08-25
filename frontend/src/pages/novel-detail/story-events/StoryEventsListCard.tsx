@@ -8,6 +8,7 @@ import type {
   StoryEventFilterOptions,
   StoryEventFilters,
 } from "./types";
+import { useI18n } from "../../../i18n";
 
 interface StoryEventsListCardProps {
   chaptersCount: number;
@@ -30,6 +31,7 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
   onOpenWritingDesk,
   onOpenChapter,
 }) => {
+  const { t } = useI18n();
   const updateFilters = (patch: Partial<StoryEventFilters>) =>
     onFiltersChange({ ...filters, ...patch });
   const hasSecondaryFilters =
@@ -50,7 +52,7 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
               value={filters.query}
               onChange={(event) => updateFilters({ query: event.target.value })}
               className="pyqt-input w-full !py-1.5 !pl-7 text-xs"
-              placeholder="搜索事件、章节、地点、角色"
+              placeholder={t("novel.storyEvents.searchPlaceholder")}
             />
           </div>
           {hasSecondaryFilters ? (
@@ -60,7 +62,7 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
                   value={filters.character}
                   onChange={(character) => updateFilters({ character })}
                   options={filterOptions.characters}
-                  allLabel="全部角色"
+                  allLabel={t("novel.storyEvents.allCharacters")}
                 />
               ) : null}
               {filterOptions.eventTypes.length > 1 ? (
@@ -68,7 +70,7 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
                   value={filters.type}
                   onChange={(type) => updateFilters({ type })}
                   options={filterOptions.eventTypes}
-                  allLabel="全部类型"
+                  allLabel={t("novel.storyEvents.allTypes")}
                 />
               ) : null}
               {filterOptions.importances.length > 1 ? (
@@ -76,7 +78,7 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
                   value={filters.importance}
                   onChange={(importance) => updateFilters({ importance })}
                   options={filterOptions.importances}
-                  allLabel="全部重要性"
+                  allLabel={t("novel.storyEvents.allImportance")}
                 />
               ) : null}
             </div>
@@ -86,18 +88,18 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
 
       {chaptersCount === 0 ? (
         <EmptyHint
-          text="项目还没有章节。"
-          actionText={onOpenWritingDesk ? "进入写作台" : undefined}
+          text={t("novel.storyEvents.noChapters")}
+          actionText={onOpenWritingDesk ? t("novel.enterWritingDesk") : undefined}
           onAction={onOpenWritingDesk}
         />
       ) : analyzedChapters === 0 ? (
         <EmptyHint
-          text="还没有章节分析数据。"
-          actionText={onOpenWritingDesk ? "进入写作台生成分析" : undefined}
+          text={t("novel.storyEvents.noAnalysis")}
+          actionText={onOpenWritingDesk ? t("novel.storyEvents.openDeskForAnalysis") : undefined}
           onAction={onOpenWritingDesk}
         />
       ) : sections.length === 0 ? (
-        <EmptyHint text="没有匹配当前筛选条件的事件。" />
+        <EmptyHint text={t("novel.storyEvents.noMatchingEvents")} />
       ) : (
         <div className="grid grid-cols-1 items-start gap-3">
           {sections.map((section) => (

@@ -17,8 +17,11 @@ import {
   logoutUser,
   oauth2Callback,
   registerUser,
+  updateUserProfile,
+  type UpdateProfileInput,
   type UserSummary,
 } from "../api/auth";
+import { getActiveLocale, translateMessage } from "../i18n";
 import { logger } from "../utils/logger";
 
 const authLog = logger.scoped("AuthStore");
@@ -31,6 +34,7 @@ interface AuthStore {
   login: (username: string, password: string) => Promise<void>;
   oauthLogin: (provider: string, code: string) => Promise<UserSummary>;
   register: (username: string, email: string, password: string, inviteCode: string) => Promise<void>;
+  updateProfile: (input: UpdateProfileInput) => Promise<UserSummary>;
   logout: () => Promise<void>;
   onUnauthorized: () => void;
 }
@@ -69,7 +73,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
           return;
         }
         authLog.error("init failed", { error });
-        set({ error: extractErrorMessage(error, "认证初始化失败") });
+        set({
+          error: extractErrorMessage(
+            error,
+            translateMessage(getActiveLocale(), "auth.initializationFailed"),
+          ),
+        });
         throw error;
       }
     })().finally(() => {
@@ -93,6 +102,12 @@ export const useAuthStore = create<AuthStore>((set) => ({
   register: async (username: string, email: string, password: string, inviteCode: string) => {
     const res = await registerUser(username, email, password, inviteCode);
     set({ user: res.user });
+  },
+
+  updateProfile: async (input: UpdateProfileInput) => {
+    const user = await updateUserProfile(input);
+    set({ user });
+    return user;
   },
 
   logout: async () => {

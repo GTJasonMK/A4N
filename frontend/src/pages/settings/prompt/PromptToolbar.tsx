@@ -4,6 +4,7 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { useI18n } from "../../../i18n";
 
 interface PromptToolbarProps {
   keyword: string;
@@ -21,7 +22,9 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
   onKeywordChange,
   onLoadDefaults,
   onRefresh,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <div className="flex items-center gap-2 shrink-0">
     <div className="flex-1 relative">
       <Search
@@ -31,12 +34,12 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
       <BookInput
         value={keyword}
         onChange={(event) => onKeywordChange(event.target.value)}
-        placeholder="按名称 / 标题 / 描述搜索"
+        placeholder={t("settingsPrompt.searchPlaceholder")}
         className="!pl-8"
       />
     </div>
     <BookIconButton
-      label="刷新提示词"
+      label={t("settingsPrompt.refresh")}
       onClick={onRefresh}
       size="sm"
       disabled={loading}
@@ -47,7 +50,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
     {reloadingDefaults ? (
       <span
         className="inline-flex h-10 w-10 items-center justify-center text-book-text-muted sm:h-8 sm:w-8"
-        title="正在载入默认提示词"
+        title={t("settingsPrompt.loadingDefaults")}
       >
         <LoadingSpinner size="sm" />
       </span>
@@ -55,7 +58,7 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
       <Dropdown
         items={[
           {
-            label: "载入默认提示词",
+            label: t("settingsPrompt.loadDefaults"),
             icon: <DownloadCloud size={12} />,
             onClick: onLoadDefaults,
           },
@@ -63,4 +66,5 @@ export const PromptToolbar: React.FC<PromptToolbarProps> = ({
       />
     )}
   </div>
-);
+  );
+};

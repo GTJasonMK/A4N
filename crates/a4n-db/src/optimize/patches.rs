@@ -31,6 +31,25 @@ where
         .map_err(OptimizeDbError::Database)
 }
 
+pub async fn optimization_patch_set_patches_for_sets<C>(
+    db: &C,
+    patch_set_ids: &[i64],
+) -> Result<Vec<optimization_patch::Model>, OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    if patch_set_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    optimization_patch::Entity::find()
+        .filter(optimization_patch::Column::PatchSetId.is_in(patch_set_ids.to_vec()))
+        .order_by_asc(optimization_patch::Column::PatchSetId)
+        .order_by_asc(optimization_patch::Column::Id)
+        .all(db)
+        .await
+        .map_err(OptimizeDbError::Database)
+}
+
 pub async fn matching_pending_optimization_patch_sets<C>(
     db: &C,
     session_id: i64,
@@ -92,8 +111,10 @@ where
     .await
     .map_err(OptimizeDbError::Database)?;
 
-    for patch in input.patches {
-        optimization_patch::ActiveModel {
+    let patches = input
+        .patches
+        .into_iter()
+        .map(|patch| optimization_patch::ActiveModel {
             patch_set_id: Set(patch_set.id),
             patch_id: Set(patch.patch_id),
             issue_id: Set(patch.issue_id),
@@ -107,11 +128,12 @@ where
             created_at: Set(now),
             updated_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
+        })
+        .collect::<Vec<_>>();
+    optimization_patch::Entity::insert_many(patches)
+        .exec(db)
         .await
         .map_err(OptimizeDbError::Database)?;
-    }
 
     Ok(Some(patch_set))
 }
@@ -127,18 +149,80 @@ where
     C: ConnectionTrait,
 {
     let now = chrono::Utc::now().naive_utc();
-    let patches = optimization_patch_set_patches(db, patch_set.id).await?;
-    for patch in patches {
-        let mut active: optimization_patch::ActiveModel = patch.into();
-        active.decision = Set(patch_decision.to_string());
-        active.apply_status = Set(patch_apply_status.to_string());
-        active.updated_at = Set(now);
-        active.update(db).await.map_err(OptimizeDbError::Database)?;
-    }
+    optimization_patch::Entity::update_many()
+        .col_expr(
+            optimization_patch::Column::Decision,
+            sea_orm::sea_query::Expr::value(patch_decision.to_string()),
+        )
+        .col_expr(
+            optimization_patch::Column::ApplyStatus,
+            sea_orm::sea_query::Expr::value(patch_apply_status.to_string()),
+        )
+        .col_expr(
+            optimization_patch::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(now),
+        )
+        .filter(optimization_patch::Column::PatchSetId.eq(patch_set.id))
+        .exec(db)
+        .await
+        .map_err(OptimizeDbError::Database)?;
 
     let mut active: optimization_patch_set::ActiveModel = patch_set.into();
     active.status = Set(patch_set_status.to_string());
     active.updated_at = Set(now);
     active.update(db).await.map_err(OptimizeDbError::Database)?;
+    Ok(())
+}
+
+pub async fn update_optimization_patch_sets_status<C>(
+    db: &C,
+    patch_set_ids: &[i64],
+    patch_set_status: &str,
+    patch_decision: &str,
+    patch_apply_status: &str,
+) -> Result<(), OptimizeDbError>
+where
+    C: ConnectionTrait,
+{
+    if patch_set_ids.is_empty() {
+        return Ok(());
+    }
+    let now = chrono::Utc::now().naive_utc();
+    optimization_patch::Entity::update_many()
+        .col_expr(
+            optimization_patch::Column::Decision,
+            sea_orm::sea_query::Expr::value(patch_decision.to_string()),
+        )
+        .col_expr(
+            optimization_patch::Column::ApplyStatus,
+            sea_orm::sea_query::Expr::value(patch_apply_status.to_string()),
+        )
+        .col_expr(
+            optimization_patch::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(now),
+        )
+        .filter(optimization_patch::Column::PatchSetId.is_in(patch_set_ids.to_vec()))
+        .exec(db)
+        .await
+        .map_err(OptimizeDbError::Database)?;
+
+    let updated = optimization_patch_set::Entity::update_many()
+        .col_expr(
+            optimization_patch_set::Column::Status,
+            sea_orm::sea_query::Expr::value(patch_set_status.to_string()),
+        )
+        .col_expr(
+            optimization_patch_set::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(now),
+        )
+        .filter(optimization_patch_set::Column::Id.is_in(patch_set_ids.to_vec()))
+        .exec(db)
+        .await
+        .map_err(OptimizeDbError::Database)?;
+    if updated.rows_affected != patch_set_ids.len() as u64 {
+        return Err(OptimizeDbError::Database(DbErr::RecordNotFound(
+            "批量更新优化补丁集时记录数量不匹配".to_string(),
+        )));
+    }
     Ok(())
 }

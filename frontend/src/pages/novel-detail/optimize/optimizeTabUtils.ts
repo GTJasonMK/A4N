@@ -1,7 +1,4 @@
-import type {
-  ProgressDialogStatus,
-  ProgressTimelineItem,
-} from "../../../components/feedback/ProgressDialog";
+import type { ProgressDialogStatus } from "../../../components/feedback/ProgressDialog";
 import type { ChapterSummary } from "../../../api/chapter";
 import type {
   OptimizePatchSet,
@@ -14,6 +11,8 @@ import {
   type JsonRecord,
 } from "../../../utils/jsonRecord";
 import { nonEmptyText } from "../../../utils/text";
+import { formatTime } from "../../../i18n";
+import type { Locale, MessageTranslator } from "../../../i18n";
 
 export type StreamItemKind = "user" | "assistant" | "agent" | "tool" | "error";
 type StreamItemActivity =
@@ -22,8 +21,7 @@ type StreamItemActivity =
   | "tool_call"
   | "tool_result"
   | "turn_error"
-  | "agent_event"
-  | "progress";
+  | "agent_event";
 
 export interface StreamItem {
   id: string;
@@ -37,8 +35,6 @@ export interface StreamItem {
   timestamp?: number | string | null;
   taskId?: string | null;
   status?: ProgressDialogStatus;
-  current?: number;
-  total?: number;
   chapterId?: number | null;
   sessionId?: number | null;
   persistedTurnCountBefore?: number;
@@ -59,11 +55,14 @@ interface OptimizeIssue {
 
 export type OptimizeSubmitKind = "message" | "analyze" | "propose_patches";
 
-export const chapterOptionLabel = (chapter: ChapterSummary): string => {
+export const chapterOptionLabel = (
+  chapter: ChapterSummary,
+  t: MessageTranslator,
+): string => {
   const title = nonEmptyText(chapter.title);
   return title
-    ? `第 ${chapter.chapter_number} 章 · ${title}`
-    : `第 ${chapter.chapter_number} 章`;
+    ? t("optimize.chapterOption", { number: chapter.chapter_number, title })
+    : t("optimize.chapterOptionUntitled", { number: chapter.chapter_number });
 };
 
 export const initialSelectedChapter = (
@@ -79,10 +78,13 @@ export function persistedTurnCount(turns: OptimizeTurn[], text: string): number 
   return turns.filter((turn) => turn.user_text.trim() === normalized).length;
 }
 
-export function requireSessionName(name: string | null | undefined): string {
+export function requireSessionName(
+  name: string | null | undefined,
+  t: MessageTranslator,
+): string {
   const trimmed = name?.trim();
   if (!trimmed) {
-    throw new Error("请先输入会话名称");
+    throw new Error(t("optimize.sessionNameTitle"));
   }
   return trimmed;
 }
@@ -93,8 +95,10 @@ export const isNearBottom = (element: HTMLElement): boolean =>
 export const isReusableAgentSession = (session: OptimizeSession): boolean =>
   session.status === "waiting_user" || session.status === "completed";
 
-export const sessionDisplayName = (session: OptimizeSession | null | undefined): string =>
-  nonEmptyText(session?.name) || "未命名会话";
+export const sessionDisplayName = (
+  session: OptimizeSession | null | undefined,
+  t: MessageTranslator,
+): string => nonEmptyText(session?.name) || t("optimize.unnamedSession");
 
 export function itemClassName(kind: StreamItemKind): string {
   switch (kind) {
@@ -111,31 +115,28 @@ export function itemClassName(kind: StreamItemKind): string {
   }
 }
 
-export function kindLabel(kind: StreamItemKind): string {
+export function kindLabel(kind: StreamItemKind, t: MessageTranslator): string {
   switch (kind) {
     case "user":
-      return "用户";
+      return t("optimize.kindUser");
     case "assistant":
-      return "Agent";
+      return t("optimize.kindAssistant");
     case "tool":
-      return "工具";
+      return t("optimize.kindTool");
     case "error":
-      return "错误";
+      return t("optimize.kindError");
     default:
-      return "行为";
+      return t("optimize.kindAgent");
   }
 }
 
-export function formatItemMeta(item: StreamItem): string | null {
-  if (item.current != null && item.total != null) {
-    return `${item.current}/${Math.max(1, item.total)}`;
-  }
+export function formatItemMeta(item: StreamItem, locale: Locale): string | null {
   if (typeof item.timestamp === "number") {
-    return formatTime(item.timestamp);
+    return formatTime(item.timestamp, locale);
   }
   if (typeof item.timestamp === "string") {
     const time = new Date(item.timestamp).getTime();
-    return Number.isNaN(time) ? null : formatTime(time);
+    return Number.isNaN(time) ? null : formatTime(time, locale);
   }
   return null;
 }
@@ -162,22 +163,10 @@ export function sortStreamActivityItems(items: StreamItem[]): StreamItem[] {
     .map(({ item }) => item);
 }
 
-export function progressEventToStreamItem(event: ProgressTimelineItem): StreamItem {
-  const title = progressEventTitle(event);
-  return {
-    id: `progress-${event.id}`,
-    kind: event.status === "error" ? "error" : event.status === "success" ? "tool" : "agent",
-    activity: "progress",
-    title,
-    content: event.message || progressStatusLabel(event.status),
-    timestamp: event.timestamp,
-    status: event.status,
-    current: event.current,
-    total: event.total,
-  };
-}
-
-export function turnsToConversationItems(turns: OptimizeTurn[]): StreamItem[] {
+export function turnsToConversationItems(
+  turns: OptimizeTurn[],
+  t: MessageTranslator,
+): StreamItem[] {
   const items: StreamItem[] = [];
   for (const turn of turns) {
     items.push({
@@ -188,10 +177,10 @@ export function turnsToConversationItems(turns: OptimizeTurn[]): StreamItem[] {
       sessionId: turn.session_id,
     });
 
-    const steps = turn.events.map((event) => turnEventToStreamItem(turn, event));
+    const steps = turn.events.map((event) => turnEventToStreamItem(turn, event, t));
     const failed = turn.status === "failed" || turn.status === "cancelled";
     const finalReply = turn.final_reply?.trim();
-    const content = finalReply || turn.error?.trim() || (turn.status === "running" ? "正在处理" : "");
+    const content = finalReply || turn.error?.trim() || (turn.status === "running" ? t("workflow.running") : "");
     items.push({
       id: `turn-${turn.id}-agent`,
       kind: failed ? "error" : "assistant",
@@ -205,7 +194,11 @@ export function turnsToConversationItems(turns: OptimizeTurn[]): StreamItem[] {
   return items;
 }
 
-function turnEventToStreamItem(turn: OptimizeTurn, event: OptimizeTurnEvent): StreamItem {
+function turnEventToStreamItem(
+  turn: OptimizeTurn,
+  event: OptimizeTurnEvent,
+  t: MessageTranslator,
+): StreamItem {
   const payload = event.payload == null ? null : JSON.stringify(event.payload, null, 2);
   const base = {
     id: `turn-event-${event.id}`,
@@ -228,7 +221,7 @@ function turnEventToStreamItem(turn: OptimizeTurn, event: OptimizeTurnEvent): St
       ...base,
       kind: "tool",
       activity: "tool_call",
-      title: "工具调用",
+      title: t("optimize.toolCall"),
       content: event.public_text,
       detail: payload,
     };
@@ -238,7 +231,7 @@ function turnEventToStreamItem(turn: OptimizeTurn, event: OptimizeTurnEvent): St
       ...base,
       kind: event.status === "failed" ? "error" : "tool",
       activity: "tool_result",
-      title: "工具结果",
+      title: t("optimize.toolResult"),
       content: event.public_text,
       detail: payload,
     };
@@ -248,7 +241,7 @@ function turnEventToStreamItem(turn: OptimizeTurn, event: OptimizeTurnEvent): St
       ...base,
       kind: "error",
       activity: "turn_error",
-      title: "执行失败",
+      title: t("optimize.executionFailed"),
       content: event.public_text,
       detail: payload,
     };
@@ -272,48 +265,58 @@ function turnStatusToProgressStatus(status: string): ProgressDialogStatus | unde
   return undefined;
 }
 
-export function processStepBehavior(step: StreamItem): ProcessBehavior {
+export function processStepBehavior(
+  step: StreamItem,
+  t: MessageTranslator,
+): ProcessBehavior {
   if (step.kind === "error" || step.status === "error") {
-    return { title: "执行失败", detail: compactBehaviorText(step.content) || "请查看错误信息" };
+    return {
+      title: t("optimize.executionFailed"),
+      detail: compactBehaviorText(step.content) || t("optimize.checkErrorDetails"),
+    };
   }
   if (step.status === "cancelled") {
-    return { title: "任务已停止", detail: compactBehaviorText(step.content) || "用户已停止本次任务" };
+    return {
+      title: t("optimize.taskStopped"),
+      detail: compactBehaviorText(step.content) || t("optimize.stoppedByUser"),
+    };
   }
 
   switch (step.activity) {
     case "llm_response":
-      return llmBehavior(step.detail);
+      return llmBehavior(step.detail, t);
     case "tool_result":
-      return toolBehavior(step.detail);
-    case "progress":
-      return progressBehavior(step);
+      return toolBehavior(step.detail, t);
     case "agent_event":
-      return { title: "记录运行状态", detail: compactBehaviorText(step.content) || "" };
+      return { title: t("optimize.recordedStatus"), detail: compactBehaviorText(step.content) || "" };
     case "assistant_update":
-      return { title: "Agent 说明", detail: step.content };
+      return { title: t("optimize.agentNote"), detail: step.content };
     case "tool_call":
-      return turnToolCallBehavior(step);
+      return turnToolCallBehavior(step, t);
     case "turn_error":
-      return { title: "执行失败", detail: compactBehaviorText(step.content) || "请查看错误信息" };
+      return {
+        title: t("optimize.executionFailed"),
+        detail: compactBehaviorText(step.content) || t("optimize.checkErrorDetails"),
+      };
     default:
       break;
   }
 
-  if (step.status === "running") return { title: "正在执行", detail: compactBehaviorText(step.content) || "" };
-  if (step.status === "success") return { title: "执行完成", detail: compactBehaviorText(step.content) || "本步已完成" };
-  return { title: "记录运行状态", detail: compactBehaviorText(step.content) || "" };
+  if (step.status === "running") return { title: t("optimize.runningStep"), detail: compactBehaviorText(step.content) || "" };
+  if (step.status === "success") return { title: t("optimize.completedStep"), detail: compactBehaviorText(step.content) || t("optimize.stepCompleted") };
+  return { title: t("optimize.recordedStatus"), detail: compactBehaviorText(step.content) || "" };
 }
 
-function turnToolCallBehavior(step: StreamItem): ProcessBehavior {
+function turnToolCallBehavior(step: StreamItem, t: MessageTranslator): ProcessBehavior {
   const parsed = step.detail ? parseJsonObject(step.detail) : null;
   const tool = parsed ? stringField(parsed, "tool") : null;
-  if (step.content.startsWith("调用工具：")) {
-    return { title: step.content, detail: "" };
+  if (step.activity === "tool_call" && step.title) {
+    return { title: step.title, detail: "" };
   }
-  return { title: tool ? `调用工具：${tool}` : "调用工具", detail: "" };
+  return { title: tool ? t("optimize.callToolNamed", { tool }) : t("optimize.callTool"), detail: "" };
 }
 
-function llmBehavior(detail?: string | null): ProcessBehavior {
+function llmBehavior(detail: string | null | undefined, t: MessageTranslator): ProcessBehavior {
   const parsed = detail ? parseJsonObject(detail) : null;
   const action = parsed && typeof parsed.action === "string" ? parsed.action : null;
   const publicUpdate = parsed ? stringField(parsed, "public_update") : null;
@@ -322,61 +325,65 @@ function llmBehavior(detail?: string | null): ProcessBehavior {
   switch (action) {
     case "think":
       return publicUpdate
-        ? { title: "Agent 说明", detail: publicUpdate }
-        : { title: "模型决策缺少阶段说明", detail: "think 决策没有返回 public_update" };
+        ? { title: t("optimize.agentNote"), detail: publicUpdate }
+        : { title: t("optimize.modelStageMissing"), detail: t("optimize.thinkPublicUpdateMissing") };
     case "run_tool":
-      return toolCallBehavior(args, publicUpdate);
+      return toolCallBehavior(args, publicUpdate, t);
     case "final":
-      return finalDecisionBehavior(args);
+      return finalDecisionBehavior(args, t);
     default:
-      return { title: "模型决策无法识别", detail: action ? `未知 action：${action}` : "缺少 action" };
+      return {
+        title: t("optimize.modelDecisionUnknown"),
+        detail: action ? t("optimize.unknownAction", { action }) : t("optimize.missingAction"),
+      };
   }
 }
 
 function toolCallBehavior(
   args: Record<string, unknown> | null,
-  publicUpdate?: string | null,
+  publicUpdate: string | null | undefined,
+  t: MessageTranslator,
 ): ProcessBehavior {
   const tool = args ? stringField(args, "tool") : null;
   const toolArgs = args && isRecord(args.arguments) ? args.arguments : null;
-  const detail = publicUpdate || "run_tool 决策没有返回 public_update";
+  const detail = publicUpdate || t("optimize.runToolUpdateMissing");
   if (tool === "get_project_information") {
     const mode = toolArgs ? stringField(toolArgs, "mode") : null;
     return {
-      title: mode === "search" ? "调用工具：搜索资料" : "调用工具：读取资料",
+      title: mode === "search" ? t("optimize.callSearch") : t("optimize.callRead"),
       detail,
     };
   }
   if (tool === "edit_article") {
     return {
-      title: "调用工具：修改正文",
+      title: t("optimize.callEditArticle"),
       detail,
     };
   }
-  return { title: "调用工具", detail: tool ? `${tool}：${detail}` : detail };
+  return { title: tool ? t("optimize.callToolNamed", { tool }) : t("optimize.callTool"), detail };
 }
 
-function finalDecisionBehavior(args: Record<string, unknown> | null): ProcessBehavior {
+function finalDecisionBehavior(args: Record<string, unknown> | null, t: MessageTranslator): ProcessBehavior {
   const reply = args ? stringField(args, "reply") : null;
   if (reply) {
-    return { title: "Agent 回复", detail: reply };
+    return { title: t("optimize.agentReply"), detail: reply };
   }
   if (args && Array.isArray(args.issues)) {
-    return { title: "分析结果", detail: formatIssueList(args.issues) };
+    return { title: t("optimize.analysisResult"), detail: formatIssueList(args.issues, t) };
   }
-  return { title: "模型 final 参数无效", detail: "final.arguments 缺少 reply 或 issues" };
+  return { title: t("optimize.invalidFinalArguments"), detail: t("optimize.missingReplyOrIssues") };
 }
 
-function toolBehavior(detail?: string | null): ProcessBehavior {
+function toolBehavior(detail: string | null | undefined, t: MessageTranslator): ProcessBehavior {
   const parsed = detail ? parseJsonObject(detail) : null;
-  if (!parsed) return { title: "工具结果无法解析", detail: "" };
+  if (!parsed) return { title: t("optimize.toolResultUnparseable"), detail: "" };
   const tool = typeof parsed.tool === "string" ? parsed.tool : null;
   const result = isRecord(parsed.result) ? parsed.result : parsed;
   const resultTool = typeof result.tool === "string" ? result.tool : tool;
   const success = typeof parsed.success === "boolean" ? parsed.success : null;
   if (success === false) {
-    const error = stringField(parsed, "error") ?? stringField(result, "error") ?? "工具执行失败";
-    return { title: `工具失败：${runtimeToolLabel(resultTool)}`, detail: error };
+    const error = stringField(parsed, "error") ?? stringField(result, "error") ?? t("optimize.toolExecutionFailed");
+    return { title: t("optimize.toolFailed", { tool: runtimeToolLabel(resultTool, t) }), detail: error };
   }
 
   if (resultTool === "get_project_information") {
@@ -384,94 +391,83 @@ function toolBehavior(detail?: string | null): ProcessBehavior {
     const source = stringField(result, "source");
     const matches = Array.isArray(result.matches) ? result.matches.length : null;
     return {
-      title: mode === "search" ? "工具返回：搜索结果" : "工具返回：读取结果",
+      title: mode === "search" ? t("optimize.toolSearchResult") : t("optimize.toolReadResult"),
       detail:
         matches != null
-          ? `找到 ${matches} 条相关信息`
+          ? t("optimize.matchesFound", { count: matches })
           : source
-            ? `已获得${informationSourceLabel(source)}。`
-            : "已获得所需上下文",
+            ? t("optimize.sourceReceived", { source: informationSourceLabel(source, t) })
+            : t("optimize.contextReceived"),
     };
   }
   if (resultTool === "apply_chapter_patches") {
-    return { title: "工具返回：补丁已应用", detail: patchCountDetail("已写入", result) };
+    return { title: t("optimize.appliedPatchResult"), detail: patchCountDetail("written", result, t) };
   }
   if (resultTool === "edit_article") {
     const mode = stringField(result, "mode");
-    if (mode === "applied") return { title: "工具返回：正文已写回", detail: patchCountDetail("已应用", result) };
+    if (mode === "applied") return { title: t("optimize.toolReturned"), detail: patchCountDetail("applied", result, t) };
     if (mode === "pending_confirmation") {
-      return { title: "工具返回：补丁待审阅", detail: patchCountDetail("已生成待审阅", result) };
+      return { title: t("optimize.pendingPatchResult"), detail: patchCountDetail("review", result, t) };
     }
-    if (mode === "no_change") return { title: "工具返回：无需修改", detail: "没有生成可应用补丁" };
-    return { title: "工具返回：补丁提案", detail: patchCountDetail("生成", result) };
+    if (mode === "no_change") return { title: t("optimize.noChangeResult"), detail: t("optimize.noPatchGenerated") };
+    return { title: t("optimize.patchProposalResult"), detail: patchCountDetail("generated", result, t) };
   }
-  return { title: "工具返回", detail: resultTool || "已获得工具结果" };
+  return { title: t("optimize.toolReturned"), detail: resultTool || t("optimize.toolResultReceived") };
 }
 
-function progressBehavior(step: StreamItem): ProcessBehavior {
-  const text = compactBehaviorText(step.content);
-  if (isGenericWaitingProgress(step)) {
-    return {
-      title: "正在思考",
-      detail: "",
-    };
-  }
-  if (text?.includes("读取优化会话上下文")) {
-    return { title: "读取上下文", detail: "准备章节、会话和项目状态" };
-  }
-  if (text?.includes("渲染") || text?.includes("准备")) {
-    return { title: "整理任务输入", detail: text };
-  }
-  if (step.status === "running") {
-    return { title: text || "正在执行", detail: progressDetail(step) };
-  }
-  if (step.status === "success") {
-    return { title: text || "执行完成", detail: progressDetail(step) };
-  }
-  return { title: text || "更新状态", detail: progressDetail(step) };
-}
-
-export function isGenericWaitingProgress(step: StreamItem): boolean {
-  return step.activity === "progress" && /等待.*Agent.*(决策|回复)/.test(step.content);
-}
-
-function progressDetail(step: StreamItem): string {
-  if (step.current != null && step.total != null) {
-    return `进度 ${step.current}/${Math.max(1, step.total)}`;
-  }
-  return "";
-}
-
-function patchCountDetail(verb: string, payload: Record<string, unknown>): string {
+function patchCountDetail(
+  verb: "written" | "applied" | "review" | "generated",
+  payload: Record<string, unknown>,
+  t: MessageTranslator,
+): string {
   const count =
     numberField(payload, "patch_count") ??
     numberField(payload, "applied_count") ??
     (Array.isArray(payload.patches) ? payload.patches.length : null);
-  return count == null ? `${verb}正文修改` : `${verb} ${count} 处修改`;
+  if (count == null) {
+    return t(
+      verb === "written"
+        ? "optimize.wroteChanges"
+        : verb === "applied"
+          ? "optimize.appliedChanges"
+          : verb === "review"
+            ? "optimize.generatedReviewChanges"
+            : "optimize.generatedChanges",
+    );
+  }
+  const label =
+    verb === "written"
+      ? t("optimize.verbWritten")
+      : verb === "applied"
+        ? t("optimize.verbApplied")
+        : verb === "review"
+          ? t("optimize.verbReviewGenerated")
+          : t("optimize.verbGenerated");
+  return t("optimize.changesCount", { verb: label, count });
 }
 
-function informationSourceLabel(source: string): string {
+function informationSourceLabel(source: string, t: MessageTranslator): string {
   switch (source) {
     case "current_chapter":
-      return "当前章节正文";
+      return t("optimize.sourceCurrentChapter");
     case "current_chapter_outline":
-      return "当前章节章纲";
+      return t("optimize.sourceCurrentOutline");
     case "project_detail":
-      return "项目设定";
+      return t("optimize.sourceProjectDetail");
     case "blueprint":
-      return "故事蓝图";
+      return t("optimize.sourceBlueprint");
     case "part_outlines":
-      return "分卷大纲";
+      return t("optimize.sourcePartOutlines");
     case "chapter_outlines":
-      return "章节大纲";
+      return t("optimize.sourceChapterOutlines");
     case "character_profiles":
-      return "角色资料";
+      return t("optimize.sourceCharacters");
     case "foreshadowing_index":
-      return "伏笔索引";
+      return t("optimize.sourceForeshadowing");
     case "previous_chapters":
-      return "前文章节";
+      return t("optimize.sourcePreviousChapters");
     case "next_chapters":
-      return "后文章节";
+      return t("optimize.sourceNextChapters");
     default:
       return source;
   }
@@ -497,18 +493,18 @@ export function parseOptimizeIssues(raw: unknown): OptimizeIssue[] {
     }));
 }
 
-export function statusLabel(status: string): string {
+export function statusLabel(status: string, t: MessageTranslator): string {
   switch (status) {
     case "analyzing":
-      return "分析中";
+      return t("optimize.statusAnalyzing");
     case "waiting_user":
-      return "等待指令";
+      return t("optimize.statusWaiting");
     case "fixing":
-      return "修复中";
+      return t("optimize.statusFixing");
     case "completed":
-      return "已完成，可继续";
+      return t("optimize.statusCompleted");
     case "cancelled":
-      return "已取消";
+      return t("optimize.statusCancelled");
     default:
       return status;
   }
@@ -523,47 +519,16 @@ function streamItemTimestampMs(item: StreamItem): number | null {
   return null;
 }
 
-function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString("zh-CN", { hour12: false });
-}
-
-function progressEventTitle(event: ProgressTimelineItem): string {
-  const message = event.message || "";
-  if (event.status === "error") return "调用失败";
-  if (event.status === "cancelled") return "调用停止";
-  if (message.includes("调用模型") || message.includes("等待 Agent 回复")) return "LLM 调用";
-  if (message.includes("模型已返回") || message.includes("Agent 已回复")) return "LLM 返回";
-  if (message.includes("局部补丁")) return "局部补丁";
-  if (message.includes("修复问题") || message.includes("工具")) return "工具调用";
-  if (message.includes("已处理问题") || message.includes("修复完成")) return "工具结果";
-  return progressStatusLabel(event.status);
-}
-
-function progressStatusLabel(status: ProgressDialogStatus): string {
-  switch (status) {
-    case "running":
-      return "执行中";
-    case "success":
-      return "完成";
-    case "error":
-      return "失败";
-    case "cancelled":
-      return "已停止";
-    default:
-      return "等待";
-  }
-}
-
-function runtimeToolLabel(tool: string | null): string {
+function runtimeToolLabel(tool: string | null, t: MessageTranslator): string {
   switch (tool) {
     case "get_project_information":
-      return "获取项目信息";
+      return t("optimize.toolReadResult");
     case "edit_article":
-      return "修改正文";
+      return t("optimize.callEditArticle");
     case "apply_chapter_patches":
-      return "应用局部补丁";
+      return t("optimize.applyPatches");
     default:
-      return tool || "工具";
+      return tool || t("optimize.kindTool");
   }
 }
 
@@ -577,28 +542,34 @@ function numberField(record: Record<string, unknown>, key: string): number | nul
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function formatIssueList(rawIssues: unknown[]): string {
+function formatIssueList(rawIssues: unknown[], t: MessageTranslator): string {
   const issues = parseOptimizeIssues(rawIssues);
-  if (issues.length === 0) return "本次分析未发现明确问题。";
+  if (issues.length === 0) return t("optimize.noIssues");
   return [
-    `发现 ${issues.length} 个问题：`,
+    t("optimize.issueCount", { count: issues.length }),
     ...issues.map((issue, index) => {
       const severity = issue.severity ? ` / ${issue.severity}` : "";
-      return `${index + 1}. ${issue.description || "（无描述）"}（${issue.tool}${severity}，id: ${issue.id}）`;
+      return t("optimize.issueLine", {
+        index: index + 1,
+        description: issue.description || t("optimize.issueDescriptionMissing"),
+        tool: issue.tool,
+        severity,
+        id: issue.id,
+      });
     }),
   ].join("\n");
 }
 
-export function patchOperationLabel(operation: string): string {
+export function patchOperationLabel(operation: string, t: MessageTranslator): string {
   switch (operation) {
     case "replace":
-      return "修改";
+      return t("optimize.operationReplace");
     case "delete":
-      return "删除";
+      return t("optimize.operationDelete");
     case "insert_before":
-      return "前插";
+      return t("optimize.operationInsertBefore");
     case "insert_after":
-      return "后插";
+      return t("optimize.operationInsertAfter");
     default:
       return operation;
   }

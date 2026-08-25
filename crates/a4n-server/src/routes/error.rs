@@ -120,6 +120,16 @@ impl ApiError {
             details: Map::new(),
         }
     }
+
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self {
+            status: StatusCode::CONFLICT,
+            code: "conflict",
+            message: message.into(),
+            retryable: false,
+            details: Map::new(),
+        }
+    }
 }
 
 impl fmt::Display for ApiError {

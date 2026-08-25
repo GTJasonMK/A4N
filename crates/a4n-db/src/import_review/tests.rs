@@ -1,8 +1,9 @@
 use super::{
     ImportReviewCreateInput, ImportReviewMutationError, accept_import_review,
-    chapter::required_import_chapter_number, create_import_reviews, reject_import_review,
+    chapter::required_import_chapter_number, create_import_reviews,
+    import_review_project_ids_by_ids, reject_import_review,
 };
-use crate::project::{CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG, create_project_record};
+use crate::project::{CreateProjectRecordInput, create_project_record};
 use a4n_core::models::chapter::chapter;
 use a4n_domain::import_review::ImportReviewStatus;
 use sea_orm::EntityTrait;
@@ -25,7 +26,7 @@ async fn review_transitions_are_atomic_and_single_use() {
             user_id: 1,
             title: "导入审核事务测试".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -47,6 +48,20 @@ async fn review_transitions_are_atomic_and_single_use() {
     )
     .await
     .expect("reviews must be created");
+    assert_eq!(
+        reviews
+            .iter()
+            .map(|review| review.analysis_result["chapter_number"].as_i64())
+            .collect::<Vec<_>>(),
+        vec![Some(1), Some(2), Some(3)]
+    );
+    let loaded = import_review_project_ids_by_ids(&db, &[reviews[2].id, reviews[0].id])
+        .await
+        .expect("batch review lookup must succeed");
+    assert_eq!(
+        loaded,
+        vec![(reviews[0].id, project_id), (reviews[2].id, project_id)]
+    );
 
     let (left, right) = tokio::join!(
         accept_import_review(&db, reviews[0].id, None),

@@ -81,13 +81,33 @@ pub(super) async fn attach_chapter_sync_state(
     let Some(project_id) = chapters.first().map(|chapter| chapter.project_id) else {
         return Ok(());
     };
-    attach_chapter_content_sync_state(state, project_id, chapters, summaries).await?;
-    let runs = state
+    let analysis_runs = state
         .orchestrator()
         .workflow_runs_by_project_kind(project_id, "chapter_analysis")
         .await?;
+    let content_runs = state
+        .orchestrator()
+        .workflow_runs_by_project_kind(project_id, CHAPTER_CONTENT_SYNC_WORKFLOW_KIND)
+        .await?;
+    let run_ids = analysis_runs
+        .iter()
+        .chain(&content_runs)
+        .map(|run| run.id)
+        .collect::<Vec<_>>();
+    let checkpoints = state
+        .orchestrator()
+        .workflow_checkpoint_models_for_runs(&run_ids)
+        .await?;
+    let mut checkpoints_by_run = HashMap::<i64, Vec<workflow_checkpoint::Model>>::new();
+    for checkpoint in checkpoints {
+        checkpoints_by_run
+            .entry(checkpoint.workflow_run_id)
+            .or_default()
+            .push(checkpoint);
+    }
+    attach_chapter_content_sync_state(chapters, summaries, &content_runs, &checkpoints_by_run)?;
     let mut latest_by_chapter = HashMap::new();
-    for run in runs {
+    for run in analysis_runs {
         let Some(chapter_id) = run.chapter_id else {
             continue;
         };
@@ -108,14 +128,13 @@ pub(super) async fn attach_chapter_sync_state(
             summary.material_sync.scenes = ChapterMaterialSyncStatus::NeedsAnalysis;
             continue;
         }
+        let checkpoints = checkpoints_by_run
+            .get(&run.id)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         let has_saved_analysis = state
             .orchestrator()
-            .chapter_analysis_run_has_saved_analysis(run, chapter)
-            .await?;
-        let checkpoints = state
-            .orchestrator()
-            .workflow_checkpoint_models(run.id)
-            .await?;
+            .chapter_analysis_run_has_saved_analysis_from_checkpoints(run, chapter, checkpoints)?;
 
         summary.analysis_sync_status = Some(run.status.clone());
         summary.analysis_sync_can_resume = run.can_resume;
@@ -130,16 +149,12 @@ pub(super) async fn attach_chapter_sync_state(
     Ok(())
 }
 
-async fn attach_chapter_content_sync_state(
-    state: &AppState,
-    project_id: i64,
+fn attach_chapter_content_sync_state(
     chapters: &[chapter::Model],
     summaries: &mut [ChapterSummary],
+    runs: &[workflow_run::Model],
+    checkpoints_by_run: &HashMap<i64, Vec<workflow_checkpoint::Model>>,
 ) -> Result<(), AppError> {
-    let runs = state
-        .orchestrator()
-        .workflow_runs_by_project_kind(project_id, CHAPTER_CONTENT_SYNC_WORKFLOW_KIND)
-        .await?;
     let mut latest_by_chapter = HashMap::new();
     for run in runs {
         let Some(chapter_id) = run.chapter_id else {
@@ -154,10 +169,10 @@ async fn attach_chapter_content_sync_state(
         if !chapter_content_sync_run_input_matches(&run.input_fingerprint_json, chapter) {
             continue;
         }
-        let checkpoints = state
-            .orchestrator()
-            .workflow_checkpoint_models(run.id)
-            .await?;
+        let checkpoints = checkpoints_by_run
+            .get(&run.id)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         let checkpoint_by_step = checkpoints
             .iter()
             .map(|checkpoint| (checkpoint.step_key.as_str(), checkpoint))

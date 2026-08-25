@@ -1,23 +1,18 @@
-use a4n_core::models::{
-    chapter::chapter,
-    project::{novel_project, source_snapshot_chapter},
-};
+use a4n_core::models::{chapter::chapter, project::source_snapshot_chapter};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
-use super::{VideoDbError, validate_positive_video_i64};
+use super::{
+    VideoDbError, VideoProjectIdentity, validate_positive_video_i64, video_project_record,
+};
 
 pub async fn project_and_chapter_for_video_source(
     db: &DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
-) -> Result<(novel_project::Model, chapter::Model), VideoDbError> {
+) -> Result<(VideoProjectIdentity, chapter::Model), VideoDbError> {
     validate_positive_video_i64(project_id, "project_id")?;
     validate_positive_video_i64(chapter_id, "chapter_id")?;
-    let project = novel_project::Entity::find_by_id(project_id)
-        .one(db)
-        .await
-        .map_err(VideoDbError::Database)?
-        .ok_or_else(|| VideoDbError::NotFound(format!("项目不存在: {project_id}")))?;
+    let project = video_project_record(db, project_id).await?;
     let chapter = chapter::Entity::find_by_id(chapter_id)
         .one(db)
         .await

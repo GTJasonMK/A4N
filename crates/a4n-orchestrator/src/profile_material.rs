@@ -2,12 +2,12 @@ use a4n_api_contract::profile::{
     ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
     ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
 };
-pub use a4n_db::profile_material::{
-    ProfileMaterialDbError, ProfileMaterialListRows, generated_image_profile_material_identity,
-    is_project_reusable_video_material_image, profile_material_identity,
+pub(crate) use a4n_db::profile_material::{
+    generated_image_profile_material_identity, is_project_reusable_video_material_image,
+    profile_material_identity,
 };
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::Write;
 use std::path::Path;
 
@@ -17,7 +17,11 @@ use a4n_core::{
         create_unique_timestamped_file, paths::ProjectPaths, persist_created_media_file,
         remove_existing_data_file,
     },
-    models::{ai::generated_image, asset::object_profile, scene::scene_profile},
+    models::{
+        ai::generated_image,
+        asset::{object_profile, profile_primary_material},
+        scene::scene_profile,
+    },
     source_spans::source_text_hash as source_content_sha256,
 };
 use a4n_db::video::CreateGeneratedImageRecordDraftInput;
@@ -33,24 +37,26 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
+    asset::asset_error,
     collaboration::ProjectAccessRole,
     media::{decode_uploaded_image_data, generated_image_summary},
+    scene_profile::scene_profile_db_error,
 };
 
 const MANUAL_UPLOAD_MODEL: &str = "manual_upload";
 const MAX_UPLOAD_IMAGE_BYTES: usize = 20 * 1024 * 1024;
 
 struct PersistProfileMaterialImageInput<'a> {
-    pub project_id: i64,
-    pub profile_kind: &'a str,
-    pub profile_id: i64,
-    pub extension: &'a str,
-    pub bytes: &'a [u8],
+    project_id: i64,
+    profile_kind: &'a str,
+    profile_id: i64,
+    extension: &'a str,
+    bytes: &'a [u8],
 }
 
 struct PersistedProfileMaterialImage {
-    pub relative_path: String,
-    pub file_size: i64,
+    relative_path: String,
+    file_size: i64,
 }
 
 struct ProfileMaterialSource {
@@ -66,14 +72,14 @@ struct ProfileMaterialGroupProjection {
 }
 
 #[derive(Debug, Clone)]
-pub struct ProfileMaterialStyleMetadata {
-    pub style_template_id: Option<String>,
-    pub style_template_name: Option<String>,
-    pub style_template_version: Option<String>,
-    pub custom_style: Option<String>,
+pub(crate) struct ProfileMaterialStyleMetadata {
+    pub(crate) style_template_id: Option<String>,
+    pub(crate) style_template_name: Option<String>,
+    pub(crate) style_template_version: Option<String>,
+    pub(crate) custom_style: Option<String>,
 }
 
-pub fn profile_material_metadata(
+pub(crate) fn profile_material_metadata(
     kind: ProfileMaterialKind,
     profile_id: i64,
     profile_name: &str,
@@ -105,7 +111,10 @@ pub fn profile_material_metadata(
     Value::Object(metadata)
 }
 
-pub fn scene_profile_image_prompt(profile: &scene_profile::Model, style: Option<&str>) -> String {
+pub(crate) fn scene_profile_image_prompt(
+    profile: &scene_profile::Model,
+    style: Option<&str>,
+) -> String {
     let style = style
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -128,7 +137,10 @@ pub fn scene_profile_image_prompt(profile: &scene_profile::Model, style: Option<
     )
 }
 
-pub fn object_profile_image_prompt(profile: &object_profile::Model, style: Option<&str>) -> String {
+pub(crate) fn object_profile_image_prompt(
+    profile: &object_profile::Model,
+    style: Option<&str>,
+) -> String {
     let style = style
         .map(str::trim)
         .filter(|value| !value.is_empty())
@@ -152,7 +164,7 @@ pub fn object_profile_image_prompt(profile: &object_profile::Model, style: Optio
     )
 }
 
-pub fn scene_profile_content(profile: &scene_profile::Model) -> String {
+pub(crate) fn scene_profile_content(profile: &scene_profile::Model) -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         profile.name,
@@ -166,7 +178,7 @@ pub fn scene_profile_content(profile: &scene_profile::Model) -> String {
     )
 }
 
-pub fn object_profile_content(profile: &object_profile::Model) -> String {
+pub(crate) fn object_profile_content(profile: &object_profile::Model) -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}\n{}\n{}",
         profile.name,
@@ -375,11 +387,14 @@ impl OrchestratorContext {
         profile_id: i64,
     ) -> Result<i64, AppError> {
         let count = self
-            .profile_material_images_by_type(project_id, image_type_for_profile_material_kind(kind))
+            .profile_material_image_identity_rows_by_type(
+                project_id,
+                image_type_for_profile_material_kind(kind),
+            )
             .await?
             .into_iter()
             .filter(|image| {
-                generated_image_profile_material_identity(image)
+                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
                     == Some((kind.as_str(), profile_id))
             })
             .count();
@@ -398,21 +413,24 @@ impl OrchestratorContext {
         if profile_ids.is_empty() {
             return Ok(BTreeMap::new());
         }
-        let requested = profile_ids.iter().copied().collect::<BTreeSet<_>>();
-        let mut counts = BTreeMap::new();
+        let requested = profile_ids.iter().copied().collect::<HashSet<_>>();
+        let mut counts = HashMap::new();
         for image in self
-            .profile_material_images_by_type(project_id, image_type_for_profile_material_kind(kind))
+            .profile_material_image_identity_rows_by_type(
+                project_id,
+                image_type_for_profile_material_kind(kind),
+            )
             .await?
         {
             if let Some((image_kind, profile_id)) =
-                generated_image_profile_material_identity(&image)
+                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
                 && image_kind == kind.as_str()
                 && requested.contains(&profile_id)
             {
                 *counts.entry(profile_id).or_insert(0) += 1;
             }
         }
-        Ok(counts)
+        Ok(counts.into_iter().collect())
     }
 
     pub async fn profile_material_image_ids(
@@ -422,11 +440,14 @@ impl OrchestratorContext {
         profile_id: i64,
     ) -> Result<Vec<i64>, AppError> {
         Ok(self
-            .profile_material_images_by_type(project_id, image_type_for_profile_material_kind(kind))
+            .profile_material_image_identity_rows_by_type(
+                project_id,
+                image_type_for_profile_material_kind(kind),
+            )
             .await?
             .into_iter()
             .filter(|image| {
-                generated_image_profile_material_identity(image)
+                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
                     == Some((kind.as_str(), profile_id))
             })
             .map(|image| image.id)
@@ -454,9 +475,29 @@ impl OrchestratorContext {
         kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<(), AppError> {
-        self.profile_material_source(project_id, kind, profile_id)
+        let profile_project_id = match kind {
+            ProfileMaterialKind::Scene => a4n_db::scene_profile::scene_profile_project_id(
+                self.database.connection(),
+                profile_id,
+            )
             .await
-            .map(|_| ())
+            .map_err(scene_profile_db_error)?,
+            ProfileMaterialKind::Object => {
+                a4n_db::asset::object_profile_project_id(self.database.connection(), profile_id)
+                    .await
+                    .map_err(asset_error)?
+            }
+        };
+        if profile_project_id != project_id {
+            let label = match kind {
+                ProfileMaterialKind::Scene => "场景档案",
+                ProfileMaterialKind::Object => "物体档案",
+            };
+            return Err(AppError::InvalidArgument(format!(
+                "{label} #{profile_id} 不属于项目 {project_id}"
+            )));
+        }
+        Ok(())
     }
 
     async fn profile_material_source(
@@ -493,21 +534,18 @@ impl OrchestratorContext {
         kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<Option<ProfileMaterialGroup>, AppError> {
-        Ok(self
-            .profile_material_groups(ListProfileMaterialsInput {
-                project_id,
-                kind: match kind {
-                    ProfileMaterialKind::Scene => ProfileMaterialKindFilter::Scene,
-                    ProfileMaterialKind::Object => ProfileMaterialKindFilter::Object,
-                },
-                query: None,
-                filter: ProfileMaterialFilter::All,
-                sort: ProfileMaterialSort::MissingFirst,
-                image_limit_per_profile: 32,
-            })
-            .await?
-            .into_iter()
-            .find(|group| group.profile.id == profile_id))
+        let source = self
+            .profile_material_source(project_id, kind, profile_id)
+            .await?;
+        let rows = self
+            .profile_material_list_rows(project_id, &[image_type_for_profile_material_kind(kind)])
+            .await?;
+        Ok(
+            profile_material_group_projections(vec![source], rows.images, rows.primary_rows, 32)
+                .into_iter()
+                .next()
+                .map(|projection| projection.group),
+        )
     }
 
     async fn profile_material_groups(
@@ -534,38 +572,19 @@ impl OrchestratorContext {
             );
         }
 
-        let rows = self
-            .profile_material_list_rows(
-                input.project_id,
-                &[IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_OBJECT_MATERIAL],
-            )
-            .await?;
-        let mut images_by_profile: BTreeMap<(String, i64), Vec<generated_image::Model>> =
-            BTreeMap::new();
-        for image in rows.images {
-            if let Some((kind, profile_id)) = generated_image_profile_material_identity(&image) {
-                images_by_profile
-                    .entry((kind.to_string(), profile_id))
-                    .or_default()
-                    .push(image);
-            }
-        }
-        let primary_by_profile = rows
-            .primary_rows
-            .into_iter()
-            .map(|row| ((row.profile_kind, row.profile_id), row.primary_image_id))
-            .collect::<BTreeMap<_, _>>();
-        let mut groups = sources
-            .into_iter()
-            .map(|source| {
-                material_group(
-                    source,
-                    &mut images_by_profile,
-                    &primary_by_profile,
-                    image_limit,
-                )
-            })
+        let image_types = kinds
+            .iter()
+            .map(|kind| image_type_for_profile_material_kind(*kind))
             .collect::<Vec<_>>();
+        let rows = self
+            .profile_material_list_rows(input.project_id, &image_types)
+            .await?;
+        let mut groups = profile_material_group_projections(
+            sources,
+            rows.images,
+            rows.primary_rows,
+            image_limit,
+        );
         apply_group_filters(&mut groups, input.query.as_deref(), input.filter);
         apply_group_sort(&mut groups, input.sort);
         Ok(groups
@@ -646,10 +665,42 @@ fn object_source_from_model(profile: object_profile::Model) -> ProfileMaterialSo
     }
 }
 
+fn profile_material_group_projections(
+    sources: Vec<ProfileMaterialSource>,
+    images: Vec<generated_image::Model>,
+    primary_rows: Vec<profile_primary_material::Model>,
+    image_limit: usize,
+) -> Vec<ProfileMaterialGroupProjection> {
+    let mut images_by_profile: HashMap<(String, i64), Vec<generated_image::Model>> = HashMap::new();
+    for image in images {
+        if let Some((kind, profile_id)) = generated_image_profile_material_identity(&image) {
+            images_by_profile
+                .entry((kind.to_string(), profile_id))
+                .or_default()
+                .push(image);
+        }
+    }
+    let primary_by_profile = primary_rows
+        .into_iter()
+        .map(|row| ((row.profile_kind, row.profile_id), row.primary_image_id))
+        .collect::<HashMap<_, _>>();
+    sources
+        .into_iter()
+        .map(|source| {
+            material_group(
+                source,
+                &mut images_by_profile,
+                &primary_by_profile,
+                image_limit,
+            )
+        })
+        .collect()
+}
+
 fn material_group(
     source: ProfileMaterialSource,
-    images_by_profile: &mut BTreeMap<(String, i64), Vec<generated_image::Model>>,
-    primary_by_profile: &BTreeMap<(String, i64), i64>,
+    images_by_profile: &mut HashMap<(String, i64), Vec<generated_image::Model>>,
+    primary_by_profile: &HashMap<(String, i64), i64>,
     image_limit: usize,
 ) -> ProfileMaterialGroupProjection {
     let key = (source.kind.as_str().to_string(), source.profile.id);
@@ -1040,11 +1091,11 @@ mod tests {
                 .and_hms_opt(0, 0, 0)
                 .unwrap(),
         };
-        let mut images = BTreeMap::from([(
+        let mut images = HashMap::from([(
             (PROFILE_KIND_SCENE.to_string(), 1),
             vec![image(1, 1, false), image(2, 2, true)],
         )]);
-        let primary = BTreeMap::from([((PROFILE_KIND_SCENE.to_string(), 1), 1)]);
+        let primary = HashMap::from([((PROFILE_KIND_SCENE.to_string(), 1), 1)]);
 
         let projection = material_group(source, &mut images, &primary, 1);
 

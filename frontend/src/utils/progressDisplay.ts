@@ -13,7 +13,6 @@ interface ProgressDisplayInput {
   fallbackStage?: string;
 }
 
-const DEFAULT_STAGE = "任务执行中";
 const MAX_STREAM_LINE_CHARS = 180;
 
 const normalizeProgressText = (text?: string | null): string =>
@@ -34,12 +33,12 @@ export const progressDisplayText = ({
   message,
   streamText,
   stageHint,
-  fallbackStage = DEFAULT_STAGE,
+  fallbackStage = "",
 }: ProgressDisplayInput): ProgressDisplayText => {
   const normalizedMessage = normalizeProgressText(message);
   const normalizedStreamText = normalizeProgressText(streamText);
   const normalizedStageHint = normalizeProgressText(stageHint);
-  const stage = normalizedStageHint || normalizeProgressText(fallbackStage) || DEFAULT_STAGE;
+  const stage = normalizedStageHint || normalizeProgressText(fallbackStage);
 
   if (
     normalizedStreamText &&

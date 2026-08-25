@@ -6,6 +6,7 @@ import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
 import { parseNumberInput, type NumberInputValue } from "./outlineTabUtils";
 import type { PartOutline } from "../../../api/outline";
+import { useI18n } from "../../../i18n";
 
 interface PartOutlineSectionProps {
   parts: PartOutline[];
@@ -40,17 +41,22 @@ export function PartOutlineSection({
   onOpenAdvanced,
   onOpenPart,
 }: PartOutlineSectionProps) {
+  const { t } = useI18n();
   const [generationOpen, setGenerationOpen] = useState(parts.length === 0);
   const hasParts = parts.length > 0;
-  const generationActionLabel = hasParts ? "追加分部" : "生成分部";
+  const generationActionLabel = hasParts
+    ? t("outline.partSection.appendAction")
+    : t("outline.partSection.generateAction");
 
   return (
     <section className="space-y-2.5">
       <header className="flex items-start justify-between gap-3 px-1">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-book-text-main">分部大纲</h2>
+          <h2 className="text-sm font-semibold text-book-text-main">{t("outline.partSection.title")}</h2>
           <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-            {hasParts ? `共 ${parts.length} 部，按故事阶段组织章节` : "先规划故事的阶段与章节范围"}
+            {hasParts
+              ? t("outline.partSection.summary", { count: parts.length })
+              : t("outline.partSection.emptySummary")}
           </p>
         </div>
         {canEdit ? (
@@ -61,10 +67,10 @@ export function PartOutlineSection({
               onClick={onCreatePart}
               disabled={disabled}
             >
-              <Plus size={13} /> 直接录入
+              <Plus size={13} /> {t("outline.partSection.directEntry")}
             </BookButton>
             <BookIconButton
-              label="打开大纲高级工具"
+              label={t("outline.partSection.openAdvanced")}
               onClick={onOpenAdvanced}
               disabled={disabled}
               variant="ghost"
@@ -84,11 +90,11 @@ export function PartOutlineSection({
         >
           <summary className="flex cursor-pointer items-center justify-between gap-3 py-1 text-xs font-medium text-book-text-sub">
             <span>{generationActionLabel}</span>
-            <span className="text-caption font-normal text-book-text-muted">设置部数与章节范围</span>
+            <span className="text-caption font-normal text-book-text-muted">{t("outline.partSection.settingsHint")}</span>
           </summary>
           <div className="mt-3 grid grid-cols-1 items-end gap-3 border-t border-book-border/35 pt-3 md:grid-cols-[minmax(10rem,1fr)_minmax(10rem,1fr)_auto]">
             <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
-              {hasParts ? "本次追加部数" : "生成部数"}
+              {hasParts ? t("outline.partSection.appendCount") : t("outline.partSection.generateCount")}
               <input
                 type="number"
                 min={1}
@@ -100,12 +106,12 @@ export function PartOutlineSection({
               />
             </label>
             <label className="flex min-w-0 flex-col gap-1 text-small text-book-text-muted">
-              每部章节数
+              {t("outline.partSection.chaptersPerPart")}
               <input
                 type="number"
                 min={1}
                 step={1}
-                placeholder={defaultChaptersPerPart === "" ? "自动规划" : undefined}
+                placeholder={defaultChaptersPerPart === "" ? t("outline.partSection.autoPlan") : undefined}
                 value={chaptersPerPart}
                 disabled={disabled}
                 onChange={(event) =>
@@ -117,7 +123,7 @@ export function PartOutlineSection({
             <div className="flex items-center justify-end gap-2 md:pb-0">
               {!generating ? (
                 <BookIconButton
-                  label={hasParts ? "查看追加请求" : "查看生成请求"}
+                  label={hasParts ? t("outline.partSection.viewAppendRequest") : t("outline.partSection.viewGenerateRequest")}
                   variant="secondary"
                   size="md"
                   onClick={onPreviewGenerate}
@@ -137,7 +143,7 @@ export function PartOutlineSection({
                 {generating ? (
                   <span className="inline-flex items-center gap-1.5">
                     <LoadingSpinner size="sm" />
-                    {hasParts ? "追加中…" : "生成中…"}
+                    {hasParts ? t("outline.partSection.appending") : t("outline.partSection.generating")}
                   </span>
                 ) : (
                   generationActionLabel
@@ -149,7 +155,7 @@ export function PartOutlineSection({
       ) : null}
 
       {parts.length === 0 ? (
-        <EmptyHint text="尚未建立分部大纲。" />
+        <EmptyHint text={t("outline.partSection.empty")} />
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
           {parts.map((part) => (
@@ -165,15 +171,18 @@ export function PartOutlineSection({
                 }
               }}
               className="flex min-h-14 cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
-              title="查看分部大纲详情"
+              title={t("outline.partSection.viewDetails")}
             >
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-book-text-main">
-                  第 {part.part_number} 部
+                  {t("outline.partSection.part", { part: part.part_number })}
                   {nonEmptyText(part.title) ? ` · ${nonEmptyText(part.title)}` : ""}
                 </div>
                 <div className="mt-0.5 text-caption text-book-text-muted">
-                  第 {part.start_chapter}-{part.end_chapter} 章
+                  {t("outline.partSection.chapterRange", {
+                    start: part.start_chapter,
+                    end: part.end_chapter,
+                  })}
                 </div>
                 {nonEmptyText(part.summary) ? (
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">

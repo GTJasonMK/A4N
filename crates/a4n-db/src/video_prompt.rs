@@ -7,20 +7,20 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::video::{self, VideoDbError};
 
-async fn lock_chapter_video_prompt_scope<C>(
-    db: &C,
-    chapter_id: i64,
-) -> Result<chapter::Model, VideoDbError>
+async fn lock_chapter_video_prompt_scope<C>(db: &C, chapter_id: i64) -> Result<String, VideoDbError>
 where
     C: ConnectionTrait,
 {
-    let query = chapter::Entity::find_by_id(chapter_id);
+    let query = chapter::Entity::find_by_id(chapter_id)
+        .select_only()
+        .column(chapter::Column::Content);
     let query = if db.get_database_backend() == DbBackend::Sqlite {
         query
     } else {
         query.lock_exclusive()
     };
     query
+        .into_tuple::<String>()
         .one(db)
         .await
         .map_err(VideoDbError::Database)?
@@ -126,10 +126,13 @@ enum PromptStage {
 }
 
 mod dependencies;
+pub(crate) use dependencies::generated_frame_images_for_prompts;
 pub use dependencies::{
-    chapter_video_prompt_has_generated_frame_image, delete_chapter_video_prompts_with_policy,
-    effective_frame_prompt_image_reference_ids, ensure_chapter_video_prompt_stage_mutable,
-    ensure_chapter_video_prompt_stage_mutable_ignoring,
+    delete_chapter_video_prompts_with_policy, effective_frame_prompt_image_reference_ids,
+    ensure_chapter_video_prompt_stage_mutable, ensure_chapter_video_prompt_stage_mutable_ignoring,
+    ensure_chapter_video_prompt_stages_mutable,
+    ensure_chapter_video_prompt_stages_mutable_ignoring,
+    ensure_chapter_video_prompt_stages_mutable_skipping_generated_images,
     ensure_frame_prompt_image_generation_allowed, prompt_downstream_dependencies,
 };
 

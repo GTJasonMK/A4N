@@ -6,7 +6,7 @@ use serde_json::Value;
 use a4n_core::source_spans::SourceSpan;
 
 use super::common::{
-    reject_manga_unknown_fields, required_manga_enum, required_manga_string,
+    SourceSpanIndex, reject_manga_unknown_fields, required_manga_enum, required_manga_string,
     validate_manga_beat_ref, validate_manga_beat_refs, validate_manga_nonnegative_index,
     validate_manga_nullable_string, validate_manga_source_span_id_array,
 };
@@ -22,6 +22,7 @@ pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
         .ok_or_else(|| {
             AppError::InvalidArgument("manga_visual_anchor_extraction.scenes 必须是数组".into())
         })?;
+    let source_spans = SourceSpanIndex::new(source_spans);
     for (index, scene) in scenes.iter().enumerate() {
         let path = format!("manga_visual_anchor_extraction.scenes[{index}]");
         reject_manga_unknown_fields(
@@ -52,7 +53,7 @@ pub(in crate::manga) fn validate_manga_visual_anchor_source_span_ids(
         required_manga_string(scene, "description", &path)?;
         validate_manga_source_span_id_array(
             scene,
-            source_spans,
+            &source_spans,
             &format!("{path}.source_span_ids"),
         )?;
         validate_manga_beat_refs(scene.get("beat_refs"), &format!("{path}.beat_refs"))?;
@@ -72,6 +73,7 @@ pub(in crate::manga) fn validate_manga_item_extraction_source_span_ids(
         .ok_or_else(|| {
             AppError::InvalidArgument("manga_item_extraction.items 必须是数组".into())
         })?;
+    let source_spans = SourceSpanIndex::new(source_spans);
     let allowed = allowed_source_span_ids
         .iter()
         .map(String::as_str)
@@ -97,7 +99,7 @@ pub(in crate::manga) fn validate_manga_item_extraction_source_span_ids(
         required_manga_string(item, "importance", &path)?;
         required_manga_string(item, "visual_features", &path)?;
         let source_span_path = format!("{path}.source_span_ids");
-        validate_manga_source_span_id_array(item, source_spans, &source_span_path)?;
+        validate_manga_source_span_id_array(item, &source_spans, &source_span_path)?;
         validate_manga_beat_ref(
             item.get("first_appearance_beat_ref"),
             &format!("{path}.first_appearance_beat_ref"),

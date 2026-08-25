@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, source_spans::SourceSpan};
+use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
 use serde_json::Value;
 
 #[path = "rules.rs"]
@@ -13,7 +13,7 @@ use super::super::super::values::{
 pub(super) fn materialize_key_event(
     event: &mut Value,
     index: usize,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let object = event.as_object_mut().ok_or_else(|| {
         analysis_materialize_error(format!("key_events[{index}] 必须是 JSON 对象"))

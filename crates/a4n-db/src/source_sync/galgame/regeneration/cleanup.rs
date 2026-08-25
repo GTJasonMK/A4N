@@ -1,5 +1,5 @@
 use a4n_core::models::galgame::{galgame_choice, galgame_line};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::source_sync::galgame::{
     bound_media_asset_ids_for_galgame_scene, delete_media_binding_records_for_galgame_scene,
@@ -22,12 +22,14 @@ pub(super) async fn cleanup_galgame_scene_regeneration_records<C>(
 where
     C: ConnectionTrait,
 {
-    let old_lines = galgame_line::Entity::find()
+    let old_line_ids = galgame_line::Entity::find()
+        .select_only()
+        .column(galgame_line::Column::Id)
         .filter(galgame_line::Column::SceneId.eq(scene_id))
         .order_by_asc(galgame_line::Column::LineIndex)
+        .into_tuple::<i64>()
         .all(db)
         .await?;
-    let old_line_ids = old_lines.iter().map(|line| line.id).collect::<Vec<_>>();
     let mut generation_spec_ids =
         galgame_generation_spec_ids_for_scene(db, project_id, scene_id, &old_line_ids).await?;
     let portrait_generation_spec_ids =

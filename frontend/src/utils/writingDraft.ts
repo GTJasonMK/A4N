@@ -4,6 +4,7 @@ import {
   removePortableItem,
   writePortableItem,
 } from "./portableStorage";
+import { getActiveLocale, translateMessage } from "../i18n";
 
 type LocalDraft = {
   content: string;
@@ -78,7 +79,7 @@ export const readWritingDraft = (key: string): LocalDraft | null => {
     typeof parsed.content !== "string" ||
     typeof parsed.updatedAt !== "string"
   ) {
-    throw new Error("写作草稿格式无效");
+    throw new Error(translateMessage(getActiveLocale(), "errors.writingDraftInvalid"));
   }
   return {
     content: parsed.content,

@@ -11,6 +11,7 @@ import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { nonEmptyText } from "../../utils/text";
 import { SceneEditForm } from "./SceneEditForm";
 import type { SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
+import { formatNumber, useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
 
 interface SceneListProps {
   loading: boolean;
@@ -47,10 +48,11 @@ export const SceneList: React.FC<SceneListProps> = ({
   onMove,
   onDelete,
 }) => {
+  const { t } = useI18n();
   if (loading && scenes.length === 0) {
     return (
       <div className="py-6 text-center text-xs text-book-text-muted inline-flex items-center justify-center gap-2">
-        <LoadingSpinner size="sm" /> 加载场景…
+        <LoadingSpinner size="sm" /> {t("scenes.loading")}
       </div>
     );
   }
@@ -66,7 +68,7 @@ export const SceneList: React.FC<SceneListProps> = ({
   if (scenes.length === 0) {
     return (
       <div className="py-8 text-center text-sm text-book-text-muted">
-        本章尚未拆分场景。
+        {t("scenes.empty")}
       </div>
     );
   }
@@ -132,31 +134,32 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
   onMove,
   onDelete,
 }) => {
+  const { locale, t } = useI18n();
   const actionBusy = actingKeys.has(`move-${scene.id}`) || actingKeys.has(`del-${scene.id}`);
   const actionItems: DropdownItem[] = [];
 
   if (!isFirst) {
     actionItems.push({
-      label: "上移场景",
+      label: t("scenes.moveUp"),
       icon: <ChevronsUp size={12} />,
       onClick: () => onMove(scene, -1),
     });
   }
   if (!isLast) {
     actionItems.push({
-      label: "下移场景",
+      label: t("scenes.moveDown"),
       icon: <ChevronsDown size={12} />,
       onClick: () => onMove(scene, 1),
     });
   }
   actionItems.push({
-    label: "编辑场景",
+    label: t("scenes.edit"),
     icon: <Pencil size={12} />,
     onClick: () => onStartEdit(scene),
   });
   actionItems.push({ type: "divider" });
   actionItems.push({
-    label: "删除场景",
+    label: t("scenes.delete"),
     icon: <Trash2 size={12} />,
     danger: true,
     onClick: () => onDelete(scene),
@@ -174,13 +177,13 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
         </button>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-book-text-main">
-            {nonEmptyText(scene.title) ?? "未命名场景"}
+            {nonEmptyText(scene.title) ?? t("scenes.unnamed")}
           </div>
           <div className="mt-0.5 truncate text-caption text-book-text-muted">
             {[
-              `场景 ${scene.scene_number}`,
-              scene.scene_type ? sceneTypeLabel(scene.scene_type) : null,
-              scene.word_count > 0 ? `${scene.word_count.toLocaleString()} 字` : null,
+              t("scenes.sceneNumber", { number: scene.scene_number }),
+              scene.scene_type ? sceneTypeLabel(scene.scene_type, t) : null,
+              scene.word_count > 0 ? t("scenes.wordCount", { count: formatNumber(scene.word_count, locale) }) : null,
               scene.location || null,
             ]
               .filter(Boolean)
@@ -209,7 +212,7 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
             <>
               {scene.summary && (
                 <div className="mb-2 text-xs leading-relaxed text-book-text-sub">
-                  <span className="text-book-text-muted">摘要：</span>
+                  <span className="text-book-text-muted">{t("scenes.summaryLabel")}</span>
                   {scene.summary}
                 </div>
               )}
@@ -218,7 +221,7 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
                   {scene.content}
                 </pre>
               ) : (
-                <div className="text-xs text-error">场景正文缺失</div>
+                <div className="text-xs text-error">{t("scenes.contentMissing")}</div>
               )}
             </>
           ) : (
@@ -236,14 +239,16 @@ const SceneListItem: React.FC<SceneListItemProps> = ({
   );
 };
 
-const SCENE_TYPE_LABELS: Record<string, string> = {
-  dialog: "对话",
-  action: "行动",
-  introspection: "内心",
-  exposition: "叙述",
-  transition: "过渡",
-  climax: "高潮",
+const SCENE_TYPE_LABELS: Record<string, MessageKey> = {
+  dialog: "scenes.typeDialog",
+  action: "scenes.typeAction",
+  introspection: "scenes.typeIntrospection",
+  exposition: "scenes.typeExposition",
+  transition: "scenes.typeTransition",
+  climax: "scenes.typeClimax",
 };
 
-const sceneTypeLabel = (value: string): string =>
-  SCENE_TYPE_LABELS[value.trim().toLowerCase()] ?? "其他场景";
+const sceneTypeLabel = (value: string, t: MessageTranslator): string => {
+  const key = SCENE_TYPE_LABELS[value.trim().toLowerCase()];
+  return key ? t(key) : t("scenes.otherType");
+};

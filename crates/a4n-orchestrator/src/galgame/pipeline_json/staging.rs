@@ -66,7 +66,7 @@ pub fn character_staging_from_value(
             Ok(GalgamePipelineBranchSceneLineStaged { branch_id, lines })
         })
         .collect::<Result<Vec<_>, AppError>>()?;
-    let mut branch_ids = std::collections::BTreeSet::new();
+    let mut branch_ids = std::collections::HashSet::new();
     for branch in &branch_scene_lines {
         if !branch_ids.insert(branch.branch_id.as_str()) {
             return Err(invalid(format!(

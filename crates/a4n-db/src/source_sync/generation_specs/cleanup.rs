@@ -1,13 +1,12 @@
-use super::references::generation_spec_for_source_sync_run;
+use super::references::generation_spec_id_for_source_sync_run;
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
 use a4n_core::models::{
     generation::prompt_artifact,
     source_sync::source_sync_run,
     video_project::{assembly_clip, video_segment},
 };
-use sea_orm::{
-    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
-};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
+use std::collections::HashSet;
 
 pub async fn delete_generation_spec_records<C>(
     db: &C,
@@ -48,33 +47,49 @@ pub async fn delete_local_generation_spec_record<C>(
 where
     C: ConnectionTrait,
 {
-    let spec = generation_spec_for_source_sync_run(db, run, generation_spec_id).await?;
+    let spec_id = generation_spec_id_for_source_sync_run(db, run, generation_spec_id).await?;
     let segments = video_segment::Entity::find()
-        .filter(video_segment::Column::SourceGenerationSpecId.eq(spec.id))
+        .select_only()
+        .column(video_segment::Column::Id)
+        .column(video_segment::Column::ResultMediaAssetId)
+        .filter(video_segment::Column::SourceGenerationSpecId.eq(spec_id))
+        .into_tuple::<(i64, Option<i64>)>()
         .all(db)
         .await?;
-    for segment in &segments {
-        if segment.result_media_asset_id.is_some() {
+    let segment_ids = segments.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+    let timeline_segment_ids = if segment_ids.is_empty() {
+        HashSet::new()
+    } else {
+        assembly_clip::Entity::find()
+            .select_only()
+            .column(assembly_clip::Column::SourceSegmentId)
+            .filter(assembly_clip::Column::SourceSegmentId.is_in(segment_ids.clone()))
+            .into_tuple::<Option<i64>>()
+            .all(db)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect()
+    };
+    for (segment_id, result_media_asset_id) in &segments {
+        if result_media_asset_id.is_some() {
             return Err(SourceSyncDbError::InvalidArgument(format!(
                 "视频片段 {} 已有结果媒体，不能 delete_local",
-                segment.id
+                segment_id
             )));
         }
-        let clip_count = assembly_clip::Entity::find()
-            .filter(assembly_clip::Column::SourceSegmentId.eq(segment.id))
-            .count(db)
-            .await?;
-        if clip_count > 0 {
+        if timeline_segment_ids.contains(segment_id) {
             return Err(SourceSyncDbError::InvalidArgument(format!(
                 "视频片段 {} 已进入时间线，不能 delete_local",
-                segment.id
+                segment_id
             )));
         }
     }
-    for segment in segments {
-        video_segment::Entity::delete_by_id(segment.id)
+    if !segment_ids.is_empty() {
+        video_segment::Entity::delete_many()
+            .filter(video_segment::Column::Id.is_in(segment_ids))
             .exec(db)
             .await?;
     }
-    delete_generation_spec_records(db, &[spec.id]).await
+    delete_generation_spec_records(db, &[spec_id]).await
 }

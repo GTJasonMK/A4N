@@ -2,7 +2,7 @@ use a4n_core::models::{
     project::{novel_project, project_source_snapshot},
     source_sync::source_sync_run,
 };
-use sea_orm::{ConnectionTrait, EntityTrait};
+use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 
 use crate::source_sync::snapshots::{
     calculate_source_sync_version_hash, parse_source_sync_chapter_scope,
@@ -29,6 +29,11 @@ where
         });
     }
     let derived_project = novel_project::Entity::find_by_id(run.derived_project_id)
+        .select_only()
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .column(novel_project::Column::SourceSyncStatus)
+        .into_tuple::<(Option<i64>, Option<i64>, String)>()
         .one(db)
         .await?
         .ok_or_else(|| {
@@ -39,29 +44,33 @@ where
     } else {
         run.from_snapshot_id
     };
-    if derived_project.root_project_id != Some(run.root_project_id)
-        || derived_project.source_snapshot_id != Some(expected_project_snapshot_id)
+    if derived_project.0 != Some(run.root_project_id)
+        || derived_project.1 != Some(expected_project_snapshot_id)
     {
         return Err(SourceSyncDbError::InvalidState {
             current: "source_sync_run_expired".to_string(),
             operation: "apply_source_sync_decisions".to_string(),
         });
     }
-    if derived_project.source_sync_status == SOURCE_SYNC_DETACHED {
+    if derived_project.2 == SOURCE_SYNC_DETACHED {
         return Err(SourceSyncDbError::InvalidState {
             current: SOURCE_SYNC_DETACHED.to_string(),
             operation: "apply_source_sync_decisions".to_string(),
         });
     }
     let target_snapshot = project_source_snapshot::Entity::find_by_id(run.to_snapshot_id)
+        .select_only()
+        .column(project_source_snapshot::Column::ChapterScopeJson)
+        .column(project_source_snapshot::Column::SourceVersionHash)
+        .into_tuple::<(serde_json::Value, String)>()
         .one(db)
         .await?
         .ok_or_else(|| {
             SourceSyncDbError::NotFound(format!("目标源快照不存在: {}", run.to_snapshot_id))
         })?;
-    let scope = parse_source_sync_chapter_scope(&target_snapshot.chapter_scope_json)?;
+    let scope = parse_source_sync_chapter_scope(&target_snapshot.0)?;
     let current_hash = calculate_source_sync_version_hash(db, run.root_project_id, scope).await?;
-    if current_hash != target_snapshot.source_version_hash {
+    if current_hash != target_snapshot.1 {
         return Err(SourceSyncDbError::InvalidState {
             current: "root_changed_after_dry_run".to_string(),
             operation: "apply_source_sync_decisions".to_string(),

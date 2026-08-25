@@ -1,21 +1,20 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        character::protagonist_profile,
-        project::{source_snapshot_chapter, text_anchor},
-    },
+use a4n_core::error::AppError;
+use a4n_db::galgame::{
+    GalgamePersistValidationScopeReadModel, GalgamePersistValidationSourceSnapshotChapterRecord,
+    GalgamePersistValidationSpeakerProfileRecord, GalgamePersistValidationTextAnchorRecord,
 };
-use a4n_db::galgame::GalgamePersistValidationScopeReadModel;
 use serde_json::Value;
 
 use crate::galgame::{GalgameScriptPersistPlan, OrchestratorContext};
 
 pub(in crate::galgame) struct GalgamePersistValidationScope {
-    pub(in crate::galgame) source_snapshot_chapters: BTreeMap<i64, source_snapshot_chapter::Model>,
-    pub(in crate::galgame) speaker_profiles: BTreeMap<i64, protagonist_profile::Model>,
-    pub(in crate::galgame) text_anchors: BTreeMap<i64, text_anchor::Model>,
+    pub(in crate::galgame) source_snapshot_chapters:
+        BTreeMap<i64, GalgamePersistValidationSourceSnapshotChapterRecord>,
+    pub(in crate::galgame) speaker_profiles:
+        BTreeMap<i64, GalgamePersistValidationSpeakerProfileRecord>,
+    pub(in crate::galgame) text_anchors: BTreeMap<i64, GalgamePersistValidationTextAnchorRecord>,
 }
 
 impl GalgamePersistValidationScope {

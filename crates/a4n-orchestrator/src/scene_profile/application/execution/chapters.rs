@@ -3,7 +3,10 @@ use a4n_core::structured_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::SceneProfileSyncHostPort;
-use super::super::context::build_scene_profile_sync_request;
+use super::super::context::{
+    build_scene_profile_sync_request, load_scene_profile_sync_anchor_context,
+    load_scene_profile_sync_stable_context,
+};
 use super::super::progress::{
     SCENE_PROFILE_SYNC_CHAPTER_END, SCENE_PROFILE_SYNC_CHAPTER_START,
     SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SCENE_PROFILE_SYNC_RAG_PROGRESS, SceneProfileSyncProgress,
@@ -24,17 +27,30 @@ pub(super) async fn sync_scene_profile_chapters(
     chapters: Vec<chapter::Model>,
     progress: Option<&SceneProfileSyncProgress<'_>>,
 ) -> Result<(), String> {
+    let stable = load_scene_profile_sync_stable_context(state, project_id).await?;
+    let anchors = load_scene_profile_sync_anchor_context(
+        state,
+        project_id,
+        &chapters,
+        ChapterAnchorMode::EnsureCurrent,
+    )
+    .await?;
     let chapter_count = chapters.len();
     let chapter_progress_span = ProgressSpan::new(
         SCENE_PROFILE_SYNC_CHAPTER_START,
         SCENE_PROFILE_SYNC_CHAPTER_END,
     );
     for (chapter_index, chapter) in chapters.into_iter().enumerate() {
+        let chapter_id = chapter.id;
         let context = build_scene_profile_sync_request(
             state,
             project_id,
             chapter,
-            ChapterAnchorMode::EnsureCurrent,
+            anchors
+                .get(&chapter_id)
+                .cloned()
+                .ok_or_else(|| "场景档案同步锚点批量读取缺少章节".to_string())?,
+            &stable,
         )
         .await?;
         let chapter_span = chapter_progress_span.split(chapter_index, chapter_count);

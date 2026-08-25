@@ -15,10 +15,7 @@ use a4n_db::{
         create_profile, create_profile_with_generation_run, profile_by_id, update_initial_profile,
     },
     generation::RecordCompletedGenerationRunInput,
-    project::{
-        ChapterSourceSnapshot, CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG,
-        create_project_record,
-    },
+    project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
 };
 use chrono::Duration;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
@@ -77,7 +74,7 @@ async fn character_sync_preserves_user_attribute_and_commits_other_steps() {
             user_id: 1,
             title: "角色冲突保留".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -244,7 +241,7 @@ async fn stale_chapter_source_rejects_entire_character_sync_transaction() {
             user_id: 1,
             title: "角色同步正文来源复验".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -377,7 +374,7 @@ async fn initial_profile_update_replaces_baseline_and_claims_user_ownership() {
             user_id: 1,
             title: "初始角色档案用户接管".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -466,7 +463,7 @@ async fn initial_profile_update_rejects_real_timeline_when_sync_marker_is_zero()
             user_id: 1,
             title: "初始角色档案时间线门禁".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

@@ -19,4 +19,3 @@ pub use sync::{
 };
 
 pub(crate) use rules::chapter_content_import_error_to_app_error;
-pub use rules::ensure_text_project_kind;

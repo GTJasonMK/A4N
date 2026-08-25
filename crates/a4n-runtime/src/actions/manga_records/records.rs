@@ -1,10 +1,11 @@
 use crate::{AppState, actions::app_error_message};
-
-use super::{
+use a4n_api_contract::manga::{
     BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaChapterInput,
-    MangaPagePromptSummary, RuntimeMangaDownstreamCleanup, UpdateMangaPromptInput,
-    projections::to_summary,
+    MangaPagePromptSummary, UpdateMangaPromptInput,
 };
+use a4n_orchestrator::manga::manga_page_prompt_summary;
+
+use super::RuntimeMangaDownstreamCleanup;
 
 pub async fn list_manga_page_prompts(
     state: &AppState,
@@ -16,7 +17,7 @@ pub async fn list_manga_page_prompts(
         .list_manga_page_prompts_validated(user_id, input.project_id, input.chapter_id)
         .await
         .map_err(app_error_message)?;
-    page_prompts.iter().map(to_summary).collect()
+    page_prompts.iter().map(manga_page_prompt_summary).collect()
 }
 
 pub async fn bind_manga_reference_image(
@@ -30,7 +31,7 @@ pub async fn bind_manga_reference_image(
         .bind_manga_reference_image_validated(user_id, input, &cleanup)
         .await
         .map_err(app_error_message)?;
-    to_summary(&updated)
+    manga_page_prompt_summary(&updated)
 }
 
 pub async fn update_manga_prompt(
@@ -44,7 +45,7 @@ pub async fn update_manga_prompt(
         .update_manga_prompt_validated(user_id, input, &cleanup)
         .await
         .map_err(app_error_message)?;
-    to_summary(&updated)
+    manga_page_prompt_summary(&updated)
 }
 
 pub async fn delete_manga_by_chapter(

@@ -141,14 +141,16 @@ where
     }
     let stale_count = count - MAX_PERSISTED_PROGRESS_EVENTS as u64;
     let stale_ids = workflow_progress_event::Entity::find()
+        .select_only()
+        .column(workflow_progress_event::Column::Id)
         .filter(workflow_progress_event::Column::WorkflowRunId.eq(workflow_run_id))
         .order_by_asc(workflow_progress_event::Column::EventIndex)
         .limit(stale_count)
+        .into_tuple::<i64>()
         .all(db)
         .await
         .map_err(WorkflowWriteError::Database)?
         .into_iter()
-        .map(|event| event.id)
         .collect::<Vec<_>>();
     if stale_ids.is_empty() {
         return Ok(());

@@ -4,6 +4,12 @@ import type {
   ProgressSnapshot,
   ProgressStatus,
 } from "../api/progress";
+import {
+  formatNumber,
+  type Locale,
+  type MessageKey,
+  type MessageTranslator,
+} from "../i18n";
 import { progressDisplayText } from "./progressDisplay";
 
 export interface ProgressDisplayModel {
@@ -17,6 +23,8 @@ export interface ProgressDisplayModel {
 }
 
 interface ProgressPresentationInput extends Partial<ProgressSnapshot> {
+  locale: Locale;
+  t: MessageTranslator;
   status?: ProgressStatus;
   stageHint?: string | null;
   fallbackStage?: string;
@@ -33,6 +41,71 @@ const MODEL_PHASES = new Set<ProgressDisplayPhase>([
   "validate",
 ]);
 
+const STAGE_LABEL_KEYS: Record<string, MessageKey> = {
+  provider_connect: "feedback.progressStage.modelConnect",
+  provider_wait: "feedback.progressStage.modelWait",
+  provider_stream: "feedback.progressStage.modelStream",
+  shooting_script_projection: "workflow.shootingScriptProjection",
+  script_adaptation: "workflow.scriptAdaptation",
+  character_staging: "workflow.characterStaging",
+  visual_planning: "workflow.visualPlanning",
+  branch_design: "workflow.branchDesign",
+  persist_script: "workflow.persistScript",
+  asset_generation: "workflow.assetGeneration",
+  video_prompt_generation: "feedback.progressStage.modelStream",
+  video_prompt_item_committed: "feedback.progressStage.save",
+  video_prompt_checkpoint: "feedback.progressStage.save",
+};
+
+const TASK_LABEL_KEYS: Record<string, MessageKey> = {
+  llm_call: "workflow.taskLanguageCall",
+  chapter_generation: "workflow.taskChapterGeneration",
+  image_generation: "workflow.taskImageGeneration",
+  video_generation: "workflow.taskVideoGeneration",
+  video_poll: "workflow.taskVideoPoll",
+  source_sync: "workflow.taskSourceSync",
+  assembly: "workflow.taskAssembly",
+  embedding_call: "workflow.taskEmbeddingCall",
+  rag_ingestion: "workflow.taskRagIngestion",
+  import_analysis: "workflow.taskImportAnalysis",
+  export_generation: "workflow.taskExportGeneration",
+  embedding_download: "workflow.taskEmbeddingDownload",
+};
+
+const PHASE_LABEL_KEYS: Record<ProgressDisplayPhase, MessageKey> = {
+  prepare: "feedback.progressPreparing",
+  context: "feedback.progressStage.context",
+  model_connect: "feedback.progressStage.modelConnect",
+  model_wait: "feedback.progressStage.modelWait",
+  model_stream: "feedback.progressStage.modelStream",
+  structured_output: "feedback.progressStage.structuredOutput",
+  parse: "feedback.progressStage.parse",
+  validate: "feedback.progressStage.validate",
+  save: "feedback.progressStage.save",
+  asset_generation: "feedback.progressStage.assetGeneration",
+  transfer: "feedback.progressStage.transfer",
+  queue: "feedback.progressStage.queue",
+  cleanup: "feedback.progressStage.cleanup",
+  complete: "feedback.progressCompleted",
+};
+
+const PHASE_DETAIL_KEYS: Record<ProgressDisplayPhase, MessageKey> = {
+  prepare: "feedback.progressPreparing",
+  context: "feedback.progressDetail.context",
+  model_connect: "feedback.progressDetail.modelConnect",
+  model_wait: "feedback.progressDetail.modelWait",
+  model_stream: "feedback.progressDetail.modelStream",
+  structured_output: "feedback.progressDetail.structuredOutput",
+  parse: "feedback.progressDetail.parse",
+  validate: "feedback.progressDetail.validate",
+  save: "feedback.progressDetail.save",
+  asset_generation: "feedback.progressDetail.assetGeneration",
+  transfer: "feedback.progressDetail.transfer",
+  queue: "feedback.progressDetail.queue",
+  cleanup: "feedback.progressDetail.cleanup",
+  complete: "feedback.progressDone",
+};
+
 export function progressDisplayModel({
   current = 0,
   total = 1,
@@ -40,8 +113,10 @@ export function progressDisplayModel({
   percent,
   meta,
   status = "running",
+  locale,
+  t,
   stageHint,
-  fallbackStage = "任务执行中",
+  fallbackStage,
   streamText,
 }: ProgressPresentationInput): ProgressDisplayModel {
   const boundedTotal = Math.max(1, total || 1);
@@ -56,15 +131,24 @@ export function progressDisplayModel({
     stageHint,
     fallbackStage,
   });
-  const stage = normalizedMeta?.stageLabel?.trim() || fallback.stage;
-  const detailCandidate =
-    normalizedMeta?.detail?.trim() ||
-    fallback.detail ||
-    progressStatusDetail(status);
+  const stage = normalizedMeta
+    ? localizedProgressStage(normalizedMeta, t)
+    : fallback.stage || t("feedback.progressRunning");
+  const detailCandidate = status !== "running"
+    ? progressStatusDetail(status, t)
+    : normalizedMeta && locale === "en-US"
+      ? t(PHASE_DETAIL_KEYS[normalizedMeta.phaseKind])
+      : normalizedMeta?.detail?.trim() || fallback.detail || progressStatusDetail(status, t);
   const detail =
     detailCandidate && detailCandidate.trim() !== stage.trim() ? detailCandidate : null;
   const phaseKind = normalizedMeta?.phaseKind ?? null;
-  const countLabel = progressCountLabel(boundedCurrent, boundedTotal, normalizedMeta);
+  const countLabel = progressCountLabel(
+    boundedCurrent,
+    boundedTotal,
+    normalizedMeta,
+    locale,
+    t,
+  );
   const etaMode =
     status !== "running"
       ? "hidden"
@@ -83,6 +167,14 @@ export function progressDisplayModel({
     tone: progressTone(status, normalizedMeta),
     phaseKind,
   };
+}
+
+function localizedProgressStage(meta: ProgressMeta, t: MessageTranslator): string {
+  const key =
+    STAGE_LABEL_KEYS[meta.stageCode] ??
+    TASK_LABEL_KEYS[meta.taskKind] ??
+    PHASE_LABEL_KEYS[meta.phaseKind];
+  return t(key);
 }
 
 export function compactProgressEvents<T extends ProgressSnapshot & { id: string }>(
@@ -110,13 +202,20 @@ function progressCountLabel(
   current: number,
   total: number,
   meta: ProgressMeta | null,
+  locale: Locale,
+  t: MessageTranslator,
 ): string | null {
-  if (meta?.unitLabel && meta.itemIndex != null && meta.itemTotal != null) {
-    if (meta.unitLabel === "字节") return null;
-    return `第 ${meta.itemIndex}/${meta.itemTotal} 个${meta.unitLabel}`;
+  if (meta?.itemIndex != null && meta.itemTotal != null) {
+    return t("feedback.progressCount", {
+      current: formatNumber(meta.itemIndex + 1, locale),
+      total: formatNumber(meta.itemTotal, locale),
+    });
   }
   if (total === 100) return null;
-  return `${current}/${total}`;
+  return t("feedback.progressCount", {
+    current: formatNumber(current, locale),
+    total: formatNumber(total, locale),
+  });
 }
 
 function progressTone(
@@ -129,16 +228,16 @@ function progressTone(
   return "default";
 }
 
-function progressStatusDetail(status: ProgressStatus): string | null {
+function progressStatusDetail(status: ProgressStatus, t: MessageTranslator): string | null {
   switch (status) {
     case "success":
-      return "已完成";
+      return t("feedback.progressDone");
     case "error":
-      return "请查看错误信息";
+      return t("feedback.progressCheckError");
     case "cancelled":
-      return "已停止";
+      return t("feedback.progressStopped");
     case "idle":
-      return "等待开始";
+      return t("feedback.progressWaiting");
     case "running":
       return null;
   }

@@ -32,6 +32,7 @@ import {
 } from "../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
+import { useI18n } from "../../i18n";
 
 /**
  * 图片生成配置 Tab
@@ -46,6 +47,7 @@ interface ImageTabProps {
 }
 
 export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
+  const { t } = useI18n();
   const serverScope = scope === "server";
   const loadItems = useCallback(async (): Promise<{
     items: ConfigItem<ImageForm>[];
@@ -61,31 +63,31 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
         ...toImageItem(config),
         deleteDisabled: !serverScope && config.id === SYSTEM_IMAGE_CONFIG_ID,
         deleteDisabledReason:
-          "系统默认图片模板由管理员维护，不能在用户配置页删除。",
+          t("settings.systemTemplateCannotDelete", { name: t("settings.imageConfig") }),
       };
     });
     return { items, catalog: providerCatalog };
-  }, [serverScope]);
+  }, [serverScope, t]);
   const { items, catalog, loading, refresh } = useConfigItems(
     loadItems,
-    "加载图片配置失败",
+    t("settings.loadConfigFailed", { name: t("settings.imageConfig") }),
   );
 
   return (
     <ConfigListPanel<ImageForm>
-      title="图片生成配置"
+      title={t("settings.imageConfig")}
       items={items}
       loading={loading}
       onRefresh={refresh}
       defaultForm={DEFAULT_IMAGE_FORM}
-      validate={validateImageForm}
-      activeLabel={serverScope ? "全局默认" : "当前默认"}
-      activateText={serverScope ? "设为全局默认" : "设为默认"}
+      validate={(form) => validateImageForm(form, t)}
+      activeLabel={serverScope ? t("settings.globalDefault") : t("settings.currentDefault")}
+      activateText={serverScope ? t("settings.setGlobalDefault") : t("settings.setDefault")}
       activateSuccessMessage={
-        serverScope ? "已设为系统全局默认" : "已设为当前默认"
+        serverScope ? t("settings.globalDefaultSuccess") : t("settings.setDefaultSuccess")
       }
       activateErrorMessage={
-        serverScope ? "设置系统全局默认失败" : "设置默认失败"
+        serverScope ? t("settings.globalDefaultFailed") : t("settings.setDefaultFailed")
       }
       formatItem={formatImageItem}
       renderEditor={(form, setForm, context) => (
@@ -103,13 +105,13 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
       )}
       onCreate={async (f) => {
         await (serverScope ? addServerImageConfig : addImageConfig)(
-          toCreateImageInput(f),
+          toCreateImageInput(f, t),
         );
       }}
       onUpdate={async (id, f) => {
         await (serverScope ? updateServerImageConfig : updateImageConfig)(
           id,
-          toUpdateImageInput(f),
+          toUpdateImageInput(f, t),
         );
       }}
       onDelete={serverScope ? removeServerImageConfig : removeImageConfig}

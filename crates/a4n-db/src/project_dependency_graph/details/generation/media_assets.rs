@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::{
     error::AppError,
@@ -40,11 +40,11 @@ where
     let provenance_by_asset = provenances
         .iter()
         .map(|provenance| (provenance.media_asset_id, provenance))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let artifact_ids = provenances
         .iter()
         .filter_map(|row| row.prompt_artifact_id)
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     let artifacts = if artifact_ids.is_empty() {
         Vec::new()
     } else {
@@ -57,7 +57,7 @@ where
     let artifact_by_id = artifacts
         .iter()
         .map(|artifact| (artifact.id, artifact))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
 
     Ok(assets
         .into_iter()

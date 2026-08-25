@@ -1,3 +1,4 @@
+use super::super::types::CanvasMediaAssetProbeRecord;
 use crate::canvas::CanvasDbError;
 use a4n_core::models::{
     ai::{generated_image, generated_video},
@@ -10,11 +11,16 @@ use sea_orm::{
 pub async fn canvas_media_asset_by_id<C>(
     db: &C,
     media_asset_id: i64,
-) -> Result<Option<media_asset::Model>, CanvasDbError>
+) -> Result<Option<CanvasMediaAssetProbeRecord>, CanvasDbError>
 where
     C: ConnectionTrait,
 {
     Ok(media_asset::Entity::find_by_id(media_asset_id)
+        .select_only()
+        .column(media_asset::Column::FilePath)
+        .column(media_asset::Column::ThumbnailPath)
+        .column(media_asset::Column::DurationSecs)
+        .into_model::<CanvasMediaAssetProbeRecord>()
         .one(db)
         .await?)
 }
@@ -73,7 +79,7 @@ pub(super) async fn canvas_media_asset_by_path_for_update<C>(
     db: &C,
     project_id: i64,
     file_path: &str,
-) -> Result<Option<media_asset::Model>, CanvasDbError>
+) -> Result<Option<i64>, CanvasDbError>
 where
     C: ConnectionTrait,
 {
@@ -84,5 +90,10 @@ where
     if db.get_database_backend() != DbBackend::Sqlite {
         query = query.lock_exclusive();
     }
-    Ok(query.one(db).await?)
+    Ok(query
+        .select_only()
+        .column(media_asset::Column::Id)
+        .into_tuple::<i64>()
+        .one(db)
+        .await?)
 }

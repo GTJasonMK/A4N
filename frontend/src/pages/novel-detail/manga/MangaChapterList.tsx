@@ -5,6 +5,7 @@ import type { MangaPipelineStatusSummary } from "../../../api/manga";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint, type ChapterRow } from "../shared";
 import { mangaStageLabel } from "./mangaTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface MangaChapterListProps {
   chapters: ChapterRow[];
@@ -41,19 +42,20 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
   selectedChapter,
   onSelect,
 }) => {
+  const { t } = useI18n();
   if (chapters.length === 0) {
     return (
       <div className="a4n-flat-surface p-3">
-        <EmptyHint text="项目还没有章节。先生成章节，再来这里启动漫画流水线。" />
+        <EmptyHint text={t("comic.noChapters")} />
       </div>
     );
   }
 
   return (
-    <nav aria-label="漫画章节" className="flex min-h-0 flex-col">
+    <nav aria-label={t("comic.chapterListLabel")} className="flex min-h-0 flex-col">
       <div className="mb-2 flex shrink-0 items-baseline gap-2 px-1">
-        <h2 className="text-xs font-semibold text-book-text-main">章节</h2>
-        <span className="text-small text-book-text-muted">{chapters.length} 章</span>
+        <h2 className="text-xs font-semibold text-book-text-main">{t("novel.chapters")}</h2>
+        <span className="text-small text-book-text-muted">{t("comic.chapterCount", { count: chapters.length })}</span>
       </div>
       <ul className="flex w-full min-w-0 gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-1 lg:flex-col lg:gap-0 lg:overflow-x-hidden lg:overflow-y-auto lg:rounded-xl lg:border lg:border-book-border/50 lg:bg-book-bg-paper/30">
         {chapters.map((chapter) => {
@@ -79,7 +81,7 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                 }`}
               >
                 <div className="mb-1 truncate font-medium text-book-text-main">
-                  第 {chapter.chapter_number} 章
+                  {t("comic.chapterNumber", { number: chapter.chapter_number })}
                   {nonEmptyText(chapter.title) ? ` · ${nonEmptyText(chapter.title)}` : ""}
                 </div>
                 <div
@@ -89,16 +91,16 @@ export const MangaChapterList: React.FC<MangaChapterListProps> = ({
                 >
                   <span className="inline-flex min-w-0 items-center gap-1 truncate">
                     {chapterPipelineIcon(status)}
-                    {mangaStageLabel(status?.stage)}
+                    {mangaStageLabel(status?.stage, t)}
                   </span>
                   {total > 0 ? (
                     <span className="font-mono">
                       {status?.completed ?? 0}/{total}
                     </span>
                   ) : status?.can_resume ? (
-                    <span>可续传</span>
+                    <span>{t("comic.resumable")}</span>
                   ) : (
-                    <span>未生成</span>
+                    <span>{t("comic.notGenerated")}</span>
                   )}
                 </div>
                 {total > 0 ? (

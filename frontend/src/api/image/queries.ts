@@ -2,6 +2,7 @@ import { apiInvoke } from "../index";
 import type {
   ListImagesByChapterInput,
   ListImagesByProjectInput,
+  ListImagesByProjectsInput,
   ListVideoReferenceImagesInput,
 } from "../generated/host";
 import type { GeneratedImage } from "./types";
@@ -10,6 +11,15 @@ import { idNum, type ApiId as Id } from "../shared";
 export async function listImagesByProject(projectId: Id): Promise<GeneratedImage[]> {
   const input: ListImagesByProjectInput = { project_id: idNum(projectId) };
   return apiInvoke<GeneratedImage[]>("list_images_by_project", {
+    input,
+  });
+}
+
+export async function listImagesByProjects(projectIds: Id[]): Promise<GeneratedImage[]> {
+  const input: ListImagesByProjectsInput = {
+    project_ids: projectIds.map(idNum),
+  };
+  return apiInvoke<GeneratedImage[]>("list_images_by_projects", {
     input,
   });
 }

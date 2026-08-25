@@ -1,4 +1,5 @@
 use super::super::{UpdateGeneratedImageRecordInput, VideoDbError};
+#[cfg(test)]
 use a4n_core::models::ai::generated_image;
 use a4n_domain::image::is_system_managed_image_type;
 
@@ -40,35 +41,63 @@ pub(super) fn validate_generated_image_update_image_type(
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn validate_generated_image_update_chapter_binding(
     image: &generated_image::Model,
     next: Option<i64>,
 ) -> Result<(), VideoDbError> {
-    if image.chapter_id == next {
+    validate_generated_image_update_chapter_binding_fields(
+        image.id,
+        &image.image_type,
+        image.chapter_id,
+        next,
+    )
+}
+
+pub(super) fn validate_generated_image_update_chapter_binding_fields(
+    image_id: i64,
+    image_type: &str,
+    current_chapter_id: Option<i64>,
+    next: Option<i64>,
+) -> Result<(), VideoDbError> {
+    if current_chapter_id == next {
         return Ok(());
     }
-    if is_system_managed_image_type(&image.image_type) {
+    if is_system_managed_image_type(image_type) {
         return Err(VideoDbError::InvalidArgument(format!(
             "系统管理图片的 chapter_id 不能通过通用 update_image 修改：image_id={} {:?} -> {:?}",
-            image.id, image.chapter_id, next
+            image_id, current_chapter_id, next
         )));
     }
     Ok(())
 }
 
+#[cfg(test)]
 pub(super) fn validate_generated_image_update_panel_binding(
     image: &generated_image::Model,
     next: Option<&str>,
 ) -> Result<(), VideoDbError> {
-    if image.panel_id.as_deref() == next {
+    validate_generated_image_update_panel_binding_fields(
+        image.id,
+        &image.image_type,
+        image.panel_id.as_deref(),
+        next,
+    )
+}
+
+pub(super) fn validate_generated_image_update_panel_binding_fields(
+    image_id: i64,
+    image_type: &str,
+    current_panel_id: Option<&str>,
+    next: Option<&str>,
+) -> Result<(), VideoDbError> {
+    if current_panel_id == next {
         return Ok(());
     }
-    if is_system_managed_image_type(&image.image_type) {
+    if is_system_managed_image_type(image_type) {
         return Err(VideoDbError::InvalidArgument(format!(
             "系统管理图片的 panel_id 不能通过通用 update_image 修改：image_id={} {:?} -> {:?}",
-            image.id,
-            image.panel_id.as_deref(),
-            next
+            image_id, current_panel_id, next
         )));
     }
     Ok(())

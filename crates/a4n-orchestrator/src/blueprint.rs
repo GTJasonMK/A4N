@@ -7,14 +7,13 @@ use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
 use crate::OrchestratorContext;
-use generation::preview_generate_request;
+use generation::{BLUEPRINT_GENERATION_STAGES, preview_generate_request};
 
 mod generation;
 mod json;
-pub mod persistence;
+mod persistence;
 mod refine;
 
-pub(crate) use generation::BLUEPRINT_GENERATION_STAGES;
 pub(crate) use json::validate_sparse_blueprint_sections;
 
 impl OrchestratorContext {
@@ -34,26 +33,6 @@ impl OrchestratorContext {
             crate::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        self.preview_blueprint_generation_request(
-            project_id,
-            novel_title,
-            genre,
-            target_length,
-            prompt_renderer,
-            variables,
-        )
-        .await
-    }
-
-    pub async fn preview_blueprint_generation_request(
-        &self,
-        project_id: i64,
-        novel_title: &str,
-        genre: &str,
-        target_length: i32,
-        prompt_renderer: &dyn PromptRenderer,
-        variables: &HashMap<String, Value>,
-    ) -> Result<BlueprintGenerationPreviewStep, AppError> {
         preview_generate_request(
             project_id,
             novel_title,
@@ -66,7 +45,7 @@ impl OrchestratorContext {
     }
 }
 
-pub fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
+pub(crate) fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
     match error {
         a4n_db::blueprint::BlueprintDbError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
@@ -76,7 +55,7 @@ pub fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppErro
     }
 }
 
-pub fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppError {
+fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppError {
     match error {
         a4n_db::project::BlueprintSyncError::InvalidArgument(message) => {
             AppError::InvalidArgument(message)
@@ -85,9 +64,7 @@ pub fn blueprint_sync_error(error: a4n_db::project::BlueprintSyncError) -> AppEr
     }
 }
 
-pub(crate) fn character_profile_seed_error(
-    error: a4n_db::character::CharacterProfileSeedError,
-) -> AppError {
+fn character_profile_seed_error(error: a4n_db::character::CharacterProfileSeedError) -> AppError {
     match error {
         a4n_db::character::CharacterProfileSeedError::Database(error) => AppError::Database(error),
         a4n_db::character::CharacterProfileSeedError::Internal(message) => {
@@ -102,7 +79,7 @@ use serde_json::json;
 
 impl OrchestratorContext {
     /// 蓝图生成：校验后创建 workflow_run（RUNNING）。
-    pub(crate) async fn begin_blueprint_generation_workflow_validated(
+    async fn begin_blueprint_generation_workflow_validated(
         &self,
         project_id: i64,
         title: &str,

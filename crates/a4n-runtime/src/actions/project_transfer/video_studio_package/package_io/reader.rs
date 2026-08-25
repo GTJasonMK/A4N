@@ -1,5 +1,5 @@
-use super::super::{ImportMediaPayload, MANIFEST_PATH, VideoStudioProjectPackage};
 use super::payload::read_media_payloads_from_entries;
+use a4n_orchestrator::project::{ImportMediaPayload, MANIFEST_PATH, VideoStudioProjectPackage};
 
 pub(in crate::actions::project_transfer) async fn read_video_studio_package_bytes(
     runtime_profile: crate::state::RuntimeProfile,

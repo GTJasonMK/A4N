@@ -1,8 +1,8 @@
 use super::{SourceSyncPlanSummary, projections};
 use crate::AppState;
 use a4n_core::error::AppError;
-use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_queue::TaskFamilyContext;
+use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 
 pub async fn preview_source_sync(
     state: &AppState,

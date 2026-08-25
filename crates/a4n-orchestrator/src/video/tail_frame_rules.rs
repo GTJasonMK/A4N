@@ -10,15 +10,29 @@ use serde_json::Value;
 
 /// 尾帧图是否属于指定视频的采集产物。
 pub fn tail_frame_image_belongs_to_video(image: &generated_image::Model, video_id: i64) -> bool {
-    if image.image_type != IMAGE_TYPE_VIDEO_TAIL_FRAME
-        || image_generation_source(image.metadata_json.as_ref())
+    tail_frame_metadata_belongs_to_video(&image.image_type, image.metadata_json.as_ref(), video_id)
+}
+
+/// 尾帧轻量引用是否属于指定视频，供只读清理列表避免加载完整图片实体。
+pub fn tail_frame_reference_belongs_to_video(
+    image: &generated_image::Reference,
+    video_id: i64,
+) -> bool {
+    tail_frame_metadata_belongs_to_video(&image.image_type, image.metadata_json.as_ref(), video_id)
+}
+
+pub fn tail_frame_metadata_belongs_to_video(
+    image_type: &str,
+    metadata_json: Option<&Value>,
+    video_id: i64,
+) -> bool {
+    if image_type != IMAGE_TYPE_VIDEO_TAIL_FRAME
+        || image_generation_source(metadata_json)
             != Some(IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
     {
         return false;
     }
-    image
-        .metadata_json
-        .as_ref()
+    metadata_json
         .and_then(|metadata| metadata.get("generation_context"))
         .and_then(|context| context.get("video_id"))
         .and_then(Value::as_i64)
@@ -86,27 +100,11 @@ mod tests {
     use chrono::Utc;
     use serde_json::json;
 
-    fn image_with_context(context: Value) -> generated_image::Model {
-        let ts = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
-            .unwrap()
-            .and_hms_opt(0, 0, 0)
-            .unwrap();
-        generated_image::Model {
+    fn image_with_context(context: Value) -> generated_image::Reference {
+        generated_image::Reference {
             id: 1,
-            project_id: 1,
             image_type: IMAGE_TYPE_VIDEO_TAIL_FRAME.into(),
-            file_path: "x.png".into(),
-            prompt: String::new(),
-            model: String::new(),
-            width: 0,
-            height: 0,
-            file_size: None,
-            ai_score: None,
-            is_favorite: false,
-            chapter_id: None,
-            panel_id: None,
             metadata_json: Some(json!({ "generation_context": context })),
-            created_at: ts,
         }
     }
 
@@ -147,14 +145,14 @@ mod tests {
             "source": IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
             "video_id": 42
         }));
-        assert!(tail_frame_image_belongs_to_video(&ok, 42));
-        assert!(!tail_frame_image_belongs_to_video(&ok, 41));
+        assert!(tail_frame_reference_belongs_to_video(&ok, 42));
+        assert!(!tail_frame_reference_belongs_to_video(&ok, 41));
 
         let wrong_source = image_with_context(json!({
             "source": "other",
             "video_id": 42
         }));
-        assert!(!tail_frame_image_belongs_to_video(&wrong_source, 42));
+        assert!(!tail_frame_reference_belongs_to_video(&wrong_source, 42));
     }
 
     #[test]

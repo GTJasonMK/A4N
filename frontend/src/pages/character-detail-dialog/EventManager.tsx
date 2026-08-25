@@ -18,9 +18,9 @@ import {
   operationLabel,
   sourceKindLabel,
 } from "./manageViewUtils";
-import { formatUiDateTime } from "../../utils/dateTime";
 import { nonEmptyText } from "../../utils/text";
 import type { CharacterAttributeCategory } from "../../api/generated/host";
+import { formatDateTime, useI18n } from "../../i18n";
 
 const parseAttributeValue = (raw: string): unknown => {
   const text = raw.trim();
@@ -60,6 +60,7 @@ export const EventManager: React.FC<{
   onChanged?: () => void | Promise<void>;
 }> = ({ profileId, defaultChapter, initialCategory = "", initialKey = "", onChanged }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const [events, setEvents] = useState<AttributeEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
@@ -172,7 +173,7 @@ export const EventManager: React.FC<{
         setLoadedScopeKey(requestKey);
       } catch (err) {
         if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
-        addToast(extractErrorMessage(err, "加载事件失败"), "error");
+        addToast(extractErrorMessage(err, t("characterDetail.event.loadFailed")), "error");
       } finally {
         if (loadInFlightKeyRef.current === requestKey) {
           loadInFlightKeyRef.current = null;
@@ -180,7 +181,7 @@ export const EventManager: React.FC<{
         if (isCurrentLoad(requestProfileId, requestKey, requestSeq)) setLoading(false);
       }
     },
-    [addToast, isCurrentLoad, profileId],
+    [addToast, isCurrentLoad, profileId, t],
   );
 
   useEffect(() => {
@@ -237,7 +238,7 @@ export const EventManager: React.FC<{
     const attrCause = cause.trim();
     const attrEvidence = evidence.trim();
     if (!attrKey || !attrCause || !attrEvidence) {
-      addToast("属性名称、原因和证据不能为空", "error");
+      addToast(t("characterDetail.event.required"), "error");
       return;
     }
     if (saveInFlightRef.current) return;
@@ -278,7 +279,9 @@ export const EventManager: React.FC<{
             })
       );
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
-      const successMessage = requestMode === "add" ? "已新增属性" : "已修改属性";
+      const successMessage = requestMode === "add"
+        ? t("characterDetail.event.added")
+        : t("characterDetail.event.modified");
       addToast(successMessage, "success");
       setKey("");
       setValueText("");
@@ -290,7 +293,12 @@ export const EventManager: React.FC<{
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || saveSeqRef.current !== requestSeq) return;
       addToast(
-        extractErrorMessage(err, requestMode === "add" ? "新增属性失败" : "修改属性失败"),
+        extractErrorMessage(
+          err,
+          requestMode === "add"
+            ? t("characterDetail.event.addFailed")
+            : t("characterDetail.event.modifyFailed"),
+        ),
         "error",
       );
     } finally {
@@ -304,19 +312,22 @@ export const EventManager: React.FC<{
   const chapterFilterLabel =
     filterChapterFrom !== "" || filterChapterTo !== ""
       ? filterChapterFrom !== "" && filterChapterTo !== ""
-        ? `第 ${filterChapterFrom}-${filterChapterTo} 章`
+        ? t("characterDetail.event.chapterRange", {
+            start: filterChapterFrom,
+            end: filterChapterTo,
+          })
         : filterChapterFrom !== ""
-          ? `第 ${filterChapterFrom} 章起`
-          : `截至第 ${filterChapterTo} 章`
+          ? t("characterDetail.event.fromChapter", { chapter: filterChapterFrom })
+          : t("characterDetail.event.toChapter", { chapter: filterChapterTo })
       : null;
   const filterSummary = [
     chapterFilterLabel,
-    filterCategory ? categoryLabel(filterCategory) : null,
-    filterOperation ? operationLabel(filterOperation) : null,
-    filterKey.trim() ? attributeKeyLabel(filterKey) : null,
+    filterCategory ? categoryLabel(filterCategory, t) : null,
+    filterOperation ? operationLabel(filterOperation, t) : null,
+    filterKey.trim() ? attributeKeyLabel(filterKey, t) : null,
   ]
     .filter(Boolean)
-    .join(" · ") || "全部记录";
+    .join(" · ") || t("characterDetail.event.allRecords");
   const submitReady =
     key.trim().length > 0 &&
     cause.trim().length > 0 &&
@@ -325,19 +336,19 @@ export const EventManager: React.FC<{
   return (
     <div className="flex flex-col gap-2">
       <div className="text-caption text-book-text-muted">
-        属性事件记录每次角色属性变化，手动维护也会写入同一条事件溯源链路。
+        {t("characterDetail.event.description")}
       </div>
       <details className="border-y border-book-border/35 py-1">
         <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-small [&::-webkit-details-marker]:hidden">
-          <span className="font-medium text-book-text-main">筛选事件</span>
+          <span className="font-medium text-book-text-main">{t("characterDetail.event.filter")}</span>
           <span className="min-w-0 truncate text-caption text-book-text-muted">
             {filterSummary}
-            {hasCurrentEvents ? ` · ${events.length} 条` : ""}
+            {hasCurrentEvents ? ` · ${t("characterDetail.event.count", { count: events.length })}` : ""}
           </span>
         </summary>
         <div className="mt-2 grid grid-cols-2 gap-2 text-small sm:grid-cols-3">
           <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
-            起始章
+            {t("characterDetail.event.startChapter")}
             <input
               type="number"
               min={1}
@@ -354,7 +365,7 @@ export const EventManager: React.FC<{
             />
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
-            结束章
+            {t("characterDetail.event.endChapter")}
             <input
               type="number"
               min={1}
@@ -371,7 +382,7 @@ export const EventManager: React.FC<{
             />
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
-            类别
+            {t("characterDetail.event.category")}
             <select
               value={filterCategory}
               onChange={(event) => {
@@ -381,16 +392,16 @@ export const EventManager: React.FC<{
               }}
               className="pyqt-input w-full !px-2 !py-1"
             >
-              <option value="">全部</option>
+              <option value="">{t("characterDetail.behavior.all")}</option>
               {ATTRIBUTE_CATEGORY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {categoryLabel(option.value, t)}
                 </option>
               ))}
             </select>
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
-            操作
+            {t("characterDetail.event.operation")}
             <select
               value={filterOperation}
               onChange={(event) => {
@@ -400,16 +411,16 @@ export const EventManager: React.FC<{
               }}
               className="pyqt-input w-full !px-2 !py-1"
             >
-              <option value="">全部</option>
+              <option value="">{t("characterDetail.behavior.all")}</option>
               {ATTRIBUTE_OPERATION_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {operationLabel(option.value, t)}
                 </option>
               ))}
             </select>
           </label>
           <label className="col-span-2 flex min-w-0 flex-col gap-1 text-book-text-muted sm:col-span-2">
-            属性名称
+            {t("characterDetail.event.attribute")}
             <input
               value={filterKey}
               onChange={(event) => {
@@ -418,20 +429,20 @@ export const EventManager: React.FC<{
                 setFilterKey(nextValue);
               }}
               className="pyqt-input w-full !px-2 !py-1"
-              placeholder="全部"
+              placeholder={t("characterDetail.behavior.all")}
             />
           </label>
           <div className="col-span-2 flex items-center justify-end gap-2 sm:col-span-3">
             <BookButton variant="ghost" size="sm" onClick={() => void resetFilters()} disabled={loading}>
-              清空条件
+              {t("characterDetail.event.clear")}
             </BookButton>
             <BookButton variant="secondary" size="sm" onClick={() => void load()} disabled={loading}>
               {loading ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 筛选中…
+                  <LoadingSpinner size="sm" /> {t("characterDetail.event.filtering")}
                 </span>
               ) : (
-                "应用筛选"
+                t("characterDetail.event.apply")
               )}
             </BookButton>
           </div>
@@ -439,23 +450,23 @@ export const EventManager: React.FC<{
       </details>
       <details className="border-b border-book-border/35 py-1">
         <summary className="cursor-pointer py-1 text-small font-medium text-book-text-main">
-          手动维护属性
+          {t("characterDetail.event.maintain")}
         </summary>
         <div className="mt-2 grid gap-2 text-small sm:grid-cols-2">
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">操作</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.event.operation")}</span>
             <select
               value={mode}
               onChange={(event) => setMode(event.target.value === "modify" ? "modify" : "add")}
               disabled={saving}
               className="pyqt-input !px-2 !py-1"
             >
-              <option value="add">新增</option>
-              <option value="modify">修改</option>
+              <option value="add">{t("characterDetail.event.add")}</option>
+              <option value="modify">{t("characterDetail.event.modify")}</option>
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">章节</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.event.chapter")}</span>
             <input
               type="number"
               min={1}
@@ -471,7 +482,7 @@ export const EventManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">分类</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.event.category")}</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
@@ -480,49 +491,49 @@ export const EventManager: React.FC<{
             >
               {ATTRIBUTE_CATEGORY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {categoryLabel(option.value, t)}
                 </option>
               ))}
             </select>
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">属性名称</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.event.attribute")}</span>
             <input
               value={key}
               onChange={(event) => setKey(event.target.value)}
               disabled={saving}
               className="pyqt-input !px-2 !py-1"
-              placeholder="例如：外貌"
+              placeholder={t("characterDetail.event.attributePlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1 sm:col-span-2">
-            <span className="text-caption text-book-text-muted">属性值</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.event.value")}</span>
             <textarea
               value={valueText}
               onChange={(event) => setValueText(event.target.value)}
               disabled={saving}
               className="book-control min-h-[58px] resize-y rounded-xl px-2.5 py-2 text-small"
-              placeholder="填写角色当前的属性内容"
+              placeholder={t("characterDetail.event.valuePlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">原因</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.event.cause")}</span>
             <textarea
               value={cause}
               onChange={(event) => setCause(event.target.value)}
               disabled={saving}
               className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
-              placeholder="说明这次属性变化的原因"
+              placeholder={t("characterDetail.event.causePlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">证据</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.event.evidence")}</span>
             <textarea
               value={evidence}
               onChange={(event) => setEvidence(event.target.value)}
               disabled={saving}
               className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
-              placeholder="引用章节原文或明确来源"
+              placeholder={t("characterDetail.event.evidencePlaceholder")}
             />
           </label>
           <div className="flex justify-end sm:col-span-2">
@@ -535,28 +546,28 @@ export const EventManager: React.FC<{
               {saving ? (
                 <span className="inline-flex items-center gap-1.5">
                   <LoadingSpinner size="sm" />
-                  {mode === "add" ? "新增中…" : "保存中…"}
+                  {mode === "add" ? t("characterDetail.event.adding") : t("characterDetail.event.saving")}
                 </span>
               ) : mode === "add" ? (
-                "新增属性"
+                t("characterDetail.event.addAttribute")
               ) : (
-                "保存修改"
+                t("characterDetail.event.saveChanges")
               )}
             </BookButton>
           </div>
         </div>
       </details>
       {loading ? (
-        <div className="text-small text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">{t("characterDetail.event.loading")}</div>
       ) : !hasCurrentEvents ? (
-        <div className="text-small text-book-text-muted italic">当前筛选条件尚未加载，请筛选</div>
+        <div className="text-small text-book-text-muted italic">{t("characterDetail.event.notLoaded")}</div>
       ) : events.length === 0 ? (
-        <div className="text-small text-book-text-muted italic">尚无事件</div>
+        <div className="text-small text-book-text-muted italic">{t("characterDetail.event.empty")}</div>
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/45">
           {events.map((event) => {
-            const oldValue = attributeValueText(event.old_value);
-            const newValue = attributeValueText(event.new_value);
+            const oldValue = attributeValueText(event.old_value, t);
+            const newValue = attributeValueText(event.new_value, t);
             return (
               <li
                 key={event.id}
@@ -564,15 +575,15 @@ export const EventManager: React.FC<{
               >
                 <div className="mb-1 flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
                   <span className="font-medium text-book-text-main">
-                    {attributeKeyLabel(event.key)}
+                    {attributeKeyLabel(event.key, t)}
                   </span>
                   <span className="text-caption text-book-text-muted">
-                    第 {event.chapter_number} 章 · {categoryLabel(event.category)} ·{" "}
-                    {operationLabel(event.operation)} · {sourceKindLabel(event.source_kind)}
+                    {t("characterDetail.chapter", { chapter: event.chapter_number })} · {categoryLabel(event.category, t)} ·{" "}
+                    {operationLabel(event.operation, t)} · {sourceKindLabel(event.source_kind, t)}
                   </span>
                   {event.timestamp && (
                     <span className="ml-auto shrink-0 text-caption text-book-text-muted">
-                      {formatUiDateTime(event.timestamp)}
+                      {formatDateTime(event.timestamp, locale)}
                     </span>
                   )}
                 </div>
@@ -580,13 +591,13 @@ export const EventManager: React.FC<{
                   <div className="grid divide-y divide-book-border/30 border-y border-book-border/30 text-caption sm:grid-cols-2 sm:divide-x sm:divide-y-0">
                     {oldValue && (
                       <div className="px-2 py-1.5">
-                        <span className="text-book-text-muted">旧值：</span>
+                        <span className="text-book-text-muted">{t("characterDetail.event.oldValue")}</span>
                         <span className="break-words text-book-text-sub">{oldValue}</span>
                       </div>
                     )}
                     {newValue && (
                       <div className="px-2 py-1.5">
-                        <span className="text-book-text-muted">新值：</span>
+                        <span className="text-book-text-muted">{t("characterDetail.event.newValue")}</span>
                         <span className="break-words text-book-text-sub">{newValue}</span>
                       </div>
                     )}
@@ -594,12 +605,12 @@ export const EventManager: React.FC<{
                 )}
                 {event.change_description && (
                   <div className="mt-1 text-caption leading-relaxed text-book-text-main">
-                    摘要：{event.change_description}
+                    {t("characterDetail.event.summary")}{event.change_description}
                   </div>
                 )}
                 {event.cause && (
                   <div className="mt-1 text-caption leading-relaxed text-book-text-sub">
-                    原因：{event.cause}
+                    {t("characterDetail.event.reason")}{event.cause}
                   </div>
                 )}
                 {event.evidence && (

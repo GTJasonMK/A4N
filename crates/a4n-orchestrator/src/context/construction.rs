@@ -8,8 +8,7 @@ use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
 use super::{
-    AdminApplication, AssetApplication, AssetLineageSyncApplication, AuthApplication,
-    CanvasApplication,
+    AdminApplication, AssetApplication, AuthApplication, CanvasApplication,
     ChapterContentApplication, CharacterApplication, CollaborationApplication, ConfigApplication,
     GalgameApplication, GenerationApplication, ImportReverseApplication, ImportReviewApplication,
     InspirationApplication, LlmContextApplication, MangaApplication, OptimizeApplication,
@@ -59,7 +58,6 @@ impl OrchestratorContext {
     ) -> Result<Self, AppError> {
         let admin = AdminApplication::new(db.clone());
         let asset = AssetApplication::new(db.clone());
-        let asset_lineage_sync = AssetLineageSyncApplication::new(db.clone());
         let auth = AuthApplication::new(db.clone());
         let canvas = CanvasApplication::new(db.clone());
         let chapter_content = ChapterContentApplication::new(db.clone());
@@ -105,7 +103,6 @@ impl OrchestratorContext {
             database: db,
             admin,
             asset,
-            asset_lineage_sync,
             auth,
             canvas,
             chapter_content,
@@ -167,16 +164,6 @@ impl OrchestratorContext {
 }
 
 impl OrchestratorContext {
-    /// 在给定章节号列表中查找当前被生成锁占用的章节号。
-    pub fn active_generation_chapter(
-        &self,
-        project_id: i64,
-        chapter_numbers: &[i32],
-    ) -> Option<i32> {
-        self.chapter
-            .active_generation_chapter(project_id, chapter_numbers)
-    }
-
     /// embedding 批大小（runtime/RAG 同步用，不暴露完整 provider）。
     pub fn embedding_batch_size(&self) -> usize {
         self.embedding.batch_size()

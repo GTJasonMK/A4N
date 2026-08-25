@@ -3,6 +3,7 @@ import { Plus, Settings as SettingsIcon, Upload } from "lucide-react";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { ParticleLogoWithSubtitle } from "./ParticleLogoWithSubtitle";
 import type { Quote } from "./novelListUtils";
+import { useI18n } from "../../i18n";
 
 interface NovelListSidebarProps {
   quote: Quote;
@@ -16,9 +17,11 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
   onOpenSettings,
   onCreateProject,
   onImportProject,
-}) => (
-  <aside className="flex shrink-0 flex-col overflow-hidden border-b border-book-border/40 bg-book-bg-paper/70 backdrop-blur-xl md:w-[min(31vw,360px)] md:min-w-[288px] md:max-w-[360px] md:border-b-0 md:border-r">
-    <div className="flex flex-col px-4 py-3.5 sm:px-5 md:flex-1 md:overflow-y-auto md:px-6 md:py-6 lg:px-7 custom-scrollbar">
+}) => {
+  const { t } = useI18n();
+  return (
+  <aside className="a4n-home-sidebar flex shrink-0 flex-col overflow-hidden border-b border-book-border/40 bg-book-bg-paper/70 backdrop-blur-xl md:w-[min(31vw,360px)] md:min-w-[288px] md:max-w-[360px] md:border-b-0 md:border-r">
+    <div className="flex flex-col px-4 py-2.5 sm:px-5 sm:py-3.5 md:flex-1 md:overflow-y-auto md:px-6 md:py-6 lg:px-7 custom-scrollbar">
       <div className="mb-4 hidden justify-end md:flex">
         <button
           type="button"
@@ -26,18 +29,18 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
           className="pyqt-btn-secondary !min-h-9 px-3.5 text-sm"
         >
           <SettingsIcon size={14} className="mr-1" />
-          设置
+          {t("novel.settings")}
         </button>
       </div>
 
       {/* Logo 粒子效果（现网 canvas，勿替换为纯文字） */}
-      <div className="mb-3 flex justify-center md:mb-6">
-        <div className="max-w-[230px] sm:max-w-[260px] md:max-w-none w-full">
+      <div className="mb-2 flex justify-center sm:mb-3 md:mb-6">
+        <div className="w-full max-w-[250px] sm:max-w-[280px] md:max-w-none">
           <ParticleLogoWithSubtitle />
         </div>
       </div>
 
-      <figure className="hidden rounded-2xl bg-book-primary/[0.06] px-4 py-3.5 md:block">
+      <figure className="a4n-home-quote hidden rounded-2xl bg-book-primary/[0.06] px-4 py-3.5 md:block">
         <p className="text-body-lg text-book-text-main font-serif italic leading-relaxed">
           {quote.zh}
         </p>
@@ -53,7 +56,7 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
         >
           <span className="inline-flex items-center gap-2">
             <Plus size={17} />
-            创建项目
+            {t("novel.createProject")}
           </span>
         </BookButton>
 
@@ -61,18 +64,18 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
           variant="secondary"
           size="lg"
           onClick={onImportProject}
-          aria-label="导入项目"
-          title="导入项目"
+          aria-label={t("novel.importProjectButton")}
+          title={t("novel.importProjectButton")}
           className="!min-h-10 !px-3 !text-sm max-md:!w-11 max-md:!min-w-11 md:w-full md:justify-center md:!min-h-11 md:!px-4 md:!text-body-lg"
         >
           <span className="inline-flex items-center gap-2">
             <Upload size={17} />
-            <span className="hidden sm:inline">导入项目</span>
+            <span className="hidden sm:inline">{t("novel.importProjectButton")}</span>
           </span>
         </BookButton>
 
         <BookIconButton
-          label="打开设置"
+          label={t("nav.openSettings")}
           onClick={onOpenSettings}
           variant="secondary"
           className="md:hidden"
@@ -84,4 +87,5 @@ export const NovelListSidebar: React.FC<NovelListSidebarProps> = ({
       <div className="flex-1" />
     </div>
   </aside>
-);
+  );
+};

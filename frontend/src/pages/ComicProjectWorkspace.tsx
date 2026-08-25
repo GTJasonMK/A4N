@@ -16,12 +16,35 @@ import { DerivedProjectHeader } from "../components/shell/DerivedProjectHeader";
 import { MangaTab } from "./novel-detail/MangaTab";
 import { SourceSyncDialog } from "./derived/SourceSyncDialog";
 import { getDerivedProjectSubtitle } from "../utils/projectRouting";
+import { useI18n } from "../i18n";
 
 export const ComicProjectWorkspace: React.FC = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const projectId = Number(id);
+
+  const subtitleLabels = useMemo(
+    () => ({
+      fallback: t("comic.projectWorkspace"),
+      sourceProject: (title: string) => t("novel.sourceProject", { title }),
+      chapterScope: (start: number, end: number) =>
+        start === end
+          ? t("novel.chapterScopeSingle", { start })
+          : t("novel.chapterScopeRange", { start, end }),
+      sourceSyncStatus: (value: string | null | undefined) => {
+        switch (String(value ?? "").trim().toLowerCase()) {
+          case "current": return t("novel.sourceSyncCurrent");
+          case "root_updated": return t("novel.sourceSyncRootUpdated");
+          case "conflict": return t("novel.sourceSyncConflict");
+          case "detached": return t("novel.sourceSyncDetached");
+          default: return value?.trim() || t("novel.sourceSyncUnknown");
+        }
+      },
+    }),
+    [t],
+  );
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const [chapters, setChapters] = useState<SourceSnapshotChapterSummary[]>([]);
@@ -33,7 +56,7 @@ export const ComicProjectWorkspace: React.FC = () => {
     const requestId = refreshRequestRef.current + 1;
     refreshRequestRef.current = requestId;
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast("漫画项目参数无效", "error");
+      addToast(t("comic.projectInvalid"), "error");
       setProject(null);
       setChapters([]);
       setLoading(false);
@@ -44,7 +67,7 @@ export const ComicProjectWorkspace: React.FC = () => {
       const item = await getProject(projectId);
       if (refreshRequestRef.current !== requestId) return;
       if (item.project_kind !== "comic") {
-        addToast("当前项目不是漫画项目", "error");
+        addToast(t("comic.notComicProject"), "error");
         navigate("/", { replace: true });
         return;
       }
@@ -54,14 +77,14 @@ export const ComicProjectWorkspace: React.FC = () => {
       setChapters(snapshotChapters);
     } catch (err) {
       if (refreshRequestRef.current === requestId) {
-        addToast(extractErrorMessage(err, "加载漫画项目失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.loadProjectFailed")), "error");
       }
     } finally {
       if (refreshRequestRef.current === requestId) {
         setLoading(false);
       }
     }
-  }, [addToast, navigate, projectId]);
+  }, [addToast, navigate, projectId, t]);
 
   useEffect(() => {
     refreshRequestRef.current += 1;
@@ -84,19 +107,19 @@ export const ComicProjectWorkspace: React.FC = () => {
   return (
     <div className="h-full min-h-0 flex flex-col bg-book-bg">
       <DerivedProjectHeader
-        leading={<BackButton iconOnly title="返回项目列表" onClick={() => navigate("/")} />}
+        leading={<BackButton iconOnly title={t("a11y.back")} onClick={() => navigate("/")} />}
         icon={<PanelsTopLeft size={15} />}
-        title={project?.title || "漫画项目"}
+        title={project?.title || t("novel.comicProject")}
         subtitle={
           project
-            ? getDerivedProjectSubtitle(project, "漫画项目工作区")
-            : "加载源文本信息中"
+            ? getDerivedProjectSubtitle(project, subtitleLabels)
+            : t("video.sourceLoading")
         }
         actions={
           <>
             {canEditProject ? (
               <BookIconButton
-                label="同步来源"
+                label={t("comic.syncSource")}
                 onClick={() => setSourceSyncOpen(true)}
                 disabled={!project}
                 variant="secondary"
@@ -121,11 +144,11 @@ export const ComicProjectWorkspace: React.FC = () => {
         />
       ) : null}
 
-      <section aria-label="漫画项目工作区" className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden custom-scrollbar">
+      <section aria-label={t("comic.workspace")} className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden custom-scrollbar">
         {loading ? (
           <div className="inline-flex items-center gap-2 text-xs text-book-text-muted">
             <LoadingSpinner size="sm" />
-            加载漫画项目
+            {t("comic.loadingProject")}
           </div>
         ) : project ? (
           <MangaTab

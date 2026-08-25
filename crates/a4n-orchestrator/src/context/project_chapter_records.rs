@@ -99,6 +99,20 @@ impl ProjectChapterRecordsApplication {
         .map_err(project_mutation_error_to_app_error)
     }
 
+    async fn source_snapshot_chapter_content_by_snapshot_and_source(
+        &self,
+        snapshot_id: i64,
+        source_chapter_id: i64,
+    ) -> Result<Option<String>, AppError> {
+        a4n_db::project::source_snapshot_chapter_content_by_snapshot_and_source(
+            self.database.connection(),
+            snapshot_id,
+            source_chapter_id,
+        )
+        .await
+        .map_err(project_mutation_error_to_app_error)
+    }
+
     async fn chapters_for_project_numbers(
         &self,
         project_id: i64,
@@ -184,6 +198,16 @@ impl OrchestratorContext {
     ) -> Result<Option<source_snapshot_chapter::Model>, AppError> {
         self.project_chapter_records
             .source_snapshot_chapter_by_snapshot_and_source(snapshot_id, source_chapter_id)
+            .await
+    }
+
+    pub(crate) async fn source_snapshot_chapter_content_by_snapshot_and_source(
+        &self,
+        snapshot_id: i64,
+        source_chapter_id: i64,
+    ) -> Result<Option<String>, AppError> {
+        self.project_chapter_records
+            .source_snapshot_chapter_content_by_snapshot_and_source(snapshot_id, source_chapter_id)
             .await
     }
 

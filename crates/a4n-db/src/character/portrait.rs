@@ -17,9 +17,11 @@ pub use types::{
     CharacterPortraitRollbackResult, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
 
+#[cfg(test)]
 pub(super) use rollback::generated_image_matches_any_portrait;
 #[cfg(test)]
 use rollback::generated_image_matches_portrait;
+pub(super) use rollback::generated_image_metadata_matches_any_portrait;
 
 #[cfg(test)]
 use a4n_core::models::{ai::generated_image, character::character_portrait};

@@ -5,7 +5,7 @@ import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { formatConfigTestTime } from "./testResultUtils";
 import type { ConfigEditorRenderContext, ConfigItem, ConfigTestResult } from "./types";
-import { configCreateLabel } from "./configText";
+import { useI18n } from "../../../i18n";
 
 interface ConfigEditorPanelProps<C> {
   title: string;
@@ -66,10 +66,11 @@ export function ConfigEditorPanel<C>({
   onPreviewTest,
   onTest,
 }: ConfigEditorPanelProps<C>) {
+  const { t } = useI18n();
   const itemActionBusy =
     busy || activating != null || deleting != null || testing != null || previewing;
   const empty = !creating && !selectedItem;
-  const createLabel = configCreateLabel(title);
+  const createLabel = t("settings.createConfig", { name: title });
 
   return (
     <section
@@ -83,15 +84,14 @@ export function ConfigEditorPanel<C>({
           <p className="text-sm">
             {itemCount === 0 ? (
               <>
-                还没有{title}。
+                {t("settings.noConfig", { name: title })}
                 <br />
-                点击“{createLabel}”开始。
+                {t("settings.clickCreateToStart")}
               </>
             ) : (
               <>
-                选择一项进行编辑，
+                {t("settings.selectConfigToEdit", { action: createLabel })}
                 <br />
-                或点击“{createLabel}”开始。
               </>
             )}
           </p>
@@ -101,17 +101,17 @@ export function ConfigEditorPanel<C>({
           <div className="mb-4 flex min-w-0 items-start gap-3 border-b border-book-border/60 pb-3">
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-semibold text-book-text-main">
-                {creating ? `新建 ${title}` : `编辑 ${title}`}
+                {creating ? t("settings.newConfig", { name: title }) : t("settings.editConfig", { name: title })}
               </h3>
               {selectedItem ? (
                 <div className={`mt-0.5 text-small ${selectedItem.isActive ? "text-success" : "text-book-text-muted"}`}>
-                  {selectedItem.isActive ? "当前已启用" : "当前未启用"}
+                  {selectedItem.isActive ? t("settings.activeConfig") : t("settings.inactiveConfig")}
                 </div>
               ) : null}
             </div>
             {creating ? (
               <BookIconButton
-                label="取消新建"
+                label={t("settings.cancelCreate")}
                 variant="ghost"
                 size="sm"
                 onClick={() => void onCancel()}
@@ -149,7 +149,7 @@ export function ConfigEditorPanel<C>({
 
           {selectedItem?.readonly ? (
             <div className="a4n-context-bar mb-4 text-xs text-book-text-muted">
-              {selectedItem.readonlyReason ?? "该配置由系统维护，不能在这里编辑。"}
+              {selectedItem.readonlyReason ?? t("settings.configNotEditable")}
             </div>
           ) : null}
 
@@ -182,12 +182,12 @@ export function ConfigEditorPanel<C>({
               >
                 {saving ? (
                   <span className="inline-flex items-center gap-2">
-                    <LoadingSpinner size="sm" /> 保存中…
+                    <LoadingSpinner size="sm" /> {t("settings.saving")}
                   </span>
                 ) : creating ? (
-                  "创建"
+                  t("settings.create")
                 ) : (
-                  "保存"
+                  t("common.save")
                 )}
               </BookButton>
             </div>
@@ -207,6 +207,7 @@ const ConnectionTestStatus = <C,>({
   testing: number | null;
   testResult: ConfigTestResult | null;
 }) => {
+  const { locale, t } = useI18n();
   const running = selectedItem != null && testing === selectedItem.id;
   if (!running && !testResult) return null;
 
@@ -214,7 +215,7 @@ const ConnectionTestStatus = <C,>({
     return (
       <div className="mb-4 flex items-center gap-2 rounded border border-book-primary/45 bg-book-primary/5 px-3 py-2 text-xs text-book-primary" role="status" aria-live="polite">
         <LoadingSpinner size="sm" />
-        <span>正在测试当前已保存配置…</span>
+        <span>{t("settings.testingSavedConfig")}</span>
       </div>
     );
   }
@@ -237,8 +238,8 @@ const ConnectionTestStatus = <C,>({
       )}
       <div className="min-w-0 flex-1">
         <div className="font-semibold">
-          最近测试{success ? "通过" : "失败"} ·{" "}
-          {formatConfigTestTime(testResult.testedAt, { withSeconds: true })}
+          {t("settings.latestTest", { status: success ? t("common.passed") : t("workflow.failed") })} ·{" "}
+          {formatConfigTestTime(testResult.testedAt, { withSeconds: true }, locale)}
         </div>
         <div className="mt-0.5 break-words opacity-90">{testResult.message}</div>
       </div>
@@ -279,6 +280,7 @@ function ConfigEditorActions<C>({
   onPreviewTest,
   onTest,
 }: ConfigEditorActionsProps<C>) {
+  const { t } = useI18n();
   if (creating || !selectedItem) return null;
   const mutationBusy = saving || activating != null || deleting != null;
   const actionBusy = mutationBusy || testing != null || previewing;
@@ -287,14 +289,14 @@ function ConfigEditorActions<C>({
 
   if (canTest && !readonly && !actionBusy) {
     moreItems.push({
-      label: "测试连接",
+      label: t("settings.testConnection"),
       icon: <Zap size={12} />,
       onClick: () => void onTest(selectedItem.id),
     });
   }
   if (canPreviewTest && !readonly && !actionBusy) {
     moreItems.push({
-      label: "查看模型请求",
+      label: t("settings.viewModelRequest"),
       icon: <Eye size={12} />,
       onClick: () => void onPreviewTest(selectedItem.id),
     });
@@ -310,7 +312,7 @@ function ConfigEditorActions<C>({
   if (!readonly && !selectedItem.isActive && !selectedItem.deleteDisabled && !mutationBusy) {
     if (moreItems.length > 0) moreItems.push({ type: "divider" });
     moreItems.push({
-      label: "删除配置",
+      label: t("settings.deleteConfig"),
       icon: <Trash2 size={12} />,
       danger: true,
       onClick: () => void onDelete(selectedItem.id),

@@ -11,7 +11,9 @@ use super::contracts::{
     CharacterProfileSyncExtraction, CharacterProfileSyncStage, CharacterProfileSyncStageInput,
     CharacterProfileSyncStageOutputs,
 };
-use evidence::{ensure_stage_anchor_exists, validate_sync_evidence_against_chapters};
+use evidence::{
+    ChapterEvidenceIndex, ensure_stage_anchor_exists, validate_sync_evidence_against_chapters,
+};
 use validation::{
     chapter_state_drafts, chapter_state_drafts_json, sort_sync_items_by_chapter,
     validate_attribute_change, validate_behavior, validate_chapter_state,
@@ -75,6 +77,7 @@ fn parse_sync_evidence_events(
 ) -> Result<Vec<Value>, String> {
     let events = required_array(value, "events")?.clone();
     validate_sync_item_chapters("events", &events, &input.selected_chapter_numbers)?;
+    let chapter_index = ChapterEvidenceIndex::new(&input.chapter_data);
     for (index, event) in events.iter().enumerate() {
         if !event.is_object() {
             return Err(format!("events[{index}] 必须是 JSON 对象"));
@@ -87,7 +90,7 @@ fn parse_sync_evidence_events(
         required_string(event, "event_type")?;
         required_string(event, "summary")?;
         required_string_array(event, "related_characters")?;
-        ensure_stage_anchor_exists(event, "events", index, "evidence_anchor_id", input)?;
+        ensure_stage_anchor_exists(event, "events", index, "evidence_anchor_id", &chapter_index)?;
     }
     Ok(events)
 }

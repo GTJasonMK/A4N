@@ -44,13 +44,12 @@ pub(in crate::routes::commands) async fn sync_scene_profiles(
         Some(&progress),
     )
     .await;
-    let value = finish_web_task(
+    to_value(finish_web_task(
         state,
         task.as_ref(),
         string_action_result(
             result,
             task.as_ref().is_some_and(|handle| handle.is_cancelled()),
         ),
-    )?;
-    to_value(value)
+    )?)
 }

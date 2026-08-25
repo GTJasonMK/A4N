@@ -15,7 +15,7 @@ use super::super::planning::{
 use super::super::requests::build_part_outline_request;
 
 impl OrchestratorContext {
-    pub async fn preview_generate_parts_requests(
+    pub(in crate::outline) async fn preview_generate_parts_requests(
         &self,
         project_id: i64,
         part_count: Option<i32>,

@@ -1,5 +1,8 @@
 use a4n_core::{error::AppError, source_spans::SourceSpan};
-use a4n_db::{project::ResolvedChapterSource, shooting_script::ParsedChapterShootingScript};
+use a4n_db::{
+    chapter_visual_plan::ParsedChapterVisualPlan, project::ResolvedChapterSource,
+    shooting_script::ParsedChapterShootingScript,
+};
 use a4n_domain::shooting_script::{
     ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
     ShootingTransitionContractV1,
@@ -131,6 +134,7 @@ pub(super) struct RegenerateChapterShootingScriptInput {
     pub(super) project_id: i64,
     pub(super) source_chapter_id: i64,
     pub(super) workflow_run_id: i64,
+    pub(super) visual_plan_id: i64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -154,10 +158,51 @@ pub(super) struct PreparedChapterShootingScriptRequest {
     pub(super) source_spans: Vec<SourceSpan>,
     pub(super) input_fingerprint_sha256: String,
     pub(super) existing: Option<ParsedChapterShootingScript>,
-    pub(super) skeleton_system_prompt: String,
+    pub(super) visual_plan: ParsedChapterVisualPlan,
     pub(super) layout_unit_system_prompt: String,
     pub(super) unit_adaptation_system_prompt: String,
     pub(super) design_unit_system_prompt: String,
+}
+
+#[cfg(test)]
+pub(super) fn visual_plan_fixture(
+    source: &ResolvedChapterSource,
+    source_spans: &[SourceSpan],
+) -> ParsedChapterVisualPlan {
+    use a4n_domain::chapter_visual_plan::{
+        CHAPTER_VISUAL_PLAN_V1, ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus,
+    };
+
+    let plan = crate::chapter_visual_plan::starter_plan(source, source_spans)
+        .expect("visual plan fixture");
+    let plan_sha256 =
+        a4n_db::generation::canonical_json_sha256(&plan).expect("visual plan fixture sha256");
+    let now = chrono::Utc::now().naive_utc();
+    ParsedChapterVisualPlan {
+        record: a4n_core::models::chapter::chapter_visual_plan::Model {
+            id: 1,
+            root_project_id: source.root_project_id,
+            source_chapter_id: source.source_chapter_id,
+            source_snapshot_id: source.source_snapshot_id,
+            source_snapshot_chapter_id: source.source_snapshot_chapter_id,
+            source_revision_key: source.source_revision_key.clone(),
+            source_content_sha256: source.content_sha256.clone(),
+            contract_version: CHAPTER_VISUAL_PLAN_V1.into(),
+            plan_version: 1,
+            revision: 1,
+            status: ChapterVisualPlanStatus::Confirmed.as_str().into(),
+            authoring_mode: ChapterVisualPlanAuthoringMode::Manual.as_str().into(),
+            plan_sha256,
+            plan_json: serde_json::to_value(&plan).expect("visual plan fixture json"),
+            author_user_id: 1,
+            confirmed_at: Some(now),
+            created_at: now,
+            updated_at: now,
+        },
+        status: ChapterVisualPlanStatus::Confirmed,
+        authoring_mode: ChapterVisualPlanAuthoringMode::Manual,
+        plan,
+    }
 }
 
 #[derive(Debug, Clone)]

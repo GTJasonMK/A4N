@@ -9,6 +9,7 @@ import { OptimizeTab } from "../novel-detail/OptimizeTab";
 import type { OptimizationPatchPreviewController } from "../novel-detail/optimize/patchPreviewTypes";
 import { AssistantContextPanel } from "./AssistantContextPanel";
 import { StreamControlBar } from "./StreamControlBar";
+import { useI18n } from "../../i18n";
 
 interface WritingAssistantPanelProps {
   embeddedInModal?: boolean;
@@ -77,12 +78,17 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
   onChapterContentChanged,
   onPatchPreviewChange,
 }) => {
+  const { t } = useI18n();
   const [assistantMode, setAssistantMode] = useState<AssistantMode>("generate");
   const generationActive = Boolean(streamTaskId || streamBusy || resetBusy);
+  const minWordCountErrorPrefix = t("writing.minWordCount");
+  const maxWordCountErrorPrefix = t("writing.maxWordCount");
+  const hasMinWordCountError = wordCountRangeError?.startsWith(minWordCountErrorPrefix) ?? false;
+  const hasMaxWordCountError = wordCountRangeError?.startsWith(maxWordCountErrorPrefix) ?? false;
 
   return (
     <aside
-      aria-label="写作助手"
+      aria-label={t("writing.assistantTitle")}
       className={`a4n-desk-rail flex h-full min-h-0 min-w-0 flex-col overflow-hidden !p-0 ${
         embeddedInModal ? "!border-0 !bg-transparent" : "border-l border-book-border/80"
       }`}
@@ -93,15 +99,15 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
         }`}
       >
         <span className="text-small text-book-text-muted">
-          {activeNumber != null ? `第 ${activeNumber} 章` : "尚未选择章节"}
+          {activeNumber != null ? t("writing.chapterLabel", { number: activeNumber }) : t("writing.assistantChapterNotSelected")}
         </span>
         <SegmentedControl
-          ariaLabel="写作助手模式"
+          ariaLabel={t("writing.assistantMode")}
           value={assistantMode}
           onChange={setAssistantMode}
           options={[
-            { id: "generate" as const, label: "生成", icon: <Wand2 size={11} /> },
-            { id: "optimize" as const, label: "优化" },
+            { id: "generate" as const, label: t("writing.assistantGenerate"), icon: <Wand2 size={11} /> },
+            { id: "optimize" as const, label: t("writing.assistantOptimize") },
           ]}
         />
       </div>
@@ -112,12 +118,12 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
             {!generationActive ? (
               <>
                 <BookTextarea
-                  label="本章创作简报 / 写作要求"
+                  label={t("writing.chapterBriefLabel")}
                   value={writingNotes}
                   onChange={(event) => onWritingNotesChange(event.target.value)}
                   rows={3}
                   maxLength={1200}
-                  placeholder="无章纲时写清本章要发生什么；有章纲时可补充风格或重试要求"
+                  placeholder={t("writing.chapterBriefPlaceholder")}
                   className="text-xs leading-relaxed"
                 />
 
@@ -126,14 +132,14 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                   open={wordCountRangeError ? true : undefined}
                 >
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-book-text-muted hover:text-book-text-main">
-                    <span>正文长度</span>
+                    <span>{t("writing.bodyLength")}</span>
                     <span className={wordCountRangeError ? "text-error" : "text-book-text-sub"}>
-                      {wordCountRangeError ?? `${minWordCount || "—"}–${maxWordCount || "—"} 字`}
+                      {wordCountRangeError ?? t("writing.wordCountRange", { min: minWordCount || "—", max: maxWordCount || "—" })}
                     </span>
                   </summary>
                   <div className="mt-3 grid min-w-0 grid-cols-2 gap-2">
                     <BookInput
-                      label="最少字数"
+                      label={t("writing.minWordCount")}
                       type="number"
                       inputMode="numeric"
                       min={1}
@@ -141,10 +147,10 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                       value={minWordCount}
                       onChange={(event) => onMinWordCountChange(event.target.value)}
                       className="h-8 text-xs"
-                      error={wordCountRangeError?.startsWith("最少") ? wordCountRangeError : undefined}
+                      error={hasMinWordCountError ? wordCountRangeError ?? undefined : undefined}
                     />
                     <BookInput
-                      label="最多字数"
+                      label={t("writing.maxWordCount")}
                       type="number"
                       inputMode="numeric"
                       min={1}
@@ -152,12 +158,12 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                       value={maxWordCount}
                       onChange={(event) => onMaxWordCountChange(event.target.value)}
                       className="h-8 text-xs"
-                      error={wordCountRangeError?.startsWith("最多") ? wordCountRangeError : undefined}
+                      error={hasMaxWordCountError ? wordCountRangeError ?? undefined : undefined}
                     />
                   </div>
                   {wordCountRangeError &&
-                    !wordCountRangeError.startsWith("最少") &&
-                    !wordCountRangeError.startsWith("最多") ? (
+                    !hasMinWordCountError &&
+                    !hasMaxWordCountError ? (
                       <div className="mt-2 text-xs text-error">{wordCountRangeError}</div>
                     ) : null}
                 </details>
@@ -182,7 +188,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                 <Dropdown
                   items={[
                     {
-                      label: previewing ? "正在构造模型请求" : "查看模型请求",
+                      label: previewing ? t("writing.modelRequestBuilding") : t("writing.viewModelRequest"),
                       icon: <Eye size={12} className={previewing ? "animate-pulse" : undefined} />,
                       disabled:
                         !activeNumber ||
@@ -192,7 +198,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                       onClick: () => void onPreviewPrompt(),
                     },
                     {
-                      label: "场景管理",
+                      label: t("writing.sceneManagement"),
                       icon: <Film size={12} />,
                       disabled: !activeChapter || activeChapterBusy,
                       onClick: () => void onOpenScenes(),
@@ -201,7 +207,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                       ? [
                           { type: "divider" as const },
                           {
-                            label: "重置生成数据",
+                            label: t("writing.resetGeneratedData"),
                             icon: <RotateCcw size={12} />,
                             danger: true,
                             onClick: () => void onResetGeneratedData(),
@@ -234,7 +240,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
         </div>
       ) : (
         <div className="a4n-empty-state a4n-empty-state--compact m-3 text-xs">
-          请先选择一个已生成章节
+          {t("writing.chooseGeneratedChapterForAssistant")}
         </div>
       )}
     </aside>

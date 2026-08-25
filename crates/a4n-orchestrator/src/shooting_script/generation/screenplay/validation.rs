@@ -34,7 +34,6 @@ pub(super) fn validate_skeleton(
             || unit.sequence_index == 0
             || unit.timeline_position == 0
             || unit.scene_identity.trim().is_empty()
-            || unit.source_span_ids.is_empty()
             || unit
                 .source_span_ids
                 .iter()
@@ -42,6 +41,24 @@ pub(super) fn validate_skeleton(
         {
             return Err(AppError::InvalidArgument(format!(
                 "叙事骨架 unit {} 的索引或来源无效",
+                unit.narrative_unit_index
+            )));
+        }
+        let planned = prepared
+            .visual_plan
+            .plan
+            .narrative_units
+            .get(offset)
+            .ok_or_else(|| AppError::InvalidArgument("视觉编排叙事单元缺失".into()))?;
+        if unit.scene_identity != planned.id
+            || unit.sequence_index != planned.sequence_index
+            || unit.timeline_position != planned.timeline_position
+            || unit.editing_mode != planned.editing_mode
+            || unit.intercut_group_id != planned.intercut_group_id
+            || unit.source_span_ids != planned.source_span_ids
+        {
+            return Err(AppError::InvalidArgument(format!(
+                "叙事骨架 unit {} 偏离 confirmed 导演编排",
                 unit.narrative_unit_index
             )));
         }
@@ -112,6 +129,11 @@ pub(super) fn validate_unit_adaptation(
             unit.narrative_unit_index
         )));
     }
+    let allowed_sources = unit
+        .source_span_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<HashSet<_>>();
     for (offset, fact) in output.performance_facts.iter().enumerate() {
         let expected_fact_index = u32::try_from(offset + 1)
             .map_err(|_| AppError::InvalidArgument("表演事实数量超出 u32 范围".into()))?;
@@ -125,7 +147,7 @@ pub(super) fn validate_unit_adaptation(
             || fact
                 .source_span_ids
                 .iter()
-                .any(|id| !unit.source_span_ids.contains(id))
+                .any(|id| !allowed_sources.contains(id.as_str()))
         {
             return Err(AppError::InvalidArgument(format!(
                 "叙事单元 {} fact {} 引用了当前单元范围外的 source span",

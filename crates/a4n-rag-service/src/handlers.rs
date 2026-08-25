@@ -2,9 +2,7 @@ pub(crate) mod events;
 pub(crate) mod management;
 pub(crate) mod search;
 
-use a4n_service_protocol::{
-    HealthStatus, RAG_SERVICE_NAME, ServiceHealth, known_service_health,
-};
+use a4n_service_protocol::{HealthStatus, RAG_SERVICE_NAME, ServiceHealth, known_service_health};
 use axum::Json;
 
 pub(crate) async fn healthz() -> Json<ServiceHealth> {

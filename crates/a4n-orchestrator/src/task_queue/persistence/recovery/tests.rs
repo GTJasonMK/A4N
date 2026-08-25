@@ -147,11 +147,17 @@ async fn interrupts_stale_video_before_provider_submission() {
     .await
     .unwrap();
     let stale = insert_video_with_run(db.as_ref(), project.id, None).await;
+    let stale_second = insert_video_with_run(db.as_ref(), project.id, None).await;
     let durable = insert_video_with_run(db.as_ref(), project.id, Some("provider-job")).await;
 
     let _queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
 
     let stale = generated_video::Entity::find_by_id(stale.id)
+        .one(db.as_ref())
+        .await
+        .unwrap()
+        .unwrap();
+    let stale_second = generated_video::Entity::find_by_id(stale_second.id)
         .one(db.as_ref())
         .await
         .unwrap()
@@ -168,9 +174,20 @@ async fn interrupts_stale_video_before_provider_submission() {
             .as_deref()
             .is_some_and(|message| message.contains("尚未提交"))
     );
+    assert_eq!(stale_second.status, WORKFLOW_STATUS_INTERRUPTED);
+    assert!(
+        stale_second
+            .error_message
+            .as_deref()
+            .is_some_and(|message| message.contains("尚未提交"))
+    );
     assert_eq!(durable.status, WORKFLOW_STATUS_RUNNING);
     assert_eq!(
         video_generation_run_status(db.as_ref(), stale.id).await,
+        WORKFLOW_STATUS_INTERRUPTED
+    );
+    assert_eq!(
+        video_generation_run_status(db.as_ref(), stale_second.id).await,
         WORKFLOW_STATUS_INTERRUPTED
     );
     assert_eq!(

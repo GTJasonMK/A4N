@@ -3,8 +3,8 @@ use crate::AppState;
 use crate::actions::access;
 use crate::actions::image_generation::{GeneratedImageSummary, to_summary};
 use crate::actions::video_generation::media::append_secondary_error;
-use crate::file_utils::{canonicalize_data_file_path, persist_created_media_file};
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
+use crate::file_utils::{canonicalize_data_file_path, persist_created_media_file};
 use a4n_domain::CanvasFrameKind;
 
 pub(crate) async fn extract_canvas_video_frame(

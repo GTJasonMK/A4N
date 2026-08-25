@@ -1,18 +1,23 @@
 use crate::collaboration::CollaborationDbError;
+use crate::collaboration::types::UserAccessRow;
 use a4n_core::models::{
     project::{novel_project, project_invite, project_member},
     user::user,
 };
-use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub(in crate::collaboration) async fn find_user<C>(
     db: &C,
     user_id: i64,
-) -> Result<user::Model, CollaborationDbError>
+) -> Result<UserAccessRow, CollaborationDbError>
 where
     C: ConnectionTrait,
 {
     user::Entity::find_by_id(user_id)
+        .select_only()
+        .column(user::Column::Role)
+        .column(user::Column::IsActive)
+        .into_model::<UserAccessRow>()
         .one(db)
         .await
         .map_err(CollaborationDbError::Database)?
@@ -22,11 +27,15 @@ where
 pub(in crate::collaboration) async fn find_project<C>(
     db: &C,
     project_id: i64,
-) -> Result<novel_project::Model, CollaborationDbError>
+) -> Result<(i64, i64), CollaborationDbError>
 where
     C: ConnectionTrait,
 {
     novel_project::Entity::find_by_id(project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::UserId)
+        .into_tuple::<(i64, i64)>()
         .one(db)
         .await
         .map_err(CollaborationDbError::Database)?
@@ -76,13 +85,17 @@ pub(in crate::collaboration) async fn find_member<C>(
     db: &C,
     project_id: i64,
     user_id: i64,
-) -> Result<project_member::Model, CollaborationDbError>
+) -> Result<(i64, String), CollaborationDbError>
 where
     C: ConnectionTrait,
 {
     project_member::Entity::find()
+        .select_only()
+        .column(project_member::Column::Id)
+        .column(project_member::Column::Role)
         .filter(project_member::Column::ProjectId.eq(project_id))
         .filter(project_member::Column::UserId.eq(user_id))
+        .into_tuple::<(i64, String)>()
         .one(db)
         .await
         .map_err(CollaborationDbError::Database)?

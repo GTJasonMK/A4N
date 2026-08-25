@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { Foreshadowing } from "../../../api/foreshadowing";
 import { ForeshadowingIndexCard } from "./ForeshadowingIndexCard";
+import { I18nProvider } from "../../../i18n";
 
 describe("ForeshadowingIndexCard", () => {
   it("renders the formal index and keeps mutations behind editor permission", () => {
@@ -19,13 +20,15 @@ describe("ForeshadowingIndexCard", () => {
     };
 
     const editable = renderToStaticMarkup(
-      <ForeshadowingIndexCard
+      <I18nProvider initialLocale="zh-CN">
+        <ForeshadowingIndexCard
         projectId={3}
         records={[record]}
         canEdit
         loading={false}
         onReload={async () => undefined}
-      />,
+        />
+      </I18nProvider>,
     );
     expect(editable).toContain("正式伏笔索引");
     expect(editable).toContain("门后的脚步声");
@@ -33,13 +36,15 @@ describe("ForeshadowingIndexCard", () => {
     expect(editable).toContain("新增伏笔");
 
     const readonly = renderToStaticMarkup(
-      <ForeshadowingIndexCard
+      <I18nProvider initialLocale="zh-CN">
+        <ForeshadowingIndexCard
         projectId={3}
         records={[record]}
         canEdit={false}
         loading={false}
         onReload={async () => undefined}
-      />,
+        />
+      </I18nProvider>,
     );
     expect(readonly).not.toContain("新增伏笔");
     expect(readonly).not.toContain("编辑伏笔：门后的脚步声");

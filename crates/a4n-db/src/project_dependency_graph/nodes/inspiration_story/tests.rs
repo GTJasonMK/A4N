@@ -1,12 +1,10 @@
-use a4n_core::models::{
-    chapter::{chapter, chapter_outline},
-    project::{blueprint_version, novel_blueprint},
-    user::conversation,
-};
-use chrono::Utc;
 use serde_json::json;
 
 use super::{add_inspiration_nodes, add_story_nodes};
+use crate::project_dependency_graph::graph::{
+    BlueprintGraphRow, BlueprintVersionGraphRow, ChapterGraphRow, ChapterOutlineGraphRow,
+    ConversationGraphRow,
+};
 use crate::project_dependency_graph::{
     AssetDependencyGraph, AssetGraphNode, GraphBuilder, NodeSeedMetadata, node,
 };
@@ -40,32 +38,9 @@ fn graph_node<'a>(graph: &'a AssetDependencyGraph, id: &str) -> &'a AssetGraphNo
 
 #[test]
 fn inspiration_nodes_aggregate_non_negative_message_counts() {
-    let now = Utc::now().naive_utc();
     let conversations = [
-        conversation::Model {
-            id: 1,
-            project_id: 7,
-            title: None,
-            conversation_type: "inspiration".to_string(),
-            summary: None,
-            extracted_facts: None,
-            message_count: 3,
-            is_active: true,
-            created_at: now,
-            updated_at: now,
-        },
-        conversation::Model {
-            id: 2,
-            project_id: 7,
-            title: None,
-            conversation_type: "inspiration".to_string(),
-            summary: None,
-            extracted_facts: None,
-            message_count: -4,
-            is_active: true,
-            created_at: now,
-            updated_at: now,
-        },
+        ConversationGraphRow { message_count: 3 },
+        ConversationGraphRow { message_count: -4 },
     ];
     let mut builder = GraphBuilder::default();
     add_seed(&mut builder, "project", 0);
@@ -90,84 +65,26 @@ fn inspiration_nodes_aggregate_non_negative_message_counts() {
 
 #[test]
 fn story_nodes_preserve_outline_fallback_word_count_and_analysis_count() {
-    let now = Utc::now().naive_utc();
-    let blueprints = [novel_blueprint::Model {
-        id: 1,
-        project_id: 7,
-        title: "蓝图".to_string(),
-        genre: "悬疑".to_string(),
-        style: None,
-        tone: None,
-        target_audience: None,
+    let blueprints = [BlueprintGraphRow {
         one_sentence_summary: Some("一句话梗概".to_string()),
-        full_synopsis: None,
-        world_setting: None,
         current_version: "1.0".to_string(),
-        needs_part_outlines: false,
-        total_chapters: Some(2),
-        chapters_per_part: None,
-        avatar_svg: None,
-        avatar_animal: None,
-        created_at: now,
-        updated_at: now,
     }];
-    let versions = [blueprint_version::Model {
-        id: 1,
-        project_id: 7,
+    let versions = [BlueprintVersionGraphRow {
         version: "1.0".to_string(),
-        change_description: None,
-        blueprint_data: json!({}),
-        created_at: now,
-        created_by: None,
     }];
-    let outlines = [chapter_outline::Model {
-        id: 1,
-        project_id: 7,
-        part_id: None,
-        chapter_number: 2,
-        title: Some("第二章".to_string()),
-        summary: None,
-        beats: None,
-        key_scenes: None,
-        pacing_score: None,
-        foreshadowing_setup: None,
-        foreshadowing_payoff: None,
-        characters_involved: None,
-        word_count_target: None,
-        status: chapter_outline::STATUS_COMPLETED.to_string(),
-        created_at: now,
-        updated_at: now,
-    }];
+    let outlines = [ChapterOutlineGraphRow { chapter_number: 2 }];
     let chapters = [
-        chapter::Model {
+        ChapterGraphRow {
             id: 1,
-            project_id: 7,
-            outline_id: Some(1),
-            chapter_number: 1,
-            title: None,
             content: "正文".to_string(),
             word_count: 120,
-            status: chapter::STATUS_COMPLETED.to_string(),
-            summary: None,
-            style_tags: None,
-            analysis_data: Some(json!({ "beats": ["开端"] })),
-            created_at: now,
-            updated_at: now,
+            has_analysis: true,
         },
-        chapter::Model {
+        ChapterGraphRow {
             id: 2,
-            project_id: 7,
-            outline_id: None,
-            chapter_number: 2,
-            title: None,
             content: String::new(),
             word_count: -10,
-            status: chapter::STATUS_DRAFT.to_string(),
-            summary: None,
-            style_tags: None,
-            analysis_data: Some(serde_json::Value::Null),
-            created_at: now,
-            updated_at: now,
+            has_analysis: false,
         },
     ];
     let mut builder = GraphBuilder::default();

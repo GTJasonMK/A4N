@@ -1,3 +1,7 @@
+use a4n_api_contract::prompt::{
+    RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput, ValidateVarsInput,
+    VersionDiffInput,
+};
 use serde_json::Value;
 
 use super::super::{
@@ -118,7 +122,7 @@ pub(in crate::routes::commands) async fn prompt_list_project_overrides(
 
 prompt_web_user_input_command!(
     prompt_render,
-    prompt_records_actions::RenderInput,
+    RenderInput,
     prompt_records_actions::prompt_render,
 );
 prompt_web_no_input_command!(prompt_list, prompt_records_actions::prompt_list);
@@ -128,7 +132,7 @@ prompt_web_no_input_command!(
 );
 prompt_web_user_input_command!(
     prompt_update,
-    prompt_records_actions::UpdatePromptInput,
+    UpdatePromptInput,
     prompt_records_actions::prompt_update,
 );
 prompt_web_name_unit_command!(prompt_reset, prompt_records_actions::prompt_reset);
@@ -138,27 +142,27 @@ prompt_web_name_sync_command!(
 );
 prompt_web_input_command!(
     prompt_version_diff,
-    prompt_records_actions::VersionDiffInput,
+    VersionDiffInput,
     prompt_records_actions::prompt_version_diff,
 );
 prompt_web_input_command!(
     prompt_validate_variables,
-    prompt_records_actions::ValidateVarsInput,
+    ValidateVarsInput,
     prompt_records_actions::prompt_validate_variables,
 );
 prompt_web_user_input_command!(
     prompt_render_ab,
-    prompt_records_actions::RenderInput,
+    RenderInput,
     prompt_records_actions::prompt_render_ab,
 );
 prompt_web_user_input_unit_command!(
     prompt_set_project_override,
-    prompt_records_actions::SetOverrideInput,
+    SetOverrideInput,
     prompt_records_actions::prompt_set_project_override,
 );
 prompt_web_user_input_unit_command!(
     prompt_remove_project_override,
-    prompt_records_actions::RemoveOverrideInput,
+    RemoveOverrideInput,
     prompt_records_actions::prompt_remove_project_override,
 );
 prompt_web_no_input_command!(

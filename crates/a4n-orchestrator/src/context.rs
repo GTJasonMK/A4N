@@ -11,19 +11,15 @@ use crate::task_queue::PersistentTaskQueue;
 
 mod admin;
 mod asset;
-mod asset_lineage_sync;
 mod auth;
 mod canvas;
 mod chapter_content;
 mod character;
 mod collaboration;
 mod construction;
-pub mod dynamic_provider;
+pub(super) mod dynamic_provider;
 mod galgame;
-mod generation;
-pub use generation::{
-    GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
-};
+pub(super) mod generation;
 pub(crate) use generation::{GenerationTaskExecution, fail_generation_workflow_execution};
 mod import_reverse;
 mod import_review;
@@ -63,7 +59,6 @@ mod workflow;
 
 use admin::AdminApplication;
 use asset::AssetApplication;
-use asset_lineage_sync::AssetLineageSyncApplication;
 use auth::AuthApplication;
 use canvas::CanvasApplication;
 use chapter_content::ChapterContentApplication;
@@ -106,7 +101,6 @@ pub struct OrchestratorContext {
     pub(crate) database: DbHandle,
     admin: AdminApplication,
     asset: AssetApplication,
-    asset_lineage_sync: AssetLineageSyncApplication,
     auth: AuthApplication,
     canvas: CanvasApplication,
     chapter_content: ChapterContentApplication,

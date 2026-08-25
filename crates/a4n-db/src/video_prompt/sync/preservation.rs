@@ -1,19 +1,18 @@
 use super::identity::should_keep_unmatched_prompt;
 use super::*;
+use a4n_core::models::{ai::generated_image, chapter::chapter_video_prompt};
 use a4n_core::video_execution::{VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2};
+use std::collections::BTreeSet;
 
-pub(super) async fn preserved_unmatched_prompt_ids_by_policy<C>(
-    db: &C,
+pub(super) fn preserved_unmatched_prompt_ids_by_policy(
     existing_by_identity: &HashMap<PromptIdentity, chapter_video_prompt::Model>,
     draft_identities: &BTreeSet<PromptIdentity>,
     draft_scopes: &BTreeSet<PromptScope>,
     policy: &ChapterVideoPromptSyncPolicy,
-) -> Result<BTreeSet<i64>, VideoDbError>
-where
-    C: ConnectionTrait,
-{
+    generated_image_prompt_ids: &BTreeSet<i64>,
+) -> BTreeSet<i64> {
     if !policy.preserve_frame_prompts_with_generated_images {
-        return Ok(BTreeSet::new());
+        return BTreeSet::new();
     }
     let mut ids = BTreeSet::new();
     for (identity, row) in existing_by_identity {
@@ -21,43 +20,55 @@ where
             continue;
         }
         if is_sync_frame_prompt_type(&row.prompt_type)
-            && chapter_video_prompt_has_generated_frame_image(db, row).await?
+            && generated_image_prompt_ids.contains(&row.id)
         {
             ids.insert(row.id);
         }
     }
-    Ok(ids)
+    ids
 }
 
-pub(super) async fn should_preserve_existing_prompt<C>(
-    db: &C,
+pub(super) fn should_preserve_existing_prompt(
     existing: &chapter_video_prompt::Model,
     draft: &ChapterVideoPromptSyncDraft,
     policy: &ChapterVideoPromptSyncPolicy,
-) -> Result<bool, VideoDbError>
-where
-    C: ConnectionTrait,
-{
+    generated_image_prompt_ids: &BTreeSet<i64>,
+) -> bool {
     if policy.preserve_generated_video_prompts
         && existing.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
         && draft.fields.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO
         && existing.generated_video_id.is_some()
         && !prompt_sync_draft_fields_match(existing, draft)
     {
-        return Ok(true);
+        return true;
     }
-    if policy.preserve_frame_prompts_with_generated_images
+    frame_prompt_preservation_candidate(existing, draft, policy)
+        && generated_image_prompt_ids.contains(&existing.id)
+}
+
+pub(super) fn frame_prompt_preservation_candidate(
+    existing: &chapter_video_prompt::Model,
+    draft: &ChapterVideoPromptSyncDraft,
+    policy: &ChapterVideoPromptSyncPolicy,
+) -> bool {
+    policy.preserve_frame_prompts_with_generated_images
         && existing.prompt_type == draft.fields.prompt_type
         && is_sync_frame_prompt_type(&existing.prompt_type)
         && !prompt_sync_draft_fields_match(existing, draft)
-        && chapter_video_prompt_has_generated_frame_image(db, existing).await?
-    {
-        return Ok(true);
-    }
-    Ok(false)
 }
 
-fn is_sync_frame_prompt_type(prompt_type: &str) -> bool {
+pub(super) fn generated_frame_image_prompt_ids(
+    images: impl IntoIterator<Item = generated_image::Reference>,
+) -> BTreeSet<i64> {
+    images
+        .into_iter()
+        .filter_map(|image| {
+            a4n_domain::image::image_generation_prompt_id(image.metadata_json.as_ref())
+        })
+        .collect()
+}
+
+pub(super) fn is_sync_frame_prompt_type(prompt_type: &str) -> bool {
     matches!(
         prompt_type,
         chapter_video_prompt::PROMPT_TYPE_FRAME
@@ -283,6 +294,38 @@ mod tests {
             "reference_media": null,
             "adopted_video_id": null
         })
+    }
+
+    #[test]
+    fn generated_frame_image_prompt_ids_deduplicate_generation_context() {
+        let images = vec![
+            generated_image::Reference {
+                id: 1,
+                image_type: "video_key_frame".to_string(),
+                metadata_json: Some(json!({
+                    "generation_context": {"prompt_id": 9}
+                })),
+            },
+            generated_image::Reference {
+                id: 2,
+                image_type: "video_key_frame".to_string(),
+                metadata_json: Some(json!({
+                    "generation_context": {"prompt_id": 9}
+                })),
+            },
+            generated_image::Reference {
+                id: 3,
+                image_type: "video_key_frame".to_string(),
+                metadata_json: Some(json!({
+                    "generation_context": {"prompt_id": 0}
+                })),
+            },
+        ];
+
+        assert_eq!(
+            generated_frame_image_prompt_ids(images),
+            [9].into_iter().collect::<BTreeSet<_>>()
+        );
     }
 
     fn draft(metadata_json: Value) -> ChapterVideoPromptSyncDraft {

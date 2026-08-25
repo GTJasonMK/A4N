@@ -1,22 +1,23 @@
 use a4n_core::models::{
-    generation::generation_spec,
-    project::{project_source_snapshot, source_snapshot_chapter},
-    source_sync::source_sync_run,
+    generation::generation_spec, project::project_source_snapshot, source_sync::source_sync_run,
     video_project::video_segment,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
+};
 use serde_json::Value;
 
 use super::contracts::SourceSyncReplacementSegmentRecordInput;
 use crate::source_sync::{
-    SourceSyncDbError, required_owned_text, source_snapshot_chapter_for_source,
+    SourceSyncDbError, required_owned_text, source_snapshot_chapter_id_for_source,
     validate_positive_id,
 };
 
 pub(super) struct PreparedReplacementGenerationSpec {
     pub(super) source_chapter_id: i64,
-    pub(super) snapshot_chapter: source_snapshot_chapter::Model,
-    pub(super) snapshot: project_source_snapshot::Model,
+    pub(super) snapshot_chapter_id: i64,
+    pub(super) snapshot_id: i64,
+    pub(super) source_version_hash: String,
     pub(super) title: String,
 }
 
@@ -53,9 +54,12 @@ where
             source_spec.id
         ))
     })?;
-    let snapshot_chapter =
-        source_snapshot_chapter_for_source(db, run.to_snapshot_id, source_chapter_id).await?;
-    let snapshot = project_source_snapshot::Entity::find_by_id(run.to_snapshot_id)
+    let snapshot_chapter_id =
+        source_snapshot_chapter_id_for_source(db, run.to_snapshot_id, source_chapter_id).await?;
+    let source_version_hash = project_source_snapshot::Entity::find_by_id(run.to_snapshot_id)
+        .select_only()
+        .column(project_source_snapshot::Column::SourceVersionHash)
+        .into_tuple::<String>()
         .one(db)
         .await?
         .ok_or_else(|| {
@@ -84,8 +88,9 @@ where
 
     Ok(PreparedReplacementGenerationSpec {
         source_chapter_id,
-        snapshot_chapter,
-        snapshot,
+        snapshot_chapter_id,
+        snapshot_id: run.to_snapshot_id,
+        source_version_hash,
         title,
     })
 }

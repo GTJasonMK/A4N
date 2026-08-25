@@ -40,8 +40,52 @@ mod tests {
             characters_in_frame: None,
             layout: Some(json!({
                 "schema_version": "manga_page_generation_v2",
-                "shooting_script_id": 71,
-                "shooting_script_revision": 2
+                "page_plan": {
+                    "page_number": 1,
+                    "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                    "role": "setup",
+                    "pacing": "medium",
+                    "importance": "normal",
+                    "reading_flow": "top_to_bottom_left_to_right",
+                    "page_goal": "推进场景",
+                    "visual_thesis": "角色对峙",
+                    "entry_state": "平静",
+                    "exit_state": "紧张",
+                    "dominant_panel_number": 1,
+                    "panels": [{
+                        "panel_number": 1,
+                        "beat_refs": [{"scene_index": 1, "shot_index": 1, "beat_index": 1}],
+                        "function": "dialogue",
+                        "size": "dominant",
+                        "shot_scale": "medium",
+                        "camera_angle": "eye_level",
+                        "participants": ["hero"],
+                        "composition": "单人构图",
+                        "observable_action": "抬头",
+                        "reaction": null,
+                        "spatial_relationship": "中央",
+                        "continuity_from_previous": null,
+                        "text_layers": []
+                    }]
+                },
+                "drawing_prompt": {
+                    "schema_version": "manga_page_drawing_prompt_v2",
+                    "page_number": 1,
+                    "image_prompt": "整页"
+                },
+                "reference_bindings": [],
+                "prompt_fingerprint": {"hash": "sha256"},
+                "source": {
+                    "root_project_id": 11,
+                    "source_chapter_id": 12,
+                    "source_snapshot_id": null,
+                    "source_snapshot_chapter_id": null,
+                    "source_revision_key": "live:12:content-sha256",
+                    "content_sha256": "content-sha256",
+                    "shooting_script_id": 71,
+                    "shooting_script_revision": 2,
+                    "shooting_script_sha256": "script-sha256"
+                }
             })),
             status: "pending".to_string(),
         }

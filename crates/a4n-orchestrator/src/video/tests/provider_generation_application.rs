@@ -14,6 +14,7 @@ use a4n_core::{
         generation::generation_run,
         user::user,
     },
+    source_spans::source_text_hash,
     video_execution::{
         VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoReferenceMediaBindingV1,
         VideoReferenceMediaRecipeV1, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
@@ -440,14 +441,117 @@ async fn ensure_owner_user(db: &a4n_db::DatabaseConnection) -> i64 {
     .id
 }
 
+fn ready_segment_recipe() -> VideoSegmentExecutionRecipeV1 {
+    VideoSegmentExecutionRecipeV1 {
+        schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
+        segment_number: 1,
+        workflow_mode: VideoSegmentWorkflowModeV1::BoundaryFrames,
+        style: "电影感写实".to_string(),
+        prompt_output_language: "zh_cn".to_string(),
+        duration_secs: 6,
+        duration_secs_options: vec![6],
+        aspect_ratio: "16:9".to_string(),
+        reference_image_ids: Vec::new(),
+        video_library_image_ids: Vec::new(),
+        guidance_mode: VideoSegmentGuidanceModeV1::None,
+        guidance_reference_image_ids: Vec::new(),
+        continuity_source_video_id: None,
+        reference_media: None,
+        adopted_video_id: None,
+    }
+}
+
+async fn insert_ready_segment_plan(
+    db: &a4n_db::DatabaseConnection,
+    project_id: i64,
+    chapter_id: i64,
+) -> chapter_video_prompt::Model {
+    let now = fixed_time(3);
+    let source_content = chapter::Entity::find_by_id(chapter_id)
+        .one(db)
+        .await
+        .expect("查询可用视频测试章节")
+        .expect("可用视频测试章节应存在")
+        .content;
+    let source_content_sha256 = source_text_hash(&source_content);
+    let segment = reference_media_segment();
+    let mut segment = segment;
+    segment.duration_secs = 6;
+    let recipe = ready_segment_recipe();
+    chapter_video_prompt::ActiveModel {
+        project_id: Set(project_id),
+        chapter_id: Set(chapter_id),
+        style: Set(Some(recipe.style.clone())),
+        prompt_type: Set(chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN.to_string()),
+        workflow_mode: Set(chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN.to_string()),
+        shot_number: Set(0),
+        title: Set(Some("可用片段规划".to_string())),
+        scene_summary: Set(None),
+        visual_prompt: Set("{}".to_string()),
+        motion_prompt: Set(None),
+        negative_prompt: Set(None),
+        duration_secs: Set(6),
+        aspect_ratio: Set(Some(recipe.aspect_ratio.clone())),
+        reference_image_ids_json: Set(None),
+        status: Set(chapter_video_prompt::STATUS_COMPLETED.to_string()),
+        metadata_json: Set(Some(json!({
+            "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
+            "video_execution_identity": {
+                "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+                "shooting_script_identity": {},
+                "projection_sha256": "projection",
+                "segment_plan_sha256": "segment-plan",
+                "unit_plan_sha256": "unit-plan",
+                "frame_set_sha256": "frame-set",
+                "source_content_sha256": source_content_sha256,
+                "style_sha256": "style",
+                "duration_secs": 6,
+                "aspect_ratio": "16:9",
+                "prompt_output_language": "zh_cn",
+                "segment_identities": [{
+                    "source_shot_id": "shot-1",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": "segment-hash"
+                }],
+                "generation_asset_fingerprint": {}
+            },
+            "segments": [segment],
+            "segment_recipes": [recipe]
+        }))),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(db)
+    .await
+    .expect("可用视频测试片段规划应创建成功")
+}
+
 async fn insert_ready_video_prompt(
     db: &a4n_db::DatabaseConnection,
     project_id: i64,
     chapter_id: i64,
+    segment_plan_prompt_id: i64,
     shot_number: i32,
     generated_video_id: Option<i64>,
 ) -> chapter_video_prompt::Model {
     let now = fixed_time(3);
+    let recipe = ready_segment_recipe();
+    let plan_identity = chapter_video_prompt::Entity::find_by_id(segment_plan_prompt_id)
+        .one(db)
+        .await
+        .expect("查询可用视频片段规划")
+        .expect("可用视频片段规划应存在")
+        .metadata_json
+        .and_then(|metadata| metadata.get("video_execution_identity").cloned())
+        .expect("可用视频片段规划应包含执行身份");
+    let execution_identity = crate::video::prompt_generation::video_segment_execution_identity(
+        plan_identity,
+        Some(segment_plan_prompt_id),
+        Some(&recipe),
+        ("shot-1", 1),
+    )
+    .expect("可用视频提示词执行身份应可构造");
     chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),
@@ -465,7 +569,11 @@ async fn insert_ready_video_prompt(
         reference_image_ids_json: Set(None),
         status: Set("completed".to_string()),
         generated_video_id: Set(generated_video_id),
-        metadata_json: Set(None),
+        metadata_json: Set(Some(json!({
+            "source_prompt_type": chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+            "prompt_output_language": "zh_cn",
+            "video_execution_identity": execution_identity,
+        }))),
         created_at: Set(now),
         updated_at: Set(now),
         ..Default::default()
@@ -926,8 +1034,21 @@ async fn reference_media_external_interrupt_during_persist_is_not_downgraded_to_
 #[tokio::test]
 async fn chapter_video_generate_rejects_prompt_missing_execution_identity() {
     let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_ready_segment_plan(database.as_ref(), project_id, chapter_id).await;
     let prompt =
-        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, plan.id, 1, None)
+            .await;
+    chapter_video_prompt::ActiveModel {
+        id: Set(prompt.id),
+        metadata_json: Set(Some(json!({
+            "source_prompt_type": chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+            "prompt_output_language": "zh_cn",
+        }))),
+        ..Default::default()
+    }
+    .update(database.as_ref())
+    .await
+    .expect("应可删除执行身份用于边界测试");
     let host = RejectingChapterHost::default();
     let mut progress = empty_progress();
     let err = context
@@ -954,6 +1075,7 @@ async fn chapter_video_generate_rejects_prompt_missing_execution_identity() {
 #[tokio::test]
 async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_candidates() {
     let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
+    let plan = insert_ready_segment_plan(database.as_ref(), project_id, chapter_id).await;
 
     let empty = context
         .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
@@ -967,7 +1089,8 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
         .expect_err("空批量应失败");
     assert!(empty.to_string().contains("至少需要选择一条视频提示词"));
 
-    let p1 = insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let p1 = insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, plan.id, 1, None)
+        .await;
     let duplicate = context
         .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
             user_id: owner_id,
@@ -981,7 +1104,8 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
     assert!(duplicate.to_string().contains("不能重复"));
 
     let mut running =
-        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 2, None).await;
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, plan.id, 2, None)
+            .await;
     running = chapter_video_prompt::ActiveModel {
         id: Set(running.id),
         status: Set("running".to_string()),
@@ -1012,6 +1136,7 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
         database.as_ref(),
         project_id,
         chapter_id,
+        plan.id,
         3,
         Some(bound_video.id),
     )
@@ -1032,9 +1157,13 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
 #[tokio::test]
 async fn chapter_batch_validation_accepts_ready_provider_prompts() {
     let (database, context, owner_id, project_id, chapter_id) = setup_project_chapter().await;
-    let first = insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 1, None).await;
+    let plan = insert_ready_segment_plan(database.as_ref(), project_id, chapter_id).await;
+    let first =
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, plan.id, 1, None)
+            .await;
     let second =
-        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, 2, None).await;
+        insert_ready_video_prompt(database.as_ref(), project_id, chapter_id, plan.id, 2, None)
+            .await;
     let ids = context
         .validate_chapter_video_batch_prompts(&GenerateChapterVideosBatchInput {
             user_id: owner_id,

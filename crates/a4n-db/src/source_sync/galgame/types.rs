@@ -1,23 +1,50 @@
 use a4n_core::models::{
-    galgame::{galgame_line, galgame_scene, galgame_script},
+    galgame::{galgame_scene, galgame_script},
     project::{source_snapshot_chapter, text_anchor},
 };
+use sea_orm::FromQueryResult;
 use serde_json::Value;
 
 #[derive(Debug, Clone)]
 pub struct SourceSyncGalgameSceneConflictCandidateRecord {
-    pub scene: galgame_scene::Model,
+    pub scene: SourceSyncGalgameSceneConflictSceneRecord,
     pub old_source_snapshot_chapter_id: i64,
     pub line_count: u64,
     pub anchored_line_count: u64,
 }
 
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct SourceSyncGalgameSceneConflictSceneRecord {
+    pub id: i64,
+    pub scene_index: i32,
+    pub title: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct SourceSyncGalgameAnchorConflictCandidateRecord {
-    pub line: galgame_line::Model,
+    pub line: SourceSyncGalgameAnchorConflictLineRecord,
     pub scene_title: Option<String>,
     pub old_anchor: text_anchor::Model,
     pub candidates: Vec<text_anchor::Model>,
+}
+
+#[derive(Debug, Clone, FromQueryResult)]
+pub struct SourceSyncGalgameAnchorConflictLineRecord {
+    pub id: i64,
+    pub scene_id: i64,
+    pub line_index: i32,
+    pub text_anchor_id: Option<i64>,
+    pub line_type: String,
+    pub text: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct SourceSyncGalgameAnchorRecord {
+    pub id: i64,
+    pub paragraph_index: i32,
+    pub start_offset: i32,
+    pub end_offset: i32,
+    pub quote: String,
 }
 
 #[derive(Debug, Clone)]
@@ -26,7 +53,7 @@ pub struct SourceSyncGalgameSceneRegenerationSourceRecord {
     pub script: galgame_script::Model,
     pub old_snapshot_chapter: source_snapshot_chapter::Model,
     pub new_snapshot_chapter: source_snapshot_chapter::Model,
-    pub anchors: Vec<text_anchor::Model>,
+    pub anchors: Vec<SourceSyncGalgameAnchorRecord>,
 }
 
 #[derive(Debug, Clone)]

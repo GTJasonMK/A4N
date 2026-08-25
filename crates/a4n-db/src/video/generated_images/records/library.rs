@@ -1,4 +1,8 @@
-use super::super::{VideoProfileMaterialReadModel, VideoProjectContextReadModel};
+use super::super::{
+    VideoProfileMaterialReadModel, VideoProfilePrimaryMaterialRow, VideoProfileRelevanceRow,
+    VideoProjectContextReadModel, VideoPromptBlueprintCharacterRecord,
+    VideoPromptProtagonistProfileRecord,
+};
 use a4n_core::models::{
     ai::generated_image,
     asset::{object_profile, profile_primary_material},
@@ -6,7 +10,11 @@ use a4n_core::models::{
     project::{blueprint_character, novel_blueprint},
     scene::scene_profile,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
+use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+    sea_query::Expr,
+};
 
 pub async fn video_library_explicit_image_records<C>(
     db: &C,
@@ -42,6 +50,9 @@ where
     generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(generated_image::Column::ChapterId.eq(chapter_id))
+        .filter(Expr::cust(
+            "(metadata_json ->> 'chapter_video_material') = 'true'",
+        ))
         .order_by_asc(generated_image::Column::CreatedAt)
         .order_by_asc(generated_image::Column::Id)
         .all(db)
@@ -59,19 +70,77 @@ where
         return Ok(VideoProfileMaterialReadModel::default());
     }
     let scenes = scene_profile::Entity::find()
+        .select_only()
+        .column(scene_profile::Column::Id)
+        .column(scene_profile::Column::Name)
+        .column(scene_profile::Column::AliasesJson)
+        .column(scene_profile::Column::FirstSeenChapter)
+        .column(scene_profile::Column::LastSeenChapter)
         .filter(scene_profile::Column::ProjectId.is_in(project_ids.iter().copied()))
+        .into_tuple::<(i64, String, serde_json::Value, i32, i32)>()
         .all(db)
-        .await?;
+        .await?
+        .into_iter()
+        .map(
+            |(id, name, aliases_json, first_seen_chapter, last_seen_chapter)| {
+                VideoProfileRelevanceRow {
+                    id,
+                    name,
+                    aliases_json,
+                    first_seen_chapter,
+                    last_seen_chapter,
+                }
+            },
+        )
+        .collect();
     let objects = object_profile::Entity::find()
+        .select_only()
+        .column(object_profile::Column::Id)
+        .column(object_profile::Column::Name)
+        .column(object_profile::Column::AliasesJson)
+        .column(object_profile::Column::FirstSeenChapter)
+        .column(object_profile::Column::LastSeenChapter)
         .filter(object_profile::Column::ProjectId.is_in(project_ids.iter().copied()))
+        .into_tuple::<(i64, String, serde_json::Value, i32, i32)>()
         .all(db)
-        .await?;
+        .await?
+        .into_iter()
+        .map(
+            |(id, name, aliases_json, first_seen_chapter, last_seen_chapter)| {
+                VideoProfileRelevanceRow {
+                    id,
+                    name,
+                    aliases_json,
+                    first_seen_chapter,
+                    last_seen_chapter,
+                }
+            },
+        )
+        .collect();
     let primary_materials = profile_primary_material::Entity::find()
+        .select_only()
+        .column(profile_primary_material::Column::ProfileKind)
+        .column(profile_primary_material::Column::ProfileId)
+        .column(profile_primary_material::Column::PrimaryImageId)
         .filter(profile_primary_material::Column::ProjectId.is_in(project_ids.iter().copied()))
+        .into_tuple::<(String, i64, i64)>()
         .all(db)
-        .await?;
+        .await?
+        .into_iter()
+        .map(
+            |(profile_kind, profile_id, primary_image_id)| VideoProfilePrimaryMaterialRow {
+                profile_kind,
+                profile_id,
+                primary_image_id,
+            },
+        )
+        .collect();
     let material_images = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
+        .filter(
+            generated_image::Column::ImageType
+                .is_in([IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_OBJECT_MATERIAL]),
+        )
         .order_by_desc(generated_image::Column::CreatedAt)
         .order_by_desc(generated_image::Column::Id)
         .all(db)
@@ -97,13 +166,34 @@ where
         .one(db)
         .await?;
     let blueprint_characters = blueprint_character::Entity::find()
+        .select_only()
+        .column(blueprint_character::Column::Name)
+        .column(blueprint_character::Column::CharacterType)
+        .column(blueprint_character::Column::Gender)
+        .column(blueprint_character::Column::Age)
+        .column(blueprint_character::Column::Appearance)
+        .column(blueprint_character::Column::Personality)
+        .column(blueprint_character::Column::Background)
+        .column(blueprint_character::Column::Motivation)
+        .column(blueprint_character::Column::RelationshipToProtagonist)
         .filter(blueprint_character::Column::ProjectId.eq(project_id))
         .order_by_asc(blueprint_character::Column::Id)
+        .into_model::<VideoPromptBlueprintCharacterRecord>()
         .all(db)
         .await?;
     let protagonist_profiles = protagonist_profile::Entity::find()
+        .select_only()
+        .column(protagonist_profile::Column::Name)
+        .column(protagonist_profile::Column::Gender)
+        .column(protagonist_profile::Column::Age)
+        .column(protagonist_profile::Column::BaseAttributes)
+        .column(protagonist_profile::Column::CurrentState)
+        .column(protagonist_profile::Column::Appearance)
+        .column(protagonist_profile::Column::Background)
+        .column(protagonist_profile::Column::Personality)
         .filter(protagonist_profile::Column::ProjectId.eq(project_id))
         .order_by_asc(protagonist_profile::Column::Id)
+        .into_model::<VideoPromptProtagonistProfileRecord>()
         .all(db)
         .await?;
 

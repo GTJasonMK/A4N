@@ -4,10 +4,7 @@ use a4n_db::{
         ChapterContentEditError, StoreChapterAnalysisRecordInput, lock_chapter_analysis_source,
         store_chapter_analysis_record,
     },
-    project::{
-        ChapterSourceSnapshot, CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG,
-        create_project_record,
-    },
+    project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
 };
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
@@ -31,7 +28,7 @@ async fn insert_chapter(db: &DatabaseConnection) -> chapter::Model {
             user_id: 1,
             title: "章节分析持久化测试".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await

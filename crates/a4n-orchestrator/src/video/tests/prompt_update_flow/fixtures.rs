@@ -8,6 +8,28 @@ async fn insert_stage_prompt(
     metadata_json: Value,
 ) -> chapter_video_prompt::Model {
     let now = fixed_time(4);
+    let mut metadata_json = metadata_json;
+    if let Some(metadata) = metadata_json.as_object_mut() {
+        metadata
+            .entry("prompt_output_language".to_string())
+            .or_insert_with(|| Value::String("zh_cn".to_string()));
+        metadata
+            .entry("video_execution_identity".to_string())
+            .or_insert_with(|| {
+                json!({
+                    "contract_epoch": 1,
+                    "source_content_sha256": "same",
+                    "style_sha256": "style",
+                    "duration_secs": 6,
+                    "aspect_ratio": "16:9",
+                    "segment_plan_prompt_id": 1,
+                    "source_shot_id": "shot-1",
+                    "segment_index_in_shot": 1,
+                    "segment_sha256": "segment-1",
+                    "segment_recipe_fingerprint": "recipe-1"
+                })
+            });
+    }
     chapter_video_prompt::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(chapter_id),

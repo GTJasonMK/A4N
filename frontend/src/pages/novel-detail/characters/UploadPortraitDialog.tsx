@@ -14,6 +14,7 @@ import {
   MAX_UPLOAD_IMAGE_BYTES,
   supportedImageAccept,
 } from "../../../utils/imageUpload";
+import { useI18n, type MessageTranslator } from "../../../i18n";
 
 interface UploadPortraitDialogProps {
   projectId: number;
@@ -22,11 +23,11 @@ interface UploadPortraitDialogProps {
   onUploaded: () => void;
 }
 
-const PORTRAIT_TYPE_OPTIONS: ReadonlyArray<{ value: PortraitType; label: string }> = [
-  { value: "full_body", label: "全身三视图拆解" },
-  { value: "half_body", label: "半身三视图拆解" },
-  { value: "face", label: "面部/发型拆解" },
-  { value: "chibi", label: "Q版三视图拆解" },
+const PORTRAIT_TYPE_OPTIONS: ReadonlyArray<{ value: PortraitType }> = [
+  { value: "full_body" },
+  { value: "half_body" },
+  { value: "face" },
+  { value: "chibi" },
 ];
 
 export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
@@ -36,6 +37,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
   onUploaded,
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [profileId, setProfileId] = useState(profiles[0]?.id ?? 0);
   const [portraitType, setPortraitType] = useState<PortraitType>("full_body");
   const [prompt, setPrompt] = useState("");
@@ -86,11 +88,13 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
   const handleFileChange = async (nextFile: File | null) => {
     if (!nextFile) return;
     if (!isSupportedImageMime(nextFile.type)) {
-      addToast("只支持 PNG/JPEG/WebP 图片", "error");
+      addToast(t("characterDetail.portrait.invalidImage"), "error");
       return;
     }
     if (nextFile.size > MAX_UPLOAD_IMAGE_BYTES) {
-      addToast(`上传图片不能超过 ${MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024}MB`, "error");
+      addToast(t("characterDetail.portrait.fileTooLarge", {
+        size: MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024,
+      }), "error");
       return;
     }
     setFile(nextFile);
@@ -107,15 +111,15 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
   const handleSubmit = async () => {
     if (submitBusyRef.current) return;
     if (!selectedProfile) {
-      addToast("请选择角色档案", "error");
+      addToast(t("characterDetail.portrait.profileRequired"), "error");
       return;
     }
     if (!file) {
-      addToast("请选择要上传的立绘图片", "error");
+      addToast(t("characterDetail.portrait.imageRequired"), "error");
       return;
     }
     if (!prompt.trim()) {
-      addToast("请填写立绘描述", "error");
+      addToast(t("characterDetail.portrait.descriptionRequired"), "error");
       return;
     }
     const requestProjectId = projectId;
@@ -139,11 +143,11 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         set_primary: setPrimary,
       });
       if (!isCurrentProject(requestProjectId)) return;
-      addToast("已上传角色立绘", "success");
+      addToast(t("characterDetail.portrait.uploaded"), "success");
       onUploaded();
     } catch (err) {
       if (!isCurrentProject(requestProjectId)) return;
-      addToast(extractErrorMessage(err, "上传角色立绘失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.uploadFailed")), "error");
     } finally {
       if (isCurrentProject(requestProjectId)) {
         submitBusyRef.current = false;
@@ -156,8 +160,8 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     <Modal
       isOpen
       onClose={onClose}
-      title="上传角色立绘"
-      subtitle="将本地图片添加到角色档案"
+      title={t("characterDetail.portrait.uploadTitle")}
+      subtitle={t("characterDetail.portrait.uploadSubtitle")}
       icon={<Upload size={15} />}
       maxWidthClassName="max-w-2xl"
       closeOnBackdrop={!busy}
@@ -174,10 +178,10 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           {busy ? (
             <span className="inline-flex items-center gap-1.5">
               <LoadingSpinner size="sm" />
-              上传中…
+              {t("characterDetail.portrait.uploading")}
             </span>
           ) : (
-            "上传立绘"
+            t("characterDetail.portrait.uploadAction")
           )}
         </BookButton>
       }
@@ -185,12 +189,12 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
       <div className="space-y-3 text-sm">
         {profiles.length === 0 ? (
           <div className="rounded-[12px] border border-book-border/50 bg-book-bg-paper/45 px-3 py-3 text-xs leading-relaxed text-book-text-muted">
-            当前项目还没有角色档案，需先创建或同步角色档案后再上传立绘。
+            {t("characterDetail.portrait.noProfilesHint")}
           </div>
         ) : null}
 
         <div>
-          <label className="mb-1 block text-xs text-book-text-muted">角色档案</label>
+          <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.profile")}</label>
           <select
             value={profileId}
             onChange={(event) => setProfileId(Number(event.target.value))}
@@ -206,7 +210,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs text-book-text-muted">立绘类型</label>
+          <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.type")}</label>
           <select
             value={portraitType}
             onChange={(event) => setPortraitType(event.target.value as PortraitType)}
@@ -215,7 +219,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           >
             {PORTRAIT_TYPE_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {portraitTypeLabel(option.value, t)}
               </option>
             ))}
           </select>
@@ -236,12 +240,12 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           ) : (
             <>
               <Upload size={18} />
-              <span>选择 PNG/JPEG/WebP 本地图片作为最终角色立绘</span>
+              <span>{t("characterDetail.portrait.chooseImage")}</span>
             </>
           )}
           {file ? (
             <span className="max-w-full truncate text-small text-book-text-sub">
-              已选择：{file.name}
+              {t("characterDetail.portrait.selectedFile", { name: file.name })}
             </span>
           ) : null}
           <input
@@ -258,28 +262,28 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
         </label>
 
         <BookTextarea
-          label="立绘描述"
+          label={t("characterDetail.portrait.promptLabel")}
           value={prompt}
           rows={3}
           disabled={busy}
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="描述这张立绘的角色、服装、姿态、风格和用途"
+          placeholder={t("characterDetail.portrait.promptPlaceholder")}
         />
 
         <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
           <BookInput
-            label="表情（可空）"
+            label={t("characterDetail.portrait.expressionLabel")}
             value={expression}
             disabled={busy}
             onChange={(event) => setExpression(event.target.value)}
-            placeholder="如：自然、微笑、严肃"
+            placeholder={t("characterDetail.portrait.expressionPlaceholder")}
           />
           <BookInput
-            label="姿态（可空）"
+            label={t("characterDetail.portrait.poseLabel")}
             value={pose}
             disabled={busy}
             onChange={(event) => setPose(event.target.value)}
-            placeholder="如：自然站立、半身正面"
+            placeholder={t("characterDetail.portrait.posePlaceholder")}
           />
         </div>
 
@@ -292,9 +296,9 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
           className="flex w-full items-center justify-between gap-3 rounded-[12px] border border-book-border/50 bg-book-bg-paper/35 px-3 py-2.5 text-left transition-colors hover:bg-book-bg-paper/60 focus-visible:outline-2 focus-visible:outline-book-primary/35 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <span className="min-w-0">
-            <span className="block text-xs font-medium text-book-text-main">设为角色主图</span>
+            <span className="block text-xs font-medium text-book-text-main">{t("characterDetail.portrait.primaryTitle")}</span>
             <span className="mt-0.5 block text-small leading-relaxed text-book-text-muted">
-              在立绘列表和角色详情中优先展示
+              {t("characterDetail.portrait.primaryDescription")}
             </span>
           </span>
           <span
@@ -314,3 +318,16 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
     </Modal>
   );
 };
+
+function portraitTypeLabel(type: PortraitType, t: MessageTranslator): string {
+  switch (type) {
+    case "full_body":
+      return t("characterDetail.portrait.typeFullBody");
+    case "half_body":
+      return t("characterDetail.portrait.typeHalfBody");
+    case "face":
+      return t("characterDetail.portrait.typeFace");
+    case "chibi":
+      return t("characterDetail.portrait.typeChibi");
+  }
+}

@@ -5,6 +5,7 @@ import { extractErrorMessage } from "../../../api";
 import type { DiscoveredModel, ModelDiscoveryResult } from "../../../api/modelDiscovery";
 import { useToast } from "../../../components/feedback/Toast";
 import { BookInput } from "../../../components/ui/BookInput";
+import { useI18n } from "../../../i18n";
 
 interface ModelDiscoveryFieldProps {
   value: string;
@@ -27,6 +28,7 @@ export function ModelDiscoveryField({
 }: ModelDiscoveryFieldProps) {
   const datalistId = useId();
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [models, setModels] = useState<DiscoveredModel[]>([]);
   const [detecting, setDetecting] = useState(false);
 
@@ -44,9 +46,9 @@ export function ModelDiscoveryField({
       if (!value.trim()) {
         onChange(result.models[0].id);
       }
-      addToast(`已发现 ${result.models.length} 个模型`, "success");
+      addToast(t("settings.discoveredModels", { count: result.models.length }), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "模型探测失败"), "error");
+      addToast(extractErrorMessage(err, t("settings.modelDiscoveryFailed")), "error");
     } finally {
       setDetecting(false);
     }
@@ -67,10 +69,10 @@ export function ModelDiscoveryField({
           className="pyqt-btn-secondary inline-flex min-h-[40px] shrink-0 items-center justify-center gap-1.5 px-3 text-xs disabled:cursor-not-allowed disabled:opacity-60"
           onClick={handleDetect}
           disabled={disabled || detecting}
-          title="检测模型列表"
+          title={t("settings.detectModels")}
         >
           {detecting ? <LoadingSpinner size="sm" /> : <Radar size={13} />}
-          <span>检测</span>
+          <span>{t("settings.detect")}</span>
         </button>
       </div>
       {models.length > 0 ? (
@@ -83,7 +85,7 @@ export function ModelDiscoveryField({
             ))}
           </datalist>
           <div className="text-small text-book-text-muted">
-            已加载 {models.length} 个模型
+            {t("settings.loadedModels", { count: models.length })}
           </div>
         </>
       ) : null}

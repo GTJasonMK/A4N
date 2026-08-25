@@ -2,6 +2,7 @@ use a4n_core::error::AppError;
 use a4n_core::models::chapter::chapter_video_prompt;
 use a4n_core::video_execution::VideoShootingScriptIdentityV1;
 use serde_json::{Value, json};
+use std::collections::HashSet;
 
 use crate::video::OrchestratorContext;
 use crate::video::prompt_json::parse_stored_video_segment_plan_for_reuse;
@@ -83,17 +84,23 @@ fn validate_segment_plan_execution_identity(
                 "共享片段规划执行身份不完整；请重新生成该片段规划".to_string(),
             )
         })?;
+    let identity_keys = segment_identities
+        .iter()
+        .filter_map(|item| {
+            let item = item.as_object()?;
+            let source_shot_id = item.get("source_shot_id").and_then(Value::as_str)?;
+            let segment_index = item.get("segment_index_in_shot").and_then(Value::as_i64)?;
+            item.get("segment_sha256")
+                .and_then(Value::as_str)
+                .filter(|value| !value.is_empty())?;
+            Some((source_shot_id, segment_index))
+        })
+        .collect::<HashSet<_>>();
     for segment in segment_plan {
-        let matched = segment_identities.iter().any(|item| {
-            item.get("source_shot_id").and_then(Value::as_str)
-                == Some(segment.source_shot_id.as_str())
-                && item.get("segment_index_in_shot").and_then(Value::as_i64)
-                    == Some(i64::from(segment.segment_index_in_shot))
-                && item
-                    .get("segment_sha256")
-                    .and_then(Value::as_str)
-                    .is_some_and(|value| !value.is_empty())
-        });
+        let matched = identity_keys.contains(&(
+            segment.source_shot_id.as_str(),
+            i64::from(segment.segment_index_in_shot),
+        ));
         if !matched {
             return Err(AppError::InvalidArgument(format!(
                 "共享片段规划执行身份缺少镜头 {} 的第 {} 个片段；请重新生成该片段规划",
@@ -390,6 +397,7 @@ async fn current_video_shooting_script_projection(
             crate::shooting_script::ChapterShootingScriptSourceInput {
                 project_id,
                 source_chapter_id: chapter_id,
+                visual_plan_id: None,
             },
         )
         .await?;

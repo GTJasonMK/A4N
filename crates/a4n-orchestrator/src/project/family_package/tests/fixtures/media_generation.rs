@@ -1,5 +1,5 @@
 use super::super::*;
-use crate::project::media_file_key;
+use crate::project::{ImportMediaPayload, MediaFileEntry, media_file_key};
 use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
 
 pub(in crate::project::family_package::tests) fn media_asset_with_checksum(
@@ -29,34 +29,39 @@ pub(in crate::project::family_package::tests) fn media_asset_with_checksum(
     }
 }
 
-pub(in crate::project::family_package::tests) fn empty_media_payload() -> FamilyImportMediaPayload {
-    FamilyImportMediaPayload {
+pub(in crate::project::family_package::tests) fn empty_media_payload() -> ImportMediaPayload {
+    ImportMediaPayload {
         entries: HashMap::new(),
         bytes: HashMap::new(),
     }
 }
 
 pub(in crate::project::family_package::tests) fn media_payload_for_assets(
-    assets: &[media_asset::Model],
-) -> FamilyImportMediaPayload {
+    package: &mut ProjectFamilyPackage,
+) -> ImportMediaPayload {
     let mut payload = empty_media_payload();
-    for asset in assets {
+    let mut manifest_entries = Vec::new();
+    for asset in &package.media_assets {
         if let Some(file_path) = asset.file_path.as_ref() {
-            let package_path = format!("media/{}/file", asset.id);
+            let package_path = format!("media/media_asset/{}/file_path.mp4", asset.id);
+            let entry = MediaFileEntry {
+                owner_kind: "media_asset".to_string(),
+                owner_id: asset.id,
+                field: FILE_PATH_FIELD.to_string(),
+                original_path: file_path.clone(),
+                package_path: package_path.clone(),
+            };
             payload.entries.insert(
-                media_file_key(asset.id, FILE_PATH_FIELD),
-                MediaFileEntry {
-                    media_asset_id: asset.id,
-                    field: FILE_PATH_FIELD.to_string(),
-                    original_path: file_path.clone(),
-                    package_path: package_path.clone(),
-                },
+                media_file_key("media_asset", asset.id, FILE_PATH_FIELD),
+                entry.clone(),
             );
             payload
                 .bytes
                 .insert(package_path, b"expected bytes".to_vec());
+            manifest_entries.push(entry);
         }
     }
+    package.media_files.extend(manifest_entries);
     payload
 }
 

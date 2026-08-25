@@ -13,7 +13,7 @@ impl OrchestratorContext {
     pub async fn run_canvas_probe_node_validated(
         &self,
         input: CanvasProbeNodeExecutionInput<'_>,
-    ) -> Result<crate::canvas::CanvasNodeRunSummary, AppError> {
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
         let data_type =
             probe_node_data_type(&input.node.node_kind).map_err(AppError::InvalidArgument)?;
         let workflow_run_id = input.shared_run.map(|run| run.workflow_run_id);

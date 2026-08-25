@@ -44,9 +44,12 @@ where
     C: ConnectionTrait,
 {
     optimization_session::Entity::find()
+        .select_only()
+        .column(optimization_session::Column::Id)
         .filter(optimization_session::Column::ProjectId.eq(project_id))
         .filter(optimization_session::Column::ChapterId.eq(chapter_id))
         .filter(optimization_session::Column::Name.eq(name))
+        .into_tuple::<i64>()
         .one(db)
         .await
         .map(|session| session.is_some())

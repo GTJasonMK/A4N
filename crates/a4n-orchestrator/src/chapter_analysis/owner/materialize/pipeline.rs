@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, source_spans::SourceSpan};
+use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
 use serde_json::Map;
 
 use super::entities::{
@@ -8,7 +8,7 @@ use super::entities::{
 
 pub(super) fn materialize_entity_source_spans(
     root: &mut Map<String, serde_json::Value>,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     materialize_metadata_source_spans(root, source_spans)?;
     materialize_key_event_source_spans(root, source_spans)?;

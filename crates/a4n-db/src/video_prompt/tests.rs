@@ -131,6 +131,39 @@ fn update_input(visual_prompt: &str) -> ChapterVideoPromptPatch {
     }
 }
 
+fn stage_metadata(source_hash: &str) -> serde_json::Value {
+    json!({
+        "prompt_output_language": "zh_cn",
+        "source": {"content_sha256": source_hash},
+        "video_execution_identity": {
+            "contract_epoch": 1,
+            "source_content_sha256": source_hash,
+            "style_sha256": "style",
+            "duration_secs": 6,
+            "aspect_ratio": "16:9",
+            "segment_plan_prompt_id": 10,
+            "source_shot_id": "shot-1",
+            "segment_index_in_shot": 1,
+            "segment_sha256": "segment-1",
+            "segment_recipe_fingerprint": "recipe-1"
+        }
+    })
+}
+
+async fn update_prompt_stage(
+    db: &DatabaseConnection,
+    prompt: chapter_video_prompt::Model,
+    prompt_type: &str,
+    workflow_mode: &str,
+    metadata_json: serde_json::Value,
+) -> chapter_video_prompt::Model {
+    let mut active: chapter_video_prompt::ActiveModel = prompt.into();
+    active.prompt_type = Set(prompt_type.to_string());
+    active.workflow_mode = Set(workflow_mode.to_string());
+    active.metadata_json = Set(Some(metadata_json));
+    active.update(db).await.unwrap()
+}
+
 fn sync_draft(
     project_id: i64,
     chapter_id: i64,
@@ -161,6 +194,441 @@ fn sync_draft(
         },
         generation_trace: None,
     }
+}
+
+#[tokio::test]
+async fn prompt_dependency_query_preserves_chain_fields() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let current = insert_prompt(&db, project_id, chapter.id).await;
+    let sibling = insert_prompt(&db, project_id, chapter.id).await;
+
+    let rows = crate::video::chapter_video_prompt_sibling_dependency_records(
+        &db, project_id, chapter.id, current.id,
+    )
+    .await
+    .expect("dependency candidate query must succeed");
+
+    assert_eq!(
+        rows.iter().map(|row| row.id).collect::<Vec<_>>(),
+        vec![sibling.id]
+    );
+    assert_eq!(rows[0].project_id, project_id);
+    assert_eq!(rows[0].chapter_id, chapter.id);
+    assert_eq!(rows[0].style.as_deref(), Some("电影感写实"));
+    assert_eq!(rows[0].prompt_type, "video_prompt");
+    assert_eq!(rows[0].workflow_mode, "boundary_frames");
+    assert_eq!(rows[0].aspect_ratio.as_deref(), Some("16:9"));
+    assert_eq!(
+        rows[0].metadata_json.as_ref().and_then(|metadata| {
+            metadata
+                .get("prompt_output_language")
+                .and_then(serde_json::Value::as_str)
+        }),
+        Some("zh_cn")
+    );
+}
+
+#[tokio::test]
+async fn prompt_mutability_batch_preserves_later_stage_guard() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let frame = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("same-source"),
+    )
+    .await;
+    let video = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("same-source"),
+    )
+    .await;
+
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[frame], "编辑")
+        .await
+        .expect_err("a later video prompt must keep the frame prompt immutable");
+    assert!(matches!(
+        error,
+        VideoDbError::InvalidArgument(message)
+            if message.contains("后续视频提示词")
+                && message.contains("不能编辑边界帧提示词")
+    ));
+    assert!(
+        chapter_video_prompt::Entity::find_by_id(video.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn prompt_mutability_batch_preserves_segment_plan_guard() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let plan_metadata = json!({
+        "source": {"content_sha256": "same-source"},
+        "video_execution_identity": {
+            "contract_epoch": 1,
+            "source_content_sha256": "same-source",
+            "style_sha256": "style",
+            "duration_secs": 6,
+            "aspect_ratio": "16:9",
+            "segment_identities": [{
+                "source_shot_id": "shot-1",
+                "segment_index_in_shot": 1,
+                "segment_sha256": "segment-1"
+            }]
+        }
+    });
+    let plan = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+        chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+        plan_metadata,
+    )
+    .await;
+    let mut video_metadata = stage_metadata("same-source");
+    video_metadata["video_execution_identity"]["segment_plan_prompt_id"] = json!(plan.id);
+    let _video = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        video_metadata,
+    )
+    .await;
+
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[plan], "编辑")
+        .await
+        .expect_err("a later video must keep the segment plan immutable");
+    assert!(matches!(
+        error,
+        VideoDbError::InvalidArgument(message)
+            if message.contains("后续视频提示词")
+                && message.contains("不能编辑视频片段规划")
+    ));
+}
+
+#[tokio::test]
+async fn prompt_mutability_batch_keeps_non_ignored_later_video_guard() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let frame = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("same-source"),
+    )
+    .await;
+    let ignored_video = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("same-source"),
+    )
+    .await;
+    let second_video = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("same-source"),
+    )
+    .await;
+
+    let error = ensure_chapter_video_prompt_stages_mutable_ignoring(
+        &db,
+        &[frame],
+        "编辑",
+        &std::collections::BTreeSet::from([ignored_video.id]),
+    )
+    .await
+    .expect_err("an unignored later video must keep the frame prompt immutable");
+    assert!(matches!(
+        error,
+        VideoDbError::InvalidArgument(message)
+            if message.contains("后续视频提示词")
+                && message.contains("不能编辑边界帧提示词")
+    ));
+    assert!(
+        chapter_video_prompt::Entity::find_by_id(second_video.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+}
+
+#[tokio::test]
+async fn prompt_mutability_batch_preserves_generated_frame_guard() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let frame = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("frame-source"),
+    )
+    .await;
+    let image = crate::video::create_generated_image_record(
+        &db,
+        crate::video::CreateGeneratedImageRecordDraftInput {
+            project_id,
+            image_type: "video_key_frame".to_string(),
+            file_path: "images/batch-guard.png".to_string(),
+            prompt: "frame".to_string(),
+            model: "test".to_string(),
+            width: 512,
+            height: 512,
+            file_size: Some(1),
+            chapter_id: Some(chapter.id),
+            panel_id: None,
+            metadata_json: Some(json!({
+                "generation_context": {
+                    "source": "video_boundary_frame_prompt",
+                    "prompt_id": frame.id
+                }
+            })),
+            created_at: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[frame], "删除")
+        .await
+        .expect_err("a generated frame image must keep its prompt immutable");
+    assert!(matches!(
+        error,
+        VideoDbError::InvalidArgument(message)
+            if message.contains("边界帧图片")
+                && message.contains(&format!("#{}", image.id))
+                && message.contains("不能删除边界帧提示词")
+    ));
+}
+
+#[tokio::test]
+async fn prompt_mutability_batch_can_skip_generated_frame_guard() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let frame = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("frame-source"),
+    )
+    .await;
+    crate::video::create_generated_image_record(
+        &db,
+        crate::video::CreateGeneratedImageRecordDraftInput {
+            project_id,
+            image_type: "video_key_frame".to_string(),
+            file_path: "images/skip-batch-guard.png".to_string(),
+            prompt: "frame".to_string(),
+            model: "test".to_string(),
+            width: 512,
+            height: 512,
+            file_size: Some(1),
+            chapter_id: Some(chapter.id),
+            panel_id: None,
+            metadata_json: Some(json!({
+                "generation_context": {
+                    "source": "video_boundary_frame_prompt",
+                    "prompt_id": frame.id
+                }
+            })),
+            created_at: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    ensure_chapter_video_prompt_stages_mutable_skipping_generated_images(&db, &[frame], "删除")
+        .await
+        .expect("boundary synchronization intentionally skips prompts with generated images");
+}
+
+#[tokio::test]
+async fn prompt_delete_batch_preserves_generated_frame_guard() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let first = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("frame-source"),
+    )
+    .await;
+    let second = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("frame-source"),
+    )
+    .await;
+    let image = crate::video::create_generated_image_record(
+        &db,
+        crate::video::CreateGeneratedImageRecordDraftInput {
+            project_id,
+            image_type: "video_key_frame".to_string(),
+            file_path: "images/delete-batch-guard.png".to_string(),
+            prompt: "frame".to_string(),
+            model: "test".to_string(),
+            width: 512,
+            height: 512,
+            file_size: Some(1),
+            chapter_id: Some(chapter.id),
+            panel_id: None,
+            metadata_json: Some(json!({
+                "generation_context": {
+                    "source": "video_boundary_frame_prompt",
+                    "prompt_id": second.id
+                }
+            })),
+            created_at: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let error = delete_chapter_video_prompts_with_policy(&db, &[first.id, second.id], false)
+        .await
+        .expect_err("a generated image must keep its frame prompt immutable");
+    assert!(matches!(
+        error,
+        VideoDbError::InvalidArgument(message)
+            if message.contains("边界帧图片")
+                && message.contains(&format!("#{}", image.id))
+                && message.contains("不能删除边界帧提示词")
+    ));
+    assert_eq!(
+        chapter_video_prompt::Entity::find()
+            .filter(chapter_video_prompt::Column::Id.is_in([first.id, second.id]))
+            .count(&db)
+            .await
+            .unwrap(),
+        2
+    );
+}
+
+#[tokio::test]
+async fn prompt_delete_batch_ignores_deleted_downstream_dependency() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let frame = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_FRAME,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("same-source"),
+    )
+    .await;
+    let video = update_prompt_stage(
+        &db,
+        insert_prompt(&db, project_id, chapter.id).await,
+        chapter_video_prompt::PROMPT_TYPE_VIDEO,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
+        stage_metadata("same-source"),
+    )
+    .await;
+
+    let deleted = delete_chapter_video_prompts_with_policy(&db, &[frame.id, video.id], false)
+        .await
+        .expect("dependencies inside the deletion batch must be ignored");
+    assert_eq!(deleted, 2);
+    assert_eq!(
+        chapter_video_prompt::Entity::find()
+            .filter(chapter_video_prompt::Column::Id.is_in([frame.id, video.id]))
+            .count(&db)
+            .await
+            .unwrap(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn prompt_mutability_batch_rejects_mixed_chapters() {
+    let db = setup_db().await;
+    let first_project_id = insert_project(&db).await;
+    let first_chapter = insert_chapter(&db, first_project_id).await;
+    let second_project_id = insert_project(&db).await;
+    let second_chapter = insert_chapter(&db, second_project_id).await;
+    let first = insert_prompt(&db, first_project_id, first_chapter.id).await;
+    let second = insert_prompt(&db, second_project_id, second_chapter.id).await;
+
+    let error = ensure_chapter_video_prompt_stages_mutable(&db, &[first, second], "编辑")
+        .await
+        .expect_err("batch mutability must have one project/chapter scope");
+    assert!(matches!(
+        error,
+        VideoDbError::InvalidArgument(message)
+            if message == "批量视频提示词可变性校验必须属于同一项目章节"
+    ));
+}
+
+#[tokio::test]
+async fn prompt_candidate_query_returns_only_chain_fields() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let prompt = insert_prompt(&db, project_id, chapter.id).await;
+    let mut frame: chapter_video_prompt::ActiveModel = prompt.into();
+    frame.prompt_type = Set(chapter_video_prompt::PROMPT_TYPE_FRAME.to_string());
+    frame.workflow_mode = Set(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES.to_string());
+    frame.shot_number = Set(2);
+    frame.metadata_json = Set(Some(json!({
+        "prompt_output_language": "zh_cn",
+        "contract_version": "boundary-frame",
+        "source_prompt_type": chapter_video_prompt::PROMPT_TYPE_FRAME_SEGMENT_PLAN,
+        "video_execution_identity": {"segment_sha256": "segment-2"}
+    })));
+    let frame = frame.update(&db).await.unwrap();
+
+    let rows = crate::video::chapter_video_boundary_frame_prompt_candidates(
+        &db, project_id, chapter.id, 2, 2,
+    )
+    .await
+    .expect("candidate query must hydrate its narrow record");
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].id, frame.id);
+    assert_eq!(rows[0].prompt_type, chapter_video_prompt::PROMPT_TYPE_FRAME);
+    assert_eq!(
+        rows[0].workflow_mode,
+        chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
+    );
+    assert_eq!(rows[0].shot_number, 2);
+    assert_eq!(
+        rows[0].metadata_json.as_ref().and_then(|metadata| {
+            metadata
+                .get("video_execution_identity")
+                .and_then(|identity| identity.get("segment_sha256"))
+                .and_then(serde_json::Value::as_str)
+        }),
+        Some("segment-2")
+    );
 }
 
 #[tokio::test]
@@ -267,6 +735,82 @@ async fn prompt_sync_empty_drafts_returns_before_database_access() {
     assert!(rows.is_empty());
 }
 
+#[tokio::test]
+async fn prompt_sync_batch_inserts_new_rows_in_draft_order() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let drafts = (1..=3)
+        .map(|shot_number| {
+            sync_draft(
+                project_id,
+                chapter.id,
+                "frame_segment_plan",
+                "shared_segment_plan",
+                shot_number,
+            )
+        })
+        .collect::<Vec<_>>();
+
+    let rows = sync_chapter_video_prompts_with_generation_runs(
+        &db,
+        chapter.id,
+        drafts,
+        ChapterVideoPromptSyncPolicy::default(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(rows.len(), 3);
+    assert_eq!(
+        rows.iter().map(|row| row.shot_number).collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    assert!(rows.windows(2).all(|pair| pair[0].id < pair[1].id));
+    assert_eq!(
+        chapter_video_prompt::Entity::find()
+            .filter(chapter_video_prompt::Column::ChapterId.eq(chapter.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        3
+    );
+}
+
+#[tokio::test]
+async fn prompt_sync_batch_preserves_duplicate_draft_rows() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let draft = sync_draft(
+        project_id,
+        chapter.id,
+        "frame_segment_plan",
+        "shared_segment_plan",
+        1,
+    );
+
+    let rows = sync_chapter_video_prompts_with_generation_runs(
+        &db,
+        chapter.id,
+        vec![draft.clone(), draft],
+        ChapterVideoPromptSyncPolicy::default(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(rows.len(), 2);
+    assert_ne!(rows[0].id, rows[1].id);
+    assert_eq!(
+        chapter_video_prompt::Entity::find()
+            .filter(chapter_video_prompt::Column::ChapterId.eq(chapter.id))
+            .count(&db)
+            .await
+            .unwrap(),
+        2
+    );
+}
+
 #[test]
 fn prompt_sync_video_prompt_requires_shared_segment_plan_source() {
     let mut valid = sync_draft(1, 2, "video_prompt", "first_frame_chain", 1);
@@ -312,19 +856,38 @@ async fn prompt_sync_trace_failure_rolls_back_stale_delete_and_insert() {
     let db = setup_db().await;
     let project_id = insert_project(&db).await;
     let chapter = insert_chapter(&db, project_id).await;
-    let old = video::insert_chapter_video_prompt_record(
-        &db,
-        sync_draft(
-            project_id,
-            chapter.id,
-            "frame_segment_plan",
-            "shared_segment_plan",
-            1,
-        )
-        .fields,
-        "completed".to_string(),
-        chrono::Utc::now().naive_utc(),
+    let fields = sync_draft(
+        project_id,
+        chapter.id,
+        "frame_segment_plan",
+        "shared_segment_plan",
+        1,
     )
+    .fields;
+    let now = chrono::Utc::now().naive_utc();
+    let old = chapter_video_prompt::ActiveModel {
+        project_id: Set(fields.project_id),
+        chapter_id: Set(fields.chapter_id),
+        style: Set(fields.style),
+        prompt_type: Set(fields.prompt_type),
+        workflow_mode: Set(fields.workflow_mode),
+        shot_number: Set(fields.shot_number),
+        title: Set(fields.title),
+        scene_summary: Set(fields.scene_summary),
+        visual_prompt: Set(fields.visual_prompt),
+        motion_prompt: Set(fields.motion_prompt),
+        negative_prompt: Set(fields.negative_prompt),
+        duration_secs: Set(fields.duration_secs),
+        aspect_ratio: Set(fields.aspect_ratio),
+        reference_image_ids_json: Set(fields.reference_image_ids_json),
+        status: Set("completed".to_string()),
+        generated_video_id: Set(None),
+        metadata_json: Set(fields.metadata_json),
+        created_at: Set(now),
+        updated_at: Set(now),
+        ..Default::default()
+    }
+    .insert(&db)
     .await
     .unwrap();
     let mut replacement = sync_draft(
@@ -374,6 +937,54 @@ async fn prompt_sync_trace_failure_rolls_back_stale_delete_and_insert() {
         0
     );
     assert_eq!(generation_run::Entity::find().count(&db).await.unwrap(), 0);
+}
+
+#[tokio::test]
+async fn prompt_sync_trace_existing_output_remains_idempotent() {
+    let db = setup_db().await;
+    let project_id = insert_project(&db).await;
+    let chapter = insert_chapter(&db, project_id).await;
+    let mut draft = sync_draft(
+        project_id,
+        chapter.id,
+        "frame_segment_plan",
+        "shared_segment_plan",
+        1,
+    );
+    draft.generation_trace = Some(PreparedVideoPromptGenerationTrace {
+        prompt_name: "trace-step".to_string(),
+        request_json: json!({"input": "same"}),
+        rendered_messages_json: json!([]),
+        response_text: "same output".to_string(),
+        workflow_run_id: None,
+        usage_json: None,
+    });
+
+    sync_chapter_video_prompts_with_generation_runs(
+        &db,
+        chapter.id,
+        vec![draft.clone()],
+        ChapterVideoPromptSyncPolicy::default(),
+    )
+    .await
+    .expect("first trace sync must succeed");
+    sync_chapter_video_prompts_with_generation_runs(
+        &db,
+        chapter.id,
+        vec![draft],
+        ChapterVideoPromptSyncPolicy::default(),
+    )
+    .await
+    .expect("repeated trace sync must remain idempotent");
+
+    assert_eq!(generation_run::Entity::find().count(&db).await.unwrap(), 1);
+    assert_eq!(
+        generation_run_target::Entity::find()
+            .count(&db)
+            .await
+            .unwrap(),
+        1
+    );
 }
 
 #[tokio::test]

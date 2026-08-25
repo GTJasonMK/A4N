@@ -87,7 +87,7 @@ function systemDefaultRuntimeImageConfig(
   return {
     ...config,
     id: SYSTEM_IMAGE_CONFIG_ID,
-    name: `系统默认：${config.name.replace(/^系统默认：/, "")}`,
+    name: `系统默认：${config.name}`,
     api_key_encrypted: apiKey ?? null,
     has_api_key: apiKey !== undefined,
     is_default: true,

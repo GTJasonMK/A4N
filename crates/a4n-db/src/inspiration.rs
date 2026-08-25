@@ -6,7 +6,7 @@ mod project;
 pub use context::inspiration_project_context_rows;
 pub use contracts::{
     InspirationBlueprintRows, InspirationDbError, InspirationExchangeInsertInput,
-    InspirationProjectContextRows,
+    InspirationProjectContextRows, InspirationRecentChapterRow,
 };
 pub use conversations::{
     ensure_inspiration_conversation, insert_inspiration_exchange_in_transaction,

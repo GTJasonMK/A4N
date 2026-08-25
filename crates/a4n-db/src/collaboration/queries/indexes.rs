@@ -8,6 +8,7 @@ use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,
+    QuerySelect,
 };
 use std::collections::HashMap;
 
@@ -26,20 +27,20 @@ pub(in crate::collaboration) async fn member_root_ids(
     user_id: i64,
 ) -> Result<Vec<i64>, CollaborationDbError> {
     let members = project_member::Entity::find()
+        .select_only()
+        .column(project_member::Column::ProjectId)
         .filter(project_member::Column::UserId.eq(user_id))
+        .into_tuple::<i64>()
         .all(db)
         .await
         .map_err(CollaborationDbError::Database)?;
-    Ok(members
-        .into_iter()
-        .map(|member| member.project_id)
-        .collect())
+    Ok(members)
 }
 
 pub(in crate::collaboration) async fn users_by_id<C>(
     db: &C,
     user_ids: &[i64],
-) -> Result<HashMap<i64, user::Model>, CollaborationDbError>
+) -> Result<HashMap<i64, super::super::types::UserDisplayRow>, CollaborationDbError>
 where
     C: ConnectionTrait,
 {
@@ -47,7 +48,12 @@ where
         return Ok(HashMap::new());
     }
     let rows = user::Entity::find()
+        .select_only()
+        .column(user::Column::Id)
+        .column(user::Column::Username)
+        .column(user::Column::Email)
         .filter(user::Column::Id.is_in(user_ids.iter().copied()))
+        .into_model::<super::super::types::UserDisplayRow>()
         .all(db)
         .await
         .map_err(CollaborationDbError::Database)?;
@@ -57,7 +63,7 @@ where
 pub(in crate::collaboration) async fn projects_by_id<C>(
     db: &C,
     project_ids: &[i64],
-) -> Result<HashMap<i64, novel_project::Model>, CollaborationDbError>
+) -> Result<HashMap<i64, String>, CollaborationDbError>
 where
     C: ConnectionTrait,
 {
@@ -65,7 +71,36 @@ where
         return Ok(HashMap::new());
     }
     let rows = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::Title)
         .filter(novel_project::Column::Id.is_in(project_ids.iter().copied()))
+        .into_tuple::<(i64, String)>()
+        .all(db)
+        .await
+        .map_err(CollaborationDbError::Database)?;
+    Ok(rows.into_iter().collect())
+}
+
+pub(in crate::collaboration) async fn project_access_rows_by_id<C>(
+    db: &C,
+    project_ids: &[i64],
+) -> Result<HashMap<i64, super::super::types::ProjectAccessRow>, CollaborationDbError>
+where
+    C: ConnectionTrait,
+{
+    if project_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let rows = novel_project::Entity::find()
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::UserId)
+        .column(novel_project::Column::ProjectKind)
+        .column(novel_project::Column::RootProjectId)
+        .column(novel_project::Column::SourceSnapshotId)
+        .filter(novel_project::Column::Id.is_in(project_ids.iter().copied()))
+        .into_model::<super::super::types::ProjectAccessRow>()
         .all(db)
         .await
         .map_err(CollaborationDbError::Database)?;
@@ -80,15 +115,18 @@ pub(in crate::collaboration) async fn pending_invite_counts_by_root(
         return Ok(HashMap::new());
     }
     let invites = project_invite::Entity::find()
+        .select_only()
+        .column(project_invite::Column::ProjectId)
         .filter(project_invite::Column::ProjectId.is_in(root_ids.iter().copied()))
         .filter(project_invite::Column::Status.eq(INVITE_STATUS_PENDING))
         .filter(project_invite::Column::ExpiresAt.gt(Utc::now().naive_utc()))
+        .into_tuple::<i64>()
         .all(db)
         .await
         .map_err(CollaborationDbError::Database)?;
     let mut counts = HashMap::new();
-    for invite in invites {
-        *counts.entry(invite.project_id).or_insert(0) += 1;
+    for project_id in invites {
+        *counts.entry(project_id).or_insert(0) += 1;
     }
     Ok(counts)
 }

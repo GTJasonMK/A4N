@@ -2,6 +2,7 @@ import { CheckCircle2 } from "lucide-react";
 import type { OptimizePatchSet } from "../../../api/optimize";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { useI18n } from "../../../i18n";
 
 interface PendingPatchProposalPanelProps {
   proposal: OptimizePatchSet;
@@ -20,13 +21,14 @@ export function PendingPatchProposalPanel({
   onApply,
   onDiscard,
 }: PendingPatchProposalPanelProps) {
+  const { t } = useI18n();
   if (reviewInEditor) {
     return (
       <div className="a4n-flat-surface mb-2 flex min-w-0 items-start gap-2.5 px-3 py-2.5 text-xs">
         <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-book-primary" />
         <div className="min-w-0 flex-1">
           <div className="font-semibold text-book-text-main">
-            {proposal.patches.length} 个补丁待审阅
+            {t("optimize.pendingPatchReview", { count: proposal.patches.length })}
           </div>
           <div className="mt-0.5 truncate text-small text-book-text-sub" title={proposal.summary}>
             {proposal.summary}
@@ -41,7 +43,7 @@ export function PendingPatchProposalPanel({
       <div className="flex min-w-0 flex-wrap items-start gap-2">
         <div className="min-w-0 flex-1 basis-36">
           <div className="font-semibold text-book-text-main">
-            待应用补丁：{proposal.patches.length} 个
+            {t("optimize.pendingPatches", { count: proposal.patches.length })}
           </div>
           <div className="mt-0.5 whitespace-pre-wrap break-words text-book-text-sub">
             {proposal.summary}
@@ -51,7 +53,7 @@ export function PendingPatchProposalPanel({
           <Dropdown
             items={[
               {
-                label: "丢弃补丁",
+                label: t("optimize.discardPatches"),
                 danger: true,
                 onClick: onDiscard,
                 disabled: taskRunning,
@@ -64,10 +66,10 @@ export function PendingPatchProposalPanel({
             onClick={onApply}
             disabled={taskRunning}
             className="!text-small"
-            title="确认后应用这些局部补丁"
+            title={t("optimize.confirmApplyPatches")}
           >
             <CheckCircle2 size={12} />
-            {automaticWriteback ? "接受全部" : "应用补丁"}
+            {automaticWriteback ? t("optimize.acceptAll") : t("optimize.applyPatches")}
           </BookButton>
         </div>
       </div>

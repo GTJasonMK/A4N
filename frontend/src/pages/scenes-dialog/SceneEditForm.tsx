@@ -3,6 +3,7 @@ import { Save } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
 import { editTextValue, type SceneEditForm as SceneEditFormState } from "./scenesDialogUtils";
+import { useI18n } from "../../i18n";
 
 interface SceneEditFormProps {
   form: SceneEditFormState;
@@ -18,11 +19,13 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
   onChange,
   onCancel,
   onSave,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <div className="flex flex-col gap-2">
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
       <label className="flex flex-col gap-1">
-        <span className="text-caption text-book-text-muted">标题</span>
+        <span className="text-caption text-book-text-muted">{t("scenes.title")}</span>
         <input
           type="text"
           value={editTextValue(form.title)}
@@ -32,18 +35,18 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-caption text-book-text-muted">场景类型</span>
+        <span className="text-caption text-book-text-muted">{t("scenes.type")}</span>
         <input
           type="text"
           value={editTextValue(form.scene_type)}
           onChange={(event) => onChange({ scene_type: event.target.value })}
           disabled={saving}
-          placeholder="例如：对话、行动、内心"
+          placeholder={t("scenes.typePlaceholder")}
           className="pyqt-input !py-1 text-xs"
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-caption text-book-text-muted">地点</span>
+        <span className="text-caption text-book-text-muted">{t("scenes.location")}</span>
         <input
           type="text"
           value={editTextValue(form.location)}
@@ -53,7 +56,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
         />
       </label>
       <label className="flex flex-col gap-1">
-        <span className="text-caption text-book-text-muted">时间点</span>
+        <span className="text-caption text-book-text-muted">{t("scenes.timeline")}</span>
         <input
           type="text"
           value={editTextValue(form.timeline_position)}
@@ -64,7 +67,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
       </label>
     </div>
     <label className="flex flex-col gap-1">
-      <span className="text-caption text-book-text-muted">摘要</span>
+      <span className="text-caption text-book-text-muted">{t("scenes.summary")}</span>
       <textarea
         value={editTextValue(form.summary)}
         onChange={(event) => onChange({ summary: event.target.value })}
@@ -73,7 +76,7 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
       />
     </label>
     <label className="flex flex-col gap-1">
-      <span className="text-caption text-book-text-muted">正文</span>
+      <span className="text-caption text-book-text-muted">{t("scenes.content")}</span>
       <textarea
         value={editTextValue(form.content)}
         onChange={(event) => onChange({ content: event.target.value })}
@@ -84,19 +87,20 @@ export const SceneEditForm: React.FC<SceneEditFormProps> = ({
     </label>
     <div className="flex items-center justify-end gap-2 mt-1">
       <BookButton variant="secondary" size="sm" onClick={onCancel} disabled={saving}>
-        取消
+        {t("common.cancel")}
       </BookButton>
       <BookButton variant="primary" size="sm" onClick={onSave} disabled={saving}>
         {saving ? (
           <span className="inline-flex items-center gap-2">
-            <LoadingSpinner size="sm" /> 保存中…
+            <LoadingSpinner size="sm" /> {t("scenes.saving")}
           </span>
         ) : (
           <span className="inline-flex items-center gap-2">
-            <Save size={14} /> 保存
+            <Save size={14} /> {t("scenes.save")}
           </span>
         )}
       </BookButton>
     </div>
   </div>
-);
+  );
+};

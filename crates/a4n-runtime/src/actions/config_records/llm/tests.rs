@@ -1,3 +1,4 @@
+use super::contracts::{CreateLlmInput, UpdateLlmInput};
 use super::*;
 
 #[test]
@@ -33,22 +34,31 @@ fn create_llm_input_requires_model_token_limits() {
 
 #[test]
 fn update_llm_input_distinguishes_api_key_update_intents() {
-    let missing_key = serde_json::from_value::<UpdateLlmInput>(serde_json::json!({
-        "name": "keep existing key"
-    }))
-    .expect("missing api_key_encrypted should preserve the old key");
+    let base = serde_json::json!({
+        "name": "keep existing key",
+        "provider": "openai",
+        "base_url": "https://api.example/v1",
+        "model": "gpt-test",
+        "max_concurrent": 1,
+        "timeout_secs": 30,
+        "max_context_tokens": 128000,
+        "max_output_tokens": 8192,
+        "extra_body_json": null
+    });
+    let missing_key = serde_json::from_value::<UpdateLlmInput>(base.clone())
+        .expect("missing api_key_encrypted should preserve the old key");
     assert_eq!(missing_key.api_key_encrypted, None);
 
-    let clear_key = serde_json::from_value::<UpdateLlmInput>(serde_json::json!({
-        "api_key_encrypted": null
-    }))
-    .expect("null api_key_encrypted should be an explicit clear request");
+    let mut clear_value = base.clone();
+    clear_value["api_key_encrypted"] = serde_json::Value::Null;
+    let clear_key = serde_json::from_value::<UpdateLlmInput>(clear_value)
+        .expect("null api_key_encrypted should be an explicit clear request");
     assert_eq!(clear_key.api_key_encrypted, Some(None));
 
-    let replace_key = serde_json::from_value::<UpdateLlmInput>(serde_json::json!({
-        "api_key_encrypted": "sk-new"
-    }))
-    .expect("string api_key_encrypted should replace the old key");
+    let mut replace_value = base;
+    replace_value["api_key_encrypted"] = serde_json::Value::String("sk-new".to_string());
+    let replace_key = serde_json::from_value::<UpdateLlmInput>(replace_value)
+        .expect("string api_key_encrypted should replace the old key");
     assert_eq!(
         replace_key.api_key_encrypted,
         Some(Some("sk-new".to_string()))

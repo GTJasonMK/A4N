@@ -25,9 +25,10 @@ pub async fn discover_character_profiles(
             .map_err(|_| AppError::Cancelled),
         None => Ok(()),
     };
-    let stream_reporter = |text: &str| match progress {
-        Some(progress) => progress.stream_text(text),
-        None => {}
+    let stream_reporter = |text: &str| {
+        if let Some(progress) = progress {
+            progress.stream_text(text);
+        }
     };
     let application_progress = progress.map(|progress| CharacterDiscoveryProgress {
         reporter: Some(&reporter),

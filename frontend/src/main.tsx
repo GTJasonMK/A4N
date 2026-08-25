@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { I18nProvider, resolveInitialLocale } from "./i18n";
 import { installGlobalErrorHandlers, logger } from "./utils/logger";
 import {
   flushPortableStorage,
@@ -23,6 +24,7 @@ async function bootstrap() {
   logger.info("前端界面启动");
 
   await initializePortableStorage();
+  document.documentElement.lang = resolveInitialLocale();
   window.addEventListener("beforeunload", () => {
     void flushPortableStorage();
   });
@@ -30,7 +32,9 @@ async function bootstrap() {
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <BrowserRouter basename={routerBasename()}>
-        <App />
+        <I18nProvider>
+          <App />
+        </I18nProvider>
       </BrowserRouter>
     </React.StrictMode>,
   );

@@ -1,9 +1,11 @@
 use a4n_llm::provider::{ChatMessage, ChatResponse};
-use a4n_service_protocol::GenerationFinishReason;
 
 use crate::{
-    generation::stream::{
-        LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation, provider_usage,
+    generation::{
+        generation_finish_reason_text,
+        stream::{
+            LlmGenerationCheckpoint, LlmGenerationRequest, execute_llm_generation, provider_usage,
+        },
     },
     optimize::{
         AgentLoopExecutionError, OrchestratorContext,
@@ -69,9 +71,6 @@ pub(super) async fn call_patch_generation_llm(
     Ok(ChatResponse {
         message: ChatMessage::assistant(output.content),
         usage: output.usage.as_ref().map(provider_usage).transpose()?,
-        finish_reason: Some(match output.finish_reason {
-            GenerationFinishReason::Stop => "stop".to_string(),
-            GenerationFinishReason::ToolCallsComplete => "tool_calls".to_string(),
-        }),
+        finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
     })
 }

@@ -26,14 +26,6 @@ pub struct BlueprintRelationshipDraft {
     pub evolution: Option<Value>,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct BlueprintIncrementalSyncStats {
-    pub inserted: usize,
-    pub updated: usize,
-    pub unchanged: usize,
-    pub deleted: usize,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum BlueprintSyncError {
     #[error("{0}")]

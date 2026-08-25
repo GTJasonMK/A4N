@@ -1,4 +1,4 @@
-use a4n_core::{error::AppError, source_spans::SourceSpan};
+use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
 use serde_json::Value;
 
 use super::super::super::super::materialize::{
@@ -9,7 +9,7 @@ use super::super::super::super::materialize::{
 pub(super) fn validate_event_candidate(
     event: &Value,
     index: usize,
-    source_spans: &[SourceSpan],
+    source_spans: &SourceSpanIndex<'_>,
 ) -> Result<(), AppError> {
     let path = format!("chapter_fact_extraction.event_candidates[{index}]");
     let object = event

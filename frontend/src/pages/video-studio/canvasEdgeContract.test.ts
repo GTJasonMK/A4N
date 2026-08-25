@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { canvasGraphSaveValidationError } from "./canvasEdgeContract";
+import { translateMessage, type MessageTranslator } from "../../i18n";
 import type { StudioNodeContractMap } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
+
+const t: MessageTranslator = (key, params) =>
+  translateMessage("zh-CN", key, params);
 
 const contracts: StudioNodeContractMap = new Map([
   [
@@ -58,6 +62,6 @@ describe("canvasGraphSaveValidationError", () => {
       },
     ];
 
-    expect(canvasGraphSaveValidationError(nodes, edges, contracts)).toContain("端口配置不匹配");
+    expect(canvasGraphSaveValidationError(nodes, edges, contracts, t)).toContain("端口配置不匹配");
   });
 });

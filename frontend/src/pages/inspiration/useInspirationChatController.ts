@@ -36,7 +36,6 @@ import {
   getProjectPrimaryRoute,
 } from "../../utils/projectRouting";
 import {
-  DEFAULT_INPUT_PLACEHOLDER,
   msgId,
   normalizeHistoryMessage,
   splitSummaryLines,
@@ -48,6 +47,7 @@ import {
 } from "./responseParser";
 import type { Message } from "./shared";
 import { useBlueprintWorkflow } from "./useBlueprintWorkflow";
+import { useI18n } from "../../i18n";
 
 const canEditInspirationProject = (project: NovelProject): boolean =>
   project.my_role === "owner" ||
@@ -59,13 +59,14 @@ export const useInspirationChatController = () => {
   const projectId = Number(id);
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { t } = useI18n();
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [generationHandle, setGenerationHandle] = useState<GenerationTaskHandle | null>(null);
-  const [inputPlaceholder, setInputPlaceholder] = useState(DEFAULT_INPUT_PLACEHOLDER);
+  const [inputPlaceholder, setInputPlaceholder] = useState(() => t("inspiration.inputPlaceholder"));
   const [inputActive, setInputActive] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
@@ -161,7 +162,7 @@ export const useInspirationChatController = () => {
 
   useEffect(() => {
     if (!Number.isFinite(projectId) || projectId <= 0) {
-      addToast("无效的项目 ID", "error");
+      addToast(t("errors.invalidProjectId"), "error");
       navigate("/");
       return;
     }
@@ -181,7 +182,7 @@ export const useInspirationChatController = () => {
     requestPreviewSeqRef.current += 1;
 
     setMessages([]);
-    setInputPlaceholder(DEFAULT_INPUT_PLACEHOLDER);
+    setInputPlaceholder(t("inspiration.inputPlaceholder"));
 
     let cancelled = false;
     (async () => {
@@ -193,7 +194,7 @@ export const useInspirationChatController = () => {
           return;
         }
         if (!canEditInspirationProject(p)) {
-          addToast("当前账号没有编辑此项目的权限", "error");
+          addToast(t("errors.noEditPermission"), "error");
           navigate(getProjectPrimaryRoute(p), { replace: true });
           return;
         }
@@ -205,12 +206,12 @@ export const useInspirationChatController = () => {
         if (restored.length > 0) {
           setMessages(restored);
         } else {
-          setMessages([welcomeMessage(p.title)]);
+          setMessages([welcomeMessage(p.title, t)]);
         }
 
       } catch (err) {
         if (cancelled) return;
-        addToast(extractErrorMessage(err, "加载项目失败"), "error");
+        addToast(extractErrorMessage(err, t("errors.loadProject")), "error");
         navigate("/");
       }
     })();
@@ -218,7 +219,7 @@ export const useInspirationChatController = () => {
     return () => {
       cancelled = true;
     };
-  }, [projectId, addToast, navigate]);
+  }, [projectId, addToast, navigate, t]);
 
   useEffect(() => {
     if (!project || project.id !== projectId || generationHandleRef.current) return;
@@ -250,13 +251,13 @@ export const useInspirationChatController = () => {
           ]);
     }).catch((error) => {
       if (!cancelled && isCurrentProject(projectId)) {
-        addToast(extractErrorMessage(error, "恢复灵感对话任务失败"), "error");
+        addToast(extractErrorMessage(error, t("inspiration.restoreConversationFailed")), "error");
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [addToast, isCurrentProject, project, projectId]);
+  }, [addToast, isCurrentProject, project, projectId, t]);
 
   useEffect(() => {
     if (stage === "conversation") {
@@ -325,6 +326,7 @@ export const useInspirationChatController = () => {
         }
         const consistent = Boolean(persisted && revision === resultRef?.revision);
         const recovery = resolveFormalResultRecovery({
+          t,
           recoveryIssue,
           consistent,
           hasPersisted: Boolean(persisted),
@@ -372,10 +374,10 @@ export const useInspirationChatController = () => {
         }
       } else {
         const message = generationTask.taskStatus === "cancelled"
-          ? "灵感对话已取消"
+          ? t("inspiration.conversationCancelled")
           : generationTask.taskStatus === "interrupted"
-            ? "灵感对话已中断"
-            : generationTask.error?.message?.trim() || "灵感对话失败";
+            ? t("inspiration.conversationInterrupted")
+            : generationTask.error?.message?.trim() || t("inspiration.conversationFailed");
         setMessages((prev) => {
           const failed: Message = {
             id: assistantId,
@@ -405,7 +407,7 @@ export const useInspirationChatController = () => {
       const latest = generationHandleRef.current;
       if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
       logger.scoped("InspirationChat").error("generation finalization failed", { error });
-      const message = extractErrorMessage(error, "灵感对话结果校验失败");
+      const message = extractErrorMessage(error, t("inspiration.conversationValidationFailed"));
       setMessages((prev) => prev.map((item) => item.id === assistantId
         ? { ...item, content: `❌ ${message}`, streaming: false }
         : item));
@@ -419,6 +421,7 @@ export const useInspirationChatController = () => {
     });
   }, [
     addToast,
+    t,
     applyParsedAssistant,
     generationHandle,
     generationTask.error,
@@ -474,7 +477,7 @@ export const useInspirationChatController = () => {
     } catch (err) {
       if (!isCurrentSend(requestProjectId, requestSeq)) return;
       logger.scoped("InspirationChat").error("converse failed", { err });
-      const message = extractErrorMessage(err, "对话失败");
+      const message = extractErrorMessage(err, t("inspiration.conversationError"));
       addToast(message, "error");
       setMessages((prev) => {
         const cleared = prev.map((m) =>
@@ -525,7 +528,7 @@ export const useInspirationChatController = () => {
       ) {
         return;
       }
-      addToast(extractErrorMessage(err, "预览提示词失败"), "error");
+      addToast(extractErrorMessage(err, t("inspiration.previewConversationFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (
@@ -535,7 +538,7 @@ export const useInspirationChatController = () => {
         setRequestPreviewLoading(false);
       }
     }
-  }, [addToast, input, isCurrentProject, projectId, sending]);
+  }, [addToast, input, isCurrentProject, projectId, sending, t]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (

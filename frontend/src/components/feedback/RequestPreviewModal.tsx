@@ -11,6 +11,7 @@ import { BookButton } from "../ui/BookButton";
 import { Modal } from "../ui/Modal";
 import { copyTextToClipboard } from "../../utils/clipboard";
 import { useToast } from "./Toast";
+import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../i18n";
 
 interface RequestPreviewModalProps {
   open: boolean;
@@ -100,20 +101,21 @@ const readableValue = (value: unknown, level = 0): string => {
   return String(normalized);
 };
 
-const charLabel = (value: number): string => `${value.toLocaleString()} 字符`;
+const charLabel = (value: number, locale: Locale, t: MessageTranslator): string =>
+  t("feedback.inputCharacters", { value: formatNumber(value, locale) });
 
-const stateLabel = (state: string): string => {
-  if (state === "ready") return "可预览";
-  if (state === "reused") return "复用";
-  return "暂不可用";
+const stateLabel = (state: string, t: MessageTranslator): string => {
+  if (state === "ready") return t("feedback.previewReady");
+  if (state === "reused") return t("feedback.reused");
+  return t("feedback.unavailable");
 };
 
-const messageRoleLabel = (role: unknown): string => {
-  if (role === "system") return "系统消息";
-  if (role === "user") return "用户消息";
-  if (role === "assistant") return "模型消息";
-  if (role === "tool") return "工具消息";
-  return "消息";
+const messageRoleLabel = (role: unknown, t: MessageTranslator): string => {
+  if (role === "system") return t("feedback.systemMessage");
+  if (role === "user") return t("feedback.userMessage");
+  if (role === "assistant") return t("feedback.assistantMessage");
+  if (role === "tool") return t("feedback.toolMessage");
+  return t("feedback.message");
 };
 
 const stateClass = (state: string): string => {
@@ -158,16 +160,28 @@ const arrayLength = (value: unknown): number | null => {
   return Array.isArray(normalized) ? normalized.length : null;
 };
 
-const maxTokensLabel = (value: number | null): string | null =>
-  value == null ? null : `输出上限 ${value.toLocaleString()} tokens`;
+const maxTokensLabel = (
+  value: number | null,
+  locale: Locale,
+  t: MessageTranslator,
+): string | null =>
+  value == null ? null : t("feedback.outputTokenLimit", { value: formatNumber(value, locale) });
 
-const lengthLabel = (chars: number | null, bytes: number | null): string | null => {
+const lengthLabel = (
+  chars: number | null,
+  bytes: number | null,
+  locale: Locale,
+  t: MessageTranslator,
+): string | null => {
   if (chars == null && bytes == null) return null;
   if (chars != null && bytes != null) {
-    return `${chars.toLocaleString()} 字符 / ${bytes.toLocaleString()} 字节`;
+    return t("feedback.charactersAndBytes", {
+      characters: formatNumber(chars, locale),
+      bytes: formatNumber(bytes, locale),
+    });
   }
-  if (chars != null) return `${chars.toLocaleString()} 字符`;
-  return `${bytes?.toLocaleString()} 字节`;
+  if (chars != null) return t("feedback.characters", { count: formatNumber(chars, locale) });
+  return t("feedback.bytes", { count: formatNumber(bytes ?? 0, locale) });
 };
 
 const PromptBlock: React.FC<{
@@ -175,7 +189,8 @@ const PromptBlock: React.FC<{
   content: string;
   copyContent?: string;
   onCopy: (text: string) => void;
-}> = ({ label, content, copyContent, onCopy }) => {
+  t: MessageTranslator;
+}> = ({ label, content, copyContent, onCopy, t }) => {
   if (!content.trim()) return null;
   const copyText = copyContent ?? content;
   return (
@@ -186,8 +201,8 @@ const PromptBlock: React.FC<{
           type="button"
           onClick={() => onCopy(copyText)}
           className="a4n-icon-button inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-book-text-muted transition-colors hover:bg-book-bg-tertiary hover:text-book-primary"
-          title={`复制 ${label}`}
-          aria-label={`复制 ${label}`}
+          title={t("feedback.copyLabel", { label })}
+          aria-label={t("feedback.copyLabel", { label })}
         >
           <Clipboard size={12} />
         </button>
@@ -203,6 +218,7 @@ const StepView: React.FC<{
   step: ModelRequestPreviewStep;
   onCopy: (text: string) => void;
 }> = ({ step, onCopy }) => {
+  const { locale, t } = useI18n();
   const request = normalizedPreviewValue(step.request);
   const contextManifest = normalizedPreviewValue(step.context_manifest);
   const contextPlan = normalizedPreviewValue(step.context_plan);
@@ -228,10 +244,14 @@ const StepView: React.FC<{
   const promptLength = lengthLabel(
     numericRecordField(step.char_counts, "prompt_chars"),
     numericRecordField(step.char_counts, "prompt_bytes"),
+    locale,
+    t,
   );
   const requestLength = lengthLabel(
     numericRecordField(step.char_counts, "request_chars"),
     numericRecordField(step.char_counts, "request_bytes"),
+    locale,
+    t,
   );
   return (
     <section className="min-w-0">
@@ -241,7 +261,7 @@ const StepView: React.FC<{
         </span>
         <span className={`inline-flex shrink-0 items-center gap-1 text-small ${stateClass(step.state)}`}>
           {stateIcon(step.state)}
-          {stateLabel(step.state)}
+          {stateLabel(step.state, t)}
         </span>
       </div>
       {step.note && (
@@ -250,28 +270,33 @@ const StepView: React.FC<{
         </div>
       )}
       <details className="mb-3 text-caption text-book-text-muted">
-        <summary className="w-fit cursor-pointer hover:text-book-text-main">请求信息</summary>
+        <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("feedback.requestInfo")}</summary>
         <div className="mt-2 flex min-w-0 flex-wrap gap-x-3 gap-y-1 border-l-2 border-book-border/60 pl-2 leading-relaxed">
-          {step.prompt_name && <span>模板 {step.prompt_name}</span>}
-          <span>输入 {charLabel(step.total_chars)}</span>
-          {maxTokens != null && <span>{maxTokensLabel(maxTokens)}</span>}
-          {promptLength && <span>Prompt {promptLength}</span>}
-          {requestLength && <span>Request {requestLength}</span>}
+          {step.prompt_name && <span>{t("feedback.template", { name: step.prompt_name })}</span>}
+          <span>{charLabel(step.total_chars, locale, t)}</span>
+          {maxTokens != null && <span>{maxTokensLabel(maxTokens, locale, t)}</span>}
+          {promptLength && <span>{t("feedback.promptLength", { value: promptLength })}</span>}
+          {requestLength && <span>{t("feedback.requestLength", { value: requestLength })}</span>}
           {contextAvailableInputTokens != null && (
             <span>
-              上下文 {contextEstimatedInputTokens?.toLocaleString() ?? "-"} /{" "}
-              {contextAvailableInputTokens.toLocaleString()} tokens
+              {t("feedback.contextTokens", {
+                estimated:
+                  contextEstimatedInputTokens == null
+                    ? "-"
+                    : formatNumber(contextEstimatedInputTokens, locale),
+                available: formatNumber(contextAvailableInputTokens, locale),
+              })}
             </span>
           )}
           {contextStablePrefixTokens != null && (
-            <span>稳定前缀 {contextStablePrefixTokens.toLocaleString()}</span>
+            <span>{t("feedback.stablePrefix", { value: formatNumber(contextStablePrefixTokens, locale) })}</span>
           )}
           {contextDynamicDeltaTokens != null && (
-            <span>动态尾部 {contextDynamicDeltaTokens.toLocaleString()}</span>
+            <span>{t("feedback.dynamicTail", { value: formatNumber(contextDynamicDeltaTokens, locale) })}</span>
           )}
-          {contextPackCount != null && <span>上下文包 {contextPackCount}</span>}
+          {contextPackCount != null && <span>{t("feedback.contextPacks", { count: formatNumber(contextPackCount, locale) })}</span>}
           {contextDroppedOptionalPacks != null && contextDroppedOptionalPacks > 0 && (
-            <span className="text-warning">丢弃可选包 {contextDroppedOptionalPacks}</span>
+            <span className="text-warning">{t("feedback.droppedOptionalPacks", { count: formatNumber(contextDroppedOptionalPacks, locale) })}</span>
           )}
         </div>
       </details>
@@ -280,52 +305,57 @@ const StepView: React.FC<{
           {messages.map((message, index) => (
             <PromptBlock
               key={`${step.key}-${index}`}
-              label={`${messageRoleLabel(message.role)} ${index + 1}`}
+              label={`${messageRoleLabel(message.role, t)} ${index + 1}`}
               content={textValue(message.content ?? message)}
               onCopy={onCopy}
+              t={t}
             />
           ))}
         </div>
       ) : (
         <div className="grid min-w-0 gap-3 xl:grid-cols-2">
-          <PromptBlock label="系统提示词" content={systemPrompt} onCopy={onCopy} />
-          <PromptBlock label="用户提示词" content={userPrompt} onCopy={onCopy} />
+          <PromptBlock label={t("feedback.systemPrompt")} content={systemPrompt} onCopy={onCopy} t={t} />
+          <PromptBlock label={t("feedback.userPrompt")} content={userPrompt} onCopy={onCopy} t={t} />
         </div>
       )}
       {requestJson.trim() && (
         <details className="mt-3 text-caption text-book-text-muted">
-          <summary className="w-fit cursor-pointer hover:text-book-text-main">完整请求</summary>
+          <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("feedback.fullRequest")}</summary>
           <div className="mt-2">
             <PromptBlock
-              label="Request"
+              label={t("feedback.fullRequest")}
               content={requestReadable}
               copyContent={requestJson}
               onCopy={onCopy}
+              t={t}
             />
           </div>
         </details>
       )}
       {(contextPlanJson.trim() || contextPackRefsJson.trim() || contextManifestJson.trim()) && (
         <details className="mt-3 text-caption text-book-text-muted">
-          <summary className="w-fit cursor-pointer hover:text-book-text-main">上下文详情</summary>
+          <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("feedback.contextDetails")}</summary>
           <div className="mt-2 grid min-w-0 gap-3 xl:grid-cols-3">
             <PromptBlock
-              label="预算"
+              label={t("feedback.budget")}
               content={contextPlanReadable}
               copyContent={contextPlanJson}
               onCopy={onCopy}
+              t={t}
             />
             <PromptBlock
-              label="引用"
+              label={t("feedback.references")}
               content={contextPackRefsReadable}
               copyContent={contextPackRefsJson}
               onCopy={onCopy}
+              t={t}
             />
             <PromptBlock
-              label="清单"
+              label={t("feedback.manifest")}
               content={contextManifestReadable}
               copyContent={contextManifestJson}
               onCopy={onCopy}
+              t={t}
             />
           </div>
         </details>
@@ -338,12 +368,13 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
   open,
   loading,
   data,
-  fallbackTitle = "模型请求预览",
+  fallbackTitle,
   onClose,
 }) => {
   const [copied, setCopied] = useState(false);
   const copiedTimerRef = useRef<number | null>(null);
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
 
   useEffect(() => {
     setCopied(false);
@@ -379,7 +410,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
         copiedTimerRef.current = null;
       }
       setCopied(false);
-      addToast(extractErrorMessage(err, "复制请求预览失败"), "error");
+      addToast(extractErrorMessage(err, t("feedback.copyPreviewFailed")), "error");
     }
   };
   const allText = data
@@ -405,11 +436,14 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
     <Modal
       isOpen={open}
       onClose={onClose}
-      title={data?.title ?? fallbackTitle}
+      title={data?.title ?? fallbackTitle ?? t("feedback.requestPreviewTitle")}
       subtitle={
         data
-          ? `${data.ready_step_count}/${data.steps.length} 步可预览 · 不会发送请求`
-          : "直接构造将发送给模型的请求，不发送"
+          ? t("feedback.requestPreviewReady", {
+              ready: formatNumber(data.ready_step_count, locale),
+              total: formatNumber(data.steps.length, locale),
+            })
+          : t("feedback.requestPreviewSubtitle")
       }
       maxWidthClassName="max-w-[min(94vw,72rem)]"
       zIndexClassName="z-[80]"
@@ -422,12 +456,12 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
           className="!min-h-8 !text-xs"
         >
           <Clipboard size={12} />
-          {copied ? "已复制" : "复制全部"}
+          {copied ? t("feedback.copiedAll") : t("feedback.copyAll")}
         </BookButton>
       }
     >
       {loading ? (
-        <LoadingSpinner size="lg" text="正在构造模型请求…" inline={false} className="min-h-[18rem]" />
+        <LoadingSpinner size="lg" text={t("feedback.buildingRequest")} inline={false} className="min-h-[18rem]" />
       ) : data ? (
         <div className="flex min-w-0 flex-col gap-3">
           {data.steps.map((step) => (
@@ -435,7 +469,7 @@ export const RequestPreviewModal: React.FC<RequestPreviewModalProps> = ({
           ))}
         </div>
       ) : (
-        <div className="py-10 text-center text-sm text-book-text-muted">暂无预览数据</div>
+        <div className="py-10 text-center text-sm text-book-text-muted">{t("feedback.noPreviewData")}</div>
       )}
     </Modal>
   );

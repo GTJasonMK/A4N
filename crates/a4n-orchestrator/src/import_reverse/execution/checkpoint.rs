@@ -59,8 +59,7 @@ mod tests {
             r#"{"outlines":[{"chapter_number":1,"title":"开端","summary":"故事开端"}]}"#,
             ReverseEngineeringTarget::Outline,
         )
-        .err()
-        .expect("mismatched checkpoint must fail");
+        .expect_err("mismatched checkpoint must fail");
 
         assert!(
             error

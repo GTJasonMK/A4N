@@ -5,7 +5,10 @@ use a4n_core::models::{
         novel_project,
     },
 };
-use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, Set};
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set,
+    sea_query::Expr,
+};
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, ProjectFamilyImportPackage, map_optional,
@@ -106,17 +109,19 @@ pub(super) async fn insert_story_rows(
             )?);
         }
     );
-    let project = novel_project::Entity::find_by_id(root_project_id)
-        .one(txn)
-        .await?
-        .ok_or_else(|| {
-            ProjectFamilyImportError::invalid_package(format!(
-                "项目族导入目标根项目不存在: {root_project_id}"
-            ))
-        })?;
-    let mut active: novel_project::ActiveModel = project.into();
-    active.raw_blueprint = Set(canonical_raw_blueprint);
-    active.update(txn).await?;
+    let updated = novel_project::Entity::update_many()
+        .col_expr(
+            novel_project::Column::RawBlueprint,
+            Expr::value(canonical_raw_blueprint),
+        )
+        .filter(novel_project::Column::Id.eq(root_project_id))
+        .exec(txn)
+        .await?;
+    if updated.rows_affected != 1 {
+        return Err(ProjectFamilyImportError::invalid_package(format!(
+            "项目族导入目标根项目不存在: {root_project_id}"
+        )));
+    }
     Ok(())
 }
 

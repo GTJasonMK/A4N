@@ -68,10 +68,7 @@ impl VideoTimelineGap {
 }
 
 fn gap_anchor_key(item_id: Option<i64>) -> i64 {
-    match item_id {
-        Some(item_id) => item_id,
-        None => 0,
-    }
+    item_id.unwrap_or_default()
 }
 
 /// 时间线项顺序错误。

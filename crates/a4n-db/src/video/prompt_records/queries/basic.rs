@@ -5,6 +5,7 @@ use sea_orm::{
     sea_query::{Expr, extension::postgres::PgExpr},
 };
 
+use super::super::types::ChapterVideoPromptTimelineRecord;
 use crate::video::{VideoDbError, required_video_record_text, validate_positive_video_i64};
 
 pub async fn chapter_video_prompt_by_id(
@@ -50,6 +51,51 @@ where
         .order_by_asc(chapter_video_prompt::Column::WorkflowMode)
         .order_by_asc(chapter_video_prompt::Column::ShotNumber)
         .order_by_asc(chapter_video_prompt::Column::Id)
+        .all(db)
+        .await
+}
+
+pub async fn chapter_video_prompt_timeline_records_for_chapter<C>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+) -> Result<Vec<ChapterVideoPromptTimelineRecord>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::GeneratedVideoId)
+        .column(chapter_video_prompt::Column::Title)
+        .column(chapter_video_prompt::Column::SceneSummary)
+        .column(chapter_video_prompt::Column::VisualPrompt)
+        .column(chapter_video_prompt::Column::MotionPrompt)
+        .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
+        .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
+        .order_by_asc(chapter_video_prompt::Column::WorkflowMode)
+        .order_by_asc(chapter_video_prompt::Column::ShotNumber)
+        .order_by_asc(chapter_video_prompt::Column::Id)
+        .into_model::<ChapterVideoPromptTimelineRecord>()
+        .all(db)
+        .await
+}
+
+pub async fn chapter_video_prompt_video_binding_records_for_chapter<C>(
+    db: &C,
+    project_id: i64,
+    chapter_id: i64,
+) -> Result<Vec<(i64, Option<i64>)>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::GeneratedVideoId)
+        .filter(chapter_video_prompt::Column::ProjectId.eq(project_id))
+        .filter(chapter_video_prompt::Column::ChapterId.eq(chapter_id))
+        .into_tuple::<(i64, Option<i64>)>()
         .all(db)
         .await
 }

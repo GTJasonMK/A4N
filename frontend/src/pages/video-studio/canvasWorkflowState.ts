@@ -1,4 +1,5 @@
 import type { WorkflowRunDetailSummary } from "../../api/streaming";
+import type { MessageTranslator } from "../../i18n";
 import { nodeDisplayTitle } from "./StudioCanvasNode";
 import { studioNodeContract, type StudioNodeContractMap } from "./nodeContracts";
 import type { StudioEdge, StudioNode } from "./types";
@@ -68,8 +69,9 @@ export function computeWorkflowActiveScope(
   }
 
   const queue = Array.from(targetNodeIds);
-  while (queue.length > 0) {
-    const targetId = queue.shift()!;
+  let queueIndex = 0;
+  while (queueIndex < queue.length) {
+    const targetId = queue[queueIndex++];
     for (const edge of incomingByTarget.get(targetId) ?? []) {
       edgeIds.add(edge.id);
       if (!nodeIds.has(edge.source)) {
@@ -98,8 +100,9 @@ export function computeRunToNodeScope(
     incomingByTarget.set(edge.target, list);
   }
   const queue = [selectedNode.id];
-  while (queue.length > 0) {
-    const targetId = queue.shift()!;
+  let queueIndex = 0;
+  while (queueIndex < queue.length) {
+    const targetId = queue[queueIndex++];
     for (const edge of incomingByTarget.get(targetId) ?? []) {
       edgeIds.add(edge.id);
       if (!nodeIds.has(edge.source)) {
@@ -110,15 +113,12 @@ export function computeRunToNodeScope(
   }
   const scopedNodes = nodes.filter((node) => nodeIds.has(node.id));
   const scopedIncomingCount = new Map<string, number>();
-  for (const edge of edges) {
-    if (!edgeIds.has(edge.id)) continue;
-    scopedIncomingCount.set(edge.target, (scopedIncomingCount.get(edge.target) ?? 0) + 1);
-  }
   const runnableNodes = scopedNodes.filter((node) => studioNodeContract(contractsByKind, node.data.nodeKind)?.runnable ?? false);
   const runnableNodeIds = new Set(runnableNodes.map((node) => node.id));
   const runnableIncomingCount = new Map<string, number>();
   for (const edge of edges) {
     if (!edgeIds.has(edge.id)) continue;
+    scopedIncomingCount.set(edge.target, (scopedIncomingCount.get(edge.target) ?? 0) + 1);
     if (runnableNodeIds.has(edge.source) && runnableNodeIds.has(edge.target)) {
       runnableIncomingCount.set(edge.target, (runnableIncomingCount.get(edge.target) ?? 0) + 1);
     }
@@ -317,29 +317,33 @@ export function edgeWithRuntimeClasses(
   };
 }
 
-export function runToNodeConfirmationMessage(scope: RunToNodeScope, targetNode: StudioNode): string {
-  const target = nodeDisplayTitle(targetNode.data);
-  const runnableStarts = scope.runnableStartNodes.map((node) => nodeDisplayTitle(node.data));
-  const inputStarts = scope.inputStartNodes.map((node) => nodeDisplayTitle(node.data));
+export function runToNodeConfirmationMessage(scope: RunToNodeScope, targetNode: StudioNode, t: MessageTranslator): string {
+  const target = nodeDisplayTitle(targetNode.data, t);
+  const runnableStarts = scope.runnableStartNodes.map((node) => nodeDisplayTitle(node.data, t));
+  const inputStarts = scope.inputStartNodes.map((node) => nodeDisplayTitle(node.data, t));
   const startLine =
     runnableStarts.length > 0
-      ? `实际执行起点：${joinNodeNames(runnableStarts)}`
-      : `上游起点：${joinNodeNames(inputStarts)}`;
-  const inputLine = inputStarts.length > 0 ? `依赖输入：${joinNodeNames(inputStarts)}` : "依赖输入：无上游输入";
+      ? t("video.canvas.confirm.executionStart", { nodes: joinNodeNames(runnableStarts, t) })
+      : t("video.canvas.confirm.upstreamStart", { nodes: joinNodeNames(inputStarts, t) });
+  const inputLine = inputStarts.length > 0
+    ? t("video.canvas.confirm.inputs", { nodes: joinNodeNames(inputStarts, t) })
+    : t("video.canvas.confirm.noInputs");
   return [
-    "确认运行到此节点？",
+    t("video.canvas.confirm.title"),
     "",
     startLine,
-    `终止节点：${target}`,
-    `将执行节点数：${scope.runnableNodes.length}`,
+    t("video.canvas.confirm.target", { name: target }),
+    t("video.canvas.confirm.nodeCount", { count: scope.runnableNodes.length }),
     inputLine,
     "",
-    "系统会执行该节点的全部上游依赖，并停在当前节点。",
+    t("video.canvas.confirm.body"),
   ].join("\n");
 }
 
-function joinNodeNames(names: string[]): string {
-  if (names.length === 0) return "无";
-  if (names.length <= 3) return names.join("、");
-  return `${names.slice(0, 3).join("、")} 等 ${names.length} 个节点`;
+function joinNodeNames(names: string[], t: MessageTranslator): string {
+  if (names.length === 0) return t("common.none");
+  const visibleNames = names.slice(0, 3).join(t("video.canvas.confirm.nodeSeparator"));
+  return names.length <= 3
+    ? visibleNames
+    : t("video.canvas.confirm.moreNodes", { nodes: visibleNames, count: names.length - 3 });
 }

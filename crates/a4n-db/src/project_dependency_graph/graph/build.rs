@@ -70,6 +70,7 @@ pub(super) fn build_asset_dependency_graph(
     add_video_nodes(
         &mut graph,
         &records.chapters,
+        &records.visual_plans,
         &records.shooting_scripts,
         &records.video_prompts,
         &records.generated_images,
@@ -80,7 +81,7 @@ pub(super) fn build_asset_dependency_graph(
         &records.generation_specs,
         &records.prompt_artifacts,
         &records.media_assets,
-        &records.media_provenance,
+        records.media_provenance_count,
     );
     add_derived_project_nodes(&mut graph, &scope.derived_projects);
 

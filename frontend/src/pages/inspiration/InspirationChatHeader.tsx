@@ -5,6 +5,7 @@ import { BackButton } from "../../components/ui/BackButton";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { PageHeader } from "../../components/shell/PageHeader";
+import { useI18n } from "../../i18n";
 
 interface InspirationChatHeaderProps {
   projectTitle: string;
@@ -25,11 +26,13 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
   onOpenProgress,
   onGenerateBlueprint,
   onPreviewGenerateBlueprint,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <PageHeader
     className="a4n-app-page-header--detail h-auto shrink-0 !px-3 py-2 sm:!px-[var(--a4n-content-gutter)]"
-    leading={<BackButton iconOnly title="返回上一页" />}
-    title="灵感对话"
+    leading={<BackButton iconOnly title={t("nav.backToPrevious")} />}
+    title={t("novel.inspiration")}
     subtitle={projectTitle}
     actions={showConversationControls ? (
       <>
@@ -37,13 +40,13 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
           <Dropdown
             items={[
               {
-                label: "创作进度",
+                label: t("inspiration.progressTitle"),
                 icon: <ListChecks size={12} />,
                 onClick: onOpenProgress,
               },
               { type: "divider" },
               {
-                label: "查看蓝图模型请求",
+                label: t("inspiration.blueprintRequestPreview"),
                 icon: <Eye size={12} />,
                 onClick: onPreviewGenerateBlueprint,
                 disabled: !canGenerate,
@@ -55,7 +58,7 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
           <Dropdown
             items={[
               {
-                label: "查看蓝图模型请求",
+                label: t("inspiration.blueprintRequestPreview"),
                 icon: <Eye size={12} />,
                 onClick: onPreviewGenerateBlueprint,
                 disabled: !canGenerate,
@@ -68,22 +71,23 @@ export const InspirationChatHeader: React.FC<InspirationChatHeaderProps> = ({
           size="sm"
           onClick={onGenerateBlueprint}
           disabled={!canGenerate}
-          title="生成首版蓝图"
+          title={t("inspiration.blueprintTitle")}
           className="min-w-0 flex-1 !min-h-8 !px-2.5 !text-xs sm:flex-none"
         >
           {generating ? (
             <span className="inline-flex items-center gap-1">
               <LoadingSpinner size="sm" />
-              <span>生成中…</span>
+              <span>{t("workflow.generating")}</span>
             </span>
           ) : (
             <span className="inline-flex items-center gap-1">
               <Sparkles size={12} />
-              <span>生成蓝图</span>
+              <span>{t("inspiration.blueprintTitle")}</span>
             </span>
           )}
         </BookButton>
       </>
     ) : undefined}
   />
-);
+  );
+};

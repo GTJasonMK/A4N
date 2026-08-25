@@ -10,6 +10,7 @@ use a4n_core::{
 use a4n_domain::GeneratedMediaReference;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::Value;
+use std::collections::HashMap;
 
 pub(in crate::project_dependency_graph) async fn character_portrait_detail_records<C>(
     db: &C,
@@ -36,17 +37,25 @@ where
         .all(db)
         .await
         .map_err(AppError::Database)?;
+    let images_by_portrait_id = images.iter().fold(
+        HashMap::with_capacity(images.len()),
+        |mut by_portrait_id, image| {
+            let Some(portrait_id) = image
+                .metadata_json
+                .as_ref()
+                .and_then(|value| value.get("portrait_id"))
+                .and_then(Value::as_i64)
+            else {
+                return by_portrait_id;
+            };
+            by_portrait_id.entry(portrait_id).or_insert(image);
+            by_portrait_id
+        },
+    );
     Ok(portraits
         .into_iter()
         .map(|portrait| {
-            let mirror = images.iter().find(|image| {
-                image
-                    .metadata_json
-                    .as_ref()
-                    .and_then(|value| value.get("portrait_id"))
-                    .and_then(Value::as_i64)
-                    == Some(portrait.id)
-            });
+            let mirror = images_by_portrait_id.get(&portrait.id).copied();
             let variant_kind = mirror
                 .and_then(|image| image.metadata_json.as_ref())
                 .and_then(|value| value.get("variant_kind"))

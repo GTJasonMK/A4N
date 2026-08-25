@@ -2,6 +2,7 @@ import React from "react";
 import { FileText, FolderOpen, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
+import { useI18n } from "../../../i18n";
 
 interface ImportFilePanelProps {
   fileName: string;
@@ -17,12 +18,14 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
   externalBusy,
   onSelectFile,
   onImport,
-}) => (
+}) => {
+  const { t } = useI18n();
+  return (
   <section className="a4n-flat-surface p-4 sm:p-5">
     <div className="mb-4">
-      <h3 className="text-sm font-semibold text-book-text-main">导入新文件</h3>
+      <h3 className="text-sm font-semibold text-book-text-main">{t("novel.importReview.file.title")}</h3>
       <p className="mt-0.5 text-small text-book-text-muted">
-        支持 TXT、Markdown、EPUB 与 DOCX
+        {t("novel.importReview.file.description")}
       </p>
     </div>
     <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
@@ -31,7 +34,7 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
         onClick={onSelectFile}
         disabled={importBusy || externalBusy}
         className="pyqt-input flex h-10 min-w-0 items-center gap-2.5 px-3 text-left text-xs transition-colors disabled:cursor-not-allowed"
-        title={fileName || "选择导入文件"}
+        title={fileName || t("novel.importReview.file.choose")}
       >
         <FileText size={15} className="shrink-0 text-book-text-muted" />
         <span
@@ -39,11 +42,11 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
             fileName ? "text-book-text-main" : "text-book-text-muted"
           }`}
         >
-          {fileName || "尚未选择文件"}
+          {fileName || t("novel.importReview.file.selected")}
         </span>
         <span className="inline-flex shrink-0 items-center gap-1.5 font-medium text-book-text-sub">
           <FolderOpen size={14} />
-          {fileName ? "重新选择" : "选择文件"}
+          {fileName ? t("novel.importReview.file.rechoose") : t("novel.importReview.file.chooseButton")}
         </span>
       </button>
       <BookButton
@@ -55,14 +58,15 @@ export const ImportFilePanel: React.FC<ImportFilePanelProps> = ({
       >
         {importBusy ? (
           <>
-            <LoadingSpinner size="sm" /> 导入中…
+            <LoadingSpinner size="sm" /> {t("novel.importReview.file.importing")}
           </>
         ) : (
           <>
-            <Upload size={14} /> 开始导入
+            <Upload size={14} /> {t("novel.importReview.file.start")}
           </>
         )}
       </BookButton>
     </div>
   </section>
-);
+  );
+};

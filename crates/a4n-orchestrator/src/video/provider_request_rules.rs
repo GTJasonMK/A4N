@@ -2,6 +2,7 @@
 
 use a4n_core::models::chapter::chapter_video_prompt;
 use serde_json::{Value, json};
+use std::collections::HashSet;
 
 use super::boundary_frame_numbers_for_prompt;
 
@@ -312,11 +313,12 @@ pub fn reference_ids_with_storyboard_image(
     prompt_reference_ids: &[i64],
 ) -> Vec<i64> {
     let mut ids = Vec::new();
+    let mut seen = HashSet::new();
     for id in storyboard_image_id
         .into_iter()
         .chain(prompt_reference_ids.iter().copied())
     {
-        if id > 0 && !ids.contains(&id) {
+        if id > 0 && seen.insert(id) {
             ids.push(id);
         }
     }
@@ -324,7 +326,7 @@ pub fn reference_ids_with_storyboard_image(
 }
 
 /// 解析 data URL 的 MIME；非 data URL 返回 `Ok(None)`。
-pub fn data_url_mime(value: &str) -> Result<Option<String>, String> {
+fn data_url_mime(value: &str) -> Result<Option<String>, String> {
     let value = value.trim();
     let Some(rest) = value.strip_prefix("data:") else {
         return Ok(None);

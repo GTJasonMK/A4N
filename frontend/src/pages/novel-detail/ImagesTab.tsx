@@ -45,6 +45,7 @@ import { ImageGalleryPanel } from "./images/ImageGalleryPanel";
 import { ImageGenerationDialog } from "./images/ImageGenerationDialog";
 import { type ImageScope } from "./images/imageTabUtils";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
+import { formatNumber, useI18n } from "../../i18n";
 
 interface ImagesTabProps {
   projectId: number;
@@ -61,6 +62,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   fixedChapter,
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const hasChapterContext = fixedChapter !== undefined;
   const chapter = fixedChapter ?? null;
@@ -154,7 +156,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     (requestScope: string): number | null => {
       if (!isCurrentScope(requestScope)) return null;
       if (actionBusyRef.current) {
-        addToast("已有图片操作进行中，请等待当前操作完成", "error");
+        addToast(t("novel.imageLibrary.operationInProgress"), "error");
         return null;
       }
       actionBusyRef.current = true;
@@ -166,7 +168,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
 
   const ensureCanEditImages = useCallback(() => {
     if (canEditImages) return true;
-    addToast("当前账号没有编辑此项目图像的权限", "error");
+    addToast(t("novel.imageLibrary.noEditPermission"), "error");
     return false;
   }, [addToast, canEditImages]);
 
@@ -321,7 +323,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         setAllImages(data);
       } catch (err) {
         if (isCurrentLoad(requestScope, requestSeq)) {
-          addToast(extractErrorMessage(err, "加载图像失败"), "error");
+          addToast(extractErrorMessage(err, t("novel.imageLibrary.loadFailed")), "error");
         }
       } finally {
         if (isCurrentLoad(requestScope, requestSeq)) setLoading(false);
@@ -380,7 +382,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       );
     } catch (err) {
       if (isCurrentObjectProfilesLoad(requestScope, requestSeq)) {
-        addToast(extractErrorMessage(err, "加载物体档案失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.loadProfilesFailed")), "error");
       }
     }
   }, [addToast, canEditImages, isCurrentObjectProfilesLoad, projectId, scopeKey]);
@@ -396,11 +398,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestChapter = chapter;
     const requestPrompt = genPrompt.trim();
     if (chapterGenerateLocked) {
-      addToast(chapterGeneratingMessage(chapter, "生成章节场景图"), "error");
+      addToast(chapterGeneratingMessage(chapter, t("novel.imageLibrary.chapterTitle"), t), "error");
       return;
     }
     if (!requestPrompt) {
-      addToast("请填写 prompt", "error");
+      addToast(t("novel.imageLibrary.promptRequired"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -420,12 +422,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         runProgressTask,
         handle,
         {
-          title: requestChapter ? "生成章节场景图" : "生成项目场景图",
-          startMessage: "正在准备图片生成…",
-          successMessage: requestChapter ? "章节场景图已生成" : "项目场景图已生成",
-          errorMessage: "图片生成失败",
+          title: requestChapter ? t("novel.imageLibrary.chapterTitle") : t("novel.imageLibrary.projectTitle"),
+          startMessage: t("novel.imageLibrary.generating"),
+          successMessage: requestChapter ? t("novel.imageLibrary.chapterTitle") : t("novel.imageLibrary.projectTitle"),
+          errorMessage: t("novel.imageLibrary.generationFailed"),
           total: 3,
-          cancelLabel: "停止生成",
+          cancelLabel: t("workflow.stop"),
         },
         async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
@@ -435,13 +437,13 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast(requestChapter ? "已生成章节场景图" : "已生成项目场景图", "success");
+      addToast(requestChapter ? t("novel.imageLibrary.chapterTitle") : t("novel.imageLibrary.projectTitle"), "success");
       setGenPrompt("");
     } catch (err) {
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      const message = extractErrorMessage(err, "生成失败");
+      const message = extractErrorMessage(err, t("novel.imageLibrary.generationFailed"));
       if (isCancelledOperation(message)) {
-        addToast("图片生成已停止", "info");
+        addToast(t("novel.imageLibrary.generationStopped"), "info");
       } else {
         addToast(message, "error");
       }
@@ -458,11 +460,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestChapter = chapter;
     const requestPrompt = genPrompt.trim();
     if (chapterGenerateLocked) {
-      addToast(chapterGeneratingMessage(chapter, "预览章节场景图请求"), "error");
+      addToast(chapterGeneratingMessage(chapter, t("novel.imageLibrary.requestPreview"), t), "error");
       return;
     }
     if (!requestPrompt) {
-      addToast("请填写 prompt", "error");
+      addToast(t("novel.imageLibrary.promptRequired"), "error");
       return;
     }
     const requestSeq = beginPreview(requestScope);
@@ -478,7 +480,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (isCurrentPreview(requestScope, requestSeq)) {
-        addToast(extractErrorMessage(err, "预览图片请求失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.previewFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -493,11 +495,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestChapterId = chapter?.id ?? null;
     const requestStyle = objectImageStyle.trim() || null;
     if (requestProfileId == null) {
-      addToast("请先选择物体档案", "error");
+      addToast(t("novel.imageLibrary.objectRequired"), "error");
       return;
     }
     if (!objectProfilesRef.current.some((profile) => profile.id === requestProfileId)) {
-      addToast("物体档案已不在当前项目中", "error");
+      addToast(t("novel.imageLibrary.objectNotFound"), "error");
       return;
     }
     const requestSeq = beginPreview(requestScope);
@@ -512,7 +514,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (isCurrentPreview(requestScope, requestSeq)) {
-        addToast(extractErrorMessage(err, "预览物体素材图请求失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.previewFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -527,11 +529,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestChapterId = chapter?.id ?? null;
     const requestStyle = objectImageStyle.trim() || null;
     if (requestProfileId == null) {
-      addToast("请先选择物体档案", "error");
+      addToast(t("novel.imageLibrary.objectRequired"), "error");
       return;
     }
     if (!objectProfilesRef.current.some((profile) => profile.id === requestProfileId)) {
-      addToast("物体档案已不在当前项目中", "error");
+      addToast(t("novel.imageLibrary.objectNotFound"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -546,10 +548,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       if (!isCurrentAction(requestScope, actionSeq)) return;
       await copyTextToClipboard(result.prompt);
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast(`已复制 ${result.object_name} 的素材提示词`, "success");
+      addToast(t("novel.imageLibrary.copyPromptSuccess", { name: result.object_name }), "success");
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "复制物体素材提示词失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.copyPromptFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestScope, actionSeq)) setObjectPromptCopying(false);
@@ -565,11 +567,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestChapterId = chapter?.id ?? null;
     const requestStyle = objectImageStyle.trim() || null;
     if (requestProfileId == null) {
-      addToast("请先选择物体档案", "error");
+      addToast(t("novel.imageLibrary.objectRequired"), "error");
       return;
     }
     if (!objectProfilesRef.current.some((profile) => profile.id === requestProfileId)) {
-      addToast("物体档案已不在当前项目中", "error");
+      addToast(t("novel.imageLibrary.objectNotFound"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -589,12 +591,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         runProgressTask,
         handle,
         {
-          title: "生成物体素材图",
-          startMessage: "正在准备物体素材图",
-          successMessage: "物体素材图已生成",
-          errorMessage: "物体素材图生成失败",
+          title: t("novel.profile.generateObjectImage"),
+          startMessage: t("novel.imageLibrary.generating"),
+          successMessage: t("novel.profile.generateObjectImage"),
+          errorMessage: t("novel.imageLibrary.generationFailed"),
           total: 3,
-          cancelLabel: "停止生成",
+          cancelLabel: t("workflow.stop"),
         },
         async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
@@ -606,12 +608,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast("物体素材图已生成", "success");
+      addToast(t("novel.profile.generateObjectImage"), "success");
     } catch (err) {
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      const message = extractErrorMessage(err, "物体素材图生成失败");
+      const message = extractErrorMessage(err, t("novel.imageLibrary.generationFailed"));
       if (isCancelledOperation(message)) {
-        addToast("图片生成已停止", "info");
+        addToast(t("novel.imageLibrary.generationStopped"), "info");
       } else {
         addToast(message, "error");
       }
@@ -626,7 +628,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
-      addToast("图片已不在当前列表中", "error");
+      addToast(t("novel.imageLibrary.imageNotFound"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -640,7 +642,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "切换收藏失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.favoriteFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestScope, actionSeq)) setBusyId(null);
@@ -651,7 +653,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const handlePickImportImage = () => {
     if (!ensureCanEditImages()) return;
     if (importBusy || actionBusyRef.current) {
-      addToast("已有图片操作进行中，请等待当前操作完成", "error");
+      addToast(t("novel.imageLibrary.operationInProgress"), "error");
       return;
     }
     importFileInputRef.current?.click();
@@ -670,20 +672,20 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     event.currentTarget.value = "";
     if (!file) return;
     if (!isSupportedImageMime(file.type)) {
-      addToast("只支持 PNG/JPEG/WebP 图片", "error");
+      addToast(t("novel.imageLibrary.unsupportedFormat"), "error");
       return;
     }
     if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
-      addToast(`上传图片不能超过 ${MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024}MB`, "error");
+      addToast(t("novel.importReview.fileTooLarge", { size: formatNumber(MAX_UPLOAD_IMAGE_BYTES / 1024 / 1024, locale) }), "error");
       return;
     }
     if (!isCurrentScope(requestScope)) return;
     const prompt = await promptDialog({
-      title: "导入图片",
-      message: "填写这张图片的用途或画面描述。",
-      defaultValue: "外部导入图片",
-      placeholder: "图片描述",
-      confirmText: "导入",
+      title: t("novel.imageLibrary.importTitle"),
+      message: t("novel.imageLibrary.importMessage"),
+      defaultValue: t("novel.imageLibrary.externalImport"),
+      placeholder: t("novel.imageLibrary.descriptionPlaceholder"),
+      confirmText: t("novel.imageLibrary.importConfirm"),
       multiline: true,
       required: true,
     });
@@ -708,11 +710,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         },
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast("图片已导入", "success");
+      addToast(t("novel.imageLibrary.imported"), "success");
       await load({ force: true });
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "导入图片失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.importFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestScope, actionSeq)) setImportBusy(false);
@@ -721,12 +723,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   };
 
   const handleUpdateImage = async (img: GeneratedImage, input: UpdateImageInput) => {
-    if (!ensureCanEditImages()) throw new Error("当前账号没有编辑此项目图像的权限");
+    if (!ensureCanEditImages()) throw new Error(t("novel.imageLibrary.noEditPermission"));
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
-      addToast("图片已不在当前列表中", "error");
-      throw new Error("图片已不在当前列表中");
+      addToast(t("novel.imageLibrary.imageNotFound"), "error");
+      throw new Error(t("novel.imageLibrary.imageNotFound"));
     }
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) throw new Error("任务已停止");
@@ -735,11 +737,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       const updated = await updateImage(requestImage.id, input);
       if (!isCurrentAction(requestScope, actionSeq)) throw new Error("任务已停止");
       setActionImage((current) => (current?.id === updated.id ? updated : current));
-      addToast("图片记录已更新", "success");
+      addToast(t("novel.imageLibrary.updateSuccess"), "success");
       await load({ force: true });
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "更新图片记录失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.updateFailed")), "error");
       }
       throw err;
     } finally {
@@ -753,15 +755,15 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
-      addToast("图片已不在当前列表中", "error");
+      addToast(t("novel.imageLibrary.imageNotFound"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) return;
     const ok = await confirmDialog({
-      title: "删除图片",
-      message: "删除这张图片？相关漫画分镜或视频参考图会同步解除关联。",
-      confirmText: "删除",
+      title: t("novel.imageLibrary.deleteTitle"),
+      message: t("novel.imageLibrary.deleteMessage"),
+      confirmText: t("common.delete"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -773,7 +775,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       return;
     }
     if (!allImagesRef.current.some((image) => image.id === requestImage.id)) {
-      addToast("图片已不在当前列表中", "error");
+      addToast(t("novel.imageLibrary.imageNotFound"), "error");
       finishAction(actionSeq);
       return;
     }
@@ -781,13 +783,13 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     try {
       await deleteImage(requestImage.id);
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast("已删除", "success");
+      addToast(t("novel.imageLibrary.deleted"), "success");
       await load({ force: true });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "删除失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.deleteFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestScope, actionSeq)) setBusyId(null);
@@ -800,12 +802,12 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
     const requestScope = scopeKey;
     const requestImage = allImagesRef.current.find((image) => image.id === img.id) ?? null;
     if (!requestImage) {
-      addToast("图片已不在当前列表中", "error");
+      addToast(t("novel.imageLibrary.imageNotFound"), "error");
       return;
     }
     const score = Number(scoreInput);
     if (!Number.isFinite(score) || score < 0 || score > 1) {
-      addToast("质量评分必须是 0 到 1 之间的数字", "error");
+      addToast(t("novel.imageLibrary.scoreInvalid"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -815,13 +817,13 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       const updated = await updateImage(requestImage.id, { ai_score: score });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       setActionImage((current) => (current?.id === updated.id ? updated : current));
-      addToast(`已打分 ${score}`, "success");
+      addToast(t("novel.imageLibrary.scoreSaved", { value: formatNumber(score, locale) }), "success");
       await load({ force: true });
       if (!isCurrentAction(requestScope, actionSeq)) return;
       setActionImage(null);
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "打分失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.imageLibrary.scoreFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestScope, actionSeq)) setScoringId(null);
@@ -839,7 +841,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   };
 
   if (hasChapterContext && !chapter) {
-    return <EmptyHint text="请先选择已生成的章节，再管理本章图像素材。" />;
+    return <EmptyHint text={t("novel.imageLibrary.selectChapter")} />;
   }
 
   return (
@@ -912,7 +914,7 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="图片请求预览"
+        fallbackTitle={t("novel.imageLibrary.requestPreview")}
         onClose={closeRequestPreview}
       />
     </div>

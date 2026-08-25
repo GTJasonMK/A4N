@@ -15,7 +15,8 @@ use crate::workflow::{
     CancelWorkflowRunPersistenceResult, ClaimExclusiveWorkflowRunInput, CompletedLlmCallCheckpoint,
     CompletedLlmCallCheckpointInput, GetWorkflowRunInput, ListWorkflowRunsInput, PersistedTaskInfo,
     TaskProgressEventSummary, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
-    WorkflowProgressEventInput, WorkflowRunDetailSummary, WorkflowRunSummary,
+    WorkflowProgressEventInput, WorkflowRunAccessRecord, WorkflowRunDetailSummary,
+    WorkflowRunRecoveryRecord, WorkflowRunStatusRecord, WorkflowRunSummary,
     is_video_status_final_for_cancel_interrupt, workflow_read_app_error, workflow_write_app_error,
 };
 
@@ -149,6 +150,39 @@ impl WorkflowApplication {
         .map_err(workflow_read_app_error)
     }
 
+    async fn workflow_run_status_record_by_id(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowRunStatusRecord, AppError> {
+        a4n_db::workflow::workflow_run_status_record_by_id(
+            self.database.connection(),
+            workflow_run_id,
+        )
+        .await
+        .map_err(workflow_read_app_error)
+    }
+
+    async fn workflow_run_access_record_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<WorkflowRunAccessRecord>, AppError> {
+        a4n_db::workflow::workflow_run_access_record_by_active_task_id(
+            self.database.connection(),
+            task_id,
+        )
+        .await
+        .map_err(workflow_read_app_error)
+    }
+
+    async fn workflow_run_statuses_by_ids(
+        &self,
+        workflow_run_ids: &[i64],
+    ) -> Result<Vec<(i64, String)>, AppError> {
+        a4n_db::workflow::workflow_run_statuses_by_ids(self.database.connection(), workflow_run_ids)
+            .await
+            .map_err(workflow_read_app_error)
+    }
+
     async fn latest_workflow_run_by_business_key(
         &self,
         business_key: &str,
@@ -161,6 +195,30 @@ impl WorkflowApplication {
         .map_err(workflow_read_app_error)
     }
 
+    async fn latest_workflow_run_status_record_by_business_key(
+        &self,
+        business_key: &str,
+    ) -> Result<Option<WorkflowRunStatusRecord>, AppError> {
+        a4n_db::workflow::latest_workflow_run_status_record_by_business_key(
+            self.database.connection(),
+            business_key,
+        )
+        .await
+        .map_err(workflow_read_app_error)
+    }
+
+    async fn latest_workflow_run_recovery_records_by_business_keys(
+        &self,
+        business_keys: &[String],
+    ) -> Result<Vec<WorkflowRunRecoveryRecord>, AppError> {
+        a4n_db::workflow::latest_workflow_run_recovery_records_by_business_keys(
+            self.database.connection(),
+            business_keys,
+        )
+        .await
+        .map_err(workflow_read_app_error)
+    }
+
     async fn workflow_checkpoint_models(
         &self,
         workflow_run_id: i64,
@@ -168,6 +226,42 @@ impl WorkflowApplication {
         a4n_db::workflow::workflow_checkpoint_models(self.database.connection(), workflow_run_id)
             .await
             .map_err(workflow_read_app_error)
+    }
+
+    async fn workflow_checkpoint_models_for_runs(
+        &self,
+        workflow_run_ids: &[i64],
+    ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
+        a4n_db::workflow::workflow_checkpoint_models_for_runs(
+            self.database.connection(),
+            workflow_run_ids,
+        )
+        .await
+        .map_err(workflow_read_app_error)
+    }
+
+    async fn workflow_checkpoint_statuses_for_runs(
+        &self,
+        workflow_run_ids: &[i64],
+    ) -> Result<Vec<(i64, String)>, AppError> {
+        a4n_db::workflow::workflow_checkpoint_statuses_for_runs(
+            self.database.connection(),
+            workflow_run_ids,
+        )
+        .await
+        .map_err(workflow_read_app_error)
+    }
+
+    async fn workflow_checkpoint_step_statuses(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<Vec<(String, String)>, AppError> {
+        a4n_db::workflow::workflow_checkpoint_step_statuses(
+            self.database.connection(),
+            workflow_run_id,
+        )
+        .await
+        .map_err(workflow_read_app_error)
     }
 
     async fn completed_workflow_checkpoint_by_fingerprint(
@@ -394,6 +488,24 @@ impl OrchestratorContext {
         self.workflow.workflow_run_models(input).await
     }
 
+    pub(crate) async fn workflow_checkpoint_statuses_for_runs(
+        &self,
+        workflow_run_ids: &[i64],
+    ) -> Result<Vec<(i64, String)>, AppError> {
+        self.workflow
+            .workflow_checkpoint_statuses_for_runs(workflow_run_ids)
+            .await
+    }
+
+    pub(crate) async fn workflow_checkpoint_step_statuses(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<Vec<(String, String)>, AppError> {
+        self.workflow
+            .workflow_checkpoint_step_statuses(workflow_run_id)
+            .await
+    }
+
     pub async fn workflow_runs_by_project_kind(
         &self,
         project_id: i64,
@@ -422,6 +534,33 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn workflow_run_status_record_by_id(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowRunStatusRecord, AppError> {
+        self.workflow
+            .workflow_run_status_record_by_id(workflow_run_id)
+            .await
+    }
+
+    pub async fn workflow_run_access_record_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<WorkflowRunAccessRecord>, AppError> {
+        self.workflow
+            .workflow_run_access_record_by_active_task_id(task_id)
+            .await
+    }
+
+    pub(crate) async fn workflow_run_statuses_by_ids(
+        &self,
+        workflow_run_ids: &[i64],
+    ) -> Result<Vec<(i64, String)>, AppError> {
+        self.workflow
+            .workflow_run_statuses_by_ids(workflow_run_ids)
+            .await
+    }
+
     pub async fn latest_workflow_run_by_business_key(
         &self,
         business_key: &str,
@@ -431,12 +570,39 @@ impl OrchestratorContext {
             .await
     }
 
+    pub(crate) async fn latest_workflow_run_status_record_by_business_key(
+        &self,
+        business_key: &str,
+    ) -> Result<Option<WorkflowRunStatusRecord>, AppError> {
+        self.workflow
+            .latest_workflow_run_status_record_by_business_key(business_key)
+            .await
+    }
+
+    pub(crate) async fn latest_workflow_run_recovery_records_by_business_keys(
+        &self,
+        business_keys: &[String],
+    ) -> Result<Vec<WorkflowRunRecoveryRecord>, AppError> {
+        self.workflow
+            .latest_workflow_run_recovery_records_by_business_keys(business_keys)
+            .await
+    }
+
     pub async fn workflow_checkpoint_models(
         &self,
         workflow_run_id: i64,
     ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
         self.workflow
             .workflow_checkpoint_models(workflow_run_id)
+            .await
+    }
+
+    pub async fn workflow_checkpoint_models_for_runs(
+        &self,
+        workflow_run_ids: &[i64],
+    ) -> Result<Vec<workflow_checkpoint::Model>, AppError> {
+        self.workflow
+            .workflow_checkpoint_models_for_runs(workflow_run_ids)
             .await
     }
 
@@ -502,39 +668,77 @@ impl OrchestratorContext {
         video_ids: &[i64],
         reason: &str,
     ) -> Result<(), AppError> {
+        if video_ids.is_empty() {
+            return Ok(());
+        }
+        let videos = self.video.generated_videos_by_ids(video_ids).await?;
+        let videos_by_id = videos
+            .into_iter()
+            .map(|video| (video.id, video))
+            .collect::<std::collections::HashMap<_, _>>();
+        let mut inputs = Vec::with_capacity(video_ids.len());
         for video_id in video_ids {
-            let video = match self.video.generated_video_by_id(*video_id).await {
-                Ok(Some(video)) => video,
-                Ok(None) => {
-                    tracing::warn!(video_id, "取消工作流时读取关联视频失败: 视频不存在");
-                    continue;
-                }
-                Err(err) => {
-                    tracing::warn!(video_id, error = %err, "取消工作流时读取关联视频失败");
-                    continue;
-                }
+            let Some(video) = videos_by_id.get(video_id) else {
+                tracing::warn!(video_id, "取消工作流时读取关联视频失败: 视频不存在");
+                continue;
             };
             if is_video_status_final_for_cancel_interrupt(&video.status) {
                 continue;
             }
-            if crate::video::normalized_provider_job_id(video.provider_job_id.as_deref()).is_some()
-            {
-                self.video
-                    .mark_generated_video_error_status_and_prompt_record(
-                        video.id,
-                        crate::video::prompt_id_from_generated_video(&video),
-                        generated_video::STATUS_INTERRUPTED,
-                        reason,
-                    )
-                    .await?;
-            } else {
-                self.mark_generated_video_cancelled_validated(
-                    video.id,
-                    crate::video::prompt_id_from_generated_video(&video),
-                    reason,
+            inputs.push(a4n_db::video::GeneratedVideoErrorStatusBatchInput {
+                video_id: video.id,
+                prompt_id: a4n_domain::video::generated_video_prompt_id(
+                    video.metadata_json.as_ref(),
+                ),
+                status: if crate::video::normalized_provider_job_id(
+                    video.provider_job_id.as_deref(),
                 )
-                .await?;
-            }
+                .is_some()
+                {
+                    generated_video::STATUS_INTERRUPTED.to_string()
+                } else {
+                    generated_video::STATUS_CANCELLED.to_string()
+                },
+            });
+        }
+        let missing = self
+            .video
+            .mark_generated_videos_error_status_and_prompt_records(&inputs, reason)
+            .await?;
+        for video_id in missing {
+            tracing::warn!(video_id, "取消工作流时读取关联视频失败: 视频不存在");
+        }
+        let cancelled_video_ids = inputs
+            .iter()
+            .filter(|input| input.status == generated_video::STATUS_CANCELLED)
+            .map(|input| input.video_id)
+            .collect::<Vec<_>>();
+        if cancelled_video_ids.is_empty() {
+            return Ok(());
+        }
+        let cancelled_run_counts = self
+            .generation
+            .cancel_generation_runs_for_targets(
+                "generated_video",
+                &cancelled_video_ids,
+                reason.to_string(),
+            )
+            .await?
+            .into_iter()
+            .collect::<std::collections::HashMap<_, _>>();
+        for input in inputs
+            .iter()
+            .filter(|input| input.status == generated_video::STATUS_CANCELLED)
+        {
+            crate::video::ensure_provider_generation_run_updated(
+                input.video_id,
+                cancelled_run_counts
+                    .get(&input.video_id)
+                    .copied()
+                    .unwrap_or_default(),
+                "取消 provider 视频生成",
+            )
+            .map_err(AppError::InvalidArgument)?;
         }
         Ok(())
     }

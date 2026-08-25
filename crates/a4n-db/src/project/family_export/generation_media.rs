@@ -1,4 +1,9 @@
 use a4n_core::models::{
+    ai::{generated_image, generated_video},
+    chapter::{
+        chapter_manga_prompt, chapter_shooting_script, chapter_video_prompt, chapter_visual_plan,
+    },
+    character::character_portrait,
     generation::{
         generation_spec, generation_spec_entity_ref, generation_spec_media_ref,
         generation_spec_text_anchor, prompt_artifact,
@@ -8,6 +13,64 @@ use a4n_core::models::{
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 use super::types::ProjectFamilyExportError;
+
+project_family_export_load_by_ids!(
+    project_family_export_chapter_visual_plans,
+    chapter_visual_plan::Entity,
+    chapter_visual_plan::Column::RootProjectId,
+    chapter_visual_plan::Column::SourceChapterId,
+    chapter_visual_plan::Column::PlanVersion,
+    chapter_visual_plan::Column::Id,
+);
+
+project_family_export_load_by_ids!(
+    project_family_export_chapter_shooting_scripts,
+    chapter_shooting_script::Entity,
+    chapter_shooting_script::Column::RootProjectId,
+    chapter_shooting_script::Column::SourceChapterId,
+    chapter_shooting_script::Column::Id,
+);
+
+project_family_export_load_by_ids!(
+    project_family_export_character_portraits,
+    character_portrait::Entity,
+    character_portrait::Column::ProjectId,
+    character_portrait::Column::ProfileId,
+    character_portrait::Column::Id,
+);
+
+project_family_export_load_by_ids!(
+    project_family_export_generated_images,
+    generated_image::Entity,
+    generated_image::Column::ProjectId,
+    generated_image::Column::Id,
+);
+
+project_family_export_load_by_ids!(
+    project_family_export_chapter_manga_prompts,
+    chapter_manga_prompt::Entity,
+    chapter_manga_prompt::Column::ProjectId,
+    chapter_manga_prompt::Column::ChapterId,
+    chapter_manga_prompt::Column::PageNumber,
+    chapter_manga_prompt::Column::Id,
+);
+
+project_family_export_load_by_ids!(
+    project_family_export_chapter_video_prompts,
+    chapter_video_prompt::Entity,
+    chapter_video_prompt::Column::ProjectId,
+    chapter_video_prompt::Column::ChapterId,
+    chapter_video_prompt::Column::ShotNumber,
+    chapter_video_prompt::Column::Id,
+);
+
+project_family_export_load_by_ids!(
+    project_family_export_generated_videos,
+    generated_video::Entity,
+    generated_video::Column::ProjectId,
+    generated_video::Column::ChapterId,
+    generated_video::Column::Id,
+);
 
 project_family_export_load_by_ids!(
     project_family_export_generation_specs,

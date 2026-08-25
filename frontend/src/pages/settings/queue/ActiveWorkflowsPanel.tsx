@@ -6,6 +6,7 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import { progressDisplayModel } from "../../../utils/progressPresentation";
 import { ProgressEventList } from "./ProgressEventList";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
+import { formatNumber, useI18n } from "../../../i18n";
 
 interface ActiveWorkflowsPanelProps {
   workflows: WorkflowStateSummary[];
@@ -19,22 +20,24 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
   loading,
   cancellingTaskIds,
   onCancel,
-}) => (
+}) => {
+  const { t, locale } = useI18n();
+  return (
   <section>
     <div className="flex items-baseline gap-2 px-1 pb-2">
-      <h3 className="text-xs font-semibold text-book-text-main">活跃工作流</h3>
+      <h3 className="text-xs font-semibold text-book-text-main">{t("settingsQueue.activeWorkflows")}</h3>
       <span className="text-small text-book-text-muted">
-        {workflows.length > 0 ? `${workflows.length} 个运行中` : "实时进度"}
+        {workflows.length > 0 ? t("settingsQueue.activeRunsCount", { count: formatNumber(workflows.length, locale) }) : t("settingsQueue.realtimeProgress")}
       </span>
     </div>
     {loading && workflows.length === 0 ? (
       <div className="a4n-flat-surface flex items-center justify-center gap-1.5 px-3 py-5 text-xs text-book-text-muted">
         <LoadingSpinner size="sm" />
-        正在加载活跃工作流…
+        {t("settingsQueue.loadActiveWorkflows")}
       </div>
     ) : workflows.length === 0 ? (
       <div className="a4n-empty-state a4n-empty-state--framed px-3 py-5 text-center text-xs text-book-text-muted">
-        当前没有运行中的工作流
+        {t("settingsQueue.noRunningWorkflows")}
       </div>
     ) : (
       <ul className="space-y-2.5">
@@ -45,11 +48,11 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
               <div className="flex min-w-0 items-start gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-medium text-book-text-main">
-                    {activeWorkflowTitle(workflow)}
+                    {activeWorkflowTitle(workflow, t)}
                   </div>
                   <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-small text-book-text-muted">
                     <span className="text-book-primary">
-                      {getOperationStatusLabel("running")}
+                      {getOperationStatusLabel("running", locale)}
                     </span>
                     {workflow.progress ? (
                       <>
@@ -69,7 +72,7 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
                   <Dropdown
                     items={[
                       {
-                        label: "取消工作流",
+                        label: t("settingsQueue.cancelWorkflow"),
                         icon: <X size={13} />,
                         danger: true,
                         onClick: () => onCancel(workflow.task_id),
@@ -82,26 +85,26 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
               <ProgressEventList events={workflow.progress_events} />
               <details className="mt-2 text-caption text-book-text-muted">
                 <summary className="w-fit cursor-pointer select-none py-1 hover:text-book-text-main">
-                  诊断信息
+                  {t("settingsQueue.diagnostic")}
                 </summary>
                 <div className="mt-1 grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 rounded-xl bg-book-bg-tertiary/45 p-2.5">
-                  <span className="text-book-text-muted">任务编号</span>
+                      <span className="text-book-text-muted">{t("settingsQueue.taskIdLabel")}</span>
                   <span className="break-all font-mono text-book-text-sub">{workflow.task_id}</span>
                   {workflow.task_scope ? (
                     <>
-                      <span className="text-book-text-muted">任务范围</span>
+                      <span className="text-book-text-muted">{t("settingsQueue.taskScopeLabel")}</span>
                       <span className="break-all font-mono text-book-text-sub">{workflow.task_scope}</span>
                     </>
                   ) : null}
                   {workflow.root_project_id != null ? (
                     <>
-                      <span className="text-book-text-muted">根项目</span>
+                      <span className="text-book-text-muted">{t("settingsQueue.rootProjectLabel")}</span>
                       <span className="font-mono text-book-text-sub">{workflow.root_project_id}</span>
                     </>
                   ) : null}
                   {workflow.source_snapshot_id != null ? (
                     <>
-                      <span className="text-book-text-muted">来源快照</span>
+                      <span className="text-book-text-muted">{t("settingsQueue.sourceSnapshotLabel")}</span>
                       <span className="font-mono text-book-text-sub">{workflow.source_snapshot_id}</span>
                     </>
                   ) : null}
@@ -113,27 +116,31 @@ export const ActiveWorkflowsPanel: React.FC<ActiveWorkflowsPanelProps> = ({
       </ul>
     )}
   </section>
-);
+  );
+};
 
-function activeWorkflowTitle(workflow: WorkflowStateSummary): string {
+function activeWorkflowTitle(workflow: WorkflowStateSummary, t: ReturnType<typeof useI18n>["t"]): string {
   const scopeLabels: Record<string, string> = {
-    project: "项目任务",
-    chapter: "章节任务",
-    video: "视频任务",
-    canvas: "画布任务",
-    source_sync: "来源同步",
+    project: t("settingsQueue.taskProject"),
+    chapter: t("settingsQueue.taskChapter"),
+    video: t("settingsQueue.taskVideo"),
+    canvas: t("settingsQueue.taskCanvas"),
+    source_sync: t("settingsQueue.sourceSync"),
   };
-  return scopeLabels[workflow.task_scope ?? ""] ?? "后台任务";
+  return scopeLabels[workflow.task_scope ?? ""] ?? t("settingsQueue.backgroundTask");
 }
 
 const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowStateSummary["progress"]> }> = ({
   progress,
 }) => {
+  const { locale, t } = useI18n();
   const display = progressDisplayModel({
     ...progress,
-    fallbackStage: "任务执行中",
+    locale,
+    t,
+    fallbackStage: t("settingsQueue.taskRunning"),
   });
-  const detail = display.detail ?? "等待子阶段更新…";
+  const detail = display.detail ?? t("settingsQueue.substageWaiting");
 
   return (
     <div className="mt-2.5">
@@ -142,7 +149,7 @@ const WorkflowProgress: React.FC<{ progress: NonNullable<WorkflowStateSummary["p
           {display.stage}
         </span>
         <span className="shrink-0 text-book-text-muted">
-          {display.percent == null ? display.countLabel : `${Math.round(display.percent)}%`}
+          {display.percent == null ? display.countLabel : `${formatNumber(Math.round(display.percent), locale)}%`}
         </span>
       </div>
       {display.percent != null ? (

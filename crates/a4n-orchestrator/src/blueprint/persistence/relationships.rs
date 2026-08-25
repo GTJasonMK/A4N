@@ -1,7 +1,7 @@
 use a4n_core::blueprint::ParsedBlueprintRelationship;
 use a4n_db::project::BlueprintRelationshipDraft;
 
-pub fn blueprint_relationship_drafts(
+pub(in crate::blueprint) fn blueprint_relationship_drafts(
     relationships: &[ParsedBlueprintRelationship],
 ) -> Vec<BlueprintRelationshipDraft> {
     relationships

@@ -1,11 +1,11 @@
-use super::super::contracts::{
-    CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
-    ProjectGeneratedDataResetSummary, ProjectSummary, UpdateProjectInput,
-};
 use super::super::reset::reset_generated_data;
 use super::super::summaries::project_summary_with_family_for_user;
 use crate::AppState;
 use crate::actions::{access, app_error_message};
+use a4n_api_contract::project::{
+    CreateDerivedProjectInput, CreateFreeformVideoProjectInput, CreateProjectInput,
+    ProjectGeneratedDataResetResponse, ProjectSummary, UpdateProjectInput,
+};
 use a4n_orchestrator::collaboration::ProjectAccessRole;
 use a4n_orchestrator::project::{
     CreateDerivedProjectParams, CreateFreeformVideoProjectParams, CreateProjectRecordInput,
@@ -125,7 +125,7 @@ pub async fn reset_project_generated_data(
     state: &AppState,
     user_id: i64,
     project_id: i64,
-) -> Result<ProjectGeneratedDataResetSummary, String> {
+) -> Result<ProjectGeneratedDataResetResponse, String> {
     access::verify_project_owner_string(state, user_id, project_id).await?;
     reset_generated_data(state, user_id, project_id).await
 }

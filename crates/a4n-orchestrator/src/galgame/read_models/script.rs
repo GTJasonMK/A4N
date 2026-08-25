@@ -1,17 +1,20 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{HashMap, HashSet};
 
 use a4n_core::error::AppError;
 use a4n_core::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene},
     media::{media_asset, media_binding},
 };
-use a4n_db::galgame::GalgameScriptDetailReadModel;
+use a4n_db::galgame::{
+    GalgameMediaAssetReadRecord, GalgameMediaBindingReadRecord, GalgameScriptDetailChoiceRecord,
+    GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
+};
 
 use crate::galgame::{
     GalgameChoice, GalgameLine, GalgameLineType, GalgameMediaAsset, GalgameMediaBinding,
     GalgameMediaBindingSummary, GalgameMediaRole, GalgameMediaTargetKind, GalgameScene,
     GalgameSceneDetail, GalgameSceneEntryKind, GalgameScriptDetail, GalgameStagePositionV2,
-    GalgameTextAnchorSummary, OrchestratorContext, galgame_speaker_profiles_from_models,
+    GalgameTextAnchorSummary, OrchestratorContext, galgame_speaker_profiles_from_prompt_records,
     parse_and_validate_presentation_projection, validate_line_semantics,
 };
 
@@ -45,9 +48,9 @@ pub(crate) fn galgame_script_detail_from_read_model(
         lines,
         choices,
     } = read_model;
-    let scene_ids = scenes.iter().map(|scene| scene.id).collect::<BTreeSet<_>>();
-    let mut line_scene = BTreeMap::new();
-    let mut lines_by_scene = BTreeMap::<i64, Vec<galgame_line::Model>>::new();
+    let scene_ids = scenes.iter().map(|scene| scene.id).collect::<HashSet<_>>();
+    let mut line_scene = HashMap::new();
+    let mut lines_by_scene = HashMap::<i64, Vec<galgame_line::Model>>::new();
     for line in lines {
         if !scene_ids.contains(&line.scene_id) {
             return Err(invalid_read_model(format!(
@@ -58,7 +61,7 @@ pub(crate) fn galgame_script_detail_from_read_model(
         line_scene.insert(line.id, line.scene_id);
         lines_by_scene.entry(line.scene_id).or_default().push(line);
     }
-    let mut choices_by_scene = BTreeMap::<i64, Vec<galgame_choice::Model>>::new();
+    let mut choices_by_scene = HashMap::<i64, Vec<GalgameScriptDetailChoiceRecord>>::new();
     for choice in choices {
         let scene_id = line_scene.get(&choice.line_id).copied().ok_or_else(|| {
             invalid_read_model(format!(
@@ -72,7 +75,7 @@ pub(crate) fn galgame_script_detail_from_read_model(
         .assets
         .into_iter()
         .map(|asset| (asset.id, asset))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<HashMap<_, _>>();
     let media_bindings = galgame_media_binding_summaries(media_bindings.bindings, &assets)?;
     let text_anchors = text_anchors
         .into_iter()
@@ -90,7 +93,7 @@ pub(crate) fn galgame_script_detail_from_read_model(
         .map(|scene| {
             let scene_id = scene.id;
             Ok(GalgameSceneDetail {
-                scene: galgame_scene_from_model(scene)?,
+                scene: galgame_scene_from_detail_record(scene)?,
                 lines: lines_by_scene
                     .remove(&scene_id)
                     .unwrap_or_default()
@@ -101,7 +104,7 @@ pub(crate) fn galgame_script_detail_from_read_model(
                     .remove(&scene_id)
                     .unwrap_or_default()
                     .into_iter()
-                    .map(galgame_choice_from_model)
+                    .map(galgame_choice_from_detail_record)
                     .collect(),
             })
         })
@@ -110,7 +113,7 @@ pub(crate) fn galgame_script_detail_from_read_model(
         id: script.id,
         root_project_id: script.root_project_id,
         title: script.title,
-        speaker_profiles: galgame_speaker_profiles_from_models(&speaker_profiles),
+        speaker_profiles: galgame_speaker_profiles_from_prompt_records(&speaker_profiles),
         text_anchors,
         media_bindings,
         scenes,
@@ -120,22 +123,62 @@ pub(crate) fn galgame_script_detail_from_read_model(
 pub(crate) fn galgame_scene_from_model(
     scene: galgame_scene::Model,
 ) -> Result<GalgameScene, AppError> {
-    let entry_kind = GalgameSceneEntryKind::parse(&scene.entry_kind).ok_or_else(|| {
+    galgame_scene_from_parts(
+        scene.id,
+        scene.source_snapshot_chapter_id,
+        scene.scene_index,
+        scene.title,
+        scene.location,
+        scene.time_of_day,
+        scene.background_note,
+        scene.entry_kind,
+        scene.next_scene_id,
+    )
+}
+
+fn galgame_scene_from_detail_record(
+    scene: GalgameScriptDetailSceneRecord,
+) -> Result<GalgameScene, AppError> {
+    galgame_scene_from_parts(
+        scene.id,
+        scene.source_snapshot_chapter_id,
+        scene.scene_index,
+        scene.title,
+        scene.location,
+        scene.time_of_day,
+        scene.background_note,
+        scene.entry_kind,
+        scene.next_scene_id,
+    )
+}
+
+fn galgame_scene_from_parts(
+    id: i64,
+    source_snapshot_chapter_id: i64,
+    scene_index: i32,
+    title: String,
+    location: Option<String>,
+    time_of_day: Option<String>,
+    background_note: Option<String>,
+    entry_kind_value: String,
+    next_scene_id: Option<i64>,
+) -> Result<GalgameScene, AppError> {
+    let entry_kind = GalgameSceneEntryKind::parse(&entry_kind_value).ok_or_else(|| {
         invalid_read_model(format!(
             "Galgame 场 {} entry_kind 无效: {}",
-            scene.id, scene.entry_kind
+            id, entry_kind_value
         ))
     })?;
     Ok(GalgameScene {
-        id: scene.id,
-        source_snapshot_chapter_id: scene.source_snapshot_chapter_id,
-        scene_index: scene.scene_index,
-        title: scene.title,
-        location: scene.location,
-        time_of_day: scene.time_of_day,
-        background_note: scene.background_note,
+        id,
+        source_snapshot_chapter_id,
+        scene_index,
+        title,
+        location,
+        time_of_day,
+        background_note,
         entry_kind,
-        next_scene_id: scene.next_scene_id,
+        next_scene_id,
     })
 }
 
@@ -164,7 +207,7 @@ pub(crate) fn galgame_line_from_model(line: galgame_line::Model) -> Result<Galga
         expression.as_deref(),
         pose.as_deref(),
     )
-    .map_err(|error| invalid_read_model(error.to_string()))?;
+    .map_err(|error| invalid_read_model(format!("Galgame 行 {}: {error}", line.id)))?;
     let position = position
         .as_deref()
         .map(|value| {
@@ -189,12 +232,38 @@ pub(crate) fn galgame_line_from_model(line: galgame_line::Model) -> Result<Galga
 }
 
 pub(crate) fn galgame_choice_from_model(choice: galgame_choice::Model) -> GalgameChoice {
+    galgame_choice_from_parts(
+        choice.id,
+        choice.line_id,
+        choice.option_index,
+        choice.option_text,
+        choice.target_scene_id,
+    )
+}
+
+fn galgame_choice_from_detail_record(choice: GalgameScriptDetailChoiceRecord) -> GalgameChoice {
+    galgame_choice_from_parts(
+        choice.id,
+        choice.line_id,
+        choice.option_index,
+        choice.option_text,
+        choice.target_scene_id,
+    )
+}
+
+fn galgame_choice_from_parts(
+    id: i64,
+    line_id: i64,
+    option_index: i32,
+    option_text: String,
+    target_scene_id: Option<i64>,
+) -> GalgameChoice {
     GalgameChoice {
-        id: choice.id,
-        line_id: choice.line_id,
-        option_index: choice.option_index,
-        option_text: choice.option_text,
-        target_scene_id: choice.target_scene_id,
+        id,
+        line_id,
+        option_index,
+        option_text,
+        target_scene_id,
     }
 }
 
@@ -202,38 +271,22 @@ pub(crate) fn galgame_media_binding_summary(
     binding: media_binding::Model,
     asset: media_asset::Model,
 ) -> Result<GalgameMediaBindingSummary, AppError> {
-    let target_kind = GalgameMediaTargetKind::parse(&binding.target_kind).ok_or_else(|| {
-        invalid_read_model(format!(
-            "Galgame 媒体绑定 {} target_kind 无效: {}",
-            binding.id, binding.target_kind
-        ))
-    })?;
-    let role = GalgameMediaRole::parse(&binding.role).ok_or_else(|| {
-        invalid_read_model(format!(
-            "Galgame 媒体绑定 {} role 无效: {}",
-            binding.id, binding.role
-        ))
-    })?;
-    Ok(GalgameMediaBindingSummary {
-        binding: GalgameMediaBinding {
-            id: binding.id,
-            media_asset_id: binding.media_asset_id,
-            target_kind,
-            target_id: binding.target_id,
-            role,
-        },
-        asset: GalgameMediaAsset {
-            id: asset.id,
-            media_kind: asset.media_kind,
-            file_path: asset.file_path,
-            thumbnail_path: asset.thumbnail_path,
-        },
-    })
+    galgame_media_binding_summary_parts(
+        binding.id,
+        binding.media_asset_id,
+        binding.target_kind,
+        binding.target_id,
+        binding.role,
+        asset.id,
+        asset.media_kind,
+        asset.file_path,
+        asset.thumbnail_path,
+    )
 }
 
 pub(crate) fn galgame_media_binding_summaries(
-    bindings: Vec<media_binding::Model>,
-    assets: &BTreeMap<i64, media_asset::Model>,
+    bindings: Vec<GalgameMediaBindingReadRecord>,
+    assets: &HashMap<i64, GalgameMediaAssetReadRecord>,
 ) -> Result<Vec<GalgameMediaBindingSummary>, AppError> {
     bindings
         .into_iter()
@@ -247,9 +300,59 @@ pub(crate) fn galgame_media_binding_summaries(
                         binding.id, binding.media_asset_id
                     ))
                 })?;
-            galgame_media_binding_summary(binding, asset)
+            galgame_media_binding_summary_parts(
+                binding.id,
+                binding.media_asset_id,
+                binding.target_kind,
+                binding.target_id,
+                binding.role,
+                asset.id,
+                asset.media_kind,
+                asset.file_path,
+                asset.thumbnail_path,
+            )
         })
         .collect()
+}
+
+fn galgame_media_binding_summary_parts(
+    binding_id: i64,
+    media_asset_id: i64,
+    target_kind_value: String,
+    target_id: i64,
+    role_value: String,
+    asset_id: i64,
+    media_kind: String,
+    file_path: Option<String>,
+    thumbnail_path: Option<String>,
+) -> Result<GalgameMediaBindingSummary, AppError> {
+    let target_kind = GalgameMediaTargetKind::parse(&target_kind_value).ok_or_else(|| {
+        invalid_read_model(format!(
+            "Galgame 媒体绑定 {} target_kind 无效: {}",
+            binding_id, target_kind_value
+        ))
+    })?;
+    let role = GalgameMediaRole::parse(&role_value).ok_or_else(|| {
+        invalid_read_model(format!(
+            "Galgame 媒体绑定 {} role 无效: {}",
+            binding_id, role_value
+        ))
+    })?;
+    Ok(GalgameMediaBindingSummary {
+        binding: GalgameMediaBinding {
+            id: binding_id,
+            media_asset_id,
+            target_kind,
+            target_id,
+            role,
+        },
+        asset: GalgameMediaAsset {
+            id: asset_id,
+            media_kind,
+            file_path,
+            thumbnail_path,
+        },
+    })
 }
 
 fn invalid_read_model(operation: impl Into<String>) -> AppError {

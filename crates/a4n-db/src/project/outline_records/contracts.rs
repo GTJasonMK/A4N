@@ -1,5 +1,5 @@
 use a4n_core::{
-    models::chapter::{chapter, chapter_outline, part_outline},
+    models::chapter::{chapter, chapter_outline},
     source_spans::source_text_hash,
 };
 use chrono::NaiveDateTime;
@@ -33,11 +33,31 @@ pub(crate) fn chapter_source_snapshot_matches(
     source: &ChapterSourceSnapshot,
     chapter: &chapter::Model,
 ) -> bool {
-    chapter_source_snapshot_targets(source, chapter.project_id, chapter.chapter_number)
-        && source.chapter_id == chapter.id
-        && source.title == chapter.title
-        && source.content_sha256 == source_text_hash(&chapter.content)
-        && source.updated_at == chapter.updated_at
+    chapter_source_snapshot_matches_fields(
+        source,
+        chapter.id,
+        chapter.project_id,
+        chapter.chapter_number,
+        &chapter.title,
+        &chapter.content,
+        chapter.updated_at,
+    )
+}
+
+pub(crate) fn chapter_source_snapshot_matches_fields(
+    source: &ChapterSourceSnapshot,
+    chapter_id: i64,
+    project_id: i64,
+    chapter_number: i32,
+    title: &Option<String>,
+    content: &str,
+    updated_at: NaiveDateTime,
+) -> bool {
+    chapter_source_snapshot_targets(source, project_id, chapter_number)
+        && source.chapter_id == chapter_id
+        && source.title == *title
+        && source.content_sha256 == source_text_hash(content)
+        && source.updated_at == updated_at
 }
 
 pub(crate) fn chapter_source_snapshot_targets(
@@ -48,10 +68,24 @@ pub(crate) fn chapter_source_snapshot_targets(
     source.project_id == project_id && source.chapter_number == chapter_number
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutlineGenerationProgressPart {
+    pub id: i64,
+    pub start_chapter: i32,
+    pub end_chapter: i32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OutlineGenerationProgressChapter {
+    pub id: i64,
+    pub chapter_number: i32,
+    pub status: String,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct OutlineGenerationProgressRows {
-    pub parts: Vec<part_outline::Model>,
-    pub chapter_outlines: Vec<chapter_outline::Model>,
+    pub parts: Vec<OutlineGenerationProgressPart>,
+    pub chapter_outlines: Vec<OutlineGenerationProgressChapter>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

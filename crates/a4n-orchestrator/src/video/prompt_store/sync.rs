@@ -58,24 +58,21 @@ impl OrchestratorContext {
         drafts: Vec<NewChapterVideoPrompt>,
         policy: a4n_db::video_prompt::ChapterVideoPromptSyncPolicy,
     ) -> Result<Vec<chapter_video_prompt::Model>, AppError> {
-        let Some(project_id) = drafts.first().map(|draft| draft.project_id) else {
+        if drafts.is_empty() {
             return Ok(Vec::new());
-        };
+        }
         let drafts = drafts
             .into_iter()
             .map(prepare_prompt_sync_draft)
             .collect::<Result<Vec<_>, _>>()?;
-        let rows = a4n_db::video_prompt::sync_chapter_video_prompts_with_generation_runs(
+        a4n_db::video_prompt::sync_chapter_video_prompts_with_generation_runs(
             self.database.connection(),
             chapter_id,
             drafts,
             policy,
         )
         .await
-        .map_err(video_db_error)?;
-        self.sync_project_asset_lineage_after_commit(project_id, "同步视频提示词资产谱系")
-            .await;
-        Ok(rows)
+        .map_err(video_db_error)
     }
 }
 

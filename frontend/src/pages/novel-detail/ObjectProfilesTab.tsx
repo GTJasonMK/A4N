@@ -29,8 +29,8 @@ import { isCancelledOperation } from "../../utils/cancellation";
 import {
   getObjectProfileImportanceLabel,
   getObjectProfileTypeLabel,
-  OBJECT_PROFILE_IMPORTANCE_LABELS,
-  OBJECT_PROFILE_TYPE_LABELS,
+  OBJECT_PROFILE_IMPORTANCE_KEYS,
+  OBJECT_PROFILE_TYPE_KEYS,
 } from "../../utils/objectProfilePresentation";
 import { chooseDownstreamConflictStrategy } from "./dependencyConflict";
 import {
@@ -49,17 +49,21 @@ import {
 } from "./shared";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { useProjectProfileCollection } from "./useProjectProfileCollection";
+import { useI18n, type MessageKey, type MessageTranslator } from "../../i18n";
 
-const OBJECT_TYPE_INPUT_LABELS = { "": "未确定", ...OBJECT_PROFILE_TYPE_LABELS };
-const IMPORTANCE_INPUT_LABELS = { "": "未确定", ...OBJECT_PROFILE_IMPORTANCE_LABELS };
-const OBJECT_TYPE_OPTIONS = Object.keys(OBJECT_TYPE_INPUT_LABELS);
-const IMPORTANCE_OPTIONS = Object.keys(IMPORTANCE_INPUT_LABELS);
+const OBJECT_TYPE_OPTIONS = ["", ...Object.keys(OBJECT_PROFILE_TYPE_KEYS).filter((key) => key !== "other")];
+const IMPORTANCE_OPTIONS = ["", ...Object.keys(OBJECT_PROFILE_IMPORTANCE_KEYS)];
+const objectTypeInputLabels = (t: MessageTranslator): Record<string, string> =>
+  Object.fromEntries(OBJECT_TYPE_OPTIONS.map((value) => [value, getObjectProfileTypeLabel(value, t)]));
+const importanceInputLabels = (t: MessageTranslator): Record<string, string> =>
+  Object.fromEntries(IMPORTANCE_OPTIONS.map((value) => [value, value ? getObjectProfileImportanceLabel(value, t) : t("novel.unconfirmed")]));
 
 export const ObjectProfilesTab: React.FC<{
   projectId: number;
   canEditProfiles: boolean;
 }> = ({ projectId, canEditProfiles }) => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const {
     profiles,
@@ -78,7 +82,8 @@ export const ObjectProfilesTab: React.FC<{
   } = useProjectProfileCollection<ObjectProfile>({
     projectId,
     canEditProfiles,
-    entityLabel: "物体档案",
+    entityLabel: t("novel.profile.object"),
+    t,
     listProfiles: listObjectProfiles,
     addToast,
   });
@@ -94,12 +99,12 @@ export const ObjectProfilesTab: React.FC<{
   const handleGenerateImage = async (profile: ObjectProfile) => {
     const requestProjectId = projectId;
     if (!canEditProfiles) {
-      addToast("只读协作者不能生成物体素材图", "error");
+      addToast(t("novel.profile.readonlyCannot", { operation: t("common.save"), name: t("novel.profile.object") }), "error");
       return;
     }
     const requestProfile = profilesRef.current.find((item) => item.id === profile.id);
     if (!requestProfile || requestProfile.project_id !== requestProjectId) {
-      addToast("物体档案已不在当前项目中", "error");
+      addToast(t("novel.profile.notInProject", { name: t("novel.profile.object") }), "error");
       return;
     }
     const requestSeq = beginAction(requestProjectId);
@@ -118,12 +123,12 @@ export const ObjectProfilesTab: React.FC<{
         runProgressTask,
         handle,
         {
-          title: "生成物体素材图",
-          startMessage: "正在准备物体素材图",
-          successMessage: "物体素材图已生成",
-          errorMessage: "物体素材图生成失败",
+          title: t("novel.profile.generateObjectImage"),
+          startMessage: t("common.loading"),
+          successMessage: t("novel.profile.generateObjectImage"),
+          errorMessage: t("novel.profile.generateError", { name: t("novel.profile.object") }),
           total: 3,
-          cancelLabel: "停止生成",
+          cancelLabel: t("workflow.stop"),
         },
         async (task) => {
           if (!isCurrentAction(requestProjectId, requestSeq)) {
@@ -134,11 +139,11 @@ export const ObjectProfilesTab: React.FC<{
         },
       );
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      addToast(`已生成 ${requestProfile.name} 的素材图`, "success");
+      addToast(t("novel.profile.generated", { name: requestProfile.name }), "success");
     } catch (err) {
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
-      const message = extractErrorMessage(err, "物体素材图生成失败");
-      addToast(isCancelledOperation(message) ? "图片生成已停止" : message, isCancelledOperation(message) ? "info" : "error");
+      const message = extractErrorMessage(err, t("novel.profile.generateError", { name: t("novel.profile.object") }));
+      addToast(isCancelledOperation(message) ? t("workflow.cancelled") : message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentAction(requestProjectId, requestSeq)) {
         setBusyId(null);
@@ -150,12 +155,12 @@ export const ObjectProfilesTab: React.FC<{
   const handleDelete = async (profile: ObjectProfile) => {
     const requestProjectId = projectId;
     if (!canEditProfiles) {
-      addToast("只读协作者不能删除物体档案", "error");
+      addToast(t("novel.profile.readonlyCannot", { operation: t("common.delete"), name: t("novel.profile.object") }), "error");
       return;
     }
     const requestProfile = profilesRef.current.find((item) => item.id === profile.id);
     if (!requestProfile || requestProfile.project_id !== requestProjectId) {
-      addToast("物体档案已不在当前项目中", "error");
+      addToast(t("novel.profile.notInProject", { name: t("novel.profile.object") }), "error");
       return;
     }
     const requestSeq = beginAction(requestProjectId);
@@ -163,11 +168,12 @@ export const ObjectProfilesTab: React.FC<{
     let downstreamStrategy: DownstreamConflictStrategy = "reject";
     if (requestProfile.generated_image_count > 0) {
       const strategy = await chooseDownstreamConflictStrategy({
-        title: "物体档案存在下游素材",
-        assetLabel: `物体档案“${requestProfile.name}”`,
-        downstreamLabel: "素材图",
+        title: t("novel.profile.hasDownstream", { name: t("novel.profile.object") }),
+        assetLabel: `${t("novel.profile.object")}“${requestProfile.name}”`,
+        downstreamLabel: t("novel.generateMaterialImage"),
         downstreamCount: requestProfile.generated_image_count,
-        operation: "删除",
+        operation: t("common.delete"),
+        t,
       });
       if (!strategy) {
         finishAction(requestSeq);
@@ -176,9 +182,9 @@ export const ObjectProfilesTab: React.FC<{
       downstreamStrategy = strategy;
     } else {
       const ok = await confirmDialog({
-        title: "删除物体档案",
-        message: `删除“${requestProfile.name}”？`,
-        confirmText: "删除",
+        title: t("novel.profile.deleteObject"),
+        message: t("novel.profile.deleteConfirm", { name: requestProfile.name }),
+        confirmText: t("common.delete"),
         dialogType: "danger",
       });
       if (!ok) {
@@ -199,13 +205,13 @@ export const ObjectProfilesTab: React.FC<{
       setDetailFor((current) => (current?.id === requestProfile.id ? null : current));
       addToast(
         result.warnings.length > 0
-          ? `物体档案已删除；${result.warnings.join("；")}`
-          : "物体档案已删除",
+          ? t("novel.profile.deletedWithWarnings", { name: t("novel.profile.object"), warnings: result.warnings.join(t("common.summarySeparator")) })
+          : t("novel.profile.deleted", { name: t("novel.profile.object") }),
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "删除物体档案失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.profile.deleteError", { name: t("novel.profile.object") })), "error");
       }
     } finally {
       if (isCurrentAction(requestProjectId, requestSeq)) {
@@ -218,7 +224,7 @@ export const ObjectProfilesTab: React.FC<{
   const handleSaveProfile = async (input: ObjectProfileInput) => {
     const requestProjectId = projectId;
     if (!canEditProfiles) {
-      addToast("只读协作者不能保存物体档案", "error");
+      addToast(t("novel.profile.readonlyCannot", { operation: t("common.save"), name: t("novel.profile.object") }), "error");
       return;
     }
     const editingProfileId =
@@ -229,12 +235,12 @@ export const ObjectProfilesTab: React.FC<{
         : profilesRef.current.find((profile) => profile.id === editingProfileId) ?? null;
     if (editingProfileId != null && !existingProfile) {
       setEditingProfile(null);
-      addToast("物体档案已不存在，请刷新后重试", "error");
+      addToast(t("novel.profile.notFound", { name: t("novel.profile.object") }), "error");
       return;
     }
     if (existingProfile && existingProfile.project_id !== requestProjectId) {
       setEditingProfile(null);
-      addToast("物体档案已不在当前项目中", "error");
+      addToast(t("novel.profile.notInProject", { name: t("novel.profile.object") }), "error");
       return;
     }
     const requestSeq = beginAction(requestProjectId);
@@ -242,11 +248,12 @@ export const ObjectProfilesTab: React.FC<{
     let downstreamStrategy: DownstreamConflictStrategy = "reject";
     if (existingProfile && existingProfile.generated_image_count > 0) {
       const strategy = await chooseDownstreamConflictStrategy({
-        title: "物体档案存在下游素材",
-        assetLabel: `物体档案“${existingProfile.name}”`,
-        downstreamLabel: "素材图",
+        title: t("novel.profile.hasDownstream", { name: t("novel.profile.object") }),
+        assetLabel: `${t("novel.profile.object")}“${existingProfile.name}”`,
+        downstreamLabel: t("novel.generateMaterialImage"),
         downstreamCount: existingProfile.generated_image_count,
-        operation: "修改",
+        operation: t("common.update"),
+        t,
       });
       if (!strategy) {
         finishAction(requestSeq);
@@ -273,16 +280,18 @@ export const ObjectProfilesTab: React.FC<{
       if (!isCurrentAction(requestProjectId, requestSeq)) return;
       setDetailFor(saved);
       setEditingProfile(null);
-      const successMessage = editingProfile === "new" ? "物体档案已创建" : "物体档案已更新";
+      const successMessage = editingProfile === "new"
+        ? t("novel.profile.created", { name: t("novel.profile.object") })
+        : t("novel.profile.updated", { name: t("novel.profile.object") });
       addToast(
         result.warnings.length > 0
-          ? `${successMessage}；${result.warnings.join("；")}`
+          ? `${successMessage}${t("common.summarySeparator")}${result.warnings.join(t("common.summarySeparator"))}`
           : successMessage,
         result.warnings.length > 0 ? "info" : "success",
       );
     } catch (err) {
       if (isCurrentAction(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "保存物体档案失败"), "error");
+        addToast(extractErrorMessage(err, t("novel.profile.saveError", { name: t("novel.profile.object") })), "error");
       }
       throw err;
     } finally {
@@ -296,7 +305,7 @@ export const ObjectProfilesTab: React.FC<{
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
-        <LoadingSpinner size="sm" /> 加载物体档案…
+        <LoadingSpinner size="sm" /> {t("common.loading")}
       </div>
     );
   }
@@ -306,18 +315,22 @@ export const ObjectProfilesTab: React.FC<{
       <section>
         <header className="mb-3 flex flex-col gap-2 px-1 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-book-text-main">物体档案</h2>
+            <h2 className="text-sm font-semibold text-book-text-main">{t("novel.profile.object")}</h2>
             <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
               {stats.total > 0
-                ? `共 ${stats.total} 个档案${stats.primary > 0 ? `，${stats.primary} 个关键物体` : ""}${stats.images > 0 ? `，已生成 ${stats.images} 张素材图` : ""}`
-                : "记录会反复出现的道具、线索和环境物件"}
+                ? [
+                    t("novel.profile.summary", { total: stats.total }),
+                    stats.primary > 0 ? t("novel.profile.primarySummary", { count: stats.primary }) : null,
+                    stats.images > 0 ? t("novel.profile.imageSummary", { count: stats.images }) : null,
+                  ].filter((value): value is string => Boolean(value)).join(" · ")
+                : t("novel.profile.objectHint")}
             </p>
           </div>
           <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
             <Dropdown
               items={[
                 {
-                  label: loading ? "正在刷新…" : "刷新档案",
+                  label: loading ? t("common.loading") : t("novel.profile.refresh"),
                   icon: <RefreshCw size={12} className={loading ? "animate-spin" : undefined} />,
                   onClick: () => void load({ projectId }),
                   disabled: loading || busyId != null,
@@ -332,7 +345,7 @@ export const ObjectProfilesTab: React.FC<{
                 disabled={busyId != null}
                 className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
-                <Plus size={12} /> 新建档案
+                <Plus size={12} /> {t("novel.profile.create")}
               </BookButton>
             ) : null}
           </div>
@@ -340,7 +353,7 @@ export const ObjectProfilesTab: React.FC<{
 
         {profiles.length === 0 ? (
           <div className="a4n-flat-surface p-3">
-            <EmptyHint text="尚未从章节分析中识别出物体档案。" />
+            <EmptyHint text={t("novel.profile.noObjectProfiles")} />
           </div>
         ) : (
           <ul className="grid grid-cols-1 items-start gap-2 sm:grid-cols-2">
@@ -357,19 +370,19 @@ export const ObjectProfilesTab: React.FC<{
                   }
                 }}
                 className="a4n-flat-surface flex min-h-16 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
-                title="查看物体详情"
+                title={t("novel.profile.viewObject")}
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">
-                    {getObjectProfileTypeLabel(profile.object_type)} · {getObjectProfileImportanceLabel(profile.importance)} · {profileOwnershipLabel(profile.ownership_kind)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
+                    {getObjectProfileTypeLabel(profile.object_type, t)} · {getObjectProfileImportanceLabel(profile.importance, t)} · {profileOwnershipLabel(profile.ownership_kind, t)} · {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind, t)}
                   </div>
                   <p className="mt-1 line-clamp-2 text-small leading-relaxed text-book-text-sub">
-                    {profile.visual_description || profile.story_usage || "暂无物体摘要。"}
+                    {profile.visual_description || profile.story_usage || t("novel.profile.noValue", { label: t("novel.profile.object") })}
                   </p>
                   <div className="mt-1 truncate text-caption text-book-text-muted">
-                    {profile.story_usage || profile.location_context || "未记录叙事用途"}
-                    {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
+                    {profile.story_usage || profile.location_context || t("novel.notRecorded")}
+                    {profile.generated_image_count > 0 ? ` · ${t("novel.profile.materialImages", { count: profile.generated_image_count })}` : ""}
                   </div>
                 </div>
                 <ChevronRight size={14} className="mt-1 shrink-0 text-book-text-muted" />
@@ -385,7 +398,7 @@ export const ObjectProfilesTab: React.FC<{
         onGenerate={(profile) => void handleGenerateImage(profile)}
         onEdit={(profile) => {
           if (!canEditProfiles) {
-            addToast("只读协作者不能编辑物体档案", "error");
+            addToast(t("novel.profile.readonlyCannot", { operation: t("common.edit"), name: t("novel.profile.object") }), "error");
             return;
           }
           setEditingProfile(profile);
@@ -423,14 +436,15 @@ function ObjectProfileDetailModal({
   busyId: number | null;
   canEdit: boolean;
 }) {
+  const { t } = useI18n();
   const aliases = stringList(profile?.aliases_json);
   const evidence = stringList(profile?.evidence_json);
   return (
     <Modal
       isOpen={profile != null}
       onClose={onClose}
-      title={profile?.name ?? "物体档案"}
-      subtitle={profile ? `${getObjectProfileTypeLabel(profile.object_type)} · ${getObjectProfileImportanceLabel(profile.importance)}` : undefined}
+      title={profile?.name ?? t("novel.profile.object")}
+      subtitle={profile ? `${getObjectProfileTypeLabel(profile.object_type, t)} · ${getObjectProfileImportanceLabel(profile.importance, t)}` : undefined}
       icon={<Boxes size={15} />}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
@@ -438,19 +452,19 @@ function ObjectProfileDetailModal({
       {profile ? (
         <div className="space-y-3 text-xs text-book-text-sub">
           <p className="text-small leading-relaxed text-book-text-muted">
-            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind)}
-            {aliases.length > 0 ? ` · 别名：${aliases.join("、")}` : ""}
-            {profile.generated_image_count > 0 ? ` · ${profile.generated_image_count} 张素材图` : ""}
+            {profileChapterRangeText(profile.first_seen_chapter, profile.last_seen_chapter, profile.evidence_json, profile.ownership_kind, t)}
+            {aliases.length > 0 ? ` · ${t("novel.profile.aliasesSummary", { value: aliases.join(", ") })}` : ""}
+            {profile.generated_image_count > 0 ? ` · ${t("novel.profile.materialImages", { count: profile.generated_image_count })}` : ""}
           </p>
           <dl className="a4n-flat-surface divide-y divide-book-border/40 overflow-hidden">
-            <DetailRow label="资料来源" value={profileOwnershipLabel(profile.ownership_kind)} />
-            <DetailRow label="外观" value={profile.visual_description} />
-            <DetailRow label="材质状态" value={profile.material_and_state} />
-            <DetailRow label="叙事用途" value={profile.story_usage} />
-            <DetailRow label="视觉用途" value={profile.visual_usage} />
-            <DetailRow label="生成用途" value={profile.generation_usage} />
-            <DetailRow label="出现语境" value={profile.location_context ?? "未记录"} />
-            <DetailRow label="图像描述" value={profile.image_prompt_seed} />
+            <DetailRow label={t("novel.profile.source")} value={profileOwnershipLabel(profile.ownership_kind, t)} />
+            <DetailRow label={t("novel.profile.visualDescription")} value={profile.visual_description} />
+            <DetailRow label={t("novel.profile.materialState")} value={profile.material_and_state} />
+            <DetailRow label={t("novel.profile.storyUsage")} value={profile.story_usage} />
+            <DetailRow label={t("novel.profile.visualUsage")} value={profile.visual_usage} />
+            <DetailRow label={t("novel.profile.generationUsage")} value={profile.generation_usage} />
+            <DetailRow label={t("novel.profile.locationContext")} value={profile.location_context ?? t("novel.notRecorded")} />
+            <DetailRow label={t("novel.profile.imageDescription")} value={profile.image_prompt_seed} />
           </dl>
           <ProfileEvidence items={evidence} />
           {canEdit && (
@@ -480,6 +494,7 @@ function ObjectProfileEditModal({
   onSave: (input: ObjectProfileInput) => Promise<void>;
 }) {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const [draft, setDraft] = useState<ObjectProfileInput>(emptyObjectProfileInput());
   const [saving, setSaving] = useState(false);
 
@@ -497,7 +512,7 @@ function ObjectProfileEditModal({
   const submit = async () => {
     const validationError = validateObjectProfileDraft(draft);
     if (validationError) {
-      addToast(validationError, "error");
+      addToast(t(validationError), "error");
       return;
     }
     setSaving(true);
@@ -516,7 +531,7 @@ function ObjectProfileEditModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={profile === "new" ? "新建物体档案" : "编辑物体档案"}
+      title={profile === "new" ? t("novel.profile.createObject") : t("novel.profile.editObject")}
       icon={<Boxes size={15} />}
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-4 py-4"
@@ -529,83 +544,83 @@ function ObjectProfileEditModal({
           disabled={busy || saving || !draft.name.trim()}
         >
           {saving ? <LoadingSpinner size="sm" /> : null}
-          保存
+          {t("common.save")}
         </BookButton>
       }
     >
       <fieldset disabled={busy || saving} className="grid gap-3 text-xs disabled:opacity-75">
         <p className="text-caption leading-relaxed text-book-text-muted">
-          只需名称即可保存；空白字段可在后续手工补充或由章节分析补齐。尚未确定出场章节时可保留默认值。
+          {t("novel.profile.appearanceHint")}
         </p>
         <div className="grid gap-2 md:grid-cols-2">
-          <TextField label="名称" value={draft.name} onChange={(value) => update("name", value)} />
+          <TextField label={t("novel.profile.name")} value={draft.name} onChange={(value) => update("name", value)} />
           <SelectField
-            label="类型"
+            label={t("novel.profile.objectType")}
             value={draft.object_type}
             options={OBJECT_TYPE_OPTIONS}
-            labels={OBJECT_TYPE_INPUT_LABELS}
+            labels={objectTypeInputLabels(t)}
             onChange={(value) => update("object_type", value)}
           />
           <SelectField
-            label="重要性"
+            label={t("novel.profile.importance")}
             value={draft.importance}
             options={IMPORTANCE_OPTIONS}
-            labels={IMPORTANCE_INPUT_LABELS}
+            labels={importanceInputLabels(t)}
             onChange={(value) => update("importance", value)}
           />
           <TextField
-            label="出现语境"
+            label={t("novel.profile.locationContext")}
             value={draft.location_context ?? ""}
             onChange={(value) => update("location_context", value || null)}
           />
           <NumberField
-            label="首次章节"
+            label={t("novel.profile.firstChapter")}
             value={draft.first_seen_chapter}
             onChange={(value) => update("first_seen_chapter", value)}
           />
           <NumberField
-            label="最近章节"
+            label={t("novel.profile.lastChapter")}
             value={draft.last_seen_chapter}
             onChange={(value) => update("last_seen_chapter", value)}
           />
         </div>
         <TextAreaField
-          label="别名"
+          label={t("novel.profile.aliases")}
           value={(draft.aliases ?? []).join("\n")}
           onChange={(value) => update("aliases", splitLines(value))}
         />
         <TextAreaField
-          label="外观"
+          label={t("novel.profile.visualDescription")}
           value={draft.visual_description}
           onChange={(value) => update("visual_description", value)}
         />
         <TextAreaField
-          label="材质状态"
+          label={t("novel.profile.materialState")}
           value={draft.material_and_state}
           onChange={(value) => update("material_and_state", value)}
         />
         <TextAreaField
-          label="叙事用途"
+          label={t("novel.profile.storyUsage")}
           value={draft.story_usage}
           onChange={(value) => update("story_usage", value)}
         />
         <TextAreaField
-          label="视觉用途"
+          label={t("novel.profile.visualUsage")}
           value={draft.visual_usage}
           onChange={(value) => update("visual_usage", value)}
         />
         <TextAreaField
-          label="生成用途"
+          label={t("novel.profile.generationUsage")}
           value={draft.generation_usage}
           onChange={(value) => update("generation_usage", value)}
         />
         <TextAreaField
-          label="证据"
+          label={t("novel.profile.evidence")}
           value={(draft.evidence ?? []).join("\n")}
           onChange={(value) => update("evidence", splitLines(value))}
         />
         <TextAreaField
-          label="图像描述"
+          label={t("novel.profile.imageDescription")}
           value={draft.image_prompt_seed}
           onChange={(value) => update("image_prompt_seed", value)}
         />
@@ -652,16 +667,16 @@ function objectProfileToInput(profile: ObjectProfile): ObjectProfileInput {
   };
 }
 
-export function validateObjectProfileDraft(draft: ObjectProfileInput): string | null {
-  if (!draft.name.trim()) return "物体名称不能为空";
+export function validateObjectProfileDraft(draft: ObjectProfileInput): MessageKey | null {
+  if (!draft.name.trim()) return "novel.profile.objectNameRequired";
   if (!Number.isInteger(draft.first_seen_chapter) || draft.first_seen_chapter <= 0) {
-    return "物体首次出现章节必须是正整数";
+    return "novel.profile.objectFirstChapterPositive";
   }
   if (!Number.isInteger(draft.last_seen_chapter) || draft.last_seen_chapter <= 0) {
-    return "物体最近出现章节必须是正整数";
+    return "novel.profile.objectLastChapterPositive";
   }
   if (draft.last_seen_chapter < draft.first_seen_chapter) {
-    return "物体最近出现章节不能早于首次出现章节";
+    return "novel.profile.objectChapterRangeInvalid";
   }
   return null;
 }

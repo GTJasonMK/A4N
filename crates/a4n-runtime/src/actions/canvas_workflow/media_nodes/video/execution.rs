@@ -1,12 +1,11 @@
 use a4n_core::models::canvas::canvas_node;
-use a4n_orchestrator::canvas::{CanvasGraphRecordDocument, CanvasVideoNodeExecutionInput};
+use a4n_orchestrator::canvas::{
+    CanvasGraphRecordDocument, CanvasNodeRunHandle, CanvasVideoNodeExecutionInput,
+};
 
 use crate::{AppState, actions::video_generation::RuntimeVideoProviderHostPort};
 
-use super::super::super::{
-    CanvasRunSummary,
-    node_lifecycle::{CanvasRunHandle, runtime_summary},
-};
+use super::super::super::CanvasRunSummary;
 
 pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_video_node(
     state: &AppState,
@@ -15,7 +14,7 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_video_node(
     graph_id: i64,
     node: &canvas_node::Model,
     document: &CanvasGraphRecordDocument,
-    run_handle: Option<CanvasRunHandle>,
+    run_handle: Option<CanvasNodeRunHandle>,
     mode: &str,
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
@@ -28,12 +27,11 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_video_node(
                 graph_id,
                 node,
                 document,
-                shared_run: run_handle.map(Into::into),
+                shared_run: run_handle,
                 mode,
             },
             &host_port,
         )
         .await
-        .map(runtime_summary)
         .map_err(|error| error.to_string())
 }

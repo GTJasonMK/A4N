@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
+use a4n_api_contract::video::VideoPromptGenerationOptions;
 pub use a4n_api_contract::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
@@ -31,21 +32,19 @@ use crate::{
     workflow::{WorkflowRunSummary, workflow_run_is_running_or_resumable},
 };
 
+use super::prompt_context::validate_prompt_options_with_reference_limit;
 use super::prompt_optimization::VideoPromptOptimizationInput;
 use super::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSource,
     ChapterVideoSourceContext, VideoPromptChunk, VideoPromptDownstreamDependencies,
     VideoPromptProgress, VideoPromptProgressUpdate, duration_capability_for_config,
     load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
-    update_video_segment_plan_draft_recipe_checkpoint,
-    validate_prompt_options_with_reference_limit, validate_video_duration_for_config_secs,
+    update_video_segment_plan_draft_recipe_checkpoint, validate_video_duration_for_config_secs,
     video_db_error,
 };
 
 const MAX_NON_CHAT_REFERENCE_IMAGE_IDS: usize = 4;
 const MAX_CHAT_REFERENCE_IMAGE_IDS: usize = 16;
-
-pub type GeneratePromptOptionsInput = a4n_api_contract::video::VideoPromptGenerationOptions;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GenerateChapterVideoPromptInput {
@@ -58,7 +57,7 @@ pub struct GenerateChapterVideoPromptInput {
     pub root_project_id: Option<i64>,
     #[serde(skip)]
     pub retry_of_task_id: Option<String>,
-    pub options: GeneratePromptOptionsInput,
+    pub options: VideoPromptGenerationOptions,
 }
 
 pub struct VideoSegmentPlanDraftState {
@@ -118,7 +117,7 @@ struct VideoSegmentPlanDraftContext {
 }
 
 impl OrchestratorContext {
-    pub async fn generate_chapter_video_frame_prompts_validated(
+    pub(in crate::video) async fn generate_chapter_video_frame_prompts_validated(
         &self,
         context: VideoPromptApplicationContext<'_>,
         input: GenerateChapterVideoPromptInput,
@@ -137,7 +136,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn generate_chapter_video_segment_plan_validated(
+    pub(in crate::video) async fn generate_chapter_video_segment_plan_validated(
         &self,
         context: VideoPromptApplicationContext<'_>,
         input: GenerateChapterVideoPromptInput,
@@ -156,7 +155,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn generate_chapter_video_prompts_validated(
+    pub(in crate::video) async fn generate_chapter_video_prompts_validated(
         &self,
         context: VideoPromptApplicationContext<'_>,
         input: GenerateChapterVideoPromptInput,
@@ -296,7 +295,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         stage: PromptGenerationStage,
-        options: &mut GeneratePromptOptionsInput,
+        options: &mut VideoPromptGenerationOptions,
     ) -> Result<Option<VideoSegmentExecutionRecipeV1>, AppError> {
         if matches!(stage, PromptGenerationStage::Segment) {
             if options.segment_plan_prompt_id.is_some() || options.target_segment.is_some() {
@@ -971,7 +970,7 @@ fn generation_prepare_message(workflow_mode: &str, stage: PromptGenerationStage)
     }
 }
 
-fn ensure_video_workflow_mode(input: &GeneratePromptOptionsInput) -> Result<String, AppError> {
+fn ensure_video_workflow_mode(input: &VideoPromptGenerationOptions) -> Result<String, AppError> {
     let mode = input
         .workflow_mode
         .as_deref()
@@ -987,7 +986,7 @@ fn ensure_video_workflow_mode(input: &GeneratePromptOptionsInput) -> Result<Stri
 }
 
 fn ensure_video_workflow_mode_for_stage(
-    input: &GeneratePromptOptionsInput,
+    input: &VideoPromptGenerationOptions,
     stage: PromptGenerationStage,
 ) -> Result<String, AppError> {
     let mode = ensure_video_workflow_mode(input)?;
@@ -1011,7 +1010,7 @@ fn ensure_video_workflow_mode_for_stage(
 }
 
 fn validate_video_prompt_generation_options_for_stage(
-    input: &GeneratePromptOptionsInput,
+    input: &VideoPromptGenerationOptions,
     stage: PromptGenerationStage,
 ) -> Result<(), AppError> {
     let workflow_mode = ensure_video_workflow_mode_for_stage(input, stage)?;
@@ -1036,25 +1035,25 @@ fn validate_video_prompt_generation_options_for_stage(
 }
 
 pub(crate) fn validate_video_segment_plan_generation_options(
-    input: &GeneratePromptOptionsInput,
+    input: &VideoPromptGenerationOptions,
 ) -> Result<(), AppError> {
     validate_video_prompt_generation_options_for_stage(input, PromptGenerationStage::Segment)
 }
 
 pub(crate) fn validate_video_frame_prompt_generation_options(
-    input: &GeneratePromptOptionsInput,
+    input: &VideoPromptGenerationOptions,
 ) -> Result<(), AppError> {
     validate_video_prompt_generation_options_for_stage(input, PromptGenerationStage::Frame)
 }
 
 pub(crate) fn validate_video_final_prompt_generation_options(
-    input: &GeneratePromptOptionsInput,
+    input: &VideoPromptGenerationOptions,
 ) -> Result<(), AppError> {
     validate_video_prompt_generation_options_for_stage(input, PromptGenerationStage::Video)
 }
 
 fn validate_generate_prompt_options(
-    input: GeneratePromptOptionsInput,
+    input: VideoPromptGenerationOptions,
     workflow_mode: &str,
     blank_style_placeholder: Option<&str>,
 ) -> Result<ChapterVideoPromptOptions, AppError> {
@@ -1277,8 +1276,8 @@ fn check_cancelled(cancel_token: &CancellationToken) -> Result<(), AppError> {
 mod tests {
     use super::*;
 
-    fn segment_plan_options(workflow_mode: &str) -> GeneratePromptOptionsInput {
-        GeneratePromptOptionsInput {
+    fn segment_plan_options(workflow_mode: &str) -> VideoPromptGenerationOptions {
+        VideoPromptGenerationOptions {
             workflow_mode: Some(workflow_mode.to_string()),
             segment_plan_prompt_id: None,
             style: "cinematic".to_string(),

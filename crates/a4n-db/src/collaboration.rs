@@ -6,9 +6,10 @@ use sea_orm::{
 
 mod types;
 pub use types::{
-    AccessibleProjectListInput, AccessibleProjectsPage, CollaborationDbError,
-    CollaborationRootProject, ProjectAccessInfo, ProjectAccessInfoQuery, ProjectAccessRole,
-    ProjectAccessScope, ProjectInviteSummary, ProjectMemberRole, ProjectMemberSummary,
+    AccessibleProjectListInput, AccessibleProjectRecord, AccessibleProjectsPage,
+    CollaborationDbError, CollaborationRootProject, ProjectAccessInfo, ProjectAccessInfoQuery,
+    ProjectAccessRole, ProjectAccessScope, ProjectInviteSummary, ProjectMemberRole,
+    ProjectMemberSummary,
 };
 use types::{
     INVITE_STATUS_ACCEPTED, INVITE_STATUS_DECLINED, INVITE_STATUS_EXPIRED, INVITE_STATUS_PENDING,
@@ -19,11 +20,10 @@ mod queries;
 use queries::*;
 
 mod access;
-use access::resolve_root_project_model;
 pub use access::{
     accessible_project_ids, list_accessible_projects, project_access_info,
-    project_access_info_batch, resolve_root_project, verify_project_permission,
-    verify_project_permissions,
+    project_access_info_batch, project_ids_with_permission, resolve_root_project,
+    verify_project_permission, verify_project_permissions,
 };
 
 mod members;

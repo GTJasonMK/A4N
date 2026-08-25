@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use a4n_core::models::character::protagonist_profile;
 use a4n_orchestrator::rag::{
     blueprint_character_rag_records, character_attribute_event_rag_record,
-    character_state_rag_record, foreshadowing_rag_record, protagonist_rag_records,
+    character_state_rag_record, foreshadowing_rag_record_from_row, protagonist_rag_records,
     relationship_rag_record,
 };
 
@@ -137,7 +137,7 @@ async fn append_foreshadowing_records(
         .await
         .map_err(|error| error.to_string())?;
     for item in &items {
-        expected.add_rag_record(foreshadowing_rag_record(project_id, item)?)?;
+        expected.add_rag_record(foreshadowing_rag_record_from_row(project_id, item)?)?;
     }
     Ok(())
 }

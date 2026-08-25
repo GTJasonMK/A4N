@@ -15,7 +15,7 @@ use a4n_core::{
     },
 };
 use a4n_db::generation::RecordLlmCallTraceInput;
-use a4n_db::llm_context::RecordOrReuseContextPackInput;
+use a4n_db::llm_context::{ContextPackReference, RecordOrReuseContextPackInput};
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use tokio_util::sync::CancellationToken;
 
@@ -105,6 +105,31 @@ impl DynamicProviderFacade {
         input: RecordOrReuseContextPackInput,
     ) -> Result<llm_context_pack::Model, AppError> {
         self.llm_context.record_or_reuse_context_pack(input).await
+    }
+
+    pub async fn record_or_reuse_context_packs(
+        &self,
+        inputs: Vec<RecordOrReuseContextPackInput>,
+    ) -> Result<Vec<llm_context_pack::Model>, AppError> {
+        self.llm_context.record_or_reuse_context_packs(inputs).await
+    }
+
+    pub async fn record_or_reuse_context_pack_reference(
+        &self,
+        input: RecordOrReuseContextPackInput,
+    ) -> Result<ContextPackReference, AppError> {
+        self.llm_context
+            .record_or_reuse_context_pack_reference(input)
+            .await
+    }
+
+    pub async fn record_or_reuse_context_pack_references(
+        &self,
+        inputs: Vec<RecordOrReuseContextPackInput>,
+    ) -> Result<Vec<ContextPackReference>, AppError> {
+        self.llm_context
+            .record_or_reuse_context_pack_references(inputs)
+            .await
     }
 
     pub async fn queue_run_tracked<F, Fut, T>(

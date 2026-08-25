@@ -1,4 +1,6 @@
 import React, {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -15,20 +17,16 @@ import {
   Scissors,
 } from "lucide-react";
 import { BookButton } from "../../components/ui/BookButton";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
-import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { extractErrorMessage } from "../../api";
 import { generationClient } from "../../api/generationTasks";
 import {
   previewBatchImagesRequest,
   type GeneratedImage,
 } from "../../api/image";
-import {
-  getChapterShootingScript,
-  getChapterShootingScriptUnitProgress,
-  type ShootingSceneV1,
-} from "../../api/shootingScript";
+import type { ShootingSceneV1 } from "../../api/shootingScript";
 import type { ModelRequestPreview } from "../../api/requestPreview";
 import {
   listChapterVideoPrompts,
@@ -71,16 +69,12 @@ import {
   pickVideoUploadFile,
   type VideoUploadFile,
 } from "../../utils/videoUpload";
-import { ImageActionDialog } from "./images/ImageActionDialog";
-import { VideoAssemblyWorkspace } from "./video/VideoAssemblyWorkspace";
-import { VideoPlanningWorkspace } from "./video/VideoPlanningWorkspace";
 import { VideoGenerationWorkspace } from "./video/VideoGenerationWorkspace";
+import { loadShootingScriptOrProgress } from "./loadShootingScriptData";
 import {
   InsertedSegmentTimelinePanel,
   type InsertedSegmentTimelinePanelHandle,
 } from "./video/InsertedSegmentTimelinePanel";
-import { VideoMaterialWorkspace } from "./video/VideoMaterialWorkspace";
-import { VideoPostProcessWorkspace } from "./video/VideoPostProcessWorkspace";
 import {
   createReferenceMediaDraft,
   normalizeReferenceMediaRows,
@@ -122,7 +116,6 @@ import {
   VIDEO_FINAL_PROMPT_TYPE,
   VIDEO_FRAME_PROMPT_TYPE,
   VIDEO_FIRST_FRAME_PROMPT_TYPE,
-  VIDEO_WORKFLOW_MODE_LABELS,
   VIDEO_STORYBOARD_PROMPT_TYPE,
   latestVideoSegmentPlanPrompt,
   readVideoSegmentRecipes,
@@ -134,6 +127,7 @@ import {
   videoSegmentRecipeGenerationFingerprintJson,
   videoExecutionSegmentIdentityMatchesPrompt,
   videoExecutionSegmentIdentityMatchesVideo,
+  videoExecutionSegmentIdentityIndex,
   videoExecutionIdentityOfPrompt,
   videoExecutionIdentityOfVideo,
   videoExecutionSegmentNumberInPlanByLineage,
@@ -141,6 +135,7 @@ import {
   videoTailFrameSourceVideoId,
   finalVideoExecutionIdentityIsComplete,
   videoOptionsValidationError,
+  videoWorkflowModeLabel,
   type PromptDraft,
   type VideoSegmentCardPlan,
   type VideoGenOptions,
@@ -160,10 +155,42 @@ import {
 } from "./video/useVideoPromptGenerationActions";
 import { useVideoRecordActions } from "./video/useVideoRecordActions";
 import { useVideoTabDerivedState } from "./video/useVideoTabDerivedState";
+import { useI18n, type MessageTranslator } from "../../i18n";
 import {
   VideoWorkspaceHeader,
   type VideoWorkspaceTab,
 } from "./video/VideoWorkspaceHeader";
+
+const VideoMaterialWorkspace = lazy(() =>
+  import("./video/VideoMaterialWorkspace").then((module) => ({
+    default: module.VideoMaterialWorkspace,
+  })),
+);
+const VideoPlanningWorkspace = lazy(() =>
+  import("./video/VideoPlanningWorkspace").then((module) => ({
+    default: module.VideoPlanningWorkspace,
+  })),
+);
+const VideoAssemblyWorkspace = lazy(() =>
+  import("./video/VideoAssemblyWorkspace").then((module) => ({
+    default: module.VideoAssemblyWorkspace,
+  })),
+);
+const VideoPostProcessWorkspace = lazy(() =>
+  import("./video/VideoPostProcessWorkspace").then((module) => ({
+    default: module.VideoPostProcessWorkspace,
+  })),
+);
+const ImageActionDialog = lazy(() =>
+  import("./images/ImageActionDialog").then((module) => ({
+    default: module.ImageActionDialog,
+  })),
+);
+const RequestPreviewModal = lazy(() =>
+  import("../../components/feedback/RequestPreviewModal").then((module) => ({
+    default: module.RequestPreviewModal,
+  })),
+);
 
 interface VideoTabProps {
   projectId: number;
@@ -171,18 +198,6 @@ interface VideoTabProps {
   imageProjectIds?: number[];
   materialProjectId?: number;
 }
-
-const VIDEO_WORKSPACE_TABS: Array<{
-  id: VideoWorkspaceTab;
-  label: string;
-  icon: React.ReactNode;
-}> = [
-  { id: "materials", label: "素材生成", icon: <ImagePlus size={13} /> },
-  { id: "frames", label: "片段规划", icon: <PanelTop size={13} /> },
-  { id: "video", label: "片段生成", icon: <Film size={13} /> },
-  { id: "assembly", label: "成片合成", icon: <Clapperboard size={13} /> },
-  { id: "postprocess", label: "成片后处理", icon: <Scissors size={13} /> },
-];
 
 interface PersistedWorkspaceTabState {
   tab: VideoWorkspaceTab;
@@ -216,13 +231,14 @@ const parsePersistedWorkspaceTabState = (
   raw: string,
   defaultTab: VideoWorkspaceTab,
   allowedTabs: readonly VideoWorkspaceTab[],
+  t: MessageTranslator,
 ): PersistedWorkspaceTabState => {
   if (allowedTabs.includes(raw as VideoWorkspaceTab)) {
     return createPersistedWorkspaceTabState(raw as VideoWorkspaceTab);
   }
   return createPersistedWorkspaceTabState(
     defaultTab,
-    `视频工作区 tab 本地存储损坏：${raw || "<empty>"}`,
+    t("video.chapter.invalidPersistedState", { raw: raw || "<empty>" }),
   );
 };
 
@@ -238,13 +254,17 @@ const createPersistedNullableIdState = (
 const parsePersistedNullableIdState = (
   raw: string,
   label: string,
+  t: MessageTranslator,
 ): PersistedNullableIdState => {
   try {
-    return createPersistedNullableIdState(parseNullableNumber(raw));
+    return createPersistedNullableIdState(parseNullableNumber(raw, t));
   } catch (err) {
     return createPersistedNullableIdState(
       null,
-      `${label}本地存储损坏：${extractErrorMessage(err, "")}`,
+      t("video.chapter.invalidSelectionStorage", {
+        label,
+        error: extractErrorMessage(err, t("common.unknown")),
+      }),
     );
   }
 };
@@ -259,13 +279,16 @@ const validPersistedVideoOptionsState = (
 
 const parsePersistedVideoOptionsState = (
   raw: string,
+  t: MessageTranslator,
 ): PersistedVideoOptionsState => {
   try {
-    return validPersistedVideoOptionsState(parseVideoOptions(raw));
+    return validPersistedVideoOptionsState(parseVideoOptions(raw, t));
   } catch (err) {
     return {
       options: null,
-      storageError: `视频片段规划配置本地存储损坏：${extractErrorMessage(err, "")}`,
+      storageError: t("video.chapter.invalidPlanningStorage", {
+        error: extractErrorMessage(err, t("common.unknown")),
+      }),
       raw,
     };
   }
@@ -273,8 +296,9 @@ const parsePersistedVideoOptionsState = (
 
 const serializePersistedVideoOptionsState = (
   state: PersistedVideoOptionsState,
+  t: MessageTranslator,
 ): string => {
-  if (state.options) return serializeVideoOptions(state.options);
+  if (state.options) return serializeVideoOptions(state.options, t);
   return state.raw;
 };
 
@@ -285,6 +309,17 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   materialProjectId,
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
+  const workspaceTabs = useMemo(
+    () => [
+      { id: "materials" as const, label: t("video.chapter.tabMaterials"), icon: <ImagePlus size={13} /> },
+      { id: "frames" as const, label: t("video.chapter.tabPlanning"), icon: <PanelTop size={13} /> },
+      { id: "video" as const, label: t("video.chapter.tabGeneration"), icon: <Film size={13} /> },
+      { id: "assembly" as const, label: t("video.chapter.tabAssembly"), icon: <Clapperboard size={13} /> },
+      { id: "postprocess" as const, label: t("video.chapter.tabPostprocess"), icon: <Scissors size={13} /> },
+    ],
+    [t],
+  );
   const { runProgressTask } = useProgressTask();
   const chapter = fixedChapter ?? null;
   const chapterId = chapter?.id ?? null;
@@ -318,8 +353,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       chapterStorageKey ? `${chapterStorageKey}:segment-plan-options` : null,
       planningOptionsInitialValue,
       {
-        parse: parsePersistedVideoOptionsState,
-        serialize: serializePersistedVideoOptionsState,
+        parse: (raw) => parsePersistedVideoOptionsState(raw, t),
+        serialize: (state) => serializePersistedVideoOptionsState(state, t),
       },
     );
   const planningOptions = planningOptionsState.options;
@@ -329,13 +364,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     (action) =>
       setPlanningOptionsState((previous) => {
         if (!previous.options) {
-          throw new Error("视频片段规划配置损坏时不能修改规划选项");
+          throw new Error(t("video.chapter.invalidPlanningOptions"));
         }
         const options =
           typeof action === "function" ? action(previous.options) : action;
         return validPersistedVideoOptionsState(options);
       }),
-    [setPlanningOptionsState],
+    [setPlanningOptionsState, t],
   );
   const resetPlanningOptions = useCallback(
     () =>
@@ -369,7 +404,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     actionBusyRef.current = null;
     setActing((current) => (current === key ? null : current));
   }, []);
-  const workspaceTabIds = VIDEO_WORKSPACE_TABS.map((tab) => tab.id);
+  const workspaceTabIds = workspaceTabs.map((tab) => tab.id);
   const defaultWorkspaceTab: VideoWorkspaceTab = "video";
   const workspaceTabInitialValue = useMemo(
     () => createPersistedWorkspaceTabState(defaultWorkspaceTab),
@@ -385,6 +420,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             raw,
             defaultWorkspaceTab,
             workspaceTabIds,
+            t,
           ),
         serialize: serializePersistedWorkspaceTabState,
       },
@@ -428,20 +464,24 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     try {
       return {
         cards: segmentPlanDraftVisible
-          ? videoSegmentCardsFromSegments(segmentPlanPreview)
-          : videoSegmentCardsFromPlanPrompt(frameSegmentPlanPromptForCards),
+          ? videoSegmentCardsFromSegments(segmentPlanPreview, t)
+          : videoSegmentCardsFromPlanPrompt(frameSegmentPlanPromptForCards, t),
         error: null as string | null,
       };
     } catch (error) {
       return {
         cards: [] as VideoSegmentCardPlan[],
-        error: extractErrorMessage(error, "读取片段规划失败"),
+        error: extractErrorMessage(
+          error,
+          t("video.chapter.planningLoadFailed", { error: t("common.unknown") }),
+        ),
       };
     }
   }, [
     frameSegmentPlanPromptForCards,
     segmentPlanDraftVisible,
     segmentPlanPreview,
+    t,
   ]);
   const segmentRecipeState = useMemo(
     () =>
@@ -452,7 +492,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               new Map<number, VideoSegmentExecutionRecipe>(),
             error: null,
           }
-        : readVideoSegmentRecipes(frameSegmentPlanPromptForCards),
+        : readVideoSegmentRecipes(frameSegmentPlanPromptForCards, t),
     [
       frameSegmentPlanPromptForCards,
       segmentPlanDraft?.recipes,
@@ -474,7 +514,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         : null,
       persistedNullIdInitialValue,
       {
-        parse: (raw) => parsePersistedNullableIdState(raw, "选中片段"),
+        parse: (raw) =>
+          parsePersistedNullableIdState(raw, t("video.chapter.segmentTab"), t),
         serialize: serializePersistedNullableIdState,
       },
     );
@@ -616,7 +657,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           new Map(
             entries.flatMap(([segmentNumber, generation, frame]) =>
               generation == null || frame == null
-                ? [[segmentNumber, "当前环境无法校验片段执行身份"] as const]
+                ? [[segmentNumber, t("video.chapter.executionIdentityUnavailable")] as const]
                 : [],
             ),
           ),
@@ -630,7 +671,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           new Map(
             [...fingerprintInputs.keys()].map((segmentNumber) => [
               segmentNumber,
-              "片段执行身份校验失败，请刷新后重试",
+              t("video.chapter.executionIdentityCheckFailed"),
             ]),
           ),
         );
@@ -653,7 +694,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       segmentStorageKey ? `${segmentStorageKey}:selected-prompt` : null,
       persistedNullIdInitialValue,
       {
-        parse: (raw) => parsePersistedNullableIdState(raw, "选中视频提示词"),
+        parse: (raw) =>
+          parsePersistedNullableIdState(raw, t("video.chapter.promptRecord"), t),
         serialize: serializePersistedNullableIdState,
       },
     );
@@ -662,7 +704,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       segmentStorageKey ? `${segmentStorageKey}:selected-video` : null,
       persistedNullIdInitialValue,
       {
-        parse: (raw) => parsePersistedNullableIdState(raw, "选中视频"),
+        parse: (raw) =>
+          parsePersistedNullableIdState(raw, t("video.chapter.videoTab"), t),
         serialize: serializePersistedNullableIdState,
       },
     );
@@ -671,7 +714,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       segmentStorageKey ? `${segmentStorageKey}:pending-video` : null,
       persistedNullIdInitialValue,
       {
-        parse: (raw) => parsePersistedNullableIdState(raw, "待恢复视频任务"),
+        parse: (raw) =>
+          parsePersistedNullableIdState(raw, t("workflow.taskVideoGeneration"), t),
         serialize: serializePersistedNullableIdState,
       },
     );
@@ -733,8 +777,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         : null;
       if (!draftWorkflowRunId && !planPromptId) {
         const message = segmentPlanDraftVisible
-          ? "当前片段规划草稿缺少 workflow 身份，不能保存执行方案"
-          : "当前没有可保存执行方案的片段规划";
+          ? t("video.chapter.segmentPlanDraftMissingWorkflow")
+          : t("video.chapter.noSegmentPlanToSave");
         addToast(message, "error");
         return Promise.reject(new Error(message));
       }
@@ -767,7 +811,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             let updatedRecipes: VideoSegmentExecutionRecipe[] | null = null;
             if (draftWorkflowRunId) {
               if (chapterId == null)
-                throw new Error("当前章节无效，无法保存片段执行方案");
+                throw new Error(t("video.chapter.invalidChapterForRecipe"));
               const card = segmentCardState.cards.find(
                 (item) => item.segmentNumber === recipe.segment_number,
               );
@@ -781,7 +825,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 segmentIndexInShot <= 0
               ) {
                 throw new Error(
-                  `片段 ${recipe.segment_number} 缺少稳定草稿身份`,
+                  t("video.chapter.draftIdentityMissing", {
+                    number: recipe.segment_number,
+                  }),
                 );
               }
               await updateVideoSegmentPlanDraftRecipe({
@@ -809,7 +855,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                   );
             if (!persistedRecipe) {
               throw new Error(
-                `保存成功后未返回片段 ${recipe.segment_number} 的执行方案`,
+                t("video.chapter.recipeSaveResponseMissing", {
+                  number: recipe.segment_number,
+                }),
               );
             }
             const mergedRecipes = new Map(
@@ -832,7 +880,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               const metadata = asJsonRecord(
                 frameSegmentPlanPromptForCards?.metadata_json,
               );
-              if (!metadata) throw new Error("当前片段规划 metadata_json 无效");
+              if (!metadata) throw new Error(t("video.chapter.invalidPlanMetadata"));
               const updatedMetadata = {
                 ...metadata,
                 segment_recipes: [...mergedRecipes.values()],
@@ -854,7 +902,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             });
           } catch (error) {
             if (recipeSaveScopeRef.current !== saveScope) throw error;
-            const message = extractErrorMessage(error, "保存片段执行方案失败");
+            const message = extractErrorMessage(error, t("video.chapter.recipeSaveFailed"));
             if (
               effectiveRecipeBySegmentRef.current.get(recipe.segment_number) !==
               recipe
@@ -906,6 +954,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       segmentPlanIdentity,
       segmentPlanDraft?.workflowRunId,
       segmentPlanDraftVisible,
+      t,
     ],
   );
   const updateSegmentRecipe = useCallback(
@@ -917,13 +966,15 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     ): Promise<void> => {
       const current = effectiveRecipeBySegmentRef.current.get(segmentNumber);
       if (!current) {
-        const message = `片段 ${segmentNumber} 缺少可编辑的执行方案`;
+        const message = t("video.chapter.editableRecipeMissing", {
+          number: segmentNumber,
+        });
         addToast(message, "error");
         return Promise.reject(new Error(message));
       }
       return persistSegmentRecipe(updater(current));
     },
-    [addToast, persistSegmentRecipe],
+    [addToast, persistSegmentRecipe, t],
   );
   const awaitSegmentRecipeSaved = useCallback(async (segmentNumber: number) => {
     const pending = recipeSaveBySegmentRef.current.get(segmentNumber);
@@ -1041,6 +1092,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     handleToggleImageFavorite,
     handleUpdateImage,
   } = useVideoImageActions({
+    t,
     addToast,
     images,
     actionScopeKey: videoActionScopeKey,
@@ -1088,6 +1140,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         : (frameRecipeFingerprintBySegment.get(selectedSegmentNumber) ?? null),
     continuitySourceVideoId:
       selectedSegmentRecipe?.continuity_source_video_id ?? null,
+    t,
   });
   const selectedPromptDirty = Boolean(
     selectedPrompt &&
@@ -1097,6 +1150,17 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       draft.negative_prompt.trim() !==
         (selectedPrompt.negative_prompt ?? "").trim() ||
       draft.duration_secs !== selectedPrompt.duration_secs),
+  );
+  const videosById = useMemo(() => {
+    const index = new Map<number, GeneratedVideo>();
+    for (const video of videos) {
+      if (!index.has(video.id)) index.set(video.id, video);
+    }
+    return index;
+  }, [videos]);
+  const frameSegmentIdentityIndex = useMemo(
+    () => videoExecutionSegmentIdentityIndex(frameSegmentPlanPromptForCards),
+    [frameSegmentPlanPromptForCards],
   );
 
   const previousAdoptedVideos = useMemo(() => {
@@ -1108,7 +1172,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         recipe.adopted_video_id == null
       )
         continue;
-      const video = videos.find((row) => row.id === recipe.adopted_video_id);
+      const video = videosById.get(recipe.adopted_video_id);
       if (
         video &&
         video.status === "completed" &&
@@ -1118,6 +1182,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           frameSegmentPlanPromptForCards,
           segmentNumber,
           recipeFingerprintBySegment.get(segmentNumber),
+          frameSegmentIdentityIndex,
         )
       ) {
         rows.push(video);
@@ -1135,7 +1200,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     frameSegmentPlanPromptForCards,
     recipeFingerprintBySegment,
     selectedSegmentNumber,
-    videos,
+    videosById,
+    frameSegmentIdentityIndex,
   ]);
   const { mixedAdoptedVideoIds, unavailableMixedSegmentNumbers } = useMemo(() => {
     const adoptedVideoIds = new Set<number>();
@@ -1146,7 +1212,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       const video =
         recipe?.adopted_video_id == null
           ? null
-          : videos.find((row) => row.id === recipe.adopted_video_id);
+          : videosById.get(recipe.adopted_video_id);
       const valid =
         video &&
         video.status === "completed" &&
@@ -1156,6 +1222,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           frameSegmentPlanPromptForCards,
           card.segmentNumber,
           fingerprint,
+          frameSegmentIdentityIndex,
         );
       if (valid) adoptedVideoIds.add(video.id);
       else unavailableSegmentNumbers.push(card.segmentNumber);
@@ -1168,7 +1235,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       ) {
         continue;
       }
-      const video = videos.find((row) => row.id === item.generated_video_id);
+      const video = videosById.get(item.generated_video_id);
       if (
         video?.status === "completed" &&
         Boolean(video.file_path?.trim()) &&
@@ -1187,7 +1254,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     recipeFingerprintBySegment,
     segmentCardState.cards,
     timeline,
-    videos,
+    videosById,
+    frameSegmentIdentityIndex,
   ]);
   const allCurrentFramePrompts = useMemo(
     () =>
@@ -1202,6 +1270,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         const segmentNumber = videoExecutionSegmentNumberInPlanByLineage(
           videoExecutionIdentityOfPrompt(prompt),
           frameSegmentPlanPromptForCards,
+          frameSegmentIdentityIndex,
         );
         return (
           typeof segmentNumber === "number" &&
@@ -1211,10 +1280,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             frameSegmentPlanPromptForCards,
             segmentNumber,
             frameRecipeFingerprintBySegment.get(segmentNumber),
+            frameSegmentIdentityIndex,
           )
         );
       }),
-    [frameRecipeFingerprintBySegment, frameSegmentPlanPromptForCards, prompts],
+    [
+      frameRecipeFingerprintBySegment,
+      frameSegmentIdentityIndex,
+      frameSegmentPlanPromptForCards,
+      prompts,
+    ],
   );
   const allSegmentPrompts = useMemo(
     () =>
@@ -1223,6 +1298,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           const segmentNumber = videoExecutionSegmentNumberInPlanByLineage(
             videoExecutionIdentityOfPrompt(prompt),
             frameSegmentPlanPromptForCards,
+            frameSegmentIdentityIndex,
           );
           return (
             segmentNumber != null &&
@@ -1232,13 +1308,59 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               frameSegmentPlanPromptForCards,
               segmentNumber,
               recipeFingerprintBySegment.get(segmentNumber),
+              frameSegmentIdentityIndex,
             ) &&
             finalVideoExecutionIdentityIsComplete(prompt)
           );
         })
         .sort((a, b) => a.shot_number - b.shot_number || a.id - b.id),
-    [frameSegmentPlanPromptForCards, prompts, recipeFingerprintBySegment],
+    [
+      frameSegmentIdentityIndex,
+      frameSegmentPlanPromptForCards,
+      prompts,
+      recipeFingerprintBySegment,
+    ],
   );
+  const latestFramePromptBySegment = useMemo(() => {
+    const index = new Map<number, Map<string, ChapterVideoPrompt>>();
+    for (const prompt of prompts) {
+      if (
+        prompt.prompt_type !== VIDEO_FRAME_PROMPT_TYPE &&
+        prompt.prompt_type !== VIDEO_FIRST_FRAME_PROMPT_TYPE &&
+        prompt.prompt_type !== VIDEO_STORYBOARD_PROMPT_TYPE
+      ) {
+        continue;
+      }
+      const segmentNumber = videoExecutionSegmentNumberInPlanByLineage(
+        videoExecutionIdentityOfPrompt(prompt),
+        frameSegmentPlanPromptForCards,
+        frameSegmentIdentityIndex,
+      );
+      if (segmentNumber == null) continue;
+      if (
+        !videoExecutionSegmentIdentityMatchesPrompt(
+          prompt,
+          frameSegmentPlanPromptForCards,
+          segmentNumber,
+          frameRecipeFingerprintBySegment.get(segmentNumber),
+          frameSegmentIdentityIndex,
+        )
+      ) {
+        continue;
+      }
+      const byPrompt = index.get(segmentNumber) ?? new Map();
+      const key = `${prompt.prompt_type}:${prompt.shot_number}`;
+      const current = byPrompt.get(key);
+      if (!current || prompt.id > current.id) byPrompt.set(key, prompt);
+      index.set(segmentNumber, byPrompt);
+    }
+    return index;
+  }, [
+    frameRecipeFingerprintBySegment,
+    frameSegmentIdentityIndex,
+    frameSegmentPlanPromptForCards,
+    prompts,
+  ]);
   useEffect(() => {
     if (workspaceTab !== "video") setSegmentConfigOpen(false);
   }, [workspaceTab]);
@@ -1260,12 +1382,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   );
   const promptInputSelectionError =
     (invalidGenerationReferenceIds.length > 0
-      ? `生成参考图中有 ${invalidGenerationReferenceIds.length} 张已不可用，请清除后重选`
+      ? t("video.chapter.invalidGenerationReferenceSelection", {
+          count: invalidGenerationReferenceIds.length,
+        })
       : null) ??
     (invalidVideoLibraryImageIds.length > 0
-      ? `视频素材库中有 ${invalidVideoLibraryImageIds.length} 张图片已不可用，请清除后重选`
+      ? t("video.chapter.invalidLibraryReferenceSelection", {
+          count: invalidVideoLibraryImageIds.length,
+        })
       : null);
-  const videoOptionsStateError = videoOptionsValidationError(options);
+  const videoOptionsStateError = videoOptionsValidationError(options, t);
   const videoPersistedStateError =
     chapterContentHashError ??
     segmentCardState.error ??
@@ -1314,10 +1440,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         ? await sha256Hex(videoSegmentRecipeGenerationFingerprintJson(recipe))
         : null;
       if (recipe && !fingerprint) {
-        addToast(
-          "当前环境无法校验片段执行身份，已阻止修改以避免误用下游资产",
-          "error",
-        );
+        addToast(t("video.chapter.executionIdentityUnavailable"), "error");
         return false;
       }
       const hasCurrentPrompt = prompts.some(
@@ -1328,15 +1451,17 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             frameSegmentPlanPromptForCards,
             segmentNumber,
             fingerprint,
+            frameSegmentIdentityIndex,
           ),
       );
       const hasCurrentVideo = videos.some((video) =>
-        videoExecutionSegmentIdentityMatchesVideo(
-          video,
-          frameSegmentPlanPromptForCards,
-          segmentNumber,
-          fingerprint,
-        ),
+          videoExecutionSegmentIdentityMatchesVideo(
+            video,
+            frameSegmentPlanPromptForCards,
+            segmentNumber,
+            fingerprint,
+            frameSegmentIdentityIndex,
+          ),
       );
       const discardsPromptDraft =
         segmentNumber === selectedSegmentNumber && selectedPromptDirty;
@@ -1350,18 +1475,23 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       }
       return confirmDialog({
         title: operation,
-        message: `修改片段 ${segmentNumber} 的执行方案会使当前最终提示词、候选视频和采用状态失效；历史记录仍会保留，但不再参与当前生成和成片。${discardsPromptDraft ? "当前未保存的提示词编辑也会被放弃。" : ""}是否继续？`,
-        confirmText: "继续修改",
+        message: t("video.chapter.changePlan", {
+          number: segmentNumber,
+          draft: discardsPromptDraft ? t("video.chapter.unsavedPromptDraft") : "",
+        }),
+        confirmText: t("video.chapter.continueAction"),
         dialogType: "warning",
       });
     },
     [
       addToast,
+      frameSegmentIdentityIndex,
       frameSegmentPlanPromptForCards,
       prompts,
       selectedPromptDirty,
       selectedSegmentNumber,
       videos,
+      t,
     ],
   );
   const setGenerationReferenceIds = useCallback(
@@ -1375,7 +1505,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       )
         return true;
       if (
-        !(await confirmSegmentRecipeChange(segmentNumber, "修改片段生成参考图"))
+        !(await confirmSegmentRecipeChange(
+          segmentNumber,
+          t("video.reference.generationReference"),
+        ))
       )
         return false;
       try {
@@ -1388,7 +1521,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         return false;
       }
     },
-    [confirmSegmentRecipeChange, selectedSegmentNumber, updateSegmentRecipe],
+    [confirmSegmentRecipeChange, selectedSegmentNumber, t, updateSegmentRecipe],
   );
   const setVideoLibraryImageIds = useCallback(
     async (ids: number[]): Promise<boolean> => {
@@ -1401,7 +1534,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       )
         return true;
       if (
-        !(await confirmSegmentRecipeChange(segmentNumber, "修改片段素材库输入"))
+        !(await confirmSegmentRecipeChange(
+          segmentNumber,
+          t("video.reference.library"),
+        ))
       )
         return false;
       try {
@@ -1414,12 +1550,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         return false;
       }
     },
-    [confirmSegmentRecipeChange, selectedSegmentNumber, updateSegmentRecipe],
+    [confirmSegmentRecipeChange, selectedSegmentNumber, t, updateSegmentRecipe],
   );
   const finalPromptBlockedReasonForSegment = useCallback(
     (segmentNumber: number): string | null => {
       const recipe = effectiveRecipeBySegmentRef.current.get(segmentNumber);
-      if (!recipe) return `片段 ${segmentNumber} 缺少执行方案`;
+      if (!recipe) {
+        return t("video.chapter.segmentRecipeMissingForAction", {
+          number: segmentNumber,
+        });
+      }
       if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA) {
         return null;
       }
@@ -1428,73 +1568,84 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         ...recipe.video_library_image_ids,
       ].filter((id) => !selectableReferenceIds.has(id));
       if (unavailableReferenceIds.length > 0) {
-        return `片段参考素材已失效：${[...new Set(unavailableReferenceIds)].join(", ")}`;
+        return t("video.chapter.referenceInvalid", {
+          ids: [...new Set(unavailableReferenceIds)].join(", "),
+        });
       }
       if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO) return null;
       const configurationError = videoGuidanceConfigurationError(
         recipe.workflow_mode,
         segmentNumber,
         recipe.guidance_mode,
+        t,
       );
       if (configurationError) return configurationError;
       const fingerprint = frameRecipeFingerprintBySegment.get(segmentNumber);
       if (!fingerprint) {
         return (
           recipeFingerprintErrorsBySegment.get(segmentNumber) ??
-          "正在核对当前片段的素材，请稍候"
+          t("video.chapter.referenceChecking")
         );
       }
       const framePrompt = (promptType: string, shotNumber: number) =>
-        prompts
-          .filter(
-            (prompt) =>
-              prompt.prompt_type === promptType &&
-              prompt.shot_number === shotNumber &&
-              videoExecutionSegmentIdentityMatchesPrompt(
-                prompt,
-                frameSegmentPlanPromptForCards,
-                segmentNumber,
-                fingerprint,
-              ),
-          )
-          .sort((left, right) => right.id - left.id)[0] ?? null;
+        latestFramePromptBySegment.get(segmentNumber)?.get(
+          `${promptType}:${shotNumber}`,
+        ) ?? null;
       const frameReady = (prompt: ChapterVideoPrompt | null): boolean =>
         prompt != null &&
-        latestVideoFrameImageForPrompt(prompt, images) != null;
+        latestVideoFrameImageForPrompt(prompt, images, t) != null;
       if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_BOUNDARY_FRAMES) {
         const first = framePrompt(VIDEO_FRAME_PROMPT_TYPE, 1);
         const last = framePrompt(VIDEO_FRAME_PROMPT_TYPE, 2);
-        if (!first || !last) return "请先准备当前片段的首尾帧提示词";
+        if (!first || !last) {
+          return t("video.chapter.framePromptMustPrepare", {
+            label: t("video.chapter.frameBoundary"),
+          });
+        }
         if (!frameReady(first) || !frameReady(last)) {
-          return "请先生成当前片段的首尾帧图片";
+          return t("video.chapter.frameImageMustPrepare", {
+            label: t("video.chapter.frameBoundary"),
+          });
         }
       } else if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_STORYBOARD) {
         const storyboard = framePrompt(
           VIDEO_STORYBOARD_PROMPT_TYPE,
           segmentNumber,
         );
-        if (!storyboard) return "请先准备当前片段的分镜提示词";
+        if (!storyboard) {
+          return t("video.chapter.framePromptMustPrepare", {
+            label: t("video.chapter.storyboardInput"),
+          });
+        }
         if (!frameReady(storyboard)) {
-          return "请先生成当前片段的分镜板";
+          return t("video.chapter.frameImageMustPrepare", {
+            label: t("video.chapter.storyboardInput"),
+          });
         }
       } else if (
         recipe.workflow_mode === VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN &&
         recipe.guidance_mode === "system_frames"
       ) {
         const first = framePrompt(VIDEO_FIRST_FRAME_PROMPT_TYPE, 1);
-        if (!first) return "请先准备当前片段的首帧提示词";
+        if (!first) {
+          return t("video.chapter.framePromptMustPrepare", {
+            label: t("video.chapter.frameInputStart"),
+          });
+        }
         if (!frameReady(first)) {
-          return "请先生成当前片段的首帧图片";
+          return t("video.chapter.frameImageMustPrepare", {
+            label: t("video.chapter.frameInputStart"),
+          });
         }
       } else if (
         recipe.workflow_mode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN
       ) {
-        return "当前片段执行方案不支持帧提示词规划";
+        return t("video.chapter.framePlanUnsupported");
       }
       if (recipe.guidance_mode === "continuity") {
         const sourceVideoId = recipe.continuity_source_video_id;
         if (sourceVideoId == null)
-          return "请选择更早片段已采用的视频作为续接来源";
+          return t("video.chapter.continuitySourceMissing");
         const sourceRecipeEntry = [
           ...effectiveRecipeBySegmentRef.current.entries(),
         ].find(
@@ -1502,7 +1653,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             sourceSegment < segmentNumber &&
             candidate.adopted_video_id === sourceVideoId,
         );
-        const sourceVideo = videos.find((video) => video.id === sourceVideoId);
+        const sourceVideo = videosById.get(sourceVideoId);
         const sourceFingerprint =
           sourceRecipeEntry == null
             ? null
@@ -1510,7 +1661,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         if (sourceRecipeEntry && !sourceFingerprint) {
           return (
             recipeFingerprintErrorsBySegment.get(sourceRecipeEntry[0]) ??
-            "正在核对续接来源视频，请稍候"
+            t("video.chapter.continuityChecking")
           );
         }
         if (
@@ -1523,9 +1674,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             frameSegmentPlanPromptForCards,
             sourceRecipeEntry[0],
             sourceFingerprint,
+            frameSegmentIdentityIndex,
           )
         ) {
-          return `续接来源视频 #${sourceVideoId} 已失效，请重新选择`;
+          return t("video.chapter.invalidSourceVideo", { id: sourceVideoId });
         }
         const hasTailFrame = images.some(
           (image) =>
@@ -1534,19 +1686,21 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         );
         return hasTailFrame
           ? null
-          : `续接来源视频 #${sourceVideoId} 尚无可用尾帧`;
+          : t("video.chapter.sourceVideoNoTail", { id: sourceVideoId });
       }
       return null;
     },
     [
       frameRecipeFingerprintBySegment,
+      frameSegmentIdentityIndex,
       frameSegmentPlanPromptForCards,
       images,
-      prompts,
+      latestFramePromptBySegment,
       recipeFingerprintBySegment,
       recipeFingerprintErrorsBySegment,
       selectableReferenceIds,
-      videos,
+      videosById,
+      t,
     ],
   );
   const finalPromptBlockedReasons = useMemo(
@@ -1567,7 +1721,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         referenceMediaDraftScopeRef.current !== expectedScope
       ) {
         addToast(
-          `参考媒体草稿不属于当前片段规划的片段 ${segmentNumber}，请重新编辑`,
+          t("video.chapter.referenceDraftWrongSegment", {
+            number: segmentNumber,
+          }),
           "error",
         );
         return false;
@@ -1575,7 +1731,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       const draftToSave = referenceMediaDraftRef.current;
       if (referenceMediaDraftDirty) {
         if (
-          !(await confirmSegmentRecipeChange(segmentNumber, "保存参考媒体方案"))
+          !(await confirmSegmentRecipeChange(
+            segmentNumber,
+            t("video.reference.saveDraft"),
+          ))
         )
           return false;
         await updateSegmentRecipe(segmentNumber, (recipe) => ({
@@ -1597,6 +1756,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       referenceMediaDraftDirty,
       referenceMediaDraftScopeForSegment,
       updateSegmentRecipe,
+      t,
     ],
   );
 
@@ -1605,10 +1765,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       if (segmentNumber === selectedSegmentNumber) return true;
       if (selectedPromptDirty) {
         const discard = await confirmDialog({
-          title: "放弃未保存的提示词编辑",
-          message:
-            "当前最终提示词有未保存编辑。切换片段会放弃这些修改，是否继续？",
-          confirmText: "放弃并切换",
+          title: t("video.chapter.discardPromptTitle"),
+          message: t("video.chapter.discardPromptMessage", {
+            action: t("video.chapter.segmentTab"),
+          }),
+          confirmText: t("video.chapter.discardAndSwitch"),
           dialogType: "warning",
         });
         if (!discard) return false;
@@ -1623,7 +1784,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             return false;
         } catch (error) {
           addToast(
-            extractErrorMessage(error, "保存当前片段参考媒体草稿失败"),
+            extractErrorMessage(error, t("video.chapter.saveReferenceDraftFailed")),
             "error",
           );
           return false;
@@ -1639,6 +1800,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       selectedPromptDirty,
       selectedSegmentNumber,
       setSelectedSegmentNumber,
+      t,
     ],
   );
   const handleSelectPrompt = useCallback(
@@ -1646,17 +1808,18 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       if (promptId === selectedPromptId) return;
       if (selectedPromptDirty) {
         const discard = await confirmDialog({
-          title: "放弃未保存的提示词编辑",
-          message:
-            "当前最终提示词有未保存编辑。切换提示词会放弃这些修改，是否继续？",
-          confirmText: "放弃并切换",
+          title: t("video.chapter.discardPromptTitle"),
+          message: t("video.chapter.discardPromptMessage", {
+            action: t("video.chapter.promptRecord"),
+          }),
+          confirmText: t("video.chapter.discardAndSwitch"),
           dialogType: "warning",
         });
         if (!discard) return;
       }
       setSelectedPromptId(promptId);
     },
-    [selectedPromptDirty, selectedPromptId, setSelectedPromptId],
+    [selectedPromptDirty, selectedPromptId, setSelectedPromptId, t],
   );
   const handleActivateSegment = useCallback(
     async (segmentNumber: number) => {
@@ -1674,10 +1837,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     if (!segmentConfigOpen) return;
     if (selectedPromptDirty) {
       const discard = await confirmDialog({
-        title: "放弃未保存的提示词编辑",
-        message:
-          "当前最终提示词有未保存编辑。关闭片段配置会放弃这些修改，是否继续？",
-        confirmText: "放弃并关闭",
+        title: t("video.chapter.discardPromptTitle"),
+        message: t("video.chapter.discardPromptMessage", {
+          action: t("common.close"),
+        }),
+        confirmText: t("video.chapter.discardAndClose"),
         dialogType: "warning",
       });
       if (!discard) return;
@@ -1697,7 +1861,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         if (!(await saveReferenceMediaDraft(selectedSegmentNumber))) return;
       } catch (error) {
         addToast(
-          extractErrorMessage(error, "保存当前片段参考媒体草稿失败"),
+          extractErrorMessage(error, t("video.chapter.saveReferenceDraftFailed")),
           "error",
         );
         return;
@@ -1712,6 +1876,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedPrompt,
     selectedPromptDirty,
     selectedSegmentNumber,
+    t,
   ]);
 
   const refreshSegmentPlanDraft = useCallback(async () => {
@@ -1722,7 +1887,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     setSegmentPlanDraftLoading(true);
     setSegmentPlanDraftError(null);
     try {
-      const nextDraft = await loadVideoSegmentPlanDraft(projectId, chapterId);
+      const nextDraft = await loadVideoSegmentPlanDraft(projectId, chapterId, t);
       if (
         segmentPlanDraftLoadSeqRef.current !== requestSeq ||
         activeVideoDataKeyRef.current !== requestDataKey
@@ -1738,7 +1903,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         activeVideoDataKeyRef.current === requestDataKey
       ) {
         setSegmentPlanDraftError(
-          extractErrorMessage(err, "加载已保存的片段规划失败"),
+          extractErrorMessage(err, t("video.chapter.loadSavedPlanFailed")),
         );
       }
       throw err;
@@ -1750,7 +1915,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         setSegmentPlanDraftLoading(false);
       }
     }
-  }, [chapterId, projectId, videoDataKey]);
+  }, [chapterId, projectId, t, videoDataKey]);
 
   async function loadAll() {
     if (!chapter || !videoDataKey) return;
@@ -1772,12 +1937,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           activeVideoConfig: nextActiveVideoConfig,
           timeline: nextTimeline,
         },
-        shootingScript,
-        shootingProgress,
+        shootingScriptData,
       ] = await Promise.all([
         loadVideoTabData(projectId, chapter, requestImageProjectIds),
-        getChapterShootingScript(projectId, chapter.id),
-        getChapterShootingScriptUnitProgress(projectId, chapter.id),
+        loadShootingScriptOrProgress(projectId, chapter.id),
       ]);
       if (
         loadAllSeqRef.current !== requestSeq ||
@@ -1790,7 +1953,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       setImages(imageRows);
       setTimeline(nextTimeline);
       setShootingScenes(
-        shootingProgress?.script.scenes ?? shootingScript?.script.scenes ?? [],
+        shootingScriptData.unitProgress?.script.scenes ??
+          shootingScriptData.view?.script.scenes ??
+          [],
       );
       setLoadedDataKey(requestDataKey);
       if (promptLoadSeqRef.current === promptRequestSeq) {
@@ -1803,7 +1968,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       ) {
         return;
       }
-      const message = extractErrorMessage(err, "加载视频数据失败");
+      const message = extractErrorMessage(err, t("video.chapter.loadFailed"));
       setVideoDataError(message);
       addToast(message, "error");
     } finally {
@@ -1899,13 +2064,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             runProgressTask,
             active.handle,
             {
-              title: "继续生成片段规划",
-              startMessage: "正在恢复当前片段规划任务",
-              successMessage: "片段规划已完成",
-              errorMessage: "片段规划失败",
+              title: t("video.actions.segmentPlanResumeTitle"),
+              startMessage: t("video.actions.segmentPlanResumeStart"),
+              successMessage: t("video.actions.segmentPlanCompleted"),
+              errorMessage: t("video.actions.segmentPlanFailed"),
               total: 100,
             },
             refreshPrompts,
+            t,
             (streamText, checkpointKey) => {
               if (
                 disposed ||
@@ -1926,9 +2092,9 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           if (
             !disposed &&
             activeVideoDataKeyRef.current === requestDataKey &&
-            !isCancelledOperation(extractErrorMessage(error, "片段规划失败"))
+            !isCancelledOperation(extractErrorMessage(error, t("video.actions.segmentPlanFailed")))
           ) {
-            addToast(extractErrorMessage(error, "片段规划失败"), "error");
+            addToast(extractErrorMessage(error, t("video.actions.segmentPlanFailed")), "error");
           }
         } finally {
           if (attachedSegmentPlanTaskRef.current === taskKey) {
@@ -1943,7 +2109,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       .catch((error) => {
         if (!disposed && activeVideoDataKeyRef.current === requestDataKey) {
           setSegmentPlanDraftError(
-            extractErrorMessage(error, "恢复片段规划任务失败"),
+            extractErrorMessage(error, t("video.chapter.resumePlanFailed")),
           );
         }
       });
@@ -1960,6 +2126,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     refreshSegmentPlanDraft,
     refreshPrompts,
     runProgressTask,
+    t,
     videoDataKey,
   ]);
 
@@ -2068,7 +2235,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       selectableReferenceIds.has(id),
     );
     if (await setGenerationReferenceIds(next)) {
-      addToast("已清除不可用生成参考图片选择", "success");
+      addToast(t("video.reference.clearInvalid"), "success");
     }
   };
   const clearInvalidVideoLibraryImages = async () => {
@@ -2077,7 +2244,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       selectableReferenceIds.has(id),
     );
     if (await setVideoLibraryImageIds(next)) {
-      addToast("已清除不可用素材库图片选择", "success");
+      addToast(t("video.reference.clearInvalid"), "success");
     }
   };
   const {
@@ -2109,8 +2276,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedPromptId,
     frameStageLabel:
       workflowMode == null
-        ? "视频生成"
-        : VIDEO_WORKFLOW_MODE_LABELS[workflowMode],
+        ? t("video.chapter.tabGeneration")
+        : videoWorkflowModeLabel(workflowMode, t),
     selectedPromptStale,
     currentContentHash,
     selectedVideo,
@@ -2123,6 +2290,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     selectedPromptDirty,
     validPromptReferenceIds,
     durationLimits: effectiveDurationLimits,
+    t,
     addToast,
     runProgressTask,
     loadAll,
@@ -2159,6 +2327,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     allFinalVideoPrompts: allSegmentPrompts,
     currentContentHash,
     actionScopeKey: videoActionScopeKey,
+    locale,
+    t,
     addToast,
     runProgressTask,
     loadAll,
@@ -2175,7 +2345,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   ): VideoSegmentExecutionRecipe | null => {
     const recipe =
       effectiveRecipeBySegmentRef.current.get(segmentNumber) ?? null;
-    if (!recipe) addToast(`片段 ${segmentNumber} 缺少执行方案`, "error");
+    if (!recipe) {
+      addToast(
+        t("video.chapter.segmentRecipeMissingForAction", {
+          number: segmentNumber,
+        }),
+        "error",
+      );
+    }
     return recipe;
   };
 
@@ -2192,7 +2369,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       !Number.isInteger(segmentIndexInShot) ||
       segmentIndexInShot <= 0
     ) {
-      addToast(`片段 ${segmentNumber} 缺少稳定身份`, "error");
+      addToast(
+        t("video.chapter.segmentIdentityMissing", { number: segmentNumber }),
+        "error",
+      );
       return null;
     }
     return {
@@ -2225,7 +2405,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const targetSegment = targetForSegmentAction(segmentNumber);
     if (!recipe || !targetSegment) return;
     if (recipe.workflow_mode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA) {
-      addToast("参考媒体方案直接生成视频，不生成最终提示词", "error");
+      addToast(t("video.chapter.referenceMediaSelectionRequired"), "error");
       return;
     }
     const blockedReason = finalPromptBlockedReasonForSegment(segmentNumber);
@@ -2243,16 +2423,20 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const shotNumber = videoExecutionSegmentNumberInPlanByLineage(
       identity,
       frameSegmentPlanPromptForCards,
+      frameSegmentIdentityIndex,
     );
     if (!chapter || !frameSegmentPlanPromptForCards || shotNumber == null) {
-      addToast("该视频缺少完整片段执行身份，不能采用", "error");
+      addToast(t("video.chapter.selectedVideoMissingRecipe"), "error");
       return;
     }
     const targetSegment = targetForSegmentAction(shotNumber);
     if (!targetSegment) return;
     if (selectedSegmentNumber !== shotNumber) {
       addToast(
-        `视频 #${video.id} 属于片段 ${shotNumber}，不能作为当前片段采用`,
+        t("video.chapter.videoBelongsToOtherSegment", {
+          id: video.id,
+          number: shotNumber,
+        }),
         "error",
       );
       return;
@@ -2264,9 +2448,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         frameSegmentPlanPromptForCards,
         shotNumber,
         fingerprint,
+        frameSegmentIdentityIndex,
       )
     ) {
-      addToast("该视频不属于当前片段的最新执行方案，不能采用", "error");
+      addToast(t("video.chapter.videoNotLatestRecipe"), "error");
       return;
     }
     const actionKey = `adopt-video-${video.id}`;
@@ -2281,11 +2466,11 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         targetSegment,
       );
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(`已采用片段 ${shotNumber} 的当前视频`, "success");
+      addToast(t("video.chapter.adoptedSegment", { number: shotNumber }), "success");
       await loadAll();
     } catch (err) {
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(err, "采用片段视频失败"), "error");
+      addToast(extractErrorMessage(err, t("video.chapter.adoptVideoFailed")), "error");
     } finally {
       finishVideoAction(actionKey);
     }
@@ -2298,7 +2483,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const currentRecipe =
       effectiveRecipeBySegmentRef.current.get(segmentNumber);
     if (!currentRecipe) {
-      addToast(`片段 ${segmentNumber} 缺少执行方案`, "error");
+      addToast(
+        t("video.chapter.segmentRecipeMissingForAction", {
+          number: segmentNumber,
+        }),
+        "error",
+      );
       return;
     }
     const guidanceMode = guidanceModeForWorkflowChange(mode, segmentNumber);
@@ -2321,7 +2511,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       }
     }
     if (
-      !(await confirmSegmentRecipeChange(segmentNumber, "切换片段生成方案"))
+      !(await confirmSegmentRecipeChange(
+        segmentNumber,
+        t("video.chapter.workflowMode"),
+      ))
     ) {
       return;
     }
@@ -2352,19 +2545,27 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const currentRecipe =
       effectiveRecipeBySegmentRef.current.get(segmentNumber);
     if (!currentRecipe) {
-      addToast(`片段 ${segmentNumber} 缺少执行方案`, "error");
+      addToast(
+        t("video.chapter.segmentRecipeMissingForAction", {
+          number: segmentNumber,
+        }),
+        "error",
+      );
       return;
     }
     if (
       currentRecipe.workflow_mode !== VIDEO_WORKFLOW_MODE_FIRST_FRAME_CHAIN ||
       segmentNumber <= 1
     ) {
-      addToast("只有首帧续接的后续片段可以切换首帧来源", "error");
+      addToast(t("video.chapter.firstFrameChainFollowupInputRequired"), "error");
       return;
     }
     if (currentRecipe.guidance_mode === guidanceMode) return;
     if (
-      !(await confirmSegmentRecipeChange(segmentNumber, "切换片段首帧来源"))
+      !(await confirmSegmentRecipeChange(
+        segmentNumber,
+        t("video.chapter.startFrameSource"),
+      ))
     ) {
       return;
     }
@@ -2387,7 +2588,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const currentRecipe =
       effectiveRecipeBySegmentRef.current.get(segmentNumber);
     if (!currentRecipe) {
-      addToast(`片段 ${segmentNumber} 缺少执行方案`, "error");
+      addToast(
+        t("video.chapter.segmentRecipeMissingForAction", {
+          number: segmentNumber,
+        }),
+        "error",
+      );
       return;
     }
     const sourceChanged =
@@ -2396,7 +2602,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         continuitySourceVideoId;
     if (!sourceChanged) return;
     if (
-      !(await confirmSegmentRecipeChange(segmentNumber, "修改片段续接来源"))
+      !(await confirmSegmentRecipeChange(
+        segmentNumber,
+        t("video.chapter.sourceVideo"),
+      ))
     ) {
       return;
     }
@@ -2418,7 +2627,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const actionKey = "generate-inserted-segment";
     const requestScope = videoActionScopeKey;
     if (!chapter) {
-      addToast("当前章节不存在，无法生成插入片段", "error");
+      addToast(t("video.chapter.noChapter"), "error");
       return null;
     }
     if (!beginVideoAction(actionKey)) return null;
@@ -2432,31 +2641,34 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         runProgressTask,
         handle,
         {
-          title: "生成插入片段描述",
-          startMessage: "正在读取前后片段并生成插入描述",
-          successMessage: "插入片段描述已生成",
-          errorMessage: "插入片段描述生成失败",
+          title: t("video.chapter.insertedDescription"),
+          startMessage: t("video.chapter.insertedDescriptionPreparing"),
+          successMessage: t("video.chapter.insertedDescriptionGenerated"),
+          errorMessage: t("video.chapter.insertedDescriptionFailed"),
           total: 100,
-          cancelLabel: "停止生成",
+          cancelLabel: t("video.chapter.stopGeneration"),
         },
         async (task) => {
           const result = task.resultRef;
           if (result?.kind !== "inserted_segment_draft") {
-            throw new Error("插入片段生成完成，但没有返回可提交的草稿身份");
+            throw new Error(t("video.chapter.insertedDraftMissing"));
           }
           const parsed = Number(result.id);
           if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-            throw new Error("插入片段草稿 workflow ID 无效");
+            throw new Error(t("video.chapter.invalidInsertedWorkflowId"));
           }
           return parsed;
         },
       );
       if (!isCurrentVideoActionScope(requestScope)) return null;
-      addToast("插入片段描述已生成，请确认后提交", "success");
+      addToast(t("video.chapter.insertedDescriptionConfirm"), "success");
       return workflowRunId;
     } catch (error) {
       if (isCurrentVideoActionScope(requestScope)) {
-        const message = extractErrorMessage(error, "插入片段描述生成失败");
+        const message = extractErrorMessage(
+          error,
+          t("video.chapter.insertedDescriptionFailed"),
+        );
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
       return null;
@@ -2481,14 +2693,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       });
       if (!isCurrentVideoActionScope(requestScope)) return false;
       setTimeline(nextTimeline);
-      addToast("插入片段已提交到时间线", "success");
+      addToast(t("video.chapter.insertedSubmitted"), "success");
       try {
         await loadAll();
       } catch (refreshError) {
         addToast(
           extractErrorMessage(
             refreshError,
-            "插入片段已提交，但刷新页面数据失败",
+            t("video.chapter.insertedSubmitRefreshFailed"),
           ),
           "error",
         );
@@ -2496,10 +2708,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       return true;
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return false;
-      const message = extractErrorMessage(error, "提交插入片段失败");
+      const message = extractErrorMessage(error, t("video.chapter.operationFailed"));
       addToast(
         message.includes("timeline_revision_conflict")
-          ? `${message}；表单已保留，请重新生成描述后提交`
+          ? t("video.chapter.timelineRevisionConflict", { error: message })
           : message,
         "error",
       );
@@ -2507,7 +2719,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         await loadAll();
       } catch (refreshError) {
         addToast(
-          extractErrorMessage(refreshError, "刷新视频时间线失败"),
+          extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
           "error",
         );
       }
@@ -2531,26 +2743,26 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       const nextTimeline = await moveInsertedSegment(input);
       if (!isCurrentVideoActionScope(requestScope)) return;
       setTimeline(nextTimeline);
-      addToast("插入片段位置已更新", "success");
+      addToast(t("video.chapter.insertedPositionUpdated"), "success");
       try {
         await loadAll();
       } catch (refreshError) {
         addToast(
           extractErrorMessage(
             refreshError,
-            "片段位置已更新，但刷新页面数据失败",
+            t("video.chapter.insertedMoveRefreshFailed"),
           ),
           "error",
         );
       }
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(error, "移动插入片段失败"), "error");
+      addToast(extractErrorMessage(error, t("video.chapter.operationFailed")), "error");
       try {
         await loadAll();
       } catch (refreshError) {
         addToast(
-          extractErrorMessage(refreshError, "刷新视频时间线失败"),
+          extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
           "error",
         );
       }
@@ -2571,26 +2783,26 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       const nextTimeline = await deleteInsertedSegment(input);
       if (!isCurrentVideoActionScope(requestScope)) return;
       setTimeline(nextTimeline);
-      addToast("插入片段已从时间线移除", "success");
+      addToast(t("video.chapter.insertedRemoved"), "success");
       try {
         await loadAll();
       } catch (refreshError) {
         addToast(
           extractErrorMessage(
             refreshError,
-            "插入片段已删除，但刷新页面数据失败",
+            t("video.chapter.insertedDeleteRefreshFailed"),
           ),
           "error",
         );
       }
     } catch (error) {
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast(extractErrorMessage(error, "删除插入片段失败"), "error");
+      addToast(extractErrorMessage(error, t("video.chapter.operationFailed")), "error");
       try {
         await loadAll();
       } catch (refreshError) {
         addToast(
-          extractErrorMessage(refreshError, "刷新视频时间线失败"),
+          extractErrorMessage(refreshError, t("video.chapter.refreshTimelineFailed")),
           "error",
         );
       }
@@ -2619,30 +2831,36 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         runProgressTask,
         handle,
         {
-          title: `生成插入片段视频 #${prompt.id}`,
-          startMessage: "正在准备插入片段视频",
-          successMessage: "插入片段视频已生成",
-          errorMessage: "插入片段视频生成失败",
+          title: t("video.chapter.insertedVideoPreparing"),
+          startMessage: t("video.chapter.insertedVideoPreparing"),
+          successMessage: t("video.chapter.insertedVideoGenerated"),
+          errorMessage: t("video.chapter.insertedVideoFailed"),
           total: 100,
-          cancelLabel: "停止生成",
+          cancelLabel: t("video.chapter.stopGeneration"),
         },
         async (task) => {
           await verifyVideoGenerationResult(task, projectId, chapter.id);
         },
       );
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast("插入片段视频已生成", "success");
+      addToast(t("video.chapter.insertedVideoGenerated"), "success");
       try {
         await loadAll();
       } catch (refreshError) {
         addToast(
-          extractErrorMessage(refreshError, "视频已生成，但刷新页面数据失败"),
+          extractErrorMessage(
+            refreshError,
+            t("video.chapter.videoDataGeneratedRefreshFailed"),
+          ),
           "error",
         );
       }
     } catch (error) {
       if (isCurrentVideoActionScope(requestScope)) {
-        const message = extractErrorMessage(error, "插入片段视频生成失败");
+        const message = extractErrorMessage(
+          error,
+          t("video.chapter.insertedVideoFailed"),
+        );
         if (!isCancelledOperation(message)) addToast(message, "error");
       }
     } finally {
@@ -2667,14 +2885,17 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   const handleCopyChatVideoPrompt = async (prompt: ChapterVideoPrompt) => {
     const text = prompt.visual_prompt.trim();
     if (!text) {
-      addToast("当前 Chat 视频提示词为空，无法复制", "error");
+      addToast(t("video.chapter.chatPromptEmpty"), "error");
       return;
     }
     try {
       await copyTextToClipboard(text);
-      addToast("已复制 Chat 视频提示词", "success");
+      addToast(t("video.chapter.copiedChatPrompt"), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, "复制 Chat 视频提示词失败"), "error");
+      addToast(
+        extractErrorMessage(err, t("video.chapter.copyChatPromptFailed")),
+        "error",
+      );
     }
   };
 
@@ -2683,12 +2904,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   ): Record<string, unknown> => {
     const frameContract = videoFrameImageContractForPromptType(
       prompt.prompt_type,
+      t,
     );
     const trimmedPrompt = prompt.visual_prompt.trim();
     const previewValidationError = promptLengthError(
       frameContract.promptLabel,
       trimmedPrompt,
       VIDEO_FRAME_IMAGE_PROMPT_MIN_CHARS,
+      t,
     );
     if (previewValidationError) {
       throw new Error(previewValidationError);
@@ -2697,6 +2920,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       prompt,
       videoFrameImages,
       currentLanguageFramePrompts,
+      t,
     );
     if (references.error) {
       throw new Error(references.error);
@@ -2708,6 +2932,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const referenceOrderError = referenceLabelOrderError(
       effectiveVisualPrompt,
       references.ids.length,
+      t,
     );
     if (referenceOrderError) {
       throw new Error(referenceOrderError);
@@ -2717,9 +2942,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       effectiveVisualPrompt,
       prompt.chapter_id || chapter?.id || 0,
       prompt.aspect_ratio,
-      buildVideoFrameImageTraceMetadata(prompt, frameContract.source),
+      buildVideoFrameImageTraceMetadata(prompt, frameContract.source, t),
       references.ids,
       references.note,
+      t,
     );
   };
 
@@ -2738,14 +2964,17 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const chain = boundaryFramePromptChainTo(
       prompt,
       currentLanguageFramePrompts,
-      "预览",
+      t("video.chapter.requestPreviewOperation"),
+      t,
     );
     const missingPrompts = chain.filter(
-      (item) => !latestVideoFrameImageForPrompt(item, videoFrameImages),
+      (item) => !latestVideoFrameImageForPrompt(item, videoFrameImages, t),
     );
     if (missingPrompts.length === 0) {
       addToast(
-        `第 1-${prompt.shot_number} 张边界帧图片已存在，无需新增成图请求`,
+        t("video.chapter.boundaryImagesAlreadyExist", {
+          number: prompt.shot_number,
+        }),
         "info",
       );
       return null;
@@ -2755,7 +2984,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const dynamicTailCount = missingPrompts.length - 1;
     const extraPreviewNote =
       dynamicTailCount > 0
-        ? `边界帧图片会顺序生成；当前只预览第 ${firstMissing.shot_number} 张缺失图片请求。后续 ${dynamicTailCount} 张请求依赖本次新生成的图片，暂时无法完整预览。`
+        ? t("video.chapter.boundaryPreviewNotice", {
+            first: firstMissing.shot_number,
+            count: dynamicTailCount,
+          })
         : null;
     return {
       requests: [buildFrameImageGenerationInput(firstMissing)],
@@ -2769,7 +3001,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   ) => {
     if (!chapter) return;
     if (requests.length === 0) {
-      addToast("没有可预览的成图请求", "error");
+      addToast(t("video.chapter.previewImageRequestsEmpty"), "error");
       return;
     }
     const previewScope = imageRequestPreviewScopeRef.current;
@@ -2799,7 +3031,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       );
     } catch (err) {
       if (imageRequestPreviewScopeRef.current !== previewScope) return;
-      addToast(extractErrorMessage(err, "查看成图请求失败"), "error");
+      addToast(extractErrorMessage(err, t("video.chapter.viewImageRequestFailed")), "error");
       setImageRequestPreviewOpen(false);
     } finally {
       if (imageRequestPreviewScopeRef.current === previewScope) {
@@ -2813,7 +3045,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     try {
       previewInput = buildFrameImagePreviewInputs(prompt);
     } catch (err) {
-      addToast(extractErrorMessage(err, "预览成图请求失败"), "error");
+      addToast(extractErrorMessage(err, t("video.chapter.previewImageRequestFailed")), "error");
       return;
     }
     if (!previewInput) return;
@@ -2852,7 +3084,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       selectedSegmentNumber == null ||
       workflowMode !== VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA
     ) {
-      addToast("请从片段提示词卡片选择参考媒体方案", "error");
+      addToast(t("video.chapter.referencePreviewOnly"), "error");
       return null;
     }
     if (videoOptionsStateError) {
@@ -2872,7 +3104,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       return null;
     }
     if (!isDurationAllowed(options.durationSecs, effectiveDurationLimits)) {
-      addToast("视频时长不在默认视频模型支持范围内", "error");
+      addToast(t("video.reference.durationUnsupported"), "error");
       return null;
     }
     return segment;
@@ -2885,6 +3117,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const inputError = referenceMediaDraftError(
       draft.prompt,
       referenceMediaRowsByKindFromDraft(draft),
+      t,
     );
     if (inputError) {
       addToast(inputError, "error");
@@ -2916,7 +3149,10 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       setPromptRequestPreviewData(preview);
     } catch (err) {
       if (promptRequestPreviewScopeRef.current !== previewScope) return;
-      addToast(extractErrorMessage(err, "预览参考媒体视频请求失败"), "error");
+      addToast(
+        extractErrorMessage(err, t("video.chapter.previewReferenceMediaFailed")),
+        "error",
+      );
       setPromptRequestPreviewOpen(false);
     } finally {
       if (promptRequestPreviewScopeRef.current === previewScope) {
@@ -2927,12 +3163,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 
   const handleSaveReferenceMediaDraft = async () => {
     if (selectedSegmentNumber == null) {
-      addToast("请先选择参考媒体片段", "error");
+      addToast(t("video.chapter.selectReferenceMediaSegment"), "error");
       return;
     }
     try {
       if (!(await saveReferenceMediaDraft(selectedSegmentNumber))) return;
-      addToast("参考媒体草稿已保存", "success");
+      addToast(t("video.chapter.referenceMediaDraftSaved"), "success");
     } catch {
       // persistSegmentRecipe 已显示错误。
     }
@@ -2958,12 +3194,12 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         runProgressTask,
         handle,
         {
-          title: "参考媒体视频生成",
-          startMessage: "正在准备参考媒体视频生成",
-          successMessage: "参考媒体视频生成完成",
-          errorMessage: "参考媒体视频生成失败",
+          title: t("video.chapter.referenceMediaVideoTitle"),
+          startMessage: t("video.chapter.referenceMediaVideoPreparing"),
+          successMessage: t("video.chapter.referenceMediaVideoGenerated"),
+          errorMessage: t("video.chapter.referenceMediaVideoFailed"),
           total: 7,
-          cancelLabel: "停止生成",
+          cancelLabel: t("video.chapter.stopGeneration"),
         },
         async (task) => {
           const [row] = await verifyVideoGenerationResult(
@@ -2977,10 +3213,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         },
       );
       if (!isCurrentVideoActionScope(requestScope)) return;
-      addToast("参考媒体视频生成完成", "success");
+      addToast(t("video.chapter.referenceMediaVideoGenerated"), "success");
     } catch (err) {
       if (!isCurrentVideoActionScope(requestScope)) return;
-      const message = extractErrorMessage(err, "参考媒体视频生成失败");
+      const message = extractErrorMessage(
+        err,
+        t("video.chapter.referenceMediaVideoFailed"),
+      );
       if (!isCancelledOperation(message)) addToast(message, "error");
     } finally {
       if (isCurrentVideoActionScope(requestScope)) await loadAll();
@@ -2993,7 +3232,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     const segment = referenceMediaSegmentFor(false);
     if (!segment) return;
     if (!referenceMediaDraft.prompt.trim()) {
-      addToast("参考媒体视频 prompt 不能为空", "error");
+      addToast(t("video.chapter.mediaPromptEmpty"), "error");
       return;
     }
     try {
@@ -3007,10 +3246,13 @@ export const VideoTab: React.FC<VideoTabProps> = ({
     if (!beginVideoAction(actionKey)) return;
     let upload: VideoUploadFile | null = null;
     try {
-      upload = await pickVideoUploadFile("参考媒体视频");
+      upload = await pickVideoUploadFile(t, t("video.reference.video"));
     } catch (err) {
       if (isCurrentVideoActionScope(requestScope)) {
-        addToast(extractErrorMessage(err, "打开文件选择器失败"), "error");
+        addToast(
+          extractErrorMessage(err, t("video.chapter.filePickerFailed")),
+          "error",
+        );
       }
       finishVideoAction(actionKey);
       return;
@@ -3034,11 +3276,14 @@ export const VideoTab: React.FC<VideoTabProps> = ({
       if (!isCurrentVideoActionScope(requestScope)) return;
       setSelectedVideoId(row.id);
       setPendingVideoId(null);
-      addToast("参考媒体视频已导入", "success");
+      addToast(t("video.chapter.importedReferenceMediaVideo"), "success");
       await loadAll();
     } catch (err) {
       if (isCurrentVideoActionScope(requestScope)) {
-        addToast(extractErrorMessage(err, "导入参考媒体视频失败"), "error");
+        addToast(
+          extractErrorMessage(err, t("video.chapter.importReferenceMediaVideoFailed")),
+          "error",
+        );
       }
     } finally {
       finishVideoAction(actionKey);
@@ -3046,7 +3291,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
   };
 
   if (!chapter) {
-    return <EmptyHint text="请先在写作桌选择已生成的章节。" />;
+    return <EmptyHint text={t("video.chapter.noChapterSelectedForVideo")} />;
   }
 
   const referenceMediaWorkspace =
@@ -3097,11 +3342,16 @@ export const VideoTab: React.FC<VideoTabProps> = ({
         onVideoLibraryImageIdsChange={setVideoLibraryImageIds}
         onReferenceLimit={() =>
           addToast(
-            `${workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO ? "Chat上传" : "生成参考"}最多只能选择 ${
-              workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO
-                ? MAX_CHAT_REFERENCE_IMAGES
-                : MAX_REFERENCE_IMAGES
-            } 张`,
+            t("video.chapter.referenceLimit", {
+              label:
+                workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO
+                  ? t("video.reference.chatUpload")
+                  : t("video.reference.generationReference"),
+              count:
+                workflowMode === VIDEO_WORKFLOW_MODE_CHAT_VIDEO
+                  ? MAX_CHAT_REFERENCE_IMAGES
+                  : MAX_REFERENCE_IMAGES,
+            }),
             "error",
           )
         }
@@ -3120,7 +3370,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             className="shrink-0 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-xs leading-relaxed text-error"
           >
             {videoPersistedStateError}
-            ；请修正当前片段执行方案、工作区或条目后继续。
+            {t("video.chapter.invalidStateContinue")}
           </div>
         )}
         {videoDataError && (
@@ -3129,7 +3379,7 @@ export const VideoTab: React.FC<VideoTabProps> = ({
             className="flex shrink-0 items-center gap-3 rounded-xl border border-error/40 bg-error-bg px-3 py-2 text-xs leading-relaxed text-error"
           >
             <span className="min-w-0 flex-1">
-              加载视频数据失败：{videoDataError}
+              {t("video.chapter.loadDataFailed", { error: videoDataError })}
             </span>
             <BookButton
               variant="secondary"
@@ -3138,58 +3388,66 @@ export const VideoTab: React.FC<VideoTabProps> = ({
               disabled={videoDataLoading}
             >
               <RotateCcw size={12} />
-              重试加载
+              {t("video.chapter.retryLoad")}
             </BookButton>
           </div>
         )}
         <VideoWorkspaceHeader
-          tabs={VIDEO_WORKSPACE_TABS}
+          tabs={workspaceTabs}
           activeTab={workspaceTab}
           onTabChange={setWorkspaceTab}
         >
           {workflowMode == null ? (
-            <span>未选择片段执行方案</span>
+            <span>{t("video.chapter.noExecutionRecipeSelected")}</span>
           ) : workflowMode === VIDEO_WORKFLOW_MODE_REFERENCE_MEDIA ? (
-            <span>参考媒体 · 当前片段</span>
+            <span>{t("video.chapter.currentReferenceMediaSegment")}</span>
           ) : (
-            <span>{VIDEO_WORKFLOW_MODE_LABELS[workflowMode]} · 当前片段</span>
+            <span>
+              {t("video.chapter.currentWorkflowSegment", {
+                workflow: videoWorkflowModeLabel(workflowMode, t),
+              })}
+            </span>
           )}
         </VideoWorkspaceHeader>
 
         {workspaceTab === "materials" ? (
           <div className="min-h-0 flex-1">
-            <VideoMaterialWorkspace
-              projectId={profileMaterialProjectId}
-              onToast={addToast}
-              runProgressTask={runProgressTask}
-              onRefreshVideoData={loadAll}
-            />
+            <Suspense fallback={<VideoWorkspaceFallback text={t("video.chapter.loadingMaterialsWorkspace")} />}>
+              <VideoMaterialWorkspace
+                projectId={profileMaterialProjectId}
+                onToast={addToast}
+                runProgressTask={runProgressTask}
+                onRefreshVideoData={loadAll}
+              />
+            </Suspense>
           </div>
         ) : workspaceTab === "frames" ? (
           planningOptionsState.options ? (
-            <VideoPlanningWorkspace
-              prompt={frameSegmentPlanPromptForCards}
-              previewSegments={segmentPlanPreview}
-              draft={segmentPlanDraft}
-              options={planningOptionsState.options}
-              durationLimits={durationLimits}
-              loading={segmentPlanDraftLoading}
-              loadError={segmentPlanDraftError}
-              dataReady={selectionValidationReady}
-              acting={acting}
-              shootingScenes={shootingScenes}
-              onGenerate={(targetNarrativeUnitIndex, regenerateExisting) =>
-                handleGenerateSegmentPlan({
-                  targetNarrativeUnitIndex,
-                  regenerateExisting,
-                })
-              }
-              onOptionsChange={setPlanningOptions}
-              onRetryLoad={() => {
-                void refreshSegmentPlanDraft().catch(() => undefined);
-              }}
-              onDelete={(prompt) => void handleDeletePromptRow(prompt)}
-            />
+            <Suspense fallback={<VideoWorkspaceFallback text={t("video.chapter.loadingPlanningWorkspace")} />}>
+              <VideoPlanningWorkspace
+                prompt={frameSegmentPlanPromptForCards}
+                previewSegments={segmentPlanPreview}
+                draft={segmentPlanDraft}
+                options={planningOptionsState.options}
+                durationLimits={durationLimits}
+                loading={segmentPlanDraftLoading}
+                loadError={segmentPlanDraftError}
+                dataReady={selectionValidationReady}
+                acting={acting}
+                shootingScenes={shootingScenes}
+                onGenerate={(targetNarrativeUnitIndex, regenerateExisting) =>
+                  handleGenerateSegmentPlan({
+                    targetNarrativeUnitIndex,
+                    regenerateExisting,
+                  })
+                }
+                onOptionsChange={setPlanningOptions}
+                onRetryLoad={() => {
+                  void refreshSegmentPlanDraft().catch(() => undefined);
+                }}
+                onDelete={(prompt) => void handleDeletePromptRow(prompt)}
+              />
+            </Suspense>
           ) : (
             <div
               role="alert"
@@ -3203,30 +3461,34 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                   onClick={resetPlanningOptions}
                 >
                   <RotateCcw size={12} />
-                  重置规划配置
+                  {t("video.chapter.resetPlanningConfig")}
                 </BookButton>
               </div>
             </div>
           )
         ) : workspaceTab === "assembly" ? (
-          <VideoAssemblyWorkspace
-            projectId={projectId}
-            chapter={chapter}
-            videos={videos}
-            timeline={timeline}
-            adoptedVideoIds={mixedAdoptedVideoIds}
-            unavailableSegmentNumbers={unavailableMixedSegmentNumbers}
-            onToast={addToast}
-            onRefresh={loadAll}
-          />
+          <Suspense fallback={<VideoWorkspaceFallback text={t("video.chapter.loadingAssemblyWorkspace")} />}>
+            <VideoAssemblyWorkspace
+              projectId={projectId}
+              chapter={chapter}
+              videos={videos}
+              timeline={timeline}
+              adoptedVideoIds={mixedAdoptedVideoIds}
+              unavailableSegmentNumbers={unavailableMixedSegmentNumbers}
+              onToast={addToast}
+              onRefresh={loadAll}
+            />
+          </Suspense>
         ) : workspaceTab === "postprocess" ? (
-          <VideoPostProcessWorkspace
-            projectId={projectId}
-            chapter={chapter}
-            videos={videos}
-            onToast={addToast}
-            onRefresh={loadAll}
-          />
+          <Suspense fallback={<VideoWorkspaceFallback text={t("video.chapter.loadingPostprocessWorkspace")} />}>
+            <VideoPostProcessWorkspace
+              projectId={projectId}
+              chapter={chapter}
+              videos={videos}
+              onToast={addToast}
+              onRefresh={loadAll}
+            />
+          </Suspense>
         ) : (
           <div className="min-h-0 flex-1">
             <VideoGenerationWorkspace
@@ -3338,39 +3600,62 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           onDeleteVideo={handleDeleteVideo}
         />
       ) : null}
-      <ImageActionDialog
-        image={imageDetails}
-        busyId={imageBusyId}
-        scoringId={imageScoringId}
-        scoreInput={imageScoreInput}
-        onClose={handleCloseImageDetails}
-        onToggleFavorite={(image) => void handleToggleImageFavorite(image)}
-        onUpdate={(image, input) => handleUpdateImage(image, input)}
-        onScoreInputChange={setImageScoreInput}
-        onScore={(image) => void handleScoreImage(image)}
-        onDelete={(image) => void handleDeleteImage(image)}
-      />
-      <RequestPreviewModal
-        open={promptRequestPreviewOpen}
-        loading={promptRequestPreviewLoading}
-        data={promptRequestPreviewData}
-        fallbackTitle="完整提示词与模型请求"
-        onClose={() => setPromptRequestPreviewOpen(false)}
-      />
-      <RequestPreviewModal
-        open={imageRequestPreviewOpen}
-        loading={imageRequestPreviewLoading}
-        data={imageRequestPreviewData}
-        fallbackTitle="成图模型请求"
-        onClose={() => setImageRequestPreviewOpen(false)}
-      />
-      <RequestPreviewModal
-        open={videoRequestPreviewOpen}
-        loading={videoRequestPreviewLoading}
-        data={videoRequestPreviewData}
-        fallbackTitle="视频模型请求"
-        onClose={() => setVideoRequestPreviewOpen(false)}
-      />
+      {imageDetails ? (
+        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+          <ImageActionDialog
+            image={imageDetails}
+            busyId={imageBusyId}
+            scoringId={imageScoringId}
+            scoreInput={imageScoreInput}
+            onClose={handleCloseImageDetails}
+            onToggleFavorite={(image) => void handleToggleImageFavorite(image)}
+            onUpdate={(image, input) => handleUpdateImage(image, input)}
+            onScoreInputChange={setImageScoreInput}
+            onScore={(image) => void handleScoreImage(image)}
+            onDelete={(image) => void handleDeleteImage(image)}
+          />
+        </Suspense>
+      ) : null}
+      {promptRequestPreviewOpen ? (
+        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+          <RequestPreviewModal
+            open
+            loading={promptRequestPreviewLoading}
+            data={promptRequestPreviewData}
+            fallbackTitle={t("video.chapter.modelRequestPreview")}
+            onClose={() => setPromptRequestPreviewOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+      {imageRequestPreviewOpen ? (
+        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+          <RequestPreviewModal
+            open
+            loading={imageRequestPreviewLoading}
+            data={imageRequestPreviewData}
+            fallbackTitle={t("video.chapter.imageRequestPreview")}
+            onClose={() => setImageRequestPreviewOpen(false)}
+          />
+        </Suspense>
+      ) : null}
+      {videoRequestPreviewOpen ? (
+        <Suspense fallback={<LoadingSpinner size="md" text={t("common.loading")} />}>
+          <RequestPreviewModal
+            open
+            loading={videoRequestPreviewLoading}
+            data={videoRequestPreviewData}
+            fallbackTitle={t("video.chapter.videoRequestPreview")}
+            onClose={() => setVideoRequestPreviewOpen(false)}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 };
+
+const VideoWorkspaceFallback: React.FC<{ text: string }> = ({ text }) => (
+  <div className="flex h-full min-h-48 items-center justify-center text-xs text-book-text-muted">
+    <LoadingSpinner size="sm" className="mr-2" />
+    {text}
+  </div>
+);

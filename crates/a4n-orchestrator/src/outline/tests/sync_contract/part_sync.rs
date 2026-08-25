@@ -37,6 +37,19 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
     .insert(&db)
     .await
     .unwrap();
+    let stale_second = part_outline::ActiveModel {
+        project_id: Set(project_id),
+        part_number: Set(4),
+        title: Set("旧第四部".to_string()),
+        start_chapter: Set(31),
+        end_chapter: Set(40),
+        created_at: Set(old_time),
+        updated_at: Set(old_time),
+        ..Default::default()
+    }
+    .insert(&db)
+    .await
+    .unwrap();
     for (chapter_number, part_id) in [(5, None), (15, None)] {
         chapter_outline::ActiveModel {
             project_id: Set(project_id),
@@ -53,7 +66,7 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
         .await
         .unwrap();
     }
-    let parts = sync_part_outlines(
+    sync_part_outlines_and_assign_chapters_in(
         &db,
         project_id,
         vec![
@@ -74,9 +87,6 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
     )
     .await
     .unwrap();
-    sync_chapter_outline_part_assignments(&db, project_id, &parts, now)
-        .await
-        .unwrap();
     let rows = part_outline::Entity::find()
         .filter(part_outline::Column::ProjectId.eq(project_id))
         .order_by_asc(part_outline::Column::PartNumber)
@@ -90,6 +100,7 @@ async fn sync_part_outlines_preserves_ids_and_rebinds_chapter_outlines() {
     assert_eq!(first.updated_at, now);
     assert_eq!(first.title, "新第一部");
     assert!(!rows.iter().any(|part| part.id == stale.id));
+    assert!(!rows.iter().any(|part| part.id == stale_second.id));
     let outlines = chapter_outline::Entity::find()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .order_by_asc(chapter_outline::Column::ChapterNumber)
@@ -135,7 +146,7 @@ async fn sync_part_outlines_keep_out_of_range_existing_chapter_outline_unbound()
     .insert(&db)
     .await
     .unwrap();
-    let parts = sync_part_outlines(
+    sync_part_outlines_and_assign_chapters_in(
         &db,
         project_id,
         vec![PartOutlineDraft {
@@ -148,9 +159,6 @@ async fn sync_part_outlines_keep_out_of_range_existing_chapter_outline_unbound()
     )
     .await
     .unwrap();
-    sync_chapter_outline_part_assignments(&db, project_id, &parts, now)
-        .await
-        .unwrap();
     let outline = chapter_outline::Entity::find()
         .filter(chapter_outline::Column::ProjectId.eq(project_id))
         .one(&db)

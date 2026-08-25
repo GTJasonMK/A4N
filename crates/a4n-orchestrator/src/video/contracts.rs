@@ -13,32 +13,32 @@ use crate::generation::step_progress_state;
 
 use super::duration::VideoDurationCapability;
 
-pub const FRAME_SEGMENT_PLAN_CONTRACT_VERSION: &str = "video_execution_contract_v5";
-pub const BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION: &str = "boundary_frame_segment_local_v4";
-pub const FIRST_FRAME_CHAIN_CONTRACT_VERSION: &str = "first_frame_chain_execution_v4";
-pub const CHAT_VIDEO_CONTRACT_VERSION: &str = "chat_video_execution_v4";
-pub const STORYBOARD_PROMPT_CONTRACT_VERSION: &str = "storyboard_execution_unit_v2";
-pub const STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION: &str = "storyboard_execution_video_v2";
-pub const FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT: usize = 1;
-pub const VIDEO_PROMPT_CHECKPOINT_STAGE_CODE: &str = "video_prompt_checkpoint";
+pub(super) const FRAME_SEGMENT_PLAN_CONTRACT_VERSION: &str = "video_execution_contract_v5";
+pub(super) const BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION: &str = "boundary_frame_segment_local_v4";
+pub(super) const FIRST_FRAME_CHAIN_CONTRACT_VERSION: &str = "first_frame_chain_execution_v4";
+pub(super) const CHAT_VIDEO_CONTRACT_VERSION: &str = "chat_video_execution_v4";
+pub(super) const STORYBOARD_PROMPT_CONTRACT_VERSION: &str = "storyboard_execution_unit_v2";
+pub(super) const STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION: &str = "storyboard_execution_video_v2";
+pub(super) const FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT: usize = 1;
+pub(super) const VIDEO_PROMPT_CHECKPOINT_STAGE_CODE: &str = "video_prompt_checkpoint";
 
 #[derive(Debug, Clone)]
-pub struct VideoPromptProgressUpdate {
-    pub stage_code: String,
-    pub phase_kind: ProgressPhaseKind,
-    pub current: u32,
-    pub total: u32,
-    pub message: String,
-    pub unit_label: Option<String>,
-    pub item_key: Option<String>,
-    pub item_index: Option<u64>,
-    pub item_total: Option<u64>,
-    pub severity: ProgressSeverity,
-    pub draft_text: Option<String>,
+pub(super) struct VideoPromptProgressUpdate {
+    pub(super) stage_code: String,
+    pub(super) phase_kind: ProgressPhaseKind,
+    pub(super) current: u32,
+    pub(super) total: u32,
+    pub(super) message: String,
+    pub(super) unit_label: Option<String>,
+    pub(super) item_key: Option<String>,
+    pub(super) item_index: Option<u64>,
+    pub(super) item_total: Option<u64>,
+    pub(super) severity: ProgressSeverity,
+    pub(super) draft_text: Option<String>,
 }
 
 impl VideoPromptProgressUpdate {
-    pub fn progress(current: u32, total: u32, message: impl Into<String>) -> Self {
+    pub(super) fn progress(current: u32, total: u32, message: impl Into<String>) -> Self {
         let (phase_kind, severity) =
             step_progress_state(current, total, ProgressPhaseKind::ModelWait);
         Self {
@@ -56,7 +56,7 @@ impl VideoPromptProgressUpdate {
         }
     }
 
-    pub fn committed(
+    pub(super) fn committed(
         current: u32,
         total: u32,
         item_kind: &str,
@@ -81,7 +81,7 @@ impl VideoPromptProgressUpdate {
         }
     }
 
-    pub fn checkpoint(
+    pub(super) fn checkpoint(
         current: u32,
         total: u32,
         checkpoint_key: impl Into<String>,
@@ -106,57 +106,57 @@ impl VideoPromptProgressUpdate {
     }
 }
 
-pub type VideoPromptProgress<'a> =
+pub(super) type VideoPromptProgress<'a> =
     &'a mut (dyn FnMut(VideoPromptProgressUpdate) -> Result<(), a4n_core::error::AppError> + Send);
-pub type VideoPromptChunk<'a> = &'a mut (dyn FnMut(&str, u32) + Send);
+pub(super) type VideoPromptChunk<'a> = &'a mut (dyn FnMut(&str, u32) + Send);
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct ChapterVideoSource {
-    pub content: String,
-    pub summary: Option<String>,
-    pub analysis: Option<Value>,
+pub(crate) struct ChapterVideoSource {
+    pub(super) content: String,
+    pub(super) summary: Option<String>,
+    pub(super) analysis: Option<Value>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProjectChapterVideoSource {
-    pub chapter: chapter::Model,
-    pub source: ChapterVideoSource,
+    pub(super) chapter: chapter::Model,
+    pub(super) source: ChapterVideoSource,
 }
 
 #[derive(Debug, Clone)]
-pub struct ChapterVideoPromptOptions {
-    pub style: String,
-    pub prompt_output_language: PromptOutputLanguage,
-    pub prompt_batch_size: i32,
-    pub segment_plan_prompt_id: Option<i64>,
-    pub target_shot_number: Option<i32>,
-    pub target_narrative_unit_index: Option<u32>,
+pub(crate) struct ChapterVideoPromptOptions {
+    pub(super) style: String,
+    pub(super) prompt_output_language: PromptOutputLanguage,
+    pub(super) prompt_batch_size: i32,
+    pub(super) segment_plan_prompt_id: Option<i64>,
+    pub(super) target_shot_number: Option<i32>,
+    pub(super) target_narrative_unit_index: Option<u32>,
     /// 服务端从当前共享规划解析出的唯一片段执行方案；客户端不能直接提供。
-    pub segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
-    pub duration_secs: i32,
-    pub duration_secs_options: Vec<i32>,
-    pub aspect_ratio: String,
-    pub reference_image_ids: Vec<i64>,
-    pub video_library_image_ids: Vec<i64>,
-    pub duration_capability: Option<VideoDurationCapability>,
-    pub regenerate_existing: bool,
-    pub workflow_run_id: Option<i64>,
+    pub(super) segment_recipe: Option<VideoSegmentExecutionRecipeV1>,
+    pub(super) duration_secs: i32,
+    pub(super) duration_secs_options: Vec<i32>,
+    pub(super) aspect_ratio: String,
+    pub(super) reference_image_ids: Vec<i64>,
+    pub(super) video_library_image_ids: Vec<i64>,
+    pub(super) duration_capability: Option<VideoDurationCapability>,
+    pub(super) regenerate_existing: bool,
+    pub(super) workflow_run_id: Option<i64>,
 }
 
-pub struct ChapterVideoPromptStageInput<'a, 'source> {
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub workflow_mode: &'a str,
-    pub source: ChapterVideoSourceContext<'source>,
-    pub prompt_renderer: &'a dyn PromptRenderer,
-    pub variables: &'a HashMap<String, Value>,
-    pub options: ChapterVideoPromptOptions,
-    pub cancel_token: Option<&'a CancellationToken>,
+pub(super) struct ChapterVideoPromptStageInput<'a, 'source> {
+    pub(super) project_id: i64,
+    pub(super) chapter_id: i64,
+    pub(super) workflow_mode: &'a str,
+    pub(super) source: ChapterVideoSourceContext<'source>,
+    pub(super) prompt_renderer: &'a dyn PromptRenderer,
+    pub(super) variables: &'a HashMap<String, Value>,
+    pub(super) options: ChapterVideoPromptOptions,
+    pub(super) cancel_token: Option<&'a CancellationToken>,
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ChapterVideoSourceContext<'a> {
-    pub content: &'a str,
-    pub summary: Option<&'a str>,
-    pub analysis: Option<&'a Value>,
+pub(super) struct ChapterVideoSourceContext<'a> {
+    pub(super) content: &'a str,
+    pub(super) summary: Option<&'a str>,
+    pub(super) analysis: Option<&'a Value>,
 }

@@ -1,7 +1,7 @@
 use a4n_core::config::app_config::LlmMaxTokensConfig;
 use serde_json::Value;
 
-use super::super::contracts::RuntimeConfigSnapshot;
+use super::super::RuntimeConfigSnapshot;
 use super::super::scope::{RUNTIME_CONFIG_SNAPSHOT, RUNTIME_USER_ID};
 
 pub fn current_snapshot() -> Option<RuntimeConfigSnapshot> {

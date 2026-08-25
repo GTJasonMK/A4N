@@ -1,5 +1,7 @@
 export type WorldObject = Record<string, unknown>;
 
+import type { MessageKey, MessageTranslator } from "../../../i18n";
+
 export type WorldEditMode = "structured" | "json" | "text";
 
 interface WorldEditDraft {
@@ -40,45 +42,47 @@ export const FACTION_KEYS = ["factions"];
 
 const TITLE_KEYS = new Set(["name", "title", "mystery", "period"]);
 
-const FIELD_LABELS: Record<string, string> = {
-  premise: "世界前提",
-  core_rules: "核心规则",
-  technology_or_magic: "能力/机制体系",
-  power_system: "能力/机制体系",
-  name: "名称",
-  source: "来源",
-  rules: "规则",
-  limits: "限制",
-  cost: "代价",
-  costs: "代价",
-  key_locations: "关键地点",
-  locations: "关键地点",
-  factions: "主要阵营",
-  history_timeline: "历史脉络",
-  history: "历史脉络",
-  event: "事件",
-  impact: "影响",
-  conflict_sources: "冲突来源",
-  conflicts: "冲突来源",
-  stakes: "失败代价",
-  culture_and_society: "文化与社会",
-  culture: "文化与社会",
-  customs: "习俗",
-  taboo: "禁忌",
-  values: "价值观",
-  class_structure: "阶层结构",
-  daily_life: "日常生活",
-  mysteries_and_foreshadowing: "悬念与伏笔",
-  mysteries: "悬念与伏笔",
-  early_clues: "早期线索",
-  payoff_direction: "回收方向",
-  genre_promises: "类型承诺",
-  story_function: "叙事功能",
-  agenda: "目标/诉求",
-  representative_characters: "代表角色",
-  description: "描述",
-  weather_cycle: "天气与潮汐",
-};
+const FIELD_LABEL_KEYS: Record<string, MessageKey> = Object.fromEntries(
+  [
+    "premise",
+    "core_rules",
+    "technology_or_magic",
+    "power_system",
+    "name",
+    "source",
+    "rules",
+    "limits",
+    "cost",
+    "costs",
+    "key_locations",
+    "locations",
+    "factions",
+    "history_timeline",
+    "history",
+    "event",
+    "impact",
+    "conflict_sources",
+    "conflicts",
+    "stakes",
+    "culture_and_society",
+    "culture",
+    "customs",
+    "taboo",
+    "values",
+    "class_structure",
+    "daily_life",
+    "mysteries_and_foreshadowing",
+    "mysteries",
+    "early_clues",
+    "payoff_direction",
+    "genre_promises",
+    "story_function",
+    "agenda",
+    "representative_characters",
+    "description",
+    "weather_cycle",
+  ].map((key) => [key, `novel.world.fieldLabels.${key}` as MessageKey]),
+);
 
 export const isRecord = (value: unknown): value is WorldObject =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -116,15 +120,19 @@ export const pickFirst = (
   return null;
 };
 
-export function formatFieldLabel(key: string): string {
-  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+export function formatFieldLabel(key: string, t: MessageTranslator): string {
+  const messageKey = FIELD_LABEL_KEYS[key];
+  if (messageKey) return t(messageKey);
   return key
     .replace(/^_+/, "")
     .replace(/_/g, " ")
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export const valueToText = (value: unknown): string => {
+export const valueToText = (
+  value: unknown,
+  t: MessageTranslator,
+): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean")
@@ -140,8 +148,8 @@ export const valueToText = (value: unknown): string => {
           const details = Object.entries(item)
             .filter(([key]) => !TITLE_KEYS.has(key))
             .map(([key, child]) => {
-              const text = valueToText(child).trim();
-              return text ? `${formatFieldLabel(key)}: ${text}` : "";
+              const text = valueToText(child, t).trim();
+              return text ? `${formatFieldLabel(key, t)}: ${text}` : "";
             })
             .filter(Boolean)
             .join("\n");
@@ -158,8 +166,8 @@ export const valueToText = (value: unknown): string => {
   if (isRecord(value)) {
     return Object.entries(value)
       .map(([key, child]) => {
-        const text = valueToText(child).trim();
-        return text ? `${formatFieldLabel(key)}: ${text}` : "";
+        const text = valueToText(child, t).trim();
+        return text ? `${formatFieldLabel(key, t)}: ${text}` : "";
       })
       .filter(Boolean)
       .join("\n");
@@ -167,7 +175,10 @@ export const valueToText = (value: unknown): string => {
   return stringifyPretty(value);
 };
 
-export const normalizeList = (value: unknown): WorldListItem[] => {
+export const normalizeList = (
+  value: unknown,
+  t: MessageTranslator,
+): WorldListItem[] => {
   if (value === null || value === undefined) return [];
   const source = Array.isArray(value) ? value : [value];
 
@@ -187,8 +198,8 @@ export const normalizeList = (value: unknown): WorldListItem[] => {
         const description = Object.entries(item)
           .filter(([key]) => !TITLE_KEYS.has(key))
           .map(([key, child]) => {
-            const text = valueToText(child).trim();
-            return text ? `${formatFieldLabel(key)}: ${text}` : "";
+            const text = valueToText(child, t).trim();
+            return text ? `${formatFieldLabel(key, t)}: ${text}` : "";
           })
           .filter(Boolean)
           .join("\n");
@@ -261,12 +272,15 @@ export const isEmptyValue = (value: unknown): boolean => {
   return false;
 };
 
-export const summarizeExtraValue = (value: unknown): string => {
+export const summarizeExtraValue = (
+  value: unknown,
+  t: MessageTranslator,
+): string => {
   if (typeof value === "string") return value;
   if (typeof value === "number" || typeof value === "boolean")
     return String(value);
   if (Array.isArray(value)) {
-    const normalized = normalizeList(value);
+    const normalized = normalizeList(value, t);
     if (normalized.length > 0) {
       return normalized
         .map((item) =>
@@ -322,9 +336,21 @@ export const createWorldEditDraft = (value: unknown): WorldEditDraft => {
   };
 };
 
-export const worldSettingSaveNotice = (warnings: string[]) => {
-  const warning = warnings.map((item) => item.trim()).filter(Boolean).join("；");
+export const worldSettingSaveNotice = (
+  warnings: string[],
+  t: MessageTranslator,
+) => {
+  const warning = warnings
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .join(t("common.listSeparator"));
   return warning
-    ? { message: `世界观已保存；${warning}`, type: "info" as const }
-    : { message: "世界观已保存", type: "success" as const };
+    ? {
+        message: t("novel.world.savedWithWarnings", { warnings: warning }),
+        type: "info" as const,
+      }
+    : {
+        message: t("novel.world.saved"),
+        type: "success" as const,
+      };
 };

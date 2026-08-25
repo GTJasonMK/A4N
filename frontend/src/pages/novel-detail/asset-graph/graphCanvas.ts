@@ -3,6 +3,7 @@ import type {
   AssetGraphEdge,
   AssetGraphNode,
 } from "../../../api/project";
+import type { MessageKey, MessageTranslator } from "../../../i18n";
 import { readCssRgbVariable, rgb, rgba, type Rgb } from "../../../utils/cssColor";
 
 export interface PositionedNode extends AssetGraphNode {
@@ -28,6 +29,11 @@ interface GraphLayout {
   layers: PositionedLayer[];
   width: number;
   height: number;
+}
+
+interface ReadyNode {
+  id: string;
+  sequence: number;
 }
 
 interface Point {
@@ -60,7 +66,7 @@ const NETWORK_MIN_HEIGHT = 560;
 const NETWORK_SLOT_WIDTH = NODE_WIDTH + 18;
 const NETWORK_SLOT_HEIGHT = NODE_HEIGHT + 16;
 
-export function buildLayout(graph: AssetDependencyGraph | null): GraphLayout {
+export function buildLayout(graph: AssetDependencyGraph | null, t: MessageTranslator): GraphLayout {
   if (!graph) return { nodes: [], layers: [], width: NETWORK_MIN_WIDTH, height: NETWORK_MIN_HEIGHT };
   const degreeById = nodeDegreeMap(graph.nodes, graph.edges);
   const visibleNodes = graph.nodes.filter((node) => node.id === "project" || node.count > 0);
@@ -82,7 +88,7 @@ export function buildLayout(graph: AssetDependencyGraph | null): GraphLayout {
     outgoing.set(edge.from, outList);
   });
 
-  const layers = topologyDepthLayers(visibleNodes, layoutEdges, nodesById, degreeById);
+  const layers = topologyDepthLayers(visibleNodes, layoutEdges, nodesById, degreeById, t);
   const orderedLayerIds = orderLayerNodes(layers, nodesById, degreeById, incoming, outgoing);
   const nodeCount = Math.max(1, visibleNodes.length);
   const maxLayerCount = Math.max(1, ...orderedLayerIds.map((ids) => ids.length));
@@ -146,6 +152,7 @@ function topologyDepthLayers(
   edges: AssetGraphEdge[],
   nodesById: Map<string, AssetGraphNode>,
   degreeById: Map<string, number>,
+  t: MessageTranslator,
 ): AssetDependencyGraph["layers"] {
   const nodeIds = new Set(nodes.map((node) => node.id));
   const incomingCount = new Map(nodes.map((node) => [node.id, 0]));
@@ -160,21 +167,30 @@ function topologyDepthLayers(
 
   const depthById = new Map(nodes.map((node) => [node.id, 0]));
   const remainingIncoming = new Map(incomingCount);
-  const ready = nodes
-    .filter((node) => (incomingCount.get(node.id) ?? 0) === 0)
-    .map((node) => node.id);
+  const ready: ReadyNode[] = [];
+  let readySequence = 0;
+  for (const node of nodes) {
+    if ((incomingCount.get(node.id) ?? 0) !== 0) continue;
+    pushReadyNode(ready, { id: node.id, sequence: readySequence++ }, nodesById, degreeById);
+  }
   const visited = new Set<string>();
 
   while (ready.length) {
-    ready.sort((a, b) => compareLayerNodeIds(a, b, nodesById, degreeById));
-    const nodeId = ready.shift();
+    const nodeId = popReadyNode(ready, nodesById, degreeById);
     if (!nodeId || visited.has(nodeId)) continue;
     visited.add(nodeId);
     (outgoing.get(nodeId) ?? []).forEach((childId) => {
       depthById.set(childId, Math.max(depthById.get(childId) ?? 0, (depthById.get(nodeId) ?? 0) + 1));
       const nextIncoming = (remainingIncoming.get(childId) ?? 0) - 1;
       remainingIncoming.set(childId, nextIncoming);
-      if (nextIncoming === 0) ready.push(childId);
+      if (nextIncoming === 0) {
+        pushReadyNode(
+          ready,
+          { id: childId, sequence: readySequence++ },
+          nodesById,
+          degreeById,
+        );
+      }
     });
   }
 
@@ -197,9 +213,62 @@ function topologyDepthLayers(
     .sort(([a], [b]) => a - b)
     .map(([depth, ids]) => ({
       index: depth,
-      label: depth === 0 ? "根节点" : `深度 ${depth}`,
+      label: depth === 0 ? t("novel.assetGraph.rootNode") : t("novel.assetGraph.depth", { depth }),
       node_ids: ids,
-    }));
+  }));
+}
+
+function pushReadyNode(
+  ready: ReadyNode[],
+  node: ReadyNode,
+  nodesById: Map<string, AssetGraphNode>,
+  degreeById: Map<string, number>,
+): void {
+  ready.push(node);
+  let index = ready.length - 1;
+  while (index > 0) {
+    const parent = Math.floor((index - 1) / 2);
+    if (!readyNodeComesFirst(ready[index], ready[parent], nodesById, degreeById)) break;
+    [ready[index], ready[parent]] = [ready[parent], ready[index]];
+    index = parent;
+  }
+}
+
+function popReadyNode(
+  ready: ReadyNode[],
+  nodesById: Map<string, AssetGraphNode>,
+  degreeById: Map<string, number>,
+): string | undefined {
+  const first = ready[0];
+  const last = ready.pop();
+  if (ready.length > 0 && last) {
+    ready[0] = last;
+    let index = 0;
+    while (true) {
+      const left = index * 2 + 1;
+      if (left >= ready.length) break;
+      const right = left + 1;
+      const child =
+        right < ready.length &&
+        readyNodeComesFirst(ready[right], ready[left], nodesById, degreeById)
+          ? right
+          : left;
+      if (!readyNodeComesFirst(ready[child], ready[index], nodesById, degreeById)) break;
+      [ready[index], ready[child]] = [ready[child], ready[index]];
+      index = child;
+    }
+  }
+  return first?.id;
+}
+
+function readyNodeComesFirst(
+  left: ReadyNode,
+  right: ReadyNode,
+  nodesById: Map<string, AssetGraphNode>,
+  degreeById: Map<string, number>,
+): boolean {
+  const priority = compareLayerNodeIds(left.id, right.id, nodesById, degreeById);
+  return priority < 0 || (priority === 0 && left.sequence < right.sequence);
 }
 
 function isPrimaryLayoutEdge(edge: AssetGraphEdge): boolean {
@@ -386,6 +455,7 @@ export function drawGraph(
   layout: GraphLayout,
   edges: AssetGraphEdge[],
   selectedId: string | null,
+  t: MessageTranslator,
 ) {
   const theme = readGraphTheme();
   const ratio = window.devicePixelRatio || 1;
@@ -399,6 +469,7 @@ export function drawGraph(
   ctx.fillRect(0, 0, layout.width, layout.height);
 
   const nodeById = new Map(layout.nodes.map((node) => [node.id, node]));
+  const layerOrderByIndex = new Map(layout.layers.map((layer, index) => [layer.index, index]));
   const relatedIds = selectedId ? relatedNodeIds(selectedId, edges) : new Set<string>();
   drawGraphBackdrop(ctx, layout, theme);
   drawLayerHeaders(ctx, layout, theme);
@@ -409,19 +480,19 @@ export function drawGraph(
     const from = nodeById.get(edge.from);
     const to = nodeById.get(edge.to);
     if (!from || !to) return;
-    drawEdge(ctx, layout, from, to, edge, false, theme);
+    drawEdge(ctx, layout, from, to, edge, false, theme, layerOrderByIndex);
   });
   selectedEdges.forEach((edge) => {
     const from = nodeById.get(edge.from);
     const to = nodeById.get(edge.to);
     if (!from || !to) return;
-    drawEdge(ctx, layout, from, to, edge, true, theme);
+    drawEdge(ctx, layout, from, to, edge, true, theme, layerOrderByIndex);
   });
 
   layout.nodes.forEach((node) => {
     const selected = node.id === selectedId;
     const related = !selectedId || selected || relatedIds.has(node.id);
-    drawNode(ctx, node, selected, related, theme);
+    drawNode(ctx, node, selected, related, theme, t);
   });
 }
 
@@ -484,12 +555,13 @@ function drawEdge(
   edge: AssetGraphEdge,
   selected: boolean,
   theme: GraphTheme,
+  layerOrderByIndex: Map<number, number>,
 ) {
   const fromCenter = nodeCenter(from);
   const toCenter = nodeCenter(to);
   const start = rectBoundaryPoint(from, toCenter);
   const end = rectBoundaryPoint(to, fromCenter);
-  const route = buildEdgeRoute(layout, from, to, edge, start, end);
+  const route = buildEdgeRoute(layout, from, to, edge, start, end, layerOrderByIndex);
   if (route.length > 2) {
     drawSteppedEdge(ctx, route, edge, selected, theme);
     return;
@@ -543,9 +615,10 @@ function buildEdgeRoute(
   edge: AssetGraphEdge,
   start: Point,
   end: Point,
+  layerOrderByIndex: Map<number, number>,
 ): Point[] {
-  const fromLayerOrder = layout.layers.findIndex((layer) => layer.index === from.layer);
-  const toLayerOrder = layout.layers.findIndex((layer) => layer.index === to.layer);
+  const fromLayerOrder = layerOrderByIndex.get(from.layer) ?? -1;
+  const toLayerOrder = layerOrderByIndex.get(to.layer) ?? -1;
   if (fromLayerOrder < 0 || toLayerOrder < 0 || Math.abs(toLayerOrder - fromLayerOrder) <= 1) {
     return [start, end];
   }
@@ -687,13 +760,14 @@ function drawNode(
   selected: boolean,
   related: boolean,
   theme: GraphTheme,
+  t: MessageTranslator,
 ) {
   const accent = kindAccent(node.kind, theme);
   const status = node.mutable
-    ? { text: "可编辑", color: theme.success }
+    ? { text: t("novel.assetGraph.editable"), color: theme.success }
     : node.downstream_count > 0
-      ? { text: `影响 ${node.downstream_count} 项`, color: theme.warning }
-      : { text: "只读", color: theme.muted };
+      ? { text: t("novel.assetGraph.impact", { count: node.downstream_count }), color: theme.warning }
+      : { text: t("novel.assetGraph.readOnly"), color: theme.muted };
 
   ctx.save();
   ctx.globalAlpha = related ? 1 : 0.52;
@@ -720,7 +794,7 @@ function drawNode(
   ctx.fillStyle = rgb(theme.muted);
   drawText(
     ctx,
-    `${kindLabel(node.kind)} · ${assetTypeLabel(node.asset_type)}`,
+    `${kindLabel(node.kind, t)} · ${assetTypeLabel(node.asset_type, t)}`,
     node.x + 16,
     node.y + 38,
     node.width - 34,
@@ -728,7 +802,9 @@ function drawNode(
 
   drawStatusPill(ctx, node.x + 16, node.y + 50, status.text, status.color, theme);
   if (node.needs_visualization) {
-    const text = node.visualized ? "已可视化" : "待补";
+    const text = node.visualized
+      ? t("novel.assetGraph.visualized")
+      : t("novel.assetGraph.visualizationPending");
     const color = node.visualized ? theme.success : theme.warning;
     drawStatusPill(ctx, node.x + 90, node.y + 50, text, color, theme);
   }
@@ -763,9 +839,18 @@ function drawStatusPill(
 }
 
 export function hitTestNode(nodes: PositionedNode[], x: number, y: number): PositionedNode | undefined {
-  return [...nodes].reverse().find((node) =>
-    x >= node.x && x <= node.x + node.width && y >= node.y && y <= node.y + node.height
-  );
+  for (let index = nodes.length - 1; index >= 0; index -= 1) {
+    const node = nodes[index];
+    if (
+      x >= node.x &&
+      x <= node.x + node.width &&
+      y >= node.y &&
+      y <= node.y + node.height
+    ) {
+      return node;
+    }
+  }
+  return undefined;
 }
 
 function relatedNodeIds(selectedId: string, edges: AssetGraphEdge[]): Set<string> {
@@ -840,56 +925,70 @@ function drawText(
   ctx.fillText(value === text ? value : `${value.slice(0, -1)}…`, x, y);
 }
 
-export function kindLabel(kind: string): string {
-  if (kind === "text") return "文字";
-  if (kind === "prompt") return "提示词";
-  if (kind === "image") return "图片";
-  if (kind === "video") return "视频";
-  if (kind === "media") return "媒体";
-  if (kind === "profile") return "档案";
-  if (kind === "task") return "任务";
-  return "资产";
-}
-
-const ASSET_TYPE_LABELS: Record<string, string> = {
-  project: "项目",
-  inspiration_conversation: "灵感对话",
-  novel_blueprint: "故事蓝图",
-  blueprint_version: "蓝图版本",
-  part_outline: "分部大纲",
-  chapter_outline: "章节大纲",
-  chapter_content: "章节正文",
-  chapter_analysis: "章节分析",
-  character_profile: "角色档案",
-  object_profile: "物体档案",
-  scene_profile: "场景档案",
-  chapter_manga_prompt: "漫画提示词",
-  manga_page_image: "漫画成图",
-  chapter_shooting_script: "章节拍摄剧本",
-  video_segment_plan: "视频分段规划",
-  video_frame_prompt: "首尾帧提示词",
-  video_frame_image: "首尾帧图片",
-  chapter_video_prompt: "视频生成提示词",
-  generated_video: "生成视频",
-  generation_spec: "生成规格",
-  prompt_artifact: "提示词产物",
-  media_asset: "媒体资产",
-  derived_project: "派生项目",
+const KIND_LABEL_KEYS: Record<string, MessageKey> = {
+  text: "novel.assetGraph.kind.text",
+  prompt: "novel.assetGraph.kind.prompt",
+  image: "novel.assetGraph.kind.image",
+  video: "novel.assetGraph.kind.video",
+  media: "novel.assetGraph.kind.media",
+  profile: "novel.assetGraph.kind.profile",
+  task: "novel.assetGraph.kind.task",
 };
 
-export function assetTypeLabel(value: string | null | undefined): string {
+export function kindLabel(kind: string, t: MessageTranslator): string {
+  return t(KIND_LABEL_KEYS[kind] ?? "novel.assetGraph.kind.asset");
+}
+
+const ASSET_TYPE_LABELS: Record<string, MessageKey> = {
+  project: "novel.assetGraph.assetTypes.project",
+  inspiration_conversation: "novel.assetGraph.assetTypes.inspirationConversation",
+  novel_blueprint: "novel.assetGraph.assetTypes.novelBlueprint",
+  blueprint_version: "novel.assetGraph.assetTypes.blueprintVersion",
+  part_outline: "novel.assetGraph.assetTypes.partOutline",
+  chapter_outline: "novel.assetGraph.assetTypes.chapterOutline",
+  chapter_content: "novel.assetGraph.assetTypes.chapterContent",
+  chapter_analysis: "novel.assetGraph.assetTypes.chapterAnalysis",
+  character_profile: "novel.assetGraph.assetTypes.characterProfile",
+  object_profile: "novel.assetGraph.assetTypes.objectProfile",
+  scene_profile: "novel.assetGraph.assetTypes.sceneProfile",
+  chapter_manga_prompt: "novel.assetGraph.assetTypes.chapterMangaPrompt",
+  manga_page_image: "novel.assetGraph.assetTypes.mangaPageImage",
+  chapter_shooting_script: "novel.assetGraph.assetTypes.chapterShootingScript",
+  video_segment_plan: "novel.assetGraph.assetTypes.videoSegmentPlan",
+  video_frame_prompt: "novel.assetGraph.assetTypes.videoFramePrompt",
+  video_frame_image: "novel.assetGraph.assetTypes.videoFrameImage",
+  chapter_video_prompt: "novel.assetGraph.assetTypes.chapterVideoPrompt",
+  generated_video: "novel.assetGraph.assetTypes.generatedVideo",
+  generation_spec: "novel.assetGraph.assetTypes.generationSpec",
+  prompt_artifact: "novel.assetGraph.assetTypes.promptArtifact",
+  media_asset: "novel.assetGraph.assetTypes.mediaAsset",
+  derived_project: "novel.assetGraph.assetTypes.derivedProject",
+};
+
+export function assetTypeLabel(value: string | null | undefined, t: MessageTranslator): string {
   const normalized = String(value ?? "").trim().toLowerCase();
-  return ASSET_TYPE_LABELS[normalized] ?? "相关资产";
+  return t(ASSET_TYPE_LABELS[normalized] ?? "novel.assetGraph.assetTypes.relatedAsset");
 }
 
 export function isVideoChainNode(node: AssetGraphNode): boolean {
-  return (
-    node.id.startsWith("video_") ||
-    node.id.startsWith("chapter_video_") ||
-    node.id === "generated_videos" ||
-    node.asset_type.includes("video") ||
-    node.label.includes("视频")
-  );
+  return node.asset_type.includes("video");
+}
+
+export function primaryAssetIndexNodes<T extends AssetGraphNode>(
+  visibleNodes: ReadonlyArray<T>,
+  selectedId: string | null,
+): T[] {
+  const videoNodes = visibleNodes.filter(isVideoChainNode);
+  if (!videoNodes.length) return visibleNodes.slice(0, 8);
+  const selectedNode = visibleNodes.find((node) => node.id === selectedId) ?? null;
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const node of [selectedNode, ...videoNodes]) {
+    if (node == null || seen.has(node.id)) continue;
+    seen.add(node.id);
+    result.push(node);
+  }
+  return result;
 }
 
 export function summarizeGraph(graph: AssetDependencyGraph | null): { text: number; image: number; video: number } {
@@ -907,13 +1006,28 @@ export function summarizeGraph(graph: AssetDependencyGraph | null): { text: numb
 }
 
 export function preferredInitialNodeId(graph: AssetDependencyGraph): string | null {
-  const visibleNodes = graph.nodes.filter((node) => node.id === "project" || node.count > 0);
-  return (
-    visibleNodes.find((node) => node.id === "chapter_shooting_script")?.id ??
-    visibleNodes.find((node) => isVideoChainNode(node))?.id ??
-    visibleNodes.find((node) => node.id !== "project" && node.needs_visualization && !node.visualized)?.id ??
-    visibleNodes.find((node) => node.id !== "project")?.id ??
-    visibleNodes[0]?.id ??
-    null
-  );
+  let firstVisible: string | null = null;
+  let shootingScript: string | null = null;
+  let videoChain: string | null = null;
+  let needsVisualization: string | null = null;
+  let firstNonProject: string | null = null;
+  for (const node of graph.nodes) {
+    if (node.id !== "project" && node.count <= 0) continue;
+    firstVisible ??= node.id;
+    if (shootingScript == null && node.id === "chapter_shooting_script") {
+      shootingScript = node.id;
+    }
+    if (videoChain == null && isVideoChainNode(node)) videoChain = node.id;
+    if (node.id !== "project") {
+      if (
+        needsVisualization == null &&
+        node.needs_visualization &&
+        !node.visualized
+      ) {
+        needsVisualization = node.id;
+      }
+      firstNonProject ??= node.id;
+    }
+  }
+  return shootingScript ?? videoChain ?? needsVisualization ?? firstNonProject ?? firstVisible;
 }

@@ -6,7 +6,7 @@ pub async fn list_project_members(
     project_id: i64,
 ) -> Result<Vec<ProjectMemberSummary>, CollaborationDbError> {
     verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Viewer).await?;
-    let root = resolve_root_project_model(db, project_id).await?;
+    let root = resolve_root_project(db, project_id).await?;
     let rows = project_member::Entity::find()
         .filter(project_member::Column::ProjectId.eq(root.id))
         .order_by_asc(project_member::Column::CreatedAt)
@@ -49,14 +49,14 @@ pub async fn update_project_member_role(
     let actor_role =
         verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Manager)
             .await?;
-    let root = resolve_root_project_model(db, project_id).await?;
+    let root = resolve_root_project(db, project_id).await?;
     if member_user_id == root.user_id {
         return Err(CollaborationDbError::InvalidState(
             "不能修改项目所有者角色".to_string(),
         ));
     }
     let member = find_member(db, root.id, member_user_id).await?;
-    let current_role = parse_stored_member_role(&member.role)?;
+    let current_role = parse_stored_member_role(&member.1)?;
     if actor_role != ProjectAccessRole::Owner
         && (current_role == ProjectMemberRole::Manager || role == ProjectMemberRole::Manager)
     {
@@ -65,7 +65,10 @@ pub async fn update_project_member_role(
         ));
     }
     let now = Utc::now().naive_utc();
-    let mut active: project_member::ActiveModel = member.into();
+    let mut active = project_member::ActiveModel {
+        id: Set(member.0),
+        ..Default::default()
+    };
     active.role = Set(role.as_str().to_string());
     active.updated_at = Set(now);
     active
@@ -84,20 +87,20 @@ pub async fn remove_project_member(
     let actor_role =
         verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Manager)
             .await?;
-    let root = resolve_root_project_model(db, project_id).await?;
+    let root = resolve_root_project(db, project_id).await?;
     if member_user_id == root.user_id {
         return Err(CollaborationDbError::InvalidState(
             "不能移除项目所有者".to_string(),
         ));
     }
     let member = find_member(db, root.id, member_user_id).await?;
-    let current_role = parse_stored_member_role(&member.role)?;
+    let current_role = parse_stored_member_role(&member.1)?;
     if actor_role != ProjectAccessRole::Owner && current_role == ProjectMemberRole::Manager {
         return Err(CollaborationDbError::Forbidden(
             "manager 不能移除其他 manager".to_string(),
         ));
     }
-    project_member::Entity::delete_by_id(member.id)
+    project_member::Entity::delete_by_id(member.0)
         .exec(db)
         .await
         .map_err(CollaborationDbError::Database)?;
@@ -109,14 +112,14 @@ pub async fn leave_project(
     user_id: i64,
     project_id: i64,
 ) -> Result<(), CollaborationDbError> {
-    let root = resolve_root_project_model(db, project_id).await?;
+    let root = resolve_root_project(db, project_id).await?;
     if root.user_id == user_id {
         return Err(CollaborationDbError::InvalidState(
             "项目所有者不能离开自己的项目".to_string(),
         ));
     }
     let member = find_member(db, root.id, user_id).await?;
-    project_member::Entity::delete_by_id(member.id)
+    project_member::Entity::delete_by_id(member.0)
         .exec(db)
         .await
         .map_err(CollaborationDbError::Database)?;

@@ -3,10 +3,11 @@ use a4n_core::models::{
     project::text_anchor,
     source_sync::source_sync_run,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
+use std::collections::HashMap;
 
 use super::contracts::SourceSyncAnchorConflictCandidateRecord;
-use super::local_state::local_state_for_generation_spec;
+use super::local_state::local_states_for_generation_specs;
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
 
 pub async fn anchor_conflict_candidates_for_run<C>(
@@ -26,36 +27,98 @@ where
         .filter(generation_spec::Column::RootProjectId.eq(run.root_project_id))
         .all(db)
         .await?;
+    if specs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let spec_ids = specs.iter().map(|spec| spec.id).collect::<Vec<_>>();
+    let refs = generation_spec_text_anchor::Entity::find()
+        .select_only()
+        .column(generation_spec_text_anchor::Column::GenerationSpecId)
+        .column(generation_spec_text_anchor::Column::TextAnchorId)
+        .column(generation_spec_text_anchor::Column::Role)
+        .filter(generation_spec_text_anchor::Column::GenerationSpecId.is_in(spec_ids))
+        .into_tuple::<(i64, i64, String)>()
+        .all(db)
+        .await?;
+    if refs.is_empty() {
+        return Ok(Vec::new());
+    }
+    let refs_by_spec = refs.into_iter().fold(
+        HashMap::<i64, Vec<(i64, i64, String)>>::new(),
+        |mut refs_by_spec, reference| {
+            refs_by_spec.entry(reference.0).or_default().push(reference);
+            refs_by_spec
+        },
+    );
+    let anchor_ids = refs_by_spec
+        .values()
+        .flatten()
+        .map(|reference| reference.1)
+        .collect::<Vec<_>>();
+    let anchors_by_id = text_anchor::Entity::find()
+        .filter(text_anchor::Column::Id.is_in(anchor_ids))
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|anchor| (anchor.id, anchor))
+        .collect::<HashMap<_, _>>();
+    let source_anchor_ids = refs_by_spec
+        .values()
+        .flatten()
+        .filter_map(|reference| anchors_by_id.get(&reference.1))
+        .filter(|anchor| anchor.source_snapshot_id == Some(run.from_snapshot_id))
+        .map(|anchor| anchor.quote_hash.clone())
+        .collect::<Vec<_>>();
+    let candidates_by_quote_hash = if source_anchor_ids.is_empty() {
+        HashMap::new()
+    } else {
+        text_anchor::Entity::find()
+            .filter(text_anchor::Column::ProjectId.eq(run.root_project_id))
+            .filter(text_anchor::Column::SourceSnapshotId.eq(run.to_snapshot_id))
+            .filter(text_anchor::Column::QuoteHash.is_in(source_anchor_ids))
+            .all(db)
+            .await?
+            .into_iter()
+            .fold(
+                HashMap::<String, Vec<text_anchor::Model>>::new(),
+                |mut candidates_by_quote_hash, candidate| {
+                    candidates_by_quote_hash
+                        .entry(candidate.quote_hash.clone())
+                        .or_default()
+                        .push(candidate);
+                    candidates_by_quote_hash
+                },
+            )
+    };
+    let specs_with_refs = specs
+        .iter()
+        .filter(|spec| refs_by_spec.contains_key(&spec.id))
+        .cloned()
+        .collect::<Vec<_>>();
+    let local_states = local_states_for_generation_specs(db, &specs_with_refs).await?;
     let mut records = Vec::new();
     for spec in specs {
-        let refs = generation_spec_text_anchor::Entity::find()
-            .filter(generation_spec_text_anchor::Column::GenerationSpecId.eq(spec.id))
-            .all(db)
-            .await?;
-        if refs.is_empty() {
+        let Some(refs) = refs_by_spec.get(&spec.id) else {
             continue;
-        }
-        let local_state = local_state_for_generation_spec(db, &spec).await?;
+        };
+        let local_state = local_states.get(&spec.id).cloned().ok_or_else(|| {
+            SourceSyncDbError::Internal(format!("未生成 generation_spec {} 的本地状态", spec.id))
+        })?;
         for item in refs {
-            let old_anchor = text_anchor::Entity::find_by_id(item.text_anchor_id)
-                .one(db)
-                .await?
-                .ok_or_else(|| {
-                    SourceSyncDbError::NotFound(format!("文本锚点不存在: {}", item.text_anchor_id))
-                })?;
+            let old_anchor = anchors_by_id.get(&item.1).cloned().ok_or_else(|| {
+                SourceSyncDbError::NotFound(format!("文本锚点不存在: {}", item.1))
+            })?;
             if old_anchor.source_snapshot_id != Some(run.from_snapshot_id) {
                 continue;
             }
-            let candidates = text_anchor::Entity::find()
-                .filter(text_anchor::Column::ProjectId.eq(run.root_project_id))
-                .filter(text_anchor::Column::SourceSnapshotId.eq(run.to_snapshot_id))
-                .filter(text_anchor::Column::QuoteHash.eq(&old_anchor.quote_hash))
-                .all(db)
-                .await?;
+            let candidates = candidates_by_quote_hash
+                .get(&old_anchor.quote_hash)
+                .cloned()
+                .unwrap_or_default();
             records.push(SourceSyncAnchorConflictCandidateRecord {
                 spec: spec.clone(),
                 local_state,
-                text_anchor_role: item.role,
+                text_anchor_role: item.2.clone(),
                 old_anchor,
                 candidates,
             });

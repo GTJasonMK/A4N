@@ -1,7 +1,7 @@
 //! 主题业务规则（无 DB）。
 
 /// 主题名称 trim 后非空。
-pub fn normalize_theme_name(name: String) -> Result<String, String> {
+pub(super) fn normalize_theme_name(name: String) -> Result<String, String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("主题名称不能为空".to_string());
@@ -10,7 +10,10 @@ pub fn normalize_theme_name(name: String) -> Result<String, String> {
 }
 
 /// 系统默认主题与当前激活主题不可删除。
-pub fn ensure_theme_can_be_deleted(is_system_default: bool, is_active: bool) -> Result<(), String> {
+pub(super) fn ensure_theme_can_be_deleted(
+    is_system_default: bool,
+    is_active: bool,
+) -> Result<(), String> {
     if is_system_default {
         return Err("系统默认主题不能删除".to_string());
     }

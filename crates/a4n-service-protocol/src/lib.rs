@@ -81,9 +81,8 @@ pub use registry::{
     IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, LLM_CHAT_CAPABILITY_VERSION,
     LLM_SERVICE_NAME, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PROTOCOL_VERSION,
     RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, VIDEO_PROVIDER_CAPABILITY_VERSION,
-    VIDEO_SERVICE_NAME, egress_data_type_for_service, expected_capability_label_for_service,
-    expected_capability_version_for_service, known_service_health,
-    required_secret_policy_for_service, service_for_capability_version,
+    VIDEO_SERVICE_NAME, egress_data_type_for_service, expected_capability_version_for_service,
+    known_service_health, service_for_capability_version,
 };
 pub use release::{
     RELEASE_MANIFEST_SCHEMA_VERSION, ReleaseBinaryManifest, ReleaseManifest,
@@ -101,14 +100,10 @@ pub use resource::{
 pub use response::{ServiceError, ServiceErrorCode, ServiceResponse, ServiceStatus};
 pub use runtime::{ServiceOperationMetrics, ServiceRuntimeMetrics};
 pub use sanitization::{
-    contains_unredacted_sensitive_value, redact_sensitive_message, redact_sensitive_value,
-    sanitize_capability_task_event, sanitize_service_response,
+    redact_sensitive_message, redact_sensitive_value, sanitize_capability_task_event,
+    sanitize_service_response,
 };
-pub use validation::{
-    RequiredSecretPolicy, validate_known_service_request, validate_known_service_request_envelope,
-    validate_provider_api_key_secret_policy, validate_service_request_context,
-    validate_service_request_envelope,
-};
+pub use validation::validate_service_request_context;
 
 #[cfg(test)]
 mod tests;

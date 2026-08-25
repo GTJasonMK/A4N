@@ -1,9 +1,7 @@
-use a4n_core::{error::AppError, models::generation::generation_spec};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
-use serde_json::Value;
-
 use crate::project_dependency_graph::AssetLineageRecord;
 use crate::project_dependency_graph::details::records::{db_record_result, lineage_ref};
+use a4n_core::{error::AppError, models::generation::generation_spec};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub(in crate::project_dependency_graph) async fn generation_spec_detail_records<C>(
     db: &C,
@@ -22,15 +20,9 @@ where
 }
 
 pub(super) fn generation_spec_record(spec: generation_spec::Model) -> AssetLineageRecord {
-    let legacy_label = spec
-        .params_json
-        .get("legacy_table")
-        .and_then(Value::as_str)
-        .zip(spec.params_json.get("legacy_id").and_then(Value::as_i64))
-        .map(|(table, id)| format!("{table} #{id}"));
     AssetLineageRecord {
         id: format!("generation_spec:{}", spec.id),
-        label: legacy_label.unwrap_or_else(|| format!("{} #{}", spec.target_kind, spec.id)),
+        label: format!("{} #{}", spec.target_kind, spec.id),
         asset_kind: "generation_spec".to_string(),
         asset_id: Some(spec.id),
         status: Some(spec.status.clone()),

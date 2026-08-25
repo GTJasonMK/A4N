@@ -1,10 +1,11 @@
 use a4n_core::error::AppError;
 use a4n_core::models::galgame::{galgame_line, galgame_scene};
 use a4n_db::project::ProjectFamilyContext;
+use a4n_domain::project::ProjectKind;
 
 use super::{
-    OrchestratorContext, PROJECT_KIND_GALGAME, galgame_context_record_error,
-    galgame_project_record_error, validate_positive_id,
+    OrchestratorContext, galgame_context_record_error, galgame_project_record_error,
+    validate_positive_id,
 };
 
 impl OrchestratorContext {
@@ -14,7 +15,7 @@ impl OrchestratorContext {
     ) -> Result<ProjectFamilyContext, AppError> {
         validate_positive_id(project_id, "project_id")?;
         let context = self.derived_project_family_context(project_id).await?;
-        if context.project.project_kind != PROJECT_KIND_GALGAME {
+        if context.project.project_kind != ProjectKind::Galgame.as_str() {
             return Err(AppError::InvalidArgument(format!(
                 "项目不是 Galgame 派生项目: {project_id}"
             )));
@@ -60,13 +61,12 @@ impl OrchestratorContext {
         speaker_profile_id: i64,
     ) -> Result<(), AppError> {
         validate_positive_id(speaker_profile_id, "speaker_profile_id")?;
-        a4n_db::galgame::galgame_speaker_profile_in_root_project_record(
+        a4n_db::galgame::validate_galgame_speaker_profile_in_root_project(
             self.database.connection(),
             context.root_project.id,
             speaker_profile_id,
         )
         .await
-        .map(|_| ())
         .map_err(galgame_context_record_error)
     }
 
@@ -77,7 +77,7 @@ impl OrchestratorContext {
         expected_source_snapshot_chapter_id: Option<i64>,
     ) -> Result<(), AppError> {
         validate_positive_id(text_anchor_id, "text_anchor_id")?;
-        a4n_db::galgame::galgame_text_anchor_in_source_snapshot_record(
+        a4n_db::galgame::validate_galgame_text_anchor_in_source_snapshot(
             self.database.connection(),
             context.root_project.id,
             context.source_snapshot.id,
@@ -85,7 +85,6 @@ impl OrchestratorContext {
             expected_source_snapshot_chapter_id,
         )
         .await
-        .map(|_| ())
         .map_err(galgame_context_record_error)
     }
 }

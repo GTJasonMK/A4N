@@ -41,6 +41,36 @@ async fn project_and_profile(
     (project, profile)
 }
 
+#[tokio::test]
+async fn missing_portrait_profiles_returns_only_profiles_without_portraits() {
+    let db = setup_db().await;
+    let (project, covered_profile) = project_and_profile(&db, "缺失立绘批量检查").await;
+    let missing_profile =
+        crate::character::create_profile(&db, project.id, "待生成角色", empty_profile_attributes())
+            .await
+            .unwrap();
+    create_character_portrait_for_profile(
+        &db,
+        CharacterPortraitCreateInput {
+            profile_id: covered_profile.id,
+            project_id: project.id,
+            portrait_type: "full_body".to_string(),
+            image_path: "portraits/covered.png".to_string(),
+            prompt: "covered".to_string(),
+            expression: None,
+            pose: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let missing = missing_portrait_profiles(&db, project.id).await.unwrap();
+    assert_eq!(
+        missing.iter().map(|profile| profile.id).collect::<Vec<_>>(),
+        vec![missing_profile.id]
+    );
+}
+
 async fn primary_ids(db: &DatabaseConnection, profile_id: i64) -> Vec<i64> {
     character_portrait::Entity::find()
         .filter(character_portrait::Column::ProfileId.eq(profile_id))

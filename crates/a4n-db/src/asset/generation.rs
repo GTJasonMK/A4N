@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use super::contracts::{
     AssetDbError, ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput,
@@ -95,8 +95,9 @@ where
         .iter()
         .chain(result.updated.iter())
         .map(|profile| (profile.normalized_name.clone(), profile.id))
-        .collect::<BTreeMap<_, _>>();
-    let mut bound = BTreeSet::new();
+        .collect::<HashMap<_, _>>();
+    let mut bound = HashSet::new();
+    let mut evidence_batches = Vec::with_capacity(inputs.len());
     for input in inputs {
         if !bound.insert(input.normalized_name.clone()) {
             return Err(AssetDbError::InvalidArgument(format!(
@@ -126,21 +127,21 @@ where
                 "物体档案 profile_evidence 不能为空".to_string(),
             ));
         }
-        crate::text_anchor::merge_profile_evidence_records(
-            db,
-            project_id,
-            None,
-            TextAnchorProfileKind::Object,
-            profile_id,
-            refs,
-        )
-        .await?;
+        evidence_batches.push((profile_id, refs));
     }
     if bound.len() != profiles.len() {
         return Err(AssetDbError::InvalidArgument(
             "物体档案证据未覆盖全部写入结果".to_string(),
         ));
     }
+    crate::text_anchor::merge_profile_evidence_records_batch(
+        db,
+        project_id,
+        None,
+        TextAnchorProfileKind::Object,
+        evidence_batches,
+    )
+    .await?;
     Ok(())
 }
 

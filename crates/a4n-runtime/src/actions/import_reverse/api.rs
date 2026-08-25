@@ -4,10 +4,6 @@ use super::{
 };
 use crate::{AppState, actions::access};
 use a4n_core::error::AppError;
-use a4n_orchestrator::import_reverse::ReverseEngineerApplicationInput;
-
-pub type ReverseProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync + 'a);
 
 pub struct AuthorizedReverseEngineerInput {
     input: ReverseEngineerInput,
@@ -39,32 +35,16 @@ pub async fn authorize_reverse_engineer(
 pub async fn reverse_engineer(
     state: &AppState,
     authorized: AuthorizedReverseEngineerInput,
-    progress: ReverseProgressReporter<'_>,
+    progress: &(dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync),
     active_task_id: Option<&str>,
 ) -> Result<ReverseEngineeringCandidate, AppError> {
-    let ReverseEngineerInput {
-        target,
-        project_id,
-        content_sample,
-        auto_context,
-        context_limit,
-        variables,
-    } = authorized.input;
-    let variables = variables.unwrap_or_default();
+    let input = authorized.input;
+    let project_id = input.project_id;
+    let target = input.target;
     let prompt_renderer = state;
     let mut result = state
         .orchestrator()
-        .run_reverse_engineering_validated(ReverseEngineerApplicationInput {
-            project_id,
-            manual_sample: &content_sample,
-            auto_context,
-            context_limit,
-            variables: &variables,
-            target,
-            prompt_renderer,
-            progress,
-            active_task_id,
-        })
+        .run_reverse_engineering_validated(input, prompt_renderer, progress, active_task_id)
         .await?;
     if target == ReverseEngineeringTarget::Blueprint {
         result

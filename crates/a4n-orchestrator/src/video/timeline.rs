@@ -24,6 +24,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::workflow::WORKFLOW_STATUS_COMPLETED;
+use a4n_db::video::ChapterVideoPromptTimelineRecord;
 use std::collections::HashMap;
 
 use crate::collaboration::ProjectAccessRole;
@@ -380,7 +381,7 @@ impl OrchestratorContext {
         snapshot: a4n_db::video::VideoTimelineSnapshot,
     ) -> Result<VideoTimelineSummary, AppError> {
         let prompts = self
-            .chapter_video_prompts_for_chapter(project_id, chapter_id)
+            .chapter_video_prompt_timeline_records_for_chapter(project_id, chapter_id)
             .await?;
         let videos = self
             .generated_videos_for_chapter(project_id, chapter_id)
@@ -419,6 +420,39 @@ impl OrchestratorContext {
             .iter()
             .map(|item| (item.id, item))
             .collect::<HashMap<_, _>>();
+        let prompts_by_id = prompts.iter().fold(
+            HashMap::with_capacity(prompts.len()),
+            |mut by_id, prompt| {
+                by_id.entry(prompt.id).or_insert(prompt);
+                by_id
+            },
+        );
+        let videos_by_id =
+            videos
+                .iter()
+                .fold(HashMap::with_capacity(videos.len()), |mut by_id, video| {
+                    by_id.entry(video.id).or_insert(video);
+                    by_id
+                });
+        let segments_by_identity = segments.iter().fold(
+            HashMap::with_capacity(segments.len()),
+            |mut by_identity, segment| {
+                by_identity
+                    .entry((
+                        segment.source_shot_id.as_str(),
+                        segment.segment_index_in_shot,
+                    ))
+                    .or_insert(segment);
+                by_identity
+            },
+        );
+        let recipes_by_number = recipes.iter().fold(
+            HashMap::with_capacity(recipes.len()),
+            |mut by_number, recipe| {
+                by_number.entry(recipe.segment_number).or_insert(recipe);
+                by_number
+            },
+        );
         let mut items = Vec::with_capacity(order.len());
         for (index, id) in order.into_iter().enumerate() {
             let item = by_id.get(&id).ok_or_else(|| AppError::InvalidState {
@@ -427,18 +461,17 @@ impl OrchestratorContext {
             })?;
             let display_index = i32::try_from(index + 1)
                 .map_err(|_| AppError::InvalidArgument("时间线片段数量超出范围".to_string()))?;
-            let prompt = item
-                .insert_plan_prompt_id
-                .map(|prompt_id| {
-                    prompts
-                        .iter()
-                        .find(|row| row.id == prompt_id)
-                        .ok_or_else(|| AppError::InvalidState {
-                            current: "inserted_timeline_prompt_missing".to_string(),
-                            operation: format!("读取插入时间线项 {id}"),
+            let prompt =
+                item.insert_plan_prompt_id
+                    .map(|prompt_id| {
+                        prompts_by_id.get(&prompt_id).copied().ok_or_else(|| {
+                            AppError::InvalidState {
+                                current: "inserted_timeline_prompt_missing".to_string(),
+                                operation: format!("读取插入时间线项 {id}"),
+                            }
                         })
-                })
-                .transpose()?;
+                    })
+                    .transpose()?;
             let kind = match item.item_kind.as_str() {
                 a4n_db::video::TIMELINE_INSERTED_KIND => ApiItemKind::Inserted,
                 a4n_db::video::TIMELINE_NATIVE_KIND => ApiItemKind::Native,
@@ -463,14 +496,10 @@ impl OrchestratorContext {
                 shared_plan
                     .as_ref()
                     .map(|_| {
-                        segments
-                            .iter()
-                            .find(|segment| {
-                                Some(segment.source_shot_id.as_str())
-                                    == item.native_source_shot_id.as_deref()
-                                    && Some(segment.segment_index_in_shot)
-                                        == item.native_segment_index_in_shot
-                            })
+                        item.native_source_shot_id
+                            .as_deref()
+                            .zip(item.native_segment_index_in_shot)
+                            .and_then(|identity| segments_by_identity.get(&identity).copied())
                             .ok_or_else(|| AppError::InvalidState {
                                 current: "native_timeline_item_not_in_current_plan".to_string(),
                                 operation: format!("生成章节视频时间线项 {id}"),
@@ -483,21 +512,20 @@ impl OrchestratorContext {
             let selected_video_id = match kind {
                 ApiItemKind::Inserted => prompt.and_then(|row| row.generated_video_id),
                 ApiItemKind::Native => native_segment.and_then(|segment| {
-                    recipes
-                        .iter()
-                        .find(|recipe| recipe.segment_number == segment.segment_number)
+                    recipes_by_number
+                        .get(&segment.segment_number)
+                        .copied()
                         .and_then(|recipe| recipe.adopted_video_id)
                 }),
             };
             let generated_video_id = selected_video_id
                 .map(|video_id| {
-                    let video = videos
-                        .iter()
-                        .find(|video| video.id == video_id)
-                        .ok_or_else(|| AppError::InvalidState {
+                    let video = videos_by_id.get(&video_id).copied().ok_or_else(|| {
+                        AppError::InvalidState {
                             current: format!("timeline_selected_video_missing:{video_id}"),
                             operation: format!("生成章节视频时间线项 {id}"),
-                        })?;
+                        }
+                    })?;
                     if video.project_id != project_id
                         || video.chapter_id != Some(chapter_id)
                         || video.status != generated_video::STATUS_COMPLETED
@@ -653,7 +681,7 @@ pub(crate) async fn inserted_segment_neighbor_context(
         video_segment_recipes_for_plan_from_metadata(plan.metadata_json.as_ref(), plan_style)
             .map_err(AppError::InvalidArgument)?;
     let prompts = service
-        .chapter_video_prompts_for_chapter(project_id, chapter_id)
+        .chapter_video_prompt_timeline_records_for_chapter(project_id, chapter_id)
         .await?;
     let videos = service
         .generated_videos_for_chapter(project_id, chapter_id)
@@ -693,11 +721,11 @@ pub(crate) async fn inserted_segment_neighbor_context(
 fn timeline_item_context(
     item_id: Option<i64>,
     items: &[chapter_video_timeline_item::Model],
-    prompts: &[chapter_video_prompt::Model],
+    prompts: &[ChapterVideoPromptTimelineRecord],
     segments: &[VideoSegmentPlanV2],
     recipes: &[VideoSegmentExecutionRecipeV1],
     videos: &[generated_video::Model],
-    images: &[generated_image::Model],
+    images: &[generated_image::Reference],
 ) -> Result<Value, AppError> {
     let Some(item_id) = item_id else {
         return Ok(Value::Null);
@@ -764,7 +792,7 @@ fn timeline_item_context(
     let tail_frame_image_id = video_id.and_then(|video_id| {
         images
             .iter()
-            .find(|image| crate::video::tail_frame_image_belongs_to_video(image, video_id))
+            .find(|image| crate::video::tail_frame_reference_belongs_to_video(image, video_id))
             .map(|image| image.id)
     });
     Ok(json!({
@@ -1012,7 +1040,7 @@ async fn validate_inserted_continuity_source(
         .await?;
     if !images
         .iter()
-        .any(|image| crate::video::tail_frame_image_belongs_to_video(image, video_id))
+        .any(|image| crate::video::tail_frame_reference_belongs_to_video(image, video_id))
     {
         return Err(AppError::InvalidArgument(format!(
             "插入片段续接来源视频 #{video_id} 已没有可用尾帧，请刷新后重试"

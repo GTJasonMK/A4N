@@ -5,8 +5,8 @@ use a4n_orchestrator::project::ProjectFamilyMetadataQuery;
 use crate::AppState;
 use crate::actions::app_error_message;
 
-use super::super::contracts::ProjectSummary;
 use super::{project_progress_query, projection::to_summary};
+use a4n_api_contract::project::ProjectSummary;
 
 pub async fn project_summary_with_family_for_user(
     state: &AppState,

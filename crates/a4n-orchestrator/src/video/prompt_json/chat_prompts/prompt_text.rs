@@ -20,18 +20,18 @@ pub(in crate::video) fn validate_chat_video_prompt_text(
     text: &str,
     prompt_output_language: PromptOutputLanguage,
 ) -> Result<(), AppError> {
-    validate_direct_prompt_text(&text, "Chat 视频提示词 chat_prompt")?;
-    validate_prompt_has_no_upload_status(&text, "Chat 视频提示词 chat_prompt")?;
-    validate_chat_prompt_required_sections(&text, prompt_output_language)?;
+    validate_direct_prompt_text(text, "Chat 视频提示词 chat_prompt")?;
+    validate_prompt_has_no_upload_status(text, "Chat 视频提示词 chat_prompt")?;
+    validate_chat_prompt_required_sections(text, prompt_output_language)?;
     validate_prompt_has_shot_storyboard_section(
-        &text,
+        text,
         "Chat 视频提示词 chat_prompt",
         prompt_output_language,
     )?;
     let avoidance_section = prompt_output_language
         .visual_sections()
         .last()
-        .and_then(|section| chat_prompt_section(&text, section))
+        .and_then(|section| chat_prompt_section(text, section))
         .unwrap_or("");
     if !contains_no_background_music_rule(avoidance_section) {
         return Err(AppError::InvalidArgument(

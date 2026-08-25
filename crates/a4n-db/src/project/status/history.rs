@@ -3,8 +3,19 @@ use crate::project::{ProjectCleanupDbError, validate_positive_i64};
 use a4n_core::models::project::project_status_history;
 use a4n_domain::project::{ProjectStatus, ProjectStatusHistorySummary};
 use sea_orm::{
-    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
+    QueryOrder, QuerySelect, Set,
 };
+
+#[derive(Debug, FromQueryResult)]
+struct ProjectStatusHistoryReadRow {
+    id: i64,
+    from_status: String,
+    to_status: String,
+    reason: Option<String>,
+    changed_by: Option<String>,
+    changed_at: chrono::NaiveDateTime,
+}
 
 pub async fn insert_project_status_history<C>(
     db: &C,
@@ -55,41 +66,81 @@ pub async fn project_status_history(
     validate_positive_i64(project_id, "project_id")
         .map_err(ProjectStatusReadError::InvalidArgument)?;
     let history = project_status_history::Entity::find()
+        .select_only()
+        .column(project_status_history::Column::Id)
+        .column(project_status_history::Column::FromStatus)
+        .column(project_status_history::Column::ToStatus)
+        .column(project_status_history::Column::Reason)
+        .column(project_status_history::Column::ChangedBy)
+        .column(project_status_history::Column::ChangedAt)
         .filter(project_status_history::Column::ProjectId.eq(project_id))
         .order_by_desc(project_status_history::Column::ChangedAt)
         .order_by_desc(project_status_history::Column::Id)
+        .into_model::<ProjectStatusHistoryReadRow>()
         .all(db)
         .await
         .map_err(|error| ProjectStatusReadError::database("读取项目状态历史", error))?;
     history
         .into_iter()
-        .map(project_status_history_summary)
+        .map(project_status_history_summary_row)
         .collect()
 }
 
+fn project_status_history_summary_row(
+    item: ProjectStatusHistoryReadRow,
+) -> Result<ProjectStatusHistorySummary, ProjectStatusReadError> {
+    project_status_history_summary_values(
+        item.id,
+        &item.from_status,
+        &item.to_status,
+        item.reason,
+        item.changed_by,
+        item.changed_at,
+    )
+}
+
+#[cfg(test)]
 pub(super) fn project_status_history_summary(
     item: project_status_history::Model,
 ) -> Result<ProjectStatusHistorySummary, ProjectStatusReadError> {
-    let from_status = ProjectStatus::parse(&item.from_status).ok_or_else(|| {
+    project_status_history_summary_values(
+        item.id,
+        &item.from_status,
+        &item.to_status,
+        item.reason,
+        item.changed_by,
+        item.changed_at,
+    )
+}
+
+fn project_status_history_summary_values(
+    id: i64,
+    from_status_value: &str,
+    to_status_value: &str,
+    reason: Option<String>,
+    changed_by: Option<String>,
+    changed_at: chrono::NaiveDateTime,
+) -> Result<ProjectStatusHistorySummary, ProjectStatusReadError> {
+    let from_status = ProjectStatus::parse(from_status_value).ok_or_else(|| {
         ProjectStatusReadError::InvalidArgument(format!(
             "项目状态历史包含未知 from_status: history_id={}, status={}",
-            item.id, item.from_status
+            id, from_status_value
         ))
     })?;
-    let to_status = ProjectStatus::parse(&item.to_status).ok_or_else(|| {
+    let to_status = ProjectStatus::parse(to_status_value).ok_or_else(|| {
         ProjectStatusReadError::InvalidArgument(format!(
             "项目状态历史包含未知 to_status: history_id={}, status={}",
-            item.id, item.to_status
+            id, to_status_value
         ))
     })?;
-    let reason = canonical_persisted_history_text(item.reason, item.id, "reason")?;
-    canonical_persisted_history_text(item.changed_by, item.id, "changed_by")?;
+    let reason = canonical_persisted_history_text(reason, id, "reason")?;
+    canonical_persisted_history_text(changed_by, id, "changed_by")?;
     Ok(ProjectStatusHistorySummary {
-        id: item.id,
+        id,
         from_status,
         to_status,
         reason,
-        created_at: item.changed_at.to_string(),
+        created_at: changed_at.to_string(),
     })
 }
 

@@ -2,6 +2,7 @@ import React from "react";
 import { EmptyHint } from "../shared";
 import { TextBlock, WorldSummaryView } from "./WorldReadViews";
 import type { WorldObject } from "./worldTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface WorldReadPanelProps {
   hasBlueprint: boolean;
@@ -18,12 +19,13 @@ export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
   worldObject,
   onCreateBlueprint,
 }) => {
+  const { t } = useI18n();
   if (!hasBlueprint) {
     return (
       <div className="a4n-flat-surface p-3">
         <EmptyHint
-          text="尚未建立正式蓝图。可以先直接录入基础蓝图，再回来填写世界观。"
-          actionText={onCreateBlueprint ? "前往项目概览" : undefined}
+          text={t("novel.world.noBlueprint")}
+          actionText={onCreateBlueprint ? t("novel.world.goToOverview") : undefined}
           onAction={onCreateBlueprint}
         />
       </div>
@@ -44,7 +46,7 @@ export const WorldReadPanel: React.FC<WorldReadPanelProps> = ({
 
   return (
     <div className="a4n-flat-surface p-3">
-      <EmptyHint text="尚未建立世界观，可以先写下核心规则、关键地点或主要阵营。" />
+      <EmptyHint text={t("novel.world.noWorld")} />
     </div>
   );
 };

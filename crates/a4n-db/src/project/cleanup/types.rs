@@ -2,10 +2,10 @@ mod error;
 mod results;
 
 pub use error::ProjectCleanupDbError;
-pub use results::{
-    ProjectBlueprintCleanupResult, ProjectConversationCleanupResult,
-    ProjectGeneratedArtifactLinkCleanupResult, ProjectGeneratedArtifactRowCleanupResult,
-    ProjectGenerationMediaGraphCleanupResult, ProjectGenerationRunCleanupResult,
+pub(crate) use results::{
+    ProjectBlueprintCleanupResult, ProjectChapterAdaptationDeleteScope,
+    ProjectConversationCleanupResult, ProjectGeneratedArtifactLinkCleanupResult,
+    ProjectGeneratedArtifactRowCleanupResult, ProjectGenerationMediaGraphCleanupResult,
     ProjectOptimizationCleanupResult, ProjectTaskQueueCleanupResult,
-    ProjectTextAnchorCleanupResult, ProjectTextAnchorDeleteScope, ProjectWorkflowCleanupResult,
+    ProjectTextAnchorCleanupResult, ProjectTextAnchorDeleteScope,
 };

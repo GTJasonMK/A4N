@@ -1,23 +1,20 @@
-use super::contracts::{
-    BlueprintIncrementalSyncStats, BlueprintRelationshipDraft, BlueprintSyncError,
-};
+use super::contracts::{BlueprintRelationshipDraft, BlueprintSyncError};
 use super::identity::{
     blueprint_relationship_identity_from_keys, blueprint_relationship_matches,
     blueprint_relationship_model_identity, normalized_blueprint_identity,
 };
 use a4n_core::{json_contract::is_empty_json_value, models::project::blueprint_relationship};
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::sea_query::{CaseStatement, Expr};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::{HashMap, HashSet};
 
-pub async fn sync_blueprint_relationships<C>(
+pub(in crate::project) async fn sync_blueprint_relationships<C>(
     db: &C,
     project_id: i64,
     relationships: Vec<BlueprintRelationshipDraft>,
     now: NaiveDateTime,
-) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
 {
@@ -29,7 +26,7 @@ pub async fn merge_blueprint_relationships<C>(
     project_id: i64,
     relationships: Vec<BlueprintRelationshipDraft>,
     now: NaiveDateTime,
-) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
 {
@@ -42,7 +39,7 @@ async fn write_blueprint_relationships<C>(
     relationships: Vec<BlueprintRelationshipDraft>,
     now: NaiveDateTime,
     delete_missing: bool,
-) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
 {
@@ -88,7 +85,8 @@ where
             .push(relationship);
     }
 
-    let mut stats = BlueprintIncrementalSyncStats::default();
+    let mut updates = Vec::new();
+    let mut inserts = Vec::new();
     for (key, draft) in incoming {
         if let Some(candidates) = existing_by_key.get_mut(&key)
             && !candidates.is_empty()
@@ -100,24 +98,11 @@ where
                 supplement_relationship_draft(&existing, draft)
             };
             if blueprint_relationship_matches(&existing, &draft) {
-                stats.unchanged += 1;
                 continue;
             }
-
-            let mut active: blueprint_relationship::ActiveModel = existing.into();
-            active.relationship_type = Set(draft.relationship_type);
-            active.character_a = Set(draft.character_a);
-            active.character_b = Set(draft.character_b);
-            active.description = Set(draft.description);
-            active.strength = Set(draft.strength);
-            active.evolution = Set(draft.evolution);
-            active
-                .update(db)
-                .await
-                .map_err(BlueprintSyncError::Database)?;
-            stats.updated += 1;
+            updates.push((existing.id, draft));
         } else {
-            blueprint_relationship::ActiveModel {
+            inserts.push(blueprint_relationship::ActiveModel {
                 project_id: Set(project_id),
                 relationship_type: Set(draft.relationship_type),
                 character_a: Set(draft.character_a),
@@ -127,25 +112,127 @@ where
                 evolution: Set(draft.evolution),
                 created_at: Set(now),
                 ..Default::default()
-            }
-            .insert(db)
+            });
+        }
+    }
+
+    if !inserts.is_empty() {
+        let expected = inserts.len() as u64;
+        let inserted = blueprint_relationship::Entity::insert_many(inserts)
+            .exec_without_returning(db)
             .await
             .map_err(BlueprintSyncError::Database)?;
-            stats.inserted += 1;
+        if inserted != expected {
+            return Err(BlueprintSyncError::InvalidArgument(format!(
+                "蓝图关系批量插入返回行数不一致: inserted={}, expected={}",
+                inserted, expected
+            )));
+        }
+    }
+
+    if !updates.is_empty() {
+        let mut relationship_type_case = CaseStatement::new();
+        let mut character_a_case = CaseStatement::new();
+        let mut character_b_case = CaseStatement::new();
+        let mut description_case = CaseStatement::new();
+        let mut strength_case = CaseStatement::new();
+        let mut evolution_case = CaseStatement::new();
+        let mut ids = Vec::with_capacity(updates.len());
+        for (id, draft) in updates {
+            relationship_type_case = relationship_type_case.case(
+                blueprint_relationship::Column::Id.eq(id),
+                Expr::value(draft.relationship_type),
+            );
+            character_a_case = character_a_case.case(
+                blueprint_relationship::Column::Id.eq(id),
+                Expr::value(draft.character_a),
+            );
+            character_b_case = character_b_case.case(
+                blueprint_relationship::Column::Id.eq(id),
+                Expr::value(draft.character_b),
+            );
+            description_case = description_case.case(
+                blueprint_relationship::Column::Id.eq(id),
+                Expr::value(draft.description),
+            );
+            strength_case = strength_case.case(
+                blueprint_relationship::Column::Id.eq(id),
+                Expr::value(draft.strength),
+            );
+            evolution_case = evolution_case.case(
+                blueprint_relationship::Column::Id.eq(id),
+                Expr::value(draft.evolution).cast_as("json"),
+            );
+            ids.push(id);
+        }
+        let updated = blueprint_relationship::Entity::update_many()
+            .col_expr(
+                blueprint_relationship::Column::RelationshipType,
+                relationship_type_case
+                    .finally(Expr::col(blueprint_relationship::Column::RelationshipType))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_relationship::Column::CharacterA,
+                character_a_case
+                    .finally(Expr::col(blueprint_relationship::Column::CharacterA))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_relationship::Column::CharacterB,
+                character_b_case
+                    .finally(Expr::col(blueprint_relationship::Column::CharacterB))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_relationship::Column::Description,
+                description_case
+                    .finally(Expr::col(blueprint_relationship::Column::Description))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_relationship::Column::Strength,
+                strength_case
+                    .finally(Expr::col(blueprint_relationship::Column::Strength))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_relationship::Column::Evolution,
+                evolution_case
+                    .finally(Expr::col(blueprint_relationship::Column::Evolution))
+                    .into(),
+            )
+            .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
+            .filter(blueprint_relationship::Column::Id.is_in(ids.clone()))
+            .exec(db)
+            .await
+            .map_err(BlueprintSyncError::Database)?;
+        if updated.rows_affected != ids.len() as u64 {
+            return Err(BlueprintSyncError::InvalidArgument(format!(
+                "蓝图关系批量更新返回行数不一致: updated={}, expected={}",
+                updated.rows_affected,
+                ids.len()
+            )));
         }
     }
 
     if delete_missing {
-        for stale in existing_by_key.into_values().flatten() {
-            blueprint_relationship::Entity::delete_by_id(stale.id)
+        let stale_ids = existing_by_key
+            .into_values()
+            .flatten()
+            .map(|stale| stale.id)
+            .collect::<Vec<_>>();
+        if !stale_ids.is_empty() {
+            blueprint_relationship::Entity::delete_many()
+                .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
+                .filter(blueprint_relationship::Column::Id.is_in(stale_ids))
                 .exec(db)
                 .await
                 .map_err(BlueprintSyncError::Database)?;
-            stats.deleted += 1;
         }
     }
 
-    Ok(stats)
+    Ok(())
 }
 
 fn supplement_relationship_draft(

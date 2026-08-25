@@ -5,7 +5,12 @@ export interface CharacterDetailInitialEventFilter {
   key?: string | null;
 }
 
-export const syncedChapterText = (chapterNumber: number | null | undefined): string => {
-  if (chapterNumber == null || chapterNumber <= 0) return "尚未同步";
-  return `已同步至第 ${chapterNumber} 章`;
+import type { MessageTranslator } from "../../i18n";
+
+export const syncedChapterText = (
+  chapterNumber: number | null | undefined,
+  t: MessageTranslator,
+): string => {
+  if (chapterNumber == null || chapterNumber <= 0) return t("characterDetail.syncedNotYet");
+  return t("characterDetail.syncedToChapter", { chapter: chapterNumber });
 };

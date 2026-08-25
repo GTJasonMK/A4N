@@ -27,7 +27,7 @@ impl OrchestratorContext {
         input: CanvasImageNodeExecutionInput<'_>,
         host_port: &dyn ImageGenerationHostPort,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<crate::canvas::CanvasNodeRunSummary, AppError> {
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
         let checkpoints = match input.shared_run {
             Some(run) => Some(self.workflow_checkpoint_models(run.workflow_run_id).await?),
             None => None,

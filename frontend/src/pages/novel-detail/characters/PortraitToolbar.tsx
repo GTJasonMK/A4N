@@ -4,6 +4,7 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import type { CharacterProfile } from "../../../api/character";
+import { formatNumber, useI18n } from "../../../i18n";
 
 interface PortraitToolbarProps {
   visiblePortraitCount: number;
@@ -30,6 +31,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
   onPreviewGenerateMissing,
   onGenerateMissing,
 }) => {
+  const { locale, t } = useI18n();
   const selectedProfile =
     selectedProfileId == null
       ? null
@@ -39,11 +41,18 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
     <section className="a4n-flat-surface overflow-hidden">
       <header className="flex flex-col gap-2 px-3 pb-3 pt-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-w-0">
-          <h2 className="text-sm font-semibold text-book-text-main">立绘素材</h2>
+          <h2 className="text-sm font-semibold text-book-text-main">{t("characterDetail.portrait.title")}</h2>
           <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
             {selectedProfile
-              ? `${selectedProfile.name} ${visiblePortraitCount} 张，全项目共 ${totalPortraitCount} 张`
-              : `共 ${totalPortraitCount} 张立绘，来自 ${profiles.length} 位角色档案`}
+              ? t("characterDetail.portrait.summarySelected", {
+                  name: selectedProfile.name,
+                  visible: formatNumber(visiblePortraitCount, locale),
+                  total: formatNumber(totalPortraitCount, locale),
+                })
+              : t("characterDetail.portrait.summaryAll", {
+                  total: formatNumber(totalPortraitCount, locale),
+                  profiles: formatNumber(profiles.length, locale),
+                })}
           </p>
         </div>
         <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
@@ -51,18 +60,18 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
             <Dropdown
               items={[
                 {
-                  label: "生成单个角色立绘",
+                  label: t("characterDetail.portrait.generateSingle"),
                   icon: <Camera size={12} />,
                   onClick: onOpenSingle,
                 },
                 {
-                  label: "上传立绘素材",
+                  label: t("characterDetail.portrait.upload"),
                   icon: <Upload size={12} />,
                   onClick: onOpenUpload,
                 },
                 { type: "divider" },
                 {
-                  label: "查看批量补缺模型请求",
+                  label: t("characterDetail.portrait.previewMissing"),
                   icon: <Eye size={12} />,
                   onClick: () => void onPreviewGenerateMissing(),
                 },
@@ -78,17 +87,17 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
           >
             {generating ? (
               <span className="inline-flex items-center gap-1.5">
-                <LoadingSpinner size="sm" /> 生成中…
+                <LoadingSpinner size="sm" /> {t("characterDetail.portrait.generating")}
               </span>
             ) : (
-              "批量补缺"
+              t("characterDetail.portrait.batchMissing")
             )}
           </BookButton>
         </div>
       </header>
       {profiles.length > 0 ? (
         <div className="border-t border-book-border/40 px-3 py-2.5 sm:px-4">
-        <div className="a4n-filter-chips custom-scrollbar" aria-label="按角色筛选立绘">
+        <div className="a4n-filter-chips custom-scrollbar" aria-label={t("characterDetail.portrait.filterAria")}>
           <button
             type="button"
             className="a4n-filter-chip"
@@ -96,7 +105,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
             aria-pressed={selectedProfileId == null}
             onClick={() => onProfileChange(null)}
           >
-            全部
+            {t("characterDetail.portrait.all")}
           </button>
           {profiles.map((profile) => (
             <button
@@ -106,7 +115,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
               data-active={selectedProfileId === profile.id ? "1" : undefined}
               aria-pressed={selectedProfileId === profile.id}
               onClick={() => onProfileChange(profile.id)}
-              title={`只看 ${profile.name} 的立绘`}
+              title={t("characterDetail.portrait.onlyProfile", { name: profile.name })}
             >
               {profile.name}
             </button>

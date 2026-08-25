@@ -24,6 +24,7 @@ import {
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { isCancelledOperation } from "../../../utils/cancellation";
 import { nonEmptyText } from "../../../utils/text";
+import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../../i18n";
 import type { RunOutlineGeneration } from "./useOutlineGeneration";
 
 interface OutlineAdvancedPanelProps {
@@ -36,9 +37,10 @@ interface OutlineAdvancedPanelProps {
   onBusyChange?: (busy: boolean) => void;
 }
 
-const partOptionLabel = (part: PartOutline): string => {
+const partOptionLabel = (part: PartOutline, locale: Locale, t: MessageTranslator): string => {
   const title = nonEmptyText(part.title);
-  return title ? `第 ${part.part_number} 部 · ${title}` : `第 ${part.part_number} 部`;
+  const heading = t("outline.partSection.part", { part: formatNumber(part.part_number, locale) });
+  return title ? `${heading} · ${title}` : heading;
 };
 
 const CompletionRow: React.FC<{ label: string; current: number; total: number }> = ({
@@ -46,13 +48,14 @@ const CompletionRow: React.FC<{ label: string; current: number; total: number }>
   current,
   total,
 }) => {
+  const { locale } = useI18n();
   const percent = total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0;
   return (
     <div>
       <div className="mb-1 flex items-center gap-2 text-small">
         <span className="font-medium text-book-text-sub">{label}</span>
         <span className="ml-auto tabular-nums text-book-text-muted">
-          {current} / {total}
+          {formatNumber(current, locale)} / {formatNumber(total, locale)}
         </span>
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-book-bg-tertiary">
@@ -65,40 +68,46 @@ const CompletionRow: React.FC<{ label: string; current: number; total: number }>
   );
 };
 
-const PacingSummary: React.FC<{ data: ChapterOutlinePacing }> = ({ data }) => (
-  <div className="space-y-2">
-    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-small">
-      <span className="font-medium text-book-text-main">{data.summary || "暂无节奏结论"}</span>
-      <span className="text-book-text-muted">
-        {data.chapter_count} 章 · 平均节奏 {data.pacing_score.toFixed(2)}
-      </span>
-    </div>
-    {data.analysis.length > 0 ? (
-      <div className="divide-y divide-book-border/35">
-        {data.analysis.map((item) => (
-          <div key={item.chapter_number} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-2 py-1.5 text-small">
-            <span className="min-w-0 truncate text-book-text-sub">
-              第 {item.chapter_number} 章{item.title ? ` · ${item.title}` : ""}
-            </span>
-            <div className="flex items-center gap-1.5">
-              <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-book-bg-tertiary">
-                <div
-                  className="h-full rounded-full bg-book-primary/70"
-                  style={{ width: `${Math.min(100, Math.max(0, item.pacing_score * 100))}%` }}
-                />
-              </div>
-              <span className="w-6 text-right tabular-nums text-book-text-muted">
-                {item.pacing_score.toFixed(1)}
-              </span>
-            </div>
-          </div>
-        ))}
+const PacingSummary: React.FC<{ data: ChapterOutlinePacing }> = ({ data }) => {
+  const { locale, t } = useI18n();
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-small">
+        <span className="font-medium text-book-text-main">{data.summary || t("outline.advancedPanel.noPacingConclusion")}</span>
+        <span className="text-book-text-muted">
+          {t("outline.advancedPanel.chapterPacing", {
+            count: formatNumber(data.chapter_count, locale),
+            score: formatNumber(data.pacing_score, locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+          })}
+        </span>
       </div>
-    ) : (
-      <div className="text-small text-book-text-muted">暂无章节节奏数据</div>
-    )}
-  </div>
-);
+      {data.analysis.length > 0 ? (
+        <div className="divide-y divide-book-border/35">
+          {data.analysis.map((item) => (
+            <div key={item.chapter_number} className="grid grid-cols-[minmax(0,1fr)_64px] items-center gap-2 py-1.5 text-small">
+              <span className="min-w-0 truncate text-book-text-sub">
+                {t("outline.advancedPanel.chapter", { chapter: formatNumber(item.chapter_number, locale) })}{item.title ? ` · ${item.title}` : ""}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-book-bg-tertiary">
+                  <div
+                    className="h-full rounded-full bg-book-primary/70"
+                    style={{ width: `${Math.min(100, Math.max(0, item.pacing_score * 100))}%` }}
+                  />
+                </div>
+                <span className="w-6 text-right tabular-nums text-book-text-muted">
+                  {formatNumber(item.pacing_score, locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-small text-book-text-muted">{t("outline.advancedPanel.noPacingData")}</div>
+      )}
+    </div>
+  );
+};
 
 function AdvancedActionRow({
   title,
@@ -123,6 +132,7 @@ function AdvancedActionRow({
   onPreview: () => void;
   onAction: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       className={`${standalone ? "a4n-flat-surface " : ""}flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center`}
@@ -136,7 +146,7 @@ function AdvancedActionRow({
           <Dropdown
             items={[
               {
-                label: "查看模型请求",
+                label: t("outline.advanced.viewRequest"),
                 icon: <Eye size={12} />,
                 onClick: onPreview,
                 disabled,
@@ -174,9 +184,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   onBusyChange,
 }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
   const showGenerationSuccess = (message: string, warnings: string[]) => {
     addToast(
-      warnings.length > 0 ? `${message}；${warnings.join("；")}` : message,
+      warnings.length > 0 ? `${message}${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}` : message,
       warnings.length > 0 ? "info" : "success",
     );
   };
@@ -290,11 +301,11 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     (requestProjectId: number): number | null => {
       if (!isProjectCurrent(requestProjectId)) return null;
       if (disabledRef.current) {
-        addToast("已有大纲操作进行中，请等待当前操作完成", "error");
+        addToast(t("outline.advancedPanel.operationInProgress"), "error");
         return null;
       }
       if (actionBusyRef.current) {
-        addToast("已有大纲高级操作进行中，请等待当前操作完成", "error");
+        addToast(t("outline.advancedPanel.advancedOperationInProgress"), "error");
         return null;
       }
       actionBusyRef.current = true;
@@ -302,7 +313,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       onBusyChange?.(true);
       return actionSeqRef.current;
     },
-    [addToast, isProjectCurrent, onBusyChange],
+    [addToast, isProjectCurrent, onBusyChange, t],
   );
 
   const finishAction = useCallback((requestSeq: number) => {
@@ -333,13 +344,13 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     (requestProjectId: number): boolean => {
       if (!isProjectCurrent(requestProjectId)) return false;
       if (disabledRef.current || actionBusyRef.current || confirmBusyRef.current) {
-        addToast("已有大纲高级操作进行中，请等待当前操作完成", "error");
+        addToast(t("outline.advancedPanel.advancedOperationInProgress"), "error");
         return false;
       }
       confirmBusyRef.current = true;
       return true;
     },
-    [addToast, isProjectCurrent],
+    [addToast, isProjectCurrent, t],
   );
 
   const finishConfirmAction = useCallback(() => {
@@ -349,17 +360,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
   const selectedPart = useCallback(
     (requestProjectId: number): PartOutline | null => {
       if (typeof selectedPartId !== "number") {
-        addToast("请选择部", "error");
+        addToast(t("outline.advancedPanel.selectPart"), "error");
         return null;
       }
       const part = partsRef.current.find((item) => item.id === selectedPartId) ?? null;
       if (!part || part.project_id !== requestProjectId) {
-        addToast("分部列表已变化，请重新选择", "error");
+        addToast(t("outline.advancedPanel.partsChanged"), "error");
         return null;
       }
       return part;
     },
-    [addToast, selectedPartId],
+    [addToast, selectedPartId, t],
   );
 
   const closeRequestPreview = useCallback(() => {
@@ -458,12 +469,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       setProgress(result);
     } catch (err) {
       if (isProgressCurrent(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "查询进度失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.advancedPanel.progressFailed")), "error");
       }
     } finally {
       if (isProgressCurrent(requestProjectId, requestSeq)) setProgressLoading(false);
     }
-  }, [addToast, isProgressCurrent, projectId]);
+  }, [addToast, isProgressCurrent, projectId, t]);
 
   useEffect(() => {
     if (!autoPoll || disabled) return;
@@ -483,7 +494,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       setPacing(result);
     } catch (err) {
       if (isPacingCurrent(requestProjectId, requestSeq)) {
-        addToast(extractErrorMessage(err, "节奏分析失败"), "error");
+        addToast(extractErrorMessage(err, t("outline.advancedPanel.pacingFailed")), "error");
       }
     } finally {
       if (isPacingCurrent(requestProjectId, requestSeq)) setPacingLoading(false);
@@ -498,11 +509,16 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const value = JSON.parse(beatJson);
       if (typeof value !== "object" || value === null) {
-        throw new Error("必须是对象");
+        throw new Error(t("outline.advancedPanel.invalidObject"));
       }
       payload = value as Record<string, unknown>;
     } catch (err) {
-      addToast(`JSON 解析失败：${extractErrorMessage(err, "")}`, "error");
+      addToast(
+        t("outline.advancedPanel.jsonParseFailed", {
+          error: extractErrorMessage(err, ""),
+        }),
+        "error",
+      );
       return;
     }
     const beatSheet = JSON.stringify(payload);
@@ -512,10 +528,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: "应用节拍映射",
-          startMessage: "模型正在把节拍映射到章节大纲…",
-          successMessage: "节拍映射已应用",
-          errorMessage: "应用节拍失败",
+          title: t("outline.advancedPanel.applyBeat"),
+          startMessage: t("outline.advancedPanel.applyingBeat"),
+          successMessage: t("outline.advancedPanel.beatApplied"),
+          errorMessage: t("outline.advancedPanel.applyBeatFailed"),
           total: 3,
         },
         {
@@ -528,17 +544,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          control.setProgress("正在刷新章纲列表…", 2);
+          control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess("节拍映射已应用", warnings);
+      showGenerationSuccess(t("outline.advancedPanel.beatApplied"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
-        showGenerationError(err, "应用节拍失败");
+        showGenerationError(err, t("outline.advancedPanel.applyBeatFailed"));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setBeatBusy(false);
@@ -553,10 +569,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     let payload: Record<string, unknown>;
     try {
       const value = JSON.parse(beatJson);
-      if (typeof value !== "object" || value === null) throw new Error("必须是对象");
+      if (typeof value !== "object" || value === null) {
+        throw new Error(t("outline.advancedPanel.invalidObject"));
+      }
       payload = value as Record<string, unknown>;
     } catch (err) {
-      addToast(`JSON 解析失败：${extractErrorMessage(err, "")}`, "error");
+      addToast(
+        t("outline.advancedPanel.jsonParseFailed", {
+          error: extractErrorMessage(err, ""),
+        }),
+        "error",
+      );
       return;
     }
     const beatSheet = JSON.stringify(payload);
@@ -568,7 +591,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           part_id: requestPart.id,
           beat_sheet: beatSheet,
         }),
-      "预览节拍映射提示词失败",
+      t("outline.advancedPanel.previewBeatFailed"),
     );
   };
 
@@ -582,10 +605,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: `生成第 ${requestPart.part_number} 部章纲`,
-          startMessage: `模型正在为第 ${requestPart.part_number} 部生成章纲…`,
-          successMessage: `已为第 ${requestPart.part_number} 部生成章纲`,
-          errorMessage: "生成失败",
+          title: t("outline.advancedPanel.generatePartChapters", { part: formatNumber(requestPart.part_number, locale) }),
+          startMessage: t("outline.advancedPanel.generatingPartChapters", { part: formatNumber(requestPart.part_number, locale) }),
+          successMessage: t("outline.advancedPanel.generatedPartChapters", { part: formatNumber(requestPart.part_number, locale) }),
+          errorMessage: t("outline.advancedPanel.generateFailed"),
           total: 3,
         },
         {
@@ -597,17 +620,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          control.setProgress("正在刷新章纲列表…", 2);
+          control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess(`已为第 ${requestPart.part_number} 部生成章纲`, warnings);
+      showGenerationSuccess(t("outline.advancedPanel.generatedPartChapters", { part: formatNumber(requestPart.part_number, locale) }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
-        showGenerationError(err, "生成失败");
+        showGenerationError(err, t("outline.advancedPanel.generateFailed"));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setPartGenBusy(false);
@@ -626,7 +649,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           project_id: requestProjectId,
           part_id: requestPart.id,
         }),
-      "预览本部章纲提示词失败",
+      t("outline.advancedPanel.previewPartChaptersFailed"),
     );
   };
 
@@ -634,12 +657,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const requestProjectId = projectId;
     const requestParts = partsRef.current;
     if (requestParts.length === 0) {
-      addToast("没有可生成章纲的分部", "error");
+      addToast(t("outline.advancedPanel.noPartsToGenerate"), "error");
       return;
     }
     const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
     if (foreignPart) {
-      addToast("分部列表包含其他项目的数据，无法批量生成", "error");
+      addToast(t("outline.advancedPanel.foreignPartsGenerate"), "error");
       return;
     }
     const partIds = requestParts.map((part) => part.id) as [number, ...number[]];
@@ -649,10 +672,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: "批量生成各部章纲",
-          startMessage: `正在生成 ${partIds.length} 个分部的章纲…`,
-          successMessage: "批量生成已完成",
-          errorMessage: "批量生成失败",
+          title: t("outline.advancedPanel.batchGenerate"),
+          startMessage: t("outline.advancedPanel.batchGenerating", { count: formatNumber(partIds.length, locale) }),
+          successMessage: t("outline.advancedPanel.batchGenerated"),
+          errorMessage: t("outline.advancedPanel.batchFailed"),
           total: 3,
         },
         {
@@ -664,17 +687,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          control.setProgress("正在刷新章纲列表…", 2);
+          control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess("批量生成已完成", warnings);
+      showGenerationSuccess(t("outline.advancedPanel.batchGenerated"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
-        showGenerationError(err, "批量生成失败");
+        showGenerationError(err, t("outline.advancedPanel.batchFailed"));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setBatchBusy(false);
@@ -686,12 +709,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const requestProjectId = projectId;
     const requestParts = partsRef.current;
     if (requestParts.length === 0) {
-      addToast("没有可生成章纲的分部", "error");
+      addToast(t("outline.advancedPanel.noPartsToGenerate"), "error");
       return;
     }
     const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
     if (foreignPart) {
-      addToast("分部列表包含其他项目的数据，无法预览", "error");
+      addToast(t("outline.advancedPanel.foreignPartsPreview"), "error");
       return;
     }
     const partIds = requestParts.map((part) => part.id);
@@ -702,7 +725,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           project_id: requestProjectId,
           part_ids: partIds,
         }),
-      "预览批量章纲提示词失败",
+      t("outline.advancedPanel.previewBatchFailed"),
     );
   };
 
@@ -716,10 +739,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: `重新生成第 ${requestPart.part_number} 部`,
-          startMessage: `模型正在重写第 ${requestPart.part_number} 部大纲…`,
-          successMessage: "已重新生成部大纲",
-          errorMessage: "重新生成失败",
+          title: t("outline.advancedPanel.regeneratePart", { part: formatNumber(requestPart.part_number, locale) }),
+          startMessage: t("outline.advancedPanel.regeneratingPart", { part: formatNumber(requestPart.part_number, locale) }),
+          successMessage: t("outline.advancedPanel.regeneratedPart"),
+          errorMessage: t("outline.regenerateFailed"),
           total: 3,
         },
         {
@@ -732,16 +755,16 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          control.setProgress("正在刷新分部列表…", 2);
+          control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess("已重新生成部大纲", warnings);
+      showGenerationSuccess(t("outline.advancedPanel.regeneratedPart"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
-        showGenerationError(err, "重新生成失败");
+        showGenerationError(err, t("outline.regenerateFailed"));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setPartRegenBusy(false);
@@ -760,7 +783,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           project_id: requestProjectId,
           part_id: requestPart.id,
         }),
-      "预览重生成本部提示词失败",
+      t("outline.advancedPanel.regeneratePartPreviewFailed"),
     );
   };
 
@@ -771,18 +794,21 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       expectedParts = outlineRecordTargets(parts);
     } catch (error) {
-      addToast(extractErrorMessage(error, "无法确认当前分部版本"), "error");
+      addToast(extractErrorMessage(error, t("outline.advancedPanel.confirmPartsFailed")), "error");
       return;
     }
     const requestPartCount = expectedParts.length;
     if (!beginConfirmAction(requestProjectId)) return;
     const ok = await confirmDialog({
-      title: "重新生成所有分部",
-      message:
-        `保持当前 ${requestPartCount} 部数量，重新生成全部分部规划？` +
-        `\n\n${requestChaptersPerPart == null ? "沿用现有章节跨度" : `每部按 ${requestChaptersPerPart} 章重新划分`}；` +
-        "已有分部内容会被覆盖，章节大纲只会重新归属，不会删除。",
-      confirmText: "重新生成",
+      title: t("outline.advancedPanel.regenerateAllParts"),
+      message: t("outline.advancedPanel.regenerateAllPartsMessage", {
+        count: formatNumber(requestPartCount, locale),
+        range:
+          requestChaptersPerPart == null
+            ? t("outline.advancedPanel.reuseChapterSpan")
+            : t("outline.advancedPanel.repartition", { count: formatNumber(requestChaptersPerPart, locale) }),
+      }),
+      confirmText: t("outline.advancedPanel.regenerateConfirm"),
       dialogType: "warning",
     });
     if (!ok) {
@@ -803,10 +829,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: "重新生成所有部",
-          startMessage: "模型正在重新生成所有分部大纲，耗时可能较长…",
-          successMessage: "已重新生成所有部",
-          errorMessage: "重新生成失败",
+          title: t("outline.advancedPanel.regenerateAll"),
+          startMessage: t("outline.advancedPanel.regeneratingAll"),
+          successMessage: t("outline.advancedPanel.regeneratedAll"),
+          errorMessage: t("outline.regenerateFailed"),
           total: 3,
         },
         {
@@ -820,17 +846,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          control.setProgress("正在刷新分部列表…", 2);
+          control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess("已重新生成所有部", warnings);
+      showGenerationSuccess(t("outline.advancedPanel.regeneratedAll"), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
-        showGenerationError(err, "重新生成失败");
+        showGenerationError(err, t("outline.regenerateFailed"));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setRegenPartsBusy(false);
@@ -845,7 +871,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       expectedParts = outlineRecordTargets(parts);
     } catch (error) {
-      addToast(extractErrorMessage(error, "无法确认当前分部版本"), "error");
+      addToast(extractErrorMessage(error, t("outline.advancedPanel.confirmPartsFailed")), "error");
       return;
     }
     await openPreview(
@@ -856,7 +882,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           expected_parts: expectedParts,
           chapters_per_part: requestChaptersPerPart,
         }),
-      "预览重生成所有部提示词失败",
+      t("outline.advancedPanel.regenerateAllPreviewFailed"),
     );
   };
 
@@ -864,12 +890,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const requestProjectId = projectId;
     const requestParts = partsRef.current;
     if (requestParts.length === 0) {
-      addToast("请先生成至少一个分部，再续作下一部", "error");
+      addToast(t("outline.advancedPanel.continueNeedPart"), "error");
       return;
     }
     const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
     if (foreignPart) {
-      addToast("分部列表包含其他项目的数据，无法续作", "error");
+      addToast(t("outline.advancedPanel.foreignPartsContinue"), "error");
       return;
     }
     const lastPart = requestParts.reduce((latest, part) =>
@@ -877,7 +903,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     );
     const chapterSpan = lastPart.end_chapter - lastPart.start_chapter + 1;
     if (chapterSpan <= 0) {
-      addToast("最后一个分部的章节范围无效", "error");
+      addToast(t("outline.advancedPanel.invalidLastPartRange"), "error");
       return;
     }
     const startChapter = lastPart.end_chapter + 1;
@@ -888,11 +914,14 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     try {
       const warnings = await runGeneration(
         {
-          title: `续作第 ${lastPart.part_number + 1} 部`,
-          startMessage:
-            `模型正在生成第 ${lastPart.part_number + 1} 部（${startChapter}-${endChapter} 章）…`,
-          successMessage: `已续作第 ${lastPart.part_number + 1} 部`,
-          errorMessage: "续作失败",
+          title: t("outline.advancedPanel.continuePart", { part: formatNumber(lastPart.part_number + 1, locale) }),
+          startMessage: t("outline.advancedPanel.continuingPart", {
+            part: formatNumber(lastPart.part_number + 1, locale),
+            start: formatNumber(startChapter, locale),
+            end: formatNumber(endChapter, locale),
+          }),
+          successMessage: t("outline.advancedPanel.continuedPart", { part: formatNumber(lastPart.part_number + 1, locale) }),
+          errorMessage: t("outline.advancedPanel.continueFailed"),
           total: 3,
         },
         {
@@ -907,17 +936,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         },
         async (control) => {
           ensureActionCurrent(requestProjectId, actionSeq);
-          control.setProgress("正在刷新分部列表…", 2);
+          control.setProgress(t("outline.advancedPanel.refreshOutlines"), 2);
           await onChanged();
           ensureActionCurrent(requestProjectId, actionSeq);
         },
       );
       if (!isActionCurrent(requestProjectId, actionSeq)) return;
-      showGenerationSuccess(`已续作第 ${lastPart.part_number + 1} 部`, warnings);
+      showGenerationSuccess(t("outline.advancedPanel.continuedPart", { part: formatNumber(lastPart.part_number + 1, locale) }), warnings);
     } catch (err) {
       if (isActionCurrent(requestProjectId, actionSeq)) {
         await onChanged();
-        showGenerationError(err, "续作失败");
+        showGenerationError(err, t("outline.advancedPanel.continueFailed"));
       }
     } finally {
       if (isActionCurrent(requestProjectId, actionSeq)) setContinueBusy(false);
@@ -929,12 +958,12 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const requestProjectId = projectId;
     const requestParts = partsRef.current;
     if (requestParts.length === 0) {
-      addToast("请先生成至少一个分部，再续作下一部", "error");
+      addToast(t("outline.advancedPanel.continueNeedPart"), "error");
       return;
     }
     const foreignPart = requestParts.find((part) => part.project_id !== requestProjectId);
     if (foreignPart) {
-      addToast("分部列表包含其他项目的数据，无法预览", "error");
+      addToast(t("outline.advancedPanel.foreignPartsPreview"), "error");
       return;
     }
     const lastPart = requestParts.reduce((latest, part) =>
@@ -942,7 +971,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     );
     const chapterSpan = lastPart.end_chapter - lastPart.start_chapter + 1;
     if (chapterSpan <= 0) {
-      addToast("最后一个分部的章节范围无效", "error");
+      addToast(t("outline.advancedPanel.invalidLastPartRange"), "error");
       return;
     }
     const startChapter = lastPart.end_chapter + 1;
@@ -956,7 +985,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           start_chapter: startChapter,
           end_chapter: endChapter,
         }),
-      "预览续作分部提示词失败",
+      t("outline.advancedPanel.previewContinueFailed"),
     );
   };
 
@@ -965,7 +994,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
       <div className="grid gap-3 lg:grid-cols-2">
         <section className="a4n-flat-surface p-3">
           <div className="mb-3 flex flex-wrap items-center gap-2">
-            <h4 className="text-sm font-medium text-book-text-main">生成进度</h4>
+            <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.progressTitle")}</h4>
             <button
               type="button"
               role="switch"
@@ -973,9 +1002,9 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
               onClick={() => setAutoPoll((current) => !current)}
               disabled={controlsDisabled}
               className="ml-auto inline-flex items-center gap-2 text-small text-book-text-muted disabled:cursor-not-allowed disabled:opacity-50"
-              title={autoPoll ? "关闭自动刷新" : "开启自动刷新"}
+              title={autoPoll ? t("outline.advancedPanel.autoRefreshOn") : t("outline.advancedPanel.autoRefreshOff")}
             >
-              <span>自动刷新</span>
+              <span>{t("outline.advancedPanel.autoRefresh")}</span>
               <span
                 className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${
                   autoPoll ? "bg-book-primary" : "bg-book-text-muted/25"
@@ -997,48 +1026,48 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             >
               {progressLoading ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 刷新中…
+                  <LoadingSpinner size="sm" /> {t("outline.advancedPanel.refreshing")}
                 </span>
               ) : (
-                "刷新"
+                t("outline.advancedPanel.refresh")
               )}
             </BookButton>
           </div>
           {progress ? (
             <div className="space-y-3">
-              <CompletionRow label="分部大纲" current={progress.completed_parts} total={progress.total_parts} />
+              <CompletionRow label={t("outline.advancedPanel.partsProgress")} current={progress.completed_parts} total={progress.total_parts} />
               <CompletionRow
-                label="章节大纲"
+                label={t("outline.advancedPanel.chaptersProgress")}
                 current={progress.completed_chapter_outlines}
                 total={progress.total_chapter_outlines}
               />
             </div>
           ) : (
-            <p className="text-small text-book-text-muted">尚未查询生成进度。</p>
+            <p className="text-small text-book-text-muted">{t("outline.advancedPanel.noProgress")}</p>
           )}
         </section>
 
         <section className="a4n-flat-surface p-3">
           <div className="mb-3 flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <h4 className="text-sm font-medium text-book-text-main">章纲节奏分析</h4>
+              <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.pacingTitle")}</h4>
               {!pacing ? (
-                <p className="mt-0.5 text-small text-book-text-muted">检查高潮、平缓和转折的章节分布。</p>
+                <p className="mt-0.5 text-small text-book-text-muted">{t("outline.advancedPanel.pacingHint")}</p>
               ) : null}
             </div>
             {pacingLoading ? (
               <span
                 role="status"
                 className="inline-flex min-h-8 shrink-0 items-center gap-1.5 text-small text-book-text-muted"
-                title="正在分析章纲节奏"
+                title={t("outline.advancedPanel.analyzingPacing")}
               >
-                <LoadingSpinner size="sm" /> 分析中…
+                <LoadingSpinner size="sm" /> {t("outline.advancedPanel.analyzing")}
               </span>
             ) : pacing ? (
               <Dropdown
                 items={[
                   {
-                    label: "重新分析章纲节奏",
+                    label: t("outline.advancedPanel.reanalyzePacing"),
                     onClick: loadPacing,
                     disabled,
                   },
@@ -1052,7 +1081,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
                 disabled={disabled}
                 className="!text-xs"
               >
-                开始分析
+                {t("outline.advancedPanel.startAnalysis")}
               </BookButton>
             )}
           </div>
@@ -1062,8 +1091,8 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
       <section className="space-y-2">
         <div>
-          <h4 className="text-sm font-medium text-book-text-main">选中分部</h4>
-          <p className="mt-0.5 text-small text-book-text-muted">为一个分部补齐对应的章节大纲。</p>
+          <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.selectedPart")}</h4>
+          <p className="mt-0.5 text-small text-book-text-muted">{t("outline.advancedPanel.selectedPartHint")}</p>
         </div>
         <select
           value={selectedPartId}
@@ -1071,19 +1100,19 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           disabled={controlsDisabled}
           className="pyqt-input w-full"
         >
-          <option value="">选择分部</option>
+          <option value="">{t("outline.advancedPanel.selectPartPlaceholder")}</option>
           {parts.map((part) => (
             <option key={part.id} value={part.id}>
-              {partOptionLabel(part)}
+              {partOptionLabel(part, locale, t)}
             </option>
           ))}
         </select>
         <div>
           <AdvancedActionRow
-            title="生成本部章纲"
-            description="根据选中分部的目标和章节范围，生成该部对应的章节大纲。"
-            actionLabel="生成本部章纲"
-            actionBusyLabel="生成中…"
+            title={t("outline.advancedPanel.generateSelectedPart")}
+            description={t("outline.advancedPanel.batchDescription")}
+            actionLabel={t("outline.advancedPanel.generateSelectedPartAction")}
+            actionBusyLabel={t("outline.advancedPanel.generateSelectedPartBusy")}
             busy={partGenBusy}
             disabled={controlsDisabled || selectedPartId === ""}
             onPreview={handlePreviewGeneratePartChapters}
@@ -1095,15 +1124,15 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
       <section className="space-y-2">
         <div>
-          <h4 className="text-sm font-medium text-book-text-main">全部分部</h4>
-          <p className="mt-0.5 text-small text-book-text-muted">批量补齐现有章纲，或沿用当前结构续作下一部。</p>
+          <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.allParts")}</h4>
+          <p className="mt-0.5 text-small text-book-text-muted">{t("outline.advancedPanel.allPartsHint")}</p>
         </div>
         <div className="grid gap-2">
           <AdvancedActionRow
-            title="批量生成各部章纲"
-            description="为当前所有分部补齐对应的章节大纲。"
-            actionLabel="批量生成"
-            actionBusyLabel="生成中…"
+            title={t("outline.advancedPanel.batchGenerate")}
+            description={t("outline.advancedPanel.generateSelectedPartDescription")}
+            actionLabel={t("outline.advancedPanel.batchAction")}
+            actionBusyLabel={t("outline.advancedPanel.generateSelectedPartBusy")}
             busy={batchBusy}
             disabled={controlsDisabled || parts.length === 0}
             onPreview={handlePreviewBatchPartOutlines}
@@ -1111,10 +1140,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             standalone
           />
           <AdvancedActionRow
-            title="续作下一部"
-            description="沿用最后一部的章节跨度，继续规划新的故事阶段。"
-            actionLabel="续作下一部"
-            actionBusyLabel="续作中…"
+            title={t("outline.advancedPanel.continueAction")}
+            description={t("outline.advancedPanel.continueDescription")}
+            actionLabel={t("outline.advancedPanel.continueAction")}
+            actionBusyLabel={t("outline.advancedPanel.continuingAction")}
             busy={continueBusy}
             disabled={controlsDisabled || parts.length === 0}
             onPreview={handlePreviewContinue}
@@ -1126,17 +1155,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
       <details className="group">
         <summary className="a4n-flat-surface flex min-h-11 cursor-pointer list-none items-center gap-3 px-3 py-2.5 text-xs marker:content-none">
-          <span className="font-medium text-book-text-main">覆盖性重写</span>
+          <span className="font-medium text-book-text-main">{t("outline.advancedPanel.rewriteSection")}</span>
           <span className="min-w-0 flex-1 truncate text-right text-small text-book-text-muted">
-            重写选中分部或完整分部结构
+            {t("outline.advancedPanel.rewriteSectionHint")}
           </span>
         </summary>
         <div className="mt-2 grid gap-2">
           <AdvancedActionRow
-            title="重写选中分部"
-            description="覆盖当前选择的阶段规划，其他分部保持不变。"
-            actionLabel="重写本部"
-            actionBusyLabel="重写中…"
+            title={t("outline.advancedPanel.rewriteSelected")}
+            description={t("outline.advancedPanel.rewriteSelectedDescription")}
+            actionLabel={t("outline.advancedPanel.rewriteSelectedAction")}
+            actionBusyLabel={t("outline.advancedPanel.rewriting")}
             busy={partRegenBusy}
             disabled={controlsDisabled || selectedPartId === ""}
             warning
@@ -1145,10 +1174,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             standalone
           />
           <AdvancedActionRow
-            title="重新生成所有分部"
-            description="保持当前分部数量，重写完整阶段规划；改变部数请使用追加或删除。"
-            actionLabel="重新规划"
-            actionBusyLabel="规划中…"
+            title={t("outline.advancedPanel.rewriteAll")}
+            description={t("outline.advancedPanel.rewriteAllDescription")}
+            actionLabel={t("outline.advancedPanel.replan")}
+            actionBusyLabel={t("outline.advancedPanel.replanning")}
             busy={regenPartsBusy}
             disabled={controlsDisabled || parts.length === 0}
             warning
@@ -1161,11 +1190,11 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 
       <details className="a4n-flat-surface overflow-hidden">
         <summary className="cursor-pointer px-3 py-3 text-sm font-medium text-book-text-main">
-          节拍映射
+          {t("outline.advancedPanel.beatMapping")}
         </summary>
         <div className="space-y-3 border-t border-book-border/40 p-3 text-xs">
           <p className="text-small leading-relaxed text-book-text-muted">
-            使用 JSON 描述故事节拍到章节的映射。该设置面向高级工作流，默认不影响普通大纲生成。
+            {t("outline.advancedPanel.beatMappingHint")}
           </p>
           <textarea
             value={beatJson}
@@ -1178,7 +1207,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
               <Dropdown
                 items={[
                   {
-                    label: "查看模型请求",
+                    label: t("outline.advanced.viewRequest"),
                     icon: <Eye size={12} />,
                     onClick: handlePreviewBeatMap,
                     disabled: controlsDisabled || selectedPartId === "",
@@ -1195,10 +1224,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
             >
               {beatBusy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 应用中…
+                  <LoadingSpinner size="sm" /> {t("outline.advancedPanel.applying")}
                 </span>
               ) : (
-                "应用节拍"
+                t("outline.advancedPanel.applyBeatAction")
               )}
             </BookButton>
           </div>
@@ -1208,7 +1237,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="大纲高级请求预览"
+        fallbackTitle={t("outline.advancedPanel.requestPreview")}
         onClose={closeRequestPreview}
       />
     </div>

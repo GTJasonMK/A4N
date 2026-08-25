@@ -1,7 +1,7 @@
 use super::super::super::{ImportIdMaps, ProjectFamilyImportError, map_required};
 use a4n_core::models::source_sync::source_sync_conflict;
 
-pub fn remap_source_sync_target_id(
+pub(in crate::project_family_import) fn remap_source_sync_target_id(
     conflict: &source_sync_conflict::Model,
     maps: &ImportIdMaps,
 ) -> Result<i64, ProjectFamilyImportError> {
@@ -13,7 +13,7 @@ pub fn remap_source_sync_target_id(
     )
 }
 
-pub fn remap_source_sync_target_ref(
+pub(in crate::project_family_import) fn remap_source_sync_target_ref(
     conflict_scope: &str,
     target_kind: &str,
     old_id: i64,

@@ -189,12 +189,12 @@ impl OrchestratorContext {
             None => runnable_canvas_node_ids(&document, target_node_id)?,
         };
         let completed_step_keys = self
-            .workflow_checkpoint_models(input.workflow_run_id)
+            .workflow_checkpoint_step_statuses(input.workflow_run_id)
             .await
             .map_err(|error| error.to_string())?
             .into_iter()
-            .filter(|checkpoint| checkpoint.status == WORKFLOW_STATUS_COMPLETED)
-            .map(|checkpoint| checkpoint.step_key)
+            .filter(|(_, status)| status == WORKFLOW_STATUS_COMPLETED)
+            .map(|(step_key, _)| step_key)
             .collect::<BTreeSet<_>>();
         let mut pending_node_ids = Vec::new();
         for node_id in runnable_node_ids {

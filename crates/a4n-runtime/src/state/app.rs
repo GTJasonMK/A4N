@@ -209,7 +209,7 @@ impl AppState {
         &self.destructive_lifecycle
     }
 
-    pub fn dynamic_llm_provider_for_profile(
+    pub(crate) fn dynamic_llm_provider_for_profile(
         &self,
     ) -> Result<crate::dynamic_llm::DynamicLlmProvider, a4n_core::error::AppError> {
         let facade = self.orchestrator.dynamic_provider_facade();
@@ -229,10 +229,6 @@ impl AppState {
             );
         }
         Ok(crate::dynamic_llm::DynamicLlmProvider::new(facade))
-    }
-
-    pub async fn new(config: AppConfig) -> Result<Self, a4n_core::error::AppError> {
-        Self::new_with_profile(config, RuntimeProfile::from_env()?).await
     }
 
     pub async fn new_with_profile(

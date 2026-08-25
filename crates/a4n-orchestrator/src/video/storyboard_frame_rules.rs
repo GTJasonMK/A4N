@@ -7,11 +7,11 @@ use a4n_domain::image::{
     image_generation_source,
 };
 
-use super::{prompt_chain_matches, prompt_source_type_matches};
+use super::{PromptChainFields, prompt_chain_matches, prompt_source_type_matches};
 
-pub fn storyboard_prompt_matches_video_prompt(
+pub fn storyboard_prompt_matches_video_prompt<P: PromptChainFields>(
     video_prompt: &chapter_video_prompt::Model,
-    storyboard_prompt: &chapter_video_prompt::Model,
+    storyboard_prompt: &P,
 ) -> bool {
     prompt_chain_matches(
         chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
@@ -26,15 +26,15 @@ pub fn storyboard_prompt_matches_video_prompt(
     )
 }
 
-pub fn latest_storyboard_image_id(
-    images: &[generated_image::Model],
-    storyboard_prompt: &chapter_video_prompt::Model,
+pub fn latest_storyboard_image_id<P: PromptChainFields>(
+    images: &[generated_image::Reference],
+    storyboard_prompt: &P,
 ) -> Option<i64> {
     images
         .iter()
         .find(|image| {
             let metadata = image.metadata_json.as_ref();
-            image_generation_prompt_id(metadata) == Some(storyboard_prompt.id)
+            image_generation_prompt_id(metadata) == Some(storyboard_prompt.id())
                 && image_generation_source(metadata)
                     == Some(IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT)
         })
@@ -104,28 +104,20 @@ mod tests {
         }
     }
 
-    fn image(id: i64, source_prompt_id: i64, generation_source: &str) -> generated_image::Model {
-        generated_image::Model {
+    fn image(
+        id: i64,
+        source_prompt_id: i64,
+        generation_source: &str,
+    ) -> generated_image::Reference {
+        generated_image::Reference {
             id,
-            project_id: 1,
             image_type: "storyboard".to_string(),
-            file_path: format!("images/{id}.png"),
-            prompt: "测试图片".to_string(),
-            model: "test".to_string(),
-            width: 1280,
-            height: 720,
-            file_size: None,
-            ai_score: None,
-            is_favorite: false,
-            chapter_id: Some(2),
-            panel_id: None,
             metadata_json: Some(json!({
                 "generation_context": {
                     "prompt_id": source_prompt_id,
                     "source": generation_source
                 }
             })),
-            created_at: Utc::now().naive_utc(),
         }
     }
 
@@ -135,6 +127,14 @@ mod tests {
         let storyboard = prompt(11, "storyboard_prompt", STORYBOARD_PROMPT_CONTRACT_VERSION);
 
         assert!(storyboard_prompt_matches_video_prompt(&video, &storyboard));
+        let candidate = a4n_db::video::ChapterVideoPromptCandidateRecord {
+            id: storyboard.id,
+            prompt_type: storyboard.prompt_type.clone(),
+            workflow_mode: storyboard.workflow_mode.clone(),
+            shot_number: storyboard.shot_number,
+            metadata_json: storyboard.metadata_json.clone(),
+        };
+        assert!(storyboard_prompt_matches_video_prompt(&video, &candidate));
 
         let mut stale = storyboard.clone();
         stale.metadata_json.as_mut().unwrap()["video_execution_identity"]["segment_sha256"] =

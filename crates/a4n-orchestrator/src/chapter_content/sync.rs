@@ -19,9 +19,9 @@ use super::ChapterDerivedCleanupHostPort;
 
 pub const CHAPTER_CONTENT_SYNC_WORKFLOW_KIND: &str = "chapter_content_sync";
 pub(crate) const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanup_plan";
-pub(crate) const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
+const CHAPTER_CONTENT_SYNC_EXTERNAL_STEP: &str = "chapter_content_sync.external_cleanup";
 pub const CHAPTER_CONTENT_SYNC_RAG_STEP: &str = "chapter_content_sync.current_rag";
-pub(crate) const CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP: &str = "chapter_content_sync.postprocess";
+const CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP: &str = "chapter_content_sync.postprocess";
 
 pub(crate) fn chapter_content_sync_workflow_business_key(
     project_id: i64,
@@ -116,7 +116,7 @@ pub(crate) fn chapter_content_sync_checkpoint_input(
     })
 }
 
-pub(crate) fn chapter_content_sync_completed_checkpoint_input(
+fn chapter_content_sync_completed_checkpoint_input(
     run: &workflow_run::Model,
     step_key: &str,
     step_order: i32,
@@ -136,7 +136,7 @@ pub(crate) fn chapter_content_sync_completed_checkpoint_input(
     }
 }
 
-pub(crate) fn chapter_content_sync_checkpoint_completed(
+fn chapter_content_sync_checkpoint_completed(
     run: &workflow_run::Model,
     checkpoint: Option<&workflow_checkpoint::Model>,
     step_key: &str,

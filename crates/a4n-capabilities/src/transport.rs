@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use crate::contracts::CapabilityResult;
 
-pub type HttpClientFactory = Arc<dyn Fn() -> Result<reqwest::Client, String> + Send + Sync>;
+pub(crate) type HttpClientFactory = Arc<dyn Fn() -> Result<reqwest::Client, String> + Send + Sync>;
 
 #[cfg(test)]
 pub(super) use events::{drain_event_lines, parse_event_line};

@@ -18,6 +18,7 @@ import { Modal } from "../../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
+import { useI18n } from "../../../i18n";
 
 interface AgeVariantDialogProps {
   portrait: Portrait;
@@ -31,6 +32,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
   onCreated,
 }) => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const [age, setAge] = useState("");
   const [busy, setBusy] = useState(false);
@@ -74,7 +76,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     if (submitBusyRef.current) return;
     const trimmedAge = age.trim();
     if (!trimmedAge) {
-      addToast("请输入年龄段（如：少年 / 老年 / 25 岁）", "error");
+      addToast(t("characterDetail.portrait.ageRequired"), "error");
       return;
     }
     const requestScope = `${portrait.project_id}:${portrait.id}`;
@@ -96,23 +98,23 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
         runProgressTask,
         handle,
         {
-          title: "生成年龄变体",
-          startMessage: "正在准备年龄变体",
-          successMessage: "年龄变体生成完成",
-          errorMessage: "生成失败",
+          title: t("characterDetail.portrait.ageTitle"),
+          startMessage: t("characterDetail.portrait.ageStart"),
+          successMessage: t("characterDetail.portrait.ageSuccess"),
+          errorMessage: t("characterDetail.portrait.generationFailed"),
           total: 4,
-          cancelLabel: "停止生成",
+          cancelLabel: t("characterDetail.portrait.stopGeneration"),
         },
         async (task) => {
           await verifyPortraitGenerationResult(task, requestProjectId);
         },
       );
       if (!isCurrentPortrait(requestScope)) return;
-      addToast(`已生成 ${trimmedAge} 年龄变体`, "success");
+      addToast(t("characterDetail.portrait.ageGenerated", { age: trimmedAge }), "success");
       onCreated();
     } catch (err) {
       if (!isCurrentPortrait(requestScope)) return;
-      const message = extractErrorMessage(err, "生成失败");
+      const message = extractErrorMessage(err, t("characterDetail.portrait.generationFailed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentPortrait(requestScope)) {
@@ -126,7 +128,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     if (previewBusyRef.current) return;
     const trimmedAge = age.trim();
     if (!trimmedAge) {
-      addToast("请输入年龄段（如：少年 / 老年 / 25 岁）", "error");
+      addToast(t("characterDetail.portrait.ageRequired"), "error");
       return;
     }
     const requestScope = `${portrait.project_id}:${portrait.id}`;
@@ -147,7 +149,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
       setRequestPreviewData(preview);
     } catch (err) {
       if (!isCurrentPortrait(requestScope) || requestPreviewSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "预览年龄变体请求失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.portrait.agePreviewFailed")), "error");
       setRequestPreviewOpen(false);
     } finally {
       if (isCurrentPortrait(requestScope) && requestPreviewSeqRef.current === requestSeq) {
@@ -164,7 +166,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
         onClose={() => {
           if (!busy) onClose();
         }}
-        title="生成年龄变体"
+        title={t("characterDetail.portrait.ageTitle")}
         maxWidthClassName="max-w-sm"
         closeOnBackdrop={!busy}
         closeOnEscape={!busy}
@@ -174,7 +176,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
             <Dropdown
               items={[
                 {
-                  label: "查看模型请求",
+                  label: t("characterDetail.portrait.viewRequest"),
                   icon: <Eye size={12} />,
                   onClick: handlePreview,
                   disabled: busy || !age.trim(),
@@ -189,10 +191,10 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
             >
               {busy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 生成中…
+                  <LoadingSpinner size="sm" /> {t("characterDetail.portrait.generating")}
                 </span>
               ) : (
-                "生成变体"
+                t("characterDetail.portrait.ageGenerate")
               )}
             </BookButton>
           </div>
@@ -200,14 +202,14 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
       >
         <div className="space-y-3 text-sm">
           <div className="text-xs text-book-text-muted">
-            基于现有人物三视图拆解生成不同年龄段的变体，原图保留。
+            {t("characterDetail.portrait.ageDescription")}
           </div>
           <div>
-            <label className="mb-1 block text-xs text-book-text-muted">年龄段</label>
+            <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.ageLabel")}</label>
             <BookInput
               value={age}
               onChange={(event) => setAge(event.target.value)}
-              placeholder="少年 / 中年 / 老年 / 25 岁 ..."
+              placeholder={t("characterDetail.portrait.agePlaceholder")}
               autoFocus
             />
           </div>
@@ -217,7 +219,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="年龄变体请求预览"
+        fallbackTitle={t("characterDetail.portrait.ageTitle")}
         onClose={() => {
           requestPreviewSeqRef.current += 1;
           previewBusyRef.current = false;

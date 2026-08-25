@@ -11,8 +11,9 @@ use crate::errors::vector_store_error;
 /// BM25 倒排索引和文档长度统计。
 pub(super) struct Bm25Index {
     postings: DashMap<(String, String), Vec<(String, usize)>>,
+    doc_terms: DashMap<(String, String), Vec<String>>,
     doc_lengths: DashMap<(String, String), usize>,
-    avg_doc_len: RwLock<HashMap<String, f32>>,
+    doc_len_stats: RwLock<HashMap<String, (usize, usize)>>,
     k1: f32,
     b: f32,
 }
@@ -21,8 +22,9 @@ impl Bm25Index {
     pub(super) fn new() -> Self {
         Self {
             postings: DashMap::new(),
+            doc_terms: DashMap::new(),
             doc_lengths: DashMap::new(),
-            avg_doc_len: RwLock::new(HashMap::new()),
+            doc_len_stats: RwLock::new(HashMap::new()),
             k1: 1.5,
             b: 0.75,
         }
@@ -42,13 +44,17 @@ impl Bm25Index {
         total_docs: usize,
         doc_freq: usize,
     ) -> Result<f32, AppError> {
-        let avg_len = self
-            .avg_doc_len
-            .read()
-            .get(collection)
-            .copied()
-            .ok_or_else(|| vector_store_error(format!("集合缺少 BM25 平均长度：{collection}")))?
-            .max(1.0);
+        let avg_len = {
+            let (total_len, doc_count) = self
+                .doc_len_stats
+                .read()
+                .get(collection)
+                .copied()
+                .ok_or_else(|| {
+                    vector_store_error(format!("集合缺少 BM25 平均长度：{collection}"))
+                })?;
+            (total_len as f32 / doc_count as f32).max(1.0)
+        };
         let doc_len = self
             .doc_lengths
             .get(&(collection.to_string(), doc_id.to_string()))
@@ -80,23 +86,28 @@ impl Bm25Index {
             )));
         }
 
-        self.remove_document(collection, id);
+        let old_len = self.remove_document(collection, id);
 
         let mut term_counts: HashMap<String, usize> = HashMap::new();
         for token in &tokens {
             *term_counts.entry(token.clone()).or_insert(0) += 1;
         }
 
+        let mut terms = Vec::with_capacity(term_counts.len());
         for (term, tf) in term_counts {
             self.postings
-                .entry((collection.to_string(), term))
+                .entry((collection.to_string(), term.clone()))
                 .or_default()
                 .push((id.to_string(), tf));
+            terms.push(term);
         }
 
+        let doc_len = tokens.len();
         self.doc_lengths
-            .insert((collection.to_string(), id.to_string()), tokens.len());
-        self.refresh_avg_doc_len(collection);
+            .insert((collection.to_string(), id.to_string()), doc_len);
+        self.doc_terms
+            .insert((collection.to_string(), id.to_string()), terms);
+        self.adjust_doc_len_stats(collection, old_len.map(|length| (length, 1)), Some(doc_len));
         Ok(())
     }
 
@@ -104,18 +115,19 @@ impl Bm25Index {
         if ids.is_empty() {
             return;
         }
+        let mut removed_total = 0;
+        let mut removed_count = 0;
         for id in ids {
-            self.doc_lengths
-                .remove(&(collection.to_string(), id.to_string()));
-        }
-
-        let terms = self.terms_for_collection(collection);
-        for term in terms {
-            if let Some(mut entry) = self.postings.get_mut(&(collection.to_string(), term)) {
-                entry.retain(|(doc_id, _)| !ids.contains(doc_id));
+            if let Some(doc_len) = self.remove_document(collection, id) {
+                removed_total += doc_len;
+                removed_count += 1;
             }
         }
-        self.refresh_avg_doc_len(collection);
+        self.adjust_doc_len_stats(
+            collection,
+            (removed_count > 0).then_some((removed_total, removed_count)),
+            None,
+        );
     }
 
     pub(super) fn drop_collection(&self, collection: &str) {
@@ -139,56 +151,56 @@ impl Bm25Index {
             self.doc_lengths.remove(&key);
         }
 
-        self.avg_doc_len.write().remove(collection);
+        let doc_term_keys = self
+            .doc_terms
+            .iter()
+            .filter(|entry| entry.key().0 == collection)
+            .map(|entry| entry.key().clone())
+            .collect::<Vec<_>>();
+        for key in doc_term_keys {
+            self.doc_terms.remove(&key);
+        }
+
+        self.doc_len_stats.write().remove(collection);
     }
 
-    fn remove_document(&self, collection: &str, id: &str) {
-        self.doc_lengths
-            .remove(&(collection.to_string(), id.to_string()));
-
-        let terms = self.terms_for_document(collection, id);
+    fn remove_document(&self, collection: &str, id: &str) -> Option<usize> {
+        let key = (collection.to_string(), id.to_string());
+        let doc_len = self.doc_lengths.remove(&key).map(|(_, length)| length);
+        let terms = self
+            .doc_terms
+            .remove(&key)
+            .map(|(_, terms)| terms)
+            .unwrap_or_default();
         for term in terms {
             if let Some(mut entry) = self.postings.get_mut(&(collection.to_string(), term)) {
                 entry.retain(|(doc_id, _)| doc_id != id);
             }
         }
+        doc_len
     }
 
-    fn terms_for_document(&self, collection: &str, id: &str) -> Vec<String> {
-        self.postings
-            .iter()
-            .filter(|entry| {
-                entry.key().0 == collection && entry.value().iter().any(|(doc_id, _)| doc_id == id)
-            })
-            .map(|entry| entry.key().1.clone())
-            .collect()
-    }
-
-    fn terms_for_collection(&self, collection: &str) -> Vec<String> {
-        self.postings
-            .iter()
-            .filter(|entry| entry.key().0 == collection)
-            .map(|entry| entry.key().1.clone())
-            .collect()
-    }
-
-    fn refresh_avg_doc_len(&self, collection: &str) {
-        let lengths = self
-            .doc_lengths
-            .iter()
-            .filter(|entry| entry.key().0 == collection)
-            .map(|entry| *entry.value())
-            .collect::<Vec<_>>();
-
-        if lengths.is_empty() {
-            self.avg_doc_len.write().remove(collection);
-            return;
+    fn adjust_doc_len_stats(
+        &self,
+        collection: &str,
+        removed: Option<(usize, usize)>,
+        added: Option<usize>,
+    ) {
+        let mut stats = self.doc_len_stats.write();
+        let (mut total_len, mut doc_count) = stats.get(collection).copied().unwrap_or_default();
+        if let Some((removed_total, removed_count)) = removed {
+            total_len = total_len.saturating_sub(removed_total);
+            doc_count = doc_count.saturating_sub(removed_count);
+        }
+        if let Some(added_len) = added {
+            total_len += added_len;
+            doc_count += 1;
         }
 
-        let total: usize = lengths.iter().sum();
-        let average = total as f32 / lengths.len() as f32;
-        self.avg_doc_len
-            .write()
-            .insert(collection.to_string(), average);
+        if doc_count == 0 {
+            stats.remove(collection);
+        } else {
+            stats.insert(collection.to_string(), (total_len, doc_count));
+        }
     }
 }

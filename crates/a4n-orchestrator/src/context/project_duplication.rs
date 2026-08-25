@@ -1,11 +1,11 @@
 use a4n_core::{error::AppError, models::project::novel_project};
 use a4n_db::DbHandle;
+use a4n_domain::project::ProjectSourceMode;
 
 use super::OrchestratorContext;
 use crate::project::{
-    DuplicateProjectApplicationInput, ProjectDuplicatePath, ProjectDuplicationHostPort,
-    ProjectMediaFileCopier, project_duplicate_error_to_app_error, required_text,
-    resolve_project_duplicate_path,
+    DuplicateProjectApplicationInput, ProjectDuplicationHostPort, ProjectMediaFileCopier,
+    project_duplicate_error_to_app_error, required_text,
 };
 
 #[derive(Clone)]
@@ -93,20 +93,23 @@ impl OrchestratorContext {
         let new_title =
             required_text(&input.new_title, "新项目标题").map_err(AppError::InvalidArgument)?;
 
-        match resolve_project_duplicate_path(&original).map_err(AppError::InvalidArgument)? {
-            ProjectDuplicatePath::Text => {
+        match original
+            .source_mode()
+            .map_err(|error| AppError::InvalidArgument(format!("项目 {}: {error}", original.id)))?
+        {
+            ProjectSourceMode::Self_ => {
                 self.project_duplication
                     .duplicate_text(&original, input.user_id, new_title)
                     .await
             }
-            ProjectDuplicatePath::Derived => {
+            ProjectSourceMode::Derived => {
                 let result = self
                     .project_duplication
                     .duplicate_derived(&original, input.user_id, new_title, host_port)
                     .await;
                 duplication_result_with_file_rollback(result, host_port).await
             }
-            ProjectDuplicatePath::Freeform => {
+            ProjectSourceMode::Freeform => {
                 let result = self
                     .project_duplication
                     .duplicate_freeform(&original, input.user_id, new_title, host_port)

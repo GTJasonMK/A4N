@@ -24,7 +24,12 @@ export const analysisTextList = (
 ): string[] => {
   let values = asArray(value).map(analysisTextValue).filter(Boolean);
   if (options.unique) {
-    values = values.filter((item, index) => values.indexOf(item) === index);
+    const seen = new Set<string>();
+    values = values.filter((item) => {
+      if (seen.has(item)) return false;
+      seen.add(item);
+      return true;
+    });
   }
   return values.slice(0, options.limit ?? 12);
 };

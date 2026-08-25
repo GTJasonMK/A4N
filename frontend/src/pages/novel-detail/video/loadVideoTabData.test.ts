@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { GenerationTaskSummary } from "../../../api/generated/generationContracts";
 import type { ChapterRow } from "../shared";
+import { translateMessage, type MessageTranslator } from "../../../i18n";
+
+const t: MessageTranslator = (key, params) =>
+  translateMessage("zh-CN", key, params);
 
 const mocks = vi.hoisted(() => ({
   listChapterVideoPrompts: vi.fn(),
@@ -13,7 +17,8 @@ const mocks = vi.hoisted(() => ({
   listHistory: vi.fn(),
 }));
 
-vi.mock("../../../api/image", () => ({
+vi.mock("../../../api/image", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../api/image")>()),
   listVideoReferenceImages: mocks.listVideoReferenceImages,
 }));
 
@@ -25,7 +30,8 @@ vi.mock("../../../api/generationTasks", () => ({
   generationClient: { listHistory: mocks.listHistory },
 }));
 
-vi.mock("../../../api/video", () => ({
+vi.mock("../../../api/video", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../api/video")>()),
   listChapterVideoPrompts: mocks.listChapterVideoPrompts,
   listVideosByChapter: mocks.listVideosByChapter,
   listVideoConfigs: mocks.listVideoConfigs,
@@ -192,7 +198,7 @@ describe("video tab loading", () => {
       total_shot_count: 2,
     });
 
-    const loaded = await loadVideoSegmentPlanDraft(19, 3);
+    const loaded = await loadVideoSegmentPlanDraft(19, 3, t);
     expect(loaded).toMatchObject({
       workflowRunId: 8,
       workflowStatus: "cancelled",
@@ -251,7 +257,7 @@ describe("video tab loading", () => {
       },
     ]);
 
-    await expect(loadVideoSegmentPlanDraft(19, 3)).resolves.toBeNull();
+    await expect(loadVideoSegmentPlanDraft(19, 3, t)).resolves.toBeNull();
     expect(mocks.loadVideoSegmentPlanDraftDetail).not.toHaveBeenCalled();
   });
 
@@ -283,7 +289,7 @@ describe("video tab loading", () => {
       total_shot_count: 0,
     });
 
-    await expect(loadVideoSegmentPlanDraft(19, 3)).resolves.toMatchObject({
+    await expect(loadVideoSegmentPlanDraft(19, 3, t)).resolves.toMatchObject({
       workflowRunId: 12,
       workflowStatus: "failed",
       resumeTaskId: "segment-task-12",
@@ -329,7 +335,7 @@ describe("video tab loading", () => {
       total_shot_count: 2,
     });
 
-    await expect(loadVideoSegmentPlanDraft(19, 3)).rejects.toThrow(
+    await expect(loadVideoSegmentPlanDraft(19, 3, t)).rejects.toThrow(
       "options.duration_secs_options 无效，无法安全续跑",
     );
   });

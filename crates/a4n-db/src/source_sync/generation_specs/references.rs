@@ -3,10 +3,13 @@ mod contracts;
 mod rebind;
 mod records;
 
-pub(in crate::source_sync) use context::source_snapshot_chapter_for_source;
+pub(in crate::source_sync) use context::generation_spec_id_for_source_sync_run;
 pub use context::{
     generation_spec_for_source_sync_run, update_generation_spec_params_record,
     update_generation_spec_to_snapshot_record,
+};
+pub(in crate::source_sync) use context::{
+    source_snapshot_chapter_for_source, source_snapshot_chapter_id_for_source,
 };
 pub use contracts::{
     SourceSyncAnchorMappingRecord, SourceSyncEntityRefRecordInput, SourceSyncMediaRefRecordInput,

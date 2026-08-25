@@ -3,16 +3,16 @@ use a4n_llm::provider::ChatRequest;
 use serde::de::DeserializeOwned;
 use tokio_util::sync::CancellationToken;
 
-pub use a4n_llm::structured_stream::StructuredLlmProgress;
-pub use a4n_llm::structured_stream::StructuredLlmStreamResult;
+pub(crate) use a4n_llm::structured_stream::StructuredLlmProgress;
+pub(crate) use a4n_llm::structured_stream::StructuredLlmStreamResult;
 
-pub struct ChatJsonStreamInput<'a> {
-    pub request: ChatRequest,
-    pub prompt_name: &'a str,
-    pub truncated_message: &'a str,
-    pub structured_progress: Option<StructuredLlmProgress>,
-    pub cancel_token: Option<&'a CancellationToken>,
-    pub cancelled_message: &'a str,
+pub(crate) struct ChatJsonStreamInput<'a> {
+    pub(crate) request: ChatRequest,
+    pub(crate) prompt_name: &'a str,
+    pub(crate) truncated_message: &'a str,
+    pub(crate) structured_progress: Option<StructuredLlmProgress>,
+    pub(crate) cancel_token: Option<&'a CancellationToken>,
+    pub(crate) cancelled_message: &'a str,
 }
 
 pub(crate) fn stream_error_or_cancelled(
@@ -26,7 +26,7 @@ pub(crate) fn stream_error_or_cancelled(
     }
 }
 
-pub fn parse_strict_json_response<T>(raw: &str, context: &str) -> Result<T, AppError>
+pub(crate) fn parse_strict_json_response<T>(raw: &str, context: &str) -> Result<T, AppError>
 where
     T: DeserializeOwned,
 {

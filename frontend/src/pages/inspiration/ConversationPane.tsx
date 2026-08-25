@@ -1,9 +1,10 @@
-import React from "react";
+import React, { useId } from "react";
 import { Eye, Send } from "lucide-react";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { ChatBubble } from "./ChatBubble";
 import type { Message } from "./shared";
+import { useI18n } from "../../i18n";
 
 interface ConversationPaneProps {
   messages: Message[];
@@ -44,8 +45,13 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   messagesEndRef,
   placeholder,
   inputActive,
-}) => (
-  <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto]">
+}) => {
+  const inputHintId = useId();
+  const { locale, t } = useI18n();
+  const inputHint = sending ? t("inspiration.inputHintSending") : placeholder;
+
+  return (
+    <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto]">
     <div className="min-h-0 min-w-0 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5">
       <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col justify-start gap-3.5">
         {messages.map((m) => (
@@ -60,51 +66,63 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
         inputActive ? "pb-4 sm:pb-3" : "pb-2.5"
       }`}
     >
-      <div className="mx-auto flex w-full min-w-0 max-w-3xl items-end gap-2">
-        <textarea
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          onCompositionStart={onCompositionStart}
-          onCompositionEnd={onCompositionEnd}
-          onFocus={onInputFocus}
-          onBlur={onInputBlur}
-          placeholder={sending ? "可先写下下一步想法，回复完成后即可发送…" : placeholder}
-          rows={Math.min(5, Math.max(1, input.split("\n").length))}
-          spellCheck={false}
-          lang="zh-CN"
-          className="pyqt-input max-h-[140px] min-h-8 min-w-0 flex-1 resize-y !rounded-[12px] px-4 !py-[5px] text-body-lg leading-5"
-        />
-        <div className="flex shrink-0 items-center gap-2">
-          <Dropdown
-            items={[
-              {
-                label: "查看本轮模型请求",
-                icon: <Eye size={12} />,
-                onClick: onPreview,
-                disabled: !input.trim() || sending,
-              },
-            ]}
+      <div className="mx-auto w-full min-w-0 max-w-3xl">
+        <p
+          id={inputHintId}
+          title={inputHint}
+          className="mb-1.5 truncate text-small text-book-text-muted"
+        >
+          {inputHint}
+        </p>
+        <div className="flex min-w-0 items-end gap-2">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            onCompositionStart={onCompositionStart}
+            onCompositionEnd={onCompositionEnd}
+            onFocus={onInputFocus}
+            onBlur={onInputBlur}
+            aria-label={t("inspiration.inputConversation")}
+            aria-describedby={inputHintId}
+            placeholder={placeholder || t("inspiration.inputPlaceholder")}
+            rows={Math.min(5, Math.max(1, input.split("\n").length))}
+            spellCheck={false}
+            lang={locale}
+            className="pyqt-input max-h-[140px] min-h-11 min-w-0 flex-1 resize-none !rounded-[12px] px-4 !py-[7px] text-body-lg leading-5 sm:resize-y"
           />
-          <BookButton
-            variant="primary"
-            size="sm"
-            onClick={onSend}
-            disabled={!input.trim() || sending}
-            className="a4n-composer-send !px-3 !text-xs"
-          >
-            {sending ? (
-              "等待回复"
-            ) : (
-              <>
-                <Send size={14} />
-                发送
-              </>
-            )}
-          </BookButton>
+          <div className="flex shrink-0 items-center gap-2">
+            <Dropdown
+              items={[
+                {
+                  label: t("inspiration.viewTurnRequest"),
+                  icon: <Eye size={12} />,
+                  onClick: onPreview,
+                  disabled: !input.trim() || sending,
+                },
+              ]}
+            />
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={onSend}
+              disabled={!input.trim() || sending}
+              className="a4n-composer-send !px-3 !text-xs"
+            >
+              {sending ? (
+                t("inspiration.waitingReply")
+              ) : (
+                <>
+                  <Send size={14} />
+                  {t("inspiration.send")}
+                </>
+              )}
+            </BookButton>
+          </div>
         </div>
       </div>
     </footer>
-  </div>
-);
+    </div>
+  );
+};

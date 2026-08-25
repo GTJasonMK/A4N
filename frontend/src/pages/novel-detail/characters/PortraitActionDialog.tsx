@@ -12,6 +12,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { Modal } from "../../../components/ui/Modal";
 import { toMediaSrc } from "../../../utils/mediaSrc";
+import { useI18n } from "../../../i18n";
 
 interface PortraitActionDialogProps {
   portrait: Portrait;
@@ -34,6 +35,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
   onAgeVariant,
   onPrompt,
 }) => {
+  const { t } = useI18n();
   const busy = busyId === portrait.id;
   const imageSrc = toMediaSrc(portrait.image_path);
   const metadata = [portrait.portrait_type, portrait.expression, portrait.pose]
@@ -47,8 +49,8 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
       onClose={() => {
         if (!busy) onClose();
       }}
-      title="立绘详情"
-      subtitle={metadata || "人物视觉素材"}
+      title={t("characterDetail.portrait.detailsTitle")}
+      subtitle={metadata || t("characterDetail.portrait.material")}
       icon={<Camera size={15} />}
       maxWidthClassName="max-w-2xl"
       bodyClassName="px-4 py-4"
@@ -60,7 +62,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
           <Dropdown
             items={[
               {
-                label: "查看重绘模型请求",
+                label: t("characterDetail.portrait.viewRegenerateRequest"),
                 icon: <Eye size={12} />,
                 onClick: () => void onPreviewRegenerate(portrait),
                 disabled: busy,
@@ -80,7 +82,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
             ) : (
               <RefreshCw size={13} />
             )}
-            {busy ? "重绘中…" : "重绘立绘"}
+            {busy ? t("characterDetail.portrait.redrawBusy") : t("characterDetail.portrait.redraw")}
           </BookButton>
         </div>
       }
@@ -91,15 +93,15 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
             {imageSrc ? (
               <img
                 src={imageSrc}
-                alt="人物三视图预览"
+                alt={t("characterDetail.portrait.previewAlt")}
                 className="h-full w-full object-contain"
               />
             ) : (
-              "无图"
+              <span>{t("characterDetail.portrait.noImage")}</span>
             )}
             {portrait.is_primary ? (
               <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-lg bg-book-primary/90 px-2 py-1 text-caption font-medium text-white backdrop-blur-sm">
-                <Star size={9} fill="currentColor" /> 主图
+                <Star size={9} fill="currentColor" /> {t("characterDetail.portrait.primary")}
               </span>
             ) : null}
           </div>
@@ -110,29 +112,29 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
             {!portrait.is_primary ? (
               <PortraitActionButton
                 icon={<Star size={14} />}
-                title="设为主图"
-                description="作为该角色默认引用的立绘"
+                title={t("characterDetail.portrait.setPrimary")}
+                description={t("characterDetail.portrait.setPrimaryDescription")}
                 disabled={busy}
                 onClick={() => void onSetPrimary(portrait)}
               />
             ) : null}
             <PortraitActionButton
               icon={<Clock3 size={14} />}
-              title="生成年龄变体"
-              description="基于当前形象生成少年、中年或老年版本"
+              title={t("characterDetail.portrait.ageVariant")}
+              description={t("characterDetail.portrait.ageVariantDescription")}
               disabled={busy}
               onClick={() => onAgeVariant(portrait)}
             />
             <PortraitActionButton
               icon={<FileText size={14} />}
-              title="查看提示词"
-              description="查看当前提示词或重新渲染模板"
+              title={t("characterDetail.portrait.viewPrompt")}
+              description={t("characterDetail.portrait.viewPromptDescription")}
               disabled={busy}
               onClick={() => onPrompt(portrait)}
             />
           </div>
           <p className="mt-2 px-1 text-caption leading-relaxed text-book-text-muted">
-            重绘会保留当前图片，并生成一张新的候选立绘。
+            {t("characterDetail.portrait.redrawHint")}
           </p>
         </div>
       </div>

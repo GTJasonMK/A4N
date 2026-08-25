@@ -3,8 +3,8 @@ mod image;
 mod llm;
 mod video;
 
-pub use crate::actions::request_preview::ModelRequestPreview;
-pub use a4n_api_contract::canvas::PreviewCanvasNodeRequestInput;
+use crate::actions::request_preview::ModelRequestPreview;
+use a4n_api_contract::canvas::PreviewCanvasNodeRequestInput;
 
 use crate::{AppState, actions::access};
 use context::load_canvas_preview_document;
@@ -16,7 +16,7 @@ pub async fn preview_canvas_node_request(
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_access_string(state, user_id, input.project_id).await?;
     let canvas = state.orchestrator();
-    let document = load_canvas_preview_document(&canvas, input.project_id, input.graph_id).await?;
+    let document = load_canvas_preview_document(canvas, input.project_id, input.graph_id).await?;
     let node = document
         .nodes
         .iter()

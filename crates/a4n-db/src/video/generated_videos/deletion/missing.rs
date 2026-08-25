@@ -2,7 +2,8 @@ use crate::video::VideoDbError;
 use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TransactionTrait,
+    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
+    sea_query::Expr,
 };
 use std::collections::BTreeSet;
 
@@ -14,6 +15,9 @@ where
     C: ConnectionTrait,
 {
     if generated_video::Entity::find_by_id(video_id)
+        .select_only()
+        .column(generated_video::Column::Id)
+        .into_tuple::<i64>()
         .one(db)
         .await?
         .is_some()
@@ -24,12 +28,16 @@ where
     }
 
     let prompts = chapter_video_prompt::Entity::find()
+        .select_only()
+        .column(chapter_video_prompt::Column::Id)
+        .column(chapter_video_prompt::Column::ProjectId)
         .filter(chapter_video_prompt::Column::GeneratedVideoId.eq(video_id))
+        .into_tuple::<(i64, i64)>()
         .all(db)
         .await?;
     let mut project_ids = prompts
         .iter()
-        .map(|prompt| prompt.project_id)
+        .map(|(_, project_id)| *project_id)
         .collect::<BTreeSet<_>>();
     project_ids.extend(crate::canvas::generated_video_ref_project_ids(db, video_id).await?);
     project_ids.extend(
@@ -42,19 +50,39 @@ where
     }
 
     let now = Utc::now().naive_utc();
-    for prompt in prompts.iter().cloned() {
-        let mut active: chapter_video_prompt::ActiveModel = prompt.into();
-        active.generated_video_id = Set(None);
-        active.status = Set(chapter_video_prompt::STATUS_PENDING.to_string());
-        active.updated_at = Set(now);
-        active.update(db).await?;
+    let cleared_prompt_count = prompts.len() as u64;
+    if !prompts.is_empty() {
+        chapter_video_prompt::Entity::update_many()
+            .col_expr(
+                chapter_video_prompt::Column::GeneratedVideoId,
+                Expr::value(Option::<i64>::None),
+            )
+            .col_expr(
+                chapter_video_prompt::Column::Status,
+                Expr::value(chapter_video_prompt::STATUS_PENDING),
+            )
+            .col_expr(chapter_video_prompt::Column::UpdatedAt, Expr::value(now))
+            .filter(
+                chapter_video_prompt::Column::Id.is_in(
+                    prompts
+                        .iter()
+                        .map(|(prompt_id, _)| *prompt_id)
+                        .collect::<Vec<_>>(),
+                ),
+            )
+            .exec(db)
+            .await?;
     }
-    for project_id in project_ids {
-        crate::canvas::mark_canvas_generated_video_refs_missing(db, project_id, video_id).await?;
-    }
+    let project_ids = project_ids.into_iter().collect::<Vec<_>>();
+    crate::canvas::mark_canvas_generated_video_refs_missing_for_projects(
+        db,
+        &project_ids,
+        video_id,
+    )
+    .await?;
     crate::generation::delete_generation_run_targets_for(db, "generated_video", &[video_id])
         .await?;
-    Ok(prompts.len() as u64)
+    Ok(cleared_prompt_count)
 }
 
 pub async fn delete_missing_generated_video_references_record<C>(

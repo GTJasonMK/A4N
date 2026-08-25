@@ -58,13 +58,13 @@ impl<'a> VideoGenerationProgress<'a> {
     }
 
     pub fn progress(&mut self, current: u32, total: u32, message: &str) -> Result<(), AppError> {
-        if let Some(reporter) = self.reporter.as_deref_mut() {
-            if let Err(error) = reporter(current, total.max(1), message) {
-                if matches!(error, AppError::Cancelled) {
-                    self.cancel_token.cancel();
-                } else {
-                    return Err(error);
-                }
+        if let Some(reporter) = self.reporter.as_deref_mut()
+            && let Err(error) = reporter(current, total.max(1), message)
+        {
+            if matches!(error, AppError::Cancelled) {
+                self.cancel_token.cancel();
+            } else {
+                return Err(error);
             }
         }
         Ok(())
@@ -401,7 +401,7 @@ impl crate::OrchestratorContext {
         let business_key = crate::video::video_provider_workflow_business_key(video.id)
             .map_err(AppError::InvalidArgument)?;
         if let Some(run) = self
-            .latest_workflow_run_by_business_key(&business_key)
+            .latest_workflow_run_status_record_by_business_key(&business_key)
             .await?
             .filter(|run| run.status == crate::workflow::WORKFLOW_STATUS_INTERRUPTED)
         {

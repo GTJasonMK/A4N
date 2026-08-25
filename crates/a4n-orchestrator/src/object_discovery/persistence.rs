@@ -1,13 +1,11 @@
 use a4n_core::{error::AppError, models::asset::object_profile};
-use serde_json::{Value, json};
-
-use crate::{
-    OrchestratorContext,
-    asset::{
-        ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult, normalize_object_name,
-    },
+use a4n_db::{
+    asset::{ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult},
     generation::RecordCompletedGenerationRunInput,
 };
+use serde_json::{Value, json};
+
+use crate::{OrchestratorContext, asset::object_profiles::normalize_object_name};
 
 use super::contracts::{
     ObjectDiscoveryCallResult, ObjectDiscoveryProgress, ObjectDiscoveryRequestContext,

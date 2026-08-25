@@ -13,8 +13,8 @@ use a4n_rag_core::vector_store::VectorStore;
 use a4n_rag_index::QdrantVectorStore;
 use a4n_service_protocol::{
     RAG_COMPLETENESS_REPORT_BY_IDS_PATH, RAG_DELETE_PATH, RAG_DROP_COLLECTION_PATH,
-    RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_FILTER_PATH, RAG_METADATA_BY_IDS_PATH,
-    RAG_QUERY_PATH, RAG_SEARCH_PATH, RAG_SEARCH_TEXT_PATH,
+    RAG_INGEST_EVENTS_PATH, RAG_METADATA_BY_FILTER_PATH, RAG_METADATA_BY_IDS_PATH, RAG_QUERY_PATH,
+    RAG_SEARCH_PATH, RAG_SEARCH_TEXT_PATH,
 };
 use axum::{
     Router,
@@ -121,16 +121,14 @@ fn init_tracing() -> anyhow::Result<()> {
 }
 
 fn data_dir() -> Result<PathBuf, AppError> {
-    optional_non_empty_env_path("A4N_RAG_SERVICE_DATA_DIR")?.ok_or_else(|| {
-        AppError::ConfigError("A4N_RAG_SERVICE_DATA_DIR 未设置".to_string())
-    })
+    optional_non_empty_env_path("A4N_RAG_SERVICE_DATA_DIR")?
+        .ok_or_else(|| AppError::ConfigError("A4N_RAG_SERVICE_DATA_DIR 未设置".to_string()))
 }
 
 fn router(state: RagServiceState) -> Router {
-    let policy = a4n_service_protocol::sidecar_resource_policy(
-        a4n_service_protocol::RAG_SERVICE_NAME,
-    )
-    .expect("rag sidecar must have a resource policy");
+    let policy =
+        a4n_service_protocol::sidecar_resource_policy(a4n_service_protocol::RAG_SERVICE_NAME)
+            .expect("rag sidecar must have a resource policy");
     Router::new()
         .route(a4n_service_protocol::SIDECAR_HEALTH_PATH, get(healthz))
         .route(RAG_QUERY_PATH, post(query))
@@ -141,7 +139,10 @@ fn router(state: RagServiceState) -> Router {
         .route(RAG_DROP_COLLECTION_PATH, post(drop_collection))
         .route(RAG_METADATA_BY_IDS_PATH, post(metadata_by_ids))
         .route(RAG_METADATA_BY_FILTER_PATH, post(metadata_by_filter))
-        .route(RAG_COMPLETENESS_REPORT_BY_IDS_PATH, post(completeness_report_by_ids))
+        .route(
+            RAG_COMPLETENESS_REPORT_BY_IDS_PATH,
+            post(completeness_report_by_ids),
+        )
         .layer(DefaultBodyLimit::max(
             policy.body_limit(a4n_service_protocol::BodyLimitKind::Json),
         ))
@@ -177,9 +178,7 @@ mod mutation_marker_tests {
         };
 
         let error = state
-            .persist_mutation(async {
-                Err::<(), _>(AppError::ConfigError("expected".into()))
-            })
+            .persist_mutation(async { Err::<(), _>(AppError::ConfigError("expected".into())) })
             .await
             .expect_err("mutation should fail");
 

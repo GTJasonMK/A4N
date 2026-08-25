@@ -26,6 +26,7 @@ import { QueueInfoCard } from "./queue/QueueInfoCard";
 import { QueueStatsGrid } from "./queue/QueueStatsGrid";
 import { TaskHistoryPanel } from "./queue/TaskHistoryPanel";
 import { WorkflowRunsPanel } from "./queue/WorkflowRunsPanel";
+import { useI18n } from "../../i18n";
 
 /**
  * 任务队列 Tab
@@ -35,6 +36,7 @@ import { WorkflowRunsPanel } from "./queue/WorkflowRunsPanel";
  */
 export const QueueTab: React.FC = () => {
   const { addToast } = useToast();
+  const { t } = useI18n();
   const user = useAuthStore((state) => state.user);
   const canReadQueueDiagnostics = user?.role === "admin";
   const [stats, setStats] = useState<QueueStatsSummary | null>(null);
@@ -120,7 +122,7 @@ export const QueueTab: React.FC = () => {
       setWorkflowRuns(persistedWorkflowRuns);
     } catch (err) {
       if (!isCurrentRefresh(requestSeq)) return;
-      addToast(extractErrorMessage(err, "加载任务队列失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsQueue.loadQueueFailed")), "error");
     } finally {
       if (refreshSeqRef.current === requestSeq) {
         refreshBusyRef.current = false;
@@ -206,7 +208,7 @@ export const QueueTab: React.FC = () => {
       setWorkflowRunDetails(next);
     } catch (err) {
       if (!mountedRef.current) return;
-      addToast(extractErrorMessage(err, "加载工作流详情失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsQueue.loadWorkflowFailed")), "error");
     } finally {
       if (mountedRef.current) setWorkflowRunDetailLoading(run.id, false);
     }
@@ -215,18 +217,18 @@ export const QueueTab: React.FC = () => {
   const handleCancel = async (taskId: string) => {
     if (cancellingTaskIdsRef.current.has(taskId)) return;
     if (!tasksRef.current.some((task) => task.id === taskId)) {
-      addToast("任务已不在最近任务列表中", "info");
+      addToast(t("settingsQueue.taskMissing"), "info");
       return;
     }
     markTaskCancelling(taskId);
     try {
       await cancelTask(taskId);
       if (!mountedRef.current) return;
-      addToast("任务已取消", "success");
+      addToast(t("settingsQueue.taskCancelled"), "success");
       await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
-      addToast(extractErrorMessage(err, "取消任务失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsQueue.cancelTaskFailed")), "error");
     } finally {
       if (mountedRef.current) clearTaskCancelling(taskId);
     }
@@ -235,18 +237,18 @@ export const QueueTab: React.FC = () => {
   const handleCancelWorkflow = async (taskId: string) => {
     if (cancellingWorkflowIdsRef.current.has(taskId)) return;
     if (!workflowsRef.current.some((workflow) => workflow.task_id === taskId)) {
-      addToast("工作流已不在活跃列表中", "info");
+      addToast(t("settingsQueue.workflowMissing"), "info");
       return;
     }
     markWorkflowCancelling(taskId);
     try {
       await cancelWorkflow({ task_id: taskId, workflow_run_id: null });
       if (!mountedRef.current) return;
-      addToast("工作流已取消", "success");
+      addToast(t("settingsQueue.workflowCancelled"), "success");
       await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
-      addToast(extractErrorMessage(err, "取消工作流失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsQueue.cancelWorkflowFailed")), "error");
     } finally {
       if (mountedRef.current) clearWorkflowCancelling(taskId);
     }
@@ -258,11 +260,11 @@ export const QueueTab: React.FC = () => {
     try {
       await resumeWorkflowRun(run.id);
       if (!mountedRef.current) return;
-      addToast("已恢复工作流", "success");
+      addToast(t("settingsQueue.workflowResumed"), "success");
       await refresh({ force: true });
     } catch (err) {
       if (!mountedRef.current) return;
-      addToast(extractErrorMessage(err, "恢复工作流失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsQueue.resumeWorkflowFailed")), "error");
     } finally {
       if (mountedRef.current) clearWorkflowRunResuming(run.id);
     }
@@ -280,7 +282,7 @@ export const QueueTab: React.FC = () => {
   if (!canReadQueueDiagnostics) {
     return (
       <div className="border-l-2 border-book-border/70 pl-3 text-sm text-book-text-muted">
-        请求队列诊断仅管理员可查看。
+        {t("settingsQueue.adminOnly")}
       </div>
     );
   }
@@ -290,10 +292,10 @@ export const QueueTab: React.FC = () => {
       <div className="flex shrink-0 items-center justify-end gap-2 text-small text-book-text-muted">
         <span className="inline-flex items-center gap-1.5">
           <Activity size={12} className="text-book-primary" />
-          每 5 秒自动刷新
+          {t("settingsQueue.autoRefresh")}
         </span>
         <BookIconButton
-          label="立即刷新"
+          label={t("settingsQueue.refreshNow")}
           onClick={() => void refresh()}
           variant="secondary"
           size="sm"

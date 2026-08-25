@@ -8,6 +8,7 @@ import type {
   ReverseEngineeringCandidate,
   ReverseEngineeringTarget,
 } from "../../../api/import";
+import { useI18n, type MessageKey, type MessageTranslator } from "../../../i18n";
 
 interface ImportToolsPanelProps {
   dedupText: string;
@@ -50,34 +51,35 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   onReverseEngineer,
   onConfirmReverse,
 }) => {
+  const { t } = useI18n();
   const toolsBusy = externalBusy || dedupBusy || reverseGenerating || reverseConfirmBusy;
   const dedupReady = dedupText.trim().length > 0;
   const reverseReady = reverseAutoContext || reverseSample.trim().length > 0;
   const reverseCandidate = reverseResult;
   const reverseLabel =
     reverseType === "blueprint"
-      ? "故事蓝图"
+      ? t("novel.importReview.blueprint")
       : reverseType === "outline"
-        ? "章节大纲"
-        : "分部大纲";
+        ? t("novel.importReview.chapterOutline")
+        : t("novel.importReview.partOutline");
 
   return (
     <section aria-labelledby="import-tools-title" className="space-y-3 text-xs">
       <div>
         <h3 id="import-tools-title" className="text-sm font-semibold text-book-text-main">
-          项目资料归纳与文本工具
+          {t("novel.importReview.tools.title")}
         </h3>
         <p className="mt-0.5 text-small text-book-text-muted">
-          蓝图和分部大纲只由你主动生成或更新，章节分析不会自动修改它们
+          {t("novel.importReview.tools.description")}
         </p>
       </div>
       <details className="group a4n-flat-surface overflow-hidden">
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-book-text-main [&::-webkit-details-marker]:hidden">
           <CopyCheck size={15} className="text-book-text-muted" />
           <span className="min-w-0">
-            <span className="block text-xs font-semibold">段落去重</span>
+            <span className="block text-xs font-semibold">{t("novel.importReview.tools.dedupTitle")}</span>
             <span className="mt-0.5 block truncate text-small font-normal text-book-text-muted">
-              按双换行识别段落
+              {t("novel.importReview.tools.dedupDescription")}
             </span>
           </span>
           <ChevronDown
@@ -90,7 +92,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             value={dedupText}
             onChange={(e) => onDedupTextChange(e.target.value)}
             disabled={toolsBusy}
-            placeholder="粘贴若干段落，按双换行分段"
+            placeholder={t("novel.importReview.tools.dedupPlaceholder")}
             className="pyqt-input h-20 w-full resize-y"
           />
           <div className="flex justify-end">
@@ -103,17 +105,17 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             >
               {dedupBusy ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 检查中…
+                  <LoadingSpinner size="sm" /> {t("novel.importReview.tools.checking")}
                 </span>
               ) : (
-                "检查"
+                t("novel.importReview.tools.check")
               )}
             </BookButton>
           </div>
           {dedupResult != null && (
             <details className="border-t border-book-border/40 pt-2">
               <summary className="cursor-pointer py-1 text-small text-book-text-sub">
-                查看去重结果
+                {t("novel.importReview.tools.viewDedup")}
               </summary>
               <div className="pt-2">
                 <ImportToolResult value={dedupResult} />
@@ -127,9 +129,9 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3 text-book-text-main [&::-webkit-details-marker]:hidden">
           <GitBranch size={15} className="text-book-text-muted" />
           <span className="min-w-0">
-            <span className="block text-xs font-semibold">项目资料归纳</span>
+            <span className="block text-xs font-semibold">{t("novel.importReview.tools.reverseTitle")}</span>
             <span className="mt-0.5 block truncate text-small font-normal text-book-text-muted">
-              蓝图直接更新正式资料；大纲生成后再确认
+              {t("novel.importReview.tools.reverseDescription")}
             </span>
           </span>
           <ChevronDown
@@ -140,8 +142,8 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
         <div className="space-y-2 border-t border-book-border/45 p-4">
           <p className="text-small leading-relaxed text-book-text-muted">
             {reverseType === "blueprint"
-              ? "依据当前正文、简介、大纲和正式资料归纳蓝图；成功后直接成为正式蓝图，失败时保留原蓝图。"
-              : "先生成可检查的归纳结果，确认后才更新正式大纲；生成前可以查看模型请求。"}
+              ? t("novel.importReview.tools.blueprintDescription")
+              : t("novel.importReview.tools.outlineDescription")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <select
@@ -152,9 +154,9 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               }
               className="pyqt-input !px-2 !py-1 text-xs"
             >
-              <option value="blueprint">故事蓝图</option>
-              <option value="outline">章节大纲</option>
-              <option value="part_outline">分部大纲</option>
+              <option value="blueprint">{t("novel.importReview.blueprint")}</option>
+              <option value="outline">{t("novel.importReview.chapterOutline")}</option>
+              <option value="part_outline">{t("novel.importReview.partOutline")}</option>
             </select>
             <button
               type="button"
@@ -163,7 +165,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               disabled={toolsBusy}
               onClick={() => onReverseAutoContextChange(!reverseAutoContext)}
               className="inline-flex items-center gap-1.5 text-book-text-muted disabled:opacity-50"
-              title={reverseAutoContext ? "关闭项目上下文" : "使用项目上下文"}
+              title={reverseAutoContext ? t("novel.importReview.tools.closeContext") : t("novel.importReview.tools.useContext")}
             >
               <span
                 className={`relative inline-flex h-[18px] w-8 shrink-0 rounded-full transition-colors ${
@@ -176,7 +178,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
                   }`}
                 />
               </span>
-              当前项目资料
+              {t("novel.importReview.tools.currentMaterials")}
             </button>
           </div>
           <textarea
@@ -185,22 +187,22 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             onChange={(e) => onReverseSampleChange(e.target.value)}
             placeholder={
               reverseAutoContext
-                ? "可选：补充当前项目资料中没有体现的创作意图或人工备注"
-                : "粘贴章节摘要、章节内容或章节大纲样本"
+                ? t("novel.importReview.tools.contextPlaceholder")
+                : t("novel.importReview.tools.samplePlaceholder")
             }
             className="pyqt-input h-28 w-full resize-y"
           />
           <div className="flex items-center justify-end gap-2">
             {reverseGenerating ? (
               <span className="inline-flex items-center gap-1.5 text-small text-book-text-muted">
-                <LoadingSpinner size="sm" /> 正在生成结果…
+                <LoadingSpinner size="sm" /> {t("novel.importReview.tools.generatingResult")}
               </span>
             ) : null}
             {!toolsBusy && reverseReady ? (
               <Dropdown
                 items={[
                   {
-                    label: "查看模型请求",
+                    label: t("novel.importReview.tools.viewRequest"),
                     icon: <Eye size={11} />,
                     onClick: () => void onPreviewReverseRequest(),
                   },
@@ -214,10 +216,12 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
             >
               {reverseGenerating ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 生成中…
+                  <LoadingSpinner size="sm" /> {t("novel.importReview.tools.generating")}
                 </span>
               ) : (
-                reverseType === "blueprint" ? "归纳正式蓝图" : `生成${reverseLabel}候选`
+                reverseType === "blueprint"
+                  ? t("novel.importReview.tools.generateBlueprint")
+                  : t("novel.importReview.tools.generateCandidate", { label: reverseLabel })
               )}
             </BookButton>
           </div>
@@ -226,16 +230,16 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               <div className="flex flex-wrap items-center justify-between gap-2 py-1">
                 <span className="text-small text-book-text-sub">
                   {reverseType === "blueprint"
-                    ? "本次正式蓝图更新"
+                    ? t("novel.importReview.tools.formalUpdate")
                     : reverseCandidate?.state === "proposal"
-                      ? `${reverseLabel}候选（尚未写入正式资料）`
+                      ? t("novel.importReview.tools.candidatePending", { label: reverseLabel })
                       : reverseCandidate
-                        ? `${reverseLabel}候选已应用`
-                        : `${reverseLabel}候选`}
+                        ? t("novel.importReview.tools.candidateApplied", { label: reverseLabel })
+                        : t("novel.importReview.tools.candidate", { label: reverseLabel })}
                 </span>
                 {reverseType === "blueprint" && reverseCandidate ? (
                   <span className="inline-flex items-center gap-1 text-small text-emerald-700">
-                    <Check size={13} /> 已写入正式资料
+                    <Check size={13} /> {t("novel.importReview.tools.written")}
                   </span>
                 ) : reverseCandidate?.state === "proposal" ? (
                   <BookButton
@@ -247,22 +251,22 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
                   >
                     {reverseConfirmBusy ? (
                       <span className="inline-flex items-center gap-1.5">
-                        <LoadingSpinner size="sm" /> 确认中…
+                        <LoadingSpinner size="sm" /> {t("novel.importReview.tools.confirming")}
                       </span>
                     ) : (
-                      `确认更新${reverseLabel}`
+                      t("novel.importReview.tools.confirmUpdate", { label: reverseLabel })
                     )}
                   </BookButton>
                 ) : reverseCandidate ? (
                   <span className="inline-flex items-center gap-1 text-small text-emerald-700">
-                    <Check size={13} /> 已确认
+                    <Check size={13} /> {t("novel.importReview.tools.confirmed")}
                   </span>
                 ) : null}
               </div>
               {reverseCandidate?.applied != null ? (
                 <details open className="border-t border-book-border/40 pt-2">
                   <summary className="cursor-pointer py-1 text-small text-book-text-sub">
-                    查看本次正式更新结果
+                    {t("novel.importReview.tools.viewApplied")}
                   </summary>
                   <div className="pt-2">
                     <ImportToolResult value={reverseCandidate.applied} />
@@ -271,7 +275,9 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               ) : null}
               <details>
                 <summary className="cursor-pointer py-1 text-small text-book-text-muted">
-                  {reverseType === "blueprint" ? "查看模型归纳内容" : "查看候选内容"}
+                  {reverseType === "blueprint"
+                    ? t("novel.importReview.tools.viewBlueprintContent")
+                    : t("novel.importReview.tools.viewCandidateContent")}
                 </summary>
                 <div className="pt-2">
                   <ImportToolResult value={reverseResult.result} />
@@ -285,51 +291,52 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
   );
 };
 
-export const RESULT_LABELS: Record<string, string> = {
-  original_count: "原段落",
-  unique_count: "保留段落",
-  duplicate_count: "重复段落",
-  removed_count: "已移除",
-  duplicates: "重复内容",
-  result: "结果",
-  summary: "摘要",
-  blueprint: "故事蓝图",
-  outline: "章节大纲",
-  part_outline: "分部大纲",
-  title: "标题",
-  genre: "类型",
-  tone: "基调",
-  style: "风格",
-  full_synopsis: "故事梗概",
-  target_audience: "目标读者",
-  one_sentence_summary: "一句话概要",
-  total_chapters: "总章节数",
-  needs_part_outlines: "需要分部",
-  chapters_per_part: "每部章节数",
-  world_setting: "世界观",
-  characters: "角色",
-  relationships: "角色关系",
-  updated_fields: "已更新字段",
-  blueprint_applied: "蓝图已更新",
-  outline_count: "处理章纲",
-  character_count: "角色总数",
-  relationship_count: "关系总数",
-  character_inserted: "新增角色",
-  character_updated: "补充角色",
-  character_preserved_conflicts: "保留角色冲突",
-  relationship_inserted: "新增关系",
-  relationship_updated: "补充关系",
-  relationship_preserved_conflicts: "保留关系冲突",
-  part_outline_count: "处理分部",
-  inserted_count: "新增",
-  updated_count: "更新",
-  reused_count: "未变化",
+const RESULT_LABEL_KEYS: Record<string, MessageKey> = {
+  original_count: "novel.importReview.result.originalCount",
+  unique_count: "novel.importReview.result.uniqueCount",
+  duplicate_count: "novel.importReview.result.duplicateCount",
+  removed_count: "novel.importReview.result.removedCount",
+  duplicates: "novel.importReview.result.duplicates",
+  result: "novel.importReview.result.result",
+  summary: "novel.importReview.result.summary",
+  blueprint: "novel.importReview.blueprint",
+  outline: "novel.importReview.chapterOutline",
+  part_outline: "novel.importReview.partOutline",
+  title: "novel.importReview.result.title",
+  genre: "novel.importReview.result.genre",
+  tone: "novel.importReview.result.tone",
+  style: "novel.importReview.result.style",
+  full_synopsis: "novel.importReview.result.fullSynopsis",
+  target_audience: "novel.importReview.result.targetAudience",
+  one_sentence_summary: "novel.importReview.result.oneSentenceSummary",
+  total_chapters: "novel.importReview.result.totalChapters",
+  needs_part_outlines: "novel.importReview.result.needsPartOutlines",
+  chapters_per_part: "novel.importReview.result.chaptersPerPart",
+  world_setting: "novel.importReview.result.worldSetting",
+  characters: "novel.importReview.result.characters",
+  relationships: "novel.importReview.result.relationships",
+  updated_fields: "novel.importReview.result.updatedFields",
+  blueprint_applied: "novel.importReview.result.blueprintApplied",
+  outline_count: "novel.importReview.result.outlineCount",
+  character_count: "novel.importReview.result.characterCount",
+  relationship_count: "novel.importReview.result.relationshipCount",
+  character_inserted: "novel.importReview.result.characterInserted",
+  character_updated: "novel.importReview.result.characterUpdated",
+  character_preserved_conflicts: "novel.importReview.result.characterPreservedConflicts",
+  relationship_inserted: "novel.importReview.result.relationshipInserted",
+  relationship_updated: "novel.importReview.result.relationshipUpdated",
+  relationship_preserved_conflicts: "novel.importReview.result.relationshipPreservedConflicts",
+  part_outline_count: "novel.importReview.result.partOutlineCount",
+  inserted_count: "novel.importReview.result.insertedCount",
+  updated_count: "novel.importReview.result.updatedCount",
+  reused_count: "novel.importReview.result.reusedCount",
 };
 
 const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
+  const { t } = useI18n();
   const entries = isPlainRecord(value) ? Object.entries(value) : [];
   if (entries.length === 0) {
-    return <div className="whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">{formatResultValue(value)}</div>;
+    return <div className="whitespace-pre-wrap break-words text-small leading-relaxed text-book-text-sub">{formatResultValue(value, t)}</div>;
   }
   return (
     <div className="space-y-2">
@@ -337,24 +344,27 @@ const ImportToolResult: React.FC<{ value: unknown }> = ({ value }) => {
         {entries.slice(0, 16).map(([key, entryValue], index) => (
           <div key={key} className="grid gap-1 px-2.5 py-2 text-small sm:grid-cols-[88px_minmax(0,1fr)] sm:gap-3">
             <dt className="font-medium text-book-text-muted">
-              {RESULT_LABELS[key] ?? `结果 ${index + 1}`}
+              {RESULT_LABEL_KEYS[key] ? t(RESULT_LABEL_KEYS[key]) : t("novel.importReview.result.unknown", { index: index + 1 })}
             </dt>
             <dd className="min-w-0 whitespace-pre-wrap break-words leading-relaxed text-book-text-sub">
               {formatResultValue(
                 key === "updated_fields" && Array.isArray(entryValue)
                   ? entryValue.length > 0
                     ? entryValue.map((field) =>
-                        typeof field === "string" ? (RESULT_LABELS[field] ?? field) : field,
+                        typeof field === "string" && RESULT_LABEL_KEYS[field]
+                          ? t(RESULT_LABEL_KEYS[field])
+                          : field,
                       )
-                    : "无顶层字段变化"
+                    : t("novel.importReview.result.noTopLevelChanges")
                   : entryValue,
+                t,
               )}
             </dd>
           </div>
         ))}
       </dl>
       <details className="text-caption text-book-text-muted">
-        <summary className="w-fit cursor-pointer hover:text-book-text-main">诊断信息</summary>
+        <summary className="w-fit cursor-pointer hover:text-book-text-main">{t("novel.importReview.result.diagnostics")}</summary>
         <pre className="mt-1 whitespace-pre-wrap break-words rounded-xl bg-book-bg-tertiary/45 p-2 font-mono leading-relaxed text-book-text-sub">
           {JSON.stringify(value, null, 2)}
         </pre>
@@ -367,24 +377,24 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function formatResultValue(value: unknown, depth = 0): string {
-  if (value == null) return "未记录";
-  if (typeof value === "string") return value.trim() || "未记录";
+function formatResultValue(value: unknown, t: MessageTranslator, depth = 0): string {
+  if (value == null) return t("novel.importReview.result.noRecord");
+  if (typeof value === "string") return value.trim() || t("novel.importReview.result.noRecord");
   if (typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "是" : "否";
+  if (typeof value === "boolean") return value ? t("novel.importReview.result.yes") : t("novel.importReview.result.no");
   if (Array.isArray(value)) {
-    const items = value.slice(0, 8).map((item) => formatResultValue(item, depth + 1));
-    const suffix = value.length > items.length ? `，另有 ${value.length - items.length} 项` : "";
-    return `${items.join("；")}${suffix}` || "未记录";
+    const items = value.slice(0, 8).map((item) => formatResultValue(item, t, depth + 1));
+    const suffix = value.length > items.length ? t("novel.importReview.result.moreItems", { count: value.length - items.length }) : "";
+    return `${items.join(t("common.summarySeparator"))}${suffix}` || t("novel.importReview.result.noRecord");
   }
   if (isPlainRecord(value)) {
     return Object.entries(value)
       .slice(0, depth > 0 ? 6 : 10)
       .map(
         ([key, item], index) =>
-          `${RESULT_LABELS[key] ?? `内容 ${index + 1}`}：${formatResultValue(item, depth + 1)}`,
+          `${RESULT_LABEL_KEYS[key] ? t(RESULT_LABEL_KEYS[key]) : t("novel.importReview.result.content", { index: index + 1 })}：${formatResultValue(item, t, depth + 1)}`,
       )
-      .join("；") || "未记录";
+      .join(t("common.summarySeparator")) || t("novel.importReview.result.noRecord");
   }
   return String(value);
 }

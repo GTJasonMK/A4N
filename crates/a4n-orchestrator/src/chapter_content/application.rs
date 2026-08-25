@@ -14,7 +14,7 @@ use crate::{
     },
 };
 
-use super::ensure_text_project_kind;
+use super::rules::ensure_text_project_kind;
 
 #[async_trait]
 pub trait ChapterDerivedCleanupHostPort: Send + Sync {

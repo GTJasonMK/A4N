@@ -5,16 +5,21 @@ import { BehaviorManager } from "./BehaviorManager";
 import { EventManager } from "./EventManager";
 import { ImplicitReviewManager } from "./ImplicitReviewManager";
 import { SnapshotManager } from "./SnapshotManager";
+import { useI18n, type MessageKey } from "../../i18n";
 
 type ManageSection = "behavior" | "implicit" | "event" | "snapshot" | "deletion";
 
-const MANAGE_SECTIONS: { id: ManageSection; label: string; shortLabel: string }[] = [
-  { id: "behavior", label: "行为记录", shortLabel: "行为" },
-  { id: "implicit", label: "隐性复审", shortLabel: "复审" },
-  { id: "event", label: "属性事件", shortLabel: "属性" },
-  { id: "snapshot", label: "角色快照", shortLabel: "快照" },
-  { id: "deletion", label: "删除标记", shortLabel: "删除" },
-];
+const MANAGE_SECTIONS = [
+  { id: "behavior", labelKey: "behavior", shortLabelKey: "behaviorShort" },
+  { id: "implicit", labelKey: "implicit", shortLabelKey: "implicitShort" },
+  { id: "event", labelKey: "event", shortLabelKey: "eventShort" },
+  { id: "snapshot", labelKey: "snapshot", shortLabelKey: "snapshotShort" },
+  { id: "deletion", labelKey: "deletion", shortLabelKey: "deletionShort" },
+] as const satisfies ReadonlyArray<{
+  id: ManageSection;
+  labelKey: string;
+  shortLabelKey: string;
+}>;
 
 export const ManageView: React.FC<{
   character: CharacterProfile;
@@ -22,6 +27,7 @@ export const ManageView: React.FC<{
   initialEventFilter?: { category?: string | null; key?: string | null } | null;
   onChanged?: () => void | Promise<void>;
 }> = ({ character, initialSection, initialEventFilter, onChanged }) => {
+  const { t } = useI18n();
   const [sec, setSec] = useState<ManageSection>(initialSection ?? "behavior");
   const defaultChapter =
     character.last_synced_chapter > 0 ? character.last_synced_chapter : 1;
@@ -33,17 +39,23 @@ export const ManageView: React.FC<{
     <div className="flex flex-col gap-2">
       <div className="flex min-w-0 shrink-0 items-center gap-1 border-b border-book-border/40">
         {MANAGE_SECTIONS.map((s) => (
+          (() => {
+            const label = t(`characterDetail.sections.${s.labelKey}` as MessageKey);
+            const shortLabel = t(`characterDetail.sections.${s.shortLabelKey}` as MessageKey);
+            return (
           <button
             key={s.id}
             type="button"
             onClick={() => setSec(s.id)}
             data-active={sec === s.id ? "1" : undefined}
             className="pyqt-tab shrink-0 !text-caption"
-            title={s.label}
-            aria-label={s.label}
+            title={label}
+            aria-label={label}
           >
-            {s.shortLabel}
+            {shortLabel}
           </button>
+            );
+          })()
         ))}
       </div>
       <div>

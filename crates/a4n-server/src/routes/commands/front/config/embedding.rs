@@ -1,3 +1,4 @@
+use a4n_api_contract::config::{CreateEmbeddingInput, UpdateEmbeddingInput};
 use serde_json::Value;
 
 use super::shared::{
@@ -12,12 +13,12 @@ config_web_no_arg_command!(
 );
 config_web_input_command!(
     create_embedding_config,
-    config_records_actions::CreateEmbeddingInput,
+    CreateEmbeddingInput,
     config_records_actions::create_embedding_config,
 );
 config_web_update_command!(
     update_embedding_config,
-    config_records_actions::UpdateEmbeddingInput,
+    UpdateEmbeddingInput,
     config_records_actions::update_embedding_config,
 );
 config_web_id_unit_command!(

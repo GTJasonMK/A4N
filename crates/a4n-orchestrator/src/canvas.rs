@@ -1,7 +1,7 @@
 mod audio_import;
 mod audio_rules;
 mod editing_nodes;
-pub mod errors;
+mod errors;
 mod graph_execution;
 mod image_generation;
 mod input_rules;
@@ -17,12 +17,10 @@ mod workflow_rules;
 
 pub use a4n_db::canvas::{
     CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary,
-    CanvasAssemblySourceVideoInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
-    CanvasImageMediaAssetEnsureInput, CanvasPromptArtifactUpsertInput, CanvasTextAssetRecordInput,
-    CanvasVideoMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput, MissingCanvasRef,
-    clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node,
-    validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
-    validate_canvas_record_viewport_json,
+    CanvasAssemblySourceVideoInput, CanvasGraphRecordDocument, CanvasImageMediaAssetEnsureInput,
+    CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
+    FreeformCanvasGenerationSpecUpsertInput, validate_canvas_record_document_edge_contract,
+    validate_canvas_record_document_is_dag, validate_canvas_record_viewport_json,
 };
 pub use audio_import::CanvasAudioImportHostInput;
 pub use editing_nodes::{
@@ -32,6 +30,7 @@ pub use editing_nodes::{
     CanvasTrimVideoHostInput, CanvasTrimVideoNodeInput,
     build_canvas_editing_node_input_for_preview,
 };
+pub(crate) use errors::{canvas_db_error, video_studio_project_import_error};
 pub use graph_execution::{
     CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphNodeExecutionKind,
     CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput,
@@ -50,7 +49,7 @@ pub use media_import::{
     CanvasVideoImportApplicationResult, CanvasVideoImportHostInput, CanvasVideoImportHostPort,
 };
 pub(crate) use node_execution::CanvasNodeLifecycle;
-pub use node_execution::{CanvasNodeRunHandle, CanvasNodeRunSummary};
+pub use node_execution::CanvasNodeRunHandle;
 pub use output_nodes::{CanvasOutputDataType, CanvasOutputNodeExecutionInput, CanvasOutputValue};
 pub use probe_nodes::CanvasProbeNodeExecutionInput;
 pub(crate) use source_checkpoint::source_node_output_id;
@@ -59,7 +58,7 @@ pub(crate) use source_text::{
 };
 pub use text_generation::{
     CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput,
-    CanvasTextNodeRunHandle, CanvasTextNodeRunSummary, build_canvas_llm_text_request_for_preview,
+    build_canvas_llm_text_request_for_preview,
 };
 pub use video_generation::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoImageInput,

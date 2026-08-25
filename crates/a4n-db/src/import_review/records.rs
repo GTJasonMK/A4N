@@ -35,6 +35,26 @@ where
         .await
 }
 
+pub async fn import_review_project_ids_by_ids<C>(
+    db: &C,
+    review_ids: &[i64],
+) -> Result<Vec<(i64, i64)>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    if review_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    import_review_queue::Entity::find()
+        .select_only()
+        .column(import_review_queue::Column::Id)
+        .column(import_review_queue::Column::ProjectId)
+        .filter(import_review_queue::Column::Id.is_in(review_ids.iter().copied()))
+        .into_tuple::<(i64, i64)>()
+        .all(db)
+        .await
+}
+
 pub async fn create_import_reviews<C>(
     db: &C,
     inputs: Vec<ImportReviewCreateInput>,
@@ -42,24 +62,26 @@ pub async fn create_import_reviews<C>(
 where
     C: ConnectionTrait + TransactionTrait,
 {
+    if inputs.is_empty() {
+        return Ok(Vec::new());
+    }
     let tx = db.begin().await?;
     let now = Utc::now().naive_utc();
-    let mut reviews = Vec::with_capacity(inputs.len());
-    for input in inputs {
-        reviews.push(
-            import_review_queue::ActiveModel {
-                project_id: Set(input.project_id),
-                filename: Set(input.filename),
-                analysis_result: Set(input.analysis_result),
-                review_status: Set(ImportReviewStatus::Pending.as_str().to_string()),
-                created_at: Set(now),
-                updated_at: Set(now),
-                ..Default::default()
-            }
-            .insert(&tx)
-            .await?,
-        );
-    }
+    let rows = inputs
+        .into_iter()
+        .map(|input| import_review_queue::ActiveModel {
+            project_id: Set(input.project_id),
+            filename: Set(input.filename),
+            analysis_result: Set(input.analysis_result),
+            review_status: Set(ImportReviewStatus::Pending.as_str().to_string()),
+            created_at: Set(now),
+            updated_at: Set(now),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    let reviews = import_review_queue::Entity::insert_many(rows)
+        .exec_with_returning_many(&tx)
+        .await?;
     tx.commit().await?;
     Ok(reviews)
 }
@@ -99,13 +121,17 @@ where
     Ok(())
 }
 
-pub async fn import_dedup_chapters<C>(db: &C, project_id: i64) -> Result<Vec<chapter::Model>, DbErr>
+pub async fn import_dedup_chapters<C>(db: &C, project_id: i64) -> Result<Vec<(i64, String)>, DbErr>
 where
     C: ConnectionTrait,
 {
     chapter::Entity::find()
+        .select_only()
+        .column(chapter::Column::Id)
+        .column(chapter::Column::Content)
         .filter(chapter::Column::ProjectId.eq(project_id))
         .filter(chapter::Column::Status.ne("deleted"))
+        .into_tuple::<(i64, String)>()
         .all(db)
         .await
 }

@@ -4,8 +4,8 @@ use a4n_db::manga::{MangaPagePromptSyncDraft, sync_manga_page_prompts_by_chapter
 use chrono::Utc;
 
 use super::super::OrchestratorContext;
+use super::super::record_errors::manga_pipeline_db_error;
 use super::contracts::MangaPagePromptDraft;
-use super::errors::manga_pipeline_db_error;
 
 impl OrchestratorContext {
     pub(in crate::manga) async fn sync_generated_page_prompts(
@@ -53,8 +53,6 @@ impl OrchestratorContext {
             self.record_manga_page_prompt_generation_run(&row, trace)
                 .await?;
         }
-        self.sync_project_asset_lineage_after_commit(project_id, "同步漫画输出资产谱系")
-            .await;
         Ok(rows)
     }
 }

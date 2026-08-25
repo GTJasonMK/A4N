@@ -1,10 +1,10 @@
 import { AlertCircle, Bot, CheckCircle2, User, Wrench } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ReactNode } from "react";
+import { useI18n, type MessageTranslator } from "../../../i18n";
 
 import {
   formatItemMeta,
-  isGenericWaitingProgress,
   itemClassName,
   kindLabel,
   processStepBehavior,
@@ -14,16 +14,17 @@ import {
 import type { ProgressDialogStatus } from "../../../components/feedback/ProgressDialog";
 
 export function StreamMessage({ item }: { item: StreamItem }) {
-  const meta = formatItemMeta(item);
+  const { locale, t } = useI18n();
+  const meta = formatItemMeta(item, locale);
   const currentStep = currentProcessStep(item.steps);
-  const currentBehavior = currentStep ? processStepBehavior(currentStep) : null;
+  const currentBehavior = currentStep ? processStepBehavior(currentStep, t) : null;
   const isProcessItem = isProcessBubble(item) && currentBehavior != null;
   const title = isProcessItem
     ? currentBehavior.title
-    : item.title ?? kindLabel(item.kind);
+    : item.title ?? kindLabel(item.kind, t);
   const content = isProcessItem ? currentBehavior.detail : item.content;
   const contentClassName = "whitespace-pre-wrap break-words";
-  const processSteps = visibleProcessSteps(item.steps, isProcessItem, currentStep);
+  const processSteps = visibleProcessSteps(item.steps, isProcessItem, currentStep, t);
   const showTimeline = item.kind !== "user" && (processSteps.length > 0 || isLiveModelItem(item));
   const showHeader = !showTimeline;
   return (
@@ -57,6 +58,7 @@ export function StreamMessage({ item }: { item: StreamItem }) {
             steps={processSteps}
             currentItem={isLiveModelItem(item) ? item : null}
             finalReply={isAssistantReplyItem(item) ? content : null}
+            t={t}
           />
         ) : (
           <MarkdownText className={contentClassName} text={content} />
@@ -64,7 +66,7 @@ export function StreamMessage({ item }: { item: StreamItem }) {
         {item.detail && !item.steps?.length ? (
           <details className="mt-2 min-w-0 overflow-hidden rounded-xl border border-book-border/70 bg-book-bg-paper/60">
             <summary className="cursor-pointer select-none px-2 py-1 text-small font-semibold text-book-text-sub hover:text-book-text-main">
-              {item.detailLabel ?? "查看详情"}
+              {item.detailLabel ?? t("optimize.detail")}
             </summary>
             <pre className="whitespace-pre-wrap break-words border-t border-book-border/70 px-2 py-2 font-mono text-small leading-relaxed text-book-text-sub">
               {item.detail}
@@ -81,14 +83,16 @@ function AgentTurnTimeline({
   steps,
   currentItem,
   finalReply,
+  t,
 }: {
   steps: StreamItem[];
   currentItem: StreamItem | null;
   finalReply: string | null;
+  t: MessageTranslator;
 }) {
   const rows: TimelineRow[] = [
-    ...timelineRowsForSteps(steps),
-    ...(currentItem ? timelineRowsForItem(currentItem, `${currentItem.id}-current`) : []),
+    ...timelineRowsForSteps(steps, t),
+    ...(currentItem ? timelineRowsForItem(currentItem, `${currentItem.id}-current`, t) : []),
     finalReply
       ? {
           id: "assistant-final-reply",
@@ -98,12 +102,12 @@ function AgentTurnTimeline({
           marker: "assistant" as const,
         }
       : null,
-  ].filter((row): row is TimelineRow => row != null && hasTimelineContent(row));
+  ].filter((row): row is TimelineRow => row != null && hasTimelineContent(row, t));
 
   return (
     <div className="min-w-0 space-y-1.5">
       {rows.map((row) => (
-        <TimelineRowView key={row.id} row={row} />
+        <TimelineRowView key={row.id} row={row} t={t} />
       ))}
     </div>
   );
@@ -124,14 +128,14 @@ interface TimelineToolResult {
   success: boolean;
 }
 
-function timelineRowsForSteps(steps: StreamItem[]): TimelineRow[] {
+function timelineRowsForSteps(steps: StreamItem[], t: MessageTranslator): TimelineRow[] {
   const rows: TimelineRow[] = [];
   for (let index = 0; index < steps.length; index += 1) {
     const step = steps[index];
-    const behavior = processStepBehavior(step);
-    if (behavior.title.startsWith("调用工具：")) {
+    const behavior = processStepBehavior(step, t);
+    if (step.activity === "tool_call" || behavior.title.startsWith(t("optimize.callTool"))) {
       const nextStep = steps[index + 1];
-      const nextBehavior = nextStep ? processStepBehavior(nextStep) : null;
+      const nextBehavior = nextStep ? processStepBehavior(nextStep, t) : null;
       const hasToolResult = nextStep?.activity === "tool_result" && nextBehavior != null;
       if (behavior.detail.trim()) {
         rows.push({
@@ -147,12 +151,12 @@ function timelineRowsForSteps(steps: StreamItem[]): TimelineRow[] {
         title: behavior.title,
         detail: "",
         source: step,
-        marker: toolMarker(nextStep, nextBehavior),
+        marker: toolMarker(nextStep, nextBehavior, t),
         toolResult: hasToolResult
           ? {
               title: nextBehavior.title,
               detail: nextBehavior.detail,
-              success: !isFailedToolResult(nextStep, nextBehavior),
+              success: !isFailedToolResult(nextStep, nextBehavior, t),
             }
           : undefined,
       });
@@ -160,29 +164,31 @@ function timelineRowsForSteps(steps: StreamItem[]): TimelineRow[] {
       continue;
     }
 
-    rows.push(...timelineRowsForStep(step, step.id));
+    rows.push(...timelineRowsForStep(step, step.id, t));
   }
   return rows;
 }
 
-function timelineRowsForStep(step: StreamItem, idPrefix: string): TimelineRow[] {
-  const behavior = processStepBehavior(step);
+function timelineRowsForStep(step: StreamItem, idPrefix: string, t: MessageTranslator): TimelineRow[] {
+  const behavior = processStepBehavior(step, t);
   return timelineRowsFromBehavior({
     idPrefix,
     title: behavior.title,
     detail: behavior.detail,
     source: step,
     marker: rowMarkerForStep(step),
+    t,
   });
 }
 
-function timelineRowsForItem(item: StreamItem, idPrefix: string): TimelineRow[] {
+function timelineRowsForItem(item: StreamItem, idPrefix: string, t: MessageTranslator): TimelineRow[] {
   return timelineRowsFromBehavior({
     idPrefix,
-    title: item.title ?? kindLabel(item.kind),
+    title: item.title ?? kindLabel(item.kind, t),
     detail: item.content,
     source: item,
     marker: rowMarkerForStep(item),
+    t,
   });
 }
 
@@ -192,14 +198,16 @@ function timelineRowsFromBehavior({
   detail,
   source,
   marker,
+  t,
 }: {
   idPrefix: string;
   title: string;
   detail: string;
   source: StreamItem;
   marker: TimelineRow["marker"];
+  t: MessageTranslator;
 }): TimelineRow[] {
-  if (title.startsWith("调用工具：")) {
+  if (source?.activity === "tool_call" || title.startsWith(t("optimize.callTool"))) {
     const rows: TimelineRow[] = [];
     if (detail.trim()) {
       rows.push({
@@ -219,7 +227,7 @@ function timelineRowsFromBehavior({
     });
     return rows;
   }
-  if (title.startsWith("工具返回：")) {
+  if (source?.activity === "tool_result" || title.startsWith(t("optimize.toolReturned"))) {
     return [
       {
         id: `${idPrefix}-tool-summary`,
@@ -230,7 +238,10 @@ function timelineRowsFromBehavior({
       },
     ];
   }
-  if (title === "Agent 说明" || title === "Agent 正在回复") {
+  if (
+    title === t("optimize.agentNote") ||
+    title === t("optimize.agentReply")
+  ) {
     return [
       {
         id: idPrefix,
@@ -252,11 +263,11 @@ function timelineRowsFromBehavior({
   ];
 }
 
-function TimelineRowView({ row }: { row: TimelineRow }) {
+function TimelineRowView({ row, t }: { row: TimelineRow; t: MessageTranslator }) {
   if (isToolBoxRow(row)) {
     return <ToolBox row={row} />;
   }
-  if (isActiveThinkingRow(row)) {
+  if (isActiveThinkingRow(row, t)) {
     return (
       <div className="flex min-w-0 items-center gap-1.5 text-book-text-sub">
         <LoadingSpinner size="sm" />
@@ -271,7 +282,7 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
           {row.title}
         </div>
       ) : null}
-      {shouldShowTimelineDetail(row) ? (
+      {shouldShowTimelineDetail(row, t) ? (
         <MarkdownText
           className="whitespace-pre-wrap break-words text-book-text-sub"
           text={row.detail}
@@ -284,7 +295,6 @@ function TimelineRowView({ row }: { row: TimelineRow }) {
 function ToolBox({ row }: { row: TimelineRow }) {
   const success =
     row.marker !== "error" &&
-    !row.title.startsWith("工具失败") &&
     row.toolResult?.success !== false;
   const statusClass = success
     ? "bg-success"
@@ -318,35 +328,34 @@ function ToolBox({ row }: { row: TimelineRow }) {
 function isToolBoxRow(row: TimelineRow): boolean {
   return (
     row.marker === "tool" ||
-    row.title.startsWith("调用工具") ||
-    row.title.startsWith("工具返回") ||
-    row.title.startsWith("工具失败") ||
-    row.source?.activity === "tool_result"
+    row.source?.activity === "tool_call" ||
+    row.source?.activity === "tool_result" ||
+    row.source?.kind === "tool"
   );
 }
 
-function hasTimelineContent(row: TimelineRow): boolean {
+function hasTimelineContent(row: TimelineRow, t: MessageTranslator): boolean {
   return Boolean(
     row.title.trim() ||
       row.detail.trim() ||
       row.toolResult?.detail.trim() ||
-      isActiveThinkingRow(row),
+      isActiveThinkingRow(row, t),
   );
 }
 
-function shouldShowTimelineDetail(row: TimelineRow): boolean {
+function shouldShowTimelineDetail(row: TimelineRow, t: MessageTranslator): boolean {
   if (!row.detail.trim()) return false;
-  if (isThinkingTimelineRow(row)) return false;
+  if (isThinkingTimelineRow(row, t)) return false;
   return true;
 }
 
-function isThinkingTimelineRow(row: TimelineRow): boolean {
-  return row.title.includes("思考");
+function isThinkingTimelineRow(row: TimelineRow, t: MessageTranslator): boolean {
+  return row.title === t("optimize.thinking");
 }
 
-function isActiveThinkingRow(row: TimelineRow): boolean {
+function isActiveThinkingRow(row: TimelineRow, t: MessageTranslator): boolean {
   return (
-    row.title.includes("思考") &&
+    row.title === t("optimize.thinking") &&
     row.source?.activity === "llm_response" &&
     row.source.status === "running"
   );
@@ -364,9 +373,10 @@ function visibleProcessSteps(
   steps: StreamItem[] | undefined,
   isProcessItem: boolean,
   currentStep: StreamItem | null,
+  t: MessageTranslator,
 ): StreamItem[] {
   if (!steps?.length) return [];
-  const visible = steps.filter(isVisibleProcessStep);
+  const visible = steps.filter((step) => isVisibleProcessStep(step, t));
   if (
     isProcessItem &&
     visible.length === 1 &&
@@ -378,23 +388,22 @@ function visibleProcessSteps(
   return visible;
 }
 
-function isVisibleProcessStep(step: StreamItem): boolean {
+function isVisibleProcessStep(step: StreamItem, t: MessageTranslator): boolean {
   if (step.kind === "error" || step.status === "error" || step.status === "cancelled") {
     return true;
   }
   if (step.activity === "llm_response") {
-    return !isCompletedHiddenLlmStep(step);
+    return !isCompletedHiddenLlmStep(step, t);
   }
   if (step.activity === "tool_result") return true;
-  if (step.activity === "progress") return false;
   return false;
 }
 
-function isCompletedHiddenLlmStep(step: StreamItem): boolean {
+function isCompletedHiddenLlmStep(step: StreamItem, t: MessageTranslator): boolean {
   if (step.activity !== "llm_response") return false;
   if (step.status === "running") return false;
-  const title = processStepBehavior(step).title;
-  return title.includes("思考") || title === "Agent 回复" || title === "分析结果";
+  const title = processStepBehavior(step, t).title;
+  return title === t("optimize.thinking") || title === t("optimize.agentReply") || title === t("optimize.analysisResult");
 }
 
 function rowMarkerForStep(step: StreamItem): TimelineRow["marker"] {
@@ -409,19 +418,22 @@ function rowMarkerForStep(step: StreamItem): TimelineRow["marker"] {
 function toolMarker(
   step: StreamItem | undefined,
   behavior: ReturnType<typeof processStepBehavior> | null,
+  t: MessageTranslator,
 ): TimelineRow["marker"] {
   if (!step) return "tool";
-  return isFailedToolResult(step, behavior) ? "error" : "tool";
+  return isFailedToolResult(step, behavior, t) ? "error" : "tool";
 }
 
 function isFailedToolResult(
   step: StreamItem,
   behavior: ReturnType<typeof processStepBehavior> | null,
+  t: MessageTranslator,
 ): boolean {
+  const failedPrefix = t("optimize.toolFailed", { tool: "" });
   return (
     step.kind === "error" ||
     step.status === "error" ||
-    behavior?.title.startsWith("工具失败") === true
+    behavior?.title.startsWith(failedPrefix) === true
   );
 }
 
@@ -548,22 +560,22 @@ function renderInlineMarkdown(text: string): ReactNode[] {
 }
 
 function isProcessBubble(item: StreamItem): boolean {
-  return (
-    item.id.startsWith("message-process-") ||
-    item.id.startsWith("progress-turn-") ||
-    item.title === "Agent 过程" ||
-    item.title === "Agent 运行中"
-  );
+  return item.id.startsWith("message-process-");
 }
 
-function currentProcessStep(steps: StreamItem[] | undefined): StreamItem | null {
+export function currentProcessStep(
+  steps: StreamItem[] | undefined,
+): StreamItem | null {
   if (!steps?.length) return null;
-  const reversed = [...steps].reverse();
-  return (
-    reversed.find(isMeaningfulProcessStep) ??
-    reversed.find((step) => step.activity !== "agent_event" && !isGenericWaitingProgress(step)) ??
-    steps[steps.length - 1]
-  );
+  let latestNonAgentStep: StreamItem | null = null;
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    const step = steps[index];
+    if (isMeaningfulProcessStep(step)) return step;
+    if (latestNonAgentStep == null && step.activity !== "agent_event") {
+      latestNonAgentStep = step;
+    }
+  }
+  return latestNonAgentStep ?? steps[steps.length - 1];
 }
 
 function isMeaningfulProcessStep(step: StreamItem): boolean {

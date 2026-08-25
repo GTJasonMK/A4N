@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ListChecks, RotateCcw, Trash2, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { formatNumber, useI18n } from "../../../i18n";
 import type { ChapterVideoPrompt } from "../../../api/video";
 import type { ShootingSceneV1 } from "../../../api/shootingScript";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -9,7 +10,7 @@ import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
 import { EmptyHint } from "../shared";
 import { VideoDurationOptionsPicker } from "./VideoDurationOptionsPicker";
 import {
-  PROMPT_OUTPUT_LANGUAGE_LABELS,
+  promptOutputLanguageLabel,
   VIDEO_ASPECT_RATIOS,
   type VideoDurationLimits,
   type VideoGenOptions,
@@ -143,6 +144,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   onRetryLoad,
   onDelete,
 }) => {
+  const { locale, t } = useI18n();
   const persistedSegments = useMemo(
     () =>
       asArray(asJsonRecord(prompt?.metadata_json)?.segments)
@@ -200,47 +202,50 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   const needsLoadRetry = Boolean(loadError && !prompt);
   const shotProgress =
     draft && draft.completedShotCount > 0
-      ? `${draft.completedShotCount}/${draft.totalShotCount} 个镜头 · `
+      ? t("video.chapter.shotProgress", {
+          completed: formatNumber(draft.completedShotCount, locale),
+          total: formatNumber(draft.totalShotCount, locale),
+        })
       : "";
   const workflowProgress = draft?.workflowProgress
-    ? `${Math.round(draft.workflowProgress.percent)}%${draft.workflowProgress.message.trim() ? ` · ${draft.workflowProgress.message.trim()}` : ""} · `
+    ? `${formatNumber(Math.round(draft.workflowProgress.percent), locale)}%${draft.workflowProgress.message.trim() ? ` · ${draft.workflowProgress.message.trim()}` : ""} · `
     : "";
 
   return (
-    <section className="flex h-full min-h-0 flex-col" aria-label="视频片段规划">
+    <section className="flex h-full min-h-0 flex-col" aria-label={t("video.chapter.planningAria")}>
       {/* 头部：标题 + 状态 + 主操作 */}
       <div className="mb-4 flex min-w-0 flex-wrap items-center gap-3 border-b border-book-border/60 pb-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <h2 className="inline-flex items-center gap-1.5 text-base font-semibold text-book-text-main">
               <ListChecks size={16} className="text-book-primary" />
-              片段规划
+              {t("video.chapter.planningTitle")}
             </h2>
             <span className="text-small text-book-text-muted">
               {showingPreview
-                ? `${generatingPreview ? "生成中草稿" : "已保存草稿"} · ${segments.length} 个片段`
+                ? `${generatingPreview ? t("video.chapter.planningStatusGenerating") : t("video.chapter.planningStatusSaved")} · ${t("video.chapter.segments", { count: segments.length })}`
                 : prompt
-                ? `${getOperationStatusLabel(prompt.status)} · ${segments.length} 个片段`
-                : "未规划"}
+                ? `${getOperationStatusLabel(prompt.status, locale)} · ${t("video.chapter.segments", { count: segments.length })}`
+                : t("video.chapter.planningStatusUnplanned")}
             </span>
           </div>
           {(workflowProgress || shotProgress || loadError) && (
             <div className="mt-1 text-small text-book-text-muted">
               {workflowProgress}{shotProgress}
-              {loadError && <span className="text-error">加载失败：{loadError}</span>}
+              {loadError && <span className="text-error">{t("video.chapter.planningLoadFailed", { error: loadError })}</span>}
             </div>
           )}
         </div>
         <div className="flex items-center gap-2">
           <select
-            aria-label="选择要规划的拍摄场景"
+            aria-label={t("video.chapter.chooseSceneAria")}
             value={selectedUnitIndex ?? ""}
             onChange={(event) => setSelectedUnitIndex(Number(event.target.value))}
             disabled={busy || loading || draft != null || shootingScenes.length === 0}
             className="pyqt-input max-w-64 !px-2 !py-2 text-xs"
           >
             {shootingScenes.length === 0 ? (
-              <option value="">尚无已完成场景</option>
+              <option value="">{t("video.chapter.noCompletedScenes")}</option>
             ) : (
               shootingScenes.map((scene) => {
                 const planned =
@@ -251,7 +256,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                     key={scene.narrative_unit_index}
                     value={scene.narrative_unit_index}
                   >
-                    场景 {scene.scene_index} · {scene.title}{planned ? " · 已规划" : ""}
+                    {t("video.chapter.scene", { number: scene.scene_index, title: scene.title })}{planned ? ` · ${t("video.chapter.scenePlanned")}` : ""}
                   </option>
                 );
               })
@@ -276,8 +281,8 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
           >
             {busy || loading ? <LoadingSpinner size="sm" /> : selectedScenePlanned || needsLoadRetry ? <RotateCcw size={14} /> : <Wand2 size={14} />}
             {canContinueDraft
-              ? selectedScenePlanned ? "继续重新规划" : "继续生成"
-              : selectedScenePlanned ? "重新规划此场景" : needsLoadRetry ? "重试加载" : "规划此场景"}
+              ? selectedScenePlanned ? t("video.chapter.continueReplan") : t("video.chapter.continueGenerate")
+              : selectedScenePlanned ? t("video.chapter.replanScene") : needsLoadRetry ? t("video.chapter.retryLoad") : t("video.chapter.planScene")}
           </BookButton>
           {prompt ? (
             <BookButton
@@ -285,7 +290,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               size="md"
               onClick={() => void onDelete(prompt)}
               disabled={busy}
-              title="删除片段规划及其受影响的下游记录"
+              title={t("video.chapter.deletePlanTitle")}
             >
               <Trash2 size={14} />
             </BookButton>
@@ -296,9 +301,9 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
       {/* 配置区：左右结构 */}
       <details className="mb-4 rounded-xl border border-book-border/50 bg-book-bg-paper/60 open:shadow-[var(--shadow-card)]">
         <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-book-text-main hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
-          <span className="flex-1">规划配置</span>
+          <span className="flex-1">{t("video.chapter.planningConfig")}</span>
           <span className="text-small font-normal text-book-text-muted">
-            {options.aspectRatio} · {PROMPT_OUTPUT_LANGUAGE_LABELS[options.promptOutputLanguage]} · {options.durationSecs}s
+            {options.aspectRatio} · {promptOutputLanguageLabel(options.promptOutputLanguage, t)} · {options.durationSecs}s
           </span>
         </summary>
         <div className="border-t border-book-border/40 px-4 py-3">
@@ -307,7 +312,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
             <div className="flex flex-col gap-2.5">
               <div className="grid gap-2.5 grid-cols-3">
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className="text-book-text-muted">画幅</span>
+                  <span className="text-book-text-muted">{t("video.chapter.aspectRatioLabel")}</span>
                   <select
                     value={options.aspectRatio}
                     onChange={(event) => onOptionsChange((previous) => ({
@@ -321,7 +326,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                   </select>
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className="text-book-text-muted">提示词语言</span>
+                  <span className="text-book-text-muted">{t("video.chapter.promptLanguageLabel")}</span>
                   <select
                     value={options.promptOutputLanguage}
                     onChange={(event) => onOptionsChange((previous) => ({
@@ -331,13 +336,13 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                     disabled={busy}
                     className="pyqt-input !px-2 !py-1.5"
                   >
-                    {Object.entries(PROMPT_OUTPUT_LANGUAGE_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>{label}</option>
+                    {(["zh_cn", "en"] as const).map((value) => (
+                      <option key={value} value={value}>{promptOutputLanguageLabel(value, t)}</option>
                     ))}
                   </select>
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
-                  <span className="text-book-text-muted">默认时长</span>
+                  <span className="text-book-text-muted">{t("video.chapter.defaultDuration")}</span>
                   <select
                     value={options.durationSecs}
                     onChange={(event) => onOptionsChange((previous) => ({
@@ -348,13 +353,13 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                     className="pyqt-input !px-2 !py-1.5"
                   >
                     {options.durationOptions.map((duration) => (
-                      <option key={duration} value={duration}>{duration} 秒</option>
+                      <option key={duration} value={duration}>{t("video.chapter.seconds", { count: duration })}</option>
                     ))}
                   </select>
                 </label>
               </div>
               <div className="flex-1 flex flex-col">
-                <div className="mb-1 text-book-text-muted">候选时长</div>
+                <div className="mb-1 text-book-text-muted">{t("video.chapter.candidateDurations")}</div>
                 <VideoDurationOptionsPicker
                   options={options}
                   durationLimits={durationLimits}
@@ -366,13 +371,13 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
 
             {/* 右侧：风格模板 */}
             <label className="flex min-w-0 flex-col gap-1">
-              <span className="text-book-text-muted">共享规划风格</span>
+              <span className="text-book-text-muted">{t("video.chapter.sharedStyle")}</span>
               <textarea
                 value={options.style}
                 onChange={(event) => onOptionsChange((previous) => ({ ...previous, style: event.target.value }))}
                 disabled={busy}
                 className="book-control flex-1 resize-none p-2 text-xs leading-relaxed"
-                placeholder="描述视频的整体风格、氛围、细节要求…"
+                placeholder={t("video.chapter.stylePlaceholder")}
               />
             </label>
           </div>
@@ -382,14 +387,14 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
       {/* 片段列表：紧凑卡片 */}
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-visible custom-scrollbar pr-2">
         {!prompt && !showingPreview ? (
-          <EmptyHint text={loadError ? `加载已保存的片段规划失败：${loadError}` : loading ? "正在加载已保存的片段规划…" : busy ? "当前场景的片段规划完整校验并保存后会显示在这里。" : shootingScenes.length === 0 ? "请先生成至少一个拍摄场景。" : "请选择已完成的拍摄场景并生成片段规划。"} />
+          <EmptyHint text={loadError ? t("video.chapter.savedPlanFailed", { error: loadError }) : loading ? t("video.chapter.loadingSavedPlan") : busy ? t("video.chapter.planningEmptyValidation") : shootingScenes.length === 0 ? t("video.chapter.needShootingScene") : t("video.chapter.selectSceneAndGenerate")} />
         ) : segments.length === 0 ? (
-          <EmptyHint text="片段规划中没有可展示的片段。" />
+          <EmptyHint text={t("video.chapter.planEmpty")} />
         ) : (
           <ol className="space-y-2">
             {segments.map((segment, index) => {
               const number = numberValue(segment.segment_number) ?? index + 1;
-              const title = textValue(segment.title) ?? `片段 ${number}`;
+              const title = textValue(segment.title) ?? t("video.chapter.planningPromptTitle", { number });
               const duration = numberValue(segment.duration_secs);
               const summary = textValue(segment.scene_summary);
               const blocking = textValue(segment.blocking_summary);
@@ -414,7 +419,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                       ) : null}
                       {blocking ? (
                         <p className="mt-1 text-caption leading-relaxed text-book-text-muted line-clamp-1">
-                          走位：{blocking}
+                          {t("video.chapter.blocking", { value: blocking })}
                         </p>
                       ) : null}
                     </div>

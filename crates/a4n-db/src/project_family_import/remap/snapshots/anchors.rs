@@ -4,7 +4,7 @@ use a4n_core::models::project::text_anchor;
 
 use crate::project_family_import::{ImportIdMaps, ProjectFamilyImportError, map_required};
 
-pub fn remap_text_anchor_source_id(
+pub(in crate::project_family_import) fn remap_text_anchor_source_id(
     anchor: &text_anchor::Model,
     maps: &ImportIdMaps,
 ) -> Result<i64, ProjectFamilyImportError> {

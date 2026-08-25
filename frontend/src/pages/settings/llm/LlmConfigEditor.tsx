@@ -9,6 +9,7 @@ import type { LlmProviderDescriptor } from "../../../api/generated/config";
 import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
+import { useI18n } from "../../../i18n";
 
 interface LlmConfigEditorProps {
   form: LlmForm;
@@ -29,6 +30,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
   templateLocked = false,
   providers,
 }) => {
+  const { t } = useI18n();
   const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
   const selectedProvider = providers.find(
@@ -47,17 +49,17 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
 
   return (
     <>
-      <FormField label="配置名称" required>
+      <FormField label={t("settingsForm.configName")} required>
         <BookInput
           value={form.name}
           onChange={(event) => setForm({ ...form, name: event.target.value })}
-          placeholder="例如：日常 / 创作主力 / 审稿"
+          placeholder={t("settingsForm.configNamePlaceholder")}
           disabled={structureDisabled}
         />
       </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField label="服务商">
+        <FormField label={t("settingsForm.provider")}>
           <select
             value={form.provider}
             onChange={(event) => {
@@ -88,11 +90,11 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
             ))}
           </select>
         </FormField>
-        <FormField label="模型" required>
+        <FormField label={t("settingsForm.model")} required>
           <ModelDiscoveryField
             value={form.model}
             onChange={(model) => setForm({ ...form, model })}
-            placeholder="例如：deepseek-v4-flash / gpt-4o-mini / claude-3-5-sonnet"
+            placeholder={t("settingsForm.llmModelPlaceholder")}
             disabled={readonly || !selectedProvider}
             inputDisabled={structureDisabled}
             discoveryKey={modelDiscovery.discoveryKey}
@@ -101,7 +103,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label="接口地址" required>
+      <FormField label={t("settingsForm.endpoint")} required>
         <BookInput
           value={form.api_base_url}
           onChange={(event) =>
@@ -115,11 +117,11 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       </FormField>
 
       <FormField
-        label="访问密钥"
+        label={t("settingsForm.apiKey")}
         hint={
           templateLocked
-            ? "只保存为你的个人密钥；系统默认模板不会共享管理员密钥"
-            : "存储于本地数据库，不会上传到任何外部服务"
+            ? t("settingsForm.personalApiKeyHint")
+            : t("settingsForm.localApiKeyHint")
         }
       >
         <BookInput
@@ -153,8 +155,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField
-          label="并发上限"
-          hint="该配置同时允许的最大 LLM 请求数；超过则进入任务队列等待"
+          label={t("settingsForm.concurrencyLimit")}
+          hint={t("settingsForm.concurrencyHint")}
         >
           <BookInput
             type="number"
@@ -170,8 +172,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         </FormField>
 
         <FormField
-          label="超时时间（秒）"
-          hint="单次 LLM 请求等待响应的最长秒数；视频、漫画等长结构化任务建议不少于 300 秒"
+          label={t("settingsForm.timeoutSeconds")}
+          hint={t("settingsForm.timeoutHint")}
         >
           <BookInput
             type="number"
@@ -189,8 +191,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField
-          label="模型上下文窗口"
-          hint="模型一次请求可容纳的输入与输出总 token 数；DeepSeek 主力模型通常按 128000 配置"
+          label={t("settingsForm.contextWindow")}
+          hint={t("settingsForm.contextWindowHint")}
         >
           <BookInput
             type="number"
@@ -208,8 +210,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           />
         </FormField>
         <FormField
-          label="模型能力：最大输出"
-          hint="模型单次可生成的硬上限；场景请求输出预算必须小于或等于这个值"
+          label={t("settingsForm.maxOutput")}
+          hint={t("settingsForm.maxOutputHint")}
         >
           <BookInput
             type="number"
@@ -229,8 +231,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       </div>
 
       <FormField
-        label="高级请求参数"
-        hint="仅填写服务商扩展字段；模型、消息、流式开关和输出上限等系统字段会被拒绝"
+        label={t("settingsForm.advancedParams")}
+        hint={t("settingsForm.advancedParamsHint")}
       >
         <BookTextarea
           rows={6}
@@ -238,7 +240,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           onChange={(event) =>
             setForm({ ...form, extra_body_text: event.target.value })
           }
-          placeholder={'例如：{\n  "reasoning_effort": "low"\n}'}
+          placeholder={t("settingsForm.advancedParamsPlaceholder")}
           spellCheck={false}
           disabled={structureDisabled}
         />

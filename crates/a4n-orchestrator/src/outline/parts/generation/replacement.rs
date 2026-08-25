@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use a4n_core::error::AppError;
 use a4n_core::models::chapter::part_outline;
 use chrono::Utc;
@@ -13,7 +15,7 @@ use super::super::contracts::PartOutlineJsonInput;
 use super::super::planning::{plan_replacement_parts, validate_replacement_part_sources};
 
 impl OrchestratorContext {
-    pub async fn regenerate_parts(
+    pub(in crate::outline) async fn regenerate_parts(
         &self,
         input: PartOutlineRegenerationInput<'_, '_>,
     ) -> Result<Vec<part_outline::Model>, AppError> {
@@ -115,11 +117,14 @@ impl OrchestratorContext {
         .await?;
         let results =
             sync_part_outlines_and_assign_chapters_in(&tx, project_id, drafts, now).await?;
+        let mut generated_by_part_number = HashMap::with_capacity(generated_jsons.len());
+        for (part_number, _, _, generated) in &generated_jsons {
+            generated_by_part_number
+                .entry(*part_number)
+                .or_insert(generated);
+        }
         for part in &results {
-            if let Some((_, _, _, generated)) = generated_jsons
-                .iter()
-                .find(|(part_number, _, _, _)| *part_number == part.part_number)
-            {
+            if let Some(generated) = generated_by_part_number.get(&part.part_number) {
                 self.record_part_outline_generation_run(&tx, part, generated, "重新生成分部大纲")
                     .await?;
             }

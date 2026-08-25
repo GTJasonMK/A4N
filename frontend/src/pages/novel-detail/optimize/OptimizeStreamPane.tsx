@@ -1,5 +1,6 @@
 import { StreamMessage } from "./OptimizeStreamMessage";
 import { isNearBottom, type StreamItem } from "./optimizeTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface OptimizeStreamPaneProps {
   streamItems: StreamItem[];
@@ -12,6 +13,7 @@ export function OptimizeStreamPane({
   streamRef,
   onStickToBottomChange,
 }: OptimizeStreamPaneProps) {
+  const { t } = useI18n();
   return (
     <div
       ref={(element) => {
@@ -24,7 +26,7 @@ export function OptimizeStreamPane({
     >
       {streamItems.length === 0 ? (
         <div className="flex h-full min-h-[14rem] min-w-0 items-center justify-center rounded-2xl border border-dashed border-book-border/70 bg-book-bg-paper/45 px-4 text-center text-xs leading-relaxed text-book-text-sub">
-          输入优化要求后，用户消息和 Agent 回复会显示为对话气泡，过程信息会收进对应气泡。
+          {t("optimize.streamEmpty")}
         </div>
       ) : (
         streamItems.map((item) => <StreamMessage key={item.id} item={item} />)

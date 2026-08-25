@@ -23,7 +23,11 @@ pub(crate) async fn query(
             payload.filters,
         )
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn search_text(
@@ -44,7 +48,11 @@ pub(crate) async fn search_text(
             payload.filters,
         )
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }
 
 pub(crate) async fn search(
@@ -66,5 +74,9 @@ pub(crate) async fn search(
             payload.filters,
         )
         .await;
-    Json(ServiceResponse::from_result(trace_id, result, service_error))
+    Json(ServiceResponse::from_result(
+        trace_id,
+        result,
+        service_error,
+    ))
 }

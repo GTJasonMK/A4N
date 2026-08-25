@@ -37,6 +37,7 @@ pub async fn update_profile(
     user_id: i64,
     email: Option<&str>,
     avatar_url: Option<Option<&str>>,
+    page_cli_enabled: Option<bool>,
 ) -> Result<user::Model, AppError> {
     let user = active_user(db, user_id).await?;
     let mut active: user::ActiveModel = user.into();
@@ -51,6 +52,9 @@ pub async fn update_profile(
     }
     if let Some(value) = avatar_url {
         active.avatar_url = Set(value.and_then(normalize_optional_text));
+    }
+    if let Some(value) = page_cli_enabled {
+        active.page_cli_enabled = Set(value);
     }
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)

@@ -1,3 +1,4 @@
+use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_core::error::AppError;
 use serde_json::Value;
 
@@ -11,18 +12,8 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CanvasNodeRunHandle {
-    pub workflow_run_id: i64,
-    pub finalize_on_success: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CanvasNodeRunSummary {
-    pub workflow_run_id: i64,
-    pub project_id: i64,
-    pub graph_id: i64,
-    pub mode: String,
-    pub status: String,
-    pub error_message: Option<String>,
+    pub(crate) workflow_run_id: i64,
+    pub(crate) finalize_on_success: bool,
 }
 
 pub(crate) struct CanvasNodeLifecycle {
@@ -140,12 +131,12 @@ impl OrchestratorContext {
     pub(crate) async fn finish_canvas_node_success(
         &self,
         lifecycle: &CanvasNodeLifecycle,
-    ) -> Result<CanvasNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         if lifecycle.run.finalize_on_success {
             self.complete_workflow_run_validated(lifecycle.run.workflow_run_id)
                 .await?;
         }
-        Ok(CanvasNodeRunSummary {
+        Ok(CanvasRunSummary {
             workflow_run_id: lifecycle.run.workflow_run_id,
             project_id: lifecycle.project_id,
             graph_id: lifecycle.graph_id,
@@ -159,7 +150,7 @@ impl OrchestratorContext {
         &self,
         lifecycle: &CanvasNodeLifecycle,
         artifacts_json: Value,
-    ) -> Result<CanvasNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         self.record_canvas_node_checkpoint(
             lifecycle.run.workflow_run_id,
             lifecycle.step_key.clone(),
@@ -177,7 +168,7 @@ impl OrchestratorContext {
         &self,
         lifecycle: CanvasNodeLifecycle,
         primary: AppError,
-    ) -> Result<CanvasNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         let message = primary.to_string();
         let mut state_errors = Vec::new();
         if let Some(spec_id) = lifecycle.generation_spec_id
@@ -218,7 +209,7 @@ impl OrchestratorContext {
             )));
         }
         let failed = failed.expect("state_errors 为空时 workflow failure 必须存在");
-        Ok(CanvasNodeRunSummary {
+        Ok(CanvasRunSummary {
             workflow_run_id: failed.id,
             project_id: lifecycle.project_id,
             graph_id: lifecycle.graph_id,
@@ -232,7 +223,7 @@ impl OrchestratorContext {
         &self,
         lifecycle: CanvasNodeLifecycle,
         primary: AppError,
-    ) -> Result<CanvasNodeRunSummary, AppError> {
+    ) -> Result<CanvasRunSummary, AppError> {
         let cancellation_reason = self
             .canvas_workflow_cancellation_reason(lifecycle.run.workflow_run_id)
             .await
@@ -251,7 +242,7 @@ impl OrchestratorContext {
                         ))
                     })?;
             }
-            return Ok(CanvasNodeRunSummary {
+            return Ok(CanvasRunSummary {
                 workflow_run_id: lifecycle.run.workflow_run_id,
                 project_id: lifecycle.project_id,
                 graph_id: lifecycle.graph_id,
@@ -267,7 +258,9 @@ impl OrchestratorContext {
         &self,
         workflow_run_id: i64,
     ) -> Result<Option<String>, AppError> {
-        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let run = self
+            .workflow_run_status_record_by_id(workflow_run_id)
+            .await?;
         if run.status != WORKFLOW_STATUS_CANCELLED {
             return Ok(None);
         }

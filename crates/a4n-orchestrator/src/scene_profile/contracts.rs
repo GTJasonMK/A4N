@@ -30,7 +30,7 @@ pub const SCENE_ENTITY_STATE_KEYS: &[&str] = &[
 ];
 
 #[derive(Debug, Clone)]
-pub struct SceneProfileDraft {
+pub(crate) struct SceneProfileDraft {
     pub scene_ref: String,
     pub scene_profile_id: Option<i64>,
     pub name: String,

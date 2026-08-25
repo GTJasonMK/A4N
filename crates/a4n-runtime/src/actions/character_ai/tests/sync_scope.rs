@@ -90,8 +90,12 @@ fn profile_sync_skip_reason_skips_future_synced_profile() {
     profile.last_synced_chapter = 3;
     let reason = CharacterProfileSyncSkipReason::AlreadySyncedPastTarget;
 
-    assert_eq!(profile_sync_skip_reason(&profile, 2), Some(reason));
-    let summary = character_profile_skipped_result(&profile, 2, reason);
+    let first_seen = profile_first_seen_chapter(&profile);
+    assert_eq!(
+        profile_sync_skip_reason(&profile, 2, first_seen),
+        Some(reason)
+    );
+    let summary = character_profile_skipped_result(&profile, 2, reason, first_seen);
     assert_eq!(summary.synced_chapter, 3);
     assert_eq!(summary.target_chapter, 2);
     assert_eq!(summary.reason, reason);
@@ -102,12 +106,13 @@ fn analysis_sync_range_resyncs_already_covered_target_chapter() {
     let mut profile = character_profile_for_test("陈恪");
     profile.last_synced_chapter = 5;
 
+    let first_seen = profile_first_seen_chapter(&profile);
     assert_eq!(character_sync_start_chapter(&profile, 2), None);
     assert_eq!(
-        profile_sync_skip_reason(&profile, 2),
+        profile_sync_skip_reason(&profile, 2, first_seen),
         Some(CharacterProfileSyncSkipReason::AlreadySyncedPastTarget)
     );
-    assert_eq!(analysis_profile_sync_skip_reason(&profile, 2), None);
+    assert_eq!(analysis_profile_sync_skip_reason(2, first_seen), None);
     assert_eq!(
         character_sync_range(
             &profile,
@@ -163,12 +168,19 @@ fn character_sync_start_chapter_skips_target_before_first_seen() {
     profile.last_synced_chapter = 0;
     let reason = CharacterProfileSyncSkipReason::TargetBeforeFirstSeen;
 
-    assert_eq!(profile_sync_skip_reason(&profile, 1), Some(reason));
+    let first_seen = profile_first_seen_chapter(&profile);
+    assert_eq!(
+        profile_sync_skip_reason(&profile, 1, first_seen),
+        Some(reason)
+    );
     assert_eq!(character_sync_start_chapter(&profile, 1), None);
-    let summary = character_profile_skipped_result(&profile, 1, reason);
+    let summary = character_profile_skipped_result(&profile, 1, reason, first_seen);
     assert_eq!(summary.first_seen_chapter, Some(2));
     assert_eq!(summary.reason, reason);
-    assert_eq!(analysis_profile_sync_skip_reason(&profile, 1), Some(reason));
+    assert_eq!(
+        analysis_profile_sync_skip_reason(1, first_seen),
+        Some(reason)
+    );
     assert_eq!(
         character_sync_range(
             &profile,

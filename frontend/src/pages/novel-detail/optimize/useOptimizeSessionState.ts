@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from "react";
 import { extractErrorMessage } from "../../../api";
+import { useI18n } from "../../../i18n";
 import { listChapters } from "../../../api/chapter";
 import type { ChapterSummary } from "../../../api/chapter";
 import {
@@ -46,6 +47,7 @@ export function useOptimizeSessionState({
   setPendingPatchState,
   clearPendingPatchState,
 }: UseOptimizeSessionStateParams) {
+  const { t } = useI18n();
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [sessions, setSessions] = useState<OptimizeSession[]>([]);
   const [loading, setLoading] = useState(false);
@@ -190,14 +192,14 @@ export function useOptimizeSessionState({
       }
     } catch (err) {
       if (loadRequestRef.current === requestId) {
-        addToast(extractErrorMessage(err, "加载内容优化 Agent 失败"), "error");
+        addToast(extractErrorMessage(err, t("optimize.executeFailed")), "error");
       }
     } finally {
       if (loadRequestRef.current === requestId) {
         setLoading(false);
       }
     }
-  }, [addToast, fixedChapterId, projectId]);
+  }, [addToast, fixedChapterId, projectId, t]);
 
   useEffect(() => {
     loadRequestRef.current += 1;
@@ -229,9 +231,9 @@ export function useOptimizeSessionState({
 
   useEffect(() => {
     void refreshSessions().catch((err) => {
-      addToast(extractErrorMessage(err, "加载章节优化会话失败"), "error");
+      addToast(extractErrorMessage(err, t("optimize.loadingSessions")), "error");
     });
-  }, [addToast, refreshSessions]);
+  }, [addToast, refreshSessions, t]);
 
   useEffect(() => {
     if (typeof selectedChapter !== "number") {
@@ -260,7 +262,7 @@ export function useOptimizeSessionState({
     }
     if (activeSessionId !== latest.id) {
       void openSession(latest.id).catch((err) => {
-        addToast(extractErrorMessage(err, "打开优化会话失败"), "error");
+        addToast(extractErrorMessage(err, t("optimize.switchSessionFailed")), "error");
       });
     }
   }, [
@@ -272,6 +274,7 @@ export function useOptimizeSessionState({
     selectedChapter,
     setActiveSessionIdentity,
     sessions,
+    t,
   ]);
 
   useEffect(() => {

@@ -6,7 +6,7 @@
 use a4n_core::error::AppError;
 use a4n_core::models::{
     ai::generated_image,
-    character::{character_portrait, protagonist_profile},
+    character::character_portrait,
     generation::{generation_spec, prompt_artifact},
 };
 use a4n_db::DbHandle;
@@ -63,7 +63,7 @@ impl GalgameApplication {
         &self,
         spec: &generation_spec::Model,
         input: &GalgamePortraitSpecTargetInput,
-    ) -> Result<protagonist_profile::Model, AppError> {
+    ) -> Result<a4n_db::galgame::GalgamePortraitSpecTargetProfile, AppError> {
         a4n_db::galgame::galgame_portrait_spec_target_profile(
             self.database.connection(),
             spec,
@@ -93,7 +93,7 @@ impl GalgameApplication {
 
     async fn primary_galgame_portrait_reference_image_ids(
         &self,
-        profile: &protagonist_profile::Model,
+        profile: &a4n_db::galgame::GalgamePortraitSpecTargetProfile,
     ) -> Result<Vec<i64>, AppError> {
         a4n_db::galgame::primary_galgame_portrait_reference_image_ids(
             self.database.connection(),
@@ -269,8 +269,7 @@ impl OrchestratorContext {
         &self,
         spec: &a4n_core::models::generation::generation_spec::Model,
         input: &a4n_db::galgame::GalgamePortraitSpecTargetInput,
-    ) -> Result<a4n_core::models::character::protagonist_profile::Model, a4n_core::error::AppError>
-    {
+    ) -> Result<a4n_db::galgame::GalgamePortraitSpecTargetProfile, a4n_core::error::AppError> {
         self.galgame
             .galgame_portrait_spec_target_profile(spec, input)
             .await
@@ -291,7 +290,7 @@ impl OrchestratorContext {
 
     pub async fn primary_galgame_portrait_reference_image_ids(
         &self,
-        profile: &a4n_core::models::character::protagonist_profile::Model,
+        profile: &a4n_db::galgame::GalgamePortraitSpecTargetProfile,
     ) -> Result<Vec<i64>, a4n_core::error::AppError> {
         self.galgame
             .primary_galgame_portrait_reference_image_ids(profile)

@@ -43,8 +43,7 @@ mod tests {
             "dimension": 384,
             "legacy_backend": "local"
         }))
-        .err()
-        .expect("embedding identity must reject unknown fields");
+        .expect_err("embedding identity must reject unknown fields");
         assert!(error.to_string().contains("legacy_backend"));
     }
 }

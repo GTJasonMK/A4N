@@ -2,7 +2,7 @@ use std::future::Future;
 
 use serde_json::Value;
 
-use super::contracts::RuntimeConfigSnapshot;
+use super::RuntimeConfigSnapshot;
 
 tokio::task_local! {
     pub(super) static RUNTIME_CONFIG_SNAPSHOT: RuntimeConfigSnapshot;

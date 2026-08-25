@@ -3,7 +3,7 @@ use a4n_core::{
     models::chapter::chapter,
 };
 use a4n_llm::provider::ChatRequest;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use a4n_prompt::rendering::PromptRenderer;
 

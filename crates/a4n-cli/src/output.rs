@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::process::ExitCode;
 
@@ -272,24 +273,29 @@ fn write_human(writer: &mut impl Write, value: &Value) -> Result<()> {
 }
 
 fn write_object_table(writer: &mut impl Write, items: &[Value]) -> Result<()> {
-    let mut columns = Vec::<String>::new();
+    let mut column_indexes = HashMap::<String, usize>::new();
+    let mut column_states = Vec::<(String, bool)>::new();
     for item in items {
         if let Some(object) = item.as_object() {
-            for key in object.keys() {
-                let scalar_column = items.iter().all(|item| {
-                    item.get(key).is_none_or(|value| {
-                        value.is_null()
-                            || value.is_boolean()
-                            || value.is_number()
-                            || value.is_string()
-                    })
+            for (key, value) in object {
+                let index = *column_indexes.entry(key.clone()).or_insert_with(|| {
+                    column_states.push((key.clone(), true));
+                    column_states.len() - 1
                 });
-                if scalar_column && !columns.contains(key) {
-                    columns.push(key.clone());
+                if !(value.is_null()
+                    || value.is_boolean()
+                    || value.is_number()
+                    || value.is_string())
+                {
+                    column_states[index].1 = false;
                 }
             }
         }
     }
+    let columns = column_states
+        .into_iter()
+        .filter_map(|(key, scalar)| scalar.then_some(key))
+        .collect::<Vec<_>>();
     let rows = items
         .iter()
         .filter_map(Value::as_object)
@@ -422,9 +428,11 @@ fn push_reference(references: &mut Map<String, Value>, key: &str, value: Value) 
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use serde_json::json;
 
-    use super::extract_references;
+    use super::{extract_references, write_object_table};
 
     #[test]
     fn agent_metadata_extracts_stable_references() {
@@ -435,5 +443,34 @@ mod tests {
         assert_eq!(refs["project_ids"], json!([1]));
         assert_eq!(refs["chapter_ids"], json!([2]));
         assert_eq!(refs["task_ids"], json!(["task-1"]));
+    }
+
+    #[test]
+    fn object_table_keeps_first_scalar_column_order_and_drops_non_scalars() {
+        let items = vec![
+            json!({"name": "first", "nested": {"value": 1}, "id": 1}),
+            json!({"id": 2, "name": "second", "nested": "now scalar"}),
+        ];
+        let mut output = Cursor::new(Vec::new());
+        write_object_table(&mut output, &items).expect("table should render");
+        let output = String::from_utf8(output.into_inner()).expect("table is utf8");
+        assert!(
+            output
+                .lines()
+                .next()
+                .is_some_and(|line| line.contains("name"))
+        );
+        assert!(
+            output
+                .lines()
+                .next()
+                .is_some_and(|line| line.contains("id"))
+        );
+        assert!(
+            !output
+                .lines()
+                .next()
+                .is_some_and(|line| line.contains("nested"))
+        );
     }
 }

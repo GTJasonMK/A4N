@@ -1,6 +1,6 @@
 mod host_port;
 
-pub use a4n_api_contract::config::ImportAllConfigsInput;
+use a4n_api_contract::config::ImportAllConfigsInput;
 use a4n_core::error::AppError;
 
 use crate::{

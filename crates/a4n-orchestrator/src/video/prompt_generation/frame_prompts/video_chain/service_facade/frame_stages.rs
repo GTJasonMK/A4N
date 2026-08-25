@@ -4,7 +4,7 @@ use super::super::super::*;
 use super::super::inputs::frame_prompt_chain_input;
 
 impl OrchestratorContext {
-    pub async fn generate_chapter_boundary_frame_prompts(
+    pub(in crate::video) async fn generate_chapter_boundary_frame_prompts(
         &self,
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
@@ -18,7 +18,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn generate_chapter_segment_plan(
+    pub(in crate::video) async fn generate_chapter_segment_plan(
         &self,
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
@@ -35,7 +35,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn generate_chapter_first_frame_prompts(
+    pub(in crate::video) async fn generate_chapter_first_frame_prompts(
         &self,
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,
@@ -49,7 +49,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn generate_chapter_storyboard_prompts(
+    pub(in crate::video) async fn generate_chapter_storyboard_prompts(
         &self,
         input: ChapterVideoPromptStageInput<'_, '_>,
         chunks: Option<VideoPromptChunk<'_>>,

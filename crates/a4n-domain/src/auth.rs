@@ -10,6 +10,7 @@ pub struct UserSummary {
     pub oauth_provider: Option<String>,
     pub oauth_subject: Option<String>,
     pub avatar_url: Option<String>,
+    pub page_cli_enabled: bool,
     pub is_active: bool,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,

@@ -16,6 +16,11 @@ where
     C: ConnectionTrait + TransactionTrait,
 {
     let mut artifacts = ChapterDerivedCleanupArtifacts::default();
+    a4n_db::chapter_visual_plan::invalidate_live_chapter_visual_plans_for_source_change(
+        db, project_id, chapter_id,
+    )
+    .await
+    .map_err(crate::chapter_visual_plan::visual_plan_db_error)?;
     a4n_db::text_anchor::delete_chapter_content_profile_evidence_records(
         db, project_id, chapter_id,
     )
@@ -53,16 +58,13 @@ where
     .map_err(crate::scene_profile::scene_profile_db_error)?;
 
     if cleanup_foreshadowing {
-        let foreshadowing_artifacts =
+        let changed_foreshadowing_ids =
             a4n_db::project::cleanup_foreshadowing_for_chapter(db, project_id, chapter_number)
                 .await
                 .map_err(crate::project::foreshadowing_db_error_to_app_error)?;
         artifacts
-            .stale_foreshadowing_ids
-            .extend(foreshadowing_artifacts.stale_ids);
-        artifacts
             .changed_foreshadowing_ids
-            .extend(foreshadowing_artifacts.changed_ids);
+            .extend(changed_foreshadowing_ids);
     }
     Ok(artifacts)
 }

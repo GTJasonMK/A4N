@@ -5,11 +5,12 @@ export type { LogReadResult };
 export const logPathText = (
   filePath: string | null | undefined,
   logDir: string,
+  fallback = "—",
 ): string => {
   const explicitPath = filePath?.trim();
   if (explicitPath) return explicitPath;
   const configuredDir = logDir.trim();
-  return configuredDir ? configuredDir : "日志路径未返回";
+  return configuredDir || fallback;
 };
 
 export const logLineClassName = (line: string): string => {

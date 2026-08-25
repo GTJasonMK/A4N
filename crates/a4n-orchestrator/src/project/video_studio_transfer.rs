@@ -6,8 +6,8 @@ use a4n_domain::CanvasNodeRefKind;
 use async_trait::async_trait;
 
 use super::{
-    ImportMediaPayload, ProjectPackageFileHostPort, VideoStudioMediaFileEntry,
-    VideoStudioProjectPackage, required_path_extension,
+    ImportMediaPayload, MediaFileEntry, ProjectPackageFileHostPort, VideoStudioProjectPackage,
+    required_path_extension,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -37,7 +37,7 @@ pub trait VideoStudioProjectTransferHostPort: ProjectPackageFileHostPort {
 
 pub(crate) fn video_studio_export_media_files(
     rows: &VideoStudioProjectExportRows,
-) -> Result<Vec<VideoStudioMediaFileEntry>, String> {
+) -> Result<Vec<MediaFileEntry>, String> {
     let mut entries = Vec::new();
     let mut seen_package_paths = HashSet::new();
     for image in &rows.generated_images {
@@ -75,7 +75,7 @@ pub(crate) fn video_studio_export_media_files(
 }
 
 fn push_optional_media_files(
-    entries: &mut Vec<VideoStudioMediaFileEntry>,
+    entries: &mut Vec<MediaFileEntry>,
     seen_package_paths: &mut HashSet<String>,
     owner_kind: &str,
     owner_id: i64,
@@ -103,7 +103,7 @@ fn push_optional_media_files(
 }
 
 fn push_media_file(
-    entries: &mut Vec<VideoStudioMediaFileEntry>,
+    entries: &mut Vec<MediaFileEntry>,
     seen_package_paths: &mut HashSet<String>,
     owner_kind: &str,
     owner_id: i64,
@@ -115,7 +115,7 @@ fn push_media_file(
     if !seen_package_paths.insert(package_path.clone()) {
         return Err(format!("视频画布项目媒体包路径重复: {package_path}"));
     }
-    entries.push(VideoStudioMediaFileEntry {
+    entries.push(MediaFileEntry {
         owner_kind: owner_kind.to_string(),
         owner_id,
         field: field.to_string(),

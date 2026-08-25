@@ -66,7 +66,7 @@ pub(crate) async fn upsert_automatic_chapter_outline_checked(
         ));
     }
     let txn = db.begin().await?;
-    let project = crate::project::project_by_id_for_update(&txn, input.project_id)
+    let project = crate::project::project_write_identity_for_update(&txn, input.project_id)
         .await?
         .ok_or_else(|| {
             ProjectOutlineRecordError::InvalidArgument(format!("项目不存在: {}", input.project_id))
@@ -229,6 +229,249 @@ where
     Ok(actual)
 }
 
+/// 用户编辑或正式大纲流程写入后，清除自动来源标记。
+///
+/// 正式写入调用方应在同一事务内完成来源清理和业务更新，避免留下半次接管。
+pub(crate) async fn clear_chapter_outline_provenance<C>(
+    db: &C,
+    outline_id: i64,
+) -> Result<(), sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    chapter_outline_provenance::Entity::delete_by_id(outline_id)
+        .exec(db)
+        .await
+        .map(|_| ())
+}
+
+pub(crate) async fn clear_chapter_outline_provenance_many<C>(
+    db: &C,
+    outline_ids: &[i64],
+) -> Result<(), sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    if outline_ids.is_empty() {
+        return Ok(());
+    }
+    chapter_outline_provenance::Entity::delete_many()
+        .filter(chapter_outline_provenance::Column::OutlineId.is_in(outline_ids.to_vec()))
+        .exec(db)
+        .await
+        .map(|_| ())
+}
+
+/// 正文变化时删除仍由分析拥有的旧章纲；用户接管后的章纲没有 provenance，始终保留。
+pub async fn delete_automatic_chapter_outlines_for_source_change<C>(
+    db: &C,
+    project_id: i64,
+    chapter_number: i32,
+) -> Result<Vec<i64>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let outlines = chapter_outline::Entity::find()
+        .filter(chapter_outline::Column::ProjectId.eq(project_id))
+        .filter(chapter_outline::Column::ChapterNumber.eq(chapter_number))
+        .all(db)
+        .await?;
+    if outlines.is_empty() {
+        return Ok(Vec::new());
+    }
+    let source_kinds = chapter_outline_provenance::Entity::find()
+        .filter(
+            chapter_outline_provenance::Column::OutlineId
+                .is_in(outlines.iter().map(|outline| outline.id)),
+        )
+        .all(db)
+        .await?
+        .into_iter()
+        .map(|provenance| (provenance.outline_id, provenance.source_kind))
+        .collect::<HashMap<_, _>>();
+    let mut automatic_ids = Vec::new();
+    for outline in outlines {
+        if source_kinds.get(&outline.id).is_some_and(|source_kind| {
+            matches!(
+                source_kind.as_str(),
+                SOURCE_KIND_RETROSPECTIVE_ANALYSIS | SOURCE_KIND_IMPORT_ANALYSIS
+            )
+        }) {
+            automatic_ids.push(outline.id);
+        }
+    }
+    if automatic_ids.is_empty() {
+        return Ok(automatic_ids);
+    }
+
+    chapter::Entity::update_many()
+        .col_expr(chapter::Column::OutlineId, Expr::value(Option::<i64>::None))
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
+        .filter(chapter::Column::OutlineId.is_in(automatic_ids.clone()))
+        .exec(db)
+        .await?;
+    chapter_outline::Entity::delete_many()
+        .filter(chapter_outline::Column::Id.is_in(automatic_ids.clone()))
+        .exec(db)
+        .await?;
+    Ok(automatic_ids)
+}
+
+/// 在不覆盖有效用户关联的前提下，修复章节到章纲的软关联。
+///
+/// 历史数据可能把 `chapter.outline_id` 留成已删除、跨项目或不同章节的
+/// ID。只有这些无效关联（或 NULL）才会被替换；指向同一项目同一章节的
+/// 现有关联视为用户拥有并保留。更新时再次带上旧值条件，避免并发用户
+/// 编辑被自动回链覆盖。
+pub(in crate::project::outline_records) async fn link_chapter_to_outline_if_needed<C>(
+    db: &C,
+    project_id: i64,
+    chapter_number: i32,
+    outline_id: i64,
+) -> Result<(), sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let Some((target_project_id, target_chapter_number)) =
+        chapter_outline::Entity::find_by_id(outline_id)
+            .select_only()
+            .column(chapter_outline::Column::ProjectId)
+            .column(chapter_outline::Column::ChapterNumber)
+            .into_tuple::<(i64, i32)>()
+            .one(db)
+            .await?
+    else {
+        return Ok(());
+    };
+    if target_project_id != project_id || target_chapter_number != chapter_number {
+        return Ok(());
+    }
+
+    let Some((chapter_id, current_outline_id)) = chapter::Entity::find()
+        .select_only()
+        .column(chapter::Column::Id)
+        .column(chapter::Column::OutlineId)
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
+        .into_tuple::<(i64, Option<i64>)>()
+        .one(db)
+        .await?
+    else {
+        return Ok(());
+    };
+
+    let should_link = match current_outline_id {
+        None => true,
+        Some(current_outline_id) => !chapter_outline::Entity::find_by_id(current_outline_id)
+            .select_only()
+            .column(chapter_outline::Column::ProjectId)
+            .column(chapter_outline::Column::ChapterNumber)
+            .into_tuple::<(i64, i32)>()
+            .one(db)
+            .await?
+            .is_some_and(|(current_project_id, current_chapter_number)| {
+                current_project_id == project_id && current_chapter_number == chapter_number
+            }),
+    };
+    if !should_link {
+        return Ok(());
+    }
+
+    let mut update = chapter::Entity::update_many()
+        .col_expr(chapter::Column::OutlineId, Expr::value(Some(outline_id)))
+        .filter(chapter::Column::Id.eq(chapter_id));
+    if let Some(current_outline_id) = current_outline_id {
+        update = update.filter(chapter::Column::OutlineId.eq(current_outline_id));
+    } else {
+        update = update.filter(chapter::Column::OutlineId.is_null());
+    }
+    update.exec(db).await.map(|_| ())
+}
+
+/// 按项目和章节号查找章纲，并在需要时修复正文章节的软关联。
+/// 返回修复后数据库中实际保留的 outline_id；没有对应章纲或章节时返回 None。
+pub(crate) async fn link_chapter_to_project_outline_if_needed<C>(
+    db: &C,
+    project_id: i64,
+    chapter_number: i32,
+) -> Result<Option<i64>, sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let outline = chapter_outline::Entity::find()
+        .filter(chapter_outline::Column::ProjectId.eq(project_id))
+        .filter(chapter_outline::Column::ChapterNumber.eq(chapter_number))
+        .select_only()
+        .column(chapter_outline::Column::Id)
+        .into_tuple::<i64>()
+        .one(db)
+        .await?;
+    if let Some(outline_id) = outline {
+        link_chapter_to_outline_if_needed(db, project_id, chapter_number, outline_id).await?;
+    } else if let Some((chapter_id, outline_id)) = chapter::Entity::find()
+        .select_only()
+        .column(chapter::Column::Id)
+        .column(chapter::Column::OutlineId)
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
+        .into_tuple::<(i64, Option<i64>)>()
+        .one(db)
+        .await?
+    {
+        clear_invalid_chapter_outline_link(db, chapter_id, project_id, chapter_number, outline_id)
+            .await?;
+    }
+
+    Ok(chapter::Entity::find()
+        .filter(chapter::Column::ProjectId.eq(project_id))
+        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
+        .select_only()
+        .column(chapter::Column::OutlineId)
+        .into_tuple::<Option<i64>>()
+        .one(db)
+        .await?
+        .flatten())
+}
+
+/// 清理历史上遗留的已删除、跨项目或跨章节软关联。
+async fn clear_invalid_chapter_outline_link<C>(
+    db: &C,
+    chapter_id: i64,
+    project_id: i64,
+    chapter_number: i32,
+    outline_id: Option<i64>,
+) -> Result<(), sea_orm::DbErr>
+where
+    C: ConnectionTrait,
+{
+    let Some(current_outline_id) = outline_id else {
+        return Ok(());
+    };
+    let valid = chapter_outline::Entity::find_by_id(current_outline_id)
+        .select_only()
+        .column(chapter_outline::Column::ProjectId)
+        .column(chapter_outline::Column::ChapterNumber)
+        .into_tuple::<(i64, i32)>()
+        .one(db)
+        .await?
+        .is_some_and(|(outline_project_id, outline_chapter_number)| {
+            outline_project_id == project_id && outline_chapter_number == chapter_number
+        });
+    if valid {
+        return Ok(());
+    }
+
+    // CAS 条件避免覆盖并发正文编辑刚建立的有效关联。
+    chapter::Entity::update_many()
+        .col_expr(chapter::Column::OutlineId, Expr::value(Option::<i64>::None))
+        .filter(chapter::Column::Id.eq(chapter_id))
+        .filter(chapter::Column::OutlineId.eq(current_outline_id))
+        .exec(db)
+        .await
+        .map(|_| ())
+}
+
 #[cfg(test)]
 mod source_contract_tests {
     use super::{ChapterSourceSnapshot, chapter_source_query};
@@ -300,191 +543,4 @@ mod source_contract_tests {
         assert!(!chapter_source_snapshot_targets(&snapshot, 99, 2));
         assert!(!chapter_source_snapshot_targets(&snapshot, 3, 9));
     }
-}
-
-/// 用户编辑或正式大纲流程写入后，清除自动来源标记。
-///
-/// 正式写入调用方应在同一事务内完成来源清理和业务更新，避免留下半次接管。
-pub(crate) async fn clear_chapter_outline_provenance<C>(
-    db: &C,
-    outline_id: i64,
-) -> Result<(), sea_orm::DbErr>
-where
-    C: ConnectionTrait,
-{
-    chapter_outline_provenance::Entity::delete_by_id(outline_id)
-        .exec(db)
-        .await
-        .map(|_| ())
-}
-
-/// 正文变化时删除仍由分析拥有的旧章纲；用户接管后的章纲没有 provenance，始终保留。
-pub async fn delete_automatic_chapter_outlines_for_source_change<C>(
-    db: &C,
-    project_id: i64,
-    chapter_number: i32,
-) -> Result<Vec<i64>, sea_orm::DbErr>
-where
-    C: ConnectionTrait,
-{
-    let outlines = chapter_outline::Entity::find()
-        .filter(chapter_outline::Column::ProjectId.eq(project_id))
-        .filter(chapter_outline::Column::ChapterNumber.eq(chapter_number))
-        .all(db)
-        .await?;
-    let mut automatic_ids = Vec::new();
-    for outline in outlines {
-        let source_kind = chapter_outline_provenance::Entity::find_by_id(outline.id)
-            .one(db)
-            .await?
-            .map(|provenance| provenance.source_kind);
-        if source_kind.as_deref().is_some_and(|source_kind| {
-            matches!(
-                source_kind,
-                SOURCE_KIND_RETROSPECTIVE_ANALYSIS | SOURCE_KIND_IMPORT_ANALYSIS
-            )
-        }) {
-            automatic_ids.push(outline.id);
-        }
-    }
-    if automatic_ids.is_empty() {
-        return Ok(automatic_ids);
-    }
-
-    chapter::Entity::update_many()
-        .col_expr(chapter::Column::OutlineId, Expr::value(Option::<i64>::None))
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
-        .filter(chapter::Column::OutlineId.is_in(automatic_ids.clone()))
-        .exec(db)
-        .await?;
-    chapter_outline::Entity::delete_many()
-        .filter(chapter_outline::Column::Id.is_in(automatic_ids.clone()))
-        .exec(db)
-        .await?;
-    Ok(automatic_ids)
-}
-
-/// 在不覆盖有效用户关联的前提下，修复章节到章纲的软关联。
-///
-/// 历史数据可能把 `chapter.outline_id` 留成已删除、跨项目或不同章节的
-/// ID。只有这些无效关联（或 NULL）才会被替换；指向同一项目同一章节的
-/// 现有关联视为用户拥有并保留。更新时再次带上旧值条件，避免并发用户
-/// 编辑被自动回链覆盖。
-pub(in crate::project::outline_records) async fn link_chapter_to_outline_if_needed<C>(
-    db: &C,
-    project_id: i64,
-    chapter_number: i32,
-    outline_id: i64,
-) -> Result<(), sea_orm::DbErr>
-where
-    C: ConnectionTrait,
-{
-    let Some(target_outline) = chapter_outline::Entity::find_by_id(outline_id)
-        .one(db)
-        .await?
-    else {
-        return Ok(());
-    };
-    if target_outline.project_id != project_id || target_outline.chapter_number != chapter_number {
-        return Ok(());
-    }
-
-    let Some(chapter) = chapter::Entity::find()
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
-        .one(db)
-        .await?
-    else {
-        return Ok(());
-    };
-
-    let should_link = match chapter.outline_id {
-        None => true,
-        Some(current_outline_id) => !chapter_outline::Entity::find_by_id(current_outline_id)
-            .one(db)
-            .await?
-            .is_some_and(|current| {
-                current.project_id == project_id && current.chapter_number == chapter_number
-            }),
-    };
-    if !should_link {
-        return Ok(());
-    }
-
-    let mut update = chapter::Entity::update_many()
-        .col_expr(chapter::Column::OutlineId, Expr::value(Some(outline_id)))
-        .filter(chapter::Column::Id.eq(chapter.id));
-    if let Some(current_outline_id) = chapter.outline_id {
-        update = update.filter(chapter::Column::OutlineId.eq(current_outline_id));
-    } else {
-        update = update.filter(chapter::Column::OutlineId.is_null());
-    }
-    update.exec(db).await.map(|_| ())
-}
-
-/// 按项目和章节号查找章纲，并在需要时修复正文章节的软关联。
-/// 返回修复后数据库中实际保留的 outline_id；没有对应章纲或章节时返回 None。
-pub(crate) async fn link_chapter_to_project_outline_if_needed<C>(
-    db: &C,
-    project_id: i64,
-    chapter_number: i32,
-) -> Result<Option<i64>, sea_orm::DbErr>
-where
-    C: ConnectionTrait,
-{
-    let outline = chapter_outline::Entity::find()
-        .filter(chapter_outline::Column::ProjectId.eq(project_id))
-        .filter(chapter_outline::Column::ChapterNumber.eq(chapter_number))
-        .one(db)
-        .await?;
-    if let Some(outline) = outline {
-        link_chapter_to_outline_if_needed(db, project_id, chapter_number, outline.id).await?;
-    } else if let Some(chapter) = chapter::Entity::find()
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
-        .one(db)
-        .await?
-    {
-        clear_invalid_chapter_outline_link(db, &chapter).await?;
-    }
-
-    Ok(chapter::Entity::find()
-        .filter(chapter::Column::ProjectId.eq(project_id))
-        .filter(chapter::Column::ChapterNumber.eq(chapter_number))
-        .one(db)
-        .await?
-        .and_then(|chapter| chapter.outline_id))
-}
-
-/// 清理历史上遗留的已删除、跨项目或跨章节软关联。
-async fn clear_invalid_chapter_outline_link<C>(
-    db: &C,
-    chapter: &chapter::Model,
-) -> Result<(), sea_orm::DbErr>
-where
-    C: ConnectionTrait,
-{
-    let Some(current_outline_id) = chapter.outline_id else {
-        return Ok(());
-    };
-    let valid = chapter_outline::Entity::find_by_id(current_outline_id)
-        .one(db)
-        .await?
-        .is_some_and(|outline| {
-            outline.project_id == chapter.project_id
-                && outline.chapter_number == chapter.chapter_number
-        });
-    if valid {
-        return Ok(());
-    }
-
-    // CAS 条件避免覆盖并发正文编辑刚建立的有效关联。
-    chapter::Entity::update_many()
-        .col_expr(chapter::Column::OutlineId, Expr::value(Option::<i64>::None))
-        .filter(chapter::Column::Id.eq(chapter.id))
-        .filter(chapter::Column::OutlineId.eq(current_outline_id))
-        .exec(db)
-        .await
-        .map(|_| ())
 }

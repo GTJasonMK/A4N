@@ -1,10 +1,11 @@
-use a4n_core::{models::scene::scene_transition, rag::RagDataType};
+use a4n_core::rag::RagDataType;
+use a4n_db::rag::RagSceneTransitionRow;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
 use super::super::{RagRecord, rag_chunk_id};
 
 fn scene_transition_rag_text(
-    transition: &scene_transition::Model,
+    transition: &RagSceneTransitionRow,
     from_scene_name: Option<&str>,
     to_scene_name: &str,
 ) -> Result<String, String> {
@@ -38,7 +39,7 @@ fn scene_transition_rag_text(
 
 pub fn scene_transition_rag_record(
     project_id: i64,
-    transition: &scene_transition::Model,
+    transition: &RagSceneTransitionRow,
     from_scene_name: Option<&str>,
     to_scene_name: &str,
 ) -> Result<RagRecord, String> {

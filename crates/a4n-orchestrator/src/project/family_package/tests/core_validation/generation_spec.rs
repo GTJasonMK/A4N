@@ -100,6 +100,18 @@ fn validate_package_manifest_rejects_non_object_generation_spec_params() {
 }
 
 #[test]
+fn validate_package_manifest_rejects_generation_spec_runtime_identity() {
+    let mut package = package_with_part_outlines(Vec::new());
+    let mut spec = generation_spec_record();
+    spec.params_json = json!({"nested": {"config_id": 9}});
+    package.generation_specs = vec![spec];
+
+    let err = validate_package_manifest(&package).expect_err("runtime identity must fail");
+
+    assert!(err.contains("params_json 不能携带运行身份 config_id"));
+}
+
+#[test]
 fn validate_package_manifest_rejects_generation_spec_source_version_hash_mismatch() {
     let mut package = package_with_derived_project();
     let mut spec = generation_spec_for_source_snapshot(901);

@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { ChapterMaterialUpdate } from "../../api/chapter";
 import type { ObjectProfile } from "../../api/objectProfiles";
+import { translateMessage, type MessageTranslator } from "../../i18n";
 import {
   materialUpdateDetails,
   materialUpdateSummary,
   objectProfilesForChapter,
 } from "./AnalysisSubTab";
+
+const t: MessageTranslator = (key, params) =>
+  translateMessage("zh-CN", key, params);
 
 describe("materialUpdateSummary", () => {
   it("describes the concrete materials handled by chapter analysis", () => {
@@ -26,10 +30,10 @@ describe("materialUpdateSummary", () => {
       { material_kind: "scene", action: "synced", name: "旧仓库" },
     ];
 
-    expect(materialUpdateSummary(updates)).toBe(
-      "保留用户章纲「第一章」；回收伏笔「门后的脚步声」；新增物品「钥匙」；关联已有角色「陈恪」；保留用户角色资料「林岚 · 关系「陈恪」」；关联场景「旧仓库」",
+    expect(materialUpdateSummary(updates, t)).toBe(
+      "保留用户章纲「第一章」、回收伏笔「门后的脚步声」、新增物品「钥匙」、关联已有角色「陈恪」、保留用户角色资料「林岚 · 关系「陈恪」」、关联场景「旧仓库」",
     );
-    expect(materialUpdateSummary([])).toBeNull();
+    expect(materialUpdateSummary([], t)).toBeNull();
   });
 
   it("keeps updates beyond the compact summary available to the user", () => {
@@ -39,8 +43,8 @@ describe("materialUpdateSummary", () => {
       name: `角色${index + 1}`,
     }));
 
-    expect(materialUpdateSummary(updates)).toContain("另 1 项");
-    expect(materialUpdateDetails(updates).at(-1)).toBe(
+    expect(materialUpdateSummary(updates, t)).toContain("另 1 项");
+    expect(materialUpdateDetails(updates, t).at(-1)).toBe(
       "同步角色状态「角色9」",
     );
   });

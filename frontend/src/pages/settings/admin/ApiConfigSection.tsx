@@ -25,6 +25,7 @@ import { EmbeddingTab } from "../EmbeddingTab";
 import { ImageTab } from "../ImageTab";
 import { LlmTab } from "../LlmTab";
 import { VideoTab } from "../VideoTab";
+import { useI18n, type MessageKey } from "../../../i18n";
 
 type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding";
 
@@ -39,24 +40,25 @@ interface ApiConfigSnapshot {
 
 const PANEL_DEFS: Array<{
   id: ApiConfigPanel;
-  label: string;
+  labelKey: MessageKey;
   icon: React.ReactNode;
 }> = [
-  { id: "overview", label: "默认总览", icon: <ServerCog size={14} /> },
-  { id: "llm", label: "LLM", icon: <Bot size={14} /> },
-  { id: "image", label: "图片", icon: <ImageIcon size={14} /> },
-  { id: "video", label: "视频", icon: <Film size={14} /> },
-  { id: "embedding", label: "嵌入", icon: <Brain size={14} /> },
+  { id: "overview", labelKey: "settingsAdmin.defaultOverview", icon: <ServerCog size={14} /> },
+  { id: "llm", labelKey: "settings.llm", icon: <Bot size={14} /> },
+  { id: "image", labelKey: "settingsAdmin.image", icon: <ImageIcon size={14} /> },
+  { id: "video", labelKey: "settingsAdmin.video", icon: <Film size={14} /> },
+  { id: "embedding", labelKey: "settingsAdmin.embedding", icon: <Brain size={14} /> },
 ];
 
 export const ApiConfigSection: React.FC = () => {
+  const { t } = useI18n();
   const [panel, setPanel] = useState<ApiConfigPanel>("overview");
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <div
         className="tab-bar shrink-0 overflow-x-auto border-b border-book-border/45"
-        aria-label="API 配置类型"
+        aria-label={t("settingsAdmin.apiConfigType")}
       >
         {PANEL_DEFS.map((item) => (
           <button
@@ -67,7 +69,7 @@ export const ApiConfigSection: React.FC = () => {
             className="pyqt-tab inline-flex items-center gap-1.5 whitespace-nowrap"
           >
             {item.icon}
-            {item.label}
+            {t(item.labelKey)}
           </button>
         ))}
       </div>
@@ -88,6 +90,7 @@ export const ApiConfigSection: React.FC = () => {
 
 const ApiConfigOverview: React.FC = () => {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const [snapshot, setSnapshot] = useState<ApiConfigSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
@@ -118,7 +121,7 @@ const ApiConfigOverview: React.FC = () => {
       setSnapshot({ llm, image, video, embedding, maxTokens, providers });
     } catch (err) {
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "加载 API 调用配置失败"), "error");
+      addToast(extractErrorMessage(err, t("settingsAdmin.loadApiConfigFailed")), "error");
     } finally {
       if (mountedRef.current && loadSeqRef.current === requestSeq) setLoading(false);
     }
@@ -140,11 +143,11 @@ const ApiConfigOverview: React.FC = () => {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2 text-xs text-book-text-muted">
         <ServerCog size={13} className="shrink-0 text-book-primary" />
-        <span>这里的默认配置由管理员维护，所有账号共享。</span>
+        <span>{t("settingsAdmin.sharedDefaultsHint")}</span>
         <span className="flex-1" />
         <span className="shrink-0">
           <BookIconButton
-            label="刷新"
+            label={t("settingsAdmin.refresh")}
             variant="secondary"
             size="sm"
             onClick={load}
@@ -158,70 +161,74 @@ const ApiConfigOverview: React.FC = () => {
       {loading && snapshot == null ? (
         <div className="inline-flex items-center gap-2 py-10 text-xs text-book-text-muted">
           <LoadingSpinner size="sm" />
-          正在加载配置
+          {t("settingsAdmin.loadingConfig")}
         </div>
       ) : (
-        <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2" aria-label="共享默认配置">
+        <section className="grid grid-cols-1 items-start gap-3 xl:grid-cols-2" aria-label={t("settingsAdmin.sharedDefaults")}>
           <ApiSummaryCard
             icon={<Bot size={16} />}
-            title="语言模型默认配置"
+            title={t("settingsAdmin.llmDefault")}
             empty={!defaults.llm}
             primaryRows={
               defaults.llm
                 ? [
-                    ["配置", configName(defaults.llm)],
-                    ["模型", defaults.llm.model],
-                    ["服务商", providerLabel(snapshot?.providers.llm, defaults.llm.provider)],
-                    ["访问密钥", defaults.llm.has_api_key ? "已配置" : "未配置"],
+                    [t("settingsForm.configName"), configName(defaults.llm)],
+                    [t("settingsForm.model"), defaults.llm.model],
+                    [t("settingsForm.provider"), providerLabel(snapshot?.providers.llm, defaults.llm.provider, t)],
+                    [t("settingsForm.apiKey"), defaults.llm.has_api_key ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured")],
                   ]
                 : []
             }
             diagnosticRows={
               defaults.llm
                 ? [
-                    ["接口地址", defaults.llm.base_url],
+                    [t("settingsForm.endpoint"), defaults.llm.base_url],
                     [
-                      "并发 / 超时",
+                      t("settingsAdmin.concurrencyTimeout"),
                       `${defaults.llm.max_concurrent} / ${defaults.llm.timeout_secs}s`,
                     ],
                     [
-                      "上下文 / 最大输出",
+                      t("settingsAdmin.contextOutput"),
                       `${defaults.llm.max_context_tokens} / ${defaults.llm.max_output_tokens}`,
                     ],
-                    ["高级参数", configuredLabel(defaults.llm.extra_body_json)],
+                    [t("settingsForm.advancedParams"), configuredLabel(defaults.llm.extra_body_json, t)],
                   ]
                 : []
             }
             diagnosticFooter={
               snapshot
-                ? `场景预算：章节 ${snapshot.maxTokens.chapter_generation}，分析 ${snapshot.maxTokens.chapter_analysis}，媒体 ${snapshot.maxTokens.media_prompt}`
+                ? t("settingsAdmin.sceneBudget", {
+                    chapter: snapshot.maxTokens.chapter_generation,
+                    analysis: snapshot.maxTokens.chapter_analysis,
+                    media: snapshot.maxTokens.media_prompt,
+                  })
                 : undefined
             }
           />
 
           <ApiSummaryCard
             icon={<ImageIcon size={16} />}
-            title="图片生成默认调用"
+            title={t("settingsAdmin.imageDefault")}
             empty={!defaults.image}
             primaryRows={
               defaults.image
                 ? [
-                    ["配置", configName(defaults.image)],
-                    ["模型", defaults.image.model],
-                    ["运行方式", providerLabel(snapshot?.providers.image, defaults.image.backend)],
-                    ["访问密钥", defaults.image.has_api_key ? "已配置" : "未配置"],
+                    [t("settingsForm.configName"), configName(defaults.image)],
+                    [t("settingsForm.model"), defaults.image.model],
+                    [t("settingsAdmin.runtimeMode"), providerLabel(snapshot?.providers.image, defaults.image.backend, t)],
+                    [t("settingsForm.apiKey"), defaults.image.has_api_key ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured")],
                   ]
                 : []
             }
             diagnosticRows={
               defaults.image
                 ? [
-                    ["接口地址", valueOrMissing(defaults.image.base_url)],
+                    [t("settingsForm.endpoint"), valueOrMissing(defaults.image.base_url, t)],
                     [
-                      "默认尺寸",
+                      t("settingsAdmin.defaultSize"),
                       `${defaults.image.default_width} × ${defaults.image.default_height}`,
                     ],
-                    ["并发", String(defaults.image.max_concurrent)],
+                    [t("settingsForm.concurrency"), String(defaults.image.max_concurrent)],
                   ]
                 : []
             }
@@ -229,31 +236,31 @@ const ApiConfigOverview: React.FC = () => {
 
           <ApiSummaryCard
             icon={<Film size={16} />}
-            title="视频生成默认调用"
+            title={t("settingsAdmin.videoDefault")}
             empty={!defaults.video}
             primaryRows={
               defaults.video
                 ? [
-                    ["配置", configName(defaults.video)],
-                    ["模型", defaults.video.model],
-                    ["运行方式", providerLabel(snapshot?.providers.video, defaults.video.backend)],
+                    [t("settingsForm.configName"), configName(defaults.video)],
+                    [t("settingsForm.model"), defaults.video.model],
+                    [t("settingsAdmin.runtimeMode"), providerLabel(snapshot?.providers.video, defaults.video.backend, t)],
                   ]
                 : []
             }
             diagnosticRows={
               defaults.video
                 ? [
-                    ["接口地址", valueOrMissing(defaults.video.base_url)],
+                    [t("settingsForm.endpoint"), valueOrMissing(defaults.video.base_url, t)],
                     [
-                      "默认规格",
+                      t("settingsAdmin.defaultSpec"),
                       `${defaults.video.default_width} × ${defaults.video.default_height}`,
                     ],
                     [
-                      "时长 / 帧率",
+                      t("settingsAdmin.durationFps"),
                       `${defaults.video.default_duration_secs}s / ${defaults.video.default_fps}`,
                     ],
-                    ["时长模式", videoDurationText(defaults.video)],
-                    ["并发", String(defaults.video.max_concurrent)],
+                    [t("settingsForm.durationMode"), videoDurationText(defaults.video, t)],
+                    [t("settingsForm.concurrency"), String(defaults.video.max_concurrent)],
                   ]
                 : []
             }
@@ -261,30 +268,30 @@ const ApiConfigOverview: React.FC = () => {
 
           <ApiSummaryCard
             icon={<Brain size={16} />}
-            title="嵌入默认调用"
+            title={t("settingsAdmin.embeddingDefault")}
             empty={!defaults.embedding}
             primaryRows={
               defaults.embedding
                 ? [
-                    ["配置", configName(defaults.embedding)],
-                    ["模型", modelLabel(defaults.embedding.model)],
+                    [t("settingsForm.configName"), configName(defaults.embedding)],
+                    [t("settingsForm.model"), modelLabel(defaults.embedding.model, t)],
                     [
-                      "运行方式",
-                      providerLabel(snapshot?.providers.embedding, defaults.embedding.backend),
+                      t("settingsAdmin.runtimeMode"),
+                      providerLabel(snapshot?.providers.embedding, defaults.embedding.backend, t),
                     ],
-                    ["访问密钥", defaults.embedding.has_api_key ? "已配置" : "未配置"],
+                    [t("settingsForm.apiKey"), defaults.embedding.has_api_key ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured")],
                   ]
                 : []
             }
             diagnosticRows={
               defaults.embedding
                 ? [
-                    ["接口地址", valueOrMissing(defaults.embedding.base_url)],
+                    [t("settingsForm.endpoint"), valueOrMissing(defaults.embedding.base_url, t)],
                     [
-                      "维度 / 批大小",
+                      t("settingsAdmin.dimensionBatch"),
                       `${defaults.embedding.dimension} / ${defaults.embedding.batch_size}`,
                     ],
-                    ["本地模型路径", valueOrMissing(defaults.embedding.local_model_path)],
+                    [t("settingsAdmin.localModelPath"), valueOrMissing(defaults.embedding.local_model_path, t)],
                   ]
                 : []
             }
@@ -302,7 +309,9 @@ const ApiSummaryCard: React.FC<{
   primaryRows: Array<[string, string]>;
   diagnosticRows?: Array<[string, string]>;
   diagnosticFooter?: string;
-}> = ({ icon, title, empty, primaryRows, diagnosticRows = [], diagnosticFooter }) => (
+}> = ({ icon, title, empty, primaryRows, diagnosticRows = [], diagnosticFooter }) => {
+  const { t } = useI18n();
+  return (
   <article className="a4n-flat-surface min-w-0 overflow-hidden">
     <div className="flex items-center gap-2 px-3 py-2.5">
       <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-book-primary">
@@ -314,7 +323,7 @@ const ApiSummaryCard: React.FC<{
     </div>
     {empty ? (
       <div className="border-t border-book-border/25 px-3 py-3 text-xs text-book-text-muted">
-        未设置默认配置
+        {t("settingsAdmin.noDefault")}
       </div>
     ) : (
       <>
@@ -322,7 +331,7 @@ const ApiSummaryCard: React.FC<{
         {(diagnosticRows.length > 0 || diagnosticFooter) && (
           <details className="border-t border-book-border/35">
             <summary className="cursor-pointer px-3 py-2.5 text-small text-book-text-muted transition-colors hover:bg-book-bg-tertiary/40 hover:text-book-text-sub">
-              诊断信息
+              {t("settingsAdmin.diagnostics")}
             </summary>
             <div className="border-t border-book-border/25 bg-book-bg-soft/35">
               <ConfigRows rows={diagnosticRows} />
@@ -337,7 +346,8 @@ const ApiSummaryCard: React.FC<{
       </>
     )}
   </article>
-);
+  );
+};
 
 const ConfigRows: React.FC<{ rows: Array<[string, string]> }> = ({ rows }) => (
   <dl className="divide-y divide-book-border/30 border-t border-book-border/25">
@@ -359,34 +369,41 @@ function configName(config: { id: number; name: string }): string {
   return config.name;
 }
 
-function valueOrMissing(value: string | null | undefined): string {
+function valueOrMissing(
+  value: string | null | undefined,
+  t: ReturnType<typeof useI18n>["t"],
+): string {
   const text = value?.trim();
-  return text ? text : "未配置";
+  return text ? text : t("settingsAdmin.notConfigured");
 }
 
-function configuredLabel(value: unknown): string {
-  if (value == null) return "未配置";
+function configuredLabel(value: unknown, t: ReturnType<typeof useI18n>["t"]): string {
+  if (value == null) return t("settingsAdmin.notConfigured");
   if (typeof value === "object" && Object.keys(value as Record<string, unknown>).length === 0) {
-    return "未配置";
+    return t("settingsAdmin.notConfigured");
   }
-  return "已配置";
+  return t("settingsAdmin.configured");
 }
 
 function providerLabel(
   providers: Array<{ id: string; display_name: string }> | undefined,
   value: string,
+  t: ReturnType<typeof useI18n>["t"],
 ): string {
-  return providers?.find((provider) => provider.id === value)?.display_name ?? `未注册（${value}）`;
+  return providers?.find((provider) => provider.id === value)?.display_name ?? t("settingsAdmin.unregistered", { value });
 }
 
-function modelLabel(value: string): string {
-  if (value === "local-sha256-hash") return "内置哈希向量";
+function modelLabel(value: string, t: ReturnType<typeof useI18n>["t"]): string {
+  if (value === "local-sha256-hash") return t("settingsAdmin.builtinHash");
   return value;
 }
 
-function videoDurationText(config: VideoGenConfig): string {
+function videoDurationText(config: VideoGenConfig, t: ReturnType<typeof useI18n>["t"]): string {
   if (config.duration_mode === "fixed") {
-    return `固定 ${config.default_duration_secs}s`;
+    return t("settingsAdmin.fixedDurationValue", { seconds: config.default_duration_secs });
   }
-  return `${config.min_duration_secs}-${config.max_duration_secs}s`;
+  return t("settingsAdmin.durationRange", {
+    min: config.min_duration_secs,
+    max: config.max_duration_secs,
+  });
 }

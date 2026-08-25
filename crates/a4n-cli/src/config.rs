@@ -21,6 +21,10 @@ pub(crate) struct StoredConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) agent_token: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) ui_session_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) ui_session_token: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
 }
 
@@ -55,6 +59,8 @@ impl StoredConfig {
         self.session_id = None;
         self.agent_id = None;
         self.agent_token = None;
+        self.ui_session_id = None;
+        self.ui_session_token = None;
     }
 }
 
@@ -198,7 +204,11 @@ pub(crate) fn non_empty_env_string(key: &str) -> Result<Option<String>> {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_api_base;
+    use std::fs;
+
+    use tempfile::TempDir;
+
+    use super::{StoredConfig, normalize_api_base};
 
     #[test]
     fn normalizes_server_root_and_existing_api_path() {
@@ -218,5 +228,32 @@ mod tests {
         assert!(normalize_api_base("https://user:secret@example.com").is_err());
         let error = normalize_api_base("://embedded-secret").unwrap_err();
         assert!(!format!("{error:#}").contains("embedded-secret"));
+    }
+
+    #[test]
+    fn stored_config_rejects_unknown_fields_and_writes_private_json() {
+        let temp = TempDir::new().unwrap();
+        let path = temp.path().join("cli.json");
+        fs::write(
+            &path,
+            br#"{"server":"http://127.0.0.1:8080","unknown":true}"#,
+        )
+        .unwrap();
+        assert!(StoredConfig::load_unlocked(&path).is_err());
+
+        let stored = StoredConfig {
+            server: Some("http://127.0.0.1:8080".into()),
+            ..StoredConfig::default()
+        };
+        stored.save(&path).unwrap();
+        assert_eq!(StoredConfig::load(&path).unwrap().server, stored.server);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
     }
 }

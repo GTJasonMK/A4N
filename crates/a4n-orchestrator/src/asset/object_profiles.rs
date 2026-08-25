@@ -1,5 +1,6 @@
 //! 物体档案应用合同。
 
+use a4n_api_contract::profile::ObjectProfileInput;
 use a4n_core::error::AppError;
 use a4n_core::profile_text::{
     normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
@@ -7,9 +8,9 @@ use a4n_core::profile_text::{
 };
 use a4n_db::asset::ObjectProfileRecordInput;
 use serde_json::json;
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
-pub const OBJECT_TYPES: &[&str] = &[
+pub(crate) const OBJECT_TYPES: &[&str] = &[
     "prop",
     "tool",
     "weapon",
@@ -21,36 +22,18 @@ pub const OBJECT_TYPES: &[&str] = &[
     "other",
 ];
 
-#[derive(Debug, Clone)]
-pub struct ObjectProfileDraft {
-    pub name: String,
-    pub aliases: Vec<String>,
-    pub object_type: String,
-    pub importance: String,
-    pub visual_description: String,
-    pub material_and_state: String,
-    pub story_usage: String,
-    pub visual_usage: String,
-    pub generation_usage: String,
-    pub location_context: Option<String>,
-    pub first_seen_chapter: i32,
-    pub last_seen_chapter: i32,
-    pub evidence: Vec<String>,
-    pub image_prompt_seed: String,
-}
-
 /// 批量规范化物体档案草稿（含重复名检测），供 runtime 直接交给 orchestrator upsert。
-pub fn normalize_object_profile_record_inputs(
-    drafts: Vec<ObjectProfileDraft>,
+pub(crate) fn normalize_object_profile_record_inputs(
+    drafts: Vec<ObjectProfileInput>,
 ) -> Result<Vec<ObjectProfileRecordInput>, AppError> {
     normalize_record_inputs(drafts)
 }
 
 fn normalize_record_inputs(
-    drafts: Vec<ObjectProfileDraft>,
+    drafts: Vec<ObjectProfileInput>,
 ) -> Result<Vec<ObjectProfileRecordInput>, AppError> {
     let mut inputs = Vec::with_capacity(drafts.len());
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for draft in drafts {
         let normalized = normalize_object_name(&draft.name)?;
         if !seen.insert(normalized.clone()) {
@@ -66,20 +49,20 @@ fn normalize_record_inputs(
 }
 
 /// 将物体档案草稿规范化为 DB 写入 DTO（runtime 可直接交给 orchestrator）。
-pub fn normalize_object_profile_record_input(
-    draft: ObjectProfileDraft,
+pub(crate) fn normalize_object_profile_record_input(
+    draft: ObjectProfileInput,
 ) -> Result<ObjectProfileRecordInput, AppError> {
     normalize_record_input(draft)
 }
 
-fn normalize_record_input(draft: ObjectProfileDraft) -> Result<ObjectProfileRecordInput, AppError> {
+fn normalize_record_input(draft: ObjectProfileInput) -> Result<ObjectProfileRecordInput, AppError> {
     let normalized = normalize_object_name(&draft.name)?;
     let draft = normalize_manual_draft(draft)?;
     Ok(object_profile_record_input(draft, normalized))
 }
 
 fn object_profile_record_input(
-    draft: ObjectProfileDraft,
+    draft: ObjectProfileInput,
     normalized_name: String,
 ) -> ObjectProfileRecordInput {
     ObjectProfileRecordInput {
@@ -101,7 +84,7 @@ fn object_profile_record_input(
     }
 }
 
-pub fn normalize_object_name(name: &str) -> Result<String, AppError> {
+pub(crate) fn normalize_object_name(name: &str) -> Result<String, AppError> {
     let normalized = name.trim().to_lowercase();
     if normalized.is_empty() {
         return Err(AppError::InvalidArgument("物体名称不能为空".to_string()));
@@ -109,7 +92,7 @@ pub fn normalize_object_name(name: &str) -> Result<String, AppError> {
     Ok(normalized)
 }
 
-fn normalize_draft(mut draft: ObjectProfileDraft) -> Result<ObjectProfileDraft, AppError> {
+fn normalize_draft(mut draft: ObjectProfileInput) -> Result<ObjectProfileInput, AppError> {
     draft.name = required_text(&draft.name, "物体名称")?;
     draft.aliases = normalize_aliases(draft.aliases);
     draft.object_type = normalize_object_type_value(&draft.object_type)?;
@@ -129,7 +112,7 @@ fn normalize_draft(mut draft: ObjectProfileDraft) -> Result<ObjectProfileDraft, 
     Ok(draft)
 }
 
-fn normalize_manual_draft(mut draft: ObjectProfileDraft) -> Result<ObjectProfileDraft, AppError> {
+fn normalize_manual_draft(mut draft: ObjectProfileInput) -> Result<ObjectProfileInput, AppError> {
     draft.name = required_text(&draft.name, "物体名称")?;
     draft.aliases = normalize_aliases(draft.aliases);
     draft.object_type = normalize_optional_object_type(&draft.object_type)?;
@@ -149,7 +132,7 @@ fn normalize_manual_draft(mut draft: ObjectProfileDraft) -> Result<ObjectProfile
     Ok(draft)
 }
 
-fn validate_object_chapter_range(draft: &ObjectProfileDraft) -> Result<(), AppError> {
+fn validate_object_chapter_range(draft: &ObjectProfileInput) -> Result<(), AppError> {
     if draft.first_seen_chapter <= 0 || draft.last_seen_chapter <= 0 {
         return Err(AppError::InvalidArgument(
             "物体首次/最近出现章节必须大于 0".to_string(),
@@ -181,7 +164,7 @@ fn normalize_optional_importance(value: &str, field_name: &str) -> Result<String
     }
 }
 
-pub fn normalize_object_type_value(value: &str) -> Result<String, AppError> {
+pub(crate) fn normalize_object_type_value(value: &str) -> Result<String, AppError> {
     let value = required_text(value, "物体类型")?;
     if OBJECT_TYPES.contains(&value.as_str()) {
         return Ok(value);
@@ -235,7 +218,7 @@ mod tests {
 
     #[test]
     fn manual_object_profile_allows_name_only() {
-        let input = normalize_object_profile_record_input(ObjectProfileDraft {
+        let input = normalize_object_profile_record_input(ObjectProfileInput {
             name: " 旧怀表 ".to_string(),
             aliases: Vec::new(),
             object_type: String::new(),

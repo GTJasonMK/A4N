@@ -6,12 +6,11 @@
 use a4n_core::{
     error::AppError,
     models::{
-        chapter::{chapter, chapter_outline, part_outline},
+        chapter::{chapter, part_outline},
         character::{
             attribute_event, character_state_index, foreshadowing_index, protagonist_profile,
         },
         project::{blueprint_character, blueprint_relationship, novel_blueprint},
-        scene::{scene_occurrence, scene_profile, scene_transition},
     },
 };
 use a4n_db::DbHandle;
@@ -41,7 +40,7 @@ impl RagApplication {
     async fn chapter_outlines_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagChapterOutlineRow>, AppError> {
         a4n_db::rag::chapter_outlines_for_rag_ingest(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -68,7 +67,7 @@ impl RagApplication {
     async fn blueprint_characters_for_rag_search(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_character::Model>, AppError> {
+    ) -> Result<Vec<String>, AppError> {
         a4n_db::rag::blueprint_characters_for_rag_search(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -122,7 +121,7 @@ impl RagApplication {
     async fn scene_profiles_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<scene_profile::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagSceneProfileRow>, AppError> {
         a4n_db::rag::scene_profiles_for_rag_ingest(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -131,7 +130,7 @@ impl RagApplication {
     async fn scene_occurrences_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<scene_occurrence::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagSceneOccurrenceRow>, AppError> {
         a4n_db::rag::scene_occurrences_for_rag_ingest(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -140,7 +139,7 @@ impl RagApplication {
     async fn scene_transitions_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<scene_transition::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagSceneTransitionRow>, AppError> {
         a4n_db::rag::scene_transitions_for_rag_ingest(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -163,7 +162,7 @@ impl RagApplication {
     async fn foreshadowing_items_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         a4n_db::rag::foreshadowing_items_for_rag_ingest(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -198,6 +197,22 @@ impl RagApplication {
         .await
         .map_err(AppError::Database)
     }
+
+    async fn pending_foreshadowing_search_rows(
+        &self,
+        project_id: i64,
+        chapter_number: Option<i32>,
+        limit: u64,
+    ) -> Result<Vec<a4n_db::rag::PendingForeshadowingSearchRow>, AppError> {
+        a4n_db::rag::pending_foreshadowing_search_rows(
+            self.database.connection(),
+            project_id,
+            chapter_number,
+            limit,
+        )
+        .await
+        .map_err(AppError::Database)
+    }
 }
 
 impl OrchestratorContext {
@@ -211,7 +226,7 @@ impl OrchestratorContext {
     pub async fn chapter_outlines_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<chapter_outline::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagChapterOutlineRow>, AppError> {
         self.rag.chapter_outlines_for_rag_ingest(project_id).await
     }
 
@@ -232,7 +247,7 @@ impl OrchestratorContext {
     pub async fn blueprint_characters_for_rag_search(
         &self,
         project_id: i64,
-    ) -> Result<Vec<blueprint_character::Model>, AppError> {
+    ) -> Result<Vec<String>, AppError> {
         self.rag
             .blueprint_characters_for_rag_search(project_id)
             .await
@@ -282,21 +297,21 @@ impl OrchestratorContext {
     pub async fn scene_profiles_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<scene_profile::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagSceneProfileRow>, AppError> {
         self.rag.scene_profiles_for_rag_ingest(project_id).await
     }
 
     pub async fn scene_occurrences_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<scene_occurrence::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagSceneOccurrenceRow>, AppError> {
         self.rag.scene_occurrences_for_rag_ingest(project_id).await
     }
 
     pub async fn scene_transitions_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<scene_transition::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagSceneTransitionRow>, AppError> {
         self.rag.scene_transitions_for_rag_ingest(project_id).await
     }
 
@@ -313,7 +328,7 @@ impl OrchestratorContext {
     pub async fn foreshadowing_items_for_rag_ingest(
         &self,
         project_id: i64,
-    ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
+    ) -> Result<Vec<a4n_db::rag::RagForeshadowingRow>, AppError> {
         self.rag
             .foreshadowing_items_for_rag_ingest(project_id)
             .await
@@ -337,6 +352,17 @@ impl OrchestratorContext {
     ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
         self.rag
             .pending_foreshadowing_for_project(project_id, limit)
+            .await
+    }
+
+    pub(crate) async fn pending_foreshadowing_search_rows(
+        &self,
+        project_id: i64,
+        chapter_number: Option<i32>,
+        limit: u64,
+    ) -> Result<Vec<a4n_db::rag::PendingForeshadowingSearchRow>, AppError> {
+        self.rag
+            .pending_foreshadowing_search_rows(project_id, chapter_number, limit)
             .await
     }
 }

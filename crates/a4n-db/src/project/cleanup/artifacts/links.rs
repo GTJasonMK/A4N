@@ -23,9 +23,6 @@ where
         .map_err(ProjectCleanupDbError::InvalidArgument)?;
     let mut deleted_media_bindings = 0;
     let mut deleted_media_provenance = 0;
-    let mut deleted_generation_spec_media_refs = 0;
-    let mut deleted_generation_spec_text_anchors = 0;
-    let mut deleted_generation_spec_entity_refs = 0;
     let mut deleted_prompt_artifacts = 0;
 
     if !media_asset_ids.is_empty() {
@@ -41,14 +38,13 @@ where
             .rows_affected;
     }
     if !generation_spec_ids.is_empty() {
-        deleted_generation_spec_media_refs += generation_spec_media_ref::Entity::delete_many()
+        generation_spec_media_ref::Entity::delete_many()
             .filter(
                 generation_spec_media_ref::Column::GenerationSpecId
                     .is_in(generation_spec_ids.to_vec()),
             )
             .exec(db)
-            .await?
-            .rows_affected;
+            .await?;
         if !prompt_artifact_ids.is_empty() {
             deleted_prompt_artifacts = prompt_artifact::Entity::delete_many()
                 .filter(prompt_artifact::Column::Id.is_in(prompt_artifact_ids.to_vec()))
@@ -59,37 +55,31 @@ where
                 .await?
                 .rows_affected;
         }
-        deleted_generation_spec_text_anchors = generation_spec_text_anchor::Entity::delete_many()
+        generation_spec_text_anchor::Entity::delete_many()
             .filter(
                 generation_spec_text_anchor::Column::GenerationSpecId
                     .is_in(generation_spec_ids.to_vec()),
             )
             .exec(db)
-            .await?
-            .rows_affected;
-        deleted_generation_spec_entity_refs = generation_spec_entity_ref::Entity::delete_many()
+            .await?;
+        generation_spec_entity_ref::Entity::delete_many()
             .filter(
                 generation_spec_entity_ref::Column::GenerationSpecId
                     .is_in(generation_spec_ids.to_vec()),
             )
             .exec(db)
-            .await?
-            .rows_affected;
+            .await?;
     }
     if !media_asset_ids.is_empty() {
-        deleted_generation_spec_media_refs += generation_spec_media_ref::Entity::delete_many()
+        generation_spec_media_ref::Entity::delete_many()
             .filter(generation_spec_media_ref::Column::MediaAssetId.is_in(media_asset_ids.to_vec()))
             .exec(db)
-            .await?
-            .rows_affected;
+            .await?;
     }
 
     Ok(ProjectGeneratedArtifactLinkCleanupResult {
         deleted_media_bindings,
         deleted_media_provenance,
-        deleted_generation_spec_media_refs,
-        deleted_generation_spec_text_anchors,
-        deleted_generation_spec_entity_refs,
         deleted_prompt_artifacts,
     })
 }

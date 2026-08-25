@@ -6,22 +6,23 @@ pub(super) const IMAGE_REF_CONFIG_KEY: &str = "generated_image_id";
 pub(super) const GENERATION_SPEC_REF_CONFIG_KEY: &str = "generation_spec_id";
 pub(super) const PROMPT_ARTIFACT_REF_CONFIG_KEY: &str = "prompt_artifact_id";
 
-pub(super) fn config_id_in(config: &Value, key: &str, ids: &[i64]) -> Option<i64> {
-    config
-        .get(key)
-        .and_then(Value::as_i64)
-        .filter(|id| ids.contains(id))
+pub(super) fn config_id_in(
+    config: &Value,
+    key: &str,
+    contains: impl Fn(&i64) -> bool,
+) -> Option<i64> {
+    config.get(key).and_then(Value::as_i64).filter(contains)
 }
 
 pub(super) fn remove_config_any_i64_ref(
     object: &mut serde_json::Map<String, Value>,
     key: &str,
-    ids: &[i64],
+    contains: impl Fn(&i64) -> bool,
 ) {
     if object
         .get(key)
         .and_then(Value::as_i64)
-        .is_some_and(|id| ids.contains(&id))
+        .is_some_and(|id| contains(&id))
     {
         object.remove(key);
     }

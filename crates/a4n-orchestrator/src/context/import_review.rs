@@ -1,19 +1,17 @@
-use a4n_core::{
-    error::AppError,
-    models::{chapter::chapter, project::import_review_queue},
+use std::collections::HashMap;
+
+use a4n_api_contract::import_review::DedupResult;
+use a4n_core::{error::AppError, models::project::import_review_queue};
+use a4n_db::{
+    DbHandle,
+    import_review::{AcceptedImportReview, ImportReviewCreateInput, ImportReviewMutationError},
 };
-use a4n_db::DbHandle;
 use serde_json::Value;
 
 use super::OrchestratorContext;
-use a4n_db::import_review::ImportReviewMutationError;
-
 use crate::{
-    chapter_content::ChapterDerivedCleanupHostPort,
-    collaboration::ProjectAccessRole,
-    import_review::{
-        AcceptedImportReview, ImportDedupResult, ImportReviewCreateInput, calculate_import_dedup,
-    },
+    chapter_content::ChapterDerivedCleanupHostPort, collaboration::ProjectAccessRole,
+    import_review::calculate_import_dedup,
 };
 
 #[derive(Clone)]
@@ -44,6 +42,18 @@ impl ImportReviewApplication {
             .map_err(AppError::Database)
     }
 
+    async fn import_review_project_ids_by_ids(
+        &self,
+        review_ids: &[i64],
+    ) -> Result<Vec<(i64, i64)>, AppError> {
+        a4n_db::import_review::import_review_project_ids_by_ids(
+            self.database.connection(),
+            review_ids,
+        )
+        .await
+        .map_err(AppError::Database)
+    }
+
     async fn create_import_reviews(
         &self,
         inputs: Vec<ImportReviewCreateInput>,
@@ -62,12 +72,12 @@ impl ImportReviewApplication {
     /// 校验分析结果后接受导入审核并落库章节。
     async fn accept_import_review_validated(
         &self,
-        review: import_review_queue::Model,
+        review_id: i64,
         analysis_result: Option<Value>,
     ) -> Result<AcceptedImportReview, AppError> {
         a4n_db::import_review::accept_import_review(
             self.database.connection(),
-            review.id,
+            review_id,
             analysis_result,
         )
         .await
@@ -83,10 +93,7 @@ impl ImportReviewApplication {
             .map_err(import_review_mutation_error)
     }
 
-    async fn import_dedup_chapters(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<chapter::Model>, AppError> {
+    async fn import_dedup_chapters(&self, project_id: i64) -> Result<Vec<(i64, String)>, AppError> {
         a4n_db::import_review::import_dedup_chapters(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -153,7 +160,7 @@ impl OrchestratorContext {
         let review = self.import_review_for_editor(user_id, review_id).await?;
         let accepted = self
             .import_review
-            .accept_import_review_validated(review, analysis_result)
+            .accept_import_review_validated(review.id, analysis_result)
             .await?;
         if let Err(error) = self
             .postprocess_chapter_derived_data_validated(host_port, accepted.chapter_id)
@@ -175,12 +182,45 @@ impl OrchestratorContext {
         review_ids: &[i64],
         host_port: &dyn ChapterDerivedCleanupHostPort,
     ) -> Result<Vec<AcceptedImportReview>, AppError> {
+        if review_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let project_ids_by_review_id = self
+            .import_review
+            .import_review_project_ids_by_ids(review_ids)
+            .await?
+            .into_iter()
+            .collect::<HashMap<_, _>>();
         let mut accepted = Vec::with_capacity(review_ids.len());
         for review_id in review_ids {
-            match self
-                .accept_import_review_for_user_validated(user_id, *review_id, None, host_port)
-                .await
-            {
+            let result = async {
+                let project_id = project_ids_by_review_id
+                    .get(review_id)
+                    .copied()
+                    .ok_or_else(|| {
+                        AppError::NotFound(format!("导入审核不存在: review_id={review_id}"))
+                    })?;
+                self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+                    .await?;
+                let accepted = self
+                    .import_review
+                    .accept_import_review_validated(*review_id, None)
+                    .await?;
+                if let Err(error) = self
+                    .postprocess_chapter_derived_data_validated(host_port, accepted.chapter_id)
+                    .await
+                {
+                    tracing::warn!(
+                        review_id = accepted.review.id,
+                        chapter_id = accepted.chapter_id,
+                        error = %error,
+                        "导入审核已接受，章节派生资料同步待恢复"
+                    );
+                }
+                Ok::<_, AppError>(accepted)
+            }
+            .await;
+            match result {
                 Ok(result) => accepted.push(result),
                 Err(error) => {
                     return Err(AppError::InvalidState {
@@ -206,7 +246,7 @@ impl OrchestratorContext {
         user_id: i64,
         project_id: i64,
         content: &str,
-    ) -> Result<ImportDedupResult, AppError> {
+    ) -> Result<DedupResult, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         let chapters = self
@@ -214,7 +254,6 @@ impl OrchestratorContext {
             .import_dedup_chapters(project_id)
             .await?
             .into_iter()
-            .map(|chapter| (chapter.id, chapter.content))
             .collect::<Vec<_>>();
         calculate_import_dedup(content, &chapters)
     }

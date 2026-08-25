@@ -1,5 +1,4 @@
 use super::{GalgamePipelinePromptChapter, GalgamePipelineSourceSpan};
-use a4n_core::models::generation::{workflow_checkpoint, workflow_run};
 use a4n_domain::shooting_script::ChapterShootingScriptV1;
 use serde::Serialize;
 
@@ -21,17 +20,10 @@ pub use a4n_domain::galgame::{
     GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineBeatRefV3, GalgamePipelineStartStage,
     GalgameSceneEntryKind, GalgameStagePositionV2, GalgameTargetEntityKind,
     GalgameVisibleCastMemberV2, LINE_TYPE_CHOICE, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE,
-    LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, PROJECT_KIND_GALGAME, SCENE_ENTRY_BRANCH,
-    SCENE_ENTRY_MAIN,
+    LINE_TYPE_NARRATION, LINE_TYPE_STAGE_DIRECTION, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN,
 };
 
 pub(super) const SCRIPT_STATUS_READY: &str = "ready";
-
-#[derive(Debug, Clone)]
-pub struct GalgamePipelineStatusReadModel {
-    pub run: Option<workflow_run::Model>,
-    pub checkpoints: Vec<workflow_checkpoint::Model>,
-}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct GalgamePipelinePromptContext {

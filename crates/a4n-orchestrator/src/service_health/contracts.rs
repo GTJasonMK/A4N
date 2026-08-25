@@ -3,14 +3,14 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct ManagedServiceHealthSummary {
-    pub name: String,
-    pub mode: ServiceMode,
-    pub url: Option<String>,
-    pub binary: Option<String>,
-    pub pid: Option<u32>,
-    pub healthy: bool,
-    pub service_version: Option<String>,
-    pub protocol_version: Option<u32>,
-    pub capability_version: Option<String>,
-    pub error_message: Option<String>,
+    pub(crate) name: String,
+    pub(crate) mode: ServiceMode,
+    pub(crate) url: Option<String>,
+    pub(crate) binary: Option<String>,
+    pub(crate) pid: Option<u32>,
+    pub(crate) healthy: bool,
+    pub(crate) service_version: Option<String>,
+    pub(crate) protocol_version: Option<u32>,
+    pub(crate) capability_version: Option<String>,
+    pub(crate) error_message: Option<String>,
 }

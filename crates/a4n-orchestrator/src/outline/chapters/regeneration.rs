@@ -11,7 +11,7 @@ use crate::outline::{ChapterOutlineRegenerationInput, OrchestratorContext, repor
 use super::contracts::SingleChapterOutlineJsonInput;
 
 impl OrchestratorContext {
-    pub async fn regenerate_chapter_outline(
+    pub(in crate::outline) async fn regenerate_chapter_outline(
         &self,
         input: ChapterOutlineRegenerationInput<'_, '_>,
     ) -> Result<chapter_outline::Model, AppError> {

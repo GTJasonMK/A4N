@@ -32,6 +32,12 @@ impl LogFilterReloader {
     }
 }
 
+impl Default for LogFilterReloader {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn build_log_filter_from_env(default_filter: &str) -> Result<EnvFilter, String> {
     let configured =
         optional_non_empty_env_string("RUST_LOG").map_err(|error| error.to_string())?;

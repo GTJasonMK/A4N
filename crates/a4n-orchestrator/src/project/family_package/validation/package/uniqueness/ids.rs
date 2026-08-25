@@ -88,6 +88,25 @@ pub(super) fn validate_primary_row_ids(package: &ProjectFamilyPackage) -> Result
         ),
         (&package.text_anchors, id, "text_anchors.id"),
         (&package.profile_evidence, id, "profile_evidence.id"),
+        (&package.chapter_visual_plans, id, "chapter_visual_plans.id"),
+        (
+            &package.chapter_shooting_scripts,
+            id,
+            "chapter_shooting_scripts.id"
+        ),
+        (&package.character_portraits, id, "character_portraits.id"),
+        (&package.generated_images, id, "generated_images.id"),
+        (
+            &package.chapter_manga_prompts,
+            id,
+            "chapter_manga_prompts.id"
+        ),
+        (
+            &package.chapter_video_prompts,
+            id,
+            "chapter_video_prompts.id"
+        ),
+        (&package.generated_videos, id, "generated_videos.id"),
         (&package.galgame_scripts, id, "galgame_scripts.id"),
         (&package.galgame_scenes, id, "galgame_scenes.id"),
         (&package.galgame_lines, id, "galgame_lines.id"),

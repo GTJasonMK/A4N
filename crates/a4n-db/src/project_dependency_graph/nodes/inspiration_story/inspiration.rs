@@ -1,11 +1,11 @@
-use a4n_core::models::user::conversation;
 use serde_json::json;
 
+use crate::project_dependency_graph::graph::ConversationGraphRow;
 use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 
 pub(in crate::project_dependency_graph) fn add_inspiration_nodes(
     graph: &mut GraphBuilder,
-    conversations: &[conversation::Model],
+    conversations: &[ConversationGraphRow],
 ) {
     let message_count = conversations
         .iter()

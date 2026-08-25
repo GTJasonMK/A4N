@@ -26,6 +26,7 @@ import type { GenerationTaskSummary } from "../../../api/generated/generationCon
 import { generationClient } from "../../../api/generationTasks";
 import { asJsonRecord } from "../../../utils/jsonRecord";
 import { VIDEO_ASPECT_RATIOS } from "./videoTabUtils";
+import type { MessageTranslator } from "../../../i18n";
 
 export interface LoadedSegmentPlanDraft {
   workflowRunId: number;
@@ -55,9 +56,10 @@ interface VideoTabData {
 const invalidSegmentPlanWorkflowInput = (
   runId: number,
   field: string,
+  t: MessageTranslator,
 ): never => {
   throw new Error(
-    `片段规划 workflow ${runId} 的原始输入 ${field} 无效，无法安全续跑`,
+    t("video.chapter.segmentPlanWorkflowInputInvalid", { runId, field }),
   );
 };
 
@@ -65,50 +67,51 @@ const segmentPlanResumeOptions = (
   run: WorkflowRunSummary,
   projectId: number,
   chapterId: number,
+  t: MessageTranslator,
 ): GeneratePromptOptions => {
   const fingerprint =
     asJsonRecord(run.input_fingerprint_json) ??
-    invalidSegmentPlanWorkflowInput(run.id, "input_fingerprint_json");
+    invalidSegmentPlanWorkflowInput(run.id, "input_fingerprint_json", t);
   if (fingerprint.schema_version !== 1) {
-    invalidSegmentPlanWorkflowInput(run.id, "schema_version");
+    invalidSegmentPlanWorkflowInput(run.id, "schema_version", t);
   }
   if (fingerprint.workflow_kind !== "video_segment_plan") {
-    invalidSegmentPlanWorkflowInput(run.id, "workflow_kind");
+    invalidSegmentPlanWorkflowInput(run.id, "workflow_kind", t);
   }
   if (
     fingerprint.project_id !== projectId ||
     fingerprint.chapter_id !== chapterId
   ) {
-    invalidSegmentPlanWorkflowInput(run.id, "project_id/chapter_id");
+    invalidSegmentPlanWorkflowInput(run.id, "project_id/chapter_id", t);
   }
   if (fingerprint.workflow_mode !== VIDEO_WORKFLOW_MODE_SHARED_SEGMENT_PLAN) {
-    invalidSegmentPlanWorkflowInput(run.id, "workflow_mode");
+    invalidSegmentPlanWorkflowInput(run.id, "workflow_mode", t);
   }
 
   const options =
     asJsonRecord(fingerprint.options) ??
-    invalidSegmentPlanWorkflowInput(run.id, "options");
+    invalidSegmentPlanWorkflowInput(run.id, "options", t);
   const style = options.style;
   if (typeof style !== "string" || !style || style.trim() !== style) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.style");
+    invalidSegmentPlanWorkflowInput(run.id, "options.style", t);
   }
   const resumeStyle = style as string;
   const promptOutputLanguage = options.prompt_output_language;
   if (promptOutputLanguage !== "zh_cn" && promptOutputLanguage !== "en") {
-    invalidSegmentPlanWorkflowInput(run.id, "options.prompt_output_language");
+    invalidSegmentPlanWorkflowInput(run.id, "options.prompt_output_language", t);
   }
   const resumePromptOutputLanguage = promptOutputLanguage as "zh_cn" | "en";
   if (options.prompt_batch_size !== 1) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.prompt_batch_size");
+    invalidSegmentPlanWorkflowInput(run.id, "options.prompt_batch_size", t);
   }
   if (options.segment_plan_prompt_id !== null) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.segment_plan_prompt_id");
+    invalidSegmentPlanWorkflowInput(run.id, "options.segment_plan_prompt_id", t);
   }
   if (options.target_shot_number !== null) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.target_shot_number");
+    invalidSegmentPlanWorkflowInput(run.id, "options.target_shot_number", t);
   }
   if (options.target_segment != null) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.target_segment");
+    invalidSegmentPlanWorkflowInput(run.id, "options.target_segment", t);
   }
   const targetNarrativeUnitIndex = options.target_narrative_unit_index;
   if (
@@ -120,12 +123,14 @@ const segmentPlanResumeOptions = (
     invalidSegmentPlanWorkflowInput(
       run.id,
       "options.target_narrative_unit_index",
+      t,
     );
   }
   if (options.segment_recipe_fingerprint !== null) {
     invalidSegmentPlanWorkflowInput(
       run.id,
       "options.segment_recipe_fingerprint",
+      t,
     );
   }
 
@@ -136,7 +141,7 @@ const segmentPlanResumeOptions = (
     durationSecs < 1 ||
     durationSecs > 60
   ) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs");
+    invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs", t);
   }
   const resumeDurationSecs = durationSecs as number;
   const rawDurationOptions = options.duration_secs_options;
@@ -144,6 +149,7 @@ const segmentPlanResumeOptions = (
     return invalidSegmentPlanWorkflowInput(
       run.id,
       "options.duration_secs_options",
+      t,
     );
   }
   if (
@@ -151,7 +157,7 @@ const segmentPlanResumeOptions = (
       (value) => typeof value !== "number" || !Number.isInteger(value),
     )
   ) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options");
+    invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options", t);
   }
   const durationOptions = rawDurationOptions as number[];
   if (
@@ -163,7 +169,7 @@ const segmentPlanResumeOptions = (
       (value, index) => index > 0 && value <= durationOptions[index - 1],
     )
   ) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options");
+    invalidSegmentPlanWorkflowInput(run.id, "options.duration_secs_options", t);
   }
 
   const aspectRatio = options.aspect_ratio;
@@ -171,23 +177,23 @@ const segmentPlanResumeOptions = (
     typeof aspectRatio !== "string" ||
     !VIDEO_ASPECT_RATIOS.some((supported) => supported === aspectRatio)
   ) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.aspect_ratio");
+    invalidSegmentPlanWorkflowInput(run.id, "options.aspect_ratio", t);
   }
   const resumeAspectRatio = aspectRatio as string;
   if (
     !Array.isArray(options.reference_image_ids) ||
     options.reference_image_ids.length !== 0
   ) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.reference_image_ids");
+    invalidSegmentPlanWorkflowInput(run.id, "options.reference_image_ids", t);
   }
   if (
     !Array.isArray(options.video_library_image_ids) ||
     options.video_library_image_ids.length !== 0
   ) {
-    invalidSegmentPlanWorkflowInput(run.id, "options.video_library_image_ids");
+    invalidSegmentPlanWorkflowInput(run.id, "options.video_library_image_ids", t);
   }
   if (typeof options.regenerate_existing !== "boolean") {
-    invalidSegmentPlanWorkflowInput(run.id, "options.regenerate_existing");
+    invalidSegmentPlanWorkflowInput(run.id, "options.regenerate_existing", t);
   }
   const regenerateExisting = options.regenerate_existing as boolean;
 
@@ -212,6 +218,7 @@ const segmentPlanResumeOptions = (
 export const loadVideoSegmentPlanDraft = async (
   projectId: number,
   chapterId: number,
+  t: MessageTranslator,
 ): Promise<LoadedSegmentPlanDraft | null> => {
   const runs = await listWorkflowRuns({
     project_id: projectId,
@@ -226,19 +233,21 @@ export const loadVideoSegmentPlanDraft = async (
     loadVideoSegmentPlanDraftDetail(projectId, chapterId, run.id),
     run.status === "running"
       ? Promise.resolve(null)
-      : workflowResumeTaskId(projectId, run.id),
+      : workflowResumeTaskId(projectId, run.id, t),
   ]);
   return loadedVideoSegmentPlanDraftFromDetail(
     detail,
     projectId,
     chapterId,
     resumeTaskId,
+    t,
   );
 };
 
 const workflowResumeTaskId = async (
   projectId: number,
   workflowRunId: number,
+  t: MessageTranslator,
 ): Promise<string> => {
   let cursor: string | null = null;
   do {
@@ -255,7 +264,9 @@ const workflowResumeTaskId = async (
     if (task) return task.handle.task_id;
     cursor = page.next_cursor ?? null;
   } while (cursor);
-  throw new Error(`片段规划 workflow ${workflowRunId} 缺少可用于续跑的生成任务`);
+  throw new Error(
+    t("video.chapter.segmentPlanWorkflowTaskMissing", { runId: workflowRunId }),
+  );
 };
 
 const loadedVideoSegmentPlanDraftFromDetail = (
@@ -263,6 +274,7 @@ const loadedVideoSegmentPlanDraftFromDetail = (
   projectId: number,
   chapterId: number,
   resumeTaskId: string | null,
+  t: MessageTranslator,
 ): LoadedSegmentPlanDraft => {
   const run = detail.run;
   if (
@@ -270,9 +282,11 @@ const loadedVideoSegmentPlanDraftFromDetail = (
     run.chapter_id !== chapterId ||
     run.workflow_kind !== "video_segment_plan"
   ) {
-    throw new Error(`片段规划 workflow ${detail.run.id} 与当前章节不一致`);
+    throw new Error(
+      t("video.chapter.segmentPlanWrongChapter", { runId: detail.run.id }),
+    );
   }
-  const resumeOptions = segmentPlanResumeOptions(run, projectId, chapterId);
+  const resumeOptions = segmentPlanResumeOptions(run, projectId, chapterId, t);
   return {
     workflowRunId: run.id,
     workflowStatus: run.status,

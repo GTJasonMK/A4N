@@ -34,6 +34,18 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ignored_prompt_i
     if prompt_types.is_empty() {
         return Ok(BTreeSet::new());
     }
+    if !ensure_mutable {
+        return Ok(a4n_db::video::chapter_video_prompt_ids_for_types(
+            service.database.connection(),
+            project_id,
+            chapter_id,
+            prompt_types,
+        )
+        .await
+        .map_err(AppError::Database)?
+        .into_iter()
+        .collect());
+    }
     let rows = a4n_db::video::chapter_video_prompt_records_for_types(
         service.database.connection(),
         project_id,
@@ -42,11 +54,7 @@ pub(in crate::video::prompt_generation::frame_prompts) async fn ignored_prompt_i
     )
     .await
     .map_err(AppError::Database)?;
-    if ensure_mutable {
-        for row in &rows {
-            service.ensure_prompt_stage_mutable(row, "删除").await?;
-        }
-    }
+    service.ensure_prompt_stages_mutable(&rows, "删除").await?;
     Ok(rows.into_iter().map(|row| row.id).collect())
 }
 

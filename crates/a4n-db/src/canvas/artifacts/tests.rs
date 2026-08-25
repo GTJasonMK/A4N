@@ -4,11 +4,16 @@ use crate::generation::{
     GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
 };
 use a4n_core::models::{
+    ai::generated_video,
     generation::generation_spec,
     media::{media_asset, media_binding, media_provenance},
+    video_project::{assembly_clip, assembly_timeline, video_segment},
 };
+use a4n_core::video_workflow::{WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_VIDEO};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
+};
 use serde_json::json;
 
 async fn setup_db() -> DatabaseConnection {
@@ -116,6 +121,178 @@ async fn canvas_generation_spec_upsert_derives_source_version_hash() {
         Some(spec.source_version_hash),
         generation_spec::freeform_source_version_hash(&params_json)
     );
+}
+
+#[tokio::test]
+async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips() {
+    let db = setup_db().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        3,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "画布成片批量写入合同".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut source_video_ids = Vec::new();
+    for index in 0..3 {
+        let video = crate::video::create_generated_video_record(
+            &db,
+            crate::video::CreateGeneratedVideoRecordDraftInput {
+                project_id: project.id,
+                chapter_id: None,
+                video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+                workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
+                prompt: format!("source-{index}"),
+                negative_prompt: None,
+                model: "test".to_string(),
+                width: 1280,
+                height: 720,
+                duration_secs: index as f32 + 1.0,
+                fps: 24,
+                source_video_id: None,
+                source_image_id: None,
+                provider_job_id: None,
+                metadata_json: None,
+            },
+        )
+        .await
+        .unwrap();
+        let video = crate::video::mark_generated_video_completed_and_link_prompt_record(
+            &db,
+            video.id,
+            &format!("projects/{}/source-{index}.mp4", project.id),
+            None,
+            100,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        source_video_ids.push(video.id);
+    }
+    source_video_ids.push(source_video_ids[0]);
+    let assembly = crate::video::create_generated_video_record(
+        &db,
+        crate::video::CreateGeneratedVideoRecordDraftInput {
+            project_id: project.id,
+            chapter_id: None,
+            video_type: generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY.to_string(),
+            workflow_mode: Some(WORKFLOW_MODE_CANVAS_ASSEMBLY.to_string()),
+            prompt: "assembly".to_string(),
+            negative_prompt: None,
+            model: "test".to_string(),
+            width: 1280,
+            height: 720,
+            duration_secs: 6.0,
+            fps: 24,
+            source_video_id: None,
+            source_image_id: None,
+            provider_job_id: None,
+            metadata_json: None,
+        },
+    )
+    .await
+    .unwrap();
+    let assembly = crate::video::mark_generated_video_completed_and_link_prompt_record(
+        &db,
+        assembly.id,
+        &format!("projects/{}/assembly.mp4", project.id),
+        None,
+        300,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let summary = sync_canvas_assembly_contract_records(
+        &db,
+        CanvasAssemblyContractSyncInput {
+            project_id: project.id,
+            graph_id: 17,
+            node_id: 23,
+            assembly_video_id: assembly.id,
+            source_videos: source_video_ids
+                .iter()
+                .copied()
+                .map(|video_id| CanvasAssemblySourceVideoInput { video_id })
+                .collect(),
+            generation_spec_id: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let repeated_summary = sync_canvas_assembly_contract_records(
+        &db,
+        CanvasAssemblyContractSyncInput {
+            project_id: project.id,
+            graph_id: 17,
+            node_id: 23,
+            assembly_video_id: assembly.id,
+            source_videos: source_video_ids
+                .iter()
+                .copied()
+                .map(|video_id| CanvasAssemblySourceVideoInput { video_id })
+                .collect(),
+            generation_spec_id: None,
+        },
+    )
+    .await
+    .unwrap();
+
+    let timeline = assembly_timeline::Entity::find()
+        .filter(assembly_timeline::Column::ProjectId.eq(project.id))
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    let segments = video_segment::Entity::find()
+        .filter(video_segment::Column::ProjectId.eq(project.id))
+        .order_by_asc(video_segment::Column::OrderIndex)
+        .all(&db)
+        .await
+        .unwrap();
+    let clips = assembly_clip::Entity::find()
+        .filter(assembly_clip::Column::TimelineId.eq(timeline.id))
+        .order_by_asc(assembly_clip::Column::OrderIndex)
+        .all(&db)
+        .await
+        .unwrap();
+    let bindings = media_binding::Entity::find()
+        .filter(media_binding::Column::TargetKind.eq("video_segment"))
+        .filter(media_binding::Column::TargetId.is_in(segments.iter().map(|segment| segment.id)))
+        .all(&db)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        summary.preview_media_asset_id,
+        timeline.preview_media_asset_id.unwrap()
+    );
+    assert_eq!(repeated_summary, summary);
+    assert_eq!(segments.len(), source_video_ids.len());
+    assert_eq!(clips.len(), source_video_ids.len());
+    assert_eq!(bindings.len(), source_video_ids.len());
+    for (index, segment) in segments.iter().enumerate() {
+        assert_eq!(
+            segment.result_media_asset_id,
+            Some(clips[index].media_asset_id)
+        );
+        assert_eq!(
+            segment.previous_segment_id,
+            index.checked_sub(1).map(|i| segments[i].id)
+        );
+        assert_eq!(
+            segment.next_segment_id,
+            segments.get(index + 1).map(|next| next.id)
+        );
+        assert_eq!(clips[index].source_segment_id, Some(segment.id));
+    }
 }
 
 #[test]

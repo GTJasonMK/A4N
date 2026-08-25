@@ -23,19 +23,9 @@ import {
   categoryLabel,
   sourceKindLabel,
 } from "./manageViewUtils";
-import { formatUiDateTime } from "../../utils/dateTime";
+import { formatDateTime, useI18n } from "../../i18n";
 
 type DeletionMarkStatusFilter = "all" | "pending" | "ready" | "executed";
-
-const DELETION_STATUS_OPTIONS: Array<{
-  value: DeletionMarkStatusFilter;
-  label: string;
-}> = [
-  { value: "all", label: "全部" },
-  { value: "pending", label: "保护中" },
-  { value: "ready", label: "可执行" },
-  { value: "executed", label: "已执行" },
-];
 
 const deletionMarkLoadKey = (
   profileId: number,
@@ -49,6 +39,16 @@ export const DeletionManager: React.FC<{
   onChanged?: () => void | Promise<void>;
 }> = ({ profileId, defaultChapter, onChanged }) => {
   const { addToast } = useToast();
+  const { locale, t } = useI18n();
+  const deletionStatusOptions: Array<{
+    value: DeletionMarkStatusFilter;
+    label: string;
+  }> = [
+    { value: "all", label: t("characterDetail.deletion.all") },
+    { value: "pending", label: t("characterDetail.deletion.pending") },
+    { value: "ready", label: t("characterDetail.deletion.ready") },
+    { value: "executed", label: t("characterDetail.deletion.executed") },
+  ];
   const [marks, setMarks] = useState<DeletionMark[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
@@ -143,7 +143,7 @@ export const DeletionManager: React.FC<{
         setLoadedScopeKey(requestKey);
       } catch (err) {
         if (!isCurrentLoad(requestProfileId, requestKey, requestSeq)) return;
-        addToast(extractErrorMessage(err, "加载删除标记失败"), "error");
+        addToast(extractErrorMessage(err, t("characterDetail.deletion.loadFailed")), "error");
       } finally {
         if (loadInFlightKeyRef.current === requestKey) {
           loadInFlightKeyRef.current = null;
@@ -151,7 +151,7 @@ export const DeletionManager: React.FC<{
         if (isCurrentLoad(requestProfileId, requestKey, requestSeq)) setLoading(false);
       }
     },
-    [addToast, isCurrentLoad, profileId],
+    [addToast, isCurrentLoad, profileId, t],
   );
 
   useEffect(() => {
@@ -180,9 +180,12 @@ export const DeletionManager: React.FC<{
     resettingRef.current = resetKey;
     setResettingKey(resetKey);
     const ok = await confirmDialog({
-      title: "重置删除标记",
-      message: `重置${categoryLabel(category)}中的“${attributeKeyLabel(key)}”删除标记？该操作只影响删除保护计数。`,
-      confirmText: "重置",
+      title: t("characterDetail.deletion.resetTitle"),
+      message: t("characterDetail.deletion.resetMessage", {
+        category: categoryLabel(category, t),
+        attribute: attributeKeyLabel(key, t),
+      }),
+      confirmText: t("characterDetail.deletion.reset"),
       dialogType: "warning",
     });
     if (!ok) {
@@ -201,11 +204,17 @@ export const DeletionManager: React.FC<{
     try {
       const deletedMarks = await resetDeletionMarks(requestProfileId, category, key);
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
-      addToast(`已重置“${attributeKeyLabel(key)}”的 ${deletedMarks} 个标记`, "success");
+      addToast(
+        t("characterDetail.deletion.resetSuccess", {
+          attribute: attributeKeyLabel(key, t),
+          count: deletedMarks,
+        }),
+        "success",
+      );
       await load();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || resetSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "重置失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.deletion.resetFailed")), "error");
     } finally {
       if (resetSeqRef.current === requestSeq) {
         resettingRef.current = null;
@@ -220,7 +229,7 @@ export const DeletionManager: React.FC<{
     const deletionReason = reason.trim();
     const deletionEvidence = evidence.trim();
     if (!attrKey || !deletionReason || !deletionEvidence) {
-      addToast("属性名称、删除原因和证据不能为空", "error");
+      addToast(t("characterDetail.deletion.required"), "error");
       return;
     }
     requestingRef.current = true;
@@ -247,8 +256,14 @@ export const DeletionManager: React.FC<{
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
       addToast(
         mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD
-          ? `删除标记已达到阈值 ${mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`
-          : `已记录删除标记 ${mark.consecutive_count}/${CHARACTER_DELETION_THRESHOLD}`,
+          ? t("characterDetail.deletion.thresholdReached", {
+              count: mark.consecutive_count,
+              threshold: CHARACTER_DELETION_THRESHOLD,
+            })
+          : t("characterDetail.deletion.marked", {
+              count: mark.consecutive_count,
+              threshold: CHARACTER_DELETION_THRESHOLD,
+            }),
         "success",
       );
       setKey("");
@@ -257,7 +272,7 @@ export const DeletionManager: React.FC<{
       await load();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || requestSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "请求删除失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.deletion.requestFailed")), "error");
     } finally {
       if (isCurrentProfile(requestProfileId) && requestSeqRef.current === requestSeq) {
         setRequesting(false);
@@ -272,9 +287,12 @@ export const DeletionManager: React.FC<{
     if (executingRef.current) return;
     executingRef.current = true;
     const ok = await confirmDialog({
-      title: "执行属性删除",
-      message: `确认删除${categoryLabel(mark.category)}中的“${attributeKeyLabel(mark.key)}”？这会记录属性删除事件，并从当前角色状态中移除该属性。`,
-      confirmText: "执行删除",
+      title: t("characterDetail.deletion.executeTitle"),
+      message: t("characterDetail.deletion.executeMessage", {
+        category: categoryLabel(mark.category, t),
+        attribute: attributeKeyLabel(mark.key, t),
+      }),
+      confirmText: t("characterDetail.deletion.execute"),
       dialogType: "danger",
     });
     if (!ok) {
@@ -298,17 +316,24 @@ export const DeletionManager: React.FC<{
         chapter_number: mark.last_marked_chapter,
         category: mark.category,
         key: mark.key,
-        cause: `手动执行删除（连续${mark.consecutive_count}次标记）`,
+        cause: t("characterDetail.deletion.executeCause", {
+          count: mark.consecutive_count,
+        }),
         evidence: mark.evidence,
       });
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
-      addToast(`已删除“${attributeKeyLabel(mark.key)}”`, "success");
+      addToast(
+        t("characterDetail.deletion.executeSuccess", {
+          attribute: attributeKeyLabel(mark.key, t),
+        }),
+        "success",
+      );
       await load();
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
       await onChanged?.();
     } catch (err) {
       if (!isCurrentProfile(requestProfileId) || executeSeqRef.current !== requestSeq) return;
-      addToast(extractErrorMessage(err, "执行删除失败"), "error");
+      addToast(extractErrorMessage(err, t("characterDetail.deletion.executeFailed")), "error");
     } finally {
       if (isCurrentProfile(requestProfileId) && executeSeqRef.current === requestSeq) {
         setExecutingId(null);
@@ -327,11 +352,11 @@ export const DeletionManager: React.FC<{
   return (
     <div className="flex flex-col gap-2">
       <div className="text-small leading-relaxed text-book-text-muted">
-        属性需要连续多次被标记为不再适用，达到保护阈值后才能删除。
+        {t("characterDetail.deletion.hint")}
       </div>
       <div className="flex flex-wrap items-end gap-2 text-small">
         <label className="flex items-center gap-1 text-book-text-muted">
-          类别
+          {t("characterDetail.deletion.category")}
           <select
             value={filterCategory}
             onChange={(event) => {
@@ -344,16 +369,16 @@ export const DeletionManager: React.FC<{
             }}
             className="pyqt-input !px-2 !py-1"
           >
-            <option value="">全部</option>
+            <option value="">{t("characterDetail.deletion.all")}</option>
             {ATTRIBUTE_CATEGORY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
-                {option.label}
+                {categoryLabel(option.value, t)}
               </option>
             ))}
           </select>
         </label>
         <label className="flex items-center gap-1 text-book-text-muted">
-          状态
+          {t("characterDetail.deletion.status")}
           <select
             value={filterStatus}
             onChange={(event) => {
@@ -366,7 +391,7 @@ export const DeletionManager: React.FC<{
             }}
             className="pyqt-input !px-2 !py-1"
           >
-            {DELETION_STATUS_OPTIONS.map((option) => (
+            {deletionStatusOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -375,16 +400,16 @@ export const DeletionManager: React.FC<{
         </label>
         {loading ? <LoadingSpinner size="sm" className="text-book-text-muted" /> : null}
         {hasCurrentMarks && marks.length > 0 ? (
-          <span className="text-caption text-book-text-muted">共 {marks.length} 条</span>
+          <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.total", { count: marks.length })}</span>
         ) : null}
       </div>
       <details className="text-small text-book-text-muted">
         <summary className="w-fit cursor-pointer select-none py-1 font-medium text-book-text-main">
-          请求删除属性
+          {t("characterDetail.deletion.request")}
         </summary>
         <div className="mt-1.5 grid gap-2 rounded-xl bg-book-bg-tertiary/40 p-3 text-small md:grid-cols-6">
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">章节</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.chapter")}</span>
             <input
               type="number"
               min={1}
@@ -400,7 +425,7 @@ export const DeletionManager: React.FC<{
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-caption text-book-text-muted">分类</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.category")}</span>
             <select
               value={category}
               onChange={(event) => setCategory(event.target.value)}
@@ -409,39 +434,39 @@ export const DeletionManager: React.FC<{
             >
               {ATTRIBUTE_CATEGORY_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {categoryLabel(option.value, t)}
                 </option>
               ))}
             </select>
           </label>
           <label className="flex flex-col gap-1 md:col-span-4">
-            <span className="text-caption text-book-text-muted">属性名称</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.attribute")}</span>
             <input
               value={key}
               onChange={(event) => setKey(event.target.value)}
               disabled={requesting}
               className="pyqt-input !px-2 !py-1"
-              placeholder="例如：旧身份"
+              placeholder={t("characterDetail.deletion.attributePlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-3">
-            <span className="text-caption text-book-text-muted">删除原因</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.reason")}</span>
             <textarea
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               disabled={requesting}
               className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
-              placeholder="说明为什么该属性应被删除"
+              placeholder={t("characterDetail.deletion.reasonPlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1 md:col-span-3">
-            <span className="text-caption text-book-text-muted">证据</span>
+            <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.evidence")}</span>
             <textarea
               value={evidence}
               onChange={(event) => setEvidence(event.target.value)}
               disabled={requesting}
               className="pyqt-input min-h-[58px] !px-2 !py-1 text-small"
-              placeholder="引用章节原文或明确来源"
+              placeholder={t("characterDetail.deletion.evidencePlaceholder")}
             />
           </label>
           <div className="md:col-span-6 flex justify-end">
@@ -452,21 +477,21 @@ export const DeletionManager: React.FC<{
             >
               {requesting ? (
                 <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> 记录中…
+                  <LoadingSpinner size="sm" /> {t("characterDetail.deletion.recording")}
                 </span>
               ) : (
-                "记录删除标记"
+                t("characterDetail.deletion.record")
               )}
             </BookButton>
           </div>
         </div>
       </details>
       {loading ? (
-        <div className="text-small text-book-text-muted">加载…</div>
+        <div className="text-small text-book-text-muted">{t("characterDetail.deletion.loading")}</div>
       ) : !hasCurrentMarks ? (
-        <div className="text-small text-book-text-muted italic">当前筛选条件尚未加载，请刷新</div>
+        <div className="text-small text-book-text-muted italic">{t("characterDetail.deletion.notLoaded")}</div>
       ) : marks.length === 0 ? (
-        <div className="text-small text-book-text-muted italic">尚无删除标记</div>
+        <div className="text-small text-book-text-muted italic">{t("characterDetail.deletion.empty")}</div>
       ) : (
         <ul className="a4n-flat-surface divide-y divide-book-border/45 overflow-hidden">
           {marks.map((m) => {
@@ -477,7 +502,7 @@ export const DeletionManager: React.FC<{
               ...(m.consecutive_count >= CHARACTER_DELETION_THRESHOLD
                 ? [
                     {
-                      label: "执行属性删除",
+                      label: t("characterDetail.deletion.execute"),
                       icon: <Trash2 size={12} />,
                       danger: true,
                       onClick: () => void handleExecute(m),
@@ -486,7 +511,7 @@ export const DeletionManager: React.FC<{
                   ]
                 : []),
               {
-                label: "重置删除标记",
+                label: t("characterDetail.deletion.resetTitle"),
                 icon: <RotateCcw size={12} />,
                 onClick: () => void handleReset(m.category, m.key),
               },
@@ -498,14 +523,14 @@ export const DeletionManager: React.FC<{
               >
                 <div className="flex min-w-0 items-start gap-2">
                   <span className="min-w-0 flex-1 font-medium text-book-text-main">
-                    {categoryLabel(m.category)} · {attributeKeyLabel(m.key)}
+                    {categoryLabel(m.category, t)} · {attributeKeyLabel(m.key, t)}
                   </span>
                   {!m.is_executed ? (
                     <div className="flex shrink-0 items-center justify-end">
                       {executingThis || resettingThis ? (
                         <span
                           className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted"
-                          title={executingThis ? "正在执行属性删除" : "正在重置删除标记"}
+                          title={executingThis ? t("characterDetail.deletion.executePending") : t("characterDetail.deletion.resetPending")}
                         >
                           <LoadingSpinner size="sm" />
                         </span>
@@ -516,20 +541,20 @@ export const DeletionManager: React.FC<{
                   ) : null}
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-caption text-book-text-muted">
-                  <span>第 {m.last_marked_chapter} 章</span>
+                  <span>{t("characterDetail.chapter", { chapter: m.last_marked_chapter })}</span>
                   <span aria-hidden="true">·</span>
-                  <span>连续 {m.consecutive_count}/{CHARACTER_DELETION_THRESHOLD}</span>
+                  <span>{t("characterDetail.deletion.consecutive", { count: m.consecutive_count, threshold: CHARACTER_DELETION_THRESHOLD })}</span>
                   <span aria-hidden="true">·</span>
-                  <span>{sourceKindLabel(m.source_kind)}</span>
+                  <span>{sourceKindLabel(m.source_kind, t)}</span>
                   <span aria-hidden="true">·</span>
-                  <span className={deletionStatusTone(m)}>{deletionStatusLabel(m)}</span>
+                  <span className={deletionStatusTone(m)}>{deletionStatusLabel(m, t)}</span>
                   <span aria-hidden="true">·</span>
-                  <span>{formatUiDateTime(m.created_at)}</span>
+                  <span>{formatDateTime(m.created_at, locale)}</span>
                 </div>
                 <div className="mt-1.5 text-book-text-sub">{m.reason}</div>
                 {m.evidence ? (
                   <div className="mt-0.5 line-clamp-2 text-caption leading-relaxed text-book-text-muted">
-                    证据：{m.evidence}
+                    {t("characterDetail.deletion.evidence")}: {m.evidence}
                   </div>
                 ) : null}
               </li>
@@ -541,10 +566,10 @@ export const DeletionManager: React.FC<{
   );
 };
 
-function deletionStatusLabel(mark: DeletionMark): string {
-  if (mark.is_executed) return "已执行";
-  if (mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD) return "可以删除";
-  return "保护中";
+function deletionStatusLabel(mark: DeletionMark, t: ReturnType<typeof useI18n>["t"]): string {
+  if (mark.is_executed) return t("characterDetail.deletion.executed");
+  if (mark.consecutive_count >= CHARACTER_DELETION_THRESHOLD) return t("characterDetail.deletion.statusCanDelete");
+  return t("characterDetail.deletion.pending");
 }
 
 function deletionStatusTone(mark: DeletionMark): string {

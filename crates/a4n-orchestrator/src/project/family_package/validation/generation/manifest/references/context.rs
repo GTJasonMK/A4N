@@ -8,7 +8,7 @@ use a4n_core::models::{
 };
 use std::collections::{HashMap, HashSet};
 
-use crate::project::family_package::{ProjectFamilyPackage, validation::snapshot_profile_key};
+use crate::project::{ProjectFamilyPackage, snapshot_profile_key};
 
 pub(super) struct GenerationReferenceContext<'a> {
     pub(super) specs: HashMap<i64, &'a generation_spec::Model>,
@@ -17,6 +17,7 @@ pub(super) struct GenerationReferenceContext<'a> {
     pub(super) snapshot_profiles: HashMap<(i64, String), &'a source_snapshot_profile::Model>,
     pub(super) text_anchors: HashMap<i64, &'a text_anchor::Model>,
     pub(super) media_assets: HashMap<i64, &'a media_asset::Model>,
+    pub(super) chapter_video_prompt_ids: HashSet<i64>,
     pub(super) video_segment_ids: HashSet<i64>,
     pub(super) assembly_timeline_ids: HashSet<i64>,
     pub(super) galgame_scripts: HashMap<i64, &'a galgame_script::Model>,
@@ -64,6 +65,11 @@ impl<'a> GenerationReferenceContext<'a> {
                 .media_assets
                 .iter()
                 .map(|asset| (asset.id, asset))
+                .collect(),
+            chapter_video_prompt_ids: package
+                .chapter_video_prompts
+                .iter()
+                .map(|prompt| prompt.id)
                 .collect(),
             video_segment_ids: package
                 .video_segments

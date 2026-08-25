@@ -1,5 +1,16 @@
 use a4n_core::{error::AppError, models::ai::generated_video};
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use chrono::NaiveDateTime;
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
+};
+use serde_json::Value;
+
+#[derive(Debug, FromQueryResult)]
+struct ActiveGeneratedVideoRow {
+    id: i64,
+    metadata_json: Option<Value>,
+    created_at: NaiveDateTime,
+}
 
 pub async fn active_generated_video_ids_for_config<C>(
     db: &C,
@@ -9,7 +20,12 @@ where
     C: ConnectionTrait,
 {
     let mut active: Vec<_> = generated_video::Entity::find()
+        .select_only()
+        .column(generated_video::Column::Id)
+        .column(generated_video::Column::MetadataJson)
+        .column(generated_video::Column::CreatedAt)
         .filter(generated_video::Column::Status.is_in(["pending", "running"]))
+        .into_model::<ActiveGeneratedVideoRow>()
         .all(db)
         .await
         .map_err(AppError::Database)?

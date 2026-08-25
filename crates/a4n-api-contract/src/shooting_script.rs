@@ -8,7 +8,8 @@ pub use a4n_domain::shooting_script::{
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
     ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
     ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
-    ShootingViewpointModeV1, ShootingViewpointV1,
+    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV1,
+    ShootingVisualPlanSourceV1,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -18,6 +19,18 @@ pub struct ChapterShootingScriptSourceInput {
     pub project_id: i64,
     #[schemars(range(min = 1))]
     pub source_chapter_id: i64,
+    pub visual_plan_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateChapterShootingScriptInput {
+    #[schemars(range(min = 1))]
+    pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub source_chapter_id: i64,
+    #[schemars(range(min = 1))]
+    pub visual_plan_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -38,6 +51,9 @@ pub struct EditChapterShootingScriptInput {
 pub struct ChapterShootingScriptRecordSummary {
     pub id: i64,
     pub revision: i32,
+    pub visual_plan_id: Option<i64>,
+    pub visual_plan_version: Option<i32>,
+    pub visual_plan_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

@@ -24,7 +24,7 @@ pub(super) async fn project_record_by_id(
 ) -> Result<novel_project::Model, String> {
     state
         .orchestrator()
-        .project_by_id(project_id)
+        .project_summary_by_id(project_id)
         .await
         .map_err(app_error_message)?
         .ok_or_else(|| format!("项目不存在: {project_id}"))

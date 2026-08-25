@@ -49,7 +49,7 @@ pub(in crate::routes::commands) async fn generate_chapter_shooting_script(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
+    let input: shooting_script_records_actions::GenerateChapterShootingScriptInput =
         strict_optional_task_runtime_command_input(args, "generate_chapter_shooting_script")?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
     let task = register_web_task(
@@ -90,7 +90,7 @@ pub(in crate::routes::commands) async fn generate_next_chapter_shooting_script_u
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: shooting_script_records_actions::ChapterShootingScriptSourceInput =
+    let input: shooting_script_records_actions::GenerateChapterShootingScriptInput =
         strict_optional_task_runtime_command_input(
             args,
             "generate_next_chapter_shooting_script_unit",

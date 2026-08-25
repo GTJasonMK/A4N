@@ -1,22 +1,11 @@
-use a4n_core::models::character::{attribute_event, character_state_index, foreshadowing_index};
+use a4n_core::models::character::{attribute_event, foreshadowing_index};
 
 use super::{
     attributes::character_attribute_event_rag_record, foreshadowing::foreshadowing_rag_record,
-    state::character_state_rag_record,
 };
 use crate::{OrchestratorContext, rag::RagRecord, rag::RagSyncContext};
 
 impl OrchestratorContext {
-    pub(crate) async fn sync_character_state_rag(
-        &self,
-        project_id: i64,
-        state_index: &character_state_index::Model,
-        character_name: &str,
-    ) -> Result<(), String> {
-        let record = character_state_rag_record(project_id, state_index, character_name)?;
-        self.sync_single_rag_record(project_id, record).await
-    }
-
     pub(crate) async fn sync_character_attribute_event_rag(
         &self,
         project_id: i64,

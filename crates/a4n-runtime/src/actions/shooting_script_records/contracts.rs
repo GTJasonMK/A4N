@@ -5,6 +5,7 @@ pub use a4n_api_contract::shooting_script::{
     ChapterShootingScriptRecordSummary, ChapterShootingScriptSourceInput,
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
     EditChapterShootingScriptInput, EditedChapterShootingScriptView,
+    GenerateChapterShootingScriptInput,
 };
 
 pub(super) fn contract_view(
@@ -36,5 +37,8 @@ fn record_summary(record: chapter_shooting_script::Model) -> ChapterShootingScri
     ChapterShootingScriptRecordSummary {
         id: record.id,
         revision: record.revision,
+        visual_plan_id: record.visual_plan_id,
+        visual_plan_version: record.visual_plan_version,
+        visual_plan_sha256: record.visual_plan_sha256,
     }
 }

@@ -14,7 +14,7 @@ pub(crate) const OBJECT_DISCOVERY_KIND: &str = "object_discovery";
 pub(crate) const OBJECT_DISCOVERY_CALL_KEY: &str = "object_discovery.llm";
 pub(crate) const OBJECT_DISCOVERY_PROGRESS_TOTAL: u32 = 100;
 
-pub use contracts::{ObjectDiscoveryInput, ObjectDiscoveryProgress, ObjectDiscoveryRequestPreview};
+pub(crate) use contracts::{ObjectDiscoveryInput, ObjectDiscoveryProgress};
 
 #[cfg(test)]
 mod tests;

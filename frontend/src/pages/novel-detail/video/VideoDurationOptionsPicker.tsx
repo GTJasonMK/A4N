@@ -9,6 +9,7 @@ import {
   type VideoDurationLimits,
   type VideoGenOptions,
 } from "./videoTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface VideoDurationOptionsPickerProps {
   options: VideoGenOptions;
@@ -23,6 +24,7 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
   disabled = false,
   onOptionsChange,
 }) => {
+  const { t } = useI18n();
   const [customText, setCustomText] = useState("");
   const choices = durationChoicesForLimits(durationLimits);
   const selected = options.durationOptions;
@@ -72,7 +74,7 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
   if (choices.length === 0) {
     return (
       <div className="book-control min-h-[30px] rounded-xl px-2.5 py-1.5 text-small text-book-text-muted">
-        无可用时长
+        {t("video.chapter.noDurationChoices")}
       </div>
     );
   }
@@ -93,12 +95,12 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
               className="inline-flex min-w-9 items-center justify-center gap-0.5 rounded-md border border-book-border/50 px-1.5 py-0.5 text-caption tabular-nums text-book-text-sub transition-colors hover:border-book-primary/60 hover:text-book-text-main disabled:cursor-not-allowed disabled:opacity-70 data-[active='1']:border-book-primary/70 data-[active='1']:bg-book-primary/10 data-[active='1']:text-book-primary"
               title={
                 onlySelected
-                  ? "至少保留一个候选时长"
+                  ? t("video.chapter.keepOneDuration")
                   : active && duration === options.durationSecs
-                    ? "移除候选时长并切换默认时长"
+                    ? t("video.chapter.removeDurationAndSwitchDefault")
                     : active
-                      ? "移除候选时长"
-                      : "加入候选时长"
+                      ? t("video.chapter.removeDuration")
+                      : t("video.chapter.addDuration")
               }
             >
               <span>{duration}s</span>
@@ -111,7 +113,7 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
       </div>
       {durationLimits.durationMode === "range" && (
         <div className="mt-1 flex items-center gap-1 border-t border-book-border/30 pt-1">
-          <span className="shrink-0 text-caption text-book-text-muted">自定义</span>
+          <span className="shrink-0 text-caption text-book-text-muted">{t("video.chapter.customDuration")}</span>
           <input
             type="number"
             min={durationLimits.minDurationSecs}
@@ -126,16 +128,16 @@ export const VideoDurationOptionsPicker: React.FC<VideoDurationOptionsPickerProp
             }}
             disabled={disabled || selected.length >= MAX_VIDEO_DURATION_OPTION_COUNT}
             className="pyqt-input ml-auto h-6 w-14 !px-1 !py-0 text-caption"
-            placeholder="秒"
-            aria-label="自定义候选时长"
+            placeholder={t("video.chapter.secondsPlaceholder")}
+            aria-label={t("video.chapter.customDuration")}
           />
           <button
             type="button"
             onClick={addCustomDuration}
             disabled={customAddBlocked}
             className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-book-border/60 text-book-text-sub transition-colors hover:border-book-primary/60 hover:text-book-primary disabled:cursor-not-allowed disabled:opacity-45"
-            title="加入候选时长"
-            aria-label="加入候选时长"
+            title={t("video.chapter.addDuration")}
+            aria-label={t("video.chapter.addDuration")}
           >
             <Plus size={12} />
           </button>

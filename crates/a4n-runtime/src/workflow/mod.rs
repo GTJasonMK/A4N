@@ -1,6 +1,5 @@
 mod chapter_analysis;
 mod chapter_cleanup;
-mod project_status;
 
 pub(crate) use chapter_analysis::RuntimeChapterAnalysisHostPort;
 pub use chapter_analysis::{
@@ -9,4 +8,3 @@ pub use chapter_analysis::{
     preview_chapter_analysis_request, preview_resume_chapter_analysis_sync_request,
     resume_chapter_analysis_sync_with_progress, resume_chapter_analysis_workflow_run,
 };
-pub use project_status::validate_chapter_generation_ready;

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+  IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+  IMAGE_TYPE_VIDEO_KEY_FRAME,
+  IMAGE_TYPE_VIDEO_TAIL_FRAME,
+  type GeneratedImage,
+} from "../../../api/image";
+import {
   VIDEO_TYPE_CHAPTER,
   type ChapterVideoPrompt,
   type GeneratedVideo,
@@ -13,21 +20,35 @@ import {
   completedSegmentPlanPreviewItems,
   currentFinalVideoPromptMatchesSegment,
   guidanceModeForWorkflowChange,
+  indexVideoFrameImages,
   isVideoFramePromptType,
   isSegmentPlanDraftCheckpointKey,
   latestVideoSegmentPlanPrompt,
+  latestVideoFrameImageForPrompt,
+  latestNonRejectedAssemblyPush,
   parseVideoOptions,
   readVideoSegmentRecipes,
   serializeVideoOptions,
   videoSegmentCardsFromPlanPrompt,
   videoSegmentCardsFromSegments,
   videoExecutionPromptsShareGenerationChain,
+  videoExecutionSegmentIdentityIndex,
   videoExecutionSegmentIdentityMatchesVideo,
   videoGuidanceConfigurationError,
   videoPromptSourceFrameNumbers,
   videoDurationLimitsFromConfig,
   videoSegmentRecipeGenerationFingerprintJson,
+  formatVideoDuration,
 } from "./videoTabUtils";
+import { translateMessage, type MessageTranslator } from "../../../i18n";
+
+const t: MessageTranslator = (key, params) =>
+  translateMessage("zh-CN", key, params);
+
+it("formats shared video durations with localized units", () => {
+  expect(formatVideoDuration(5, "zh-CN", t)).toBe("5 秒");
+  expect(formatVideoDuration(65, "zh-CN", t)).toBe("1 分 5 秒");
+});
 
 const videoConfigBase = {
   api_key_encrypted: null,
@@ -94,8 +115,8 @@ it("rejects damaged persisted planning options instead of repairing them", () =>
   };
   const raw = JSON.stringify(valid);
 
-  expect(parseVideoOptions(raw)).toEqual(valid);
-  expect(serializeVideoOptions(valid)).toBe(raw);
+  expect(parseVideoOptions(raw, t)).toEqual(valid);
+  expect(serializeVideoOptions(valid, t)).toBe(raw);
   expect(() =>
     parseVideoOptions(
       JSON.stringify({
@@ -104,6 +125,7 @@ it("rejects damaged persisted planning options instead of repairing them", () =>
         durationOptions: valid.durationOptions,
         aspectRatio: valid.aspectRatio,
       }),
+      t,
     ),
   ).toThrow("promptOutputLanguage");
   expect(() =>
@@ -114,19 +136,20 @@ it("rejects damaged persisted planning options instead of repairing them", () =>
         durationSecs: valid.durationSecs,
         aspectRatio: valid.aspectRatio,
       }),
+      t,
     ),
   ).toThrow("durationOptions");
   expect(() =>
-    parseVideoOptions(JSON.stringify({ ...valid, durationOptions: [10, 6] })),
+    parseVideoOptions(JSON.stringify({ ...valid, durationOptions: [10, 6] }), t),
   ).toThrow("严格递增");
   expect(() =>
-    parseVideoOptions(JSON.stringify({ ...valid, aspectRatio: "16 / 9" })),
+    parseVideoOptions(JSON.stringify({ ...valid, aspectRatio: "16 / 9" }), t),
   ).toThrow("aspectRatio");
   expect(() =>
-    parseVideoOptions(JSON.stringify({ ...valid, legacyDuration: 6 })),
+    parseVideoOptions(JSON.stringify({ ...valid, legacyDuration: 6 }), t),
   ).toThrow("未知字段");
   expect(() =>
-    serializeVideoOptions({ ...valid, durationOptions: [6, 6] }),
+    serializeVideoOptions({ ...valid, durationOptions: [6, 6] }, t),
   ).toThrow("严格递增");
 });
 
@@ -146,6 +169,101 @@ it("parses assembly push metadata without defaulting an invalid status", () => {
     assemblyPushSourceIds(video({ source_video_ids: [3, 0, "4", 5] })),
   ).toBeNull();
   expect(assemblyPushSourceIds(video({ source_video_ids: [3, 3] }))).toBeNull();
+});
+
+it("finds the latest non-rejected assembly push without copying the list", () => {
+  const push = (id: number, status: unknown) =>
+    ({ id, metadata_json: { assembly_push: { status } } }) as GeneratedVideo;
+
+  expect(
+    latestNonRejectedAssemblyPush([
+      push(1, "accepted"),
+      push(2, "rejected"),
+      push(3, "pending"),
+    ])?.id,
+  ).toBe(3);
+  expect(latestNonRejectedAssemblyPush([push(4, "rejected")])).toBeNull();
+});
+
+it("indexes the latest frame and tail images without sorting a copy", () => {
+  const prompt = { id: 10, shot_number: 1 } as ChapterVideoPrompt;
+  const image = (
+    id: number,
+    imageType: string,
+    source: string,
+    context: Record<string, unknown>,
+  ): GeneratedImage =>
+    ({
+      id,
+      image_type: imageType,
+      metadata_json: { generation_context: { source, ...context } },
+    }) as GeneratedImage;
+  const indexes = indexVideoFrameImages(
+    [prompt],
+    [
+      image(
+        4,
+        IMAGE_TYPE_VIDEO_TAIL_FRAME,
+        IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+        { shot_number: 1, video_id: 20 },
+      ),
+      image(
+        2,
+        IMAGE_TYPE_VIDEO_KEY_FRAME,
+        IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+        { prompt_id: prompt.id },
+      ),
+      image(
+        8,
+        IMAGE_TYPE_VIDEO_KEY_FRAME,
+        IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
+        { prompt_id: prompt.id },
+      ),
+      image(
+        6,
+        IMAGE_TYPE_VIDEO_TAIL_FRAME,
+        IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+        { shot_number: 1, video_id: 20 },
+      ),
+    ],
+  );
+
+  expect(indexes.frameImageByPromptId.get(prompt.id)?.id).toBe(8);
+  expect(indexes.boundaryByFrameNumber.get(1)?.id).toBe(8);
+  expect(indexes.tailByVideoId.get(20)?.id).toBe(6);
+});
+
+it("finds the latest matching frame image in one scan", () => {
+  const prompt = {
+    id: 10,
+    prompt_type: "frame_prompt",
+    shot_number: 2,
+    metadata_json: { source: { content_sha256: "source" } },
+  } as ChapterVideoPrompt;
+  const image = (id: number, source: string, promptId: number | null, hash?: string) =>
+    ({
+      id,
+      image_type: promptId == null ? IMAGE_TYPE_VIDEO_TAIL_FRAME : IMAGE_TYPE_VIDEO_KEY_FRAME,
+      metadata_json: {
+        generation_context: {
+          source,
+          ...(promptId == null ? { shot_number: 1 } : { prompt_id: promptId }),
+          ...(hash ? { source_content_sha256: hash } : {}),
+        },
+      },
+    }) as GeneratedImage;
+
+  expect(
+    latestVideoFrameImageForPrompt(
+      prompt,
+      [
+        image(4, IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, prompt.id),
+        image(9, IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, prompt.id),
+        image(12, IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, null, "wrong"),
+      ],
+      t,
+    )?.id,
+  ).toBe(9);
 });
 
 it("classifies every supported video frame prompt type", () => {
@@ -211,23 +329,23 @@ describe("completedSegmentPlanPreviewItems", () => {
 
 describe("videoGuidanceConfigurationError", () => {
   it("rejects input contracts that do not match the visible workflow mode", () => {
-    expect(videoGuidanceConfigurationError("boundary_frames", 1, "none")).toBe(
+    expect(videoGuidanceConfigurationError("boundary_frames", 1, "none", t)).toBe(
       "首尾帧方案固定使用首帧和尾帧输入",
     );
     expect(
-      videoGuidanceConfigurationError("boundary_frames", 1, "system_frames"),
+      videoGuidanceConfigurationError("boundary_frames", 1, "system_frames", t),
     ).toBeNull();
     expect(
-      videoGuidanceConfigurationError("boundary_frames", 1, "keyframes"),
+      videoGuidanceConfigurationError("boundary_frames", 1, "keyframes", t),
     ).toBe("首尾帧方案固定使用首帧和尾帧输入");
     expect(
-      videoGuidanceConfigurationError("first_frame_chain", 2, "continuity"),
+      videoGuidanceConfigurationError("first_frame_chain", 2, "continuity", t),
     ).toBeNull();
     expect(
-      videoGuidanceConfigurationError("boundary_frames", 1, "continuity"),
+      videoGuidanceConfigurationError("boundary_frames", 1, "continuity", t),
     ).toBe("首尾帧方案固定使用首帧和尾帧输入");
     expect(
-      videoGuidanceConfigurationError("first_frame_chain", 2, "system_frames"),
+      videoGuidanceConfigurationError("first_frame_chain", 2, "system_frames", t),
     ).toBeNull();
   });
 
@@ -487,6 +605,15 @@ describe("video execution generation chain", () => {
       videoExecutionSegmentIdentityMatchesVideo(video(30), plan, 1, "recipe-1"),
     ).toBe(true);
     expect(
+      videoExecutionSegmentIdentityMatchesVideo(
+        video(30),
+        plan,
+        1,
+        "recipe-1",
+        videoExecutionSegmentIdentityIndex(plan),
+      ),
+    ).toBe(true);
+    expect(
       videoExecutionSegmentIdentityMatchesVideo(video(29), plan, 1, "recipe-1"),
     ).toBe(false);
 
@@ -709,10 +836,10 @@ describe("segment cards and recipes", () => {
   it("builds cards from the shared plan before any final prompt exists", () => {
     const prompt = planPrompt();
     expect(
-      videoSegmentCardsFromPlanPrompt(prompt).map((card) => card.segmentNumber),
+      videoSegmentCardsFromPlanPrompt(prompt, t).map((card) => card.segmentNumber),
     ).toEqual([1, 2]);
 
-    const recipes = readVideoSegmentRecipes(prompt);
+    const recipes = readVideoSegmentRecipes(prompt, t);
     expect(recipes.error).toBeNull();
     expect(recipes.recipes.get(1)?.workflow_mode).toBe("boundary_frames");
     expect(recipes.recipes.get(2)?.workflow_mode).toBe("storyboard");
@@ -749,7 +876,7 @@ describe("segment cards and recipes", () => {
     ].join("\n");
 
     expect(
-      videoSegmentCardsFromSegments(completedSegmentPlanPreviewItems(draft)),
+      videoSegmentCardsFromSegments(completedSegmentPlanPreviewItems(draft), t),
     ).toMatchObject([
       { segmentNumber: 1, title: "刚生成的片段" },
       { segmentNumber: 2, title: "第二个镜头片段" },
@@ -765,8 +892,8 @@ describe("segment cards and recipes", () => {
           duration_secs: 6,
           aspect_ratio: "16:9",
         },
-      ]),
-    ).toThrow("片段 1 scene_summary 无效");
+      ], t),
+    ).toThrow("片段 1 的场景摘要无效。");
   });
 
   it("does not expose a plan until the current chapter hash is known and matches", () => {

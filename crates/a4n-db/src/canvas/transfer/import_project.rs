@@ -2,6 +2,12 @@ mod generated_media;
 mod orchestration;
 mod project;
 
+#[cfg(test)]
+pub(super) use generated_media::{
+    import_video_studio_generated_images, import_video_studio_generated_videos,
+    update_imported_video_source_refs,
+};
+
 use super::types::{VideoStudioProjectImportIdMaps, VideoStudioProjectImportMediaFileWriter};
 use sea_orm::ConnectionTrait;
 

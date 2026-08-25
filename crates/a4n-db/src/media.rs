@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use a4n_core::models::{
     generation::generation_spec_media_ref,
@@ -45,7 +45,7 @@ where
 pub(crate) async fn delete_unbound_project_media_assets<C>(
     db: &C,
     project_id: i64,
-    candidate_media_asset_ids: BTreeSet<i64>,
+    candidate_media_asset_ids: HashSet<i64>,
 ) -> Result<(), DbErr>
 where
     C: ConnectionTrait,
@@ -65,7 +65,7 @@ where
         .all(db)
         .await?
         .into_iter()
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     let delete_media_asset_ids = candidate_media_asset_ids
         .difference(&still_bound)
         .copied()

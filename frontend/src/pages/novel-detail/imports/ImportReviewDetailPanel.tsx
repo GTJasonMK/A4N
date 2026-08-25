@@ -5,6 +5,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { BookCard } from "../../../components/ui/BookCard";
 import { asJsonRecord } from "../../../utils/jsonRecord";
 import { getOperationStatusLabel } from "../../../utils/workflowPresentation";
+import { useI18n } from "../../../i18n";
 
 interface ImportReviewDetailPanelProps {
   activeReview: ImportReviewSummary | null;
@@ -27,6 +28,7 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
   onAnalysisJsonChange,
   onModify,
 }) => {
+  const { locale, t } = useI18n();
   const actionBusy =
     actBusy !== null || externalBusy || activeReview?.review_status !== "pending";
   const modifyReady = activeReviewJsonDirty && activeReviewJsonError == null;
@@ -41,17 +43,17 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
           {activeReview.filename}
         </h3>
         <p className="mt-1 text-small leading-relaxed text-book-text-muted">
-          {getOperationStatusLabel(activeReview.review_status)}
+          {getOperationStatusLabel(activeReview.review_status, locale)}
         </p>
       </div>
       <div className="space-y-2 text-xs">
         {analysisSummary ? (
           <section className="pb-2.5">
-            <div className="a4n-kicker mb-1.5">内容摘要</div>
+            <div className="a4n-kicker mb-1.5">{t("novel.importReview.detail.summary")}</div>
             {analysisSummary.chapterNumber != null || analysisSummary.title ? (
               <div className="text-small font-medium text-book-text-main">
                 {analysisSummary.chapterNumber != null
-                  ? `第 ${analysisSummary.chapterNumber} 章`
+                  ? t("novel.importReview.detail.chapter", { number: analysisSummary.chapterNumber })
                   : ""}
                 {analysisSummary.chapterNumber != null && analysisSummary.title ? " · " : ""}
                 {analysisSummary.title}
@@ -71,11 +73,11 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
         ) : null}
         <details className="border-t border-book-border/35 pt-2">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-md py-1.5 text-small text-book-text-muted hover:text-book-text-main [&::-webkit-details-marker]:hidden">
-            <span>高级编辑</span>
-            <span className="text-caption">章节导入结构</span>
+            <span>{t("novel.importReview.detail.advancedEdit")}</span>
+            <span className="text-caption">{t("novel.importReview.detail.importStructure")}</span>
           </summary>
           <div className="mt-2">
-            <label className="mb-1 block text-caption text-book-text-muted">分析结构</label>
+            <label className="mb-1 block text-caption text-book-text-muted">{t("novel.importReview.detail.analysisStructure")}</label>
             <textarea
               value={activeReviewJson}
               disabled={actionBusy}
@@ -93,10 +95,10 @@ export const ImportReviewDetailPanel: React.FC<ImportReviewDetailPanelProps> = (
               >
                 {actBusy?.startsWith("modify-") ? (
                   <span className="inline-flex items-center gap-1.5">
-                    <LoadingSpinner size="sm" /> 保存中…
+                    <LoadingSpinner size="sm" /> {t("novel.importReview.detail.saving")}
                   </span>
                 ) : (
-                  "保存并接受"
+                  t("novel.importReview.detail.saveAndAccept")
                 )}
               </BookButton>
             </div>

@@ -50,6 +50,7 @@ import {
   countStaleMangaPagePrompts,
   mangaStageLabel,
 } from "./mangaTabUtils";
+import { useI18n } from "../../../i18n";
 
 interface MangaChapterDetailPanelProps {
   projectId: number;
@@ -121,6 +122,7 @@ export function MangaChapterDetailPanel({
   onPagePromptsChanged,
 }: MangaChapterDetailPanelProps) {
   const addToast = useToast((state) => state.addToast);
+  const { t } = useI18n();
   const { runProgressTask: runPageImageProgressTask } = useProgressTask();
   const [generatingPageNumber, setGeneratingPageNumber] = useState<
     number | null
@@ -180,7 +182,7 @@ export function MangaChapterDetailPanel({
     (requestScope: string): number | null => {
       if (!isCurrentScope(requestScope)) return null;
       if (actionBusyRef.current) {
-        addToast("已有漫画页操作进行中，请等待当前操作完成", "error");
+        addToast(t("comic.prompt.operationInProgress"), "error");
         return null;
       }
       actionBusyRef.current = true;
@@ -188,7 +190,7 @@ export function MangaChapterDetailPanel({
       setPromptActionBusy(true);
       return actionSeqRef.current;
     },
-    [addToast, isCurrentScope],
+    [addToast, isCurrentScope, t],
   );
 
   const finishAction = useCallback((requestSeq: number) => {
@@ -244,10 +246,10 @@ export function MangaChapterDetailPanel({
     selectedStatus?.pipeline_status === "interrupted";
 
   const stageText = selectedStatus?.stage
-    ? mangaStageLabel(selectedStatus.stage)
+    ? mangaStageLabel(selectedStatus.stage, t)
     : selectedStatus?.pipeline_status
-      ? mangaStageLabel(selectedStatus.pipeline_status)
-      : "未开始";
+      ? mangaStageLabel(selectedStatus.pipeline_status, t)
+      : t("comic.pipelineStages.notStarted");
   const statusTone: NoticeTone =
     pipelineStoppedWithError
       ? "danger"
@@ -257,13 +259,19 @@ export function MangaChapterDetailPanel({
           ? "ok"
           : "muted";
   const chapterMeta = [
-    `正文 ${selectedChapter?.content?.length ?? 0} 字`,
+    t("comic.chapter.bodyMeta", { count: selectedChapter?.content?.length ?? 0 }),
     characterProfileCount > 0 || portraitCount > 0
-      ? `立绘 ${primaryPortraitCount}/${characterProfileCount}`
+      ? t("comic.chapter.portraitMeta", {
+          primary: primaryPortraitCount,
+          total: characterProfileCount,
+        })
       : null,
-    portraitCount > 0 ? `素材 ${portraitCount} 张` : null,
+    portraitCount > 0 ? t("comic.chapter.assetMeta", { count: portraitCount }) : null,
     selectedStatus?.current != null && selectedStatus.total != null
-      ? `流水线 ${selectedStatus.current}/${selectedStatus.total}`
+      ? t("comic.chapter.pipelineMeta", {
+          current: selectedStatus.current,
+          total: selectedStatus.total,
+        })
       : null,
   ].filter((item): item is string => item != null);
 
@@ -271,69 +279,73 @@ export function MangaChapterDetailPanel({
     if (!selectedChapterReady) {
       return {
         tone: "warning" as NoticeTone,
-        text: "当前章节正文为空，需先完成正文后再生成整页漫画提示词。",
+        text: t("comic.chapter.emptyBodyNotice"),
       };
     }
     if (selectedChapterGenerating) {
       return {
         tone: "warning" as NoticeTone,
-        text: "当前章节正文仍在生成中，漫画操作已锁定。",
+        text: t("comic.chapter.generatingNotice"),
       };
     }
     if (pipelineStoppedWithError) {
       return {
         tone: "danger" as NoticeTone,
         text: selectedStatus.message
-          ? explainMangaPipelineAiConfigError(selectedStatus.message)
-          : "漫画流水线中断，可使用续传保留已完成断点。",
+          ? explainMangaPipelineAiConfigError(selectedStatus.message, t)
+          : t("comic.chapter.interruptedNotice"),
       };
     }
     if (selectedStatus?.can_resume) {
       return {
         tone: "warning" as NoticeTone,
         text: selectedStatus.checkpoint_valid
-          ? "检测到可续传断点，优先续传可以复用已完成阶段。"
-          : "检测到断点但正文已变化，建议重新运行流水线。",
+          ? t("comic.chapter.resumableNotice")
+          : t("comic.chapter.staleCheckpointNotice"),
       };
     }
     if (missingPortraitCount > 0) {
       return {
         tone: "warning" as NoticeTone,
-        text: `有 ${missingPortraitCount} 位角色缺少立绘；涉及这些角色的页面必须先绑定参考图后才能成图。`,
+        text: t("comic.chapter.missingPortraitNotice", {
+          count: missingPortraitCount,
+        }),
       };
     }
     if (stalePagePromptCount > 0) {
       return {
         tone: "warning" as NoticeTone,
-        text: `有 ${stalePagePromptCount} 页提示词基于旧正文，建议从头重新生成。`,
+        text: t("comic.chapter.stalePromptNotice", {
+          count: stalePagePromptCount,
+        }),
       };
     }
     if (pagePrompts.length > 0) {
       return {
         tone: "ok" as NoticeTone,
-        text: "当前整页提示词可继续绑定参考图并生成图片。",
+        text: t("comic.chapter.promptsReadyNotice"),
       };
     }
     return {
       tone: "muted" as NoticeTone,
-      text: "章节正文已就绪，可以启动漫画流水线。",
+      text: t("comic.chapter.readyNotice"),
     };
   })();
 
   const handleGeneratePageImage = async (pageNumber: number) => {
     if (!canEditManga) {
-      addToast("当前账号没有编辑此漫画项目的权限", "error");
+      addToast(t("comic.noEditPermission"), "error");
       return;
     }
     const requestScope = scopeKey;
     const chapter = selectedChapter;
     if (!chapter) return;
     if (!selectedChapterReady) {
-      addToast("当前章节正文为空，无法生成整页漫画图片", "error");
+      addToast(t("comic.chapter.emptyBodyGenerate"), "error");
       return;
     }
     if (selectedChapterGenerating) {
-      addToast("当前章节正文仍在生成中，无法生成整页漫画图片", "error");
+      addToast(t("comic.chapter.generatingGenerate"), "error");
       return;
     }
 
@@ -353,13 +365,13 @@ export function MangaChapterDetailPanel({
         runPageImageProgressTask,
         handle,
         {
-          title: "生成整页漫画",
-          startMessage: `正在准备第 ${pageNumber} 页图片生成`,
-          successMessage: "整页漫画生成完成",
-          errorMessage: "整页漫画生成失败",
+          title: t("comic.image.title"),
+          startMessage: t("comic.image.start", { page: pageNumber }),
+          successMessage: t("comic.image.success"),
+          errorMessage: t("comic.image.failed"),
           total: 4,
-          cancelLabel: "停止生成",
-          runningHint: "使用当前页 page_generation 提示词直接生成完整漫画页",
+          cancelLabel: t("comic.stopGeneration"),
+          runningHint: t("comic.image.runningHint"),
         },
         async (task) => {
           ensureCurrentAction(requestScope, actionSeq);
@@ -367,11 +379,11 @@ export function MangaChapterDetailPanel({
         },
       );
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast(`已生成第 ${pageNumber} 页整页漫画`, "success");
+      addToast(t("comic.image.generated", { page: pageNumber }), "success");
       await onPagePromptsChanged();
     } catch (err) {
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      const message = extractErrorMessage(err, "整页漫画生成失败");
+      const message = extractErrorMessage(err, t("comic.image.failed"));
       addToast(message, isCancelledOperation(message) ? "info" : "error");
     } finally {
       if (isCurrentAction(requestScope, actionSeq))
@@ -382,18 +394,18 @@ export function MangaChapterDetailPanel({
 
   const handlePreviewPageImage = async (pageNumber: number) => {
     if (!canEditManga) {
-      addToast("当前账号没有编辑此漫画项目的权限", "error");
+      addToast(t("comic.noEditPermission"), "error");
       return;
     }
     const requestScope = scopeKey;
     const chapter = selectedChapter;
     if (!chapter) return;
     if (!selectedChapterReady) {
-      addToast("当前章节正文为空，无法预览整页漫画图片请求", "error");
+      addToast(t("comic.chapter.emptyBodyPreview"), "error");
       return;
     }
     if (selectedChapterGenerating) {
-      addToast("当前章节正文仍在生成中，无法预览整页漫画图片请求", "error");
+      addToast(t("comic.chapter.generatingPreview"), "error");
       return;
     }
     if (previewBusyRef.current) return;
@@ -413,7 +425,7 @@ export function MangaChapterDetailPanel({
       setRequestPreviewData(preview);
     } catch (err) {
       if (isCurrentPreview(requestScope, requestSeq)) {
-        addToast(extractErrorMessage(err, "预览整页漫画图片请求失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.image.previewFailed")), "error");
         setRequestPreviewOpen(false);
       }
     } finally {
@@ -428,22 +440,22 @@ export function MangaChapterDetailPanel({
     input: Omit<BindMangaReferenceImageInput, "downstream_strategy">,
   ) => {
     if (!canEditManga) {
-      addToast("当前账号没有编辑此漫画项目的权限", "error");
+      addToast(t("comic.noEditPermission"), "error");
       return;
     }
     if (selectedChapterGenerating) {
-      addToast("当前章节正文仍在生成中，无法绑定参考图", "error");
+      addToast(t("comic.chapter.generatingBind"), "error");
       return;
     }
     const requestScope = scopeKey;
     const prompt =
       pagePromptsRef.current.find((prompt) => prompt.id === input.prompt_id) ?? null;
     if (!prompt) {
-      addToast("漫画提示词已不在当前章节中", "error");
+      addToast(t("comic.prompt.notFound"), "error");
       return;
     }
     if (actionBusyRef.current) {
-      addToast("已有漫画页操作进行中，请等待当前操作完成", "error");
+      addToast(t("comic.prompt.operationInProgress"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -452,11 +464,12 @@ export function MangaChapterDetailPanel({
       let downstreamStrategy: DownstreamConflictStrategy = "reject";
       if (prompt?.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
-          title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${prompt.page_number} 页提示词`,
-          downstreamLabel: "漫画图片",
+          title: t("comic.prompt.downstreamImage"),
+          assetLabel: t("comic.prompt.pageLabel", { page: prompt.page_number }),
+          downstreamLabel: t("comic.prompt.comicImage"),
           downstreamCount: 1,
-          operation: "修改参考图绑定",
+          operation: t("comic.prompt.bindOperation"),
+          t,
         });
         if (!strategy) return;
         downstreamStrategy = strategy;
@@ -465,7 +478,7 @@ export function MangaChapterDetailPanel({
       const currentPrompt =
         pagePromptsRef.current.find((prompt) => prompt.id === input.prompt_id) ?? null;
       if (!currentPrompt) {
-        addToast("漫画提示词已不在当前章节中", "error");
+        addToast(t("comic.prompt.notFound"), "error");
         return;
       }
       await bindMangaReferenceImage({
@@ -473,11 +486,11 @@ export function MangaChapterDetailPanel({
         downstream_strategy: downstreamStrategy,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast("已绑定参考图", "success");
+      addToast(t("comic.prompt.savedReference"), "success");
       await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "绑定参考图失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.prompt.bindFailed")), "error");
       }
     } finally {
       finishAction(actionSeq);
@@ -486,12 +499,12 @@ export function MangaChapterDetailPanel({
 
   const handleUpdatePrompt = async (promptId: number, imagePrompt: string) => {
     if (!canEditManga) {
-      const message = "当前账号没有编辑此漫画项目的权限";
+      const message = t("comic.noEditPermission");
       addToast(message, "error");
       throw new Error(message);
     }
     if (selectedChapterGenerating) {
-      const message = "当前章节正文仍在生成中，无法修改提示词";
+      const message = t("comic.chapter.generatingUpdate");
       addToast(message, "error");
       throw new Error(message);
     }
@@ -499,12 +512,12 @@ export function MangaChapterDetailPanel({
     const prompt =
       pagePromptsRef.current.find((prompt) => prompt.id === promptId) ?? null;
     if (!prompt) {
-      const message = "漫画提示词已不在当前章节中";
+      const message = t("comic.prompt.notFound");
       addToast(message, "error");
       throw new Error(message);
     }
     if (actionBusyRef.current) {
-      const message = "已有漫画页操作进行中，请等待当前操作完成";
+      const message = t("comic.prompt.operationInProgress");
       addToast(message, "error");
       throw new Error(message);
     }
@@ -514,14 +527,15 @@ export function MangaChapterDetailPanel({
       let downstreamStrategy: DownstreamConflictStrategy = "reject";
       if (prompt?.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
-          title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${prompt.page_number} 页提示词`,
-          downstreamLabel: "漫画图片",
+          title: t("comic.prompt.downstreamImage"),
+          assetLabel: t("comic.prompt.pageLabel", { page: prompt.page_number }),
+          downstreamLabel: t("comic.prompt.comicImage"),
           downstreamCount: 1,
-          operation: "修改",
+          operation: t("comic.prompt.updateOperation"),
+          t,
         });
         if (!strategy) {
-          throw new Error("已取消漫画提示词下游冲突处理");
+          throw new Error(t("comic.prompt.editCancelled"));
         }
         downstreamStrategy = strategy;
       }
@@ -530,7 +544,7 @@ export function MangaChapterDetailPanel({
       const currentPrompt =
         pagePromptsRef.current.find((prompt) => prompt.id === promptId) ?? null;
       if (!currentPrompt) {
-        const message = "漫画提示词已不在当前章节中";
+        const message = t("comic.prompt.notFound");
         addToast(message, "error");
         throw new Error(message);
       }
@@ -541,15 +555,15 @@ export function MangaChapterDetailPanel({
       });
       if (!isCurrentAction(requestScope, actionSeq))
         throw new Error("任务已停止");
-      addToast("已保存提示词", "success");
+      addToast(t("comic.prompt.saved"), "success");
       await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        const message = extractErrorMessage(err, "保存提示词失败");
+        const message = extractErrorMessage(err, t("comic.prompt.saveFailed"));
         if (
           !isCancelledOperation(message) &&
           !message.includes("任务已停止") &&
-          !message.includes("漫画提示词已不在当前章节中")
+          !message.includes(t("comic.prompt.notFound"))
         ) {
           addToast(message, "error");
         }
@@ -562,22 +576,22 @@ export function MangaChapterDetailPanel({
 
   const handleOptimizePrompt = async (prompt: MangaPagePromptSummary) => {
     if (!canEditManga) {
-      addToast("当前账号没有编辑此漫画项目的权限", "error");
+      addToast(t("comic.noEditPermission"), "error");
       return;
     }
     if (selectedChapterGenerating) {
-      addToast("当前章节正文仍在生成中，无法优化提示词", "error");
+      addToast(t("comic.chapter.generatingOptimize"), "error");
       return;
     }
     const requestScope = scopeKey;
     const requestPrompt =
       pagePromptsRef.current.find((current) => current.id === prompt.id) ?? null;
     if (!requestPrompt) {
-      addToast("漫画提示词已不在当前章节中", "error");
+      addToast(t("comic.prompt.notFound"), "error");
       return;
     }
     if (actionBusyRef.current) {
-      addToast("已有漫画页操作进行中，请等待当前操作完成", "error");
+      addToast(t("comic.prompt.operationInProgress"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -586,24 +600,25 @@ export function MangaChapterDetailPanel({
       let downstreamStrategy: DownstreamConflictStrategy = "reject";
       if (requestPrompt.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
-          title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${requestPrompt.page_number} 页提示词`,
-          downstreamLabel: "漫画图片",
+          title: t("comic.prompt.downstreamImage"),
+          assetLabel: t("comic.prompt.pageLabel", { page: requestPrompt.page_number }),
+          downstreamLabel: t("comic.prompt.comicImage"),
           downstreamCount: 1,
-          operation: "优化",
+          operation: t("comic.prompt.optimizeOperation"),
+          t,
         });
         if (!strategy) return;
         downstreamStrategy = strategy;
       }
       const instruction = await promptDialog({
-        title: "优化文字资产",
+        title: t("comic.prompt.optimizeTitle"),
         message:
-          "输入你希望如何优化这条漫画整页提示词。有下游图片时会按刚才选择的处理方式继续。",
+          t("comic.prompt.optimizeMessage"),
         placeholder:
-          "例如：保留角色和参考图约束，增强构图关系，压缩重复形容词…",
+          t("comic.prompt.optimizePlaceholder"),
         multiline: true,
         required: true,
-        confirmText: "开始优化",
+        confirmText: t("comic.prompt.startOptimize"),
       });
       if (instruction == null) return;
       const trimmed = instruction.trim();
@@ -613,7 +628,7 @@ export function MangaChapterDetailPanel({
         pagePromptsRef.current.find((current) => current.id === requestPrompt.id) ??
         null;
       if (!currentPrompt) {
-        addToast("漫画提示词已不在当前章节中", "error");
+        addToast(t("comic.prompt.notFound"), "error");
         return;
       }
       setOptimizingPromptId(requestPrompt.id);
@@ -623,11 +638,11 @@ export function MangaChapterDetailPanel({
         downstream_strategy: downstreamStrategy,
       });
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast("漫画提示词已优化", "success");
+      addToast(t("comic.prompt.optimized"), "success");
       await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "优化漫画提示词失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.prompt.optimizeFailed")), "error");
       }
     } finally {
       if (isCurrentAction(requestScope, actionSeq)) setOptimizingPromptId(null);
@@ -637,22 +652,22 @@ export function MangaChapterDetailPanel({
 
   const handleDeletePrompt = async (prompt: MangaPagePromptSummary) => {
     if (!canEditManga) {
-      addToast("当前账号没有编辑此漫画项目的权限", "error");
+      addToast(t("comic.noEditPermission"), "error");
       return;
     }
     if (selectedChapterGenerating) {
-      addToast("当前章节正文仍在生成中，无法删除漫画提示词", "error");
+      addToast(t("comic.chapter.generatingDelete"), "error");
       return;
     }
     const requestScope = scopeKey;
     const requestPrompt =
       pagePromptsRef.current.find((current) => current.id === prompt.id) ?? null;
     if (!requestPrompt) {
-      addToast("漫画提示词已不在当前章节中", "error");
+      addToast(t("comic.prompt.notFound"), "error");
       return;
     }
     if (actionBusyRef.current) {
-      addToast("已有漫画页操作进行中，请等待当前操作完成", "error");
+      addToast(t("comic.prompt.operationInProgress"), "error");
       return;
     }
     const actionSeq = beginAction(requestScope);
@@ -661,19 +676,20 @@ export function MangaChapterDetailPanel({
       let downstreamStrategy: DownstreamConflictStrategy = "reject";
       if (requestPrompt.generated_image_id != null) {
         const strategy = await chooseDownstreamConflictStrategy({
-          title: "漫画提示词存在下游图片",
-          assetLabel: `第 ${requestPrompt.page_number} 页提示词`,
-          downstreamLabel: "漫画图片",
+          title: t("comic.prompt.downstreamImage"),
+          assetLabel: t("comic.prompt.pageLabel", { page: requestPrompt.page_number }),
+          downstreamLabel: t("comic.prompt.comicImage"),
           downstreamCount: 1,
-          operation: "删除",
+          operation: t("comic.prompt.deleteOperation"),
+          t,
         });
         if (!strategy) return;
         downstreamStrategy = strategy;
       } else {
         const ok = await confirmDialog({
-          title: "删除漫画提示词",
-          message: `删除第 ${requestPrompt.page_number} 页提示词？`,
-          confirmText: "删除",
+          title: t("comic.prompt.deleteTitle"),
+          message: t("comic.prompt.deleteMessage", { page: requestPrompt.page_number }),
+          confirmText: t("common.delete"),
           dialogType: "danger",
         });
         if (!ok) return;
@@ -683,16 +699,16 @@ export function MangaChapterDetailPanel({
         pagePromptsRef.current.find((current) => current.id === requestPrompt.id) ??
         null;
       if (!currentPrompt) {
-        addToast("漫画提示词已不在当前章节中", "error");
+        addToast(t("comic.prompt.notFound"), "error");
         return;
       }
       await deleteMangaPrompt(requestPrompt.id, downstreamStrategy);
       if (!isCurrentAction(requestScope, actionSeq)) return;
-      addToast("漫画提示词已删除", "success");
+      addToast(t("comic.prompt.deleted"), "success");
       await onPagePromptsChanged();
     } catch (err) {
       if (isCurrentAction(requestScope, actionSeq)) {
-        addToast(extractErrorMessage(err, "删除漫画提示词失败"), "error");
+        addToast(extractErrorMessage(err, t("comic.prompt.deleteFailed")), "error");
       }
     } finally {
       finishAction(actionSeq);
@@ -713,21 +729,21 @@ export function MangaChapterDetailPanel({
       ? "secondary"
       : "primary";
   const pipelineDirectLabel = pipelineCanResume
-    ? "继续生成"
+    ? t("comic.continueChapter")
     : pipelineFailed
-      ? "重新生成本章漫画"
+      ? t("comic.regenerateChapter")
       : mangaResultStale
-        ? "更新本章漫画"
-        : "生成本章漫画";
+        ? t("comic.updateChapter")
+        : t("comic.generateChapter");
   const pipelinePreviewLabel = pipelineCanResume
-    ? "查看继续生成请求"
+    ? t("comic.prompt.viewContinueRequest")
     : pipelineFailed
-      ? "查看重新生成请求"
+      ? t("comic.prompt.viewRegenerateRequest")
       : mangaResultStale
-        ? "查看更新请求"
+        ? t("comic.prompt.viewUpdateRequest")
         : hasMangaResult
-          ? "查看重新生成请求"
-          : "查看生成请求";
+          ? t("comic.prompt.viewRegenerateRequest")
+          : t("comic.prompt.viewGenerateRequest");
   const pipelineStartBusy =
     selectedChapter != null &&
     acting === `start-${selectedChapter.chapter_number}`;
@@ -756,13 +772,13 @@ export function MangaChapterDetailPanel({
       (hasMangaResult && !mangaResultStale && !pipelineFailed)
     ) {
       pipelineMenuItems.push({
-        label: "从头重新生成",
+        label: t("comic.prompt.fromStart"),
         icon: <Play size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
         onClick: () => onRunPipeline("start"),
       });
       pipelineMenuItems.push({
-        label: "查看从头重新生成请求",
+        label: t("comic.prompt.fromStartRequest"),
         icon: <Eye size={12} />,
         disabled: pipelineMainDisabled || pipelineStartBusy,
         onClick: () => onPreviewPipeline("start"),
@@ -771,7 +787,7 @@ export function MangaChapterDetailPanel({
     if (missingPortraitCount > 0) {
       pipelineMenuItems.push({ type: "divider" });
       pipelineMenuItems.push({
-        label: `补齐 ${missingPortraitCount} 张立绘`,
+        label: t("comic.prompt.fillPortraits", { count: missingPortraitCount }),
         icon: <ImagePlus size={12} />,
         disabled:
           detailBusy ||
@@ -787,7 +803,7 @@ export function MangaChapterDetailPanel({
     ) {
       pipelineMenuItems.push({ type: "divider" });
       pipelineMenuItems.push({
-        label: "删除本章漫画",
+        label: t("comic.prompt.deleteChapter"),
         icon: <Trash2 size={12} />,
         danger: true,
         onClick: onDeleteManga,
@@ -806,8 +822,8 @@ export function MangaChapterDetailPanel({
         {!selectedChapter ? (
           <div className="m-auto text-sm text-book-text-muted">
             {isSingleMode
-              ? "请先在写作桌选择章节"
-              : "从左侧选择一章查看漫画详情"}
+              ? t("comic.chapter.noSelectionSingle")
+              : t("comic.chapter.noSelection")}
           </div>
         ) : (
           <>
@@ -815,7 +831,7 @@ export function MangaChapterDetailPanel({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
                   <h2 className="truncate text-sm font-semibold text-book-text-main">
-                    {chapterHeading(selectedChapter)}
+                    {chapterHeading(selectedChapter, t)}
                   </h2>
                   <p className={`mt-1 text-small ${noticeClass[statusTone]}`}>
                     {[...chapterMeta, stageText].filter(Boolean).join(" · ")}
@@ -841,7 +857,7 @@ export function MangaChapterDetailPanel({
                         ) : (
                           <PauseCircle size={13} />
                         )}
-                        停止生成
+                        {t("comic.stopGeneration")}
                       </BookButton>
                     ) : showPipelineDirectAction ? (
                       <BookButton
@@ -916,7 +932,7 @@ export function MangaChapterDetailPanel({
         open={requestPreviewOpen}
         loading={requestPreviewLoading}
         data={requestPreviewData}
-        fallbackTitle="漫画页图片请求预览"
+        fallbackTitle={t("comic.image.requestPreview")}
         onClose={closeRequestPreview}
       />
     </>

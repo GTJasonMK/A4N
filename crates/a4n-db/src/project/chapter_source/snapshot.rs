@@ -1,34 +1,75 @@
 use a4n_core::{
-    models::{project::novel_project, project::source_snapshot_chapter},
+    models::project::{novel_project, project_source_snapshot, source_snapshot_chapter},
     source_spans::source_text_hash,
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::{
-    super::derived_project_family_context,
-    contracts::{ResolveChapterSourceError, ResolvedChapterSource, ResolvedChapterSourceKind},
+    ProjectSourceIdentity,
+    contracts::{ResolveChapterSourceError, ResolvedChapterSource},
 };
+use crate::project::PROJECT_KIND_TEXT;
 
 pub(super) async fn resolve_snapshot_source<C>(
     db: &C,
-    project: &novel_project::Model,
+    project: &ProjectSourceIdentity,
     source_chapter_id: i64,
 ) -> Result<ResolvedChapterSource, ResolveChapterSourceError>
 where
     C: ConnectionTrait,
 {
-    let context = derived_project_family_context(db, project.id)
-        .await
-        .map_err(map_family_error)?;
+    let root_project_id = project.root_project_id.ok_or_else(|| {
+        ResolveChapterSourceError::InvalidArgument(format!(
+            "派生项目缺少 root_project_id: {}",
+            project.id
+        ))
+    })?;
+    let snapshot_id = project.source_snapshot_id.ok_or_else(|| {
+        ResolveChapterSourceError::InvalidArgument(format!(
+            "派生项目缺少 source_snapshot_id: {}",
+            project.id
+        ))
+    })?;
+    let root_project = novel_project::Entity::find_by_id(root_project_id)
+        .select_only()
+        .column(novel_project::Column::Id)
+        .column(novel_project::Column::ProjectKind)
+        .into_tuple::<(i64, String)>()
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            ResolveChapterSourceError::NotFound(format!("项目不存在: {root_project_id}"))
+        })?;
+    if root_project.1 != PROJECT_KIND_TEXT {
+        return Err(ResolveChapterSourceError::InvalidArgument(
+            "根项目必须是文本项目".to_string(),
+        ));
+    }
+    let snapshot = project_source_snapshot::Entity::find_by_id(snapshot_id)
+        .select_only()
+        .column(project_source_snapshot::Column::Id)
+        .column(project_source_snapshot::Column::RootProjectId)
+        .into_tuple::<(i64, i64)>()
+        .one(db)
+        .await?
+        .ok_or_else(|| {
+            ResolveChapterSourceError::NotFound(format!("源文本快照不存在: {snapshot_id}"))
+        })?;
+    if snapshot.1 != root_project.0 {
+        return Err(ResolveChapterSourceError::InvalidArgument(format!(
+            "源文本快照 {} 不属于根文本项目 {}",
+            snapshot.0, root_project.0
+        )));
+    }
     let snapshot_chapter = source_snapshot_chapter::Entity::find()
-        .filter(source_snapshot_chapter::Column::SnapshotId.eq(context.source_snapshot.id))
+        .filter(source_snapshot_chapter::Column::SnapshotId.eq(snapshot.0))
         .filter(source_snapshot_chapter::Column::SourceChapterId.eq(source_chapter_id))
         .one(db)
         .await?
         .ok_or_else(|| {
             ResolveChapterSourceError::NotFound(format!(
                 "媒体项目 {} 的源快照 {} 不包含章节 {}",
-                project.id, context.source_snapshot.id, source_chapter_id
+                project.id, snapshot.0, source_chapter_id
             ))
         })?;
     if snapshot_chapter.content.trim().is_empty() {
@@ -46,8 +87,8 @@ where
     }
     Ok(snapshot_source_from_chapter(
         project.id,
-        context.root_project.id,
-        context.source_snapshot.id,
+        root_project.0,
+        snapshot.0,
         snapshot_chapter,
     ))
 }
@@ -59,7 +100,6 @@ pub(super) fn snapshot_source_from_chapter(
     chapter: source_snapshot_chapter::Model,
 ) -> ResolvedChapterSource {
     ResolvedChapterSource {
-        source_kind: ResolvedChapterSourceKind::Snapshot,
         requested_project_id,
         root_project_id,
         source_chapter_id: chapter.source_chapter_id,
@@ -75,19 +115,5 @@ pub(super) fn snapshot_source_from_chapter(
             chapter.id, chapter.content_hash
         ),
         content_sha256: chapter.content_hash,
-    }
-}
-
-fn map_family_error(error: super::super::ProjectFamilyDbError) -> ResolveChapterSourceError {
-    match error {
-        super::super::ProjectFamilyDbError::InvalidArgument(message) => {
-            ResolveChapterSourceError::InvalidArgument(message)
-        }
-        super::super::ProjectFamilyDbError::NotFound(message) => {
-            ResolveChapterSourceError::NotFound(message)
-        }
-        super::super::ProjectFamilyDbError::Database(error) => {
-            ResolveChapterSourceError::Database(error)
-        }
     }
 }

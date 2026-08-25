@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "variables": {},
+  "scenarios": [
+    {
+      "name": "create isolated novel project",
+      "command": "create_project",
+      "args": {
+        "input": {
+          "title": "A4N virtual provider E2E ${run_id}",
+          "description": "Disposable project created by the CLI contract E2E suite.",
+          "project_type": "novel_long"
+        }
+      },
+      "capture": {
+        "project_id": "/data/id"
+      }
+    },
+    {
+      "name": "generate inspiration",
+      "command": "start_inspiration_generation",
+      "args": {
+        "input": {
+          "meta": {
+            "start_request_id": "${scenario_uuid}"
+          },
+          "project_id": "${project_id}",
+          "message": "写一部六章都市时间悬疑小说：暴雨夜、未来来信、旧车站与每天消失的七分钟。"
+        }
+      },
+      "watch": "task"
+    },
+    {
+      "name": "preview inspiration from text file",
+      "command": "preview_inspiration_request",
+      "args": {
+        "input": {
+          "project_id": "${project_id}",
+          "message": "replaced by --set-text"
+        }
+      },
+      "files": {
+        "set_text": {
+          "/input/message": "cli_contract_core_workflow.json"
+        }
+      }
+    },
+    {
+      "name": "upload source text from binary file",
+      "command": "import_project_text_upload",
+      "args": {
+        "input": {
+          "project_id": "${project_id}",
+          "file_name": "virtual-provider-e2e.txt",
+          "data_base64": "replaced by --set-base64"
+        }
+      },
+      "files": {
+        "set_base64": {
+          "/input/data_base64": "cli_contract_core_workflow.json"
+        }
+      }
+    },
+    {
+      "name": "generate blueprint",
+      "command": "start_blueprint_generation",
+      "args": {
+        "input": {
+          "meta": {
+            "start_request_id": "${scenario_uuid}"
+          },
+          "project_id": "${project_id}",
+          "title": "逆行时钟",
+          "genre": "都市时间悬疑",
+          "target_length": 6
+        }
+      },
+      "watch": "task"
+    },
+    {
+      "name": "read generated blueprint",
+      "command": "get_blueprint",
+      "args": {
+        "projectId": "${project_id}"
+      }
+    },
+    {
+      "name": "generate part outlines",
+      "command": "start_outline_generation",
+      "args": {
+        "input": {
+          "meta": {
+            "start_request_id": "${scenario_uuid}"
+          },
+          "project_id": "${project_id}",
+          "operation": {
+            "kind": "generate_parts",
+            "part_count": 2,
+            "chapters_per_part": 3
+          }
+        }
+      },
+      "watch": "task"
+    },
+    {
+      "name": "read generated parts",
+      "command": "list_parts",
+      "args": {
+        "projectId": "${project_id}"
+      },
+      "capture": {
+        "part_id": "/data/0/id"
+      }
+    },
+    {
+      "name": "generate chapter outlines",
+      "command": "start_outline_generation",
+      "args": {
+        "input": {
+          "meta": {
+            "start_request_id": "${scenario_uuid}"
+          },
+          "project_id": "${project_id}",
+          "operation": {
+            "kind": "generate_part_chapter_outlines",
+            "part_id": "${part_id}"
+          }
+        }
+      },
+      "watch": "task"
+    },
+    {
+      "name": "read generated chapter outlines",
+      "command": "list_chapter_outlines",
+      "args": {
+        "projectId": "${project_id}"
+      }
+    },
+    {
+      "name": "generate first chapter",
+      "command": "start_chapter_generation",
+      "args": {
+        "input": {
+          "meta": {
+            "start_request_id": "${scenario_uuid}"
+          },
+          "project_id": "${project_id}",
+          "chapter_number": 1,
+          "min_word_count": 800,
+          "max_word_count": 1600
+        }
+      },
+      "watch": "task"
+    },
+    {
+      "name": "read generated chapter",
+      "command": "list_chapters",
+      "args": {
+        "projectId": "${project_id}"
+      },
+      "capture": {
+        "chapter_id": "/data/0/id",
+        "derived_workflow_id": "/data/0/derived_sync_workflow_run_id"
+      },
+      "watch": {
+        "kind": "workflow",
+        "id": "${derived_workflow_id}",
+        "interval_ms": 200,
+        "timeout_seconds": 60
+      }
+    },
+    {
+      "name": "export generated novel",
+      "command": "export_markdown_data",
+      "args": {
+        "taskId": "export-${run_id}",
+        "input": {
+          "project_id": "${project_id}",
+          "metadata": {
+            "title": "逆行时钟",
+            "author": "A4N virtual provider E2E"
+          }
+        }
+      },
+      "files": {
+        "save_base64": {
+          "/data_base64": "novel.md"
+        },
+        "save_text": {
+          "/file_name": "novel.file-name.txt"
+        }
+      }
+    }
+  ],
+  "skips": {}
+}

@@ -5,7 +5,9 @@
 use a4n_core::error::AppError;
 use a4n_core::models::generation::llm_context_pack;
 use a4n_db::DbHandle;
-use a4n_db::llm_context::{LlmContextPackDbError, RecordOrReuseContextPackInput};
+use a4n_db::llm_context::{
+    ContextPackReference, LlmContextPackDbError, RecordOrReuseContextPackInput,
+};
 
 use super::OrchestratorContext;
 
@@ -26,6 +28,39 @@ impl LlmContextApplication {
         a4n_db::llm_context::record_or_reuse_context_pack(self.database.connection(), input)
             .await
             .map_err(llm_context_pack_db_error)
+    }
+
+    pub(super) async fn record_or_reuse_context_packs(
+        &self,
+        inputs: Vec<RecordOrReuseContextPackInput>,
+    ) -> Result<Vec<llm_context_pack::Model>, AppError> {
+        a4n_db::llm_context::record_or_reuse_context_packs(self.database.connection(), inputs)
+            .await
+            .map_err(llm_context_pack_db_error)
+    }
+
+    pub(super) async fn record_or_reuse_context_pack_reference(
+        &self,
+        input: RecordOrReuseContextPackInput,
+    ) -> Result<ContextPackReference, AppError> {
+        a4n_db::llm_context::record_or_reuse_context_pack_reference(
+            self.database.connection(),
+            input,
+        )
+        .await
+        .map_err(llm_context_pack_db_error)
+    }
+
+    pub(super) async fn record_or_reuse_context_pack_references(
+        &self,
+        inputs: Vec<RecordOrReuseContextPackInput>,
+    ) -> Result<Vec<ContextPackReference>, AppError> {
+        a4n_db::llm_context::record_or_reuse_context_pack_references(
+            self.database.connection(),
+            inputs,
+        )
+        .await
+        .map_err(llm_context_pack_db_error)
     }
 }
 

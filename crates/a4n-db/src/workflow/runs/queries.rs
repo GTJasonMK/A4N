@@ -1,8 +1,10 @@
 use super::*;
 
-use super::projections::{
-    generation_run_summary, workflow_checkpoint_summary, workflow_run_summary,
-};
+use std::collections::HashSet;
+
+use super::super::summaries::GenerationRunSummaryRecord;
+
+use super::projections::{workflow_checkpoint_summary, workflow_run_summary};
 
 pub async fn list_workflow_runs(
     db: &DatabaseConnection,
@@ -38,10 +40,7 @@ pub async fn workflow_run_detail(
             .into_iter()
             .map(workflow_checkpoint_summary)
             .collect(),
-        generation_runs: generation_runs
-            .into_iter()
-            .map(generation_run_summary)
-            .collect(),
+        generation_runs,
     })
 }
 
@@ -50,6 +49,8 @@ pub async fn list_workflow_run_models(
     input: ListWorkflowRunsInput,
 ) -> Result<Vec<workflow_run::Model>, WorkflowReadError> {
     let mut query = workflow_run::Entity::find();
+    let chapter_ids_filter = input.chapter_ids;
+    let has_chapter_ids = chapter_ids_filter.is_some();
     if let Some(project_id) = input.project_id {
         validate_positive_i64(project_id, "project_id")?;
         query = query.filter(workflow_run::Column::ProjectId.eq(project_id));
@@ -57,6 +58,15 @@ pub async fn list_workflow_run_models(
     if let Some(chapter_id) = input.chapter_id {
         validate_positive_i64(chapter_id, "chapter_id")?;
         query = query.filter(workflow_run::Column::ChapterId.eq(chapter_id));
+    }
+    if let Some(chapter_ids) = chapter_ids_filter {
+        for chapter_id in &chapter_ids {
+            validate_positive_i64(*chapter_id, "chapter_id")?;
+        }
+        if chapter_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        query = query.filter(workflow_run::Column::ChapterId.is_in(chapter_ids));
     }
     if let Some(workflow_kind) = normalize_optional_text(input.workflow_kind) {
         query = query.filter(workflow_run::Column::WorkflowKind.eq(workflow_kind));
@@ -68,13 +78,13 @@ pub async fn list_workflow_run_models(
     if input.resumable_only == Some(true) {
         query = query.filter(workflow_run::Column::CanResume.eq(true));
     }
-    query
+    query = query
         .order_by_desc(workflow_run::Column::UpdatedAt)
-        .order_by_desc(workflow_run::Column::Id)
-        .limit(input.limit.unwrap_or(100).clamp(1, 200))
-        .all(db)
-        .await
-        .map_err(WorkflowReadError::Database)
+        .order_by_desc(workflow_run::Column::Id);
+    if !has_chapter_ids {
+        query = query.limit(input.limit.unwrap_or(100).clamp(1, 200));
+    }
+    query.all(db).await.map_err(WorkflowReadError::Database)
 }
 
 pub async fn workflow_runs_by_project_kind(
@@ -112,6 +122,64 @@ pub async fn workflow_run_model_optional_by_id(
         .map_err(WorkflowReadError::Database)
 }
 
+pub async fn workflow_run_status_record_by_id(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+) -> Result<WorkflowRunStatusRecord, WorkflowReadError> {
+    validate_positive_i64(workflow_run_id, "workflow_run_id")?;
+    workflow_run::Entity::find_by_id(workflow_run_id)
+        .select_only()
+        .column(workflow_run::Column::Id)
+        .column(workflow_run::Column::Status)
+        .column(workflow_run::Column::ErrorMessage)
+        .into_model::<WorkflowRunStatusRecord>()
+        .one(db)
+        .await
+        .map_err(WorkflowReadError::Database)?
+        .ok_or_else(|| WorkflowReadError::NotFound(format!("工作流不存在: {workflow_run_id}")))
+}
+
+pub async fn workflow_run_models_by_ids(
+    db: &DatabaseConnection,
+    workflow_run_ids: &[i64],
+) -> Result<Vec<workflow_run::Model>, WorkflowReadError> {
+    for workflow_run_id in workflow_run_ids {
+        validate_positive_i64(*workflow_run_id, "workflow_run_id")?;
+    }
+    if workflow_run_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    workflow_run::Entity::find()
+        .filter(workflow_run::Column::Id.is_in(workflow_run_ids.iter().copied()))
+        .order_by_asc(workflow_run::Column::Id)
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
+/// 按 workflow ID 集合读取 Canvas 终态判断所需的运行 ID 和状态。
+pub async fn workflow_run_statuses_by_ids(
+    db: &DatabaseConnection,
+    workflow_run_ids: &[i64],
+) -> Result<Vec<(i64, String)>, WorkflowReadError> {
+    for workflow_run_id in workflow_run_ids {
+        validate_positive_i64(*workflow_run_id, "workflow_run_id")?;
+    }
+    if workflow_run_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+    workflow_run::Entity::find()
+        .select_only()
+        .column(workflow_run::Column::Id)
+        .column(workflow_run::Column::Status)
+        .filter(workflow_run::Column::Id.is_in(workflow_run_ids.iter().copied()))
+        .order_by_asc(workflow_run::Column::Id)
+        .into_tuple::<(i64, String)>()
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
 pub async fn workflow_run_model_by_active_task_id(
     db: &DatabaseConnection,
     task_id: &str,
@@ -132,12 +200,122 @@ pub async fn workflow_run_model_by_active_task_id(
         .map_err(WorkflowReadError::Database)
 }
 
+pub async fn workflow_run_access_record_by_active_task_id(
+    db: &DatabaseConnection,
+    task_id: &str,
+) -> Result<Option<WorkflowRunAccessRecord>, WorkflowReadError> {
+    let task_id = required_text(task_id.to_string(), "task_id")?;
+    workflow_run::Entity::find()
+        .select_only()
+        .column(workflow_run::Column::Id)
+        .column(workflow_run::Column::ProjectId)
+        .column(workflow_run::Column::RootProjectId)
+        .filter(workflow_run::Column::ActiveTaskId.eq(task_id))
+        .filter(workflow_run::Column::Status.is_not_in([
+            WORKFLOW_STATUS_COMPLETED,
+            WORKFLOW_STATUS_FAILED,
+            WORKFLOW_STATUS_CANCELLED,
+            WORKFLOW_STATUS_SUPERSEDED,
+        ]))
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .into_model::<WorkflowRunAccessRecord>()
+        .one(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
 pub async fn latest_workflow_run_by_business_key(
     db: &DatabaseConnection,
     business_key: &str,
 ) -> Result<Option<workflow_run::Model>, WorkflowReadError> {
     let business_key = required_text(business_key.to_string(), "business_key")?;
     latest_workflow_run_by_business_key_model(db, &business_key).await
+}
+
+pub async fn latest_workflow_run_status_record_by_business_key(
+    db: &DatabaseConnection,
+    business_key: &str,
+) -> Result<Option<WorkflowRunStatusRecord>, WorkflowReadError> {
+    let business_key = required_text(business_key.to_string(), "business_key")?;
+    workflow_run::Entity::find()
+        .select_only()
+        .column(workflow_run::Column::Id)
+        .column(workflow_run::Column::Status)
+        .column(workflow_run::Column::ErrorMessage)
+        .filter(workflow_run::Column::BusinessKey.eq(business_key))
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .into_model::<WorkflowRunStatusRecord>()
+        .one(db)
+        .await
+        .map_err(WorkflowReadError::Database)
+}
+
+/// 按 business key 集合读取每个 key 最新的一条工作流记录。
+pub async fn latest_workflow_runs_by_business_keys(
+    db: &DatabaseConnection,
+    business_keys: &[String],
+) -> Result<Vec<workflow_run::Model>, WorkflowReadError> {
+    let keys = normalized_business_keys(business_keys)?;
+    if keys.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let runs = workflow_run::Entity::find()
+        .filter(workflow_run::Column::BusinessKey.is_in(keys))
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)?;
+    let mut seen = HashSet::with_capacity(business_keys.len());
+    Ok(runs
+        .into_iter()
+        .filter(|run| seen.insert(run.business_key.clone()))
+        .collect())
+}
+
+/// 按 business key 集合读取视频恢复所需的每个 key 最新状态。
+pub async fn latest_workflow_run_recovery_records_by_business_keys(
+    db: &DatabaseConnection,
+    business_keys: &[String],
+) -> Result<Vec<WorkflowRunRecoveryRecord>, WorkflowReadError> {
+    let keys = normalized_business_keys(business_keys)?;
+    if keys.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let runs = workflow_run::Entity::find()
+        .select_only()
+        .column(workflow_run::Column::Id)
+        .column(workflow_run::Column::BusinessKey)
+        .column(workflow_run::Column::Status)
+        .column(workflow_run::Column::ErrorMessage)
+        .filter(workflow_run::Column::BusinessKey.is_in(keys))
+        .order_by_desc(workflow_run::Column::UpdatedAt)
+        .order_by_desc(workflow_run::Column::Id)
+        .into_model::<WorkflowRunRecoveryRecord>()
+        .all(db)
+        .await
+        .map_err(WorkflowReadError::Database)?;
+    let mut seen = HashSet::with_capacity(business_keys.len());
+    Ok(runs
+        .into_iter()
+        .filter(|run| seen.insert(run.business_key.clone()))
+        .collect())
+}
+
+fn normalized_business_keys(business_keys: &[String]) -> Result<Vec<String>, WorkflowReadError> {
+    let mut keys = Vec::with_capacity(business_keys.len());
+    let mut seen = HashSet::with_capacity(business_keys.len());
+    for business_key in business_keys {
+        let business_key = required_text(business_key.clone(), "business_key")?;
+        if seen.insert(business_key.clone()) {
+            keys.push(business_key);
+        }
+    }
+    Ok(keys)
 }
 
 pub(in crate::workflow) async fn workflow_run_by_id(
@@ -186,14 +364,38 @@ async fn generation_runs_for_workflow(
     db: &DatabaseConnection,
     workflow_run_id: i64,
     limit: u64,
-) -> Result<Vec<generation_run::Model>, WorkflowReadError> {
+) -> Result<Vec<GenerationRunSummary>, WorkflowReadError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     generation_run::Entity::find()
+        .select_only()
+        .column(generation_run::Column::Id)
+        .column(generation_run::Column::WorkflowRunId)
+        .column(generation_run::Column::Workflow)
+        .column(generation_run::Column::StepKey)
+        .column(generation_run::Column::CallKey)
+        .column(generation_run::Column::Title)
+        .column(generation_run::Column::ModelKind)
+        .column(generation_run::Column::Provider)
+        .column(generation_run::Column::Model)
+        .column(generation_run::Column::Status)
+        .column(generation_run::Column::InputFingerprintSha256)
+        .column(generation_run::Column::InputFingerprintJson)
+        .column(generation_run::Column::RawResponseJson)
+        .column(generation_run::Column::ParsedOutputJson)
+        .column(generation_run::Column::ValidationJson)
+        .column(generation_run::Column::ArtifactRefsJson)
+        .column(generation_run::Column::Attempt)
+        .column(generation_run::Column::ResponseSummaryJson)
+        .column(generation_run::Column::ErrorMessage)
+        .column(generation_run::Column::CreatedAt)
+        .column(generation_run::Column::CompletedAt)
         .filter(generation_run::Column::WorkflowRunId.eq(workflow_run_id))
         .order_by_asc(generation_run::Column::CreatedAt)
         .limit(limit.clamp(1, 500))
+        .into_model::<GenerationRunSummaryRecord>()
         .all(db)
         .await
+        .map(|runs| runs.into_iter().map(Into::into).collect())
         .map_err(WorkflowReadError::Database)
 }
 

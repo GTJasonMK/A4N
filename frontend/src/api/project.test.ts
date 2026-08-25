@@ -17,7 +17,7 @@ describe("project lifecycle gate", () => {
     const project = { lifecycle_gate: "resetting", my_role: "owner" } as const;
 
     expect(canEditProjectMaterials(project)).toBe(false);
-    expect(projectLifecycleBlockedReason(project)).toContain("完成前暂不可编辑");
+    expect(projectLifecycleBlockedReason(project)).toBe("resetting");
   });
 });
 

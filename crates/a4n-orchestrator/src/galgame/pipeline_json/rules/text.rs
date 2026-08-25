@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 
 use a4n_core::error::AppError;
 
@@ -25,7 +25,7 @@ pub(in crate::galgame::pipeline_json) fn normalize_source_span_ids(
     if require_nonempty && values.is_empty() {
         return Err(invalid(format!("{label} 不能为空")));
     }
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     let mut normalized = Vec::new();
     for value in values {
         let value = required_text(value, label)?;
@@ -43,7 +43,7 @@ pub(in crate::galgame::pipeline_json) fn normalize_text_vec(
     values: Vec<String>,
     label: &str,
 ) -> Result<Vec<String>, AppError> {
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     let mut normalized = Vec::new();
     for value in values {
         let value = required_text(value, label)?;

@@ -1,29 +1,30 @@
 use crate::project_dependency_graph::{
     AssetDependencyGraph, AssetGraphNode, AssetLineageRecord, AssetLineageRef, PromptSource,
 };
+use std::collections::HashMap;
 
 pub(in crate::project_dependency_graph) fn structural_source_refs_for_node(
     graph: &AssetDependencyGraph,
     node_id: &str,
 ) -> Vec<AssetLineageRef> {
+    let mut nodes_by_id = HashMap::with_capacity(graph.nodes.len());
+    for node in &graph.nodes {
+        nodes_by_id.entry(node.id.as_str()).or_insert(node);
+    }
     graph
         .edges
         .iter()
         .filter(|edge| edge.to == node_id && edge.count > 0)
         .filter_map(|edge| {
-            graph
-                .nodes
-                .iter()
-                .find(|candidate| candidate.id == edge.from)
-                .map(|source| {
-                    lineage_ref(
-                        &source.id,
-                        &source.label,
-                        &source.kind,
-                        &source.asset_type,
-                        source.record_id,
-                    )
-                })
+            nodes_by_id.get(edge.from.as_str()).map(|source| {
+                lineage_ref(
+                    &source.id,
+                    &source.label,
+                    &source.kind,
+                    &source.asset_type,
+                    source.record_id,
+                )
+            })
         })
         .collect()
 }

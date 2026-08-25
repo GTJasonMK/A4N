@@ -1,8 +1,8 @@
 use crate::AppState;
 use crate::actions::image_records;
-pub use a4n_domain::DownstreamConflictStrategy;
+use a4n_domain::DownstreamConflictStrategy;
 
-pub(crate) fn resolve_downstream_id_conflict(
+pub(super) fn resolve_downstream_id_conflict(
     ids: Vec<i64>,
     strategy: DownstreamConflictStrategy,
     subject: &str,
@@ -23,7 +23,7 @@ pub(crate) fn resolve_downstream_id_conflict(
     }
 }
 
-pub(crate) async fn delete_downstream_images_if_requested(
+pub(super) async fn delete_downstream_images_if_requested(
     state: &AppState,
     user_id: i64,
     image_ids: impl IntoIterator<Item = i64>,
@@ -35,7 +35,7 @@ pub(crate) async fn delete_downstream_images_if_requested(
     Ok(())
 }
 
-pub(crate) fn downstream_cleanup_warnings(result: Result<(), String>) -> Vec<String> {
+pub(super) fn downstream_cleanup_warnings(result: Result<(), String>) -> Vec<String> {
     result
         .err()
         .map(|error| format!("下游图片清理失败：{error}"))

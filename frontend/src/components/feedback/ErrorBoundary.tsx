@@ -3,9 +3,14 @@ import { AlertTriangle, RefreshCw } from "lucide-react";
 import { BookButton } from "../ui/BookButton";
 import { logger } from "../../utils/logger";
 import { reloadAppShell } from "../../utils/appReload";
+import { useI18n, type MessageTranslator } from "../../i18n";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
+}
+
+interface LocalizedErrorBoundaryProps extends ErrorBoundaryProps {
+  t: MessageTranslator;
 }
 
 interface ErrorBoundaryState {
@@ -18,8 +23,8 @@ interface ErrorBoundaryState {
  *
  * 说明：仅用于渲染异常展示，不替代接口错误处理。
  */
-export class ErrorBoundary extends React.Component<
-  ErrorBoundaryProps,
+class LocalizedErrorBoundary extends React.Component<
+  LocalizedErrorBoundaryProps,
   ErrorBoundaryState
 > {
   state: ErrorBoundaryState = { hasError: false };
@@ -47,10 +52,10 @@ export class ErrorBoundary extends React.Component<
             </span>
             <div className="min-w-0 flex-1">
               <h1 className="font-serif text-base font-semibold text-book-text-main">
-                页面暂时无法显示
+                {this.props.t("feedback.errorBoundaryTitle")}
               </h1>
               <p className="mt-1 text-sm leading-relaxed text-book-text-muted">
-                当前页面的数据或状态出现异常。可以先返回重试，或重新加载应用。
+                {this.props.t("feedback.errorBoundaryDescription")}
               </p>
             </div>
           </div>
@@ -58,7 +63,7 @@ export class ErrorBoundary extends React.Component<
           {this.state.error?.message ? (
             <details className="border-t border-book-border/40 px-5 py-3 text-xs text-book-text-muted">
               <summary className="w-fit cursor-pointer hover:text-book-text-main">
-                诊断信息
+                {this.props.t("feedback.diagnostics")}
               </summary>
               <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-small leading-relaxed">
                 {this.state.error.message}
@@ -73,15 +78,20 @@ export class ErrorBoundary extends React.Component<
                 this.setState({ hasError: false, error: undefined })
               }
             >
-              返回
+              {this.props.t("feedback.back")}
             </BookButton>
             <BookButton variant="primary" onClick={reloadAppShell}>
               <RefreshCw size={14} />
-              重新加载
+              {this.props.t("feedback.reload")}
             </BookButton>
           </div>
         </section>
       </div>
     );
   }
+}
+
+export function ErrorBoundary({ children }: ErrorBoundaryProps) {
+  const { t } = useI18n();
+  return <LocalizedErrorBoundary t={t}>{children}</LocalizedErrorBoundary>;
 }

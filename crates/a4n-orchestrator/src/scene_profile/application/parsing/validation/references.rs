@@ -1,6 +1,6 @@
 use a4n_core::json_contract::{ensure_object, required_array, required_string};
 use serde_json::{Value, json};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 pub(in crate::scene_profile::application::parsing) fn validate_character_refs(
     value: &Value,
@@ -51,7 +51,7 @@ pub(in crate::scene_profile::application::parsing) fn id_array_value(
 ) -> Result<Value, String> {
     let values = required_array(value, key, path)?;
     let mut ids = Vec::new();
-    let mut seen = BTreeSet::new();
+    let mut seen = HashSet::new();
     for (index, item) in values.iter().enumerate() {
         let id = item
             .as_i64()

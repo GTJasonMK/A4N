@@ -38,6 +38,59 @@ fn assembly_video(id: i64, shot_number: i32, file_path: Option<&str>) -> generat
 }
 
 #[test]
+fn generated_video_projection_preserves_wire_fields() {
+    let mut video = assembly_video(9, 4, Some("projects/1/videos/video-9.mp4"));
+    video.thumbnail_path = Some("projects/1/videos/video-9.jpg".to_string());
+    video.negative_prompt = Some("avoid blur".to_string());
+    video.file_size = Some(4096);
+    video.source_video_id = Some(7);
+    video.source_image_id = Some(8);
+    video.provider_job_id = Some("provider-job-9".to_string());
+    video.error_message = Some("previous error".to_string());
+    video.timeline_item_id = Some(10);
+    video.is_favorite = true;
+    video.created_at = chrono::NaiveDate::from_ymd_opt(2026, 8, 20)
+        .unwrap()
+        .and_hms_opt(10, 11, 12)
+        .unwrap();
+    video.updated_at = chrono::NaiveDate::from_ymd_opt(2026, 8, 21)
+        .unwrap()
+        .and_hms_opt(13, 14, 15)
+        .unwrap();
+
+    assert_eq!(
+        serde_json::to_value(generated_video_summary(&video)).unwrap(),
+        json!({
+            "id": 9,
+            "project_id": 1,
+            "chapter_id": 2,
+            "video_type": "chapter_video",
+            "workflow_mode": "first_frame_chain",
+            "file_path": "projects/1/videos/video-9.mp4",
+            "thumbnail_path": "projects/1/videos/video-9.jpg",
+            "prompt": "片段 4",
+            "negative_prompt": "avoid blur",
+            "model": "test",
+            "width": 1280,
+            "height": 720,
+            "duration_secs": 6.0,
+            "fps": 24,
+            "file_size": 4096,
+            "source_video_id": 7,
+            "source_image_id": 8,
+            "status": "completed",
+            "provider_job_id": "provider-job-9",
+            "error_message": "previous error",
+            "metadata_json": {"shot_number": 4},
+            "timeline_item_id": 10,
+            "is_favorite": true,
+            "created_at": "2026-08-20 10:11:12",
+            "updated_at": "2026-08-21 13:14:15",
+        })
+    );
+}
+
+#[test]
 fn assembly_uses_available_videos_without_requiring_every_segment() {
     let rows = [
         assembly_video(3, 3, Some("three.mp4")),

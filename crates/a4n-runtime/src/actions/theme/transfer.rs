@@ -12,11 +12,11 @@ pub async fn export_theme_for_user(
         .orchestrator()
         .export_theme_for_user_validated(user_id, theme_id)
         .await?;
-    let theme = to_summary(theme)?;
+    let theme = to_summary(state.orchestrator(), user_id, theme).await?;
     serde_json::to_string_pretty(&CreateThemeInput {
         name: theme.name,
         mode: theme.mode,
-        css_variables: theme.css_variables,
+        document: theme.document.without_resource_references(),
     })
     .map_err(AppError::Serialization)
 }
@@ -30,5 +30,5 @@ pub async fn import_theme_for_user(
         .orchestrator()
         .import_theme_for_user_validated(user_id, input)
         .await?;
-    to_summary(theme)
+    to_summary(state.orchestrator(), user_id, theme).await
 }

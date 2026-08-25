@@ -1,20 +1,17 @@
-use super::contracts::{
-    BlueprintCharacterDraft, BlueprintIncrementalSyncStats, BlueprintSyncError,
-};
+use super::contracts::{BlueprintCharacterDraft, BlueprintSyncError};
 use super::identity::{blueprint_character_matches, normalized_blueprint_identity};
 use a4n_core::{json_contract::is_empty_json_value, models::project::blueprint_character};
 use chrono::NaiveDateTime;
-use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
-};
+use sea_orm::sea_query::{CaseStatement, Expr};
+use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::{HashMap, HashSet};
 
-pub async fn sync_blueprint_characters<C>(
+pub(in crate::project) async fn sync_blueprint_characters<C>(
     db: &C,
     project_id: i64,
     characters: Vec<BlueprintCharacterDraft>,
     now: NaiveDateTime,
-) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
 {
@@ -26,7 +23,7 @@ pub async fn merge_blueprint_characters<C>(
     project_id: i64,
     characters: Vec<BlueprintCharacterDraft>,
     now: NaiveDateTime,
-) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
 {
@@ -39,7 +36,7 @@ async fn write_blueprint_characters<C>(
     characters: Vec<BlueprintCharacterDraft>,
     now: NaiveDateTime,
     delete_missing: bool,
-) -> Result<BlueprintIncrementalSyncStats, BlueprintSyncError>
+) -> Result<(), BlueprintSyncError>
 where
     C: ConnectionTrait,
 {
@@ -75,7 +72,8 @@ where
             .push(character);
     }
 
-    let mut stats = BlueprintIncrementalSyncStats::default();
+    let mut updates = Vec::new();
+    let mut inserts = Vec::new();
     for (key, draft) in incoming {
         if let Some(candidates) = existing_by_key.get_mut(&key)
             && !candidates.is_empty()
@@ -87,30 +85,11 @@ where
                 supplement_character_draft(&existing, draft)
             };
             if blueprint_character_matches(&existing, &draft) {
-                stats.unchanged += 1;
                 continue;
             }
-
-            let mut active: blueprint_character::ActiveModel = existing.into();
-            active.name = Set(draft.name);
-            active.character_type = Set(draft.character_type);
-            active.gender = Set(draft.gender);
-            active.age = Set(draft.age);
-            active.appearance = Set(draft.appearance);
-            active.personality = Set(draft.personality);
-            active.background = Set(draft.background);
-            active.motivation = Set(draft.motivation);
-            active.arc_summary = Set(draft.arc_summary);
-            active.relationship_to_protagonist = Set(draft.relationship_to_protagonist);
-            active.arc_stages = Set(draft.arc_stages);
-            active.updated_at = Set(now);
-            active
-                .update(db)
-                .await
-                .map_err(BlueprintSyncError::Database)?;
-            stats.updated += 1;
+            updates.push((existing.id, draft));
         } else {
-            blueprint_character::ActiveModel {
+            inserts.push(blueprint_character::ActiveModel {
                 project_id: Set(project_id),
                 name: Set(draft.name),
                 character_type: Set(draft.character_type),
@@ -126,25 +105,185 @@ where
                 created_at: Set(now),
                 updated_at: Set(now),
                 ..Default::default()
-            }
-            .insert(db)
+            });
+        }
+    }
+
+    if !inserts.is_empty() {
+        let expected = inserts.len() as u64;
+        let inserted = blueprint_character::Entity::insert_many(inserts)
+            .exec_without_returning(db)
             .await
             .map_err(BlueprintSyncError::Database)?;
-            stats.inserted += 1;
+        if inserted != expected {
+            return Err(BlueprintSyncError::InvalidArgument(format!(
+                "蓝图角色批量插入返回行数不一致: inserted={}, expected={}",
+                inserted, expected
+            )));
+        }
+    }
+
+    if !updates.is_empty() {
+        let mut name_case = CaseStatement::new();
+        let mut character_type_case = CaseStatement::new();
+        let mut gender_case = CaseStatement::new();
+        let mut age_case = CaseStatement::new();
+        let mut appearance_case = CaseStatement::new();
+        let mut personality_case = CaseStatement::new();
+        let mut background_case = CaseStatement::new();
+        let mut motivation_case = CaseStatement::new();
+        let mut arc_summary_case = CaseStatement::new();
+        let mut relationship_case = CaseStatement::new();
+        let mut arc_stages_case = CaseStatement::new();
+        let mut ids = Vec::with_capacity(updates.len());
+        for (id, draft) in updates {
+            name_case = name_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.name),
+            );
+            character_type_case = character_type_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.character_type),
+            );
+            gender_case = gender_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.gender),
+            );
+            age_case = age_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.age),
+            );
+            appearance_case = appearance_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.appearance),
+            );
+            personality_case = personality_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.personality),
+            );
+            background_case = background_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.background),
+            );
+            motivation_case = motivation_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.motivation),
+            );
+            arc_summary_case = arc_summary_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.arc_summary),
+            );
+            relationship_case = relationship_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.relationship_to_protagonist),
+            );
+            arc_stages_case = arc_stages_case.case(
+                blueprint_character::Column::Id.eq(id),
+                Expr::value(draft.arc_stages).cast_as("json"),
+            );
+            ids.push(id);
+        }
+        let updated = blueprint_character::Entity::update_many()
+            .col_expr(
+                blueprint_character::Column::Name,
+                name_case
+                    .finally(Expr::col(blueprint_character::Column::Name))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::CharacterType,
+                character_type_case
+                    .finally(Expr::col(blueprint_character::Column::CharacterType))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::Gender,
+                gender_case
+                    .finally(Expr::col(blueprint_character::Column::Gender))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::Age,
+                age_case
+                    .finally(Expr::col(blueprint_character::Column::Age))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::Appearance,
+                appearance_case
+                    .finally(Expr::col(blueprint_character::Column::Appearance))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::Personality,
+                personality_case
+                    .finally(Expr::col(blueprint_character::Column::Personality))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::Background,
+                background_case
+                    .finally(Expr::col(blueprint_character::Column::Background))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::Motivation,
+                motivation_case
+                    .finally(Expr::col(blueprint_character::Column::Motivation))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::ArcSummary,
+                arc_summary_case
+                    .finally(Expr::col(blueprint_character::Column::ArcSummary))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::RelationshipToProtagonist,
+                relationship_case
+                    .finally(Expr::col(
+                        blueprint_character::Column::RelationshipToProtagonist,
+                    ))
+                    .into(),
+            )
+            .col_expr(
+                blueprint_character::Column::ArcStages,
+                arc_stages_case
+                    .finally(Expr::col(blueprint_character::Column::ArcStages))
+                    .into(),
+            )
+            .col_expr(blueprint_character::Column::UpdatedAt, Expr::value(now))
+            .filter(blueprint_character::Column::ProjectId.eq(project_id))
+            .filter(blueprint_character::Column::Id.is_in(ids.clone()))
+            .exec(db)
+            .await
+            .map_err(BlueprintSyncError::Database)?;
+        if updated.rows_affected != ids.len() as u64 {
+            return Err(BlueprintSyncError::InvalidArgument(format!(
+                "蓝图角色批量更新返回行数不一致: updated={}, expected={}",
+                updated.rows_affected,
+                ids.len()
+            )));
         }
     }
 
     if delete_missing {
-        for stale in existing_by_key.into_values().flatten() {
-            blueprint_character::Entity::delete_by_id(stale.id)
+        let stale_ids = existing_by_key
+            .into_values()
+            .flatten()
+            .map(|stale| stale.id)
+            .collect::<Vec<_>>();
+        if !stale_ids.is_empty() {
+            blueprint_character::Entity::delete_many()
+                .filter(blueprint_character::Column::ProjectId.eq(project_id))
+                .filter(blueprint_character::Column::Id.is_in(stale_ids))
                 .exec(db)
                 .await
                 .map_err(BlueprintSyncError::Database)?;
-            stats.deleted += 1;
         }
     }
 
-    Ok(stats)
+    Ok(())
 }
 
 fn supplement_character_draft(

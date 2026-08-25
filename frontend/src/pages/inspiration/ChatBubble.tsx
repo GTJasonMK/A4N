@@ -2,6 +2,7 @@ import React from "react";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import type { Message, MessageOption } from "./shared";
+import { useI18n } from "../../i18n";
 
 interface ChatBubbleProps {
   message: Message;
@@ -69,6 +70,7 @@ const OptionCard: React.FC<{
  *  - 流式选项：已完成的直接可点，正在生成的显示骨架动画
  */
 export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption }) => {
+  const { t } = useI18n();
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
 
@@ -95,7 +97,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
           }`}
           style={{ letterSpacing: "0.04em" }}
         >
-          {isUser ? "你" : "创作助手"}
+          {isUser ? t("inspiration.you") : t("inspiration.creativeAssistant")}
         </div>
         <div
           className={`px-4 py-3 text-body-lg leading-relaxed whitespace-pre-wrap break-words tracking-tight ${
@@ -123,7 +125,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
               {!message.content && (
                 <>
                   <LoadingSpinner size="sm" />
-                  <span>正在整理你的灵感…</span>
+                  <span>{t("inspiration.organizingInspiration")}</span>
                 </>
               )}
             </span>
@@ -141,7 +143,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
           ))}
           {showPendingSkeleton && (
             <OptionCard
-              option={{ label: "正在生成选项…" }}
+              option={{ label: t("inspiration.generatingOptions") }}
               onSend={() => {}}
               skeleton
             />

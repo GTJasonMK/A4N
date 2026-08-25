@@ -41,22 +41,25 @@ where
             project.id
         ))
     })?;
-    let (scene, line_id) = match target_kind {
+    let (scene_id, script_id, source_snapshot_chapter_id, line_id) = match target_kind {
         GALGAME_ENTITY_SCENE => {
             let mut scene_query = galgame_scene::Entity::find_by_id(target_id);
             if use_row_lock {
                 scene_query = scene_query.lock_exclusive();
             }
-            (
-                scene_query
-                    .one(db)
-                    .await
-                    .map_err(GalgameMediaRecordError::Database)?
-                    .ok_or_else(|| {
-                        GalgameMediaRecordError::NotFound(format!("Galgame 场不存在: {target_id}"))
-                    })?,
-                None,
-            )
+            let scene = scene_query
+                .select_only()
+                .column(galgame_scene::Column::Id)
+                .column(galgame_scene::Column::ScriptId)
+                .column(galgame_scene::Column::SourceSnapshotChapterId)
+                .into_tuple::<(i64, i64, i64)>()
+                .one(db)
+                .await
+                .map_err(GalgameMediaRecordError::Database)?
+                .ok_or_else(|| {
+                    GalgameMediaRecordError::NotFound(format!("Galgame 场不存在: {target_id}"))
+                })?;
+            (scene.0, scene.1, scene.2, None)
         }
         GALGAME_ENTITY_LINE => {
             let mut line_query = galgame_line::Entity::find_by_id(target_id);
@@ -64,27 +67,33 @@ where
                 line_query = line_query.lock_exclusive();
             }
             let line = line_query
+                .select_only()
+                .column(galgame_line::Column::Id)
+                .column(galgame_line::Column::SceneId)
+                .into_tuple::<(i64, i64)>()
                 .one(db)
                 .await
                 .map_err(GalgameMediaRecordError::Database)?
                 .ok_or_else(|| {
                     GalgameMediaRecordError::NotFound(format!("Galgame 行不存在: {target_id}"))
                 })?;
-            let mut scene_query = galgame_scene::Entity::find_by_id(line.scene_id);
+            let mut scene_query = galgame_scene::Entity::find_by_id(line.1);
             if use_row_lock {
                 scene_query = scene_query.lock_exclusive();
             }
             let scene = scene_query
+                .select_only()
+                .column(galgame_scene::Column::Id)
+                .column(galgame_scene::Column::ScriptId)
+                .column(galgame_scene::Column::SourceSnapshotChapterId)
+                .into_tuple::<(i64, i64, i64)>()
                 .one(db)
                 .await
                 .map_err(GalgameMediaRecordError::Database)?
                 .ok_or_else(|| {
-                    GalgameMediaRecordError::NotFound(format!(
-                        "Galgame 场不存在: {}",
-                        line.scene_id
-                    ))
+                    GalgameMediaRecordError::NotFound(format!("Galgame 场不存在: {}", line.1))
                 })?;
-            (scene, Some(line.id))
+            (scene.0, scene.1, scene.2, Some(line.0))
         }
         other => {
             return Err(GalgameMediaRecordError::InvalidArgument(format!(
@@ -92,41 +101,47 @@ where
             )));
         }
     };
-    let mut script_query = galgame_script::Entity::find_by_id(scene.script_id);
+    let mut script_query = galgame_script::Entity::find_by_id(script_id);
     if use_row_lock {
         script_query = script_query.lock_exclusive();
     }
     let script = script_query
+        .select_only()
+        .column(galgame_script::Column::ProjectId)
+        .column(galgame_script::Column::RootProjectId)
+        .column(galgame_script::Column::SourceSnapshotId)
+        .into_tuple::<(i64, i64, i64)>()
         .one(db)
         .await
         .map_err(GalgameMediaRecordError::Database)?
         .ok_or_else(|| {
-            GalgameMediaRecordError::NotFound(format!("Galgame 剧本不存在: {}", scene.script_id))
+            GalgameMediaRecordError::NotFound(format!("Galgame 剧本不存在: {script_id}"))
         })?;
-    if script.project_id != project.id
-        || script.root_project_id != root_project_id
-        || script.source_snapshot_id != source_snapshot_id
-    {
+    if script.0 != project.id || script.1 != root_project_id || script.2 != source_snapshot_id {
         return Err(GalgameMediaRecordError::InvalidArgument(
             "Galgame 媒体目标不属于目标项目族上下文".to_string(),
         ));
     }
     let mut snapshot_chapter_query =
-        source_snapshot_chapter::Entity::find_by_id(scene.source_snapshot_chapter_id);
+        source_snapshot_chapter::Entity::find_by_id(source_snapshot_chapter_id);
     if use_row_lock {
         snapshot_chapter_query = snapshot_chapter_query.lock_exclusive();
     }
     let snapshot_chapter = snapshot_chapter_query
+        .select_only()
+        .column(source_snapshot_chapter::Column::SnapshotId)
+        .column(source_snapshot_chapter::Column::SourceChapterId)
+        .into_tuple::<(i64, i64)>()
         .one(db)
         .await
         .map_err(GalgameMediaRecordError::Database)?
         .ok_or_else(|| {
             GalgameMediaRecordError::NotFound(format!(
                 "Galgame 场引用的源快照章节不存在: {}",
-                scene.source_snapshot_chapter_id
+                source_snapshot_chapter_id
             ))
         })?;
-    if snapshot_chapter.snapshot_id != script.source_snapshot_id {
+    if snapshot_chapter.0 != script.2 {
         return Err(GalgameMediaRecordError::InvalidArgument(
             "Galgame 场源快照章节与剧本源快照不一致".to_string(),
         ));
@@ -135,9 +150,9 @@ where
         project_id: project.id,
         root_project_id,
         source_snapshot_id,
-        source_chapter_id: snapshot_chapter.source_chapter_id,
-        source_snapshot_chapter_id: snapshot_chapter.id,
-        scene_id: scene.id,
+        source_chapter_id: snapshot_chapter.1,
+        source_snapshot_chapter_id,
+        scene_id,
         line_id,
     })
 }

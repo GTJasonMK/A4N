@@ -1,10 +1,8 @@
 use super::types::AnchorChange;
-use crate::source_sync::{SourceSyncDbError, local_state_for_generation_spec};
-use a4n_core::models::{generation::generation_spec, project::text_anchor};
+use a4n_core::models::project::text_anchor;
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
 };
-use sea_orm::ConnectionTrait;
 
 pub(super) fn classify_anchor_change(
     old_anchor: &text_anchor::Model,
@@ -72,14 +70,4 @@ pub(super) fn severity_for_impacted_local_state(
             SourceSyncConflictSeverity::Warning
         }
     }
-}
-
-pub(super) async fn local_state_for_spec<C>(
-    db: &C,
-    spec: &generation_spec::Model,
-) -> Result<SourceSyncLocalStateKind, SourceSyncDbError>
-where
-    C: ConnectionTrait,
-{
-    local_state_for_generation_spec(db, spec).await
 }

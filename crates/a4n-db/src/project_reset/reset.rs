@@ -23,7 +23,7 @@ pub async fn reset_project_generated_data_record(
         source: sea_orm::DbErr::Custom(error.to_string()),
     })?;
 
-    if project.project_kind == PROJECT_KIND_GALGAME {
+    if project.project_kind == ProjectKind::Galgame.as_str() {
         let candidate_media_paths = project_db::project_generated_media_paths(&tx, project_id)
             .await
             .map_err(ProjectResetDbError::from)?;
@@ -55,8 +55,15 @@ pub async fn reset_project_generated_data_record(
     let chapter_generation_cleanup =
         delete_chapter_generation_outputs(&tx, project_id, GeneratedImageDeleteScope::Project)
             .await?;
+    project_db::delete_project_chapter_adaptation_records(
+        &tx,
+        project_id,
+        project_db::ProjectChapterAdaptationDeleteScope::CurrentProjectContent,
+    )
+    .await?;
     let generation_media_cleanup =
         project_db::delete_project_generation_media_graph(&tx, project_id).await?;
+    let profile_scene_cleanup = delete_project_profile_scene_data(&tx, project_id).await?;
 
     let deleted_chapters = chapter::Entity::delete_many()
         .filter(chapter::Column::ProjectId.eq(project_id))
@@ -84,7 +91,6 @@ pub async fn reset_project_generated_data_record(
         .exec(&tx)
         .await?
         .rows_affected;
-    let profile_scene_cleanup = delete_project_profile_scene_data(&tx, project_id).await?;
     let text_anchor_cleanup = project_db::delete_project_text_anchors(
         &tx,
         project_id,

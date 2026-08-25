@@ -1,27 +1,25 @@
-use super::contracts::{
-    AuthResult, BootstrapAdminInput, ChangePasswordInput, LoginInput, RegisterInput,
-    UpdateProfileInput, UserSummary,
-};
 use super::projections::to_user_summary;
 use super::tokens::issue_auth_result;
+use super::{
+    AuthResult, ChangePasswordInput, LoginInput, RegisterInput, UpdateProfileInput, UserSummary,
+};
 use crate::AppState;
 use a4n_core::error::AppError;
 use a4n_core::models::user::user;
-use a4n_orchestrator::auth::BootstrapAdminInput as OrchestratorBootstrapAdminInput;
+use a4n_orchestrator::auth::BootstrapAdminInput;
 
 pub async fn get_current_user(state: &AppState, user_id: i64) -> Result<UserSummary, AppError> {
-    let user = state.orchestrator().current_user(user_id).await?;
-    Ok(to_user_summary(&user))
+    state.orchestrator().current_user_summary(user_id).await
 }
 
 pub async fn require_existing_user_or_bootstrap_admin(
     state: &AppState,
-    bootstrap: Option<BootstrapAdminInput<'_>>,
+    bootstrap: Option<(&str, &str, &str)>,
 ) -> Result<(), AppError> {
-    let bootstrap = bootstrap.map(|input| OrchestratorBootstrapAdminInput {
-        username: input.username,
-        email: input.email,
-        password: input.password,
+    let bootstrap = bootstrap.map(|(username, email, password)| BootstrapAdminInput {
+        username,
+        email,
+        password,
     });
     state
         .orchestrator()
@@ -85,9 +83,15 @@ pub async fn update_user_profile(
         ));
     }
     let avatar_url = input.avatar_url.as_ref().map(|value| value.as_deref());
+    let page_cli_enabled = input.page_cli_enabled;
     let user = state
         .orchestrator()
-        .update_user_profile(user_id, input.email.as_deref(), avatar_url)
+        .update_user_profile(
+            user_id,
+            input.email.as_deref(),
+            avatar_url,
+            page_cli_enabled,
+        )
         .await?;
     Ok(to_user_summary(&user))
 }

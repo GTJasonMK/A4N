@@ -16,7 +16,7 @@ pub fn snapshot_profile_key(kind: &str, id: i64) -> String {
     format!("{snapshot_kind}/{id}")
 }
 
-pub fn remap_profile_hashes_json(
+pub(in crate::project_family_import) fn remap_profile_hashes_json(
     value: &Value,
     snapshot_id: i64,
     snapshot_profiles: &HashMap<(i64, String), &source_snapshot_profile::Model>,
@@ -58,7 +58,7 @@ pub fn remap_profile_hashes_json(
     Ok(Value::Array(remapped))
 }
 
-pub fn remap_source_snapshot_profile_payload(
+pub(in crate::project_family_import) fn remap_source_snapshot_profile_payload(
     profile: &source_snapshot_profile::Model,
     maps: &ImportIdMaps,
 ) -> Result<(Value, String), ProjectFamilyImportError> {

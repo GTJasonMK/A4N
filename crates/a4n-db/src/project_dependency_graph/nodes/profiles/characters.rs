@@ -1,13 +1,14 @@
 use std::collections::BTreeMap;
 
-use a4n_core::models::character::protagonist_profile;
 use serde_json::json;
 
-use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
+use crate::project_dependency_graph::{
+    GraphBuilder, NodeSeedMetadata, graph::CharacterProfileGraphRow, node,
+};
 
 pub(super) fn add_character_profile_nodes(
     graph: &mut GraphBuilder,
-    profiles: &[protagonist_profile::Model],
+    profiles: &[CharacterProfileGraphRow],
     portrait_counts: &BTreeMap<i64, u64>,
 ) {
     graph.add_node(node(

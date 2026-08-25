@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_core::error::AppError;
-use a4n_core::models::{galgame::galgame_scene, project::source_snapshot_chapter};
+use a4n_db::galgame::{GalgameAssetPlanningSceneRecord, GalgameAssetPlanningSourceChapterRecord};
 use serde_json::json;
 
 use crate::galgame::{GALGAME_ENTITY_SCENE, GALGAME_TARGET_BACKGROUND};
@@ -13,8 +13,8 @@ use super::required_json_string;
 
 pub(super) fn background_asset_plan_draft(
     context: &ProjectFamilyContext,
-    scene: &galgame_scene::Model,
-    chapter: &source_snapshot_chapter::Model,
+    scene: &GalgameAssetPlanningSceneRecord,
+    chapter: &GalgameAssetPlanningSourceChapterRecord,
     scene_anchor_ids: &BTreeSet<i64>,
 ) -> Result<GalgameAssetPlanItemDraft, AppError> {
     let params_json = json!({

@@ -1,12 +1,12 @@
 use a4n_core::{error::AppError, models::ai::generated_image};
+use a4n_db::generation::{
+    GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
+    RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
+};
 use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    generation::{
-        GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
-        RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
-    },
     video::CreateGeneratedImageRecordDraftInput,
     workflow::{
         CompletedWorkflowCheckpointInput, required_checkpoint_field, required_checkpoint_json,
@@ -345,14 +345,6 @@ impl OrchestratorContext {
             host_port
                 .remove_generated_image_file(&path, "旧漫画页图片")
                 .await?;
-        }
-        if let Err(error) = host_port.sync_project_asset_lineage(input.project_id).await {
-            tracing::error!(
-                project_id = input.project_id,
-                image_id = outcome.summary.id,
-                error = %error,
-                "图片权威数据已提交，资产谱系同步失败"
-            );
         }
         Ok(())
     }

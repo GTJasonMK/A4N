@@ -1,7 +1,5 @@
-pub use a4n_db::text_anchor::{
-    CurrentChapterContentAnchorRows, EVIDENCE_ROLE_APPEARANCE, EVIDENCE_ROLE_BEHAVIOR,
-    EVIDENCE_ROLE_FIRST_SEEN, EVIDENCE_ROLE_LOCATION, EVIDENCE_ROLE_RELATIONSHIP,
-    EVIDENCE_ROLE_STATE_CHANGE, SOURCE_KIND_CHAPTER_CONTENT, TextAnchorEvidenceInput,
+pub(crate) use a4n_db::text_anchor::{
+    EVIDENCE_ROLE_FIRST_SEEN, SOURCE_KIND_CHAPTER_CONTENT, TextAnchorEvidenceInput,
     TextAnchorProfileKind,
 };
 

@@ -1,9 +1,7 @@
 use super::secrets::SecretForwardingPolicy;
 use super::trace::{SchemaVersion, TraceContext};
-use crate::{
-    ServiceError, ServiceResponse, validate_known_service_request,
-    validate_provider_api_key_secret_policy,
-};
+use crate::validation::{validate_known_service_request, validate_provider_api_key_secret_policy};
+use crate::{ServiceError, ServiceResponse};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

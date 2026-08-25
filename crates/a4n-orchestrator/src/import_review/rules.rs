@@ -1,9 +1,8 @@
 //! 导入审核 application 输入门禁（无 DB）。
 
+use a4n_api_contract::import_review::DedupResult;
 use a4n_core::error::AppError;
 use a4n_import_core::dedup;
-
-use super::ImportDedupResult;
 
 const SIMHASH_NGRAM: usize = 3;
 const DUPLICATE_HAMMING_THRESHOLD: u32 = 3;
@@ -11,7 +10,7 @@ const DUPLICATE_HAMMING_THRESHOLD: u32 = 3;
 pub(crate) fn calculate_import_dedup(
     content: &str,
     existing_chapters: &[(i64, String)],
-) -> Result<ImportDedupResult, AppError> {
+) -> Result<DedupResult, AppError> {
     if content.trim().is_empty() {
         return Err(AppError::InvalidArgument(
             "待检测导入正文不能为空".to_string(),
@@ -29,7 +28,7 @@ pub(crate) fn calculate_import_dedup(
     let matched_chapter_id = closest
         .filter(|(_, distance)| *distance <= DUPLICATE_HAMMING_THRESHOLD)
         .map(|(chapter_id, _)| chapter_id);
-    Ok(ImportDedupResult {
+    Ok(DedupResult {
         content_hash: format!("{:016x}", content_hash.0),
         is_duplicate: matched_chapter_id.is_some(),
         closest_distance,

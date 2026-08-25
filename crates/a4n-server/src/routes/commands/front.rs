@@ -35,8 +35,9 @@ pub(super) use rag_embedding::{
     rag_prepare_ingest_all, rag_upload_ingest_embeddings,
 };
 pub(super) use theme::{
-    activate_theme, create_theme, delete_theme, export_theme, import_theme, list_themes,
-    update_theme,
+    activate_theme, create_theme, delete_theme, delete_theme_resource, export_theme,
+    export_theme_package, get_theme_preference, import_theme, import_theme_package, list_themes,
+    update_theme, update_theme_preference, upload_theme_resource,
 };
 pub(super) use workflow_task::{
     cancel_generation_task, cancel_task, cancel_workflow, get_queue_stats, get_task_history,

@@ -72,19 +72,3 @@ pub(crate) async fn outline_material_sync_warnings(
         .into_iter()
         .collect()
 }
-
-pub(in crate::actions::outline_records) fn project_outline_delete_input(
-    input: DeleteLatestOutlineRecordsInput,
-) -> a4n_orchestrator::project::DeleteLatestOutlineRecordsInput {
-    a4n_orchestrator::project::DeleteLatestOutlineRecordsInput {
-        project_id: input.project_id,
-        targets: input
-            .targets
-            .into_iter()
-            .map(|target| a4n_orchestrator::project::OutlineDeleteTarget {
-                id: target.id,
-                expected_updated_at: target.expected_updated_at,
-            })
-            .collect(),
-    }
-}

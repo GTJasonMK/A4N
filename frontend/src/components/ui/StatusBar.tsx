@@ -1,9 +1,10 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { useI18n } from "../../i18n";
 
 /**
  * 应用底部状态栏。
  *
- * - 固定底部 24px 高
+ * - 桌面端保持紧凑高度，触屏窄屏按控件触达尺寸自动撑开
  * - 左侧 message（普通文本提示，如"就绪"/"加载中"/"已保存"）
  * - 右侧 permanentWidgets（持续显示：用户名、连接状态、字符数等）
  * - 应用层通过 useStatusBar() 推送临时消息：会在 timeout 后恢复默认消息
@@ -30,17 +31,19 @@ interface StatusBarContextValue {
 const StatusBarContext = createContext<StatusBarContextValue | null>(null);
 
 export const StatusBarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [message, setMessageState] = useState<string>("就绪");
+  const { t } = useI18n();
+  const ready = t("common.ready");
+  const [message, setMessageState] = useState<string>(ready);
   const [permanent, setPermanent] = useState<PermanentWidget[]>([]);
 
   const setMessage = useCallback((msg: string, timeoutMs?: number) => {
     setMessageState(msg);
     if (timeoutMs && timeoutMs > 0) {
-      const t = window.setTimeout(() => setMessageState("就绪"), timeoutMs);
-      return () => window.clearTimeout(t);
+      const timer = window.setTimeout(() => setMessageState(ready), timeoutMs);
+      return () => window.clearTimeout(timer);
     }
     return undefined;
-  }, []);
+  }, [ready]);
 
   const addPermanent = useCallback((id: string, content: React.ReactNode) => {
     setPermanent((prev) => {
@@ -62,7 +65,7 @@ export const StatusBarProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   return <StatusBarContext.Provider value={value}>{children}</StatusBarContext.Provider>;
 };
 
-const useStatusBar = (): StatusBarContextValue => {
+export const useStatusBar = (): StatusBarContextValue => {
   const ctx = useContext(StatusBarContext);
   if (!ctx) {
     throw new Error("useStatusBar 必须在 <StatusBarProvider> 内调用");
@@ -90,7 +93,10 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
   if (!ctx) return null;
   const { message, permanent } = ctx;
   return (
-    <div className="a4n-status-bar flex h-6 shrink-0 select-none items-center justify-between gap-2 border-t border-book-border/70 bg-book-bg-tertiary/80 px-2">
+    <div
+      className="a4n-status-bar flex min-h-6 shrink-0 select-none items-center justify-between gap-2 border-t border-book-border/70 px-2"
+      data-compact={actions == null ? "true" : undefined}
+    >
       <div className="a4n-status-bar__message flex min-w-0 items-center gap-2" role="status" aria-live="polite">
         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" aria-hidden="true" />
         <span className="truncate text-small text-book-text-sub">{message}</span>

@@ -1,11 +1,12 @@
 use std::collections::BTreeMap;
 
+use a4n_api_contract::profile::SceneProfileInput;
 use a4n_core::error::AppError;
 use a4n_db::DbHandle;
 
 use super::OrchestratorContext;
 use crate::scene_profile::{
-    SceneProfileDraft, SceneProfileEvidenceRecordInput, SceneSyncInput, SceneSyncRecordResult,
+    SceneProfileEvidenceRecordInput, SceneSyncInput, SceneSyncRecordResult,
     normalize_scene_profile_record_input, normalize_scene_sync_record_input,
     scene_profile_db_error,
 };
@@ -47,13 +48,13 @@ impl SceneProfileApplication {
         .map_err(scene_profile_db_error)
     }
 
-    /// 规范化草稿后创建场景档案。
+    /// 规范化 API 输入后创建场景档案。
     async fn create_scene_profile_validated(
         &self,
         project_id: i64,
-        draft: SceneProfileDraft,
+        input: SceneProfileInput,
     ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
-        let record = normalize_scene_profile_record_input(draft)?;
+        let record = normalize_scene_profile_record_input(input)?;
         a4n_db::scene_profile::create_scene_profile_record_checked(
             self.database.connection(),
             project_id,
@@ -63,13 +64,13 @@ impl SceneProfileApplication {
         .map_err(scene_profile_db_error)
     }
 
-    /// 规范化草稿后更新场景档案。
+    /// 规范化 API 输入后更新场景档案。
     async fn update_scene_profile_validated(
         &self,
         scene_profile_id: i64,
-        draft: SceneProfileDraft,
+        input: SceneProfileInput,
     ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
-        let record = normalize_scene_profile_record_input(draft)?;
+        let record = normalize_scene_profile_record_input(input)?;
         a4n_db::scene_profile::update_scene_profile_record_checked(
             self.database.connection(),
             scene_profile_id,
@@ -153,25 +154,25 @@ impl OrchestratorContext {
             .await
     }
 
-    /// 创建场景档案：规范化草稿后落库。
+    /// 创建场景档案：规范化 API 输入后落库。
     pub async fn create_scene_profile_validated(
         &self,
         project_id: i64,
-        draft: SceneProfileDraft,
+        input: SceneProfileInput,
     ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
         self.scene_profile
-            .create_scene_profile_validated(project_id, draft)
+            .create_scene_profile_validated(project_id, input)
             .await
     }
 
-    /// 更新场景档案：规范化草稿后落库。
+    /// 更新场景档案：规范化 API 输入后落库。
     pub async fn update_scene_profile_validated(
         &self,
         scene_profile_id: i64,
-        draft: SceneProfileDraft,
+        input: SceneProfileInput,
     ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
         self.scene_profile
-            .update_scene_profile_validated(scene_profile_id, draft)
+            .update_scene_profile_validated(scene_profile_id, input)
             .await
     }
 

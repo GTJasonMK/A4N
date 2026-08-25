@@ -3,6 +3,7 @@ use chrono::NaiveDateTime;
 use serde_json::json;
 
 use a4n_core::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::rules::{SceneProfileDraftTracker, merge_scene_profile_record_input};
 use crate::scene_profile::{SceneProfileDbError, SceneProfileRecordDraft, SceneProfileRecordInput};
@@ -161,4 +162,106 @@ fn draft_tracker_rejects_duplicate_name_and_explicit_profile_id() {
         Err(SceneProfileDbError::InvalidArgument(message))
             if message == "场景同步重复引用同一场景档案: 9"
     ));
+}
+
+#[tokio::test]
+async fn profile_orchestration_preloads_existing_profiles_without_changing_mapping() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "场景档案批量预读取".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let existing = crate::scene_profile::create_scene_profile_record(
+        &db,
+        project.id,
+        input("大厅", "大厅"),
+        PROFILE_OWNERSHIP_AI_SYNC,
+    )
+    .await
+    .unwrap();
+
+    let result = super::orchestration::upsert_scene_profile_records(
+        &db,
+        project.id,
+        &[
+            draft("existing", "大厅", "大厅", Some(existing.id)),
+            draft("new", "走廊", "走廊", None),
+        ],
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(result.get("existing"), Some(&existing.id));
+    let new_id = *result.get("new").expect("new profile id");
+    assert_ne!(new_id, existing.id);
+    let rows = scene_profile::Entity::find()
+        .filter(scene_profile::Column::ProjectId.eq(project.id))
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 2);
+}
+
+#[tokio::test]
+async fn profile_orchestration_updates_existing_profiles_in_one_batch() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_project_record(
+        &db,
+        crate::project::CreateProjectRecordInput {
+            user_id: 1,
+            title: "场景档案批量更新".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let initial = (0..20)
+        .map(|index| {
+            draft(
+                &format!("scene-{index}"),
+                &format!("场景 {index}"),
+                &format!("场景-{index}"),
+                None,
+            )
+        })
+        .collect::<Vec<_>>();
+    super::orchestration::upsert_scene_profile_records(&db, project.id, &initial)
+        .await
+        .unwrap();
+
+    let refreshed = (0..20)
+        .map(|index| {
+            let mut scene = draft(
+                &format!("scene-{index}"),
+                &format!("刷新场景 {index}"),
+                &format!("场景-{index}"),
+                None,
+            );
+            scene.input.visual_description = format!("刷新视觉 {index}");
+            scene
+        })
+        .collect::<Vec<_>>();
+    let mapping = super::orchestration::upsert_scene_profile_records(&db, project.id, &refreshed)
+        .await
+        .unwrap();
+
+    assert_eq!(mapping.len(), 20);
+    let rows = scene_profile::Entity::find()
+        .filter(scene_profile::Column::ProjectId.eq(project.id))
+        .all(&db)
+        .await
+        .unwrap();
+    assert_eq!(rows.len(), 20);
+    assert!(
+        rows.iter()
+            .all(|row| row.visual_description.starts_with("刷新视觉 "))
+    );
 }

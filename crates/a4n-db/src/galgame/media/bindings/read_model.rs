@@ -1,7 +1,12 @@
-use crate::galgame::{GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE, GalgameMediaBindingReadModel};
+use crate::galgame::{
+    GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE, GalgameMediaAssetReadRecord,
+    GalgameMediaBindingReadModel, GalgameMediaBindingReadRecord,
+};
 use a4n_core::models::media::{media_asset, media_binding};
-use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder};
-use std::collections::BTreeSet;
+use sea_orm::{
+    ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
+use std::collections::HashSet;
 
 pub(in crate::galgame) async fn galgame_media_binding_read_model(
     db: &DatabaseConnection,
@@ -27,11 +32,18 @@ pub(in crate::galgame) async fn galgame_media_binding_read_model(
         );
     }
     let bindings = media_binding::Entity::find()
+        .select_only()
+        .column(media_binding::Column::Id)
+        .column(media_binding::Column::MediaAssetId)
+        .column(media_binding::Column::TargetKind)
+        .column(media_binding::Column::TargetId)
+        .column(media_binding::Column::Role)
         .filter(condition)
         .order_by_asc(media_binding::Column::TargetKind)
         .order_by_asc(media_binding::Column::TargetId)
         .order_by_asc(media_binding::Column::Role)
         .order_by_asc(media_binding::Column::Id)
+        .into_model::<GalgameMediaBindingReadRecord>()
         .all(db)
         .await?;
     if bindings.is_empty() {
@@ -40,9 +52,15 @@ pub(in crate::galgame) async fn galgame_media_binding_read_model(
     let asset_ids = bindings
         .iter()
         .map(|binding| binding.media_asset_id)
-        .collect::<BTreeSet<_>>();
+        .collect::<HashSet<_>>();
     let assets = media_asset::Entity::find()
+        .select_only()
+        .column(media_asset::Column::Id)
+        .column(media_asset::Column::MediaKind)
+        .column(media_asset::Column::FilePath)
+        .column(media_asset::Column::ThumbnailPath)
         .filter(media_asset::Column::Id.is_in(asset_ids))
+        .into_model::<GalgameMediaAssetReadRecord>()
         .all(db)
         .await?;
     Ok(GalgameMediaBindingReadModel { bindings, assets })

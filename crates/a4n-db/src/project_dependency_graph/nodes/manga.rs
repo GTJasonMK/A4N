@@ -1,18 +1,17 @@
 use std::collections::BTreeSet;
 
-use a4n_core::models::{
-    ai::generated_image,
-    chapter::{chapter, chapter_manga_prompt},
-};
 use serde_json::json;
 
+use crate::project_dependency_graph::graph::{
+    ChapterGraphRow, GeneratedImageGraphRow, MangaPromptGraphRow,
+};
 use crate::project_dependency_graph::{GraphBuilder, NodeSeedMetadata, node};
 
 pub(in crate::project_dependency_graph) fn add_manga_nodes(
     graph: &mut GraphBuilder,
-    chapters: &[chapter::Model],
-    manga_prompts: &[chapter_manga_prompt::Model],
-    generated_images: &[generated_image::Model],
+    chapters: &[ChapterGraphRow],
+    manga_prompts: &[MangaPromptGraphRow],
+    generated_images: &[GeneratedImageGraphRow],
 ) {
     let prompt_stats = manga_prompt_stats(manga_prompts);
     graph.add_node(node(
@@ -94,7 +93,7 @@ impl MangaPromptStats {
     }
 }
 
-fn manga_prompt_stats(manga_prompts: &[chapter_manga_prompt::Model]) -> MangaPromptStats {
+fn manga_prompt_stats(manga_prompts: &[MangaPromptGraphRow]) -> MangaPromptStats {
     let mut stats = MangaPromptStats {
         visible_count: 0,
         linked_image_count: 0,

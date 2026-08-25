@@ -1,5 +1,5 @@
 use super::*;
-use crate::project::{CreateProjectRecordInput, PROJECT_TYPE_NOVEL_LONG, create_project_record};
+use crate::project::{CreateProjectRecordInput, create_project_record};
 use a4n_core::models::{
     project::{project_invite, project_member},
     user::user,
@@ -33,7 +33,7 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
             user_id: owner.id,
             title: "协作合同测试".to_string(),
             description: String::new(),
-            project_type: PROJECT_TYPE_NOVEL_LONG.to_string(),
+            project_type: "novel_long".to_string(),
         },
     )
     .await
@@ -119,6 +119,23 @@ async fn collaboration_flow_keeps_reads_pure_and_mutations_explicit() {
             .expect("已接受邀请应存在")
             .status,
         INVITE_STATUS_ACCEPTED
+    );
+    assert_eq!(
+        project_ids_with_permission(
+            &db,
+            &[project.id, project.id, i64::MAX],
+            invitee.id,
+            ProjectAccessRole::Editor,
+        )
+        .await
+        .expect("批量权限筛选应成功"),
+        vec![project.id]
+    );
+    assert!(
+        project_ids_with_permission(&db, &[project.id], invitee.id, ProjectAccessRole::Manager)
+            .await
+            .expect("批量权限不足筛选应成功")
+            .is_empty()
     );
 
     leave_project(&db, invitee.id, project.id)

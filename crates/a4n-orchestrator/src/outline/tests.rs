@@ -9,7 +9,7 @@ use super::{
     chapter_contract::{
         optional_i32, parse_beat_sheet_json, parse_chapter_outline_batch,
         parse_outline_json_object, reject_keys, reject_unknown_keys, required_part_summary,
-        required_string, sync_chapter_outlines_by_number, validate_chapter_generation_range,
+        required_string, sync_chapter_outlines_by_number_in, validate_chapter_generation_range,
         validate_chapter_outline_generation_request, validate_requested_part_context,
     },
     context::{
@@ -18,11 +18,10 @@ use super::{
     },
     ensure_response_not_truncated, order_parts_for_batch_generation,
     part_contract::{
-        PartGenerationPlan, PartOutlineDraft, chapter_outline_ids_in_part_range,
-        chapter_outline_ids_in_part_ranges, ensure_continue_part_request,
-        infer_chapters_per_part_from_existing, parse_part_outline_single_response,
-        resolve_part_generation_plan, sync_chapter_outline_part_assignments, sync_part_outlines,
-        validate_existing_parts_for_plan, validate_part_generation_inputs,
+        PartOutlineDraft, ensure_continue_part_request, infer_chapters_per_part_from_existing,
+        parse_part_outline_single_response, resolve_part_generation_plan,
+        sync_part_outlines_and_assign_chapters_in, validate_existing_parts_for_plan,
+        validate_part_generation_inputs,
     },
     report_progress, validate_existing_chapter_outline_for_request,
 };
@@ -35,6 +34,7 @@ use a4n_core::models::{
     project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
     scene::scene_profile,
 };
+use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgressPart};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
@@ -142,22 +142,22 @@ fn completed_part_count_requires_full_completed_chapter_range() {
     let parts = [(1, 2), (3, 4), (5, 5)]
         .into_iter()
         .enumerate()
-        .map(|(index, (start, end))| {
-            let mut part = sample_part_for_plan(index as i32 + 1, start, end);
-            part.id = index as i64 + 1;
-            part
+        .map(|(index, (start, end))| OutlineGenerationProgressPart {
+            id: index as i64 + 1,
+            start_chapter: start,
+            end_chapter: end,
         })
         .collect::<Vec<_>>();
     let outlines = (1..=5)
-        .map(|chapter_number| {
-            let mut outline = sample_chapter_outline(chapter_number, None);
-            outline.status = if chapter_number == 4 {
+        .map(|chapter_number| OutlineGenerationProgressChapter {
+            id: 100 + i64::from(chapter_number),
+            chapter_number,
+            status: if chapter_number == 4 {
                 chapter_outline::STATUS_DRAFT
             } else {
                 chapter_outline::STATUS_COMPLETED
             }
-            .to_string();
-            outline
+            .to_string(),
         })
         .collect::<Vec<_>>();
 
@@ -166,15 +166,33 @@ fn completed_part_count_requires_full_completed_chapter_range() {
 
 #[test]
 fn completed_part_count_rejects_duplicate_or_overlapping_chapters() {
-    let part = sample_part_for_plan(1, 1, 2);
-    let mut first = sample_chapter_outline(1, None);
-    first.status = chapter_outline::STATUS_COMPLETED.to_string();
+    let part = OutlineGenerationProgressPart {
+        id: 1,
+        start_chapter: 1,
+        end_chapter: 2,
+    };
+    let first = OutlineGenerationProgressChapter {
+        id: 101,
+        chapter_number: 1,
+        status: chapter_outline::STATUS_COMPLETED.to_string(),
+    };
     let mut duplicate = first.clone();
     duplicate.id += 1;
     let error = completed_part_count(&[part], &[first, duplicate]).unwrap_err();
     assert!(error.to_string().contains("存在重复章节大纲"));
 
-    let parts = [sample_part_for_plan(1, 1, 2), sample_part_for_plan(2, 2, 3)];
+    let parts = [
+        OutlineGenerationProgressPart {
+            id: 1,
+            start_chapter: 1,
+            end_chapter: 2,
+        },
+        OutlineGenerationProgressPart {
+            id: 2,
+            start_chapter: 2,
+            end_chapter: 3,
+        },
+    ];
     let error = completed_part_count(&parts, &[]).unwrap_err();
     assert!(error.to_string().contains("被多个分部范围覆盖"));
 }

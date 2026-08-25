@@ -2,8 +2,8 @@ use crate::galgame::ReplaceGalgameChoiceRecordInput;
 use a4n_core::models::galgame::galgame_choice;
 use chrono::Utc;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
-    QueryFilter, QueryOrder, Set, TransactionTrait,
+    ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
+    Set, TransactionTrait,
 };
 
 pub async fn replace_galgame_choice_records_transaction(
@@ -31,17 +31,21 @@ where
         .await?;
 
     let now = Utc::now().naive_utc();
-    for choice in choices {
-        galgame_choice::ActiveModel {
+    let rows = choices
+        .into_iter()
+        .map(|choice| galgame_choice::ActiveModel {
             line_id: Set(line_id),
             option_index: Set(choice.option_index),
             option_text: Set(choice.option_text),
             target_scene_id: Set(Some(choice.target_scene_id)),
             created_at: Set(now),
             ..Default::default()
-        }
-        .insert(db)
-        .await?;
+        })
+        .collect::<Vec<_>>();
+    if !rows.is_empty() {
+        galgame_choice::Entity::insert_many(rows)
+            .exec_without_returning(db)
+            .await?;
     }
 
     galgame_choice::Entity::find()

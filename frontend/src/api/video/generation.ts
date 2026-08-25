@@ -6,12 +6,14 @@ import { verifyGeneratedMediaResult } from "../generationResultVerification";
 import type { GenerationTaskViewState } from "../../utils/generationEventReducer";
 import type {
   GenerationTaskHandle,
+  GenerationStartRequestMeta,
   StartVideoGenerationInput,
   VideoGenerationOperation,
 } from "../generated/generationContracts";
 import { normalizeVideoConfigId } from "./configs";
 import { listVideosByChapter } from "./records";
 import type { GeneratedVideo } from "./types";
+import { getActiveLocale, translateMessage } from "../../i18n";
 
 type VideoGenerationInput = Omit<StartVideoGenerationInput, "meta">;
 
@@ -19,18 +21,18 @@ export async function startVideoGeneration(
   input: VideoGenerationInput,
   retryOfTaskId?: string | null,
 ): Promise<GenerationTaskHandle> {
-  return generationClient.start(
-    (meta) =>
-      apiInvoke<GenerationTaskHandle>("start_video_generation", {
-        input: {
-          ...input,
-          meta,
-          project_id: idNum(input.project_id, "项目 ID"),
-          operation: normalizeVideoGenerationOperation(input.operation),
-        },
-      }),
-    retryOfTaskId,
-  );
+  const start = (meta: GenerationStartRequestMeta) =>
+    apiInvoke<GenerationTaskHandle>("start_video_generation", {
+      input: {
+        ...input,
+        meta,
+        project_id: idNum(input.project_id, "项目 ID"),
+        operation: normalizeVideoGenerationOperation(input.operation),
+      },
+    });
+  return retryOfTaskId == null
+    ? generationClient.start(start)
+    : generationClient.start(start, retryOfTaskId);
 }
 
 export async function verifyVideoGenerationResult(
@@ -51,7 +53,7 @@ export async function verifyVideoGenerationResult(
       video.project_id === project
       && video.chapter_id === chapter
       && video.status === "completed",
-    errorMessage: "视频生成已结束，但正式结果校验失败",
+    errorMessage: translateMessage(getActiveLocale(), "errors.mediaGenerationConsistencyFailed"),
   });
 }
 

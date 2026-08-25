@@ -2,9 +2,21 @@ use super::super::SourceSyncDbError;
 use super::contracts::SourceSnapshotChapterChangeRecord;
 use a4n_core::models::project::source_snapshot_chapter;
 use a4n_domain::source_sync::SourceSyncChangeKind;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
+};
 use serde_json::json;
 use std::collections::HashMap;
+
+#[derive(Debug, FromQueryResult)]
+struct SnapshotChapterDiffRow {
+    id: i64,
+    source_chapter_id: i64,
+    chapter_number: i32,
+    title: Option<String>,
+    content_hash: String,
+    analysis_hash: Option<String>,
+}
 
 pub(in crate::source_sync::snapshots) async fn diff_snapshot_chapter_records<C>(
     db: &C,
@@ -15,11 +27,27 @@ where
     C: ConnectionTrait,
 {
     let from_rows = source_snapshot_chapter::Entity::find()
+        .select_only()
+        .column(source_snapshot_chapter::Column::Id)
+        .column(source_snapshot_chapter::Column::SourceChapterId)
+        .column(source_snapshot_chapter::Column::ChapterNumber)
+        .column(source_snapshot_chapter::Column::Title)
+        .column(source_snapshot_chapter::Column::ContentHash)
+        .column(source_snapshot_chapter::Column::AnalysisHash)
         .filter(source_snapshot_chapter::Column::SnapshotId.eq(from_snapshot_id))
+        .into_model::<SnapshotChapterDiffRow>()
         .all(db)
         .await?;
     let to_rows = source_snapshot_chapter::Entity::find()
+        .select_only()
+        .column(source_snapshot_chapter::Column::Id)
+        .column(source_snapshot_chapter::Column::SourceChapterId)
+        .column(source_snapshot_chapter::Column::ChapterNumber)
+        .column(source_snapshot_chapter::Column::Title)
+        .column(source_snapshot_chapter::Column::ContentHash)
+        .column(source_snapshot_chapter::Column::AnalysisHash)
         .filter(source_snapshot_chapter::Column::SnapshotId.eq(to_snapshot_id))
+        .into_model::<SnapshotChapterDiffRow>()
         .all(db)
         .await?;
     let to_by_source = to_rows

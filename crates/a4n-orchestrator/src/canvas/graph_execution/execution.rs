@@ -1,8 +1,9 @@
+use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_db::canvas::validate_canvas_record_document_edge_contract;
 
 use crate::{
     OrchestratorContext,
-    canvas::{CanvasNodeRunHandle, CanvasNodeRunSummary},
+    canvas::CanvasNodeRunHandle,
     workflow::{
         WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
         WORKFLOW_STATUS_RUNNING,
@@ -19,7 +20,7 @@ impl OrchestratorContext {
         &self,
         prepared: PreparedCanvasGraphRun,
         host_port: &dyn CanvasGraphExecutionHostPort,
-    ) -> Result<CanvasNodeRunSummary, String> {
+    ) -> Result<CanvasRunSummary, String> {
         match self
             .execute_prepared_canvas_graph(&prepared, host_port)
             .await
@@ -39,7 +40,7 @@ impl OrchestratorContext {
                     .fail_workflow_run_validated(prepared.workflow_run_id, primary.as_str())
                     .await
                 {
-                    Ok(failed) => Ok(CanvasNodeRunSummary {
+                    Ok(failed) => Ok(CanvasRunSummary {
                         workflow_run_id: failed.id,
                         project_id: prepared.project_id,
                         graph_id: prepared.graph_id,
@@ -59,7 +60,7 @@ impl OrchestratorContext {
         &self,
         prepared: &PreparedCanvasGraphRun,
         host_port: &dyn CanvasGraphExecutionHostPort,
-    ) -> Result<CanvasNodeRunSummary, String> {
+    ) -> Result<CanvasRunSummary, String> {
         let shared_run = CanvasNodeRunHandle {
             workflow_run_id: prepared.workflow_run_id,
             finalize_on_success: false,
@@ -126,7 +127,7 @@ impl OrchestratorContext {
                 .complete_canvas_graph_workflow_validated(prepared.workflow_run_id)
                 .await
                 .map_err(|error| error.to_string())?;
-            return Ok(CanvasNodeRunSummary {
+            return Ok(CanvasRunSummary {
                 workflow_run_id: completed.id,
                 project_id: prepared.project_id,
                 graph_id: prepared.graph_id,
@@ -142,6 +143,6 @@ impl OrchestratorContext {
 fn cancelled_canvas_graph_summary(
     prepared: &PreparedCanvasGraphRun,
     reason: String,
-) -> CanvasNodeRunSummary {
+) -> CanvasRunSummary {
     prepared.summary(WORKFLOW_STATUS_CANCELLED, Some(reason))
 }

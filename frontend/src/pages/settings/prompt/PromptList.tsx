@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { PromptEntry } from "../../../api/prompt";
+import { useI18n } from "../../../i18n";
 
 interface PromptListProps {
   prompts: PromptEntry[];
@@ -15,6 +16,7 @@ export const PromptList: React.FC<PromptListProps> = ({
   selectedName,
   onSelect,
 }) => {
+  const { t } = useI18n();
   const selectedRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -34,12 +36,12 @@ export const PromptList: React.FC<PromptListProps> = ({
     <ul className="a4n-flat-surface custom-scrollbar max-h-48 divide-y divide-book-border/35 overflow-y-auto overflow-x-hidden md:max-h-none">
       {loading && prompts.length === 0 && (
         <li className="flex items-center gap-2 p-3 text-xs text-book-text-muted">
-          <LoadingSpinner size="sm" /> 加载…
+          <LoadingSpinner size="sm" /> {t("settingsPrompt.loading")}
         </li>
       )}
       {!loading && prompts.length === 0 && (
         <li className="p-3 text-center text-xs text-book-text-muted">
-          该分类下没有匹配的提示词
+          {t("settingsPrompt.noMatchingPrompts")}
         </li>
       )}
       {prompts.map((prompt) => {
@@ -58,14 +60,14 @@ export const PromptList: React.FC<PromptListProps> = ({
               }`}
             >
               <div className="mb-0.5 break-words font-medium">
-                {prompt.title || "未命名提示词"}
+                {prompt.title || t("settingsPrompt.untitledPrompt")}
               </div>
               <div
                 className={`break-words text-small ${
                   isSelected ? "text-book-primary" : "text-book-text-muted"
                 }`}
               >
-                {prompt.description || "暂无说明"}
+                {prompt.description || t("settingsPrompt.noDescription")}
               </div>
               {prompt.is_modified ? (
                 <div
@@ -73,7 +75,7 @@ export const PromptList: React.FC<PromptListProps> = ({
                     isSelected ? "text-book-primary" : "text-warning"
                   }`}
                 >
-                  已自定义
+                  {t("settingsPrompt.customized")}
                 </div>
               ) : null}
             </button>

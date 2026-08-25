@@ -35,7 +35,7 @@ async fn sync_chapter_outlines_by_number_preserves_existing_ids_and_inserts_miss
     .insert(&db)
     .await
     .unwrap();
-    let rows = sync_chapter_outlines_by_number(
+    let rows = sync_chapter_outlines_by_number_in(
         &db,
         project_id,
         Some(part.id),
