@@ -29,18 +29,16 @@ impl OrchestratorContext {
         chapter_number: i32,
         outline: Option<&chapter_outline::Model>,
     ) -> Result<Option<String>, String> {
-        let rows = self
-            .chapter_generation_reference_context_rows(project_id)
-            .await
-            .map_err(|error| error.to_string())?;
+        let (rows_result, foreshadowing_result) = futures::join!(
+            self.chapter_generation_reference_context_rows(project_id),
+            self.pending_foreshadowing_for_project(project_id, 20),
+        );
+        let rows = rows_result.map_err(|error| error.to_string())?;
         let blueprint = rows.blueprint;
         let characters = rows.characters;
         let relationships = rows.relationships;
         let protagonist_profiles = rows.protagonist_profiles;
-        let foreshadowing = self
-            .pending_foreshadowing_for_project(project_id, 20)
-            .await
-            .map_err(|error| error.to_string())?;
+        let foreshadowing = foreshadowing_result.map_err(|error| error.to_string())?;
 
         let mut sections = Vec::new();
         if let Some(blueprint) = blueprint.as_ref() {

@@ -52,13 +52,16 @@ impl OrchestratorContext {
             .chapter_manga_source_by_number(project_id, chapter_number, true)
             .await?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
-        self.ensure_media_workflow_v2_ready(project_id).await?;
-        self.require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
-            project_id,
-            source_chapter_id: source.chapter_id,
-            visual_plan_id: None,
-        })
-        .await?;
+        let (media_ready_result, shooting_script_result) = futures::join!(
+            self.ensure_media_workflow_v2_ready(project_id),
+            self.require_current_chapter_shooting_script(ChapterShootingScriptSourceInput {
+                project_id,
+                source_chapter_id: source.chapter_id,
+                visual_plan_id: None,
+            }),
+        );
+        media_ready_result?;
+        shooting_script_result?;
         Ok(())
     }
 
@@ -66,11 +69,13 @@ impl OrchestratorContext {
         &self,
         input: MangaPipelineApplicationInput<'_>,
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
-        let source = self
-            .chapter_manga_source_by_number(input.project_id, input.chapter_number, true)
-            .await?;
+        let (source_result, character_portraits_result) = futures::join!(
+            self.chapter_manga_source_by_number(input.project_id, input.chapter_number, true),
+            self.manga_character_portrait_refs(input.project_id),
+        );
+        let source = source_result?;
         ensure_manga_source_can_write(&source, "启动漫画流水线")?;
-        let character_portraits = self.manga_character_portrait_refs(input.project_id).await?;
+        let character_portraits = character_portraits_result?;
         let workflow = self
             .begin_manga_pipeline_workflow_validated(
                 input.project_id,
@@ -100,11 +105,13 @@ impl OrchestratorContext {
         &self,
         input: MangaPipelinePreviewApplicationInput<'_>,
     ) -> Result<Vec<MangaPipelineRequestPreviewStep>, AppError> {
-        let source = self
-            .chapter_manga_source_by_number(input.project_id, input.chapter_number, true)
-            .await?;
+        let (source_result, character_portraits_result) = futures::join!(
+            self.chapter_manga_source_by_number(input.project_id, input.chapter_number, true),
+            self.manga_character_portrait_refs(input.project_id),
+        );
+        let source = source_result?;
         ensure_manga_source_can_write(&source, "预览漫画流水线提示词")?;
-        let character_portraits = self.manga_character_portrait_refs(input.project_id).await?;
+        let character_portraits = character_portraits_result?;
         let workflow_fingerprint =
             manga_pipeline_fingerprint(&source.content, &character_portraits);
         let workflow_run_id = if input.resume_from_checkpoint {
@@ -552,10 +559,12 @@ impl OrchestratorContext {
             return Ok(());
         }
         let family = self.derived_project_family_context(project_id).await?;
-        self.verify_project_permission(family.project.id, user_id, required)
-            .await?;
-        self.verify_project_permission(family.root_project.id, user_id, required)
-            .await?;
+        let (project_result, root_project_result) = futures::join!(
+            self.verify_project_permission(family.project.id, user_id, required),
+            self.verify_project_permission(family.root_project.id, user_id, required),
+        );
+        project_result?;
+        root_project_result?;
         Ok(())
     }
 }

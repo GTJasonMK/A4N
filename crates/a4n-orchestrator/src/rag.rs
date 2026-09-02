@@ -38,7 +38,7 @@ pub use search::{
     normalize_search_data_types, required_nonblank, required_top_k,
 };
 pub(crate) use search::{
-    hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_validated_embedding_in_store,
+    embed_queries_in_batch, hybrid_rag_search_with_validated_embedding_in_store,
     identity_scoped_search_filter,
 };
 pub use sync::{

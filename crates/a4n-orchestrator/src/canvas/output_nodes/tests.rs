@@ -205,6 +205,7 @@ async fn canvas_output_application_persists_text_image_audio_and_video_artifacts
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some("输出节点测试画布".to_string()),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,
@@ -340,6 +341,7 @@ async fn canvas_output_application_marks_workflow_failed_when_artifact_is_missin
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some("输出失败测试画布".to_string()),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,

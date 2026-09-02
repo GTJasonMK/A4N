@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
@@ -147,7 +148,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
         </label>
         <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
           <span>{t("characterDetail.behavior.displayCount")}</span>
-          <select
+          <ThemedSelect
             value={limit}
             disabled={loading}
             onChange={(event) => {
@@ -163,7 +164,7 @@ export const BehaviorManager: React.FC<{ profileId: number }> = ({ profileId }) 
             <option value={20}>{t("characterDetail.behavior.count", { count: 20 })}</option>
             <option value={50}>{t("characterDetail.behavior.count", { count: 50 })}</option>
             <option value={100}>{t("characterDetail.behavior.count", { count: 100 })}</option>
-          </select>
+          </ThemedSelect>
         </label>
         <BookButton
           variant="secondary"

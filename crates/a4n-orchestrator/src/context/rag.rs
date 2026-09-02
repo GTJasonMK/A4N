@@ -109,6 +109,20 @@ impl RagApplication {
             .map_err(AppError::Database)
     }
 
+    async fn character_states_for_rag_ingest_before_chapter(
+        &self,
+        profile_ids: &[i64],
+        chapter_number: i32,
+    ) -> Result<Vec<character_state_index::Model>, AppError> {
+        a4n_db::rag::character_states_for_rag_ingest_before_chapter(
+            self.database.connection(),
+            profile_ids,
+            chapter_number,
+        )
+        .await
+        .map_err(AppError::Database)
+    }
+
     async fn attribute_events_for_rag_ingest(
         &self,
         profile_ids: &[i64],
@@ -116,6 +130,20 @@ impl RagApplication {
         a4n_db::rag::attribute_events_for_rag_ingest(self.database.connection(), profile_ids)
             .await
             .map_err(AppError::Database)
+    }
+
+    async fn attribute_events_for_rag_ingest_before_chapter(
+        &self,
+        profile_ids: &[i64],
+        chapter_number: i32,
+    ) -> Result<Vec<attribute_event::Model>, AppError> {
+        a4n_db::rag::attribute_events_for_rag_ingest_before_chapter(
+            self.database.connection(),
+            profile_ids,
+            chapter_number,
+        )
+        .await
+        .map_err(AppError::Database)
     }
 
     async fn scene_profiles_for_rag_ingest(
@@ -287,11 +315,31 @@ impl OrchestratorContext {
         self.rag.character_states_for_rag_ingest(profile_ids).await
     }
 
+    pub(crate) async fn character_states_for_rag_ingest_before_chapter(
+        &self,
+        profile_ids: &[i64],
+        chapter_number: i32,
+    ) -> Result<Vec<character_state_index::Model>, AppError> {
+        self.rag
+            .character_states_for_rag_ingest_before_chapter(profile_ids, chapter_number)
+            .await
+    }
+
     pub async fn attribute_events_for_rag_ingest(
         &self,
         profile_ids: &[i64],
     ) -> Result<Vec<attribute_event::Model>, AppError> {
         self.rag.attribute_events_for_rag_ingest(profile_ids).await
+    }
+
+    pub(crate) async fn attribute_events_for_rag_ingest_before_chapter(
+        &self,
+        profile_ids: &[i64],
+        chapter_number: i32,
+    ) -> Result<Vec<attribute_event::Model>, AppError> {
+        self.rag
+            .attribute_events_for_rag_ingest_before_chapter(profile_ids, chapter_number)
+            .await
     }
 
     pub async fn scene_profiles_for_rag_ingest(

@@ -43,8 +43,12 @@ impl OrchestratorContext {
                 "video_library_image_ids 最多选择 {MAX_VIDEO_LIBRARY_IMAGE_IDS} 张"
             )));
         }
-        let chapter = self.get_chapter(chapter_id).await?;
-        let allowed_project_ids = self.video_asset_project_ids(project_id).await?;
+        let (chapter, allowed_project_ids) = futures::join!(
+            self.get_chapter(chapter_id),
+            self.video_asset_project_ids(project_id),
+        );
+        let chapter = chapter?;
+        let allowed_project_ids = allowed_project_ids?;
         let mut candidates = VideoAssetCandidates::default();
 
         let explicit_reference_ids = reference_image_ids
@@ -52,14 +56,36 @@ impl OrchestratorContext {
             .copied()
             .chain(explicit_image_ids.iter().copied())
             .collect::<Vec<_>>();
-        if !explicit_reference_ids.is_empty() {
-            let explicit_rows = a4n_db::video::video_library_explicit_image_records(
-                self.database.connection(),
+        let (explicit_rows, chapter_images, profile_candidates) = futures::join!(
+            async {
+                if explicit_reference_ids.is_empty() {
+                    return Ok::<Vec<generated_image::Model>, AppError>(Vec::new());
+                }
+                a4n_db::video::video_library_explicit_image_records(
+                    self.database.connection(),
+                    &allowed_project_ids,
+                    &explicit_reference_ids,
+                )
+                .await
+                .map_err(AppError::Database)
+            },
+            async {
+                a4n_db::video::video_library_chapter_image_records(
+                    self.database.connection(),
+                    &allowed_project_ids,
+                    chapter_id,
+                )
+                .await
+                .map_err(AppError::Database)
+            },
+            self.relevant_profile_material_candidates(
                 &allowed_project_ids,
-                &explicit_reference_ids,
-            )
-            .await
-            .map_err(AppError::Database)?;
+                chapter.chapter_number,
+                source,
+            ),
+        );
+        let explicit_rows = explicit_rows?;
+        if !explicit_reference_ids.is_empty() {
             let found_ids = explicit_rows
                 .iter()
                 .map(|image| image.id)
@@ -113,13 +139,7 @@ impl OrchestratorContext {
             }
         }
 
-        let chapter_images = a4n_db::video::video_library_chapter_image_records(
-            self.database.connection(),
-            &allowed_project_ids,
-            chapter_id,
-        )
-        .await
-        .map_err(AppError::Database)?;
+        let chapter_images = chapter_images?;
         for (index, image) in chapter_images.into_iter().enumerate() {
             if is_chapter_video_material(image.metadata_json.as_ref()) {
                 candidates.push(VideoAssetCandidate::new(
@@ -132,14 +152,7 @@ impl OrchestratorContext {
             }
         }
 
-        for candidate in self
-            .relevant_profile_material_candidates(
-                &allowed_project_ids,
-                chapter.chapter_number,
-                source,
-            )
-            .await?
-        {
+        for candidate in profile_candidates? {
             candidates.push(candidate);
         }
 

@@ -1,3 +1,5 @@
+import type { ImageSize } from "../../../api/image";
+
 export type ImageProvider = string;
 
 export interface ImageForm {
@@ -8,6 +10,6 @@ export interface ImageForm {
   api_key: string;
   has_api_key: boolean;
   clear_api_key: boolean;
-  size: string;
+  supported_sizes: ImageSize[];
   max_concurrent: number;
 }

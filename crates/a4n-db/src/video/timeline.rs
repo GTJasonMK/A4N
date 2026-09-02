@@ -236,18 +236,17 @@ pub async fn chapter_video_timeline_snapshot(
             "timeline_id 必须大于 0".to_string(),
         ));
     }
-    let timeline = chapter_video_timeline::Entity::find_by_id(timeline_id)
-        .one(db)
-        .await
-        .map_err(VideoDbError::Database)?
-        .ok_or_else(|| VideoDbError::NotFound(format!("时间线不存在: {timeline_id}")))?;
-    let items = chapter_video_timeline_item::Entity::find()
+    let timeline_result = chapter_video_timeline::Entity::find_by_id(timeline_id).one(db);
+    let items_result = chapter_video_timeline_item::Entity::find()
         .filter(chapter_video_timeline_item::Column::TimelineId.eq(timeline_id))
         .order_by_asc(chapter_video_timeline_item::Column::Position)
         .order_by_asc(chapter_video_timeline_item::Column::Id)
-        .all(db)
-        .await
-        .map_err(VideoDbError::Database)?;
+        .all(db);
+    let (timeline_result, items_result) = futures::join!(timeline_result, items_result);
+    let timeline = timeline_result
+        .map_err(VideoDbError::Database)?
+        .ok_or_else(|| VideoDbError::NotFound(format!("时间线不存在: {timeline_id}")))?;
+    let items = items_result.map_err(VideoDbError::Database)?;
     let _ = positioned_order(&items)?;
     Ok(VideoTimelineSnapshot { timeline, items })
 }

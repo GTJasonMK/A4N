@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronRight,
   Map,
@@ -5,6 +6,7 @@ import { ChevronRight,
   RefreshCw,
   Route, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../api";
 import type { DownstreamConflictStrategy } from "../../api/generated/host";
 import {
@@ -20,6 +22,7 @@ import {
   startImageGeneration,
   verifyImageGenerationResult,
 } from "../../api/image";
+import type { ImageSize } from "../../api/image";
 
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
@@ -88,6 +91,13 @@ export const SceneProfilesTab: React.FC<{
   const { addToast } = useToast();
   const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const [syncing, setSyncing] = useState(false);
   const {
     profiles,
@@ -203,6 +213,10 @@ export const SceneProfilesTab: React.FC<{
       addToast(t("novel.profile.notInProject", { name: t("novel.profile.scene") }), "error");
       return;
     }
+    if (!imageSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const requestSeq = beginAction(requestProjectId);
     if (requestSeq == null) return;
     setBusyId(requestProfile.id);
@@ -213,6 +227,8 @@ export const SceneProfilesTab: React.FC<{
           kind: "scene_profile",
           scene_profile_id: requestProfile.id,
           style: DEFAULT_IMAGE_STYLE,
+          width: imageSize.width,
+          height: imageSize.height,
         },
       });
       await runGenerationProgressTaskThen(
@@ -497,6 +513,11 @@ export const SceneProfilesTab: React.FC<{
         profile={detailFor}
         onClose={() => setDetailFor(null)}
         onGenerate={(profile) => void handleGenerateImage(profile)}
+        imageSize={imageSize}
+        imageSizes={imageSizes}
+        imageSizeLoading={imageSizeLoading}
+        imageSizeError={imageSizeError}
+        onImageSizeChange={setImageSize}
         onEdit={(profile) => {
           if (!canEditProfiles) {
             addToast(t("novel.profile.readonlyCannot", { operation: t("common.edit"), name: t("novel.profile.scene") }), "error");
@@ -525,6 +546,11 @@ function SceneProfileDetailModal({
   profile,
   onClose,
   onGenerate,
+  imageSize,
+  imageSizes,
+  imageSizeLoading,
+  imageSizeError,
+  onImageSizeChange,
   onEdit,
   onDelete,
   busyId,
@@ -533,6 +559,11 @@ function SceneProfileDetailModal({
   profile: SceneProfile | null;
   onClose: () => void;
   onGenerate: (profile: SceneProfile) => void;
+  imageSize: ImageSize | null;
+  imageSizes: readonly ImageSize[];
+  imageSizeLoading: boolean;
+  imageSizeError: Error | null;
+  onImageSizeChange: (size: ImageSize) => void;
   onEdit: (profile: SceneProfile) => void;
   onDelete: (profile: SceneProfile) => void;
   busyId: number | null;
@@ -572,13 +603,25 @@ function SceneProfileDetailModal({
           </dl>
           <ProfileEvidence items={evidence} />
           {canEdit && (
-            <ProfileDetailActions
-              busy={busyId != null}
-              generating={busyId === profile.id}
-              onEdit={() => onEdit(profile)}
-              onDelete={() => onDelete(profile)}
-              onGenerate={() => onGenerate(profile)}
-            />
+            <>
+              <ImageSizeSelect
+                label={t("settingsForm.selectImageSize")}
+                value={imageSize}
+                sizes={imageSizes}
+                loading={imageSizeLoading}
+                error={imageSizeError}
+                disabled={busyId != null}
+                onChange={onImageSizeChange}
+              />
+              <ProfileDetailActions
+                busy={busyId != null}
+                generating={busyId === profile.id}
+                generateDisabled={imageSize == null || imageSizeLoading || imageSizeError != null}
+                onEdit={() => onEdit(profile)}
+                onDelete={() => onDelete(profile)}
+                onGenerate={() => onGenerate(profile)}
+              />
+            </>
           )}
         </div>
       ) : null}
@@ -672,7 +715,7 @@ function SceneProfileEditModal({
           />
           <label className="flex flex-col gap-1">
             <span className="text-book-text-muted">{t("novel.profile.parentScene")}</span>
-            <select
+            <ThemedSelect
               value={draft.parent_scene_id ?? ""}
               onChange={(event) =>
                 update(
@@ -690,7 +733,7 @@ function SceneProfileEditModal({
                     {item.name}
                   </option>
                 ))}
-            </select>
+            </ThemedSelect>
           </label>
           <NumberField
             label={t("novel.profile.firstChapter")}

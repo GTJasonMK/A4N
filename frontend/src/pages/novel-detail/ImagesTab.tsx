@@ -43,6 +43,7 @@ import {
 import { ImageActionDialog } from "./images/ImageActionDialog";
 import { ImageGalleryPanel } from "./images/ImageGalleryPanel";
 import { ImageGenerationDialog } from "./images/ImageGenerationDialog";
+import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { type ImageScope } from "./images/imageTabUtils";
 import { DEFAULT_IMAGE_STYLE } from "./styleTemplates";
 import { formatNumber, useI18n } from "../../i18n";
@@ -64,6 +65,13 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
   const { addToast } = useToast();
   const { locale, t } = useI18n();
   const { runProgressTask } = useProgressTask();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const hasChapterContext = fixedChapter !== undefined;
   const chapter = fixedChapter ?? null;
   const [allImages, setAllImages] = useState<GeneratedImage[]>([]);
@@ -405,6 +413,11 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       addToast(t("novel.imageLibrary.promptRequired"), "error");
       return;
     }
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) return;
     setGenBusy(true);
@@ -414,6 +427,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         operation: {
           kind: "scene",
           prompt: requestPrompt,
+          width: requestSize.width,
+          height: requestSize.height,
           config_id: null,
           chapter_id: requestChapter?.id ?? null,
         },
@@ -467,12 +482,18 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       addToast(t("novel.imageLibrary.promptRequired"), "error");
       return;
     }
+    if (!imageSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const requestSeq = beginPreview(requestScope);
     if (requestSeq == null) return;
     try {
       const preview = await previewSceneImageRequest(
         requestProjectId,
         requestPrompt,
+        imageSize.width,
+        imageSize.height,
         null,
         requestChapter?.id ?? null,
       );
@@ -502,6 +523,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       addToast(t("novel.imageLibrary.objectNotFound"), "error");
       return;
     }
+    if (!imageSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const requestSeq = beginPreview(requestScope);
     if (requestSeq == null) return;
     try {
@@ -509,6 +534,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         object_profile_id: requestProfileId,
         chapter_id: requestChapterId,
         style: requestStyle,
+        width: imageSize.width,
+        height: imageSize.height,
       });
       if (!isCurrentPreview(requestScope, requestSeq)) return;
       setRequestPreviewData(preview);
@@ -574,6 +601,10 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
       addToast(t("novel.imageLibrary.objectNotFound"), "error");
       return;
     }
+    if (!imageSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) return;
     setObjectImageBusy(true);
@@ -585,6 +616,8 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
           object_profile_id: requestProfileId,
           chapter_id: requestChapterId,
           style: requestStyle,
+          width: imageSize.width,
+          height: imageSize.height,
         },
       });
       await runGenerationProgressTaskThen(
@@ -885,11 +918,16 @@ export const ImagesTab: React.FC<ImagesTabProps> = ({
         objectImageStyle={objectImageStyle}
         objectImageBusy={objectImageBusy}
         objectPromptCopying={objectPromptCopying}
+        imageSize={imageSize}
+        imageSizes={imageSizes}
+        imageSizeLoading={imageSizeLoading}
+        imageSizeError={imageSizeError}
         chapterGenerateLocked={chapterGenerateLocked}
         onClose={() => setToolsOpen(false)}
         onGenPromptChange={setGenPrompt}
         onSelectedObjectProfileIdChange={setSelectedObjectProfileId}
         onObjectImageStyleChange={setObjectImageStyle}
+        onImageSizeChange={setImageSize}
         onCopyObjectImagePrompt={() => void handleCopyObjectImagePrompt()}
         onPreviewGenerate={() => void handlePreviewGenerate()}
         onGenerate={() => void handleGenerate()}

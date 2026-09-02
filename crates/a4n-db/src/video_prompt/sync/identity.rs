@@ -96,9 +96,13 @@ pub(super) fn should_keep_unmatched_prompt(
     row: &chapter_video_prompt::Model,
     draft_scopes: &BTreeSet<PromptScope>,
 ) -> bool {
-    if a4n_core::prompt_language::prompt_type_uses_prompt_output_language(&row.prompt_type)
-        && !draft_scopes.contains(&prompt_scope_for_sync_row(row))
-    {
+    // 只有同一稳定片段的语言变体需要并存；不同片段仍应按当前草稿清理。
+    if a4n_core::prompt_language::prompt_type_uses_prompt_output_language(&row.prompt_type) && {
+        let row_scope = prompt_scope_for_sync_row(row);
+        draft_scopes
+            .iter()
+            .any(|scope| scope.0 == row_scope.0 && scope.1 == row_scope.1 && scope.3 == row_scope.3)
+    } {
         return true;
     }
     row.prompt_type == chapter_video_prompt::PROMPT_TYPE_VIDEO

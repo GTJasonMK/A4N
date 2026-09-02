@@ -3,8 +3,8 @@ use a4n_core::models::{
     ai::generated_image,
     character::{character_portrait, protagonist_profile},
 };
-use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
-use std::collections::{HashMap, HashSet};
+use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, sea_query::Query};
+use std::collections::HashMap;
 
 pub async fn missing_portrait_profiles<C>(
     db: &C,
@@ -13,31 +13,17 @@ pub async fn missing_portrait_profiles<C>(
 where
     C: ConnectionTrait,
 {
-    let profiles = protagonist_profile::Entity::find()
-        .filter(protagonist_profile::Column::ProjectId.eq(project_id))
-        .all(db)
-        .await?;
-    if profiles.is_empty() {
-        return Ok(Vec::new());
-    }
-    let profile_ids = profiles
-        .iter()
-        .map(|profile| profile.id)
-        .collect::<Vec<_>>();
-    let portrait_profile_ids = character_portrait::Entity::find()
-        .select_only()
+    let portrait_profile_ids = Query::select()
         .column(character_portrait::Column::ProfileId)
-        .filter(character_portrait::Column::ProfileId.is_in(profile_ids))
-        .group_by(character_portrait::Column::ProfileId)
-        .into_tuple::<i64>()
+        .from(character_portrait::Entity)
+        .and_where(character_portrait::Column::ProjectId.eq(project_id))
+        .group_by_col(character_portrait::Column::ProfileId)
+        .to_owned();
+    protagonist_profile::Entity::find()
+        .filter(protagonist_profile::Column::ProjectId.eq(project_id))
+        .filter(protagonist_profile::Column::Id.not_in_subquery(portrait_profile_ids))
         .all(db)
-        .await?
-        .into_iter()
-        .collect::<HashSet<_>>();
-    Ok(profiles
-        .into_iter()
-        .filter(|profile| !portrait_profile_ids.contains(&profile.id))
-        .collect())
+        .await
 }
 
 pub async fn portrait_reference_images_by_ids<C>(

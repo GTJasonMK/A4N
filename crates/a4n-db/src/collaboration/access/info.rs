@@ -55,16 +55,27 @@ pub async fn project_access_info_batch(
         )?;
     }
 
-    let members = project_member::Entity::find()
-        .select_only()
-        .column(project_member::Column::ProjectId)
-        .column(project_member::Column::UserId)
-        .column(project_member::Column::Role)
-        .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
-        .into_tuple::<(i64, i64, String)>()
-        .all(db)
-        .await
-        .map_err(CollaborationDbError::Database)?;
+    let owner_ids = roots_by_id
+        .values()
+        .map(|root| root.user_id)
+        .collect::<Vec<_>>();
+    let (members, owners_by_id) = futures::join!(
+        async {
+            project_member::Entity::find()
+                .select_only()
+                .column(project_member::Column::ProjectId)
+                .column(project_member::Column::UserId)
+                .column(project_member::Column::Role)
+                .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
+                .into_tuple::<(i64, i64, String)>()
+                .all(db)
+                .await
+                .map_err(CollaborationDbError::Database)
+        },
+        users_by_id(db, &owner_ids),
+    );
+    let members = members?;
+    let owners_by_id = owners_by_id?;
     let mut member_counts: HashMap<i64, u64> = HashMap::new();
     let mut member_roles = HashMap::new();
     for (project_id, member_user_id, role) in members {
@@ -73,12 +84,6 @@ pub async fn project_access_info_batch(
             member_roles.insert(project_id, parse_stored_member_role(&role)?.into());
         }
     }
-
-    let owner_ids = roots_by_id
-        .values()
-        .map(|root| root.user_id)
-        .collect::<Vec<_>>();
-    let owners_by_id = users_by_id(db, &owner_ids).await?;
 
     let mut role_by_root = HashMap::with_capacity(root_ids.len());
     let mut manager_root_ids = Vec::new();

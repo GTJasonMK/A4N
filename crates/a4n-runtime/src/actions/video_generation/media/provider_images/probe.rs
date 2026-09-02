@@ -1,21 +1,19 @@
 use crate::actions::video_generation::media::types::PROVIDER_IMAGE_URL_PROBE_TIMEOUT_SECS;
 use a4n_orchestrator::video::{is_provider_supported_image_content_type, truncate_url_for_error};
 use reqwest::header::{CONTENT_TYPE, RANGE};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 pub(super) async fn validate_provider_public_image_url(
     url: &str,
     label: &str,
 ) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(PROVIDER_IMAGE_URL_PROBE_TIMEOUT_SECS))
-        .build()
-        .map_err(|err| format!("创建公网图片探测客户端失败：{err}"))?;
-    let head_probe = probe_provider_public_image_url(&client, url, label, false).await?;
+    let client = provider_image_probe_client()?;
+    let head_probe = probe_provider_public_image_url(client, url, label, false).await?;
     if head_probe.supported {
         return Ok(());
     }
-    let get_probe = probe_provider_public_image_url(&client, url, label, true).await?;
+    let get_probe = probe_provider_public_image_url(client, url, label, true).await?;
     if get_probe.supported {
         return Ok(());
     }
@@ -24,6 +22,19 @@ pub(super) async fn validate_provider_public_image_url(
         get_probe.message,
         truncate_url_for_error(url)
     ))
+}
+
+fn provider_image_probe_client() -> Result<&'static reqwest::Client, String> {
+    static CLIENT: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+    CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(PROVIDER_IMAGE_URL_PROBE_TIMEOUT_SECS))
+                .build()
+                .map_err(|err| format!("创建公网图片探测客户端失败：{err}"))
+        })
+        .as_ref()
+        .map_err(Clone::clone)
 }
 
 #[derive(Debug)]
@@ -86,4 +97,17 @@ async fn probe_provider_public_image_url(
             truncate_url_for_error(&final_url)
         ),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::provider_image_probe_client;
+
+    #[test]
+    fn provider_image_probe_client_is_reused() {
+        let first = provider_image_probe_client().expect("probe client should build") as *const _;
+        let second =
+            provider_image_probe_client().expect("probe client should be reusable") as *const _;
+        assert_eq!(first, second);
+    }
 }

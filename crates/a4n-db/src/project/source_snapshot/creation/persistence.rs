@@ -65,6 +65,12 @@ where
         .filter(chapter_visual_plan::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
         .filter(chapter_visual_plan::Column::SourceSnapshotId.is_null())
         .filter(chapter_visual_plan::Column::Status.eq("confirmed"))
+        .distinct_on([
+            chapter_visual_plan::Column::SourceChapterId,
+            chapter_visual_plan::Column::SourceContentSha256,
+        ])
+        .order_by_asc(chapter_visual_plan::Column::SourceChapterId)
+        .order_by_asc(chapter_visual_plan::Column::SourceContentSha256)
         .order_by_desc(chapter_visual_plan::Column::UpdatedAt)
         .order_by_desc(chapter_visual_plan::Column::Id)
         .all(db)
@@ -86,6 +92,8 @@ where
         .column(chapter_visual_plan::Column::PlanVersion)
         .filter(chapter_visual_plan::Column::RootProjectId.eq(root_project_id))
         .filter(chapter_visual_plan::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
+        .distinct_on([chapter_visual_plan::Column::SourceChapterId])
+        .order_by_asc(chapter_visual_plan::Column::SourceChapterId)
         .order_by_desc(chapter_visual_plan::Column::PlanVersion)
         .order_by_desc(chapter_visual_plan::Column::Id)
         .into_tuple::<(i64, i32)>()
@@ -104,6 +112,18 @@ where
         .filter(chapter_shooting_script::Column::RootProjectId.eq(root_project_id))
         .filter(chapter_shooting_script::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
         .filter(chapter_shooting_script::Column::SourceSnapshotId.is_null())
+        .distinct_on([
+            chapter_shooting_script::Column::SourceChapterId,
+            chapter_shooting_script::Column::SourceContentSha256,
+            chapter_shooting_script::Column::VisualPlanId,
+            chapter_shooting_script::Column::VisualPlanVersion,
+            chapter_shooting_script::Column::VisualPlanSha256,
+        ])
+        .order_by_asc(chapter_shooting_script::Column::SourceChapterId)
+        .order_by_asc(chapter_shooting_script::Column::SourceContentSha256)
+        .order_by_asc(chapter_shooting_script::Column::VisualPlanId)
+        .order_by_asc(chapter_shooting_script::Column::VisualPlanVersion)
+        .order_by_asc(chapter_shooting_script::Column::VisualPlanSha256)
         .order_by_desc(chapter_shooting_script::Column::UpdatedAt)
         .order_by_desc(chapter_shooting_script::Column::Id)
         .all(db)

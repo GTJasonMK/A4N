@@ -245,8 +245,12 @@ impl OrchestratorContext {
                 operation: "执行章节资料同步".to_string(),
             });
         }
-        let chapter = self.require_current_chapter_content_sync_run(run).await?;
-        let checkpoints = self.workflow_checkpoint_models(run.id).await?;
+        let (chapter_result, checkpoints_result) = futures::join!(
+            self.require_current_chapter_content_sync_run(run),
+            self.workflow_checkpoint_models(run.id),
+        );
+        let chapter = chapter_result?;
+        let checkpoints = checkpoints_result?;
         let cleanup_checkpoint = checkpoints
             .iter()
             .find(|checkpoint| checkpoint.step_key == CHAPTER_CONTENT_SYNC_CLEANUP_STEP)
@@ -280,8 +284,12 @@ impl OrchestratorContext {
             .await?;
         }
 
-        let chapter = self.require_current_chapter_content_sync_run(run).await?;
-        let checkpoints = self.workflow_checkpoint_models(run.id).await?;
+        let (chapter_result, checkpoints_result) = futures::join!(
+            self.require_current_chapter_content_sync_run(run),
+            self.workflow_checkpoint_models(run.id),
+        );
+        let chapter = chapter_result?;
+        let checkpoints = checkpoints_result?;
         if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_RAG_STEP)? {
             self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_RAG_STEP)
                 .await?;
@@ -295,8 +303,12 @@ impl OrchestratorContext {
             .await?;
         }
 
-        let chapter = self.require_current_chapter_content_sync_run(run).await?;
-        let checkpoints = self.workflow_checkpoint_models(run.id).await?;
+        let (chapter_result, checkpoints_result) = futures::join!(
+            self.require_current_chapter_content_sync_run(run),
+            self.workflow_checkpoint_models(run.id),
+        );
+        let chapter = chapter_result?;
+        let checkpoints = checkpoints_result?;
         if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP)?
         {
             self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_POSTPROCESS_STEP)

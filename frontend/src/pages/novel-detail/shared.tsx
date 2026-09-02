@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React from "react";
 import { Pencil, Sparkles } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -84,12 +85,14 @@ export function ProfileEvidence({ items }: { items: string[] }) {
 export function ProfileDetailActions({
   busy,
   generating,
+  generateDisabled = false,
   onEdit,
   onDelete,
   onGenerate,
 }: {
   busy: boolean;
   generating: boolean;
+  generateDisabled?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onGenerate: () => void;
@@ -110,7 +113,7 @@ export function ProfileDetailActions({
         variant="primary"
         size="sm"
         onClick={onGenerate}
-        disabled={busy}
+        disabled={busy || generateDisabled}
         className="min-w-0 flex-1 !text-xs sm:flex-none"
       >
         <span className="inline-flex items-center gap-1">
@@ -235,7 +238,7 @@ export function SelectField({
   return (
     <label className="grid gap-1 text-small text-book-text-muted">
       {label}
-      <select
+      <ThemedSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
         className="pyqt-input !px-2 !py-1 text-xs"
@@ -245,7 +248,7 @@ export function SelectField({
             {labels[option] ?? option}
           </option>
         ))}
-      </select>
+      </ThemedSelect>
     </label>
   );
 }

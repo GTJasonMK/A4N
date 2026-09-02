@@ -54,6 +54,16 @@ async fn oauth_username_conflict_appends_suffix() {
     register_user(db.as_ref(), "dave", "dave@old.com", "pw")
         .await
         .unwrap();
+    for n in 2..=8 {
+        register_user(
+            db.as_ref(),
+            &format!("dave_{n}"),
+            &format!("dave_{n}@old.com"),
+            "pw",
+        )
+        .await
+        .unwrap();
+    }
     let u = login_with_oauth2(
         db.as_ref(),
         "github",
@@ -64,9 +74,8 @@ async fn oauth_username_conflict_appends_suffix() {
     )
     .await
     .unwrap();
-    // 由于 dave 邮箱不同，按 email 关联失败，会走自动注册分支并追加后缀
-    assert_ne!(u.username, "dave");
-    assert!(u.username.starts_with("dave"));
+    // 由于 dave 邮箱不同，按 email 关联失败；连续候选占用后应选择批量检查范围的首个空位。
+    assert_eq!(u.username, "dave_9");
     assert_eq!(u.oauth_provider.as_deref(), Some("github"));
 }
 

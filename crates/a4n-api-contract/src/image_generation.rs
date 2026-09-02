@@ -15,6 +15,10 @@ pub struct GenerateSceneImageInput {
     pub config_id: Option<i64>,
     #[schemars(range(min = 1))]
     pub chapter_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -26,6 +30,10 @@ pub struct GeneratePageImageInput {
     pub chapter_number: i32,
     #[schemars(range(min = 1))]
     pub page_number: i32,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -60,12 +68,20 @@ pub enum ImageGenerationOperation {
         config_id: Option<i64>,
         #[schemars(range(min = 1))]
         chapter_id: Option<i64>,
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
     },
     Page {
         #[schemars(range(min = 1))]
         chapter_number: i32,
         #[schemars(range(min = 1))]
         page_number: i32,
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
     },
     Batch {
         #[schemars(length(min = 1))]
@@ -88,6 +104,10 @@ pub enum ImageGenerationOperation {
         style_template_version: Option<String>,
         #[schemars(length(max = 100_000))]
         custom_style: Option<String>,
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
     },
     SceneProfile {
         #[schemars(range(min = 1))]
@@ -106,6 +126,10 @@ pub enum ImageGenerationOperation {
         style_template_version: Option<String>,
         #[schemars(length(max = 100_000))]
         custom_style: Option<String>,
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
     },
 }
 
@@ -118,6 +142,10 @@ pub struct ObjectProfileImageInput {
     pub chapter_id: Option<i64>,
     pub style: Option<String>,
     pub config_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub width: Option<i32>,
+    #[schemars(range(min = 1))]
+    pub height: Option<i32>,
     pub style_template_id: Option<String>,
     pub style_template_name: Option<String>,
     pub style_template_version: Option<String>,
@@ -140,6 +168,10 @@ pub struct SceneProfileImageInput {
     pub chapter_id: Option<i64>,
     pub style: Option<String>,
     pub config_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub width: Option<i32>,
+    #[schemars(range(min = 1))]
+    pub height: Option<i32>,
     pub style_template_id: Option<String>,
     pub style_template_name: Option<String>,
     pub style_template_version: Option<String>,

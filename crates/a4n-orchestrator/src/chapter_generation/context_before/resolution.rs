@@ -21,16 +21,24 @@ impl OrchestratorContext {
         if let Some(text) = explicit.map(str::trim).filter(|text| !text.is_empty()) {
             return Ok(Some(text.to_string()));
         }
-        let previous_chapters = if chapter_number > 1 {
-            self.chapters_before_number(project_id, chapter_number)
-                .await
-                .map_err(|err| format!("构建章节前情上下文失败: {err}"))?
-                .into_iter()
-                .filter(chapter::Model::has_available_content)
-                .collect::<Vec<_>>()
-        } else {
-            Vec::new()
-        };
+        let (previous_result, character_result, object_result, scene_result) = futures::join!(
+            async {
+                if chapter_number > 1 {
+                    self.chapters_before_number(project_id, chapter_number)
+                        .await
+                } else {
+                    Ok(Vec::new())
+                }
+            },
+            recent_character_state_context_lines(self, project_id, chapter_number),
+            recent_object_profile_context_lines(self, project_id, chapter_number),
+            recent_scene_profile_context_lines(self, project_id, chapter_number),
+        );
+        let previous_chapters = previous_result
+            .map_err(|err| format!("构建章节前情上下文失败: {err}"))?
+            .into_iter()
+            .filter(chapter::Model::has_available_content)
+            .collect::<Vec<_>>();
 
         let mut lines = Vec::new();
         let summary_lines = layered_chapter_summary_lines(&previous_chapters, chapter_number);
@@ -55,21 +63,9 @@ impl OrchestratorContext {
             lines.extend(analysis_lines);
         }
 
-        append_section(
-            &mut lines,
-            "角色状态",
-            recent_character_state_context_lines(self, project_id, chapter_number).await?,
-        );
-        append_section(
-            &mut lines,
-            "关键物体档案",
-            recent_object_profile_context_lines(self, project_id, chapter_number).await?,
-        );
-        append_section(
-            &mut lines,
-            "场景档案",
-            recent_scene_profile_context_lines(self, project_id, chapter_number).await?,
-        );
+        append_section(&mut lines, "角色状态", character_result?);
+        append_section(&mut lines, "关键物体档案", object_result?);
+        append_section(&mut lines, "场景档案", scene_result?);
 
         if let Some(tail) = previous_chapter_tail(&previous_chapters) {
             append_section(&mut lines, "上一章结尾", vec![tail]);

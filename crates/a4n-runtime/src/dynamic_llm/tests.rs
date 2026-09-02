@@ -3,13 +3,15 @@ use std::sync::Arc;
 use a4n_core::config::app_config::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
 use a4n_core::error::AppError;
 use a4n_core::models::ai::llm_config;
-use a4n_llm::provider::{ChatMessage, ChatRequest, MessageRole};
+use a4n_llm::provider::{
+    ChatChunk, ChatMessage, ChatRequest, LlmTraceContext, MessageRole, ToolCall, UsageInfo,
+};
 use a4n_test_support::capability::RecordingLlmClient;
 
 use crate::dynamic_llm::trace::validated_authoritative_trace_root_project_id;
 
 use super::budget::ensure_max_tokens_within_model_cap;
-use super::config::{probe_llm_via_sidecar, require_sidecar_business_trace};
+use super::config::{chat_via_sidecar, probe_llm_via_sidecar, require_sidecar_business_trace};
 use super::contracts::ResolvedLlmModel;
 
 #[test]
@@ -79,6 +81,125 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
     assert_eq!(request.payload["provider"]["model"], "test-model");
     assert_eq!(request.payload["provider"]["api_key"], "test-key");
     assert_eq!(request.payload["request"]["messages"][0]["content"], "ping");
+}
+
+#[tokio::test]
+async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
+    use a4n_capabilities::{
+        CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, LlmClient,
+    };
+    use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
+    use async_trait::async_trait;
+
+    struct ToolStreamClient;
+
+    #[async_trait]
+    impl CapabilityClient for ToolStreamClient {
+        async fn health(&self) -> CapabilityResult<ServiceHealth> {
+            unreachable!("health is not used")
+        }
+    }
+
+    #[async_trait]
+    impl LlmClient for ToolStreamClient {
+        async fn stream(
+            &self,
+            request: JsonRequest,
+            events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
+        ) -> CapabilityResult<()> {
+            let chunks = [
+                ChatChunk {
+                    content: None,
+                    reasoning_content: None,
+                    tool_calls: Some(vec![ToolCall {
+                        id: "call-1".into(),
+                        name: "locate".into(),
+                        arguments: serde_json::Value::String("{\"project_id\":".into()),
+                        stream_index: Some(0),
+                    }]),
+                    finish_reason: None,
+                    index: 0,
+                    usage: None,
+                },
+                ChatChunk {
+                    content: None,
+                    reasoning_content: None,
+                    tool_calls: Some(vec![ToolCall {
+                        id: "__stream_tool_0".into(),
+                        name: String::new(),
+                        arguments: serde_json::Value::String("7}".into()),
+                        stream_index: Some(0),
+                    }]),
+                    finish_reason: Some("tool_calls".into()),
+                    index: 0,
+                    usage: None,
+                },
+                ChatChunk {
+                    content: None,
+                    reasoning_content: None,
+                    tool_calls: None,
+                    finish_reason: None,
+                    index: 0,
+                    usage: Some(UsageInfo {
+                        prompt_tokens: 2,
+                        completion_tokens: 3,
+                        total_tokens: 5,
+                        prompt_cache_hit_tokens: None,
+                        prompt_cache_miss_tokens: None,
+                    }),
+                },
+            ];
+            for (index, chunk) in chunks.into_iter().enumerate() {
+                events
+                    .send(CapabilityTaskEvent::chunk(
+                        request.request_id.clone(),
+                        index as u64 + 1,
+                        chunk,
+                        "test chunk",
+                    )?)
+                    .await
+                    .expect("event receiver should stay open");
+            }
+            events
+                .send(CapabilityTaskEvent::completed_empty(request.request_id, 4))
+                .await
+                .expect("event receiver should stay open");
+            Ok(())
+        }
+
+        async fn probe(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+            unreachable!("probe is not used")
+        }
+
+        async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+            unreachable!("model discovery is not used")
+        }
+    }
+
+    let response = chat_via_sidecar(
+        Arc::new(ToolStreamClient),
+        ResolvedLlmModel::new(test_llm_model()).expect("resolved model"),
+        test_chat_request(),
+        &LlmTraceContext {
+            project_id: Some(1),
+            root_project_id: Some(1),
+            workflow: "agent".into(),
+            step_key: "model_call".into(),
+            generation_run_id: None,
+            workflow_run_id: None,
+            call_key: Some("run-1".into()),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        },
+    )
+    .await
+    .expect("sidecar tool stream should collect");
+
+    let call = response.message.tool_calls.expect("tool call").remove(0);
+    assert_eq!(call.id, "call-1");
+    assert_eq!(call.arguments, serde_json::json!({"project_id": 7}));
+    assert_eq!(response.usage.map(|usage| usage.total_tokens), Some(5));
 }
 
 #[test]

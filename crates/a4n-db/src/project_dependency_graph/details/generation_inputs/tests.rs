@@ -70,8 +70,9 @@ fn generation_target_rules_preserve_table_and_expectation_contract() {
 #[test]
 fn generation_run_projection_preserves_input_order_and_five_statuses() {
     let run_with_inputs = generation_run_with_inputs(true);
+    let runs = vec![run_with_inputs.clone()];
     let mut complete = lineage_record("novel_blueprint", "llm_generated");
-    apply_generation_runs(&mut complete, std::slice::from_ref(&run_with_inputs));
+    apply_generation_runs(&mut complete, &[0], &runs);
     assert_eq!(complete.input_status, "complete");
     assert_eq!(complete.generation_inputs.len(), 2);
     assert_eq!(complete.generation_inputs[0].kind, "rendered_messages");
@@ -97,16 +98,14 @@ fn generation_run_projection_preserves_input_order_and_five_statuses() {
     );
 
     let run_without_inputs = generation_run_with_inputs(false);
+    let runs = vec![run_without_inputs];
     let mut without_inputs = lineage_record("novel_blueprint", "llm_generated");
-    apply_generation_runs(
-        &mut without_inputs,
-        std::slice::from_ref(&run_without_inputs),
-    );
+    apply_generation_runs(&mut without_inputs, &[0], &runs);
     assert_eq!(without_inputs.input_status, "run_without_inputs");
     assert!(without_inputs.warnings[0].contains("缺少生成输入快照"));
 
     let mut missing = lineage_record("novel_blueprint", "llm_generated");
-    apply_generation_runs(&mut missing, &[]);
+    apply_generation_runs(&mut missing, &[], &[]);
     assert_eq!(missing.input_status, "missing");
     assert!(missing.warnings[0].contains("缺少 generation_run"));
 
@@ -118,10 +117,10 @@ fn generation_run_projection_preserves_input_order_and_five_statuses() {
         asset_type: "chapter".to_string(),
         record_id: Some(1),
     });
-    apply_generation_runs(&mut structural, &[]);
+    apply_generation_runs(&mut structural, &[], &[]);
     assert_eq!(structural.input_status, "structural");
 
     let mut not_applicable = lineage_record("media_asset", "manual");
-    apply_generation_runs(&mut not_applicable, &[]);
+    apply_generation_runs(&mut not_applicable, &[], &[]);
     assert_eq!(not_applicable.input_status, "not_applicable");
 }

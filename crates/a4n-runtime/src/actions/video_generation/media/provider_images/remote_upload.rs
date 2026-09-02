@@ -11,6 +11,12 @@ use base64::Engine as _;
 use chrono::{DateTime, Duration, Utc};
 use sha2::{Digest, Sha256};
 use std::path::Path;
+use std::sync::OnceLock;
+
+fn remote_temp_media_http_client() -> &'static reqwest::Client {
+    static CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+    CLIENT.get_or_init(reqwest::Client::new)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RemoteTempMediaDeleteOutcome {
@@ -37,7 +43,7 @@ pub(crate) async fn delete_remote_temp_media_artifact(
     }
     let (upload_url, token) = crate::actions::video_generation::media::remote_temp_upload_config()?;
     let url = remote_temp_media_delete_url(&upload_url, artifact_id)?;
-    let response = reqwest::Client::new()
+    let response = remote_temp_media_http_client()
         .delete(url)
         .bearer_auth(token)
         .json(&TempMediaDeleteRequest { sha256 })
@@ -127,7 +133,7 @@ pub(crate) async fn media_bytes_to_remote_temp_media_url(
         mime_type: mime.to_string(),
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
     };
-    let response = reqwest::Client::new()
+    let response = remote_temp_media_http_client()
         .post(upload_url.trim())
         .bearer_auth(token)
         .json(&payload)

@@ -97,6 +97,10 @@ pub(super) fn parse_sse_data_line(line_bytes: &[u8]) -> ParsedSseLine {
             let delta = &choice["delta"];
             let content = delta["content"].as_str().map(|s| s.to_string());
             let reasoning_content = delta["reasoning_content"].as_str().map(|s| s.to_string());
+            let tool_calls = match parse_tool_calls(&delta["tool_calls"]) {
+                Ok(tool_calls) => tool_calls,
+                Err(error) => return ParsedSseLine::Chunk(Err(error)),
+            };
             let finish_reason = choice["finish_reason"].as_str().map(|s| s.to_string());
             let index = match required_usize(&choice["index"], "choices[0].index") {
                 Ok(index) => match u32::try_from(index) {
@@ -113,7 +117,7 @@ pub(super) fn parse_sse_data_line(line_bytes: &[u8]) -> ParsedSseLine {
             ParsedSseLine::Chunk(Ok(ChatChunk {
                 content,
                 reasoning_content,
-                tool_calls: None,
+                tool_calls,
                 finish_reason,
                 index,
                 usage,
@@ -126,6 +130,44 @@ pub(super) fn parse_sse_data_line(line_bytes: &[u8]) -> ParsedSseLine {
             ))))
         }
     }
+}
+
+fn parse_tool_calls(value: &Value) -> Result<Option<Vec<a4n_llm::provider::ToolCall>>, AppError> {
+    let Some(items) = value.as_array() else {
+        return Ok(None);
+    };
+    let mut calls = Vec::with_capacity(items.len());
+    for item in items {
+        let index = match required_usize(&item["index"], "choices[0].delta.tool_calls[].index") {
+            Ok(index) => match u32::try_from(index) {
+                Ok(index) => index,
+                Err(_) => {
+                    return Err(internal_error(
+                        "LLM 响应字段 choices[0].delta.tool_calls[].index 超出 u32 范围",
+                    ));
+                }
+            },
+            Err(error) => return Err(error),
+        };
+        let id = item["id"]
+            .as_str()
+            .filter(|id| !id.trim().is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| format!("__stream_tool_{index}"));
+        let function = item.get("function").unwrap_or(&Value::Null);
+        let name = function["name"].as_str().unwrap_or_default().to_string();
+        let arguments = function
+            .get("arguments")
+            .cloned()
+            .unwrap_or_else(|| Value::String(String::new()));
+        calls.push(a4n_llm::provider::ToolCall {
+            id,
+            name,
+            arguments,
+            stream_index: Some(index),
+        });
+    }
+    Ok((!calls.is_empty()).then_some(calls))
 }
 
 pub(super) fn drain_sse_lines(

@@ -4,7 +4,7 @@ use a4n_domain::project::{
     BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_GENERATION_CHAPTERS,
     is_valid_blueprint_generation_chapters,
 };
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use crate::error::AppError;
 
@@ -48,6 +48,42 @@ pub fn blueprint_refinement_call_key(project_id: i64) -> String {
     format!("{BLUEPRINT_REFINEMENT_WORKFLOW_KIND}:project:{project_id}")
 }
 
+/// 蓝图任务与 workflow 共用的业务输入指纹。
+///
+/// 任务 reservation 和 workflow resume 必须使用完全相同的 JSON；否则失败后
+/// 重新提交会创建新的 workflow，已有阶段 checkpoint 就无法命中。
+pub fn blueprint_generation_input_fingerprint(
+    project_id: i64,
+    title: &str,
+    genre: &str,
+    target_length: i32,
+    variables: &Value,
+) -> Value {
+    json!({
+        "version": 1,
+        "task_kind": BLUEPRINT_GENERATION_KIND,
+        "project_id": project_id,
+        "title": title,
+        "genre": genre,
+        "target_length": target_length,
+        "variables": variables,
+    })
+}
+
+pub fn blueprint_refinement_input_fingerprint(
+    project_id: i64,
+    focus: Option<&str>,
+    variables: &Value,
+) -> Value {
+    json!({
+        "version": 1,
+        "task_kind": BLUEPRINT_REFINEMENT_TASK_KIND,
+        "project_id": project_id,
+        "focus": normalized_blueprint_refinement_focus(focus),
+        "variables": variables,
+    })
+}
+
 pub fn normalized_blueprint_refinement_focus(focus: Option<&str>) -> Option<&str> {
     focus.map(str::trim).filter(|value| !value.is_empty())
 }
@@ -82,6 +118,7 @@ pub fn build_blueprint_generation_payload(
     );
     for key in [
         "inspiration_transcript",
+        "generation_instruction",
         "conversation_state",
         "progress_summary",
         "next_question",
@@ -92,4 +129,30 @@ pub fn build_blueprint_generation_payload(
         }
     }
     Ok(Value::Object(payload))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn blueprint_resume_fingerprints_are_canonical() {
+        let variables = json!({"genre_hint": "悬疑"});
+        assert_eq!(
+            blueprint_generation_input_fingerprint(7, "雾城", "悬疑", 20, &variables),
+            json!({
+                "version": 1,
+                "task_kind": BLUEPRINT_GENERATION_KIND,
+                "project_id": 7,
+                "title": "雾城",
+                "genre": "悬疑",
+                "target_length": 20,
+                "variables": {"genre_hint": "悬疑"},
+            })
+        );
+        assert_eq!(
+            blueprint_refinement_input_fingerprint(7, Some("  世界观  "), &variables)["focus"],
+            "世界观"
+        );
+    }
 }

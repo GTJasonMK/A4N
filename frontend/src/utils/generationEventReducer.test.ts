@@ -169,6 +169,51 @@ describe("generation event reducer", () => {
     expect(state.completionSummary).toBe("第 5 章正文已保存");
   });
 
+  it("preserves the last progress counters when a phase update omits them", () => {
+    let state = reduceGenerationTask(createGenerationTaskViewState(handle), {
+      type: "event",
+      event: event(1, {
+        kind: "progress",
+        data: {
+          current: 2,
+          total: 12,
+          message: "蓝图阶段",
+          unit_label: null,
+          stage_code: "blueprint",
+          phase_kind: "prepare",
+          severity: "info",
+          estimated: false,
+          item_index: null,
+          item_key: null,
+          item_total: null,
+        },
+      }),
+    });
+    state = reduceGenerationTask(state, {
+      type: "event",
+      event: event(2, {
+        kind: "progress",
+        data: {
+          message: "模型已连接，正在等待输出",
+          unit_label: null,
+          stage_code: "provider_wait",
+          phase_kind: "model_wait",
+          severity: "info",
+          estimated: false,
+          item_index: null,
+          item_key: null,
+          item_total: null,
+        },
+      }),
+    });
+
+    expect(state.progress).toMatchObject({
+      current: 2,
+      total: 12,
+      stage_code: "provider_wait",
+    });
+  });
+
   it("restores the completed summary from a snapshot", () => {
     const completed = event(1, {
       kind: "completed",

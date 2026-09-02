@@ -19,6 +19,7 @@ import {
 import { BookButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
+import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { useToast } from "../../components/feedback/Toast";
 import { extractErrorMessage } from "../../api";
 import { generationClient } from "../../api/generationTasks";
@@ -135,6 +136,7 @@ import {
   videoTailFrameSourceVideoId,
   finalVideoExecutionIdentityIsComplete,
   videoOptionsValidationError,
+  videoAspectRatiosForImageSizes,
   videoWorkflowModeLabel,
   type PromptDraft,
   type VideoSegmentCardPlan,
@@ -310,6 +312,18 @@ export const VideoTab: React.FC<VideoTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    sizes: imageSupportedSizes,
+  } = useImageGenerationSize();
+  const supportedVideoAspectRatios = useMemo(
+    () =>
+      imageSizeLoading || imageSizeError
+        ? []
+        : videoAspectRatiosForImageSizes(imageSupportedSizes),
+    [imageSizeError, imageSizeLoading, imageSupportedSizes],
+  );
   const workspaceTabs = useMemo(
     () => [
       { id: "materials" as const, label: t("video.chapter.tabMaterials"), icon: <ImagePlus size={13} /> },
@@ -3435,6 +3449,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
                 dataReady={selectionValidationReady}
                 acting={acting}
                 shootingScenes={shootingScenes}
+                supportedAspectRatios={supportedVideoAspectRatios}
+                aspectRatioLoading={imageSizeLoading}
                 onGenerate={(targetNarrativeUnitIndex, regenerateExisting) =>
                   handleGenerateSegmentPlan({
                     targetNarrativeUnitIndex,
@@ -3588,6 +3604,8 @@ export const VideoTab: React.FC<VideoTabProps> = ({
           defaultDurationSecs={options.durationSecs}
           defaultDurationOptions={options.durationOptions}
           defaultAspectRatio={options.aspectRatio}
+          supportedAspectRatios={supportedVideoAspectRatios}
+          aspectRatioLoading={imageSizeLoading}
           loading={loading}
           acting={acting}
           onGenerate={handleGenerateInsertedSegment}

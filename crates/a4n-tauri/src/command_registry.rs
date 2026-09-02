@@ -3,6 +3,7 @@ use crate::{commands, logging};
 pub(crate) fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync + 'static {
     tauri::generate_handler![
         commands::dispatch::invoke_host_command,
+        commands::agent::invoke_agent_command,
         commands::auth::register_user,
         commands::auth::login_user,
         commands::auth::refresh_token,

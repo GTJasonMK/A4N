@@ -25,6 +25,7 @@ export type DropdownItem = {
 interface DropdownProps {
   items: DropdownItem[];
   label?: string;
+  ariaLabel?: string;
 }
 
 type DropdownAction = Exclude<DropdownItem, { type: 'divider' }>;
@@ -32,7 +33,7 @@ type ActionItem = DropdownAction & { sourceIndex: number };
 
 const isDivider = (item: DropdownItem): item is { type: 'divider' } => 'type' in item;
 
-export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
+export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) => {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -167,7 +168,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
       ref={menuRef}
       role="menu"
       tabIndex={-1}
-      aria-label={label ?? t("a11y.moreActions")}
+      aria-label={ariaLabel ?? label ?? t("a11y.moreActions")}
       onKeyDown={handleMenuKeyDown}
       className="fixed pointer-events-auto max-h-[min(24rem,calc(100dvh-1rem))] min-w-[12rem] max-w-[min(18rem,calc(100dvw-1rem))] overflow-y-auto rounded-xl border border-book-border/70 bg-book-bg-paper/95 p-1.5 shadow-[var(--shadow-overlay)] backdrop-blur-xl"
       style={{
@@ -220,7 +221,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label }) => {
     </div>
   );
 
-  const triggerLabel = label ?? t("a11y.moreActions");
+  const triggerLabel = ariaLabel ?? label ?? t("a11y.moreActions");
   const triggerProps = {
     ref: buttonRef,
     type: 'button' as const,

@@ -8,7 +8,7 @@ name: blueprint
 
 ## 输入格式
 
-用户会输入一个json对象，包含对这个小说的灵感讨论过程。
+用户会输入一个json对象，包含对这个小说的灵感讨论过程。若输入包含 `generation_instruction`，必须优先遵循该指令；当 `inspiration_transcript` 为空时，按指令自由构思，不要虚构作者已经说过的灵感或偏好。
 
 ## 创作限制
 

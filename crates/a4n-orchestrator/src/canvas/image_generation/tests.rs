@@ -158,8 +158,7 @@ fn image_config() -> image_gen_config::Model {
         api_key_encrypted: None,
         model: "configured-canvas-image-model".to_string(),
         max_concurrent: 1,
-        default_width: 1024,
-        default_height: 576,
+        supported_sizes_json: json!([{"width": 1024, "height": 576}]),
         is_default: true,
         created_at: now,
         updated_at: now,
@@ -194,6 +193,7 @@ async fn insert_canvas(
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some("图片生成测试画布".to_string()),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,
@@ -274,7 +274,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
         node_kind: "GenerateImageNode".to_string(),
         ref_type: None,
         ref_id: None,
-        config_json: json!({"image_config_id": 7, "config_id": 99, "prompt": "隐藏提示词"}),
+        config_json: json!({"image_config_id": 7, "config_id": 99, "prompt": "隐藏提示词", "width": 1024, "height": 576}),
         position_json: json!({"x": 0, "y": 0}),
         state: "idle".to_string(),
         created_at: now,
@@ -323,7 +323,7 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
         node_kind: "GenerateImageNode".to_string(),
         ref_type: None,
         ref_id: None,
-        config_json: json!({"prompt": "隐藏提示词"}),
+        config_json: json!({"prompt": "隐藏提示词", "width": 1024, "height": 576}),
         position_json: json!({"x": 0, "y": 0}),
         state: "idle".to_string(),
         created_at: now,
@@ -368,8 +368,12 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
 #[tokio::test]
 async fn canvas_image_application_persists_complete_artifact_chain() {
     let (database, context) = setup_context().await;
-    let (project_id, document) =
-        insert_canvas(database.as_ref(), &context, json!({"image_config_id": 7})).await;
+    let (project_id, document) = insert_canvas(
+        database.as_ref(),
+        &context,
+        json!({"image_config_id": 7, "width": 1024, "height": 576}),
+    )
+    .await;
     let node = target_node(&document);
     let host = TestImageHost::success();
 
@@ -442,8 +446,12 @@ async fn canvas_image_application_persists_complete_artifact_chain() {
 #[tokio::test]
 async fn canvas_image_shared_run_completes_node_without_finalizing_graph_workflow() {
     let (database, context) = setup_context().await;
-    let (project_id, document) =
-        insert_canvas(database.as_ref(), &context, json!({"image_config_id": 7})).await;
+    let (project_id, document) = insert_canvas(
+        database.as_ref(),
+        &context,
+        json!({"image_config_id": 7, "width": 1024, "height": 576}),
+    )
+    .await;
     let node = target_node(&document);
     let step_key = format!("canvas_node:{}", node.id);
     let graph_run = context
@@ -505,7 +513,12 @@ async fn canvas_image_shared_run_completes_node_without_finalizing_graph_workflo
 #[tokio::test]
 async fn canvas_image_provider_failure_marks_spec_and_workflow_failed() {
     let (database, context) = setup_context().await;
-    let (project_id, document) = insert_canvas(database.as_ref(), &context, json!({})).await;
+    let (project_id, document) = insert_canvas(
+        database.as_ref(),
+        &context,
+        json!({"width": 1024, "height": 576}),
+    )
+    .await;
     let node = target_node(&document);
     let host = TestImageHost::failure();
 

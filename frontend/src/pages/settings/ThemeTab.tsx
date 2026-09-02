@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { type ThemeAppearance } from "../../api/theme";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { Modal } from "../../components/ui/Modal";
 import {
   CreateThemePanel,
   SingleThemeImportPanel,
@@ -21,12 +22,23 @@ export const ThemeTab: React.FC = () => {
   const { t } = useI18n();
   const editingTheme = themeTab.themes.find((theme) => theme.id === themeTab.editingId) ?? null;
   const editorRef = useRef<HTMLDivElement>(null);
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches,
+  );
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsDesktop(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   useEffect(() => {
     const editor = editorRef.current;
-    if (!editingTheme || !editor || typeof editor.scrollIntoView !== "function") return;
+    if (!isDesktop || !editingTheme || !editor || typeof editor.scrollIntoView !== "function") return;
     editor.scrollIntoView({ block: "start" });
-  }, [editingTheme?.id]);
+  }, [editingTheme?.id, isDesktop]);
   const appearanceOptions: Array<{
     id: ThemeAppearance;
     label: string;
@@ -36,6 +48,22 @@ export const ThemeTab: React.FC = () => {
     { id: "light", label: t("settingsTheme.light"), disabled: !themeTab.hasUser || themeTab.mutationBusy },
     { id: "dark", label: t("settingsTheme.dark"), disabled: !themeTab.hasUser || themeTab.mutationBusy },
   ];
+  const mobileEditorMode = !isDesktop;
+  const editorPanel = editingTheme ? (
+    <ThemeEditorPanel
+      theme={editingTheme}
+      saving={themeTab.editorSaving}
+      onCancel={themeTab.handleEditorCancel}
+      onSave={(input, pendingFiles, deleteResourceIds) =>
+        themeTab.handleEditorSave(
+          editingTheme.id,
+          input,
+          pendingFiles,
+          deleteResourceIds,
+        )
+      }
+    />
+  ) : null;
 
   return (
     <div className="custom-scrollbar flex h-auto flex-col gap-4 overflow-visible pb-12 md:h-full md:overflow-y-auto md:pr-2">
@@ -85,22 +113,23 @@ export const ThemeTab: React.FC = () => {
         onExport={themeTab.handleExport}
       />
 
-      {editingTheme ? (
+      {!mobileEditorMode && editingTheme ? (
         <div ref={editorRef} className="min-w-0 scroll-mt-3">
-          <ThemeEditorPanel
-            theme={editingTheme}
-            saving={themeTab.editorSaving}
-            onCancel={themeTab.handleEditorCancel}
-            onSave={(input, pendingFiles, deleteResourceIds) =>
-              themeTab.handleEditorSave(
-                editingTheme.id,
-                input,
-                pendingFiles,
-                deleteResourceIds,
-              )
-            }
-          />
+          {editorPanel}
         </div>
+      ) : null}
+
+      {mobileEditorMode ? (
+        <Modal
+          isOpen={Boolean(editingTheme)}
+          onClose={themeTab.handleEditorCancel}
+          title={editingTheme?.name ?? t("settingsTheme.editorTitle")}
+          subtitle={editingTheme ? t("settingsTheme.editorHint") : undefined}
+          maxWidthClassName="max-w-3xl"
+          bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
+        >
+          {editorPanel}
+        </Modal>
       ) : null}
 
       <CreateThemePanel

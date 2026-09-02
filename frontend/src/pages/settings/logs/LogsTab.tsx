@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Copy, RefreshCw } from "lucide-react";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
@@ -219,7 +220,7 @@ export const LogsTab: React.FC = () => {
         >
           <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs">
             <span className="text-book-text-muted">{t("settingsLogs.readRange")}</span>
-            <select
+            <ThemedSelect
               id="log-lines"
               aria-label={t("settingsLogs.logLines")}
               value={lines}
@@ -230,8 +231,8 @@ export const LogsTab: React.FC = () => {
               <option value={500}>{t("settingsLogs.recentLines", { count: "500" })}</option>
               <option value={2000}>{t("settingsLogs.recentLines", { count: "2,000" })}</option>
               <option value={10000}>{t("settingsLogs.recentLines", { count: "10,000" })}</option>
-            </select>
-            <select
+            </ThemedSelect>
+            <ThemedSelect
               id="log-days"
               aria-label={t("settingsLogs.logDate")}
               value={daysAgo}
@@ -243,7 +244,7 @@ export const LogsTab: React.FC = () => {
               <option value={2}>{t("settingsLogs.daysAgo", { count: 2 })}</option>
               <option value={3}>{t("settingsLogs.daysAgo", { count: 3 })}</option>
               <option value={7}>{t("settingsLogs.daysAgo", { count: 7 })}</option>
-            </select>
+            </ThemedSelect>
             {result ? (
               <span className="text-book-text-muted sm:ml-auto">
                 {t("settingsLogs.lines", { returned: formatNumber(result.returned_lines, locale), total: formatNumber(result.total_lines, locale) })}

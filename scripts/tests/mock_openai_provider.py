@@ -19,27 +19,27 @@ PNG_1X1_BASE64 = (
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
 )
 MP4_1S_BASE64 = (
-    "AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMVbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAA"
-    "AAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAA"
-    "Aj90cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAA"
-    "AAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAG3bWRpYQAAACBtZGhk"
-    "AAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABYm1p"
-    "bmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAASJzdGJsAAAAvnN0c2QA"
-    "AAAAAAAAAQAAAK5hdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2Mi4yOC4xMDIgbGli"
-    "eDI2NAAAAAAAAAAAAAAAGP//AAAANGF2Y0MBZAAK/+EAF2dkAAqs2V7ARAAAAwAEAAADAAg8SJZYAQAGaOvjyyLA/fj4AAAAABBw"
-    "YXNwAAAAAQAAAAEAAAAUYnRydAAAAAAAABYoAAAAAAAAABhzdHRzAAAAAAAAAAEAAAABAABAAAAAABxzdHNjAAAAAAAAAAEAAAAB"
-    "AAAAAQAAAAEAAAAUc3RzegAAAAAAAALFAAAAAQAAABRzdGNvAAAAAAAAAAEAAANFAAAAYnVkdGEAAABabWV0YQAAAAAAAAAhaGRs"
-    "cgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAtaWxzdAAAACWpdG9vAAAAHWRhdGEAAAABAAAAAExhdmY2Mi4xMi4xMDIAAAAI"
-    "ZnJlZQAAAs1tZGF0AAACrQYF//+p3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSByMzIyMiBiMzU2MDVhIC0gSC4yNjQv"
-    "TVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIwMDMtMjAyNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAt"
-    "IG9wdGlvbnM6IGNhYmFjPTEgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFseXNlPTB4MzoweDExMyBtZT1oZXggc3VibWU9NyBwc3k9"
-    "MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0xIHRyZWxsaXM9MSA4eDhkY3Q9MSBj"
-    "cW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTEgbG9va2FoZWFkX3Ro"
-    "cmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0"
-    "cmFpbmVkX2ludHJhPTAgYmZyYW1lcz0zIGJfcHlyYW1pZD0yIGJfYWRhcHQ9MSBiX2JpYXM9MCBkaXJlY3Q9MSB3ZWlnaHRiPTEg"
-    "b3Blbl9nb3A9MCB3ZWlnaHRwPTIga2V5aW50PTI1MCBrZXlpbnRfbWluPTEgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJj"
-    "X2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00"
-    "IGlwX3JhdGlvPTEuNDAgYXE9MToxLjAwAIAAAAAQZYiEABX//vfJ78Cm69vfgQ=="
+    "AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAOHbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEA"
+    "AAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAArF0cmFrAAAAXHRraGQAAAADAAAAAAAA"
+    "AAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAABAAAAAQAAAAAAAkZWR0cwAAABxl"
+    "bHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAIpbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAAAyAAAAMgBVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAA"
+    "AAAAAAAAAABWaWRlb0hhbmRsZXIAAAAB1G1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAA"
+    "AZRzdGJsAAAAuHN0c2QAAAAAAAAAAQAAAKhhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAABAAEABIAAAASAAAAAAAAAABFUxhdmM2Mi4yOC4xMDIg"
+    "bGlieDI2NAAAAAAAAAAAAAAAGP//AAAALmF2Y0MBQsAK/+EAFmdCwArZHsBEAAADAAQAAAMAyDxImSABAAVoy4PLIAAAABBwYXNwAAAAAQAAAAEAAAAU"
+    "YnRydAAAAAAAABsoAAAAAAAAABhzdHRzAAAAAAAAAAEAAAAZAAACAAAAABRzdHNzAAAAAAAAAAEAAAABAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAAZAAAA"
+    "AQAAAHhzdHN6AAAAAAAAAAAAAAAZAAACjAAAAAkAAAAKAAAACQAAAAkAAAAJAAAACQAAAAkAAAAJAAAACQAAAAkAAAAJAAAACQAAAAkAAAAJAAAACQAA"
+    "AAkAAAAJAAAACQAAAAkAAAAJAAAACQAAAAkAAAAJAAAACQAAABRzdGNvAAAAAAAAAAEAAAO3AAAAYnVkdGEAAABabWV0YQAAAAAAAAAhaGRscgAAAAAA"
+    "AAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAtaWxzdAAAACWpdG9vAAAAHWRhdGEAAAABAAAAAExhdmY2Mi4xMi4xMDIAAAAIZnJlZQAAA21tZGF0AAACcQYF"
+    "//9t3EXpvebZSLeWLNgg2SPu73gyNjQgLSBjb3JlIDE2NSByMzIyMiBiMzU2MDVhIC0gSC4yNjQvTVBFRy00IEFWQyBjb2RlYyAtIENvcHlsZWZ0IDIw"
+    "MDMtMjAyNSAtIGh0dHA6Ly93d3cudmlkZW9sYW4ub3JnL3gyNjQuaHRtbCAtIG9wdGlvbnM6IGNhYmFjPTAgcmVmPTMgZGVibG9jaz0xOjA6MCBhbmFs"
+    "eXNlPTB4MToweDExMSBtZT1oZXggc3VibWU9NyBwc3k9MSBwc3lfcmQ9MS4wMDowLjAwIG1peGVkX3JlZj0xIG1lX3JhbmdlPTE2IGNocm9tYV9tZT0x"
+    "IHRyZWxsaXM9MSA4eDhkY3Q9MCBjcW09MCBkZWFkem9uZT0yMSwxMSBmYXN0X3Bza2lwPTEgY2hyb21hX3FwX29mZnNldD0tMiB0aHJlYWRzPTEgbG9v"
+    "a2FoZWFkX3RocmVhZHM9MSBzbGljZWRfdGhyZWFkcz0wIG5yPTAgZGVjaW1hdGU9MSBpbnRlcmxhY2VkPTAgYmx1cmF5X2NvbXBhdD0wIGNvbnN0cmFp"
+    "bmVkX2ludHJhPTAgYmZyYW1lcz0wIHdlaWdodHA9MCBrZXlpbnQ9MjUwIGtleWludF9taW49MjUgc2NlbmVjdXQ9NDAgaW50cmFfcmVmcmVzaD0wIHJj"
+    "X2xvb2thaGVhZD00MCByYz1jcmYgbWJ0cmVlPTEgY3JmPTIzLjAgcWNvbXA9MC42MCBxcG1pbj0wIHFwbWF4PTY5IHFwc3RlcD00IGlwX3JhdGlvPTEu"
+    "NDAgYXE9MToxLjAwAIAAAAATZYiEDPEYoAAm2xwABAsjgACCngAAAAVBmjgZ6gAAAAZBmlQGeoAAAAAFQZpgM9QAAAAFQZqAM9QAAAAFQZqgM9QAAAAF"
+    "QZrAM9QAAAAFQZrgM9QAAAAFQZsAM9QAAAAFQZsgM9QAAAAFQZtAM9QAAAAFQZtgM9QAAAAFQZuAM9QAAAAFQZugM9QAAAAFQZvAM9QAAAAFQZvgM9QA"
+    "AAAFQZoAM9QAAAAFQZogM9QAAAAFQZpAM9QAAAAFQZpgM9QAAAAFQZqAM9QAAAAFQZqgM9QAAAAFQZrAL9QAAAAFQZrgL9QAAAAFQZsAK9Q="
 )
 
 
@@ -2199,6 +2199,151 @@ def reverse_part_outline_response(combined: str) -> dict[str, Any]:
     return {"parts": parts}
 
 
+def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
+    messages = body.get("messages")
+    if not isinstance(messages, list):
+        return None
+
+    # The main Agent thread is durable, so a new turn carries the previous
+    # turns' tool calls and child results as well.  Fixture decisions must be
+    # scoped to the latest real user message; otherwise an old delegation can
+    # make a fresh request look already completed.
+    current_turn_start = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if isinstance(messages[index], dict)
+            and messages[index].get("role") == "user"
+            and not str(messages[index].get("content", "")).startswith(
+                "[Agent inbox:"
+            )
+        ),
+        0,
+    )
+    current_messages = messages[current_turn_start:]
+
+    capability = None
+    for message in messages:
+        if not isinstance(message, dict) or message.get("role") != "system":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str) or "你是 A4N 项目 Agent。" not in content:
+            continue
+        match = re.search(r"当前能力域(?:为|[:：])\s*([a-z0-9_]+)", content)
+        if match:
+            capability = match.group(1)
+            break
+    if capability is None:
+        return None
+
+    if any(
+        isinstance(message, dict)
+        and isinstance(message.get("content"), str)
+        and "[Agent inbox:child_result]" in message["content"]
+        for message in current_messages
+    ):
+        return {
+            "content": (
+                "已验收正文优化子 Agent 的回传结果：最新章节的正文优化已经完成，"
+                "剧情事实与人物设定保持不变。"
+            )
+        }
+
+    # A completed delegation is persisted as the durable `delegate` tool
+    # observation on the parent transcript.  Treat that observation as the
+    # parent's acceptance input even when the inbox row is consumed without
+    # adding a second user message to the model context.
+    tool_call_ids = {
+        tool_call.get("id")
+        for message in current_messages
+        if isinstance(message, dict)
+        and message.get("role") == "assistant"
+        for tool_call in (message.get("tool_calls") or [])
+        if isinstance(tool_call, dict)
+        and isinstance(tool_call.get("function"), dict)
+        and tool_call["function"].get("name") == "delegate"
+        and isinstance(tool_call.get("id"), str)
+    }
+    if any(
+        isinstance(message, dict)
+        and message.get("role") == "tool"
+        and message.get("tool_call_id") in tool_call_ids
+        for message in current_messages
+    ):
+        return {
+            "content": (
+                "已验收正文优化子 Agent 的回传结果：最新章节的正文优化已经完成，"
+                "剧情事实与人物设定保持不变。"
+            )
+        }
+
+    if capability == "content_optimization":
+        return {
+            "content": (
+                "正文优化子 Agent 已完成目标章节的正文优化并核对结果："
+                "表达与节奏已改善，剧情事实和人物设定保持不变。"
+            )
+        }
+    if capability != "main":
+        return None
+
+    tool_names_by_id: dict[str, str] = {}
+    for message in current_messages:
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        tool_calls = message.get("tool_calls")
+        if not isinstance(tool_calls, list):
+            continue
+        for tool_call in tool_calls:
+            if not isinstance(tool_call, dict):
+                continue
+            function = tool_call.get("function")
+            if isinstance(tool_call.get("id"), str) and isinstance(function, dict):
+                name = function.get("name")
+                if isinstance(name, str):
+                    tool_names_by_id[tool_call["id"]] = name
+
+    for message in current_messages:
+        if not isinstance(message, dict) or message.get("role") != "tool":
+            continue
+        tool_call_id = message.get("tool_call_id")
+        if (
+            not isinstance(tool_call_id, str)
+            or tool_names_by_id.get(tool_call_id) != "locate_writing_target"
+        ):
+            continue
+        try:
+            observation = json.loads(message.get("content", ""))
+            project_id = int(observation["project"]["id"])
+            chapter_id = int(observation["chapter"]["id"])
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        return {
+            "tool_call": {
+                "id": "call_a4n_delegate_content_optimization",
+                "name": "delegate",
+                "arguments": {
+                    "capability": "content_optimization",
+                    "task": "优化已定位的最新章节正文，并提交可供主 Agent 验收的真实结果。",
+                    "projectId": project_id,
+                    "chapterId": chapter_id,
+                    "successCriteria": [
+                        "完成目标章节的正文优化",
+                        "保持剧情事实与人物设定一致",
+                    ],
+                },
+            }
+        }
+
+    return {
+        "tool_call": {
+            "id": "call_a4n_locate_writing_target",
+            "name": "locate_writing_target",
+            "arguments": {},
+        }
+    }
+
+
 def response_for(body: dict[str, Any]) -> str:
     messages = body.get("messages") or []
     combined = "\n".join(str(message.get("content", "")) for message in messages)
@@ -2658,16 +2803,105 @@ class ProviderHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": {"message": "not found"}})
             return
 
-        try:
-            content = response_for(body)
-        except (UnhandledPromptError, ValueError) as error:
-            self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
-            return
+        agent_fixture = agent_chat_fixture(body)
+        if agent_fixture is None:
+            try:
+                content = response_for(body)
+            except (UnhandledPromptError, ValueError) as error:
+                self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
+                return
+            tool_call = None
+        else:
+            content = str(agent_fixture.get("content", ""))
+            tool_call = agent_fixture.get("tool_call")
         if body.get("stream") is True:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
+            if isinstance(tool_call, dict):
+                arguments = json.dumps(
+                    tool_call["arguments"],
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                )
+                split_at = max(1, len(arguments) // 2)
+                events = [
+                    {
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "id": tool_call["id"],
+                                            "type": "function",
+                                        }
+                                    ]
+                                },
+                                "finish_reason": None,
+                            }
+                        ]
+                    },
+                    {
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "function": {"name": tool_call["name"]},
+                                        }
+                                    ]
+                                },
+                                "finish_reason": None,
+                            }
+                        ]
+                    },
+                ]
+                events.extend(
+                    {
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {
+                                    "tool_calls": [
+                                        {
+                                            "index": 0,
+                                            "function": {"arguments": fragment},
+                                        }
+                                    ]
+                                },
+                                "finish_reason": None,
+                            }
+                        ]
+                    }
+                    for fragment in (arguments[:split_at], arguments[split_at:])
+                    if fragment
+                )
+                events.append(
+                    {
+                        "choices": [
+                            {"index": 0, "delta": {}, "finish_reason": "tool_calls"}
+                        ],
+                        "usage": {
+                            "prompt_tokens": 10,
+                            "completion_tokens": 20,
+                            "total_tokens": 30,
+                        },
+                    }
+                )
+                for event in events:
+                    self.wfile.write(
+                        ("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode(
+                            "utf-8"
+                        )
+                    )
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+                return
             for index in range(0, len(content), 1024):
                 event = {
                     "choices": [
@@ -2686,6 +2920,45 @@ class ProviderHandler(BaseHTTPRequestHandler):
             self.wfile.write(("data: " + json.dumps(final) + "\n\n").encode("utf-8"))
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
+            return
+
+        if isinstance(tool_call, dict):
+            self._json(
+                200,
+                {
+                    "id": "chatcmpl-a4n-e2e",
+                    "object": "chat.completion",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": "",
+                                "tool_calls": [
+                                    {
+                                        "id": tool_call["id"],
+                                        "type": "function",
+                                        "function": {
+                                            "name": tool_call["name"],
+                                            "arguments": json.dumps(
+                                                tool_call["arguments"],
+                                                ensure_ascii=False,
+                                                separators=(",", ":"),
+                                            ),
+                                        },
+                                    }
+                                ],
+                            },
+                            "finish_reason": "tool_calls",
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 20,
+                        "total_tokens": 30,
+                    },
+                },
+            )
             return
 
         self._json(

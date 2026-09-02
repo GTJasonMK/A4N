@@ -5,11 +5,10 @@ import React from "react";
  */
 
 export interface MessageOption {
-  id?: string;
   label: string;
   description?: string;
   keyElements?: string[];
-  value?: string;
+  value: string;
 }
 
 export interface Message {

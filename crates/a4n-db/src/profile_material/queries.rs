@@ -21,19 +21,26 @@ pub async fn profile_material_list_rows(
         .iter()
         .map(|image_type| require_text(image_type, "image_type"))
         .collect::<Result<Vec<_>, _>>()?;
-    let images = generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.eq(project_id))
-        .filter(generated_image::Column::ImageType.is_in(image_types))
-        .order_by_desc(generated_image::Column::Id)
-        .all(db)
-        .await
-        .map_err(|source| database("读取档案素材图片失败", source))?;
-
-    let primary_rows = profile_primary_material::Entity::find()
-        .filter(profile_primary_material::Column::ProjectId.eq(project_id))
-        .all(db)
-        .await
-        .map_err(|source| database("读取档案 primary material 失败", source))?;
+    let (images, primary_rows) = futures::join!(
+        async {
+            generated_image::Entity::find()
+                .filter(generated_image::Column::ProjectId.eq(project_id))
+                .filter(generated_image::Column::ImageType.is_in(image_types))
+                .order_by_desc(generated_image::Column::Id)
+                .all(db)
+                .await
+                .map_err(|source| database("读取档案素材图片失败", source))
+        },
+        async {
+            profile_primary_material::Entity::find()
+                .filter(profile_primary_material::Column::ProjectId.eq(project_id))
+                .all(db)
+                .await
+                .map_err(|source| database("读取档案 primary material 失败", source))
+        },
+    );
+    let images = images?;
+    let primary_rows = primary_rows?;
 
     Ok(ProfileMaterialListRows {
         images,

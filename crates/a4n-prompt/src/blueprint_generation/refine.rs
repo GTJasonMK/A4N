@@ -34,6 +34,11 @@ mod tests {
         assert!(!message.contains("全面优化"));
         assert!(!message.contains(r#""title""#));
         assert!(message.contains(r#""style""#));
+        assert!(message.contains(r#""field_schemas""#));
+        assert!(message.contains(r#""relationship_type""#));
+        for relationship_type in a4n_core::blueprint::BLUEPRINT_RELATIONSHIP_TYPES {
+            assert!(message.contains(&format!(r#""{relationship_type}""#)));
+        }
     }
 
     #[tokio::test]

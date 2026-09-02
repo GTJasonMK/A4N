@@ -382,6 +382,7 @@ async fn insert_test_graph(
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some("Graph Runner 测试画布".to_string()),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,

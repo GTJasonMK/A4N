@@ -8,6 +8,7 @@ use a4n_core::{
         BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
     },
     error::AppError,
+    models::generation::workflow_run,
 };
 use a4n_orchestrator::GenerationTaskAccessError;
 
@@ -42,6 +43,54 @@ pub async fn start_blueprint_refinement_typed(
         },
     );
     Ok(start.handle)
+}
+
+pub async fn resume_blueprint_refinement_workflow(
+    state: &AppState,
+    user_id: i64,
+    run: &workflow_run::Model,
+) -> Result<(), String> {
+    let input = state
+        .orchestrator()
+        .blueprint_refinement_input_from_workflow_run(run)
+        .map_err(crate::actions::app_error_message)?;
+    let start = state
+        .orchestrator()
+        .start_blueprint_refinement_task(user_id, &input)
+        .await
+        .map_err(|error| error.to_string())?;
+    if let Err(error) = state
+        .orchestrator()
+        .resume_workflow_run_with_active_task_validated(run.id, &start.handle.task_id)
+        .await
+    {
+        let cleanup = state
+            .orchestrator()
+            .request_generation_cancel(user_id, &start.handle.task_id, start.handle.attempt)
+            .await;
+        return Err(match cleanup {
+            Ok(_) => error.to_string(),
+            Err(cleanup_error) => {
+                format!("{error}; generation task 清理失败: {cleanup_error}")
+            }
+        });
+    }
+    if !start.should_run {
+        return Ok(());
+    }
+    let worker_state = state.clone();
+    state.spawn_generation_execution(
+        start.handle.clone(),
+        BLUEPRINT_REFINEMENT_TASK_KIND,
+        move |handle| async move {
+            let prompt_renderer = &worker_state;
+            worker_state
+                .orchestrator()
+                .run_blueprint_refinement_task(prompt_renderer, input, handle)
+                .await
+        },
+    );
+    Ok(())
 }
 
 pub async fn preview_refine_blueprint_request(

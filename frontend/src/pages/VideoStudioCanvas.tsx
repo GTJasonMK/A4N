@@ -23,14 +23,17 @@ import {
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { Eye,
+import {
+  Bot,
+  Eye,
   Film,
   ListPlus,
   Play,
   Save,
   SlidersHorizontal,
   Trash2,
-  Upload, } from "lucide-react";
+  Upload,
+} from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../api";
 import { listLlmConfig } from "../api/config/llm";
@@ -66,6 +69,7 @@ import { BackButton } from "../components/ui/BackButton";
 import { Dropdown, type DropdownItem } from "../components/ui/Dropdown";
 import { Modal } from "../components/ui/Modal";
 import { PageHeader } from "../components/shell/PageHeader";
+import { DomainAgentConsole } from "../components/agent/DomainAgentConsole";
 import {
   useContextMenu,
   type ContextMenuEntry,
@@ -212,6 +216,7 @@ export const VideoStudioCanvas: React.FC = () => {
     useState<StudioNode | null>(null);
   const [mobileNodeLibraryOpen, setMobileNodeLibraryOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+  const [agentConsoleOpen, setAgentConsoleOpen] = useState(false);
   const requestRef = useRef(0);
   const canvasSectionRef = useRef<HTMLElement | null>(null);
   const workflowDiscoveryTimerRef = useRef<number | null>(null);
@@ -477,6 +482,10 @@ export const VideoStudioCanvas: React.FC = () => {
     (kind: string, label: string, position?: { x: number; y: number }) => {
       if (canvasMutationDisabled) return;
       const id = `node-${Date.now()}-${Math.round(Math.random() * 10000)}`;
+      const imageConfig =
+        kind === "GenerateImageNode"
+          ? configOptions.image.find((option) => option.isDefault)
+          : undefined;
       setNodes((items) => [
         ...items.map((item) => ({ ...item, selected: false })),
         {
@@ -490,13 +499,13 @@ export const VideoStudioCanvas: React.FC = () => {
             refType: defaultRefTypeForNode(kind),
             refId: null,
             state: "ready",
-            config: defaultConfigForNode(kind),
+            config: defaultConfigForNode(kind, imageConfig),
           },
         },
       ]);
       setDirty(true);
     },
-    [canvasMutationDisabled, setNodes],
+    [canvasMutationDisabled, configOptions.image, setNodes],
   );
 
   const addNodeToVisibleCanvas = useCallback(
@@ -784,6 +793,7 @@ export const VideoStudioCanvas: React.FC = () => {
           nodesWithTextAssets,
           edges,
         ),
+        document.graph.version,
       );
       const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
       setDocument(saved);
@@ -868,6 +878,7 @@ export const VideoStudioCanvas: React.FC = () => {
       const saved = await saveCanvasGraph(
         projectId,
         toCanvasGraphInput(document, nextNodes, edges),
+        document.graph.version,
       );
       const savedEdges = saved.edges.map((edge) => toFlowEdge(edge, t));
       setDocument(saved);
@@ -1628,6 +1639,16 @@ export const VideoStudioCanvas: React.FC = () => {
           }
           actions={
             <>
+              <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={() => setAgentConsoleOpen(true)}
+                disabled={!project}
+                title={t("agent.domain.openCanvas")}
+              >
+                <Bot size={14} />
+                <span className="hidden sm:inline">{t("agent.domain.domainAgent")}</span>
+              </BookButton>
               {isMobileLayout ? (
                 <>
                   <BookIconButton
@@ -1835,6 +1856,30 @@ export const VideoStudioCanvas: React.FC = () => {
             />
           </Suspense>
         ) : null}
+        <Modal
+          isOpen={agentConsoleOpen}
+          onClose={() => setAgentConsoleOpen(false)}
+          title={t("agent.domain.canvasTitle")}
+          subtitle={project?.title ?? undefined}
+          icon={<Bot size={14} />}
+          maxWidthClassName="max-w-2xl"
+          bodyClassName="min-h-0 flex-1 overflow-hidden p-0"
+        >
+          <DomainAgentConsole
+            capability="canvas"
+            projectId={projectId}
+            resourceLabel={project?.title}
+            onResourceChanged={() => {
+              if (dirty) {
+                addToast(t("agent.domain.canvasLocalChanges"), "info");
+                return;
+              }
+              return load();
+            }}
+            fill
+            className="min-h-0 rounded-none border-0 shadow-none"
+          />
+        </Modal>
       </div>
     </StudioNodeContractsProvider>
   );

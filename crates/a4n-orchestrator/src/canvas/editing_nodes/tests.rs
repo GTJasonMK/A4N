@@ -485,6 +485,7 @@ async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> Ca
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some(format!("{node_kind} 测试画布")),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,

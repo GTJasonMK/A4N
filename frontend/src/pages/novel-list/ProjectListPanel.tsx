@@ -1,7 +1,8 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React from "react";
-import { Check, UserPlus, X } from "lucide-react";
+import { Check, Plus, Settings as SettingsIcon, Upload, UserPlus, X } from "lucide-react";
 import type { NovelProject, ProjectAccessScope, ProjectInvite } from "../../api/project";
-import { BookButton } from "../../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
@@ -26,6 +27,9 @@ interface ProjectListPanelProps {
   pendingInvites: ProjectInvite[];
   inviteActionIds: ReadonlySet<number>;
   onTabChange: (tab: ProjectTab) => void;
+  onCreateProject: () => void;
+  onImportProject: () => void;
+  onOpenSettings: () => void;
   onAccessScopeChange: (scope: ProjectAccessScope) => void;
   onProjectKindFilterChange: (kind: ProjectKindFilter) => void;
   onAcceptInvite: (invite: ProjectInvite) => void;
@@ -47,6 +51,9 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
   pendingInvites,
   inviteActionIds,
   onTabChange,
+  onCreateProject,
+  onImportProject,
+  onOpenSettings,
   onAccessScopeChange,
   onProjectKindFilterChange,
   onAcceptInvite,
@@ -73,19 +80,49 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
     <h1 className="sr-only">{t("novel.projectWorkbench")}</h1>
     <nav aria-label={t("novel.projectFilter")} className="a4n-home-filter-bar content-wide mb-3 border-b border-book-border/60 pb-2.5">
       <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-        <SegmentedControl
-          ariaLabel={t("novel.projectView")}
-          value={tab}
-          onChange={onTabChange}
-          options={[
-            { id: "recent", label: t("novel.recentProjects") },
-            { id: "all", label: t("novel.allProjects") },
-          ]}
-        />
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <SegmentedControl
+            ariaLabel={t("novel.projectView")}
+            value={tab}
+            onChange={onTabChange}
+            options={[
+              { id: "recent", label: t("novel.recentProjects") },
+              { id: "all", label: t("novel.allProjects") },
+            ]}
+          />
+          <div className="ml-auto flex shrink-0 items-center gap-1 md:hidden">
+            <BookButton
+              variant="primary"
+              size="lg"
+              onClick={onCreateProject}
+              aria-label={t("novel.createProject")}
+              title={t("novel.createProject")}
+              className="!h-11 !min-h-11 !w-11 !min-w-11 !p-0"
+            >
+              <Plus size={18} aria-hidden="true" />
+            </BookButton>
+            <BookIconButton
+              label={t("novel.importProjectButton")}
+              onClick={onImportProject}
+              variant="secondary"
+              className="!h-11 !w-11"
+            >
+              <Upload size={17} aria-hidden="true" />
+            </BookIconButton>
+            <BookIconButton
+              label={t("nav.openSettings")}
+              onClick={onOpenSettings}
+              variant="secondary"
+              className="!h-11 !w-11"
+            >
+              <SettingsIcon size={17} aria-hidden="true" />
+            </BookIconButton>
+          </div>
+        </div>
         <div className="grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:justify-end">
             <label className="inline-flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1">
               <span className="hidden xl:inline">{t("novel.projectTypeFilter")}</span>
-              <select
+              <ThemedSelect
                 aria-label={t("novel.projectTypeFilter")}
                 value={projectKindFilter}
                 onChange={(event) =>
@@ -98,11 +135,11 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
                     {projectKindLabels[item]}
                   </option>
                 ))}
-              </select>
+              </ThemedSelect>
             </label>
             <label className="inline-flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1">
               <span className="hidden xl:inline">{t("novel.accessFilter")}</span>
-              <select
+              <ThemedSelect
                 aria-label={t("novel.accessFilter")}
                 value={accessScope}
                 onChange={(event) =>
@@ -115,7 +152,7 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
                     {accessScopeLabels[item.value]}
                   </option>
                 ))}
-              </select>
+              </ThemedSelect>
             </label>
             {loading && (
               <span className="col-span-2 inline-flex items-center justify-end sm:col-span-1">

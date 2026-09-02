@@ -13,6 +13,7 @@ import {
   VIDEO_FRAME_PROMPT_IMAGE_TYPES,
   VIDEO_FRAME_PROMPT_IMAGE_GENERATION_SOURCES,
   type GeneratedImage,
+  type ImageSize,
   type VideoFramePromptImageType,
   type VideoFramePromptImageGenerationSource,
 } from "../../../api/image";
@@ -62,6 +63,25 @@ export const VIDEO_ASPECT_RATIOS = [
   "9:16",
 ] as const;
 export type VideoAspectRatio = (typeof VIDEO_ASPECT_RATIOS)[number];
+
+export function videoAspectRatiosForImageSizes(
+  sizes: readonly Pick<ImageSize, "width" | "height">[],
+): VideoAspectRatio[] {
+  const supported = new Set(
+    sizes.flatMap(({ width, height }) => {
+      if (width <= 0 || height <= 0) return [];
+      let left = width;
+      let right = height;
+      while (right !== 0) {
+        const remainder = left % right;
+        left = right;
+        right = remainder;
+      }
+      return [`${width / left}:${height / left}`];
+    }),
+  );
+  return VIDEO_ASPECT_RATIOS.filter((ratio) => supported.has(ratio));
+}
 
 export interface VideoGenOptions {
   style: string;

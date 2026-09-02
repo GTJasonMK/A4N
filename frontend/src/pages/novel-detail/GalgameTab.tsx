@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Download,
   FileText,
@@ -10,6 +11,7 @@ import { Download,
   Trash2,
   X, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { MediaAssetIdBinder } from "./galgame/MediaAssetIdBinder";
 import { PipelineStatusPanel } from "./galgame/PipelineStatusPanel";
 import {
@@ -58,6 +60,7 @@ import {
   type UpdateGalgameSceneInput,
 } from "../../api/galgame";
 import type { ModelRequestPreview } from "../../api/requestPreview";
+import type { ImageSize } from "../../api/image";
 import { extractErrorMessage } from "../../api";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
@@ -168,6 +171,13 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 }) => {
   const { addToast } = useToast();
   const { t } = useI18n();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const { runProgressTask } = useProgressTask();
   const [detail, setDetail] = useState<GalgameScriptDetail | null>(null);
   const [pipelineStatus, setPipelineStatus] =
@@ -458,9 +468,18 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
 
   const handleGenerateAssets = async () => {
     if (!canEditGalgame || generatingAssets || !detail) return;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     setGeneratingAssets(true);
     try {
-      const result = await runGalgameAssetGeneration({ project_id: projectId });
+      const result = await runGalgameAssetGeneration({
+        project_id: projectId,
+        width: requestSize.width,
+        height: requestSize.height,
+      });
       const nextDetail = await getGalgameScript(projectId);
       setDetail(nextDetail);
       addToast(
@@ -485,11 +504,18 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
       !detail
     )
       return;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     setGeneratingAssetSpecId(generationSpecId);
     try {
       const result = await runGalgameAssetGeneration({
         project_id: projectId,
         generation_spec_ids: [generationSpecId],
+        width: requestSize.width,
+        height: requestSize.height,
       });
       setAssetPlan(await planGalgameAssets(projectId));
       addToast(
@@ -865,7 +891,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                     <summary className="cursor-pointer rounded-lg px-1 py-1 text-caption text-book-text-muted hover:bg-book-bg-tertiary/55 hover:text-book-text-main">
                       {t("galgame.generationOptions")} · {pipelineStartStageLabel(pipelineStartStage, t)}
                     </summary>
-                    <select
+                    <ThemedSelect
                       className="pyqt-input mt-1.5 w-full text-xs"
                       value={pipelineStartStage}
                       disabled={
@@ -882,7 +908,7 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
                           {t(stage.labelKey)}
                         </option>
                       ))}
-                    </select>
+                    </ThemedSelect>
                   </details>
                   <Dropdown
                     items={[
@@ -1005,6 +1031,11 @@ export const GalgameTab: React.FC<GalgameTabProps> = ({
             loading={planningAssets}
             generating={generatingAssets}
             generatingSpecId={generatingAssetSpecId}
+            imageSize={imageSize}
+            imageSizes={imageSizes}
+            imageSizeLoading={imageSizeLoading}
+            imageSizeError={imageSizeError}
+            onImageSizeChange={setImageSize}
             disabled={
               !canEditGalgame ||
               planningAssets ||
@@ -1199,6 +1230,11 @@ const AssetPlanPanel: React.FC<{
   loading: boolean;
   generating: boolean;
   generatingSpecId: number | null;
+  imageSize: ImageSize | null;
+  imageSizes: readonly ImageSize[];
+  imageSizeLoading: boolean;
+  imageSizeError: Error | null;
+  onImageSizeChange: (size: ImageSize) => void;
   disabled: boolean;
   onPlan: () => void;
   onGenerate: () => void;
@@ -1209,6 +1245,11 @@ const AssetPlanPanel: React.FC<{
   loading,
   generating,
   generatingSpecId,
+  imageSize,
+  imageSizes,
+  imageSizeLoading,
+  imageSizeError,
+  onImageSizeChange,
   disabled,
   onPlan,
   onGenerate,
@@ -1279,12 +1320,21 @@ const AssetPlanPanel: React.FC<{
         </span>
       </summary>
       <div className="border-t border-book-border/40 px-3 py-3">
+        <ImageSizeSelect
+          label={t("settingsForm.selectImageSize")}
+          value={imageSize}
+          sizes={imageSizes}
+          loading={imageSizeLoading}
+          error={imageSizeError}
+          disabled={disabled}
+          onChange={onImageSizeChange}
+        />
         <BookButton
           variant="primary"
           size="sm"
           className="w-full"
           onClick={plan ? onGenerate : onPlan}
-          disabled={disabled}
+          disabled={disabled || imageSize == null}
         >
           {loading || generating ? (
             <LoadingSpinner size="sm" />
@@ -1622,7 +1672,7 @@ const SceneMetaEditor: React.FC<{
           }
           onBlur={() => commit("background_note", draft.background_note)}
         />
-        <select
+        <ThemedSelect
           className="pyqt-input text-book-text-main md:col-span-3"
           value={draft.next_scene_id}
           disabled={disabled}
@@ -1647,7 +1697,7 @@ const SceneMetaEditor: React.FC<{
               {sceneSelectLabel(item.scene, t)}
             </option>
           ))}
-        </select>
+        </ThemedSelect>
       </div>
       <details className="rounded-xl border border-book-border/40 bg-book-bg-paper/45 p-2.5">
         <summary className="cursor-pointer text-small font-medium text-book-text-main">
@@ -1731,7 +1781,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
         <span className="min-w-8 text-small font-semibold text-book-text-muted">
           {t("galgame.lineNumber", { number: line.line_index })}
         </span>
-        <select
+        <ThemedSelect
           className="pyqt-input text-xs text-book-text-main"
           value={line.line_type}
           disabled={disabled}
@@ -1760,9 +1810,9 @@ const LineEditor: React.FC<LineEditorProps> = ({
               {t(item.labelKey)}
             </option>
           ))}
-        </select>
+        </ThemedSelect>
         {isSpeakingLine ? (
-          <select
+          <ThemedSelect
             className="pyqt-input text-xs text-book-text-main"
             value={line.speaker_profile_id ?? ""}
             disabled={disabled || speakerProfiles.length === 0}
@@ -1787,10 +1837,10 @@ const LineEditor: React.FC<LineEditorProps> = ({
                 {profile.name}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         ) : null}
         {!isChoiceLine ? (
-          <select
+          <ThemedSelect
             className="pyqt-input text-xs text-book-text-main"
             value={line.position ?? ""}
             disabled={disabled}
@@ -1804,7 +1854,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
                 {t(item.labelKey)}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         ) : null}
         {isSpeakingLine ? (
           <span
@@ -1901,7 +1951,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
       />
       {!isChoiceLine ? (
         <div className="mt-2 grid gap-2 md:grid-cols-2">
-          <select
+          <ThemedSelect
             className="pyqt-input text-xs text-book-text-main"
             value={expressionValue}
             disabled={disabled}
@@ -1918,7 +1968,7 @@ const LineEditor: React.FC<LineEditorProps> = ({
                 {t(item.labelKey)}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
           <input
             list={poseDatalistId}
             className="pyqt-input text-xs text-book-text-main"
@@ -2033,7 +2083,7 @@ const PresentationEditor: React.FC<{
           CG
         </button>
         {cgEnabled ? (
-          <select
+          <ThemedSelect
             className="pyqt-input text-xs text-book-text-main"
             value={cgImportance}
             disabled={disabled}
@@ -2051,9 +2101,9 @@ const PresentationEditor: React.FC<{
                 {t(item.labelKey)}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         ) : null}
-        <select
+        <ThemedSelect
           className="pyqt-input text-xs text-book-text-main"
           value={transition}
           disabled={disabled}
@@ -2068,7 +2118,7 @@ const PresentationEditor: React.FC<{
               {t(item.labelKey)}
             </option>
           ))}
-        </select>
+        </ThemedSelect>
       </div>
       {cgEnabled ? (
         <textarea
@@ -2207,7 +2257,7 @@ const ChoiceEditor: React.FC<{
                     updateDraft(index, { option_text: event.target.value })
                   }
                 />
-                <select
+                <ThemedSelect
                   className="pyqt-input text-xs text-book-text-main"
                   value={draft.target_scene_id}
                   disabled={disabled || scenes.length === 0}
@@ -2225,7 +2275,7 @@ const ChoiceEditor: React.FC<{
                       {sceneSelectLabel(item.scene, t)}
                     </option>
                   ))}
-                </select>
+                </ThemedSelect>
                 {drafts.length > 2 ? (
                   <BookButton
                     variant="secondary"

@@ -1,4 +1,5 @@
 use a4n_core::{
+    config::image_sizes_from_json,
     error::AppError,
     models::{
         ai::{embedding_config, image_gen_config, llm_config, system_settings, video_gen_config},
@@ -67,8 +68,7 @@ pub async fn settings_all_config_rows(
                 api_key_encrypted: row.api_key_encrypted,
                 model: row.model,
                 max_concurrent: row.max_concurrent,
-                default_width: row.default_width,
-                default_height: row.default_height,
+                supported_sizes: image_sizes_from_json(&row.supported_sizes_json)?,
                 is_default: row.is_default,
             })
         })

@@ -1,10 +1,16 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::{
+    blueprint::{StartBlueprintGenerationInput, StartBlueprintRefinementInput},
+    generation_tasks::GenerationStartRequestMeta,
+};
 use a4n_core::blueprint::{BLUEPRINT_GENERATION_KIND, blueprint_stage_call_key};
 use a4n_core::error::AppError;
+use a4n_core::models::generation::workflow_run;
 use a4n_prompt::blueprint_generation::BlueprintGenerationPreviewStep;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::OrchestratorContext;
 use generation::{BLUEPRINT_GENERATION_STAGES, preview_generate_request};
@@ -17,6 +23,114 @@ mod refine;
 pub(crate) use json::validate_sparse_blueprint_sections;
 
 impl OrchestratorContext {
+    pub fn blueprint_generation_input_from_workflow_run(
+        &self,
+        run: &workflow_run::Model,
+    ) -> Result<StartBlueprintGenerationInput, AppError> {
+        if run.workflow_kind != BLUEPRINT_GENERATION_KIND {
+            return Err(AppError::InvalidArgument(format!(
+                "工作流类型 {} 不是蓝图生成",
+                run.workflow_kind
+            )));
+        }
+        let fingerprint =
+            run.input_fingerprint_json
+                .as_ref()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "blueprint_generation_workflow_fingerprint_missing".to_string(),
+                    operation: "恢复蓝图生成".to_string(),
+                })?;
+        let project_id = required_fingerprint_i64(fingerprint, "project_id")?;
+        if run.project_id != Some(project_id) {
+            return Err(AppError::InvalidState {
+                current: "blueprint_generation_project_scope_mismatch".to_string(),
+                operation: "恢复蓝图生成".to_string(),
+            });
+        }
+        let title = required_fingerprint_string(fingerprint, "title")?;
+        let genre = required_fingerprint_string(fingerprint, "genre")?;
+        let target_length = i32::try_from(required_fingerprint_i64(fingerprint, "target_length")?)
+            .map_err(|_| AppError::InvalidArgument("蓝图目标章节数超出范围".to_string()))?;
+        a4n_core::blueprint::validate_blueprint_chapter_count(target_length, "target_length")?;
+        let variables = required_fingerprint_variables(fingerprint)?;
+        let expected = a4n_core::blueprint::blueprint_generation_input_fingerprint(
+            project_id,
+            &title,
+            &genre,
+            target_length,
+            &variables,
+        );
+        if fingerprint != &expected {
+            return Err(AppError::InvalidState {
+                current: "blueprint_generation_workflow_fingerprint_invalid".to_string(),
+                operation: "恢复蓝图生成".to_string(),
+            });
+        }
+        Ok(StartBlueprintGenerationInput {
+            meta: new_resume_meta(),
+            project_id,
+            title,
+            genre,
+            target_length,
+            variables: Some(serde_json::from_value(variables).map_err(|error| {
+                AppError::InvalidState {
+                    current: error.to_string(),
+                    operation: "恢复蓝图生成变量".to_string(),
+                }
+            })?),
+        })
+    }
+
+    pub fn blueprint_refinement_input_from_workflow_run(
+        &self,
+        run: &workflow_run::Model,
+    ) -> Result<StartBlueprintRefinementInput, AppError> {
+        if run.workflow_kind != a4n_core::blueprint::BLUEPRINT_REFINEMENT_WORKFLOW_KIND {
+            return Err(AppError::InvalidArgument(format!(
+                "工作流类型 {} 不是蓝图优化",
+                run.workflow_kind
+            )));
+        }
+        let fingerprint =
+            run.input_fingerprint_json
+                .as_ref()
+                .ok_or_else(|| AppError::InvalidState {
+                    current: "blueprint_refinement_workflow_fingerprint_missing".to_string(),
+                    operation: "恢复蓝图优化".to_string(),
+                })?;
+        let project_id = required_fingerprint_i64(fingerprint, "project_id")?;
+        if run.project_id != Some(project_id) {
+            return Err(AppError::InvalidState {
+                current: "blueprint_refinement_project_scope_mismatch".to_string(),
+                operation: "恢复蓝图优化".to_string(),
+            });
+        }
+        let focus = optional_fingerprint_string(fingerprint, "focus")?;
+        let variables = required_fingerprint_variables(fingerprint)?;
+        let expected = a4n_core::blueprint::blueprint_refinement_input_fingerprint(
+            project_id,
+            focus.as_deref(),
+            &variables,
+        );
+        if fingerprint != &expected {
+            return Err(AppError::InvalidState {
+                current: "blueprint_refinement_workflow_fingerprint_invalid".to_string(),
+                operation: "恢复蓝图优化".to_string(),
+            });
+        }
+        Ok(StartBlueprintRefinementInput {
+            meta: new_resume_meta(),
+            project_id,
+            focus,
+            variables: Some(serde_json::from_value(variables).map_err(|error| {
+                AppError::InvalidState {
+                    current: error.to_string(),
+                    operation: "恢复蓝图优化变量".to_string(),
+                }
+            })?),
+        })
+    }
+
     pub async fn preview_blueprint_generation_request_for_user_validated(
         &self,
         user_id: i64,
@@ -74,8 +188,6 @@ fn character_profile_seed_error(error: a4n_db::character::CharacterProfileSeedEr
 }
 
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
-use a4n_core::models::generation::workflow_run;
-use serde_json::json;
 
 impl OrchestratorContext {
     /// 蓝图生成：校验后创建 workflow_run（RUNNING）。
@@ -91,17 +203,34 @@ impl OrchestratorContext {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
-        let fingerprint = json!({
-            "schema_version": 1,
-            "workflow": BLUEPRINT_GENERATION_KIND,
-            "project_id": project_id,
-            "title": title,
-            "genre": genre,
-            "target_length": target_length,
-            "variables": variables,
-        });
-        self.begin_workflow_run_validated(UpsertWorkflowRunInput {
-            business_key: format!("{BLUEPRINT_GENERATION_KIND}:project:{project_id}"),
+        let fingerprint = a4n_core::blueprint::blueprint_generation_input_fingerprint(
+            project_id,
+            title,
+            genre,
+            target_length,
+            variables,
+        );
+        let business_key = format!("{BLUEPRINT_GENERATION_KIND}:project:{project_id}");
+        if let Some(task_id) = task_id.as_deref()
+            && let Some(existing) = self
+                .latest_workflow_run_by_business_key(&business_key)
+                .await?
+            && existing.status == WORKFLOW_STATUS_RUNNING
+            && existing.active_task_id.as_deref() == Some(task_id)
+        {
+            if existing.workflow_kind != BLUEPRINT_GENERATION_KIND
+                || existing.project_id != Some(project_id)
+                || existing.input_fingerprint_json.as_ref() != Some(&fingerprint)
+            {
+                return Err(AppError::InvalidState {
+                    current: "blueprint_generation_prebound_workflow_mismatch".to_string(),
+                    operation: "启动已绑定的蓝图生成任务".to_string(),
+                });
+            }
+            return Ok(existing);
+        }
+        self.begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
+            business_key,
             workflow_kind: BLUEPRINT_GENERATION_KIND.to_string(),
             project_id: Some(project_id),
             root_project_id: Some(project_id),
@@ -119,5 +248,96 @@ impl OrchestratorContext {
             error_message: None,
         })
         .await
+    }
+}
+
+fn new_resume_meta() -> GenerationStartRequestMeta {
+    GenerationStartRequestMeta {
+        start_request_id: Uuid::new_v4().to_string(),
+        retry_of_task_id: None,
+    }
+}
+
+fn required_fingerprint_i64(value: &Value, key: &str) -> Result<i64, AppError> {
+    value
+        .get(key)
+        .and_then(Value::as_i64)
+        .filter(|value| *value > 0)
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!("blueprint_workflow_fingerprint_missing_{key}"),
+            operation: "恢复蓝图工作流".to_string(),
+        })
+}
+
+fn required_fingerprint_string(value: &Value, key: &str) -> Result<String, AppError> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        // The fingerprint is built from the exact request values. Trim only
+        // for the non-empty check; changing the value here makes a valid
+        // request impossible to reconstruct on resume.
+        .filter(|value| !value.trim().is_empty())
+        .map(ToString::to_string)
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!("blueprint_workflow_fingerprint_missing_{key}"),
+            operation: "恢复蓝图工作流".to_string(),
+        })
+}
+
+fn optional_fingerprint_string(value: &Value, key: &str) -> Result<Option<String>, AppError> {
+    match value.get(key) {
+        Some(Value::Null) => Ok(None),
+        Some(Value::String(value)) => Ok(
+            a4n_core::blueprint::normalized_blueprint_refinement_focus(Some(value))
+                .map(ToString::to_string),
+        ),
+        _ => Err(AppError::InvalidState {
+            current: format!("blueprint_workflow_fingerprint_invalid_{key}"),
+            operation: "恢复蓝图工作流".to_string(),
+        }),
+    }
+}
+
+fn required_fingerprint_variables(value: &Value) -> Result<Value, AppError> {
+    value
+        .get("variables")
+        .filter(|value| value.is_object())
+        .cloned()
+        .ok_or_else(|| AppError::InvalidState {
+            current: "blueprint_workflow_fingerprint_invalid_variables".to_string(),
+            operation: "恢复蓝图工作流".to_string(),
+        })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn required_fingerprint_string_preserves_request_value() {
+        let fingerprint = a4n_core::blueprint::blueprint_generation_input_fingerprint(
+            7,
+            "  雾城  ",
+            "  悬疑  ",
+            20,
+            &json!({}),
+        );
+
+        assert_eq!(
+            required_fingerprint_string(&fingerprint, "title").unwrap(),
+            "  雾城  "
+        );
+        assert_eq!(
+            required_fingerprint_string(&fingerprint, "genre").unwrap(),
+            "  悬疑  "
+        );
+    }
+
+    #[test]
+    fn required_fingerprint_string_rejects_whitespace_only_value() {
+        let fingerprint = json!({"title": " \n\t "});
+
+        assert!(required_fingerprint_string(&fingerprint, "title").is_err());
     }
 }

@@ -220,10 +220,36 @@ pub async fn resume_workflow_run(
     db: &DatabaseConnection,
     workflow_run_id: i64,
 ) -> Result<workflow_run::Model, WorkflowWriteError> {
+    resume_workflow_run_inner(db, workflow_run_id, None).await
+}
+
+/// 将可恢复 workflow 绑定到已经预留的新执行任务。
+///
+/// generation reservation 与 worker 启动是异步的；恢复入口必须先把这两个
+/// durable identity 绑定，否则接口返回时仍会读到旧终态，worker 随后又可能
+/// 把同一 workflow 当作重复启动。
+pub async fn resume_workflow_run_with_active_task(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    active_task_id: &str,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
+    let active_task_id = required_text(active_task_id.to_string(), "active_task_id")?;
+    resume_workflow_run_inner(db, workflow_run_id, Some(&active_task_id)).await
+}
+
+async fn resume_workflow_run_inner(
+    db: &DatabaseConnection,
+    workflow_run_id: i64,
+    active_task_id: Option<&str>,
+) -> Result<workflow_run::Model, WorkflowWriteError> {
     validate_positive_i64(workflow_run_id, "workflow_run_id")?;
     let tx = db.begin().await.map_err(WorkflowWriteError::Database)?;
     let run = locked_workflow_run_by_id(&tx, workflow_run_id).await?;
     if run.status == WORKFLOW_STATUS_RUNNING {
+        if active_task_id.is_some() && run.active_task_id.as_deref() == active_task_id {
+            tx.commit().await.map_err(WorkflowWriteError::Database)?;
+            return Ok(run);
+        }
         return Err(WorkflowWriteError::StatusConflict {
             current: run.status,
             operation: "重复恢复工作流".to_string(),
@@ -235,7 +261,7 @@ pub async fn resume_workflow_run(
     active.can_resume = Set(true);
     active.resume_block_reason = Set(None);
     active.error_message = Set(None);
-    active.active_task_id = Set(None);
+    active.active_task_id = Set(active_task_id.map(ToString::to_string));
     active.updated_at = Set(Utc::now().naive_utc());
     active.completed_at = Set(None);
     let updated = active

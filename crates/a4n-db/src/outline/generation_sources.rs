@@ -122,6 +122,101 @@ where
     if lock {
         lock_outline_source_insert_tables(db, backend).await?;
     }
+    if !lock {
+        let (
+            chapters_result,
+            blueprint_result,
+            blueprint_characters_result,
+            blueprint_relationships_result,
+            character_profiles_result,
+            objects_result,
+            scenes_result,
+            foreshadowing_result,
+            parts_result,
+            chapter_outlines_result,
+        ) = futures::join!(
+            chapter::Entity::find()
+                .filter(chapter::Column::ProjectId.eq(project_id))
+                .order_by_asc(chapter::Column::ChapterNumber)
+                .order_by_asc(chapter::Column::Id)
+                .all(db),
+            novel_blueprint::Entity::find()
+                .filter(novel_blueprint::Column::ProjectId.eq(project_id))
+                .order_by_asc(novel_blueprint::Column::Id)
+                .one(db),
+            blueprint_character::Entity::find()
+                .filter(blueprint_character::Column::ProjectId.eq(project_id))
+                .order_by_asc(blueprint_character::Column::Id)
+                .all(db),
+            blueprint_relationship::Entity::find()
+                .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
+                .order_by_asc(blueprint_relationship::Column::Id)
+                .all(db),
+            protagonist_profile::Entity::find()
+                .filter(protagonist_profile::Column::ProjectId.eq(project_id))
+                .order_by_asc(protagonist_profile::Column::Id)
+                .all(db),
+            object_profile::Entity::find()
+                .filter(object_profile::Column::ProjectId.eq(project_id))
+                .order_by_asc(object_profile::Column::Id)
+                .all(db),
+            scene_profile::Entity::find()
+                .filter(scene_profile::Column::ProjectId.eq(project_id))
+                .order_by_asc(scene_profile::Column::Id)
+                .all(db),
+            foreshadowing_index::Entity::find()
+                .filter(foreshadowing_index::Column::ProjectId.eq(project_id))
+                .order_by_asc(foreshadowing_index::Column::Id)
+                .all(db),
+            part_outline::Entity::find()
+                .filter(part_outline::Column::ProjectId.eq(project_id))
+                .order_by_asc(part_outline::Column::PartNumber)
+                .order_by_asc(part_outline::Column::Id)
+                .all(db),
+            chapter_outline::Entity::find()
+                .filter(chapter_outline::Column::ProjectId.eq(project_id))
+                .order_by_asc(chapter_outline::Column::ChapterNumber)
+                .order_by_asc(chapter_outline::Column::Id)
+                .all(db),
+        );
+        let chapters = chapters_result?;
+        let blueprint = blueprint_result?;
+        let blueprint_characters = blueprint_characters_result?;
+        let blueprint_relationships = blueprint_relationships_result?;
+        let character_profiles = character_profiles_result?;
+        let objects = objects_result?;
+        let scenes = scenes_result?;
+        let foreshadowing = foreshadowing_result?;
+        let parts = parts_result?;
+        let chapter_outlines = chapter_outlines_result?;
+        let outline_ids = chapter_outlines
+            .iter()
+            .map(|outline| outline.id)
+            .collect::<Vec<_>>();
+        let chapter_outline_provenance = if outline_ids.is_empty() {
+            Vec::new()
+        } else {
+            chapter_outline_provenance::Entity::find()
+                .filter(chapter_outline_provenance::Column::OutlineId.is_in(outline_ids))
+                .order_by_asc(chapter_outline_provenance::Column::OutlineId)
+                .all(db)
+                .await?
+        };
+        return Ok(Some(OutlineGenerationSourceRows {
+            project,
+            chapters,
+            blueprint,
+            blueprint_characters,
+            blueprint_relationships,
+            character_profiles,
+            objects,
+            scenes,
+            foreshadowing,
+            parts,
+            chapter_outlines,
+            chapter_outline_provenance,
+        }));
+    }
     let chapters = maybe_lock(
         chapter::Entity::find()
             .filter(chapter::Column::ProjectId.eq(project_id))

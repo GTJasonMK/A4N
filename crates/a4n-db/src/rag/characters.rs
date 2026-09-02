@@ -54,29 +54,67 @@ pub async fn character_states_for_rag_ingest(
     db: &impl ConnectionTrait,
     profile_ids: &[i64],
 ) -> Result<Vec<character_state_index::Model>, DbErr> {
+    character_states_for_rag_ingest_with_bound(db, profile_ids, None).await
+}
+
+pub async fn character_states_for_rag_ingest_before_chapter(
+    db: &impl ConnectionTrait,
+    profile_ids: &[i64],
+    chapter_number: i32,
+) -> Result<Vec<character_state_index::Model>, DbErr> {
+    character_states_for_rag_ingest_with_bound(db, profile_ids, Some(chapter_number)).await
+}
+
+async fn character_states_for_rag_ingest_with_bound(
+    db: &impl ConnectionTrait,
+    profile_ids: &[i64],
+    chapter_number: Option<i32>,
+) -> Result<Vec<character_state_index::Model>, DbErr> {
     if profile_ids.is_empty() {
         return Ok(Vec::new());
     }
 
-    character_state_index::Entity::find()
+    let mut query = character_state_index::Entity::find()
         .filter(character_state_index::Column::ProfileId.is_in(profile_ids.to_vec()))
-        .order_by_asc(character_state_index::Column::ChapterNumber)
-        .all(db)
-        .await
+        .order_by_asc(character_state_index::Column::ChapterNumber);
+    if let Some(chapter_number) = chapter_number {
+        query = query
+            .filter(character_state_index::Column::ChapterNumber.lt(chapter_number))
+            .order_by_asc(character_state_index::Column::Id);
+    }
+    query.all(db).await
 }
 
 pub async fn attribute_events_for_rag_ingest(
     db: &impl ConnectionTrait,
     profile_ids: &[i64],
 ) -> Result<Vec<attribute_event::Model>, DbErr> {
+    attribute_events_for_rag_ingest_with_bound(db, profile_ids, None).await
+}
+
+pub async fn attribute_events_for_rag_ingest_before_chapter(
+    db: &impl ConnectionTrait,
+    profile_ids: &[i64],
+    chapter_number: i32,
+) -> Result<Vec<attribute_event::Model>, DbErr> {
+    attribute_events_for_rag_ingest_with_bound(db, profile_ids, Some(chapter_number)).await
+}
+
+async fn attribute_events_for_rag_ingest_with_bound(
+    db: &impl ConnectionTrait,
+    profile_ids: &[i64],
+    chapter_number: Option<i32>,
+) -> Result<Vec<attribute_event::Model>, DbErr> {
     if profile_ids.is_empty() {
         return Ok(Vec::new());
     }
 
-    attribute_event::Entity::find()
+    let mut query = attribute_event::Entity::find()
         .filter(attribute_event::Column::ProfileId.is_in(profile_ids.to_vec()))
         .order_by_asc(attribute_event::Column::ChapterNumber)
-        .order_by_asc(attribute_event::Column::Id)
-        .all(db)
-        .await
+        .order_by_asc(attribute_event::Column::Id);
+    if let Some(chapter_number) = chapter_number {
+        query = query.filter(attribute_event::Column::ChapterNumber.lt(chapter_number));
+    }
+    query.all(db).await
 }

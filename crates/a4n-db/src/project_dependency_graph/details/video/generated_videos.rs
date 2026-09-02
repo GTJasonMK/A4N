@@ -19,14 +19,20 @@ pub(in crate::project_dependency_graph) async fn generated_video_detail_records<
 where
     C: ConnectionTrait,
 {
-    let prompts = chapter_video_prompt::Entity::find()
-        .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(
-            chapter_video_prompt::Column::PromptType.eq(chapter_video_prompt::PROMPT_TYPE_VIDEO),
-        )
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
+    let (prompts_result, videos_result) = futures::join!(
+        chapter_video_prompt::Entity::find()
+            .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(
+                chapter_video_prompt::Column::PromptType
+                    .eq(chapter_video_prompt::PROMPT_TYPE_VIDEO),
+            )
+            .all(db),
+        generated_video::Entity::find()
+            .filter(generated_video::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .order_by_asc(generated_video::Column::Id)
+            .all(db),
+    );
+    let prompts = prompts_result.map_err(AppError::Database)?;
     let prompt_by_video = prompts
         .iter()
         .filter_map(|prompt| prompt.generated_video_id.map(|id| (id, prompt)))
@@ -35,12 +41,7 @@ where
         .iter()
         .map(|prompt| (prompt.id, prompt))
         .collect::<HashMap<_, _>>();
-    let videos = generated_video::Entity::find()
-        .filter(generated_video::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .order_by_asc(generated_video::Column::Id)
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
+    let videos = videos_result.map_err(AppError::Database)?;
     Ok(videos
         .into_iter()
         .map(|video| {

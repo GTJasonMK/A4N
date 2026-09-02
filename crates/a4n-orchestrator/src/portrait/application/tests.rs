@@ -196,6 +196,8 @@ async fn portrait_application_rejects_cancellation_before_provider() {
                 expression: None,
                 pose: None,
                 reference_image_ids: Vec::new(),
+                width: 1024,
+                height: 1536,
             },
             &prompt_engine(),
             &host,
@@ -220,6 +222,8 @@ async fn portrait_application_rejects_invalid_reference_ids_before_host() {
         &host,
         1,
         "人物三视图提示词",
+        1024,
+        1536,
         &[0],
         None,
         CancellationToken::new(),
@@ -273,6 +277,8 @@ async fn portrait_application_persists_complete_missing_portrait_trace() {
         .generate_missing_portraits_validated(
             GenerateMissingPortraitsInput {
                 project_id: project.id,
+                width: 1024,
+                height: 1536,
             },
             &host,
             None,
@@ -362,6 +368,8 @@ async fn missing_portrait_batch_continues_after_one_item_fails() {
         .generate_missing_portraits_validated(
             GenerateMissingPortraitsInput {
                 project_id: project.id,
+                width: 1024,
+                height: 1536,
             },
             &host,
             None,

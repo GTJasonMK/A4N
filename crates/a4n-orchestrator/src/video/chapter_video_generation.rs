@@ -331,17 +331,19 @@ impl OrchestratorContext {
         } = input;
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
-        let mut prompt = self.chapter_video_prompt(prompt_id).await?;
-        if prompt.project_id != project_id || prompt.chapter_id != chapter_id {
-            return Err(invalid_argument("视频提示词不属于该章节"));
-        }
         let (operation, writable) = match mode {
             VideoProviderValidationMode::Generate => ("生成视频", true),
             VideoProviderValidationMode::Preview => ("预览视频生成请求", false),
         };
-        let source = self
-            .project_chapter_video_source(project_id, chapter_id, operation, writable)
-            .await?;
+        let (prompt_result, source_result) = futures::join!(
+            self.chapter_video_prompt(prompt_id),
+            self.project_chapter_video_source(project_id, chapter_id, operation, writable),
+        );
+        let mut prompt = prompt_result?;
+        if prompt.project_id != project_id || prompt.chapter_id != chapter_id {
+            return Err(invalid_argument("视频提示词不属于该章节"));
+        }
+        let source = source_result?;
         if prompt.prompt_type != chapter_video_prompt::PROMPT_TYPE_VIDEO {
             return Err(invalid_argument("请选择 video_prompt 类型的提示词生成视频"));
         }
@@ -653,17 +655,27 @@ impl OrchestratorContext {
         }
         self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
             .await?;
-        self.project_chapter_video_source(input.project_id, input.chapter_id, "批量生成视频", true)
-            .await?;
-        let mut unique_prompt_ids = input.prompt_ids.clone();
-        unique_prompt_ids.sort_unstable();
-        unique_prompt_ids.dedup();
-        if unique_prompt_ids.len() != input.prompt_ids.len() {
-            return Err(invalid_argument("批量生成视频 prompt_ids 不能重复"));
-        }
-        let rows = self
-            .chapter_video_prompts_for_batch_generation(&unique_prompt_ids)
-            .await?;
+        let (source_result, prompts_result) = futures::join!(
+            self.project_chapter_video_source(
+                input.project_id,
+                input.chapter_id,
+                "批量生成视频",
+                true,
+            ),
+            async {
+                let mut unique_prompt_ids = input.prompt_ids.clone();
+                unique_prompt_ids.sort_unstable();
+                unique_prompt_ids.dedup();
+                if unique_prompt_ids.len() != input.prompt_ids.len() {
+                    return Err(invalid_argument("批量生成视频 prompt_ids 不能重复"));
+                }
+                self.chapter_video_prompts_for_batch_generation(&unique_prompt_ids)
+                    .await
+                    .map(|rows| (unique_prompt_ids, rows))
+            },
+        );
+        source_result?;
+        let (unique_prompt_ids, rows) = prompts_result?;
         if rows.len() != unique_prompt_ids.len() {
             return Err(invalid_argument("部分视频提示词不存在，不能批量生成视频"));
         }

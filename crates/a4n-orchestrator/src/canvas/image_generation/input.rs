@@ -1,7 +1,9 @@
 use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
 
-use crate::canvas::{canvas_config_i64, source_text::collect_canvas_text_source_context};
+use crate::canvas::{
+    canvas_config_i64, i64_to_i32, source_text::collect_canvas_text_source_context,
+};
 
 use super::contracts::CanvasImageNodeInput;
 
@@ -22,9 +24,17 @@ pub(super) fn build_canvas_image_node_input(
     if sources.text.trim().is_empty() {
         return Err("GenerateImageNode 缺少 prompt 输入".to_string());
     }
+    let width = canvas_config_i64(&node.config_json, "width")
+        .and_then(i64_to_i32)
+        .ok_or_else(|| "GenerateImageNode 必须设置正整数 width".to_string())?;
+    let height = canvas_config_i64(&node.config_json, "height")
+        .and_then(i64_to_i32)
+        .ok_or_else(|| "GenerateImageNode 必须设置正整数 height".to_string())?;
     Ok(CanvasImageNodeInput {
         prompt: sources.text,
         config_id: canvas_config_i64(&node.config_json, "image_config_id"),
+        width,
+        height,
         canvas_text_asset_id: sources.canvas_text_asset_id,
         source_node_ids: sources.source_node_ids,
     })

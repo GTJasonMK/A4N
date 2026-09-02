@@ -28,6 +28,7 @@ where
         .column(generated_image::Column::MetadataJson)
         .filter(generated_image::Column::ProjectId.eq(project_id))
         .filter(generated_image::Column::ChapterId.eq(chapter_id))
+        .filter(generated_image::Column::ImageType.eq("manga_page"))
         .into_tuple::<(i64, String, Option<String>, Option<serde_json::Value>)>()
         .all(db)
         .await?

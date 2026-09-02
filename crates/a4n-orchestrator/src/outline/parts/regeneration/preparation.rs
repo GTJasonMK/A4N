@@ -34,14 +34,17 @@ pub(super) async fn prepare_part_regeneration_by_id(
     project_id: i64,
     part_id: i64,
 ) -> Result<PreparedPartRegeneration, AppError> {
-    let target = service.get_part(part_id).await?;
+    let (target, context) = futures::join!(
+        service.get_part(part_id),
+        load_part_generation_context(service.database.connection(), project_id, None, None),
+    );
+    let target = target?;
     if target.project_id != project_id {
         return Err(AppError::InvalidArgument(format!(
             "分部大纲 {part_id} 不属于项目 {project_id}"
         )));
     }
-    let context =
-        load_part_generation_context(service.database.connection(), project_id, None, None).await?;
+    let context = context?;
     prepare_part_regeneration(project_id, target, context, false)
 }
 

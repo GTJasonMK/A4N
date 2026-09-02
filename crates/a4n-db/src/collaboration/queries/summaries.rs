@@ -15,8 +15,10 @@ pub(in crate::collaboration) async fn invite_summaries(
     }
     let user_ids = unique_invite_user_ids(&invites);
     let project_ids = unique_invite_project_ids(&invites);
-    let users_by_id = users_by_id(db, &user_ids).await?;
-    let projects_by_id = projects_by_id(db, &project_ids).await?;
+    let (users_by_id, projects_by_id) =
+        futures::join!(users_by_id(db, &user_ids), projects_by_id(db, &project_ids),);
+    let users_by_id = users_by_id?;
+    let projects_by_id = projects_by_id?;
     let mut summaries = Vec::with_capacity(invites.len());
     for invite in invites {
         summaries.push(invite_summary_from_indexes(

@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -40,7 +41,7 @@ export const TrendsSection: React.FC = () => {
       <div className="flex min-h-8 items-center gap-2 text-xs">
         <label className="inline-flex items-center gap-2 text-book-text-muted">
           {t("settingsAdmin.usageRange")}
-          <select
+          <ThemedSelect
             value={days}
             onChange={(e) => setDays(Number(e.target.value))}
             className="pyqt-input w-24 !px-2 !py-1"
@@ -50,7 +51,7 @@ export const TrendsSection: React.FC = () => {
             <option value={14}>{t("settingsAdmin.recentDays", { count: 14 })}</option>
             <option value={30}>{t("settingsAdmin.recentDays", { count: 30 })}</option>
             <option value={90}>{t("settingsAdmin.recentDays", { count: 90 })}</option>
-          </select>
+          </ThemedSelect>
         </label>
         <span className="flex-1" />
         <BookIconButton label={t("settingsAdmin.refreshTrends")} onClick={load} size="sm" disabled={loading}>

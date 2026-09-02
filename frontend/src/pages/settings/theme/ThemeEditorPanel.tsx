@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   ImagePlus,
@@ -515,7 +516,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
             <h3 id="theme-editor-background" className="min-w-0 flex-1 text-xs font-semibold text-book-text-main">
               {t("settingsTheme.backgrounds")}
             </h3>
-            <select
+            <ThemedSelect
               aria-label={t("settingsTheme.backgroundRoute")}
               value={backgroundRoute}
               onChange={(event) => setBackgroundRoute(event.target.value)}
@@ -525,7 +526,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
               {THEME_ROUTE_FAMILIES.map((route) => (
                 <option key={route} value={route}>{route}</option>
               ))}
-            </select>
+            </ThemedSelect>
           </div>
           <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(15rem,0.8fr)]">
             <div className="a4n-theme-editor-preview relative min-h-36 overflow-hidden rounded-[var(--pyqt-radius-md)] border border-book-border/35 bg-book-bg-tertiary/35">
@@ -607,7 +608,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
               </label>
               <label className="min-w-0 text-xs text-book-text-sub">
                 <span className="mb-1 block">{t("settingsTheme.backgroundPosition")}</span>
-                <select
+                <ThemedSelect
                   value={currentBackground.position}
                   onChange={(event) => updateBackground({ position: event.target.value })}
                   disabled={saving}
@@ -616,11 +617,11 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                   {(["center", "top", "bottom", "left", "right"] as const).map((position) => (
                     <option key={position} value={position}>{position}</option>
                   ))}
-                </select>
+                </ThemedSelect>
               </label>
               <label className="min-w-0 text-xs text-book-text-sub">
                 <span className="mb-1 block">{t("settingsTheme.backgroundSize")}</span>
-                <select
+                <ThemedSelect
                   value={currentBackground.size}
                   onChange={(event) => updateBackground({ size: event.target.value })}
                   disabled={saving}
@@ -629,7 +630,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
                   {(["cover", "contain", "auto"] as const).map((size) => (
                     <option key={size} value={size}>{size}</option>
                   ))}
-                </select>
+                </ThemedSelect>
               </label>
               <div className="flex min-w-0 flex-wrap gap-2 sm:col-span-2 lg:col-span-1">
                 <BookButton

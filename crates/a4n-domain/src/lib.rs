@@ -4,6 +4,7 @@
 //! dependencies.
 
 pub mod admin;
+pub mod agent;
 pub mod auth;
 pub mod canvas;
 pub mod chapter_visual_plan;
@@ -28,6 +29,7 @@ pub use canvas::{
     canvas_cache_key, canvas_transfer_runtime_identity_key, clear_canvas_transfer_runtime_identity,
     parse_canvas_cache_key, parse_generated_media_reference,
 };
+pub use image::{DEFAULT_IMAGE_SIZES, ImageSize, default_image_sizes, validate_image_sizes};
 pub use llm::{
     DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,
     LLM_RESERVED_REQUEST_OPTION_KEYS, LlmMaxTokensConfig, llm_token_profiles,
@@ -226,10 +228,10 @@ pub fn validate_theme_document(document: &ThemeDocument) -> Result<(), String> {
         if !THEME_ROUTE_FAMILIES.contains(&route_family.as_str()) {
             return Err(format!("主题路由族不受支持：{route_family}"));
         }
-        if let Some(resource_key) = &background.resource_key {
-            if !THEME_ROUTE_FAMILIES.contains(&resource_key.as_str()) {
-                return Err(format!("主题资源标识无效：{resource_key}"));
-            }
+        if let Some(resource_key) = &background.resource_key
+            && !THEME_ROUTE_FAMILIES.contains(&resource_key.as_str())
+        {
+            return Err(format!("主题资源标识无效：{resource_key}"));
         }
         validate_fraction("背景透明度", background.opacity)?;
         validate_fraction("背景遮罩透明度", background.overlay_opacity)?;

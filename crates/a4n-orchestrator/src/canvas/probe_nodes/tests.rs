@@ -85,6 +85,7 @@ async fn canvas_probe_application_persists_text_image_video_and_audio_observatio
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some("探针节点测试画布".to_string()),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,
@@ -260,6 +261,7 @@ async fn canvas_probe_application_marks_workflow_and_checkpoint_failed_when_arti
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some("探针失败测试画布".to_string()),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,

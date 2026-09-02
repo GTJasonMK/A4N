@@ -7,37 +7,30 @@ import { useI18n } from "../../i18n";
 interface ChatBubbleProps {
   message: Message;
   onSendOption: (text: string) => void;
+  canSelectOptions: boolean;
 }
-
-const optionTextValue = (option: MessageOption) => option.value || option.label;
 
 const OptionCard: React.FC<{
   option: MessageOption;
   onSend: () => void;
-  skeleton?: boolean;
-}> = ({ option, onSend, skeleton }) => {
-  if (skeleton) {
-    return (
-      <div className="inspiration-option-card inspiration-option-card-skeleton w-full text-left border border-dashed border-book-accent/35 bg-book-accent/5 rounded-2xl px-3.5 py-3">
-        <div className="flex items-start gap-2">
-          <div className="mt-0.5 shrink-0 w-3 h-3 rounded-md bg-book-accent/30" />
-          <div className="min-w-0 flex-1 space-y-1.5">
-            <div className="h-3.5 bg-book-accent/20 rounded-md w-3/5" />
-            <div className="h-3 bg-book-accent/15 rounded-md w-full" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
+  interactive: boolean;
+}> = ({ option, onSend, interactive }) => {
   return (
     <button
       type="button"
       onClick={onSend}
-      className="inspiration-option-card w-full rounded-2xl border border-book-border/55 bg-book-bg-paper/70 px-3.5 py-3 text-left text-book-text-main transition-[transform,border-color,background-color,box-shadow] duration-150 ease-out hover:-translate-y-px hover:border-book-primary/25 hover:bg-book-bg-paper hover:shadow-[var(--shadow-card)] active:translate-y-0"
+      disabled={!interactive}
+      className={`inspiration-option-card w-full rounded-2xl border px-3.5 py-3 text-left text-book-text-main ${
+        interactive
+          ? "border-book-primary/45 bg-book-bg-paper transition-[transform,border-color,background-color,box-shadow] duration-150 ease-out hover:-translate-y-px hover:border-book-primary/70 hover:bg-book-bg-paper hover:shadow-[var(--shadow-card)] active:translate-y-0"
+          : "cursor-not-allowed border-book-border/35 bg-book-bg-tertiary/35 opacity-55"
+      }`}
     >
       <div className="flex items-start gap-2">
-        <ArrowRight size={12} className="mt-0.5 shrink-0 text-book-accent" />
+        <ArrowRight
+          size={12}
+          className={`mt-0.5 shrink-0 ${interactive ? "text-book-accent" : "text-book-text-muted"}`}
+        />
         <div className="min-w-0">
           <div className="text-body font-semibold leading-snug tracking-tight">{option.label}</div>
           {option.description && (
@@ -67,9 +60,13 @@ const OptionCard: React.FC<{
  *  - 用户气泡：主色浅底 + 深字 + 大气泡圆角（右下略尖）
  *  - 助手气泡：轻纸面填充，不形成卡片墙
  *  - 头部 sender 标签：「你」/「创作助手」
- *  - 流式选项：已完成的直接可点，正在生成的显示骨架动画
+ *  - 选项卡片：只有当前回复的已完成选项可点，历史选项保留展示但不可再次提交
  */
-export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption }) => {
+export const ChatBubble: React.FC<ChatBubbleProps> = ({
+  message,
+  onSendOption,
+  canSelectOptions,
+}) => {
   const { t } = useI18n();
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
@@ -86,7 +83,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
   const displayOptions = message.streaming
     ? message.streamingOptions
     : message.options;
-  const showPendingSkeleton = message.streaming && message.optionsPending;
+  const showPendingSkeleton = Boolean(message.streaming && message.optionsPending);
 
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
@@ -132,21 +129,29 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onSendOption })
           )}
         </div>
       </div>
-      {!isUser && (displayOptions?.length || showPendingSkeleton) && (
+      {!isUser && ((displayOptions?.length ?? 0) > 0 || showPendingSkeleton) && (
         <div className="flex min-w-0 w-full max-w-[520px] flex-col gap-1.5 pl-3 sm:w-[80%] sm:min-w-[240px]">
-          {displayOptions?.map((opt, i) => (
+          {displayOptions?.map((opt, index) => (
             <OptionCard
-              key={opt.id || i}
+              key={`${opt.label}-${index}`}
               option={opt}
-              onSend={() => onSendOption(optionTextValue(opt))}
+              onSend={() => onSendOption(opt.value)}
+              interactive={canSelectOptions}
             />
           ))}
           {showPendingSkeleton && (
-            <OptionCard
-              option={{ label: t("inspiration.generatingOptions") }}
-              onSend={() => {}}
-              skeleton
-            />
+            <div
+              aria-hidden="true"
+              className="inspiration-option-card inspiration-option-card-skeleton w-full rounded-2xl border border-dashed border-book-accent/35 bg-book-accent/5 px-3.5 py-3 text-left"
+            >
+              <div className="flex items-start gap-2">
+                <div className="mt-0.5 h-3 w-3 shrink-0 rounded-md bg-book-accent/30" />
+                <div className="min-w-0 flex-1 space-y-1.5">
+                  <div className="h-3.5 w-3/5 rounded-md bg-book-accent/20" />
+                  <div className="h-3 w-full rounded-md bg-book-accent/15" />
+                </div>
+              </div>
+            </div>
           )}
         </div>
       )}

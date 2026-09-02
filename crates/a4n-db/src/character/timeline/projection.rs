@@ -49,13 +49,16 @@ pub(in crate::character) async fn character_attribute_ownership<C>(
 where
     C: ConnectionTrait,
 {
-    let events = attribute_events(db, profile.id).await?;
-    let deletion_marks = protagonist_deletion_mark::Entity::find()
-        .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile.id))
-        .all(db)
-        .await?;
-    let base_attributes_are_ai_generated =
-        profile_base_attributes_are_ai_generated(db, profile).await?;
+    let (events_result, deletion_marks_result, base_attributes_result) = futures::join!(
+        attribute_events(db, profile.id),
+        protagonist_deletion_mark::Entity::find()
+            .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile.id))
+            .all(db),
+        profile_base_attributes_are_ai_generated(db, profile),
+    );
+    let events = events_result?;
+    let deletion_marks = deletion_marks_result?;
+    let base_attributes_are_ai_generated = base_attributes_result?;
     Ok(character_attribute_ownership_from_records(
         profile,
         &events,
@@ -78,13 +81,16 @@ where
             "角色状态重放截止章节不能小于 0".to_string(),
         ));
     }
-    let events = attribute_events(db, profile.id).await?;
-    let deletion_marks = protagonist_deletion_mark::Entity::find()
-        .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile.id))
-        .all(db)
-        .await?;
-    let base_attributes_are_ai_generated =
-        profile_base_attributes_are_ai_generated(db, profile).await?;
+    let (events_result, deletion_marks_result, base_attributes_result) = futures::join!(
+        attribute_events(db, profile.id),
+        protagonist_deletion_mark::Entity::find()
+            .filter(protagonist_deletion_mark::Column::ProfileId.eq(profile.id))
+            .all(db),
+        profile_base_attributes_are_ai_generated(db, profile),
+    );
+    let events = events_result?;
+    let deletion_marks = deletion_marks_result?;
+    let base_attributes_are_ai_generated = base_attributes_result?;
     let ownership = character_attribute_ownership_from_records(
         profile,
         &events,

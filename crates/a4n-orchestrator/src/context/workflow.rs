@@ -365,6 +365,20 @@ impl WorkflowApplication {
             .map_err(workflow_write_app_error)
     }
 
+    async fn resume_workflow_run_with_active_task(
+        &self,
+        workflow_run_id: i64,
+        active_task_id: &str,
+    ) -> Result<workflow_run::Model, AppError> {
+        a4n_db::workflow::resume_workflow_run_with_active_task(
+            self.database.connection(),
+            workflow_run_id,
+            active_task_id,
+        )
+        .await
+        .map_err(workflow_write_app_error)
+    }
+
     async fn mark_workflow_current_step(
         &self,
         workflow_run_id: i64,
@@ -900,6 +914,19 @@ impl OrchestratorContext {
         crate::workflow::require_positive_workflow_run_id(workflow_run_id)
             .map_err(AppError::InvalidArgument)?;
         self.workflow.resume_workflow_run(workflow_run_id).await
+    }
+
+    /// 恢复 workflow 并立即绑定新 generation task，避免异步 worker 启动前暴露旧终态。
+    pub async fn resume_workflow_run_with_active_task_validated(
+        &self,
+        workflow_run_id: i64,
+        active_task_id: &str,
+    ) -> Result<workflow_run::Model, AppError> {
+        crate::workflow::require_positive_workflow_run_id(workflow_run_id)
+            .map_err(AppError::InvalidArgument)?;
+        self.workflow
+            .resume_workflow_run_with_active_task(workflow_run_id, active_task_id)
+            .await
     }
 
     pub async fn mark_workflow_current_step(

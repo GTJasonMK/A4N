@@ -56,41 +56,48 @@ export const WritingContextCards: React.FC<WritingContextCardsProps> = ({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const bp = await getBlueprint(projectId);
-        if (!cancelled) {
-          setBlueprint(bp);
-          setBlueprintError(null);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          const message = extractErrorMessage(err, t("writing.blueprintLoadFailed"));
-          setBlueprint(null);
-          setBlueprintError(message);
-          addToast(message, "error");
-        }
-      }
-      try {
+      const profileResult = (async () => {
         const profiles = await listProfiles(projectId);
+        if (cancelled) return null;
         const main = profiles[0] ?? null;
-        if (cancelled) return;
-        setPrimaryProfile(main);
+        const portrait = main ? await getPrimaryPortrait(main.id) : null;
+        return { profiles, portrait };
+      })();
+      const [blueprintResult, profilesResult] = await Promise.allSettled([
+        getBlueprint(projectId),
+        profileResult,
+      ]);
+      if (cancelled) return;
+
+      if (blueprintResult.status === "fulfilled") {
+        setBlueprint(blueprintResult.value);
+        setBlueprintError(null);
+      } else {
+        const message = extractErrorMessage(
+          blueprintResult.reason,
+          t("writing.blueprintLoadFailed"),
+        );
+        setBlueprint(null);
+        setBlueprintError(message);
+        addToast(message, "error");
+      }
+
+      if (profilesResult.status === "fulfilled" && profilesResult.value) {
+        const { profiles, portrait } = profilesResult.value;
+        setPrimaryProfile(profiles[0] ?? null);
         setProfileCount(profiles.length);
-        setPortrait(null);
+        setPortrait(portrait);
         setProfileError(null);
-        if (main) {
-          const p = await getPrimaryPortrait(main.id);
-          if (!cancelled) setPortrait(p);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setPrimaryProfile(null);
-          setProfileCount(0);
-          setPortrait(null);
-          const message = extractErrorMessage(err, t("writing.profileLoadFailedContext"));
-          setProfileError(message);
-          addToast(message, "error");
-        }
+      } else if (profilesResult.status === "rejected") {
+        setPrimaryProfile(null);
+        setProfileCount(0);
+        setPortrait(null);
+        const message = extractErrorMessage(
+          profilesResult.reason,
+          t("writing.profileLoadFailedContext"),
+        );
+        setProfileError(message);
+        addToast(message, "error");
       }
     })();
     return () => {

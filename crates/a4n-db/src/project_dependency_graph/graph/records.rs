@@ -172,6 +172,13 @@ impl AssetGraphRecords {
         root_project_id: i64,
         family_project_ids: &[i64],
     ) -> Result<Self, AppError> {
+        // The three projections use disjoint tables and inputs. Overlap pool waits, then keep
+        // root -> family -> generation error precedence when extracting results.
+        let (root_result, family_result, generation_result) = futures::join!(
+            load_root_asset_graph_records(db, root_project_id),
+            load_family_asset_graph_records(db, family_project_ids),
+            load_generation_asset_graph_records(db, family_project_ids),
+        );
         let RootAssetGraphRecords {
             conversations,
             blueprints,
@@ -184,20 +191,20 @@ impl AssetGraphRecords {
             character_profiles,
             object_profiles,
             scene_profiles,
-        } = load_root_asset_graph_records(db, root_project_id).await?;
+        } = root_result?;
         let FamilyAssetGraphRecords {
             portraits,
             manga_prompts,
             video_prompts,
             generated_images,
             generated_videos,
-        } = load_family_asset_graph_records(db, family_project_ids).await?;
+        } = family_result?;
         let GenerationAssetGraphRecords {
             generation_specs,
             prompt_artifacts,
             media_assets,
             media_provenance_count,
-        } = load_generation_asset_graph_records(db, family_project_ids).await?;
+        } = generation_result?;
 
         Ok(Self {
             conversations,

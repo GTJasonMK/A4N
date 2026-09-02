@@ -20,6 +20,7 @@ use super::{
     RagApplication, SceneProfileApplication, ShootingScriptApplication, SourceSyncApplication,
     TextAnchorApplication, VideoApplication, WorkflowApplication,
 };
+use crate::agent::AgentApplication;
 use crate::chapter_generation::ChapterGenerationService;
 use crate::context::dynamic_provider::DynamicProviderFacade;
 use crate::task_queue::PersistentTaskQueue;
@@ -57,6 +58,7 @@ impl OrchestratorContext {
         >,
     ) -> Result<Self, AppError> {
         let admin = AdminApplication::new(db.clone());
+        let agent = AgentApplication::new(db.clone());
         let asset = AssetApplication::new(db.clone());
         let auth = AuthApplication::new(db.clone());
         let canvas = CanvasApplication::new(db.clone());
@@ -102,6 +104,7 @@ impl OrchestratorContext {
         Ok(Self {
             database: db,
             admin,
+            agent,
             asset,
             auth,
             canvas,
@@ -150,6 +153,10 @@ impl OrchestratorContext {
             embedding,
             snapshot_store,
         })
+    }
+
+    pub fn agent(&self) -> &AgentApplication {
+        &self.agent
     }
 
     /// 发布内部事件（状态/蓝图等），统一经 EventBus，避免旁路直连。

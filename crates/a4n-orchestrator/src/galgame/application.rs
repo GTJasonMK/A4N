@@ -236,9 +236,19 @@ impl OrchestratorContext {
     ) -> Result<GalgamePipelineStatusSummary, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
             .await?;
-        let project = self
-            .project_by_id(project_id)
-            .await?
+        let (project_result, runs_result) = futures::join!(
+            self.project_by_id(project_id),
+            self.workflow_run_models(ListWorkflowRunsInput {
+                project_id: Some(project_id),
+                chapter_id: None,
+                chapter_ids: None,
+                workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
+                status: None,
+                resumable_only: Some(false),
+                limit: Some(1),
+            }),
+        );
+        let project = project_result?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
         if project.project_kind != ProjectKind::Galgame.as_str() {
             return Err(AppError::InvalidArgument(format!(
@@ -246,19 +256,7 @@ impl OrchestratorContext {
                 project.id
             )));
         }
-        let run = self
-            .workflow_run_models(ListWorkflowRunsInput {
-                project_id: Some(project.id),
-                chapter_id: None,
-                chapter_ids: None,
-                workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
-                status: None,
-                resumable_only: Some(false),
-                limit: Some(1),
-            })
-            .await?
-            .into_iter()
-            .next();
+        let run = runs_result?.into_iter().next();
         let checkpoints = match &run {
             Some(run) => self.workflow_checkpoint_models(run.id).await?,
             None => Vec::new(),
@@ -335,9 +333,19 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
     ) -> Result<workflow_run::Model, AppError> {
-        let project = self
-            .project_by_id(project_id)
-            .await?
+        let (project_result, runs_result) = futures::join!(
+            self.project_by_id(project_id),
+            self.workflow_run_models(ListWorkflowRunsInput {
+                project_id: Some(project_id),
+                chapter_id: None,
+                chapter_ids: None,
+                workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
+                status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
+                resumable_only: Some(false),
+                limit: Some(1),
+            }),
+        );
+        let project = project_result?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
         if project.project_kind != ProjectKind::Galgame.as_str() {
             return Err(AppError::InvalidArgument(format!(
@@ -345,17 +353,7 @@ impl OrchestratorContext {
                 project.id
             )));
         }
-        let run = self
-            .workflow_run_models(ListWorkflowRunsInput {
-                project_id: Some(project.id),
-                chapter_id: None,
-                chapter_ids: None,
-                workflow_kind: Some(GALGAME_PIPELINE_WORKFLOW_KIND.to_string()),
-                status: Some(WORKFLOW_STATUS_RUNNING.to_string()),
-                resumable_only: Some(false),
-                limit: Some(1),
-            })
-            .await?
+        let run = runs_result?
             .into_iter()
             .next()
             .ok_or_else(|| AppError::InvalidState {

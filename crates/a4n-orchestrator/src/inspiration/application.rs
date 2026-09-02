@@ -36,8 +36,12 @@ impl OrchestratorContext {
         user_input: &str,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError> {
-        let history = self.inspiration_messages(project_id, 20).await?;
-        let project_context_rows = self.inspiration_project_context_rows(project_id).await?;
+        let (history_result, project_context_result) = futures::join!(
+            self.inspiration_messages(project_id, 20),
+            self.inspiration_project_context_rows(project_id),
+        );
+        let history = history_result?;
+        let project_context_rows = project_context_result?;
         build_inspiration_request_from_context(
             project_id,
             user_input,

@@ -89,18 +89,20 @@ impl OrchestratorContext {
             .source_sync_run_by_id(sync_run_id)
             .await?
             .ok_or_else(|| AppError::NotFound(format!("源同步运行不存在: {sync_run_id}")))?;
-        self.verify_project_permission(
-            run.derived_project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.verify_project_permission(
-            run.root_project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
+        let (derived_result, root_result) = futures::join!(
+            self.verify_project_permission(
+                run.derived_project_id,
+                user_id,
+                crate::collaboration::ProjectAccessRole::Editor,
+            ),
+            self.verify_project_permission(
+                run.root_project_id,
+                user_id,
+                crate::collaboration::ProjectAccessRole::Editor,
+            ),
+        );
+        derived_result?;
+        root_result?;
         Ok(run)
     }
 

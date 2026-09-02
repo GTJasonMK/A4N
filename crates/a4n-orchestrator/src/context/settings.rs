@@ -7,7 +7,7 @@ use a4n_api_contract::config::{
 use a4n_core::{
     config::{
         CreateEmbeddingConfigParams, CreateImageConfigParams, app_config::LlmMaxTokensConfig,
-        ensure_default_config_delete_allowed, validate_embedding_config_model,
+        ensure_default_config_delete_allowed, image_sizes_to_json, validate_embedding_config_model,
         validate_embedding_config_params, validate_image_config_model,
         validate_image_config_params,
     },
@@ -289,8 +289,7 @@ impl ConfigApplication {
             api_key_encrypted: input.api_key_encrypted,
             model: input.model,
             max_concurrent: input.max_concurrent,
-            default_width: input.default_width,
-            default_height: input.default_height,
+            supported_sizes: input.supported_sizes,
         })?;
         a4n_db::config::create_image_config_record(
             self.database.connection(),
@@ -315,8 +314,7 @@ impl ConfigApplication {
             api_key_encrypted,
             model: input.model,
             max_concurrent: input.max_concurrent,
-            default_width: input.default_width,
-            default_height: input.default_height,
+            supported_sizes: input.supported_sizes,
         })?;
         a4n_db::config::update_image_config_record(
             self.database.connection(),
@@ -1101,8 +1099,8 @@ fn image_record_input(params: CreateImageConfigParams) -> ImageConfigRecordInput
         api_key_encrypted: params.api_key_encrypted,
         model: params.model,
         max_concurrent: params.max_concurrent,
-        default_width: params.default_width,
-        default_height: params.default_height,
+        supported_sizes_json: image_sizes_to_json(&params.supported_sizes)
+            .expect("图片配置尺寸已在校验阶段验证"),
     }
 }
 

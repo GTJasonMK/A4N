@@ -32,9 +32,16 @@ where
             operation: format!("生成{}", prompt_stage_label(&prompt)),
         });
     }
-    video::ensure_video_chapter_belongs_to_project_record(db, prompt.project_id, prompt.chapter_id)
-        .await?;
-    ensure_frame_prompt_has_no_generated_image(db, &prompt, "成图").await
+    let (project_result, generated_image_result) = futures::join!(
+        video::ensure_video_chapter_belongs_to_project_record(
+            db,
+            prompt.project_id,
+            prompt.chapter_id,
+        ),
+        ensure_frame_prompt_has_no_generated_image(db, &prompt, "成图"),
+    );
+    project_result?;
+    generated_image_result
 }
 
 pub async fn effective_frame_prompt_image_reference_ids<C>(

@@ -27,6 +27,8 @@ pub struct GenerateCanvasImageInput {
     pub workflow_run_id: Option<i64>,
     pub prompt: String,
     pub config_id: Option<i64>,
+    pub width: i32,
+    pub height: i32,
     #[serde(default)]
     pub source_node_ids: Vec<i64>,
 }
@@ -38,6 +40,8 @@ pub struct GenerateGalgameImageInput {
     pub prompt: String,
     pub image_type: String,
     pub config_id: Option<i64>,
+    pub width: i32,
+    pub height: i32,
     pub chapter_id: Option<i64>,
     pub generation_spec_id: i64,
     pub target_kind: String,

@@ -28,6 +28,7 @@ from run_all_workflows_e2e import (
     classify as manifest_classify,
     default_args,
     fixture_payload,
+    fixture_path_coverage,
     fixture_result_classification,
     manifest_data,
     missing_fixture_provider_paths,
@@ -427,6 +428,11 @@ class CliContractRunnerTest(unittest.TestCase):
             "delete_latest_chapter_outlines",
             "start_chapter_generation",
             "list_chapters",
+            "generate_chapter_analysis",
+            "rag_prepare_ingest_all",
+            "rag_ingest_all",
+            "rag_prepare_enhanced_search",
+            "rag_enhanced_search",
             "generate_chapter_visual_plan_draft",
             "propose_chapter_visual_plan_revision",
             "apply_chapter_visual_plan_proposal",
@@ -481,6 +487,7 @@ class CliContractRunnerTest(unittest.TestCase):
             "start_blueprint_generation",
             "start_outline_generation",
             "start_chapter_generation",
+            "generate_chapter_analysis",
             "generate_chapter_visual_plan_draft",
             "propose_chapter_visual_plan_revision",
             "start_video_generation",
@@ -621,6 +628,8 @@ class CliContractRunnerTest(unittest.TestCase):
         self.assertIn("save_canvas_graph", calls)
         self.assertIn("confirm_chapter_visual_plan", calls)
         self.assertIn("apply_source_sync_decisions", calls)
+        coverage = fixture_path_coverage(records)
+        self.assertTrue(coverage["complete"], coverage)
         video_prompt_calls = [payload for command, payload in payloads if command == "start_video_generation"]
         self.assertEqual(video_prompt_calls[1]["input"]["operation"]["kind"], "prompt_frames")
         self.assertEqual(video_prompt_calls[1]["input"]["operation"]["options"]["workflow_mode"], "boundary_frames")
@@ -654,6 +663,40 @@ class CliContractRunnerTest(unittest.TestCase):
         self.assertTrue(dict(destructive_calls)["confirm_chapter_visual_plan"])
         self.assertTrue(dict(destructive_calls)["apply_source_sync_decisions"])
         self.assertTrue(dict(destructive_calls)["delete_latest_chapter_outlines"])
+
+    def test_fixture_path_coverage_requires_successful_commands(self) -> None:
+        records = [
+            {"command": command, "ok": True}
+            for command in {
+                "create_project",
+                "import_project_text_upload",
+                "accept_import_review",
+                "start_inspiration_generation",
+                "start_blueprint_generation",
+                "start_outline_generation",
+                "list_parts",
+                "list_chapter_outlines",
+                "start_chapter_generation",
+                "list_chapters",
+            }
+        ]
+        coverage = fixture_path_coverage(records)
+        self.assertFalse(coverage["complete"])
+        self.assertEqual(coverage["paths"]["novel_authoring"]["status"], "passed")
+        self.assertEqual(coverage["paths"]["rag"]["status"], "failed")
+
+        records.extend(
+            {"command": command, "ok": True}
+            for path in coverage["paths"].values()
+            for command in path["missing_commands"]
+        )
+        complete = fixture_path_coverage(records)
+        self.assertTrue(complete["complete"])
+        with_collaborator = fixture_path_coverage(
+            records + [{"command": "accept_project_invite", "ok": True}],
+            collaborator_enabled=True,
+        )
+        self.assertTrue(with_collaborator["complete"])
 
     def test_manifest_provider_summary_and_delta_preserve_phase_boundaries(self) -> None:
         entries = [

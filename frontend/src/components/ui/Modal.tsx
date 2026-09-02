@@ -19,6 +19,7 @@ interface ModalProps {
   maxWidthClassName?: string;
   className?: string;
   bodyClassName?: string;
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   zIndexClassName?: string;
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
@@ -101,9 +102,12 @@ const getFocusableElements = (container: HTMLElement | null): HTMLElement[] => {
   });
 };
 
-const focusFirstElement = (container: HTMLElement | null) => {
+const focusFirstElement = (
+  container: HTMLElement | null,
+  initialFocusRef?: React.RefObject<HTMLElement | null>,
+) => {
   const focusable = getFocusableElements(container);
-  const target = focusable[0] ?? container;
+  const target = initialFocusRef?.current ?? focusable[0] ?? container;
   target?.focus();
 };
 
@@ -120,6 +124,7 @@ export const Modal: React.FC<ModalProps> = ({
   maxWidthClassName = 'max-w-lg',
   className = '',
   bodyClassName = 'min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-4',
+  initialFocusRef,
   zIndexClassName = 'z-50',
   closeOnBackdrop = true,
   closeOnEscape = true,
@@ -175,7 +180,7 @@ export const Modal: React.FC<ModalProps> = ({
     registerModal(modalIdRef.current, layerRef.current);
 
     const raf = window.requestAnimationFrame(() => {
-      focusFirstElement(dialogRef.current);
+      focusFirstElement(dialogRef.current, initialFocusRef);
     });
 
     return () => {
@@ -188,7 +193,7 @@ export const Modal: React.FC<ModalProps> = ({
         });
       }
     };
-  }, [rendered]);
+  }, [initialFocusRef, rendered]);
 
   useEffect(() => {
     if (!rendered || isExiting) return undefined;

@@ -65,7 +65,7 @@ export const InspirationChat: React.FC = () => {
                   onInputFocus={chat.handleConversationFocus}
                   onInputBlur={chat.handleConversationBlur}
                   sending={chat.sending}
-                  messagesEndRef={chat.messagesEndRef}
+                  messagesViewportRef={chat.messagesViewportRef}
                   placeholder={chat.inputPlaceholder}
                   inputActive={chat.inputActive}
                 />
@@ -73,7 +73,7 @@ export const InspirationChat: React.FC = () => {
               <InspirationGuidePanel
                 progressSummaryLines={chat.progressSummaryLines}
                 nextQuestion={chat.nextQuestion}
-                isReady={chat.conversationComplete}
+                checklistComplete={chat.conversationChecklistComplete}
                 sending={chat.sending}
               />
             </div>
@@ -99,18 +99,26 @@ export const InspirationChat: React.FC = () => {
 
       <ProgressDialog
         open={chat.blueprintProgressOpen}
-        title={t("inspiration.blueprintTitle")}
-        subtitle={t("inspiration.blueprintSubtitle")}
+        title={
+          chat.blueprintOperation === "refinement"
+            ? t("inspiration.adjustBlueprint")
+            : t("inspiration.blueprintTitle")
+        }
+        subtitle={
+          chat.blueprintOperation === "refinement"
+            ? t("inspiration.adjustHint")
+            : t("inspiration.blueprintSubtitle")
+        }
         status={chat.blueprintProgress.status}
         current={chat.blueprintProgress.current}
         total={chat.blueprintProgress.total}
         message={chat.blueprintProgress.message}
         error={chat.blueprintProgress.error}
         streamText={chat.blueprintStreamText}
-        onClose={() => chat.setBlueprintProgressOpen(false)}
+        onClose={chat.closeBlueprintProgress}
         closeLabel={chat.blueprintProgress.status === "success" ? t("inspiration.viewBlueprint") : t("inspiration.close")}
         onCancel={
-          chat.canCancelBlueprintGeneration
+          chat.canCancelBlueprintOperation
             ? () => void chat.handleCancelBlueprint()
             : undefined
         }
@@ -129,7 +137,7 @@ export const InspirationChat: React.FC = () => {
         <InspirationProgressContent
           progressSummaryLines={chat.progressSummaryLines}
           nextQuestion={chat.nextQuestion}
-          isReady={chat.conversationComplete}
+          checklistComplete={chat.conversationChecklistComplete}
           sending={chat.sending}
         />
       </Modal>

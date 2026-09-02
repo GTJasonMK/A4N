@@ -48,19 +48,20 @@ pub async fn verify_active_session(
     session_id: &str,
 ) -> Result<user_session::Model, AppError> {
     let now = Utc::now().naive_utc();
-    let session = user_session::Entity::find_by_id(session_id.to_string())
-        .filter(user_session::Column::UserId.eq(user_id))
-        .one(db)
-        .await
+    let (session_result, user_result) = futures::join!(
+        user_session::Entity::find_by_id(session_id.to_string())
+            .filter(user_session::Column::UserId.eq(user_id))
+            .one(db),
+        user::Entity::find_by_id(user_id).one(db),
+    );
+    let session = session_result
         .map_err(AppError::Database)?
         .ok_or_else(|| AppError::Unauthorized("会话不存在或已失效".into()))?;
 
     if session.is_revoked || session.expires_at <= now {
         return Err(AppError::Unauthorized("会话已过期或已撤销".into()));
     }
-    let user = user::Entity::find_by_id(user_id)
-        .one(db)
-        .await
+    let user = user_result
         .map_err(AppError::Database)?
         .ok_or_else(|| AppError::Unauthorized("会话不存在或已失效".into()))?;
     if !user.is_active {

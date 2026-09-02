@@ -3,7 +3,10 @@ use super::identity::{
     blueprint_relationship_identity_from_keys, blueprint_relationship_matches,
     blueprint_relationship_model_identity, normalized_blueprint_identity,
 };
-use a4n_core::{json_contract::is_empty_json_value, models::project::blueprint_relationship};
+use a4n_core::{
+    blueprint::BLUEPRINT_RELATIONSHIP_TYPES, json_contract::is_empty_json_value,
+    models::project::blueprint_relationship,
+};
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
@@ -46,6 +49,7 @@ where
     let mut seen_keys = HashSet::new();
     let mut incoming = Vec::with_capacity(relationships.len());
     for relationship in relationships {
+        validate_relationship_type(&relationship.relationship_type)?;
         let relationship_type_key = normalized_blueprint_identity(&relationship.relationship_type);
         let character_a_key = normalized_blueprint_identity(&relationship.character_a);
         let character_b_key = normalized_blueprint_identity(&relationship.character_b);
@@ -233,6 +237,17 @@ where
     }
 
     Ok(())
+}
+
+pub(super) fn validate_relationship_type(value: &str) -> Result<(), BlueprintSyncError> {
+    if BLUEPRINT_RELATIONSHIP_TYPES.contains(&value) {
+        Ok(())
+    } else {
+        Err(BlueprintSyncError::InvalidArgument(format!(
+            "蓝图关系 relationship_type 无效：{value}；必须是以下值之一：{}",
+            BLUEPRINT_RELATIONSHIP_TYPES.join(", ")
+        )))
+    }
 }
 
 fn supplement_relationship_draft(

@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, {
   useCallback,
   useEffect,
@@ -22,12 +23,14 @@ import {
   Bot,
   Box,
   CheckCircle2,
+  Copy,
   Film,
   Pause,
   Play,
   Plus,
   Redo2,
   Save,
+  SlidersHorizontal,
   Sparkles,
   Trash2,
   Undo2,
@@ -66,7 +69,9 @@ import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { promptDialog } from "../../components/feedback/PromptDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { Modal } from "../../components/ui/Modal";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { createWorkflowTaskId, useProgressTask } from "../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -281,14 +286,17 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
   const [techniqueKind, setTechniqueKind] = useState<VisualTechniqueKindV1>("symbolic");
   const [undoStack, setUndoStack] = useState<ChapterVisualPlanV1[]>([]);
   const [redoStack, setRedoStack] = useState<ChapterVisualPlanV1[]>([]);
+  const [mobilePanel, setMobilePanel] = useState<"source" | "inspector" | null>(null);
   const [nodes, setNodes, applyNodeChanges] = useNodesState<StageNode>([]);
   const planRef = useRef<ChapterVisualPlanV1 | null>(null);
   const modeRef = useRef(mode);
   const runtimeRef = useRef<ChapterEditorRuntime | null>(null);
   const lockingRef = useRef(false);
-  const sourcePanelRef = useRef<HTMLElement | null>(null);
-  const inspectorPanelRef = useRef<HTMLElement | null>(null);
   const record = planSet?.draft ?? null;
+
+  useEffect(() => {
+    setMobilePanel(null);
+  }, [chapterId]);
 
   useEffect(() => {
     planRef.current = plan;
@@ -1403,9 +1411,200 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     });
   };
 
-  const scrollToPanel = (panel: React.RefObject<HTMLElement | null>) => {
-    panel.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const renderSourcePanelContent = () => (
+    <div className="space-y-3">
+      <details open className="group">
+        <summary className="cursor-pointer px-1 py-1 text-small font-semibold text-book-text-main">{t("visualPlan.sourceProcessing")}</summary>
+        <div className="mt-1 space-y-1.5">
+          {planSet!.source.source_spans.map((span) => {
+            const disposition = sourceDispositionBySpanId.get(span.id);
+            const assigned = Boolean(shot && disposition?.shot_ids.includes(shot.id));
+            return (
+              <article key={span.id} className="rounded-lg border border-book-border/60 bg-book-bg-paper p-2">
+                <p className="line-clamp-4 text-small leading-relaxed text-book-text-sub">{span.text}</p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  <button type="button" className={`rounded px-1.5 py-0.5 text-caption ${assigned ? "bg-book-primary text-white" : "bg-book-bg-tertiary text-book-text-muted"}`} onClick={() => assignSpan(span.id)} disabled={!editable || !shot}>
+                    {assigned ? t("visualPlan.assignedToShot") : t("visualPlan.assignToShot")}
+                  </button>
+                  <button type="button" className="rounded bg-book-bg-tertiary px-1.5 py-0.5 text-caption text-book-text-muted" onClick={() => void omitSpan(span.id)} disabled={!editable}>
+                    {disposition?.disposition === "omit" ? t("visualPlan.omitted") : t("visualPlan.omit")}
+                  </button>
+                </div>
+                {disposition?.reason ? <p className="mt-1 text-caption text-warning">{disposition.reason}</p> : null}
+              </article>
+            );
+          })}
+        </div>
+      </details>
+
+      <details open className="border-t border-book-border/60 pt-2">
+        <summary className="cursor-pointer px-1 py-1 text-small font-semibold text-book-text-main">{t("visualPlan.sceneEntities")}</summary>
+        <div className="mt-1 flex gap-1">
+          <ThemedSelect aria-label={t("visualPlan.newEntityType")} className="pyqt-input min-w-0 flex-1 !min-h-8 !py-1 text-small" value={entityKind} onChange={(event) => setEntityKind(event.target.value as VisualEntityKindV1)} disabled={!editable}>
+            {ENTITY_KINDS.map(([kind, label]) => <option key={kind} value={kind}>{t(label)}</option>)}
+          </ThemedSelect>
+          <BookIconButton label={t("visualPlan.addEntityButton")} size="sm" onClick={() => void addEntity()} disabled={!editable}><Plus size={14} /></BookIconButton>
+        </div>
+        <div className="mt-2 space-y-1">
+          {plan!.entities.map((item) => {
+            const inFrame = keyframe?.entity_states.some((state) => state.entity_id === item.id);
+            return (
+              <button key={item.id} type="button" onClick={() => inFrame ? setSelectedEntityId(item.id) : addExistingEntityToFrame(item.id)} disabled={!editable && !inFrame} className={`flex min-h-9 w-full items-center gap-2 rounded-lg border px-2 text-left text-small ${selectedEntityId === item.id ? "border-book-primary bg-book-primary/8" : "border-book-border/60 bg-book-bg-paper"}`}>
+                {item.kind === "character" ? <UserRound size={13} /> : <Box size={13} />}
+                <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                <span className="text-caption text-book-text-muted">{inFrame ? t("visualPlan.inFrame") : t("visualPlan.addToFrame")}</span>
+              </button>
+            );
+          })}
+          {plan!.entities.length === 0 ? <p className="px-1 py-2 text-caption leading-relaxed text-book-text-muted">{t("visualPlan.noEntitiesHint")}</p> : null}
+        </div>
+      </details>
+
+      <details className="border-t border-book-border/60 pt-2">
+        <summary className="cursor-pointer px-1 py-1 text-small font-semibold text-book-text-main">{t("visualPlan.accessibilityTree")}</summary>
+        <ol className="mt-1 space-y-1 text-small text-book-text-sub">
+          {visualShots(plan!).map((item) => (
+            <li key={item.shot.id}>
+              <button type="button" className="w-full rounded px-2 py-1 text-left hover:bg-book-bg-tertiary focus-visible:outline-2 focus-visible:outline-book-primary" onClick={() => selectShot(item)}>
+                {formatPlanTime(item.shot.start_ms)}–{formatPlanTime(item.shot.end_ms)} · {item.shot.title}
+              </button>
+              {item.shot.id === shot?.id ? (
+                <ul className="ml-3 border-l border-book-border pl-2 text-caption text-book-text-muted">
+                  {item.shot.keyframes.map((frame) => <li key={frame.id}><button type="button" className="py-1 hover:text-book-primary" onClick={() => { setPlayheadMs(frame.at_ms); setSelectedKeyframeId(frame.id); }}>{formatPlanTime(frame.at_ms)} · {frame.label}</button></li>)}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      </details>
+    </div>
+  );
+
+  const renderInspectorPanelContent = () => (
+    shotRef && shot && keyframe ? (
+      <div className="space-y-4">
+        <section>
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.shot")}</h4>
+            <div className="flex gap-1">
+              <BookIconButton label={t("visualPlan.moveShotEarlier")} size="sm" disabled={!editable || shotRef.shotIndex === 0} onClick={() => commit((next) => Object.assign(next, moveVisualShot(next, shot.id, -1)))}><ArrowLeft size={13} /></BookIconButton>
+              <BookIconButton label={t("visualPlan.moveShotLater")} size="sm" disabled={!editable || shotRef.shotIndex === shotRef.unit.shots.length - 1} onClick={() => commit((next) => Object.assign(next, moveVisualShot(next, shot.id, 1)))}><ArrowRight size={13} /></BookIconButton>
+            </div>
+          </div>
+          <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.titleLabel")}
+            <input key={`${shot.id}-title-${shot.title}`} defaultValue={shot.title} disabled={!editable} onBlur={(event) => commit((next) => { const target = visualShots(next).find(({ shot: item }) => item.id === shot.id)?.shot; if (target) target.title = event.currentTarget.value; })} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
+          </label>
+          <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.narrativePurpose")}
+            <textarea key={`${shot.id}-purpose-${shot.narrative_purpose}`} defaultValue={shot.narrative_purpose} disabled={!editable} onBlur={(event) => commit((next) => { const target = visualShots(next).find(({ shot: item }) => item.id === shot.id)?.shot; if (target) target.narrative_purpose = event.currentTarget.value; })} className="pyqt-input mt-1 min-h-16 w-full resize-y text-small" />
+          </label>
+          <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.durationSeconds")}
+            <input key={`${shot.id}-${shot.end_ms}`} type="number" min="0.25" step="0.1" defaultValue={(shot.end_ms - shot.start_ms) / 1000} disabled={!editable} onBlur={(event) => { const seconds = Number(event.currentTarget.value); if (Number.isFinite(seconds)) commit((next) => Object.assign(next, resizeVisualShot(next, shot.id, seconds * 1000))); }} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
+          </label>
+          <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.transitionToNext")}
+            <ThemedSelect value={plan!.transitions.find((item) => item.from_shot_id === shot.id)?.kind ?? "continuous"} disabled={!editable || visualShots(plan!).at(-1)?.shot.id === shot.id} onChange={(event) => setTransition(event.target.value as ShootingTransitionTypeV1)} className="pyqt-input mt-1 w-full !min-h-8 text-small">
+              {TRANSITION_KINDS.map(([kind, label]) => <option key={kind} value={kind}>{t(label)}</option>)}
+            </ThemedSelect>
+          </label>
+        </section>
+
+        <section className="border-t border-book-border/60 pt-3">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.keyframe")} · {formatPlanTime(keyframe.at_ms)}</h4>
+            <BookIconButton label={t("visualPlan.deleteKeyframe")} size="sm" disabled={!editable || keyframe.at_ms === shot.start_ms || keyframe.at_ms === shot.end_ms} onClick={removeKeyframe}><Trash2 size={13} /></BookIconButton>
+          </div>
+          <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.frameDescription")}
+            <input key={`${keyframe.id}-label-${keyframe.label}`} defaultValue={keyframe.label} disabled={!editable} onBlur={(event) => commit((next) => { const frame = visualShots(next).flatMap(({ shot: item }) => item.keyframes).find((item) => item.id === keyframe.id); if (frame) frame.label = event.currentTarget.value; })} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
+          </label>
+          <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.cameraZoomLabel")}
+            <input type="range" min="0.25" max="4" step="0.05" value={keyframe.camera.zoom} disabled={!editable} onChange={(event) => commit((next) => { const frame = visualShots(next).flatMap(({ shot: item }) => item.keyframes).find((item) => item.id === keyframe.id); if (frame) frame.camera.zoom = Number(event.currentTarget.value); })} className="mt-1 w-full" />
+          </label>
+        </section>
+
+        <section className="border-t border-book-border/60 pt-3">
+          <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.entityState")}</h4>
+          {entity && entityState ? (
+            <div className="mt-2 space-y-2">
+              <p className="rounded-lg bg-book-bg-tertiary px-2 py-1.5 text-small font-semibold text-book-text-main">{entity.label}</p>
+              {(["action", "expression", "pose", "dialogue"] as const).map((field) => (
+                <label key={field} className="block text-caption font-semibold text-book-text-muted">{t(({ action: "visualPlan.action", expression: "visualPlan.expression", pose: "visualPlan.pose", dialogue: "visualPlan.dialogue" } as const)[field])}
+                  <input value={entityState[field] ?? ""} disabled={!editable} onChange={(event) => updateEntityState({ [field]: event.currentTarget.value || null })} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
+                </label>
+              ))}
+              <fieldset>
+                <legend className="text-caption font-semibold text-book-text-muted">{t("visualPlan.positionAndSize")}</legend>
+                <div className="mt-1 grid grid-cols-2 gap-1.5">
+                  {([
+                    ["x", t("visualPlan.left"), (1 - entityState.bounds.width) * 100],
+                    ["y", t("visualPlan.top"), (1 - entityState.bounds.height) * 100],
+                    ["width", t("visualPlan.width"), (1 - entityState.bounds.x) * 100],
+                    ["height", t("visualPlan.height"), (1 - entityState.bounds.y) * 100],
+                  ] as const).map(([field, label, max]) => (
+                    <label key={field} className="text-caption font-semibold text-book-text-muted">
+                      {label}
+                      <input
+                        key={`${keyframe.id}-${entityState.entity_id}-${field}-${entityState.bounds[field]}`}
+                        type="number"
+                        min={field === "width" || field === "height" ? 1 : 0}
+                        max={Math.round(max)}
+                        step="1"
+                        defaultValue={Math.round(entityState.bounds[field] * 100)}
+                        disabled={!editable}
+                        onBlur={(event) => updateEntityBounds(field, Number(event.currentTarget.value))}
+                        className="pyqt-input mt-1 w-full !min-h-8 text-small"
+                      />
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-1 text-caption leading-relaxed text-book-text-muted">{t("visualPlan.boundsHint")}</p>
+              </fieldset>
+              <label className="flex items-center gap-2 text-small text-book-text-sub"><input type="checkbox" checked={entityState.visible} disabled={!editable} onChange={(event) => updateEntityState({ visible: event.currentTarget.checked })} />{t("visualPlan.visibleInFrame")}</label>
+              <p className="text-caption leading-relaxed text-book-text-muted">{t("visualPlan.hiddenEntityHint")}</p>
+            </div>
+          ) : <p className="mt-2 text-caption leading-relaxed text-book-text-muted">{t("visualPlan.selectEntityHint")}</p>}
+        </section>
+
+        <section className="border-t border-book-border/60 pt-3">
+          <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.positionRelations")}</h4>
+          <div className="mt-2 grid grid-cols-1 gap-1.5">
+            <ThemedSelect aria-label={t("visualPlan.relationType")} value={relationKind} onChange={(event) => setRelationKind(event.currentTarget.value as VisualRelationKindV1)} disabled={!editable || !entityState?.visible} className="pyqt-input !min-h-8 text-small">{RELATION_KINDS.map(([kind, label]) => <option key={kind} value={kind}>{t(label)}</option>)}</ThemedSelect>
+            <ThemedSelect aria-label={t("visualPlan.relationTarget")} value={relationTarget} onChange={(event) => setRelationTarget(event.currentTarget.value)} disabled={!editable || !entityState?.visible} className="pyqt-input !min-h-8 text-small"><option value="">{t("visualPlan.selectTarget")}</option>{keyframe.entity_states.filter((state) => state.visible && state.entity_id !== selectedEntityId).map((state) => <option key={state.entity_id} value={state.entity_id}>{entityById.get(state.entity_id)?.label ?? state.entity_id}</option>)}</ThemedSelect>
+            {relationKind === "custom" ? (
+              <label className="text-caption font-semibold text-book-text-muted">
+                {t("visualPlan.relationDescription")}
+                <input value={relationLabel} onChange={(event) => setRelationLabel(event.currentTarget.value)} disabled={!editable || !entityState?.visible} placeholder={t("visualPlan.relationLabelPlaceholder")} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
+              </label>
+            ) : null}
+            <BookButton size="sm" variant="secondary" disabled={!editable || !entityState?.visible || !relationTarget || (relationKind === "custom" && !relationLabel.trim())} onClick={addRelation}>{t("visualPlan.addRelation")}</BookButton>
+          </div>
+          {!entityState?.visible && selectedEntityId ? <p className="mt-1.5 text-caption leading-relaxed text-book-text-muted">{t("visualPlan.relationVisibilityHint")}</p> : null}
+          <RelationList entityById={entityById} keyframe={keyframe} editable={editable} onRemove={removeRelation} />
+        </section>
+
+        <section className="border-t border-book-border/60 pt-3">
+          <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.timelineSymbols")}</h4>
+          <div className="mt-2 space-y-2">
+            <EventKindControl label="visualPlan.entityEvents" value={entityEventKind} options={ENTITY_EVENT_KINDS} disabled={!editable || !selectedEntityId} onChange={setEntityEventKind} onAdd={() => void addEntityEvent(entityEventKind)} />
+            <EventKindControl label="visualPlan.cameraEvents" value={cameraEventKind} options={CAMERA_EVENT_KINDS} disabled={!editable} onChange={setCameraEventKind} onAdd={() => void addCameraEvent(cameraEventKind)} />
+            <EventKindControl label="visualPlan.soundEvents" value={soundEventKind} options={SOUND_EVENT_KINDS} disabled={!editable} icon={<Volume2 size={12} aria-hidden="true" />} onChange={setSoundEventKind} onAdd={() => void addSoundEvent(soundEventKind)} />
+            <EventKindControl label="visualPlan.techniques" value={techniqueKind} options={TECHNIQUE_KINDS} disabled={!editable} icon={<Sparkles size={12} aria-hidden="true" />} onChange={setTechniqueKind} onAdd={() => void addTechniqueEvent(techniqueKind)} />
+          </div>
+          <div className="mt-3 space-y-2">
+            <TimedEventList label={t("visualPlan.entityEvents")} events={shot.entity_events} editable={editable} kindLabel={(event) => t(ENTITY_EVENT_LABELS[event.kind])} onRemove={removeTimedEvent} onRangeChange={updateTimedEventRange} />
+            <TimedEventList label={t("visualPlan.cameraEvents")} events={shot.camera_events} editable={editable} kindLabel={(event) => t(CAMERA_EVENT_LABELS[event.kind])} onRemove={removeTimedEvent} onRangeChange={updateTimedEventRange} />
+            <TimedEventList label={t("visualPlan.soundEvents")} events={shot.sound_events} editable={editable} kindLabel={(event) => t(SOUND_EVENT_LABELS[event.kind])} onRemove={removeTimedEvent} onRangeChange={updateTimedEventRange} />
+            <TimedEventList label={t("visualPlan.techniques")} events={shot.technique_events} editable={editable} kindLabel={(event) => t(TECHNIQUE_LABELS[event.kind])} onRemove={removeTimedEvent} onRangeChange={updateTimedEventRange} />
+          </div>
+        </section>
+
+        {issues.length > 0 ? (
+          <section role="alert" className="rounded-lg border border-warning/30 bg-warning-bg p-2">
+            <h4 className="text-small font-semibold text-warning">{t("visualPlan.issues", { count: issues.length })}</h4>
+            <ul className="mt-1 list-disc space-y-1 pl-4 text-caption leading-relaxed text-book-text-sub">{issues.slice(0, 8).map((issue, index) => <li key={`${issue.key}-${index}`}>{translateVisualPlanIssue(issue, t)}</li>)}</ul>
+          </section>
+        ) : <p className="rounded-lg bg-success-bg p-2 text-caption text-success">{t("visualPlan.validationPassed")}</p>}
+      </div>
+    ) : <EmptyHint text={t("visualPlan.selectShot")} />
+  );
 
   if (!chapter) return <EmptyHint text={t("visualPlan.noChapter")} />;
   if (loading || !plan || !planSet) {
@@ -1435,14 +1634,73 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
         })
       : t("visualPlan.draftNotSaved");
   const pendingInitialMode = !record && modeDirty && !planDirty;
+  const mobilePrimaryAction = !editing
+    ? {
+        label: t("visualPlan.draftCreated"),
+        icon: <Plus size={13} aria-hidden="true" />,
+        disabled: !canEdit || saving || locking,
+        onClick: () => void startRevision(),
+      }
+    : record
+      ? {
+          label: t("visualPlan.confirmPlan"),
+          icon: <CheckCircle2 size={13} aria-hidden="true" />,
+          disabled: !canEdit || saving || generating || locking || issues.length > 0,
+          onClick: () => void confirmPlan(),
+        }
+      : {
+          label: t("visualPlan.generateDraft"),
+          icon: <Bot size={13} aria-hidden="true" />,
+          disabled: !canEdit || generating || saving || locking || planDirty,
+          onClick: () => void generatePlan(),
+        };
+  const mobileActionItems = [
+    {
+      label: t("common.undo"),
+      icon: <Undo2 size={14} aria-hidden="true" />,
+      onClick: undo,
+      disabled: !editable || undoStack.length === 0,
+    },
+    {
+      label: t("common.redo"),
+      icon: <Redo2 size={14} aria-hidden="true" />,
+      onClick: redo,
+      disabled: !editable || redoStack.length === 0,
+    },
+    ...(editing && record
+      ? [{
+          label: t("visualPlan.proposeChanges"),
+          icon: <Sparkles size={14} aria-hidden="true" />,
+          onClick: () => void askAiToRevise(),
+          disabled: generating || saving || locking,
+        }]
+      : []),
+    ...(editing
+      ? [{
+          label: t("common.save"),
+          icon: <Save size={14} aria-hidden="true" />,
+          onClick: () => void persistDraft(true),
+          disabled: saving || locking || !shouldAutoSave,
+        }]
+      : []),
+    ...(editing && record
+      ? [{
+          label: t("visualPlan.discardDraftButton"),
+          icon: <Trash2 size={14} aria-hidden="true" />,
+          onClick: () => void discardDraft(),
+          disabled: saving || locking,
+          danger: true,
+        }]
+      : []),
+  ];
 
   return (
-    <section className="a4n-visual-plan flex min-h-[680px] min-w-0 flex-col gap-2 xl:h-full xl:min-h-0">
+    <section className="a4n-visual-plan flex min-h-[680px] min-w-0 flex-col gap-2 pb-16 md:pb-0 xl:h-full xl:min-h-0">
       <header className="a4n-flat-surface flex shrink-0 flex-wrap items-center gap-2 px-3 py-2">
         <div className="min-w-0 basis-full xl:flex-1 xl:basis-auto">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-serif text-body-md font-semibold text-book-text-main">{t("visualPlan.title")}</h3>
-            <span className={`rounded-full px-2 py-0.5 text-caption font-semibold ${record ? "bg-warning-bg text-warning" : planSet.confirmed ? "bg-success-bg text-success" : "bg-book-bg-tertiary text-book-text-muted"}`}>
+            <span className={`max-w-full truncate rounded-full px-2 py-0.5 text-caption font-semibold ${record ? "bg-warning-bg text-warning" : planSet.confirmed ? "bg-success-bg text-success" : "bg-book-bg-tertiary text-book-text-muted"}`}>
               {statusText}
             </span>
             {saving
@@ -1451,11 +1709,12 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
                 ? <span className="text-caption text-warning">{t("writing.unsavedChanges")}</span>
                 : pendingInitialMode
                   ? <span className="text-caption text-book-text-muted">{t("visualPlan.selectedModePending")}</span>
-                  : null}
+              : null}
           </div>
-          <p className="mt-0.5 text-small text-book-text-muted">{t("visualPlan.stageDescription")}</p>
+          <p className="mt-0.5 hidden text-small text-book-text-muted xl:block">{t("visualPlan.stageDescription")}</p>
         </div>
         <SegmentedControl
+          className="!hidden max-w-full xl:!flex"
           ariaLabel={t("visualPlan.mode")}
           options={MODE_OPTIONS.map((option) => ({
             ...option,
@@ -1464,9 +1723,8 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
           }))}
           value={mode}
           onChange={changeMode}
-          className="max-w-full"
         />
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+        <div className="hidden ml-auto flex-wrap items-center justify-end gap-1.5 xl:flex">
           <BookIconButton label={t("common.undo")} size="sm" onClick={undo} disabled={!editable || undoStack.length === 0}><Undo2 size={14} /></BookIconButton>
           <BookIconButton label={t("common.redo")} size="sm" onClick={redo} disabled={!editable || redoStack.length === 0}><Redo2 size={14} /></BookIconButton>
           {!editing && canEdit ? (
@@ -1492,6 +1750,33 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
             </>
           ) : null}
         </div>
+        <div className="flex w-full min-w-0 items-center gap-2 xl:hidden">
+          <label className="min-w-0 flex-1">
+            <span className="sr-only">{t("visualPlan.mode")}</span>
+            <ThemedSelect
+              aria-label={t("visualPlan.mode")}
+              value={mode}
+              onChange={(event) => changeMode(event.currentTarget.value as ChapterVisualPlanAuthoringMode)}
+              disabled={!editable}
+              className="a4n-compact-select pyqt-input w-full text-small"
+            >
+              {MODE_OPTIONS.map((option) => <option key={option.id} value={option.id}>{t(option.label)}</option>)}
+            </ThemedSelect>
+          </label>
+          <BookButton
+            size="sm"
+            onClick={mobilePrimaryAction.onClick}
+            disabled={mobilePrimaryAction.disabled}
+            className="shrink-0 !px-2.5"
+          >
+            {mobilePrimaryAction.icon}
+            {mobilePrimaryAction.label}
+          </BookButton>
+          <Dropdown
+            items={mobileActionItems}
+            ariaLabel={t("common.more")}
+          />
+        </div>
       </header>
 
       {proposal ? (
@@ -1503,85 +1788,24 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
         </div>
       ) : null}
 
-      <nav className="a4n-visual-plan-panel-nav xl:hidden" aria-label={t("visualPlan.panelNavigation")}>
-        <BookButton size="sm" variant="secondary" onClick={() => scrollToPanel(sourcePanelRef)}>
+      <nav className="a4n-visual-plan-panel-nav grid grid-cols-2 xl:hidden" aria-label={t("visualPlan.panelNavigation")}>
+        <BookButton size="sm" variant="secondary" onClick={() => setMobilePanel("source")} aria-haspopup="dialog">
+          <Box size={14} aria-hidden="true" />
           {t("visualPlan.sourceAndSymbols")}
         </BookButton>
-        <BookButton size="sm" variant="secondary" onClick={() => scrollToPanel(inspectorPanelRef)}>
+        <BookButton size="sm" variant="secondary" onClick={() => setMobilePanel("inspector")} aria-haspopup="dialog">
+          <SlidersHorizontal size={14} aria-hidden="true" />
           {t("visualPlan.inspector")}
         </BookButton>
       </nav>
 
       <div className="grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-2 xl:grid-cols-[14rem_minmax(0,1fr)_17rem]">
-        <aside ref={sourcePanelRef} className="a4n-flat-surface order-2 max-h-[28rem] min-h-0 scroll-mt-2 overflow-y-auto p-2 custom-scrollbar xl:order-none xl:max-h-none" aria-label={t("visualPlan.sourceAndSymbols")}>
-          <details open className="group">
-            <summary className="cursor-pointer px-1 py-1 text-small font-semibold text-book-text-main">{t("visualPlan.sourceProcessing")}</summary>
-            <div className="mt-1 space-y-1.5">
-              {planSet.source.source_spans.map((span) => {
-                const disposition = sourceDispositionBySpanId.get(span.id);
-                const assigned = Boolean(shot && disposition?.shot_ids.includes(shot.id));
-                return (
-                  <article key={span.id} className="rounded-lg border border-book-border/60 bg-book-bg-paper p-2">
-                    <p className="line-clamp-4 text-small leading-relaxed text-book-text-sub">{span.text}</p>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      <button type="button" className={`rounded px-1.5 py-0.5 text-caption ${assigned ? "bg-book-primary text-white" : "bg-book-bg-tertiary text-book-text-muted"}`} onClick={() => assignSpan(span.id)} disabled={!editable || !shot}>
-                        {assigned ? t("visualPlan.assignedToShot") : t("visualPlan.assignToShot")}
-                      </button>
-                      <button type="button" className="rounded bg-book-bg-tertiary px-1.5 py-0.5 text-caption text-book-text-muted" onClick={() => void omitSpan(span.id)} disabled={!editable}>
-                        {disposition?.disposition === "omit" ? t("visualPlan.omitted") : t("visualPlan.omit")}
-                      </button>
-                    </div>
-                    {disposition?.reason ? <p className="mt-1 text-caption text-warning">{disposition.reason}</p> : null}
-                  </article>
-                );
-              })}
-            </div>
-          </details>
-
-          <details open className="mt-3 border-t border-book-border/60 pt-2">
-            <summary className="cursor-pointer px-1 py-1 text-small font-semibold text-book-text-main">{t("visualPlan.sceneEntities")}</summary>
-            <div className="mt-1 flex gap-1">
-              <select aria-label={t("visualPlan.newEntityType")} className="pyqt-input min-w-0 flex-1 !min-h-8 !py-1 text-small" value={entityKind} onChange={(event) => setEntityKind(event.target.value as VisualEntityKindV1)} disabled={!editable}>
-                {ENTITY_KINDS.map(([kind, label]) => <option key={kind} value={kind}>{t(label)}</option>)}
-              </select>
-              <BookIconButton label={t("visualPlan.addEntityButton")} size="sm" onClick={() => void addEntity()} disabled={!editable}><Plus size={14} /></BookIconButton>
-            </div>
-            <div className="mt-2 space-y-1">
-              {plan.entities.map((item) => {
-                const inFrame = keyframe?.entity_states.some((state) => state.entity_id === item.id);
-                return (
-                  <button key={item.id} type="button" onClick={() => inFrame ? setSelectedEntityId(item.id) : addExistingEntityToFrame(item.id)} disabled={!editable && !inFrame} className={`flex min-h-9 w-full items-center gap-2 rounded-lg border px-2 text-left text-small ${selectedEntityId === item.id ? "border-book-primary bg-book-primary/8" : "border-book-border/60 bg-book-bg-paper"}`}>
-                    {item.kind === "character" ? <UserRound size={13} /> : <Box size={13} />}
-                    <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                    <span className="text-caption text-book-text-muted">{inFrame ? t("visualPlan.inFrame") : t("visualPlan.addToFrame")}</span>
-                  </button>
-                );
-              })}
-              {plan.entities.length === 0 ? <p className="px-1 py-2 text-caption leading-relaxed text-book-text-muted">{t("visualPlan.noEntitiesHint")}</p> : null}
-            </div>
-          </details>
-
-          <details className="mt-3 border-t border-book-border/60 pt-2">
-            <summary className="cursor-pointer px-1 py-1 text-small font-semibold text-book-text-main">{t("visualPlan.accessibilityTree")}</summary>
-            <ol className="mt-1 space-y-1 text-small text-book-text-sub">
-              {visualShots(plan).map((item) => (
-                <li key={item.shot.id}>
-                  <button type="button" className="w-full rounded px-2 py-1 text-left hover:bg-book-bg-tertiary focus-visible:outline-2 focus-visible:outline-book-primary" onClick={() => selectShot(item)}>
-                    {formatPlanTime(item.shot.start_ms)}–{formatPlanTime(item.shot.end_ms)} · {item.shot.title}
-                  </button>
-                  {item.shot.id === shot?.id ? (
-                    <ul className="ml-3 border-l border-book-border pl-2 text-caption text-book-text-muted">
-                      {item.shot.keyframes.map((frame) => <li key={frame.id}><button type="button" className="py-1 hover:text-book-primary" onClick={() => { setPlayheadMs(frame.at_ms); setSelectedKeyframeId(frame.id); }}>{formatPlanTime(frame.at_ms)} · {frame.label}</button></li>)}
-                    </ul>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          </details>
+        <aside className="a4n-flat-surface order-2 hidden max-h-[28rem] min-h-0 overflow-y-auto p-2 custom-scrollbar xl:order-none xl:block xl:max-h-none" aria-label={t("visualPlan.sourceAndSymbols")}>
+          {renderSourcePanelContent()}
         </aside>
 
         <main className="order-1 flex min-h-0 min-w-0 flex-col gap-2 xl:order-none">
-          <div className="a4n-flat-surface relative min-h-[340px] min-w-0 flex-1 overflow-hidden bg-book-bg xl:min-h-0">
+          <div className="a4n-flat-surface relative min-h-[240px] min-w-0 flex-1 overflow-hidden bg-book-bg md:min-h-[340px] xl:min-h-0">
             <div className="absolute left-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-book-border/70 bg-book-bg-paper/90 px-2 py-1 text-caption text-book-text-muted shadow-sm backdrop-blur">
               <Film size={12} aria-hidden="true" />
               {shot ? `${shot.title} · ${formatPlanTime(playheadMs)}` : t("visualPlan.noShot")}
@@ -1630,203 +1854,36 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
           />
         </main>
 
-        <aside ref={inspectorPanelRef} className="a4n-flat-surface order-3 max-h-[28rem] min-h-0 scroll-mt-2 overflow-y-auto p-3 custom-scrollbar xl:order-none xl:max-h-none" aria-label={t("visualPlan.inspector")}>
-          {shotRef && shot && keyframe ? (
-            <div className="space-y-4">
-              <section>
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.shot")}</h4>
-                  <div className="flex gap-1">
-                    <BookIconButton label={t("visualPlan.moveShotEarlier")} size="sm" disabled={!editable || shotRef.shotIndex === 0} onClick={() => commit((next) => Object.assign(next, moveVisualShot(next, shot.id, -1)))}><ArrowLeft size={13} /></BookIconButton>
-                    <BookIconButton label={t("visualPlan.moveShotLater")} size="sm" disabled={!editable || shotRef.shotIndex === shotRef.unit.shots.length - 1} onClick={() => commit((next) => Object.assign(next, moveVisualShot(next, shot.id, 1)))}><ArrowRight size={13} /></BookIconButton>
-                  </div>
-                </div>
-                <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.titleLabel")}
-                  <input key={`${shot.id}-title-${shot.title}`} defaultValue={shot.title} disabled={!editable} onBlur={(event) => commit((next) => { const target = visualShots(next).find(({ shot: item }) => item.id === shot.id)?.shot; if (target) target.title = event.currentTarget.value; })} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
-                </label>
-                <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.narrativePurpose")}
-                  <textarea key={`${shot.id}-purpose-${shot.narrative_purpose}`} defaultValue={shot.narrative_purpose} disabled={!editable} onBlur={(event) => commit((next) => { const target = visualShots(next).find(({ shot: item }) => item.id === shot.id)?.shot; if (target) target.narrative_purpose = event.currentTarget.value; })} className="pyqt-input mt-1 min-h-16 w-full resize-y text-small" />
-                </label>
-                <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.durationSeconds")}
-                  <input key={`${shot.id}-${shot.end_ms}`} type="number" min="0.25" step="0.1" defaultValue={(shot.end_ms - shot.start_ms) / 1000} disabled={!editable} onBlur={(event) => { const seconds = Number(event.currentTarget.value); if (Number.isFinite(seconds)) commit((next) => Object.assign(next, resizeVisualShot(next, shot.id, seconds * 1000))); }} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
-                </label>
-                <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.transitionToNext")}
-                  <select value={plan.transitions.find((item) => item.from_shot_id === shot.id)?.kind ?? "continuous"} disabled={!editable || visualShots(plan).at(-1)?.shot.id === shot.id} onChange={(event) => setTransition(event.target.value as ShootingTransitionTypeV1)} className="pyqt-input mt-1 w-full !min-h-8 text-small">
-                    {TRANSITION_KINDS.map(([kind, label]) => <option key={kind} value={kind}>{t(label)}</option>)}
-                  </select>
-                </label>
-              </section>
-
-              <section className="border-t border-book-border/60 pt-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.keyframe")} · {formatPlanTime(keyframe.at_ms)}</h4>
-                  <BookIconButton label={t("visualPlan.deleteKeyframe")} size="sm" disabled={!editable || keyframe.at_ms === shot.start_ms || keyframe.at_ms === shot.end_ms} onClick={removeKeyframe}><Trash2 size={13} /></BookIconButton>
-                </div>
-                <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.frameDescription")}
-                  <input key={`${keyframe.id}-label-${keyframe.label}`} defaultValue={keyframe.label} disabled={!editable} onBlur={(event) => commit((next) => { const frame = visualShots(next).flatMap(({ shot: item }) => item.keyframes).find((item) => item.id === keyframe.id); if (frame) frame.label = event.currentTarget.value; })} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
-                </label>
-                <label className="mt-2 block text-caption font-semibold text-book-text-muted">{t("visualPlan.cameraZoomLabel")}
-                  <input type="range" min="0.25" max="4" step="0.05" value={keyframe.camera.zoom} disabled={!editable} onChange={(event) => commit((next) => { const frame = visualShots(next).flatMap(({ shot: item }) => item.keyframes).find((item) => item.id === keyframe.id); if (frame) frame.camera.zoom = Number(event.currentTarget.value); })} className="mt-1 w-full" />
-                </label>
-              </section>
-
-              <section className="border-t border-book-border/60 pt-3">
-                <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.entityState")}</h4>
-                {entity && entityState ? (
-                  <div className="mt-2 space-y-2">
-                    <p className="rounded-lg bg-book-bg-tertiary px-2 py-1.5 text-small font-semibold text-book-text-main">{entity.label}</p>
-                    {(["action", "expression", "pose", "dialogue"] as const).map((field) => (
-                      <label key={field} className="block text-caption font-semibold text-book-text-muted">{t(({ action: "visualPlan.action", expression: "visualPlan.expression", pose: "visualPlan.pose", dialogue: "visualPlan.dialogue" } as const)[field])}
-                        <input value={entityState[field] ?? ""} disabled={!editable} onChange={(event) => updateEntityState({ [field]: event.currentTarget.value || null })} className="pyqt-input mt-1 w-full !min-h-8 text-small" />
-                      </label>
-                    ))}
-                    <fieldset>
-                      <legend className="text-caption font-semibold text-book-text-muted">{t("visualPlan.positionAndSize")}</legend>
-                      <div className="mt-1 grid grid-cols-2 gap-1.5">
-                        {([
-                          ["x", t("visualPlan.left"), (1 - entityState.bounds.width) * 100],
-                          ["y", t("visualPlan.top"), (1 - entityState.bounds.height) * 100],
-                          ["width", t("visualPlan.width"), (1 - entityState.bounds.x) * 100],
-                          ["height", t("visualPlan.height"), (1 - entityState.bounds.y) * 100],
-                        ] as const).map(([field, label, max]) => (
-                          <label key={field} className="text-caption font-semibold text-book-text-muted">
-                            {label}
-                            <input
-                              key={`${keyframe.id}-${entityState.entity_id}-${field}-${entityState.bounds[field]}`}
-                              type="number"
-                              min={field === "width" || field === "height" ? 1 : 0}
-                              max={Math.round(max)}
-                              step="1"
-                              defaultValue={Math.round(entityState.bounds[field] * 100)}
-                              disabled={!editable}
-                              onBlur={(event) => updateEntityBounds(field, Number(event.currentTarget.value))}
-                              className="pyqt-input mt-1 w-full !min-h-8 text-small"
-                            />
-                          </label>
-                        ))}
-                      </div>
-                      <p className="mt-1 text-caption leading-relaxed text-book-text-muted">
-                        {t("visualPlan.boundsHint")}
-                      </p>
-                    </fieldset>
-                    <label className="flex items-center gap-2 text-small text-book-text-sub"><input type="checkbox" checked={entityState.visible} disabled={!editable} onChange={(event) => updateEntityState({ visible: event.currentTarget.checked })} />{t("visualPlan.visibleInFrame")}</label>
-                    <p className="text-caption leading-relaxed text-book-text-muted">{t("visualPlan.hiddenEntityHint")}</p>
-                  </div>
-                ) : <p className="mt-2 text-caption leading-relaxed text-book-text-muted">{t("visualPlan.selectEntityHint")}</p>}
-              </section>
-
-              <section className="border-t border-book-border/60 pt-3">
-                <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.positionRelations")}</h4>
-                <div className="mt-2 grid grid-cols-1 gap-1.5">
-                  <select aria-label={t("visualPlan.relationType")} value={relationKind} onChange={(event) => setRelationKind(event.target.value as VisualRelationKindV1)} disabled={!editable || !entityState?.visible} className="pyqt-input !min-h-8 text-small">{RELATION_KINDS.map(([kind, label]) => <option key={kind} value={kind}>{t(label)}</option>)}</select>
-                  <select aria-label={t("visualPlan.relationTarget")} value={relationTarget} onChange={(event) => setRelationTarget(event.target.value)} disabled={!editable || !entityState?.visible} className="pyqt-input !min-h-8 text-small"><option value="">{t("visualPlan.selectTarget")}</option>{keyframe.entity_states.filter((state) => state.visible && state.entity_id !== selectedEntityId).map((state) => <option key={state.entity_id} value={state.entity_id}>{entityById.get(state.entity_id)?.label ?? state.entity_id}</option>)}</select>
-                  {relationKind === "custom" ? (
-                    <label className="text-caption font-semibold text-book-text-muted">
-                      {t("visualPlan.relationDescription")}
-                      <input
-                        value={relationLabel}
-                        onChange={(event) => setRelationLabel(event.currentTarget.value)}
-                        disabled={!editable || !entityState?.visible}
-                        placeholder={t("visualPlan.relationLabelPlaceholder")}
-                        className="pyqt-input mt-1 w-full !min-h-8 text-small"
-                      />
-                    </label>
-                  ) : null}
-                  <BookButton size="sm" variant="secondary" disabled={!editable || !entityState?.visible || !relationTarget || (relationKind === "custom" && !relationLabel.trim())} onClick={addRelation}>{t("visualPlan.addRelation")}</BookButton>
-                </div>
-                {!entityState?.visible && selectedEntityId ? <p className="mt-1.5 text-caption leading-relaxed text-book-text-muted">{t("visualPlan.relationVisibilityHint")}</p> : null}
-                <RelationList
-                  entityById={entityById}
-                  keyframe={keyframe}
-                  editable={editable}
-                  onRemove={removeRelation}
-                />
-              </section>
-
-              <section className="border-t border-book-border/60 pt-3">
-                <h4 className="text-small font-semibold text-book-text-main">{t("visualPlan.timelineSymbols")}</h4>
-                <div className="mt-2 space-y-2">
-                  <EventKindControl
-                    label="visualPlan.entityEvents"
-                    value={entityEventKind}
-                    options={ENTITY_EVENT_KINDS}
-                    disabled={!editable || !selectedEntityId}
-                    onChange={setEntityEventKind}
-                    onAdd={() => void addEntityEvent(entityEventKind)}
-                  />
-                  <EventKindControl
-                    label="visualPlan.cameraEvents"
-                    value={cameraEventKind}
-                    options={CAMERA_EVENT_KINDS}
-                    disabled={!editable}
-                    onChange={setCameraEventKind}
-                    onAdd={() => void addCameraEvent(cameraEventKind)}
-                  />
-                  <EventKindControl
-                    label="visualPlan.soundEvents"
-                    value={soundEventKind}
-                    options={SOUND_EVENT_KINDS}
-                    disabled={!editable}
-                    icon={<Volume2 size={12} aria-hidden="true" />}
-                    onChange={setSoundEventKind}
-                    onAdd={() => void addSoundEvent(soundEventKind)}
-                  />
-                  <EventKindControl
-                    label="visualPlan.techniques"
-                    value={techniqueKind}
-                    options={TECHNIQUE_KINDS}
-                    disabled={!editable}
-                    icon={<Sparkles size={12} aria-hidden="true" />}
-                    onChange={setTechniqueKind}
-                    onAdd={() => void addTechniqueEvent(techniqueKind)}
-                  />
-                </div>
-                <div className="mt-3 space-y-2">
-                  <TimedEventList
-                    label={t("visualPlan.entityEvents")}
-                    events={shot.entity_events}
-                    editable={editable}
-                    kindLabel={(event) => t(ENTITY_EVENT_LABELS[event.kind])}
-                    onRemove={removeTimedEvent}
-                    onRangeChange={updateTimedEventRange}
-                  />
-                  <TimedEventList
-                    label={t("visualPlan.cameraEvents")}
-                    events={shot.camera_events}
-                    editable={editable}
-                    kindLabel={(event) => t(CAMERA_EVENT_LABELS[event.kind])}
-                    onRemove={removeTimedEvent}
-                    onRangeChange={updateTimedEventRange}
-                  />
-                  <TimedEventList
-                    label={t("visualPlan.soundEvents")}
-                    events={shot.sound_events}
-                    editable={editable}
-                    kindLabel={(event) => t(SOUND_EVENT_LABELS[event.kind])}
-                    onRemove={removeTimedEvent}
-                    onRangeChange={updateTimedEventRange}
-                  />
-                  <TimedEventList
-                    label={t("visualPlan.techniques")}
-                    events={shot.technique_events}
-                    editable={editable}
-                    kindLabel={(event) => t(TECHNIQUE_LABELS[event.kind])}
-                    onRemove={removeTimedEvent}
-                    onRangeChange={updateTimedEventRange}
-                  />
-                </div>
-              </section>
-
-              {issues.length > 0 ? (
-                <section role="alert" className="rounded-lg border border-warning/30 bg-warning-bg p-2">
-                  <h4 className="text-small font-semibold text-warning">{t("visualPlan.issues", { count: issues.length })}</h4>
-                  <ul className="mt-1 list-disc space-y-1 pl-4 text-caption leading-relaxed text-book-text-sub">{issues.slice(0, 8).map((issue, index) => <li key={`${issue.key}-${index}`}>{translateVisualPlanIssue(issue, t)}</li>)}</ul>
-                </section>
-              ) : <p className="rounded-lg bg-success-bg p-2 text-caption text-success">{t("visualPlan.validationPassed")}</p>}
-            </div>
-          ) : <EmptyHint text={t("visualPlan.selectShot")} />}
+        <aside
+          className="a4n-flat-surface order-3 hidden max-h-[28rem] min-h-0 overflow-y-auto p-3 custom-scrollbar xl:order-none xl:block xl:max-h-none"
+          aria-label={t("visualPlan.inspector")}
+        >
+          {renderInspectorPanelContent()}
         </aside>
       </div>
+
+      <Modal
+        isOpen={mobilePanel === "source"}
+        onClose={() => setMobilePanel(null)}
+        title={t("visualPlan.sourceAndSymbols")}
+        icon={<Box size={15} />}
+        maxWidthClassName="max-w-xl"
+        bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-3 py-3"
+      >
+        {renderSourcePanelContent()}
+      </Modal>
+
+      <Modal
+        isOpen={mobilePanel === "inspector"}
+        onClose={() => setMobilePanel(null)}
+        title={t("visualPlan.inspector")}
+        subtitle={shot ? shot.title : undefined}
+        icon={<SlidersHorizontal size={15} />}
+        maxWidthClassName="max-w-xl"
+        bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-3 py-3"
+      >
+        {renderInspectorPanelContent()}
+      </Modal>
     </section>
   );
 };
@@ -1914,7 +1971,7 @@ const EventKindControlView = <T extends string,>({
   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-1.5">
     <label className="min-w-0 text-caption font-semibold text-book-text-muted">
       {t(label)}
-      <select
+      <ThemedSelect
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.currentTarget.value as T)}
@@ -1923,7 +1980,7 @@ const EventKindControlView = <T extends string,>({
         {options.map(([kind, optionLabel]) => (
           <option key={kind} value={kind}>{t(optionLabel)}</option>
         ))}
-      </select>
+      </ThemedSelect>
     </label>
     <BookButton
       size="sm"
@@ -2122,10 +2179,27 @@ const Timeline: React.FC<{
         <span className="w-12 font-mono text-caption text-book-text-sub">{formatPlanTime(playheadMs)}</span>
         <input aria-label={t("visualPlan.playhead")} type="range" min="0" max={plan.frame.duration_ms} step="50" value={playheadMs} onChange={(event) => onSeek(Number(event.currentTarget.value))} className="min-w-32 flex-1" />
         <span className="font-mono text-caption text-book-text-muted">/ {formatPlanTime(plan.frame.duration_ms)}</span>
-        <BookButton size="sm" variant="secondary" onClick={onAddKeyframe} disabled={!editable || !shot || playheadMs <= shot.start_ms || playheadMs >= shot.end_ms}><Plus size={12} />{t("visualPlan.copyPreviousKeyframe")}</BookButton>
+        <BookIconButton
+          label={t("visualPlan.copyPreviousKeyframe")}
+          size="sm"
+          onClick={onAddKeyframe}
+          disabled={!editable || !shot || playheadMs <= shot.start_ms || playheadMs >= shot.end_ms}
+          className="shrink-0 md:hidden"
+        >
+          <Copy size={13} aria-hidden="true" />
+        </BookIconButton>
+        <BookButton
+          size="sm"
+          variant="secondary"
+          onClick={onAddKeyframe}
+          disabled={!editable || !shot || playheadMs <= shot.start_ms || playheadMs >= shot.end_ms}
+          className="hidden shrink-0 md:inline-flex"
+        >
+          <Plus size={12} />{t("visualPlan.copyPreviousKeyframe")}
+        </BookButton>
       </div>
       <div className="overflow-x-auto custom-scrollbar">
-        <div className="relative min-w-[720px] px-2 py-2">
+        <div className="relative min-w-[max(100%,22rem)] px-2 py-2 sm:min-w-[720px]">
           <div className="flex h-11 overflow-hidden rounded-lg border border-book-border bg-book-bg">
             {shots.map((item) => (
               <button key={item.shot.id} type="button" onClick={() => onSelectShot(item)} className={`min-w-16 overflow-hidden border-r border-book-border/70 px-2 text-left text-caption transition-colors ${shot?.id === item.shot.id ? "bg-book-primary/15 text-book-primary" : "bg-book-bg-paper text-book-text-sub hover:bg-book-bg-tertiary"}`} style={{ width: percent(item.shot.end_ms - item.shot.start_ms) }}>
@@ -2139,8 +2213,16 @@ const Timeline: React.FC<{
             ))}
             <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 z-10 w-px bg-error shadow-[0_0_0_1px_rgb(var(--status-error)/0.18)]" style={{ left: percent(playheadMs) }} />
           </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 md:hidden">
+            <span className="text-caption font-semibold text-book-text-muted">{t("visualPlan.timelineSymbols")}</span>
+            {eventRows.map(([label, events]) => events.length > 0 ? (
+              <span key={label} className="rounded-md bg-book-bg-tertiary/70 px-1.5 py-0.5 text-[10px] text-book-text-muted">
+                {t(label)} · {events.length}
+              </span>
+            ) : null)}
+          </div>
           {eventRows.map(([label, events]) => (
-            <div key={label} className="mt-1 grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-1">
+            <div key={label} className="mt-1 hidden grid-cols-[3rem_minmax(0,1fr)] items-center gap-1 md:grid">
               <span className="text-right text-[9px] text-book-text-muted">{t(label)}</span>
               <div className="relative h-4 rounded bg-book-bg-tertiary/50">
                 {events.map((event) => <div key={event.id} title={("description" in event ? event.description : "content" in event ? event.content : t(label))} className="absolute top-0.5 h-3 min-w-1 rounded bg-book-primary/55" style={{ left: percent(event.start_ms), width: percent(Math.max(1, event.end_ms - event.start_ms)) }} />)}

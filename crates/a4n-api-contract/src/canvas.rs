@@ -13,6 +13,7 @@ pub struct CanvasGraphSummary {
     pub id: i64,
     pub name: String,
     pub graph_kind: String,
+    pub version: i32,
     pub viewport_json: Option<CanvasJsonObject>,
 }
 
@@ -116,6 +117,8 @@ pub struct GetCanvasNodeContractsInput {}
 pub struct SaveCanvasGraphInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub expected_version: Option<i32>,
     pub graph: CanvasGraphInput,
 }
 

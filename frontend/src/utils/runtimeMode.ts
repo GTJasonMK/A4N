@@ -63,7 +63,7 @@ export function workspaceContext(): WorkspaceContext {
 }
 
 export function usesLocalRuntimeSettings(): boolean {
-  return isTauriRuntime() && !shouldUseHttpBackend();
+  return shouldUseHttpBackend();
 }
 
 export function canUseLocalDesktopEmbedding(): boolean {

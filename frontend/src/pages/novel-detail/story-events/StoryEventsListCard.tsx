@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React from "react";
 import { Search } from "lucide-react";
 import { EmptyHint } from "../shared";
@@ -17,7 +18,6 @@ interface StoryEventsListCardProps {
   filters: StoryEventFilters;
   filterOptions: StoryEventFilterOptions;
   onFiltersChange: (filters: StoryEventFilters) => void;
-  onOpenWritingDesk?: () => void;
   onOpenChapter?: (chapterNumber: number) => void;
 }
 
@@ -28,7 +28,6 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
   filters,
   filterOptions,
   onFiltersChange,
-  onOpenWritingDesk,
   onOpenChapter,
 }) => {
   const { t } = useI18n();
@@ -87,17 +86,9 @@ export const StoryEventsListCard: React.FC<StoryEventsListCardProps> = ({
       ) : null}
 
       {chaptersCount === 0 ? (
-        <EmptyHint
-          text={t("novel.storyEvents.noChapters")}
-          actionText={onOpenWritingDesk ? t("novel.enterWritingDesk") : undefined}
-          onAction={onOpenWritingDesk}
-        />
+        <EmptyHint text={t("novel.storyEvents.noChapters")} />
       ) : analyzedChapters === 0 ? (
-        <EmptyHint
-          text={t("novel.storyEvents.noAnalysis")}
-          actionText={onOpenWritingDesk ? t("novel.storyEvents.openDeskForAnalysis") : undefined}
-          onAction={onOpenWritingDesk}
-        />
+        <EmptyHint text={t("novel.storyEvents.noAnalysis")} />
       ) : sections.length === 0 ? (
         <EmptyHint text={t("novel.storyEvents.noMatchingEvents")} />
       ) : (
@@ -123,7 +114,7 @@ const FilterSelect: React.FC<{
 }> = ({ value, onChange, options, allLabel }) => (
   <label className="inline-flex shrink-0 items-center text-book-text-muted">
     <span className="sr-only">{allLabel}</span>
-    <select
+    <ThemedSelect
       value={value}
       onChange={(event) => onChange(event.target.value)}
       className="pyqt-input min-w-[7.5rem] !px-2 !py-1.5 text-xs"
@@ -134,6 +125,6 @@ const FilterSelect: React.FC<{
           {option}
         </option>
       ))}
-    </select>
+    </ThemedSelect>
   </label>
 );

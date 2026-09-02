@@ -23,6 +23,8 @@ pub struct PortraitReferenceImageSource {
 pub struct PortraitImageProviderInput {
     pub project_id: i64,
     pub prompt: String,
+    pub width: i32,
+    pub height: i32,
     pub reference_images: Vec<PortraitReferenceImageSource>,
     pub workflow_run_id: Option<i64>,
 }

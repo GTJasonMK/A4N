@@ -101,6 +101,7 @@ async fn insert_canvas(
             project.id,
             CanvasGraphRecordInput {
                 id: None,
+                expected_version: None,
                 name: Some("文本生成测试画布".to_string()),
                 graph_kind: Some("video_studio".to_string()),
                 viewport_json: None,

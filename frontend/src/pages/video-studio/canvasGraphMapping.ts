@@ -10,6 +10,7 @@ import { edgeRoleLabel } from "./StudioCanvasNode";
 import {
   configText,
   firstLine,
+  type StudioConfigOption,
 } from "./canvasConfig";
 import type { StudioEdge, StudioNode } from "./types";
 
@@ -114,7 +115,10 @@ function mergeRuntimeConfig(
   return changed ? next : current;
 }
 
-export function defaultConfigForNode(kind: string): Record<string, unknown> {
+export function defaultConfigForNode(
+  kind: string,
+  imageConfig?: Pick<StudioConfigOption, "id" | "supportedSizes">,
+): Record<string, unknown> {
   if (kind === "RenderTextNode") {
     return { output_kind: CANVAS_PROMPT_KIND };
   }
@@ -123,6 +127,16 @@ export function defaultConfigForNode(kind: string): Record<string, unknown> {
   }
   if (kind === "GenerateVideoNode") {
     return { input_mode: "text_only" };
+  }
+  if (kind === "GenerateImageNode") {
+    const size = imageConfig?.supportedSizes?.[0];
+    return size
+      ? {
+          ...(imageConfig.id > 0 ? { image_config_id: imageConfig.id } : {}),
+          width: size.width,
+          height: size.height,
+        }
+      : {};
   }
   if (kind === "ExtractFrameNode") {
     return { frame_kind: "first" };

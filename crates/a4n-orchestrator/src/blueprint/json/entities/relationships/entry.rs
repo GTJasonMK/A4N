@@ -1,4 +1,4 @@
-use a4n_core::blueprint::ParsedBlueprintRelationship;
+use a4n_core::blueprint::{BLUEPRINT_RELATIONSHIP_TYPES, ParsedBlueprintRelationship};
 use a4n_core::error::AppError;
 use serde_json::Value;
 
@@ -35,9 +35,7 @@ pub(super) fn parse_relationship_entry(
         &relationship_type,
         "relationship_type",
         &context,
-        &[
-            "family", "friend", "enemy", "lover", "rival", "mentor", "other",
-        ],
+        BLUEPRINT_RELATIONSHIP_TYPES,
     )?;
     Ok(ParsedBlueprintRelationship {
         relationship_type,

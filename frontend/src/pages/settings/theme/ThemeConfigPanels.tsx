@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useState } from "react";
 import { Archive, Download, Plus, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -177,7 +178,7 @@ export const ThemePackagePanel: React.FC<ThemePackagePanelProps> = ({
             {t("settingsTheme.packageTheme")}
           </label>
           <div className="flex min-w-0 flex-wrap gap-2">
-            <select
+            <ThemedSelect
               id="theme-package-theme"
               value={selectedId ?? ""}
               onChange={(event) => setSelectedId(Number(event.target.value))}
@@ -187,7 +188,7 @@ export const ThemePackagePanel: React.FC<ThemePackagePanelProps> = ({
               {themes.map((theme) => (
                 <option key={theme.id} value={theme.id}>{theme.name}</option>
               ))}
-            </select>
+            </ThemedSelect>
             <BookButton
               variant="secondary"
               size="sm"

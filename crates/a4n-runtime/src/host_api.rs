@@ -3,8 +3,8 @@
 //! 这里必须逐项导出，避免 `actions` 新增模块时被自动扩大为公共 API。
 
 pub use crate::actions::{
-    admin_records, auth_records, blueprint_records, canvas_workflow, chapter_content,
-    chapter_generation, chapter_scene, chapter_visual_plan_records, character_ai,
+    admin_records, agent_runtime, auth_records, blueprint_records, canvas_workflow,
+    chapter_content, chapter_generation, chapter_scene, chapter_visual_plan_records, character_ai,
     character_conflict, character_implicit_review, character_records, config_records,
     embedding_model, export_files, foreshadowing_records, galgame_records, generation_analytics,
     generation_tasks, image_generation, image_records, import_analysis, import_file,

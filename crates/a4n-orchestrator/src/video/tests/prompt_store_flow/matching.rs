@@ -19,12 +19,12 @@ async fn matching_prompt_rows_finds_first_frame_video_prompt_by_workflow_contrac
         duration_secs: Set(8),
         aspect_ratio: Set(Some("16:9".to_string())),
         status: Set("pending".to_string()),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
             "generation_asset_fingerprint": asset_fingerprint.clone(),
             "source": source_metadata.clone()
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -80,13 +80,13 @@ async fn matching_prompt_rows_rejects_different_duration() {
         duration_secs: Set(8),
         aspect_ratio: Set(Some("16:9".to_string())),
         status: Set("pending".to_string()),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "contract_version": CHAT_VIDEO_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
             "generation_reference_image_ids": [],
             "generation_asset_fingerprint": asset_fingerprint.clone(),
             "source": source_metadata.clone()
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -166,12 +166,12 @@ async fn matching_prompt_rows_is_scoped_to_project() {
         duration_secs: Set(8),
         aspect_ratio: Set(Some("16:9".to_string())),
         status: Set("pending".to_string()),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
             "generation_asset_fingerprint": asset_fingerprint.clone(),
             "source": source_metadata.clone()
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -250,12 +250,12 @@ async fn matching_prompt_rows_rejects_metadata_that_conflicts_with_workflow_mode
         duration_secs: Set(8),
         aspect_ratio: Set(Some("16:9".to_string())),
         status: Set("pending".to_string()),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
             "source_prompt_type": "frame_segment_plan",
             "generation_asset_fingerprint": asset_fingerprint.clone(),
             "source": source_metadata.clone()
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()

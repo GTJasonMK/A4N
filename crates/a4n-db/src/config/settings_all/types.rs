@@ -1,4 +1,4 @@
-use a4n_domain::{ThemeDocument, ThemeMode};
+use a4n_domain::{ImageSize, ThemeDocument, ThemeMode};
 use sea_orm::DbErr;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
@@ -64,8 +64,7 @@ pub struct SettingsAllImageConfigRow {
     pub api_key_encrypted: Option<String>,
     pub model: String,
     pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
+    pub supported_sizes: Vec<ImageSize>,
     pub is_default: bool,
 }
 

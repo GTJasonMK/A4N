@@ -108,15 +108,15 @@ impl OrchestratorContext {
     ) -> Result<ConfirmChapterVisualPlanOutcome, AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
             .await?;
-        let source = self
-            .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
-            .await?;
-        let current = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
-            input.record_id,
-        )
-        .await
-        .map_err(visual_plan_db_error)?;
+        let (source_result, current_result) = futures::join!(
+            self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
+            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+                self.database.connection(),
+                input.record_id,
+            ),
+        );
+        let source = source_result?;
+        let current = current_result.map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
         a4n_db::chapter_visual_plan::confirm_chapter_visual_plan(
             self.database.connection(),
@@ -136,15 +136,15 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
             .await?;
-        let source = self
-            .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
-            .await?;
-        let current = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
-            input.record_id,
-        )
-        .await
-        .map_err(visual_plan_db_error)?;
+        let (source_result, current_result) = futures::join!(
+            self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
+            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+                self.database.connection(),
+                input.record_id,
+            ),
+        );
+        let source = source_result?;
+        let current = current_result.map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
         a4n_db::chapter_visual_plan::discard_chapter_visual_plan_draft(
             self.database.connection(),
@@ -264,15 +264,15 @@ impl OrchestratorContext {
         if input.instruction.trim().is_empty() {
             return Err(AppError::InvalidArgument("修改指令不能为空".into()));
         }
-        let source = self
-            .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
-            .await?;
-        let current = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
-            input.record_id,
-        )
-        .await
-        .map_err(visual_plan_db_error)?;
+        let (source_result, current_result) = futures::join!(
+            self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
+            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+                self.database.connection(),
+                input.record_id,
+            ),
+        );
+        let source = source_result?;
+        let current = current_result.map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
         ensure_base_revision(&current, input.base_revision)?;
         let source_spans = visual_plan_source_spans(&source)?;
@@ -312,15 +312,15 @@ impl OrchestratorContext {
     ) -> Result<ParsedChapterVisualPlan, AppError> {
         self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
             .await?;
-        let source = self
-            .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
-            .await?;
-        let current = a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-            self.database.connection(),
-            input.record_id,
-        )
-        .await
-        .map_err(visual_plan_db_error)?;
+        let (source_result, current_result) = futures::join!(
+            self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
+            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
+                self.database.connection(),
+                input.record_id,
+            ),
+        );
+        let source = source_result?;
+        let current = current_result.map_err(visual_plan_db_error)?;
         ensure_plan_belongs_to_source(&current, &source)?;
         a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
             self.database.connection(),

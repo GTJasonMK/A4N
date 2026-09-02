@@ -4,6 +4,8 @@ use super::rules::{
     normalize_oauth_provider, normalize_oauth_subject, oauth_username_base, required_oauth_email,
 };
 use super::users::{find_by_email_on, find_by_username_on, user_by_id};
+use sea_orm::QuerySelect;
+use std::collections::HashSet;
 
 pub async fn login_with_oauth2(
     db: &DatabaseConnection,
@@ -97,11 +99,30 @@ async fn pick_unique_username(db: &DatabaseConnection, base: &str) -> Result<Str
     if find_by_username_on(db, &sanitized).await?.is_none() {
         return Ok(sanitized);
     }
-    for n in 2..1000 {
+    for n in 2..=8 {
         let candidate = format!("{sanitized}_{n}");
         if find_by_username_on(db, &candidate).await?.is_none() {
             return Ok(candidate);
         }
+    }
+    let candidates = (9..1000)
+        .map(|n| format!("{sanitized}_{n}"))
+        .collect::<Vec<_>>();
+    let existing = user::Entity::find()
+        .select_only()
+        .column(user::Column::Username)
+        .filter(user::Column::Username.is_in(candidates.iter().cloned()))
+        .into_tuple::<String>()
+        .all(db)
+        .await
+        .map_err(AppError::Database)?
+        .into_iter()
+        .collect::<HashSet<_>>();
+    if let Some(candidate) = candidates
+        .into_iter()
+        .find(|candidate| !existing.contains(candidate))
+    {
+        return Ok(candidate);
     }
     Err(AppError::Internal(anyhow::anyhow!(
         "无法为 {sanitized} 分配唯一用户名"

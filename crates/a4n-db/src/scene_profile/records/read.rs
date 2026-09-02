@@ -10,14 +10,16 @@ pub async fn scene_profiles_by_project(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> SceneProfileDbResult<Vec<scene_profile::Model>> {
-    ensure_project_exists(db, project_id).await?;
-    scene_profile::Entity::find()
-        .filter(scene_profile::Column::ProjectId.eq(project_id))
-        .order_by_asc(scene_profile::Column::FirstSeenChapter)
-        .order_by_asc(scene_profile::Column::Id)
-        .all(db)
-        .await
-        .map_err(SceneProfileDbError::Database)
+    let (project_result, profiles_result) = futures::join!(
+        ensure_project_exists(db, project_id),
+        scene_profile::Entity::find()
+            .filter(scene_profile::Column::ProjectId.eq(project_id))
+            .order_by_asc(scene_profile::Column::FirstSeenChapter)
+            .order_by_asc(scene_profile::Column::Id)
+            .all(db),
+    );
+    project_result?;
+    profiles_result.map_err(SceneProfileDbError::Database)
 }
 
 pub async fn scene_profile_by_id(

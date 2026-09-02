@@ -914,28 +914,52 @@ impl OrchestratorContext {
         self.character_profile_for_user_validated(user_id, profile_id)
             .await?;
 
-        let to_ref = self
-            .snapshot_reference_by_chapter(profile_id, to_chapter)
-            .await?
+        let (to_ref_result, from_ref_result) = futures::join!(
+            self.snapshot_reference_by_chapter(profile_id, to_chapter),
+            async {
+                if from_chapter == 0 {
+                    Ok(None)
+                } else {
+                    self.snapshot_reference_by_chapter(profile_id, from_chapter)
+                        .await
+                }
+            },
+        );
+        let to_ref = to_ref_result?
             .ok_or_else(|| AppError::NotFound(format!("第 {to_chapter} 章没有角色快照")))?;
-        let to_snapshot = self
-            .character_snapshot_by_hash(&to_ref.snapshot_hash)
-            .await?
+        let from_ref = match from_ref_result {
+            Ok(from_ref) => from_ref,
+            Err(error) => {
+                // Preserve the original error precedence: the target snapshot was
+                // validated before the source reference was inspected.
+                self.character_snapshot_by_hash(&to_ref.snapshot_hash)
+                    .await?
+                    .ok_or_else(|| {
+                        AppError::NotFound(format!("快照不存在: {}", to_ref.snapshot_hash))
+                    })?;
+                return Err(error);
+            }
+        };
+        let (to_snapshot_result, from_snapshot_result) = match from_ref.as_ref() {
+            Some(from_ref) => futures::join!(
+                self.character_snapshot_by_hash(&to_ref.snapshot_hash),
+                self.character_snapshot_by_hash(&from_ref.snapshot_hash),
+            ),
+            None => (
+                self.character_snapshot_by_hash(&to_ref.snapshot_hash).await,
+                Ok(None),
+            ),
+        };
+        let to_snapshot = to_snapshot_result?
             .ok_or_else(|| AppError::NotFound(format!("快照不存在: {}", to_ref.snapshot_hash)))?;
-        let (from_hash, from_data) = if from_chapter == 0 {
-            ("initial-state".to_string(), initial_snapshot_data())
-        } else {
-            let from_ref = self
-                .snapshot_reference_by_chapter(profile_id, from_chapter)
-                .await?
-                .ok_or_else(|| AppError::NotFound(format!("第 {from_chapter} 章没有角色快照")))?;
-            let from_snapshot = self
-                .character_snapshot_by_hash(&from_ref.snapshot_hash)
-                .await?
-                .ok_or_else(|| {
+        let (from_hash, from_data) = match from_ref {
+            Some(from_ref) => {
+                let from_snapshot = from_snapshot_result?.ok_or_else(|| {
                     AppError::NotFound(format!("快照不存在: {}", from_ref.snapshot_hash))
                 })?;
-            (from_ref.snapshot_hash, from_snapshot.data)
+                (from_ref.snapshot_hash, from_snapshot.data)
+            }
+            None => ("initial-state".to_string(), initial_snapshot_data()),
         };
 
         Ok(SnapshotDelta {

@@ -1,4 +1,4 @@
-use a4n_domain::LlmMaxTokensConfig;
+use a4n_domain::{ImageSize, LlmMaxTokensConfig, default_image_sizes};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -7,10 +7,10 @@ use super::defaults::{
     default_cache_dir, default_data_dir, default_database_url, default_embedding_backend,
     default_embedding_base_url, default_embedding_batch_size, default_embedding_dim,
     default_embedding_model, default_event_bus_capacity, default_image_backend,
-    default_image_height, default_image_max_concurrent, default_image_model, default_image_width,
-    default_llm_base_url, default_llm_max_concurrent, default_llm_max_context_tokens,
-    default_llm_max_output_tokens, default_llm_model, default_llm_provider,
-    default_llm_timeout_secs, default_log_dir, default_temp_dir,
+    default_image_max_concurrent, default_image_model, default_llm_base_url,
+    default_llm_max_concurrent, default_llm_max_context_tokens, default_llm_max_output_tokens,
+    default_llm_model, default_llm_provider, default_llm_timeout_secs, default_log_dir,
+    default_temp_dir,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,13 +150,9 @@ pub struct ImageGenConfig {
     #[serde(default = "default_image_max_concurrent")]
     pub max_concurrent: usize,
 
-    /// 默认图片宽度
-    #[serde(default = "default_image_width")]
-    pub default_width: u32,
-
-    /// 默认图片高度
-    #[serde(default = "default_image_height")]
-    pub default_height: u32,
+    /// 允许调用方选择的图片尺寸
+    #[serde(default = "default_image_sizes")]
+    pub supported_sizes: Vec<ImageSize>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

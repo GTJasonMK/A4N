@@ -166,44 +166,59 @@ pub async fn galgame_persist_validation_scope_read_model<C>(
 where
     C: ConnectionTrait,
 {
-    let source_snapshot_chapters = if source_snapshot_chapter_ids.is_empty() {
-        Vec::new()
-    } else {
-        source_snapshot_chapter::Entity::find()
-            .select_only()
-            .column(source_snapshot_chapter::Column::Id)
-            .column(source_snapshot_chapter::Column::SnapshotId)
-            .filter(source_snapshot_chapter::Column::Id.is_in(source_snapshot_chapter_ids.to_vec()))
-            .into_model::<GalgamePersistValidationSourceSnapshotChapterRecord>()
-            .all(db)
-            .await?
-    };
-    let speaker_profiles = if speaker_profile_ids.is_empty() {
-        Vec::new()
-    } else {
-        protagonist_profile::Entity::find()
-            .select_only()
-            .column(protagonist_profile::Column::Id)
-            .column(protagonist_profile::Column::ProjectId)
-            .filter(protagonist_profile::Column::Id.is_in(speaker_profile_ids.to_vec()))
-            .into_model::<GalgamePersistValidationSpeakerProfileRecord>()
-            .all(db)
-            .await?
-    };
-    let text_anchors = if text_anchor_ids.is_empty() {
-        Vec::new()
-    } else {
-        text_anchor::Entity::find()
-            .select_only()
-            .column(text_anchor::Column::Id)
-            .column(text_anchor::Column::ProjectId)
-            .column(text_anchor::Column::SourceSnapshotId)
-            .column(text_anchor::Column::SourceSnapshotChapterId)
-            .filter(text_anchor::Column::Id.is_in(text_anchor_ids.to_vec()))
-            .into_model::<GalgamePersistValidationTextAnchorRecord>()
-            .all(db)
-            .await?
-    };
+    // Validation inputs are independent; keep result extraction in the old error order.
+    let (source_snapshot_chapters_result, speaker_profiles_result, text_anchors_result) = futures::join!(
+        async {
+            if source_snapshot_chapter_ids.is_empty() {
+                Ok(Vec::new())
+            } else {
+                source_snapshot_chapter::Entity::find()
+                    .select_only()
+                    .column(source_snapshot_chapter::Column::Id)
+                    .column(source_snapshot_chapter::Column::SnapshotId)
+                    .filter(
+                        source_snapshot_chapter::Column::Id
+                            .is_in(source_snapshot_chapter_ids.to_vec()),
+                    )
+                    .into_model::<GalgamePersistValidationSourceSnapshotChapterRecord>()
+                    .all(db)
+                    .await
+            }
+        },
+        async {
+            if speaker_profile_ids.is_empty() {
+                Ok(Vec::new())
+            } else {
+                protagonist_profile::Entity::find()
+                    .select_only()
+                    .column(protagonist_profile::Column::Id)
+                    .column(protagonist_profile::Column::ProjectId)
+                    .filter(protagonist_profile::Column::Id.is_in(speaker_profile_ids.to_vec()))
+                    .into_model::<GalgamePersistValidationSpeakerProfileRecord>()
+                    .all(db)
+                    .await
+            }
+        },
+        async {
+            if text_anchor_ids.is_empty() {
+                Ok(Vec::new())
+            } else {
+                text_anchor::Entity::find()
+                    .select_only()
+                    .column(text_anchor::Column::Id)
+                    .column(text_anchor::Column::ProjectId)
+                    .column(text_anchor::Column::SourceSnapshotId)
+                    .column(text_anchor::Column::SourceSnapshotChapterId)
+                    .filter(text_anchor::Column::Id.is_in(text_anchor_ids.to_vec()))
+                    .into_model::<GalgamePersistValidationTextAnchorRecord>()
+                    .all(db)
+                    .await
+            }
+        },
+    );
+    let source_snapshot_chapters = source_snapshot_chapters_result?;
+    let speaker_profiles = speaker_profiles_result?;
+    let text_anchors = text_anchors_result?;
     Ok(GalgamePersistValidationScopeReadModel {
         source_snapshot_chapters,
         speaker_profiles,

@@ -58,8 +58,7 @@ where
         api_key_encrypted: Set(input.api_key_encrypted),
         model: Set(input.model),
         max_concurrent: Set(input.max_concurrent),
-        default_width: Set(input.default_width),
-        default_height: Set(input.default_height),
+        supported_sizes_json: Set(input.supported_sizes_json),
         is_default: Set(is_default),
         created_at: Set(now),
         updated_at: Set(now),
@@ -87,8 +86,7 @@ where
     active.api_key_encrypted = Set(input.api_key_encrypted);
     active.model = Set(input.model);
     active.max_concurrent = Set(input.max_concurrent);
-    active.default_width = Set(input.default_width);
-    active.default_height = Set(input.default_height);
+    active.supported_sizes_json = Set(input.supported_sizes_json);
     active.updated_at = Set(Utc::now().naive_utc());
     active.update(db).await.map_err(AppError::Database)
 }

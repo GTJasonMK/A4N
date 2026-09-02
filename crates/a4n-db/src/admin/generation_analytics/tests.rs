@@ -191,7 +191,7 @@ fn analytics_aggregates_llm_context_quality_metrics() {
             "stable_prefix_tokens": 80,
             "dynamic_delta_tokens": 20,
             "estimated_input_tokens": 100,
-            "dropped_optional_pack_refs": [{ "pack_kind": "optional_a" }]
+            "dropped_optional_pack_count": 1
         }),
     );
     failed.error_kind = Some("context_budget".to_string());
@@ -211,7 +211,7 @@ fn analytics_aggregates_llm_context_quality_metrics() {
                     "stable_prefix_tokens": 120,
                     "dynamic_delta_tokens": 40,
                     "estimated_input_tokens": 160,
-                    "dropped_optional_pack_refs": []
+                    "dropped_optional_pack_count": 0
                 }),
             ),
             failed,

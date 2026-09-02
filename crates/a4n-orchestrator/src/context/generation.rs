@@ -21,7 +21,8 @@ use a4n_api_contract::{
 };
 use a4n_core::blueprint::{
     BLUEPRINT_GENERATION_KIND, BLUEPRINT_REFINEMENT_TASK_KIND,
-    normalized_blueprint_refinement_focus,
+    blueprint_generation_input_fingerprint as canonical_blueprint_generation_input_fingerprint,
+    blueprint_refinement_input_fingerprint as canonical_blueprint_refinement_input_fingerprint,
 };
 use a4n_core::error::AppError;
 use a4n_core::models::generation::{generation_run, llm_call_trace};
@@ -710,7 +711,7 @@ impl GenerationApplication {
         let fingerprint = portrait_generation_input_fingerprint(input);
         let batch_policy = matches!(
             &input.operation,
-            PortraitGenerationOperation::GenerateMissing
+            PortraitGenerationOperation::GenerateMissing { .. }
         )
         .then_some(BatchCommitPolicy::BestEffort);
         let target_id = portrait_generation_target_id(input.project_id, &input.operation);
@@ -2317,7 +2318,7 @@ fn portrait_generation_operation_kind(operation: &PortraitGenerationOperation) -
         PortraitGenerationOperation::Generate { .. } => "generate",
         PortraitGenerationOperation::Regenerate { .. } => "regenerate",
         PortraitGenerationOperation::GenerateAgeVariant { .. } => "age_variant",
-        PortraitGenerationOperation::GenerateMissing => "generate_missing",
+        PortraitGenerationOperation::GenerateMissing { .. } => "generate_missing",
     }
 }
 
@@ -2466,25 +2467,31 @@ fn validate_video_prompt_generation_start(
 }
 
 fn blueprint_generation_input_fingerprint(input: &StartBlueprintGenerationInput) -> Value {
-    serde_json::json!({
-        "version": 1,
-        "task_kind": BLUEPRINT_GENERATION_KIND,
-        "project_id": input.project_id,
-        "title": input.title,
-        "genre": input.genre,
-        "target_length": input.target_length,
-        "variables": input.variables,
-    })
+    let variables = input
+        .variables
+        .as_ref()
+        .map(|value| serde_json::to_value(value).expect("BTreeMap values serialize"))
+        .unwrap_or_else(|| serde_json::json!({}));
+    canonical_blueprint_generation_input_fingerprint(
+        input.project_id,
+        &input.title,
+        &input.genre,
+        input.target_length,
+        &variables,
+    )
 }
 
 fn blueprint_refinement_input_fingerprint(input: &StartBlueprintRefinementInput) -> Value {
-    serde_json::json!({
-        "version": 1,
-        "task_kind": BLUEPRINT_REFINEMENT_TASK_KIND,
-        "project_id": input.project_id,
-        "focus": normalized_blueprint_refinement_focus(input.focus.as_deref()),
-        "variables": input.variables.clone().unwrap_or_default(),
-    })
+    let variables = input
+        .variables
+        .as_ref()
+        .map(|value| serde_json::to_value(value).expect("BTreeMap values serialize"))
+        .unwrap_or_else(|| serde_json::json!({}));
+    canonical_blueprint_refinement_input_fingerprint(
+        input.project_id,
+        input.focus.as_deref(),
+        &variables,
+    )
 }
 
 fn optimize_chat_generation_input_fingerprint(input: &StartOptimizeChatGenerationInput) -> Value {

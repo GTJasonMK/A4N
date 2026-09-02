@@ -57,56 +57,70 @@ pub async fn galgame_script_detail_read_model(
     };
     let scene_ids = scenes.iter().map(|scene| scene.id).collect::<Vec<_>>();
     let line_ids = lines.iter().map(|line| line.id).collect::<Vec<_>>();
-    let choices = if line_ids.is_empty() {
-        Vec::new()
-    } else {
-        galgame_choice::Entity::find()
-            .select_only()
-            .column(galgame_choice::Column::Id)
-            .column(galgame_choice::Column::LineId)
-            .column(galgame_choice::Column::OptionIndex)
-            .column(galgame_choice::Column::OptionText)
-            .column(galgame_choice::Column::TargetSceneId)
-            .filter(galgame_choice::Column::LineId.is_in(line_ids.clone()))
-            .order_by_asc(galgame_choice::Column::LineId)
-            .order_by_asc(galgame_choice::Column::OptionIndex)
-            .into_model::<GalgameScriptDetailChoiceRecord>()
-            .all(db)
-            .await?
-    };
     let text_anchor_ids = lines
         .iter()
         .filter_map(|line| line.text_anchor_id)
         .collect::<HashSet<_>>();
-    let text_anchors = if text_anchor_ids.is_empty() {
-        Vec::new()
-    } else {
-        text_anchor::Entity::find()
-            .select_only()
-            .column(text_anchor::Column::Id)
-            .column(text_anchor::Column::SourceSnapshotChapterId)
-            .column(text_anchor::Column::ParagraphIndex)
-            .column(text_anchor::Column::StartOffset)
-            .column(text_anchor::Column::EndOffset)
-            .column(text_anchor::Column::Quote)
-            .filter(text_anchor::Column::Id.is_in(text_anchor_ids))
-            .filter(text_anchor::Column::ProjectId.eq(script.root_project_id))
-            .filter(text_anchor::Column::SourceSnapshotId.eq(script.source_snapshot_id))
-            .order_by_asc(text_anchor::Column::Id)
-            .into_model::<GalgamePipelinePromptTextAnchorRecord>()
-            .all(db)
-            .await?
-    };
-    let speaker_profiles = protagonist_profile::Entity::find()
-        .select_only()
-        .column(protagonist_profile::Column::Id)
-        .column(protagonist_profile::Column::Name)
-        .filter(protagonist_profile::Column::ProjectId.eq(script.root_project_id))
-        .order_by_asc(protagonist_profile::Column::Id)
-        .into_model::<GalgamePipelinePromptSpeakerProfileRecord>()
-        .all(db)
-        .await?;
-    let media_bindings = galgame_media_binding_read_model(db, &scene_ids, &line_ids).await?;
+    // These projections depend only on the already loaded IDs. Overlap their pool waits, then
+    // unwrap in the old order so the first reported error remains deterministic.
+    let (choices_result, text_anchors_result, speaker_profiles_result, media_bindings_result) = futures::join!(
+        async {
+            if line_ids.is_empty() {
+                Ok(Vec::new())
+            } else {
+                galgame_choice::Entity::find()
+                    .select_only()
+                    .column(galgame_choice::Column::Id)
+                    .column(galgame_choice::Column::LineId)
+                    .column(galgame_choice::Column::OptionIndex)
+                    .column(galgame_choice::Column::OptionText)
+                    .column(galgame_choice::Column::TargetSceneId)
+                    .filter(galgame_choice::Column::LineId.is_in(line_ids.clone()))
+                    .order_by_asc(galgame_choice::Column::LineId)
+                    .order_by_asc(galgame_choice::Column::OptionIndex)
+                    .into_model::<GalgameScriptDetailChoiceRecord>()
+                    .all(db)
+                    .await
+            }
+        },
+        async {
+            if text_anchor_ids.is_empty() {
+                Ok(Vec::new())
+            } else {
+                text_anchor::Entity::find()
+                    .select_only()
+                    .column(text_anchor::Column::Id)
+                    .column(text_anchor::Column::SourceSnapshotChapterId)
+                    .column(text_anchor::Column::ParagraphIndex)
+                    .column(text_anchor::Column::StartOffset)
+                    .column(text_anchor::Column::EndOffset)
+                    .column(text_anchor::Column::Quote)
+                    .filter(text_anchor::Column::Id.is_in(text_anchor_ids.clone()))
+                    .filter(text_anchor::Column::ProjectId.eq(script.root_project_id))
+                    .filter(text_anchor::Column::SourceSnapshotId.eq(script.source_snapshot_id))
+                    .order_by_asc(text_anchor::Column::Id)
+                    .into_model::<GalgamePipelinePromptTextAnchorRecord>()
+                    .all(db)
+                    .await
+            }
+        },
+        async {
+            protagonist_profile::Entity::find()
+                .select_only()
+                .column(protagonist_profile::Column::Id)
+                .column(protagonist_profile::Column::Name)
+                .filter(protagonist_profile::Column::ProjectId.eq(script.root_project_id))
+                .order_by_asc(protagonist_profile::Column::Id)
+                .into_model::<GalgamePipelinePromptSpeakerProfileRecord>()
+                .all(db)
+                .await
+        },
+        async { galgame_media_binding_read_model(db, &scene_ids, &line_ids).await },
+    );
+    let choices = choices_result?;
+    let text_anchors = text_anchors_result?;
+    let speaker_profiles = speaker_profiles_result?;
+    let media_bindings = media_bindings_result?;
     Ok(Some(GalgameScriptDetailReadModel {
         script,
         speaker_profiles,

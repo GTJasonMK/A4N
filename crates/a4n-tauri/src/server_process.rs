@@ -4,7 +4,7 @@ use reqwest::StatusCode;
 use std::os::unix::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
@@ -125,9 +125,15 @@ impl Drop for LocalServerProcess {
 }
 
 async fn server_probe() -> ServerProbe {
-    let Ok(client) = reqwest::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()
+    static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
+    let Some(client) = CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(1))
+                .build()
+                .ok()
+        })
+        .as_ref()
     else {
         return ServerProbe::Unreachable;
     };

@@ -14,6 +14,14 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
+use a4n_api_contract::agent::{
+    AgentApprovalDecision, AgentBudget, AgentControlAction, AgentDeliveryMode, AgentExecutionMode,
+    AgentMemoryInput, AgentMemoryScopeKind, AgentResourceRef, AgentScope, AgentThreadKind,
+    ArchiveAgentThreadInput, ControlAgentRunInput, ControlChildAgentInput, CreateAgentThreadInput,
+    EnsureMainAgentThreadInput, ForkAgentThreadInput, ResolveAgentApprovalInput,
+    RetractAgentMemoryInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
+    UpdateAgentThreadInput,
+};
 use a4n_api_contract::auth::{ChangePasswordInput, RevokeSessionInput};
 use a4n_api_contract::command_manifest as catalog;
 use a4n_api_contract::project::CreateProjectInput;
@@ -436,6 +444,99 @@ enum WorkflowCommand {
 
 #[derive(Debug, Subcommand)]
 enum AgentCommand {
+    /// 管理持久化 Agent Thread
+    Thread {
+        #[command(subcommand)]
+        command: AgentThreadCommand,
+    },
+    /// 向当前用户唯一的默认主 Agent 发送一句话
+    Ask {
+        /// 消息正文、@文件路径或 -（stdin）
+        #[arg(value_name = "TEXT|@FILE|-")]
+        content: String,
+    },
+    /// 向一个 Agent Thread 发送用户消息并创建或纠偏 Run
+    Chat {
+        thread_id: String,
+        /// 消息正文、@文件路径或 -（stdin）
+        #[arg(value_name = "TEXT|@FILE|-")]
+        content: String,
+        /// 客户端幂等消息 ID；省略时自动生成 UUID
+        #[arg(long)]
+        client_message_id: Option<String>,
+        #[arg(long, value_enum, default_value_t = AgentDeliveryModeArg::Followup)]
+        delivery_mode: AgentDeliveryModeArg,
+        #[arg(long, value_enum, default_value_t = AgentExecutionModeArg::Autonomous)]
+        execution_mode: AgentExecutionModeArg,
+        #[arg(long)]
+        model_config_id: Option<i64>,
+        /// AgentBudget JSON、@文件路径或 -（stdin）
+        #[arg(long, value_name = "JSON|@FILE|-")]
+        budget: Option<String>,
+    },
+    /// 暂停、恢复或取消一个持久化 Agent Run
+    Run {
+        run_id: String,
+        #[arg(value_enum)]
+        action: AgentControlActionArg,
+        /// Run 所属 Thread；用于权限和资源归属校验
+        #[arg(long)]
+        thread_id: String,
+    },
+    /// 获取一个持久化 Agent Run
+    RunShow { run_id: String },
+    /// 查询持久化 Agent 消息
+    Message {
+        #[command(subcommand)]
+        command: AgentMessageCommand,
+    },
+    /// 查询或持续监听一个 Thread 的耐久事件
+    Events {
+        thread_id: String,
+        #[arg(long)]
+        after_sequence: Option<u64>,
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+        /// 使用 SSE 持续监听并在断线后按 sequence 续传
+        #[arg(long)]
+        follow: bool,
+    },
+    /// 决定一次待用户确认的工具执行
+    Approve {
+        approval_id: String,
+        #[arg(value_enum, default_value_t = AgentApprovalDecisionArg::Approve)]
+        decision: AgentApprovalDecisionArg,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+    /// 搜索 Agent 可发现的 Host 工具
+    Tools {
+        #[arg(long)]
+        query: Option<String>,
+        #[arg(long)]
+        domain: Option<String>,
+        #[arg(long)]
+        effect: Option<String>,
+        #[arg(long)]
+        capability: Option<String>,
+        #[arg(long, default_value_t = 50)]
+        limit: u32,
+    },
+    /// 查看一个 Agent Host 工具
+    Tool {
+        #[command(subcommand)]
+        command: AgentToolCommand,
+    },
+    /// 管理 Agent 长期记忆
+    Memory {
+        #[command(subcommand)]
+        command: AgentMemoryCommand,
+    },
+    /// 向已委派的子 Agent 发消息或控制其 Run
+    Child {
+        #[command(subcommand)]
+        command: AgentChildCommand,
+    },
     /// 注册一个 Agent 并保存返回的租约凭证
     Register {
         #[arg(long)]
@@ -487,6 +588,264 @@ enum AgentCommand {
     Unregister { agent_id: Option<String> },
     /// 查看当前用户的 Agent 列表
     Status,
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentThreadCommand {
+    /// 列出当前用户的 Agent Threads
+    List {
+        #[arg(long)]
+        capability: Option<String>,
+        #[arg(long)]
+        include_archived: bool,
+        #[arg(long, default_value_t = 50)]
+        limit: u32,
+    },
+    /// 获取或创建当前用户唯一的主 Agent Thread
+    Default {
+        #[arg(long)]
+        title: Option<String>,
+    },
+    /// 创建主 Agent 或领域子 Agent Thread
+    Create {
+        #[arg(long, value_enum, default_value_t = AgentThreadKindArg::Main)]
+        kind: AgentThreadKindArg,
+        #[arg(long)]
+        capability: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        project_id: Option<i64>,
+        #[arg(long)]
+        chapter_id: Option<i64>,
+        #[arg(long)]
+        resource_kind: Option<String>,
+        #[arg(long, requires = "resource_kind")]
+        resource_id: Option<String>,
+        #[arg(long)]
+        allowed_capability: Vec<String>,
+        #[arg(long)]
+        allowed_tool: Vec<String>,
+        #[arg(long)]
+        model_config_id: Option<i64>,
+    },
+    /// 获取 Thread 的消息、Run、委派、审批和事件快照
+    Show { thread_id: String },
+    /// 从现有 Thread 创建一个继承其上下文的子 Agent Thread
+    Fork {
+        thread_id: String,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        capability: Option<String>,
+    },
+    /// 更新 Thread 标题、默认模型或 revision 前置条件
+    Update {
+        thread_id: String,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        model_config_id: Option<i64>,
+        #[arg(long)]
+        expected_revision: Option<u64>,
+    },
+    /// 归档一个 Thread
+    Archive { thread_id: String },
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentMessageCommand {
+    /// 按时间倒序列出 Thread 消息
+    List {
+        thread_id: String,
+        #[arg(long)]
+        before: Option<String>,
+        #[arg(long, default_value_t = 100)]
+        limit: u32,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentToolCommand {
+    /// 查看工具的参数、风险和执行合同
+    Describe { name: String },
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentMemoryCommand {
+    /// 列出当前用户可见的 Agent memory
+    List {
+        #[arg(long, value_enum)]
+        scope_kind: Option<AgentMemoryScopeKindArg>,
+        #[arg(long)]
+        scope_id: Option<String>,
+    },
+    /// 创建一条 Agent memory
+    Create {
+        #[arg(value_enum)]
+        scope_kind: AgentMemoryScopeKindArg,
+        scope_id: String,
+        memory_kind: String,
+        /// Memory 正文、@文件路径或 -（stdin）
+        #[arg(value_name = "TEXT|@FILE|-")]
+        content: String,
+    },
+    /// 撤回一条 Agent memory
+    Retract {
+        memory_id: String,
+        #[arg(long)]
+        reason: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AgentChildCommand {
+    /// 由用户在一个现有 Agent Run 下创建并启动 child Agent delegation
+    Spawn {
+        parent_run_id: String,
+        capability: String,
+        /// 任务正文、@文件路径或 -（stdin）
+        #[arg(value_name = "TEXT|@FILE|-")]
+        task: String,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        project_id: Option<i64>,
+        #[arg(long)]
+        chapter_id: Option<i64>,
+        /// AgentBudget JSON、@文件路径或 -（stdin）
+        #[arg(long, value_name = "JSON|@FILE|-")]
+        budget: Option<String>,
+    },
+    /// 向委派的子 Agent 发送用户消息
+    Send {
+        delegation_id: String,
+        /// 消息正文、@文件路径或 -（stdin）
+        #[arg(value_name = "TEXT|@FILE|-")]
+        content: String,
+        #[arg(long, value_enum, default_value_t = AgentDeliveryModeArg::Followup)]
+        delivery_mode: AgentDeliveryModeArg,
+    },
+    /// 暂停、恢复或取消委派的子 Agent
+    Control {
+        delegation_id: String,
+        #[arg(value_enum)]
+        action: AgentControlActionArg,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum AgentThreadKindArg {
+    Main,
+    Subagent,
+}
+
+impl From<AgentThreadKindArg> for AgentThreadKind {
+    fn from(value: AgentThreadKindArg) -> Self {
+        match value {
+            AgentThreadKindArg::Main => Self::Main,
+            AgentThreadKindArg::Subagent => Self::Subagent,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum AgentMemoryScopeKindArg {
+    User,
+    Project,
+    Thread,
+}
+
+impl AgentMemoryScopeKindArg {
+    fn label(self) -> &'static str {
+        match self {
+            Self::User => "user",
+            Self::Project => "project",
+            Self::Thread => "thread",
+        }
+    }
+}
+
+impl From<AgentMemoryScopeKindArg> for AgentMemoryScopeKind {
+    fn from(value: AgentMemoryScopeKindArg) -> Self {
+        match value {
+            AgentMemoryScopeKindArg::User => Self::User,
+            AgentMemoryScopeKindArg::Project => Self::Project,
+            AgentMemoryScopeKindArg::Thread => Self::Thread,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum AgentDeliveryModeArg {
+    Followup,
+    Steer,
+    Inject,
+}
+
+impl From<AgentDeliveryModeArg> for AgentDeliveryMode {
+    fn from(value: AgentDeliveryModeArg) -> Self {
+        match value {
+            AgentDeliveryModeArg::Followup => Self::Followup,
+            AgentDeliveryModeArg::Steer => Self::Steer,
+            AgentDeliveryModeArg::Inject => Self::Inject,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum AgentExecutionModeArg {
+    Autonomous,
+    ReviewWrites,
+    AdviceOnly,
+}
+
+impl From<AgentExecutionModeArg> for AgentExecutionMode {
+    fn from(value: AgentExecutionModeArg) -> Self {
+        match value {
+            AgentExecutionModeArg::Autonomous => Self::Autonomous,
+            AgentExecutionModeArg::ReviewWrites => Self::ReviewWrites,
+            AgentExecutionModeArg::AdviceOnly => Self::AdviceOnly,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum AgentControlActionArg {
+    Pause,
+    Resume,
+    Cancel,
+}
+
+impl From<AgentControlActionArg> for AgentControlAction {
+    fn from(value: AgentControlActionArg) -> Self {
+        match value {
+            AgentControlActionArg::Pause => Self::Pause,
+            AgentControlActionArg::Resume => Self::Resume,
+            AgentControlActionArg::Cancel => Self::Cancel,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+#[value(rename_all = "snake_case")]
+enum AgentApprovalDecisionArg {
+    Approve,
+    Reject,
+}
+
+impl From<AgentApprovalDecisionArg> for AgentApprovalDecision {
+    fn from(value: AgentApprovalDecisionArg) -> Self {
+        match value {
+            AgentApprovalDecisionArg::Approve => Self::Approve,
+            AgentApprovalDecisionArg::Reject => Self::Reject,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -748,11 +1107,73 @@ impl WorkflowCommand {
 impl AgentCommand {
     fn label(&self) -> &'static str {
         match self {
+            Self::Thread { command } => command.label(),
+            Self::Ask { .. } => "ask",
+            Self::Chat { .. } => "chat",
+            Self::Run { .. } => "run",
+            Self::RunShow { .. } => "run show",
+            Self::Message { command } => command.label(),
+            Self::Events { .. } => "events",
+            Self::Approve { .. } => "approve",
+            Self::Tools { .. } => "tools",
+            Self::Tool { command } => command.label(),
+            Self::Memory { command } => command.label(),
+            Self::Child { command } => command.label(),
             Self::Register { .. } => "register",
             Self::Update { .. } => "update",
             Self::Heartbeat { .. } => "heartbeat",
             Self::Unregister { .. } => "unregister",
             Self::Status => "status",
+        }
+    }
+}
+
+impl AgentThreadCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::List { .. } => "thread list",
+            Self::Default { .. } => "thread default",
+            Self::Create { .. } => "thread create",
+            Self::Show { .. } => "thread show",
+            Self::Fork { .. } => "thread fork",
+            Self::Update { .. } => "thread update",
+            Self::Archive { .. } => "thread archive",
+        }
+    }
+}
+
+impl AgentMessageCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::List { .. } => "message list",
+        }
+    }
+}
+
+impl AgentToolCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Describe { .. } => "tool describe",
+        }
+    }
+}
+
+impl AgentMemoryCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::List { .. } => "memory list",
+            Self::Create { .. } => "memory create",
+            Self::Retract { .. } => "memory retract",
+        }
+    }
+}
+
+impl AgentChildCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Spawn { .. } => "child spawn",
+            Self::Send { .. } => "child send",
+            Self::Control { .. } => "child control",
         }
     }
 }
@@ -1760,6 +2181,196 @@ async fn run_agent(
     output: &OutputOptions,
 ) -> Result<()> {
     match command {
+        AgentCommand::Thread { command } => {
+            run_agent_thread(&mut runtime.client, command, output).await
+        }
+        AgentCommand::Ask { content } => {
+            let content = read_text_source(&content)?.trim().to_string();
+            validate_non_empty(&content, "content")?;
+            // Fail before ensuring the default thread: without a snapshot the new Run cannot execute.
+            let runtime_config_snapshot = required_agent_runtime_snapshot(&runtime.client)?;
+            let thread = runtime
+                .client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: "/agent-threads/default".into(),
+                    body: Some(serde_json::to_value(EnsureMainAgentThreadInput {
+                        title: None,
+                    })?),
+                    authenticated: true,
+                })
+                .await?;
+            let thread_id = thread
+                .get("id")
+                .and_then(Value::as_str)
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| anyhow!("默认主 Agent Thread 响应缺少有效 id"))?
+                .to_string();
+            let input = SendAgentMessageInput {
+                thread_id,
+                client_message_id: uuid::Uuid::new_v4().to_string(),
+                content,
+                runtime_config_snapshot: Some(runtime_config_snapshot),
+                ..SendAgentMessageInput::default()
+            };
+            let value = post_agent_message(&mut runtime.client, input).await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Chat {
+            thread_id,
+            content,
+            client_message_id,
+            delivery_mode,
+            execution_mode,
+            model_config_id,
+            budget,
+        } => {
+            validate_non_empty(&thread_id, "thread_id")?;
+            let content = read_text_source(&content)?.trim().to_string();
+            validate_non_empty(&content, "content")?;
+            // Followups share the same entrypoint as new Runs; require the execution contract locally.
+            let runtime_config_snapshot = required_agent_runtime_snapshot(&runtime.client)?;
+            let budget = budget
+                .as_deref()
+                .map(read_json_source)
+                .transpose()?
+                .map(|value| {
+                    serde_json::from_value::<AgentBudget>(value).context("budget 合同无效")
+                })
+                .transpose()?;
+            let input = SendAgentMessageInput {
+                thread_id: thread_id.clone(),
+                client_message_id: client_message_id
+                    .unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                content,
+                delivery_mode: delivery_mode.into(),
+                execution_mode: execution_mode.into(),
+                model_config_id,
+                budget,
+                runtime_config_snapshot: Some(runtime_config_snapshot),
+            };
+            let value = post_agent_message(&mut runtime.client, input).await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Run {
+            run_id,
+            action,
+            thread_id,
+        } => {
+            validate_non_empty(&run_id, "run_id")?;
+            validate_non_empty(&thread_id, "thread_id")?;
+            let input = ControlAgentRunInput {
+                thread_id,
+                action: action.into(),
+                run_id,
+            };
+            let value = runtime
+                .client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!("/agent-runs/{}/control", path_segment(&input.run_id)),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentCommand::RunShow { run_id } => {
+            validate_non_empty(&run_id, "run_id")?;
+            let value = runtime
+                .client
+                .send_json(get_request(&format!(
+                    "/agent-runs/{}",
+                    path_segment(&run_id)
+                )))
+                .await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Message { command } => {
+            run_agent_message(&mut runtime.client, command, output).await
+        }
+        AgentCommand::Events {
+            thread_id,
+            after_sequence,
+            limit,
+            follow,
+        } => {
+            validate_non_empty(&thread_id, "thread_id")?;
+            if !(1..=1_000).contains(&limit) {
+                bail!("--limit 必须在 1 到 1000 之间");
+            }
+            let base = format!("/agent-threads/{}/events", path_segment(&thread_id));
+            if follow {
+                watch_agent_events(&mut runtime.client, &base, after_sequence, output).await
+            } else {
+                let path = query_path(
+                    &base,
+                    [
+                        (
+                            "after_sequence",
+                            after_sequence.map(|value| value.to_string()),
+                        ),
+                        ("limit", Some(limit.to_string())),
+                    ],
+                );
+                let value = runtime.client.send_json(get_request(&path)).await?;
+                print_json(&value, output)
+            }
+        }
+        AgentCommand::Approve {
+            approval_id,
+            decision,
+            reason,
+        } => {
+            validate_non_empty(&approval_id, "approval_id")?;
+            let input = ResolveAgentApprovalInput {
+                approval_id: approval_id.clone(),
+                decision: decision.into(),
+                reason,
+            };
+            let value = runtime
+                .client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!("/agent-approvals/{}", path_segment(&approval_id)),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Tools {
+            query,
+            domain,
+            effect,
+            capability,
+            limit,
+        } => {
+            if !(1..=500).contains(&limit) {
+                bail!("--limit 必须在 1 到 500 之间");
+            }
+            let path = query_path(
+                "/agent-tools",
+                [
+                    ("query", query),
+                    ("domain", domain),
+                    ("effect", effect),
+                    ("capability", capability),
+                    ("limit", Some(limit.to_string())),
+                ],
+            );
+            let value = runtime.client.send_json(get_request(&path)).await?;
+            print_json(&value, output)
+        }
+        AgentCommand::Tool { command } => {
+            run_agent_tool(&mut runtime.client, command, output).await
+        }
+        AgentCommand::Memory { command } => {
+            run_agent_memory(&mut runtime.client, command, output).await
+        }
+        AgentCommand::Child { command } => {
+            run_agent_child(&mut runtime.client, command, output).await
+        }
         AgentCommand::Register {
             name,
             kind,
@@ -1861,6 +2472,458 @@ async fn run_agent(
                 &json!({ "unregistered": true, "agent_id": agent_id }),
                 output,
             )
+        }
+    }
+}
+
+fn required_agent_runtime_snapshot(client: &ApiClient) -> Result<RuntimeConfigSnapshot> {
+    client.runtime_config_snapshot().cloned().ok_or_else(|| {
+        anyhow!(
+            "Agent ask/chat/child send 缺少本地 runtime_config_snapshot；请先执行 `a4n config runtime set --input <JSON|@FILE|->`"
+        )
+    })
+}
+
+async fn run_agent_thread(
+    client: &mut ApiClient,
+    command: AgentThreadCommand,
+    output: &OutputOptions,
+) -> Result<()> {
+    match command {
+        AgentThreadCommand::List {
+            capability,
+            include_archived,
+            limit,
+        } => {
+            if !(1..=500).contains(&limit) {
+                bail!("--limit 必须在 1 到 500 之间");
+            }
+            let path = query_path(
+                "/agent-threads",
+                [
+                    ("capability", capability),
+                    ("include_archived", Some(include_archived.to_string())),
+                    ("limit", Some(limit.to_string())),
+                ],
+            );
+            let value = client.send_json(get_request(&path)).await?;
+            print_json(&value, output)
+        }
+        AgentThreadCommand::Default { title } => {
+            let input = EnsureMainAgentThreadInput { title };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: "/agent-threads/default".into(),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentThreadCommand::Create {
+            kind,
+            capability,
+            title,
+            project_id,
+            chapter_id,
+            resource_kind,
+            resource_id,
+            allowed_capability,
+            allowed_tool,
+            model_config_id,
+        } => {
+            validate_optional_positive(project_id, "project_id")?;
+            validate_optional_positive(chapter_id, "chapter_id")?;
+            if resource_kind.is_some() != resource_id.is_some() {
+                bail!("--resource-kind 与 --resource-id 必须同时提供");
+            }
+            let bound_resource = resource_kind.map(|kind| AgentResourceRef {
+                kind,
+                id: resource_id.expect("resource id checked above"),
+                label: None,
+                revision: None,
+                hash: None,
+            });
+            let input = CreateAgentThreadInput {
+                kind: kind.into(),
+                capability,
+                title,
+                bound_resource,
+                scope: AgentScope {
+                    project_id,
+                    chapter_id,
+                    allowed_capabilities: allowed_capability,
+                    allowed_tools: allowed_tool,
+                    ..AgentScope::default()
+                },
+                default_model_config_id: model_config_id,
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: "/agent-threads".into(),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentThreadCommand::Show { thread_id } => {
+            validate_non_empty(&thread_id, "thread_id")?;
+            let value = client
+                .send_json(get_request(&format!(
+                    "/agent-threads/{}",
+                    path_segment(&thread_id)
+                )))
+                .await?;
+            print_json(&value, output)
+        }
+        AgentThreadCommand::Fork {
+            thread_id,
+            title,
+            capability,
+        } => {
+            validate_non_empty(&thread_id, "thread_id")?;
+            let input = ForkAgentThreadInput {
+                thread_id: thread_id.clone(),
+                title,
+                capability,
+                bound_resource: None,
+                scope: None,
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!("/agent-threads/{}/fork", path_segment(&thread_id)),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentThreadCommand::Update {
+            thread_id,
+            title,
+            model_config_id,
+            expected_revision,
+        } => {
+            validate_non_empty(&thread_id, "thread_id")?;
+            validate_optional_positive(model_config_id, "model_config_id")?;
+            if title.is_none() && model_config_id.is_none() {
+                bail!("至少提供 --title 或 --model-config-id");
+            }
+            let input = UpdateAgentThreadInput {
+                thread_id: thread_id.clone(),
+                title,
+                default_model_config_id: model_config_id,
+                expected_revision,
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::PATCH,
+                    path: format!("/agent-threads/{}", path_segment(&thread_id)),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentThreadCommand::Archive { thread_id } => {
+            validate_non_empty(&thread_id, "thread_id")?;
+            let input = ArchiveAgentThreadInput {
+                thread_id: thread_id.clone(),
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!("/agent-threads/{}/archive", path_segment(&thread_id)),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+    }
+}
+
+async fn post_agent_message(client: &mut ApiClient, input: SendAgentMessageInput) -> Result<Value> {
+    let thread_id = input.thread_id.clone();
+    client
+        .send_json(JsonRequest {
+            method: Method::POST,
+            path: format!("/agent-threads/{}/messages", path_segment(&thread_id)),
+            body: Some(serde_json::to_value(input)?),
+            authenticated: true,
+        })
+        .await
+}
+
+async fn run_agent_message(
+    client: &mut ApiClient,
+    command: AgentMessageCommand,
+    output: &OutputOptions,
+) -> Result<()> {
+    match command {
+        AgentMessageCommand::List {
+            thread_id,
+            before,
+            limit,
+        } => {
+            validate_non_empty(&thread_id, "thread_id")?;
+            if !(1..=1_000).contains(&limit) {
+                bail!("--limit 必须在 1 到 1000 之间");
+            }
+            let path = query_path(
+                &format!("/agent-threads/{}/messages", path_segment(&thread_id)),
+                [("before", before), ("limit", Some(limit.to_string()))],
+            );
+            let value = client.send_json(get_request(&path)).await?;
+            print_json(&value, output)
+        }
+    }
+}
+
+async fn run_agent_tool(
+    client: &mut ApiClient,
+    command: AgentToolCommand,
+    output: &OutputOptions,
+) -> Result<()> {
+    match command {
+        AgentToolCommand::Describe { name } => {
+            validate_non_empty(&name, "name")?;
+            let value = client
+                .send_json(get_request(&format!(
+                    "/agent-tools/{}",
+                    path_segment(&name)
+                )))
+                .await?;
+            print_json(&value, output)
+        }
+    }
+}
+
+async fn run_agent_memory(
+    client: &mut ApiClient,
+    command: AgentMemoryCommand,
+    output: &OutputOptions,
+) -> Result<()> {
+    match command {
+        AgentMemoryCommand::List {
+            scope_kind,
+            scope_id,
+        } => {
+            if let Some(scope_id) = scope_id.as_deref() {
+                validate_non_empty(scope_id, "scope_id")?;
+            }
+            let path = query_path(
+                "/agent-memories",
+                [
+                    (
+                        "scope_kind",
+                        scope_kind.map(|value| value.label().to_string()),
+                    ),
+                    ("scope_id", scope_id),
+                ],
+            );
+            let value = client.send_json(get_request(&path)).await?;
+            print_json(&value, output)
+        }
+        AgentMemoryCommand::Create {
+            scope_kind,
+            scope_id,
+            memory_kind,
+            content,
+        } => {
+            validate_non_empty(&scope_id, "scope_id")?;
+            validate_non_empty(&memory_kind, "memory_kind")?;
+            let content = read_text_source(&content)?.trim().to_string();
+            validate_non_empty(&content, "content")?;
+            let input = AgentMemoryInput {
+                scope_kind: scope_kind.into(),
+                scope_id,
+                memory_kind,
+                content,
+                resource_refs: Vec::new(),
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: "/agent-memories".into(),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentMemoryCommand::Retract { memory_id, reason } => {
+            validate_non_empty(&memory_id, "memory_id")?;
+            let input = RetractAgentMemoryInput {
+                memory_id: memory_id.clone(),
+                reason,
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!("/agent-memories/{}/retract", path_segment(&memory_id)),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+    }
+}
+
+async fn run_agent_child(
+    client: &mut ApiClient,
+    command: AgentChildCommand,
+    output: &OutputOptions,
+) -> Result<()> {
+    match command {
+        AgentChildCommand::Spawn {
+            parent_run_id,
+            capability,
+            task,
+            title,
+            project_id,
+            chapter_id,
+            budget,
+        } => {
+            validate_non_empty(&parent_run_id, "parent_run_id")?;
+            validate_non_empty(&capability, "capability")?;
+            let task = read_text_source(&task)?.trim().to_string();
+            validate_non_empty(&task, "task")?;
+            let runtime_config_snapshot = required_agent_runtime_snapshot(client)?;
+            let budget = budget
+                .as_deref()
+                .map(read_json_source)
+                .transpose()?
+                .map(|value| {
+                    serde_json::from_value::<AgentBudget>(value).context("budget 合同无效")
+                })
+                .transpose()?;
+            let input = SpawnAgentInput {
+                parent_run_id: parent_run_id.clone(),
+                capability,
+                task,
+                title,
+                bound_resource: None,
+                scope: AgentScope {
+                    project_id,
+                    chapter_id,
+                    ..AgentScope::default()
+                },
+                success_criteria: Vec::new(),
+                budget,
+                runtime_config_snapshot: Some(runtime_config_snapshot),
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!("/agent-runs/{}/children", path_segment(&parent_run_id)),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentChildCommand::Send {
+            delegation_id,
+            content,
+            delivery_mode,
+        } => {
+            validate_non_empty(&delegation_id, "delegation_id")?;
+            let content = read_text_source(&content)?.trim().to_string();
+            validate_non_empty(&content, "content")?;
+            let runtime_config_snapshot = required_agent_runtime_snapshot(client)?;
+            let input = SendAgentMessageToChildInput {
+                delegation_id: delegation_id.clone(),
+                content,
+                delivery_mode: delivery_mode.into(),
+                runtime_config_snapshot: Some(runtime_config_snapshot),
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!(
+                        "/agent-delegations/{}/messages",
+                        path_segment(&delegation_id)
+                    ),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+        AgentChildCommand::Control {
+            delegation_id,
+            action,
+        } => {
+            validate_non_empty(&delegation_id, "delegation_id")?;
+            let input = ControlChildAgentInput {
+                delegation_id: delegation_id.clone(),
+                action: action.into(),
+            };
+            let value = client
+                .send_json(JsonRequest {
+                    method: Method::POST,
+                    path: format!(
+                        "/agent-delegations/{}/control",
+                        path_segment(&delegation_id)
+                    ),
+                    body: Some(serde_json::to_value(input)?),
+                    authenticated: true,
+                })
+                .await?;
+            print_json(&value, output)
+        }
+    }
+}
+
+async fn watch_agent_events(
+    client: &mut ApiClient,
+    base_path: &str,
+    mut cursor: Option<u64>,
+    output: &OutputOptions,
+) -> Result<()> {
+    let mut reconnect_attempt = 0_u32;
+    loop {
+        let path = query_path(
+            base_path,
+            [("after_sequence", cursor.map(|value| value.to_string()))],
+        );
+        let response = client.agent_events_stream(&path, cursor).await?;
+        match sse::consume_agent_events(response, |event| {
+            if let Some(sequence) = event.get("sequence").and_then(Value::as_u64) {
+                cursor = Some(cursor.map_or(sequence, |current| current.max(sequence)));
+            }
+            print_json(event, output)
+        })
+        .await?
+        {
+            sse::StreamOutcome::Disconnected {
+                last_sequence,
+                reason,
+            } => {
+                cursor = last_sequence.or(cursor);
+                reconnect_attempt = reconnect_attempt.saturating_add(1);
+                let shift = reconnect_attempt.min(5);
+                let delay_ms = 200_u64.saturating_mul(1_u64 << shift).min(5_000);
+                if output.mode == OutputMode::Human {
+                    if let Some(reason) = reason {
+                        eprintln!("warning: Agent SSE 断开: {reason}");
+                    }
+                    eprintln!(
+                        "warning: Agent SSE 将在 {delay_ms}ms 后从 sequence={} 续传",
+                        cursor.map_or_else(|| "start".into(), |value| value.to_string())
+                    );
+                }
+                tokio::time::sleep(Duration::from_millis(delay_ms)).await;
+            }
+            sse::StreamOutcome::Terminal(_) => {
+                unreachable!("Agent event stream has no terminal event")
+            }
         }
     }
 }
@@ -3111,12 +4174,13 @@ fn print_json(value: &Value, output: &OutputOptions) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
     use serde_json::json;
     use tempfile::TempDir;
     use uuid::Uuid;
 
     use super::{
-        AgentCommand, Command, RuntimeConfigSnapshot, SessionContext, agent_update_body,
+        AgentCommand, Cli, Command, RuntimeConfigSnapshot, SessionContext, agent_update_body,
         apply_context_args, apply_runtime_config, catalog, decode_pointer_token,
         parse_file_assignment, prepare_outputs, query_path, read_json_source, read_password,
         read_password_pair, request_secret_values, save_outputs, set_json_pointer, task_path,
@@ -3162,6 +4226,91 @@ mod tests {
             .auto_agent_phase()
             .is_none()
         );
+    }
+
+    #[test]
+    fn durable_agent_commands_parse_without_breaking_existing_syntax() {
+        let label = |args: &[&str]| Cli::try_parse_from(args).unwrap().command.label();
+
+        assert_eq!(
+            label(&[
+                "a4n",
+                "agent",
+                "run",
+                "run-1",
+                "pause",
+                "--thread-id",
+                "thread-1",
+            ]),
+            "agent run"
+        );
+        assert_eq!(
+            label(&["a4n", "agent", "tools", "--query", "canvas"]),
+            "agent tools"
+        );
+        for (args, expected) in [
+            (&["a4n", "agent", "ask", "继续写作"][..], "agent ask"),
+            (
+                &["a4n", "agent", "thread", "fork", "thread-1"][..],
+                "agent thread fork",
+            ),
+            (
+                &[
+                    "a4n",
+                    "agent",
+                    "thread",
+                    "update",
+                    "thread-1",
+                    "--title",
+                    "新标题",
+                ][..],
+                "agent thread update",
+            ),
+            (
+                &["a4n", "agent", "thread", "archive", "thread-1"][..],
+                "agent thread archive",
+            ),
+            (&["a4n", "agent", "run-show", "run-1"][..], "agent run show"),
+            (
+                &["a4n", "agent", "message", "list", "thread-1"][..],
+                "agent message list",
+            ),
+            (
+                &["a4n", "agent", "tool", "describe", "get_canvas_graph"][..],
+                "agent tool describe",
+            ),
+            (
+                &[
+                    "a4n",
+                    "agent",
+                    "memory",
+                    "create",
+                    "project",
+                    "7",
+                    "style",
+                    "第三人称",
+                ][..],
+                "agent memory create",
+            ),
+            (
+                &[
+                    "a4n",
+                    "agent",
+                    "child",
+                    "spawn",
+                    "run-1",
+                    "research",
+                    "调查设定",
+                ][..],
+                "agent child spawn",
+            ),
+            (
+                &["a4n", "agent", "child", "send", "delegation-1", "继续"][..],
+                "agent child send",
+            ),
+        ] {
+            assert_eq!(label(args), expected);
+        }
     }
 
     #[test]

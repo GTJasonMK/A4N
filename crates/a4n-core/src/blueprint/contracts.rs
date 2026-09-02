@@ -1,5 +1,9 @@
 use serde_json::Value;
 
+pub const BLUEPRINT_RELATIONSHIP_TYPES: &[&str] = &[
+    "family", "friend", "enemy", "lover", "rival", "mentor", "other",
+];
+
 #[derive(Clone, Debug)]
 pub struct ParsedBlueprint {
     pub title: String,

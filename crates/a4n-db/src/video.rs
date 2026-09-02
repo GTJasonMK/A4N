@@ -103,6 +103,16 @@ impl From<crate::canvas::CanvasDbError> for VideoDbError {
             }
             crate::canvas::CanvasDbError::NotFound(message) => VideoDbError::NotFound(message),
             crate::canvas::CanvasDbError::Forbidden(message) => VideoDbError::Forbidden(message),
+            crate::canvas::CanvasDbError::VersionConflict {
+                graph_id,
+                expected_version,
+                current_version,
+            } => VideoDbError::InvalidState {
+                current: format!(
+                    "canvas_graph_version_conflict:graph_id={graph_id},expected={expected_version},current={current_version}"
+                ),
+                operation: "保存画布".to_string(),
+            },
             crate::canvas::CanvasDbError::Database(err) => VideoDbError::Database(err),
         }
     }

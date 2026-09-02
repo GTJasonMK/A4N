@@ -32,7 +32,8 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
     let system_tokens = provider.count_messages_tokens(&system_messages);
     let mut system_requirements = Vec::new();
 
-    if !system_messages.is_empty() {
+    let can_record_system_pack = trace_context.project_id.is_some();
+    if !system_messages.is_empty() && can_record_system_pack {
         let system_ref =
             build_system_prefix_pack_ref(facade, &trace_context, &system_messages, system_tokens)
                 .await?;
@@ -55,8 +56,13 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                 build_manifest_requirements(facade, provider, &trace_context, &manifest).await?;
             let mut all_requirements = system_requirements;
             all_requirements.append(&mut requirements);
-            let dynamic_delta_tokens =
-                provider.count_tokens(&render_context_manifest_user_content(&manifest, &[])?);
+            let dynamic_delta_tokens = provider
+                .count_tokens(&render_context_manifest_user_content(&manifest, &[])?)
+                .saturating_add(if can_record_system_pack {
+                    0
+                } else {
+                    system_tokens
+                });
             let mut plan = ContextBudgetPlanner::default().plan_requirements(
                 caps.max_context_tokens,
                 output_reserve,
@@ -69,7 +75,13 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
         }
         None => {
             let non_system_messages = non_system_messages(&request.messages);
-            let task_delta_tokens = provider.count_messages_tokens(&non_system_messages);
+            let task_delta_tokens = provider
+                .count_messages_tokens(&non_system_messages)
+                .saturating_add(if can_record_system_pack {
+                    0
+                } else {
+                    system_tokens
+                });
             ContextBudgetPlanner::default().plan_requirements(
                 caps.max_context_tokens,
                 output_reserve,

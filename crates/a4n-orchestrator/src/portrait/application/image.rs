@@ -70,6 +70,8 @@ pub(super) async fn generate_portrait_image(
     host_port: &dyn PortraitGenerationHostPort,
     project_id: i64,
     prompt: &str,
+    width: i32,
+    height: i32,
     reference_image_ids: &[i64],
     workflow_run_id: Option<i64>,
     cancel_token: CancellationToken,
@@ -92,6 +94,8 @@ pub(super) async fn generate_portrait_image(
             PortraitImageProviderInput {
                 project_id,
                 prompt: prompt.to_string(),
+                width,
+                height,
                 reference_images,
                 workflow_run_id,
             },

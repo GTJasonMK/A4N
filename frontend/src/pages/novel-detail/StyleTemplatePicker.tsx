@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { VisualStyleTemplate } from "./styleTemplates";
@@ -101,7 +102,7 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
         <label className="truncate text-small font-medium text-book-text-sub">
           {label}
         </label>
-        <select
+        <ThemedSelect
           value={selectedTemplate?.id ?? "custom"}
           onChange={(event) => applyTemplate(event.target.value)}
           disabled={disabled}
@@ -115,7 +116,7 @@ export const StyleTemplatePicker: React.FC<StyleTemplatePickerProps> = ({
               {templateName(template)}
             </option>
           ))}
-        </select>
+        </ThemedSelect>
       </div>
 
       {selectedTemplate ? (

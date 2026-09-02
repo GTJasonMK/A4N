@@ -18,7 +18,7 @@ pub struct ListWorkflowRunsInput {
 #[serde(deny_unknown_fields)]
 pub struct GetWorkflowRunInput {
     pub workflow_run_id: i64,
-    pub include_generation_runs: Option<bool>,
+    pub include_generation_runs: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

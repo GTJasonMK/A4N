@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { centerScrollRailItem } from "../../../utils/scrollRail";
+import { scrollRailItemIntoView } from "../../../utils/scrollRail";
 import { useI18n } from "../../../i18n";
 
 /**
@@ -36,7 +36,7 @@ export const VideoWorkspaceHeader: React.FC<VideoWorkspaceHeaderProps> = ({
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      centerScrollRailItem(tabListRef.current, activeTabRef.current, "smooth");
+      scrollRailItemIntoView(tabListRef.current, activeTabRef.current, "smooth");
     });
     return () => window.cancelAnimationFrame(frame);
   }, [activeTab, tabs]);
@@ -50,12 +50,19 @@ export const VideoWorkspaceHeader: React.FC<VideoWorkspaceHeaderProps> = ({
         rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 2,
       );
     };
-    updateCue();
+    const frame = window.requestAnimationFrame(updateCue);
     rail.addEventListener("scroll", updateCue, { passive: true });
     window.addEventListener("resize", updateCue);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateCue);
+    resizeObserver?.observe(rail);
+    document.fonts?.addEventListener("loadingdone", updateCue);
     return () => {
+      window.cancelAnimationFrame(frame);
       rail.removeEventListener("scroll", updateCue);
       window.removeEventListener("resize", updateCue);
+      resizeObserver?.disconnect();
+      document.fonts?.removeEventListener("loadingdone", updateCue);
     };
   }, [tabs]);
 
@@ -65,7 +72,6 @@ export const VideoWorkspaceHeader: React.FC<VideoWorkspaceHeaderProps> = ({
         className="a4n-tab-rail-wrap a4n-tab-rail-wrap--canvas min-w-0 w-full flex-1"
         data-has-before={tabRailHasBefore ? "true" : undefined}
         data-has-more={tabRailHasMore ? "true" : undefined}
-        data-more-label={t("common.more")}
       >
         <nav
           ref={tabListRef}
@@ -85,7 +91,7 @@ export const VideoWorkspaceHeader: React.FC<VideoWorkspaceHeaderProps> = ({
                 aria-selected={active}
                 onClick={() => onTabChange(tab.id)}
                 onFocus={(event) =>
-                  centerScrollRailItem(
+                  scrollRailItemIntoView(
                     tabListRef.current,
                     event.currentTarget,
                     "instant",

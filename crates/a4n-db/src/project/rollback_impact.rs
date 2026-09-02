@@ -46,18 +46,52 @@ pub async fn project_rollback_impacts(
     crate::project::validate_positive_i64(project_id, "project_id")
         .map_err(ProjectRollbackImpactReadError::InvalidArgument)?;
 
+    let chapter_result = async {
+        if actions.contains(&CleanupAction::DeleteChapters) {
+            Ok(Some(chapter_rollback_impact(db, project_id).await?))
+        } else {
+            Ok(None)
+        }
+    };
+    let chapter_outline_result = async {
+        if actions.contains(&CleanupAction::DeleteChapterOutlines) {
+            Ok(Some(chapter_outline_rollback_impact(db, project_id).await?))
+        } else {
+            Ok(None)
+        }
+    };
+    let part_outline_result = async {
+        if actions.contains(&CleanupAction::DeletePartOutlines) {
+            Ok(Some(part_outline_rollback_impact(db, project_id).await?))
+        } else {
+            Ok(None)
+        }
+    };
+    let blueprint_result = async {
+        if actions.contains(&CleanupAction::DeleteBlueprintVersions) {
+            Ok(Some(blueprint_rollback_impact(db, project_id).await?))
+        } else {
+            Ok(None)
+        }
+    };
+    let (chapter_result, chapter_outline_result, part_outline_result, blueprint_result) = futures::join!(
+        chapter_result,
+        chapter_outline_result,
+        part_outline_result,
+        blueprint_result,
+    );
     let mut impacts = Vec::with_capacity(actions.len());
-    if actions.contains(&CleanupAction::DeleteChapters) {
-        impacts.push(chapter_rollback_impact(db, project_id).await?);
+    if let Some(impact) = chapter_result? {
+        impacts.push(impact);
     }
-    if actions.contains(&CleanupAction::DeleteChapterOutlines) {
-        impacts.push(chapter_outline_rollback_impact(db, project_id).await?);
+    if let Some(impact) = chapter_outline_result? {
+        impacts.push(impact);
     }
-    if actions.contains(&CleanupAction::DeletePartOutlines) {
-        impacts.push(part_outline_rollback_impact(db, project_id).await?);
+    if let Some(impact) = part_outline_result? {
+        impacts.push(impact);
     }
-    if actions.contains(&CleanupAction::DeleteBlueprintVersions) {
-        impacts.push(blueprint_rollback_impact(db, project_id).await?);
+    if let Some(impact) = blueprint_result? {
+        impacts.push(impact);
     }
     Ok(impacts)
 }

@@ -52,8 +52,11 @@ impl OrchestratorContext {
                 character_name,
                 expression,
                 reference_image_ids,
+                width,
+                height,
                 ..
             } => {
+                require_positive_dimensions(*width, *height)?;
                 if character_name.trim().is_empty() {
                     return Err(AppError::InvalidArgument(
                         "character_name 不能为空".to_string(),
@@ -73,7 +76,10 @@ impl OrchestratorContext {
             PortraitGenerationOperation::Regenerate {
                 portrait_id,
                 reference_image_ids,
+                width,
+                height,
             } => {
+                require_positive_dimensions(*width, *height)?;
                 self.ensure_portrait_project(input.project_id, *portrait_id)
                     .await?;
                 validate_reference_image_ids(reference_image_ids)
@@ -83,7 +89,10 @@ impl OrchestratorContext {
                 portrait_id,
                 age,
                 reference_image_ids,
+                width,
+                height,
             } => {
+                require_positive_dimensions(*width, *height)?;
                 self.ensure_portrait_project(input.project_id, *portrait_id)
                     .await?;
                 if age.trim().is_empty() {
@@ -92,7 +101,8 @@ impl OrchestratorContext {
                 validate_reference_image_ids(reference_image_ids)
                     .map_err(AppError::InvalidArgument)?;
             }
-            PortraitGenerationOperation::GenerateMissing => {
+            PortraitGenerationOperation::GenerateMissing { width, height } => {
+                require_positive_dimensions(*width, *height)?;
                 if self
                     .missing_portrait_profiles(input.project_id)
                     .await?
@@ -257,6 +267,8 @@ impl OrchestratorContext {
                 expression,
                 pose,
                 reference_image_ids,
+                width,
+                height,
             } => {
                 let summary = self
                     .generate_portrait_validated(
@@ -267,6 +279,8 @@ impl OrchestratorContext {
                             expression,
                             pose,
                             reference_image_ids,
+                            width,
+                            height,
                         },
                         prompt_renderer,
                         host_port,
@@ -288,12 +302,16 @@ impl OrchestratorContext {
             PortraitGenerationOperation::Regenerate {
                 portrait_id,
                 reference_image_ids,
+                width,
+                height,
             } => {
                 let summary = self
                     .regenerate_portrait_validated(
                         RegeneratePortraitInput {
                             portrait_id,
                             reference_image_ids,
+                            width,
+                            height,
                         },
                         host_port,
                         Some(progress),
@@ -315,6 +333,8 @@ impl OrchestratorContext {
                 portrait_id,
                 age,
                 reference_image_ids,
+                width,
+                height,
             } => {
                 let summary = self
                     .generate_age_variant_validated(
@@ -322,6 +342,8 @@ impl OrchestratorContext {
                             portrait_id,
                             age,
                             reference_image_ids,
+                            width,
+                            height,
                         },
                         host_port,
                         Some(progress),
@@ -339,10 +361,14 @@ impl OrchestratorContext {
                     failure: None,
                 })
             }
-            PortraitGenerationOperation::GenerateMissing => {
+            PortraitGenerationOperation::GenerateMissing { width, height } => {
                 let outcome = self
                     .generate_missing_portraits_validated(
-                        GenerateMissingPortraitsInput { project_id },
+                        GenerateMissingPortraitsInput {
+                            project_id,
+                            width,
+                            height,
+                        },
                         host_port,
                         Some(progress),
                         cancel_token,
@@ -411,12 +437,21 @@ impl OrchestratorContext {
     }
 }
 
+fn require_positive_dimensions(width: i32, height: i32) -> Result<(), AppError> {
+    if width <= 0 || height <= 0 {
+        return Err(AppError::InvalidArgument(
+            "图片 width 和 height 必须大于 0".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn portrait_operation_key(operation: &PortraitGenerationOperation) -> &'static str {
     match operation {
         PortraitGenerationOperation::Generate { .. } => "portrait_generate",
         PortraitGenerationOperation::Regenerate { .. } => "portrait_regenerate",
         PortraitGenerationOperation::GenerateAgeVariant { .. } => "portrait_age_variant",
-        PortraitGenerationOperation::GenerateMissing => "portrait_generate_missing",
+        PortraitGenerationOperation::GenerateMissing { .. } => "portrait_generate_missing",
     }
 }
 
@@ -491,17 +526,26 @@ mod tests {
                 expression: None,
                 pose: None,
                 reference_image_ids: Vec::new(),
+                width: 1024,
+                height: 1536,
             },
             PortraitGenerationOperation::Regenerate {
                 portrait_id: 1,
                 reference_image_ids: Vec::new(),
+                width: 1024,
+                height: 1536,
             },
             PortraitGenerationOperation::GenerateAgeVariant {
                 portrait_id: 1,
                 age: "少年".to_string(),
                 reference_image_ids: Vec::new(),
+                width: 1024,
+                height: 1536,
             },
-            PortraitGenerationOperation::GenerateMissing,
+            PortraitGenerationOperation::GenerateMissing {
+                width: 1024,
+                height: 1024,
+            },
         ];
         let keys = operations
             .iter()

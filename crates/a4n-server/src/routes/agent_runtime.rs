@@ -1,0 +1,692 @@
+use super::auth::authenticated_user;
+use super::error::ApiError;
+use crate::state::ServerState;
+use a4n_api_contract::agent::{
+    AGENT_EVENTS_DEFAULT_LIMIT, AGENT_EVENTS_MAX_LIMIT, AGENT_THREADS_DEFAULT_LIMIT,
+    AGENT_THREADS_MAX_LIMIT, AGENT_TOOLS_DEFAULT_LIMIT, AGENT_TOOLS_MAX_LIMIT, AgentDelegationView,
+    AgentEvent, AgentEventsInput, AgentMemoryInput, AgentMemoryScopeKind, AgentMemoryView,
+    AgentMessageAccepted, AgentMessageView, AgentRunView, AgentThreadSnapshot, AgentThreadView,
+    AgentToolDescriptor, AgentToolSearchResult, ArchiveAgentThreadInput, ControlAgentRunInput,
+    ControlChildAgentInput, CreateAgentThreadInput, DescribeAgentToolInput,
+    EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
+    ListAgentThreadsInput, ResolveAgentApprovalInput, RetractAgentMemoryInput,
+    SearchAgentToolsInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
+    UpdateAgentThreadInput,
+};
+use a4n_runtime::host_api::agent_runtime as agent_actions;
+use axum::Json;
+use axum::extract::{Path, Query, State};
+use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
+use axum::response::sse::{Event, KeepAlive, Sse};
+use axum::response::{IntoResponse, Response};
+use futures::{Stream, stream};
+use serde::Deserialize;
+use std::collections::VecDeque;
+use std::convert::Infallible;
+use std::time::Duration;
+
+const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ThreadListQuery {
+    capability: Option<String>,
+    #[serde(default)]
+    include_archived: bool,
+    limit: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AgentEventsQuery {
+    after_sequence: Option<String>,
+    limit: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AgentToolSearchQuery {
+    query: Option<String>,
+    domain: Option<String>,
+    effect: Option<String>,
+    capability: Option<String>,
+    limit: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AgentMessagesQuery {
+    before: Option<String>,
+    limit: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct AgentMemoriesQuery {
+    scope_kind: Option<AgentMemoryScopeKind>,
+    scope_id: Option<String>,
+}
+
+pub(super) async fn list_threads(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<ThreadListQuery>,
+) -> Result<Json<Vec<AgentThreadView>>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let input = ListAgentThreadsInput {
+        capability: optional_query_text(query.capability, "capability")?,
+        include_archived: query.include_archived,
+        limit: Some(parse_limit(
+            query.limit.as_deref(),
+            AGENT_THREADS_DEFAULT_LIMIT,
+            AGENT_THREADS_MAX_LIMIT,
+        )?),
+    };
+    agent_actions::list_threads(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn ensure_main_thread(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<EnsureMainAgentThreadInput>,
+) -> Result<Json<AgentThreadView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    agent_actions::ensure_main_thread(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn create_thread(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<CreateAgentThreadInput>,
+) -> Result<(StatusCode, Json<AgentThreadView>), ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let thread = agent_actions::create_thread(state.runtime(), user.id, input).await?;
+    Ok((StatusCode::CREATED, Json(thread)))
+}
+
+pub(super) async fn fork_thread(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<String>,
+    Json(mut input): Json<ForkAgentThreadInput>,
+) -> Result<(StatusCode, Json<AgentThreadView>), ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&thread_id, &input.thread_id, "thread_id")?;
+    input.thread_id = required_path_id(&thread_id, "thread_id")?.to_string();
+    let thread = agent_actions::fork_thread(state.runtime(), user.id, input).await?;
+    Ok((StatusCode::CREATED, Json(thread)))
+}
+
+pub(super) async fn update_thread(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<String>,
+    Json(mut input): Json<UpdateAgentThreadInput>,
+) -> Result<Json<AgentThreadView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&thread_id, &input.thread_id, "thread_id")?;
+    input.thread_id = required_path_id(&thread_id, "thread_id")?.to_string();
+    agent_actions::update_thread(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn archive_thread(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<String>,
+    Json(mut input): Json<ArchiveAgentThreadInput>,
+) -> Result<Json<AgentThreadView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&thread_id, &input.thread_id, "thread_id")?;
+    input.thread_id = required_path_id(&thread_id, "thread_id")?.to_string();
+    agent_actions::archive_thread(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn show_thread(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<String>,
+) -> Result<Json<AgentThreadSnapshot>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let thread_id = required_path_id(&thread_id, "thread_id")?;
+    agent_actions::show_thread(state.runtime(), user.id, thread_id)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn list_messages(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<String>,
+    Query(query): Query<AgentMessagesQuery>,
+) -> Result<Json<Vec<AgentMessageView>>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let thread_id = required_path_id(&thread_id, "thread_id")?.to_string();
+    let input = ListAgentMessagesInput {
+        thread_id,
+        before: optional_query_text(query.before, "before")?,
+        limit: Some(parse_limit(
+            query.limit.as_deref(),
+            AGENT_EVENTS_DEFAULT_LIMIT,
+            AGENT_EVENTS_MAX_LIMIT,
+        )?),
+    };
+    agent_actions::list_messages(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn send_message(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<String>,
+    Json(input): Json<SendAgentMessageInput>,
+) -> Result<(StatusCode, Json<AgentMessageAccepted>), ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&thread_id, &input.thread_id, "thread_id")?;
+    let accepted =
+        agent_actions::send_message_with_admission(state.runtime(), user.id, input, true).await?;
+    Ok((StatusCode::ACCEPTED, Json(accepted)))
+}
+
+pub(super) async fn control_run(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(run_id): Path<String>,
+    Json(input): Json<ControlAgentRunInput>,
+) -> Result<Json<AgentRunView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&run_id, &input.run_id, "run_id")?;
+    agent_actions::control_run(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn show_run(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(run_id): Path<String>,
+) -> Result<Json<AgentRunView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let run_id = required_path_id(&run_id, "run_id")?;
+    agent_actions::show_run(state.runtime(), user.id, run_id)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn spawn_agent(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(parent_run_id): Path<String>,
+    Json(mut input): Json<SpawnAgentInput>,
+) -> Result<Json<AgentDelegationView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&parent_run_id, &input.parent_run_id, "parent_run_id")?;
+    input.parent_run_id = required_path_id(&parent_run_id, "parent_run_id")?.to_string();
+    agent_actions::spawn_agent_with_admission(state.runtime(), user.id, input, true)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn send_message_to_child(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(delegation_id): Path<String>,
+    Json(mut input): Json<SendAgentMessageToChildInput>,
+) -> Result<(StatusCode, Json<AgentMessageAccepted>), ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&delegation_id, &input.delegation_id, "delegation_id")?;
+    input.delegation_id = required_path_id(&delegation_id, "delegation_id")?.to_string();
+    let accepted =
+        agent_actions::send_message_to_child_with_admission(state.runtime(), user.id, input, true)
+            .await?;
+    Ok((StatusCode::ACCEPTED, Json(accepted)))
+}
+
+pub(super) async fn control_child_agent(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(delegation_id): Path<String>,
+    Json(mut input): Json<ControlChildAgentInput>,
+) -> Result<Json<AgentRunView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&delegation_id, &input.delegation_id, "delegation_id")?;
+    input.delegation_id = required_path_id(&delegation_id, "delegation_id")?.to_string();
+    agent_actions::control_child_agent(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn events(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(thread_id): Path<String>,
+    Query(query): Query<AgentEventsQuery>,
+) -> Result<Response, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let thread_id = required_path_id(&thread_id, "thread_id")?.to_string();
+    let query_cursor = parse_optional_sequence(query.after_sequence.as_deref())?;
+    let limit = parse_limit(
+        query.limit.as_deref(),
+        AGENT_EVENTS_DEFAULT_LIMIT,
+        AGENT_EVENTS_MAX_LIMIT,
+    )?;
+
+    if !accepts_event_stream(&headers)? {
+        let input = AgentEventsInput {
+            thread_id: thread_id.clone(),
+            after_sequence: query_cursor,
+            limit: Some(limit),
+        };
+        let events = agent_actions::events(state.runtime(), user.id, input).await?;
+        validate_event_batch(&thread_id, query_cursor.unwrap_or(0), &events)?;
+        return Ok(Json(events).into_response());
+    }
+
+    let cursor = resolve_event_cursor(&headers, query_cursor)?;
+    let initial = agent_actions::events(
+        state.runtime(),
+        user.id,
+        AgentEventsInput {
+            thread_id: thread_id.clone(),
+            after_sequence: cursor,
+            limit: Some(limit),
+        },
+    )
+    .await?;
+    validate_event_batch(&thread_id, cursor.unwrap_or(0), &initial)?;
+
+    let stream = agent_event_stream(AgentSseState {
+        state,
+        user_id: user.id,
+        thread_id,
+        limit,
+        cursor: cursor.unwrap_or(0),
+        pending: initial.into(),
+    });
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("no-cache, no-transform"),
+    );
+    response_headers.insert("x-accel-buffering", HeaderValue::from_static("no"));
+    Ok((
+        response_headers,
+        Sse::new(stream).keep_alive(
+            KeepAlive::new()
+                .interval(Duration::from_secs(5))
+                .text("keep-alive"),
+        ),
+    )
+        .into_response())
+}
+
+pub(super) async fn search_tools(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<AgentToolSearchQuery>,
+) -> Result<Json<AgentToolSearchResult>, ApiError> {
+    authenticated_user(&state, &headers).await?;
+    let input = SearchAgentToolsInput {
+        query: optional_query_text(query.query, "query")?,
+        domain: optional_query_text(query.domain, "domain")?,
+        effect: optional_query_text(query.effect, "effect")?,
+        capability: optional_query_text(query.capability, "capability")?,
+        limit: Some(parse_limit(
+            query.limit.as_deref(),
+            AGENT_TOOLS_DEFAULT_LIMIT,
+            AGENT_TOOLS_MAX_LIMIT,
+        )?),
+    };
+    agent_actions::search_tools(state.runtime(), input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn describe_tool(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(name): Path<String>,
+) -> Result<Json<AgentToolDescriptor>, ApiError> {
+    authenticated_user(&state, &headers).await?;
+    let name = required_path_id(&name, "name")?.to_string();
+    agent_actions::describe_tool(state.runtime(), DescribeAgentToolInput { name })
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn list_memories(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Query(query): Query<AgentMemoriesQuery>,
+) -> Result<Json<Vec<AgentMemoryView>>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let scope_id = query
+        .scope_id
+        .map(|value| optional_query_text(Some(value), "scope_id"))
+        .transpose()?
+        .flatten();
+    agent_actions::list_memories(state.runtime(), user.id, query.scope_kind, scope_id)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn create_memory(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentMemoryInput>,
+) -> Result<(StatusCode, Json<AgentMemoryView>), ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    let memory = agent_actions::create_memory(state.runtime(), user.id, input).await?;
+    Ok((StatusCode::CREATED, Json(memory)))
+}
+
+pub(super) async fn retract_memory(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(memory_id): Path<String>,
+    Json(mut input): Json<RetractAgentMemoryInput>,
+) -> Result<Json<AgentMemoryView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&memory_id, &input.memory_id, "memory_id")?;
+    input.memory_id = required_path_id(&memory_id, "memory_id")?.to_string();
+    agent_actions::retract_memory(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn resolve_approval(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Path(approval_id): Path<String>,
+    Json(input): Json<ResolveAgentApprovalInput>,
+) -> Result<Json<a4n_api_contract::agent::AgentApprovalView>, ApiError> {
+    let user = authenticated_user(&state, &headers).await?;
+    require_matching_id(&approval_id, &input.approval_id, "approval_id")?;
+    agent_actions::resolve_approval(state.runtime(), user.id, input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+struct AgentSseState {
+    state: ServerState,
+    user_id: i64,
+    thread_id: String,
+    limit: u32,
+    cursor: u64,
+    pending: VecDeque<AgentEvent>,
+}
+
+fn agent_event_stream(
+    state: AgentSseState,
+) -> impl Stream<Item = Result<Event, Infallible>> + Send + 'static {
+    stream::unfold(state, |mut state| async move {
+        loop {
+            if let Some(event) = state.pending.pop_front() {
+                state.cursor = event.sequence;
+                return Some((Ok(to_sse_event(&event)), state));
+            }
+
+            tokio::time::sleep(EVENT_POLL_INTERVAL).await;
+            let input = AgentEventsInput {
+                thread_id: state.thread_id.clone(),
+                after_sequence: Some(state.cursor),
+                limit: Some(state.limit),
+            };
+            let events =
+                match agent_actions::events(state.state.runtime(), state.user_id, input).await {
+                    Ok(events) => events,
+                    Err(error) => {
+                        tracing::warn!(
+                            thread_id = %state.thread_id,
+                            cursor = state.cursor,
+                            error = %error,
+                            "Agent SSE durable replay failed; closing stream"
+                        );
+                        return None;
+                    }
+                };
+            if let Err(error) = validate_event_batch(&state.thread_id, state.cursor, &events) {
+                tracing::error!(
+                    thread_id = %state.thread_id,
+                    cursor = state.cursor,
+                    error = %error,
+                    "Agent SSE durable event invariant failed; closing stream"
+                );
+                return None;
+            }
+            state.pending.extend(events);
+        }
+    })
+}
+
+fn to_sse_event(event: &AgentEvent) -> Event {
+    let (id, data) = agent_event_payload(event);
+    Event::default().event("agent_event").id(id).data(data)
+}
+
+fn agent_event_payload(event: &AgentEvent) -> (String, String) {
+    (
+        event.sequence.to_string(),
+        serde_json::to_string(event).expect("AgentEvent must remain serializable"),
+    )
+}
+
+fn accepts_event_stream(headers: &HeaderMap) -> Result<bool, ApiError> {
+    let Some(value) = headers.get(header::ACCEPT) else {
+        return Ok(false);
+    };
+    let raw = value
+        .to_str()
+        .map_err(|_| ApiError::bad_request("Accept 头不是有效 ASCII 字符串"))?;
+    Ok(raw.split(',').any(|media_range| {
+        media_range
+            .split(';')
+            .next()
+            .is_some_and(|value| value.trim().eq_ignore_ascii_case("text/event-stream"))
+    }))
+}
+
+fn resolve_event_cursor(
+    headers: &HeaderMap,
+    query_cursor: Option<u64>,
+) -> Result<Option<u64>, ApiError> {
+    let Some(value) = headers.get(HeaderName::from_static("last-event-id")) else {
+        return Ok(query_cursor);
+    };
+    let raw = value
+        .to_str()
+        .map_err(|_| ApiError::bad_request("Last-Event-ID 不是有效 ASCII 字符串"))?;
+    let header_cursor = parse_sequence(raw, "Last-Event-ID")?;
+    if query_cursor.is_some_and(|cursor| cursor != header_cursor) {
+        return Err(ApiError::bad_request(
+            "Last-Event-ID 必须与 after_sequence 一致",
+        ));
+    }
+    Ok(Some(header_cursor))
+}
+
+fn parse_optional_sequence(raw: Option<&str>) -> Result<Option<u64>, ApiError> {
+    raw.map(|value| parse_sequence(value, "after_sequence"))
+        .transpose()
+}
+
+fn parse_sequence(raw: &str, field: &str) -> Result<u64, ApiError> {
+    if raw.trim() != raw || raw.is_empty() {
+        return Err(ApiError::bad_request(format!("{field} 必须是非负整数")));
+    }
+    raw.parse::<u64>()
+        .map_err(|_| ApiError::bad_request(format!("{field} 必须是非负整数")))
+}
+
+fn parse_limit(raw: Option<&str>, default: u32, max: u32) -> Result<u32, ApiError> {
+    let Some(raw) = raw else {
+        return Ok(default);
+    };
+    let limit = raw
+        .parse::<u32>()
+        .map_err(|_| ApiError::bad_request(format!("limit 必须是 1 到 {max} 的整数")))?;
+    if !(1..=max).contains(&limit) {
+        return Err(ApiError::bad_request(format!(
+            "limit 必须是 1 到 {max} 的整数"
+        )));
+    }
+    Ok(limit)
+}
+
+fn optional_query_text(value: Option<String>, field: &str) -> Result<Option<String>, ApiError> {
+    value
+        .map(|value| {
+            let trimmed = value.trim();
+            if trimmed.is_empty() {
+                return Err(ApiError::bad_request(format!("{field} 不能为空")));
+            }
+            if trimmed.chars().count() > 200 {
+                return Err(ApiError::bad_request(format!("{field} 过长")));
+            }
+            Ok(trimmed.to_string())
+        })
+        .transpose()
+}
+
+fn required_path_id<'a>(value: &'a str, field: &str) -> Result<&'a str, ApiError> {
+    if value.is_empty() || value.trim() != value || value.chars().count() > 200 {
+        return Err(ApiError::bad_request(format!("path {field} 无效")));
+    }
+    Ok(value)
+}
+
+fn require_matching_id(path: &str, body: &str, field: &str) -> Result<(), ApiError> {
+    required_path_id(path, field)?;
+    if path != body {
+        return Err(ApiError::bad_request(format!(
+            "body.{field} 必须与 path {field} 一致"
+        )));
+    }
+    Ok(())
+}
+
+fn validate_event_batch(
+    thread_id: &str,
+    after_sequence: u64,
+    events: &[AgentEvent],
+) -> Result<(), ApiError> {
+    let mut cursor = after_sequence;
+    for event in events {
+        if event.thread_id != thread_id {
+            return Err(ApiError::conflict(
+                "Agent event 回放返回了其他 Thread 的事件",
+            ));
+        }
+        if event.sequence <= cursor {
+            return Err(ApiError::conflict(
+                "Agent event sequence 必须严格递增且大于游标",
+            ));
+        }
+        cursor = event.sequence;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_api_contract::agent::AGENT_API_PROTOCOL_VERSION;
+    use serde_json::json;
+
+    fn event(thread_id: &str, sequence: u64) -> AgentEvent {
+        AgentEvent {
+            protocol_version: AGENT_API_PROTOCOL_VERSION,
+            thread_id: thread_id.to_string(),
+            sequence,
+            kind: "message.accepted".to_string(),
+            actor_kind: "user".to_string(),
+            actor_id: Some("7".to_string()),
+            turn_id: Some("11".to_string()),
+            run_id: Some("12".to_string()),
+            execution_id: None,
+            delegation_id: None,
+            message_id: Some("13".to_string()),
+            payload: Some(json!({"public": true})),
+            created_at: "2026-08-27T12:00:00Z".to_string(),
+        }
+    }
+
+    #[test]
+    fn event_cursor_uses_query_or_last_event_id_and_rejects_conflicts() {
+        let mut headers = HeaderMap::new();
+        assert_eq!(resolve_event_cursor(&headers, Some(4)).unwrap(), Some(4));
+
+        headers.insert("last-event-id", HeaderValue::from_static("7"));
+        assert_eq!(resolve_event_cursor(&headers, None).unwrap(), Some(7));
+        assert_eq!(resolve_event_cursor(&headers, Some(7)).unwrap(), Some(7));
+        assert!(resolve_event_cursor(&headers, Some(6)).is_err());
+
+        headers.insert("last-event-id", HeaderValue::from_static("7:2"));
+        assert!(resolve_event_cursor(&headers, None).is_err());
+    }
+
+    #[test]
+    fn accepts_event_stream_in_a_media_range_list() {
+        let mut headers = HeaderMap::new();
+        assert!(!accepts_event_stream(&headers).unwrap());
+        headers.insert(
+            header::ACCEPT,
+            HeaderValue::from_static("application/json, text/event-stream; charset=utf-8"),
+        );
+        assert!(accepts_event_stream(&headers).unwrap());
+    }
+
+    #[test]
+    fn limits_and_path_body_ids_are_strict() {
+        assert_eq!(parse_limit(None, 50, 500).unwrap(), 50);
+        assert_eq!(parse_limit(Some("500"), 50, 500).unwrap(), 500);
+        assert!(parse_limit(Some("0"), 50, 500).is_err());
+        assert!(parse_limit(Some("501"), 50, 500).is_err());
+        assert!(parse_limit(Some(" 2"), 50, 500).is_err());
+
+        require_matching_id("42", "42", "thread_id").unwrap();
+        assert!(require_matching_id("42", "43", "thread_id").is_err());
+        assert!(require_matching_id(" 42", " 42", "thread_id").is_err());
+    }
+
+    #[test]
+    fn durable_event_batches_must_match_thread_and_increase_sequence() {
+        validate_event_batch("9", 2, &[event("9", 3), event("9", 4)]).unwrap();
+        assert!(validate_event_batch("9", 3, &[event("9", 3)]).is_err());
+        assert!(validate_event_batch("9", 2, &[event("8", 3)]).is_err());
+        assert!(validate_event_batch("9", 2, &[event("9", 4), event("9", 3)]).is_err());
+    }
+
+    #[test]
+    fn sse_payload_uses_sequence_as_id_and_serializes_top_level_event() {
+        let event = event("9", 3);
+        let (id, data) = agent_event_payload(&event);
+        assert_eq!(id, "3");
+        let data: serde_json::Value = serde_json::from_str(&data).unwrap();
+        assert_eq!(data["sequence"], 3);
+        assert_eq!(data["thread_id"], "9");
+        assert_eq!(data["kind"], "message.accepted");
+    }
+}

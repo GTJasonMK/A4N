@@ -6,7 +6,7 @@ use a4n_db::config::{
     import_settings_all_configs, settings_all_config_rows,
     validate_settings_all_config_import_defaults,
 };
-use a4n_domain::{ThemeDocument, ThemeMode};
+use a4n_domain::{ImageSize, ThemeDocument, ThemeMode};
 use serde_json::json;
 
 fn settings_rows() -> SettingsAllConfigRows {
@@ -42,8 +42,7 @@ fn settings_rows() -> SettingsAllConfigRows {
             api_key_encrypted: None,
             model: "test-image".to_string(),
             max_concurrent: 1,
-            default_width: 1024,
-            default_height: 1024,
+            supported_sizes: vec![ImageSize::new(1024, 1024)],
             is_default: true,
         }],
         video_configs: vec![SettingsAllVideoConfigRow {

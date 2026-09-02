@@ -46,8 +46,12 @@ pub async fn project_family_metadata_batch(
     dedup_i64(&mut root_project_ids);
     dedup_i64(&mut snapshot_ids);
 
-    let roots_by_id = project_models_by_id(db, &root_project_ids).await?;
-    let snapshots_by_id = source_snapshots_by_id(db, &snapshot_ids).await?;
+    let (roots_by_id, snapshots_by_id) = futures::join!(
+        project_models_by_id(db, &root_project_ids),
+        source_snapshots_by_id(db, &snapshot_ids),
+    );
+    let roots_by_id = roots_by_id?;
+    let snapshots_by_id = snapshots_by_id?;
 
     let mut metadata_by_project_id = HashMap::with_capacity(queries.len());
     for query in queries {

@@ -333,7 +333,17 @@ function applyContiguousEvent(
     case "progress":
       return state.terminalReceived
         ? protocolFailure(state, "终态后收到 progress")
-        : { ...next, progress: event.event.data };
+        : {
+          ...next,
+          // Model-connect/stream events intentionally omit counters. Keep the
+          // last known pair so batching or a late phase update cannot erase a
+          // durable task total from the view.
+          progress: {
+            ...event.event.data,
+            current: event.event.data.current ?? state.progress?.current,
+            total: event.event.data.total ?? state.progress?.total,
+          },
+        };
     case "text_delta":
       return applyTextDelta(next, event);
     case "usage":

@@ -80,21 +80,24 @@ pub async fn verify_project_permissions(
         )?;
     }
 
-    let user = find_user(db, user_id).await?;
+    let (user_result, members_result) = futures::join!(find_user(db, user_id), async {
+        project_member::Entity::find()
+            .select_only()
+            .column(project_member::Column::ProjectId)
+            .column(project_member::Column::Role)
+            .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
+            .filter(project_member::Column::UserId.eq(user_id))
+            .into_tuple::<(i64, String)>()
+            .all(db)
+            .await
+            .map_err(CollaborationDbError::Database)
+    },);
+    let user = user_result?;
     if !user.is_active {
         return Err(CollaborationDbError::Forbidden("账户已被禁用".to_string()));
     }
 
-    let members = project_member::Entity::find()
-        .select_only()
-        .column(project_member::Column::ProjectId)
-        .column(project_member::Column::Role)
-        .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
-        .filter(project_member::Column::UserId.eq(user_id))
-        .into_tuple::<(i64, String)>()
-        .all(db)
-        .await
-        .map_err(CollaborationDbError::Database)?;
+    let members = members_result?;
     let mut member_roles = HashMap::with_capacity(members.len());
     for (project_id, role) in members {
         member_roles.insert(project_id, parse_stored_member_role(&role)?.into());
@@ -189,25 +192,28 @@ pub async fn project_ids_with_permission(
         }
     }
 
-    let user = find_user(db, user_id).await?;
+    let (user_result, members_result) = futures::join!(find_user(db, user_id), async {
+        if root_ids.is_empty() {
+            Ok(Vec::new())
+        } else {
+            project_member::Entity::find()
+                .select_only()
+                .column(project_member::Column::ProjectId)
+                .column(project_member::Column::Role)
+                .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
+                .filter(project_member::Column::UserId.eq(user_id))
+                .into_tuple::<(i64, String)>()
+                .all(db)
+                .await
+                .map_err(CollaborationDbError::Database)
+        }
+    },);
+    let user = user_result?;
     if !user.is_active {
         return Err(CollaborationDbError::Forbidden("账户已被禁用".to_string()));
     }
 
-    let members = if root_ids.is_empty() {
-        Vec::new()
-    } else {
-        project_member::Entity::find()
-            .select_only()
-            .column(project_member::Column::ProjectId)
-            .column(project_member::Column::Role)
-            .filter(project_member::Column::ProjectId.is_in(root_ids.iter().copied()))
-            .filter(project_member::Column::UserId.eq(user_id))
-            .into_tuple::<(i64, String)>()
-            .all(db)
-            .await
-            .map_err(CollaborationDbError::Database)?
-    };
+    let members = members_result?;
     let mut member_roles = HashMap::with_capacity(members.len());
     for (project_id, role) in members {
         member_roles.insert(project_id, parse_stored_member_role(&role)?.into());

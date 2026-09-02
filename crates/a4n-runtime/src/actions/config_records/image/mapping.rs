@@ -1,6 +1,6 @@
 use super::super::shared::has_configured_api_key;
 use a4n_api_contract::config::ImageConfigSummary;
-use a4n_core::models::ai::image_gen_config;
+use a4n_core::{config::image_sizes_from_json, models::ai::image_gen_config};
 
 pub(super) fn image_config_summary(
     config: &image_gen_config::Model,
@@ -16,8 +16,8 @@ pub(super) fn image_config_summary(
         has_api_key: has_configured_api_key(config.api_key_encrypted.as_deref()),
         model: config.model.clone(),
         max_concurrent: config.max_concurrent,
-        default_width: config.default_width,
-        default_height: config.default_height,
+        supported_sizes: image_sizes_from_json(&config.supported_sizes_json)
+            .map_err(|error| error.to_string())?,
         is_default: config.is_default,
     })
 }
@@ -35,8 +35,7 @@ mod tests {
             "base_url": "https://api.example/v1",
             "model": "image-model",
             "max_concurrent": 1,
-            "default_width": 1024,
-            "default_height": 1024,
+            "supported_sizes": [{"width": 1024, "height": 1024}],
         });
         let missing_key = serde_json::from_value::<UpdateImageConfigInput>(base.clone())
             .expect("missing api_key_encrypted should preserve the old key");

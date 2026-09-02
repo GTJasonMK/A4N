@@ -109,6 +109,8 @@ const WORKFLOW_KIND_LABELS: Record<string, MessageKey> = {
   video_canvas_graph: "workflow.kindVideoCanvas",
   chapter_analysis: "workflow.kindChapterAnalysis",
   chapter_content_sync: "workflow.kindChapterSync",
+  blueprint_generation: "workflow.kindBlueprintGeneration",
+  blueprint_refine: "workflow.kindBlueprintRefine",
   source_sync: "workflow.kindSourceSync",
   import_analysis: "workflow.kindImportAnalysis",
   rag_ingestion: "workflow.kindRagIngestion",

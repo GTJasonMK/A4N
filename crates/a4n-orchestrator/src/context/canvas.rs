@@ -241,12 +241,17 @@ impl OrchestratorContext {
     pub async fn save_canvas_graph(
         &self,
         project_id: i64,
+        expected_version: Option<i32>,
         input: CanvasGraphInput,
         now: NaiveDateTime,
     ) -> Result<CanvasGraphDocument, AppError> {
         let document = self
             .canvas
-            .save_canvas_graph_record(project_id, canvas_graph_record_input(input), now)
+            .save_canvas_graph_record(
+                project_id,
+                canvas_graph_record_input(input, expected_version),
+                now,
+            )
             .await?;
         canvas_graph_document(document)
     }
@@ -435,9 +440,13 @@ impl OrchestratorContext {
     }
 }
 
-fn canvas_graph_record_input(input: CanvasGraphInput) -> CanvasGraphRecordInput {
+fn canvas_graph_record_input(
+    input: CanvasGraphInput,
+    expected_version: Option<i32>,
+) -> CanvasGraphRecordInput {
     CanvasGraphRecordInput {
         id: input.id,
+        expected_version,
         name: Some(input.name),
         graph_kind: Some(input.graph_kind),
         viewport_json: input.viewport_json.map(canvas_json_value),
@@ -515,6 +524,7 @@ fn canvas_graph_document(
             id: graph.id,
             name: graph.name,
             graph_kind: graph.graph_kind,
+            version: graph.version,
             viewport_json,
         },
         nodes,
@@ -579,6 +589,7 @@ mod tests {
                     "id": 7,
                     "name": "画布",
                     "graph_kind": "video",
+                    "version": 3,
                     "viewport_json": { "zoom": 1 }
                 },
                 "nodes": [],

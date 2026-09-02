@@ -9,11 +9,11 @@ impl OrchestratorContext {
     ) -> Result<Vec<ManagedServiceHealthSummary>, AppError> {
         let results = futures::future::join_all(self.service_manager.configs().into_iter().map(
             |config| async move {
-                let health = self.service_manager.health(&config.name).await;
-                let managed_status = self
-                    .service_manager
-                    .process_status(&config.name)
-                    .await
+                let (health, managed_status) = futures::join!(
+                    self.service_manager.health(&config.name),
+                    self.service_manager.process_status(&config.name),
+                );
+                let managed_status = managed_status
                     .map_err(|error| AppError::Internal(anyhow::anyhow!(error.to_string())))?;
                 Ok::<_, AppError>(service_health_summary(
                     config,

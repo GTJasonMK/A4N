@@ -57,16 +57,18 @@ pub async fn profiles_with_timeline_state<C>(
 where
     C: ConnectionTrait,
 {
-    let project = novel_project::Entity::find_by_id(project_id)
-        .select_only()
-        .column(novel_project::Column::LifecycleGate)
-        .into_tuple::<String>()
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            crate::character::CharacterDbError::NotFound(format!("项目不存在: {project_id}"))
-        })?;
-    let profiles = profiles_by_project(db, project_id).await?;
+    let (project_result, profiles_result) = futures::join!(
+        novel_project::Entity::find_by_id(project_id)
+            .select_only()
+            .column(novel_project::Column::LifecycleGate)
+            .into_tuple::<String>()
+            .one(db),
+        profiles_by_project(db, project_id),
+    );
+    let project = project_result?.ok_or_else(|| {
+        crate::character::CharacterDbError::NotFound(format!("项目不存在: {project_id}"))
+    })?;
+    let profiles = profiles_result?;
     let profile_ids = profiles
         .iter()
         .map(|profile| profile.id)

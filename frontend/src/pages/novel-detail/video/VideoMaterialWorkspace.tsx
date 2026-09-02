@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { BadgeCheck,
   Box,
@@ -9,6 +10,8 @@ import { BadgeCheck,
   Star,
   Upload, } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ImageSizeSelect, useImageGenerationSize } from "../../../components/image/ImageSizeSelect";
+import type { ImageSize } from "../../../api/image";
 import { extractErrorMessage } from "../../../api";
 import {
   deleteImage,
@@ -154,6 +157,13 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   onRefreshVideoData,
 }) => {
   const { t } = useI18n();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const [groups, setGroups] = useState<ProfileMaterialGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
@@ -333,6 +343,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
   const generateMaterialCore = async (
     group: ProfileMaterialGroup,
     requestProjectId: number,
+    requestSize: ImageSize,
     options: { refresh?: boolean } = {},
   ) => {
     const key = groupKey(group);
@@ -347,6 +358,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
               scene_profile_id: group.profile.id,
               chapter_id: null,
               config_id: null,
+              width: requestSize.width,
+              height: requestSize.height,
               ...stylePayload,
             }
           : {
@@ -354,6 +367,8 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
               object_profile_id: group.profile.id,
               chapter_id: null,
               config_id: null,
+              width: requestSize.width,
+              height: requestSize.height,
               ...stylePayload,
             },
       });
@@ -391,9 +406,14 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     options: { refresh?: boolean } = {},
   ) => {
     const requestProjectId = projectId;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      onToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     if (!beginAction()) return;
     try {
-      await generateMaterialCore(group, requestProjectId, options);
+      await generateMaterialCore(group, requestProjectId, requestSize, options);
     } finally {
       finishAction(requestProjectId);
     }
@@ -498,6 +518,11 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
 
   const batchGenerate = async (mode: "missing" | "stale") => {
     const requestProjectId = projectId;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      onToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const targets = groups.filter((group) => group.material_state === mode);
     if (targets.length === 0) {
       onToast(mode === "missing" ? t("video.material.noMissing") : t("video.material.noStale"), "info");
@@ -508,7 +533,7 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
     try {
       for (const group of targets) {
         if (!isCurrentProject(requestProjectId)) return;
-        await generateMaterialCore(group, requestProjectId, { refresh: false });
+        await generateMaterialCore(group, requestProjectId, requestSize, { refresh: false });
       }
       if (!isCurrentProject(requestProjectId)) return;
       await refreshAfterMaterialChange();
@@ -706,6 +731,15 @@ export const VideoMaterialWorkspace: React.FC<VideoMaterialWorkspaceProps> = ({
             </span>
           </summary>
           <div className="grid min-w-0 grid-cols-1 gap-2 border-t border-book-border/25 px-3 pb-3 pt-2 sm:grid-cols-2">
+            <ImageSizeSelect
+              label={t("settingsForm.selectImageSize")}
+              value={imageSize}
+              sizes={imageSizes}
+              loading={imageSizeLoading}
+              error={imageSizeError}
+              disabled={busyKey != null || batchBusy}
+              onChange={setImageSize}
+            />
             <ToolbarSelect
               label={t("video.material.styleTemplate")}
               value={selectedStyleTemplate?.id ?? CUSTOM_STYLE_VALUE}
@@ -1073,7 +1107,7 @@ function ToolbarSelect({
       }`}
     >
       <span className="shrink-0 text-book-text-muted">{label}</span>
-      <select
+      <ThemedSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
         disabled={disabled}
@@ -1084,7 +1118,7 @@ function ToolbarSelect({
             {option.label}
           </option>
         ))}
-      </select>
+      </ThemedSelect>
     </label>
   );
 }

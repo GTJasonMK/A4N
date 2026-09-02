@@ -47,6 +47,14 @@ pub enum CanvasDbError {
     NotFound(String),
     #[error("{0}")]
     Forbidden(String),
+    #[error(
+        "画布 version 冲突: graph_id={graph_id}, expected_version={expected_version}, current_version={current_version}"
+    )]
+    VersionConflict {
+        graph_id: i64,
+        expected_version: i32,
+        current_version: i32,
+    },
     #[error(transparent)]
     Database(#[from] DbErr),
 }

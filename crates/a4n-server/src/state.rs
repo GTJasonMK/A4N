@@ -69,6 +69,7 @@ impl ServerState {
         let runtime_profile = runtime_profile_for_server_host()?;
         let runtime =
             Arc::new(a4n_runtime::AppState::new_with_profile(app_config, runtime_profile).await?);
+        install_agent_host_dispatcher(&runtime)?;
         let bootstrap = bootstrap_admin.as_ref().map(|input| {
             (
                 input.username.as_str(),
@@ -77,6 +78,7 @@ impl ServerState {
             )
         });
         auth_records::require_existing_user_or_bootstrap_admin(runtime.as_ref(), bootstrap).await?;
+        runtime.spawn_agent_worker().await;
 
         Ok(Self {
             runtime,
@@ -98,12 +100,28 @@ impl ServerState {
     }
 
     pub(crate) fn from_runtime(runtime: a4n_runtime::AppState) -> Self {
+        let runtime = Arc::new(runtime);
         Self {
-            runtime: Arc::new(runtime),
+            runtime,
             agents: AgentRegistry::new(),
             page_sessions: PageSessionRegistry::new(),
         }
     }
+}
+
+fn install_agent_host_dispatcher(runtime: &Arc<a4n_runtime::AppState>) -> Result<(), AppError> {
+    // The weak reference avoids keeping AppState alive through its own
+    // dispatcher closure. A ServerState is reconstructed per command by the
+    // existing dispatch façade, so no second command registry is introduced.
+    let weak_runtime = Arc::downgrade(runtime);
+    runtime.set_agent_host_dispatcher(Arc::new(move |user_id, command, args| {
+        let Some(runtime) = weak_runtime.upgrade() else {
+            return Box::pin(async { Err("A4N Host 已退出".to_string()) });
+        };
+        Box::pin(async move {
+            crate::routes::dispatch_runtime_command(&runtime, user_id, args, command).await
+        })
+    }))
 }
 
 fn runtime_profile_for_server_host() -> Result<RuntimeProfile, AppError> {

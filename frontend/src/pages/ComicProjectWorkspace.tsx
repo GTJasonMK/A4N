@@ -64,14 +64,20 @@ export const ComicProjectWorkspace: React.FC = () => {
     }
     setLoading(true);
     try {
-      const item = await getProject(projectId);
+      const [projectResult, chaptersResult] = await Promise.allSettled([
+        getProject(projectId),
+        listSourceSnapshotChapters(projectId),
+      ]);
+      if (projectResult.status === "rejected") throw projectResult.reason;
+      const item = projectResult.value;
       if (refreshRequestRef.current !== requestId) return;
       if (item.project_kind !== "comic") {
         addToast(t("comic.notComicProject"), "error");
         navigate("/", { replace: true });
         return;
       }
-      const snapshotChapters = await listSourceSnapshotChapters(projectId);
+      if (chaptersResult.status === "rejected") throw chaptersResult.reason;
+      const snapshotChapters = chaptersResult.value;
       if (refreshRequestRef.current !== requestId) return;
       setProject(item);
       setChapters(snapshotChapters);

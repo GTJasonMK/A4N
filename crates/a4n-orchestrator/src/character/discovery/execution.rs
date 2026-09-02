@@ -131,16 +131,18 @@ impl OrchestratorContext {
         ),
         AppError,
     > {
-        let available_chapters = self.character_sync_chapters(input.project_id).await?;
+        let (available_chapters, existing_profiles) = futures::join!(
+            self.character_sync_chapters(input.project_id),
+            self.protagonist_profiles_for_project(input.project_id),
+        );
+        let available_chapters = available_chapters?;
         let chapters = select_character_discovery_chapters(
             available_chapters,
             input.project_id,
             input.chapter_number,
         )
         .map_err(AppError::InvalidArgument)?;
-        let existing_profiles = self
-            .protagonist_profiles_for_project(input.project_id)
-            .await?;
+        let existing_profiles = existing_profiles?;
         let existing_keys = existing_character_keys(&existing_profiles);
         let existing_key_profiles = existing_profiles
             .iter()

@@ -41,7 +41,11 @@ pub(super) async fn prepare_import_project_analysis(
     context: &OrchestratorContext,
     project_id: i64,
 ) -> Result<ImportAnalysisRunPreparation, AppError> {
-    let chapters = importable_chapters(context, project_id).await?;
+    let (chapters_result, progress_result) = futures::join!(
+        importable_chapters(context, project_id),
+        load_import_progress_optional(context, project_id),
+    );
+    let chapters = chapters_result?;
     if chapters.is_empty() {
         return Err(AppError::InvalidState {
             current: "no_importable_chapters".to_string(),
@@ -49,7 +53,7 @@ pub(super) async fn prepare_import_project_analysis(
         });
     }
 
-    let progress = match load_import_progress_optional(context, project_id).await? {
+    let progress = match progress_result? {
         Some(mut progress)
             if progress.stages.generating_analysis_data.total == chapters.len()
                 && progress.status != ImportAnalysisStatus::Completed =>

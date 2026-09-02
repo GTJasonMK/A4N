@@ -34,7 +34,7 @@ beforeEach(() => {
 it("uses authenticated Host identity and one typed input envelope for portrait commands", async () => {
   await startPortraitGeneration({
     project_id: 7,
-    operation: { kind: "generate_missing" },
+    operation: { kind: "generate_missing", width: 1024, height: 1024 },
   });
   await listPortraitsByProject(7);
   await getPrimaryPortrait(8);
@@ -70,13 +70,26 @@ it("uses authenticated Host identity and one typed input envelope for portrait c
     expression: "微笑",
     pose: null,
     reference_image_ids: [],
+    width: 1024,
+    height: 1024,
   });
-  await previewRegeneratePortraitRequest({ portrait_id: 9, reference_image_ids: [] });
-  await previewGenerateMissingPortraitsRequest({ project_id: 7 });
+  await previewRegeneratePortraitRequest({
+    portrait_id: 9,
+    reference_image_ids: [],
+    width: 1024,
+    height: 1024,
+  });
+  await previewGenerateMissingPortraitsRequest({
+    project_id: 7,
+    width: 1024,
+    height: 1024,
+  });
   await previewGenerateAgeVariantRequest({
     portrait_id: 9,
     age: "少年",
     reference_image_ids: [],
+    width: 1024,
+    height: 1024,
   });
 
   expect(mocks.apiInvoke.mock.calls.map(([command]) => command)).toEqual([

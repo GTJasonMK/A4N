@@ -110,8 +110,12 @@ pub async fn revoke_project_invite(
     invite_id: i64,
 ) -> Result<(), CollaborationDbError> {
     verify_project_permission(db, project_id, actor_user_id, ProjectAccessRole::Manager).await?;
-    let root = resolve_root_project(db, project_id).await?;
-    let invite = find_invite(db, invite_id).await?;
+    let (root_result, invite_result) = futures::join!(
+        resolve_root_project(db, project_id),
+        find_invite(db, invite_id),
+    );
+    let root = root_result?;
+    let invite = invite_result?;
     if invite.project_id != root.id {
         return Err(CollaborationDbError::Forbidden(
             "邀请不属于该项目".to_string(),

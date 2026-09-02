@@ -22,10 +22,10 @@ async fn sync_chapter_prompts_rejects_missing_chapter_without_insert() {
                 duration_secs: 6,
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: None,
-                metadata_json: Some(json!({
+                metadata_json: Some(stable_prompt_metadata(json!({
                     "source_prompt_type": "frame_segment_plan",
                     "source": {"content_sha256": "same"}
-                })),
+                }), 1)),
             })],
         )
         .await
@@ -291,7 +291,7 @@ async fn sync_chapter_prompts_rejects_draft_project_mismatch_without_insert() {
                 new_prompt_draft(NewChapterVideoPromptInput {
                     project_id: project.id,
                     chapter_id: chapter.id,
-                    workflow_mode: PromptWorkflowMode::BoundaryFrames,
+                    workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
                     style: Some("电影感写实"),
                     prompt_type: "frame_segment_plan",
                     shot_number: 0,
@@ -375,10 +375,10 @@ async fn sync_chapter_prompts_rejects_unknown_reference_image_without_insert() {
                 duration_secs: 6,
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: Some(json!([404])),
-                metadata_json: Some(json!({
+                metadata_json: Some(stable_prompt_metadata(json!({
                     "source_prompt_type": "frame_segment_plan",
                     "source": {"content_sha256": "same"}
-                })),
+                }), 1)),
             })],
         )
         .await

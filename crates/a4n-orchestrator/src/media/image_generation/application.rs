@@ -2,6 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_core::{
+    config::{ensure_image_size_supported, image_sizes_from_json},
     error::AppError,
     models::{
         asset::object_profile,
@@ -41,7 +42,7 @@ use super::{
         batch_image_rules::{
             attach_video_frame_reference_image_ids, batch_image_aspect_ratio,
             ensure_batch_image_item_shape, ensure_batch_reference_image_backend,
-            image_dimensions_for_aspect_ratio, optional_json_i64_field, optional_json_string_field,
+            image_size_for_aspect_ratio, optional_json_i64_field, optional_json_string_field,
         },
     },
     contracts::{
@@ -66,6 +67,8 @@ struct DirectImagePlan {
     prompt: String,
     image_type: String,
     config_id: Option<i64>,
+    width: i32,
+    height: i32,
     chapter_id: Option<i64>,
     panel_id: Option<String>,
     metadata_json: Option<Value>,
@@ -224,8 +227,9 @@ impl OrchestratorContext {
     ) -> Result<PreparedImageGenerationRequest, AppError> {
         let config_id = input.config_id;
         let chapter_id = input.chapter_id;
+        let (width, height) = required_image_size(input.width, input.height)?;
         let material = self.object_profile_image_material(user_id, &input).await?;
-        self.prepare_profile_image_request(host, material, config_id, chapter_id)
+        self.prepare_profile_image_request(host, material, config_id, chapter_id, width, height)
             .await
     }
 
@@ -238,9 +242,12 @@ impl OrchestratorContext {
     ) -> Result<super::GeneratedImageSummary, AppError> {
         let config_id = input.config_id;
         let chapter_id = input.chapter_id;
+        let (width, height) = required_image_size(input.width, input.height)?;
         let material = self.object_profile_image_material(user_id, &input).await?;
-        self.generate_profile_image(host, material, config_id, chapter_id, progress)
-            .await
+        self.generate_profile_image(
+            host, material, config_id, chapter_id, width, height, progress,
+        )
+        .await
     }
 
     pub async fn generate_scene_profile_image_validated(
@@ -252,9 +259,12 @@ impl OrchestratorContext {
     ) -> Result<super::GeneratedImageSummary, AppError> {
         let config_id = input.config_id;
         let chapter_id = input.chapter_id;
+        let (width, height) = required_image_size(input.width, input.height)?;
         let material = self.scene_profile_image_material(user_id, &input).await?;
-        self.generate_profile_image(host, material, config_id, chapter_id, progress)
-            .await
+        self.generate_profile_image(
+            host, material, config_id, chapter_id, width, height, progress,
+        )
+        .await
     }
 
     pub async fn prepare_page_image_request_validated(
@@ -292,8 +302,8 @@ impl OrchestratorContext {
                     command: "image_page".to_string(),
                     file_extra: Some(format!("ch{chapter_number:02}_pg{page_number:02}")),
                     file_context: "漫画页图片".to_string(),
-                    width: prepared.preview.config.default_width,
-                    height: prepared.preview.config.default_height,
+                    width: prepared.preview.request.width,
+                    height: prepared.preview.request.height,
                     config: prepared.preview.config,
                     request: prepared.preview.request,
                     panel_id: Some(prepared.panel_id),
@@ -391,12 +401,14 @@ impl OrchestratorContext {
         material: ProfileImageMaterial,
         config_id: Option<i64>,
         chapter_id: Option<i64>,
+        width: i32,
+        height: i32,
     ) -> Result<PreparedImageGenerationRequest, AppError> {
         let subject_name = material.name.clone();
         let prepared = self
             .prepare_direct_image(
                 host,
-                profile_image_plan(material, config_id, chapter_id),
+                profile_image_plan(material, config_id, chapter_id, width, height),
                 ImageChapterBindingAccess::ReadOnly,
             )
             .await?;
@@ -412,11 +424,13 @@ impl OrchestratorContext {
         material: ProfileImageMaterial,
         config_id: Option<i64>,
         chapter_id: Option<i64>,
+        width: i32,
+        height: i32,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<super::GeneratedImageSummary, AppError> {
         self.generate_direct_image(
             host,
-            profile_image_plan(material, config_id, chapter_id),
+            profile_image_plan(material, config_id, chapter_id, width, height),
             progress,
         )
         .await
@@ -461,6 +475,8 @@ impl OrchestratorContext {
             .resolve_image_chapter_binding(plan.project_id, plan.chapter_id, access)
             .await?;
         let config = host.resolve_image_config(plan.config_id).await?;
+        let supported_sizes = image_sizes_from_json(&config.supported_sizes_json)?;
+        ensure_image_size_supported(&supported_sizes, plan.width, plan.height)?;
         let base_metadata = Some(json!({
             "config_id": config.id,
             "backend": config.backend,
@@ -470,8 +486,8 @@ impl OrchestratorContext {
         let metadata_json = merge_source_metadata(metadata_json, source_metadata, true);
         let request = ImageGenerationRequest {
             prompt: plan.prompt.clone(),
-            width: config.default_width,
-            height: config.default_height,
+            width: plan.width,
+            height: plan.height,
             model: config.model.clone(),
             reference_images: Vec::new(),
         };
@@ -512,8 +528,8 @@ impl OrchestratorContext {
                 command: prepared.plan.command,
                 file_extra: prepared.plan.file_extra,
                 file_context: prepared.plan.file_context,
-                width: prepared.preview.config.default_width,
-                height: prepared.preview.config.default_height,
+                width: prepared.preview.request.width,
+                height: prepared.preview.request.height,
                 config: prepared.preview.config,
                 request: prepared.preview.request,
                 panel_id: prepared.plan.panel_id,
@@ -565,6 +581,8 @@ impl OrchestratorContext {
         let reference_images = collect_bound_reference_images(host, &reference_bindings)?;
         let reference_image_count = reference_images.len();
         let config = host.resolve_image_config(None).await?;
+        let supported_sizes = image_sizes_from_json(&config.supported_sizes_json)?;
+        ensure_image_size_supported(&supported_sizes, input.width, input.height)?;
         let reference_image_mode = if reference_images.is_empty() {
             "none".to_string()
         } else if a4n_core::config::image_backend_supports_reference_images(&config.backend) {
@@ -584,8 +602,8 @@ impl OrchestratorContext {
         }
         let request = ImageGenerationRequest {
             prompt: image_prompt.to_string(),
-            width: config.default_width,
-            height: config.default_height,
+            width: input.width,
+            height: input.height,
             model: config.model.clone(),
             reference_images,
         };
@@ -826,22 +844,29 @@ impl OrchestratorContext {
                         generation_label, prompt_id
                     )));
                 }
-                if enforce_generation_locks {
-                    self.ensure_frame_prompt_image_generation_allowed(*prompt_id, source)
-                        .await?;
-                } else {
+                if !enforce_generation_locks {
                     preview_notes.push(format!(
                         "{}绑定视频帧提示词 #{}；预览按当前有效参考图构造图片 provider 请求。",
                         generation_label, prompt_id
                     ));
                 }
-                let effective_ids = self
-                    .effective_frame_prompt_image_reference_ids(
-                        *prompt_id,
-                        source,
-                        &reference_image_ids,
-                    )
-                    .await?;
+                let ensure_result = async {
+                    if enforce_generation_locks {
+                        self.ensure_frame_prompt_image_generation_allowed(*prompt_id, source)
+                            .await
+                    } else {
+                        Ok(())
+                    }
+                };
+                let effective_ids_result = self.effective_frame_prompt_image_reference_ids(
+                    *prompt_id,
+                    source,
+                    &reference_image_ids,
+                );
+                let (ensure_result, effective_ids_result) =
+                    futures::join!(ensure_result, effective_ids_result);
+                ensure_result?;
+                let effective_ids = effective_ids_result?;
                 if !enforce_generation_locks && effective_ids != reference_image_ids {
                     preview_notes
                         .push(format!("按边界帧连续性规则使用参考图：{:?}", effective_ids));
@@ -851,35 +876,34 @@ impl OrchestratorContext {
                     attach_video_frame_reference_image_ids(metadata_json, &reference_image_ids)
                         .map_err(AppError::InvalidArgument)?;
             }
-            let config = host.resolve_image_config(config_id).await?;
-            let reference_images = self
-                .collect_generated_reference_images_by_ids(
+            let (config_result, reference_images_result) = futures::join!(
+                host.resolve_image_config(config_id),
+                self.collect_generated_reference_images_by_ids(
                     host,
                     project_id,
                     chapter_id,
                     video_frame_context.is_some(),
                     &reference_image_ids,
-                )
-                .await?;
+                ),
+            );
+            let config = config_result?;
+            let reference_images = reference_images_result?;
             if !reference_images.is_empty() {
                 ensure_batch_reference_image_backend(&config.backend)
                     .map_err(AppError::InvalidArgument)?;
                 preview_notes.push(format!("参考图数量：{}", reference_images.len()));
             }
             let aspect_ratio = batch_image_aspect_ratio(item).map_err(AppError::InvalidArgument)?;
-            let (width, height) = image_dimensions_for_aspect_ratio(
-                config.default_width,
-                config.default_height,
-                aspect_ratio,
-            )
-            .map_err(AppError::InvalidArgument)?;
+            let supported_sizes = image_sizes_from_json(&config.supported_sizes_json)?;
+            let size = image_size_for_aspect_ratio(&supported_sizes, aspect_ratio)
+                .map_err(AppError::InvalidArgument)?;
             jobs.push(PreparedBatchImageJob {
                 execution: BatchImageExecutionItem {
                     index,
                     request: ImageGenerationRequest {
                         prompt: prompt.to_string(),
-                        width,
-                        height,
+                        width: size.width,
+                        height: size.height,
                         model: config.model.clone(),
                         reference_images,
                     },
@@ -975,6 +999,8 @@ fn scene_image_plan(input: GenerateSceneImageInput) -> DirectImagePlan {
         prompt: input.prompt,
         image_type: "scene".to_string(),
         config_id: input.config_id,
+        width: input.width,
+        height: input.height,
         chapter_id: input.chapter_id,
         panel_id: None,
         metadata_json: None,
@@ -1000,6 +1026,8 @@ fn canvas_image_plan(input: GenerateCanvasImageInput) -> DirectImagePlan {
         prompt: input.prompt,
         image_type: IMAGE_TYPE_CANVAS.to_string(),
         config_id: input.config_id,
+        width: input.width,
+        height: input.height,
         chapter_id: None,
         panel_id: None,
         metadata_json,
@@ -1030,6 +1058,8 @@ fn galgame_image_plan(input: GenerateGalgameImageInput) -> DirectImagePlan {
         prompt: input.prompt,
         image_type: input.image_type,
         config_id: input.config_id,
+        width: input.width,
+        height: input.height,
         chapter_id: input.chapter_id,
         panel_id: Some(panel_id.clone()),
         metadata_json,
@@ -1044,6 +1074,8 @@ fn profile_image_plan(
     material: ProfileImageMaterial,
     config_id: Option<i64>,
     chapter_id: Option<i64>,
+    width: i32,
+    height: i32,
 ) -> DirectImagePlan {
     let panel_id = format!(
         "{}_profile_{}",
@@ -1055,6 +1087,8 @@ fn profile_image_plan(
         prompt: material.prompt.clone(),
         image_type: material.spec.image_type.to_string(),
         config_id,
+        width,
+        height,
         chapter_id,
         panel_id: Some(panel_id.clone()),
         metadata_json: Some(profile_image_metadata(&material)),
@@ -1303,4 +1337,12 @@ fn required_text<'a>(value: &'a str, label: &str) -> Result<&'a str, AppError> {
     } else {
         Ok(value)
     }
+}
+
+fn required_image_size(width: Option<i32>, height: Option<i32>) -> Result<(i32, i32), AppError> {
+    let width = width.ok_or_else(|| AppError::InvalidArgument("图片宽度不能为空".to_string()))?;
+    let height = height.ok_or_else(|| AppError::InvalidArgument("图片高度不能为空".to_string()))?;
+    require_positive(i64::from(width), "图片宽度")?;
+    require_positive(i64::from(height), "图片高度")?;
+    Ok((width, height))
 }

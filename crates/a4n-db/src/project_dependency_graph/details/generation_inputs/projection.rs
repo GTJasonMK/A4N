@@ -18,13 +18,14 @@ pub(super) struct GenerationRunInputRecord {
 
 pub(super) fn apply_generation_runs(
     record: &mut AssetLineageRecord,
+    run_indices: &[usize],
     runs: &[GenerationRunInputRecord],
 ) {
-    let inputs = generation_inputs_from_runs(runs);
+    let inputs = generation_inputs_from_runs(run_indices, runs);
 
-    record.input_status = if !runs.is_empty() && !inputs.is_empty() {
+    record.input_status = if !run_indices.is_empty() && !inputs.is_empty() {
         "complete".to_string()
-    } else if !runs.is_empty() {
+    } else if !run_indices.is_empty() {
         if should_expect_generation_inputs(record) {
             record
                 .warnings
@@ -44,9 +45,15 @@ pub(super) fn apply_generation_runs(
     record.generation_inputs = inputs;
 }
 
-fn generation_inputs_from_runs(runs: &[GenerationRunInputRecord]) -> Vec<GenerationInputSource> {
+fn generation_inputs_from_runs(
+    run_indices: &[usize],
+    runs: &[GenerationRunInputRecord],
+) -> Vec<GenerationInputSource> {
     let mut inputs = Vec::new();
-    for run in runs {
+    for &run_index in run_indices {
+        let Some(run) = runs.get(run_index) else {
+            continue;
+        };
         push_json_input(
             &mut inputs,
             "prompt",

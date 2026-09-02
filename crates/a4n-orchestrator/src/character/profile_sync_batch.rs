@@ -33,11 +33,15 @@ impl OrchestratorContext {
         trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<SyncAllCharacterProfilesResult, AppError> {
         progress.report_with_total(0, 1, "正在校验同步目标章节")?;
-        let chapters = self.character_sync_chapters(project_id).await?;
+        let (chapters_result, profiles_result) = futures::join!(
+            self.character_sync_chapters(project_id),
+            self.protagonist_profiles_for_project(project_id),
+        );
+        let chapters = chapters_result?;
         let target_chapter =
             validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
                 .map_err(AppError::InvalidArgument)?;
-        let profiles = self.protagonist_profiles_for_project(project_id).await?;
+        let profiles = profiles_result?;
 
         if profiles.is_empty() {
             progress.report_with_total(1, 1, "当前没有可同步的角色档案")?;
@@ -77,11 +81,15 @@ impl OrchestratorContext {
         chapter_number: i32,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError> {
-        let chapters = self.character_sync_chapters(project_id).await?;
+        let (chapters_result, profiles_result) = futures::join!(
+            self.character_sync_chapters(project_id),
+            self.protagonist_profiles_for_project(project_id),
+        );
+        let chapters = chapters_result?;
         let target_chapter =
             validate_character_sync_target_chapter(&chapters, project_id, chapter_number)
                 .map_err(AppError::InvalidArgument)?;
-        let profiles = self.protagonist_profiles_for_project(project_id).await?;
+        let profiles = profiles_result?;
         let mut anchor_cache = HashMap::new();
         let mut steps = Vec::new();
         for profile in profiles {

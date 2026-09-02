@@ -45,8 +45,12 @@ impl OAuth2Provider for GitHubOAuth2 {
     }
 
     async fn get_user_info(&self, access_token: &str) -> Result<OAuth2UserInfo, AppError> {
-        let user = requests::fetch_user_info(&self.http_client, access_token).await?;
-        let emails = requests::fetch_emails(&self.http_client, access_token).await?;
+        let (user_result, emails_result) = futures::join!(
+            requests::fetch_user_info(&self.http_client, access_token),
+            requests::fetch_emails(&self.http_client, access_token),
+        );
+        let user = user_result?;
+        let emails = emails_result?;
 
         Ok(OAuth2UserInfo {
             provider_id: parsing::github_provider_id(&user)?,

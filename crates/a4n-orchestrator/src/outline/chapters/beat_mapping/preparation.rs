@@ -25,7 +25,11 @@ pub(super) async fn prepare_beat_mapping(
     beat_sheet: &str,
 ) -> Result<PreparedBeatMapping, AppError> {
     let beat_payload = parse_beat_sheet_json(beat_sheet)?;
-    let part = service.get_part(part_id).await?;
+    let (part, context) = futures::join!(
+        service.get_part(part_id),
+        load_chapter_outline_generation_context(service.database.connection(), project_id),
+    );
+    let part = part?;
     if part.project_id != project_id {
         return Err(AppError::InvalidArgument(format!(
             "分部大纲 {part_id} 不属于项目 {project_id}"
@@ -43,8 +47,7 @@ pub(super) async fn prepare_beat_mapping(
         ));
     }
 
-    let context =
-        load_chapter_outline_generation_context(service.database.connection(), project_id).await?;
+    let context = context?;
     validate_requested_part_context(&context.parts, part.start_chapter, part.end_chapter)?;
     ensure_focus_part_in_context(Some(&part), &context.parts)?;
 

@@ -99,10 +99,12 @@ async function loadSystemDefaultRuntimeImageConfig(options?: {
 }) {
   const requireApiKey = options?.requireApiKey ?? true;
   const apiKey = requireApiKey ? getSystemDefaultImageApiKey() : undefined;
-  const config = requiredSystemDefaultImageConfig(
-    await listServerImageConfigs(),
-  );
-  const provider = (await listModelProviderCatalog()).image.find(
+  const [serverConfigs, providerCatalog] = await Promise.all([
+    listServerImageConfigs(),
+    listModelProviderCatalog(),
+  ]);
+  const config = requiredSystemDefaultImageConfig(serverConfigs);
+  const provider = providerCatalog.image.find(
     (item) => item.id === config.backend,
   );
   if (!provider) throw new Error(`image provider 未注册：${config.backend}`);
@@ -135,7 +137,7 @@ export async function addServerImageConfig(
   return apiInvoke<ImageGenConfig>("add_image_config", { input });
 }
 
-/** 后端 add_image_config(input: { name, backend, base_url, api_key_encrypted?, model, max_concurrent, default_width, default_height }) */
+/** 后端 add_image_config(input: { name, backend, base_url, api_key_encrypted?, model, max_concurrent, supported_sizes }) */
 export async function addImageConfig(
   input: ImageConfigInput,
 ): Promise<ImageGenConfig> {

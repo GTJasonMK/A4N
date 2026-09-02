@@ -90,6 +90,8 @@ pub async fn preview_regenerate_portrait_request(
         state,
         existing.project_id,
         &existing.prompt,
+        input.width,
+        input.height,
         &input.reference_image_ids,
     )
     .await?;
@@ -122,6 +124,8 @@ pub async fn preview_generate_age_variant_request(
         state,
         existing.project_id,
         &prompt,
+        input.width,
+        input.height,
         &input.reference_image_ids,
     )
     .await?;
@@ -161,6 +165,8 @@ pub async fn preview_generate_missing_portraits_request(
             state,
             input.project_id,
             &prompt,
+            input.width,
+            input.height,
             &[],
             &config,
         )

@@ -50,14 +50,16 @@ impl OrchestratorContext {
         resume_from_checkpoint: bool,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<Vec<GalgamePipelinePreviewRequest>, AppError> {
-        let context = self.galgame_pipeline_prompt_context(project_id).await?;
-        let checkpoints = self
-            .load_galgame_preview_checkpoint_inputs(
+        let (context_result, checkpoints_result) = futures::join!(
+            self.galgame_pipeline_prompt_context(project_id),
+            self.load_galgame_preview_checkpoint_inputs(
                 project_id,
                 start_from_stage,
                 resume_from_checkpoint,
-            )
-            .await?;
+            ),
+        );
+        let context = context_result?;
+        let checkpoints = checkpoints_result?;
         let shooting_script_projection = match checkpoints.prior_stage_input(
             GalgamePipelineStartStage::ShootingScriptProjection,
             checkpoints.scenes.clone(),
@@ -160,72 +162,63 @@ impl OrchestratorContext {
                 .map(|start| stage.order() >= start.order())
                 .unwrap_or(true)
         };
-        let mut requests = Vec::new();
+        let mut pending = Vec::new();
         if stage_filter(GalgamePipelineStartStage::BranchDesign) {
-            requests.push(
-                build_preview_request(
-                    prompt_renderer,
-                    "branch_design",
-                    "分支设计",
-                    "galgame_branch_design",
-                    galgame_branch_design_user_message(shooting_script_projection)?,
-                )
-                .await?,
-            );
+            pending.push((
+                "branch_design",
+                "分支设计",
+                "galgame_branch_design",
+                galgame_branch_design_user_message(shooting_script_projection)?,
+            ));
         }
         if stage_filter(GalgamePipelineStartStage::ScriptAdaptation)
             && let Some(branch_design) = branch_design
         {
-            requests.push(
-                build_preview_request(
-                    prompt_renderer,
-                    "script_adaptation",
-                    "剧本行改编",
-                    "galgame_script_adaptation",
-                    galgame_script_adaptation_user_message(
-                        &context.chapters,
-                        shooting_script_projection,
-                        branch_design,
-                    )?,
-                )
-                .await?,
-            );
+            pending.push((
+                "script_adaptation",
+                "剧本行改编",
+                "galgame_script_adaptation",
+                galgame_script_adaptation_user_message(
+                    &context.chapters,
+                    shooting_script_projection,
+                    branch_design,
+                )?,
+            ));
         }
         if stage_filter(GalgamePipelineStartStage::CharacterStaging)
             && let Some(script_adaptation) = script_adaptation
         {
-            requests.push(
-                build_preview_request(
-                    prompt_renderer,
-                    "character_staging",
-                    "角色演出标注",
-                    "galgame_character_staging",
-                    galgame_character_staging_user_message(
-                        script_adaptation,
-                        &context.speaker_profiles,
-                    )?,
-                )
-                .await?,
-            );
+            pending.push((
+                "character_staging",
+                "角色演出标注",
+                "galgame_character_staging",
+                galgame_character_staging_user_message(
+                    script_adaptation,
+                    &context.speaker_profiles,
+                )?,
+            ));
         }
         if stage_filter(GalgamePipelineStartStage::VisualPlanning)
             && let Some(character_staging) = character_staging
         {
-            requests.push(
-                build_preview_request(
-                    prompt_renderer,
-                    "visual_planning",
-                    "视觉资产规划",
-                    "galgame_visual_planning",
-                    galgame_visual_planning_user_message(
-                        shooting_script_projection,
-                        character_staging,
-                    )?,
-                )
-                .await?,
-            );
+            pending.push((
+                "visual_planning",
+                "视觉资产规划",
+                "galgame_visual_planning",
+                galgame_visual_planning_user_message(
+                    shooting_script_projection,
+                    character_staging,
+                )?,
+            ));
         }
-        Ok(requests)
+        futures::future::join_all(pending.into_iter().map(
+            |(key, title, prompt_name, user_prompt)| {
+                build_preview_request(prompt_renderer, key, title, prompt_name, user_prompt)
+            },
+        ))
+        .await
+        .into_iter()
+        .collect()
     }
 }
 

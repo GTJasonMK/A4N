@@ -56,39 +56,51 @@ export interface UpdateEmbeddingInput {
   name: string;
 }
 
+export interface ImageSize {
+  height: number;
+  width: number;
+}
+
+export const DEFAULT_IMAGE_SIZES: readonly ImageSize[] = [
+  { width: 1024, height: 1024 },
+  { width: 1024, height: 1536 },
+  { width: 1536, height: 1024 },
+  { width: 1920, height: 1080 },
+  { width: 1080, height: 1920 },
+  { width: 1024, height: 768 },
+  { width: 768, height: 1024 },
+];
+
 export interface ImageConfigSummary {
   backend: string;
   base_url: string;
-  default_height: number;
-  default_width: number;
   has_api_key: boolean;
   id: number;
   is_default: boolean;
   max_concurrent: number;
   model: string;
   name: string;
+  supported_sizes: ImageSize[];
 }
 
 export interface ImageConfigInput {
   api_key_encrypted?: string | null;
   backend: string;
   base_url: string;
-  default_height: number;
-  default_width: number;
   max_concurrent: number;
   model: string;
   name: string;
+  supported_sizes: ImageSize[];
 }
 
 export interface UpdateImageConfigInput {
   api_key_encrypted?: string | null;
   backend: string;
   base_url: string;
-  default_height: number;
-  default_width: number;
   max_concurrent: number;
   model: string;
   name: string;
+  supported_sizes: ImageSize[];
 }
 
 export interface LlmConfigSummary {

@@ -20,6 +20,7 @@ import {
   useStatusBarPermanent,
 } from "./components/ui/StatusBar";
 import { ContextMenuHost } from "./components/ui/ContextMenu";
+import { Dropdown } from "./components/ui/Dropdown";
 import { LoadingSpinner } from "./components/ui/LoadingSpinner";
 import { useAuthStore } from "./store/auth";
 import { ProgressTaskProvider } from "./hooks/useProgressTask";
@@ -32,8 +33,7 @@ import {
   themeRouteFamilyForPath,
 } from "./theme/activeTheme";
 import { logger } from "./utils/logger";
-import { shouldUseHttpBackend } from "./utils/runtimeMode";
-import { useI18n, type Locale } from "./i18n";
+import { useI18n } from "./i18n";
 import { usePageSession } from "./hooks/usePageSession";
 import { PageSessionControlBar } from "./components/page/PageSessionControlBar";
 
@@ -198,8 +198,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     !/^\/video-project\/\d+\/studio(?:\/|$)/.test(location.pathname);
   const settingsShortcutAvailable =
     location.pathname !== "/" && location.pathname !== "/settings";
-  const agentMonitorAvailable =
-    user != null && shouldUseHttpBackend() && location.pathname !== "/agents";
+  const agentMonitorAvailable = user != null && location.pathname !== "/agents";
   const [dependencyGraphOpen, setDependencyGraphOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() =>
     document.documentElement.dataset.themeMode === "dark" ? "dark" : "light",
@@ -272,16 +271,14 @@ function Layout({ children }: { children: React.ReactNode }) {
       <StatusBar
         actions={
           <>
-            <select
-              value={locale}
-              onChange={(event) => setLocale(event.target.value as Locale)}
-              aria-label={t("settings.interfaceLanguage")}
-              title={t("settings.interfaceLanguage")}
-              className="a4n-status-bar-language min-w-[4.5rem] max-w-[7rem] bg-transparent px-1 text-[11px] text-book-text-sub outline-none"
-            >
-              <option value="zh-CN">{t("settings.chinese")}</option>
-              <option value="en-US">{t("settings.english")}</option>
-            </select>
+            <Dropdown
+              label={locale === "zh-CN" ? t("settings.chinese") : t("settings.english")}
+              ariaLabel={t("settings.interfaceLanguage")}
+              items={[
+                { label: t("settings.chinese"), onClick: () => setLocale("zh-CN") },
+                { label: t("settings.english"), onClick: () => setLocale("en-US") },
+              ]}
+            />
             <button
               type="button"
               aria-label={t(themeMode === "dark" ? "settingsTheme.switchToLight" : "settingsTheme.switchToDark")}

@@ -1,9 +1,10 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { useMemo } from "react";
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Bot, MessageSquare, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import type { ChapterSummary } from "../../../api/chapter";
 import type { OptimizeSession } from "../../../api/optimize";
-import { BookIconButton } from "../../../components/ui/BookButton";
+import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
 import { useI18n } from "../../../i18n";
 import {
@@ -22,12 +23,16 @@ interface OptimizeHeaderProps {
   loading: boolean;
   selectedChapter: number | "";
   taskRunning: boolean;
+  viewMode: OptimizeWorkspaceMode;
   onDeleteSession: () => void;
   onNewChatSession: () => void;
   onRefresh: () => void;
   onSelectChapter: (chapterId: number | "") => void;
   onSelectSession: (sessionId: number) => void;
+  onViewModeChange: (mode: OptimizeWorkspaceMode) => void;
 }
+
+export type OptimizeWorkspaceMode = "session" | "agent";
 
 type SelectValue = string | number;
 
@@ -57,7 +62,7 @@ function HeaderSelect<T extends SelectValue>({
   return (
     <label className={`relative min-w-0 ${className}`}>
       <span className="sr-only">{title}</span>
-      <select
+      <ThemedSelect
         value={String(value)}
         title={title}
         disabled={disabled}
@@ -75,7 +80,7 @@ function HeaderSelect<T extends SelectValue>({
             {option.label}{option.description ? ` · ${option.description}` : ""}
           </option>
         ))}
-      </select>
+      </ThemedSelect>
     </label>
   );
 }
@@ -90,11 +95,13 @@ export function OptimizeHeader({
   loading,
   selectedChapter,
   taskRunning,
+  viewMode,
   onDeleteSession,
   onNewChatSession,
   onRefresh,
   onSelectChapter,
   onSelectSession,
+  onViewModeChange,
 }: OptimizeHeaderProps) {
   const { t } = useI18n();
   const chapterOptions = useMemo<HeaderSelectOption<number | "">[]>(
@@ -134,11 +141,41 @@ export function OptimizeHeader({
           ) : null}
         </div>
         <div className="mt-0.5 truncate text-small text-book-text-muted">
-          {activeSession ? sessionDisplayName(activeSession, t) : activeChapter ? t("optimize.noAnalysis") : t("optimize.chooseChapterHint")}
+          {viewMode === "agent"
+            ? t("agent.domain.sharedControl")
+            : activeSession
+              ? sessionDisplayName(activeSession, t)
+              : activeChapter
+                ? t("optimize.noAnalysis")
+                : t("optimize.chooseChapterHint")}
         </div>
       </div>
 
       <div className="flex w-full min-w-0 flex-wrap items-center justify-end gap-1 sm:flex-1 sm:basis-40">
+        <div
+          role="group"
+          aria-label={t("agent.domain.viewMode")}
+          className="flex min-w-0 items-center gap-0.5 rounded-xl border border-book-border/45 bg-book-bg/45 p-0.5"
+        >
+          <BookButton
+            size="sm"
+            variant={viewMode === "session" ? "primary" : "ghost"}
+            aria-pressed={viewMode === "session"}
+            onClick={() => onViewModeChange("session")}
+          >
+            <MessageSquare size={12} />
+            {t("agent.domain.optimizationSession")}
+          </BookButton>
+          <BookButton
+            size="sm"
+            variant={viewMode === "agent" ? "primary" : "ghost"}
+            aria-pressed={viewMode === "agent"}
+            onClick={() => onViewModeChange("agent")}
+          >
+            <Bot size={12} />
+            {t("agent.domain.domainAgent")}
+          </BookButton>
+        </div>
         {!isPinned ? (
           <HeaderSelect
             value={selectedChapter}
@@ -149,7 +186,7 @@ export function OptimizeHeader({
             className="flex-1 basis-28"
           />
         ) : null}
-        {activeChapter && chapterSessions.length > 1 ? (
+        {viewMode === "session" && activeChapter && chapterSessions.length > 1 ? (
           <HeaderSelect
             value={activeSessionId ?? ""}
             options={sessionOptions}
@@ -161,7 +198,7 @@ export function OptimizeHeader({
             className="flex-1 basis-24"
           />
         ) : null}
-        {activeChapter ? (
+        {viewMode === "session" && activeChapter ? (
           <BookIconButton
             label={t("optimize.newSession")}
             variant="secondary"
@@ -172,7 +209,7 @@ export function OptimizeHeader({
             <Plus size={13} />
           </BookIconButton>
         ) : null}
-        {activeSession && !taskRunning ? (
+        {viewMode === "session" && activeSession && !taskRunning ? (
           <Dropdown
             items={[
               {
@@ -184,15 +221,17 @@ export function OptimizeHeader({
             ]}
           />
         ) : null}
-        <BookIconButton
-          label={t("optimize.refreshStatus")}
-          variant="secondary"
-          size="sm"
-          onClick={onRefresh}
-          disabled={loading || taskRunning}
-        >
-          <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
-        </BookIconButton>
+        {viewMode === "session" ? (
+          <BookIconButton
+            label={t("optimize.refreshStatus")}
+            variant="secondary"
+            size="sm"
+            onClick={onRefresh}
+            disabled={loading || taskRunning}
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : undefined} />
+          </BookIconButton>
+        ) : null}
       </div>
     </div>
   );

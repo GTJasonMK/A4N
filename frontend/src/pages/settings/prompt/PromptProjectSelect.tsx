@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useState } from "react";
 import { extractErrorMessage } from "../../../api";
 import { listAllProjects, type NovelProject } from "../../../api/project";
@@ -43,7 +44,7 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
   }, [addToast]);
 
   return (
-    <select
+    <ThemedSelect
       value={value ?? ""}
       onChange={(event) => {
         const next = Number(event.target.value);
@@ -61,6 +62,6 @@ export const PromptProjectSelect: React.FC<PromptProjectSelectProps> = ({
           {project.title}
         </option>
       ))}
-    </select>
+    </ThemedSelect>
   );
 };

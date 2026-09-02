@@ -74,8 +74,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             api_key_encrypted: Some("tauri-test-key".to_string()),
             model: "tauri-test-image-model".to_string(),
             max_concurrent: 1,
-            default_width: 1024,
-            default_height: 1024,
+            supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
         },
     )
     .await
@@ -90,8 +89,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             "api_key_encrypted": image_config.api_key_encrypted,
             "model": image_config.model,
             "max_concurrent": image_config.max_concurrent,
-            "default_width": image_config.default_width,
-            "default_height": image_config.default_height,
+            "supported_sizes": image_config.supported_sizes_json,
             "is_default": image_config.is_default,
         },
     });
@@ -162,6 +160,8 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             prompt: "雨夜中的仓库入口，电影感构图".to_string(),
             config_id: Some(image_config.id),
             chapter_id: None,
+            width: 1024,
+            height: 1024,
         },
     };
     let handle: GenerationTaskHandle = invoke_host(
@@ -349,6 +349,8 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
                     prompt: "取消中的雨夜仓库".to_string(),
                     config_id: Some(image_config.id),
                     chapter_id: None,
+                    width: 1024,
+                    height: 1024,
                 },
             },
             "runtime_config_snapshot": runtime_config_snapshot,

@@ -69,33 +69,40 @@ where
         .filter(|anchor| anchor.source_snapshot_id == Some(run.from_snapshot_id))
         .map(|anchor| anchor.quote_hash.clone())
         .collect::<Vec<_>>();
-    let candidates_by_quote_hash = if source_anchor_ids.is_empty() {
-        HashMap::new()
-    } else {
-        text_anchor::Entity::find()
-            .filter(text_anchor::Column::ProjectId.eq(run.root_project_id))
-            .filter(text_anchor::Column::SourceSnapshotId.eq(run.to_snapshot_id))
-            .filter(text_anchor::Column::QuoteHash.is_in(source_anchor_ids))
-            .all(db)
-            .await?
-            .into_iter()
-            .fold(
-                HashMap::<String, Vec<text_anchor::Model>>::new(),
-                |mut candidates_by_quote_hash, candidate| {
-                    candidates_by_quote_hash
-                        .entry(candidate.quote_hash.clone())
-                        .or_default()
-                        .push(candidate);
-                    candidates_by_quote_hash
-                },
-            )
-    };
     let specs_with_refs = specs
         .iter()
         .filter(|spec| refs_by_spec.contains_key(&spec.id))
         .cloned()
         .collect::<Vec<_>>();
-    let local_states = local_states_for_generation_specs(db, &specs_with_refs).await?;
+    let candidates_query = async {
+        if source_anchor_ids.is_empty() {
+            Ok::<HashMap<String, Vec<text_anchor::Model>>, SourceSyncDbError>(HashMap::new())
+        } else {
+            Ok(text_anchor::Entity::find()
+                .filter(text_anchor::Column::ProjectId.eq(run.root_project_id))
+                .filter(text_anchor::Column::SourceSnapshotId.eq(run.to_snapshot_id))
+                .filter(text_anchor::Column::QuoteHash.is_in(source_anchor_ids))
+                .all(db)
+                .await?
+                .into_iter()
+                .fold(
+                    HashMap::<String, Vec<text_anchor::Model>>::new(),
+                    |mut candidates_by_quote_hash, candidate| {
+                        candidates_by_quote_hash
+                            .entry(candidate.quote_hash.clone())
+                            .or_default()
+                            .push(candidate);
+                        candidates_by_quote_hash
+                    },
+                ))
+        }
+    };
+    let (candidates_result, local_states_result) = futures::join!(
+        candidates_query,
+        local_states_for_generation_specs(db, &specs_with_refs),
+    );
+    let candidates_by_quote_hash = candidates_result?;
+    let local_states = local_states_result?;
     let mut records = Vec::new();
     for spec in specs {
         let Some(refs) = refs_by_spec.get(&spec.id) else {

@@ -64,6 +64,7 @@ import {
 import { explainMangaPipelineAiConfigError } from "./manga/mangaPipelineErrors";
 import { useI18n, type MessageTranslator } from "../../i18n";
 import { usesLocalRuntimeSettings } from "../../utils/runtimeMode";
+import { useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 
 interface MangaTabProps {
   projectId: number;
@@ -182,6 +183,13 @@ export const MangaTab: React.FC<MangaTabProps> = ({
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const { runProgressTask: runPortraitProgressTask } = useProgressTask();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const hasFixedChapterContext = fixedChapter !== undefined;
   const [chapters, setChapters] = useState<ChapterRow[]>([]);
   const [statuses, setStatuses] = useState<
@@ -1034,6 +1042,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     if (!ensureCanEditManga()) return;
     const requestProjectId = projectId;
     const requestAssetProjectId = characterAssetProjectId;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const actionKey = `generate-missing-portraits:${requestAssetProjectId}`;
     if (!beginAction(actionKey)) return;
     const actionSeq = actionSeqRef.current + 1;
@@ -1042,7 +1055,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
     try {
       const handle = await startPortraitGeneration({
         project_id: requestAssetProjectId,
-        operation: { kind: "generate_missing" },
+        operation: {
+          kind: "generate_missing",
+          width: requestSize.width,
+          height: requestSize.height,
+        },
       });
       const createdCount = await runGenerationProgressTaskThen(
         runPortraitProgressTask,
@@ -1189,6 +1206,11 @@ export const MangaTab: React.FC<MangaTabProps> = ({
         profiles={profiles}
         portraits={portraits}
         projectImages={projectImages}
+        imageSize={imageSize}
+        imageSizes={imageSizes}
+        imageSizeLoading={imageSizeLoading}
+        imageSizeError={imageSizeError}
+        onImageSizeChange={setImageSize}
         primaryPortraitCount={primaryPortraitCount}
         characterProfileCount={profiles.length}
         portraitCount={portraits.length}

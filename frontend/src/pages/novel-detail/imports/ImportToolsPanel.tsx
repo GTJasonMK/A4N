@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React from "react";
 import { Check, ChevronDown, CopyCheck, Eye, GitBranch } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -146,7 +147,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               : t("novel.importReview.tools.outlineDescription")}
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <select
+            <ThemedSelect
               value={reverseType}
               disabled={toolsBusy}
               onChange={(e) =>
@@ -157,7 +158,7 @@ export const ImportToolsPanel: React.FC<ImportToolsPanelProps> = ({
               <option value="blueprint">{t("novel.importReview.blueprint")}</option>
               <option value="outline">{t("novel.importReview.chapterOutline")}</option>
               <option value="part_outline">{t("novel.importReview.partOutline")}</option>
-            </select>
+            </ThemedSelect>
             <button
               type="button"
               role="switch"

@@ -46,6 +46,8 @@ import { isCancelledOperation } from "../../utils/cancellation";
 import { useOutlineGeneration } from "./outlines/useOutlineGeneration";
 import { useI18n } from "../../i18n";
 
+type OutlineView = "parts" | "chapters";
+
 export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) => {
   const projectId = project.id;
   const canEditOutlines = canEditProjectMaterials(project);
@@ -78,6 +80,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const [generatingParts, setGeneratingParts] = useState(false);
   const [chapterCount, setChapterCount] = useState(10);
   const [generatingOutlines, setGeneratingOutlines] = useState(false);
+  const [activeOutlineView, setActiveOutlineView] = useState<OutlineView>("parts");
 
   // 章纲编辑 / 操作
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -285,6 +288,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     setRequestPreviewData(null);
     setGeneratingParts(false);
     setGeneratingOutlines(false);
+    setActiveOutlineView("parts");
     setEditingId(null);
     setEditForm({ title: "", summary: "" });
     setSavingId(null);
@@ -1090,56 +1094,103 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
 
   return (
     <div className="content-main flex flex-col gap-5">
-      <PartOutlineSection
-        parts={parts}
-        canEdit={canEditOutlines}
-        partCount={partCount}
-        chaptersPerPart={chaptersPerPart}
-        defaultChaptersPerPart={defaultChaptersPerPart}
-        generating={generatingParts}
-        disabled={interactionBusy}
-        onPartCountChange={setPartCount}
-        onChaptersPerPartChange={setChaptersPerPart}
-        onGenerate={() => void handleGenerateParts()}
-        onPreviewGenerate={() => void handlePreviewGenerateParts()}
-        onCreatePart={() => openManualPart(null)}
-        onOpenAdvanced={() => {
-          if (!canEditOutlines) {
-            addToast(t("outline.readOnlyTools"), "error");
-            return;
-          }
-          setAdvancedOpen(true);
-        }}
-        onOpenPart={setPartDetail}
-      />
+      <nav
+        className="tab-bar min-w-0 shrink-0 border-b border-book-border/45"
+        role="tablist"
+        aria-label={t("outline.tabs.ariaLabel")}
+      >
+        <button
+          id="outline-parts-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeOutlineView === "parts"}
+          aria-controls="outline-parts-panel"
+          onClick={() => setActiveOutlineView("parts")}
+          data-active={activeOutlineView === "parts" ? "1" : undefined}
+          className="pyqt-tab"
+        >
+          {t("outline.tabs.parts")}
+        </button>
+        <button
+          id="outline-chapters-tab"
+          type="button"
+          role="tab"
+          aria-selected={activeOutlineView === "chapters"}
+          aria-controls="outline-chapters-panel"
+          onClick={() => setActiveOutlineView("chapters")}
+          data-active={activeOutlineView === "chapters" ? "1" : undefined}
+          className="pyqt-tab"
+        >
+          {t("outline.tabs.chapters")}
+        </button>
+      </nav>
 
-      <ChapterOutlineSection
-        outlines={outlines}
-        canEdit={canEditOutlines}
-        chapterCount={chapterCount}
-        generating={generatingOutlines}
-        editingId={editingId}
-        editForm={editForm}
-        savingId={savingId}
-        regenId={regenId}
-        delActing={delActing}
-        disabled={interactionBusy}
-        onChapterCountChange={setChapterCount}
-        onGenerate={() => void handleGenerateChapterOutlines()}
-        onPreviewGenerate={() => void handlePreviewGenerateChapterOutlines()}
-        onCreate={openManualChapter}
-        onOpenDetail={setOutlineDetail}
-        onCancelEdit={cancelEdit}
-        onEditFormChange={setEditForm}
-        onSave={(outline) => void handleSaveOutline(outline)}
-        onOpenAction={(outline) => {
-          if (!canEditOutlines) {
-            addToast(t("outline.readOnlyEdit"), "error");
-            return;
-          }
-          setOutlineAction(outline);
-        }}
-      />
+      {activeOutlineView === "parts" ? (
+        <div
+          id="outline-parts-panel"
+          role="tabpanel"
+          aria-labelledby="outline-parts-tab"
+          className="min-w-0"
+        >
+          <PartOutlineSection
+            parts={parts}
+            canEdit={canEditOutlines}
+            partCount={partCount}
+            chaptersPerPart={chaptersPerPart}
+            defaultChaptersPerPart={defaultChaptersPerPart}
+            generating={generatingParts}
+            disabled={interactionBusy}
+            onPartCountChange={setPartCount}
+            onChaptersPerPartChange={setChaptersPerPart}
+            onGenerate={() => void handleGenerateParts()}
+            onPreviewGenerate={() => void handlePreviewGenerateParts()}
+            onCreatePart={() => openManualPart(null)}
+            onOpenAdvanced={() => {
+              if (!canEditOutlines) {
+                addToast(t("outline.readOnlyTools"), "error");
+                return;
+              }
+              setAdvancedOpen(true);
+            }}
+            onOpenPart={setPartDetail}
+          />
+        </div>
+      ) : (
+        <div
+          id="outline-chapters-panel"
+          role="tabpanel"
+          aria-labelledby="outline-chapters-tab"
+          className="min-w-0"
+        >
+          <ChapterOutlineSection
+            outlines={outlines}
+            canEdit={canEditOutlines}
+            chapterCount={chapterCount}
+            generating={generatingOutlines}
+            editingId={editingId}
+            editForm={editForm}
+            savingId={savingId}
+            regenId={regenId}
+            delActing={delActing}
+            disabled={interactionBusy}
+            onChapterCountChange={setChapterCount}
+            onGenerate={() => void handleGenerateChapterOutlines()}
+            onPreviewGenerate={() => void handlePreviewGenerateChapterOutlines()}
+            onCreate={openManualChapter}
+            onOpenDetail={setOutlineDetail}
+            onCancelEdit={cancelEdit}
+            onEditFormChange={setEditForm}
+            onSave={(outline) => void handleSaveOutline(outline)}
+            onOpenAction={(outline) => {
+              if (!canEditOutlines) {
+                addToast(t("outline.readOnlyEdit"), "error");
+                return;
+              }
+              setOutlineAction(outline);
+            }}
+          />
+        </div>
+      )}
 
       {partDetail && (
         <PartDetailDialog

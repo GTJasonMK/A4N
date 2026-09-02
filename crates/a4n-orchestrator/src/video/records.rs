@@ -277,9 +277,15 @@ impl crate::OrchestratorContext {
     ) -> Result<generated_video::Model, AppError> {
         self.project_chapter_video_source(project_id, chapter_id, "采用片段视频", true)
             .await?;
-        let plan = self
-            .require_current_shared_segment_plan(project_id, chapter_id, segment_plan_prompt_id)
-            .await?;
+        let (plan_result, selected_result) = futures::join!(
+            self.require_current_shared_segment_plan(
+                project_id,
+                chapter_id,
+                segment_plan_prompt_id
+            ),
+            self.required_video_record(video_id),
+        );
+        let plan = plan_result?;
         let shot_number = a4n_core::video_execution::resolve_video_segment_number(
             plan.metadata_json.as_ref(),
             target.0,
@@ -294,7 +300,7 @@ impl crate::OrchestratorContext {
         .ok_or_else(|| {
             AppError::InvalidArgument(format!("当前规划缺少片段 {shot_number} 的执行方案"))
         })?;
-        let selected = self.required_video_record(video_id).await?;
+        let selected = selected_result?;
         let plan_identity = plan
             .metadata_json
             .as_ref()
@@ -483,9 +489,11 @@ impl crate::OrchestratorContext {
         videos: &[generated_video::Model],
         snapshot: &a4n_db::video::VideoTimelineSnapshot,
     ) -> Result<HashSet<i64>, AppError> {
-        let plan = self
-            .current_shared_segment_plan(project_id, chapter_id)
-            .await?;
+        let (plan_result, prompts_result) = futures::join!(
+            self.current_shared_segment_plan(project_id, chapter_id),
+            self.chapter_video_prompt_video_binding_records_for_chapter(project_id, chapter_id),
+        );
+        let plan = plan_result?;
         let segments =
             serde_json::from_value::<Vec<a4n_core::video_execution::VideoSegmentPlanV2>>(
                 plan.metadata_json
@@ -570,9 +578,7 @@ impl crate::OrchestratorContext {
                 )));
             }
         }
-        let prompts = self
-            .chapter_video_prompt_video_binding_records_for_chapter(project_id, chapter_id)
-            .await?;
+        let prompts = prompts_result?;
         let prompt_count = prompts.len();
         let prompts_by_id = prompts.into_iter().fold(
             HashMap::with_capacity(prompt_count),
@@ -1048,12 +1054,12 @@ impl crate::OrchestratorContext {
         source_extension: &str,
         imported_at: &str,
     ) -> Result<PreparedImportedChapterVideoRecord, AppError> {
-        let source = self
-            .project_chapter_video_source(project_id, chapter_id, "导入视频", true)
-            .await?;
-        let prompt = self
-            .chapter_video_prompt_for_import(project_id, chapter_id, prompt_id)
-            .await?;
+        let (source_result, prompt_result) = futures::join!(
+            self.project_chapter_video_source(project_id, chapter_id, "导入视频", true),
+            self.chapter_video_prompt_for_import(project_id, chapter_id, prompt_id),
+        );
+        let source = source_result?;
+        let prompt = prompt_result?;
         if let Some(source_hash) = metadata_source_content_sha256(prompt.metadata_json.as_ref())
             && source_hash != source_text_hash(&source.source.content)
         {

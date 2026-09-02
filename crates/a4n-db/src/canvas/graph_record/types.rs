@@ -13,6 +13,7 @@ pub struct CanvasGraphRecordDocument {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanvasGraphRecordInput {
     pub id: Option<i64>,
+    pub expected_version: Option<i32>,
     pub name: Option<String>,
     pub graph_kind: Option<String>,
     pub viewport_json: Option<Value>,

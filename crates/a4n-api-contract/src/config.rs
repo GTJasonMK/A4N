@@ -5,7 +5,7 @@ use serde_json::Value;
 use crate::serde_update::{deserialize_nullable_update_field, deserialize_required_nullable_field};
 
 pub use a4n_domain::{
-    DiscoveredModel, LlmMaxTokensConfig, ModelDiscoveryResult, VideoDurationMode,
+    DiscoveredModel, ImageSize, LlmMaxTokensConfig, ModelDiscoveryResult, VideoDurationMode,
 };
 
 #[derive(Deserialize, JsonSchema)]
@@ -85,8 +85,7 @@ pub struct ImageConfigSummary {
     pub has_api_key: bool,
     pub model: String,
     pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
+    pub supported_sizes: Vec<ImageSize>,
     pub is_default: bool,
 }
 
@@ -99,8 +98,7 @@ pub struct ImageConfigInput {
     pub api_key_encrypted: Option<String>,
     pub model: String,
     pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
+    pub supported_sizes: Vec<ImageSize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -113,8 +111,7 @@ pub struct UpdateImageConfigInput {
     pub api_key_encrypted: Option<Option<String>>,
     pub model: String,
     pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
+    pub supported_sizes: Vec<ImageSize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

@@ -119,6 +119,10 @@ pub struct ToolCall {
     pub id: String,
     pub name: String,
     pub arguments: Value,
+    /// OpenAI-compatible streams identify a logical call by array index while
+    /// the final call id may only arrive in a later delta.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream_index: Option<u32>,
 }
 
 /// 应用层 LLM 调用追踪上下文。

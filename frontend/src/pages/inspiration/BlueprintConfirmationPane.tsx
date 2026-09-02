@@ -1,8 +1,9 @@
-import React, { useState } from "react";
-import { AlertTriangle, ArrowLeft, Check, Eye, RefreshCw, X } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { AlertTriangle, ArrowLeft, Check, Eye, RefreshCw } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
-import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { Modal } from "../../components/ui/Modal";
 import type { Blueprint } from "../../api/blueprint";
 import { Section } from "./shared";
 import { useI18n } from "../../i18n";
@@ -29,7 +30,8 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
 }) => {
   const { t } = useI18n();
   const [refineFocus, setRefineFocus] = useState("");
-  const [showRefineInput, setShowRefineInput] = useState(false);
+  const [refineModalOpen, setRefineModalOpen] = useState(false);
+  const refineInputRef = useRef<HTMLTextAreaElement>(null);
   const refineReady = refineFocus.trim().length > 0;
 
   return (
@@ -69,68 +71,6 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
             </Section>
           </section>
 
-          {!consistencyWarning && showRefineInput && (
-            <section className="a4n-flat-surface mb-4 overflow-hidden p-4 sm:p-5">
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-book-text-main">{t("inspiration.adjustBlueprint")}</h3>
-                  <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-                    {t("inspiration.adjustHint")}
-                  </p>
-                </div>
-                <BookIconButton
-                  label={t("inspiration.collapseAdjust")}
-                  size="sm"
-                  onClick={() => setShowRefineInput(false)}
-                  disabled={refining}
-                >
-                  <X size={13} />
-                </BookIconButton>
-              </div>
-              <textarea
-                autoFocus
-                value={refineFocus}
-                onChange={(e) => setRefineFocus(e.target.value)}
-                placeholder={t("inspiration.refinePlaceholder")}
-                className="pyqt-input min-h-[96px] w-full resize-y !rounded-[14px] px-3 py-2.5 text-sm leading-relaxed"
-                disabled={refining}
-              />
-              <div className="mt-3 flex items-center gap-2">
-                {!refining && refineReady ? (
-                  <Dropdown
-                    items={[
-                      {
-                        label: t("inspiration.viewRefineRequest"),
-                        icon: <Eye size={12} />,
-                        onClick: () => onPreviewRefine(refineFocus.trim()),
-                      },
-                    ]}
-                  />
-                ) : null}
-                <BookButton
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    const focus = refineFocus.trim();
-                    if (!focus) return;
-                    onRefine(focus);
-                    setShowRefineInput(false);
-                    setRefineFocus("");
-                  }}
-                  disabled={refining || !refineReady}
-                  className="min-w-0 flex-1 !text-xs sm:ml-auto sm:flex-none"
-                >
-                  {refining ? (
-                    <span className="inline-flex items-center gap-1.5">
-                      <LoadingSpinner size="sm" /> {t("inspiration.refining")}
-                    </span>
-                  ) : (
-                    t("inspiration.submitRefine")
-                  )}
-                </BookButton>
-              </div>
-            </section>
-          )}
         </div>
       </div>
 
@@ -146,11 +86,11 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
               },
             ]}
           />
-          {!consistencyWarning && !showRefineInput ? (
+          {!consistencyWarning ? (
             <BookButton
               variant="secondary"
               size="sm"
-              onClick={() => setShowRefineInput(true)}
+              onClick={() => setRefineModalOpen(true)}
               disabled={refining}
               className="!text-xs"
             >
@@ -170,6 +110,63 @@ export const BlueprintConfirmationPane: React.FC<BlueprintConfirmationPaneProps>
           ) : null}
         </div>
       </div>
+
+      <Modal
+        isOpen={refineModalOpen && !consistencyWarning}
+        onClose={() => setRefineModalOpen(false)}
+        title={t("inspiration.adjustBlueprint")}
+        subtitle={t("inspiration.adjustHint")}
+        icon={<RefreshCw size={15} />}
+        maxWidthClassName="max-w-md"
+        bodyClassName="px-4 py-4 sm:px-5"
+        initialFocusRef={refineInputRef}
+        footer={(
+          <div className="flex w-full min-w-0 items-center gap-2 sm:justify-end">
+            {!refining && refineReady ? (
+              <Dropdown
+                items={[
+                  {
+                    label: t("inspiration.viewRefineRequest"),
+                    icon: <Eye size={12} />,
+                    onClick: () => onPreviewRefine(refineFocus.trim()),
+                  },
+                ]}
+              />
+            ) : null}
+            <BookButton
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                const focus = refineFocus.trim();
+                if (!focus) return;
+                onRefine(focus);
+                setRefineModalOpen(false);
+                setRefineFocus("");
+              }}
+              disabled={refining || !refineReady}
+              className="min-w-0 flex-1 !text-xs sm:flex-none"
+            >
+              {refining ? (
+                <span className="inline-flex items-center gap-1.5">
+                  <LoadingSpinner size="sm" /> {t("inspiration.refining")}
+                </span>
+              ) : (
+                t("inspiration.submitRefine")
+              )}
+            </BookButton>
+          </div>
+        )}
+      >
+        <textarea
+          ref={refineInputRef}
+          value={refineFocus}
+          onChange={(e) => setRefineFocus(e.target.value)}
+          placeholder={t("inspiration.refinePlaceholder")}
+          aria-label={t("inspiration.adjustBlueprint")}
+          className="pyqt-input min-h-[112px] w-full resize-y !rounded-[14px] px-3 py-2.5 text-sm leading-relaxed"
+          disabled={refining}
+        />
+      </Modal>
     </div>
   );
 };

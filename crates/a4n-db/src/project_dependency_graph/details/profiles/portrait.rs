@@ -8,7 +8,10 @@ use a4n_core::{
     models::{ai::generated_image, character::character_portrait},
 };
 use a4n_domain::GeneratedMediaReference;
-use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, QueryTrait,
+    sea_query::{Expr, ExprTrait},
+};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -23,20 +26,30 @@ where
     let Some(profile_id) = profile_id else {
         return Ok(Vec::new());
     };
-    let portraits = character_portrait::Entity::find()
+    let portrait_ids = character_portrait::Entity::find()
+        .select_only()
+        .column_as(
+            Expr::col(character_portrait::Column::Id).cast_as("text"),
+            "portrait_id",
+        )
         .filter(character_portrait::Column::ProjectId.is_in(project_ids.iter().copied()))
         .filter(character_portrait::Column::ProfileId.eq(profile_id))
-        .order_by_asc(character_portrait::Column::Id)
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
-    let images = generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(generated_image::Column::ImageType.eq("portrait"))
-        .order_by_asc(generated_image::Column::Id)
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
+        .into_query();
+    let (portraits_result, images_result) = futures::join!(
+        character_portrait::Entity::find()
+            .filter(character_portrait::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(character_portrait::Column::ProfileId.eq(profile_id))
+            .order_by_asc(character_portrait::Column::Id)
+            .all(db),
+        generated_image::Entity::find()
+            .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(generated_image::Column::ImageType.eq("portrait"))
+            .filter(Expr::cust("metadata_json ->> 'portrait_id'").in_subquery(portrait_ids))
+            .order_by_asc(generated_image::Column::Id)
+            .all(db),
+    );
+    let portraits = portraits_result.map_err(AppError::Database)?;
+    let images = images_result.map_err(AppError::Database)?;
     let images_by_portrait_id = images.iter().fold(
         HashMap::with_capacity(images.len()),
         |mut by_portrait_id, image| {

@@ -50,20 +50,31 @@ impl OrchestratorContext {
         self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         match &input.operation {
-            ImageGenerationOperation::Scene { prompt, .. } => {
+            ImageGenerationOperation::Scene {
+                prompt,
+                width,
+                height,
+                ..
+            } => {
                 if prompt.trim().is_empty() {
                     return Err(AppError::InvalidArgument("prompt 不能为空".to_string()));
                 }
+                require_positive_dimension(*width, "width")?;
+                require_positive_dimension(*height, "height")?;
             }
             ImageGenerationOperation::Page {
                 chapter_number,
                 page_number,
+                width,
+                height,
             } => {
                 if *chapter_number <= 0 || *page_number <= 0 {
                     return Err(AppError::InvalidArgument(
                         "chapter_number 和 page_number 必须大于 0".to_string(),
                     ));
                 }
+                require_positive_dimension(*width, "width")?;
+                require_positive_dimension(*height, "height")?;
             }
             ImageGenerationOperation::Batch { requests } => {
                 if requests.is_empty() {
@@ -87,7 +98,11 @@ impl OrchestratorContext {
                 style_template_name,
                 style_template_version,
                 custom_style,
+                width,
+                height,
             } => {
+                require_positive_dimension(*width, "width")?;
+                require_positive_dimension(*height, "height")?;
                 let input = ObjectProfileImageInput {
                     object_profile_id: *object_profile_id,
                     chapter_id: *chapter_id,
@@ -97,6 +112,8 @@ impl OrchestratorContext {
                     style_template_name: style_template_name.clone(),
                     style_template_version: style_template_version.clone(),
                     custom_style: custom_style.clone(),
+                    width: Some(*width),
+                    height: Some(*height),
                 };
                 self.generate_object_profile_image_prompt_validated(user_id, &input)
                     .await?;
@@ -110,7 +127,11 @@ impl OrchestratorContext {
                 style_template_name,
                 style_template_version,
                 custom_style,
+                width,
+                height,
             } => {
+                require_positive_dimension(*width, "width")?;
+                require_positive_dimension(*height, "height")?;
                 let input = SceneProfileImageInput {
                     scene_profile_id: *scene_profile_id,
                     chapter_id: *chapter_id,
@@ -120,6 +141,8 @@ impl OrchestratorContext {
                     style_template_name: style_template_name.clone(),
                     style_template_version: style_template_version.clone(),
                     custom_style: custom_style.clone(),
+                    width: Some(*width),
+                    height: Some(*height),
                 };
                 self.generate_scene_profile_image_prompt_validated(user_id, &input)
                     .await?;
@@ -245,6 +268,8 @@ impl OrchestratorContext {
                 prompt,
                 config_id,
                 chapter_id,
+                width,
+                height,
             } => {
                 let summary = self
                     .generate_scene_image_validated(
@@ -255,6 +280,8 @@ impl OrchestratorContext {
                             prompt,
                             config_id,
                             chapter_id,
+                            width,
+                            height,
                         },
                         progress,
                     )
@@ -264,6 +291,8 @@ impl OrchestratorContext {
             ImageGenerationOperation::Page {
                 chapter_number,
                 page_number,
+                width,
+                height,
             } => {
                 let summary = self
                     .generate_page_image_validated(
@@ -273,6 +302,8 @@ impl OrchestratorContext {
                             project_id,
                             chapter_number,
                             page_number,
+                            width,
+                            height,
                         },
                         progress,
                     )
@@ -302,6 +333,8 @@ impl OrchestratorContext {
                 style_template_name,
                 style_template_version,
                 custom_style,
+                width,
+                height,
             } => {
                 let summary = self
                     .generate_object_profile_image_validated(
@@ -316,6 +349,8 @@ impl OrchestratorContext {
                             style_template_name,
                             style_template_version,
                             custom_style,
+                            width: Some(width),
+                            height: Some(height),
                         },
                         progress,
                     )
@@ -331,6 +366,8 @@ impl OrchestratorContext {
                 style_template_name,
                 style_template_version,
                 custom_style,
+                width,
+                height,
             } => {
                 let summary = self
                     .generate_scene_profile_image_validated(
@@ -345,6 +382,8 @@ impl OrchestratorContext {
                             style_template_name,
                             style_template_version,
                             custom_style,
+                            width: Some(width),
+                            height: Some(height),
                         },
                         progress,
                     )
@@ -517,6 +556,15 @@ fn image_app_error_to_generation_error(error: AppError, stage_code: &str) -> Gen
     generation_public_error(code, stage, message)
 }
 
+fn require_positive_dimension(value: i32, label: &str) -> Result<(), AppError> {
+    if value <= 0 {
+        return Err(AppError::InvalidArgument(format!(
+            "图片 {label} 必须大于 0"
+        )));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::image_operation_key;
@@ -529,10 +577,14 @@ mod tests {
                 prompt: "draw".to_string(),
                 config_id: None,
                 chapter_id: None,
+                width: 1024,
+                height: 1024,
             },
             ImageGenerationOperation::Page {
                 chapter_number: 1,
                 page_number: 1,
+                width: 1024,
+                height: 1024,
             },
             ImageGenerationOperation::Batch { requests: vec![] },
             ImageGenerationOperation::ObjectProfile {
@@ -544,6 +596,8 @@ mod tests {
                 style_template_name: None,
                 style_template_version: None,
                 custom_style: None,
+                width: 1024,
+                height: 1024,
             },
             ImageGenerationOperation::SceneProfile {
                 scene_profile_id: 1,
@@ -554,6 +608,8 @@ mod tests {
                 style_template_name: None,
                 style_template_version: None,
                 custom_style: None,
+                width: 1024,
+                height: 1024,
             },
         ];
         let keys = operations

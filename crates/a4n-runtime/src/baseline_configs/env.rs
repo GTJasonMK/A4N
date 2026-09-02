@@ -39,7 +39,3 @@ pub(super) fn usize_to_i32(value: usize, key: &str) -> Result<i32, AppError> {
 pub(super) fn u64_to_i32(value: u64, key: &str) -> Result<i32, AppError> {
     i32::try_from(value).map_err(|_| AppError::ConfigError(format!("{key} 超出 i32 范围")))
 }
-
-pub(super) fn u32_to_i32(value: u32, key: &str) -> Result<i32, AppError> {
-    i32::try_from(value).map_err(|_| AppError::ConfigError(format!("{key} 超出 i32 范围")))
-}

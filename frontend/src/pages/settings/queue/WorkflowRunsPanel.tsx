@@ -19,6 +19,8 @@ import { formatDateTime, useI18n } from "../../../i18n";
 const PANEL_RESUMABLE_WORKFLOW_KINDS = new Set([
   "video_provider_job",
   "chapter_analysis",
+  "blueprint_generation",
+  "blueprint_refine",
 ]);
 
 interface WorkflowRunsPanelProps {

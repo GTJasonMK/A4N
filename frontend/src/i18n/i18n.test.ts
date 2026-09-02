@@ -86,9 +86,6 @@ describe("translation contracts", () => {
         total: 2000000,
       }),
     ).toBe("1,234,567/2,000,000");
-    expect(translateMessage("en-US", "agent.projectLabel", { id: 1234567 })).toBe(
-      "Project 1234567",
-    );
     expect(() =>
       translateMessage("en-US", "writing.chapterLabel", {}),
     ).toThrow(/missing=number/);

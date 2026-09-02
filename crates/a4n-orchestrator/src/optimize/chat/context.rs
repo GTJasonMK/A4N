@@ -24,15 +24,18 @@ impl OrchestratorContext {
         session: &optimization_session::Model,
         permissions: &OptimizeAgentPermissions,
     ) -> Result<ChatAgentContext, AppError> {
-        let previous_turns = self.list_turns(session.id).await?;
+        let (previous_turns_result, analysis_context_result) = futures::join!(
+            self.list_turns(session.id),
+            build_content_optimization_context(
+                self.database.connection(),
+                session.project_id,
+                session.chapter_id,
+                permissions,
+            ),
+        );
+        let previous_turns = previous_turns_result?;
         let conversation_history = optimization_chat_history(&previous_turns);
-        let analysis_context = build_content_optimization_context(
-            self.database.connection(),
-            session.project_id,
-            session.chapter_id,
-            permissions,
-        )
-        .await?;
+        let analysis_context = analysis_context_result?;
         let context_manifest = optimization_context_manifest(&analysis_context);
         Ok(ChatAgentContext {
             permissions: permissions.clone(),

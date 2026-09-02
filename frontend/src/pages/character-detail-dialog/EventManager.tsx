@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { BookButton } from "../../components/ui/BookButton";
@@ -383,7 +384,7 @@ export const EventManager: React.FC<{
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
             {t("characterDetail.event.category")}
-            <select
+            <ThemedSelect
               value={filterCategory}
               onChange={(event) => {
                 const nextValue = event.target.value;
@@ -398,11 +399,11 @@ export const EventManager: React.FC<{
                   {categoryLabel(option.value, t)}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-book-text-muted">
             {t("characterDetail.event.operation")}
-            <select
+            <ThemedSelect
               value={filterOperation}
               onChange={(event) => {
                 const nextValue = event.target.value;
@@ -417,7 +418,7 @@ export const EventManager: React.FC<{
                   {operationLabel(option.value, t)}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </label>
           <label className="col-span-2 flex min-w-0 flex-col gap-1 text-book-text-muted sm:col-span-2">
             {t("characterDetail.event.attribute")}
@@ -455,7 +456,7 @@ export const EventManager: React.FC<{
         <div className="mt-2 grid gap-2 text-small sm:grid-cols-2">
           <label className="flex flex-col gap-1">
             <span className="text-caption text-book-text-muted">{t("characterDetail.event.operation")}</span>
-            <select
+            <ThemedSelect
               value={mode}
               onChange={(event) => setMode(event.target.value === "modify" ? "modify" : "add")}
               disabled={saving}
@@ -463,7 +464,7 @@ export const EventManager: React.FC<{
             >
               <option value="add">{t("characterDetail.event.add")}</option>
               <option value="modify">{t("characterDetail.event.modify")}</option>
-            </select>
+            </ThemedSelect>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-caption text-book-text-muted">{t("characterDetail.event.chapter")}</span>
@@ -483,7 +484,7 @@ export const EventManager: React.FC<{
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-caption text-book-text-muted">{t("characterDetail.event.category")}</span>
-            <select
+            <ThemedSelect
               value={category}
               onChange={(event) => setCategory(event.target.value)}
               disabled={saving}
@@ -494,7 +495,7 @@ export const EventManager: React.FC<{
                   {categoryLabel(option.value, t)}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-caption text-book-text-muted">{t("characterDetail.event.attribute")}</span>

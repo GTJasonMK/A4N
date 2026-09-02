@@ -27,11 +27,10 @@ async fn sync_chapter_prompts_preserves_unchanged_video_prompt_identity() {
         reference_image_ids_json: Set(Some(reference_image_ids.clone())),
         status: Set("completed".to_string()),
         generated_video_id: Set(Some(9301)),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "source_prompt_type": "frame_segment_plan",
-            "guidance_mode": "system_frames",
             "source": {"content_sha256": "same"}
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -48,6 +47,10 @@ async fn sync_chapter_prompts_preserves_unchanged_video_prompt_identity() {
         visual_prompt: Set("旧镜头".to_string()),
         duration_secs: Set(4),
         status: Set("pending".to_string()),
+        metadata_json: Set(Some(stable_prompt_metadata(
+            json!({"source": {"content_sha256": "same"}}),
+            9,
+        ))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -75,10 +78,10 @@ async fn sync_chapter_prompts_preserves_unchanged_video_prompt_identity() {
                     duration_secs: 6,
                     aspect_ratio: Some("16:9"),
                     reference_image_ids_json: Some(reference_image_ids.clone()),
-                    metadata_json: Some(json!({
+                    metadata_json: Some(stable_prompt_metadata(json!({
                         "source_prompt_type": "frame_segment_plan",
                         "source": {"content_sha256": "same"}
-                    })),
+                    }), 1)),
                 }),
                 new_prompt_draft(NewChapterVideoPromptInput {
                     project_id,
@@ -95,10 +98,10 @@ async fn sync_chapter_prompts_preserves_unchanged_video_prompt_identity() {
                     duration_secs: 5,
                     aspect_ratio: Some("16:9"),
                     reference_image_ids_json: None,
-                    metadata_json: Some(json!({
+                    metadata_json: Some(stable_prompt_metadata(json!({
                         "source_prompt_type": "frame_segment_plan",
                         "source": {"content_sha256": "same"}
-                    })),
+                    }), 2)),
                 }),
             ],
         )
@@ -146,13 +149,13 @@ async fn sync_chapter_prompts_preserving_generated_video_prompts_keeps_changed_b
         reference_image_ids_json: Set(Some(json!([]))),
         status: Set("completed".to_string()),
         generated_video_id: Set(Some(9301)),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "source_prompt_type": "frame_segment_plan",
             "source": {"content_sha256": "same"},
             "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
             "prompt_output_language": "zh_cn",
             "generation_asset_fingerprint": test_generation_asset_fingerprint()
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -180,13 +183,13 @@ async fn sync_chapter_prompts_preserving_generated_video_prompts_keeps_changed_b
                     duration_secs: 4,
                     aspect_ratio: Some("16:9"),
                     reference_image_ids_json: Some(json!([])),
-                    metadata_json: Some(json!({
+                    metadata_json: Some(stable_prompt_metadata(json!({
                         "source_prompt_type": "frame_segment_plan",
                         "source": {"content_sha256": "same"},
                         "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
                         "prompt_output_language": "zh_cn",
                         "generation_asset_fingerprint": test_generation_asset_fingerprint()
-                    })),
+                    }), 1)),
                 }),
                 new_prompt_draft(NewChapterVideoPromptInput {
                     project_id,
@@ -203,13 +206,13 @@ async fn sync_chapter_prompts_preserving_generated_video_prompts_keeps_changed_b
                     duration_secs: 4,
                     aspect_ratio: Some("16:9"),
                     reference_image_ids_json: Some(json!([])),
-                    metadata_json: Some(json!({
+                    metadata_json: Some(stable_prompt_metadata(json!({
                         "source_prompt_type": "frame_segment_plan",
                         "source": {"content_sha256": "same"},
                         "contract_version": FIRST_FRAME_CHAIN_CONTRACT_VERSION,
                         "prompt_output_language": "zh_cn",
                         "generation_asset_fingerprint": test_generation_asset_fingerprint()
-                    })),
+                    }), 2)),
                 }),
             ],
         )
@@ -260,7 +263,7 @@ async fn sync_chapter_prompts_preserving_generated_frame_prompts_keeps_changed_b
         reference_image_ids_json: Set(Some(json!([]))),
         status: Set("pending".to_string()),
         generated_video_id: Set(None),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "source_prompt_type": "frame_segment_plan",
             "source": {"content_sha256": "same"},
             "contract_version": "boundary_frame_incremental_v1",
@@ -284,7 +287,7 @@ async fn sync_chapter_prompts_preserving_generated_frame_prompts_keeps_changed_b
                 "reference_image_ids": [],
                 "segment_numbers": [1]
             }
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -323,7 +326,7 @@ async fn sync_chapter_prompts_preserving_generated_frame_prompts_keeps_changed_b
                 duration_secs: 6,
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: Some(json!([])),
-                metadata_json: Some(json!({
+                metadata_json: Some(stable_prompt_metadata(json!({
                     "source_prompt_type": "frame_segment_plan",
                     "source": {"content_sha256": "same"},
                     "contract_version": BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION,
@@ -347,7 +350,7 @@ async fn sync_chapter_prompts_preserving_generated_frame_prompts_keeps_changed_b
                         "reference_image_ids": [],
                         "segment_numbers": [1]
                     }
-                })),
+                }), 1)),
             })],
         )
         .await

@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import type { DownstreamConflictStrategy } from "../../../api/generated/host";
@@ -20,7 +21,7 @@ import {
   startImageGeneration,
   verifyImageGenerationResult,
 } from "../../../api/image";
-import type { GeneratedImage } from "../../../api/image";
+import type { GeneratedImage, ImageSize } from "../../../api/image";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import type { Portrait } from "../../../api/portrait";
@@ -65,6 +66,11 @@ interface MangaChapterDetailPanelProps {
   profiles: CharacterProfile[];
   portraits: Portrait[];
   projectImages: GeneratedImage[];
+  imageSize: ImageSize | null;
+  imageSizes: readonly ImageSize[];
+  imageSizeLoading: boolean;
+  imageSizeError: Error | null;
+  onImageSizeChange: (size: ImageSize) => void;
   primaryPortraitCount: number;
   characterProfileCount: number;
   portraitCount: number;
@@ -108,6 +114,11 @@ export function MangaChapterDetailPanel({
   profiles,
   portraits,
   projectImages,
+  imageSize,
+  imageSizes,
+  imageSizeLoading,
+  imageSizeError,
+  onImageSizeChange,
   primaryPortraitCount,
   characterProfileCount,
   portraitCount,
@@ -348,6 +359,10 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.chapter.generatingGenerate"), "error");
       return;
     }
+    if (!imageSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
 
     const actionSeq = beginAction(requestScope);
     if (actionSeq == null) return;
@@ -359,6 +374,8 @@ export function MangaChapterDetailPanel({
           kind: "page",
           chapter_number: chapter.chapter_number,
           page_number: pageNumber,
+          width: imageSize.width,
+          height: imageSize.height,
         },
       });
       await runGenerationProgressTaskThen(
@@ -408,6 +425,10 @@ export function MangaChapterDetailPanel({
       addToast(t("comic.chapter.generatingPreview"), "error");
       return;
     }
+    if (!imageSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     if (previewBusyRef.current) return;
     const requestSeq = previewSeqRef.current + 1;
     previewSeqRef.current = requestSeq;
@@ -420,6 +441,8 @@ export function MangaChapterDetailPanel({
         projectId,
         chapter.chapter_number,
         pageNumber,
+        imageSize.width,
+        imageSize.height,
       );
       if (!isCurrentPreview(requestScope, requestSeq)) return;
       setRequestPreviewData(preview);
@@ -897,6 +920,17 @@ export function MangaChapterDetailPanel({
                 <span className="min-w-0 flex-1 whitespace-pre-wrap break-words leading-relaxed">
                   {notice.text}
                 </span>
+              </div>
+              <div className="mt-3 max-w-xs">
+                <ImageSizeSelect
+                  label={t("settingsForm.selectImageSize")}
+                  value={imageSize}
+                  sizes={imageSizes}
+                  loading={imageSizeLoading}
+                  error={imageSizeError}
+                  disabled={!canEditManga || detailBusy || selectedChapterGenerating}
+                  onChange={onImageSizeChange}
+                />
               </div>
             </header>
 

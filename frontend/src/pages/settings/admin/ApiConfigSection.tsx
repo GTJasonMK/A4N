@@ -225,8 +225,10 @@ const ApiConfigOverview: React.FC = () => {
                 ? [
                     [t("settingsForm.endpoint"), valueOrMissing(defaults.image.base_url, t)],
                     [
-                      t("settingsAdmin.defaultSize"),
-                      `${defaults.image.default_width} × ${defaults.image.default_height}`,
+                      t("settingsAdmin.supportedSizes"),
+                      defaults.image.supported_sizes
+                        .map((size) => `${size.width} × ${size.height}`)
+                        .join(" · "),
                     ],
                     [t("settingsForm.concurrency"), String(defaults.image.max_concurrent)],
                   ]

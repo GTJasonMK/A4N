@@ -12,12 +12,18 @@ pub async fn project_and_chapter_for_video_source(
 ) -> Result<(VideoProjectIdentity, chapter::Model), VideoDbError> {
     validate_positive_video_i64(project_id, "project_id")?;
     validate_positive_video_i64(chapter_id, "chapter_id")?;
-    let project = video_project_record(db, project_id).await?;
-    let chapter = chapter::Entity::find_by_id(chapter_id)
-        .one(db)
-        .await
-        .map_err(VideoDbError::Database)?
-        .ok_or_else(|| VideoDbError::NotFound(format!("章节不存在: chapter_id={chapter_id}")))?;
+    let (project_result, chapter_result) =
+        futures::join!(video_project_record(db, project_id), async {
+            let chapter = chapter::Entity::find_by_id(chapter_id)
+                .one(db)
+                .await
+                .map_err(VideoDbError::Database)?;
+            chapter.ok_or_else(|| {
+                VideoDbError::NotFound(format!("章节不存在: chapter_id={chapter_id}"))
+            })
+        },);
+    let project = project_result?;
+    let chapter = chapter_result?;
     Ok((project, chapter))
 }
 

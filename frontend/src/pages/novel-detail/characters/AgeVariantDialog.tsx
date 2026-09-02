@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Eye } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ImageSizeSelect, useImageGenerationSize } from "../../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../../api";
 import {
   previewGenerateAgeVariantRequest,
@@ -34,6 +35,13 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const [age, setAge] = useState("");
   const [busy, setBusy] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
@@ -82,6 +90,11 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     const requestScope = `${portrait.project_id}:${portrait.id}`;
     const requestPortraitId = portrait.id;
     const requestProjectId = portrait.project_id;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     submitBusyRef.current = true;
     setBusy(true);
     try {
@@ -92,6 +105,8 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
           portrait_id: requestPortraitId,
           age: trimmedAge,
           reference_image_ids: [],
+          width: requestSize.width,
+          height: requestSize.height,
         },
       });
       await runGenerationProgressTaskThen(
@@ -135,6 +150,11 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
     const requestSeq = requestPreviewSeqRef.current + 1;
     requestPreviewSeqRef.current = requestSeq;
     const requestPortraitId = portrait.id;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     previewBusyRef.current = true;
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
@@ -144,6 +164,8 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
         portrait_id: requestPortraitId,
         age: trimmedAge,
         reference_image_ids: [],
+        width: requestSize.width,
+        height: requestSize.height,
       });
       if (!isCurrentPortrait(requestScope) || requestPreviewSeqRef.current !== requestSeq) return;
       setRequestPreviewData(preview);
@@ -179,7 +201,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
                   label: t("characterDetail.portrait.viewRequest"),
                   icon: <Eye size={12} />,
                   onClick: handlePreview,
-                  disabled: busy || !age.trim(),
+                  disabled: busy || !age.trim() || imageSize == null,
                 },
               ]}
             />
@@ -187,7 +209,7 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
             <BookButton
               variant="primary"
               onClick={handleSubmit}
-              disabled={busy || !age.trim()}
+              disabled={busy || !age.trim() || imageSize == null}
             >
               {busy ? (
                 <span className="inline-flex items-center gap-1.5">
@@ -203,6 +225,17 @@ export const AgeVariantDialog: React.FC<AgeVariantDialogProps> = ({
         <div className="space-y-3 text-sm">
           <div className="text-xs text-book-text-muted">
             {t("characterDetail.portrait.ageDescription")}
+          </div>
+          <div>
+            <ImageSizeSelect
+              label={t("settingsForm.selectImageSize")}
+              value={imageSize}
+              sizes={imageSizes}
+              loading={imageSizeLoading}
+              error={imageSizeError}
+              disabled={busy}
+              onChange={setImageSize}
+            />
           </div>
           <div>
             <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.ageLabel")}</label>

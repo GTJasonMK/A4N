@@ -1,5 +1,6 @@
 import React, { lazy, Suspense, useEffect } from "react";
 import { BackButton, useSmartBack } from "../../components/ui/BackButton";
+import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useAuthStore } from "../../store/auth";
 import { usePersistedTab } from "../../hooks/usePersistedTab";
@@ -76,21 +77,19 @@ export const SettingsPage: React.FC = () => {
       <div className="a4n-settings-layout min-h-0 flex-1 max-md:grid-cols-1 max-md:grid-rows-[auto_minmax(0,1fr)]">
         <div className="flex min-w-0 items-center gap-2 border-b border-book-border/80 bg-book-bg-paper/95 px-2 py-1.5 md:hidden">
           <BackButton iconOnly title={t("nav.backToPrevious")} onClick={smartBack} />
-          <label htmlFor="mobile-settings-category" className="shrink-0 font-serif text-sm font-semibold text-book-text-main">
+          <span className="shrink-0 font-serif text-sm font-semibold text-book-text-main">
             {t("settings.title")}
-          </label>
-          <select
-            id="mobile-settings-category"
-            value={tab}
-            onChange={(event) => selectTab(event.target.value as TabId)}
-            className="pyqt-input min-w-0 flex-1 !px-3"
-          >
-            {TABS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {t(item.groupKey)} · {t(item.labelKey)}
-              </option>
-            ))}
-          </select>
+          </span>
+          <div className="min-w-0 flex-1 [&>div>button]:w-full [&>div>button]:justify-between">
+            <Dropdown
+              label={activeTab ? `${t(activeTab.groupKey)} · ${t(activeTab.labelKey)}` : t("settings.content")}
+              ariaLabel={t("settings.category")}
+              items={TABS.map((item) => ({
+                label: `${t(item.groupKey)} · ${t(item.labelKey)}`,
+                onClick: () => selectTab(item.id),
+              }))}
+            />
+          </div>
         </div>
         <nav
           aria-label={t("settings.category")}

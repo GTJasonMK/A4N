@@ -29,8 +29,6 @@ pub(crate) fn run() {
                 environment::ApiMode::Native => setup_local_runtime(app)?,
                 environment::ApiMode::Http { remote_only } => setup_http_mode(app, remote_only)?,
             }
-            #[cfg(debug_assertions)]
-            window::open_devtools_in_debug(app);
             Ok(())
         })
         .invoke_handler(command_registry::handler())
@@ -93,11 +91,17 @@ fn setup_http_mode(
 
 fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let app_state = tauri::async_runtime::block_on(crate::setup::initialize(app.handle()))?;
+    let app_state = std::sync::Arc::new(app_state);
+    crate::setup::install_agent_host_dispatcher(&app_state)?;
+    tauri::async_runtime::block_on(app_state.spawn_agent_worker());
     app.manage(commands::frontend_state::FrontendStatePath(
         AppPaths::from_config(app_state.host_app_config()).frontend_state_file(),
     ));
     window::create_main_window(app, app_state.host_app_config())?;
-    app.manage(app_state);
+    // Keep an Arc alive so the dispatcher can upgrade its weak reference, and
+    // retain the existing AppState-managed command contract for all commands.
+    app.manage(app_state.clone());
+    app.manage((*app_state).clone());
     tracing::info!("A4N 原生 Tauri API 兼容模式启动完成");
     Ok(())
 }

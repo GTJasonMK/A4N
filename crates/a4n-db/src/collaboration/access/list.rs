@@ -46,14 +46,12 @@ pub async fn list_accessible_projects(
         .order_by_desc(novel_project::Column::UpdatedAt)
         .into_model::<AccessibleProjectRecord>()
         .paginate(db, input.limit);
-    let total = paginator
-        .num_items()
-        .await
-        .map_err(CollaborationDbError::Database)?;
-    let items = paginator
-        .fetch_page(input.offset / input.limit)
-        .await
-        .map_err(CollaborationDbError::Database)?;
+    let (total, items) = futures::join!(
+        paginator.num_items(),
+        paginator.fetch_page(input.offset / input.limit),
+    );
+    let total = total.map_err(CollaborationDbError::Database)?;
+    let items = items.map_err(CollaborationDbError::Database)?;
     Ok(AccessibleProjectsPage { items, total })
 }
 

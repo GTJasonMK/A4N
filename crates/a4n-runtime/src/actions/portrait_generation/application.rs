@@ -43,6 +43,8 @@ pub(crate) async fn generate_portrait_inline(
             expression: input.expression,
             pose: input.pose,
             reference_image_ids: input.reference_image_ids,
+            width: input.width,
+            height: input.height,
         },
     };
     let start = state

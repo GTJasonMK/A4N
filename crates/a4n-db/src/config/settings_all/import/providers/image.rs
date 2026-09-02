@@ -2,6 +2,7 @@ use super::super::super::types::{
     SettingsAllConfigImportError, SettingsAllImageConfigRow, settings_all_config_database,
 };
 use crate::config::{ProviderConfigKind, clear_provider_config_defaults};
+use a4n_core::config::image_sizes_to_json;
 use a4n_core::models::ai::image_gen_config;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
@@ -55,8 +56,8 @@ fn image_active_model_for_update(
     active.api_key_encrypted = Set(row.api_key_encrypted);
     active.model = Set(row.model);
     active.max_concurrent = Set(row.max_concurrent);
-    active.default_width = Set(row.default_width);
-    active.default_height = Set(row.default_height);
+    active.supported_sizes_json = Set(image_sizes_to_json(&row.supported_sizes)
+        .expect("settings-all 图片尺寸已在导入校验阶段验证"));
     active.is_default = Set(row.is_default);
     active.updated_at = Set(now);
     active
@@ -73,8 +74,8 @@ fn image_active_model_for_insert(
         api_key_encrypted: Set(row.api_key_encrypted),
         model: Set(row.model),
         max_concurrent: Set(row.max_concurrent),
-        default_width: Set(row.default_width),
-        default_height: Set(row.default_height),
+        supported_sizes_json: Set(image_sizes_to_json(&row.supported_sizes)
+            .expect("settings-all 图片尺寸已在导入校验阶段验证")),
         is_default: Set(row.is_default),
         created_at: Set(now),
         updated_at: Set(now),

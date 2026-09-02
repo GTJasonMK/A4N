@@ -1,4 +1,18 @@
 use super::identity::{blueprint_relationship_identity_from_keys, normalized_blueprint_identity};
+use super::relationships::validate_relationship_type;
+
+#[test]
+fn relationship_type_uses_the_canonical_enum() {
+    validate_relationship_type("rival").expect("canonical relationship type");
+    let error = validate_relationship_type("rivalry").expect_err("custom type must fail");
+
+    assert!(error.to_string().contains("rivalry"));
+    assert!(
+        error
+            .to_string()
+            .contains("family, friend, enemy, lover, rival, mentor, other")
+    );
+}
 
 #[test]
 fn normalized_identity_collapses_whitespace_and_case() {

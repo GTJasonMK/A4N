@@ -4,9 +4,10 @@ mod scenes;
 mod story;
 
 pub use characters::{
-    attribute_events_for_rag_ingest, blueprint_characters_for_rag_ingest,
-    blueprint_characters_for_rag_search, blueprint_relationships_for_rag_ingest,
-    character_states_for_rag_ingest, protagonist_profiles_for_rag_ingest,
+    attribute_events_for_rag_ingest, attribute_events_for_rag_ingest_before_chapter,
+    blueprint_characters_for_rag_ingest, blueprint_characters_for_rag_search,
+    blueprint_relationships_for_rag_ingest, character_states_for_rag_ingest,
+    character_states_for_rag_ingest_before_chapter, protagonist_profiles_for_rag_ingest,
 };
 pub use foreshadowing::{
     PendingForeshadowingSearchRow, RagForeshadowingRow, foreshadowing_items_by_ids,

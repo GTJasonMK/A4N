@@ -5,10 +5,15 @@ use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySe
 pub async fn load_default_provider_concurrency_limits(
     db: &DatabaseConnection,
 ) -> Result<DefaultProviderConcurrencyLimits, QueueDbError> {
+    let (llm, image, video) = futures::join!(
+        load_default_llm_concurrency(db),
+        load_default_image_concurrency(db),
+        load_default_video_concurrency(db),
+    );
     Ok(DefaultProviderConcurrencyLimits {
-        llm: load_default_llm_concurrency(db).await?,
-        image: load_default_image_concurrency(db).await?,
-        video: load_default_video_concurrency(db).await?,
+        llm: llm?,
+        image: image?,
+        video: video?,
     })
 }
 

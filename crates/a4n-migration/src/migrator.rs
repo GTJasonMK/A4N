@@ -102,6 +102,13 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::theme_system_v3::Migration),
             Box::new(crate::migrations::theme_resource_size_limit_v2::Migration),
             Box::new(crate::migrations::theme_token_layer_cleanup::Migration),
+            Box::new(crate::migrations::image_supported_sizes::Migration),
+            Box::new(crate::migrations::agent_runtime::Migration),
+            Box::new(crate::migrations::agent_replay_policy_canonicalization::Migration),
+            Box::new(crate::migrations::agent_runtime_snapshot_canonicalization::Migration),
+            Box::new(crate::migrations::agent_runtime_checkpoint_cleanup::Migration),
+            Box::new(crate::migrations::agent_runtime_status_canonicalization::Migration),
+            Box::new(crate::migrations::agent_runtime_dead_fields_cleanup::Migration),
         ]
     }
 }
@@ -151,7 +158,7 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(42)
+                .take(49)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
@@ -198,6 +205,13 @@ mod tests {
                 "theme_system_v3",
                 "theme_resource_size_limit_v2",
                 "theme_token_layer_cleanup",
+                "image_supported_sizes",
+                "agent_runtime",
+                "agent_replay_policy_canonicalization",
+                "agent_runtime_snapshot_canonicalization",
+                "agent_runtime_checkpoint_cleanup",
+                "agent_runtime_status_canonicalization",
+                "agent_runtime_dead_fields_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

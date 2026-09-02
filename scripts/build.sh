@@ -148,26 +148,10 @@ check_prerequisites() {
         ensure_frontend_dependencies
     fi
 
-    # 检查系统库（Linux 下 Tauri 需要）
-    if ! $FRONTEND_ONLY; then
-        if [[ "$(uname -s)" == "Linux" ]]; then
-            local missing_libs=()
-            local pkg
-            for pkg in webkit2gtk-4.1 gtk+-3.0 javascriptcoregtk-4.1; do
-                if ! pkg-config --exists "$pkg"; then
-                    missing_libs+=("$pkg")
-                fi
-            done
-            if ! pkg-config --exists appindicator3-0.1 \
-                && ! pkg-config --exists ayatana-appindicator3-0.1; then
-                missing_libs+=("appindicator3-0.1")
-            fi
-            if [[ ${#missing_libs[@]} -gt 0 ]]; then
-                echo -e "${YELLOW}⚠ 可能缺少的系统库: ${missing_libs[*]}${NC}"
-                echo "  Arch: sudo pacman -S webkit2gtk-4.1 gtk3 libappindicator"
-                echo "  Ubuntu: sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev"
-            fi
-        fi
+    # Tauri 系统库缺失时在 Cargo 构建前失败，不把必需依赖降级成 warning。
+    if ! $FRONTEND_ONLY && ($BUILD_ALL || [[ "$TARGET_CRATE" == "a4n-tauri" ]]); then
+        require_tauri_system_libraries
+        echo -e "${GREEN}✓ Tauri Linux 系统库已就绪${NC}"
     fi
 
     echo ""

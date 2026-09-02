@@ -113,7 +113,7 @@ profile_record_web_commands!(
     foreshadowing_records_actions::CreateForeshadowingInput,
     foreshadowing_records_actions::UpdateForeshadowingInput,
     foreshadowing_records_actions::DeleteForeshadowingInput,
-    strict_command_input,
+    strict_runtime_command_input,
     strict_runtime_command_input,
     strict_command_input,
     foreshadowing_records_actions::list_foreshadowing,

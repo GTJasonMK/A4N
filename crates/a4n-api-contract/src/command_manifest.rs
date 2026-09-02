@@ -2,7 +2,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 14;
+use crate::agent::{
+    AgentToolCostClass, AgentToolExposure, AgentToolReplayPolicy, AgentToolReversibility,
+    AgentToolRisk,
+};
+
+pub const COMMAND_MANIFEST_VERSION: u32 = 16;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -73,6 +78,17 @@ pub struct CommandDescriptor {
     pub required_ui_context: Vec<String>,
     pub approval_policy: String,
     pub navigation_hint: Option<String>,
+    pub agent_policy: Option<AgentCommandPolicy>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+pub struct AgentCommandPolicy {
+    pub exposure: AgentToolExposure,
+    pub risk: AgentToolRisk,
+    pub reversibility: AgentToolReversibility,
+    pub replay_policy: AgentToolReplayPolicy,
+    pub cost_class: AgentToolCostClass,
+    pub tags: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -120,6 +136,16 @@ struct CommandSpec {
     required_capabilities: &'static [&'static str],
     runtime_config_policy: RuntimeConfigPolicy,
     idempotency: &'static str,
+}
+
+#[derive(Clone, Copy)]
+struct AgentPolicySpec {
+    exposure: AgentToolExposure,
+    risk: AgentToolRisk,
+    reversibility: AgentToolReversibility,
+    replay_policy: AgentToolReplayPolicy,
+    cost_class: AgentToolCostClass,
+    tags: &'static [&'static str],
 }
 
 impl CommandSpec {
@@ -227,6 +253,22 @@ const DESTRUCTIVE_EFFECT: Effect = Effect {
     effect: "destructive",
     idempotency: "none",
 };
+const AGENT_READ: AgentPolicySpec = AgentPolicySpec {
+    exposure: AgentToolExposure::Discoverable,
+    risk: AgentToolRisk::Low,
+    reversibility: AgentToolReversibility::Reversible,
+    replay_policy: AgentToolReplayPolicy::Safe,
+    cost_class: AgentToolCostClass::None,
+    tags: NO_CONTEXT,
+};
+const AGENT_GUARDED_WRITE: AgentPolicySpec = AgentPolicySpec {
+    exposure: AgentToolExposure::Discoverable,
+    risk: AgentToolRisk::High,
+    reversibility: AgentToolReversibility::Unknown,
+    replay_policy: AgentToolReplayPolicy::Never,
+    cost_class: AgentToolCostClass::None,
+    tags: NO_CONTEXT,
+};
 const CAPABILITIES_EMBEDDING: &[&str] = &["embedding"];
 const CAPABILITIES_EMBEDDING_RAG: &[&str] = &["embedding", "rag"];
 const CAPABILITIES_EXPORT: &[&str] = &["export"];
@@ -320,7 +362,7 @@ command_specs! {
     "confirm_reverse_engineering_candidate" => args_confirm_reverse_engineering_candidate, result_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("safe");
     "create_derived_project" => args_create_derived_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "create_embedding_config" => args_create_embedding_config, result_create_embedding_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING);
-    "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile";
+    "create_foreshadowing" => args_create_foreshadowing, result_foreshadowing_write, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "create_freeform_video_project" => args_create_freeform_video_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS), capabilities(CAPABILITIES_VIDEO);
     "create_invite_code" => args_create_invite_code, result_invite_code, "collaboration", identity(ADMIN_IDENTITY);
     "create_llm_config" => args_create_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
@@ -808,6 +850,7 @@ fn command_spec(command: &str) -> Option<&'static CommandSpec> {
 }
 
 fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
+    let agent_policy = default_agent_policy(spec).map(|policy| agent_command_policy(&policy));
     CommandDescriptor {
         name: spec.name.to_string(),
         kind: "host_api".into(),
@@ -834,6 +877,47 @@ fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
             "agent_allowed".into()
         },
         navigation_hint: page_navigation_hint(spec.domain),
+        agent_policy,
+    }
+}
+
+fn default_agent_policy(spec: &CommandSpec) -> Option<AgentPolicySpec> {
+    // Existing manifest auth/secret metadata remains the single visibility gate.
+    // Commands that need runtime secrets or an admin identity are not model tools.
+    if spec.auth != "user"
+        || !spec.secret_pointers.is_empty()
+        || spec.runtime_config_policy != RuntimeConfigPolicy::None
+        || matches!(spec.domain, "auth" | "settings" | "system")
+    {
+        return None;
+    }
+    match spec.effect {
+        "read" => Some(AGENT_READ),
+        "destructive" => Some(AGENT_GUARDED_WRITE),
+        "write" => Some(AgentPolicySpec {
+            exposure: AgentToolExposure::Discoverable,
+            risk: AgentToolRisk::Medium,
+            reversibility: AgentToolReversibility::Compensatable,
+            replay_policy: if spec.idempotency == "none" {
+                AgentToolReplayPolicy::Never
+            } else {
+                AgentToolReplayPolicy::Idempotent
+            },
+            cost_class: AgentToolCostClass::None,
+            tags: NO_CONTEXT,
+        }),
+        _ => None,
+    }
+}
+
+fn agent_command_policy(spec: &AgentPolicySpec) -> AgentCommandPolicy {
+    AgentCommandPolicy {
+        exposure: spec.exposure,
+        risk: spec.risk,
+        reversibility: spec.reversibility,
+        replay_policy: spec.replay_policy,
+        cost_class: spec.cost_class,
+        tags: owned_strings(spec.tags),
     }
 }
 
@@ -1081,7 +1165,7 @@ fn args_create_object_profile() -> Value {
 }
 
 fn args_create_foreshadowing() -> Value {
-    strict_typed_input_schema::<crate::profile::CreateForeshadowingInput>()
+    strict_runtime_typed_input_schema::<crate::profile::CreateForeshadowingInput>()
 }
 
 fn args_create_scene_profile() -> Value {
@@ -3618,6 +3702,7 @@ mod tests {
             "apply_optimization_patches",
             "batch_accept_reviews",
             "confirm_reverse_engineering_candidate",
+            "create_foreshadowing",
             "create_profile",
             "create_scene_profile",
             "delete_latest_chapter_outlines",
@@ -3641,18 +3726,6 @@ mod tests {
                 "{command} 会更新资料检索索引，必须复用当前请求的 Embedding 配置",
             );
         }
-
-        let create_foreshadowing = command_descriptor("create_foreshadowing").unwrap();
-        assert_eq!(
-            create_foreshadowing.runtime_config_policy,
-            RuntimeConfigPolicy::None
-        );
-        assert!(create_foreshadowing.secret_pointers.is_empty());
-        assert!(
-            create_foreshadowing.args_schema["properties"]
-                .get("runtime_config_snapshot")
-                .is_none()
-        );
     }
 
     #[test]

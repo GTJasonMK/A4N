@@ -135,7 +135,6 @@ export const StoryEventsTab: React.FC<StoryEventsTabProps> = ({
         filters={filters}
         filterOptions={filterOptions}
         onFiltersChange={setFilters}
-        onOpenWritingDesk={canOpenWritingDesk ? () => openWritingDesk() : undefined}
         onOpenChapter={canOpenWritingDesk ? openWritingDesk : undefined}
       />
     </div>

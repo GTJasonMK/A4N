@@ -242,64 +242,6 @@ where
     Ok(())
 }
 
-pub(crate) async fn project_family_context<C>(
-    db: &C,
-    project_id: i64,
-    root_project_id: i64,
-    source_snapshot_id: i64,
-) -> Result<ProjectFamilyContext, ProjectFamilyDbError>
-where
-    C: ConnectionTrait,
-{
-    let project = find_project_for_family(db, project_id).await?;
-    let root_project = find_project_for_family(db, root_project_id).await?;
-    if root_project.project_kind != PROJECT_KIND_TEXT {
-        return Err(ProjectFamilyDbError::InvalidArgument(
-            "根项目必须是文本项目".to_string(),
-        ));
-    }
-
-    if project.project_kind == PROJECT_KIND_TEXT {
-        if project.id != root_project.id {
-            return Err(ProjectFamilyDbError::InvalidArgument(
-                "文本项目的 root_project_id 必须等于自身项目 ID".to_string(),
-            ));
-        }
-    } else {
-        if project.root_project_id != Some(root_project.id) {
-            return Err(ProjectFamilyDbError::InvalidArgument(format!(
-                "派生项目 {} 不属于根文本项目 {}",
-                project.id, root_project.id
-            )));
-        }
-        if project.source_snapshot_id != Some(source_snapshot_id) {
-            return Err(ProjectFamilyDbError::InvalidArgument(format!(
-                "派生项目 {} 未绑定源文本快照 {}",
-                project.id, source_snapshot_id
-            )));
-        }
-    }
-
-    let source_snapshot = project_source_snapshot::Entity::find_by_id(source_snapshot_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            ProjectFamilyDbError::NotFound(format!("源文本快照不存在: {source_snapshot_id}"))
-        })?;
-    if source_snapshot.root_project_id != root_project.id {
-        return Err(ProjectFamilyDbError::InvalidArgument(format!(
-            "源文本快照 {} 不属于根文本项目 {}",
-            source_snapshot.id, root_project.id
-        )));
-    }
-
-    Ok(ProjectFamilyContext {
-        project,
-        root_project,
-        source_snapshot,
-    })
-}
-
 pub async fn derived_project_family_context<C>(
     db: &C,
     project_id: i64,
@@ -319,7 +261,45 @@ where
     let source_snapshot_id = project.source_snapshot_id.ok_or_else(|| {
         ProjectFamilyDbError::InvalidArgument("派生项目缺少 source_snapshot_id".to_string())
     })?;
-    project_family_context(db, project_id, root_project_id, source_snapshot_id).await
+    let (root_project_result, source_snapshot_result) = futures::join!(
+        find_project_for_family(db, root_project_id),
+        project_source_snapshot::Entity::find_by_id(source_snapshot_id).one(db),
+    );
+    let root_project = root_project_result?;
+    if root_project.project_kind != PROJECT_KIND_TEXT {
+        return Err(ProjectFamilyDbError::InvalidArgument(
+            "根项目必须是文本项目".to_string(),
+        ));
+    }
+
+    if project.root_project_id != Some(root_project.id) {
+        return Err(ProjectFamilyDbError::InvalidArgument(format!(
+            "派生项目 {} 不属于根文本项目 {}",
+            project.id, root_project.id
+        )));
+    }
+    if project.source_snapshot_id != Some(source_snapshot_id) {
+        return Err(ProjectFamilyDbError::InvalidArgument(format!(
+            "派生项目 {} 未绑定源文本快照 {}",
+            project.id, source_snapshot_id
+        )));
+    }
+
+    let source_snapshot = source_snapshot_result?.ok_or_else(|| {
+        ProjectFamilyDbError::NotFound(format!("源文本快照不存在: {source_snapshot_id}"))
+    })?;
+    if source_snapshot.root_project_id != root_project.id {
+        return Err(ProjectFamilyDbError::InvalidArgument(format!(
+            "源文本快照 {} 不属于根文本项目 {}",
+            source_snapshot.id, root_project.id
+        )));
+    }
+
+    Ok(ProjectFamilyContext {
+        project,
+        root_project,
+        source_snapshot,
+    })
 }
 
 pub(crate) async fn validate_project_family_snapshot_chapter<C>(

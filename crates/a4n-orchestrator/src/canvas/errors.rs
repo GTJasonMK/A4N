@@ -9,6 +9,16 @@ pub(crate) fn canvas_db_error(error: a4n_db::canvas::CanvasDbError) -> AppError 
         }
         a4n_db::canvas::CanvasDbError::NotFound(message) => AppError::NotFound(message),
         a4n_db::canvas::CanvasDbError::Forbidden(message) => AppError::Forbidden(message),
+        a4n_db::canvas::CanvasDbError::VersionConflict {
+            graph_id,
+            expected_version,
+            current_version,
+        } => AppError::InvalidState {
+            current: format!(
+                "canvas_graph_version_conflict:graph_id={graph_id},expected={expected_version},current={current_version}"
+            ),
+            operation: "保存画布".to_string(),
+        },
         a4n_db::canvas::CanvasDbError::Database(error) => AppError::Database(error),
     }
 }

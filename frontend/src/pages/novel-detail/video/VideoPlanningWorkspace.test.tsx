@@ -122,6 +122,8 @@ describe("VideoPlanningWorkspace", () => {
         dataReady
         acting={null}
         shootingScenes={shootingScenes}
+        supportedAspectRatios={["16:9"]}
+        aspectRatioLoading={false}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
@@ -152,6 +154,8 @@ describe("VideoPlanningWorkspace", () => {
         dataReady
         acting={null}
         shootingScenes={shootingScenes}
+        supportedAspectRatios={["16:9"]}
+        aspectRatioLoading={false}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
@@ -210,6 +214,8 @@ describe("VideoPlanningWorkspace", () => {
             shots: [{ shot_id: "shot-1" }, { shot_id: "shot-2" }],
           },
         ] as ShootingSceneV1[]}
+        supportedAspectRatios={["16:9"]}
+        aspectRatioLoading={false}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}
@@ -240,6 +246,8 @@ describe("VideoPlanningWorkspace", () => {
         dataReady
         acting={null}
         shootingScenes={shootingScenes}
+        supportedAspectRatios={[]}
+        aspectRatioLoading={false}
         onGenerate={vi.fn()}
         onOptionsChange={vi.fn()}
         onRetryLoad={vi.fn()}

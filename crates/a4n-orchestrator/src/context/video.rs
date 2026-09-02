@@ -948,13 +948,6 @@ impl OrchestratorContext {
             })
             .map(|video| format!("video_provider_job:{}", video.id))
             .collect::<Vec<_>>();
-        let provider_workflow_runs = self
-            .latest_workflow_run_recovery_records_by_business_keys(&provider_business_keys)
-            .await?;
-        let provider_workflow_runs_by_key = provider_workflow_runs
-            .into_iter()
-            .map(|run| (run.business_key.clone(), run))
-            .collect::<std::collections::HashMap<_, _>>();
         let canvas_workflow_run_ids = videos_by_id
             .values()
             .filter_map(|video| {
@@ -966,11 +959,18 @@ impl OrchestratorContext {
                     .and_then(serde_json::Value::as_i64)
             })
             .collect::<std::collections::HashSet<_>>();
-        let canvas_workflow_runs_by_id = self
-            .workflow_run_statuses_by_ids(
-                &canvas_workflow_run_ids.iter().copied().collect::<Vec<_>>(),
-            )
-            .await?
+        let canvas_workflow_run_id_list =
+            canvas_workflow_run_ids.iter().copied().collect::<Vec<_>>();
+        let (provider_workflow_runs_result, canvas_workflow_runs_result) = futures::join!(
+            self.latest_workflow_run_recovery_records_by_business_keys(&provider_business_keys),
+            self.workflow_run_statuses_by_ids(&canvas_workflow_run_id_list),
+        );
+        let provider_workflow_runs = provider_workflow_runs_result?;
+        let provider_workflow_runs_by_key = provider_workflow_runs
+            .into_iter()
+            .map(|run| (run.business_key.clone(), run))
+            .collect::<std::collections::HashMap<_, _>>();
+        let canvas_workflow_runs_by_id = canvas_workflow_runs_result?
             .into_iter()
             .map(|run| (run.0, run))
             .collect::<std::collections::HashMap<_, _>>();

@@ -139,14 +139,22 @@ impl OrchestratorContext {
     ) -> Result<PreparedChapterSceneGeneration, AppError> {
         let required = required_scene_generation_input(&input)?;
         let chapter = input.chapter;
-        let outline = match chapter.outline_id {
-            Some(outline_id) => self.chapter_outline_by_id(outline_id).await?,
-            None => {
-                self.chapter_outline_by_project_number(chapter.project_id, chapter.chapter_number)
-                    .await?
+        let outline_result = async {
+            match chapter.outline_id {
+                Some(outline_id) => self.chapter_outline_by_id(outline_id).await,
+                None => {
+                    self.chapter_outline_by_project_number(
+                        chapter.project_id,
+                        chapter.chapter_number,
+                    )
+                    .await
+                }
             }
         };
-        let existing_scenes = self.chapter_scenes_by_chapter(chapter.id).await?;
+        let (outline_result, existing_scenes_result) =
+            futures::join!(outline_result, self.chapter_scenes_by_chapter(chapter.id),);
+        let outline = outline_result?;
+        let existing_scenes = existing_scenes_result?;
         let generation_context = build_scene_generation_context(
             &chapter,
             outline.as_ref(),

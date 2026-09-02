@@ -4,6 +4,8 @@ use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::{Value, json};
 
+use crate::canvas::CanvasDbError;
+
 fn node(ref_type: Option<&str>, ref_id: Option<i64>) -> CanvasNodeRecordInput {
     node_with_kind("ImageInputNode", "node-1", ref_type, ref_id, json!({}))
 }
@@ -32,6 +34,7 @@ fn graph_input(
 ) -> CanvasGraphRecordInput {
     CanvasGraphRecordInput {
         id: None,
+        expected_version: None,
         name: Some("测试画布".to_string()),
         graph_kind: Some(GRAPH_KIND_VIDEO_STUDIO.to_string()),
         viewport_json: None,
@@ -132,6 +135,84 @@ async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
         .unwrap();
     assert_eq!(stored_nodes.len(), 20);
     assert_eq!(stored_edges.len(), 19);
+}
+
+#[tokio::test]
+async fn canvas_graph_save_rejects_stale_version_without_replacing_topology() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let project = crate::project::create_freeform_video_project_record(
+        &db,
+        1,
+        crate::project::CreateFreeformVideoProjectParams {
+            title: "画布版本冲突".to_string(),
+            description: String::new(),
+        },
+    )
+    .await
+    .unwrap();
+    let created = save_canvas_graph_record(
+        &db,
+        project.id,
+        graph_input(
+            vec![node_with_kind(
+                "LlmTextNode",
+                "initial",
+                None,
+                None,
+                json!({}),
+            )],
+            Vec::new(),
+        ),
+        Utc::now().naive_utc(),
+    )
+    .await
+    .unwrap();
+
+    let mut winning = graph_input(
+        vec![node_with_kind(
+            "LlmTextNode",
+            "winner",
+            None,
+            None,
+            json!({}),
+        )],
+        Vec::new(),
+    );
+    winning.id = Some(created.graph.id);
+    winning.expected_version = Some(created.graph.version);
+    winning.name = Some("胜出的保存".to_string());
+    let saved = save_canvas_graph_record(&db, project.id, winning, Utc::now().naive_utc())
+        .await
+        .unwrap();
+    assert_eq!(saved.graph.version, 2);
+
+    let mut stale = graph_input(Vec::new(), Vec::new());
+    stale.id = Some(created.graph.id);
+    stale.expected_version = Some(created.graph.version);
+    stale.name = Some("过期保存".to_string());
+    let error = save_canvas_graph_record(&db, project.id, stale, Utc::now().naive_utc())
+        .await
+        .expect_err("stale graph version must fail");
+    assert!(matches!(
+        error,
+        CanvasDbError::VersionConflict {
+            graph_id,
+            expected_version: 1,
+            current_version: 2,
+        } if graph_id == created.graph.id
+    ));
+
+    let current = get_or_create_canvas_graph_record(
+        &db,
+        project.id,
+        Some(created.graph.id),
+        Utc::now().naive_utc(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(current.graph.name, "胜出的保存");
+    assert_eq!(current.graph.version, 2);
+    assert_eq!(current.nodes.len(), 1);
 }
 
 #[test]

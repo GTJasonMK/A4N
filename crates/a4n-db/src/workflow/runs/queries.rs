@@ -1,10 +1,20 @@
 use super::*;
 
+use sea_orm::FromQueryResult;
 use std::collections::HashSet;
 
 use super::super::summaries::GenerationRunSummaryRecord;
 
 use super::projections::{workflow_checkpoint_summary, workflow_run_summary};
+
+#[derive(Debug, FromQueryResult)]
+struct WorkflowRunRecoveryQueryRecord {
+    id: i64,
+    business_key: String,
+    status: String,
+    error_message: Option<String>,
+    updated_at: chrono::NaiveDateTime,
+}
 
 pub async fn list_workflow_runs(
     db: &DatabaseConnection,
@@ -27,13 +37,20 @@ pub async fn workflow_run_detail(
     input: GetWorkflowRunInput,
 ) -> Result<WorkflowRunDetailSummary, WorkflowReadError> {
     let workflow_run_id = input.workflow_run_id;
-    let run = workflow_run_by_id(db, workflow_run_id).await?;
-    let checkpoints = workflow_checkpoints(db, workflow_run_id).await?;
-    let generation_runs = if input.include_generation_runs.unwrap_or(true) {
-        generation_runs_for_workflow(db, workflow_run_id, 300).await?
-    } else {
-        Vec::new()
+    let run_result = workflow_run_by_id(db, workflow_run_id);
+    let checkpoints_result = workflow_checkpoints(db, workflow_run_id);
+    let generation_runs_result = async {
+        if input.include_generation_runs {
+            generation_runs_for_workflow(db, workflow_run_id, 300).await
+        } else {
+            Ok(Vec::new())
+        }
     };
+    let (run_result, checkpoints_result, generation_runs_result) =
+        futures::join!(run_result, checkpoints_result, generation_runs_result,);
+    let run = run_result?;
+    let checkpoints = checkpoints_result?;
+    let generation_runs = generation_runs_result?;
     Ok(WorkflowRunDetailSummary {
         run: workflow_run_summary(run)?,
         checkpoints: checkpoints
@@ -262,18 +279,22 @@ pub async fn latest_workflow_runs_by_business_keys(
         return Ok(Vec::new());
     }
 
-    let runs = workflow_run::Entity::find()
+    let mut runs = workflow_run::Entity::find()
         .filter(workflow_run::Column::BusinessKey.is_in(keys))
+        .distinct_on([workflow_run::Column::BusinessKey])
+        .order_by_asc(workflow_run::Column::BusinessKey)
         .order_by_desc(workflow_run::Column::UpdatedAt)
         .order_by_desc(workflow_run::Column::Id)
         .all(db)
         .await
         .map_err(WorkflowReadError::Database)?;
-    let mut seen = HashSet::with_capacity(business_keys.len());
-    Ok(runs
-        .into_iter()
-        .filter(|run| seen.insert(run.business_key.clone()))
-        .collect())
+    runs.sort_unstable_by(|left, right| {
+        right
+            .updated_at
+            .cmp(&left.updated_at)
+            .then_with(|| right.id.cmp(&left.id))
+    });
+    Ok(runs)
 }
 
 /// 按 business key 集合读取视频恢复所需的每个 key 最新状态。
@@ -286,23 +307,36 @@ pub async fn latest_workflow_run_recovery_records_by_business_keys(
         return Ok(Vec::new());
     }
 
-    let runs = workflow_run::Entity::find()
+    let mut runs = workflow_run::Entity::find()
         .select_only()
         .column(workflow_run::Column::Id)
         .column(workflow_run::Column::BusinessKey)
         .column(workflow_run::Column::Status)
         .column(workflow_run::Column::ErrorMessage)
+        .column(workflow_run::Column::UpdatedAt)
+        .distinct_on([workflow_run::Column::BusinessKey])
+        .order_by_asc(workflow_run::Column::BusinessKey)
         .filter(workflow_run::Column::BusinessKey.is_in(keys))
         .order_by_desc(workflow_run::Column::UpdatedAt)
         .order_by_desc(workflow_run::Column::Id)
-        .into_model::<WorkflowRunRecoveryRecord>()
+        .into_model::<WorkflowRunRecoveryQueryRecord>()
         .all(db)
         .await
         .map_err(WorkflowReadError::Database)?;
-    let mut seen = HashSet::with_capacity(business_keys.len());
+    runs.sort_unstable_by(|left, right| {
+        right
+            .updated_at
+            .cmp(&left.updated_at)
+            .then_with(|| right.id.cmp(&left.id))
+    });
     Ok(runs
         .into_iter()
-        .filter(|run| seen.insert(run.business_key.clone()))
+        .map(|run| WorkflowRunRecoveryRecord {
+            id: run.id,
+            business_key: run.business_key,
+            status: run.status,
+            error_message: run.error_message,
+        })
         .collect())
 }
 

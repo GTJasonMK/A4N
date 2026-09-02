@@ -23,12 +23,14 @@ impl OrchestratorContext {
             crate::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
-        let blueprint = self
-            .load_blueprint(project_id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("蓝图不存在".to_string()))?;
-        let characters = self.load_blueprint_characters(project_id).await?;
-        let relationships = self.load_blueprint_relationships(project_id).await?;
+        let (blueprint, characters, relationships) = futures::join!(
+            self.load_blueprint(project_id),
+            self.load_blueprint_characters(project_id),
+            self.load_blueprint_relationships(project_id),
+        );
+        let blueprint = blueprint?.ok_or_else(|| AppError::NotFound("蓝图不存在".to_string()))?;
+        let characters = characters?;
+        let relationships = relationships?;
         let blueprint_context = blueprint_llm_context(&blueprint, &characters, &relationships);
         build_blueprint_refine_request(
             prompt_renderer,

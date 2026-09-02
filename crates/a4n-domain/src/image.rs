@@ -1,4 +1,58 @@
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashSet;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ImageSize {
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
+}
+
+impl ImageSize {
+    pub const fn new(width: i32, height: i32) -> Self {
+        Self { width, height }
+    }
+}
+
+pub const DEFAULT_IMAGE_SIZES: &[ImageSize] = &[
+    ImageSize::new(1024, 1024),
+    ImageSize::new(1024, 1536),
+    ImageSize::new(1536, 1024),
+    ImageSize::new(1920, 1080),
+    ImageSize::new(1080, 1920),
+    ImageSize::new(1024, 768),
+    ImageSize::new(768, 1024),
+];
+
+pub fn default_image_sizes() -> Vec<ImageSize> {
+    DEFAULT_IMAGE_SIZES.to_vec()
+}
+
+pub fn validate_image_sizes(sizes: &[ImageSize]) -> Result<(), String> {
+    if sizes.is_empty() {
+        return Err("图片配置 supported_sizes 至少需要一个尺寸".to_string());
+    }
+    let mut seen = HashSet::with_capacity(sizes.len());
+    for size in sizes {
+        if size.width <= 0 || size.height <= 0 {
+            return Err(format!(
+                "图片配置 supported_sizes 包含无效尺寸 {}x{}",
+                size.width, size.height
+            ));
+        }
+        if !seen.insert((size.width, size.height)) {
+            return Err(format!(
+                "图片配置 supported_sizes 包含重复尺寸 {}x{}",
+                size.width, size.height
+            ));
+        }
+    }
+    Ok(())
+}
 
 pub const IMAGE_TYPE_CANVAS: &str = "canvas_image";
 pub const IMAGE_TYPE_CANVAS_FRAME: &str = "canvas_frame";

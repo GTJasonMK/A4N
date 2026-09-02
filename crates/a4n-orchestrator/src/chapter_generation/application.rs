@@ -907,15 +907,13 @@ impl OrchestratorContext {
         )?;
 
         check_optional_cancelled(cancel_token)?;
-        let reference_context = self
-            .resolve_generation_reference_context(project_id, chapter_number, outline.as_ref())
-            .await?;
-
-        check_optional_cancelled(cancel_token)?;
-        let context_before = self
-            .resolve_chapter_context_before(project_id, chapter_number, None)
-            .await
-            .map_err(|error| format!("构建章节前文上下文失败: {error}"))?;
+        let (reference_result, context_before_result) = futures::join!(
+            self.resolve_generation_reference_context(project_id, chapter_number, outline.as_ref()),
+            self.resolve_chapter_context_before(project_id, chapter_number, None),
+        );
+        let reference_context = reference_result?;
+        let context_before =
+            context_before_result.map_err(|error| format!("构建章节前文上下文失败: {error}"))?;
 
         Ok(PreparedChapterGenerationSources {
             chapter_title,
@@ -1080,33 +1078,29 @@ impl OrchestratorContext {
         if chapter_number <= 1 {
             return Ok(None);
         }
-        let chapters = self
-            .chapters_before_number(project_id, chapter_number)
-            .await
+        let (chapters_result, profiles_result) = futures::join!(
+            self.chapters_before_number(project_id, chapter_number),
+            self.protagonist_profiles_for_project(project_id),
+        );
+        let chapters = chapters_result
             .map_err(|error| format!("读取章节生成前序正文来源失败: {error}"))?
             .into_iter()
             .filter(|chapter| chapter.has_available_content())
             .collect::<Vec<_>>();
-        let profiles = self
-            .protagonist_profiles_for_project(project_id)
-            .await
-            .map_err(|error| format!("读取章节生成角色来源失败: {error}"))?;
+        let profiles =
+            profiles_result.map_err(|error| format!("读取章节生成角色来源失败: {error}"))?;
         let profile_ids = profiles
             .iter()
             .map(|profile| profile.id)
             .collect::<Vec<_>>();
-        let mut character_states = self
-            .character_states_for_rag_ingest(&profile_ids)
-            .await
+        let (character_states_result, attribute_events_result) = futures::join!(
+            self.character_states_for_rag_ingest_before_chapter(&profile_ids, chapter_number),
+            self.attribute_events_for_rag_ingest_before_chapter(&profile_ids, chapter_number),
+        );
+        let character_states = character_states_result
             .map_err(|error| format!("读取章节生成角色状态来源失败: {error}"))?;
-        character_states.retain(|state| state.chapter_number < chapter_number);
-        character_states.sort_by_key(|state| (state.chapter_number, state.id));
-        let mut attribute_events = self
-            .attribute_events_for_rag_ingest(&profile_ids)
-            .await
+        let attribute_events = attribute_events_result
             .map_err(|error| format!("读取章节生成角色属性来源失败: {error}"))?;
-        attribute_events.retain(|event| event.chapter_number < chapter_number);
-        attribute_events.sort_by_key(|event| (event.chapter_number, event.id));
 
         let sources = json!({
             "chapters": chapters,

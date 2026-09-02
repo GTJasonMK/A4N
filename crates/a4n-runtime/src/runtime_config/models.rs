@@ -37,8 +37,8 @@ pub(super) fn image_model_from_runtime(cfg: RuntimeImageConfig) -> image_gen_con
         api_key_encrypted: cfg.api_key_encrypted,
         model: cfg.model,
         max_concurrent: cfg.max_concurrent,
-        default_width: cfg.default_width,
-        default_height: cfg.default_height,
+        supported_sizes_json: serde_json::to_value(cfg.supported_sizes)
+            .expect("ImageSize 只包含 JSON 可序列化字段"),
         is_default: cfg.is_default,
         created_at: timestamp,
         updated_at: timestamp,

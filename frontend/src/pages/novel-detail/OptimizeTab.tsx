@@ -11,9 +11,15 @@ import type { ModelRequestPreview } from "../../api/requestPreview";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
 import { OptimizeComposer } from "./optimize/OptimizeComposer";
-import { OptimizeHeader } from "./optimize/OptimizeHeader";
+import {
+  OptimizeHeader,
+  type OptimizeWorkspaceMode,
+} from "./optimize/OptimizeHeader";
 import { OptimizeStreamPane } from "./optimize/OptimizeStreamPane";
-import { parseOptimizeIssues } from "./optimize/optimizeTabUtils";
+import {
+  chapterOptionLabel,
+  parseOptimizeIssues,
+} from "./optimize/optimizeTabUtils";
 import type { OptimizationPatchPreviewController } from "./optimize/patchPreviewTypes";
 import { useOptimizeActions } from "./optimize/useOptimizeActions";
 import { useOptimizeActivityStream } from "./optimize/useOptimizeActivityStream";
@@ -21,11 +27,14 @@ import { useOptimizePatchReviewState } from "./optimize/useOptimizePatchReviewSt
 import { useOptimizeSessionState } from "./optimize/useOptimizeSessionState";
 import { useOptimizeStreamItems } from "./optimize/useOptimizeStreamItems";
 import { useI18n } from "../../i18n";
+import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
 
 interface OptimizeTabProps {
   projectId: number;
   /** 写作桌联动：固定当前章节 id，自动选中并过滤会话 */
   fixedChapterId?: number | null;
+  /** 从主 Agent 导航进入时，直接展示领域子 Agent。 */
+  initialViewMode?: OptimizeWorkspaceMode;
   embedded?: boolean;
   onChapterContentChanged?: (chapterId: number) => void | Promise<void>;
   onPatchPreviewChange?: (
@@ -36,6 +45,7 @@ interface OptimizeTabProps {
 export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   projectId,
   fixedChapterId,
+  initialViewMode = "session",
   embedded = false,
   onChapterContentChanged,
   onPatchPreviewChange,
@@ -43,6 +53,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
   const { t } = useI18n();
   const { addToast } = useToast();
   const [input, setInput] = useState("");
+  const [viewMode, setViewMode] = useState<OptimizeWorkspaceMode>(initialViewMode);
   const [agentPermissions, setAgentPermissions] = useState(
     createDefaultOptimizationAgentPermissions,
   );
@@ -219,6 +230,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
           loading={loading}
           selectedChapter={selectedChapter}
           taskRunning={taskRunning}
+          viewMode={viewMode}
           onDeleteSession={() => void handleDeleteSession()}
           onNewChatSession={() => void handleNewChatSession()}
           onRefresh={() => void handleRefresh()}
@@ -228,39 +240,60 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
               addToast(extractErrorMessage(err, t("optimize.switchSessionFailed")), "error");
             });
           }}
+          onViewModeChange={setViewMode}
         />
 
-        <OptimizeStreamPane
-          streamItems={streamItems}
-          streamRef={streamRef}
-          onStickToBottomChange={(value) => {
-            shouldStickToBottomRef.current = value;
-          }}
-        />
+        {viewMode === "agent" ? (
+          <DomainAgentConsole
+            capability="content_optimization"
+            projectId={projectId}
+            chapterId={activeChapter?.id ?? null}
+            resourceLabel={
+              activeChapter ? chapterOptionLabel(activeChapter, t) : null
+            }
+            onResourceChanged={
+              activeChapter && onChapterContentChanged
+                ? () => onChapterContentChanged(activeChapter.id)
+                : undefined
+            }
+            fill
+            className="min-h-0 flex-1 rounded-none border-0 shadow-none"
+          />
+        ) : (
+          <>
+            <OptimizeStreamPane
+              streamItems={streamItems}
+              streamRef={streamRef}
+              onStickToBottomChange={(value) => {
+                shouldStickToBottomRef.current = value;
+              }}
+            />
 
-        <OptimizeComposer
-          activeChapter={activeChapter}
-          automaticWriteback={agentPermissions.automatic_writeback}
-          canProposePatches={activeSession != null && parsedIssues.length > 0}
-          cancellingOptimize={cancellingOptimize}
-          input={input}
-          pendingPatchProposal={pendingPatchProposal}
-          reviewInEditor={onPatchPreviewChange != null && fixedChapterId != null}
-          taskRunning={taskRunning}
-          onAnalyze={() => void handleSubmit("analyze")}
-          onApplyPendingPatches={() => void applyPendingPatches()}
-          onCancelTask={() => void handleCancelOptimizeTask()}
-          onDiscardPendingPatches={() => void discardPendingPatches()}
-          onInputChange={setInput}
-          onPreviewAnalyze={() => void openOptimizeRequestPreview("analyze")}
-          onPreviewMessage={() => void openOptimizeRequestPreview("message")}
-          onPreviewProposePatches={() =>
-            void openOptimizeRequestPreview("propose_patches")
-          }
-          onProposePatches={() => void handleSubmit("propose_patches")}
-          onSubmit={() => void handleSubmit("message")}
-          onToggleAutomaticWriteback={toggleAutomaticWriteback}
-        />
+            <OptimizeComposer
+              activeChapter={activeChapter}
+              automaticWriteback={agentPermissions.automatic_writeback}
+              canProposePatches={activeSession != null && parsedIssues.length > 0}
+              cancellingOptimize={cancellingOptimize}
+              input={input}
+              pendingPatchProposal={pendingPatchProposal}
+              reviewInEditor={onPatchPreviewChange != null && fixedChapterId != null}
+              taskRunning={taskRunning}
+              onAnalyze={() => void handleSubmit("analyze")}
+              onApplyPendingPatches={() => void applyPendingPatches()}
+              onCancelTask={() => void handleCancelOptimizeTask()}
+              onDiscardPendingPatches={() => void discardPendingPatches()}
+              onInputChange={setInput}
+              onPreviewAnalyze={() => void openOptimizeRequestPreview("analyze")}
+              onPreviewMessage={() => void openOptimizeRequestPreview("message")}
+              onPreviewProposePatches={() =>
+                void openOptimizeRequestPreview("propose_patches")
+              }
+              onProposePatches={() => void handleSubmit("propose_patches")}
+              onSubmit={() => void handleSubmit("message")}
+              onToggleAutomaticWriteback={toggleAutomaticWriteback}
+            />
+          </>
+        )}
       </section>
       <RequestPreviewModal
         open={requestPreviewOpen}

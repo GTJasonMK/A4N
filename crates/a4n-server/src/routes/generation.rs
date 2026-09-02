@@ -711,8 +711,7 @@ mod tests {
                     "api_key_encrypted": secret,
                     "model": "image-test",
                     "max_concurrent": 1,
-                    "default_width": 512,
-                    "default_height": 512,
+                    "supported_sizes": [{"width": 512, "height": 512}],
                     "is_default": true
                 }
             }

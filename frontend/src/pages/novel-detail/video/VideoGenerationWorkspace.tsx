@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -1214,7 +1215,7 @@ export const VideoGenerationWorkspace: React.FC<
             <label className="flex min-w-0 flex-col gap-1">
               <span className="text-xs text-book-text-muted">{t("video.chapter.videoDuration")}</span>
               {durationLimits.durationMode === "fixed" ? (
-                <select
+                <ThemedSelect
                   value={draft.duration_secs}
                   onChange={(event) =>
                     updateDraft({ duration_secs: Number(event.target.value) })
@@ -1232,7 +1233,7 @@ export const VideoGenerationWorkspace: React.FC<
                       {t("video.chapter.seconds", { count: duration })}
                     </option>
                   ))}
-                </select>
+                </ThemedSelect>
               ) : (
                 <input
                   type="number"
@@ -1700,7 +1701,7 @@ export const VideoGenerationWorkspace: React.FC<
               <span className="mb-1 block text-xs text-book-text-muted">
                 {t("video.chapter.sourceVideo")}
               </span>
-              <select
+              <ThemedSelect
                 value={selectedContinuitySourceVideoId ?? ""}
                 disabled={
                   acting != null ||
@@ -1731,7 +1732,7 @@ export const VideoGenerationWorkspace: React.FC<
                     · {t("video.chapter.videoNumber", { id: video.id })}
                   </option>
                 ))}
-              </select>
+              </ThemedSelect>
             </label>
             <div className="text-caption leading-relaxed text-book-text-muted">
               {t("video.chapter.selectSourceSavedHint")}

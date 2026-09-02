@@ -25,7 +25,7 @@ pub(in crate::chapter_generation::context_before) async fn recent_character_stat
         .collect::<Vec<_>>();
     let profile_by_id = profiles
         .iter()
-        .map(|profile| (profile.id, profile.clone()))
+        .map(|profile| (profile.id, profile))
         .collect::<HashMap<_, _>>();
 
     let states = context

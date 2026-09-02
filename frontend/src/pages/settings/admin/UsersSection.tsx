@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { BarChart3, KeyRound, Plus, RefreshCw, Shield, UserX } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -591,7 +592,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
           </label>
           <label className="grid gap-1">
             <span className="text-book-text-muted">{t("settingsAdmin.role")}</span>
-            <select
+            <ThemedSelect
               className="pyqt-input"
               value={createForm.role}
               onChange={(e) => updateCreateForm({ role: e.target.value })}
@@ -602,7 +603,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
                   {t(USER_ROLE_LABEL_KEYS[role])}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </label>
         </div>
       </Modal>

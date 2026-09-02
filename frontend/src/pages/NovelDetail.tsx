@@ -45,7 +45,7 @@ import { cancelWorkflowTask } from "../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
-import { centerScrollRailItem } from "../utils/scrollRail";
+import { scrollRailItemIntoView } from "../utils/scrollRail";
 import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../i18n";
 
 const AssetDependencyGraphDialog = lazy(() =>
@@ -315,12 +315,11 @@ export const NovelDetail: React.FC = () => {
   }, [canEditCurrentProject, project, setTab, tab]);
 
   useEffect(() => {
-    if (!window.matchMedia("(max-width: 767px)").matches) return;
     const frame = window.requestAnimationFrame(() => {
-      centerScrollRailItem(tabListRef.current, activeTabRef.current, "smooth");
+      scrollRailItemIntoView(tabListRef.current, activeTabRef.current, "smooth");
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [project?.id, tab]);
+  }, [canEditCurrentProject, locale, project?.id, tab]);
 
   useEffect(() => {
     const rail = tabListRef.current;
@@ -331,14 +330,21 @@ export const NovelDetail: React.FC = () => {
         rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 2,
       );
     };
-    updateCue();
+    const frame = window.requestAnimationFrame(updateCue);
     rail.addEventListener("scroll", updateCue, { passive: true });
     window.addEventListener("resize", updateCue);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateCue);
+    resizeObserver?.observe(rail);
+    document.fonts?.addEventListener("loadingdone", updateCue);
     return () => {
+      window.cancelAnimationFrame(frame);
       rail.removeEventListener("scroll", updateCue);
       window.removeEventListener("resize", updateCue);
+      resizeObserver?.disconnect();
+      document.fonts?.removeEventListener("loadingdone", updateCue);
     };
-  }, [canEditCurrentProject, project?.id]);
+  }, [canEditCurrentProject, locale, project?.id]);
 
   // 状态栏右侧：当前项目 + 当前 Tab
   useStatusBarPermanent(
@@ -637,7 +643,6 @@ export const NovelDetail: React.FC = () => {
         className="a4n-tab-rail-wrap shrink-0"
         data-has-before={tabRailHasBefore ? "true" : undefined}
         data-has-more={tabRailHasMore ? "true" : undefined}
-        data-more-label={t("common.more")}
       >
         <nav
           ref={tabListRef}
@@ -655,7 +660,7 @@ export const NovelDetail: React.FC = () => {
               aria-selected={tab === t.id}
               onClick={() => setTab(t.id)}
               onFocus={(event) =>
-                centerScrollRailItem(
+                scrollRailItemIntoView(
                   tabListRef.current,
                   event.currentTarget,
                   "instant",

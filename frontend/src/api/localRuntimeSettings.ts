@@ -10,6 +10,7 @@ import type {
   ImageGenConfig,
   UpdateImageConfigInput,
 } from "./image";
+import { normalizeImageSizes } from "./image/types";
 import type {
   CreateVideoConfigInput,
   UpdateVideoConfigInput,
@@ -505,14 +506,7 @@ function normalizeLocalImageConfig(value: unknown): ImageGenConfig {
       item.max_concurrent,
       `本机图片配置 ${label} max_concurrent`,
     ),
-    default_width: requiredPositiveInt(
-      item.default_width,
-      `本机图片配置 ${label} default_width`,
-    ),
-    default_height: requiredPositiveInt(
-      item.default_height,
-      `本机图片配置 ${label} default_height`,
-    ),
+    supported_sizes: normalizeImageSizes(item.supported_sizes, `本机图片配置 ${label}`),
     is_default: requiredBoolean(
       item.is_default,
       `本机图片配置 ${label} is_default`,
@@ -1038,8 +1032,7 @@ export function createLocalImageConfig(
       api_key_encrypted: input.api_key_encrypted?.trim() || null,
       model: input.model.trim(),
       max_concurrent: input.max_concurrent,
-      default_width: input.default_width,
-      default_height: input.default_height,
+      supported_sizes: input.supported_sizes,
       is_default: isFirstImageConfig,
     });
     settings.image.push(item);
@@ -1064,8 +1057,7 @@ export function updateLocalImageConfig(
     }
     item.model = input.model.trim();
     item.max_concurrent = input.max_concurrent;
-    item.default_width = input.default_width;
-    item.default_height = input.default_height;
+    item.supported_sizes = input.supported_sizes;
     const normalized = normalizeLocalImageConfig(item);
     Object.assign(item, normalized);
     return normalized;

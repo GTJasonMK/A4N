@@ -1,10 +1,12 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React from "react";
-import { detectImageConfigModels } from "../../../api/image";
+import { Plus, Trash2 } from "lucide-react";
+import { DEFAULT_IMAGE_SIZES, detectImageConfigModels } from "../../../api/image";
+import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
-import { IMAGE_SIZE_OPTIONS } from "./imageConfigUtils";
 import type { ImageProviderDescriptor } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
@@ -20,8 +22,6 @@ interface ImageConfigEditorProps {
   templateLocked?: boolean;
   providers: ImageProviderDescriptor[];
 }
-
-const IMAGE_SIZE_DATALIST_ID = "image-config-size-options";
 
 export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
   form,
@@ -62,7 +62,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField label={t("settingsForm.imageProvider")}>
-          <select
+          <ThemedSelect
             value={form.provider}
             onChange={(event) =>
               setForm({ ...form, provider: event.target.value })
@@ -75,7 +75,7 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
                 {provider.display_name}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </FormField>
         <FormField label={t("settingsForm.model")} required>
           <ModelDiscoveryField
@@ -139,23 +139,88 @@ export const ImageConfigEditor: React.FC<ImageConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField
-          label={t("settingsForm.size")}
-          hint={t("settingsForm.sizeHint")}
+          label={t("settingsForm.supportedSizes")}
+          hint={t("settingsForm.supportedSizesHint")}
         >
-          <BookInput
-            value={form.size}
-            list={IMAGE_SIZE_DATALIST_ID}
-            onChange={(event) => setForm({ ...form, size: event.target.value })}
-            placeholder={t("settingsForm.sizePlaceholder")}
-            disabled={structureDisabled}
-          />
-          <datalist id={IMAGE_SIZE_DATALIST_ID}>
-            {IMAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
+          <div className="space-y-2">
+            {form.supported_sizes.map((size, index) => (
+              <div
+                key={`${index}-${size.width}-${size.height}`}
+                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-center gap-2"
+              >
+                <BookInput
+                  type="number"
+                  min={1}
+                  value={String(size.width)}
+                  aria-label={`${t("settingsForm.width")} ${index + 1}`}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      supported_sizes: form.supported_sizes.map((item, itemIndex) =>
+                        itemIndex === index
+                          ? { ...item, width: Number(event.target.value) }
+                          : item,
+                      ),
+                    })
+                  }
+                  placeholder={t("settingsForm.width")}
+                  disabled={structureDisabled}
+                />
+                <BookInput
+                  type="number"
+                  min={1}
+                  value={String(size.height)}
+                  aria-label={`${t("settingsForm.height")} ${index + 1}`}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      supported_sizes: form.supported_sizes.map((item, itemIndex) =>
+                        itemIndex === index
+                          ? { ...item, height: Number(event.target.value) }
+                          : item,
+                      ),
+                    })
+                  }
+                  placeholder={t("settingsForm.height")}
+                  disabled={structureDisabled}
+                />
+                <BookIconButton
+                  label={t("settingsForm.removeSize")}
+                  variant="ghost"
+                  size="sm"
+                  disabled={structureDisabled || form.supported_sizes.length <= 1}
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      supported_sizes: form.supported_sizes.filter(
+                        (_, itemIndex) => itemIndex !== index,
+                      ),
+                    })
+                  }
+                  className="!h-9 !w-9"
+                >
+                  <Trash2 size={13} />
+                </BookIconButton>
+              </div>
             ))}
-          </datalist>
+            <BookButton
+              variant="secondary"
+              size="sm"
+              onClick={() =>
+                setForm({
+                  ...form,
+                  supported_sizes: [
+                    ...form.supported_sizes,
+                    DEFAULT_IMAGE_SIZES[0],
+                  ],
+                })
+              }
+              disabled={structureDisabled}
+            >
+              <Plus size={13} />
+              {t("settingsForm.addSize")}
+            </BookButton>
+          </div>
         </FormField>
         <FormField
           label={t("settingsForm.concurrencyLimit")}

@@ -66,20 +66,6 @@ export function formatBytes(value: number, locale: Locale): string {
   return `${formatNumber(size, locale, { maximumFractionDigits: unit === 0 ? 0 : 1 })} ${units[unit]}`;
 }
 
-function formatDownloadInfoLabel(
-  info: EmbeddingModelDownloadInfo | null,
-  locale: Locale,
-  t: Translate,
-): string | null {
-  if (info) {
-    return t("settingsEmbedding.downloadInfo", {
-      total: formatBytes(info.total_size_bytes, locale),
-      missing: formatBytes(info.missing_size_bytes, locale),
-    });
-  }
-  return null;
-}
-
 export function formatSelectedModelHint(
   model: LocalEmbeddingModel | null,
   info: EmbeddingModelDownloadInfo | null,
@@ -105,16 +91,10 @@ export function formatSelectedModelHint(
 
 export function formatModelOptionLabel(
   model: LocalEmbeddingModel,
-  info: EmbeddingModelDownloadInfo | null,
   locale: Locale,
   t: Translate,
 ): string {
-  const sizeLabel = formatDownloadInfoLabel(info, locale, t);
-  const cachedLabel = model.size_bytes > 0
-    ? ` · ${t("settingsEmbedding.cachedOnly", { size: formatBytes(model.size_bytes, locale) })}`
-    : "";
-  const sizeText = sizeLabel ? ` · ${sizeLabel}` : "";
-  return `${model.name} · ${t("settingsEmbedding.dimensionUnit", { count: formatNumber(model.dimension, locale) })}${sizeText}${cachedLabel} · ${
+  return `${model.name} · ${t("settingsEmbedding.dimensionUnit", { count: formatNumber(model.dimension, locale) })} · ${
     model.downloaded
       ? t("settingsEmbedding.downloaded")
       : t("settingsEmbedding.notDownloaded")

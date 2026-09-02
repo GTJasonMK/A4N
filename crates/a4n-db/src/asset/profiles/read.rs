@@ -10,14 +10,16 @@ pub async fn object_profiles_by_project<C>(
 where
     C: ConnectionTrait,
 {
-    ensure_object_profile_project_exists(db, project_id).await?;
-    object_profile::Entity::find()
-        .filter(object_profile::Column::ProjectId.eq(project_id))
-        .order_by_asc(object_profile::Column::FirstSeenChapter)
-        .order_by_asc(object_profile::Column::Id)
-        .all(db)
-        .await
-        .map_err(AssetDbError::Database)
+    let (project_result, profiles_result) = futures::join!(
+        ensure_object_profile_project_exists(db, project_id),
+        object_profile::Entity::find()
+            .filter(object_profile::Column::ProjectId.eq(project_id))
+            .order_by_asc(object_profile::Column::FirstSeenChapter)
+            .order_by_asc(object_profile::Column::Id)
+            .all(db),
+    );
+    project_result?;
+    profiles_result.map_err(AssetDbError::Database)
 }
 
 pub async fn object_profile_by_id<C>(

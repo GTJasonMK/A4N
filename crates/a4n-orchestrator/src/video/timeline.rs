@@ -55,10 +55,12 @@ impl OrchestratorContext {
                 chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
             )
             .await?;
-        let keys = self
-            .native_keys_for_current_plan(project_id, chapter_id)
-            .await?;
-        let snapshot = self.chapter_video_timeline_snapshot(timeline.id).await?;
+        let (keys_result, snapshot_result) = futures::join!(
+            self.native_keys_for_current_plan(project_id, chapter_id),
+            self.chapter_video_timeline_snapshot(timeline.id),
+        );
+        let keys = keys_result?;
+        let snapshot = snapshot_result?;
         match keys {
             Some(keys) if native_timeline_needs_reconcile(&snapshot, &keys)? => {
                 self.reconcile_native_video_timeline(timeline.id, &keys)
@@ -380,15 +382,14 @@ impl OrchestratorContext {
         chapter_id: i64,
         snapshot: a4n_db::video::VideoTimelineSnapshot,
     ) -> Result<VideoTimelineSummary, AppError> {
-        let prompts = self
-            .chapter_video_prompt_timeline_records_for_chapter(project_id, chapter_id)
-            .await?;
-        let videos = self
-            .generated_videos_for_chapter(project_id, chapter_id)
-            .await?;
-        let shared_plan = self
-            .current_shared_segment_plan_optional(project_id, chapter_id)
-            .await?;
+        let (prompts_result, videos_result, shared_plan_result) = futures::join!(
+            self.chapter_video_prompt_timeline_records_for_chapter(project_id, chapter_id),
+            self.generated_videos_for_chapter(project_id, chapter_id),
+            self.current_shared_segment_plan_optional(project_id, chapter_id),
+        );
+        let prompts = prompts_result?;
+        let videos = videos_result?;
+        let shared_plan = shared_plan_result?;
         let segments = shared_plan
             .as_ref()
             .map(shared_plan_segments)
@@ -680,15 +681,14 @@ pub(crate) async fn inserted_segment_neighbor_context(
     let recipes =
         video_segment_recipes_for_plan_from_metadata(plan.metadata_json.as_ref(), plan_style)
             .map_err(AppError::InvalidArgument)?;
-    let prompts = service
-        .chapter_video_prompt_timeline_records_for_chapter(project_id, chapter_id)
-        .await?;
-    let videos = service
-        .generated_videos_for_chapter(project_id, chapter_id)
-        .await?;
-    let images = service
-        .generated_images_for_video_prompt_references(project_id, chapter_id)
-        .await?;
+    let (prompts_result, videos_result, images_result) = futures::join!(
+        service.chapter_video_prompt_timeline_records_for_chapter(project_id, chapter_id),
+        service.generated_videos_for_chapter(project_id, chapter_id),
+        service.generated_images_for_video_prompt_references(project_id, chapter_id),
+    );
+    let prompts = prompts_result?;
+    let videos = videos_result?;
+    let images = images_result?;
     let previous = timeline_item_context(
         previous_item_id,
         &snapshot.items,

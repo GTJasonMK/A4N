@@ -57,14 +57,22 @@ where
             ))
         })?;
 
-    let existing_portrait_count = character_portrait::Entity::find()
-        .filter(character_portrait::Column::ProfileId.eq(profile.id))
-        .count(db)
-        .await
-        .map_err(CharacterPortraitRecordError::Database)?;
-    let project_context = portrait_project_context(db, project_id)
-        .await
-        .map_err(CharacterPortraitRecordError::Database)?;
+    let (existing_portrait_count, project_context) = futures::join!(
+        async {
+            character_portrait::Entity::find()
+                .filter(character_portrait::Column::ProfileId.eq(profile.id))
+                .count(db)
+                .await
+                .map_err(CharacterPortraitRecordError::Database)
+        },
+        async {
+            portrait_project_context(db, project_id)
+                .await
+                .map_err(CharacterPortraitRecordError::Database)
+        },
+    );
+    let existing_portrait_count = existing_portrait_count?;
+    let project_context = project_context?;
 
     Ok(PortraitNamedPromptProfileRows {
         profile,

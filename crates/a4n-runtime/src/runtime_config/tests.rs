@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::ImageSize;
 use serde_json::json;
 
 fn test_llm_config(id: i64, is_default: bool) -> RuntimeLlmConfig {
@@ -27,8 +28,7 @@ fn test_image_config(id: i64, is_default: bool) -> RuntimeImageConfig {
         api_key_encrypted: Some("sk-test".to_string()),
         model: format!("image-test-{id}"),
         max_concurrent: 1,
-        default_width: 1024,
-        default_height: 1024,
+        supported_sizes: vec![ImageSize::new(1024, 1024)],
         is_default,
     }
 }

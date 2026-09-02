@@ -41,8 +41,11 @@ impl OrchestratorContext {
             )));
         }
         let chapter_number = old.chapter_number;
-        let context =
-            load_chapter_outline_generation_context(self.database.connection(), project_id).await?;
+        let (context, no_other_outline) = futures::join!(
+            load_chapter_outline_generation_context(self.database.connection(), project_id),
+            self.ensure_no_other_outline_for_chapter(project_id, chapter_number, outline_id),
+        );
+        let context = context?;
         validate_requested_part_context(&context.parts, chapter_number, chapter_number)?;
         let focus_part = match old.part_id {
             Some(part_id) => Some(
@@ -60,8 +63,7 @@ impl OrchestratorContext {
             None => None,
         };
         ensure_focus_part_in_context(focus_part.as_ref(), &context.parts)?;
-        self.ensure_no_other_outline_for_chapter(project_id, chapter_number, outline_id)
-            .await?;
+        no_other_outline?;
         Ok(PreparedChapterOutlineRegeneration {
             old,
             context,

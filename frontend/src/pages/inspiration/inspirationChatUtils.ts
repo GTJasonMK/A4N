@@ -6,8 +6,6 @@ import type { MessageTranslator } from "../../i18n";
 
 export type Stage = "conversation" | "confirm" | "display";
 
-const BLUEPRINT_PROGRESS_TOTAL = 12;
-
 export interface BlueprintProgressState {
   status: ProgressDialogStatus;
   current: number;
@@ -19,7 +17,9 @@ export interface BlueprintProgressState {
 export const createBlueprintProgressState = (initialMessage: string): BlueprintProgressState => ({
   status: "idle",
   current: 0,
-  total: BLUEPRINT_PROGRESS_TOTAL,
+  // The backend is the only source of the workflow's total; it is learned
+  // from the first progress event instead of duplicated in the page.
+  total: 0,
   message: initialMessage,
   error: null,
 });
@@ -33,6 +33,13 @@ export const welcomeMessage = (title: string, t: MessageTranslator): Message => 
   id: msgId(),
   role: "assistant",
   content: t("inspiration.welcome", { title }),
+  createdAt: Date.now(),
+});
+
+export const generationFailureMessage = (id: string, message: string): Message => ({
+  id,
+  role: "system",
+  content: `❌ ${message}`,
   createdAt: Date.now(),
 });
 
@@ -60,7 +67,6 @@ export const normalizeHistoryMessage = (
     id: `history-${record.id}`,
     role,
     content,
-    rawContent: content,
     createdAt: parseHistoryTime(record.created_at, record.id),
   };
 
@@ -80,22 +86,12 @@ export const normalizeHistoryMessage = (
   };
 };
 
-const firstString = (...values: unknown[]): string | undefined => {
-  for (const value of values) {
-    if (typeof value === "string" && value.trim()) return value.trim();
-  }
-  return undefined;
-};
-
-const messageSourceText = (message: Message): string | null =>
-  firstString(message.rawContent, message.content) ?? null;
-
 export const buildInspirationTranscript = (messages: Message[]): string => {
   const rows: string[] = [];
 
   for (const message of messages) {
     if (message.role === "system") continue;
-    const text = messageSourceText(message);
+    const text = (message.rawContent ?? message.content).trim();
     if (!text) {
       throw new Error("灵感对话包含空消息，无法生成蓝图");
     }

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import base64
 import json
+import shutil
+import subprocess
 import tempfile
 import threading
 import unittest
@@ -28,6 +30,7 @@ from mock_openai_provider import (
     scene_profile_candidates_response,
     scene_transition_response,
     shooting_design_response,
+    agent_chat_fixture,
     video_segment_plan_response,
     response_for,
 )
@@ -76,6 +79,63 @@ class MockOpenAIProviderTest(unittest.TestCase):
         )
         with urlopen(request, timeout=2) as response:
             return response.status, json.load(response)
+
+    def request_sse_chunks(self, body: dict[str, object]) -> list[dict[str, object]]:
+        request = Request(
+            self.base_url + "/v1/chat/completions",
+            data=json.dumps({**body, "stream": True}).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        with urlopen(request, timeout=2) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get_content_type(), "text/event-stream")
+            events = [
+                line.removeprefix("data: ")
+                for line in response.read().decode("utf-8").splitlines()
+                if line.startswith("data: ")
+            ]
+        self.assertEqual(events[-1], "[DONE]")
+        return [json.loads(event) for event in events[:-1]]
+
+    def streamed_tool_call(
+        self,
+        chunks: list[dict[str, object]],
+        expected_id: str,
+        expected_name: str,
+    ) -> dict[str, object]:
+        tool_deltas = []
+        for chunk in chunks:
+            choice = chunk["choices"][0]
+            self.assertEqual(choice["index"], 0)
+            tool_deltas.extend(choice["delta"].get("tool_calls", []))
+
+        self.assertGreaterEqual(len(tool_deltas), 4)
+        self.assertTrue(all(delta["index"] == 0 for delta in tool_deltas))
+        self.assertEqual(
+            tool_deltas[0],
+            {"index": 0, "id": expected_id, "type": "function"},
+        )
+        self.assertEqual(
+            tool_deltas[1],
+            {"index": 0, "function": {"name": expected_name}},
+        )
+        argument_deltas = tool_deltas[2:]
+        self.assertGreaterEqual(len(argument_deltas), 2)
+        self.assertTrue(
+            all(set(delta["function"]) == {"arguments"} for delta in argument_deltas)
+        )
+        arguments = "".join(
+            delta["function"]["arguments"] for delta in argument_deltas
+        )
+        terminal = chunks[-1]["choices"][0]
+        self.assertEqual(terminal["delta"], {})
+        self.assertEqual(terminal["finish_reason"], "tool_calls")
+        self.assertEqual(chunks[-1]["usage"]["total_tokens"], 30)
+        return {
+            "id": tool_deltas[0]["id"],
+            "name": tool_deltas[1]["function"]["name"],
+            "arguments": json.loads(arguments),
+        }
 
     def assert_png(self, data: bytes) -> None:
         self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
@@ -144,6 +204,201 @@ class MockOpenAIProviderTest(unittest.TestCase):
             "pong",
         )
         self.assertEqual(chunks[-1]["choices"][0]["finish_reason"], "stop")
+
+    def test_agent_sse_locates_delegates_completes_and_summarizes(self) -> None:
+        main_system = (
+            "你是 A4N 项目 Agent。你是掌管项目全局的主 Agent。\n"
+            "当前能力域：main\n当前目标：优化最近写作项目的最新章节"
+        )
+        user_message = {
+            "role": "user",
+            "content": "帮我优化一下最近在进行的写作项目的最新一章正文内容",
+        }
+        locate_chunks = self.request_sse_chunks(
+            {
+                "model": "a4n-virtual-text",
+                "messages": [{"role": "system", "content": main_system}, user_message],
+            }
+        )
+        locate = self.streamed_tool_call(
+            locate_chunks,
+            "call_a4n_locate_writing_target",
+            "locate_writing_target",
+        )
+        self.assertEqual(locate["arguments"], {})
+
+        locate_assistant = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": locate["id"],
+                    "type": "function",
+                    "function": {
+                        "name": locate["name"],
+                        "arguments": json.dumps(locate["arguments"], ensure_ascii=False),
+                    },
+                }
+            ],
+        }
+        locate_observation = {
+            "project": {"kind": "project", "id": "7", "label": "逆行时钟"},
+            "chapter": {"kind": "chapter", "id": "11", "label": "雨夜来信"},
+            "chapter_number": 1,
+            "selection_reason": "选择最近更新的写作项目和章节",
+        }
+        locate_tool = {
+            "role": "tool",
+            "tool_call_id": locate["id"],
+            "content": json.dumps(locate_observation, ensure_ascii=False),
+        }
+        delegate_chunks = self.request_sse_chunks(
+            {
+                "model": "a4n-virtual-text",
+                "messages": [
+                    {"role": "system", "content": main_system},
+                    user_message,
+                    locate_assistant,
+                    locate_tool,
+                ],
+            }
+        )
+        delegate = self.streamed_tool_call(
+            delegate_chunks,
+            "call_a4n_delegate_content_optimization",
+            "delegate",
+        )
+        self.assertEqual(delegate["arguments"]["capability"], "content_optimization")
+        self.assertEqual(delegate["arguments"]["projectId"], 7)
+        self.assertEqual(delegate["arguments"]["chapterId"], 11)
+        self.assertTrue(delegate["arguments"]["successCriteria"])
+
+        child_chunks = self.request_sse_chunks(
+            {
+                "model": "a4n-virtual-text",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "你是 A4N 项目 Agent。你是由上级 Agent 委派的领域子 Agent。\n"
+                            "当前能力域：content_optimization\n"
+                            "当前目标：优化项目 7 的章节 11"
+                        ),
+                    },
+                    {"role": "user", "content": delegate["arguments"]["task"]},
+                ],
+            }
+        )
+        child_result = "".join(
+            chunk["choices"][0]["delta"].get("content", "")
+            for chunk in child_chunks
+        )
+        self.assertIn("正文优化子 Agent 已完成", child_result)
+        self.assertEqual(child_chunks[-1]["choices"][0]["finish_reason"], "stop")
+        self.assertFalse(
+            any(
+                "tool_calls" in chunk["choices"][0]["delta"]
+                for chunk in child_chunks
+            )
+        )
+
+        delegate_assistant = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": delegate["id"],
+                    "type": "function",
+                    "function": {
+                        "name": delegate["name"],
+                        "arguments": json.dumps(delegate["arguments"], ensure_ascii=False),
+                    },
+                }
+            ],
+        }
+        parent_chunks = self.request_sse_chunks(
+            {
+                "model": "a4n-virtual-text",
+                "messages": [
+                    {"role": "system", "content": main_system},
+                    user_message,
+                    locate_assistant,
+                    locate_tool,
+                    delegate_assistant,
+                    {
+                        "role": "user",
+                        "content": "[Agent inbox:child_result] Child Agent completed",
+                    },
+                ],
+            }
+        )
+        parent_summary = "".join(
+            chunk["choices"][0]["delta"].get("content", "")
+            for chunk in parent_chunks
+        )
+        self.assertIn("已验收正文优化子 Agent 的回传结果", parent_summary)
+        self.assertEqual(parent_chunks[-1]["choices"][0]["finish_reason"], "stop")
+        self.assertFalse(
+            any(
+                "tool_calls" in chunk["choices"][0]["delta"]
+                for chunk in parent_chunks
+            )
+        )
+
+    def test_agent_fixture_scopes_decisions_to_latest_turn(self) -> None:
+        system = {
+            "role": "system",
+            "content": "你是 A4N 项目 Agent。你是掌管项目全局的主 Agent。\n当前能力域：main",
+        }
+        historical_user = {"role": "user", "content": "上一轮任务"}
+        historical_delegate = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "old-delegate",
+                    "type": "function",
+                    "function": {"name": "delegate", "arguments": "{}"},
+                }
+            ],
+        }
+        historical_result = {
+            "role": "tool",
+            "tool_call_id": "old-delegate",
+            "content": '{"summary":"旧任务已完成"}',
+        }
+        historical_inbox = {
+            "role": "user",
+            "content": "[Agent inbox:child_result] 旧任务已完成",
+        }
+        current_user = {"role": "user", "content": "开始新的正文优化任务"}
+
+        first = agent_chat_fixture(
+            {"messages": [system, historical_user, historical_delegate, historical_result, historical_inbox, current_user]}
+        )
+        self.assertEqual(first["tool_call"]["name"], "locate_writing_target")
+
+        locate = {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "new-locate",
+                    "type": "function",
+                    "function": {"name": "locate_writing_target", "arguments": "{}"},
+                }
+            ],
+        }
+        observation = {
+            "role": "tool",
+            "tool_call_id": "new-locate",
+            "content": '{"project":{"id":7},"chapter":{"id":11}}',
+        }
+        second = agent_chat_fixture(
+            {"messages": [system, historical_user, historical_delegate, historical_result, historical_inbox, current_user, locate, observation]}
+        )
+        self.assertEqual(second["tool_call"]["name"], "delegate")
+        self.assertEqual(second["tool_call"]["arguments"]["projectId"], 7)
 
     def test_unmatched_prompt_is_rejected(self) -> None:
         with self.assertRaises(HTTPError) as caught:
@@ -543,6 +798,40 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(video[4:8], b"ftyp")
         self.assertIn(b"moov", video)
         self.assertIn(b"mdat", video)
+
+    def test_video_fixture_has_a_frame_at_thumbnail_timestamp(self) -> None:
+        if shutil.which("ffmpeg") is None:
+            self.skipTest("ffmpeg is unavailable")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.mp4"
+            output_path = root / "thumbnail.jpg"
+            input_path.write_bytes(base64.b64decode(MP4_1S_BASE64, validate=True))
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-ss",
+                    "0.8",
+                    "-i",
+                    str(input_path),
+                    "-frames:v",
+                    "1",
+                    "-q:v",
+                    "3",
+                    "-update",
+                    "1",
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertGreater(output_path.stat().st_size, 0)
 
     def test_video_idempotency_key_rejects_conflicting_request(self) -> None:
         key = "b" * 64

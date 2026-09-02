@@ -1,3 +1,6 @@
+use a4n_domain::{ImageSize, validate_image_sizes};
+use serde_json::Value;
+
 use crate::{error::AppError, models::ai::image_gen_config};
 
 use super::{
@@ -12,8 +15,7 @@ pub struct CreateImageConfigParams {
     pub api_key_encrypted: Option<String>,
     pub model: String,
     pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
+    pub supported_sizes: Vec<ImageSize>,
 }
 
 pub const OPENAI_COMPATIBLE_IMAGE_BACKEND: &str = "openai-compatible-image";
@@ -111,8 +113,7 @@ pub fn validate_image_config_params(
     params.api_key_encrypted =
         normalize_image_backend_api_key(&params.backend, params.api_key_encrypted)?;
     params.max_concurrent = positive_i32(params.max_concurrent, "图片配置 max_concurrent")?;
-    params.default_width = positive_i32(params.default_width, "图片配置 default_width")?;
-    params.default_height = positive_i32(params.default_height, "图片配置 default_height")?;
+    validate_image_sizes(&params.supported_sizes).map_err(AppError::InvalidArgument)?;
     Ok(params)
 }
 
@@ -129,9 +130,40 @@ pub fn validate_image_config_model(
         api_key_encrypted: model.api_key_encrypted.clone(),
         model: model.model.clone(),
         max_concurrent: model.max_concurrent,
-        default_width: model.default_width,
-        default_height: model.default_height,
+        supported_sizes: image_sizes_from_json(&model.supported_sizes_json)?,
     })
+}
+
+pub fn image_sizes_from_json(value: &Value) -> Result<Vec<ImageSize>, AppError> {
+    let sizes = serde_json::from_value::<Vec<ImageSize>>(value.clone()).map_err(|error| {
+        AppError::InvalidArgument(format!("图片配置 supported_sizes 无效: {error}"))
+    })?;
+    validate_image_sizes(&sizes).map_err(AppError::InvalidArgument)?;
+    Ok(sizes)
+}
+
+pub fn image_sizes_to_json(sizes: &[ImageSize]) -> Result<Value, AppError> {
+    validate_image_sizes(sizes).map_err(AppError::InvalidArgument)?;
+    serde_json::to_value(sizes).map_err(|error| {
+        AppError::InvalidArgument(format!("图片配置 supported_sizes 无效: {error}"))
+    })
+}
+
+pub fn ensure_image_size_supported(
+    sizes: &[ImageSize],
+    width: i32,
+    height: i32,
+) -> Result<(), AppError> {
+    if sizes
+        .iter()
+        .any(|size| size.width == width && size.height == height)
+    {
+        return Ok(());
+    }
+    Err(AppError::InvalidArgument(format!(
+        "图片尺寸 {}x{} 不在配置 supported_sizes 白名单中",
+        width, height
+    )))
 }
 
 fn normalize_image_backend_api_key(
@@ -158,8 +190,7 @@ mod tests {
             api_key_encrypted: Some("sk-test".into()),
             model: "dall-e-3".into(),
             max_concurrent: 1,
-            default_width: 1024,
-            default_height: 1024,
+            supported_sizes: vec![ImageSize::new(1024, 1024)],
         }
     }
 
@@ -172,22 +203,54 @@ mod tests {
             Err(AppError::InvalidArgument(_))
         ));
 
-        type ConfigureLimit = fn(&mut CreateImageConfigParams);
-        let cases: [(&str, ConfigureLimit); 3] = [
-            ("max_concurrent", |params| params.max_concurrent = 0),
-            ("default_width", |params| params.default_width = 0),
-            ("default_height", |params| params.default_height = 0),
-        ];
-        for (field, configure) in cases {
-            let mut params = params();
-            configure(&mut params);
-            assert_eq!(
-                validate_image_config_params(params)
-                    .expect_err("zero limit")
-                    .to_string(),
-                format!("参数无效：图片配置 {field} 必须大于 0")
-            );
-        }
+        let mut invalid_concurrency = params();
+        invalid_concurrency.max_concurrent = 0;
+        assert_eq!(
+            validate_image_config_params(invalid_concurrency)
+                .expect_err("zero concurrency")
+                .to_string(),
+            "参数无效：图片配置 max_concurrent 必须大于 0"
+        );
+    }
+
+    #[test]
+    fn validates_supported_sizes() {
+        let mut empty = params();
+        empty.supported_sizes.clear();
+        assert!(validate_image_config_params(empty).is_err());
+
+        let mut duplicate = params();
+        duplicate.supported_sizes.push(ImageSize::new(1024, 1024));
+        assert!(validate_image_config_params(duplicate).is_err());
+
+        let mut invalid = params();
+        invalid.supported_sizes = vec![ImageSize::new(0, 1024)];
+        assert!(validate_image_config_params(invalid).is_err());
+    }
+
+    #[test]
+    fn validates_image_model_sizes_from_json() {
+        let mut model = image_gen_config::Model {
+            id: 1,
+            name: "image".to_string(),
+            backend: OPENAI_COMPATIBLE_IMAGE_BACKEND.to_string(),
+            base_url: Some("https://example.test/v1".to_string()),
+            api_key_encrypted: Some("key".to_string()),
+            model: "image-model".to_string(),
+            max_concurrent: 1,
+            supported_sizes_json: serde_json::json!([{"width": 1024, "height": 1024}]),
+            is_default: true,
+            created_at: chrono::NaiveDateTime::MIN,
+            updated_at: chrono::NaiveDateTime::MIN,
+        };
+        assert_eq!(
+            validate_image_config_model(&model)
+                .expect("valid model")
+                .supported_sizes,
+            vec![ImageSize::new(1024, 1024)]
+        );
+        model.supported_sizes_json = serde_json::json!([]);
+        assert!(validate_image_config_model(&model).is_err());
     }
 
     #[test]

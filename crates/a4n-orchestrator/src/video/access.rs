@@ -31,14 +31,16 @@ impl OrchestratorContext {
         chapter_id: i64,
         options: &ChapterVideoPromptOptions,
     ) -> Result<(), AppError> {
-        self.ensure_chapter_belongs_to_project(project_id, chapter_id)
-            .await?;
         let reference_ids_json = serde_json::json!(options.reference_image_ids);
-        self.ensure_video_reference_images_available(
-            project_id,
-            chapter_id,
-            Some(&reference_ids_json),
-        )
-        .await
+        let (chapter_result, references_result) = futures::join!(
+            self.ensure_chapter_belongs_to_project(project_id, chapter_id),
+            self.ensure_video_reference_images_available(
+                project_id,
+                chapter_id,
+                Some(&reference_ids_json),
+            ),
+        );
+        chapter_result?;
+        references_result
     }
 }

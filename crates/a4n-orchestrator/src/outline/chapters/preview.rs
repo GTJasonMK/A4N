@@ -74,20 +74,26 @@ impl OrchestratorContext {
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
-        let part = self.get_part(part_id).await?;
+        let (part, context) = futures::join!(
+            self.get_part(part_id),
+            load_chapter_outline_generation_context(self.database.connection(), project_id),
+        );
+        let part = part?;
         if part.project_id != project_id {
             return Err(AppError::InvalidArgument(format!(
                 "分部大纲 {part_id} 不属于项目 {project_id}"
             )));
         }
         let count = part.end_chapter - part.start_chapter + 1;
-        self.preview_chapter_outline_sequence_requests(
+        let context = context?;
+        self.preview_chapter_outline_sequence_requests_with_context(
             project_id,
             part.start_chapter,
             count,
             Some(&part),
             prompt_renderer,
             variables,
+            &context,
         )
         .await
     }

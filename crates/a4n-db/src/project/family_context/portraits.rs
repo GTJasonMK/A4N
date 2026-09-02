@@ -10,25 +10,27 @@ pub async fn manga_character_portrait_refs(
     project_id: i64,
 ) -> Result<Vec<MangaCharacterPortraitRefSummary>, ProjectFamilyDbError> {
     let profile_project_id = manga_profile_project_id(db, project_id).await?;
-    let profiles = protagonist_profile::Entity::find()
-        .select_only()
-        .column(protagonist_profile::Column::Id)
-        .column(protagonist_profile::Column::Name)
-        .filter(protagonist_profile::Column::ProjectId.eq(profile_project_id))
-        .order_by_asc(protagonist_profile::Column::Id)
-        .into_tuple::<(i64, String)>()
-        .all(db)
-        .await?;
+    let (profiles_result, portraits_result) = futures::join!(
+        protagonist_profile::Entity::find()
+            .select_only()
+            .column(protagonist_profile::Column::Id)
+            .column(protagonist_profile::Column::Name)
+            .filter(protagonist_profile::Column::ProjectId.eq(profile_project_id))
+            .order_by_asc(protagonist_profile::Column::Id)
+            .into_tuple::<(i64, String)>()
+            .all(db),
+        character_portrait::Entity::find()
+            .filter(character_portrait::Column::ProjectId.eq(profile_project_id))
+            .order_by_desc(character_portrait::Column::IsPrimary)
+            .order_by_desc(character_portrait::Column::CreatedAt)
+            .all(db),
+    );
+    let profiles = profiles_result?;
     if profiles.is_empty() {
         return Ok(Vec::new());
     }
 
-    let portraits = character_portrait::Entity::find()
-        .filter(character_portrait::Column::ProjectId.eq(profile_project_id))
-        .order_by_desc(character_portrait::Column::IsPrimary)
-        .order_by_desc(character_portrait::Column::CreatedAt)
-        .all(db)
-        .await?;
+    let portraits = portraits_result?;
     if portraits.is_empty() {
         return Ok(Vec::new());
     }

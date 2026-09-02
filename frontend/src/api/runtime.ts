@@ -32,6 +32,7 @@ interface AppEvent<T> {
 type EventHandler<T> = (event: AppEvent<T>) => void;
 
 const NATIVE_TAURI_COMMANDS = new Set([
+  "invoke_agent_command",
   "register_user",
   "login_user",
   "refresh_token",
@@ -55,6 +56,7 @@ const NATIVE_TAURI_COMMANDS = new Set([
   "set_log_level",
 ]);
 const NATIVE_USER_CONTEXT_COMMANDS = new Set([
+  "invoke_agent_command",
   "get_log_dir",
   "read_recent_logs",
   "set_log_level",

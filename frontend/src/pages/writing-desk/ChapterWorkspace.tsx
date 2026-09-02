@@ -373,7 +373,7 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
               </div>
             )}
             {bottomTab === "visual_plan" && (
-              <div className="h-full min-h-0 overflow-y-auto custom-scrollbar lg:overflow-hidden">
+              <div className="h-full min-h-0 overflow-y-auto custom-scrollbar">
                 <Suspense fallback={<WorkspaceTabFallback text={t("writing.loadingVisualPlan")} />}>
                   <ChapterVisualPlanTab
                     projectId={projectId}

@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 
@@ -766,7 +767,7 @@ const SelectField: React.FC<{
 }> = ({ label, value, options, path, onChange }) => (
   <label className="block min-w-0">
     <span className="mb-1 block text-small text-book-text-muted">{label}</span>
-    <select
+    <ThemedSelect
       value={value}
       onChange={(event) => onChange(path, event.target.value)}
       className="pyqt-input w-full text-xs"
@@ -776,7 +777,7 @@ const SelectField: React.FC<{
           {optionLabel}
         </option>
       ))}
-    </select>
+    </ThemedSelect>
   </label>
 );
 

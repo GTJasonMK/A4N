@@ -34,14 +34,6 @@ const asStringArray = (value: unknown): string[] => {
     .filter(Boolean);
 };
 
-const firstString = (source: JsonRecord, keys: string[]): string | undefined => {
-  for (const key of keys) {
-    const value = asString(source[key]);
-    if (value) return value;
-  }
-  return undefined;
-};
-
 const rejectUnknownKeys = (source: JsonRecord, allowed: string[], context: string) => {
   for (const key of Object.keys(source)) {
     if (!allowed.includes(key)) {
@@ -83,22 +75,20 @@ const parseResponseObject = (raw: string): JsonRecord => {
   return parsed;
 };
 
-const normalizeStreamingOption = (raw: unknown, index: number): MessageOption | null => {
+const normalizeStreamingOption = (raw: unknown): MessageOption | null => {
   if (!isRecord(raw)) return null;
 
-  const label = firstString(raw, ["label"]);
+  const label = asString(raw.label);
   if (!label) return null;
 
-  const description = firstString(raw, ["description"]);
+  const description = asString(raw.description);
   const keyElements = asStringArray(raw.key_elements);
-  const id = firstString(raw, ["id"]);
 
   const valueParts = [`选择：${label}`];
   if (description) valueParts.push(description);
   if (keyElements.length > 0) valueParts.push(`关键要素：${keyElements.join("、")}`);
 
   return {
-    id: id ? id : `option_${index + 1}`,
     label,
     description,
     keyElements: keyElements.length > 0 ? keyElements : undefined,
@@ -116,13 +106,13 @@ const parseOption = (raw: unknown, index: number): MessageOption => {
     `ui_control.options[${index}]`,
   );
 
-  const id = firstString(raw, ["id"]);
-  const label = firstString(raw, ["label"]);
-  const description = firstString(raw, ["description"]);
+  const optionId = asString(raw.id);
+  const label = asString(raw.label);
+  const description = asString(raw.description);
+  if (!optionId) throw new Error(`ui_control.options[${index}].id 不能为空`);
   if (!Array.isArray(raw.key_elements)) {
     throw new Error(`ui_control.options[${index}].key_elements 必须是数组`);
   }
-  if (!id) throw new Error(`ui_control.options[${index}].id 不能为空`);
   if (!label) throw new Error(`ui_control.options[${index}].label 不能为空`);
   if (!description) throw new Error(`ui_control.options[${index}].description 不能为空`);
 
@@ -140,7 +130,6 @@ const parseOption = (raw: unknown, index: number): MessageOption => {
   valueParts.push(`关键要素：${keyElements.join("、")}`);
 
   return {
-    id,
     label,
     description,
     keyElements,
@@ -150,7 +139,7 @@ const parseOption = (raw: unknown, index: number): MessageOption => {
 
 const extractOptions = (uiControl: JsonRecord): MessageOption[] | undefined => {
   rejectUnknownKeys(uiControl, ["type", "options", "placeholder"], "ui_control");
-  const type = firstString(uiControl, ["type"]);
+  const type = asString(uiControl.type);
   if (
     !type ||
     !["single_choice", "text_input", "info_display", "inspired_options"].includes(type)
@@ -281,7 +270,7 @@ const extractPartialOptions = (
       if (balanced) {
         try {
           const parsed = JSON.parse(balanced.json);
-          const opt = normalizeStreamingOption(parsed, ready.length);
+          const opt = normalizeStreamingOption(parsed);
           if (opt) ready.push(opt);
         } catch {
           // 格式损坏则跳过
@@ -300,7 +289,7 @@ const extractPartialOptions = (
 
 export const parseInspirationResponse = (raw: string): ParsedInspirationResponse => {
   const root = parseResponseObject(raw);
-  const message = firstString(root, ["ai_message"]);
+  const message = asString(root.ai_message);
   if (!message) {
     throw new Error("灵感回复缺少 ai_message");
   }
@@ -346,23 +335,15 @@ export const parseInspirationResponse = (raw: string): ParsedInspirationResponse
   }
   const uiControl = uiControlValue;
 
-  const blocks = [normalizeTextBlock(message)];
-  if (nextQuestion && !message.includes(nextQuestion)) {
-    blocks.push(`下一个问题：${normalizeTextBlock(nextQuestion)}`);
-  }
-  if (isComplete && !message.includes("生成蓝图")) {
-    blocks.push("概念对话已完成，可以生成首版蓝图。");
-  }
-
   return {
-    content: blocks.filter(Boolean).join("\n\n"),
+    content: normalizeTextBlock(message),
     rawContent: raw,
     options: extractOptions(uiControl),
     isComplete,
     conversationState,
     progressSummary,
     nextQuestion,
-    placeholder: firstString(uiControl, ["placeholder"]),
+    placeholder: asString(uiControl.placeholder),
   };
 };
 

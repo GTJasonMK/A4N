@@ -2468,8 +2468,7 @@ async fn server_process_streams_image_generation_success_terminal() {
             api_key_encrypted: Some("process-test-key".to_string()),
             model: "process-test-image-model".to_string(),
             max_concurrent: 1,
-            default_width: 1024,
-            default_height: 1024,
+            supported_sizes: vec![a4n_domain::ImageSize::new(1024, 1024)],
         },
     )
     .await

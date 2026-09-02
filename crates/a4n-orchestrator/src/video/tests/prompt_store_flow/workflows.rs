@@ -17,6 +17,10 @@ async fn sync_chapter_prompts_scopes_deletion_to_generated_prompt_types() {
         visual_prompt: Set("已有最终视频提示词".to_string()),
         duration_secs: Set(6),
         status: Set("pending".to_string()),
+        metadata_json: Set(Some(stable_prompt_metadata(
+            json!({"source": {"content_sha256": "same"}}),
+            1,
+        ))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -32,7 +36,7 @@ async fn sync_chapter_prompts_scopes_deletion_to_generated_prompt_types() {
                 new_prompt_draft(NewChapterVideoPromptInput {
                     project_id,
                     chapter_id,
-                    workflow_mode: PromptWorkflowMode::BoundaryFrames,
+                    workflow_mode: PromptWorkflowMode::SharedSegmentPlan,
                     style: Some("电影感写实"),
                     prompt_type: "frame_segment_plan",
                     shot_number: 0,
@@ -61,7 +65,10 @@ async fn sync_chapter_prompts_scopes_deletion_to_generated_prompt_types() {
                     duration_secs: 6,
                     aspect_ratio: Some("16:9"),
                     reference_image_ids_json: None,
-                    metadata_json: Some(json!({"source": {"content_sha256": "same"}})),
+                    metadata_json: Some(stable_prompt_metadata(
+                        json!({"source": {"content_sha256": "same"}}),
+                        1,
+                    )),
                 }),
             ],
         )
@@ -112,10 +119,10 @@ async fn sync_chapter_prompts_keeps_video_prompt_workflows_separate() {
         aspect_ratio: Set(Some("16:9".to_string())),
         status: Set("pending".to_string()),
         generated_video_id: Set(None),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "source_prompt_type": "frame_segment_plan",
             "source": {"content_sha256": "same-source"}
-        }))),
+        }), 1))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -135,10 +142,10 @@ async fn sync_chapter_prompts_keeps_video_prompt_workflows_separate() {
         duration_secs: Set(8),
         aspect_ratio: Set(Some("16:9".to_string())),
         status: Set("pending".to_string()),
-        metadata_json: Set(Some(json!({
+        metadata_json: Set(Some(stable_prompt_metadata(json!({
             "source_prompt_type": "frame_segment_plan",
             "source": {"content_sha256": "same-source"}
-        }))),
+        }), 9))),
         created_at: Set(old_time),
         updated_at: Set(old_time),
         ..Default::default()
@@ -165,10 +172,10 @@ async fn sync_chapter_prompts_keeps_video_prompt_workflows_separate() {
                 duration_secs: 8,
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: None,
-                metadata_json: Some(json!({
+                metadata_json: Some(stable_prompt_metadata(json!({
                     "source_prompt_type": "frame_segment_plan",
                     "source": {"content_sha256": "same-source"}
-                })),
+                }), 1)),
             })],
         )
         .await
@@ -236,11 +243,11 @@ async fn sync_chapter_prompts_rejects_metadata_workflow_that_conflicts_with_expl
                 duration_secs: 8,
                 aspect_ratio: Some("16:9"),
                 reference_image_ids_json: None,
-                metadata_json: Some(json!({
+                metadata_json: Some(stable_prompt_metadata(json!({
                     "workflow_mode": "first_frame_chain",
                     "source_prompt_type": "frame_segment_plan",
                     "source": {"content_sha256": "same-source"}
-                })),
+                }), 1)),
             })],
         )
         .await

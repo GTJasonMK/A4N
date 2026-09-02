@@ -99,16 +99,15 @@ impl OrchestratorContext {
                 .map_err(AppError::InvalidArgument)?;
         self.verify_project_permissions(&project_ids, user_id, ProjectAccessRole::Editor)
             .await?;
-        let primary_image_ids = self
-            .primary_material_image_ids_for_projects(&project_ids)
-            .await?
+        let (primary_image_ids_result, candidate_images_result) = futures::join!(
+            self.primary_material_image_ids_for_projects(&project_ids),
+            self.video_reference_candidate_images(&project_ids, chapter_id),
+        );
+        let primary_image_ids = primary_image_ids_result?
             .into_iter()
             .collect::<HashSet<_>>();
         let mut by_id = HashMap::new();
-        for image in self
-            .video_reference_candidate_images(&project_ids, chapter_id)
-            .await?
-        {
+        for image in candidate_images_result? {
             if is_video_reference_image_candidate(&image, chapter_id) {
                 by_id.insert(image.id, image);
             }

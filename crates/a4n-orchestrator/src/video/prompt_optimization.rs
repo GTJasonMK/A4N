@@ -851,7 +851,7 @@ mod tests {
         );
         let chat = prompt_with_sections(
             language.visual_sections(),
-            "角色身份、空间关系、镜头动作和稳定尾态均清楚；不要配背景音乐。",
+            "角色身份、空间关系、镜头动作和稳定尾态均清楚；镜头 1：角色从门口向前移动并停在画面中央；不要配背景音乐。",
         );
 
         let provider = validate_video_prompt_optimization(

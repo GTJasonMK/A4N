@@ -38,7 +38,12 @@ pub async fn save_canvas_graph(
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     state
         .orchestrator()
-        .save_canvas_graph(input.project_id, input.graph, Utc::now().naive_utc())
+        .save_canvas_graph(
+            input.project_id,
+            input.expected_version,
+            input.graph,
+            Utc::now().naive_utc(),
+        )
         .await
         .map_err(app_error_message)
 }

@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Eye } from "lucide-react";
 import {
@@ -11,6 +12,7 @@ import {
   CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT,
 } from "../../api/canvas";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
+import { ImageSizeSelect } from "../../components/image/ImageSizeSelect";
 import { useI18n } from "../../i18n";
 import {
   canvasDataTypeLabel,
@@ -404,7 +406,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         </label>
         <label className="block text-caption text-book-text-muted">
           {t("video.canvas.inspector.displayMode")}
-          <select
+          <ThemedSelect
             value={configText(config, "display_mode") || "summary"}
             disabled={disabled}
             onChange={(event) => onChange({ display_mode: event.target.value })}
@@ -412,7 +414,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
           >
             <option value="summary">{t("video.canvas.inspector.summary")}</option>
             <option value="detail">{t("video.canvas.inspector.detail")}</option>
-          </select>
+          </ThemedSelect>
         </label>
         <ProbeObservationSummary config={config} displayMode={configText(config, "display_mode") || "summary"} />
       </div>
@@ -433,7 +435,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         </label>
         <label className="block text-caption text-book-text-muted">
           {t("video.canvas.inspector.textType")}
-          <select
+          <ThemedSelect
             value={configText(config, "output_kind")}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
@@ -442,7 +444,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             <option value={CANVAS_PROMPT_KIND}>{t("video.canvas.inspector.canvasPrompt")}</option>
             <option value={CANVAS_TEXT_OUTPUT_KIND_VIDEO_PROMPT}>{t("video.canvas.inspector.videoText")}</option>
             <option value={CANVAS_TEXT_OUTPUT_KIND_IMAGE_PROMPT}>{t("video.canvas.inspector.imageText")}</option>
-          </select>
+          </ThemedSelect>
         </label>
       </div>
     );
@@ -467,7 +469,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         />
         <label className="block text-caption text-book-text-muted">
           {t("video.canvas.inspector.outputType")}
-          <select
+          <ThemedSelect
             value={configText(config, "output_kind")}
             disabled={disabled}
             onChange={(event) => onChange({ output_kind: event.target.value })}
@@ -478,7 +480,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             <option value={CANVAS_TEXT_OUTPUT_KIND_VISUAL_DESCRIPTION}>{t("video.canvas.inspector.visualDescription")}</option>
             <option value={CANVAS_TEXT_OUTPUT_KIND_DIALOGUE}>{t("video.canvas.inspector.dialogue")}</option>
             <option value={CANVAS_TEXT_OUTPUT_KIND_RHYTHM_PLAN}>{t("video.canvas.inspector.rhythmPlan")}</option>
-          </select>
+          </ThemedSelect>
         </label>
       </div>
     );
@@ -496,7 +498,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
         />
         <label className="block text-caption text-book-text-muted">
           {t("video.canvas.inspector.inputMode")}
-          <select
+          <ThemedSelect
             value={inputMode ?? ""}
             disabled={disabled}
             onChange={(event) => onChange({ input_mode: event.target.value })}
@@ -507,7 +509,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             <option value="first_frame">{t("video.canvas.inspector.firstFrame")}</option>
             <option value="first_end_frame">{t("video.canvas.inspector.firstEndFrame")}</option>
             <option value="reference_images">{t("video.canvas.inspector.referenceImages")}</option>
-          </select>
+          </ThemedSelect>
         </label>
         <label className="block text-caption text-book-text-muted">{t("video.canvas.inspector.negativePrompt")}</label>
         <textarea
@@ -527,14 +529,46 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
     );
   }
   if (node.data.nodeKind === "GenerateImageNode") {
+    const imageConfigId = configPositiveNumber(config, "image_config_id");
+    const imageConfig =
+      imageConfigId == null
+        ? configOptions.image.find((option) => option.isDefault) ?? null
+        : configOptions.image.find((option) => option.id === imageConfigId) ?? null;
+    const supportedSizes = imageConfig?.supportedSizes ?? [];
+    const width = configPositiveNumber(config, "width");
+    const height = configPositiveNumber(config, "height");
+    const selectedSize =
+      supportedSizes.find((size) => size.width === width && size.height === height) ?? null;
     return (
-      <ConfigSelect
-        label={t("video.canvas.inspector.imageConfig")}
-        value={configPositiveNumber(config, "image_config_id")}
-        options={configOptions.image}
-        disabled={disabled}
-        onChange={(value) => onChange({ image_config_id: value })}
-      />
+      <div className="space-y-2">
+        <ConfigSelect
+          label={t("video.canvas.inspector.imageConfig")}
+          value={imageConfigId}
+          options={configOptions.image}
+          disabled={disabled}
+          onChange={(value) => {
+            const nextConfig =
+              value == null
+                ? configOptions.image.find((option) => option.isDefault) ?? null
+                : configOptions.image.find((option) => option.id === value) ?? null;
+            const nextSize =
+              nextConfig?.supportedSizes?.find(
+                (size) => size.width === width && size.height === height,
+              );
+            onChange({
+              image_config_id: value,
+              ...(nextSize ? { width: nextSize.width, height: nextSize.height } : {}),
+            });
+          }}
+        />
+        <ImageSizeSelect
+          label={t("settingsForm.selectImageSize")}
+          value={selectedSize}
+          sizes={supportedSizes}
+          disabled={disabled || imageConfig == null}
+          onChange={(size) => onChange({ width: size.width, height: size.height })}
+        />
+      </div>
     );
   }
   if (node.data.nodeKind === "VideoOutputNode") {
@@ -565,7 +599,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
       <div className="space-y-3">
         <label className="block text-caption text-book-text-muted">
           {t("video.canvas.inspector.frameType")}
-          <select
+          <ThemedSelect
             value={frameKind}
             disabled={disabled}
             onChange={(event) => onChange({ frame_kind: event.target.value, at_secs: event.target.value === "time" ? configNumber(config, "at_secs") : undefined })}
@@ -574,7 +608,7 @@ const NodeConfigEditor: React.FC<NodeConfigEditorProps> = ({
             <option value="first">{t("video.canvas.inspector.firstFrame")}</option>
             <option value="tail">{t("video.canvas.inspector.tailFrame")}</option>
             <option value="time">{t("video.canvas.inspector.specifiedTime")}</option>
-          </select>
+          </ThemedSelect>
         </label>
         {frameKind === "time" ? (
           <NumberField label={t("video.canvas.inspector.timeSeconds")} value={configNumber(config, "at_secs")} disabled={disabled} min={0} onChange={(value) => onChange({ at_secs: value })} />
@@ -801,7 +835,7 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
   return (
     <label className="block text-caption text-book-text-muted">
       {label}
-      <select
+      <ThemedSelect
         value={value ?? ""}
         disabled={disabled || (options.length === 0 && !selectedMissing)}
         onChange={(event) => onChange(numberOrNull(event.target.value, 1))}
@@ -816,7 +850,7 @@ const ConfigSelect: React.FC<ConfigSelectProps> = ({ label, value, options, disa
             {configOptionLabel(option, t)}
           </option>
         ))}
-      </select>
+      </ThemedSelect>
       {selectedOption ? (
         <div className="mt-1 truncate text-caption text-book-text-sub" title={configOptionLabel(selectedOption, t)}>
           {t("video.canvas.inspector.currentConfig", { name: configOptionLabel(selectedOption, t) })}

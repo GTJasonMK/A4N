@@ -174,6 +174,23 @@ require_onnxruntime() {
     die "缺少 ONNX Runtime $version 动态库: $root；请先运行 ./scripts/dev/setup-onnxruntime.sh"
 }
 
+require_tauri_system_libraries() {
+    [[ "$(uname -s)" == "Linux" ]] || return 0
+    require_command pkg-config
+
+    local missing=()
+    local package
+    for package in webkit2gtk-4.1 gtk+-3.0 javascriptcoregtk-4.1; do
+        pkg-config --exists "$package" || missing+=("$package")
+    done
+    if ! pkg-config --exists appindicator3-0.1 \
+        && ! pkg-config --exists ayatana-appindicator3-0.1; then
+        missing+=("appindicator3-0.1 或 ayatana-appindicator3-0.1")
+    fi
+    ((${#missing[@]} == 0)) \
+        || die "缺少 Tauri Linux 系统库: ${missing[*]}；请安装 WebKitGTK、GTK3 和 AppIndicator 开发包"
+}
+
 cargo_graph_uses_onnxruntime() {
     local edge_kinds=$1
     shift

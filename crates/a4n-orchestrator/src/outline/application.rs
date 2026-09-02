@@ -701,12 +701,12 @@ impl OrchestratorContext {
         &self,
         input: BatchGeneratePartOutlinesInput,
     ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
-        let parts = self
-            .load_unique_outline_parts(input.project_id, &input.part_ids)
-            .await?;
-        let context =
-            load_chapter_outline_generation_context(self.database.connection(), input.project_id)
-                .await?;
+        let (parts_result, context_result) = futures::join!(
+            self.load_unique_outline_parts(input.project_id, &input.part_ids),
+            load_chapter_outline_generation_context(self.database.connection(), input.project_id),
+        );
+        let parts = parts_result?;
+        let context = context_result?;
         let variables = HashMap::new();
         let mut all_steps = Vec::new();
         for part in parts {

@@ -1,11 +1,42 @@
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+use a4n_core::error::AppError;
 use a4n_core::rag::RagDataType;
 use a4n_db::rag::PendingForeshadowingSearchRow;
+use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
 use a4n_rag_core::{
     memory_store::MemoryVectorStore,
     vector_store::{EmbeddingRecord, SearchFilter, SearchResult, VectorStore},
 };
 use a4n_test_support::{embedding::MatchingEmbeddingProvider, rag::test_embedding_identity};
 use serde_json::json;
+
+struct CountingEmbeddingProvider {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait::async_trait]
+impl EmbeddingProvider for CountingEmbeddingProvider {
+    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        Ok(texts.into_iter().map(|_| vec![1.0, 0.0]).collect())
+    }
+
+    fn dimension(&self) -> usize {
+        2
+    }
+
+    fn model_name(&self) -> &str {
+        "batch-counting-test"
+    }
+
+    fn backend(&self) -> EmbeddingBackend {
+        EmbeddingBackend::LocalHash
+    }
+}
 
 use super::{
     contracts::{EnhancedRagQuery, PreparedEnhancedRagSearch},
@@ -204,6 +235,40 @@ async fn enhanced_rag_provider_execution_returns_domain_result() {
     assert_eq!(result.results.len(), 1);
     assert_eq!(result.results[0].id, "chapter:1:6:p1");
     assert_eq!(result.queries.len(), 1);
+}
+
+#[tokio::test]
+async fn enhanced_rag_batches_query_embeddings_into_one_provider_call() {
+    let store = MemoryVectorStore::new();
+    store_search_record(&store).await;
+    let calls = Arc::new(AtomicUsize::new(0));
+    let provider = CountingEmbeddingProvider {
+        calls: calls.clone(),
+    };
+    let mut prepared = prepared_search(vec![
+        EnhancedRagQuery {
+            label: "主查询",
+            query: "主查询".to_string(),
+            weight: 1.0,
+        },
+        EnhancedRagQuery {
+            label: "角色",
+            query: "角色查询".to_string(),
+            weight: 0.85,
+        },
+        EnhancedRagQuery {
+            label: "场景",
+            query: "场景查询".to_string(),
+            weight: 0.75,
+        },
+    ]);
+    prepared.embedding_identity = test_embedding_identity("batch-counting-test");
+
+    execute_prepared_enhanced_rag_search_in_store(&store, &provider, prepared)
+        .await
+        .expect("batched provider enhanced search");
+
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
 }
 
 #[tokio::test]

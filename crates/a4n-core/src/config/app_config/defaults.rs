@@ -73,12 +73,6 @@ pub(super) fn default_image_model() -> String {
 pub(super) fn default_image_max_concurrent() -> usize {
     2
 }
-pub(super) fn default_image_width() -> u32 {
-    1024
-}
-pub(super) fn default_image_height() -> u32 {
-    1024
-}
 pub(super) fn default_event_bus_capacity() -> usize {
     1024
 }
@@ -140,8 +134,7 @@ impl Default for ImageGenConfig {
             api_key: None,
             model: default_image_model(),
             max_concurrent: default_image_max_concurrent(),
-            default_width: default_image_width(),
-            default_height: default_image_height(),
+            supported_sizes: a4n_domain::default_image_sizes(),
         }
     }
 }

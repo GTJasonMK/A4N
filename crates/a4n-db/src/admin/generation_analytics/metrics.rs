@@ -83,10 +83,7 @@ pub(super) fn llm_context_plan_metrics(
         stable_prefix_tokens: json_i64_field(plan, "stable_prefix_tokens")?,
         dynamic_delta_tokens: json_i64_field(plan, "dynamic_delta_tokens")?,
         estimated_input_tokens: json_i64_field(plan, "estimated_input_tokens")?,
-        dropped_optional_pack_count: plan
-            .get("dropped_optional_pack_refs")
-            .and_then(serde_json::Value::as_array)
-            .map_or(0, |items| items.len() as i64),
+        dropped_optional_pack_count: json_i64_field(plan, "dropped_optional_pack_count")?,
     })
 }
 

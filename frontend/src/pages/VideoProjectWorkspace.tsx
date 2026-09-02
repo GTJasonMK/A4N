@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../components/ui/ThemedSelect";
 import React, {
   lazy,
   Suspense,
@@ -83,7 +84,12 @@ export const VideoProjectWorkspace: React.FC = () => {
     }
     setLoading(true);
     try {
-      const item = await getProject(projectId);
+      const [projectResult, chaptersResult] = await Promise.allSettled([
+        getProject(projectId),
+        listSourceSnapshotChapters(projectId),
+      ]);
+      if (projectResult.status === "rejected") throw projectResult.reason;
+      const item = projectResult.value;
       if (refreshRequestRef.current !== requestId) return;
       if (item.project_kind !== "video") {
         addToast(t("video.notVideoProject"), "error");
@@ -94,7 +100,8 @@ export const VideoProjectWorkspace: React.FC = () => {
         navigate(getProjectStudioRoute(projectId), { replace: true });
         return;
       }
-      const snapshotChapters = await listSourceSnapshotChapters(projectId);
+      if (chaptersResult.status === "rejected") throw chaptersResult.reason;
+      const snapshotChapters = chaptersResult.value;
       if (refreshRequestRef.current !== requestId) return;
       setProject(item);
       setChapters(snapshotChapters);
@@ -225,7 +232,7 @@ export const VideoProjectWorkspace: React.FC = () => {
               <>
                 <label className="flex min-w-0 items-center gap-2 border-b border-book-border/45 pb-3 text-xs md:hidden">
                   <span className="shrink-0 font-medium text-book-text-muted">{t("video.sourceChapter")}</span>
-                  <select
+                  <ThemedSelect
                     value={selectedSourceChapterId ?? ""}
                     onChange={(event) => setSelectedSourceChapterId(Number(event.target.value))}
                     className="pyqt-input h-9 min-w-0 flex-1 !px-2 !py-1.5 text-xs"
@@ -238,7 +245,7 @@ export const VideoProjectWorkspace: React.FC = () => {
                         </option>
                       );
                     })}
-                  </select>
+                  </ThemedSelect>
                 </label>
                 <aside aria-label={t("video.sourceChapter")} className="a4n-flat-surface hidden max-h-full min-h-0 self-start overflow-y-auto p-2 custom-scrollbar md:block">
                   <div className="mb-2 hidden px-2 text-small font-medium text-book-text-muted md:block">

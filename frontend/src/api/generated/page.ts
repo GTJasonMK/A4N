@@ -3,7 +3,27 @@
 
 export type RuntimeConfigPolicy = "none" | "without_secrets" | "full";
 
+export type AgentToolExposure = "hidden" | "discoverable" | "preloaded";
+
+export type AgentToolRisk = "low" | "medium" | "high" | "critical";
+
+export type AgentToolReversibility = "reversible" | "compensatable" | "irreversible" | "unknown";
+
+export type AgentToolReplayPolicy = "safe" | "idempotent" | "reconcile_required" | "never";
+
+export type AgentToolCostClass = "none" | "llm" | "image" | "video" | "external_unknown";
+
+export interface AgentCommandPolicy {
+  cost_class: AgentToolCostClass;
+  exposure: AgentToolExposure;
+  replay_policy: AgentToolReplayPolicy;
+  reversibility: AgentToolReversibility;
+  risk: AgentToolRisk;
+  tags: string[];
+}
+
 export interface CommandDescriptor {
+  agent_policy: AgentCommandPolicy | null;
   approval_policy: string;
   args_schema: unknown;
   auth: string;

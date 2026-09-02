@@ -36,14 +36,48 @@ pub(crate) async fn start_managed_sidecars(
         return Ok(Vec::new());
     }
 
-    let mut processes = Vec::new();
-    for name in capability_service_names() {
-        let process = service_manager
-            .start_sidecar(&name)
-            .await
-            .map_err(|err| err.to_string())?;
-        processes.push(process);
+    let results = futures::future::join_all(capability_service_names().into_iter().map(
+        |name| async move {
+            let result = service_manager
+                .start_sidecar(&name)
+                .await
+                .map_err(|err| err.to_string());
+            (name, result)
+        },
+    ))
+    .await;
+
+    let mut processes = Vec::with_capacity(results.len());
+    let mut first_error = None;
+    for (_, result) in results {
+        match result {
+            Ok(process) => processes.push(process),
+            Err(error) if first_error.is_none() => first_error = Some(error),
+            Err(_) => {}
+        }
     }
+
+    if let Some(error) = first_error {
+        let cleanup_failures = futures::future::join_all(
+            processes
+                .into_iter()
+                .map(a4n_service_manager::ManagedSidecarProcess::force_stop),
+        )
+        .await
+        .into_iter()
+        .filter_map(Result::err)
+        .map(|error| error.to_string())
+        .collect::<Vec<_>>();
+        if !cleanup_failures.is_empty() {
+            tracing::error!(
+                primary_error = %error,
+                cleanup_errors = %cleanup_failures.join("; "),
+                "managed sidecar startup failed and cleanup was incomplete"
+            );
+        }
+        return Err(error);
+    }
+
     Ok(processes)
 }
 

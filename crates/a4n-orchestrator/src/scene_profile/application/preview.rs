@@ -27,22 +27,24 @@ impl OrchestratorContext {
         let chapters = select_scene_profile_sync_chapters(self, project_id, chapter_number)
             .await
             .map_err(scene_profile_sync_preview_error)?;
-        let stable = load_scene_profile_sync_stable_context(self, project_id)
-            .await
-            .map_err(scene_profile_sync_preview_error)?;
-        let existing_scene_profiles = self
-            .scene_profiles_by_project(project_id)
-            .await
-            .map_err(|error| scene_profile_sync_preview_error(error.to_string()))?;
-        let existing_scene_profiles = Arc::new(existing_scene_profiles);
-        let anchors = load_scene_profile_sync_anchor_context(
-            self,
-            project_id,
-            &chapters,
-            ChapterAnchorMode::RequireExistingCurrent,
-        )
-        .await
-        .map_err(scene_profile_sync_preview_error)?;
+        let (stable, existing_scene_profiles, anchors) = futures::join!(
+            load_scene_profile_sync_stable_context(self, project_id),
+            async {
+                self.scene_profiles_by_project(project_id)
+                    .await
+                    .map_err(|error| error.to_string())
+            },
+            load_scene_profile_sync_anchor_context(
+                self,
+                project_id,
+                &chapters,
+                ChapterAnchorMode::RequireExistingCurrent,
+            ),
+        );
+        let stable = stable.map_err(scene_profile_sync_preview_error)?;
+        let existing_scene_profiles =
+            Arc::new(existing_scene_profiles.map_err(scene_profile_sync_preview_error)?);
+        let anchors = anchors.map_err(scene_profile_sync_preview_error)?;
         let mut steps = Vec::new();
         for chapter in chapters {
             let chapter_id = chapter.id;

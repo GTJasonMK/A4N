@@ -70,8 +70,12 @@ pub async fn ensure_video_chapter_belongs_to_project_record<C>(
 where
     C: ConnectionTrait,
 {
-    let project = video_project_record(db, project_id).await?;
-    let chapter_project_id = video_chapter_project_id_record(db, chapter_id).await?;
+    let (project_result, chapter_project_result) = futures::join!(
+        video_project_record(db, project_id),
+        video_chapter_project_id_record(db, chapter_id),
+    );
+    let project = project_result?;
+    let chapter_project_id = chapter_project_result?;
     match project.project_kind.as_str() {
         "text" if chapter_project_id == project.id => Ok(()),
         "text" => Err(VideoDbError::InvalidArgument(format!(

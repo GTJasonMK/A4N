@@ -15,18 +15,12 @@ pub(super) async fn load_scene_profile_sync_stable_context(
     state: &OrchestratorContext,
     project_id: i64,
 ) -> Result<SceneProfileSyncStableContext, String> {
-    let object_profiles = Arc::new(
-        state
-            .object_profiles_by_project(project_id)
-            .await
-            .map_err(|error| error.to_string())?,
+    let (object_profiles, character_profiles) = futures::join!(
+        state.object_profiles_by_project(project_id),
+        state.protagonist_profiles_for_project(project_id),
     );
-    let character_profiles = Arc::new(
-        state
-            .protagonist_profiles_for_project(project_id)
-            .await
-            .map_err(|error| error.to_string())?,
-    );
+    let object_profiles = Arc::new(object_profiles.map_err(|error| error.to_string())?);
+    let character_profiles = Arc::new(character_profiles.map_err(|error| error.to_string())?);
     let object_ids = Arc::new(object_profiles.iter().map(|profile| profile.id).collect());
     let character_ids = Arc::new(
         character_profiles

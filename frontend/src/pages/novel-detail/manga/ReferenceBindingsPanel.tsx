@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useMemo } from "react";
 import {
   Image,
@@ -114,7 +115,7 @@ export const ReferenceBindingsPanel: React.FC<{
             </div>
 
             <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] gap-1.5">
-              <select
+              <ThemedSelect
                 value={selectedKey}
                 onChange={(event) => onSelectCandidate(bindingKey, event.target.value)}
                 className="pyqt-input h-8 min-w-0 !px-2 !py-1 text-xs"
@@ -132,7 +133,7 @@ export const ReferenceBindingsPanel: React.FC<{
                     {candidate.label} · {candidate.subLabel}
                   </option>
                 ))}
-              </select>
+              </ThemedSelect>
               <BookButton
                 size="sm"
                 variant="secondary"

@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useRef, useState } from "react";
 import { CheckCircle2, Download } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -260,7 +261,7 @@ export const ExportPanel: React.FC<{
     <div className="space-y-4">
       <label className="flex min-w-0 flex-col gap-1">
         <span className="text-small text-book-text-muted">{t("novel.exportPanel.format")}</span>
-        <select
+        <ThemedSelect
           value={selectedFormat}
           onChange={(event) =>
             setSelectedFormat(event.target.value as ExportFormat)
@@ -273,7 +274,7 @@ export const ExportPanel: React.FC<{
               {t(format.labelKey)}
             </option>
           ))}
-        </select>
+        </ThemedSelect>
       </label>
 
       <p className="text-small leading-relaxed text-book-text-muted">

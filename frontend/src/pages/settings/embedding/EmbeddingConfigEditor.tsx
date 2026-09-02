@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React from "react";
 import type {
   EmbeddingModelDownloadInfo,
@@ -59,7 +60,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
       <FormField label={t("settingsForm.backend")}>
-        <select
+        <ThemedSelect
           value={form.backend}
           onChange={(e) => {
             const backend = e.target.value;
@@ -93,7 +94,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
               {provider.display_name}
             </option>
           ))}
-        </select>
+        </ThemedSelect>
       </FormField>
       {form.backend === "fastembed" ? (
         <FormField
@@ -106,7 +107,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
             t,
           )}
         >
-          <select
+          <ThemedSelect
             value={form.model}
             onChange={(e) => {
               const modelName = e.target.value;
@@ -126,14 +127,13 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
                 <option key={model.name} value={model.name}>
                   {formatModelOptionLabel(
                     model,
-                    resolveDownloadInfo(model.name),
                     locale,
                     t,
                   )}
                 </option>
               ))
             )}
-          </select>
+          </ThemedSelect>
         </FormField>
       ) : (
         <FormField label={t("settingsForm.model")} required>

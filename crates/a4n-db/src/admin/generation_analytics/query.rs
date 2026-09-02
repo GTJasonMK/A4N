@@ -1,7 +1,7 @@
 use super::*;
 
 use super::aggregate::build_generation_call_analytics;
-use sea_orm::{FromQueryResult, QuerySelect};
+use sea_orm::{FromQueryResult, QuerySelect, sea_query::Expr};
 use serde_json::Value;
 
 #[derive(Debug, FromQueryResult)]
@@ -134,78 +134,98 @@ pub async fn generation_call_analytics(
     let now = Utc::now().naive_utc();
     let since = now - Duration::days(i64::from(days));
 
-    let llm_calls = llm_call_trace::Entity::find()
-        .select_only()
-        .column(llm_call_trace::Column::Id)
-        .column(llm_call_trace::Column::GenerationRunId)
-        .column(llm_call_trace::Column::WorkflowRunId)
-        .column(llm_call_trace::Column::CallKey)
-        .column(llm_call_trace::Column::InputFingerprintSha256)
-        .column(llm_call_trace::Column::ProjectId)
-        .column(llm_call_trace::Column::RootProjectId)
-        .column(llm_call_trace::Column::Workflow)
-        .column(llm_call_trace::Column::StepKey)
-        .column(llm_call_trace::Column::Provider)
-        .column(llm_call_trace::Column::Model)
-        .column(llm_call_trace::Column::ContextPlanJson)
-        .column(llm_call_trace::Column::PromptTokens)
-        .column(llm_call_trace::Column::CompletionTokens)
-        .column(llm_call_trace::Column::TotalTokens)
-        .column(llm_call_trace::Column::PromptCacheHitTokens)
-        .column(llm_call_trace::Column::PromptCacheMissTokens)
-        .column(llm_call_trace::Column::PromptCacheHitRatio)
-        .column(llm_call_trace::Column::DurationMs)
-        .column(llm_call_trace::Column::Streamed)
-        .column(llm_call_trace::Column::Status)
-        .column(llm_call_trace::Column::ErrorKind)
-        .column(llm_call_trace::Column::ErrorMessage)
-        .column(llm_call_trace::Column::FinishReason)
-        .column(llm_call_trace::Column::CreatedAt)
-        .filter(llm_call_trace::Column::CreatedAt.gte(since))
-        .order_by_desc(llm_call_trace::Column::CreatedAt)
-        .into_model::<LlmCallAnalyticsRow>()
-        .all(db)
-        .await
-        .map_err(|source| AdminDbError::DatabaseOperation {
-            operation: "读取 LLM 调用分析失败",
-            source,
-        })?
-        .into_iter()
-        .map(Into::into)
-        .collect();
-
-    let media_runs = generation_run::Entity::find()
-        .select_only()
-        .column(generation_run::Column::Id)
-        .column(generation_run::Column::ProjectId)
-        .column(generation_run::Column::RootProjectId)
-        .column(generation_run::Column::Workflow)
-        .column(generation_run::Column::StepKey)
-        .column(generation_run::Column::Title)
-        .column(generation_run::Column::ModelKind)
-        .column(generation_run::Column::Provider)
-        .column(generation_run::Column::Model)
-        .column(generation_run::Column::Status)
-        .column(generation_run::Column::WorkflowRunId)
-        .column(generation_run::Column::CallKey)
-        .column(generation_run::Column::InputFingerprintSha256)
-        .column(generation_run::Column::Attempt)
-        .column(generation_run::Column::ErrorMessage)
-        .column(generation_run::Column::CreatedAt)
-        .column(generation_run::Column::CompletedAt)
-        .filter(generation_run::Column::CreatedAt.gte(since))
-        .filter(generation_run::Column::ModelKind.is_in(["image", "video"]))
-        .order_by_desc(generation_run::Column::CreatedAt)
-        .into_model::<GenerationRunAnalyticsRow>()
-        .all(db)
-        .await
-        .map_err(|source| AdminDbError::DatabaseOperation {
-            operation: "读取媒体生成分析失败",
-            source,
-        })?
-        .into_iter()
-        .map(Into::into)
-        .collect();
+    let (llm_calls, media_runs) = futures::join!(
+        async {
+            llm_call_trace::Entity::find()
+                .select_only()
+                .column(llm_call_trace::Column::Id)
+                .column(llm_call_trace::Column::GenerationRunId)
+                .column(llm_call_trace::Column::WorkflowRunId)
+                .column(llm_call_trace::Column::CallKey)
+                .column(llm_call_trace::Column::InputFingerprintSha256)
+                .column(llm_call_trace::Column::ProjectId)
+                .column(llm_call_trace::Column::RootProjectId)
+                .column(llm_call_trace::Column::Workflow)
+                .column(llm_call_trace::Column::StepKey)
+                .column(llm_call_trace::Column::Provider)
+                .column(llm_call_trace::Column::Model)
+                .column_as(
+                    Expr::cust(
+                        r#"CASE
+                            WHEN context_plan_json IS NULL THEN NULL
+                            ELSE json_build_object(
+                                'stable_prefix_tokens', context_plan_json -> 'stable_prefix_tokens',
+                                'dynamic_delta_tokens', context_plan_json -> 'dynamic_delta_tokens',
+                                'estimated_input_tokens', context_plan_json -> 'estimated_input_tokens',
+                                'dropped_optional_pack_count', CASE
+                                    WHEN json_typeof(context_plan_json -> 'dropped_optional_pack_refs') = 'array'
+                                    THEN json_array_length(context_plan_json -> 'dropped_optional_pack_refs')
+                                    ELSE 0
+                                END
+                            )
+                        END"#,
+                    ),
+                    "context_plan_json",
+                )
+                .column(llm_call_trace::Column::PromptTokens)
+                .column(llm_call_trace::Column::CompletionTokens)
+                .column(llm_call_trace::Column::TotalTokens)
+                .column(llm_call_trace::Column::PromptCacheHitTokens)
+                .column(llm_call_trace::Column::PromptCacheMissTokens)
+                .column(llm_call_trace::Column::PromptCacheHitRatio)
+                .column(llm_call_trace::Column::DurationMs)
+                .column(llm_call_trace::Column::Streamed)
+                .column(llm_call_trace::Column::Status)
+                .column(llm_call_trace::Column::ErrorKind)
+                .column(llm_call_trace::Column::ErrorMessage)
+                .column(llm_call_trace::Column::FinishReason)
+                .column(llm_call_trace::Column::CreatedAt)
+                .filter(llm_call_trace::Column::CreatedAt.gte(since))
+                .order_by_desc(llm_call_trace::Column::CreatedAt)
+                .into_model::<LlmCallAnalyticsRow>()
+                .all(db)
+                .await
+                .map_err(|source| AdminDbError::DatabaseOperation {
+                    operation: "读取 LLM 调用分析失败",
+                    source,
+                })
+                .map(|rows| rows.into_iter().map(Into::into).collect())
+        },
+        async {
+            generation_run::Entity::find()
+                .select_only()
+                .column(generation_run::Column::Id)
+                .column(generation_run::Column::ProjectId)
+                .column(generation_run::Column::RootProjectId)
+                .column(generation_run::Column::Workflow)
+                .column(generation_run::Column::StepKey)
+                .column(generation_run::Column::Title)
+                .column(generation_run::Column::ModelKind)
+                .column(generation_run::Column::Provider)
+                .column(generation_run::Column::Model)
+                .column(generation_run::Column::Status)
+                .column(generation_run::Column::WorkflowRunId)
+                .column(generation_run::Column::CallKey)
+                .column(generation_run::Column::InputFingerprintSha256)
+                .column(generation_run::Column::Attempt)
+                .column(generation_run::Column::ErrorMessage)
+                .column(generation_run::Column::CreatedAt)
+                .column(generation_run::Column::CompletedAt)
+                .filter(generation_run::Column::CreatedAt.gte(since))
+                .filter(generation_run::Column::ModelKind.is_in(["image", "video"]))
+                .order_by_desc(generation_run::Column::CreatedAt)
+                .into_model::<GenerationRunAnalyticsRow>()
+                .all(db)
+                .await
+                .map_err(|source| AdminDbError::DatabaseOperation {
+                    operation: "读取媒体生成分析失败",
+                    source,
+                })
+                .map(|rows| rows.into_iter().map(Into::into).collect())
+        },
+    );
+    let llm_calls = llm_calls?;
+    let media_runs = media_runs?;
 
     Ok(build_generation_call_analytics(
         now,

@@ -1,4 +1,9 @@
-import { expect, it, vi } from "vitest";
+import { beforeEach, expect, it, vi } from "vitest";
+
+const snapshotState = vi.hoisted(() => ({
+  usesSystemDefaultLlm: false,
+  systemLlmApiKey: null as string | null,
+}));
 
 const llm = {
   id: 1,
@@ -24,8 +29,7 @@ const image = {
   has_api_key: true,
   model: "image-test",
   max_concurrent: 1,
-  default_width: 1024,
-  default_height: 1024,
+  supported_sizes: [{ width: 1024, height: 1024 }],
   is_default: true,
 };
 const video = {
@@ -64,17 +68,18 @@ const embedding = {
 vi.mock("./localRuntimeSettings", () => ({
   activeLocalEmbeddingConfig: () => embedding,
   activeLocalImageConfig: () => image,
-  activeLocalLlmConfig: () => llm,
+  activeLocalLlmConfig: () =>
+    snapshotState.usesSystemDefaultLlm ? null : llm,
   activeLocalVideoConfig: () => video,
   getLocalLlmMaxTokensConfig: () => ({}),
   getSystemDefaultImageApiKey: () => null,
-  getSystemDefaultLlmApiKey: () => null,
+  getSystemDefaultLlmApiKey: () => snapshotState.systemLlmApiKey,
   getSystemDefaultVideoApiKey: () => null,
   listLocalImageConfigs: () => [image],
   listLocalLlmConfigs: () => [llm],
   listLocalVideoConfigs: () => [video],
   usesSystemDefaultImageConfig: () => false,
-  usesSystemDefaultLlmConfig: () => false,
+  usesSystemDefaultLlmConfig: () => snapshotState.usesSystemDefaultLlm,
   usesSystemDefaultVideoConfig: () => false,
 }));
 
@@ -88,6 +93,11 @@ vi.mock("../utils/runtimeMode", () => ({
 }));
 
 import { buildRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
+
+beforeEach(() => {
+  snapshotState.usesSystemDefaultLlm = false;
+  snapshotState.systemLlmApiKey = null;
+});
 
 it("serializes runtime configs without view-only has_api_key fields", () => {
   const snapshot = buildRuntimeConfigSnapshot();
@@ -105,4 +115,24 @@ it("serializes runtime configs without view-only has_api_key fields", () => {
     expect(config).not.toHaveProperty("has_api_key");
   }
   expect(snapshot?.llm).toHaveProperty("api_key_encrypted", "llm-key");
+});
+
+it("injects the personal key for the system-default inspiration command", async () => {
+  snapshotState.usesSystemDefaultLlm = true;
+  snapshotState.systemLlmApiKey = "personal-key";
+  const { withRuntimeConfigSnapshot } = await import("./runtimeConfigSnapshot");
+
+  const args = {
+    input: { project_id: 7, message: "梳理主角动机" },
+  };
+  const effectiveArgs = withRuntimeConfigSnapshot(
+    "start_inspiration_generation",
+    args,
+  );
+
+  expect(effectiveArgs?.runtime_config_snapshot).toMatchObject({
+    llm_default_source: "system",
+    system_llm_api_key_encrypted: "personal-key",
+  });
+  expect(effectiveArgs?.runtime_config_snapshot).not.toHaveProperty("llm");
 });

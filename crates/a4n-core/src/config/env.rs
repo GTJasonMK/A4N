@@ -1,5 +1,4 @@
 use std::ffi::OsString;
-use std::net::IpAddr;
 use std::path::PathBuf;
 
 use crate::error::AppError;
@@ -82,9 +81,11 @@ fn public_app_endpoint(value: &str, path: &str) -> Result<String, AppError> {
     }
     let host = host.trim_end_matches('.');
     let forbidden_host = host.eq_ignore_ascii_case("localhost")
-        || host
-            .parse::<IpAddr>()
-            .is_ok_and(|ip| ip.is_loopback() || ip.is_unspecified());
+        || url.host().is_some_and(|host| match host {
+            url::Host::Ipv4(ip) => ip.is_loopback() || ip.is_unspecified(),
+            url::Host::Ipv6(ip) => ip.is_loopback() || ip.is_unspecified(),
+            url::Host::Domain(_) => false,
+        });
     if forbidden_host {
         return Err(AppError::ConfigError(
             "A4N_PUBLIC_APP_URL 不能使用 localhost、loopback 或 unspecified 地址".to_string(),

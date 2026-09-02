@@ -121,14 +121,18 @@ impl OrchestratorContext {
         ),
         AppError,
     > {
-        let available_chapters = self.character_sync_chapters(input.project_id).await?;
+        let (available_chapters, existing_profiles) = futures::join!(
+            self.character_sync_chapters(input.project_id),
+            self.object_profiles_by_project(input.project_id),
+        );
+        let available_chapters = available_chapters?;
         let chapters = select_object_discovery_chapters(
             available_chapters,
             input.project_id,
             input.chapter_number,
         )
         .map_err(AppError::InvalidArgument)?;
-        let existing_profiles = self.object_profiles_by_project(input.project_id).await?;
+        let existing_profiles = existing_profiles?;
         let mut text_anchors = Vec::new();
         let chapter_ids = chapters
             .iter()

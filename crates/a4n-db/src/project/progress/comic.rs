@@ -16,17 +16,30 @@ pub(super) async fn comic_project_progress_by_project(
     if project_ids.is_empty() {
         return Ok(HashMap::new());
     }
-    let rows = chapter_manga_prompt::Entity::find()
-        .select_only()
-        .column(chapter_manga_prompt::Column::Id)
-        .column(chapter_manga_prompt::Column::ProjectId)
-        .column(chapter_manga_prompt::Column::Status)
-        .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
-        .into_tuple::<(i64, i64, String)>()
-        .all(db)
-        .await
-        .map_err(|error| ProjectProgressReadError::database("查询漫画页面提示词失败", error))?;
+    let (rows, pipeline) = futures::join!(
+        async {
+            chapter_manga_prompt::Entity::find()
+                .select_only()
+                .column(chapter_manga_prompt::Column::Id)
+                .column(chapter_manga_prompt::Column::ProjectId)
+                .column(chapter_manga_prompt::Column::Status)
+                .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
+                .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
+                .into_tuple::<(i64, i64, String)>()
+                .all(db)
+                .await
+                .map_err(|error| {
+                    ProjectProgressReadError::database("查询漫画页面提示词失败", error)
+                })
+        },
+        latest_pipeline_states_by_project(
+            db,
+            project_ids,
+            MANGA_PIPELINE_WORKFLOW_KIND,
+            "查询漫画最近流水线失败",
+        ),
+    );
+    let rows = rows?;
     let mut counts_by_project: HashMap<i64, ProgressCounts> = HashMap::new();
     for (id, project_id, status) in rows {
         counts_by_project.entry(project_id).or_default().add(
@@ -35,13 +48,7 @@ pub(super) async fn comic_project_progress_by_project(
             &status,
         )?;
     }
-    let mut pipeline_by_project = latest_pipeline_states_by_project(
-        db,
-        project_ids,
-        MANGA_PIPELINE_WORKFLOW_KIND,
-        "查询漫画最近流水线失败",
-    )
-    .await?;
+    let mut pipeline_by_project = pipeline?;
     let mut progress = HashMap::with_capacity(project_ids.len());
     for project_id in project_ids {
         progress.insert(

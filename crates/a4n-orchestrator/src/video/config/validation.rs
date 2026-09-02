@@ -178,7 +178,10 @@ fn validate_video_duration_capability_values(
             let Some(first) = supported.first().copied() else {
                 return Err("固定时间档位模式必须填写 supported_durations_json".to_string());
             };
-            let last = supported.last().copied().unwrap_or(first);
+            let last = supported
+                .last()
+                .copied()
+                .expect("fixed duration list is non-empty");
             if !supported.contains(&default_duration_secs) {
                 return Err(format!(
                     "视频配置 default_duration_secs={default_duration_secs} 必须包含在 supported_durations_json 中"

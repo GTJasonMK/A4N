@@ -45,21 +45,21 @@ pub(in crate::project_dependency_graph) async fn manga_image_detail_records<C>(
 where
     C: ConnectionTrait,
 {
-    let prompts = chapter_manga_prompt::Entity::find()
-        .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
-        .order_by_asc(chapter_manga_prompt::Column::ChapterId)
-        .order_by_asc(chapter_manga_prompt::Column::PageNumber)
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
-    let images = generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(generated_image::Column::ImageType.eq("manga_page"))
-        .order_by_asc(generated_image::Column::Id)
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
+    let (prompts_result, images_result) = futures::join!(
+        chapter_manga_prompt::Entity::find()
+            .filter(chapter_manga_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(chapter_manga_prompt::Column::PromptType.eq(MANGA_PAGE_PROMPT_TYPE))
+            .order_by_asc(chapter_manga_prompt::Column::ChapterId)
+            .order_by_asc(chapter_manga_prompt::Column::PageNumber)
+            .all(db),
+        generated_image::Entity::find()
+            .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(generated_image::Column::ImageType.eq("manga_page"))
+            .order_by_asc(generated_image::Column::Id)
+            .all(db),
+    );
+    let prompts = prompts_result.map_err(AppError::Database)?;
+    let images = images_result.map_err(AppError::Database)?;
     let image_by_id = images
         .iter()
         .map(|image| (image.id, image))

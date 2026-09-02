@@ -13,7 +13,7 @@ export const FormField: React.FC<FormFieldProps> = ({
   required,
   children,
 }) => (
-  <label className="flex flex-col gap-1.5">
+  <label className="flex min-w-0 flex-col gap-1.5">
     <span className="text-xs font-semibold text-book-text-sub flex items-center gap-1">
       {label}
       {required && <span className="text-error">*</span>}

@@ -7,6 +7,8 @@ use crate::canvas::CanvasNodeRunHandle;
 pub struct CanvasImageNodeInput {
     pub prompt: String,
     pub config_id: Option<i64>,
+    pub width: i32,
+    pub height: i32,
     pub canvas_text_asset_id: Option<i64>,
     pub source_node_ids: Vec<i64>,
 }

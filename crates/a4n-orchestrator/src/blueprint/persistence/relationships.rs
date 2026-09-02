@@ -27,7 +27,7 @@ mod tests {
     fn relationship_draft_preserves_all_blueprint_fields() {
         let evolution = json!([{"phase": "对立"}, {"phase": "合作"}]);
         let drafts = blueprint_relationship_drafts(&[ParsedBlueprintRelationship {
-            relationship_type: "rivalry".to_string(),
+            relationship_type: "rival".to_string(),
             character_a: "林舟".to_string(),
             character_b: "沈雾".to_string(),
             description: "由竞争转为共谋".to_string(),
@@ -36,7 +36,7 @@ mod tests {
         }]);
 
         let draft = &drafts[0];
-        assert_eq!(draft.relationship_type, "rivalry");
+        assert_eq!(draft.relationship_type, "rival");
         assert_eq!(draft.character_a, "林舟");
         assert_eq!(draft.character_b, "沈雾");
         assert_eq!(draft.description.as_deref(), Some("由竞争转为共谋"));

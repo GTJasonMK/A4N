@@ -16,6 +16,10 @@ pub enum UnifiedResumeDispatch {
     ChapterAnalysis,
     /// 章节正文保存后的派生资料同步续跑。
     ChapterContentSync { chapter_id: i64 },
+    /// 蓝图生成任务：通过 generation task 重新挂载已有阶段 checkpoint。
+    BlueprintGeneration,
+    /// 蓝图优化任务：通过 generation task 重新挂载已有 LLM checkpoint。
+    BlueprintRefinement,
 }
 
 /// 工作流终态结果（纯规则）。
@@ -158,6 +162,14 @@ pub fn resolve_unified_resume_dispatch(
         "chapter_content_sync" => Ok(UnifiedResumeDispatch::ChapterContentSync {
             chapter_id: chapter_scope_target_id(scope_table, scope_id)?,
         }),
+        "blueprint_generation" => {
+            project_scope_target_id(scope_table, scope_id)?;
+            Ok(UnifiedResumeDispatch::BlueprintGeneration)
+        }
+        "blueprint_refine" => {
+            blueprint_scope_target_id(scope_table, scope_id)?;
+            Ok(UnifiedResumeDispatch::BlueprintRefinement)
+        }
         "manga_pipeline" => Err("漫画流水线请在漫画章节页使用“续传流水线”入口恢复".to_string()),
         other => Err(format!("工作流类型 {other} 暂未接入统一恢复入口")),
     }
@@ -193,6 +205,24 @@ fn chapter_scope_target_id(
     scope_id
         .filter(|id| *id > 0 && scope_table == Some("chapter"))
         .ok_or_else(|| "章节资料同步工作流缺少 chapter 目标".to_string())
+}
+
+fn project_scope_target_id(
+    scope_table: Option<&str>,
+    scope_id: Option<i64>,
+) -> Result<i64, String> {
+    scope_id
+        .filter(|id| *id > 0 && scope_table == Some("project"))
+        .ok_or_else(|| "蓝图生成工作流缺少 project 目标".to_string())
+}
+
+fn blueprint_scope_target_id(
+    scope_table: Option<&str>,
+    scope_id: Option<i64>,
+) -> Result<i64, String> {
+    scope_id
+        .filter(|id| *id > 0 && scope_table == Some("novel_blueprint"))
+        .ok_or_else(|| "蓝图优化工作流缺少 novel_blueprint 目标".to_string())
 }
 
 #[cfg(test)]
@@ -327,6 +357,30 @@ mod tests {
             .unwrap(),
             UnifiedResumeDispatch::ChapterContentSync { chapter_id: 7 }
         );
+        assert_eq!(
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "blueprint_generation",
+                Some("project"),
+                Some(9),
+            )
+            .unwrap(),
+            UnifiedResumeDispatch::BlueprintGeneration
+        );
+        assert_eq!(
+            plan_unified_resume(
+                WORKFLOW_STATUS_CANCELLED,
+                true,
+                None,
+                "blueprint_refine",
+                Some("novel_blueprint"),
+                Some(11),
+            )
+            .unwrap(),
+            UnifiedResumeDispatch::BlueprintRefinement
+        );
         assert!(
             plan_unified_resume(
                 WORKFLOW_STATUS_FAILED,
@@ -374,6 +428,18 @@ mod tests {
             )
             .unwrap_err(),
             "章节资料同步工作流缺少 chapter 目标"
+        );
+        assert_eq!(
+            plan_unified_resume(
+                WORKFLOW_STATUS_FAILED,
+                true,
+                None,
+                "blueprint_generation",
+                Some("novel_blueprint"),
+                Some(1),
+            )
+            .unwrap_err(),
+            "蓝图生成工作流缺少 project 目标"
         );
     }
 

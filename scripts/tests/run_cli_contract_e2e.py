@@ -718,8 +718,7 @@ def runtime_snapshot(base_url: str) -> dict[str, Any]:
         "api_key_encrypted": key,
         "model": "a4n-virtual-image",
         "max_concurrent": 4,
-        "default_width": 1024,
-        "default_height": 1024,
+        "supported_sizes": [{"width": 1024, "height": 1024}],
         "is_default": True,
     }
     video = {

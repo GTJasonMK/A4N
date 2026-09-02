@@ -19,8 +19,12 @@ impl OrchestratorContext {
                 "Galgame persist_script 至少需要一个场".to_string(),
             ));
         }
-        let context = self.load_galgame_context(project_id).await?;
-        let validation_scope = GalgamePersistValidationScope::load(self, &plan).await?;
+        let (context_result, validation_scope_result) = futures::join!(
+            self.load_galgame_context(project_id),
+            GalgamePersistValidationScope::load(self, &plan),
+        );
+        let context = context_result?;
+        let validation_scope = validation_scope_result?;
         for scene in &plan.scenes {
             validate_positive_id(i64::from(scene.scene_index), "scene_index")?;
             validate_positive_id(

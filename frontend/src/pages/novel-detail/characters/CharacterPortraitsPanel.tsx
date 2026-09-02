@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ImageSizeSelect, useImageGenerationSize } from "../../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../../api";
+import type { ImageSize } from "../../../api/image";
 import { listProfiles, type CharacterProfile } from "../../../api/character";
 import {
   listPortraitsByProject,
@@ -14,6 +16,8 @@ import {
 import type { ModelRequestPreview } from "../../../api/requestPreview";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../../components/feedback/Toast";
+import { BookButton } from "../../../components/ui/BookButton";
+import { Modal } from "../../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../../hooks/runGenerationProgressTask";
 import { useProgressTask } from "../../../hooks/useProgressTask";
 import { isCancelledOperation } from "../../../utils/cancellation";
@@ -26,12 +30,21 @@ import { PortraitToolbar } from "./PortraitToolbar";
 import { SinglePortraitDialog } from "./SinglePortraitDialog";
 import { UploadPortraitDialog } from "./UploadPortraitDialog";
 
+type PortraitGenerationAction = "generate" | "preview";
+
 export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   projectId,
 }) => {
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const [portraits, setPortraits] = useState<Portrait[]>([]);
   const [profiles, setProfiles] = useState<CharacterProfile[]>([]);
   const [selectedProfileId, setSelectedProfileId] = useState<number | null>(null);
@@ -43,6 +56,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
   const [showAge, setShowAge] = useState<Portrait | null>(null);
   const [showPrompt, setShowPrompt] = useState<Portrait | null>(null);
   const [actionPortrait, setActionPortrait] = useState<Portrait | null>(null);
+  const [generationSizeAction, setGenerationSizeAction] =
+    useState<PortraitGenerationAction | null>(null);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
@@ -124,6 +139,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     setShowAge(null);
     setShowPrompt(null);
     setActionPortrait(null);
+    setGenerationSizeAction(null);
     setSelectedProfileId(null);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
@@ -156,7 +172,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     );
   }, [portraits]);
 
-  const handleGenerateMissing = async () => {
+  const handleGenerateMissing = async (requestSize: ImageSize) => {
     if (generatingRef.current || portraitActionBusyRef.current != null) return;
     const requestProjectId = projectId;
     generatingRef.current = true;
@@ -164,7 +180,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     try {
       const handle = await startPortraitGeneration({
         project_id: requestProjectId,
-        operation: { kind: "generate_missing" },
+        operation: {
+          kind: "generate_missing",
+          width: requestSize.width,
+          height: requestSize.height,
+        },
       });
       const createdCount = await runGenerationProgressTaskThen(
         runProgressTask,
@@ -199,7 +219,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     }
   };
 
-  const handlePreviewGenerateMissing = async () => {
+  const handlePreviewGenerateMissing = async (requestSize: ImageSize) => {
     if (requestPreviewBusyRef.current) return;
     const requestProjectId = projectId;
     const requestSeq = requestPreviewSeqRef.current + 1;
@@ -211,6 +231,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     try {
       const preview = await previewGenerateMissingPortraitsRequest({
         project_id: requestProjectId,
+        width: requestSize.width,
+        height: requestSize.height,
       });
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
@@ -230,7 +252,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     }
   };
 
-  const handleRegenerate = async (portrait: Portrait) => {
+  const handleRegenerate = async (portrait: Portrait, requestSize: ImageSize) => {
     const requestProjectId = projectId;
     if (portrait.project_id !== requestProjectId) return;
     if (!beginPortraitAction(portrait.id)) return;
@@ -241,6 +263,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
           kind: "regenerate",
           portrait_id: portrait.id,
           reference_image_ids: [],
+          width: requestSize.width,
+          height: requestSize.height,
         },
       });
       await runGenerationProgressTaskThen(
@@ -272,7 +296,7 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     }
   };
 
-  const handlePreviewRegenerate = async (portrait: Portrait) => {
+  const handlePreviewRegenerate = async (portrait: Portrait, requestSize: ImageSize) => {
     if (requestPreviewBusyRef.current) return;
     const requestProjectId = projectId;
     if (portrait.project_id !== requestProjectId) return;
@@ -286,6 +310,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
       const preview = await previewRegeneratePortraitRequest({
         portrait_id: portrait.id,
         reference_image_ids: [],
+        width: requestSize.width,
+        height: requestSize.height,
       });
       if (!isCurrentProject(requestProjectId) || requestPreviewSeqRef.current !== requestSeq) {
         return;
@@ -329,6 +355,22 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
     if (busyId == null) setActionPortrait(null);
   };
 
+  const openGenerationSizeDialog = (action: PortraitGenerationAction) => {
+    if (action === "generate" && (generatingRef.current || portraitActionBusyRef.current != null)) return;
+    if (action === "preview" && requestPreviewBusyRef.current) return;
+    setGenerationSizeAction(action);
+  };
+
+  const handleGenerationSizeConfirm = (size: ImageSize) => {
+    const action = generationSizeAction;
+    setGenerationSizeAction(null);
+    if (action === "generate") {
+      void handleGenerateMissing(size);
+    } else if (action === "preview") {
+      void handlePreviewGenerateMissing(size);
+    }
+  };
+
   const displayPortraits = loadedProjectId === projectId ? portraits : [];
   const displayProfiles = loadedProjectId === projectId ? profiles : [];
   const displayLoading = loading || loadedProjectId !== projectId;
@@ -360,8 +402,8 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         onProfileChange={setSelectedProfileId}
         onOpenSingle={() => setShowSingle(true)}
         onOpenUpload={() => setShowUpload(true)}
-        onPreviewGenerateMissing={handlePreviewGenerateMissing}
-        onGenerateMissing={handleGenerateMissing}
+        onPreviewGenerateMissing={() => openGenerationSizeDialog("preview")}
+        onGenerateMissing={() => openGenerationSizeDialog("generate")}
       />
 
       <PortraitGalleryGrid
@@ -422,6 +464,11 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         <PortraitActionDialog
           portrait={actionPortrait}
           busyId={busyId}
+          imageSize={imageSize}
+          imageSizes={imageSizes}
+          imageSizeLoading={imageSizeLoading}
+          imageSizeError={imageSizeError}
+          onImageSizeChange={setImageSize}
           onClose={handleCloseActions}
           onPreviewRegenerate={handlePreviewRegenerate}
           onRegenerate={handleRegenerate}
@@ -434,6 +481,19 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
             setActionPortrait(null);
             setShowPrompt(portrait);
           }}
+        />
+      ) : null}
+
+      {generationSizeAction ? (
+        <PortraitGenerationSizeDialog
+          action={generationSizeAction}
+          imageSize={imageSize}
+          imageSizes={imageSizes}
+          imageSizeLoading={imageSizeLoading}
+          imageSizeError={imageSizeError}
+          onImageSizeChange={setImageSize}
+          onClose={() => setGenerationSizeAction(null)}
+          onConfirm={handleGenerationSizeConfirm}
         />
       ) : null}
 
@@ -450,5 +510,66 @@ export const CharacterPortraitsPanel: React.FC<{ projectId: number }> = ({
         }}
       />
     </div>
+  );
+};
+
+interface PortraitGenerationSizeDialogProps {
+  action: PortraitGenerationAction;
+  imageSize: ImageSize | null;
+  imageSizes: readonly ImageSize[];
+  imageSizeLoading: boolean;
+  imageSizeError: Error | null;
+  onImageSizeChange: (size: ImageSize) => void;
+  onClose: () => void;
+  onConfirm: (size: ImageSize) => void;
+}
+
+const PortraitGenerationSizeDialog: React.FC<PortraitGenerationSizeDialogProps> = ({
+  action,
+  imageSize,
+  imageSizes,
+  imageSizeLoading,
+  imageSizeError,
+  onImageSizeChange,
+  onClose,
+  onConfirm,
+}) => {
+  const { t } = useI18n();
+  const canConfirm = imageSize != null && !imageSizeLoading && imageSizeError == null;
+  return (
+    <Modal
+      isOpen
+      onClose={onClose}
+      title={action === "preview" ? t("characterDetail.portrait.previewMissing") : t("characterDetail.portrait.batchMissing")}
+      subtitle={t("settingsForm.selectImageSize")}
+      maxWidthClassName="max-w-sm"
+      bodyClassName="px-4 py-4"
+      footer={
+        <div className="flex w-full justify-end gap-2">
+          <BookButton variant="secondary" size="sm" onClick={onClose}>
+            {t("common.cancel")}
+          </BookButton>
+          <BookButton
+            variant="primary"
+            size="sm"
+            disabled={!canConfirm}
+            onClick={() => {
+              if (imageSize) onConfirm(imageSize);
+            }}
+          >
+            {action === "preview" ? t("characterDetail.portrait.viewRequest") : t("characterDetail.portrait.batchMissing")}
+          </BookButton>
+        </div>
+      }
+    >
+      <ImageSizeSelect
+        label={t("settingsForm.selectImageSize")}
+        value={imageSize}
+        sizes={imageSizes}
+        loading={imageSizeLoading}
+        error={imageSizeError}
+        onChange={onImageSizeChange}
+      />
+    </Modal>
   );
 };

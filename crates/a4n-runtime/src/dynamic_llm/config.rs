@@ -6,6 +6,7 @@ use a4n_core::models::ai::llm_config;
 #[cfg(feature = "embedded-llm-provider")]
 use a4n_llm::provider::LlmProvider;
 use a4n_llm::provider::{ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities};
+use futures::stream;
 
 use super::contracts::{LlmProbeOutput, ResolvedLlmModel};
 
@@ -78,11 +79,9 @@ pub(super) async fn chat_via_sidecar(
     let stream_task = client.stream(sidecar_request, event_tx);
     tokio::pin!(stream_task);
 
-    let mut content = String::new();
-    let mut usage = None;
-    let mut finish_reason = None;
     let mut transport_complete = false;
     let mut completed = false;
+    let mut chunks = Vec::new();
     loop {
         tokio::select! {
             stream_result = &mut stream_task, if !transport_complete => {
@@ -93,15 +92,7 @@ pub(super) async fn chat_via_sidecar(
                 let Some(event) = event else { break; };
                 match super::streams::parse_sidecar_llm_event(event)? {
                     super::streams::SidecarLlmEvent::Chunk(chunk) => {
-                        if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
-                            content.push_str(delta);
-                        }
-                        if chunk.usage.is_some() {
-                            usage = chunk.usage;
-                        }
-                        if let Some(reason) = chunk.finish_reason {
-                            finish_reason = Some(reason);
-                        }
+                        chunks.push(chunk);
                     }
                     super::streams::SidecarLlmEvent::Completed => {
                         completed = true;
@@ -116,16 +107,7 @@ pub(super) async fn chat_via_sidecar(
             "LLM sidecar stream 在 Completed 前关闭".to_string(),
         ));
     }
-    if finish_reason.is_none() {
-        return Err(AppError::LlmError(
-            "LLM sidecar stream 结束但缺少 finish_reason".to_string(),
-        ));
-    }
-    Ok(ChatResponse {
-        message: a4n_llm::provider::ChatMessage::assistant(content),
-        usage,
-        finish_reason,
-    })
+    a4n_llm::provider::collect_chat_chunks(stream::iter(chunks.into_iter().map(Ok))).await
 }
 
 pub(super) fn sidecar_chat_request(

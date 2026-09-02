@@ -15,6 +15,22 @@ pub(crate) async fn consume_generation_events(
     response: Response,
     mut emit: impl FnMut(&Value) -> Result<()>,
 ) -> Result<StreamOutcome> {
+    consume_events(response, &mut emit, true, "generation").await
+}
+
+pub(crate) async fn consume_agent_events(
+    response: Response,
+    mut emit: impl FnMut(&Value) -> Result<()>,
+) -> Result<StreamOutcome> {
+    consume_events(response, &mut emit, false, "Agent").await
+}
+
+async fn consume_events(
+    response: Response,
+    emit: &mut impl FnMut(&Value) -> Result<()>,
+    stop_at_terminal: bool,
+    stream_label: &str,
+) -> Result<StreamOutcome> {
     let mut stream = response.bytes_stream();
     let mut buffer = Vec::new();
     let mut last_sequence = None;
@@ -40,10 +56,10 @@ pub(crate) async fn consume_generation_events(
                 event
                     .get("sequence")
                     .and_then(Value::as_u64)
-                    .ok_or_else(|| anyhow!("generation SSE event 缺少有效 sequence"))?,
+                    .ok_or_else(|| anyhow!("{stream_label} SSE event 缺少有效 sequence"))?,
             );
             emit(&event)?;
-            if is_terminal(&event) {
+            if stop_at_terminal && is_terminal(&event) {
                 return Ok(StreamOutcome::Terminal(event));
             }
         }

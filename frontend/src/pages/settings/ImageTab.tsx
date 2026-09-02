@@ -38,7 +38,7 @@ import { useI18n } from "../../i18n";
  * 图片生成配置 Tab
  *
  * 注意：A4N 后端 image_gen_config 只存 name / backend / base_url / api_key_encrypted /
- * model / max_concurrent / default_width / default_height —— 没有 sampling steps 等推理参数。
+ * model / max_concurrent / supported_sizes —— 没有 sampling steps 等推理参数。
  * 调用方在每次 image_scene / image_page 生成时按需传递。
  */
 
@@ -105,13 +105,13 @@ export const ImageTab: React.FC<ImageTabProps> = ({ scope = "local" }) => {
       )}
       onCreate={async (f) => {
         await (serverScope ? addServerImageConfig : addImageConfig)(
-          toCreateImageInput(f, t),
+          toCreateImageInput(f),
         );
       }}
       onUpdate={async (id, f) => {
         await (serverScope ? updateServerImageConfig : updateImageConfig)(
           id,
-          toUpdateImageInput(f, t),
+          toUpdateImageInput(f),
         );
       }}
       onDelete={serverScope ? removeServerImageConfig : removeImageConfig}

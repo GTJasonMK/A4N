@@ -69,17 +69,46 @@ where
     if project_ids.is_empty() {
         return Ok(VideoProfileMaterialReadModel::default());
     }
-    let scenes = scene_profile::Entity::find()
-        .select_only()
-        .column(scene_profile::Column::Id)
-        .column(scene_profile::Column::Name)
-        .column(scene_profile::Column::AliasesJson)
-        .column(scene_profile::Column::FirstSeenChapter)
-        .column(scene_profile::Column::LastSeenChapter)
-        .filter(scene_profile::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .into_tuple::<(i64, String, serde_json::Value, i32, i32)>()
-        .all(db)
-        .await?
+    let (scenes_result, objects_result, primary_materials_result, material_images_result) = futures::join!(
+        scene_profile::Entity::find()
+            .select_only()
+            .column(scene_profile::Column::Id)
+            .column(scene_profile::Column::Name)
+            .column(scene_profile::Column::AliasesJson)
+            .column(scene_profile::Column::FirstSeenChapter)
+            .column(scene_profile::Column::LastSeenChapter)
+            .filter(scene_profile::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .into_tuple::<(i64, String, serde_json::Value, i32, i32)>()
+            .all(db),
+        object_profile::Entity::find()
+            .select_only()
+            .column(object_profile::Column::Id)
+            .column(object_profile::Column::Name)
+            .column(object_profile::Column::AliasesJson)
+            .column(object_profile::Column::FirstSeenChapter)
+            .column(object_profile::Column::LastSeenChapter)
+            .filter(object_profile::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .into_tuple::<(i64, String, serde_json::Value, i32, i32)>()
+            .all(db),
+        profile_primary_material::Entity::find()
+            .select_only()
+            .column(profile_primary_material::Column::ProfileKind)
+            .column(profile_primary_material::Column::ProfileId)
+            .column(profile_primary_material::Column::PrimaryImageId)
+            .filter(profile_primary_material::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .into_tuple::<(String, i64, i64)>()
+            .all(db),
+        generated_image::Entity::find()
+            .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(
+                generated_image::Column::ImageType
+                    .is_in([IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_OBJECT_MATERIAL]),
+            )
+            .order_by_desc(generated_image::Column::CreatedAt)
+            .order_by_desc(generated_image::Column::Id)
+            .all(db),
+    );
+    let scenes = scenes_result?
         .into_iter()
         .map(
             |(id, name, aliases_json, first_seen_chapter, last_seen_chapter)| {
@@ -93,17 +122,7 @@ where
             },
         )
         .collect();
-    let objects = object_profile::Entity::find()
-        .select_only()
-        .column(object_profile::Column::Id)
-        .column(object_profile::Column::Name)
-        .column(object_profile::Column::AliasesJson)
-        .column(object_profile::Column::FirstSeenChapter)
-        .column(object_profile::Column::LastSeenChapter)
-        .filter(object_profile::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .into_tuple::<(i64, String, serde_json::Value, i32, i32)>()
-        .all(db)
-        .await?
+    let objects = objects_result?
         .into_iter()
         .map(
             |(id, name, aliases_json, first_seen_chapter, last_seen_chapter)| {
@@ -117,15 +136,7 @@ where
             },
         )
         .collect();
-    let primary_materials = profile_primary_material::Entity::find()
-        .select_only()
-        .column(profile_primary_material::Column::ProfileKind)
-        .column(profile_primary_material::Column::ProfileId)
-        .column(profile_primary_material::Column::PrimaryImageId)
-        .filter(profile_primary_material::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .into_tuple::<(String, i64, i64)>()
-        .all(db)
-        .await?
+    let primary_materials = primary_materials_result?
         .into_iter()
         .map(
             |(profile_kind, profile_id, primary_image_id)| VideoProfilePrimaryMaterialRow {
@@ -135,16 +146,7 @@ where
             },
         )
         .collect();
-    let material_images = generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(
-            generated_image::Column::ImageType
-                .is_in([IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_OBJECT_MATERIAL]),
-        )
-        .order_by_desc(generated_image::Column::CreatedAt)
-        .order_by_desc(generated_image::Column::Id)
-        .all(db)
-        .await?;
+    let material_images = material_images_result?;
 
     Ok(VideoProfileMaterialReadModel {
         scenes,
@@ -161,41 +163,43 @@ pub async fn video_project_context_read_model<C>(
 where
     C: ConnectionTrait,
 {
-    let blueprint = novel_blueprint::Entity::find()
-        .filter(novel_blueprint::Column::ProjectId.eq(project_id))
-        .one(db)
-        .await?;
-    let blueprint_characters = blueprint_character::Entity::find()
-        .select_only()
-        .column(blueprint_character::Column::Name)
-        .column(blueprint_character::Column::CharacterType)
-        .column(blueprint_character::Column::Gender)
-        .column(blueprint_character::Column::Age)
-        .column(blueprint_character::Column::Appearance)
-        .column(blueprint_character::Column::Personality)
-        .column(blueprint_character::Column::Background)
-        .column(blueprint_character::Column::Motivation)
-        .column(blueprint_character::Column::RelationshipToProtagonist)
-        .filter(blueprint_character::Column::ProjectId.eq(project_id))
-        .order_by_asc(blueprint_character::Column::Id)
-        .into_model::<VideoPromptBlueprintCharacterRecord>()
-        .all(db)
-        .await?;
-    let protagonist_profiles = protagonist_profile::Entity::find()
-        .select_only()
-        .column(protagonist_profile::Column::Name)
-        .column(protagonist_profile::Column::Gender)
-        .column(protagonist_profile::Column::Age)
-        .column(protagonist_profile::Column::BaseAttributes)
-        .column(protagonist_profile::Column::CurrentState)
-        .column(protagonist_profile::Column::Appearance)
-        .column(protagonist_profile::Column::Background)
-        .column(protagonist_profile::Column::Personality)
-        .filter(protagonist_profile::Column::ProjectId.eq(project_id))
-        .order_by_asc(protagonist_profile::Column::Id)
-        .into_model::<VideoPromptProtagonistProfileRecord>()
-        .all(db)
-        .await?;
+    let (blueprint_result, blueprint_characters_result, protagonist_profiles_result) = futures::join!(
+        novel_blueprint::Entity::find()
+            .filter(novel_blueprint::Column::ProjectId.eq(project_id))
+            .one(db),
+        blueprint_character::Entity::find()
+            .select_only()
+            .column(blueprint_character::Column::Name)
+            .column(blueprint_character::Column::CharacterType)
+            .column(blueprint_character::Column::Gender)
+            .column(blueprint_character::Column::Age)
+            .column(blueprint_character::Column::Appearance)
+            .column(blueprint_character::Column::Personality)
+            .column(blueprint_character::Column::Background)
+            .column(blueprint_character::Column::Motivation)
+            .column(blueprint_character::Column::RelationshipToProtagonist)
+            .filter(blueprint_character::Column::ProjectId.eq(project_id))
+            .order_by_asc(blueprint_character::Column::Id)
+            .into_model::<VideoPromptBlueprintCharacterRecord>()
+            .all(db),
+        protagonist_profile::Entity::find()
+            .select_only()
+            .column(protagonist_profile::Column::Name)
+            .column(protagonist_profile::Column::Gender)
+            .column(protagonist_profile::Column::Age)
+            .column(protagonist_profile::Column::BaseAttributes)
+            .column(protagonist_profile::Column::CurrentState)
+            .column(protagonist_profile::Column::Appearance)
+            .column(protagonist_profile::Column::Background)
+            .column(protagonist_profile::Column::Personality)
+            .filter(protagonist_profile::Column::ProjectId.eq(project_id))
+            .order_by_asc(protagonist_profile::Column::Id)
+            .into_model::<VideoPromptProtagonistProfileRecord>()
+            .all(db),
+    );
+    let blueprint = blueprint_result?;
+    let blueprint_characters = blueprint_characters_result?;
+    let protagonist_profiles = protagonist_profiles_result?;
 
     Ok(VideoProjectContextReadModel {
         blueprint,

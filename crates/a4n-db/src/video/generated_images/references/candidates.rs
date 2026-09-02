@@ -16,8 +16,12 @@ pub async fn ensure_image_chapter_belongs_to_project_record<C>(
 where
     C: ConnectionTrait,
 {
-    let project = video_project_record(db, project_id).await?;
-    let chapter_project_id = video_chapter_project_id_record(db, chapter_id).await?;
+    let (project_result, chapter_project_result) = futures::join!(
+        video_project_record(db, project_id),
+        video_chapter_project_id_record(db, chapter_id),
+    );
+    let project = project_result?;
+    let chapter_project_id = chapter_project_result?;
     ensure_image_chapter_project_match(&project, chapter_project_id, project_id, chapter_id)
 }
 
@@ -37,7 +41,7 @@ where
     normalized_project_ids.sort_unstable();
     normalized_project_ids.dedup();
 
-    let projects = novel_project::Entity::find()
+    let projects_query = novel_project::Entity::find()
         .select_only()
         .column(novel_project::Column::Id)
         .column(novel_project::Column::ProjectKind)
@@ -45,8 +49,10 @@ where
         .column(novel_project::Column::SourceSnapshotId)
         .filter(novel_project::Column::Id.is_in(normalized_project_ids.iter().copied()))
         .into_model::<VideoProjectIdentity>()
-        .all(db)
-        .await?;
+        .all(db);
+    let chapter_query = video_chapter_project_id_record(db, chapter_id);
+    let (projects_result, chapter_result) = futures::join!(projects_query, chapter_query);
+    let projects = projects_result?;
     let projects_by_id = projects
         .into_iter()
         .map(|project| (project.id, project))
@@ -57,7 +63,7 @@ where
         }
     }
 
-    let chapter_project_id = video_chapter_project_id_record(db, chapter_id).await?;
+    let chapter_project_id = chapter_result?;
     for project_id in normalized_project_ids {
         let project = projects_by_id
             .get(&project_id)

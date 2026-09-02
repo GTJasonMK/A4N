@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React from "react";
 import { BookInput, BookTextarea } from "../../../components/ui/BookInput";
 import { detectLlmConfigModels } from "../../../api/config";
@@ -60,7 +61,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField label={t("settingsForm.provider")}>
-          <select
+          <ThemedSelect
             value={form.provider}
             onChange={(event) => {
               const provider = event.target.value;
@@ -88,7 +89,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
                 {provider.display_name}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </FormField>
         <FormField label={t("settingsForm.model")} required>
           <ModelDiscoveryField

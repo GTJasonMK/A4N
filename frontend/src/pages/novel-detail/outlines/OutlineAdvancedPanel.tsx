@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Eye } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -1094,7 +1095,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           <h4 className="text-sm font-medium text-book-text-main">{t("outline.advancedPanel.selectedPart")}</h4>
           <p className="mt-0.5 text-small text-book-text-muted">{t("outline.advancedPanel.selectedPartHint")}</p>
         </div>
-        <select
+        <ThemedSelect
           value={selectedPartId}
           onChange={(event) => setSelectedPartId(event.target.value ? Number(event.target.value) : "")}
           disabled={controlsDisabled}
@@ -1106,7 +1107,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
               {partOptionLabel(part, locale, t)}
             </option>
           ))}
-        </select>
+        </ThemedSelect>
         <div>
           <AdvancedActionRow
             title={t("outline.advancedPanel.generateSelectedPart")}

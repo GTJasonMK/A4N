@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import { useEffect, useState } from "react";
 import { Boxes,
   Camera,
@@ -5,6 +6,8 @@ import { Boxes,
   Clipboard,
   Eye } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
+import type { ImageSize } from "../../../api/image";
 import type { ObjectProfile } from "../../../api/objectProfiles";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -24,11 +27,16 @@ interface ImageGenerationDialogProps {
   objectImageStyle: string;
   objectImageBusy: boolean;
   objectPromptCopying: boolean;
+  imageSize: ImageSize | null;
+  imageSizes: readonly ImageSize[];
+  imageSizeLoading: boolean;
+  imageSizeError: Error | null;
   chapterGenerateLocked: boolean;
   onClose: () => void;
   onGenPromptChange: (value: string) => void;
   onSelectedObjectProfileIdChange: (value: number | null) => void;
   onObjectImageStyleChange: (value: string) => void;
+  onImageSizeChange: (size: ImageSize) => void;
   onCopyObjectImagePrompt: () => void;
   onPreviewGenerate: () => void;
   onGenerate: () => void;
@@ -47,11 +55,16 @@ export function ImageGenerationDialog({
   objectImageStyle,
   objectImageBusy,
   objectPromptCopying,
+  imageSize,
+  imageSizes,
+  imageSizeLoading,
+  imageSizeError,
   chapterGenerateLocked,
   onClose,
   onGenPromptChange,
   onSelectedObjectProfileIdChange,
   onObjectImageStyleChange,
+  onImageSizeChange,
   onCopyObjectImagePrompt,
   onPreviewGenerate,
   onGenerate,
@@ -87,6 +100,15 @@ export function ImageGenerationDialog({
       showCloseButton={!busy}
     >
       <div className="space-y-4">
+        <ImageSizeSelect
+          label={t("settingsForm.selectImageSize")}
+          value={imageSize}
+          sizes={imageSizes}
+          loading={imageSizeLoading}
+          error={imageSizeError}
+          disabled={busy}
+          onChange={onImageSizeChange}
+        />
         <section className="space-y-3 text-xs">
           <label className="flex flex-col gap-1">
             <span className="text-small text-book-text-muted">{t("novel.imageLibrary.prompt")}</span>
@@ -124,7 +146,7 @@ export function ImageGenerationDialog({
               variant="primary"
               size="sm"
               onClick={onGenerate}
-              disabled={busy || chapterGenerateLocked || !promptReady}
+              disabled={busy || chapterGenerateLocked || !promptReady || imageSize == null}
               className="min-w-0 flex-1 !text-xs sm:flex-none"
             >
               {genBusy ? (
@@ -174,7 +196,7 @@ export function ImageGenerationDialog({
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-2">
-                <select
+                <ThemedSelect
                   id="object-image-profile"
                   value={selectedObjectProfileId ?? ""}
                   onChange={(event) => {
@@ -192,7 +214,7 @@ export function ImageGenerationDialog({
                       {profile.name}
                     </option>
                   ))}
-                </select>
+                </ThemedSelect>
                 <StyleTemplatePicker
                   label={t("novel.imageLibrary.style")}
                   value={objectImageStyle}
@@ -227,7 +249,7 @@ export function ImageGenerationDialog({
                   variant="primary"
                   size="sm"
                   onClick={onGenerateObjectImage}
-                  disabled={busy || selectedObjectProfileId == null}
+                  disabled={busy || selectedObjectProfileId == null || imageSize == null}
                   className="min-w-0 flex-1 !text-xs sm:flex-none"
                 >
                   {objectImageBusy ? (

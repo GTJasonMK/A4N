@@ -37,6 +37,10 @@
   successful business calls separately from expected prerequisite/permission rejections and
   fails on missing commands, malformed envelopes, provider failures, or internal errors. The
   Rust suite still verifies destructive gates before network access.
+- `run_all_workflows_e2e.py --fixture-only --execute-writes --allow-destructive` runs only the
+  isolated business fixture and reports required user paths under `fixtures.paths`; it is the
+  primary evidence for successful cross-layer workflows, while the manifest smoke remains the
+  command-entry and error-contract probe.
 - Real `a4n-server` tests against a migrated PostgreSQL test database.
 
 ## End-to-end workflows
@@ -133,7 +137,7 @@ Ran 14 tests - OK
 - `run_cli_contract_e2e.py --ledger cli_contract_core_workflow.json` 通过：13 个核心场景、
   12 个不同 descriptor，真实完成项目创建、LLM 任务、embedding、图片/视频 provider、
   task/workflow watch 和 Markdown 导出。
-- `run_all_workflows_e2e.py` 通过：manifest `385/385` descriptor 已调用，`missing=0`、
+- 历史 `run_all_workflows_e2e.py` 通过：manifest `385/385` descriptor 已调用，`missing=0`、
   `real_failure=0`；本次 `business_success=158`、`destructive_success=9`，另有
   `expected_state_rejection=213` 和 `permission_rejection=5`。后两类保留了当前错误
   合同和退出码，不计入业务成功。全量授权写入必须使用隔离数据库并同时传入
@@ -164,7 +168,7 @@ Coverage gaps:
 ## Coverage accounting
 
 - The Rust subprocess suite covers the public semantic CLI surface with a deterministic mock
-  Server, and its manifest-wide smoke invokes all 385 current descriptors against a real full
+  Server, and its manifest-wide smoke invokes every descriptor reported by the current manifest against a real full
   Server with an administrator session and virtual Provider. The default run reaches the Server
   for non-destructive descriptors and checks the CLI gate for destructive descriptors; use the
   authorized mode only with isolated fixtures. It does not claim that every descriptor has a

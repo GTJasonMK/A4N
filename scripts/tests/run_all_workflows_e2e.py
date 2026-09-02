@@ -85,6 +85,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="在隔离环境中执行 schema-valid write 参数并准备真实业务 fixture",
     )
+    parser.add_argument(
+        "--fixture-only",
+        action="store_true",
+        help="只执行并报告真实业务 fixture；必须同时使用 --execute-writes --allow-destructive",
+    )
     return parser.parse_args()
 
 
@@ -200,6 +205,8 @@ def scalar(name: str, command: str) -> Any:
         return "a4n-e2e-provider-key"
     if key in {"default_width", "default_height"}:
         return 1024
+    if key in {"supported_sizes"}:
+        return [{"width": 1024, "height": 1024}]
     if key in {"default_fps"}:
         return 24
     if key in {"default_duration_secs", "min_duration_secs", "max_duration_secs", "duration_secs"}:
@@ -761,8 +768,7 @@ def fixture_payload(
             base_url=provider_url,
             model="a4n-virtual-image",
             max_concurrent=2,
-            default_width=1024,
-            default_height=1024,
+            supported_sizes=[{"width": 1024, "height": 1024}],
             api_key_encrypted="a4n-e2e-provider-key",
         )
     elif command == "add_video_config" and input_value is not None:
@@ -1310,6 +1316,129 @@ REQUIRED_FIXTURE_PROVIDER_PATHS = frozenset(
 )
 
 
+FIXTURE_PATHS: dict[str, tuple[str, ...]] = {
+    "novel_authoring": (
+        "create_project",
+        "import_project_text_upload",
+        "accept_import_review",
+        "start_inspiration_generation",
+        "start_blueprint_generation",
+        "start_outline_generation",
+        "list_parts",
+        "list_chapter_outlines",
+        "start_chapter_generation",
+        "list_chapters",
+    ),
+    "chapter_analysis_and_visual": (
+        "generate_chapter_analysis",
+        "generate_chapter_visual_plan_draft",
+        "propose_chapter_visual_plan_revision",
+        "apply_chapter_visual_plan_proposal",
+        "confirm_chapter_visual_plan",
+        "get_chapter_visual_plan",
+        "generate_chapter_shooting_script",
+        "get_chapter_shooting_script",
+    ),
+    "profiles_and_materials": (
+        "create_profile",
+        "create_object_profile",
+        "create_scene_profile",
+        "create_foreshadowing",
+        "upload_portrait",
+        "upload_profile_material_image",
+        "sync_character_from_chapters",
+        "sync_all_character_profiles",
+        "sync_scene_profiles",
+    ),
+    "rag": (
+        "rag_prepare_ingest_all",
+        "rag_ingest_all",
+        "rag_prepare_enhanced_search",
+        "rag_enhanced_search",
+    ),
+    "provider_and_image_assets": (
+        "create_llm_config",
+        "create_embedding_config",
+        "add_image_config",
+        "add_video_config",
+        "upload_image",
+    ),
+    "canvas": (
+        "create_freeform_video_project",
+        "save_canvas_graph",
+        "save_canvas_text_asset",
+        "import_canvas_media",
+    ),
+    "derived_project_and_sync": (
+        "create_derived_project",
+        "preview_source_sync",
+        "apply_source_sync_decisions",
+        "duplicate_project",
+    ),
+    "galgame": (
+        "start_galgame_pipeline",
+        "get_galgame_pipeline_status",
+        "get_galgame_script",
+        "plan_galgame_assets",
+        "run_galgame_asset_generation",
+    ),
+    "manga": (
+        "start_manga_pipeline",
+        "get_manga_pipeline_status",
+        "list_manga_page_prompts",
+    ),
+    "video": (
+        "start_video_generation",
+        "list_chapter_video_prompts",
+        "update_chapter_video_segment_recipe",
+        "list_videos_by_chapter",
+        "poll_video_job",
+    ),
+    "collaboration": (
+        "list_all_users",
+        "invite_project_member",
+        "list_project_invites",
+        "list_my_project_invites",
+    ),
+}
+
+
+def fixture_path_coverage(
+    records: list[dict[str, Any]],
+    collaborator_enabled: bool = False,
+) -> dict[str, Any]:
+    """Summarize successful business paths without counting manifest probes."""
+    successful_commands = {
+        str(record.get("command"))
+        for record in records
+        if record.get("ok") is True and record.get("command") != "task watch"
+    }
+    paths: dict[str, dict[str, Any]] = {}
+    for name, required in FIXTURE_PATHS.items():
+        required_set = set(required)
+        missing = sorted(required_set - successful_commands)
+        paths[name] = {
+            "status": "passed" if not missing else "failed",
+            "required_commands": list(required),
+            "observed_commands": sorted(required_set & successful_commands),
+            "missing_commands": missing,
+        }
+    if collaborator_enabled:
+        command = "accept_project_invite"
+        paths["collaboration_accept"] = {
+            "status": "passed" if command in successful_commands else "failed",
+            "required_commands": [command],
+            "observed_commands": [command] if command in successful_commands else [],
+            "missing_commands": [] if command in successful_commands else [command],
+        }
+    return {
+        "successful_commands": sorted(successful_commands),
+        "task_watch_count": sum(record.get("command") == "task watch" for record in records),
+        "paths": paths,
+        "complete": all(path["status"] == "passed" for path in paths.values()),
+    }
+
+
 def missing_fixture_provider_paths(path: Path | None, fixture_start: int) -> list[str]:
     """Return provider routes not exercised by the isolated business fixture."""
     if path is None:
@@ -1398,6 +1527,7 @@ def _watch_seed_task(cli: Cli, task_id: str, records: list[dict[str, Any]], labe
 
 SYNCHRONOUS_TASK_COMMANDS = frozenset(
     {
+        "generate_chapter_analysis",
         "generate_chapter_visual_plan_draft",
         "propose_chapter_visual_plan_revision",
         "sync_character_from_chapters",
@@ -1634,6 +1764,44 @@ def seed_fixtures(
     state["chapter_id"] = chapter_id
     state["chapter_number"] = 1
 
+    task(
+        "generate_chapter_analysis",
+        {
+            "input": {"chapter_id": chapter_id},
+            "taskId": str(uuid.uuid4()),
+        },
+    )
+    call(
+        "rag_prepare_ingest_all",
+        {"projectId": project_id, "input": {"rebuild": False}},
+    )
+    call(
+        "rag_ingest_all",
+        {"projectId": project_id, "input": {"rebuild": False}},
+    )
+    call(
+        "rag_prepare_enhanced_search",
+        {
+            "projectId": project_id,
+            "input": {
+                "query": "车站的钟每天少走七分钟",
+                "top_k": 5,
+                "chapter_number": 1,
+            },
+        },
+    )
+    call(
+        "rag_enhanced_search",
+        {
+            "projectId": project_id,
+            "input": {
+                "query": "车站的钟每天少走七分钟",
+                "top_k": 5,
+                "chapter_number": 1,
+            },
+        },
+    )
+
     visual_draft = task(
         "generate_chapter_visual_plan_draft",
         {
@@ -1731,10 +1899,12 @@ def seed_fixtures(
         {"input": {"project_id": project_id, "source_chapter_id": chapter_id, "visual_plan_id": visual_plan_id}},
     )
 
+    profile_name = f"CLI fixture character {run_id[-8:]}"
+    co_profile_name = f"CLI fixture supporting character {run_id[-8:]}"
     profile_payload = {
         "input": {
             "project_id": project_id,
-            "name": "林岚",
+            "name": profile_name,
             "base_attributes": {
                 "explicit_attributes": {},
                 "implicit_attributes": {},
@@ -1752,7 +1922,7 @@ def seed_fixtures(
         {
             "input": {
                 "project_id": project_id,
-                "name": "周衡",
+                "name": co_profile_name,
                 "base_attributes": {
                     "explicit_attributes": {},
                     "implicit_attributes": {},
@@ -2050,6 +2220,8 @@ def seed_fixtures(
                 "config_id": state.get("image_config_id"),
                 "generation_spec_ids": generation_spec_ids,
                 "limit": 1,
+                "width": 1024,
+                "height": 1024,
             }
         },
     )
@@ -2270,6 +2442,10 @@ def main() -> int:
     args = parse_args()
     if args.timeout <= 0 or args.provider_start_timeout <= 0:
         raise RunnerError("timeout 必须为正数")
+    if args.fixture_only and not args.execute_writes:
+        raise RunnerError("--fixture-only 必须同时使用 --execute-writes")
+    if args.fixture_only and not args.allow_destructive:
+        raise RunnerError("--fixture-only 必须同时使用 --allow-destructive")
     run_id = f"manifest-{os.getpid()}-{uuid.uuid4().hex[:8]}"
     report_path = args.report.expanduser().resolve()
     report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2300,6 +2476,7 @@ def main() -> int:
     results: list[dict[str, Any]] = []
     fixture_state: dict[str, Any] = {}
     fixture_results: list[dict[str, Any]] = []
+    fixture_paths: dict[str, Any] = {}
     fatal_error: str | None = None
     with tempfile.TemporaryDirectory(prefix="a4n-cli-manifest-e2e-") as temporary:
         work_dir = Path(temporary)
@@ -2355,6 +2532,17 @@ def main() -> int:
                         ),
                     ),
                 )
+                fixture_paths = fixture_path_coverage(
+                    fixture_results,
+                    collaborator_enabled=bool(args.collaborator_username and collaborator_password),
+                )
+                if not fixture_paths["complete"]:
+                    incomplete = [
+                        name
+                        for name, path in fixture_paths["paths"].items()
+                        if path["status"] != "passed"
+                    ]
+                    raise RunnerError("fixture 用户路径未完整执行: " + ", ".join(incomplete))
             provider_fixture_boundary = len(_provider_entries(provider_log))
             if args.execute_writes:
                 missing_provider_paths = missing_fixture_provider_paths(
@@ -2366,7 +2554,10 @@ def main() -> int:
                         "fixture 未覆盖 virtual provider 路径: "
                         + ", ".join(missing_provider_paths)
                     )
-            for descriptor in ordered_descriptors(manifest["commands"]):
+            manifest_descriptors = (
+                () if args.fixture_only else ordered_descriptors(manifest["commands"])
+            )
+            for descriptor in manifest_descriptors:
                 command = descriptor["name"]
                 payload = fixture_map.get(command, default_args(descriptor))
                 if not isinstance(payload, dict):
@@ -2429,9 +2620,19 @@ def main() -> int:
                 provider.stop()
 
     manifest_count = len(manifest["commands"]) if manifest else 0
+    manifest_probe_enabled = not args.fixture_only
     invoked_names = {item["command"] for item in results}
-    missing = [descriptor["name"] for descriptor in manifest["commands"] if descriptor["name"] not in invoked_names] if manifest else []
+    missing = (
+        [descriptor["name"] for descriptor in manifest["commands"] if descriptor["name"] not in invoked_names]
+        if manifest and manifest_probe_enabled
+        else []
+    )
     real_failures = [item for item in results if item["classification"] == "real_failure"]
+    manifest_probe_success = (
+        not manifest_probe_enabled
+        or (len(results) == manifest_count and not missing and not real_failures)
+    )
+    fixture_success = not args.execute_writes or fixture_paths.get("complete") is True
     classification_names = (
         "business_success",
         "expected_state_rejection",
@@ -2442,10 +2643,17 @@ def main() -> int:
     report = {
         "schema_version": 1,
         "run_id": run_id,
-        "success": fatal_error is None and len(results) == manifest_count and not missing and not real_failures,
+        "success": fatal_error is None and fixture_success and manifest_probe_success,
+        "mode": "fixture_only" if args.fixture_only else "manifest",
         "manifest_commands": manifest_count,
         "invoked": len(results),
         "missing": missing,
+        "manifest_probe": {
+            "enabled": manifest_probe_enabled,
+            "manifest_commands": manifest_count,
+            "invoked": len(results),
+            "missing": missing,
+        },
         "business_success": sum(item["classification"] == "business_success" for item in results),
         "expected_state_rejection": sum(item["classification"] == "expected_state_rejection" for item in results),
         "permission_rejection": sum(item["classification"] == "permission_rejection" for item in results),
@@ -2466,6 +2674,8 @@ def main() -> int:
         },
         "fixtures": {
             "enabled": args.execute_writes,
+            "only": args.fixture_only,
+            "paths": fixture_paths,
             "state": redact(fixture_state),
             "results": fixture_results,
         },
@@ -2487,6 +2697,8 @@ def main() -> int:
         "destructive_success": report["destructive_success"],
         "real_failure": report["real_failure"],
         "missing": report["missing"],
+        "fixture_only": args.fixture_only,
+        "fixture_paths_complete": fixture_paths.get("complete") if args.execute_writes else None,
         "report": str(report_path),
     }
     print(json.dumps(summary, ensure_ascii=False))

@@ -1,6 +1,6 @@
 //! 批量图片生成项 JSON 形状纯规则。
 
-use a4n_domain::VideoAspectRatio;
+use a4n_domain::{ImageSize, VideoAspectRatio};
 use serde_json::{Value, json};
 
 /// 批量图片项允许的字段白名单。
@@ -66,36 +66,24 @@ pub fn batch_image_aspect_ratio(item: &Value) -> Result<VideoAspectRatio, String
     })
 }
 
-/// 按 aspect_ratio 与默认长边计算宽高。
-pub fn image_dimensions_for_aspect_ratio(
-    default_width: i32,
-    default_height: i32,
+/// 按 aspect_ratio 从配置白名单中选择一个精确匹配的尺寸。
+pub fn image_size_for_aspect_ratio(
+    supported_sizes: &[ImageSize],
     aspect_ratio: VideoAspectRatio,
-) -> Result<(i32, i32), String> {
+) -> Result<ImageSize, String> {
     let (ratio_width, ratio_height) = aspect_ratio.components();
     let ratio_width = i64::from(ratio_width);
     let ratio_height = i64::from(ratio_height);
-    let long_edge = i64::from(default_width.max(default_height).max(1));
-    let (width, height) = if ratio_width >= ratio_height {
-        (
-            long_edge,
-            rounded_ratio_dimension(long_edge, ratio_height, ratio_width),
-        )
-    } else {
-        (
-            rounded_ratio_dimension(long_edge, ratio_width, ratio_height),
-            long_edge,
-        )
-    };
-    let width = i32::try_from(width.max(1))
-        .map_err(|_| format!("图片宽度超过 i32 范围：{}", width.max(1)))?;
-    let height = i32::try_from(height.max(1))
-        .map_err(|_| format!("图片高度超过 i32 范围：{}", height.max(1)))?;
-    Ok((width, height))
-}
-
-fn rounded_ratio_dimension(long_edge: i64, numerator: i64, denominator: i64) -> i64 {
-    ((long_edge * numerator) + (denominator / 2)) / denominator
+    supported_sizes
+        .iter()
+        .copied()
+        .find(|size| i64::from(size.width) * ratio_height == i64::from(size.height) * ratio_width)
+        .ok_or_else(|| {
+            format!(
+                "图片 aspect_ratio {} 没有匹配的 supported_sizes 尺寸",
+                aspect_ratio
+            )
+        })
 }
 
 /// 批量生成使用参考图时，后端必须支持真实参考图输入。
@@ -215,18 +203,25 @@ mod tests {
 
     #[test]
     fn aspect_ratio_dimensions_and_backend() {
+        let sizes = [
+            ImageSize::new(1024, 1024),
+            ImageSize::new(1920, 1080),
+            ImageSize::new(1024, 768),
+            ImageSize::new(1080, 1920),
+        ];
         assert_eq!(
-            image_dimensions_for_aspect_ratio(1024, 1024, VideoAspectRatio::Ratio16x9,).unwrap(),
-            (1024, 576)
+            image_size_for_aspect_ratio(&sizes, VideoAspectRatio::Ratio16x9).unwrap(),
+            ImageSize::new(1920, 1080)
         );
         assert_eq!(
-            image_dimensions_for_aspect_ratio(1024, 1024, VideoAspectRatio::Ratio9x16,).unwrap(),
-            (576, 1024)
+            image_size_for_aspect_ratio(&sizes, VideoAspectRatio::Ratio9x16).unwrap(),
+            ImageSize::new(1080, 1920)
         );
         assert_eq!(
-            image_dimensions_for_aspect_ratio(768, 1024, VideoAspectRatio::Ratio1x1).unwrap(),
-            (1024, 1024)
+            image_size_for_aspect_ratio(&sizes, VideoAspectRatio::Ratio1x1).unwrap(),
+            ImageSize::new(1024, 1024)
         );
+        assert!(image_size_for_aspect_ratio(&sizes, VideoAspectRatio::Ratio21x9).is_err());
 
         assert_eq!(
             batch_image_aspect_ratio(&json!({"aspect_ratio": "16:9"})).unwrap(),

@@ -3,9 +3,9 @@ use a4n_db::workflow::{
     GetWorkflowRunInput, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING,
     latest_workflow_run_recovery_records_by_business_keys, latest_workflow_runs_by_business_keys,
-    upsert_workflow_checkpoint, upsert_workflow_run, workflow_checkpoint_statuses_for_runs,
-    workflow_checkpoint_step_statuses, workflow_run_detail, workflow_run_models_by_ids,
-    workflow_run_statuses_by_ids,
+    mark_workflow_status, resume_or_upsert_workflow_run, upsert_workflow_checkpoint,
+    upsert_workflow_run, workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
+    workflow_run_detail, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
@@ -94,6 +94,40 @@ async fn latest_workflow_runs_by_business_keys_returns_one_latest_row_per_key() 
             (other.id, WORKFLOW_STATUS_COMPLETED.to_string()),
         ]
     );
+}
+
+#[tokio::test]
+async fn resume_or_upsert_reuses_matching_interrupted_run() {
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let suffix = uuid::Uuid::new_v4();
+    let key = format!("workflow-resume:{suffix}");
+    let fingerprint = format!("fingerprint-{suffix}");
+    let initial = upsert_workflow_run(
+        &db,
+        workflow_input(&key, &fingerprint, WORKFLOW_STATUS_RUNNING),
+    )
+    .await
+    .expect("initial workflow must be inserted");
+    mark_workflow_status(
+        &db,
+        initial.id,
+        a4n_db::workflow::WORKFLOW_STATUS_INTERRUPTED,
+        true,
+        Some("应用重启后中断，保留断点"),
+    )
+    .await
+    .expect("workflow must become resumably interrupted");
+
+    let mut resume_input = workflow_input(&key, &fingerprint, WORKFLOW_STATUS_RUNNING);
+    resume_input.active_task_id = Some("resume-task".to_string());
+    let resumed = resume_or_upsert_workflow_run(&db, resume_input)
+        .await
+        .expect("matching interrupted workflow must resume");
+
+    assert_eq!(resumed.id, initial.id);
+    assert_eq!(resumed.status, WORKFLOW_STATUS_RUNNING);
+    assert_eq!(resumed.active_task_id.as_deref(), Some("resume-task"));
+    assert!(resumed.completed_at.is_none());
 }
 
 #[tokio::test]
@@ -239,7 +273,7 @@ async fn workflow_detail_returns_generation_run_summary_fields() {
         &db,
         GetWorkflowRunInput {
             workflow_run_id: workflow.id,
-            include_generation_runs: Some(true),
+            include_generation_runs: true,
         },
     )
     .await

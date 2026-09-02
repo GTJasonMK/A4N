@@ -51,4 +51,43 @@ import type {
   ImageConfigInput as ApiImageConfigInput,
   ImageConfigSummary,
   UpdateImageConfigInput as ApiUpdateImageConfigInput,
+  ImageSize,
 } from "../generated/config";
+
+export type { ImageSize };
+export { DEFAULT_IMAGE_SIZES } from "../generated/config";
+
+export function imageSizeLabel(size: ImageSize): string {
+  return `${size.width}x${size.height}`;
+}
+
+export function normalizeImageSizes(value: unknown, label: string): ImageSize[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${label} supported_sizes 必须至少包含一个尺寸`);
+  }
+  const seen = new Set<string>();
+  return value.map((item, index) => {
+    if (typeof item !== "object" || item === null) {
+      throw new Error(`${label} supported_sizes[${index}] 无效`);
+    }
+    const candidate = item as { width?: unknown; height?: unknown };
+    const width = candidate.width;
+    const height = candidate.height;
+    if (
+      typeof width !== "number" ||
+      typeof height !== "number" ||
+      !Number.isSafeInteger(width) ||
+      !Number.isSafeInteger(height) ||
+      width <= 0 ||
+      height <= 0 ||
+      width > 2147483647 ||
+      height > 2147483647
+    ) {
+      throw new Error(`${label} supported_sizes[${index}] 无效`);
+    }
+    const key = `${width}x${height}`;
+    if (seen.has(key)) throw new Error(`${label} supported_sizes 包含重复尺寸 ${key}`);
+    seen.add(key);
+    return { width, height };
+  });
+}

@@ -1640,7 +1640,15 @@ fn apply_event(
                     operation: "progress",
                 });
             }
-            snapshot.progress = Some(event.clone());
+            let mut progress = event.clone();
+            // Model-connect/stream updates intentionally omit counters. Keep the
+            // last known pair in the durable snapshot so reconnect/resume does not
+            // turn a counted workflow into an apparent 0/1 task.
+            if let Some(previous) = snapshot.progress.as_ref() {
+                progress.current = progress.current.or(previous.current);
+                progress.total = progress.total.or(previous.total);
+            }
+            snapshot.progress = Some(progress);
         }
         GenerationEvent::TextDelta(event) => {
             if matches!(mode, ApplyMode::Ordinary)
@@ -2293,6 +2301,27 @@ mod tests {
         assert!(remaining.unpersisted_event_bytes > 0);
         assert!(!session.checkpoint_due(&remaining, 100, false));
         assert!(session.checkpoint_due(&remaining, 2_100, false));
+    }
+
+    #[tokio::test]
+    async fn snapshot_keeps_progress_counters_when_phase_update_omits_them() {
+        let session = session();
+        let replenisher = Arc::new(TestReplenisher {
+            calls: AtomicUsize::new(0),
+        });
+        let publisher = SessionGenerationEventPublisher::new(session.clone(), replenisher);
+        let mut counted = progress();
+        counted.current = Some(2);
+        counted.total = Some(12);
+
+        publisher.progress(counted).await.unwrap();
+        publisher.progress(progress()).await.unwrap();
+
+        let snapshot = session.snapshot();
+        let progress = snapshot.progress.expect("progress snapshot should exist");
+        assert_eq!(progress.current, Some(2));
+        assert_eq!(progress.total, Some(12));
+        assert_eq!(progress.message, "x");
     }
 
     #[tokio::test]

@@ -20,7 +20,7 @@ interface ConversationPaneProps {
   onInputFocus: () => void;
   onInputBlur: () => void;
   sending: boolean;
-  messagesEndRef: React.RefObject<HTMLDivElement>;
+  messagesViewportRef: React.RefObject<HTMLDivElement>;
   placeholder: string;
   inputActive: boolean;
 }
@@ -42,87 +42,102 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   onInputFocus,
   onInputBlur,
   sending,
-  messagesEndRef,
+  messagesViewportRef,
   placeholder,
   inputActive,
 }) => {
   const inputHintId = useId();
   const { locale, t } = useI18n();
   const inputHint = sending ? t("inspiration.inputHintSending") : placeholder;
+  const latestMessageId = messages[messages.length - 1]?.id;
 
   return (
     <div className="grid h-full min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto]">
-    <div className="min-h-0 min-w-0 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5">
-      <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col justify-start gap-3.5">
-        {messages.map((m) => (
-          <ChatBubble key={m.id} message={m} onSendOption={onSendOption} />
-        ))}
-        <div ref={messagesEndRef} />
-      </div>
-    </div>
-
-    <footer
-      className={`chat-composer min-w-0 w-full shrink-0 border-t border-book-border/40 bg-book-bg-paper/90 px-3 pt-2.5 backdrop-blur-xl ${
-        inputActive ? "pb-4 sm:pb-3" : "pb-2.5"
-      }`}
-    >
-      <div className="mx-auto w-full min-w-0 max-w-3xl">
-        <p
-          id={inputHintId}
-          title={inputHint}
-          className="mb-1.5 truncate text-small text-book-text-muted"
-        >
-          {inputHint}
-        </p>
-        <div className="flex min-w-0 items-end gap-2">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            onCompositionStart={onCompositionStart}
-            onCompositionEnd={onCompositionEnd}
-            onFocus={onInputFocus}
-            onBlur={onInputBlur}
-            aria-label={t("inspiration.inputConversation")}
-            aria-describedby={inputHintId}
-            placeholder={placeholder || t("inspiration.inputPlaceholder")}
-            rows={Math.min(5, Math.max(1, input.split("\n").length))}
-            spellCheck={false}
-            lang={locale}
-            className="pyqt-input max-h-[140px] min-h-11 min-w-0 flex-1 resize-none !rounded-[12px] px-4 !py-[7px] text-body-lg leading-5 sm:resize-y"
-          />
-          <div className="flex shrink-0 items-center gap-2">
-            <Dropdown
-              items={[
-                {
-                  label: t("inspiration.viewTurnRequest"),
-                  icon: <Eye size={12} />,
-                  onClick: onPreview,
-                  disabled: !input.trim() || sending,
-                },
-              ]}
+      <div
+        ref={messagesViewportRef}
+        className="min-h-0 min-w-0 overflow-y-auto custom-scrollbar px-4 py-4 sm:px-5"
+        style={{ overflowAnchor: "none" }}
+      >
+        <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col justify-start gap-3.5">
+          {messages.map((m) => (
+            <ChatBubble
+              key={m.id}
+              message={m}
+              onSendOption={onSendOption}
+              canSelectOptions={
+                !sending
+                && latestMessageId === m.id
+                && m.role === "assistant"
+                && !m.streaming
+                && !m.consistencyWarning
+              }
             />
-            <BookButton
-              variant="primary"
-              size="sm"
-              onClick={onSend}
-              disabled={!input.trim() || sending}
-              className="a4n-composer-send !px-3 !text-xs"
-            >
-              {sending ? (
-                t("inspiration.waitingReply")
-              ) : (
-                <>
-                  <Send size={14} />
-                  {t("inspiration.send")}
-                </>
-              )}
-            </BookButton>
-          </div>
+          ))}
         </div>
       </div>
-    </footer>
+
+      <footer
+        className={`chat-composer min-w-0 w-full shrink-0 border-t border-book-border/40 bg-book-bg-paper/90 px-3 pt-2.5 backdrop-blur-xl ${
+        inputActive ? "pb-4 sm:pb-3" : "pb-2.5"
+      }`}
+      >
+        <div className="mx-auto w-full min-w-0 max-w-3xl">
+          <p
+            id={inputHintId}
+            title={inputHint}
+            className="mb-1.5 truncate text-small text-book-text-muted"
+          >
+            {inputHint}
+          </p>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={onKeyDown}
+              onCompositionStart={onCompositionStart}
+              onCompositionEnd={onCompositionEnd}
+              onFocus={onInputFocus}
+              onBlur={onInputBlur}
+              aria-label={t("inspiration.inputConversation")}
+              aria-describedby={inputHintId}
+              placeholder={placeholder || t("inspiration.inputPlaceholder")}
+              rows={Math.min(5, Math.max(1, input.split("\n").length))}
+              spellCheck={false}
+              lang={locale}
+              className="pyqt-input max-h-[140px] min-h-11 min-w-0 flex-1 resize-none !rounded-[12px] px-4 !py-[7px] text-body-lg leading-5 sm:resize-y"
+            />
+            <div className="flex shrink-0 items-center gap-2 justify-self-end">
+              <Dropdown
+                items={[
+                  {
+                    label: t("inspiration.viewTurnRequest"),
+                    icon: <Eye size={12} />,
+                    onClick: onPreview,
+                    disabled: !input.trim() || sending,
+                  },
+                ]}
+              />
+              <BookButton
+                variant="primary"
+                size="sm"
+                onClick={onSend}
+                disabled={!input.trim() || sending}
+                className="a4n-composer-send !px-3 !text-xs"
+              >
+                {sending ? (
+                  t("inspiration.waitingReply")
+                ) : (
+                  <>
+                    <Send size={14} />
+                    {t("inspiration.send")}
+                  </>
+                )}
+              </BookButton>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };

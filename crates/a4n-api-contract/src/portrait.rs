@@ -110,6 +110,10 @@ pub struct GeneratePortraitInput {
     #[schemars(length(max = 512))]
     pub pose: Option<String>,
     pub reference_image_ids: Vec<i64>,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -118,6 +122,10 @@ pub struct RegeneratePortraitInput {
     #[schemars(range(min = 1))]
     pub portrait_id: i64,
     pub reference_image_ids: Vec<i64>,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -128,6 +136,10 @@ pub struct GenerateAgeVariantInput {
     #[schemars(length(min = 1, max = 128))]
     pub age: String,
     pub reference_image_ids: Vec<i64>,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -135,6 +147,10 @@ pub struct GenerateAgeVariantInput {
 pub struct GenerateMissingPortraitsInput {
     #[schemars(range(min = 1))]
     pub project_id: i64,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -181,11 +197,19 @@ pub enum PortraitGenerationOperation {
         #[schemars(length(max = 512))]
         pose: Option<String>,
         reference_image_ids: Vec<i64>,
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
     },
     Regenerate {
         #[schemars(range(min = 1))]
         portrait_id: i64,
         reference_image_ids: Vec<i64>,
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
     },
     GenerateAgeVariant {
         #[schemars(range(min = 1))]
@@ -193,8 +217,17 @@ pub enum PortraitGenerationOperation {
         #[schemars(length(min = 1, max = 128))]
         age: String,
         reference_image_ids: Vec<i64>,
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
     },
-    GenerateMissing,
+    GenerateMissing {
+        #[schemars(range(min = 1))]
+        width: i32,
+        #[schemars(range(min = 1))]
+        height: i32,
+    },
 }
 
 #[cfg(test)]

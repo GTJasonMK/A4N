@@ -211,14 +211,17 @@ impl OrchestratorContext {
         self.require_profile_material_editor(user_id, input.project_id)
             .await?;
         let kind = input.profile_kind;
-        self.ensure_profile_material_profile(input.project_id, kind, input.profile_id)
-            .await?;
-
         if let Some(image_id) = input.image_id {
-            let image = self
-                .generated_image_by_id(image_id)
-                .await?
-                .ok_or_else(|| AppError::NotFound("图片不存在".to_string()))?;
+            let profile_check =
+                self.ensure_profile_material_profile(input.project_id, kind, input.profile_id);
+            let image_result = async {
+                self.generated_image_by_id(image_id)
+                    .await?
+                    .ok_or_else(|| AppError::NotFound("图片不存在".to_string()))
+            };
+            let (profile_result, image_result) = futures::join!(profile_check, image_result);
+            profile_result?;
+            let image = image_result?;
             if image.project_id != input.project_id {
                 return Err(AppError::InvalidArgument(format!(
                     "图片 #{image_id} 不属于项目 {}",
@@ -242,6 +245,8 @@ impl OrchestratorContext {
             )
             .await?;
         } else {
+            self.ensure_profile_material_profile(input.project_id, kind, input.profile_id)
+                .await?;
             self.delete_profile_primary_material(input.project_id, kind.as_str(), input.profile_id)
                 .await?;
         }
@@ -534,12 +539,13 @@ impl OrchestratorContext {
         kind: ProfileMaterialKind,
         profile_id: i64,
     ) -> Result<Option<ProfileMaterialGroup>, AppError> {
-        let source = self
-            .profile_material_source(project_id, kind, profile_id)
-            .await?;
-        let rows = self
-            .profile_material_list_rows(project_id, &[image_type_for_profile_material_kind(kind)])
-            .await?;
+        let image_types = [image_type_for_profile_material_kind(kind)];
+        let (source, rows) = futures::join!(
+            self.profile_material_source(project_id, kind, profile_id),
+            self.profile_material_list_rows(project_id, &image_types),
+        );
+        let source = source?;
+        let rows = rows?;
         Ok(
             profile_material_group_projections(vec![source], rows.images, rows.primary_rows, 32)
                 .into_iter()
@@ -554,31 +560,37 @@ impl OrchestratorContext {
     ) -> Result<Vec<ProfileMaterialGroup>, AppError> {
         let kinds = requested_profile_material_kinds(input.kind);
         let image_limit = input.image_limit_per_profile;
-        let mut sources = Vec::new();
-        if kinds.contains(&ProfileMaterialKind::Scene) {
-            sources.extend(
-                self.scene_profiles_by_project(input.project_id)
-                    .await?
-                    .into_iter()
-                    .map(scene_source_from_model),
-            );
-        }
-        if kinds.contains(&ProfileMaterialKind::Object) {
-            sources.extend(
-                self.object_profiles_by_project(input.project_id)
-                    .await?
-                    .into_iter()
-                    .map(object_source_from_model),
-            );
-        }
-
         let image_types = kinds
             .iter()
             .map(|kind| image_type_for_profile_material_kind(*kind))
             .collect::<Vec<_>>();
-        let rows = self
-            .profile_material_list_rows(input.project_id, &image_types)
-            .await?;
+        let include_scene = kinds.contains(&ProfileMaterialKind::Scene);
+        let include_object = kinds.contains(&ProfileMaterialKind::Object);
+        let (scene_profiles, object_profiles, rows) = futures::join!(
+            async {
+                if include_scene {
+                    self.scene_profiles_by_project(input.project_id).await
+                } else {
+                    Ok(Vec::new())
+                }
+            },
+            async {
+                if include_object {
+                    self.object_profiles_by_project(input.project_id).await
+                } else {
+                    Ok(Vec::new())
+                }
+            },
+            self.profile_material_list_rows(input.project_id, &image_types),
+        );
+        let scene_profiles = scene_profiles?;
+        let object_profiles = object_profiles?;
+        let rows = rows?;
+        let mut sources = scene_profiles
+            .into_iter()
+            .map(scene_source_from_model)
+            .collect::<Vec<_>>();
+        sources.extend(object_profiles.into_iter().map(object_source_from_model));
         let mut groups = profile_material_group_projections(
             sources,
             rows.images,

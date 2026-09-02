@@ -19,12 +19,3 @@ pub(crate) fn create_main_window(app: &mut tauri::App, config: &AppConfig) -> ta
     window.set_focus()?;
     Ok(())
 }
-
-#[cfg(debug_assertions)]
-pub(crate) fn open_devtools_in_debug(app: &tauri::App) {
-    use tauri::Manager as _;
-
-    if let Some(window) = app.get_webview_window("main") {
-        window.open_devtools();
-    }
-}

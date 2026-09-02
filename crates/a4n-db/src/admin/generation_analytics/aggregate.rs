@@ -22,16 +22,16 @@ pub(super) fn build_generation_call_analytics(
     overview.entry("image".to_string()).or_default();
     overview.entry("video".to_string()).or_default();
 
-    let mut daily = BTreeMap::<String, DailyCallMetric>::new();
+    let mut daily = BTreeMap::<NaiveDate, DailyCallMetric>::new();
     let mut llm_by_workflow = BTreeMap::<(String, String), LlmWorkflowAccumulator>::new();
     let mut media_by_workflow =
         BTreeMap::<(String, String, String), MediaWorkflowAccumulator>::new();
 
     for call in &llm_calls {
         let context_metrics = llm_context_plan_metrics(call);
-        let day = call.created_at.date().format("%Y-%m-%d").to_string();
-        let daily_entry = daily.entry(day.clone()).or_insert_with(|| DailyCallMetric {
-            date: day,
+        let day = call.created_at.date();
+        let daily_entry = daily.entry(day).or_insert_with(|| DailyCallMetric {
+            date: day.format("%Y-%m-%d").to_string(),
             ..Default::default()
         });
         daily_entry.llm_calls += 1;
@@ -39,7 +39,9 @@ pub(super) fn build_generation_call_analytics(
         daily_entry.llm_prompt_cache_hit_tokens += i64_from_i32(call.prompt_cache_hit_tokens);
         daily_entry.llm_prompt_cache_miss_tokens += i64_from_i32(call.prompt_cache_miss_tokens);
 
-        let overview_entry = overview.entry("llm".to_string()).or_default();
+        let overview_entry = overview
+            .get_mut("llm")
+            .expect("llm overview accumulator initialized");
         overview_entry.calls += 1;
         add_llm_status(overview_entry, &call.status);
         overview_entry.total_tokens += i64_from_i32(call.total_tokens);
@@ -85,9 +87,9 @@ pub(super) fn build_generation_call_analytics(
 
     for run in &media_runs {
         let kind = run.model_kind.clone();
-        let day = run.created_at.date().format("%Y-%m-%d").to_string();
-        let daily_entry = daily.entry(day.clone()).or_insert_with(|| DailyCallMetric {
-            date: day,
+        let day = run.created_at.date();
+        let daily_entry = daily.entry(day).or_insert_with(|| DailyCallMetric {
+            date: day.format("%Y-%m-%d").to_string(),
             ..Default::default()
         });
         if kind == "image" {

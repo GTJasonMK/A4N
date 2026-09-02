@@ -1,5 +1,7 @@
 use a4n_core::models::chapter::chapter_shooting_script;
-use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 use std::collections::HashMap;
 
 use super::{
@@ -47,6 +49,16 @@ where
 
     let rows = chapter_shooting_script::Entity::find()
         .filter(source_condition(sources))
+        .distinct_on([
+            chapter_shooting_script::Column::RootProjectId,
+            chapter_shooting_script::Column::SourceChapterId,
+            chapter_shooting_script::Column::SourceRevisionKey,
+            chapter_shooting_script::Column::SourceContentSha256,
+        ])
+        .order_by_asc(chapter_shooting_script::Column::RootProjectId)
+        .order_by_asc(chapter_shooting_script::Column::SourceChapterId)
+        .order_by_asc(chapter_shooting_script::Column::SourceRevisionKey)
+        .order_by_asc(chapter_shooting_script::Column::SourceContentSha256)
         .order_by_desc(chapter_shooting_script::Column::UpdatedAt)
         .order_by_desc(chapter_shooting_script::Column::Id)
         .all(db)

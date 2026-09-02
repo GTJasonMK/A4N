@@ -13,6 +13,7 @@ import { useI18n } from "../../i18n";
 
 interface WritingAssistantPanelProps {
   embeddedInModal?: boolean;
+  initialMode?: AssistantMode;
   projectId: number;
   writingNotes: string;
   minWordCount: string;
@@ -49,6 +50,7 @@ type AssistantMode = "generate" | "optimize";
 
 export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
   embeddedInModal = false,
+  initialMode,
   projectId,
   writingNotes,
   minWordCount,
@@ -79,7 +81,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
   onPatchPreviewChange,
 }) => {
   const { t } = useI18n();
-  const [assistantMode, setAssistantMode] = useState<AssistantMode>("generate");
+  const [assistantMode, setAssistantMode] = useState<AssistantMode>(initialMode ?? "generate");
   const generationActive = Boolean(streamTaskId || streamBusy || resetBusy);
   const minWordCountErrorPrefix = t("writing.minWordCount");
   const maxWordCountErrorPrefix = t("writing.maxWordCount");
@@ -233,6 +235,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
           <OptimizeTab
             projectId={projectId}
             fixedChapterId={activeChapter.id}
+            initialViewMode={initialMode === "optimize" ? "agent" : "session"}
             embedded
             onChapterContentChanged={onChapterContentChanged}
             onPatchPreviewChange={onPatchPreviewChange}

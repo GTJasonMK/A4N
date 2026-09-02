@@ -1,6 +1,8 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Eye, Images, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ImageSizeSelect, useImageGenerationSize } from "../../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../../api";
 import type { CharacterProfile } from "../../../api/character";
 import { listImagesByProject, type GeneratedImage, uploadImage } from "../../../api/image";
@@ -51,6 +53,13 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
+  const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
   const [name, setName] = useState(firstProfileName(profiles));
   const [style, setStyle] = useState(DEFAULT_IMAGE_STYLE);
   const [expressionInput, setExpressionInput] = useState("");
@@ -207,6 +216,11 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     const requestStyle = nonEmptyText(style);
     const requestExpression = nonEmptyText(expressionInput);
     const requestReferenceImageIds = selectedReferenceImageIds;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     submitBusyRef.current = true;
     setBusy(true);
     try {
@@ -219,6 +233,8 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           expression: requestExpression,
           pose: null,
           reference_image_ids: requestReferenceImageIds,
+          width: requestSize.width,
+          height: requestSize.height,
         },
       });
       await runGenerationProgressTaskThen(
@@ -264,6 +280,11 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
     const requestStyle = nonEmptyText(style);
     const requestExpression = nonEmptyText(expressionInput);
     const requestReferenceImageIds = selectedReferenceImageIds;
+    const requestSize = imageSize;
+    if (!requestSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     previewBusyRef.current = true;
     setRequestPreviewOpen(true);
     setRequestPreviewLoading(true);
@@ -276,6 +297,8 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
         expression: requestExpression,
         pose: null,
         reference_image_ids: requestReferenceImageIds,
+        width: requestSize.width,
+        height: requestSize.height,
       });
       if (
         !isCurrentProject(requestProjectId) ||
@@ -335,7 +358,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
               variant="primary"
               size="sm"
               onClick={handleSubmit}
-              disabled={busy || !canSubmit}
+              disabled={busy || !canSubmit || imageSize == null}
               className="min-w-0 flex-1 !text-xs sm:flex-none"
             >
               {busy ? (
@@ -353,7 +376,7 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
           <div>
             <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.name")}</label>
             {profiles.length > 0 ? (
-              <select
+              <ThemedSelect
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 className="pyqt-input w-full"
@@ -363,10 +386,21 @@ export const SinglePortraitDialog: React.FC<SinglePortraitDialogProps> = ({
                     {profile.name}
                   </option>
                 ))}
-              </select>
+              </ThemedSelect>
             ) : (
               <BookInput value={name} onChange={(event) => setName(event.target.value)} />
             )}
+          </div>
+          <div>
+            <ImageSizeSelect
+              label={t("settingsForm.selectImageSize")}
+              value={imageSize}
+              sizes={imageSizes}
+              loading={imageSizeLoading}
+              error={imageSizeError}
+              disabled={busy}
+              onChange={setImageSize}
+            />
           </div>
           <div>
             <StyleTemplatePicker

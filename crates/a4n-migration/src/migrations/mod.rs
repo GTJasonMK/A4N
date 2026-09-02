@@ -1,5 +1,12 @@
 //! PostgreSQL baseline schema.
 
+pub mod agent_replay_policy_canonicalization;
+pub mod agent_runtime;
+pub mod agent_runtime_checkpoint_cleanup;
+pub mod agent_runtime_dead_fields_cleanup;
+pub mod agent_runtime_snapshot_canonicalization;
+pub mod agent_runtime_status_canonicalization;
+
 pub mod blueprint_version_snapshot_cleanup;
 pub mod blueprint_version_snapshot_contract;
 pub mod canvas_assemble_clip_order;
@@ -41,6 +48,7 @@ pub mod generation_runs;
 pub mod generation_snapshot_hash_contract;
 pub mod generation_snapshot_retention;
 pub mod generation_task_persistence;
+pub mod image_supported_sizes;
 pub mod import_review_contract_cleanup;
 pub mod invite_codes;
 pub mod legacy_asset_lineage_shadow_cleanup;

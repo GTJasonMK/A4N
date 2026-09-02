@@ -47,6 +47,8 @@ struct PortraitVariantRun<'a> {
     existing: &'a a4n_core::models::character::character_portrait::Model,
     character_name: &'a str,
     prompt: &'a str,
+    width: i32,
+    height: i32,
     reference_image_ids: &'a [i64],
     fingerprint: Value,
 }
@@ -147,6 +149,8 @@ impl OrchestratorContext {
             &prepared.expression,
             input.pose.as_deref(),
             &input.reference_image_ids,
+            input.width,
+            input.height,
             &prepared.request,
         )
         .map_err(AppError::InvalidArgument)?;
@@ -188,6 +192,8 @@ impl OrchestratorContext {
                 host_port,
                 input.project_id,
                 &prompt.image_prompt,
+                input.width,
+                input.height,
                 &input.reference_image_ids,
                 Some(workflow_run_id),
                 cancel_token.clone(),
@@ -260,6 +266,8 @@ impl OrchestratorContext {
         let workflow_fingerprint = json!({
             "workflow": "missing_portrait_generation",
             "project_id": input.project_id,
+            "width": input.width,
+            "height": input.height,
         });
         let workflow_run = self
             .begin_missing_portrait_workflow_validated(input.project_id, &workflow_fingerprint)
@@ -305,8 +313,13 @@ impl OrchestratorContext {
                     let prompt =
                         profile_portrait_seed_prompt(profile).map_err(AppError::InvalidArgument)?;
                     let step_key = format!("missing_portrait_generation.profile.{}", profile.id);
-                    let item_fingerprint =
-                        missing_portrait_item_fingerprint(input.project_id, profile, &prompt);
+                    let item_fingerprint = missing_portrait_item_fingerprint(
+                        input.project_id,
+                        profile,
+                        &prompt,
+                        input.width,
+                        input.height,
+                    );
                     if let Some(summary) = load_completed_portrait_checkpoint(
                         self,
                         host_port,
@@ -324,6 +337,8 @@ impl OrchestratorContext {
                         host_port,
                         input.project_id,
                         &prompt,
+                        input.width,
+                        input.height,
                         &[],
                         Some(workflow_run_id),
                         cancel_token.clone(),
@@ -471,7 +486,11 @@ impl OrchestratorContext {
             existing.id,
             &existing.prompt,
             &input.reference_image_ids,
-            json!({"variant_kind": "regenerated"}),
+            json!({
+                "variant_kind": "regenerated",
+                "width": input.width,
+                "height": input.height,
+            }),
         );
         self.generate_portrait_image_variant(
             PortraitVariantRun {
@@ -487,6 +506,8 @@ impl OrchestratorContext {
                 existing: &existing,
                 character_name: &profile.name,
                 prompt: &existing.prompt,
+                width: input.width,
+                height: input.height,
                 reference_image_ids: &input.reference_image_ids,
                 fingerprint,
             },
@@ -515,7 +536,12 @@ impl OrchestratorContext {
             existing.id,
             &new_prompt,
             &input.reference_image_ids,
-            json!({"variant_kind": "age_variant", "age": input.age}),
+            json!({
+                "variant_kind": "age_variant",
+                "age": input.age,
+                "width": input.width,
+                "height": input.height,
+            }),
         );
         self.generate_portrait_image_variant(
             PortraitVariantRun {
@@ -531,6 +557,8 @@ impl OrchestratorContext {
                 existing: &existing,
                 character_name: &profile.name,
                 prompt: &new_prompt,
+                width: input.width,
+                height: input.height,
                 reference_image_ids: &input.reference_image_ids,
                 fingerprint,
             },
@@ -569,6 +597,8 @@ impl OrchestratorContext {
             existing,
             character_name,
             prompt,
+            width,
+            height,
             reference_image_ids,
             fingerprint,
         } = run;
@@ -603,6 +633,8 @@ impl OrchestratorContext {
                 host_port,
                 existing.project_id,
                 prompt,
+                width,
+                height,
                 reference_image_ids,
                 Some(workflow_run.id),
                 cancel_token.clone(),

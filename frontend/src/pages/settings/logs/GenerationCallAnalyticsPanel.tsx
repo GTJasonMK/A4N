@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, {
   useCallback,
   useEffect,
@@ -147,7 +148,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       <div className="flex min-h-8 flex-wrap items-center gap-2 text-xs">
         <label className="inline-flex items-center gap-2 text-book-text-muted">
           {t("settingsLogs.usageRange")}
-          <select
+          <ThemedSelect
             value={days}
             onChange={(event) => setDays(Number(event.target.value))}
             className="pyqt-input w-28 px-2 py-1"
@@ -157,7 +158,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
             <option value={30}>{t("settingsLogs.recentDays", { count: 30 })}</option>
             <option value={90}>{t("settingsLogs.recentDays", { count: 90 })}</option>
             <option value={180}>{t("settingsLogs.recentDays", { count: 180 })}</option>
-          </select>
+          </ThemedSelect>
         </label>
         <span className="flex-1" />
         <BookIconButton

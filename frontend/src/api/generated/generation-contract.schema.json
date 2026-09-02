@@ -1169,6 +1169,11 @@
                 "null"
               ]
             },
+            "height": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
             "kind": {
               "const": "scene",
               "type": "string"
@@ -1177,11 +1182,18 @@
               "maxLength": 100000,
               "minLength": 1,
               "type": "string"
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
             "kind",
-            "prompt"
+            "prompt",
+            "width",
+            "height"
           ],
           "type": "object"
         },
@@ -1189,6 +1201,11 @@
           "additionalProperties": false,
           "properties": {
             "chapter_number": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "height": {
               "format": "int32",
               "minimum": 1,
               "type": "integer"
@@ -1201,12 +1218,19 @@
               "format": "int32",
               "minimum": 1,
               "type": "integer"
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
             "kind",
             "chapter_number",
-            "page_number"
+            "page_number",
+            "width",
+            "height"
           ],
           "type": "object"
         },
@@ -1255,6 +1279,11 @@
                 "null"
               ]
             },
+            "height": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
             "kind": {
               "const": "object_profile",
               "type": "string"
@@ -1291,11 +1320,18 @@
                 "string",
                 "null"
               ]
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
             "kind",
-            "object_profile_id"
+            "object_profile_id",
+            "width",
+            "height"
           ],
           "type": "object"
         },
@@ -1324,6 +1360,11 @@
                 "string",
                 "null"
               ]
+            },
+            "height": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             },
             "kind": {
               "const": "scene_profile",
@@ -1361,11 +1402,18 @@
                 "string",
                 "null"
               ]
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
             "kind",
-            "scene_profile_id"
+            "scene_profile_id",
+            "width",
+            "height"
           ],
           "type": "object"
         }
@@ -1765,6 +1813,11 @@
                 "null"
               ]
             },
+            "height": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
             "kind": {
               "const": "generate",
               "type": "string"
@@ -1789,18 +1842,30 @@
                 "string",
                 "null"
               ]
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
             "kind",
             "character_name",
-            "reference_image_ids"
+            "reference_image_ids",
+            "width",
+            "height"
           ],
           "type": "object"
         },
         {
           "additionalProperties": false,
           "properties": {
+            "height": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
             "kind": {
               "const": "regenerate",
               "type": "string"
@@ -1816,12 +1881,19 @@
                 "type": "integer"
               },
               "type": "array"
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
             "kind",
             "portrait_id",
-            "reference_image_ids"
+            "reference_image_ids",
+            "width",
+            "height"
           ],
           "type": "object"
         },
@@ -1832,6 +1904,11 @@
               "maxLength": 128,
               "minLength": 1,
               "type": "string"
+            },
+            "height": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             },
             "kind": {
               "const": "generate_age_variant",
@@ -1848,26 +1925,45 @@
                 "type": "integer"
               },
               "type": "array"
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
             "kind",
             "portrait_id",
             "age",
-            "reference_image_ids"
+            "reference_image_ids",
+            "width",
+            "height"
           ],
           "type": "object"
         },
         {
           "additionalProperties": false,
           "properties": {
+            "height": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
+            },
             "kind": {
               "const": "generate_missing",
               "type": "string"
+            },
+            "width": {
+              "format": "int32",
+              "minimum": 1,
+              "type": "integer"
             }
           },
           "required": [
-            "kind"
+            "kind",
+            "width",
+            "height"
           ],
           "type": "object"
         }

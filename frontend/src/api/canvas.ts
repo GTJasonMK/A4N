@@ -100,9 +100,14 @@ export async function getCanvasNodeContracts() {
 export async function saveCanvasGraph(
   projectId: number,
   graph: CanvasGraphInput,
+  expectedVersion: number,
 ) {
   return apiInvoke<CanvasGraphDocument>("save_canvas_graph", {
-    input: { project_id: projectId, graph } satisfies SaveCanvasGraphInput,
+    input: {
+      project_id: projectId,
+      expected_version: expectedVersion,
+      graph,
+    } satisfies SaveCanvasGraphInput,
   });
 }
 

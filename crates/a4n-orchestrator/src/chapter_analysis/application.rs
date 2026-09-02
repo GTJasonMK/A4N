@@ -275,7 +275,7 @@ impl OrchestratorContext {
     ) -> Result<chapter::Model, AppError> {
         progress.report(0, "正在检查已保存的章节分析")?;
         let chapter = self
-            .preflight_resume_chapter_analysis_validated(chapter_id)
+            .preflight_chapter_analysis_validated(chapter_id, false)
             .await?;
         let resumable = self.resumable_chapter_analysis_run(&chapter).await?;
         let has_saved_analysis = self

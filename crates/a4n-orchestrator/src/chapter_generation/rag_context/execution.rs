@@ -6,9 +6,7 @@ use super::{
     fusion::fuse_generation_rag_results,
 };
 use crate::rag::search::enhanced::{validate_embedding_identity_match, validate_query_vectors};
-use crate::rag::{
-    hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_validated_embedding_in_store,
-};
+use crate::rag::{embed_queries_in_batch, hybrid_rag_search_with_validated_embedding_in_store};
 
 const GENERATION_RAG_PULL_K: usize = 24;
 
@@ -17,13 +15,21 @@ pub(crate) async fn execute_prepared_chapter_generation_rag_search_in_store(
     provider: &dyn EmbeddingProvider,
     prepared: &PreparedGenerationRagSearch,
 ) -> Result<Option<String>, String> {
-    let mut batches = Vec::new();
-    for query in &prepared.queries {
-        let results = hybrid_rag_search_filtered_in_store(
+    let query_texts = prepared
+        .queries
+        .iter()
+        .map(|query| query.text.clone())
+        .collect::<Vec<_>>();
+    let query_vectors = embed_queries_in_batch(provider, &query_texts)
+        .await
+        .map_err(|error| error.to_string())?;
+    let mut batches = Vec::with_capacity(prepared.queries.len());
+    for (query, vector) in prepared.queries.iter().zip(query_vectors) {
+        let results = hybrid_rag_search_with_validated_embedding_in_store(
             store,
             prepared.project_id,
             &query.text,
-            provider,
+            vector,
             GENERATION_RAG_PULL_K,
             Some(prepared.filter.clone()),
         )

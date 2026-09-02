@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { UserPlus } from "lucide-react";
 import { extractErrorMessage } from "../../../api";
@@ -248,7 +249,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
             placeholder={t("novel.collaborationActions.identityPlaceholder")}
             className="pyqt-input col-span-2 h-9 min-w-0 sm:col-span-1"
           />
-          <select
+          <ThemedSelect
             value={role}
             onChange={(event) => setRole(event.target.value as ProjectMemberRole)}
             className="pyqt-input h-9 w-full"
@@ -258,7 +259,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                 {item.label}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
           <BookButton
             variant="primary"
             size="sm"
@@ -286,7 +287,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
             </div>
             <div className="flex shrink-0 items-center gap-2">
               {canManage && member.role !== "owner" ? (
-                <select
+                <ThemedSelect
                   value={member.role}
                   aria-label={t("novel.collaborationActions.adjustRole", { username: member.username })}
                   disabled={busyActionKeys.has(`role:${member.user_id}`)}
@@ -300,7 +301,7 @@ export const ProjectCollaborationPanel: React.FC<ProjectCollaborationPanelProps>
                       {item.label}
                     </option>
                   ))}
-                </select>
+                </ThemedSelect>
               ) : (
                 <span className="text-small text-book-text-muted">
                   {getProjectAccessRoleLabel(member.role, t)}

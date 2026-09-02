@@ -51,15 +51,19 @@ pub async fn create_character_portrait_for_profile<C>(
 where
     C: ConnectionTrait,
 {
-    let profile_project_id = protagonist_profile::Entity::find_by_id(input.profile_id)
-        .select_only()
-        .column(protagonist_profile::Column::ProjectId)
-        .into_tuple::<i64>()
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            CharacterPortraitRecordError::NotFound(format!("角色档案不存在: {}", input.profile_id))
-        })?;
+    let (profile_result, existing_count_result) = futures::join!(
+        protagonist_profile::Entity::find_by_id(input.profile_id)
+            .select_only()
+            .column(protagonist_profile::Column::ProjectId)
+            .into_tuple::<i64>()
+            .one(db),
+        character_portrait::Entity::find()
+            .filter(character_portrait::Column::ProfileId.eq(input.profile_id))
+            .count(db),
+    );
+    let profile_project_id = profile_result?.ok_or_else(|| {
+        CharacterPortraitRecordError::NotFound(format!("角色档案不存在: {}", input.profile_id))
+    })?;
     if profile_project_id != input.project_id {
         return Err(CharacterPortraitRecordError::InvalidArgument(format!(
             "角色档案 {} 不属于项目 {}",
@@ -67,10 +71,7 @@ where
         )));
     }
 
-    let existing_count = character_portrait::Entity::find()
-        .filter(character_portrait::Column::ProfileId.eq(input.profile_id))
-        .count(db)
-        .await?;
+    let existing_count = existing_count_result?;
 
     character_portrait::ActiveModel {
         profile_id: Set(input.profile_id),

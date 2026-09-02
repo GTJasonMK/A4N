@@ -487,10 +487,16 @@ impl OrchestratorContext {
         project_id: i64,
     ) -> Result<ProjectFamilyContext, AppError> {
         let context = self.derived_project_family_context(project_id).await?;
-        self.verify_project_permission(context.project.id, user_id, ProjectAccessRole::Editor)
-            .await?;
-        self.verify_project_permission(context.root_project.id, user_id, ProjectAccessRole::Editor)
-            .await?;
+        let (project_result, root_project_result) = futures::join!(
+            self.verify_project_permission(context.project.id, user_id, ProjectAccessRole::Editor),
+            self.verify_project_permission(
+                context.root_project.id,
+                user_id,
+                ProjectAccessRole::Editor
+            ),
+        );
+        project_result?;
+        root_project_result?;
         Ok(context)
     }
 

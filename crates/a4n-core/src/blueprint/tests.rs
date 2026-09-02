@@ -55,6 +55,10 @@ fn builds_canonical_blueprint_generation_payload() {
             "inspiration_transcript".to_string(),
             json!(["星潮", "档案城"]),
         ),
+        (
+            "generation_instruction".to_string(),
+            json!("自由随机生成完整蓝图"),
+        ),
         ("ignored".to_string(), json!("不应进入 payload")),
     ]);
 
@@ -65,6 +69,7 @@ fn builds_canonical_blueprint_generation_payload() {
     assert_eq!(payload["genre"], "科幻");
     assert_eq!(payload["requested_chapter_count"], 60);
     assert_eq!(payload["inspiration_transcript"], json!(["星潮", "档案城"]));
+    assert_eq!(payload["generation_instruction"], "自由随机生成完整蓝图");
     assert!(payload.get("ignored").is_none());
 }
 

@@ -48,6 +48,8 @@ pub(super) async fn build_portrait_image_request_preview(
     state: &AppState,
     project_id: i64,
     prompt: &str,
+    width: i32,
+    height: i32,
     reference_image_ids: &[i64],
 ) -> Result<PortraitImageRequestPreviewContext, String> {
     let config = resolve_image_config(state, None).await?;
@@ -55,6 +57,8 @@ pub(super) async fn build_portrait_image_request_preview(
         state,
         project_id,
         prompt,
+        width,
+        height,
         reference_image_ids,
         &config,
     )
@@ -65,10 +69,16 @@ pub(super) async fn build_portrait_image_request_preview_with_config(
     state: &AppState,
     project_id: i64,
     prompt: &str,
+    width: i32,
+    height: i32,
     reference_image_ids: &[i64],
     config: &image_gen_config::Model,
 ) -> Result<PortraitImageRequestPreviewContext, String> {
     let image_ids = a4n_orchestrator::portrait::validate_reference_image_ids(reference_image_ids)?;
+    let supported_sizes = a4n_core::config::image_sizes_from_json(&config.supported_sizes_json)
+        .map_err(|error| error.to_string())?;
+    a4n_core::config::ensure_image_size_supported(&supported_sizes, width, height)
+        .map_err(|error| error.to_string())?;
     let records = state
         .orchestrator()
         .portrait_reference_images_by_ids(project_id, &image_ids)
@@ -102,8 +112,8 @@ pub(super) async fn build_portrait_image_request_preview_with_config(
     Ok(PortraitImageRequestPreviewContext {
         request: ImageGenerationRequest {
             prompt: prompt.to_string(),
-            width: config.default_width,
-            height: config.default_height,
+            width,
+            height,
             model: config.model.clone(),
             reference_images,
         },
@@ -121,12 +131,17 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         let PortraitImageProviderInput {
             project_id,
             prompt,
+            width,
+            height,
             reference_images,
             workflow_run_id,
         } = input;
         let config = resolve_image_config(self.state, None)
             .await
             .map_err(host_error)?;
+        let supported_sizes =
+            a4n_core::config::image_sizes_from_json(&config.supported_sizes_json)?;
+        a4n_core::config::ensure_image_size_supported(&supported_sizes, width, height)?;
         let reference_images = reference_images
             .iter()
             .map(|source| read_reference_image(self.state, &source.label, &source.file_path))
@@ -141,8 +156,8 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         }
         let request = ImageGenerationRequest {
             prompt,
-            width: config.default_width,
-            height: config.default_height,
+            width,
+            height,
             model: config.model.clone(),
             reference_images,
         };

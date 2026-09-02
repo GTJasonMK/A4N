@@ -28,33 +28,10 @@ pub async fn inspiration_project_context_rows(
 ) -> Result<InspirationProjectContextRows, InspirationDbError> {
     let project = ensure_inspiration_project_exists(db, project_id).await?;
 
-    let blueprint = match novel_blueprint::Entity::find()
+    let blueprint_query = novel_blueprint::Entity::find()
         .filter(novel_blueprint::Column::ProjectId.eq(project_id))
-        .one(db)
-        .await
-        .map_err(InspirationDbError::Database)?
-    {
-        Some(blueprint) => {
-            let characters = blueprint_character::Entity::find()
-                .filter(blueprint_character::Column::ProjectId.eq(project_id))
-                .all(db)
-                .await
-                .map_err(InspirationDbError::Database)?;
-            let relationships = blueprint_relationship::Entity::find()
-                .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
-                .all(db)
-                .await
-                .map_err(InspirationDbError::Database)?;
-            Some(InspirationBlueprintRows {
-                blueprint,
-                characters,
-                relationships,
-            })
-        }
-        None => None,
-    };
-
-    let mut recent_chapters = chapter::Entity::find()
+        .one(db);
+    let recent_chapters_query = chapter::Entity::find()
         .select_only()
         .column(chapter::Column::ChapterNumber)
         .column(chapter::Column::Title)
@@ -72,9 +49,31 @@ pub async fn inspiration_project_context_rows(
         .order_by_desc(chapter::Column::ChapterNumber)
         .limit(6)
         .into_model::<InspirationRecentChapterQueryRow>()
-        .all(db)
-        .await
-        .map_err(InspirationDbError::Database)?;
+        .all(db);
+    let (blueprint_result, recent_chapters_result) =
+        futures::join!(blueprint_query, recent_chapters_query);
+    let blueprint = match blueprint_result.map_err(InspirationDbError::Database)? {
+        Some(blueprint) => {
+            let characters_query = blueprint_character::Entity::find()
+                .filter(blueprint_character::Column::ProjectId.eq(project_id))
+                .all(db);
+            let relationships_query = blueprint_relationship::Entity::find()
+                .filter(blueprint_relationship::Column::ProjectId.eq(project_id))
+                .all(db);
+            let (characters_result, relationships_result) =
+                futures::join!(characters_query, relationships_query);
+            let characters = characters_result.map_err(InspirationDbError::Database)?;
+            let relationships = relationships_result.map_err(InspirationDbError::Database)?;
+            Some(InspirationBlueprintRows {
+                blueprint,
+                characters,
+                relationships,
+            })
+        }
+        None => None,
+    };
+
+    let mut recent_chapters = recent_chapters_result.map_err(InspirationDbError::Database)?;
     recent_chapters.reverse();
     let recent_chapters = recent_chapters
         .into_iter()

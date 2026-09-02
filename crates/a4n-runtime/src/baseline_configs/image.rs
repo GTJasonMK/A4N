@@ -1,4 +1,4 @@
-use super::env::{any_env_present, env_i32_or, env_string_or, u32_to_i32, usize_to_i32};
+use super::env::{any_env_present, env_i32_or, env_string_or, usize_to_i32};
 use a4n_core::{
     config::{
         app_config::ImageGenConfig, env::optional_non_empty_env_string,
@@ -15,8 +15,6 @@ const PUBLIC_IMAGE_ENV_KEYS: &[&str] = &[
     "A4N_PUBLIC_IMAGE_API_KEY",
     "A4N_PUBLIC_IMAGE_MODEL",
     "A4N_PUBLIC_IMAGE_MAX_CONCURRENT",
-    "A4N_PUBLIC_IMAGE_DEFAULT_WIDTH",
-    "A4N_PUBLIC_IMAGE_DEFAULT_HEIGHT",
 ];
 
 pub(super) async fn ensure_public_image_config(
@@ -70,14 +68,6 @@ fn public_image_seed(
         .ok_or_else(|| {
             AppError::ConfigError("公共图片配置缺少 A4N_PUBLIC_IMAGE_BASE_URL".into())
         })?;
-    let default_width = env_i32_or(
-        "A4N_PUBLIC_IMAGE_DEFAULT_WIDTH",
-        u32_to_i32(fallback.default_width, "A4N_PUBLIC_IMAGE_DEFAULT_WIDTH")?,
-    )?;
-    let default_height = env_i32_or(
-        "A4N_PUBLIC_IMAGE_DEFAULT_HEIGHT",
-        u32_to_i32(fallback.default_height, "A4N_PUBLIC_IMAGE_DEFAULT_HEIGHT")?,
-    )?;
     Ok(Some(a4n_core::config::CreateImageConfigParams {
         name: env_string_or("A4N_PUBLIC_IMAGE_NAME", "公共基础图片")?,
         backend,
@@ -88,7 +78,6 @@ fn public_image_seed(
             "A4N_PUBLIC_IMAGE_MAX_CONCURRENT",
             usize_to_i32(fallback.max_concurrent, "A4N_PUBLIC_IMAGE_MAX_CONCURRENT")?,
         )?,
-        default_width,
-        default_height,
+        supported_sizes: fallback.supported_sizes.clone(),
     }))
 }

@@ -5,6 +5,7 @@
 //! entry crates reach into SeaORM directly.
 
 pub mod admin;
+pub mod agent;
 pub mod asset;
 pub mod auth;
 pub mod blueprint;

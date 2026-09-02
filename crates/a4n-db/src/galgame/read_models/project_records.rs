@@ -10,18 +10,16 @@ pub async fn galgame_scene_in_project_record<C>(
 where
     C: ConnectionTrait,
 {
-    let scene = galgame_scene::Entity::find_by_id(scene_id)
+    let (scene, script) = galgame_scene::Entity::find_by_id(scene_id)
+        .find_also_related(galgame_script::Entity)
         .one(db)
         .await?
         .ok_or_else(|| {
             GalgameProjectRecordError::NotFound(format!("Galgame 场不存在: {scene_id}"))
         })?;
-    let script = galgame_script::Entity::find_by_id(scene.script_id)
-        .one(db)
-        .await?
-        .ok_or_else(|| {
-            GalgameProjectRecordError::NotFound(format!("Galgame 剧本不存在: {}", scene.script_id))
-        })?;
+    let script = script.ok_or_else(|| {
+        GalgameProjectRecordError::NotFound(format!("Galgame 剧本不存在: {}", scene.script_id))
+    })?;
     if script.project_id != project_id {
         return Err(GalgameProjectRecordError::InvalidArgument(
             "Galgame 场不属于目标项目".to_string(),

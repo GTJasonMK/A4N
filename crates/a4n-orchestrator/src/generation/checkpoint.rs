@@ -288,7 +288,7 @@ impl GenerationCheckpointWriter {
     }
 }
 
-fn split_text_delta(text: &str) -> Vec<String> {
+pub(crate) fn split_text_delta(text: &str) -> Vec<String> {
     let mut parts = Vec::new();
     let mut start = 0;
     while start < text.len() {

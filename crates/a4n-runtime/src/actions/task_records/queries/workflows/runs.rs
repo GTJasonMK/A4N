@@ -81,7 +81,7 @@ pub async fn get_workflow_run_detail_for_user(
     require_positive_workflow_run_id(input.workflow_run_id)?;
     let db_input = DbGetWorkflowRunInput {
         workflow_run_id: input.workflow_run_id,
-        include_generation_runs: Some(input.include_generation_runs),
+        include_generation_runs: input.include_generation_runs,
     };
     let detail = state
         .orchestrator()

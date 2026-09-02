@@ -1,4 +1,8 @@
-use a4n_core::{error::AppError, models::ai::generated_image};
+use a4n_core::{
+    config::{ensure_image_size_supported, image_sizes_from_json},
+    error::AppError,
+    models::ai::generated_image,
+};
 use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
     RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
@@ -552,6 +556,13 @@ fn validate_execution_input(input: &ImageGenerationExecutionInput) -> Result<(),
     required_text(&input.request.prompt, "图片提示词")?;
     require_positive(i64::from(input.width), "图片宽度")?;
     require_positive(i64::from(input.height), "图片高度")?;
+    if input.request.width != input.width || input.request.height != input.height {
+        return Err(AppError::InvalidArgument(
+            "图片生成请求尺寸与执行尺寸不一致".to_string(),
+        ));
+    }
+    let supported_sizes = image_sizes_from_json(&input.config.supported_sizes_json)?;
+    ensure_image_size_supported(&supported_sizes, input.width, input.height)?;
     if let ImageGenerationPostCommitAction::MangaPage {
         page_prompt_id,
         page_number,

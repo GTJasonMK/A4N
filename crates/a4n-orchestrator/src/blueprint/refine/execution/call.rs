@@ -44,13 +44,18 @@ pub(super) async fn execute_blueprint_refine_call(
         )
         .await?;
     if let Some(checkpoint) = checkpoint {
-        publisher
-            .text_delta(BLUEPRINT_RAW_JSON_STREAM_ID, &checkpoint.response_content)
-            .await
-            .map_err(|error| AppError::InvalidState {
-                current: error.to_string(),
-                operation: "恢复蓝图优化流".to_string(),
-            })?;
+        if cancel_token.is_cancelled() {
+            return Err(AppError::Cancelled);
+        }
+        for delta in crate::generation::checkpoint::split_text_delta(&checkpoint.response_content) {
+            publisher
+                .text_delta(BLUEPRINT_RAW_JSON_STREAM_ID, &delta)
+                .await
+                .map_err(|error| AppError::InvalidState {
+                    current: error.to_string(),
+                    operation: "恢复蓝图优化流".to_string(),
+                })?;
+        }
         let (parsed, usage_json, finish_reason) = blueprint_refine_checkpoint_output(
             &checkpoint.parsed_output,
             &checkpoint.response_content,
@@ -65,6 +70,18 @@ pub(super) async fn execute_blueprint_refine_call(
                 current: error.to_string(),
                 operation: "恢复蓝图优化 usage".to_string(),
             })?;
+        if let Some(usage) = usage.as_ref() {
+            crate::generation::stream::publish_generation_usage(
+                publisher,
+                usage,
+                session.snapshot().usage.as_ref(),
+            )
+            .await
+            .map_err(|error| AppError::InvalidState {
+                current: error.message,
+                operation: "恢复蓝图优化累计 usage".to_string(),
+            })?;
+        }
         let finish_reason =
             generation_finish_reason_from_text(&finish_reason).ok_or_else(|| {
                 AppError::InvalidState {

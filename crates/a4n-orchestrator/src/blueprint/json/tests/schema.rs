@@ -100,3 +100,14 @@ fn rejects_relationship_without_strength() {
 
     assert!(err.to_string().contains("strength"));
 }
+
+#[test]
+fn rejects_noncanonical_relationship_type() {
+    let raw = valid_blueprint().replace("\"relationship_type\":\"rival\"", "\"relationship_type\":\"rivalry\"");
+
+    let err = parse_blueprint_json(&raw, 30)
+        .expect_err("relationship_type outside the canonical enum must fail");
+
+    assert!(err.to_string().contains("rivalry"));
+    assert!(err.to_string().contains("family, friend, enemy, lover, rival, mentor, other"));
+}

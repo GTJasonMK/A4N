@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use a4n_core::error::AppError;
 
@@ -24,17 +24,21 @@ impl GraphBuilder {
                 cycle.join(" -> ")
             ));
         }
+        let mut direct_downstream = HashMap::<&str, HashSet<&str>>::new();
+        for edge in &edges {
+            direct_downstream
+                .entry(edge.from.as_str())
+                .or_default()
+                .insert(edge.to.as_str());
+        }
 
         let mut nodes = self
             .nodes
             .into_values()
             .map(|seed| {
-                let direct_downstream_count = edges
-                    .iter()
-                    .filter(|edge| edge.from == seed.id)
-                    .map(|edge| edge.to.as_str())
-                    .collect::<BTreeSet<_>>()
-                    .len() as u64;
+                let direct_downstream_count = direct_downstream
+                    .get(seed.id.as_str())
+                    .map_or(0, HashSet::len) as u64;
                 let downstream_count = downstream.get(&seed.id).copied().unwrap_or_default();
                 let mutable = seed.editable && downstream_count == 0;
                 let mutation_policy = mutation_policy(seed.editable, downstream_count);

@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useMemo } from "react";
 import {
   ChevronLeft,
@@ -112,7 +113,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
   }, [chapters, outlines]);
 
   const chapterSelect = chapterNumbers.length > 0 ? (
-    <select
+    <ThemedSelect
       aria-label={t("writing.chooseChapterTitle")}
       title={t("writing.chooseChapterTitle")}
       value={activeNumber == null ? "" : String(activeNumber)}
@@ -133,7 +134,7 @@ export const WritingDeskHeader: React.FC<WritingDeskHeaderProps> = ({
           </option>
         );
       })}
-    </select>
+    </ThemedSelect>
   ) : null;
 
   const saveButton = dirty ? (

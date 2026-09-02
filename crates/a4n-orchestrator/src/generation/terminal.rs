@@ -19,7 +19,7 @@ use a4n_service_protocol::{
     DraftDisposition, FailedEvent, GENERATION_EVENT_SCHEMA_VERSION, GenerationError,
     GenerationErrorCode, GenerationEvent, GenerationFinishReason, GenerationResultRef,
     GenerationTaskEvent, GenerationTaskSnapshot, GenerationTaskStatus, GenerationUsage,
-    InterruptedEvent, InterruptionReason, StatusChangedEvent, StreamTextHash,
+    InterruptedEvent, InterruptionReason, ProgressEvent, StatusChangedEvent, StreamTextHash,
 };
 use futures::future::BoxFuture;
 use sea_orm::{DatabaseTransaction, TransactionTrait};
@@ -298,6 +298,28 @@ impl GenerationTerminalCoordinator {
             .await
     }
 
+    /// 完成 generation 时，将事务内产生的阶段进度与正式结果一起提交。
+    ///
+    /// 持久化回调运行在 finalizing 事务中，不能再通过普通 publisher 写入事件；
+    /// 调用方返回的进度会和 Completed 事件以同一 durable commit 提交，避免进度
+    /// 先于实际数据落库或在事务回滚后留下假进度。
+    pub(crate) async fn complete_with_progress<F>(
+        &self,
+        session: &Arc<GenerationTaskSession>,
+        write_result: F,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
+    where
+        F: for<'tx> FnOnce(
+            &'tx DatabaseTransaction,
+        ) -> BoxFuture<
+            'tx,
+            Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
+        >,
+    {
+        self.complete_with_progress_artifacts(session, Vec::new(), write_result)
+            .await
+    }
+
     pub(crate) async fn complete_with_artifacts<F>(
         &self,
         session: &Arc<GenerationTaskSession>,
@@ -308,6 +330,28 @@ impl GenerationTerminalCoordinator {
         F: for<'tx> FnOnce(
             &'tx DatabaseTransaction,
         ) -> BoxFuture<'tx, Result<CompletionDescriptor, AppError>>,
+    {
+        self.complete_with_progress_artifacts(session, artifacts, move |tx| {
+            let future = write_result(tx);
+            Box::pin(async move { future.await.map(|descriptor| (descriptor, Vec::new())) })
+                as BoxFuture<'_, Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>>
+        })
+        .await
+    }
+
+    async fn complete_with_progress_artifacts<F>(
+        &self,
+        session: &Arc<GenerationTaskSession>,
+        artifacts: Vec<PreparedArtifactEvent>,
+        write_result: F,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>
+    where
+        F: for<'tx> FnOnce(
+            &'tx DatabaseTransaction,
+        ) -> BoxFuture<
+            'tx,
+            Result<(CompletionDescriptor, Vec<ProgressEvent>), AppError>,
+        >,
     {
         match self.begin_finalizing(session).await? {
             GenerationTerminalWriteOutcome::AlreadyTerminal => {
@@ -346,9 +390,13 @@ impl GenerationTerminalCoordinator {
         let descriptor = write_result(&tx)
             .await
             .map_err(GenerationTerminalError::Completion)?;
+        let (descriptor, progress_events) = descriptor;
         validate_batch_summary_presence(&candidate.snapshot, descriptor.batch_summary.as_ref())?;
-        let events =
-            committed_terminal_events(artifacts, GenerationEvent::Completed(descriptor.into()));
+        let events = committed_terminal_events_with_progress(
+            artifacts,
+            progress_events,
+            GenerationEvent::Completed(descriptor.into()),
+        );
         let permit = session.prepare_committed_events(events)?;
         let input = PersistGenerationLifecycleInput {
             task_id: candidate.snapshot.task_id,
@@ -844,9 +892,22 @@ fn committed_terminal_events(
         .collect()
 }
 
+fn committed_terminal_events_with_progress(
+    artifacts: Vec<PreparedArtifactEvent>,
+    progress_events: Vec<ProgressEvent>,
+    terminal: GenerationEvent,
+) -> Vec<GenerationEvent> {
+    let mut events = committed_terminal_events(artifacts, terminal);
+    let terminal = events.pop().expect("completed event is always present");
+    events.extend(progress_events.into_iter().map(GenerationEvent::Progress));
+    events.push(terminal);
+    events
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
     use a4n_service_protocol::{GenerationArtifactRef, GenerationDeliveryMode, StartedEvent};
 
     use crate::generation::artifacts::GenerationArtifactCoordinator;
@@ -929,5 +990,36 @@ mod tests {
 
         assert!(matches!(events[0], GenerationEvent::Artifact(_)));
         assert!(matches!(events[1], GenerationEvent::Cancelled(_)));
+    }
+
+    #[test]
+    fn committed_completion_progress_precedes_completed_event() {
+        let events = committed_terminal_events_with_progress(
+            Vec::new(),
+            vec![ProgressEvent {
+                stage_code: "blueprint_persist".to_string(),
+                phase_kind: ProgressPhaseKind::Save,
+                message: "正在保存蓝图主体".to_string(),
+                current: Some(9),
+                total: Some(12),
+                unit_label: None,
+                item_key: None,
+                item_index: None,
+                item_total: None,
+                severity: ProgressSeverity::Info,
+                estimated: false,
+            }],
+            GenerationEvent::Completed(CompletedEvent {
+                result_ref: None,
+                final_text_hashes: Vec::new(),
+                final_usage: None,
+                finish_reason: Some(GenerationFinishReason::Stop),
+                summary: None,
+                batch_summary: None,
+            }),
+        );
+
+        assert!(matches!(events[0], GenerationEvent::Progress(_)));
+        assert!(matches!(events[1], GenerationEvent::Completed(_)));
     }
 }

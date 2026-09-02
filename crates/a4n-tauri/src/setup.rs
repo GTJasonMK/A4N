@@ -9,6 +9,7 @@ use a4n_core::error::AppError;
 use a4n_core::files::paths::AppPaths;
 use a4n_runtime::{AppState, state::RuntimeProfile};
 use a4n_service_protocol::MANAGED_SIDECARS_ENV;
+use std::sync::Arc;
 use tauri::AppHandle;
 #[cfg(target_os = "macos")]
 use tauri::Manager;
@@ -67,6 +68,18 @@ fn runtime_profile_for_tauri_host() -> Result<RuntimeProfile, AppError> {
         }
     }
     Ok(configured.unwrap_or_else(RuntimeProfile::default_for_build))
+}
+
+pub(crate) fn install_agent_host_dispatcher(runtime: &Arc<AppState>) -> Result<(), AppError> {
+    let weak_runtime = Arc::downgrade(runtime);
+    runtime.set_agent_host_dispatcher(Arc::new(move |user_id, command, args| {
+        let Some(runtime) = weak_runtime.upgrade() else {
+            return Box::pin(async { Err("A4N Host 已退出".to_string()) });
+        };
+        Box::pin(async move {
+            a4n_server::dispatch_runtime_command(&runtime, user_id, args, command).await
+        })
+    }))
 }
 
 #[cfg(not(feature = "embedded-capabilities"))]

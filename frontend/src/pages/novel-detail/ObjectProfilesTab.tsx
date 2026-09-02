@@ -4,6 +4,7 @@ import { Boxes,
   Plus,
   RefreshCw, } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { ImageSizeSelect, useImageGenerationSize } from "../../components/image/ImageSizeSelect";
 import { extractErrorMessage } from "../../api";
 import type { DownstreamConflictStrategy } from "../../api/generated/host";
 import {
@@ -18,6 +19,7 @@ import {
   startImageGeneration,
   verifyImageGenerationResult,
 } from "../../api/image";
+import type { ImageSize } from "../../api/image";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
@@ -66,6 +68,13 @@ export const ObjectProfilesTab: React.FC<{
   const { t } = useI18n();
   const { runProgressTask } = useProgressTask();
   const {
+    error: imageSizeError,
+    loading: imageSizeLoading,
+    size: imageSize,
+    sizes: imageSizes,
+    setSize: setImageSize,
+  } = useImageGenerationSize();
+  const {
     profiles,
     profilesRef,
     loading,
@@ -107,6 +116,10 @@ export const ObjectProfilesTab: React.FC<{
       addToast(t("novel.profile.notInProject", { name: t("novel.profile.object") }), "error");
       return;
     }
+    if (!imageSize) {
+      addToast(t("settingsForm.imageSizeUnavailable"), "error");
+      return;
+    }
     const requestSeq = beginAction(requestProjectId);
     if (requestSeq == null) return;
     setBusyId(requestProfile.id);
@@ -117,6 +130,8 @@ export const ObjectProfilesTab: React.FC<{
           kind: "object_profile",
           object_profile_id: requestProfile.id,
           style: DEFAULT_IMAGE_STYLE,
+          width: imageSize.width,
+          height: imageSize.height,
         },
       });
       await runGenerationProgressTaskThen(
@@ -396,6 +411,11 @@ export const ObjectProfilesTab: React.FC<{
         profile={detailFor}
         onClose={() => setDetailFor(null)}
         onGenerate={(profile) => void handleGenerateImage(profile)}
+        imageSize={imageSize}
+        imageSizes={imageSizes}
+        imageSizeLoading={imageSizeLoading}
+        imageSizeError={imageSizeError}
+        onImageSizeChange={setImageSize}
         onEdit={(profile) => {
           if (!canEditProfiles) {
             addToast(t("novel.profile.readonlyCannot", { operation: t("common.edit"), name: t("novel.profile.object") }), "error");
@@ -423,6 +443,11 @@ function ObjectProfileDetailModal({
   profile,
   onClose,
   onGenerate,
+  imageSize,
+  imageSizes,
+  imageSizeLoading,
+  imageSizeError,
+  onImageSizeChange,
   onEdit,
   onDelete,
   busyId,
@@ -431,6 +456,11 @@ function ObjectProfileDetailModal({
   profile: ObjectProfile | null;
   onClose: () => void;
   onGenerate: (profile: ObjectProfile) => void;
+  imageSize: ImageSize | null;
+  imageSizes: readonly ImageSize[];
+  imageSizeLoading: boolean;
+  imageSizeError: Error | null;
+  onImageSizeChange: (size: ImageSize) => void;
   onEdit: (profile: ObjectProfile) => void;
   onDelete: (profile: ObjectProfile) => void;
   busyId: number | null;
@@ -468,13 +498,25 @@ function ObjectProfileDetailModal({
           </dl>
           <ProfileEvidence items={evidence} />
           {canEdit && (
-            <ProfileDetailActions
-              busy={busyId != null}
-              generating={busyId === profile.id}
-              onEdit={() => onEdit(profile)}
-              onDelete={() => onDelete(profile)}
-              onGenerate={() => onGenerate(profile)}
-            />
+            <>
+              <ImageSizeSelect
+                label={t("settingsForm.selectImageSize")}
+                value={imageSize}
+                sizes={imageSizes}
+                loading={imageSizeLoading}
+                error={imageSizeError}
+                disabled={busyId != null}
+                onChange={onImageSizeChange}
+              />
+              <ProfileDetailActions
+                busy={busyId != null}
+                generating={busyId === profile.id}
+                generateDisabled={imageSize == null || imageSizeLoading || imageSizeError != null}
+                onEdit={() => onEdit(profile)}
+                onDelete={() => onDelete(profile)}
+                onGenerate={() => onGenerate(profile)}
+              />
+            </>
           )}
         </div>
       ) : null}

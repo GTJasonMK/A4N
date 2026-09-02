@@ -1,6 +1,6 @@
 use a4n_core::blueprint::{
-    BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATION_KIND, BLUEPRINT_GENERATION_PROMPTS,
-    ParsedBlueprint, project_status_after_blueprint_generation,
+    BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_GENERATION_KIND,
+    BLUEPRINT_GENERATION_PROMPTS, ParsedBlueprint, project_status_after_blueprint_generation,
 };
 use a4n_core::error::AppError;
 use a4n_core::models::project::novel_blueprint;
@@ -19,11 +19,15 @@ use a4n_db::project::{
     blueprint_relationships_for_project, insert_project_status_history, merge_blueprint_characters,
     merge_blueprint_relationships, project_by_id_record,
 };
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::{
+    progress::{ProgressPhaseKind, ProgressSeverity},
+    project::ProjectStatus,
+};
 use a4n_llm::provider::ChatRequest;
 use a4n_llm::trace::{
     chat_request_messages_json, context_aware_chat_request_trace_json, text_response_summary_json,
 };
+use a4n_service_protocol::ProgressEvent;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::DatabaseTransaction;
 use serde_json::{Value, json};
@@ -53,7 +57,7 @@ pub(super) struct BlueprintCompletionOutcome {
 pub(super) async fn persist_generated_blueprint_in_transaction(
     tx: &DatabaseTransaction,
     input: BlueprintGenerationCompletionInput,
-) -> Result<BlueprintCompletionOutcome, AppError> {
+) -> Result<(BlueprintCompletionOutcome, Vec<ProgressEvent>), AppError> {
     let BlueprintGenerationCompletionInput {
         project_id,
         user_payload,
@@ -63,6 +67,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
         expected_source_snapshot,
         model_name,
     } = input;
+    let mut progress_events = Vec::with_capacity(4);
     let locked_sources =
         a4n_db::outline::load_outline_generation_source_rows_for_update(tx, project_id)
             .await?
@@ -97,6 +102,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     let chapters_per_part = parsed
         .needs_part_outlines
         .then_some(parsed.chapters_per_part);
+    progress_events.push(blueprint_persist_progress(9, "正在保存蓝图主体"));
     let blueprint = upsert_novel_blueprint_record(
         tx,
         NovelBlueprintUpsertInput {
@@ -120,6 +126,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     .await
     .map_err(blueprint_db_error)?;
 
+    progress_events.push(blueprint_persist_progress(10, "正在同步主要角色"));
     merge_blueprint_characters(
         tx,
         project_id,
@@ -128,6 +135,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     )
     .await
     .map_err(blueprint_sync_error)?;
+    progress_events.push(blueprint_persist_progress(11, "正在同步人物关系与角色档案"));
     merge_blueprint_relationships(
         tx,
         project_id,
@@ -142,6 +150,10 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     let characters = blueprint_characters_for_project(tx, project_id).await?;
     let relationships = blueprint_relationships_for_project(tx, project_id).await?;
     let snapshot = blueprint_version_snapshot(&blueprint, &characters, &relationships);
+    progress_events.push(blueprint_persist_progress(
+        12,
+        "正在保存版本快照并同步项目状态",
+    ));
     a4n_db::blueprint::insert_blueprint_version_record(
         tx,
         a4n_db::blueprint::InsertBlueprintVersionInput {
@@ -261,8 +273,27 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
     .await
     .map_err(generation_error)?;
 
-    Ok(BlueprintCompletionOutcome {
-        blueprint,
-        status_change,
-    })
+    Ok((
+        BlueprintCompletionOutcome {
+            blueprint,
+            status_change,
+        },
+        progress_events,
+    ))
+}
+
+fn blueprint_persist_progress(current: u64, message: &str) -> ProgressEvent {
+    ProgressEvent {
+        stage_code: "blueprint_persist".to_string(),
+        phase_kind: ProgressPhaseKind::Save,
+        message: message.to_string(),
+        current: Some(current),
+        total: Some(BLUEPRINT_GENERATE_PROGRESS_TOTAL as u64),
+        unit_label: None,
+        item_key: None,
+        item_index: None,
+        item_total: None,
+        severity: ProgressSeverity::Info,
+        estimated: false,
+    }
 }

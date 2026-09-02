@@ -93,6 +93,11 @@ A4N_JWT_SECRET=replace-with-a-long-random-secret \
 ./scripts/run.sh
 ```
 
+`scripts/run.sh` 会在任何 Tauri/Server Debug 构建前检查 PostgreSQL、JWT、前端依赖；热重载模式还会先检查 `VITE_PORT`（默认 `5173`）是否被占用；
+本地 managed-sidecar 模式还会检查 ONNX Runtime、Qdrant、sidecar catalog 和 Tauri
+系统库。检查失败会直接停止，不进入 Cargo 或前端构建。
+开发调试请使用该入口；直接执行 `cargo tauri dev` 不会经过这套依赖门禁。
+
 构建前端并启动 Web 服务端：
 
 ```bash

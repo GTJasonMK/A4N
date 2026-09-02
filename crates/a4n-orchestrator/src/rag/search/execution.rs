@@ -6,32 +6,20 @@ use a4n_rag_core::{
     vector_store::{SearchFilter, SearchResult, VectorStore},
 };
 
-pub(crate) async fn hybrid_rag_search_filtered_in_store(
-    vector_store: &dyn VectorStore,
-    project_id: i64,
-    query: &str,
+pub(crate) async fn embed_queries_in_batch(
     provider: &dyn EmbeddingProvider,
-    top_k: usize,
-    filter: Option<SearchFilter>,
-) -> Result<Vec<SearchResult>, AppError> {
-    let (query_embedding, embedding_identity) = provider
-        .embed_with_identity(vec![query.to_string()])
+    queries: &[String],
+) -> Result<Vec<Vec<f32>>, AppError> {
+    if queries.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let (embeddings, identity) = provider
+        .embed_with_identity(queries.to_vec())
         .await
         .map_err(embedding_provider_error)?;
-    validate_embedding_batch(&query_embedding, 1, embedding_identity.dimension)?;
-    let query_embedding = query_embedding
-        .into_iter()
-        .next()
-        .expect("validated one query embedding");
-    hybrid_rag_search_with_validated_embedding_in_store(
-        vector_store,
-        project_id,
-        query,
-        query_embedding,
-        top_k,
-        filter,
-    )
-    .await
+    validate_embedding_batch(&embeddings, queries.len(), identity.dimension)?;
+    Ok(embeddings)
 }
 
 pub(crate) async fn hybrid_rag_search_with_validated_embedding_in_store(

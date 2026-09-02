@@ -23,8 +23,12 @@ where
 {
     use crate::project::{blueprint_characters_for_project, blueprint_relationships_for_project};
 
-    let characters = blueprint_characters_for_project(db, project_id).await?;
-    let relationships = blueprint_relationships_for_project(db, project_id).await?;
+    let (characters_result, relationships_result) = futures::join!(
+        blueprint_characters_for_project(db, project_id),
+        blueprint_relationships_for_project(db, project_id),
+    );
+    let characters = characters_result?;
+    let relationships = relationships_result?;
     sync_character_profiles_from_blueprint_rows(db, project_id, &characters, &relationships, now)
         .await
 }

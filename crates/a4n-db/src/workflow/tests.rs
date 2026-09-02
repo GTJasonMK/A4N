@@ -68,13 +68,7 @@ fn workflow_query_inputs_support_chapter_filter_and_lightweight_detail() {
         "include_generation_runs": false
     }))
     .expect("lightweight workflow detail query should deserialize");
-    assert_eq!(detail.include_generation_runs, Some(false));
-
-    let legacy_detail: GetWorkflowRunInput = serde_json::from_value(serde_json::json!({
-        "workflow_run_id": 7
-    }))
-    .expect("existing detail query should remain compatible");
-    assert_eq!(legacy_detail.include_generation_runs, None);
+    assert!(!detail.include_generation_runs);
 }
 
 #[test]

@@ -336,8 +336,10 @@ fn image_config() -> image_gen_config::Model {
         api_key_encrypted: None,
         model: "configured-image-model".to_string(),
         max_concurrent: 1,
-        default_width: 1024,
-        default_height: 576,
+        supported_sizes_json: json!([
+            {"width": 1024, "height": 576},
+            {"width": 1024, "height": 1536}
+        ]),
         is_default: true,
         created_at: now,
         updated_at: now,

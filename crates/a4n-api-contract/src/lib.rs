@@ -4,6 +4,7 @@
 //! 状态和 application 规则不得进入本 crate。
 
 pub mod admin;
+pub mod agent;
 pub mod auth;
 pub mod blueprint;
 pub mod canvas;

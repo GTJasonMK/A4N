@@ -97,7 +97,7 @@ export const PortraitToolbar: React.FC<PortraitToolbarProps> = ({
       </header>
       {profiles.length > 0 ? (
         <div className="border-t border-book-border/40 px-3 py-2.5 sm:px-4">
-        <div className="a4n-filter-chips custom-scrollbar" aria-label={t("characterDetail.portrait.filterAria")}>
+        <div className="a4n-filter-chips a4n-filter-chips--hidden-scrollbar" aria-label={t("characterDetail.portrait.filterAria")}>
           <button
             type="button"
             className="a4n-filter-chip"

@@ -108,9 +108,12 @@ impl OrchestratorContext {
         &self,
         context: &PromptExecutionContext,
     ) -> Result<usize, AppError> {
-        let existing_names = self.active_prompt_names(context).await?;
-        self.preflight_project_override_keys_for_retired_cleanup()
-            .await?;
+        let (existing_names_result, preflight_result) = futures::join!(
+            self.active_prompt_names(context),
+            self.preflight_project_override_keys_for_retired_cleanup(),
+        );
+        let existing_names = existing_names_result?;
+        preflight_result?;
         let loaded = if let Some(client) = self.prompt_client_for_execution(context)? {
             let response = client
                 .load_defaults(prompt_service_request(
@@ -331,11 +334,12 @@ impl OrchestratorContext {
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
         validate_project_override_content(&input.content)
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        self.prompt_entry_for_execution(context, &identity.name)
-            .await?;
-        let previous_content = self
-            .load_project_override_persisted_content(&identity)
-            .await?;
+        let (entry_result, previous_result) = futures::join!(
+            self.prompt_entry_for_execution(context, &identity.name),
+            self.load_project_override_persisted_content(&identity),
+        );
+        entry_result?;
+        let previous_content = previous_result?;
         self.set_prompt_override_for_execution(context, &identity, input.content.clone())
             .await?;
         if let Err(error) = self
@@ -562,8 +566,12 @@ impl OrchestratorContext {
         let Some(project_id) = project_id else {
             return Ok(None);
         };
-        let root_project_id = self.collaboration_root_project(project_id).await?.id;
-        let active_names = self.active_prompt_names(context).await?;
+        let (root_project_result, active_names_result) = futures::join!(
+            self.collaboration_root_project(project_id),
+            self.active_prompt_names(context),
+        );
+        let root_project_id = root_project_result?.id;
+        let active_names = active_names_result?;
         let overrides = self
             .project_override_summaries(project_id, &active_names)
             .await?

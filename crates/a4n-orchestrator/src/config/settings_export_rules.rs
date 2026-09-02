@@ -284,8 +284,7 @@ fn image_params_from_row(row: &SettingsAllImageConfigRow) -> CreateImageConfigPa
         api_key_encrypted: row.api_key_encrypted.clone(),
         model: row.model.clone(),
         max_concurrent: row.max_concurrent,
-        default_width: row.default_width,
-        default_height: row.default_height,
+        supported_sizes: row.supported_sizes.clone(),
     }
 }
 
@@ -296,8 +295,7 @@ fn apply_image_params_to_row(row: &mut SettingsAllImageConfigRow, params: Create
     row.api_key_encrypted = params.api_key_encrypted;
     row.model = params.model;
     row.max_concurrent = params.max_concurrent;
-    row.default_width = params.default_width;
-    row.default_height = params.default_height;
+    row.supported_sizes = params.supported_sizes;
 }
 
 fn video_params_from_row(row: &SettingsAllVideoConfigRow) -> VideoConfigParams {

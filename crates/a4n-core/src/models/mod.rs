@@ -148,3 +148,5 @@ pub mod ai {
     pub mod system_settings;
     pub mod video_gen_config;
 }
+
+pub mod agent;

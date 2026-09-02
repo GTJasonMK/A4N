@@ -4,6 +4,7 @@ use std::io::{Read, Seek, SeekFrom};
 use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use a4n_api_contract::command_manifest::HOST_IDENTITY;
@@ -1243,12 +1244,17 @@ async fn wait_server(api_base: &str, child: &mut std::process::Child, timeout: D
 }
 
 async fn server_healthy(api_base: &str) -> bool {
-    let client = match reqwest::Client::builder()
-        .timeout(Duration::from_secs(1))
-        .build()
-    {
-        Ok(client) => client,
-        Err(_) => return false,
+    static CLIENT: OnceLock<Option<reqwest::Client>> = OnceLock::new();
+    let Some(client) = CLIENT
+        .get_or_init(|| {
+            reqwest::Client::builder()
+                .timeout(Duration::from_secs(1))
+                .build()
+                .ok()
+        })
+        .as_ref()
+    else {
+        return false;
     };
     let Ok(response) = client
         .get(format!("{}/meta", api_base.trim_end_matches('/')))

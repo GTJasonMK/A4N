@@ -80,7 +80,7 @@ impl OrchestratorContext {
                     run_visual_spec(self, host_port, user_id, &input, &spec).await?
                 }
                 GALGAME_TARGET_PORTRAIT_EXPRESSION => {
-                    run_portrait_spec(self, host_port, user_id, &spec).await?
+                    run_portrait_spec(self, host_port, user_id, &input, &spec).await?
                 }
                 other => {
                     return Err(AppError::InvalidArgument(format!(
@@ -189,6 +189,8 @@ async fn run_visual_spec(
                 prompt: prompt.prompt_text.clone(),
                 image_type: plan.image_type.to_string(),
                 config_id: input.config_id,
+                width: input.width,
+                height: input.height,
                 chapter_id: spec.source_chapter_id,
                 generation_spec_id: spec.id,
                 target_kind: plan.target_kind.to_string(),
@@ -240,6 +242,7 @@ async fn run_portrait_spec(
     context: &OrchestratorContext,
     host: &dyn GalgameAssetGenerationHostPort,
     user_id: i64,
+    input: &RunGalgameAssetGenerationInput,
     spec: &generation_spec::Model,
 ) -> Result<(GalgameAssetGenerationItem, bool), AppError> {
     let plan = GalgamePortraitSpecPlan::from_spec(spec)?;
@@ -283,6 +286,8 @@ async fn run_portrait_spec(
                 expression: Some(plan.expression.clone()),
                 pose: Some(plan.pose.clone()),
                 reference_image_ids,
+                width: input.width,
+                height: input.height,
             },
         )
         .await
@@ -806,6 +811,11 @@ fn required_cg_importance(value: &Value, id: i64) -> Result<GalgameCgImportance,
 fn validate_input(input: &RunGalgameAssetGenerationInput) -> Result<(), AppError> {
     if input.project_id <= 0 {
         return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
+    }
+    if input.width <= 0 || input.height <= 0 {
+        return Err(AppError::InvalidArgument(
+            "图片 width 和 height 必须大于 0".to_string(),
+        ));
     }
     if input.limit.is_some_and(|limit| limit == 0) {
         return Err(AppError::InvalidArgument("limit 必须大于 0".to_string()));

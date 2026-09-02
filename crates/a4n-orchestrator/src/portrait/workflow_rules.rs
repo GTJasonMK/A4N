@@ -15,6 +15,8 @@ pub fn portrait_generate_workflow_fingerprint(
     expression: &str,
     pose: Option<&str>,
     reference_image_ids: &[i64],
+    width: i32,
+    height: i32,
     request: &ChatRequest,
 ) -> Result<Value, String> {
     Ok(json!({
@@ -26,6 +28,8 @@ pub fn portrait_generate_workflow_fingerprint(
         "expression": expression,
         "pose": pose,
         "reference_image_ids": reference_image_ids,
+        "width": width,
+        "height": height,
         "request": context_aware_chat_request_trace_json(request)
             .map_err(|err| format!("立绘提示词请求序列化失败: {err}"))?,
     }))
@@ -86,6 +90,8 @@ pub fn missing_portrait_item_fingerprint(
     project_id: i64,
     profile: &protagonist_profile::Model,
     prompt: &str,
+    width: i32,
+    height: i32,
 ) -> Value {
     json!({
         "workflow": "missing_portrait_generation",
@@ -93,6 +99,8 @@ pub fn missing_portrait_item_fingerprint(
         "profile": profile_fingerprint_fields(profile),
         "prompt": prompt,
         "portrait_type": "half_body",
+        "width": width,
+        "height": height,
     })
 }
 
@@ -201,6 +209,8 @@ mod tests {
             "neutral",
             None,
             &[1, 2],
+            1024,
+            1536,
             &empty_request(),
         )
         .expect("fingerprint");

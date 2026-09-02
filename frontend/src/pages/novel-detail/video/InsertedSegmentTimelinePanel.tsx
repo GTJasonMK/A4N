@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useImperativeHandle, useMemo, useState } from "react";
 import { Check, ChevronDown, Plus, Save, Trash2, Wand2 } from "lucide-react";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
@@ -13,7 +14,10 @@ import type {
   VideoTimelineSummary,
 } from "../../../api/video";
 import { toMediaSrc } from "../../../utils/mediaSrc";
-import { MAX_REFERENCE_IMAGES, VIDEO_ASPECT_RATIOS } from "./videoTabUtils";
+import {
+  MAX_REFERENCE_IMAGES,
+  type VideoAspectRatio,
+} from "./videoTabUtils";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
 export interface InsertedSegmentGap {
@@ -49,6 +53,8 @@ export interface InsertedSegmentTimelinePanelProps {
   defaultDurationSecs: number;
   defaultDurationOptions: number[];
   defaultAspectRatio: string;
+  supportedAspectRatios: readonly VideoAspectRatio[];
+  aspectRatioLoading: boolean;
   loading: boolean;
   acting: string | null;
   onGenerate: (
@@ -171,6 +177,8 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
       defaultDurationSecs,
       defaultDurationOptions,
       defaultAspectRatio,
+      supportedAspectRatios,
+      aspectRatioLoading,
       loading,
       acting,
       onGenerate,
@@ -231,7 +239,14 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
     );
 
     const openCreate = (nextGap: InsertedSegmentGap) => {
-      if (loading || acting != null) return;
+      if (
+        loading ||
+        acting != null ||
+        aspectRatioLoading ||
+        supportedAspectRatios.length === 0
+      ) {
+        return;
+      }
       const durationOptions = Array.from(
         new Set([...defaultDurationOptions, defaultDurationSecs]),
       ).sort((left, right) => left - right);
@@ -340,7 +355,12 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   variant="primary"
                   size="sm"
                   disabled={
-                    acting != null || form.user_prompt.trim().length === 0
+                    acting != null ||
+                    form.user_prompt.trim().length === 0 ||
+                    aspectRatioLoading ||
+                    !supportedAspectRatios.includes(
+                      form.aspect_ratio as VideoAspectRatio,
+                    )
                   }
                   onClick={async () => {
                     const revision = timeline.revision;
@@ -396,7 +416,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   <span className="text-xs text-book-text-muted">
                     {t("video.chapter.promptLanguageLabel")}
                   </span>
-                  <select
+                  <ThemedSelect
                     value={form.prompt_output_language}
                     disabled={acting != null}
                     onChange={(event) =>
@@ -409,13 +429,13 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   >
                     <option value="zh_cn">{t("settings.chinese")}</option>
                     <option value="en">{t("settings.english")}</option>
-                  </select>
+                  </ThemedSelect>
                 </label>
                 <label className="block">
                   <span className="text-xs text-book-text-muted">
                     {t("video.chapter.durationSeconds")}
                   </span>
-                  <select
+                  <ThemedSelect
                     value={form.duration_secs}
                     disabled={acting != null}
                     onChange={(event) =>
@@ -428,24 +448,35 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                         {t("video.chapter.seconds", { count: duration })}
                       </option>
                     ))}
-                  </select>
+                  </ThemedSelect>
                 </label>
                 <label className="block">
                   <span className="text-xs text-book-text-muted">{t("video.chapter.aspectRatioLabel")}</span>
-                  <select
+                  <ThemedSelect
                     value={form.aspect_ratio}
-                    disabled={acting != null}
+                    disabled={
+                      acting != null ||
+                      aspectRatioLoading ||
+                      supportedAspectRatios.length === 0
+                    }
                     onChange={(event) =>
                       updateForm({ aspect_ratio: event.target.value })
                     }
                     className="book-control mt-1 h-9 w-full px-2 text-xs"
                   >
-                    {VIDEO_ASPECT_RATIOS.map((ratio) => (
+                    {!supportedAspectRatios.includes(
+                      form.aspect_ratio as VideoAspectRatio,
+                    ) && (
+                      <option value={form.aspect_ratio} disabled>
+                        {form.aspect_ratio} · {t("video.chapter.unsupportedAspectRatio")}
+                      </option>
+                    )}
+                    {supportedAspectRatios.map((ratio) => (
                       <option key={ratio} value={ratio}>
                         {ratio}
                       </option>
                     ))}
-                  </select>
+                  </ThemedSelect>
                 </label>
               </div>
               <div>
@@ -593,7 +624,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                   <div className="min-w-0 flex-1 text-caption text-book-text-muted">
                     {t("video.chapter.timelinePosition", { number: editingItem.display_index })}
                   </div>
-                  <select
+                  <ThemedSelect
                     aria-label={t("video.chapter.moveInserted", { number: editingItem.display_index })}
                     value=""
                     disabled={acting != null}
@@ -623,7 +654,7 @@ export const InsertedSegmentTimelinePanel = React.forwardRef<
                           {gapLabelFromIndex(candidate, itemsById, t)}
                         </option>
                       ))}
-                  </select>
+                  </ThemedSelect>
                   <BookButton
                     variant="danger"
                     size="sm"

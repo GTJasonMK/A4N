@@ -53,6 +53,45 @@ fn parse_sse_data_line_accepts_reasoning_chunk_without_content() {
 }
 
 #[test]
+fn parse_sse_data_line_keeps_openai_tool_call_deltas() {
+    let first_line = format!(
+        "data: {}",
+        json!({
+            "choices": [{
+                "index": 0,
+                "delta": {"tool_calls": [{
+                    "index": 0,
+                    "id": "call-1",
+                    "function": {"name": "locate", "arguments": "{\"project_id\":"}
+                }]},
+                "finish_reason": null
+            }]
+        })
+    );
+    let first = parse_data_line(&first_line).expect("tool-call delta");
+    let call = first
+        .tool_calls
+        .expect("tool call should be parsed")
+        .remove(0);
+    assert_eq!(call.id, "call-1");
+    assert_eq!(call.name, "locate");
+    assert_eq!(call.arguments, Value::String("{\"project_id\":".into()));
+    assert_eq!(call.stream_index, Some(0));
+
+    let continuation = parse_data_line(
+        r#"data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"7}"}}]},"finish_reason":"tool_calls"}]}"#,
+    )
+    .expect("tool-call continuation");
+    let call = continuation
+        .tool_calls
+        .expect("continuation should be parsed")
+        .remove(0);
+    assert_eq!(call.id, "__stream_tool_0");
+    assert_eq!(call.stream_index, Some(0));
+    assert_eq!(call.arguments, Value::String("7}".into()));
+}
+
+#[test]
 fn parse_sse_data_line_recognizes_done_marker() {
     assert!(matches!(
         parse_sse_data_line(b"data: [DONE]"),

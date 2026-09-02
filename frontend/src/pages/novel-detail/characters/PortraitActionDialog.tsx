@@ -7,6 +7,8 @@ import { Camera,
   RefreshCw,
   Star, } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { ImageSizeSelect } from "../../../components/image/ImageSizeSelect";
+import type { ImageSize } from "../../../api/image";
 import type { Portrait } from "../../../api/portrait";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -17,9 +19,14 @@ import { useI18n } from "../../../i18n";
 interface PortraitActionDialogProps {
   portrait: Portrait;
   busyId: number | null;
+  imageSize: ImageSize | null;
+  imageSizes: readonly ImageSize[];
+  imageSizeLoading: boolean;
+  imageSizeError: Error | null;
+  onImageSizeChange: (size: ImageSize) => void;
   onClose: () => void;
-  onPreviewRegenerate: (portrait: Portrait) => void | Promise<void>;
-  onRegenerate: (portrait: Portrait) => void | Promise<void>;
+  onPreviewRegenerate: (portrait: Portrait, size: ImageSize) => void | Promise<void>;
+  onRegenerate: (portrait: Portrait, size: ImageSize) => void | Promise<void>;
   onSetPrimary: (portrait: Portrait) => void | Promise<void>;
   onAgeVariant: (portrait: Portrait) => void;
   onPrompt: (portrait: Portrait) => void;
@@ -28,6 +35,11 @@ interface PortraitActionDialogProps {
 export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
   portrait,
   busyId,
+  imageSize,
+  imageSizes,
+  imageSizeLoading,
+  imageSizeError,
+  onImageSizeChange,
   onClose,
   onPreviewRegenerate,
   onRegenerate,
@@ -37,6 +49,7 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
 }) => {
   const { t } = useI18n();
   const busy = busyId === portrait.id;
+  const sizeUnavailable = imageSize == null || imageSizeLoading || imageSizeError != null;
   const imageSrc = toMediaSrc(portrait.image_path);
   const metadata = [portrait.portrait_type, portrait.expression, portrait.pose]
     .map((item) => item?.trim())
@@ -64,8 +77,10 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
               {
                 label: t("characterDetail.portrait.viewRegenerateRequest"),
                 icon: <Eye size={12} />,
-                onClick: () => void onPreviewRegenerate(portrait),
-                disabled: busy,
+                onClick: () => {
+                  if (imageSize) void onPreviewRegenerate(portrait, imageSize);
+                },
+                disabled: busy || sizeUnavailable,
               },
             ]}
           />
@@ -73,8 +88,10 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
           <BookButton
             variant="primary"
             size="sm"
-            onClick={() => void onRegenerate(portrait)}
-            disabled={busy}
+            onClick={() => {
+              if (imageSize) void onRegenerate(portrait, imageSize);
+            }}
+            disabled={busy || sizeUnavailable}
             className="!text-xs"
           >
             {busy ? (
@@ -108,7 +125,16 @@ export const PortraitActionDialog: React.FC<PortraitActionDialogProps> = ({
         </div>
 
         <div className="min-w-0">
-          <div className="space-y-2">
+          <ImageSizeSelect
+            label={t("settingsForm.selectImageSize")}
+            value={imageSize}
+            sizes={imageSizes}
+            loading={imageSizeLoading}
+            error={imageSizeError}
+            disabled={busy}
+            onChange={onImageSizeChange}
+          />
+          <div className="mt-3 space-y-2">
             {!portrait.is_primary ? (
               <PortraitActionButton
                 icon={<Star size={14} />}

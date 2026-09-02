@@ -218,6 +218,10 @@ pub struct RunGalgameAssetGenerationInput {
     pub generation_spec_ids: Vec<i64>,
     #[serde(default)]
     pub config_id: Option<i64>,
+    #[schemars(range(min = 1))]
+    pub width: i32,
+    #[schemars(range(min = 1))]
+    pub height: i32,
     #[serde(default)]
     pub limit: Option<usize>,
 }

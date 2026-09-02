@@ -1,5 +1,5 @@
 import type { LlmConfigSummary } from "../../api/generated/config";
-import type { ImageGenConfig } from "../../api/image/types";
+import type { ImageGenConfig, ImageSize } from "../../api/image/types";
 import type { VideoGenConfig } from "../../api/video/types";
 import type { MessageTranslator } from "../../i18n";
 
@@ -11,6 +11,7 @@ export interface StudioConfigOption {
   provider: string;
   model: string;
   isDefault: boolean;
+  supportedSizes?: ImageSize[];
 }
 
 export type StudioConfigOptionsByKind = Record<StudioConfigKind, StudioConfigOption[]>;
@@ -70,6 +71,7 @@ export function buildStudioConfigOptions(
       provider: config.backend,
       model: config.model,
       isDefault: config.is_default,
+      supportedSizes: config.supported_sizes,
     })),
     video: videoConfigs.map((config) => ({
       id: config.id,

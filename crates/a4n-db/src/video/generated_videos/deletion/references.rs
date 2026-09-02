@@ -268,16 +268,25 @@ where
                 ),
         )
         .add(chapter_video_prompt::Column::TimelineItemId.is_not_null());
-    let referenced_prompts = chapter_video_prompt::Entity::find()
-        .select_only()
-        .column(chapter_video_prompt::Column::Id)
-        .column(chapter_video_prompt::Column::TimelineItemId)
-        .column(chapter_video_prompt::Column::MetadataJson)
-        .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .filter(reference_scope)
-        .into_tuple::<(i64, Option<i64>, Option<Value>)>()
-        .all(db)
-        .await?;
+    let (referenced_prompts_result, child_videos_result) = futures::join!(
+        chapter_video_prompt::Entity::find()
+            .select_only()
+            .column(chapter_video_prompt::Column::Id)
+            .column(chapter_video_prompt::Column::TimelineItemId)
+            .column(chapter_video_prompt::Column::MetadataJson)
+            .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(reference_scope)
+            .into_tuple::<(i64, Option<i64>, Option<Value>)>()
+            .all(db),
+        generated_video::Entity::find()
+            .select_only()
+            .column(generated_video::Column::Id)
+            .column(generated_video::Column::MetadataJson)
+            .filter(generated_video::Column::SourceVideoId.is_in(video_id_set.iter().copied()))
+            .into_tuple::<(i64, Option<Value>)>()
+            .all(db),
+    );
+    let referenced_prompts = referenced_prompts_result?;
     let mut prompt_updates = Vec::new();
     for (prompt_id, timeline_item_id, metadata_json) in referenced_prompts {
         let mut metadata = metadata_json.unwrap_or(Value::Null);
@@ -351,14 +360,7 @@ where
         }
     }
 
-    let child_videos = generated_video::Entity::find()
-        .select_only()
-        .column(generated_video::Column::Id)
-        .column(generated_video::Column::MetadataJson)
-        .filter(generated_video::Column::SourceVideoId.is_in(video_id_set.iter().copied()))
-        .into_tuple::<(i64, Option<Value>)>()
-        .all(db)
-        .await?;
+    let child_videos = child_videos_result?;
     let mut child_updates = Vec::with_capacity(child_videos.len());
     for (video_id, mut metadata) in child_videos {
         if let Some(mut metadata) = metadata.take() {

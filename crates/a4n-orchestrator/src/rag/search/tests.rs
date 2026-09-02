@@ -5,7 +5,7 @@ use a4n_test_support::{
 };
 
 use super::execution::{
-    hybrid_rag_search_filtered_in_store, hybrid_rag_search_with_validated_embedding_in_store,
+    embed_queries_in_batch, hybrid_rag_search_with_validated_embedding_in_store,
 };
 use super::filter::identity_scoped_search_filter;
 
@@ -30,11 +30,9 @@ fn identity_filter_scopes_embedding_and_data_types() {
 
 #[tokio::test]
 async fn provider_search_rejects_query_embedding_count_mismatch() {
-    let store = MemoryVectorStore::new();
-    let error =
-        hybrid_rag_search_filtered_in_store(&store, 1, "查询", &ExtraEmbeddingProvider, 10, None)
-            .await
-            .expect_err("extra query embeddings should reject");
+    let error = embed_queries_in_batch(&ExtraEmbeddingProvider, &["查询".to_string()])
+        .await
+        .expect_err("extra query embeddings should reject");
 
     assert!(error.to_string().contains("嵌入返回数量不匹配"));
 }

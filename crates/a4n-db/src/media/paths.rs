@@ -34,8 +34,14 @@ where
         return Ok(Vec::new());
     }
     let candidates = unreferenced.iter().cloned().collect::<Vec<_>>();
-    for batch in candidates.chunks(MEDIA_PATH_QUERY_BATCH_SIZE) {
-        for path in referenced_media_paths_for_batch(db, batch).await? {
+    let referenced_batches = futures::future::join_all(
+        candidates
+            .chunks(MEDIA_PATH_QUERY_BATCH_SIZE)
+            .map(|batch| referenced_media_paths_for_batch(db, batch)),
+    )
+    .await;
+    for referenced in referenced_batches {
+        for path in referenced? {
             unreferenced.remove(&path);
         }
     }

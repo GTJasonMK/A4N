@@ -1,5 +1,7 @@
 use a4n_core::models::chapter::chapter_visual_plan;
-use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
+use sea_orm::{
+    ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
+};
 use std::collections::HashMap;
 
 use super::{
@@ -53,13 +55,31 @@ where
         return Ok(Vec::new());
     }
 
-    let rows = chapter_visual_plan::Entity::find()
+    let mut rows = chapter_visual_plan::Entity::find()
         .filter(source_condition(sources))
         .filter(chapter_visual_plan::Column::Status.is_in(["draft", "confirmed"]))
+        .distinct_on([
+            chapter_visual_plan::Column::RootProjectId,
+            chapter_visual_plan::Column::SourceChapterId,
+            chapter_visual_plan::Column::SourceRevisionKey,
+            chapter_visual_plan::Column::SourceContentSha256,
+            chapter_visual_plan::Column::Status,
+        ])
+        .order_by_asc(chapter_visual_plan::Column::RootProjectId)
+        .order_by_asc(chapter_visual_plan::Column::SourceChapterId)
+        .order_by_asc(chapter_visual_plan::Column::SourceRevisionKey)
+        .order_by_asc(chapter_visual_plan::Column::SourceContentSha256)
+        .order_by_asc(chapter_visual_plan::Column::Status)
         .order_by_desc(chapter_visual_plan::Column::UpdatedAt)
         .order_by_desc(chapter_visual_plan::Column::Id)
         .all(db)
         .await?;
+    rows.sort_by(|left, right| {
+        right
+            .updated_at
+            .cmp(&left.updated_at)
+            .then_with(|| right.id.cmp(&left.id))
+    });
     let mut rows_by_source = HashMap::<SourceIdentity, Vec<chapter_visual_plan::Model>>::new();
     for row in rows {
         rows_by_source

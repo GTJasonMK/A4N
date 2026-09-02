@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useMemo, useState } from "react";
 import { ListChecks, RotateCcw, Trash2, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -11,8 +12,8 @@ import { EmptyHint } from "../shared";
 import { VideoDurationOptionsPicker } from "./VideoDurationOptionsPicker";
 import {
   promptOutputLanguageLabel,
-  VIDEO_ASPECT_RATIOS,
   type VideoDurationLimits,
+  type VideoAspectRatio,
   type VideoGenOptions,
 } from "./videoTabUtils";
 import type { LoadedSegmentPlanDraft } from "./loadVideoTabData";
@@ -28,6 +29,8 @@ interface VideoPlanningWorkspaceProps {
   dataReady: boolean;
   acting: string | null;
   shootingScenes: ShootingSceneV1[];
+  supportedAspectRatios: readonly VideoAspectRatio[];
+  aspectRatioLoading: boolean;
   onGenerate: (
     targetNarrativeUnitIndex: number,
     regenerateExisting: boolean,
@@ -139,12 +142,15 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
   dataReady,
   acting,
   shootingScenes,
+  supportedAspectRatios,
+  aspectRatioLoading,
   onGenerate,
   onOptionsChange,
   onRetryLoad,
   onDelete,
 }) => {
   const { locale, t } = useI18n();
+  const aspectRatioAvailable = supportedAspectRatios.includes(options.aspectRatio);
   const persistedSegments = useMemo(
     () =>
       asArray(asJsonRecord(prompt?.metadata_json)?.segments)
@@ -237,7 +243,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
           )}
         </div>
         <div className="flex items-center gap-2">
-          <select
+          <ThemedSelect
             aria-label={t("video.chapter.chooseSceneAria")}
             value={selectedUnitIndex ?? ""}
             onChange={(event) => setSelectedUnitIndex(Number(event.target.value))}
@@ -261,7 +267,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                 );
               })
             )}
-          </select>
+          </ThemedSelect>
           <BookButton
             variant="primary"
             size="md"
@@ -276,7 +282,9 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               busy ||
               loading ||
               selectedUnitIndex == null ||
-              (!dataReady && !needsLoadRetry)
+              (!dataReady && !needsLoadRetry) ||
+              aspectRatioLoading ||
+              !aspectRatioAvailable
             }
           >
             {busy || loading ? <LoadingSpinner size="sm" /> : selectedScenePlanned || needsLoadRetry ? <RotateCcw size={14} /> : <Wand2 size={14} />}
@@ -313,21 +321,26 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
               <div className="grid gap-2.5 grid-cols-3">
                 <label className="flex min-w-0 flex-col gap-1">
                   <span className="text-book-text-muted">{t("video.chapter.aspectRatioLabel")}</span>
-                  <select
+                  <ThemedSelect
                     value={options.aspectRatio}
                     onChange={(event) => onOptionsChange((previous) => ({
                       ...previous,
                       aspectRatio: event.target.value as VideoGenOptions["aspectRatio"],
                     }))}
-                    disabled={busy}
+                    disabled={busy || aspectRatioLoading || supportedAspectRatios.length === 0}
                     className="pyqt-input !px-2 !py-1.5"
                   >
-                    {VIDEO_ASPECT_RATIOS.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
-                  </select>
+                    {!aspectRatioAvailable && (
+                      <option value={options.aspectRatio} disabled>
+                        {options.aspectRatio} · {t("video.chapter.unsupportedAspectRatio")}
+                      </option>
+                    )}
+                    {supportedAspectRatios.map((ratio) => <option key={ratio} value={ratio}>{ratio}</option>)}
+                  </ThemedSelect>
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
                   <span className="text-book-text-muted">{t("video.chapter.promptLanguageLabel")}</span>
-                  <select
+                  <ThemedSelect
                     value={options.promptOutputLanguage}
                     onChange={(event) => onOptionsChange((previous) => ({
                       ...previous,
@@ -339,11 +352,11 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                     {(["zh_cn", "en"] as const).map((value) => (
                       <option key={value} value={value}>{promptOutputLanguageLabel(value, t)}</option>
                     ))}
-                  </select>
+                  </ThemedSelect>
                 </label>
                 <label className="flex min-w-0 flex-col gap-1">
                   <span className="text-book-text-muted">{t("video.chapter.defaultDuration")}</span>
-                  <select
+                  <ThemedSelect
                     value={options.durationSecs}
                     onChange={(event) => onOptionsChange((previous) => ({
                       ...previous,
@@ -355,7 +368,7 @@ export const VideoPlanningWorkspace: React.FC<VideoPlanningWorkspaceProps> = ({
                     {options.durationOptions.map((duration) => (
                       <option key={duration} value={duration}>{t("video.chapter.seconds", { count: duration })}</option>
                     ))}
-                  </select>
+                  </ThemedSelect>
                 </label>
               </div>
               <div className="flex-1 flex flex-col">

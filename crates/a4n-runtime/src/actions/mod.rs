@@ -1,5 +1,7 @@
 pub(crate) mod access;
 pub mod admin_records;
+pub(crate) mod agent_domains;
+pub mod agent_runtime;
 pub mod auth_records;
 pub mod blueprint_records;
 pub mod canvas_workflow;

@@ -22,7 +22,6 @@ impl OrchestratorContext {
         let source_metadata = video_source_metadata(source);
         self.ensure_prompt_generation_inputs(project_id, chapter_id, &options)
             .await?;
-        let source_spans = source_spans_for_video_prompt(self, chapter_id, source).await?;
         let ChapterVideoPromptOptions {
             style,
             prompt_output_language,
@@ -39,22 +38,28 @@ impl OrchestratorContext {
             workflow_run_id,
             ..
         } = options;
-        let reference_ids = json!(reference_image_ids.clone());
-        let project_context = if include_project_context {
-            self.chapter_video_project_context(project_id, source.analysis)
-                .await?
-        } else {
-            None
-        };
-        let available_assets = self
-            .video_library_image_context(
+        let (source_spans, project_context, available_assets) = futures::join!(
+            source_spans_for_video_prompt(self, chapter_id, source),
+            async {
+                if include_project_context {
+                    self.chapter_video_project_context(project_id, source.analysis)
+                        .await
+                } else {
+                    Ok::<Option<Value>, AppError>(None)
+                }
+            },
+            self.video_library_image_context(
                 project_id,
                 chapter_id,
                 source,
                 &reference_image_ids,
                 &video_library_image_ids,
-            )
-            .await?;
+            ),
+        );
+        let source_spans = source_spans?;
+        let project_context = project_context?;
+        let available_assets = available_assets?;
+        let reference_ids = json!(reference_image_ids.clone());
         let generation_asset_fingerprint = video_generation_asset_fingerprint(
             &reference_image_ids,
             &video_library_image_ids,

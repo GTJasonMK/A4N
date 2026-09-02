@@ -15,7 +15,7 @@ pub async fn test_image_config(
     config_id: i64,
 ) -> Result<(), String> {
     let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
-    let request = build_image_connectivity_test_request(&config);
+    let request = build_image_connectivity_test_request(&config)?;
     let profile = state.runtime_profile();
     let capabilities = state.capabilities().clone();
     state
@@ -50,7 +50,7 @@ pub async fn preview_test_image_config_request(
     config_id: i64,
 ) -> Result<ModelRequestPreview, String> {
     let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
-    let request = build_image_connectivity_test_request(&config);
+    let request = build_image_connectivity_test_request(&config)?;
     if state.runtime_profile().uses_sidecars() {
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
             state.capabilities(),
@@ -113,12 +113,15 @@ async fn resolve_image_config_for_connectivity_test(
 
 fn build_image_connectivity_test_request(
     config: &image_gen_config::Model,
-) -> ImageGenerationRequest {
-    ImageGenerationRequest {
+) -> Result<ImageGenerationRequest, String> {
+    let sizes = a4n_core::config::image_sizes_from_json(&config.supported_sizes_json)
+        .map_err(|error| error.to_string())?;
+    let size = sizes[0];
+    Ok(ImageGenerationRequest {
         prompt: IMAGE_CONNECTIVITY_TEST_PROMPT.to_string(),
-        width: config.default_width,
-        height: config.default_height,
+        width: size.width,
+        height: size.height,
         model: config.model.clone(),
         reference_images: Vec::new(),
-    }
+    })
 }

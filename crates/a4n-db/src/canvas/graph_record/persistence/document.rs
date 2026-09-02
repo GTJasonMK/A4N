@@ -85,21 +85,23 @@ pub(super) async fn canvas_graph_record_document<C>(
 where
     C: ConnectionTrait,
 {
-    let nodes = canvas_node::Entity::find()
-        .filter(canvas_node::Column::GraphId.eq(graph.id))
-        .order_by_asc(canvas_node::Column::Id)
-        .all(db)
-        .await?;
-    let edges = canvas_edge::Entity::find()
-        .filter(canvas_edge::Column::GraphId.eq(graph.id))
-        .order_by_asc(canvas_edge::Column::Id)
-        .all(db)
-        .await?;
-    let text_assets = canvas_text_asset::Entity::find()
-        .filter(canvas_text_asset::Column::ProjectId.eq(graph.project_id))
-        .order_by_desc(canvas_text_asset::Column::UpdatedAt)
-        .all(db)
-        .await?;
+    let (nodes_result, edges_result, text_assets_result) = futures::join!(
+        canvas_node::Entity::find()
+            .filter(canvas_node::Column::GraphId.eq(graph.id))
+            .order_by_asc(canvas_node::Column::Id)
+            .all(db),
+        canvas_edge::Entity::find()
+            .filter(canvas_edge::Column::GraphId.eq(graph.id))
+            .order_by_asc(canvas_edge::Column::Id)
+            .all(db),
+        canvas_text_asset::Entity::find()
+            .filter(canvas_text_asset::Column::ProjectId.eq(graph.project_id))
+            .order_by_desc(canvas_text_asset::Column::UpdatedAt)
+            .all(db),
+    );
+    let nodes = nodes_result?;
+    let edges = edges_result?;
+    let text_assets = text_assets_result?;
     Ok(CanvasGraphRecordDocument {
         graph,
         nodes,

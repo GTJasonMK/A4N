@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../api";
@@ -517,7 +518,7 @@ export const SnapshotManager: React.FC<{
               {t("characterDetail.snapshot.compareChapterState")}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <ThemedSelect
                 value={diffFromChapter}
                 onChange={(event) => {
                   const parsed = Number(event.target.value);
@@ -533,9 +534,9 @@ export const SnapshotManager: React.FC<{
                     {t("characterDetail.snapshot.chapterCompact", { chapter })}
                   </option>
                 ))}
-              </select>
+              </ThemedSelect>
               <span className="text-book-text-muted">→</span>
-              <select
+              <ThemedSelect
                 value={diffToChapterValue}
                 onChange={(event) => {
                   const value = Number(event.target.value);
@@ -553,7 +554,7 @@ export const SnapshotManager: React.FC<{
                     </option>
                   ))
                 )}
-              </select>
+              </ThemedSelect>
               <BookButton
                 variant="secondary"
                 size="sm"
@@ -569,7 +570,7 @@ export const SnapshotManager: React.FC<{
               {t("characterDetail.snapshot.rollbackState")}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <ThemedSelect
                 value={rollbackChapterValue}
                 onChange={(event) => {
                   if (!event.target.value) {
@@ -591,7 +592,7 @@ export const SnapshotManager: React.FC<{
                     </option>
                   ))
                 )}
-              </select>
+              </ThemedSelect>
               <button
                 type="button"
                 onClick={handleRollback}

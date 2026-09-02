@@ -21,6 +21,8 @@ pub(super) async fn preview_canvas_image_node(
         workflow_run_id: None,
         prompt: image_input.prompt,
         config_id: image_input.config_id,
+        width: image_input.width,
+        height: image_input.height,
         source_node_ids: image_input.source_node_ids,
     };
     preview_canvas_image_request(state, user_id, image_input).await

@@ -213,6 +213,104 @@ qdrant_reachable() {
   curl --http2-prior-knowledge -sS --max-time 2 -o /dev/null "${1%/}/" 2>/dev/null
 }
 
+ensure_vite_port_available() {
+  $SERVER || $HOT_RELOAD || return 0
+
+  local port="${VITE_PORT:-5173}" port_error owner owner_pid owner_name
+  [[ "$port" =~ ^[0-9]+$ ]] \
+    || die "VITE_PORT 必须是 1-65535 的端口号，当前值: $port"
+
+  require_command python3
+  if port_error="$(python3 - "$port" 2>&1 <<'PY'
+import errno
+import socket
+import sys
+
+raw_port = sys.argv[1]
+try:
+    port = int(raw_port, 10)
+except ValueError:
+    print("端口号不是十进制整数")
+    raise SystemExit(1)
+if not 1 <= port <= 65535:
+    print("端口号必须在 1-65535 范围内")
+    raise SystemExit(1)
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+try:
+    sock.bind(("127.0.0.1", port))
+except OSError as error:
+    print(error)
+    raise SystemExit(2 if error.errno == errno.EADDRINUSE else 1)
+finally:
+    sock.close()
+PY
+)"; then
+    log_ok "Vite 开发端口 $port 可用"
+    return 0
+  else
+    local status=$?
+    if ((status != 2)); then
+      die "VITE_PORT=$port 无法使用：$port_error"
+    fi
+
+    owner=""
+    if command -v ss >/dev/null 2>&1; then
+      owner_pid="$(ss -ltnp "sport = :$port" 2>/dev/null \
+        | sed -n 's/.*pid=\([0-9][0-9]*\).*/\1/p' \
+        | head -n 1)"
+      if [[ -n "$owner_pid" ]]; then
+        owner_name="$(ps -p "$owner_pid" -o args= 2>/dev/null \
+          | awk '{print $1}' | sed 's#^.*/##' || true)"
+        owner="PID $owner_pid${owner_name:+ ($owner_name)}"
+      fi
+    fi
+    if [[ -n "$owner" ]]; then
+      die "Vite 开发端口 $port 已被占用（$owner）；请停止该进程后重试"
+    fi
+    die "Vite 开发端口 $port 已被占用；请停止占用该端口的进程后重试"
+  fi
+}
+
+ensure_postgres() {
+  local database_url="${A4N_DATABASE_URL:-}" endpoint
+  [[ -n "${database_url//[[:space:]]/}" ]] \
+    || die "缺少 A4N_DATABASE_URL；无法启动本地 Host"
+
+  require_command python3
+  if ! endpoint="$(A4N_PREFLIGHT_DATABASE_URL="$database_url" python3 2>&1 <<'PY'
+import os
+import socket
+from urllib.parse import urlsplit
+
+raw = os.environ["A4N_PREFLIGHT_DATABASE_URL"].strip()
+try:
+    parsed = urlsplit(raw)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise ValueError("必须使用 postgres:// 或 postgresql://")
+    if not parsed.hostname:
+        raise ValueError("缺少 host")
+    port = parsed.port or 5432
+except ValueError as error:
+    print(f"A4N_DATABASE_URL 无效：{error}")
+    raise SystemExit(1)
+
+host = parsed.hostname
+try:
+    with socket.create_connection((host, port), timeout=3):
+        pass
+except OSError as error:
+    print(f"{host}:{port} 不可连接：{error.strerror or error}")
+    raise SystemExit(1)
+
+print(f"{host}:{port}")
+PY
+)"; then
+    die "PostgreSQL 预检失败：$endpoint；本地开发请先执行 ./scripts/dev/dev-db.sh up"
+  fi
+  log_ok "PostgreSQL $endpoint 可连接"
+}
+
 ensure_qdrant() {
   local qdrant_url="${A4N_QDRANT_URL:-}" qdrant_log qdrant_pid
   qdrant_url="${qdrant_url%/}"
@@ -220,10 +318,16 @@ ensure_qdrant() {
 
   case "$qdrant_url" in
     http://127.0.0.1:6334|http://localhost:6334)
-      qdrant_ready && return
+      if qdrant_ready; then
+        log_ok "Qdrant 已就绪"
+        return
+      fi
       ;;
     *)
-      qdrant_reachable "$qdrant_url" && return
+      if qdrant_reachable "$qdrant_url"; then
+        log_ok "Qdrant 已连接"
+        return
+      fi
       die "A4N_QDRANT_URL $qdrant_url 不可连接；远程或自定义端口 Qdrant 请由外部管理"
       ;;
   esac
@@ -237,6 +341,7 @@ ensure_qdrant() {
   nohup "$SCRIPT_DIR/dev/run-qdrant.sh" >"$qdrant_log" 2>&1 </dev/null &
   qdrant_pid=$!
   wait_for_qdrant "$qdrant_pid" "$qdrant_log"
+  log_ok "Qdrant 已启动并就绪"
 }
 
 case "$MODE" in
@@ -284,9 +389,48 @@ if $REMOTE_API; then
   export A4N_TAURI_LOCAL_SERVER=0
 fi
 
-if ! $REMOTE_API && ($MANAGED_SIDECARS || $FULL_HOST); then
-  ensure_qdrant
-fi
+preflight_runtime_dependencies() {
+  local jwt_secret="${A4N_JWT_SECRET:-}" sidecar_auth_token="${A4N_SIDECAR_AUTH_TOKEN:-}"
+  log_section "运行前依赖检查"
+  ensure_vite_port_available
+  require_command cargo
+  require_command node
+  require_command npm
+
+  if ! $REMOTE_API; then
+    ensure_postgres
+    [[ -n "${jwt_secret//[[:space:]]/}" ]] \
+      || die "缺少 A4N_JWT_SECRET；无法启动本地 Host"
+    log_ok "A4N_JWT_SECRET 已设置"
+    if ! $FULL_HOST && ! $MANAGED_SIDECARS; then
+      [[ -n "${sidecar_auth_token//[[:space:]]/}" ]] \
+        || die "缺少 A4N_SIDECAR_AUTH_TOKEN；外部 Sidecar 模式无法启动"
+      log_ok "A4N_SIDECAR_AUTH_TOKEN 已设置"
+    fi
+  fi
+
+  ensure_frontend_dependencies
+  log_ok "前端依赖已安装"
+
+  if ! $REMOTE_API && ($MANAGED_SIDECARS || $FULL_HOST); then
+    require_command curl
+    require_onnxruntime
+    log_ok "ONNX Runtime $(onnxruntime_version) 已就绪"
+    sidecar_catalog_rows >/dev/null
+    log_ok "Sidecar catalog 已通过校验"
+    ensure_qdrant
+  fi
+
+  if ! $SERVER; then
+    cargo tauri --version >/dev/null 2>&1 \
+      || die "未找到 cargo-tauri；请先安装 cargo install tauri-cli --version 2.11.0"
+    require_tauri_system_libraries
+    log_ok "cargo-tauri 与 Tauri 系统库已就绪"
+  fi
+  log_ok "运行前依赖检查通过"
+}
+
+preflight_runtime_dependencies
 
 if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
   migration_command=(cargo build)
@@ -306,11 +450,9 @@ if $SERVER && ! $REMOTE_API; then
 fi
 
 if $FULL_HOST; then
-  require_onnxruntime
   export A4N_RUNTIME_PROFILE=full
   export A4N_MANAGED_SIDECARS=0
 elif $MANAGED_SIDECARS && ! $REMOTE_API; then
-  require_onnxruntime
   export A4N_RUNTIME_PROFILE=sidecar
   export A4N_MANAGED_SIDECARS=1
   sidecar_package_lines="$(sidecar_catalog_binaries)"

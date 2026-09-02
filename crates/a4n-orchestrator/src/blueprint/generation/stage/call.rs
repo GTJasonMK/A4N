@@ -4,6 +4,7 @@ use a4n_core::{
 };
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
 use a4n_prompt::blueprint_generation::parse_blueprint_stage_json_object;
+use a4n_service_protocol::GenerationUsage;
 
 use crate::blueprint::OrchestratorContext;
 use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
@@ -32,13 +33,34 @@ pub(super) async fn execute_blueprint_stage_call(
         .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &fingerprint_json)
         .await?
     {
-        publisher
-            .text_delta(BLUEPRINT_RAW_JSON_STREAM_ID, &checkpoint.response_content)
+        ensure_not_cancelled(&cancel_token)?;
+        for delta in crate::generation::checkpoint::split_text_delta(&checkpoint.response_content) {
+            publisher
+                .text_delta(BLUEPRINT_RAW_JSON_STREAM_ID, &delta)
+                .await
+                .map_err(|error| AppError::InvalidState {
+                    current: error.to_string(),
+                    operation: "恢复蓝图阶段原始输出".to_string(),
+                })?;
+        }
+        if let Some(usage) = checkpoint.usage {
+            let usage = serde_json::from_value::<GenerationUsage>(usage).map_err(|error| {
+                AppError::InvalidState {
+                    current: error.to_string(),
+                    operation: "恢复蓝图阶段 usage".to_string(),
+                }
+            })?;
+            crate::generation::stream::publish_generation_usage(
+                publisher,
+                &usage,
+                session.snapshot().usage.as_ref(),
+            )
             .await
             .map_err(|error| AppError::InvalidState {
-                current: error.to_string(),
-                operation: "恢复蓝图阶段原始输出".to_string(),
+                current: error.message,
+                operation: "恢复蓝图阶段累计 usage".to_string(),
             })?;
+        }
         let value = restored_blueprint_stage_output(
             &checkpoint.parsed_output,
             &checkpoint.response_content,

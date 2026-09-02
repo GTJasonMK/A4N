@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import { CheckCircle2, RefreshCw, X } from "lucide-react";
 import type { OptimizationPatch } from "../../api/optimize";
 import { BookButton } from "../../components/ui/BookButton";
@@ -147,7 +148,7 @@ export function InlineOptimizationPatchPreview({
                         {patch.reason.trim() || t("writing.adjustPatchContent", { index: index + 1 })}
                       </div>
                     </div>
-                    <select
+                    <ThemedSelect
                       value={decision}
                       onChange={(event) => {
                         if (event.target.value === "accepted") {
@@ -163,7 +164,7 @@ export function InlineOptimizationPatchPreview({
                       <option value="pending" disabled>{t("writing.pendingReview")}</option>
                       <option value="accepted">{t("writing.accept")}</option>
                       <option value="rejected">{t("writing.reject")}</option>
-                    </select>
+                    </ThemedSelect>
                   </li>
                 );
               })}

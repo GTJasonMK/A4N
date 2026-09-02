@@ -1,4 +1,5 @@
 use a4n_core::config::app_config::LlmMaxTokensConfig;
+use a4n_domain::ImageSize;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::Value;
@@ -108,8 +109,7 @@ pub struct RuntimeImageConfig {
     pub api_key_encrypted: Option<String>,
     pub model: String,
     pub max_concurrent: i32,
-    pub default_width: i32,
-    pub default_height: i32,
+    pub supported_sizes: Vec<ImageSize>,
     #[serde(default)]
     pub is_default: bool,
 }
@@ -238,7 +238,7 @@ mod tests {
         json!({
             "id": id, "name": "image", "backend": "openai", "base_url": "https://example.test/v1",
             "api_key_encrypted": key, "model": "model", "max_concurrent": 1,
-            "default_width": 1024, "default_height": 1024
+            "supported_sizes": [{"width": 1024, "height": 1024}]
         })
     }
 

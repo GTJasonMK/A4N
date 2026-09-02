@@ -42,41 +42,42 @@ where
         .iter()
         .map(|chapter| chapter.id)
         .collect::<Vec<_>>();
-    let mut anchors_by_chapter = text_anchor::Entity::find()
-        .filter(text_anchor::Column::ProjectId.eq(root_project_id))
-        .filter(text_anchor::Column::SourceSnapshotId.eq(source_snapshot_id))
-        .filter(text_anchor::Column::SourceSnapshotChapterId.is_in(chapter_ids))
-        .order_by_asc(text_anchor::Column::SourceSnapshotChapterId)
-        .order_by_asc(text_anchor::Column::StartOffset)
-        .select_only()
-        .column(text_anchor::Column::Id)
-        .column(text_anchor::Column::SourceSnapshotChapterId)
-        .column(text_anchor::Column::ParagraphIndex)
-        .column(text_anchor::Column::StartOffset)
-        .column(text_anchor::Column::EndOffset)
-        .column(text_anchor::Column::Quote)
-        .into_model::<GalgamePipelinePromptTextAnchorRecord>()
-        .all(db)
-        .await?
-        .into_iter()
-        .fold(
-            BTreeMap::<i64, Vec<GalgamePipelinePromptTextAnchorRecord>>::new(),
-            |mut acc, anchor| {
-                if let Some(chapter_id) = anchor.source_snapshot_chapter_id {
-                    acc.entry(chapter_id).or_default().push(anchor);
-                }
-                acc
-            },
-        );
-    let speaker_profiles = protagonist_profile::Entity::find()
-        .select_only()
-        .column(protagonist_profile::Column::Id)
-        .column(protagonist_profile::Column::Name)
-        .filter(protagonist_profile::Column::ProjectId.eq(root_project_id))
-        .order_by_asc(protagonist_profile::Column::Id)
-        .into_model::<GalgamePipelinePromptSpeakerProfileRecord>()
-        .all(db)
-        .await?;
+    // Anchor rows and speaker profiles share no dependency after chapters are loaded.
+    let (anchors_result, speaker_profiles_result) = futures::join!(
+        text_anchor::Entity::find()
+            .filter(text_anchor::Column::ProjectId.eq(root_project_id))
+            .filter(text_anchor::Column::SourceSnapshotId.eq(source_snapshot_id))
+            .filter(text_anchor::Column::SourceSnapshotChapterId.is_in(chapter_ids))
+            .order_by_asc(text_anchor::Column::SourceSnapshotChapterId)
+            .order_by_asc(text_anchor::Column::StartOffset)
+            .select_only()
+            .column(text_anchor::Column::Id)
+            .column(text_anchor::Column::SourceSnapshotChapterId)
+            .column(text_anchor::Column::ParagraphIndex)
+            .column(text_anchor::Column::StartOffset)
+            .column(text_anchor::Column::EndOffset)
+            .column(text_anchor::Column::Quote)
+            .into_model::<GalgamePipelinePromptTextAnchorRecord>()
+            .all(db),
+        protagonist_profile::Entity::find()
+            .select_only()
+            .column(protagonist_profile::Column::Id)
+            .column(protagonist_profile::Column::Name)
+            .filter(protagonist_profile::Column::ProjectId.eq(root_project_id))
+            .order_by_asc(protagonist_profile::Column::Id)
+            .into_model::<GalgamePipelinePromptSpeakerProfileRecord>()
+            .all(db),
+    );
+    let mut anchors_by_chapter = anchors_result?.into_iter().fold(
+        BTreeMap::<i64, Vec<GalgamePipelinePromptTextAnchorRecord>>::new(),
+        |mut acc, anchor| {
+            if let Some(chapter_id) = anchor.source_snapshot_chapter_id {
+                acc.entry(chapter_id).or_default().push(anchor);
+            }
+            acc
+        },
+    );
+    let speaker_profiles = speaker_profiles_result?;
     let chapters = chapters
         .into_iter()
         .map(|chapter| GalgamePipelinePromptChapterRecord {

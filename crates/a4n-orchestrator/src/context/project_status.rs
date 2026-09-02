@@ -72,10 +72,17 @@ impl ProjectStatusApplication {
     }
 
     async fn machine(&self, project_id: i64) -> Result<ProjectStatusMachineSummary, AppError> {
-        let (_, current_status) = self
-            .project_with_status(project_id, "读取项目状态机")
-            .await?;
-        let artifacts = self.artifacts(project_id).await?;
+        let (project_result, artifacts_result, history_result) = futures::join!(
+            self.project_with_status(project_id, "读取项目状态机"),
+            self.artifacts(project_id),
+            async {
+                a4n_db::project::project_status_history(self.database.connection(), project_id)
+                    .await
+                    .map_err(project_status_read_error_to_app_error)
+            },
+        );
+        let (_, current_status) = project_result?;
+        let artifacts = artifacts_result?;
         let forward_targets = ProjectStatus::ALL
             .into_iter()
             .filter(|target| current_status < *target && artifacts.supports(*target))
@@ -84,10 +91,7 @@ impl ProjectStatusApplication {
             .into_iter()
             .filter(|target| current_status > *target)
             .collect();
-        let history =
-            a4n_db::project::project_status_history(self.database.connection(), project_id)
-                .await
-                .map_err(project_status_read_error_to_app_error)?;
+        let history = history_result?;
 
         Ok(ProjectStatusMachineSummary {
             current_status,
@@ -135,8 +139,12 @@ impl ProjectStatusApplication {
         project_id: i64,
         target: ProjectStatus,
     ) -> Result<ProjectStatusTransition, AppError> {
-        let (project, from) = self.project_with_status(project_id, "推进项目状态").await?;
-        let artifacts = self.artifacts(project.id).await?;
+        let (project_result, artifacts_result) = futures::join!(
+            self.project_with_status(project_id, "推进项目状态"),
+            self.artifacts(project_id),
+        );
+        let (project, from) = project_result?;
+        let artifacts = artifacts_result?;
         self.forward_loaded(project, from, target, artifacts).await
     }
 
@@ -207,8 +215,12 @@ impl ProjectStatusApplication {
         &self,
         project_id: i64,
     ) -> Result<Option<ProjectStatusTransition>, AppError> {
-        let (project, current) = self.project_with_status(project_id, "同步项目状态").await?;
-        let artifacts = self.artifacts(project.id).await?;
+        let (project_result, artifacts_result) = futures::join!(
+            self.project_with_status(project_id, "同步项目状态"),
+            self.artifacts(project_id),
+        );
+        let (project, current) = project_result?;
+        let artifacts = artifacts_result?;
         let target = artifacts.furthest_status();
         if current >= target {
             return Ok(None);

@@ -4,6 +4,7 @@ import type { ModelRequestPreview } from "../../api/requestPreview";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { useToast } from "../../components/feedback/Toast";
+import { Modal } from "../../components/ui/Modal";
 import { ConfigEditorPanel } from "./config-list/ConfigEditorPanel";
 import { ConfigListSidebar } from "./config-list/ConfigListSidebar";
 import { ConfigListToolbar } from "./config-list/ConfigListToolbar";
@@ -58,6 +59,10 @@ export function ConfigListPanel<C>({
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] =
     useState<ModelRequestPreview | null>(null);
+  const [mobileEditorOpen, setMobileEditorOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(
+    () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches,
+  );
 
   const selectedItem = items.find((item) => item.id === selectedId) ?? null;
   const mountedRef = useRef(true);
@@ -133,9 +138,22 @@ export function ConfigListPanel<C>({
       setSelectedId(null);
       setCreating(false);
       setForm(defaultForm);
+      setMobileEditorOpen(false);
       markClean();
     }
   }, [defaultForm, items, selectedId]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 768px)");
+    const sync = () => setIsDesktop(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
+
+  useEffect(() => {
+    if (isDesktop || items.length <= 1) setMobileEditorOpen(false);
+  }, [isDesktop, items.length]);
 
   const confirmDiscardDraft = async (actionText: string): Promise<boolean> => {
     if (!dirtyRef.current) return true;
@@ -166,6 +184,7 @@ export function ConfigListPanel<C>({
       setCreating(true);
       setForm(defaultForm);
       markClean();
+      if (!isDesktop && items.length > 1) setMobileEditorOpen(true);
     } finally {
       draftTransitionRef.current = false;
     }
@@ -173,7 +192,10 @@ export function ConfigListPanel<C>({
 
   const handleSelect = async (id: number) => {
     if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
-    if (!creating && id === selectedId) return;
+    if (!creating && id === selectedId) {
+      if (!isDesktop && items.length > 1) setMobileEditorOpen(true);
+      return;
+    }
     draftTransitionRef.current = true;
     try {
       if (!(await confirmDiscardDraft(t("settings.switchConfig", { name: title })))) return;
@@ -181,6 +203,7 @@ export function ConfigListPanel<C>({
       setSelectedId(id);
       setCreating(false);
       markClean();
+      if (!isDesktop && items.length > 1) setMobileEditorOpen(true);
     } finally {
       draftTransitionRef.current = false;
     }
@@ -241,6 +264,7 @@ export function ConfigListPanel<C>({
         if (editorScope() === requestScope && editVersionRef.current === requestEditVersion) {
           addToast(t("settings.configCreated", { name: title }), "success");
           setCreating(false);
+          setMobileEditorOpen(false);
           markClean();
         } else if (editorScope() === requestScope) {
           addToast(t("settings.configCreatedWithDraft", { name: title }), "success");
@@ -287,7 +311,28 @@ export function ConfigListPanel<C>({
       setCreating(false);
       setSelectedId(null);
       setForm(defaultForm);
+      setMobileEditorOpen(false);
       markClean();
+    } finally {
+      draftTransitionRef.current = false;
+    }
+  };
+
+  const handleCloseMobileEditor = async () => {
+    if (savingRef.current || refreshingRef.current || draftTransitionRef.current) return;
+    draftTransitionRef.current = true;
+    try {
+      if (!(await confirmDiscardDraft(t("settings.cancelEdit")))) return;
+      if (!mountedRef.current) return;
+      if (creatingRef.current) {
+        setCreating(false);
+        setSelectedId(null);
+        setForm(defaultForm);
+        markClean();
+      } else if (dirtyRef.current) {
+        resetFormToSavedState();
+      }
+      setMobileEditorOpen(false);
     } finally {
       draftTransitionRef.current = false;
     }
@@ -355,7 +400,10 @@ export function ConfigListPanel<C>({
       await onDelete(id);
       if (!mountedRef.current || deleteSeqRef.current !== requestSeq) return;
       addToast(t("settings.configDeleted"), "success");
-      if (selectedIdRef.current === id) setSelectedId(null);
+      if (selectedIdRef.current === id) {
+        setSelectedId(null);
+        setMobileEditorOpen(false);
+      }
       setTestResults((prev) => {
         const next = { ...prev };
         delete next[id];
@@ -473,6 +521,51 @@ export function ConfigListPanel<C>({
     }
   };
 
+  const mobileEditorMode = !isDesktop && items.length > 1;
+  const mobileEditorTitle = creating
+    ? t("settings.newConfig", { name: title })
+    : selectedItem
+      ? formatItem(selectedItem.config, selectedItem.isActive).primary
+      : title;
+  const editorPanel = (
+    <ConfigEditorPanel
+      title={title}
+      itemCount={items.length}
+      creating={creating}
+      selectedItem={selectedItem}
+      form={form}
+      dirty={dirty}
+      validationError={validationError}
+      busy={loading}
+      saving={saving}
+      activating={activating}
+      deleting={deleting}
+      testing={testing}
+      previewing={requestPreviewLoading}
+      testResult={selectedItem ? testResults[selectedItem.id] ?? null : null}
+      canTest={Boolean(onTest)}
+      canPreviewTest={Boolean(onPreviewTest)}
+      activateText={resolvedActivateText}
+      renderEditor={renderEditor}
+      onFormChange={(nextForm) => {
+        setForm(nextForm);
+        editVersionRef.current += 1;
+        const baselineForm = creating
+          ? defaultForm
+          : selectedItem?.config ?? defaultForm;
+        const nextDirty = !configFormsEqual(nextForm, baselineForm);
+        dirtyRef.current = nextDirty;
+        setDirty(nextDirty);
+      }}
+      onCancel={handleCancel}
+      onSave={handleSave}
+      onActivate={handleActivate}
+      onDelete={handleDelete}
+      onPreviewTest={handlePreviewTest}
+      onTest={handleTest}
+    />
+  );
+
   return (
     <section aria-label={t("settings.configManagement", { name: title })} className="flex h-auto flex-col gap-3 md:h-full">
       <ConfigListToolbar
@@ -504,43 +597,19 @@ export function ConfigListPanel<C>({
           />
         ) : null}
 
-        <ConfigEditorPanel
-          title={title}
-          itemCount={items.length}
-          creating={creating}
-          selectedItem={selectedItem}
-          form={form}
-          dirty={dirty}
-          validationError={validationError}
-          busy={loading}
-          saving={saving}
-          activating={activating}
-          deleting={deleting}
-          testing={testing}
-          previewing={requestPreviewLoading}
-          testResult={selectedItem ? testResults[selectedItem.id] ?? null : null}
-          canTest={Boolean(onTest)}
-          canPreviewTest={Boolean(onPreviewTest)}
-          activateText={resolvedActivateText}
-          renderEditor={renderEditor}
-          onFormChange={(nextForm) => {
-            setForm(nextForm);
-            editVersionRef.current += 1;
-            const baselineForm = creating
-              ? defaultForm
-              : selectedItem?.config ?? defaultForm;
-            const nextDirty = !configFormsEqual(nextForm, baselineForm);
-            dirtyRef.current = nextDirty;
-            setDirty(nextDirty);
-          }}
-          onCancel={handleCancel}
-          onSave={handleSave}
-          onActivate={handleActivate}
-          onDelete={handleDelete}
-          onPreviewTest={handlePreviewTest}
-          onTest={handleTest}
-        />
+        {!mobileEditorMode ? editorPanel : null}
       </div>
+      {mobileEditorMode ? (
+        <Modal
+          isOpen={mobileEditorOpen}
+          onClose={() => void handleCloseMobileEditor()}
+          title={mobileEditorTitle}
+          maxWidthClassName="max-w-xl"
+          bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
+        >
+          {editorPanel}
+        </Modal>
+      ) : null}
       <RequestPreviewModal
         open={requestPreviewOpen}
         loading={requestPreviewLoading}

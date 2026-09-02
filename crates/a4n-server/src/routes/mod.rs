@@ -1,3 +1,4 @@
+mod agent_runtime;
 pub(crate) mod agents;
 mod auth;
 mod commands;
@@ -33,6 +34,65 @@ pub fn api_router(state: ServerState) -> Router {
         )
         .route("/agents/{agent_id}/heartbeat", post(agents::update))
         .route("/agents/events", get(agents::events))
+        .route(
+            "/agent-threads",
+            get(agent_runtime::list_threads).post(agent_runtime::create_thread),
+        )
+        .route(
+            "/agent-threads/default",
+            post(agent_runtime::ensure_main_thread),
+        )
+        .route(
+            "/agent-threads/{thread_id}",
+            get(agent_runtime::show_thread).patch(agent_runtime::update_thread),
+        )
+        .route(
+            "/agent-threads/{thread_id}/fork",
+            post(agent_runtime::fork_thread),
+        )
+        .route(
+            "/agent-threads/{thread_id}/archive",
+            post(agent_runtime::archive_thread),
+        )
+        .route(
+            "/agent-threads/{thread_id}/messages",
+            get(agent_runtime::list_messages).post(agent_runtime::send_message),
+        )
+        .route(
+            "/agent-threads/{thread_id}/events",
+            get(agent_runtime::events),
+        )
+        .route(
+            "/agent-runs/{run_id}/control",
+            post(agent_runtime::control_run),
+        )
+        .route("/agent-runs/{run_id}", get(agent_runtime::show_run))
+        .route(
+            "/agent-runs/{parent_run_id}/children",
+            post(agent_runtime::spawn_agent),
+        )
+        .route(
+            "/agent-delegations/{delegation_id}/messages",
+            post(agent_runtime::send_message_to_child),
+        )
+        .route(
+            "/agent-delegations/{delegation_id}/control",
+            post(agent_runtime::control_child_agent),
+        )
+        .route("/agent-tools", get(agent_runtime::search_tools))
+        .route("/agent-tools/{name}", get(agent_runtime::describe_tool))
+        .route(
+            "/agent-memories",
+            get(agent_runtime::list_memories).post(agent_runtime::create_memory),
+        )
+        .route(
+            "/agent-memories/{memory_id}/retract",
+            post(agent_runtime::retract_memory),
+        )
+        .route(
+            "/agent-approvals/{approval_id}",
+            post(agent_runtime::resolve_approval),
+        )
         .route(
             "/ui-sessions",
             get(page_sessions::list).post(page_sessions::create),

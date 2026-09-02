@@ -22,23 +22,54 @@ where
     let family_project_ids = std::iter::once(root_project_id)
         .chain(derived_project_ids.iter().copied())
         .collect::<Vec<_>>();
-    let text_core = project_family_export_text_core_rows(db, root_project_id).await?;
-    let source_sync_runs = project_family_export_source_sync_runs(db, derived_project_ids).await?;
+    let (text_core, source_sync_runs) = futures::join!(
+        project_family_export_text_core_rows(db, root_project_id),
+        project_family_export_source_sync_runs(db, derived_project_ids),
+    );
+    let text_core = text_core?;
+    let source_sync_runs = source_sync_runs?;
     let snapshot_ids =
         collect_project_family_export_snapshot_ids(derived_source_snapshot_ids, &source_sync_runs);
     let snapshot_id_set = snapshot_ids.iter().copied().collect::<HashSet<_>>();
-    let source_snapshots = project_family_export_source_snapshots(db, &snapshot_ids).await?;
-    let source_snapshot_chapters =
-        project_family_export_source_snapshot_chapters(db, &snapshot_ids).await?;
-    let source_snapshot_outlines =
-        project_family_export_source_snapshot_outlines(db, &snapshot_ids).await?;
-    let source_snapshot_profiles =
-        project_family_export_source_snapshot_profiles(db, &snapshot_ids).await?;
-    let text_anchors =
-        project_family_export_text_anchors(db, root_project_id, &snapshot_ids).await?;
-    let profile_evidence = project_family_export_profile_evidence(db, &text_anchors).await?;
-    let mut chapter_visual_plans =
-        project_family_export_chapter_visual_plans(db, &root_project_ids).await?;
+    let (
+        source_snapshots,
+        source_snapshot_chapters,
+        source_snapshot_outlines,
+        source_snapshot_profiles,
+        text_anchors,
+    ) = futures::join!(
+        project_family_export_source_snapshots(db, &snapshot_ids),
+        project_family_export_source_snapshot_chapters(db, &snapshot_ids),
+        project_family_export_source_snapshot_outlines(db, &snapshot_ids),
+        project_family_export_source_snapshot_profiles(db, &snapshot_ids),
+        project_family_export_text_anchors(db, root_project_id, &snapshot_ids),
+    );
+    let source_snapshots = source_snapshots?;
+    let source_snapshot_chapters = source_snapshot_chapters?;
+    let source_snapshot_outlines = source_snapshot_outlines?;
+    let source_snapshot_profiles = source_snapshot_profiles?;
+    let text_anchors = text_anchors?;
+    let (
+        profile_evidence,
+        chapter_visual_plans,
+        chapter_shooting_scripts,
+        character_portraits,
+        generated_images,
+        chapter_manga_prompts,
+        chapter_video_prompts,
+        generated_videos,
+    ) = futures::join!(
+        project_family_export_profile_evidence(db, &text_anchors),
+        project_family_export_chapter_visual_plans(db, &root_project_ids),
+        project_family_export_chapter_shooting_scripts(db, &root_project_ids),
+        project_family_export_character_portraits(db, &root_project_ids),
+        project_family_export_generated_images(db, &family_project_ids),
+        project_family_export_chapter_manga_prompts(db, &family_project_ids),
+        project_family_export_chapter_video_prompts(db, &family_project_ids),
+        project_family_export_generated_videos(db, &family_project_ids),
+    );
+    let profile_evidence = profile_evidence?;
+    let mut chapter_visual_plans = chapter_visual_plans?;
     let chapter_content_by_id = text_core.chapters.iter().fold(
         HashMap::<i64, &str>::new(),
         |mut chapters_by_id, chapter| {
@@ -60,80 +91,114 @@ where
                 hash == &plan.source_content_sha256
             }),
     });
-    let chapter_shooting_scripts =
-        project_family_export_chapter_shooting_scripts(db, &root_project_ids).await?;
-    let character_portraits =
-        project_family_export_character_portraits(db, &root_project_ids).await?;
-    let generated_images = project_family_export_generated_images(db, &family_project_ids).await?;
-    let chapter_manga_prompts =
-        project_family_export_chapter_manga_prompts(db, &family_project_ids).await?;
-    let chapter_video_prompts =
-        project_family_export_chapter_video_prompts(db, &family_project_ids).await?;
-    let generated_videos = project_family_export_generated_videos(db, &family_project_ids).await?;
+    let chapter_shooting_scripts = chapter_shooting_scripts?;
+    let character_portraits = character_portraits?;
+    let generated_images = generated_images?;
+    let chapter_manga_prompts = chapter_manga_prompts?;
+    let chapter_video_prompts = chapter_video_prompts?;
+    let generated_videos = generated_videos?;
 
-    let generation_specs = project_family_export_generation_specs(db, derived_project_ids).await?;
+    let (generation_specs, media_assets) = futures::join!(
+        project_family_export_generation_specs(db, derived_project_ids),
+        project_family_export_media_assets(db, derived_project_ids),
+    );
+    let generation_specs = generation_specs?;
+    let media_assets = media_assets?;
     let generation_spec_ids = generation_specs
         .iter()
         .map(|record| record.id)
         .collect::<Vec<_>>();
-    let generation_spec_text_anchors =
-        project_family_export_generation_spec_text_anchors(db, &generation_spec_ids).await?;
-    let generation_spec_entity_refs =
-        project_family_export_generation_spec_entity_refs(db, &generation_spec_ids).await?;
-    let prompt_artifacts = project_family_export_prompt_artifacts(db, &generation_spec_ids).await?;
-
-    let media_assets = project_family_export_media_assets(db, derived_project_ids).await?;
     let media_asset_ids = media_assets
         .iter()
         .map(|record| record.id)
         .collect::<Vec<_>>();
-    let generation_spec_media_refs = project_family_export_generation_spec_media_refs(
-        db,
-        &generation_spec_ids,
-        &media_asset_ids,
-    )
-    .await?;
-    let media_provenance = project_family_export_media_provenance(db, &media_asset_ids).await?;
-    let media_bindings = project_family_export_media_bindings(db, &media_asset_ids).await?;
-
-    let galgame_scripts = project_family_export_galgame_scripts(db, derived_project_ids).await?;
-    let galgame_script_ids = galgame_scripts
-        .iter()
-        .map(|record| record.id)
-        .collect::<Vec<_>>();
-    let galgame_scenes = project_family_export_galgame_scenes(db, &galgame_script_ids).await?;
-    let galgame_scene_ids = galgame_scenes
-        .iter()
-        .map(|record| record.id)
-        .collect::<Vec<_>>();
-    let galgame_lines = project_family_export_galgame_lines(db, &galgame_scene_ids).await?;
-    let galgame_line_ids = galgame_lines
-        .iter()
-        .map(|record| record.id)
-        .collect::<Vec<_>>();
-    let galgame_choices = project_family_export_galgame_choices(db, &galgame_line_ids).await?;
-
-    let video_segments = project_family_export_video_segments(db, derived_project_ids).await?;
-    let assembly_timelines =
-        project_family_export_assembly_timelines(db, derived_project_ids).await?;
-    let timeline_ids = assembly_timelines
-        .iter()
-        .map(|record| record.id)
-        .collect::<Vec<_>>();
-    let assembly_clips = project_family_export_assembly_clips(db, &timeline_ids).await?;
+    let (
+        generation_spec_text_anchors,
+        generation_spec_entity_refs,
+        prompt_artifacts,
+        generation_spec_media_refs,
+        media_provenance,
+        media_bindings,
+    ) = futures::join!(
+        project_family_export_generation_spec_text_anchors(db, &generation_spec_ids),
+        project_family_export_generation_spec_entity_refs(db, &generation_spec_ids),
+        project_family_export_prompt_artifacts(db, &generation_spec_ids),
+        project_family_export_generation_spec_media_refs(
+            db,
+            &generation_spec_ids,
+            &media_asset_ids,
+        ),
+        project_family_export_media_provenance(db, &media_asset_ids),
+        project_family_export_media_bindings(db, &media_asset_ids),
+    );
+    let generation_spec_text_anchors = generation_spec_text_anchors?;
+    let generation_spec_entity_refs = generation_spec_entity_refs?;
+    let prompt_artifacts = prompt_artifacts?;
+    let generation_spec_media_refs = generation_spec_media_refs?;
+    let media_provenance = media_provenance?;
+    let media_bindings = media_bindings?;
 
     let sync_run_ids = source_sync_runs
         .iter()
         .map(|record| record.id)
         .collect::<Vec<_>>();
-    let source_sync_conflicts =
-        project_family_export_source_sync_conflicts(db, &sync_run_ids).await?;
-    let conflict_ids = source_sync_conflicts
-        .iter()
-        .map(|record| record.id)
-        .collect::<Vec<_>>();
-    let source_sync_decisions =
-        project_family_export_source_sync_decisions(db, &conflict_ids).await?;
+    let (galgame_result, video_result, source_sync_result) = futures::join!(
+        async {
+            let galgame_scripts =
+                project_family_export_galgame_scripts(db, derived_project_ids).await?;
+            let galgame_script_ids = galgame_scripts
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>();
+            let galgame_scenes =
+                project_family_export_galgame_scenes(db, &galgame_script_ids).await?;
+            let galgame_scene_ids = galgame_scenes
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>();
+            let galgame_lines = project_family_export_galgame_lines(db, &galgame_scene_ids).await?;
+            let galgame_line_ids = galgame_lines
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>();
+            let galgame_choices =
+                project_family_export_galgame_choices(db, &galgame_line_ids).await?;
+            Ok::<_, ProjectFamilyExportError>((
+                galgame_scripts,
+                galgame_scenes,
+                galgame_lines,
+                galgame_choices,
+            ))
+        },
+        async {
+            let (video_segments, assembly_timelines) = futures::join!(
+                project_family_export_video_segments(db, derived_project_ids),
+                project_family_export_assembly_timelines(db, derived_project_ids),
+            );
+            let video_segments = video_segments?;
+            let assembly_timelines = assembly_timelines?;
+            let timeline_ids = assembly_timelines
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>();
+            let assembly_clips = project_family_export_assembly_clips(db, &timeline_ids).await?;
+            Ok::<_, ProjectFamilyExportError>((video_segments, assembly_timelines, assembly_clips))
+        },
+        async {
+            let source_sync_conflicts =
+                project_family_export_source_sync_conflicts(db, &sync_run_ids).await?;
+            let conflict_ids = source_sync_conflicts
+                .iter()
+                .map(|record| record.id)
+                .collect::<Vec<_>>();
+            let source_sync_decisions =
+                project_family_export_source_sync_decisions(db, &conflict_ids).await?;
+            Ok::<_, ProjectFamilyExportError>((source_sync_conflicts, source_sync_decisions))
+        },
+    );
+    let (galgame_scripts, galgame_scenes, galgame_lines, galgame_choices) = galgame_result?;
+    let (video_segments, assembly_timelines, assembly_clips) = video_result?;
+    let (source_sync_conflicts, source_sync_decisions) = source_sync_result?;
 
     Ok(ProjectFamilyExportRows {
         snapshot_ids,

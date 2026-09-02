@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, {
   useCallback,
   useEffect,
@@ -25,6 +26,7 @@ import {
   Plus,
   RefreshCcw,
   Trash2,
+  Users,
 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
@@ -33,7 +35,6 @@ import { BookButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
-import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import {
   listProfiles,
   updateCharacterProfile,
@@ -107,7 +108,6 @@ interface RelationshipNodePosition {
 }
 
 type RelationshipNodePositions = Record<string, RelationshipNodePosition>;
-type MobileRelationshipView = "graph" | "characters";
 
 interface RelationshipFlowNodeData extends Record<string, unknown> {
   label: React.ReactNode;
@@ -524,8 +524,7 @@ const CurrentRelationshipsCard: React.FC<{
 }> = ({ projectId, relationships, onOpen }) => {
   const { locale, t } = useI18n();
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [mobileView, setMobileView] =
-    useState<MobileRelationshipView>("graph");
+  const [charactersOpen, setCharactersOpen] = useState(false);
   const [hoveredRelationship, setHoveredRelationship] =
     useState<CurrentRelationship | null>(null);
   const [fixedNodeCount, setFixedNodeCount] = useState(0);
@@ -562,6 +561,10 @@ const CurrentRelationshipsCard: React.FC<{
     });
     return () => window.cancelAnimationFrame(frame);
   }, [flowInstance, graph, layoutSize, locale, projectId, setNodes, t]);
+
+  useEffect(() => {
+    setCharactersOpen(false);
+  }, [projectId]);
 
   const flowNodes = useMemo(
     () =>
@@ -623,110 +626,146 @@ const CurrentRelationshipsCard: React.FC<{
   }
 
   return (
-    <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden p-0 lg:flex-1">
-      <div className="flex min-h-12 items-center border-b border-book-border/60 bg-book-bg-paper px-3 py-2">
-        <div className="w-full lg:hidden">
-          <SegmentedControl
-            ariaLabel={t("novel.relationships.viewAria")}
-            value={mobileView}
-            onChange={setMobileView}
-            options={[
-              { id: "graph", label: t("novel.relationships.graph") },
-              { id: "characters", label: t("novel.relationships.characters") },
-            ]}
-          />
-        </div>
-        <div className="hidden min-w-0 items-baseline gap-2 lg:flex">
-          <div className="text-body font-semibold text-book-text-main">
-            {t("novel.relationships.title")}
-          </div>
-          <div className="text-small text-book-text-muted">
-            {formatNumber(graph.nodes.length, locale)} {t("novel.relationships.characters")} · {t("novel.relationships.relationshipCount", { count: formatNumber(graph.edges.length, locale) })}
-          </div>
-        </div>
-      </div>
-
-      <div className="grid min-h-0 grid-cols-1 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_288px]">
-        <div
-          className={
-            (mobileView === "graph" ? "block" : "hidden") +
-            " relative h-[360px] min-h-0 min-w-0 bg-book-bg sm:h-[420px] lg:block lg:h-auto"
-          }
-        >
-          {fixedNodeCount > 0 ? (
-            <div className="absolute right-3 top-3 z-10">
-              <Dropdown
-                items={[
-                  {
-                    label: t("novel.relationships.restoreLayout"),
-                    icon: <RefreshCcw size={13} />,
-                    onClick: resetNodeLayout,
-                  },
-                ]}
-              />
+    <>
+      <section className="a4n-flat-surface flex min-h-0 flex-col overflow-hidden p-0 lg:flex-1">
+        <div className="flex min-h-12 items-center justify-between gap-2 border-b border-book-border/60 bg-book-bg-paper px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-baseline gap-2 lg:hidden">
+              <div className="truncate text-body font-semibold text-book-text-main">
+                {t("novel.relationships.title")}
+              </div>
+              <div className="min-w-0 truncate text-small text-book-text-muted">
+                {formatNumber(graph.nodes.length, locale)}{" "}
+                {t("novel.relationships.characters")} ·{" "}
+                {t("novel.relationships.relationshipCount", {
+                  count: formatNumber(graph.edges.length, locale),
+                })}
+              </div>
             </div>
-          ) : null}
-          <ReactFlow<RelationshipFlowNode, RelationshipFlowEdge>
-            nodes={flowNodes}
-            edges={edges}
-            onNodesChange={handleNodesChange}
-            onNodeClick={(_event, node) => {
-              setSelectedNodeId((current) =>
-                current === node.id ? null : node.id,
-              );
-              setMobileView("characters");
-            }}
-            onNodeDragStop={persistDraggedNode}
-            onPaneClick={() => setSelectedNodeId(null)}
-            onEdgeClick={(_event, edge) => {
-              if (edge.data) onOpen(edge.data.relationship);
-            }}
-            onEdgeMouseEnter={(_event, edge) =>
-              setHoveredRelationship(edge.data?.relationship ?? null)
-            }
-            onEdgeMouseLeave={() => setHoveredRelationship(null)}
-            onInit={setFlowInstance}
-            nodesConnectable={false}
-            edgesReconnectable={false}
-            deleteKeyCode={null}
-            minZoom={0.45}
-            maxZoom={2}
-            fitView
-            fitViewOptions={{ padding: 0.22, maxZoom: 1.15 }}
-            nodeExtent={[
-              [0, 0],
-              [
-                layoutSize.width - RELATIONSHIP_NODE_SIZE,
-                layoutSize.height - RELATIONSHIP_NODE_SIZE,
-              ],
-            ]}
-            className="a4n-relationship-flow"
-            aria-label={t("novel.relationships.graphAria")}
+            <div className="hidden min-w-0 items-baseline gap-2 lg:flex">
+              <div className="text-body font-semibold text-book-text-main">
+                {t("novel.relationships.title")}
+              </div>
+              <div className="text-small text-book-text-muted">
+                {formatNumber(graph.nodes.length, locale)}{" "}
+                {t("novel.relationships.characters")} ·{" "}
+                {t("novel.relationships.relationshipCount", {
+                  count: formatNumber(graph.edges.length, locale),
+                })}
+              </div>
+            </div>
+          </div>
+          <BookButton
+            variant="secondary"
+            size="sm"
+            className="shrink-0 lg:hidden"
+            onClick={() => setCharactersOpen(true)}
+            aria-label={t("novel.relationships.characters")}
+            title={t("novel.relationships.characters")}
           >
-            <Controls
-              showInteractive={false}
-              className="a4n-flow-controls"
-            />
-            <Background
-              color="rgb(var(--color-text-tertiary) / 0.2)"
-              gap={28}
-              size={1}
-            />
-          </ReactFlow>
+            <Users size={14} /> {t("novel.relationships.characters")}
+          </BookButton>
         </div>
 
+        <div className="grid min-h-0 grid-cols-1 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_288px]">
+          <div className="relative h-[360px] min-h-0 min-w-0 bg-book-bg sm:h-[420px] lg:h-auto">
+            {fixedNodeCount > 0 ? (
+              <div className="absolute right-3 top-3 z-10">
+                <Dropdown
+                  items={[
+                    {
+                      label: t("novel.relationships.restoreLayout"),
+                      icon: <RefreshCcw size={13} />,
+                      onClick: resetNodeLayout,
+                    },
+                  ]}
+                />
+              </div>
+            ) : null}
+            <ReactFlow<RelationshipFlowNode, RelationshipFlowEdge>
+              nodes={flowNodes}
+              edges={edges}
+              onNodesChange={handleNodesChange}
+              onNodeClick={(_event, node) => {
+                setSelectedNodeId((current) =>
+                  current === node.id ? null : node.id,
+                );
+                if (window.matchMedia?.("(max-width: 1023px)")?.matches) {
+                  setCharactersOpen(true);
+                }
+              }}
+              onNodeDragStop={persistDraggedNode}
+              onPaneClick={() => setSelectedNodeId(null)}
+              onEdgeClick={(_event, edge) => {
+                if (edge.data) onOpen(edge.data.relationship);
+              }}
+              onEdgeMouseEnter={(_event, edge) =>
+                setHoveredRelationship(edge.data?.relationship ?? null)
+              }
+              onEdgeMouseLeave={() => setHoveredRelationship(null)}
+              onInit={setFlowInstance}
+              nodesConnectable={false}
+              edgesReconnectable={false}
+              deleteKeyCode={null}
+              minZoom={0.45}
+              maxZoom={2}
+              fitView
+              fitViewOptions={{ padding: 0.22, maxZoom: 1.15 }}
+              nodeExtent={[
+                [0, 0],
+                [
+                  layoutSize.width - RELATIONSHIP_NODE_SIZE,
+                  layoutSize.height - RELATIONSHIP_NODE_SIZE,
+                ],
+              ]}
+              className="a4n-relationship-flow"
+              aria-label={t("novel.relationships.graphAria")}
+            >
+              <Controls showInteractive={false} className="a4n-flow-controls" />
+              <Background
+                color="rgb(var(--color-text-tertiary) / 0.2)"
+                gap={28}
+                size={1}
+              />
+            </ReactFlow>
+          </div>
+
+          <div className="hidden min-h-0 min-w-0 lg:block">
+            <RelationshipGraphPanel
+              graph={graph}
+              hoveredRelationship={hoveredRelationship}
+              selectedNode={selectedNode}
+              selectedRelationships={selectedRelationships}
+              selectedNodeId={selectedNodeId}
+              className="h-full min-h-0 overflow-y-auto border-l border-book-border bg-book-bg-paper custom-scrollbar"
+              onSelectNode={setSelectedNodeId}
+              onOpen={onOpen}
+            />
+          </div>
+        </div>
+      </section>
+
+      <Modal
+        isOpen={charactersOpen}
+        onClose={() => setCharactersOpen(false)}
+        title={t("novel.relationships.allCharacters")}
+        subtitle={`${formatNumber(graph.nodes.length, locale)} ${t("novel.relationships.characters")}`}
+        icon={<Users size={15} />}
+        maxWidthClassName="max-w-md"
+        bodyClassName="min-h-0 flex-1 overflow-y-auto px-2 py-2 custom-scrollbar sm:px-3 sm:py-3"
+      >
         <RelationshipGraphPanel
           graph={graph}
           hoveredRelationship={hoveredRelationship}
           selectedNode={selectedNode}
           selectedRelationships={selectedRelationships}
           selectedNodeId={selectedNodeId}
-          mobileVisible={mobileView === "characters"}
+          className="min-w-0 bg-book-bg-paper"
           onSelectNode={setSelectedNodeId}
           onOpen={onOpen}
         />
-      </div>
-    </section>
+      </Modal>
+    </>
   );
 };
 
@@ -736,7 +775,7 @@ const RelationshipGraphPanel: React.FC<{
   selectedNode: RelationshipNode | null;
   selectedRelationships: CurrentRelationship[];
   selectedNodeId: string | null;
-  mobileVisible: boolean;
+  className?: string;
   onSelectNode: (nodeId: string | null) => void;
   onOpen: (relationship: CurrentRelationship) => void;
 }> = ({
@@ -745,7 +784,7 @@ const RelationshipGraphPanel: React.FC<{
   selectedNode,
   selectedRelationships,
   selectedNodeId,
-  mobileVisible,
+  className = "",
   onSelectNode,
   onOpen,
 }) => {
@@ -755,9 +794,7 @@ const RelationshipGraphPanel: React.FC<{
   );
 
   return (
-    <aside
-      className={`${mobileVisible ? "block" : "hidden"} h-[440px] min-h-0 min-w-0 overflow-y-auto border-t border-book-border bg-book-bg-paper custom-scrollbar sm:h-[520px] lg:block lg:h-auto lg:border-l lg:border-t-0`}
-    >
+    <aside className={`min-w-0 ${className}`}>
       {hoveredRelationship ? (
         <section className="border-b border-book-primary/15 bg-book-primary/5 px-4 py-3">
           <div className="mb-1 flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-main">
@@ -783,7 +820,9 @@ const RelationshipGraphPanel: React.FC<{
                 {selectedNode.name}
               </div>
               <div className="mt-0.5 text-small text-book-text-muted">
-                {t("novel.relationships.relationshipCount", { count: formatNumber(selectedNode.degree, locale) })}
+                {t("novel.relationships.relationshipCount", {
+                  count: formatNumber(selectedNode.degree, locale),
+                })}
               </div>
             </div>
           </div>
@@ -867,7 +906,9 @@ const RelationshipEditorModal: React.FC<{
   const { t } = useI18n();
   if (!state) return null;
   const profile = profiles.find((item) => item.id === state.profileId);
-  const targetOptions = allProfiles.filter((item) => item.id !== state.profileId);
+  const targetOptions = allProfiles.filter(
+    (item) => item.id !== state.profileId,
+  );
 
   return (
     <Modal
@@ -913,7 +954,7 @@ const RelationshipEditorModal: React.FC<{
           <span className="text-xs text-book-text-sub">
             {t("novel.relationships.owner")}
           </span>
-          <select
+          <ThemedSelect
             value={state.profileId}
             onChange={(event) =>
               onChange({
@@ -929,7 +970,7 @@ const RelationshipEditorModal: React.FC<{
                 {item.name}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </label>
 
         <label className="flex flex-col gap-1.5">
@@ -940,7 +981,9 @@ const RelationshipEditorModal: React.FC<{
             type="text"
             list="initial-relationship-targets"
             value={state.target}
-            onChange={(event) => onChange({ ...state, target: event.target.value })}
+            onChange={(event) =>
+              onChange({ ...state, target: event.target.value })
+            }
             disabled={saving || state.editing}
             className="pyqt-input"
             placeholder={t("novel.relationships.targetPlaceholder")}
@@ -1119,10 +1162,7 @@ function automaticRelationshipNodeCenter(
   }
   const ring = Math.floor((index - 1) / RELATIONSHIP_RING_CAPACITY) + 1;
   const ringStart = 1 + (ring - 1) * RELATIONSHIP_RING_CAPACITY;
-  const ringCount = Math.min(
-    RELATIONSHIP_RING_CAPACITY,
-    nodeCount - ringStart,
-  );
+  const ringCount = Math.min(RELATIONSHIP_RING_CAPACITY, nodeCount - ringStart);
   const ringIndex = index - ringStart;
   const angle =
     (Math.PI * 2 * ringIndex) / Math.max(1, ringCount) - Math.PI / 2;

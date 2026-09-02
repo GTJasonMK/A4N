@@ -201,6 +201,24 @@ impl OrchestratorContext {
             }
         };
 
+        if let Err(error) = publish_blueprint_progress(
+            &publisher,
+            "blueprint_prompt",
+            ProgressPhaseKind::Prepare,
+            1,
+            "已整理灵感对话与蓝图提示词",
+        )
+        .await
+        {
+            return fail_generation_workflow_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                error,
+            )
+            .await;
+        }
+
         let mut previous_stage_outputs = Map::new();
         let mut assembled = Map::new();
         let mut trace_requests =
@@ -327,6 +345,49 @@ impl OrchestratorContext {
                 .await;
             }
         };
+        if let Err(error) = publish_blueprint_progress(
+            &publisher,
+            "blueprint_validate",
+            ProgressPhaseKind::Validate,
+            7,
+            "正在校验章节规划与工作流边界",
+        )
+        .await
+        {
+            return fail_generation_workflow_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                error,
+            )
+            .await;
+        }
+        if let Err(error) = publish_blueprint_progress(
+            &publisher,
+            "blueprint_preserve",
+            ProgressPhaseKind::Prepare,
+            8,
+            "正在保留已有大纲与章节产物",
+        )
+        .await
+        {
+            return fail_generation_workflow_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                error,
+            )
+            .await;
+        }
+        if let Err(error) = ensure_not_cancelled(&cancel_token) {
+            return fail_generation_workflow_execution(
+                self,
+                execution,
+                Some(workflow_run_id),
+                generation_public_error("generation_interrupted", "blueprint_preserve", error),
+            )
+            .await;
+        }
         let completion_slot: Arc<Mutex<Option<BlueprintCompletionOutcome>>> =
             Arc::new(Mutex::new(None));
         let completion_slot_for_tx = Arc::clone(&completion_slot);
@@ -357,9 +418,9 @@ impl OrchestratorContext {
         let final_usage = snapshot.usage.clone();
         let completion = execution
             .terminal
-            .complete_with(&session, move |tx| {
+            .complete_with_progress(&session, move |tx| {
                 Box::pin(async move {
-                    let outcome =
+                    let (outcome, progress_events) =
                         persist_generated_blueprint_in_transaction(tx, completion_input).await?;
                     let descriptor = CompletionDescriptor {
                         result_ref: Some(GenerationResultRef {
@@ -379,8 +440,18 @@ impl OrchestratorContext {
                             current: "completion_slot_poisoned".to_string(),
                             operation: "保存蓝图生成结果".to_string(),
                         })? = Some(outcome);
-                    Ok(descriptor)
-                }) as BoxFuture<'_, Result<CompletionDescriptor, AppError>>
+                    Ok((descriptor, progress_events))
+                })
+                    as BoxFuture<
+                        '_,
+                        Result<
+                            (
+                                CompletionDescriptor,
+                                Vec<a4n_service_protocol::ProgressEvent>,
+                            ),
+                            AppError,
+                        >,
+                    >
             })
             .await;
         if let Err(error) = completion {

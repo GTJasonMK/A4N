@@ -61,6 +61,8 @@ export async function verifyImageGenerationResult(
 export async function previewSceneImageRequest(
   projectId: Id,
   prompt: string,
+  width: number,
+  height: number,
   configId?: Id | null,
   chapterId?: Id | null,
 ): Promise<ModelRequestPreview> {
@@ -68,6 +70,8 @@ export async function previewSceneImageRequest(
   const input: GenerateSceneImageInput = {
     project_id: idNum(projectId, "项目 ID"),
     prompt,
+    width,
+    height,
     config_id: normalizedConfigId,
     chapter_id: chapterId == null ? null : idNum(chapterId, "章节 ID"),
   };
@@ -87,11 +91,15 @@ export async function previewPageImageRequest(
   projectId: Id,
   chapterNumber: number,
   pageNumber: number,
+  width: number,
+  height: number,
 ): Promise<ModelRequestPreview> {
   const input: GeneratePageImageInput = {
     project_id: idNum(projectId, "项目 ID"),
     chapter_number: chapterNumber,
     page_number: pageNumber,
+    width,
+    height,
   };
   return apiInvoke<ModelRequestPreview>("preview_page_image_request", {
     input,

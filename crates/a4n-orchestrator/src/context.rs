@@ -57,6 +57,7 @@ mod video;
 mod video_studio_transfer;
 mod workflow;
 
+use crate::agent::AgentApplication;
 use admin::AdminApplication;
 use asset::AssetApplication;
 use auth::AuthApplication;
@@ -100,6 +101,7 @@ pub struct OrchestratorContext {
     /// 仅供尚未迁入 application owner 的遗留领域路径；runtime 不得直连。
     pub(crate) database: DbHandle,
     admin: AdminApplication,
+    agent: AgentApplication,
     asset: AssetApplication,
     auth: AuthApplication,
     canvas: CanvasApplication,

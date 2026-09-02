@@ -25,8 +25,12 @@ pub async fn invite_project_member(
             "只有项目所有者可以邀请 manager".to_string(),
         ));
     }
-    let root = resolve_root_project(db, project_id).await?;
-    let invitee = find_user_by_identity(db, username_or_email).await?;
+    let (root_result, invitee_result) = futures::join!(
+        resolve_root_project(db, project_id),
+        find_user_by_identity(db, username_or_email),
+    );
+    let root = root_result?;
+    let invitee = invitee_result?;
     if !invitee.is_active {
         return Err(CollaborationDbError::InvalidState(
             "被邀请用户已被禁用".to_string(),

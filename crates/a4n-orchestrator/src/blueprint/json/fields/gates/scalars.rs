@@ -10,7 +10,7 @@ pub(in crate::blueprint::json) fn validate_enum(
         Ok(())
     } else {
         Err(AppError::InvalidArgument(format!(
-            "{context}.{key} 必须是以下值之一：{}",
+            "{context}.{key} 的值 `{value}` 无效，必须是以下值之一：{}",
             allowed.join(", ")
         )))
     }

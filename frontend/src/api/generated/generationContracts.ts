@@ -90,13 +90,17 @@ export type ImageGenerationOperation =
   | {
       chapter_id?: number | null;
       config_id?: number | null;
+      height: number;
       kind: "scene";
       prompt: string;
+      width: number;
     }
   | {
       chapter_number: number;
+      height: number;
       kind: "page";
       page_number: number;
+      width: number;
     }
   | {
       kind: "batch";
@@ -109,23 +113,27 @@ export type ImageGenerationOperation =
       chapter_id?: number | null;
       config_id?: number | null;
       custom_style?: string | null;
+      height: number;
       kind: "object_profile";
       object_profile_id: number;
       style?: string | null;
       style_template_id?: string | null;
       style_template_name?: string | null;
       style_template_version?: string | null;
+      width: number;
     }
   | {
       chapter_id?: number | null;
       config_id?: number | null;
       custom_style?: string | null;
+      height: number;
       kind: "scene_profile";
       scene_profile_id: number;
       style?: string | null;
       style_template_id?: string | null;
       style_template_name?: string | null;
       style_template_version?: string | null;
+      width: number;
     };
 export type OutlineGenerationOperation =
   | {
@@ -203,24 +211,32 @@ export type PortraitGenerationOperation =
   | {
       character_name: string;
       expression?: string | null;
+      height: number;
       kind: "generate";
       pose?: string | null;
       reference_image_ids: number[];
       style?: string | null;
+      width: number;
     }
   | {
+      height: number;
       kind: "regenerate";
       portrait_id: number;
       reference_image_ids: number[];
+      width: number;
     }
   | {
       age: string;
+      height: number;
       kind: "generate_age_variant";
       portrait_id: number;
       reference_image_ids: number[];
+      width: number;
     }
   | {
+      height: number;
       kind: "generate_missing";
+      width: number;
     };
 export type VideoGenerationOperation =
   | {

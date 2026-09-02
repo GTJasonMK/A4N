@@ -1,6 +1,7 @@
 use super::shared::truncate_chars;
 use crate::OrchestratorContext;
 use a4n_core::models::asset::object_profile;
+use std::cmp::Ordering;
 
 const OBJECT_PROFILE_CONTEXT_LIMIT: usize = 8;
 
@@ -13,13 +14,11 @@ pub(super) async fn recent_object_profile_context_lines(
         .object_profiles_before_chapter(project_id, chapter_number)
         .await
         .map_err(|err| format!("构建物体档案上下文失败：{err}"))?;
-    profiles.sort_by_key(|profile| {
-        (
-            importance_rank(&profile.importance),
-            std::cmp::Reverse(profile.last_seen_chapter),
-            profile.id,
-        )
-    });
+    if profiles.len() > OBJECT_PROFILE_CONTEXT_LIMIT {
+        profiles.select_nth_unstable_by(OBJECT_PROFILE_CONTEXT_LIMIT - 1, compare_profiles);
+        profiles.truncate(OBJECT_PROFILE_CONTEXT_LIMIT);
+    }
+    profiles.sort_unstable_by(compare_profiles);
     Ok(profiles
         .iter()
         .map(object_profile_context_line)
@@ -73,4 +72,11 @@ fn importance_rank(value: &str) -> u8 {
         "secondary" => 1,
         _ => 2,
     }
+}
+
+fn compare_profiles(left: &object_profile::Model, right: &object_profile::Model) -> Ordering {
+    importance_rank(&left.importance)
+        .cmp(&importance_rank(&right.importance))
+        .then_with(|| right.last_seen_chapter.cmp(&left.last_seen_chapter))
+        .then_with(|| left.id.cmp(&right.id))
 }

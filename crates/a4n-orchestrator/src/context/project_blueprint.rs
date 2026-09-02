@@ -191,14 +191,14 @@ impl OrchestratorContext {
             .await?;
         let version_a = required_text(version_a, "版本 A").map_err(AppError::InvalidArgument)?;
         let version_b = required_text(version_b, "版本 B").map_err(AppError::InvalidArgument)?;
-        let left = self
-            .blueprint_version_by_project_version(project_id, version_a)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("版本 {version_a} 不存在")))?;
-        let right = self
-            .blueprint_version_by_project_version(project_id, version_b)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("版本 {version_b} 不存在")))?;
+        let (left_result, right_result) = futures::join!(
+            self.blueprint_version_by_project_version(project_id, version_a),
+            self.blueprint_version_by_project_version(project_id, version_b),
+        );
+        let left =
+            left_result?.ok_or_else(|| AppError::NotFound(format!("版本 {version_a} 不存在")))?;
+        let right =
+            right_result?.ok_or_else(|| AppError::NotFound(format!("版本 {version_b} 不存在")))?;
         Ok(blueprint_json_diff(
             &left.blueprint_data,
             &right.blueprint_data,

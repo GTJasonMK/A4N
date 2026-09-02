@@ -231,32 +231,43 @@ impl OrchestratorContext {
         })?;
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
-        let source_bundle = self
-            .project_chapter_video_source(project_id, chapter_id, spec.operation, true)
-            .await?;
+        let (source_bundle, segment_recipe) = futures::join!(
+            self.project_chapter_video_source(project_id, chapter_id, spec.operation, true),
+            self.resolve_segment_recipe_options(project_id, chapter_id, stage, &mut options),
+        );
+        let source_bundle = source_bundle?;
         if source_bundle.source.content.trim().is_empty() {
             return Err(AppError::InvalidArgument(
                 spec.empty_content_message.to_string(),
             ));
         }
-        let segment_recipe = self
-            .resolve_segment_recipe_options(project_id, chapter_id, stage, &mut options)
-            .await?;
+        let segment_recipe = segment_recipe?;
         let workflow_mode = ensure_video_workflow_mode_for_stage(&options, stage)?;
         let mut options = validate_generate_prompt_options(options, &workflow_mode, None)?;
         options.target_shot_number = segment_recipe.as_ref().map(|recipe| recipe.segment_number);
         options.segment_recipe = segment_recipe;
-        if workflow_mode != chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO {
-            let config = self.effective_video_config(runtime_video_config).await?;
+        let (config, reference_access) = futures::join!(
+            async {
+                if workflow_mode != chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO {
+                    self.effective_video_config(runtime_video_config)
+                        .await
+                        .map(Some)
+                } else {
+                    Ok::<Option<video_gen_config::Model>, AppError>(None)
+                }
+            },
+            self.verify_video_reference_image_access(
+                user_id,
+                project_id,
+                chapter_id,
+                &options.reference_image_ids,
+            ),
+        );
+        let config = config?;
+        reference_access?;
+        if let Some(config) = config {
             apply_duration_capability(&config, &mut options)?;
         }
-        self.verify_video_reference_image_access(
-            user_id,
-            project_id,
-            chapter_id,
-            &options.reference_image_ids,
-        )
-        .await?;
         let variables = build_video_prompt_vars(
             project_id,
             chapter_id,
@@ -598,13 +609,6 @@ impl OrchestratorContext {
                 "视频提示词 visual_prompt 不能为空".to_string(),
             ));
         }
-        self.project_chapter_video_source(
-            prompt.project_id,
-            prompt.chapter_id,
-            "更新视频提示词",
-            true,
-        )
-        .await?;
         let negative_prompt = input
             .negative_prompt
             .as_ref()
@@ -622,14 +626,22 @@ impl OrchestratorContext {
             prompt.reference_image_ids_json.as_ref(),
         )
         .map_err(video_db_error)?;
-        let plan = self
-            .prepare_mutation_plan(
+        let (source_result, plan_result) = futures::join!(
+            self.project_chapter_video_source(
+                prompt.project_id,
+                prompt.chapter_id,
+                "更新视频提示词",
+                true,
+            ),
+            self.prepare_mutation_plan(
                 prompt_id,
                 input.downstream_strategy,
                 "更新视频提示词",
                 "该视频提示词",
-            )
-            .await?;
+            ),
+        );
+        source_result?;
+        let plan = plan_result?;
         self.apply_downstream_cleanup(cleanup, &plan).await?;
         let row = self
             .update_chapter_video_prompt_with_policy(
@@ -695,9 +707,18 @@ impl OrchestratorContext {
         chapter_id: i64,
         prompt_id: i64,
     ) -> Result<chapter_video_prompt::Model, AppError> {
-        let prompt = self.chapter_video_prompt(prompt_id).await?;
-        self.validate_loaded_current_shared_segment_plan(&prompt, project_id, chapter_id)
-            .await?;
+        let (prompt_result, current_source_hash_result) = futures::join!(
+            self.chapter_video_prompt(prompt_id),
+            self.current_video_source_hash(project_id, chapter_id),
+        );
+        let prompt = prompt_result?;
+        self.validate_loaded_current_shared_segment_plan(
+            &prompt,
+            project_id,
+            chapter_id,
+            current_source_hash_result,
+        )
+        .await?;
         Ok(prompt)
     }
 
@@ -706,6 +727,7 @@ impl OrchestratorContext {
         prompt: &chapter_video_prompt::Model,
         project_id: i64,
         chapter_id: i64,
+        current_source_hash_result: Result<String, AppError>,
     ) -> Result<(), AppError> {
         if prompt.project_id != project_id
             || prompt.chapter_id != chapter_id
@@ -722,9 +744,7 @@ impl OrchestratorContext {
                 "目标片段规划不是当前章节已完成的共享片段规划".to_string(),
             ));
         }
-        let current_source_hash = self
-            .current_video_source_hash(project_id, chapter_id)
-            .await?;
+        let current_source_hash = current_source_hash_result?;
         if video_prompt_source_content_hash(prompt.metadata_json.as_ref())
             != Some(current_source_hash.as_str())
         {
@@ -801,21 +821,22 @@ impl OrchestratorContext {
         let prompt = self.chapter_video_prompt(prompt_id).await?;
         self.verify_project_permission(prompt.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
-        self.project_chapter_video_source(
-            prompt.project_id,
-            prompt.chapter_id,
-            "删除视频提示词",
-            true,
-        )
-        .await?;
-        let plan = self
-            .prepare_mutation_plan(
+        let (source_result, plan_result) = futures::join!(
+            self.project_chapter_video_source(
+                prompt.project_id,
+                prompt.chapter_id,
+                "删除视频提示词",
+                true,
+            ),
+            self.prepare_mutation_plan(
                 prompt_id,
                 downstream_strategy,
                 "删除视频提示词",
                 "该视频提示词",
-            )
-            .await?;
+            ),
+        );
+        source_result?;
+        let plan = plan_result?;
         self.apply_downstream_cleanup(cleanup, &plan).await?;
         self.delete_chapter_video_prompts_checked(
             std::slice::from_ref(&prompt_id),

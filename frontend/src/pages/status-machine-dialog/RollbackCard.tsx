@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React from "react";
 import { ChevronRight, Undo2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -52,7 +53,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
       <div className="mt-2 space-y-2 sm:pl-5">
         <label className="flex min-w-0 flex-col gap-1 text-caption text-book-text-muted">
           {t("statusMachine.targetStage")}
-          <select
+          <ThemedSelect
             value={target ?? ""}
             onChange={(event) => {
               const value = event.target.value as ProjectStatus;
@@ -68,7 +69,7 @@ export const RollbackCard: React.FC<RollbackCardProps> = ({
                 {projectStatusLabel(status, t)}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </label>
         {target ? (
           <div className="border-l-2 border-warning/55 py-1 pl-3">

@@ -103,6 +103,7 @@ export const WritingDesk: React.FC = () => {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const agentRequested = searchParams.get("agent") === "1";
 
   const [project, setProject] = useState<NovelProject | null>(null);
   const lifecycleBlockedReason = project
@@ -144,7 +145,9 @@ export const WritingDesk: React.FC = () => {
   const [isMobileLayout, setIsMobileLayout] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 768 : false,
   );
-  const [rightPanel, setRightPanel] = useState<RightPanel>("none");
+  const [rightPanel, setRightPanel] = useState<RightPanel>(() =>
+    agentRequested ? "optimize" : "none",
+  );
   const [optimizationPatchPreview, setOptimizationPatchPreview] =
     useState<OptimizationPatchPreviewController | null>(null);
   const {
@@ -284,13 +287,13 @@ export const WritingDesk: React.FC = () => {
       setIsMobileLayout(mobile);
       if (mobile) {
         setLeftSidebarVisible(false);
-        setRightPanel("none");
+        if (!agentRequested) setRightPanel("none");
       }
     };
     updateMobileLayout();
     window.addEventListener("resize", updateMobileLayout);
     return () => window.removeEventListener("resize", updateMobileLayout);
-  }, []);
+  }, [agentRequested]);
 
   useEffect(() => {
     const requestSeq = loadSeqRef.current + 1;
@@ -996,6 +999,7 @@ export const WritingDesk: React.FC = () => {
 
   const writingAssistantPanelProps = {
     projectId,
+    initialMode: agentRequested ? "optimize" as const : undefined,
     writingNotes,
     minWordCount,
     maxWordCount,

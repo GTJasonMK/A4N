@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -18,7 +19,11 @@ import {
 } from "../../api/inspiration";
 import type { GenerationTaskHandle } from "../../api/generated/generationContracts";
 import type { ModelRequestPreview } from "../../api/requestPreview";
-import { getProject, type NovelProject } from "../../api/project";
+import {
+  canEditProjectMaterials,
+  getProject,
+  type NovelProject,
+} from "../../api/project";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
 import {
   generationTaskKey,
@@ -36,6 +41,7 @@ import {
   getProjectPrimaryRoute,
 } from "../../utils/projectRouting";
 import {
+  generationFailureMessage,
   msgId,
   normalizeHistoryMessage,
   splitSummaryLines,
@@ -48,11 +54,6 @@ import {
 import type { Message } from "./shared";
 import { useBlueprintWorkflow } from "./useBlueprintWorkflow";
 import { useI18n } from "../../i18n";
-
-const canEditInspirationProject = (project: NovelProject): boolean =>
-  project.my_role === "owner" ||
-  project.my_role === "manager" ||
-  project.my_role === "editor";
 
 export const useInspirationChatController = () => {
   const { id } = useParams<{ id: string }>();
@@ -72,7 +73,7 @@ export const useInspirationChatController = () => {
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
   const [requestPreviewData, setRequestPreviewData] = useState<ModelRequestPreview | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesViewportRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
@@ -84,6 +85,7 @@ export const useInspirationChatController = () => {
   const generationAssistantIdRef = useRef<string | null>(null);
   const handledTerminalRef = useRef<string | null>(null);
   const requestPreviewSeqRef = useRef(0);
+  const followMessagesRef = useRef(true);
 
   const generationTask = useGenerationTask({
     handle: generationHandle,
@@ -121,13 +123,12 @@ export const useInspirationChatController = () => {
   const progressSummary = latestAssistant?.progressSummary;
   const nextQuestion = latestAssistant?.nextQuestion;
   const progressSummaryLines = useMemo(() => splitSummaryLines(progressSummary), [progressSummary]);
-  const conversationComplete = latestAssistant?.isComplete === true;
+  const conversationChecklistComplete = latestAssistant?.isComplete === true;
 
   const blueprintWorkflow = useBlueprintWorkflow({
     projectId,
     project,
     messages,
-    conversationComplete,
     sending,
     latestConversationState,
     progressSummary,
@@ -145,7 +146,8 @@ export const useInspirationChatController = () => {
       prev.map((m) =>
         m.id === assistantId
           ? {
-              ...m,
+              id: m.id,
+              role: "assistant",
               content: parsed.content,
               rawContent: parsed.rawContent,
               options: parsed.options,
@@ -153,7 +155,7 @@ export const useInspirationChatController = () => {
               conversationState: parsed.conversationState,
               progressSummary: parsed.progressSummary,
               nextQuestion: parsed.nextQuestion,
-              streaming: false,
+              createdAt: m.createdAt,
             }
           : m,
       ),
@@ -180,6 +182,7 @@ export const useInspirationChatController = () => {
     setRequestPreviewData(null);
     sendSeqRef.current += 1;
     requestPreviewSeqRef.current += 1;
+    followMessagesRef.current = true;
 
     setMessages([]);
     setInputPlaceholder(t("inspiration.inputPlaceholder"));
@@ -193,16 +196,18 @@ export const useInspirationChatController = () => {
           navigate(getProjectHomeEntryRoute(p), { replace: true });
           return;
         }
-        if (!canEditInspirationProject(p)) {
+        if (!canEditProjectMaterials(p)) {
           addToast(t("errors.noEditPermission"), "error");
           navigate(getProjectPrimaryRoute(p), { replace: true });
           return;
         }
-        setProject(p);
-
         const history = await getInspirationHistory(projectId);
         if (cancelled) return;
         const restored = history.map(normalizeHistoryMessage);
+        // Keep the page in its loading state until both the project and its
+        // conversation are ready; otherwise the blueprint action can race the
+        // history request and omit persisted context.
+        setProject(p);
         if (restored.length > 0) {
           setMessages(restored);
         } else {
@@ -260,9 +265,21 @@ export const useInspirationChatController = () => {
   }, [addToast, isCurrentProject, project, projectId, t]);
 
   useEffect(() => {
-    if (stage === "conversation") {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-    }
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    const updateFollowState = () => {
+      followMessagesRef.current =
+        viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight <= 1;
+    };
+    viewport.addEventListener("scroll", updateFollowState, { passive: true });
+    return () => viewport.removeEventListener("scroll", updateFollowState);
+  }, [project, stage]);
+
+  useLayoutEffect(() => {
+    if (stage !== "conversation" || !followMessagesRef.current) return;
+    const viewport = messagesViewportRef.current;
+    if (!viewport) return;
+    viewport.scrollTop = viewport.scrollHeight;
   }, [messages, stage]);
 
   const streamedText = generationTask.text("raw_json");
@@ -272,6 +289,7 @@ export const useInspirationChatController = () => {
     if (!generationHandle || !assistantId || !streamedText) return;
     const preview = getStreamingResponsePreview(streamedText);
     setMessages((prev) => {
+      const current = prev.find((message) => message.id === assistantId);
       const next: Message = {
         id: assistantId,
         role: "assistant",
@@ -280,10 +298,10 @@ export const useInspirationChatController = () => {
         streaming: true,
         streamingOptions: preview.options,
         optionsPending: preview.optionsPending,
-        createdAt: Date.now(),
+        createdAt: current?.createdAt ?? Date.now(),
       };
-      return prev.some((message) => message.id === assistantId)
-        ? prev.map((message) => message.id === assistantId ? { ...message, ...next } : message)
+      return current
+        ? prev.map((message) => message.id === assistantId ? next : message)
         : [...prev, next];
     });
   }, [generationHandle, streamedText]);
@@ -363,12 +381,7 @@ export const useInspirationChatController = () => {
         } else if (recovery.kind !== "ok") {
           const unavailableMessage = recovery.message;
           setMessages((prev) => prev.map((message) => message.id === assistantId
-            ? {
-                ...message,
-                content: unavailableMessage,
-                consistencyWarning: unavailableMessage,
-                streaming: false,
-              }
+            ? generationFailureMessage(assistantId, unavailableMessage)
             : message));
           addToast(unavailableMessage, "error");
         }
@@ -379,28 +392,13 @@ export const useInspirationChatController = () => {
             ? t("inspiration.conversationInterrupted")
             : generationTask.error?.message?.trim() || t("inspiration.conversationFailed");
         setMessages((prev) => {
-          const failed: Message = {
-            id: assistantId,
-            role: "assistant",
-            content: `❌ ${message}`,
-            streaming: false,
-            createdAt: Date.now(),
-          };
+          const failed = generationFailureMessage(assistantId, message);
           return prev.some((item) => item.id === assistantId)
-            ? prev.map((item) => item.id === assistantId ? { ...item, ...failed } : item)
+            ? prev.map((item) => item.id === assistantId ? failed : item)
             : [...prev, failed];
         });
         if (generationTask.taskStatus !== "cancelled") addToast(message, "error");
       }
-
-      const latest = generationHandleRef.current;
-      if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
-      generationHandleRef.current = null;
-      generationAssistantIdRef.current = null;
-      setGenerationHandle(null);
-      sendingRef.current = false;
-      setSending(false);
-      inputRef.current?.focus();
     };
 
     void finish().catch((error) => {
@@ -409,9 +407,12 @@ export const useInspirationChatController = () => {
       logger.scoped("InspirationChat").error("generation finalization failed", { error });
       const message = extractErrorMessage(error, t("inspiration.conversationValidationFailed"));
       setMessages((prev) => prev.map((item) => item.id === assistantId
-        ? { ...item, content: `❌ ${message}`, streaming: false }
+        ? generationFailureMessage(assistantId, message)
         : item));
       addToast(message, "error");
+    }).finally(() => {
+      const latest = generationHandleRef.current;
+      if (!latest || generationTaskKey(latest.task_id, latest.attempt) !== key) return;
       generationHandleRef.current = null;
       generationAssistantIdRef.current = null;
       setGenerationHandle(null);
@@ -437,6 +438,7 @@ export const useInspirationChatController = () => {
   const handleSend = async (text?: string) => {
     const value = (text ?? input).trim();
     if (!value || sendingRef.current) return;
+    followMessagesRef.current = true;
     const requestProjectId = projectId;
     const requestSeq = sendSeqRef.current + 1;
     sendSeqRef.current = requestSeq;
@@ -479,20 +481,9 @@ export const useInspirationChatController = () => {
       logger.scoped("InspirationChat").error("converse failed", { err });
       const message = extractErrorMessage(err, t("inspiration.conversationError"));
       addToast(message, "error");
-      setMessages((prev) => {
-        const cleared = prev.map((m) =>
-          m.id === assistantId ? { ...m, streaming: false } : m,
-        );
-        return [
-          ...cleared,
-          {
-            id: msgId(),
-            role: "system",
-            content: `❌ ${message}`,
-            createdAt: Date.now(),
-          },
-        ];
-      });
+      setMessages((prev) => prev.map((m) =>
+        m.id === assistantId ? generationFailureMessage(assistantId, message) : m,
+      ));
       generationAssistantIdRef.current = null;
       sendingRef.current = false;
       setSending(false);
@@ -580,7 +571,8 @@ export const useInspirationChatController = () => {
     refining: blueprintWorkflow.refining,
     inputPlaceholder,
     blueprintProgressOpen: blueprintWorkflow.blueprintProgressOpen,
-    setBlueprintProgressOpen: blueprintWorkflow.setBlueprintProgressOpen,
+    closeBlueprintProgress: blueprintWorkflow.closeBlueprintProgress,
+    blueprintOperation: blueprintWorkflow.blueprintOperation,
     blueprintProgress: blueprintWorkflow.blueprintProgress,
     blueprintCancelling: blueprintWorkflow.blueprintCancelling,
     blueprintStreamText: blueprintWorkflow.blueprintStreamText,
@@ -588,7 +580,7 @@ export const useInspirationChatController = () => {
     blueprintRequestPreviewLoading: blueprintWorkflow.requestPreviewLoading,
     blueprintRequestPreviewData: blueprintWorkflow.requestPreviewData,
     setBlueprintRequestPreviewOpen: blueprintWorkflow.setRequestPreviewOpen,
-    messagesEndRef,
+    messagesViewportRef,
     inputRef,
     inputActive,
     requestPreviewOpen,
@@ -597,9 +589,9 @@ export const useInspirationChatController = () => {
     setRequestPreviewOpen,
     progressSummaryLines,
     nextQuestion,
-    conversationComplete,
+    conversationChecklistComplete,
     canGenerate: blueprintWorkflow.canGenerate,
-    canCancelBlueprintGeneration: blueprintWorkflow.canCancelBlueprintGeneration,
+    canCancelBlueprintOperation: blueprintWorkflow.canCancelBlueprintOperation,
     handleSend,
     handlePreviewInspirationRequest,
     handleKeyDown,

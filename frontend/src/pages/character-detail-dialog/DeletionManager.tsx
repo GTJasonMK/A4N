@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { RotateCcw, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -357,7 +358,7 @@ export const DeletionManager: React.FC<{
       <div className="flex flex-wrap items-end gap-2 text-small">
         <label className="flex items-center gap-1 text-book-text-muted">
           {t("characterDetail.deletion.category")}
-          <select
+          <ThemedSelect
             value={filterCategory}
             onChange={(event) => {
               const next = event.target.value;
@@ -375,11 +376,11 @@ export const DeletionManager: React.FC<{
                 {categoryLabel(option.value, t)}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </label>
         <label className="flex items-center gap-1 text-book-text-muted">
           {t("characterDetail.deletion.status")}
-          <select
+          <ThemedSelect
             value={filterStatus}
             onChange={(event) => {
               const next = event.target.value as DeletionMarkStatusFilter;
@@ -396,7 +397,7 @@ export const DeletionManager: React.FC<{
                 {option.label}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </label>
         {loading ? <LoadingSpinner size="sm" className="text-book-text-muted" /> : null}
         {hasCurrentMarks && marks.length > 0 ? (
@@ -426,7 +427,7 @@ export const DeletionManager: React.FC<{
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.category")}</span>
-            <select
+            <ThemedSelect
               value={category}
               onChange={(event) => setCategory(event.target.value)}
               disabled={requesting}
@@ -437,7 +438,7 @@ export const DeletionManager: React.FC<{
                   {categoryLabel(option.value, t)}
                 </option>
               ))}
-            </select>
+            </ThemedSelect>
           </label>
           <label className="flex flex-col gap-1 md:col-span-4">
             <span className="text-caption text-book-text-muted">{t("characterDetail.deletion.attribute")}</span>

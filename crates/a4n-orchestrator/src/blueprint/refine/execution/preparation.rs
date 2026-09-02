@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_core::{
+    blueprint::blueprint_refinement_input_fingerprint,
     blueprint::{
         BLUEPRINT_REFINEMENT_MODE, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
         blueprint_refinement_business_key, blueprint_refinement_call_key,
@@ -60,6 +61,9 @@ pub(super) async fn prepare_blueprint_refine(
     .await?;
     let call_key = blueprint_refinement_call_key(project_id);
     let request_json = context_aware_chat_request_trace_json(&request)?;
+    let variables_json = serde_json::to_value(variables)?;
+    let workflow_fingerprint_json =
+        blueprint_refinement_input_fingerprint(project_id, focus, &variables_json);
     let input_fingerprint_json = json!({
         "schema_version": 1,
         "workflow": BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
@@ -67,26 +71,45 @@ pub(super) async fn prepare_blueprint_refine(
         "request": request_json,
         "source_snapshot": &expected_source_snapshot,
     });
-    let workflow_run = context
-        .upsert_workflow_run(UpsertWorkflowRunInput {
-            business_key: blueprint_refinement_business_key(project_id),
-            workflow_kind: BLUEPRINT_REFINEMENT_WORKFLOW_KIND.to_string(),
-            project_id: Some(project_id),
-            root_project_id: None,
-            source_snapshot_id: None,
-            scope_table: Some("novel_blueprint".to_string()),
-            scope_id: Some(blueprint.id),
-            chapter_id: None,
-            mode: Some(BLUEPRINT_REFINEMENT_MODE.to_string()),
-            input_fingerprint_json: Some(input_fingerprint_json.clone()),
-            status: WORKFLOW_STATUS_RUNNING.to_string(),
-            current_step_key: Some(call_key.clone()),
-            active_task_id: Some(task_id.to_string()),
-            can_resume: true,
-            resume_block_reason: None,
-            error_message: None,
-        })
-        .await?;
+    let business_key = blueprint_refinement_business_key(project_id);
+    let workflow_run = if let Some(existing) = context
+        .latest_workflow_run_by_business_key(&business_key)
+        .await?
+        && existing.status == WORKFLOW_STATUS_RUNNING
+        && existing.active_task_id.as_deref() == Some(task_id)
+    {
+        if existing.workflow_kind != BLUEPRINT_REFINEMENT_WORKFLOW_KIND
+            || existing.project_id != Some(project_id)
+            || existing.input_fingerprint_json.as_ref() != Some(&workflow_fingerprint_json)
+        {
+            return Err(AppError::InvalidState {
+                current: "blueprint_refinement_prebound_workflow_mismatch".to_string(),
+                operation: "启动已绑定的蓝图优化任务".to_string(),
+            });
+        }
+        existing
+    } else {
+        context
+            .begin_or_resume_workflow_run_validated(UpsertWorkflowRunInput {
+                business_key,
+                workflow_kind: BLUEPRINT_REFINEMENT_WORKFLOW_KIND.to_string(),
+                project_id: Some(project_id),
+                root_project_id: None,
+                source_snapshot_id: None,
+                scope_table: Some("novel_blueprint".to_string()),
+                scope_id: Some(blueprint.id),
+                chapter_id: None,
+                mode: Some(BLUEPRINT_REFINEMENT_MODE.to_string()),
+                input_fingerprint_json: Some(workflow_fingerprint_json),
+                status: WORKFLOW_STATUS_RUNNING.to_string(),
+                current_step_key: Some(call_key.clone()),
+                active_task_id: Some(task_id.to_string()),
+                can_resume: true,
+                resume_block_reason: None,
+                error_message: None,
+            })
+            .await?
+    };
     let workflow_run_id = workflow_run.id;
     crate::workflow::attach_llm_call_checkpoint_trace(
         &mut request,

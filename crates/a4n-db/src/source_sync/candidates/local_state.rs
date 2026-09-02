@@ -68,35 +68,45 @@ where
                 .push(media_asset_id);
         }
     }
-    let assets_by_id = if media_asset_ids.is_empty() {
-        HashMap::new()
-    } else {
-        media_asset::Entity::find()
-            .select_only()
-            .column(media_asset::Column::Id)
-            .column(media_asset::Column::Origin)
-            .column(media_asset::Column::Status)
-            .filter(media_asset::Column::Id.is_in(media_asset_ids.iter().copied()))
-            .into_tuple::<(i64, String, String)>()
-            .all(db)
-            .await?
-            .into_iter()
-            .map(|asset| (asset.0, asset))
-            .collect::<HashMap<_, _>>()
-    };
-    let assembled_asset_ids = if media_asset_ids.is_empty() {
-        HashSet::new()
-    } else {
-        assembly_clip::Entity::find()
-            .select_only()
-            .column(assembly_clip::Column::MediaAssetId)
-            .filter(assembly_clip::Column::MediaAssetId.is_in(media_asset_ids.iter().copied()))
-            .into_tuple::<i64>()
-            .all(db)
-            .await?
-            .into_iter()
-            .collect::<HashSet<_>>()
-    };
+    let (assets_by_id, assembled_asset_ids) = futures::join!(
+        async {
+            if media_asset_ids.is_empty() {
+                Ok::<HashMap<i64, (i64, String, String)>, SourceSyncDbError>(HashMap::new())
+            } else {
+                Ok(media_asset::Entity::find()
+                    .select_only()
+                    .column(media_asset::Column::Id)
+                    .column(media_asset::Column::Origin)
+                    .column(media_asset::Column::Status)
+                    .filter(media_asset::Column::Id.is_in(media_asset_ids.iter().copied()))
+                    .into_tuple::<(i64, String, String)>()
+                    .all(db)
+                    .await?
+                    .into_iter()
+                    .map(|asset| (asset.0, asset))
+                    .collect::<HashMap<_, _>>())
+            }
+        },
+        async {
+            if media_asset_ids.is_empty() {
+                Ok::<HashSet<i64>, SourceSyncDbError>(HashSet::new())
+            } else {
+                Ok(assembly_clip::Entity::find()
+                    .select_only()
+                    .column(assembly_clip::Column::MediaAssetId)
+                    .filter(
+                        assembly_clip::Column::MediaAssetId.is_in(media_asset_ids.iter().copied()),
+                    )
+                    .into_tuple::<i64>()
+                    .all(db)
+                    .await?
+                    .into_iter()
+                    .collect::<HashSet<_>>())
+            }
+        },
+    );
+    let assets_by_id = assets_by_id?;
+    let assembled_asset_ids = assembled_asset_ids?;
 
     for spec in active_specs {
         let mut state = None;

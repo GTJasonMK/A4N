@@ -81,14 +81,16 @@ pub(super) async fn attach_chapter_sync_state(
     let Some(project_id) = chapters.first().map(|chapter| chapter.project_id) else {
         return Ok(());
     };
-    let analysis_runs = state
-        .orchestrator()
-        .workflow_runs_by_project_kind(project_id, "chapter_analysis")
-        .await?;
-    let content_runs = state
-        .orchestrator()
-        .workflow_runs_by_project_kind(project_id, CHAPTER_CONTENT_SYNC_WORKFLOW_KIND)
-        .await?;
+    let (analysis_runs_result, content_runs_result) = futures::join!(
+        state
+            .orchestrator()
+            .workflow_runs_by_project_kind(project_id, "chapter_analysis"),
+        state
+            .orchestrator()
+            .workflow_runs_by_project_kind(project_id, CHAPTER_CONTENT_SYNC_WORKFLOW_KIND),
+    );
+    let analysis_runs = analysis_runs_result?;
+    let content_runs = content_runs_result?;
     let run_ids = analysis_runs
         .iter()
         .chain(&content_runs)

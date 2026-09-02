@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
@@ -195,7 +196,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
 
         <div>
           <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.profile")}</label>
-          <select
+          <ThemedSelect
             value={profileId}
             onChange={(event) => setProfileId(Number(event.target.value))}
             className="pyqt-input w-full"
@@ -206,12 +207,12 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
                 {profile.name}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </div>
 
         <div>
           <label className="mb-1 block text-xs text-book-text-muted">{t("characterDetail.portrait.type")}</label>
-          <select
+          <ThemedSelect
             value={portraitType}
             onChange={(event) => setPortraitType(event.target.value as PortraitType)}
             className="pyqt-input w-full"
@@ -222,7 +223,7 @@ export const UploadPortraitDialog: React.FC<UploadPortraitDialogProps> = ({
                 {portraitTypeLabel(option.value, t)}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </div>
 
         <label

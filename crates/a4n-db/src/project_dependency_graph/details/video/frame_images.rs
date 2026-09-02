@@ -7,6 +7,9 @@ use a4n_core::{
     error::AppError,
     models::{ai::generated_image, chapter::chapter_video_prompt},
 };
+use a4n_domain::image::{
+    IMAGE_TYPE_VIDEO_KEY_FRAME, IMAGE_TYPE_VIDEO_START_FRAME, IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashMap;
 
@@ -18,27 +21,32 @@ pub(in crate::project_dependency_graph) async fn video_frame_image_detail_record
 where
     C: ConnectionTrait,
 {
-    let prompts = chapter_video_prompt::Entity::find()
-        .select_only()
-        .column(chapter_video_prompt::Column::Id)
-        .column(chapter_video_prompt::Column::VisualPrompt)
-        .column(chapter_video_prompt::Column::MotionPrompt)
-        .column(chapter_video_prompt::Column::NegativePrompt)
-        .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .into_model::<VideoPromptSourceRecord>()
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
+    let (prompts_result, images_result) = futures::join!(
+        chapter_video_prompt::Entity::find()
+            .select_only()
+            .column(chapter_video_prompt::Column::Id)
+            .column(chapter_video_prompt::Column::VisualPrompt)
+            .column(chapter_video_prompt::Column::MotionPrompt)
+            .column(chapter_video_prompt::Column::NegativePrompt)
+            .filter(chapter_video_prompt::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .into_model::<VideoPromptSourceRecord>()
+            .all(db),
+        generated_image::Entity::find()
+            .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
+            .filter(generated_image::Column::ImageType.is_in([
+                IMAGE_TYPE_VIDEO_KEY_FRAME,
+                IMAGE_TYPE_VIDEO_START_FRAME,
+                IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
+            ]),)
+            .order_by_asc(generated_image::Column::Id)
+            .all(db),
+    );
+    let prompts = prompts_result.map_err(AppError::Database)?;
     let prompt_by_id = prompts
         .iter()
         .map(|prompt| (prompt.id, prompt))
         .collect::<HashMap<_, _>>();
-    let images = generated_image::Entity::find()
-        .filter(generated_image::Column::ProjectId.is_in(project_ids.iter().copied()))
-        .order_by_asc(generated_image::Column::Id)
-        .all(db)
-        .await
-        .map_err(AppError::Database)?;
+    let images = images_result.map_err(AppError::Database)?;
     let mut records = Vec::new();
     for image in images {
         if let Some(prompt_id) =

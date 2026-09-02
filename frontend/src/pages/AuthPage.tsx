@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../components/ui/ThemedSelect";
 import React, { useEffect, useRef, useState } from "react";
 import { BookOpen, Globe } from "lucide-react";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
@@ -355,7 +356,7 @@ export const AuthPage: React.FC = () => {
             >
               <label className="flex flex-col gap-1">
                 <span className="text-body-sm font-medium text-book-text-sub">{t("auth.loginService")}</span>
-                <select
+                <ThemedSelect
                   value={oauthProvider}
                   onChange={(e) => handleOauthProviderChange(e.target.value)}
                   disabled={oauthBusy || oauthAuthorizeUrl !== null}
@@ -366,7 +367,7 @@ export const AuthPage: React.FC = () => {
                       {OAUTH_PROVIDER_LABELS[provider]}
                     </option>
                   ))}
-                </select>
+                </ThemedSelect>
               </label>
               {oauthAuthorizeUrl == null ? (
                 <BookButton

@@ -1,3 +1,4 @@
+import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React from "react";
 import { detectVideoConfigModels } from "../../../api/video";
 import { BookInput } from "../../../components/ui/BookInput";
@@ -76,7 +77,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <FormField label={t("settingsForm.videoProvider")}>
-          <select
+          <ThemedSelect
             value={form.provider}
             onChange={(event) => {
               const provider = providers.find(
@@ -103,7 +104,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
                 {provider.display_name}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </FormField>
         <FormField label={t("settingsForm.model")} required>
           <ModelDiscoveryField
@@ -167,7 +168,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <FormField label={t("settingsForm.size")}>
-          <select
+          <ThemedSelect
             value={form.size}
             onChange={(event) => setForm({ ...form, size: event.target.value })}
             className="pyqt-input w-full"
@@ -178,7 +179,7 @@ export const VideoConfigEditor: React.FC<VideoConfigEditorProps> = ({
                 {size}
               </option>
             ))}
-          </select>
+          </ThemedSelect>
         </FormField>
         <FormField label={t("settingsForm.durationMode")}>
           <div className="grid grid-cols-2 overflow-hidden rounded border border-book-border bg-book-bg-paper">

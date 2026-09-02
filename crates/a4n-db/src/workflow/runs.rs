@@ -18,7 +18,8 @@ pub use checkpoints::{
 pub use claim::claim_exclusive_workflow_run;
 pub use mutations::{
     mark_workflow_current_step, mark_workflow_status, resume_or_upsert_workflow_run,
-    resume_workflow_run, upsert_workflow_run, upsert_workflow_run_in_transaction,
+    resume_workflow_run, resume_workflow_run_with_active_task, upsert_workflow_run,
+    upsert_workflow_run_in_transaction,
 };
 pub use progress::{record_workflow_progress_event, workflow_progress_events};
 pub use queries::{

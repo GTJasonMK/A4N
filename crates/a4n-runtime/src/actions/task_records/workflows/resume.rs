@@ -1,6 +1,8 @@
 use crate::{
     AppState,
-    actions::{app_error_message, canvas_workflow, chapter_content, video_generation},
+    actions::{
+        app_error_message, blueprint_records, canvas_workflow, chapter_content, video_generation,
+    },
 };
 use a4n_api_contract::workflow::{ResumeWorkflowRunInput, WorkflowRunSummary};
 use a4n_orchestrator::workflow::{
@@ -57,6 +59,14 @@ pub async fn resume_workflow_run_for_user(
                 return Err("章节资料同步工作流 chapter_id 与作用域不一致".to_string());
             }
             chapter_content::resume_chapter_content_sync_workflow_run(state, &run).await?;
+            load_workflow_run_summary(state, input.workflow_run_id).await
+        }
+        UnifiedResumeDispatch::BlueprintGeneration => {
+            blueprint_records::resume_blueprint_generation_workflow(state, user_id, &run).await?;
+            load_workflow_run_summary(state, input.workflow_run_id).await
+        }
+        UnifiedResumeDispatch::BlueprintRefinement => {
+            blueprint_records::resume_blueprint_refinement_workflow(state, user_id, &run).await?;
             load_workflow_run_summary(state, input.workflow_run_id).await
         }
     }

@@ -553,6 +553,15 @@ impl ApiClient {
             .map_err(|error| redact_error_values(error, &secrets))
     }
 
+    pub(crate) async fn agent_events_stream(
+        &mut self,
+        path: &str,
+        after_sequence: Option<u64>,
+    ) -> Result<Response> {
+        let last_event_id = after_sequence.map(|value| value.to_string());
+        self.generation_stream(path, last_event_id.as_deref()).await
+    }
+
     pub(crate) async fn page_stream(&mut self, path: &str) -> Result<Response> {
         let mut response = self.send_page_stream_once(path).await?;
         if response.status() == StatusCode::UNAUTHORIZED && self.can_refresh() {

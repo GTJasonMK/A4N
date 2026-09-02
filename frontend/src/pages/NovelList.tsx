@@ -246,12 +246,12 @@ export const NovelList: React.FC<NovelListProps> = () => {
   }, []);
 
   const recentProjectFamilies = useMemo(
-    () => getRecentProjectFamilies(projects),
-    [projects],
+    () => (tab === "recent" ? getRecentProjectFamilies(projects) : []),
+    [projects, tab],
   );
   const groupedProjectFamilies = useMemo(
-    () => groupProjectFamiliesByTitle(projects),
-    [projects],
+    () => (tab === "all" ? groupProjectFamiliesByTitle(projects) : []),
+    [projects, tab],
   );
 
   const beginProjectAction = (key: string): boolean => {
@@ -726,6 +726,9 @@ export const NovelList: React.FC<NovelListProps> = () => {
           pendingInvites={pendingInvites}
           inviteActionIds={inviteActionIds}
           onTabChange={handleTabChange}
+          onCreateProject={() => setCreateDialogOpen(true)}
+          onImportProject={() => setImportDialogOpenState(true)}
+          onOpenSettings={() => navigate("/settings")}
           onAccessScopeChange={handleAccessScopeChange}
           onProjectKindFilterChange={handleProjectKindFilterChange}
           onAcceptInvite={(invite) => void handleAcceptInvite(invite)}
