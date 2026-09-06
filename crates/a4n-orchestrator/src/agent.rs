@@ -2731,6 +2731,18 @@ fn inferred_subagent_resource(
                 hash: None,
             })
         }
+        a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY => {
+            let chapter_id = scope.chapter_id.ok_or_else(|| {
+                AppError::InvalidArgument("director child 必须绑定 chapterId".into())
+            })?;
+            Some(AgentResourceRef {
+                kind: "chapter".into(),
+                id: chapter_id.to_string(),
+                label: None,
+                revision: None,
+                hash: None,
+            })
+        }
         _ => match (scope.resource_kind.as_deref(), scope.resource_id.as_deref()) {
             (Some(kind), Some(id)) => Some(AgentResourceRef {
                 kind: kind.to_string(),
@@ -2770,25 +2782,32 @@ fn validate_subagent_resource(
     resource: Option<&AgentResourceRef>,
 ) -> Result<(), AppError> {
     match capability {
-        a4n_api_contract::agent::CONTENT_OPTIMIZATION_AGENT_CAPABILITY => {
+        a4n_api_contract::agent::CONTENT_OPTIMIZATION_AGENT_CAPABILITY
             if resource.is_none_or(|resource| resource.kind != "chapter")
                 || scope.project_id.is_none()
-                || scope.chapter_id.is_none()
-            {
-                return Err(AppError::InvalidArgument(
-                    "content_optimization child 必须绑定 project/chapter".into(),
-                ));
-            }
+                || scope.chapter_id.is_none() =>
+        {
+            return Err(AppError::InvalidArgument(
+                "content_optimization child 必须绑定 project/chapter".into(),
+            ));
         }
-        a4n_api_contract::agent::CANVAS_AGENT_CAPABILITY => {
+        a4n_api_contract::agent::CANVAS_AGENT_CAPABILITY
             if resource.is_none_or(|resource| resource.kind != "project")
                 || scope.project_id.is_none()
-                || scope.chapter_id.is_some()
-            {
-                return Err(AppError::InvalidArgument(
-                    "canvas child 只能绑定 project，不能绑定 chapter".into(),
-                ));
-            }
+                || scope.chapter_id.is_some() =>
+        {
+            return Err(AppError::InvalidArgument(
+                "canvas child 只能绑定 project，不能绑定 chapter".into(),
+            ));
+        }
+        a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY
+            if resource.is_none_or(|resource| resource.kind != "chapter")
+                || scope.project_id.is_none()
+                || scope.chapter_id.is_none() =>
+        {
+            return Err(AppError::InvalidArgument(
+                "director child 必须绑定 project/chapter".into(),
+            ));
         }
         _ => {}
     }

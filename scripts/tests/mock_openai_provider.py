@@ -895,43 +895,10 @@ def optimization_patch_response() -> dict[str, Any]:
 
 def shooting_span_ids(combined: str) -> list[str]:
     ids = [span_id for span_id, _ in source_span_pairs(combined)]
-    if not ids:
-        ids = re.findall(r"ch\d+:s\d+:f\d+", combined)
     ids = list(dict.fromkeys(ids))
     if not ids:
         raise ValueError("shooting script prompt contains no source spans")
     return ids
-
-
-def shooting_directing_statement() -> dict[str, str]:
-    return {
-        "central_dramatic_question": "林岚能否确认时间倒退并判断周衡是否可信？",
-        "protagonist_throughline": "林岚从核对异常证据走向主动进入地下机房求证。",
-        "audience_experience": "先确认七分钟倒退，再因周衡静止的影子产生新的怀疑。",
-        "viewpoint_strategy": "限制在林岚能够观察和判断的信息范围内。",
-        "visual_strategy": "以逆行怀表、回退广告屏和静止影子构成递进视觉证据。",
-        "spatial_strategy": "从封闭通道入口沿明确轴线推进到地下机房。",
-        "sound_strategy": "用两次钟鸣、停电后的环境底噪和短暂停顿制造压力。",
-        "rhythm_strategy": "核对、异常显现、留下暗记、进入机房，逐步加速。",
-    }
-
-
-def shooting_skeleton_response(combined: str) -> dict[str, Any]:
-    return {
-        "schema_version": "chapter_screenplay_skeleton_v1",
-        "directing_statement": shooting_directing_statement(),
-        "units": [
-            {
-                "scene_identity": "station-passage-to-machine-room",
-                "sequence_index": 1,
-                "narrative_unit_index": 1,
-                "timeline_position": 1,
-                "intercut_group_id": None,
-                "editing_mode": "continuity",
-                "source_span_ids": shooting_span_ids(combined),
-            }
-        ],
-    }
 
 
 def shooting_layout_response() -> dict[str, Any]:
@@ -2085,32 +2052,67 @@ def manga_prompt_optimization_response(combined: str) -> dict[str, str]:
     }
 
 
-def last_json_message(messages: list[dict[str, Any]]) -> dict[str, Any] | None:
-    for message in reversed(messages):
-        content = message.get("content")
-        if not isinstance(content, str):
-            continue
-        try:
-            value = json.loads(content)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(value, dict):
-            return value
-    return None
+def chapter_visual_plan_fixture() -> dict[str, Any]:
+    def keyframe(keyframe_id: str, at_ms: int) -> dict[str, Any]:
+        return {
+            "id": keyframe_id,
+            "at_ms": at_ms,
+            "label": keyframe_id,
+            "interpolation_to_next": "hold",
+            "camera": {
+                "center_x": 0.5,
+                "center_y": 0.5,
+                "zoom": 1.0,
+                "rotation_degrees": 0.0,
+                "focus_entity_id": None,
+                "framing_note": None,
+            },
+            "entity_states": [],
+            "relations": [],
+        }
 
-
-def chapter_visual_plan_response(messages: list[dict[str, Any]]) -> dict[str, Any] | None:
-    payload = last_json_message(messages)
-    if payload is None:
-        return None
-    task = payload.get("task")
-    if task == "generate_chapter_visual_plan":
-        plan = payload.get("starter_plan")
-        return plan if isinstance(plan, dict) else None
-    if task == "propose_chapter_visual_plan_revision":
-        plan = payload.get("base_plan")
-        return plan if isinstance(plan, dict) else None
-    return None
+    return {
+        "schema_version": "chapter_visual_plan_v2",
+        "frame": {"width": 16, "height": 16, "background": None},
+        "entities": [],
+        "scenes": [
+            {
+                "id": "scene_fixture",
+                "title": "Fixture scene",
+                "narrative_purpose": "Fixture scene purpose",
+                "editing_mode": "continuity",
+                "intercut_group_id": None,
+                "location": None,
+                "time_of_day": None,
+                "participant_entity_ids": [],
+                "focal_entity_id": None,
+                "shots": [
+                    {
+                        "id": "shot_fixture",
+                        "title": "Fixture shot",
+                        "duration_ms": 1000,
+                        "narrative_purpose": "Fixture shot purpose",
+                        "coverage": "must_show",
+                        "shot_size": None,
+                        "camera_angle": None,
+                        "camera_height": None,
+                        "lens_intent": None,
+                        "composition": None,
+                        "keyframes": [
+                            keyframe("keyframe_fixture_start", 0),
+                            keyframe("keyframe_fixture_end", 1000),
+                        ],
+                        "entity_events": [],
+                        "camera_events": [],
+                        "sound_events": [],
+                        "technique_events": [],
+                        "continuity_notes": [],
+                        "transition_to_next": None,
+                    }
+                ],
+            }
+        ],
+    }
 
 
 def embedding_for(text: str, dimension: int) -> list[float]:
@@ -2350,10 +2352,6 @@ def response_for(body: dict[str, Any]) -> str:
     if combined.strip() == "ping" or (len(messages) == 1 and "ping" in combined.lower()):
         return "pong"
 
-    visual_plan = chapter_visual_plan_response(messages)
-    if visual_plan is not None:
-        return json.dumps(visual_plan, ensure_ascii=False)
-
     prompt_name = current_task_prompt_name(combined)
     if prompt_name == "reverse_blueprint":
         return json.dumps(reverse_blueprint_response(), ensure_ascii=False)
@@ -2442,9 +2440,6 @@ def response_for(body: dict[str, Any]) -> str:
         or "screenplay_layout_unit_detail_v1" in combined
     ):
         return json.dumps(shooting_layout_response(), ensure_ascii=False)
-
-    if "chapter_screenplay_skeleton" in combined:
-        return json.dumps(shooting_skeleton_response(combined), ensure_ascii=False)
 
     if "chapter_foreshadowing_events" in combined:
         return json.dumps(chapter_analysis_foreshadowing_response(combined), ensure_ascii=False)

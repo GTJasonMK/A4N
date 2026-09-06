@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { scrollRailItemIntoView } from "./scrollRail";
+import { getScrollRailCue, scrollRailItemIntoView } from "./scrollRail";
 
 const rect = (left: number, right: number): DOMRect => ({ left, right } as DOMRect);
 
@@ -41,5 +41,25 @@ describe("scrollRailItemIntoView", () => {
     scrollRailItemIntoView(rail, item, "instant");
 
     expect(scrollTo).toHaveBeenCalledWith({ left: 168, behavior: "instant" });
+  });
+});
+
+describe("getScrollRailCue", () => {
+  it("does not treat reserved trailing hint space as tab content", () => {
+    vi.stubGlobal("window", {
+      getComputedStyle: () => ({ paddingRight: "32px" }),
+    });
+    const rail = { clientWidth: 320, scrollWidth: 352, scrollLeft: 0 } as HTMLElement;
+
+    expect(getScrollRailCue(rail)).toEqual({ hasBefore: false, hasMore: false });
+    vi.unstubAllGlobals();
+  });
+
+  it("reports the remaining content at either end", () => {
+    const rail = { clientWidth: 320, scrollWidth: 832, scrollLeft: 0 } as HTMLElement;
+
+    expect(getScrollRailCue(rail)).toEqual({ hasBefore: false, hasMore: true });
+    rail.scrollLeft = 512;
+    expect(getScrollRailCue(rail)).toEqual({ hasBefore: true, hasMore: false });
   });
 });

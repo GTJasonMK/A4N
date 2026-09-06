@@ -1,31 +1,46 @@
 import { describe, expect, it } from "vitest";
 import type {
-  ChapterVisualPlanV1,
+  ChapterVisualPlanV2,
   VisualEntityStateV1,
+  VisualKeyframeV2,
 } from "../../../api/chapterVisualPlan";
 import {
-  collectVisualPlanIssues as collectVisualPlanIssueRecords,
-  detachVisualPlanSourceSpanReferences,
+  availableVisualKeyframeTime,
+  collectVisualPlanIssues,
+  isVisualKeyframeTimeAvailable,
+  moveVisualScene,
   moveVisualShot,
+  parseVisualEventParameters,
+  planDurationMs,
+  removeVisualScene,
+  removeVisualEntity,
+  removeVisualKeyframe,
   removeVisualPlanTimedEvent,
+  removeVisualShot,
   resizeVisualShot,
-  shouldAutoSaveVisualPlanDraft,
-  translateVisualPlanIssue,
   updateVisualPlanTimedEventRange,
+  visualSceneStartMs,
   visualShotAt,
+  visualShots,
 } from "./editing";
-import { translateMessage } from "../../../i18n";
+import {
+  ENTITY_CONTROL_SIZE,
+  ENTITY_CONTROL_LAYER_Z_INDEX,
+  ENTITY_RENDER_Z_INDEX_OFFSET,
+  MAX_RENDER_Z_INDEX,
+  MIN_ENTITY_SIZE,
+  entityControlFramePosition,
+  entityControlPosition,
+  entitySelectionTransform,
+  measuredEntityBounds,
+  normalizeEntityTransform,
+  renderedEntityBounds,
+  resizeEntitySelectionByScreenDelta,
+  resizeEntityTransformByScreenDelta,
+  rotatedBoundsSize,
+} from "./geometry";
 
-const t = (key: Parameters<typeof translateMessage>[1], params?: Parameters<typeof translateMessage>[2]) =>
-  translateMessage("zh-CN", key, params);
-
-const collectVisualPlanIssues = (
-  value: ChapterVisualPlanV1,
-  availableSourceSpanIds?: readonly string[],
-) => collectVisualPlanIssueRecords(value, availableSourceSpanIds)
-  .map((issue) => translateVisualPlanIssue(issue, t));
-
-const entityState = (entityId: string): VisualEntityStateV1 => ({
+const state = (entityId: string): VisualEntityStateV1 => ({
   entity_id: entityId,
   visible: true,
   bounds: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
@@ -41,643 +56,523 @@ const entityState = (entityId: string): VisualEntityStateV1 => ({
   notes: null,
 });
 
-const plan: ChapterVisualPlanV1 = {
-  schema_version: "chapter_visual_plan_v1",
-  frame: { width: 1920, height: 1080, duration_ms: 2000, background: null },
-  directing_statement: {
-    central_dramatic_question: "能否发现线索？",
-    protagonist_throughline: "主角持续寻找证据",
-    audience_experience: "从平静过渡到警觉",
-    viewpoint_strategy: "限制视角",
-    visual_strategy: "用构图变化强调发现",
-    spatial_strategy: "保持空间连续",
-    sound_strategy: "环境音逐步收窄",
-    rhythm_strategy: "前缓后快",
+const keyframe = (id: string, atMs: number, entityId = "hero"): VisualKeyframeV2 => ({
+  id,
+  at_ms: atMs,
+  label: id,
+  interpolation_to_next: "linear",
+  camera: {
+    center_x: 0.5,
+    center_y: 0.5,
+    focus_entity_id: null,
+    framing_note: null,
+    rotation_degrees: 0,
+    zoom: 1,
   },
-  entities: [
-    {
-      id: "a",
-      label: "A",
-      kind: "character",
-      description: "人物 A",
-      source_span_ids: [],
-      user_addition_ids: ["addition"],
-    },
-    {
-      id: "b",
-      label: "B",
-      kind: "character",
-      description: "人物 B",
-      source_span_ids: [],
-      user_addition_ids: ["addition"],
-    },
-  ],
-  user_additions: [{
-    id: "addition",
-    kind: "story_fact",
-    description: "测试方案事实",
-    rationale: "测试完整结构",
-    introduced_at_ms: null,
-  }],
-  narrative_units: [{
-    id: "unit",
-    sequence_index: 1,
-    timeline_position: 1,
-    title: "单元",
-    start_ms: 0,
-    end_ms: 2000,
+  entity_states: [state(entityId)],
+  relations: [],
+});
+
+const shot = (id: string, durationMs: number): ChapterVisualPlanV2["scenes"][number]["shots"][number] => ({
+  id,
+  title: id,
+  duration_ms: durationMs,
+  narrative_purpose: "推进情节",
+  coverage: "must_show",
+  shot_size: "medium",
+  camera_angle: "eye_level",
+  camera_height: "eye",
+  lens_intent: null,
+  composition: null,
+  keyframes: [keyframe(`${id}-start`, 0), keyframe(`${id}-end`, durationMs)],
+  entity_events: [],
+  camera_events: [],
+  sound_events: [],
+  technique_events: [],
+  continuity_notes: [],
+  transition_to_next: null,
+});
+
+const plan: ChapterVisualPlanV2 = {
+  schema_version: "chapter_visual_plan_v2",
+  frame: { width: 1920, height: 1080, background: null },
+  entities: [{ id: "hero", label: "主角", kind: "character", description: "主角" }],
+  scenes: [{
+    id: "scene",
+    title: "场景",
+    narrative_purpose: "完成线索发现",
     editing_mode: "continuity",
     intercut_group_id: null,
-    narrative_purpose: "完成线索发现",
     location: null,
     time_of_day: null,
-    participant_entity_ids: ["a", "b"],
-    focal_entity_id: null,
-    source_span_ids: [],
-    user_addition_ids: ["addition"],
-    shots: [
-      {
-        id: "a",
-        title: "A",
-        start_ms: 0,
-        end_ms: 1000,
-        source_span_ids: [],
-        user_addition_ids: ["addition"],
-        narrative_purpose: "建立环境",
-        coverage: "must_show",
-        shot_size: null,
-        camera_angle: null,
-        camera_height: null,
-        lens_intent: null,
-        composition: null,
-        keyframes: [
-          {
-            id: "a-start",
-            at_ms: 0,
-            label: "A start",
-            interpolation_to_next: "hold",
-            camera: {
-              center_x: 0.5,
-              center_y: 0.5,
-              zoom: 1,
-              rotation_degrees: 0,
-              focus_entity_id: null,
-              framing_note: null,
-            },
-            entity_states: [],
-            relations: [],
-          },
-          {
-            id: "a-end",
-            at_ms: 1000,
-            label: "A end",
-            interpolation_to_next: "hold",
-            camera: {
-              center_x: 0.5,
-              center_y: 0.5,
-              zoom: 1,
-              rotation_degrees: 0,
-              focus_entity_id: null,
-              framing_note: null,
-            },
-            entity_states: [],
-            relations: [],
-          },
-        ],
-        entity_events: [],
-        camera_events: [],
-        sound_events: [],
-        technique_events: [],
-        continuity_notes: [],
-      },
-      {
-        id: "b",
-        title: "B",
-        start_ms: 1000,
-        end_ms: 2000,
-        source_span_ids: [],
-        user_addition_ids: ["addition"],
-        narrative_purpose: "揭示线索",
-        coverage: "must_show",
-        shot_size: null,
-        camera_angle: null,
-        camera_height: null,
-        lens_intent: null,
-        composition: null,
-        keyframes: [
-          {
-            id: "b-start",
-            at_ms: 1000,
-            label: "B start",
-            interpolation_to_next: "hold",
-            camera: {
-              center_x: 0.5,
-              center_y: 0.5,
-              zoom: 1,
-              rotation_degrees: 0,
-              focus_entity_id: null,
-              framing_note: null,
-            },
-            entity_states: [],
-            relations: [],
-          },
-          {
-            id: "b-end",
-            at_ms: 2000,
-            label: "B end",
-            interpolation_to_next: "hold",
-            camera: {
-              center_x: 0.5,
-              center_y: 0.5,
-              zoom: 1,
-              rotation_degrees: 0,
-              focus_entity_id: null,
-              framing_note: null,
-            },
-            entity_states: [],
-            relations: [],
-          },
-        ],
-        entity_events: [],
-        camera_events: [],
-        sound_events: [],
-        technique_events: [],
-        continuity_notes: [],
-      },
-    ],
+    participant_entity_ids: ["hero"],
+    focal_entity_id: "hero",
+    shots: [shot("a", 1000), shot("b", 2000)],
   }],
-  transitions: [{
-    id: "transition",
-    from_shot_id: "a",
-    to_shot_id: "b",
-    at_ms: 1000,
-    duration_ms: 0,
-    kind: "continuous",
-    preserved_action: null,
-    preserved_sound: null,
-    notes: null,
-  }],
-  source_dispositions: [],
 };
 
-const planWithTwoUnits = () => {
-  const next = structuredClone(plan);
-  const original = next.narrative_units[0];
-  const secondShot = original.shots[1];
-  original.end_ms = 1000;
-  original.shots = [original.shots[0]];
-  next.narrative_units.push({
-    ...structuredClone(original),
-    id: "unit-b",
-    sequence_index: 2,
-    timeline_position: 2,
-    title: "单元 B",
-    start_ms: 1000,
-    end_ms: 2000,
-    shots: [secondShot],
-  });
-  return next;
-};
-
-describe("visual plan timeline editing", () => {
-  it("does not autosave an initial mode selection before AI generation", () => {
-    expect(shouldAutoSaveVisualPlanDraft({
-      hasDraft: false,
-      planDirty: false,
-      modeDirty: true,
-    })).toBe(false);
-    expect(shouldAutoSaveVisualPlanDraft({
-      hasDraft: false,
-      planDirty: true,
-      modeDirty: true,
-    })).toBe(true);
-    expect(shouldAutoSaveVisualPlanDraft({
-      hasDraft: true,
-      planDirty: false,
-      modeDirty: true,
-    })).toBe(true);
+describe("V2 visual plan editing", () => {
+  it("flattens scene shots to absolute ranges and selects the next shot at a cut", () => {
+    const shots = visualShots(plan);
+    expect(shots.map((ref) => [ref.start_ms, ref.end_ms])).toEqual([[0, 1000], [1000, 3000]]);
+    expect(planDurationMs(plan)).toBe(3000);
+    expect(visualShotAt(plan, 1000, shots)?.shot.id).toBe("b");
+    expect(visualShotAt(plan, 3000, shots)?.shot.id).toBe("b");
   });
 
-  it("accepts the complete baseline fixture", () => {
-    expect(collectVisualPlanIssues(plan)).toEqual([]);
-  });
-
-  it("resizes one shot and shifts everything after it", () => {
-    const next = resizeVisualShot(plan, "a", 1500);
-    expect(next.narrative_units[0].shots[0].end_ms).toBe(1500);
-    expect(next.narrative_units[0].shots[1].start_ms).toBe(1500);
-    expect(next.narrative_units[0].end_ms).toBe(2500);
-    expect(next.frame.duration_ms).toBe(2500);
-    expect(next.transitions[0].at_ms).toBe(1500);
-  });
-
-  it("ignores a non-finite shot duration", () => {
-    const next = resizeVisualShot(plan, "a", Number.NaN);
-    expect(next).toEqual(plan);
-  });
-
-  it("reorders shots and rebinds the transition to the preserved cut", () => {
-    const next = moveVisualShot(plan, "b", -1);
-    expect(next.narrative_units[0].shots.map((shot) => shot.id)).toEqual(["b", "a"]);
-    expect(next.narrative_units[0].shots[0].start_ms).toBe(0);
-    expect(next.narrative_units[0].shots[1].start_ms).toBe(1000);
-    expect(next.transitions[0]).toMatchObject({
-      from_shot_id: "b",
-      to_shot_id: "a",
-      at_ms: 1000,
-      duration_ms: 0,
-    });
-  });
-
-  it("moves a shot-only user addition with the shot", () => {
+  it("resizes only relative shot content while later shot ranges follow the derived timeline", () => {
     const next = structuredClone(plan);
-    next.user_additions[0].introduced_at_ms = 250;
-    next.entities.forEach((entity) => { entity.user_addition_ids = []; });
-    next.narrative_units[0].user_addition_ids = [];
-    next.narrative_units[0].shots[0].user_addition_ids = ["addition"];
-    next.narrative_units[0].shots[1].user_addition_ids = [];
-    const reordered = moveVisualShot(next, "a", 1);
-    expect(reordered.user_additions[0].introduced_at_ms).toBe(1250);
+    const first = next.scenes[0].shots[0];
+    first.keyframes[1].at_ms = 500;
+    first.camera_events.push({ id: "camera", kind: "pan", start_ms: 250, end_ms: 750, target_entity_id: null, description: "移动", parameters: {} });
+    first.transition_to_next = { kind: "dissolve", duration_ms: 800, preserved_action: null, preserved_sound: null, notes: null };
+    const resized = resizeVisualShot(next, "a", 1500);
+    expect(resized.scenes[0].shots[0].duration_ms).toBe(1500);
+    expect(resized.scenes[0].shots[0].keyframes[1].at_ms).toBe(750);
+    expect(resized.scenes[0].shots[0].camera_events[0].start_ms).toBe(375);
+    expect(visualShots(resized)[1].start_ms).toBe(1500);
+    expect(planDurationMs(resized)).toBe(3500);
+
+    const shorterNextShot = resizeVisualShot(resized, "b", 400);
+    expect(shorterNextShot.scenes[0].shots[0].transition_to_next?.duration_ms).toBe(400);
   });
 
-  it("does not move a user addition shared by the unit", () => {
+  it("reorders shots and preserves transitions at the same timeline boundary", () => {
     const next = structuredClone(plan);
-    next.user_additions[0].introduced_at_ms = 250;
-    next.narrative_units[0].shots[0].user_addition_ids = ["addition"];
-    next.narrative_units[0].shots[1].user_addition_ids = [];
-    const reordered = moveVisualShot(next, "a", 1);
-    expect(reordered.user_additions[0].introduced_at_ms).toBe(250);
+    next.scenes[0].shots[0].transition_to_next = { kind: "dissolve", duration_ms: 200, preserved_action: null, preserved_sound: null, notes: "保留边界" };
+    const reordered = moveVisualShot(next, "b", -1);
+    expect(reordered.scenes[0].shots.map((value) => value.id)).toEqual(["b", "a"]);
+    expect(reordered.scenes[0].shots[0].transition_to_next?.kind).toBe("dissolve");
+    expect(reordered.scenes[0].shots[1].transition_to_next).toBeNull();
   });
 
-  it("selects the next shot at a shared boundary", () => {
-    expect(visualShotAt(plan, 1000)?.shot.id).toBe("b");
-    expect(visualShotAt(plan, 2000)?.shot.id).toBe("b");
-  });
-
-  it("reports duplicated relation ids before saving", () => {
+  it("reorders scenes and keeps empty scenes addressable by timeline position", () => {
     const next = structuredClone(plan);
-    next.narrative_units[0].shots[0].keyframes[0].relations = [{
-      id: "relation",
-      kind: "looking_at",
-      source_entity_id: "a",
-      target_entity_id: "b",
-      label: null,
-    }];
-    next.narrative_units[0].shots[0].keyframes[1].relations = [{
-      ...next.narrative_units[0].shots[0].keyframes[0].relations[0],
-    }];
-    expect(collectVisualPlanIssues(next)).toContain("位置关系 ID 重复：relation");
+    const second = structuredClone(next.scenes[0]);
+    second.id = "scene-2";
+    second.title = "第二场景";
+    second.shots = [shot("c", 500)];
+    const empty = structuredClone(second);
+    empty.id = "scene-empty";
+    empty.title = "空场景";
+    empty.shots = [];
+    next.scenes.push(empty, second);
+
+    expect(visualSceneStartMs(next, "scene-empty")).toBe(3000);
+    expect(visualSceneStartMs(next, "scene-2")).toBe(3000);
+    const reordered = moveVisualScene(next, "scene-empty", -1);
+    expect(reordered.scenes.map((scene) => scene.id)).toEqual(["scene-empty", "scene", "scene-2"]);
+    expect(visualSceneStartMs(reordered, "scene-2")).toBe(3000);
   });
 
-  it("requires relation endpoints in the current keyframe and labels custom relations", () => {
-    const next = structuredClone(plan);
-    next.narrative_units[0].shots[0].keyframes[0].entity_states = [entityState("a")];
-    next.narrative_units[0].shots[0].keyframes[0].relations = [{
-      id: "relation",
-      kind: "custom",
-      source_entity_id: "a",
-      target_entity_id: "b",
-      label: null,
-    }];
-    const issues = collectVisualPlanIssues(next);
-    expect(issues).toContain("关键帧 A start 的位置关系目标实体必须定义当前状态");
-    expect(issues).toContain("关键帧 A start 的自定义位置关系必须填写说明");
+  it("removes scenes and allows a shot to be deleted until its scene is empty", () => {
+    const oneShot = structuredClone(plan);
+    oneShot.scenes[0].shots = [oneShot.scenes[0].shots[0]];
+    const emptyScene = removeVisualShot(oneShot, "a");
+    expect(emptyScene.scenes[0].shots).toHaveLength(0);
 
-    next.narrative_units[0].shots[0].keyframes[0].relations[0] = {
-      ...next.narrative_units[0].shots[0].keyframes[0].relations[0],
-      target_entity_id: "a",
-      label: "与内心倒影重合",
-    };
-    expect(collectVisualPlanIssues(next)).toContain(
-      "关键帧 A start 的位置关系不能指向同一实体",
+    const withTransition = structuredClone(plan);
+    withTransition.scenes[0].shots[0].transition_to_next = { kind: "dissolve", duration_ms: 200, preserved_action: null, preserved_sound: null, notes: null };
+    const withoutLastShot = removeVisualShot(withTransition, "b");
+    expect(withoutLastShot.scenes[0].shots[0].transition_to_next).toBeNull();
+
+    const withoutScene = removeVisualScene(plan, "scene");
+    expect(withoutScene.scenes).toHaveLength(0);
+  });
+
+  it("keeps the transition before a deleted middle shot and normalizes its new boundary", () => {
+    const next = structuredClone(plan);
+    const middle = shot("middle", 1500);
+    next.scenes[0].shots[0].transition_to_next = { kind: "dissolve", duration_ms: 1800, preserved_action: null, preserved_sound: null, notes: null };
+    middle.transition_to_next = { kind: "fade", duration_ms: 1200, preserved_action: null, preserved_sound: null, notes: null };
+    next.scenes[0].shots.splice(1, 0, middle);
+
+    const withoutMiddle = removeVisualShot(next, "middle");
+    expect(withoutMiddle.scenes[0].shots.map((value) => value.id)).toEqual(["a", "b"]);
+    expect(withoutMiddle.scenes[0].shots[0].transition_to_next?.kind).toBe("dissolve");
+    expect(withoutMiddle.scenes[0].shots[0].transition_to_next?.duration_ms).toBe(1000);
+    expect(withoutMiddle.scenes[0].shots[1].transition_to_next).toBeNull();
+  });
+
+  it("removes an entity and every authored reference to it", () => {
+    const next = structuredClone(plan);
+    const currentShot = next.scenes[0].shots[0];
+    const currentKeyframe = currentShot.keyframes[0];
+    currentKeyframe.camera.focus_entity_id = "hero";
+    currentKeyframe.entity_states[0].gaze_target_entity_id = "hero";
+    currentKeyframe.relations.push({ id: "relation", source_entity_id: "hero", target_entity_id: "hero", kind: "looking_at", label: null });
+    currentShot.entity_events.push({ id: "entity-event", kind: "action", start_ms: 0, end_ms: 100, entity_id: "hero", target_entity_id: "hero", description: "动作", parameters: {} });
+    currentShot.camera_events.push({ id: "camera-event", kind: "reframe", start_ms: 0, end_ms: 100, target_entity_id: "hero", description: "构图", parameters: {} });
+    currentShot.sound_events.push({ id: "sound-event", kind: "dialogue", start_ms: 0, end_ms: 100, speaker_entity_id: "hero", content: "对白", parameters: {} });
+
+    const withoutEntity = removeVisualEntity(next, "hero");
+    expect(withoutEntity.entities).toHaveLength(0);
+    expect(withoutEntity.scenes[0].participant_entity_ids).toEqual([]);
+    expect(withoutEntity.scenes[0].focal_entity_id).toBeNull();
+    expect(withoutEntity.scenes[0].shots[0].keyframes[0].entity_states).toEqual([]);
+    expect(withoutEntity.scenes[0].shots[0].keyframes[0].relations).toEqual([]);
+    expect(withoutEntity.scenes[0].shots[0].keyframes[0].camera.focus_entity_id).toBeNull();
+    expect(withoutEntity.scenes[0].shots[0].entity_events).toEqual([]);
+    expect(withoutEntity.scenes[0].shots[0].camera_events).toEqual([]);
+    expect(withoutEntity.scenes[0].shots[0].sound_events).toEqual([]);
+  });
+
+  it("keeps the two shot boundary keyframes", () => {
+    const withoutStart = removeVisualKeyframe(plan, "a", "a-start");
+    expect(withoutStart.scenes[0].shots[0].keyframes.map((value) => value.id)).toEqual(["a-start", "a-end"]);
+
+    const withExtra = structuredClone(plan);
+    withExtra.scenes[0].shots[0].keyframes.splice(1, 0, keyframe("middle", 500));
+    const withoutMiddle = removeVisualKeyframe(withExtra, "a", "middle");
+    expect(withoutMiddle.scenes[0].shots[0].keyframes.map((value) => value.id)).toEqual(["a-start", "a-end"]);
+  });
+
+  it("keeps keyframe times finite, inside the shot, and unique", () => {
+    const currentShot = plan.scenes[0].shots[0];
+    expect(isVisualKeyframeTimeAvailable(currentShot, null, 500)).toBe(true);
+    expect(isVisualKeyframeTimeAvailable(currentShot, null, 0)).toBe(false);
+    expect(isVisualKeyframeTimeAvailable(currentShot, "a-start", 0)).toBe(true);
+    expect(isVisualKeyframeTimeAvailable(currentShot, "a-start", 1)).toBe(false);
+    expect(isVisualKeyframeTimeAvailable(currentShot, "a-end", currentShot.duration_ms)).toBe(true);
+    expect(isVisualKeyframeTimeAvailable(currentShot, "a-end", currentShot.duration_ms - 1)).toBe(false);
+    expect(isVisualKeyframeTimeAvailable(currentShot, null, 1001)).toBe(false);
+    expect(isVisualKeyframeTimeAvailable(currentShot, null, Number.NaN)).toBe(false);
+  });
+
+  it("finds an available keyframe time when the playhead is already occupied", () => {
+    const currentShot = plan.scenes[0].shots[0];
+    expect(availableVisualKeyframeTime(currentShot, 0)).toBe(1);
+    expect(availableVisualKeyframeTime(currentShot, 500)).toBe(500);
+
+    const fullShot = { ...currentShot, duration_ms: 2, keyframes: [keyframe("zero", 0), keyframe("one", 1), keyframe("two", 2)] };
+    expect(availableVisualKeyframeTime(fullShot, 1)).toBeNull();
+  });
+
+  it("keeps resized keyframes ordered when rounding would collide", () => {
+    const next = structuredClone(plan);
+    const currentShot = next.scenes[0].shots[0];
+    currentShot.keyframes.splice(1, 0, keyframe("near-start", 1));
+    const resized = resizeVisualShot(next, "a", 250);
+    expect(resized.scenes[0].shots[0].keyframes.map(({ at_ms }) => at_ms)).toEqual([0, 1, 250]);
+  });
+
+  it("keeps malformed and rotated entity bounds inside the frame", () => {
+    const transform = normalizeEntityTransform(
+      { x: 0.88, y: 0.82, width: 0.3, height: 0.001 },
+      47,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+    const rendered = renderedEntityBounds(transform, { width: 1920, height: 1080 });
+
+    expect(transform.bounds.width).toBeGreaterThanOrEqual(MIN_ENTITY_SIZE);
+    expect(transform.bounds.height).toBeGreaterThanOrEqual(MIN_ENTITY_SIZE);
+    expect(rendered.x).toBeGreaterThanOrEqual(0);
+    expect(rendered.y).toBeGreaterThanOrEqual(0);
+    expect(rendered.x + rendered.width).toBeLessThanOrEqual(1);
+    expect(rendered.y + rendered.height).toBeLessThanOrEqual(1);
+
+    const rotated = rotatedBoundsSize(transform.bounds, transform.rotation, { width: 1920, height: 1080 });
+    const centerX = transform.bounds.x + transform.bounds.width / 2;
+    const centerY = transform.bounds.y + transform.bounds.height / 2;
+    expect(centerX - rotated.width / 2).toBeGreaterThanOrEqual(-Number.EPSILON);
+    expect(centerY - rotated.height / 2).toBeGreaterThanOrEqual(-Number.EPSILON);
+    expect(centerX + rotated.width / 2).toBeLessThanOrEqual(1 + Number.EPSILON);
+    expect(centerY + rotated.height / 2).toBeLessThanOrEqual(1 + Number.EPSILON);
+  });
+
+  it("keeps rotated bounds inside the measured canvas ratio", () => {
+    const frame = { width: 342, height: 192 };
+    const transform = normalizeEntityTransform(
+      { x: 0, y: 0, width: 0.2, height: 0.2 },
+      45,
+      undefined,
+      frame,
+    );
+    const rendered = renderedEntityBounds(transform, frame);
+
+    expect(rendered.x).toBeGreaterThanOrEqual(0);
+    expect(rendered.y).toBeGreaterThanOrEqual(0);
+    expect(rendered.x + rendered.width).toBeLessThanOrEqual(1);
+    expect(rendered.y + rendered.height).toBeLessThanOrEqual(1);
+  });
+
+  it("keeps the control layer above every render z-index", () => {
+    expect(ENTITY_CONTROL_LAYER_Z_INDEX).toBeGreaterThan(
+      ENTITY_RENDER_Z_INDEX_OFFSET + MAX_RENDER_Z_INDEX,
     );
   });
 
-  it("removes a timed event and only its now-unreferenced user addition", () => {
-    const next = structuredClone(plan);
-    const shot = next.narrative_units[0].shots[0];
-    next.user_additions.push({
-      id: "event-only",
-      kind: "action",
-      description: "只属于事件",
-      rationale: "测试删除",
-      introduced_at_ms: 100,
-    });
-    shot.entity_events.push({
-      id: "event",
-      kind: "action",
-      start_ms: 100,
-      end_ms: 200,
-      entity_id: "a",
-      target_entity_id: null,
-      description: "抬手",
-      source_span_ids: [],
-      user_addition_ids: ["addition", "event-only"],
-      parameters: {},
-    });
-    expect(removeVisualPlanTimedEvent(next, shot.id, "event")).toBe(true);
-    expect(shot.entity_events).toEqual([]);
-    expect(next.user_additions.map((addition) => addition.id)).toEqual(["addition"]);
-  });
-
-  it("clamps precise event range edits to the selected shot", () => {
-    const next = structuredClone(plan);
-    const shot = next.narrative_units[0].shots[0];
-    shot.camera_events.push({
-      id: "camera",
-      kind: "push_in",
-      start_ms: 100,
-      end_ms: 300,
-      target_entity_id: null,
-      description: "推近",
-      source_span_ids: [],
-      user_addition_ids: ["addition"],
-      parameters: {},
-    });
-    expect(updateVisualPlanTimedEventRange(next, shot.id, "camera", "start", 999)).toBe(true);
-    expect(shot.camera_events[0].start_ms).toBe(299);
-    expect(updateVisualPlanTimedEventRange(next, shot.id, "camera", "end", 9_999)).toBe(true);
-    expect(shot.camera_events[0].end_ms).toBe(1000);
-  });
-
-  it("keeps ids unique inside their own namespace", () => {
-    expect(collectVisualPlanIssues(plan)).not.toContain("镜头 ID 重复：a");
-  });
-
-  it("reports bounds, source coverage and disposition mismatches", () => {
-    const next = structuredClone(plan);
-    next.narrative_units[0].shots[0].keyframes[0].entity_states = [{
-      ...entityState("a"),
-      bounds: { x: 0.9, y: 0, width: 0.2, height: 0.2 },
-    }];
-    next.source_dispositions = [{
-      source_span_id: "span-1",
-      disposition: "omit",
-      narrative_unit_id: "unit",
-      shot_ids: ["a"],
-      reason: "压缩节奏",
-    }];
-    const issues = collectVisualPlanIssues(next, ["span-1", "span-2"]);
-    expect(issues).toContain("关键帧 A start 的实体 a 位置、尺寸或透明度越界");
-    expect(issues).toContain("原文片段未处理：span-2");
-    expect(issues).toContain("span-1 已省略但仍保留叙事单元或镜头引用");
-  });
-
-  it("reports camera centers and focus targets outside the current keyframe", () => {
-    const next = structuredClone(plan);
-    const camera = next.narrative_units[0].shots[0].keyframes[0].camera;
-    camera.center_x = 1.1;
-    camera.focus_entity_id = "a";
-    const issues = collectVisualPlanIssues(next);
-    expect(issues).toContain("关键帧 A start 的相机中心必须位于画面内");
-    expect(issues).toContain("关键帧 A start 的焦点实体必须定义当前状态");
-  });
-
-  it("requires complete and homogeneous intercut groups", () => {
-    const missingGroup = planWithTwoUnits();
-    missingGroup.narrative_units[0].editing_mode = "intercut";
-    expect(collectVisualPlanIssues(missingGroup)).toContain("叙事单元 单元 必须设置交叉剪辑组");
-
-    const singleMember = planWithTwoUnits();
-    singleMember.narrative_units[0].editing_mode = "intercut";
-    singleMember.narrative_units[0].intercut_group_id = "group";
-    expect(collectVisualPlanIssues(singleMember)).toContain(
-      "交叉剪辑组 group 至少需要两个叙事单元",
-    );
-
-    const mixedModes = planWithTwoUnits();
-    mixedModes.narrative_units[0].editing_mode = "intercut";
-    mixedModes.narrative_units[0].intercut_group_id = "group";
-    mixedModes.narrative_units[1].editing_mode = "parallel_action";
-    mixedModes.narrative_units[1].intercut_group_id = "group";
-    expect(collectVisualPlanIssues(mixedModes)).toContain(
-      "交叉剪辑组 group 内的剪辑模式必须一致",
-    );
-  });
-
-  it("requires valid and non-duplicated provenance for every event", () => {
-    const next = structuredClone(plan);
-    const shot = next.narrative_units[0].shots[0];
-    shot.camera_events.push({
-      id: "camera",
-      kind: "push_in",
-      start_ms: 100,
-      end_ms: 300,
-      target_entity_id: null,
-      description: "推近",
-      source_span_ids: [],
-      user_addition_ids: [],
-      parameters: {},
-    });
-    shot.technique_events.push({
-      id: "technique",
-      kind: "symbolic",
-      start_ms: 300,
-      end_ms: 500,
-      description: "象征",
-      source_span_ids: [],
-      user_addition_ids: ["addition", "addition"],
-      parameters: {},
-    });
-    const issues = collectVisualPlanIssues(next);
-    expect(issues).toContain("A 的时序事件必须引用原文来源或用户新增事实");
-    expect(issues).toContain("A 的时序事件用户新增事实重复引用：addition");
-  });
-
-  it("keeps event provenance inside its shot scope", () => {
-    const next = structuredClone(plan);
-    const unit = next.narrative_units[0];
-    const shot = unit.shots[0];
-    unit.source_span_ids = ["span-1"];
-    shot.source_span_ids = ["span-1"];
-    next.source_dispositions = [
-      {
-        source_span_id: "span-1",
-        disposition: "adapt",
-        narrative_unit_id: unit.id,
-        shot_ids: [shot.id],
-        reason: null,
-      },
-      {
-        source_span_id: "span-2",
-        disposition: "adapt",
-        narrative_unit_id: unit.id,
-        shot_ids: [unit.shots[1].id],
-        reason: null,
-      },
+  it("keeps every rotated corner inside the frame at each edge", () => {
+    const angles = [0, 15, 45, 90, 135, 225, 315];
+    const positions = [
+      { x: 0, y: 0 },
+      { x: 0.8, y: 0 },
+      { x: 0, y: 0.8 },
+      { x: 0.8, y: 0.8 },
     ];
-    shot.camera_events.push({
-      id: "outside-scope",
-      kind: "push_in",
-      start_ms: 100,
-      end_ms: 300,
-      target_entity_id: null,
-      description: "越界来源",
-      source_span_ids: ["span-2"],
-      user_addition_ids: ["addition"],
-      parameters: {},
-    });
 
-    expect(collectVisualPlanIssueRecords(next)).toContainEqual(
-      expect.objectContaining({ key: "visualPlan.validation.sourceOutsideScope" }),
-    );
+    angles.forEach((rotation) => positions.forEach(({ x, y }) => {
+      const transform = normalizeEntityTransform(
+        { x, y, width: 0.2, height: 0.2 },
+        rotation,
+        undefined,
+        { width: 1920, height: 1080 },
+      );
+      const rendered = renderedEntityBounds(transform, { width: 1920, height: 1080 });
+
+      expect(rendered.x).toBeGreaterThanOrEqual(0);
+      expect(rendered.y).toBeGreaterThanOrEqual(0);
+      expect(rendered.x + rendered.width).toBeLessThanOrEqual(1);
+      expect(rendered.y + rendered.height).toBeLessThanOrEqual(1);
+      const rotated = rotatedBoundsSize(transform.bounds, transform.rotation, { width: 1920, height: 1080 });
+      const centerX = transform.bounds.x + transform.bounds.width / 2;
+      const centerY = transform.bounds.y + transform.bounds.height / 2;
+      expect(centerX - rotated.width / 2).toBeGreaterThanOrEqual(-Number.EPSILON);
+      expect(centerY - rotated.height / 2).toBeGreaterThanOrEqual(-Number.EPSILON);
+      expect(centerX + rotated.width / 2).toBeLessThanOrEqual(1 + Number.EPSILON);
+      expect(centerY + rotated.height / 2).toBeLessThanOrEqual(1 + Number.EPSILON);
+    }));
   });
 
-  it("detaches an omitted source span from all four event tracks", () => {
-    const next = structuredClone(plan);
-    const unit = next.narrative_units[0];
-    const shot = unit.shots[0];
-    next.entities[0].source_span_ids = ["span-1"];
-    unit.source_span_ids = ["span-1"];
-    shot.source_span_ids = ["span-1"];
-    next.source_dispositions = [{
-      source_span_id: "span-1",
-      disposition: "adapt",
-      narrative_unit_id: unit.id,
-      shot_ids: [shot.id],
-      reason: null,
-    }];
-    shot.entity_events = [{
-      id: "entity-event",
-      kind: "action",
-      start_ms: 100,
-      end_ms: 200,
-      entity_id: "a",
-      target_entity_id: null,
-      description: "动作",
-      source_span_ids: ["span-1"],
-      user_addition_ids: ["addition"],
-      parameters: {},
-    }];
-    shot.camera_events = [{
-      id: "camera-event",
-      kind: "push_in",
-      start_ms: 200,
-      end_ms: 300,
-      target_entity_id: null,
-      description: "推近",
-      source_span_ids: ["span-1"],
-      user_addition_ids: [],
-      parameters: {},
-    }];
-    shot.sound_events = [{
-      id: "sound-event",
-      kind: "effect",
-      start_ms: 300,
-      end_ms: 400,
-      speaker_entity_id: null,
-      content: "音效",
-      source_span_ids: ["span-1"],
-      user_addition_ids: ["addition"],
-      parameters: {},
-    }];
-    shot.technique_events = [{
-      id: "technique-event",
-      kind: "symbolic",
-      start_ms: 400,
-      end_ms: 500,
-      description: "象征",
-      source_span_ids: ["span-1"],
-      user_addition_ids: [],
-      parameters: {},
-    }];
+  it("keeps rotated control hit areas inside the real frame", () => {
+    const frame = { width: 344, height: 194 };
+    const transform = normalizeEntityTransform(
+      { x: 0, y: 0, width: 0.2, height: 0.24 },
+      45,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+    const half = ENTITY_CONTROL_SIZE / 2;
+    const extent = half * (Math.abs(Math.cos(Math.PI / 4)) + Math.abs(Math.sin(Math.PI / 4)));
+    const centerX = (transform.bounds.x + transform.bounds.width / 2) * frame.width;
+    const centerY = (transform.bounds.y + transform.bounds.height / 2) * frame.height;
 
-    detachVisualPlanSourceSpanReferences(next, "span-1");
-    next.source_dispositions[0] = {
-      source_span_id: "span-1",
-      disposition: "omit",
-      narrative_unit_id: null,
-      shot_ids: [],
-      reason: "压缩节奏",
+    (["nw", "ne", "se", "sw", "rotate", "center"] as const).forEach((anchor) => {
+      const position = entityControlPosition(transform, anchor, frame);
+      const localX = position.left - transform.bounds.width * frame.width / 2;
+      const localY = position.top - transform.bounds.height * frame.height / 2;
+      const screenX = centerX + localX * Math.cos(Math.PI / 4) - localY * Math.sin(Math.PI / 4);
+      const screenY = centerY + localX * Math.sin(Math.PI / 4) + localY * Math.cos(Math.PI / 4);
+      expect(screenX).toBeGreaterThanOrEqual(extent - Number.EPSILON);
+      expect(screenX).toBeLessThanOrEqual(frame.width - extent + Number.EPSILON);
+      expect(screenY).toBeGreaterThanOrEqual(extent - Number.EPSILON);
+      expect(screenY).toBeLessThanOrEqual(frame.height - extent + Number.EPSILON);
+    });
+  });
+
+  it("uses the normalized entity bounds for its selection", () => {
+    const transform = normalizeEntityTransform(
+      { x: 0.2, y: 0.25, width: 0.4, height: 0.3 },
+      0,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+
+    expect(entitySelectionTransform(transform)).toEqual(transform);
+  });
+
+  it("keeps a measured text label tighter than the editable entity minimum", () => {
+    const transform = normalizeEntityTransform(
+      { x: 0.6, y: 0.4, width: 0.12, height: 0.13 },
+      0,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+    const measured = measuredEntityBounds(
+      transform,
+      { left: 57, top: 25, width: 18, height: 35 },
+      { width: 1140, height: 641 },
+    );
+
+    expect(measured.width).toBeCloseTo(18 / 1140);
+    expect(measured.height).toBeCloseTo(35 / 641);
+    expect(entitySelectionTransform({ bounds: measured, rotation: 0 }).bounds).toEqual(measured);
+  });
+
+  it("resizes the actual entity when its tight selection frame is resized", () => {
+    const transform = normalizeEntityTransform(
+      { x: 0.2, y: 0.25, width: 0.3, height: 0.25 },
+      12,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+    const resized = resizeEntitySelectionByScreenDelta(
+      transform,
+      "se",
+      120,
+      48,
+      { width: 600, height: 338 },
+    );
+
+    expect(resized.bounds.width).toBeGreaterThan(transform.bounds.width);
+    expect(resized.bounds.height).toBeGreaterThan(transform.bounds.height);
+    expect(resized.rotation).toBe(transform.rotation);
+  });
+
+  it("keeps selection controls inside the measured canvas", () => {
+    const frame = { width: 344, height: 194 };
+    const transform = normalizeEntityTransform(
+      { x: 0, y: 0, width: 0.2, height: 0.24 },
+      45,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+    const selection = entitySelectionTransform(transform);
+    const half = ENTITY_CONTROL_SIZE / 2;
+
+    (["nw", "ne", "se", "sw"] as const).forEach((anchor) => {
+      const position = entityControlFramePosition(selection, anchor, frame);
+      expect(position.left).toBeGreaterThanOrEqual(half);
+      expect(position.left).toBeLessThanOrEqual(frame.width - half);
+      expect(position.top).toBeGreaterThanOrEqual(half);
+      expect(position.top).toBeLessThanOrEqual(frame.height - half);
+    });
+  });
+
+  it("keeps the rotation hit area above a tight selection", () => {
+    const frame = { width: 344, height: 194 };
+    const transform = normalizeEntityTransform(
+      { x: 0.68, y: 0.42, width: 0.12, height: 0.12 },
+      0,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+    const selection = entitySelectionTransform(transform);
+    const position = entityControlFramePosition(selection, "rotate", frame);
+    const selectionTop = selection.bounds.y * frame.height;
+
+    expect(position.top).toBeLessThan(selectionTop);
+    expect(position.top).toBeGreaterThanOrEqual(ENTITY_CONTROL_SIZE / 2);
+  });
+
+  it("maps selected controls to frame coordinates with one rotation", () => {
+    const frame = { width: 344, height: 194 };
+    const transform = normalizeEntityTransform(
+      { x: 0.4, y: 0.34, width: 0.2, height: 0.24 },
+      32,
+      undefined,
+      { width: 1920, height: 1080 },
+    );
+    const radians = transform.rotation * Math.PI / 180;
+    const centerX = (transform.bounds.x + transform.bounds.width / 2) * frame.width;
+    const centerY = (transform.bounds.y + transform.bounds.height / 2) * frame.height;
+    const localX = transform.bounds.width * frame.width / 2;
+    const localY = -transform.bounds.height * frame.height / 2;
+    const expected = {
+      left: centerX + localX * Math.cos(radians) - localY * Math.sin(radians),
+      top: centerY + localX * Math.sin(radians) + localY * Math.cos(radians),
     };
 
-    expect(unit.source_span_ids).toEqual([]);
-    expect(next.entities[0].source_span_ids).toEqual([]);
-    expect(shot.source_span_ids).toEqual([]);
-    expect(shot.entity_events[0]?.source_span_ids).toEqual([]);
-    expect(shot.sound_events[0]?.source_span_ids).toEqual([]);
-    expect(shot.camera_events).toEqual([]);
-    expect(shot.technique_events).toEqual([]);
-    expect(collectVisualPlanIssues(next, ["span-1"])).toEqual([]);
-  });
-
-  it("rejects empty and duplicated reference ids", () => {
-    const next = structuredClone(plan);
-    next.entities[0].source_span_ids = [""];
-    next.narrative_units[0].shots[0].user_addition_ids = ["addition", "addition"];
-    const issues = collectVisualPlanIssues(next);
-    expect(issues).toContain("实体 a原文来源不能包含空 ID");
-    expect(issues).toContain("镜头 A用户新增事实重复引用：addition");
-  });
-
-  it("requires user additions to precede the timeline end", () => {
-    const next = structuredClone(plan);
-    next.user_additions[0].introduced_at_ms = next.frame.duration_ms;
-    expect(collectVisualPlanIssues(next)).toContain(
-      "用户新增事实 addition 的出现时间必须早于画面结束",
-    );
-  });
-
-  it("rejects invalid source disposition ids and duplicate shot bindings", () => {
-    const next = structuredClone(plan);
-    next.source_dispositions = [{
-      source_span_id: "span-1",
-      disposition: "adapt",
-      narrative_unit_id: "unit",
-      shot_ids: ["a", "a"],
-      reason: null,
-    }];
-    next.narrative_units[0].source_span_ids = ["span-1"];
-    next.narrative_units[0].shots[0].source_span_ids = ["span-1"];
-    const issues = collectVisualPlanIssues(next, ["span-1"]);
-    expect(issues).toContain("span-1镜头重复引用：a");
-
-    next.source_dispositions[0].source_span_id = "";
-    expect(collectVisualPlanIssues(next, ["span-1"])).toContain(
-      "原文处理项缺少原文片段 ID",
-    );
-  });
-
-  it("reports structures that lose all provenance when a source span is omitted", () => {
-    const next = structuredClone(plan);
-    next.entities.forEach((entity) => { entity.source_span_ids = []; entity.user_addition_ids = []; });
-    next.narrative_units[0].source_span_ids = ["span-1"];
-    next.narrative_units[0].user_addition_ids = [];
-    next.narrative_units[0].shots.forEach((shot) => {
-      shot.source_span_ids = ["span-1"];
-      shot.user_addition_ids = [];
+    expect(entityControlFramePosition(transform, "ne", frame)).toEqual({
+      left: expect.closeTo(expected.left, 8),
+      top: expect.closeTo(expected.top, 8),
     });
-    next.source_dispositions = [{
-      source_span_id: "span-1",
-      disposition: "adapt",
-      narrative_unit_id: "unit",
-      shot_ids: ["a", "b"],
-      reason: null,
-    }];
-    detachVisualPlanSourceSpanReferences(next, "span-1");
-    next.source_dispositions[0] = {
-      source_span_id: "span-1",
-      disposition: "omit",
-      narrative_unit_id: null,
-      shot_ids: [],
-      reason: "压缩节奏",
-    };
-    const issues = collectVisualPlanIssues(next, ["span-1"]);
-    expect(issues.filter((issue) => issue.includes("必须引用原文来源或用户新增事实"))).toHaveLength(5);
   });
 
-  it("does not allow entities to keep omitted source spans", () => {
-    const next = structuredClone(plan);
-    next.entities[0].source_span_ids = ["span-1"];
-    next.source_dispositions = [{
-      source_span_id: "span-1",
-      disposition: "omit",
-      narrative_unit_id: null,
-      shot_ids: [],
-      reason: "压缩节奏",
-    }];
-    expect(collectVisualPlanIssues(next, ["span-1"])).toContain(
-      "实体 a原文来源引用了不存在的 ID：span-1",
+  it("resizes with the same local coordinate system used by pointer and keyboard controls", () => {
+    const transform = normalizeEntityTransform(
+      { x: 0.2, y: 0.25, width: 0.3, height: 0.25 },
+      -18,
+      undefined,
+      { width: 1920, height: 1080 },
     );
+    const resized = resizeEntityTransformByScreenDelta(transform, "se", 120, -40, { width: 1920, height: 1080 });
+    const rotated = rotatedBoundsSize(resized.bounds, resized.rotation, { width: 1920, height: 1080 });
+    const centerX = resized.bounds.x + resized.bounds.width / 2;
+    const centerY = resized.bounds.y + resized.bounds.height / 2;
+    expect(centerX - rotated.width / 2).toBeGreaterThanOrEqual(-Number.EPSILON);
+    expect(centerY - rotated.height / 2).toBeGreaterThanOrEqual(-Number.EPSILON);
+    expect(centerX + rotated.width / 2).toBeLessThanOrEqual(1 + Number.EPSILON);
+    expect(centerY + rotated.height / 2).toBeLessThanOrEqual(1 + Number.EPSILON);
+  });
+
+  it("updates and removes relative timed events", () => {
+    const next = structuredClone(plan);
+    next.scenes[0].shots[0].sound_events.push({ id: "sound", kind: "effect", start_ms: 100, end_ms: 400, speaker_entity_id: null, content: "门响", parameters: {} });
+    expect(updateVisualPlanTimedEventRange(next, "a", "sound", "start", 200)).toBe(true);
+    expect(next.scenes[0].shots[0].sound_events[0].start_ms).toBe(200);
+    expect(removeVisualPlanTimedEvent(next, "a", "sound")).toBe(true);
+    expect(next.scenes[0].shots[0].sound_events).toHaveLength(0);
+  });
+
+  it("accepts only JSON objects whose event parameter values are strings", () => {
+    expect(parseVisualEventParameters('{"direction":"left"}')).toEqual({ direction: "left" });
+    expect(parseVisualEventParameters("[]")).toBeNull();
+    expect(parseVisualEventParameters('{"amount":2}')).toBeNull();
+    expect(parseVisualEventParameters("invalid")).toBeNull();
+  });
+
+  it("reports strict confirmation gaps while allowing an empty draft", () => {
+    const empty: ChapterVisualPlanV2 = { ...structuredClone(plan), scenes: [] };
+    expect(collectVisualPlanIssues(empty)).toEqual([]);
+    expect(collectVisualPlanIssues(empty, true).map((issue) => issue.key)).toContain("visualPlan.validation.scenesRequired");
+  });
+
+  it("requires identity IDs to be unique across entity and scene kinds", () => {
+    const next = structuredClone(plan);
+    next.scenes[0].id = "hero";
+    expect(collectVisualPlanIssues(next).map((issue) => issue.key)).toContain("visualPlan.validation.duplicateId");
+  });
+
+  it("reports invalid keyframe references before save", () => {
+    const next = structuredClone(plan);
+    next.scenes[0].shots[0].keyframes[0].entity_states[0].entity_id = "missing";
+    expect(collectVisualPlanIssues(next).map((issue) => issue.key)).toContain("visualPlan.validation.missingReferenceId");
+  });
+
+  it("matches backend validation for empty optional references and intercut groups", () => {
+    const next = structuredClone(plan);
+    next.frame.background = "  ";
+    next.scenes[0].participant_entity_ids.push("hero");
+    next.scenes[0].intercut_group_id = "group-1";
+    next.scenes[0].shots[0].keyframes[0].camera.focus_entity_id = "";
+    next.scenes[0].shots[0].keyframes[0].relations = [{
+      id: "",
+      kind: "looking_at",
+      source_entity_id: "hero",
+      target_entity_id: "hero",
+      label: null,
+    }];
+    next.scenes[0].shots[0].camera_events.push({
+      id: "",
+      kind: "pan",
+      start_ms: 0,
+      end_ms: 100,
+      target_entity_id: "missing",
+      description: "推镜",
+      parameters: {},
+    });
+    const issues = collectVisualPlanIssues(next).map((issue) => issue.key);
+    expect(issues).toContain("visualPlan.validation.backgroundNotEmpty");
+    expect(issues).toContain("visualPlan.validation.duplicateId");
+    expect(issues).toContain("visualPlan.validation.missingId");
+    expect(issues).toContain("visualPlan.validation.intercutGroupNotAllowed");
+    expect(issues.filter((key) => key === "visualPlan.validation.missingReferenceId").length).toBeGreaterThan(0);
+
+    const grouped = structuredClone(plan);
+    grouped.scenes[0].editing_mode = "intercut";
+    grouped.scenes[0].intercut_group_id = "group-1";
+    expect(collectVisualPlanIssues(grouped).map((issue) => issue.key)).toContain("visualPlan.validation.intercutGroupTooSmall");
+  });
+
+  it("requires visible entity states for focus and relations", () => {
+    const next = structuredClone(plan);
+    next.entities.push({ id: "other", label: "其他", kind: "character", description: "其他实体" });
+    const hidden = state("hero");
+    hidden.visible = false;
+    const frame = next.scenes[0].shots[0].keyframes[0];
+    frame.entity_states = [hidden, state("other")];
+    frame.camera.focus_entity_id = "hero";
+    frame.relations = [{
+      id: "relation",
+      kind: "left_of",
+      source_entity_id: "hero",
+      target_entity_id: "other",
+      label: null,
+    }];
+    const issues = collectVisualPlanIssues(next).map((issue) => issue.key);
+    expect(issues).toContain("visualPlan.validation.focusEntityStateMissing");
+    expect(issues).toContain("visualPlan.validation.relationSourceStateMissing");
   });
 });

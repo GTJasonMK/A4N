@@ -96,9 +96,7 @@ impl OrchestratorContext {
         if prepared.source.content_sha256 != requested_source.content_sha256 {
             return Ok(None);
         }
-        let Some(skeleton) = restore_screenplay_skeleton(self, run.id, &prepared).await? else {
-            return Ok(None);
-        };
+        let skeleton = restore_screenplay_skeleton(&prepared)?;
         let total_unit_count = skeleton.units.len();
         let mut plan_units = Vec::with_capacity(total_unit_count);
         let mut scenes = Vec::with_capacity(total_unit_count);
@@ -132,6 +130,7 @@ impl OrchestratorContext {
             &plan_units,
             scenes,
             &prepared.visual_plan,
+            &prepared.visual_plan_projection,
         )?;
         let completed_unit_count = script.scenes.len();
         let resolved = if completed_unit_count == total_unit_count
@@ -348,15 +347,7 @@ impl OrchestratorContext {
         let progress_total = CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL;
         progress(0, progress_total, "正在读取章节正文和来源锚点")?;
         let prepared = self.prepare_chapter_shooting_script_request(input).await?;
-        let skeleton = generate_screenplay_skeleton(
-            self,
-            workflow_run_id,
-            &prepared,
-            progress,
-            stream_reporter,
-            cancel_token,
-        )
-        .await?;
+        let skeleton = generate_screenplay_skeleton(&prepared, progress)?;
         let total_unit_count = skeleton.units.len();
         let mut plan_units = Vec::with_capacity(total_unit_count);
         let mut scenes = Vec::with_capacity(total_unit_count);
@@ -413,6 +404,7 @@ impl OrchestratorContext {
                     &plan_units,
                     scenes,
                     &prepared.visual_plan,
+                    &prepared.visual_plan_projection,
                 )?;
                 progress(
                     92,
@@ -436,6 +428,7 @@ impl OrchestratorContext {
             &plan_units,
             scenes,
             &prepared.visual_plan,
+            &prepared.visual_plan_projection,
         )?;
         progress(
             94,

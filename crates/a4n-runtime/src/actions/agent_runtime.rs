@@ -13,6 +13,9 @@ use a4n_api_contract::agent::{
 use a4n_api_contract::canvas::{
     GetCanvasGraphInput, RunCanvasGraphInput, RunCanvasNodeInput, SaveCanvasGraphInput,
 };
+use a4n_api_contract::chapter_visual_plan::{
+    ChapterVisualPlanAuthoringMode, SaveChapterVisualPlanDraftInput,
+};
 use a4n_core::error::AppError;
 use a4n_llm::provider::{
     ChatMessage, ChatRequest, ChatResponse, LlmTraceContext, MessageRole, ToolCall,
@@ -316,6 +319,23 @@ impl RuntimeAgentToolExecutor {
                         input,
                     )
                     .await?,
+                )
+            }
+            "save_chapter_visual_plan_draft" => {
+                let mut input =
+                    parse_arguments::<HostInput<SaveChapterVisualPlanDraftInput>>(arguments, name)?
+                        .input;
+                // Director writes are collaborative drafts by contract. Tool
+                // arguments cannot turn a reviewable draft into a confirmed record.
+                input.authoring_mode = ChapterVisualPlanAuthoringMode::Collaborative;
+                serde_json::to_value(
+                    crate::actions::chapter_visual_plan_records::save_chapter_visual_plan_draft(
+                        &self.state,
+                        user_id,
+                        input,
+                    )
+                    .await
+                    .map_err(AppError::InvalidArgument)?,
                 )
             }
             "search_agent_tools" => {
@@ -781,6 +801,19 @@ async fn process_claimed_run_inner(
     cancel: &CancellationToken,
 ) -> Result<(), AppError> {
     let agent = state.orchestrator().agent();
+    let director_loading =
+        claimed.thread.profile_id == a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY;
+    if director_loading {
+        agent
+            .append_worker_update(
+                claimed,
+                "director_context_loading",
+                "published",
+                "正在加载导演编排上下文",
+                Some(director_progress_payload(claimed, "context", 1, None)),
+            )
+            .await?;
+    }
     let context = agent.load_run_context(claimed).await?;
     let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
     if context.runtime_snapshot_required && snapshot.is_none() {
@@ -801,6 +834,17 @@ async fn process_claimed_run_inner(
             current: format!("Agent run {} 没有可发送的消息", claimed.run.id),
             operation: "执行 Agent run".into(),
         });
+    }
+    if director_loading {
+        agent
+            .append_worker_update(
+                claimed,
+                "director_context_ready",
+                "published",
+                "导演编排上下文已就绪",
+                Some(director_progress_payload(claimed, "context", 1, None)),
+            )
+            .await?;
     }
 
     let budget: AgentBudget =
@@ -862,6 +906,17 @@ async fn process_claimed_run_inner(
         model_calls = model_calls.saturating_add(1);
         usage["steps_used"] = json!(steps);
         usage["model_calls_used"] = json!(model_calls);
+        if director_loading {
+            agent
+                .append_worker_update(
+                    claimed,
+                    "director_plan_drafting",
+                    "published",
+                    "导演 Agent 正在编排视觉方案",
+                    Some(director_progress_payload(claimed, "draft", 2, None)),
+                )
+                .await?;
+        }
         let tools =
             available_runtime_tools(&context.profile_id, &context.scope, &discovered_tools)?;
         let request = ChatRequest {
@@ -1299,6 +1354,12 @@ async fn execute_tool_call(
         && let Some(value) = execution.result_json.clone()
     {
         append_tool_observation(agent, claimed, &execution, &call, value, messages).await?;
+        if context.profile_id == a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY
+            && call.name == "save_chapter_visual_plan_draft"
+        {
+            append_director_plan_saved_update(agent, claimed, execution.result_json.as_ref())
+                .await?;
+        }
         return Ok((
             RunProgress::Continue,
             discovered_tool_names(&call.name, &execution.result_json)?,
@@ -1558,6 +1619,11 @@ async fn execute_tool_call(
                     error_message: None,
                 })
                 .await?;
+            if context.profile_id == a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY
+                && call.name == "save_chapter_visual_plan_draft"
+            {
+                append_director_plan_saved_update(agent, claimed, Some(&value)).await?;
+            }
             value
         }
         Err(error) => {
@@ -1580,6 +1646,23 @@ async fn execute_tool_call(
     let discovered = discovered_tool_names(&call.name, &Some(value.clone()))?;
     append_tool_observation(agent, claimed, &execution, &call, value, messages).await?;
     Ok((RunProgress::Continue, discovered))
+}
+
+async fn append_director_plan_saved_update(
+    agent: &a4n_orchestrator::agent::AgentApplication,
+    claimed: &AgentWorkerRun,
+    result: Option<&Value>,
+) -> Result<(), AppError> {
+    agent
+        .append_worker_update(
+            claimed,
+            "director_plan_saved",
+            "published",
+            "导演编排草稿已保存，等待用户审核",
+            Some(director_progress_payload(claimed, "saved", 3, result)),
+        )
+        .await
+        .map(|_| ())
 }
 
 async fn append_tool_observation(
@@ -1670,9 +1753,15 @@ fn with_agent_system_prompt(
         })
         .collect::<Vec<_>>()
         .join("\n");
+    let domain_rules = if context.profile_id == a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY {
+        "导演编排约束：只读取当前绑定章节及其项目上下文；输出完整的 ChapterVisualPlanV2；只能通过 save_chapter_visual_plan_draft 保存 collaborative 草稿；不得确认、丢弃或锁定方案，用户是最终审核者；只有保存工具真实成功后才能声称草稿已保存。"
+    } else {
+        ""
+    };
     let prompt = format!(
         "你是 A4N 项目 Agent。{role}\n\
 当前能力域：{}\n\
+{}\n\
 当前目标：{}\n\
 执行模式：{}\n\
 资源范围：{}\n\
@@ -1680,6 +1769,7 @@ fn with_agent_system_prompt(
 有效记忆：\n{}\n\
 请根据目标自主规划，不要受固定步骤束缚。工具结果和领域事实源是唯一可信依据；没有实际执行成功时不得声称完成。严格遵守资源范围、权限、版本前置条件、审批与预算边界。需要专业领域能力时可委派；主 Agent 必须读取并验收子 Agent 的回传内容。完成后用简洁中文说明实际结果、关键变更和未解决事项。",
         context.profile_id,
+        domain_rules,
         context.goal.as_deref().unwrap_or("未提供显式目标"),
         context.execution_mode,
         serde_json::to_string(&context.scope).expect("AgentScope must serialize"),
@@ -1696,6 +1786,35 @@ fn with_agent_system_prompt(
     );
     messages.insert(0, ChatMessage::system(prompt));
     messages
+}
+
+fn director_progress_payload(
+    claimed: &AgentWorkerRun,
+    phase: &str,
+    current: u32,
+    result: Option<&Value>,
+) -> Value {
+    let mut payload = json!({
+        "phase": phase,
+        "current": current,
+        "total": 3,
+    });
+    if claimed.thread.resource_type.as_deref() == Some("chapter")
+        && let Some(chapter_id) = claimed
+            .thread
+            .resource_id
+            .as_deref()
+            .and_then(|value| value.parse::<i64>().ok())
+    {
+        payload["chapter_id"] = json!(chapter_id);
+    }
+    if let Some(record_id) = result
+        .and_then(|value| value.get("record"))
+        .and_then(|record| record.get("id"))
+    {
+        payload["record_id"] = record_id.clone();
+    }
+    payload
 }
 
 fn chat_messages(context: &AgentRunContext) -> Result<Vec<ChatMessage>, AppError> {

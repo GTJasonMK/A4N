@@ -2,8 +2,7 @@ use a4n_core::models::{
     chapter::chapter_visual_plan,
     project::{novel_project, source_snapshot_chapter},
 };
-use a4n_core::source_spans::source_spans_for_content;
-use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V1, ChapterVisualPlanStatus};
+use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanStatus};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -18,7 +17,7 @@ use super::{
         DiscardChapterVisualPlanDraftInput, ParsedChapterVisualPlan,
         SaveChapterVisualPlanDraftInput,
     },
-    queries::{chapter_visual_plan_by_id, validate_source},
+    queries::{chapter_visual_plan_by_id, lineage_condition_for_identity, validate_source},
 };
 
 pub async fn save_chapter_visual_plan_draft(
@@ -31,27 +30,15 @@ pub async fn save_chapter_visual_plan_draft(
             "author_user_id 必须大于 0".into(),
         ));
     }
-    let source_span_ids = source_spans_for_content(
-        input.source.source_chapter_id,
-        input.source.chapter_number,
-        &input.source.content,
-    )
-    .into_iter()
-    .map(|span| span.id)
-    .collect::<Vec<_>>();
-    input
-        .plan
-        .validate_source_span_coverage(&source_span_ids)
-        .map_err(|error| ChapterVisualPlanDbError::InvalidArgument(error.to_string()))?;
     let (plan_json, plan_sha256) = serialize_plan(&input.plan)?;
     let tx = db.begin().await?;
     let existing = chapter_visual_plan::Entity::find()
-        .filter(chapter_visual_plan::Column::RootProjectId.eq(input.source.root_project_id))
-        .filter(chapter_visual_plan::Column::SourceChapterId.eq(input.source.source_chapter_id))
-        .filter(
-            chapter_visual_plan::Column::SourceRevisionKey.eq(&input.source.source_revision_key),
-        )
-        .filter(chapter_visual_plan::Column::SourceContentSha256.eq(&input.source.content_sha256))
+        .filter(lineage_condition_for_identity(
+            input.source.root_project_id,
+            input.source.source_chapter_id,
+            input.source.source_snapshot_id,
+            input.source.source_snapshot_chapter_id,
+        )?)
         .filter(chapter_visual_plan::Column::Status.eq("draft"))
         .one(&tx)
         .await?;
@@ -70,6 +57,8 @@ pub async fn save_chapter_visual_plan_draft(
         }
         if existing.plan_sha256 == plan_sha256
             && existing.authoring_mode == input.authoring_mode.as_str()
+            && existing.source_revision_key == input.source.source_revision_key
+            && existing.source_content_sha256 == input.source.content_sha256
         {
             parse_record(existing)?
         } else {
@@ -84,6 +73,14 @@ pub async fn save_chapter_visual_plan_draft(
                 .col_expr(
                     chapter_visual_plan::Column::AuthoringMode,
                     Expr::value(input.authoring_mode.as_str()),
+                )
+                .col_expr(
+                    chapter_visual_plan::Column::SourceRevisionKey,
+                    Expr::value(input.source.source_revision_key.clone()),
+                )
+                .col_expr(
+                    chapter_visual_plan::Column::SourceContentSha256,
+                    Expr::value(input.source.content_sha256.clone()),
                 )
                 .col_expr(
                     chapter_visual_plan::Column::PlanSha256,
@@ -133,9 +130,10 @@ pub async fn save_chapter_visual_plan_draft(
                     chapter_visual_plan::Column::SourceChapterId.eq(input.source.source_chapter_id),
                 )
                 .filter(chapter_visual_plan::Column::SourceSnapshotId.is_null())
+                .filter(chapter_visual_plan::Column::SourceSnapshotChapterId.is_null())
                 .filter(
-                    chapter_visual_plan::Column::SourceRevisionKey
-                        .ne(&input.source.source_revision_key),
+                    chapter_visual_plan::Column::SourceContentSha256
+                        .ne(&input.source.content_sha256),
                 )
                 .filter(chapter_visual_plan::Column::Status.is_in(["draft", "confirmed"]))
                 .exec(&tx)
@@ -162,7 +160,7 @@ pub async fn save_chapter_visual_plan_draft(
             source_snapshot_chapter_id: Set(input.source.source_snapshot_chapter_id),
             source_revision_key: Set(input.source.source_revision_key),
             source_content_sha256: Set(input.source.content_sha256),
-            contract_version: Set(CHAPTER_VISUAL_PLAN_V1.into()),
+            contract_version: Set(CHAPTER_VISUAL_PLAN_V2.into()),
             plan_version: Set(plan_version),
             revision: Set(1),
             status: Set(ChapterVisualPlanStatus::Draft.as_str().into()),
@@ -212,6 +210,10 @@ pub async fn confirm_chapter_visual_plan(
             current.record.status
         )));
     }
+    current
+        .plan
+        .validate_confirmed()
+        .map_err(|error| ChapterVisualPlanDbError::InvalidArgument(error.to_string()))?;
     chapter_visual_plan::Entity::update_many()
         .col_expr(
             chapter_visual_plan::Column::Status,
@@ -221,11 +223,12 @@ pub async fn confirm_chapter_visual_plan(
             chapter_visual_plan::Column::UpdatedAt,
             Expr::value(Utc::now().naive_utc()),
         )
-        .filter(chapter_visual_plan::Column::RootProjectId.eq(current.record.root_project_id))
-        .filter(chapter_visual_plan::Column::SourceChapterId.eq(current.record.source_chapter_id))
-        .filter(
-            chapter_visual_plan::Column::SourceRevisionKey.eq(&current.record.source_revision_key),
-        )
+        .filter(lineage_condition_for_identity(
+            current.record.root_project_id,
+            current.record.source_chapter_id,
+            current.record.source_snapshot_id,
+            current.record.source_snapshot_chapter_id,
+        )?)
         .filter(chapter_visual_plan::Column::Status.eq("confirmed"))
         .filter(chapter_visual_plan::Column::Id.ne(current.record.id))
         .exec(&tx)
@@ -349,6 +352,7 @@ where
         .filter(chapter_visual_plan::Column::RootProjectId.eq(root_project_id))
         .filter(chapter_visual_plan::Column::SourceChapterId.eq(source_chapter_id))
         .filter(chapter_visual_plan::Column::SourceSnapshotId.is_null())
+        .filter(chapter_visual_plan::Column::SourceSnapshotChapterId.is_null())
         .filter(chapter_visual_plan::Column::Status.is_in(["draft", "confirmed"]))
         .exec(db)
         .await?

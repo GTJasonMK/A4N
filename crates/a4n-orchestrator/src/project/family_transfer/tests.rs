@@ -910,8 +910,7 @@ async fn seed_manga_family_round_trip(
         chapter.chapter_number,
         &chapter.content,
     );
-    let plan = crate::chapter_visual_plan::starter_plan(&source, &source_spans)
-        .expect("round-trip visual plan fixture 应满足领域合同");
+    let plan = crate::shooting_script::visual_plan_fixture(&source).plan;
     let draft = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
         database,
         a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
@@ -935,7 +934,7 @@ async fn seed_manga_family_round_trip(
     .expect("round-trip visual plan 应可确认")
     .visual_plan;
 
-    let typed_script = round_trip_shooting_script(&visual_plan);
+    let typed_script = round_trip_shooting_script(&visual_plan, &source_spans);
     typed_script
         .validate()
         .expect("round-trip 拍摄剧本 fixture 应满足领域合同");
@@ -1102,6 +1101,7 @@ async fn seed_manga_family_round_trip(
 
 fn round_trip_shooting_script(
     visual_plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
+    source_spans: &[a4n_core::source_spans::SourceSpan],
 ) -> ChapterShootingScriptV1 {
     let mut script: ChapterShootingScriptV1 = serde_json::from_str(
         r#"{
@@ -1214,14 +1214,19 @@ fn round_trip_shooting_script(
     }"#,
     )
     .expect("round-trip 拍摄剧本 JSON fixture 应匹配领域合同");
-    let unit = &visual_plan.plan.narrative_units[0];
+    let projected_plan = crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+        &visual_plan.plan,
+        source_spans,
+    )
+    .expect("round-trip visual plan 应可投影");
+    let unit = &projected_plan.narrative_units[0];
     let planned_shot = &unit.shots[0];
     script.visual_plan_source = Some(ShootingVisualPlanSourceV1 {
         plan_id: visual_plan.record.id,
         plan_version: visual_plan.record.plan_version,
         plan_sha256: visual_plan.record.plan_sha256.clone(),
     });
-    script.user_additions = visual_plan.plan.user_additions.clone();
+    script.user_additions = projected_plan.user_additions.clone();
     let scene = &mut script.scenes[0];
     scene.source_span_ids = unit.source_span_ids.clone();
     scene.visual_narrative_unit_id = Some(unit.id.clone());

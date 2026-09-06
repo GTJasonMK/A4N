@@ -11,6 +11,8 @@ mod workflow_rules;
 pub use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, GenerateChapterShootingScriptInput,
 };
+#[cfg(test)]
+pub(crate) use contracts::visual_plan_fixture;
 pub use contracts::{
     CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptUnitProgress,
     EditedChapterShootingScript, ResolvedChapterShootingScript, ShootingScriptProgressReporter,

@@ -71,6 +71,18 @@ describe("domain Agent binding", () => {
     expect(domainAgentBinding("content_optimization", 7)).toBeNull();
     expect(domainAgentBinding("content_optimization", 0, 11)).toBeNull();
     expect(domainAgentBinding("canvas", 7, 11)).toBeNull();
+    expect(domainAgentBinding("director", 7)).toBeNull();
+    expect(domainAgentBinding("director", 7, 11)).not.toBeNull();
+  });
+
+  it("keeps the Director thread bound to the chapter", () => {
+    expect(domainAgentBinding("director", 7, 11)).toMatchObject({
+      capability: "director",
+      projectId: 7,
+      chapterId: 11,
+      resourceKind: "chapter",
+      resourceId: "11",
+    });
   });
 
   it("matches only the same capability, project, and resource", () => {

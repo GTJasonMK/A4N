@@ -81,7 +81,7 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
             "visual_plan_sha256": prepared.visual_plan.record.plan_sha256,
         })),
         config_identity_json: json!({
-            "contract":"chapter_visual_plan_v1",
+            "contract":"chapter_visual_plan_v2",
             "kind":"confirmed_visual_plan"
         }),
         required: true,
@@ -149,13 +149,20 @@ mod tests {
             source_revision_key: "revision-1".into(),
         };
         let source_spans = source_spans_for_content(3, 1, &content);
-        let visual_plan = super::super::contracts::visual_plan_fixture(&source, &source_spans);
+        let visual_plan = super::super::contracts::visual_plan_fixture(&source);
+        let visual_plan_projection =
+            crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+                &visual_plan.plan,
+                &source_spans,
+            )
+            .expect("visual plan projection");
         PreparedChapterShootingScriptRequest {
             source,
             source_spans,
             input_fingerprint_sha256: "fingerprint".into(),
             existing: None,
             visual_plan,
+            visual_plan_projection,
             layout_unit_system_prompt: "layout".into(),
             unit_adaptation_system_prompt: "adaptation".into(),
             design_unit_system_prompt: "design".into(),

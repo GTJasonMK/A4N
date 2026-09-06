@@ -45,7 +45,7 @@ import { cancelWorkflowTask } from "../api/streaming";
 import { createWorkflowTaskId, useProgressTask } from "../hooks/useProgressTask";
 import { isCancelledOperation } from "../utils/cancellation";
 import { nonEmptyText } from "../utils/text";
-import { scrollRailItemIntoView } from "../utils/scrollRail";
+import { getScrollRailCue, scrollRailItemIntoView } from "../utils/scrollRail";
 import { formatNumber, useI18n, type Locale, type MessageKey, type MessageTranslator } from "../i18n";
 
 const AssetDependencyGraphDialog = lazy(() =>
@@ -325,10 +325,9 @@ export const NovelDetail: React.FC = () => {
     const rail = tabListRef.current;
     if (!rail) return;
     const updateCue = () => {
-      setTabRailHasBefore(rail.scrollLeft > 2);
-      setTabRailHasMore(
-        rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 2,
-      );
+      const cue = getScrollRailCue(rail);
+      setTabRailHasBefore(cue.hasBefore);
+      setTabRailHasMore(cue.hasMore);
     };
     const frame = window.requestAnimationFrame(updateCue);
     rail.addEventListener("scroll", updateCue, { passive: true });

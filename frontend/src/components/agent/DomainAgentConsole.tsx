@@ -12,6 +12,7 @@ import {
   Check,
   CircleDot,
   Clock3,
+  Film,
   Pause,
   Play,
   RefreshCw,
@@ -49,7 +50,7 @@ import { isImeCompositionActive } from "../../utils/ime";
 import { formatDateTime } from "../../i18n/format";
 import { useI18n, type Locale } from "../../i18n";
 
-export type DomainAgentCapability = "content_optimization" | "canvas";
+export type DomainAgentCapability = "content_optimization" | "canvas" | "director";
 
 export interface DomainAgentConsoleProps {
   capability: DomainAgentCapability;
@@ -144,6 +145,16 @@ export function domainAgentBinding(
 ): DomainAgentBinding | null {
   if (!positiveId(projectId)) return null;
   if (capability === "content_optimization") {
+    if (!positiveId(chapterId)) return null;
+    return {
+      capability,
+      projectId,
+      chapterId,
+      resourceKind: "chapter",
+      resourceId: String(chapterId),
+    };
+  }
+  if (capability === "director") {
     if (!positiveId(chapterId)) return null;
     return {
       capability,
@@ -260,6 +271,48 @@ function executionTone(execution: AgentExecutionView): string {
   return "text-book-primary";
 }
 
+type DirectorProgressPhase =
+  | "context_loading"
+  | "context_ready"
+  | "plan_drafting"
+  | "plan_saved";
+
+function latestDirectorProgress(
+  snapshot: AgentThreadSnapshot | null,
+): { phase: DirectorProgressPhase; current: number; total: number } | null {
+  const event = snapshot?.events
+    .slice()
+    .reverse()
+    .find((item) => item.kind.startsWith("director_"));
+  if (!event) return null;
+  const phase = event.kind.slice("director_".length) as DirectorProgressPhase;
+  if (
+    ![
+      "context_loading",
+      "context_ready",
+      "plan_drafting",
+      "plan_saved",
+    ].includes(phase)
+  ) {
+    return null;
+  }
+  const payload = objectValue(event.payload);
+  const total = payload?.total;
+  const current = payload?.current;
+  if (
+    typeof total !== "number" ||
+    !Number.isSafeInteger(total) ||
+    total <= 0 ||
+    typeof current !== "number" ||
+    !Number.isSafeInteger(current) ||
+    current <= 0 ||
+    current > total
+  ) {
+    return null;
+  }
+  return { phase, current, total };
+}
+
 export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   capability,
   projectId,
@@ -316,13 +369,18 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         ? "当前上下文"
         : "Current context");
   const isOptimization = capability === "content_optimization";
+  const isDirector = capability === "director";
   const title = isOptimization
     ? t("agent.domain.contentTitle")
-    : t("agent.domain.canvasTitle");
+    : isDirector
+      ? t("agent.domain.directorTitle")
+      : t("agent.domain.canvasTitle");
   const subtitle = isOptimization
     ? t("agent.domain.contentSubtitle", { resource: displayResourceLabel })
-    : t("agent.domain.canvasSubtitle", { resource: displayResourceLabel });
-  const icon = isOptimization ? <Bot size={15} /> : <Workflow size={15} />;
+    : isDirector
+      ? t("agent.domain.directorSubtitle", { resource: displayResourceLabel })
+      : t("agent.domain.canvasSubtitle", { resource: displayResourceLabel });
+  const icon = isOptimization ? <Bot size={15} /> : isDirector ? <Film size={15} /> : <Workflow size={15} />;
 
   const loadSnapshot = useCallback(
     async (threadId: string, quiet = false) => {
@@ -488,7 +546,9 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     const mutationTool =
       capability === "content_optimization"
         ? "apply_optimization_patches"
-        : "save_canvas_graph";
+        : capability === "director"
+          ? "save_chapter_visual_plan_draft"
+          : "save_canvas_graph";
     return (
       snapshot?.executions
         .slice()
@@ -500,6 +560,10 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         )?.id ?? null
     );
   }, [capability, snapshot]);
+  const directorProgress = useMemo(
+    () => (isDirector ? latestDirectorProgress(snapshot) : null),
+    [isDirector, snapshot],
+  );
   const latestEvent = useMemo<AgentEvent | null>(
     () => snapshot?.events[snapshot.events.length - 1] ?? null,
     [snapshot],
@@ -719,6 +783,43 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         >
           <Clock3 size={12} className="shrink-0" />
           <span className="min-w-0 flex-1 break-words">{connectionError}</span>
+        </div>
+      ) : null}
+
+      {directorProgress ? (
+        <div className="shrink-0 border-b border-book-primary/20 bg-book-primary/5 px-3 py-2.5">
+          <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
+            <span className="min-w-0 truncate font-medium text-book-text-sub">
+              {directorProgress.phase === "context_loading"
+                ? t("agent.domain.directorContextLoading")
+                : directorProgress.phase === "context_ready"
+                  ? t("agent.domain.directorContextReady")
+                  : directorProgress.phase === "plan_drafting"
+                    ? t("agent.domain.directorPlanDrafting")
+                    : t("agent.domain.directorPlanSaved")}
+            </span>
+            <span className="shrink-0 tabular-nums text-book-text-muted">
+              {directorProgress.current}/{directorProgress.total}
+            </span>
+          </div>
+          <div
+            className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-book-primary/10"
+            role="progressbar"
+            aria-label={t("agent.domain.directorProgress")}
+            aria-valuemin={0}
+            aria-valuemax={directorProgress.total}
+            aria-valuenow={directorProgress.current}
+          >
+            <div
+              className="h-full rounded-full bg-book-primary transition-[width] duration-300"
+              style={{ width: `${(directorProgress.current / directorProgress.total) * 100}%` }}
+            />
+          </div>
+          {directorProgress.phase === "plan_saved" ? (
+            <p className="mt-1 text-[10px] text-book-text-muted">
+              {t("agent.domain.directorAwaitingReview")}
+            </p>
+          ) : null}
         </div>
       ) : null}
 

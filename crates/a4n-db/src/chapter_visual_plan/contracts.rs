@@ -1,6 +1,6 @@
 use a4n_core::models::chapter::chapter_visual_plan;
 use a4n_domain::chapter_visual_plan::{
-    ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus, ChapterVisualPlanV1,
+    ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus, ChapterVisualPlanV2,
 };
 use sea_orm::DbErr;
 
@@ -11,7 +11,7 @@ pub struct ParsedChapterVisualPlan {
     pub record: chapter_visual_plan::Model,
     pub status: ChapterVisualPlanStatus,
     pub authoring_mode: ChapterVisualPlanAuthoringMode,
-    pub plan: ChapterVisualPlanV1,
+    pub plan: ChapterVisualPlanV2,
 }
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -32,7 +32,7 @@ pub struct SaveChapterVisualPlanDraftInput {
     pub author_user_id: i64,
     pub authoring_mode: ChapterVisualPlanAuthoringMode,
     pub expected: Option<ExpectedVisualPlanDraft>,
-    pub plan: ChapterVisualPlanV1,
+    pub plan: ChapterVisualPlanV2,
 }
 
 #[derive(Debug, Clone)]

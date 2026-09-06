@@ -35,7 +35,7 @@ const collectOptions = (children: React.ReactNode): SelectOption[] => {
       options.push(child as SelectOption);
       return;
     }
-    if (child.type === React.Fragment) {
+    if (child.type === "optgroup" || child.type === React.Fragment) {
       options.push(...collectOptions(child.props.children));
     }
   });
@@ -51,21 +51,31 @@ const firstEnabledIndex = (options: SelectOption[], start = 0, step = 1): number
   return -1;
 };
 
-export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement>> = ({
-  children,
-  className = "",
-  defaultValue,
-  disabled = false,
-  id,
-  onChange,
-  required = false,
-  title,
-  value,
-  ...nativeProps
-}) => {
+export const ThemedSelect = React.forwardRef<
+  HTMLSelectElement,
+  React.SelectHTMLAttributes<HTMLSelectElement>
+>(function ThemedSelect(
+  {
+    children,
+    className = "",
+    defaultValue,
+    disabled = false,
+    id,
+    onChange,
+    required = false,
+    title,
+    value,
+    "aria-describedby": ariaDescribedBy,
+    "aria-label": ariaLabel,
+    "aria-labelledby": ariaLabelledBy,
+    ...nativeProps
+  },
+  forwardedRef,
+) {
   const options = useMemo(() => collectOptions(children), [children]);
   const controlled = value !== undefined;
-  const initialValue = stringValue(defaultValue ?? optionValue(options[0]));
+  const initialOption = options.find((option) => option.props.selected) ?? options[0];
+  const initialValue = stringValue(defaultValue ?? optionValue(initialOption));
   const [uncontrolledValue, setUncontrolledValue] = useState(initialValue);
   const selectedValue = controlled ? stringValue(value) : uncontrolledValue;
   const selectedIndex = options.findIndex(
@@ -84,7 +94,7 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
   });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
-  const nativeSelectRef = useRef<HTMLSelectElement>(null);
+  const nativeSelectRef = useRef<HTMLSelectElement | null>(null);
   const listboxId = useId();
 
   const close = useCallback((restoreFocus = false) => {
@@ -107,11 +117,15 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
     const viewportHeight = viewport?.height ?? window.innerHeight;
     const padding = 8;
     const gap = 4;
-    const width = Math.min(Math.max(rect.width, 180), viewportWidth - padding * 2);
+    const maxWidth = Math.max(1, viewportWidth - padding * 2);
+    const width = Math.min(Math.max(rect.width, 180), maxWidth);
     const spaceBelow = viewportTop + viewportHeight - rect.bottom - gap - padding;
     const spaceAbove = rect.top - viewportTop - gap - padding;
     const opensAbove = spaceAbove > spaceBelow;
-    const availableHeight = Math.max(80, Math.min(320, opensAbove ? spaceAbove : spaceBelow));
+    const availableHeight = Math.max(
+      1,
+      Math.min(320, Math.max(1, opensAbove ? spaceAbove : spaceBelow)),
+    );
     const height = Math.min(listbox.scrollHeight, availableHeight);
     const preferredTop = opensAbove
       ? rect.top - height - gap
@@ -123,13 +137,24 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
       Math.min(rect.left, viewportLeft + viewportWidth - width - padding),
     );
 
-    setPosition({ top, left, width, maxHeight: availableHeight, ready: true });
+    setPosition((current) => (
+      current.top === top &&
+      current.left === left &&
+      current.width === width &&
+      current.maxHeight === availableHeight &&
+      current.ready
+        ? current
+        : { top, left, width, maxHeight: availableHeight, ready: true }
+    ));
   }, []);
 
   const open = useCallback((direction = 1) => {
-    const nextIndex = selectedIndex >= 0 && !options[selectedIndex]?.props.disabled
+    if (!options.some((option) => !option.props.disabled)) return;
+    const selectedIsEnabled = selectedIndex >= 0 && !options[selectedIndex].props.disabled;
+    const nextIndex = selectedIsEnabled
       ? selectedIndex
       : firstEnabledIndex(options, selectedIndex >= 0 ? selectedIndex : 0, direction);
+    if (nextIndex < 0) return;
     setActiveIndex(nextIndex);
     setPosition((current) => ({ ...current, ready: false }));
     setIsOpen(true);
@@ -147,7 +172,7 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
       nativeSelect.dispatchEvent(new Event("change", { bubbles: true }));
     }
     close(true);
-  }, [close, controlled, options]);
+  }, [close, controlled, options, selectedValue]);
 
   const moveActive = useCallback((step: number) => {
     setActiveIndex((current) => {
@@ -157,22 +182,23 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
   }, [options]);
 
   useEffect(() => {
-    if (controlled || options.length === 0) return;
-    if (!options.some((option) => optionValue(option) === uncontrolledValue)) {
-      setUncontrolledValue(optionValue(options[0]));
-    }
-  }, [controlled, options, uncontrolledValue]);
-
-  useEffect(() => {
     if (!isOpen) return undefined;
 
     const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        close();
+        return;
+      }
       if (triggerRef.current?.contains(target) || listboxRef.current?.contains(target)) return;
       close();
     };
     const handleFocusIn = (event: FocusEvent) => {
-      const target = event.target as Node;
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        close();
+        return;
+      }
       if (!triggerRef.current?.contains(target) && !listboxRef.current?.contains(target)) close();
     };
     const handleReposition = () => updatePosition();
@@ -206,9 +232,6 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
 
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : null;
   const triggerLabel = selectedOption?.props.children ?? (selectedValue || "—");
-  const ariaLabel = nativeProps["aria-label"];
-  const ariaLabelledBy = nativeProps["aria-labelledby"];
-  const ariaDescribedBy = nativeProps["aria-describedby"];
 
   const triggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "Escape" && isOpen) {
@@ -275,7 +298,6 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
             onMouseEnter={() => {
               if (!optionDisabled) setActiveIndex(index);
             }}
-            onPointerDown={(event) => event.preventDefault()}
             onClick={() => commit(index)}
           >
             <span className="min-w-0 flex-1 truncate">{option.props.children}</span>
@@ -286,12 +308,21 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
     getPortalRoot(),
   ) : null;
 
+  const setNativeSelectRef = (element: HTMLSelectElement | null) => {
+    nativeSelectRef.current = element;
+    if (typeof forwardedRef === "function") forwardedRef(element);
+    else if (forwardedRef) {
+      (forwardedRef as React.MutableRefObject<HTMLSelectElement | null>).current = element;
+    }
+  };
+
   return (
     <>
       <select
         {...nativeProps}
-        ref={nativeSelectRef}
-        value={selectedValue}
+        ref={setNativeSelectRef}
+        value={controlled ? selectedValue : undefined}
+        defaultValue={controlled ? undefined : selectedValue}
         disabled={disabled}
         required={required}
         aria-hidden="true"
@@ -335,4 +366,6 @@ export const ThemedSelect: React.FC<React.SelectHTMLAttributes<HTMLSelectElement
       {listbox}
     </>
   );
-};
+});
+
+ThemedSelect.displayName = "ThemedSelect";

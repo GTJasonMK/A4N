@@ -35,6 +35,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
+import { ThemedCombobox } from "../../components/ui/ThemedCombobox";
 import {
   listProfiles,
   updateCharacterProfile,
@@ -977,22 +978,16 @@ const RelationshipEditorModal: React.FC<{
           <span className="text-xs text-book-text-sub">
             {t("novel.relationships.target")}
           </span>
-          <input
-            type="text"
-            list="initial-relationship-targets"
+          <ThemedCombobox
             value={state.target}
-            onChange={(event) =>
-              onChange({ ...state, target: event.target.value })
-            }
+            options={targetOptions.map((item) => ({
+              value: item.name,
+              label: item.name,
+            }))}
+            onChange={(target) => onChange({ ...state, target })}
             disabled={saving || state.editing}
-            className="pyqt-input"
             placeholder={t("novel.relationships.targetPlaceholder")}
           />
-          <datalist id="initial-relationship-targets">
-            {targetOptions.map((item) => (
-              <option key={item.id} value={item.name} />
-            ))}
-          </datalist>
         </label>
 
         <label className="flex flex-col gap-1.5">

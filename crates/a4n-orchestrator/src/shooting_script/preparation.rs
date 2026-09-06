@@ -11,10 +11,9 @@ use crate::OrchestratorContext;
 
 use super::ChapterShootingScriptSourceInput;
 use super::contracts::{
-    CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-    CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT, CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT,
-    CHAPTER_SHOOTING_SCRIPT_WORKFLOW, PreparedChapterShootingScriptRequest,
-    RegenerateChapterShootingScriptInput,
+    CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT, CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT,
+    CHAPTER_SHOOTING_DESIGN_UNIT_PROMPT, CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
+    PreparedChapterShootingScriptRequest, RegenerateChapterShootingScriptInput,
 };
 
 impl OrchestratorContext {
@@ -44,11 +43,11 @@ impl OrchestratorContext {
                 source.source_chapter_id
             )));
         }
-        let skeleton_system_prompt = self.prompt_render_template(
-            CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-            &HashMap::new(),
-            Some(input.project_id),
-        )?;
+        let visual_plan_projection =
+            crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+                &visual_plan.plan,
+                &source_spans,
+            )?;
         let layout_unit_system_prompt = self.prompt_render_template(
             CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
             &HashMap::new(),
@@ -81,10 +80,6 @@ impl OrchestratorContext {
         let input_fingerprint_json = json!({
             "workflow": CHAPTER_SHOOTING_SCRIPT_WORKFLOW,
             "stages": {
-                "screenplay_skeleton": {
-                    "prompt_name": CHAPTER_SCREENPLAY_SKELETON_PROMPT,
-                    "system_prompt": &skeleton_system_prompt,
-                },
                 "screenplay_layout_unit": {
                     "prompt_name": CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT,
                     "system_prompt": &layout_unit_system_prompt,
@@ -107,7 +102,6 @@ impl OrchestratorContext {
             "visual_plan": &visual_plan.plan,
             "temperature": 0.2,
             "max_tokens_profiles": {
-                "skeleton": llm_token_profiles::LONG,
                 "layout_unit": llm_token_profiles::LONG,
                 "unit_adaptation": llm_token_profiles::LONG,
                 "design_unit": llm_token_profiles::EXTRA_LONG,
@@ -121,6 +115,7 @@ impl OrchestratorContext {
             input_fingerprint_sha256,
             existing,
             visual_plan,
+            visual_plan_projection,
             layout_unit_system_prompt,
             unit_adaptation_system_prompt,
             design_unit_system_prompt,

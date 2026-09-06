@@ -137,8 +137,7 @@ async fn insert_confirmed_visual_plan_and_shooting_script(
         chapter.chapter_number,
         &chapter.content,
     );
-    let plan = crate::chapter_visual_plan::starter_plan(&source, &source_spans)
-        .expect("starter plan should be valid");
+    let plan = crate::shooting_script::visual_plan_fixture(&source).plan;
     let draft = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
         db,
         a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
@@ -161,10 +160,15 @@ async fn insert_confirmed_visual_plan_and_shooting_script(
     .await
     .expect("video test visual plan should confirm")
     .visual_plan;
+    let projected_plan = crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+        &plan.plan,
+        &source_spans,
+    )
+    .expect("video test visual plan should project");
     let source_span = source_spans
         .first()
         .expect("video test chapter should have a source span");
-    let visual_unit = plan.plan.narrative_units.first().expect("visual unit");
+    let visual_unit = projected_plan.narrative_units.first().expect("visual unit");
     let visual_shot = visual_unit.shots.first().expect("visual shot");
     let mut script = test_chapter_shooting_script(&source_span.id);
     script.visual_plan_source = Some(ShootingVisualPlanSourceV1 {

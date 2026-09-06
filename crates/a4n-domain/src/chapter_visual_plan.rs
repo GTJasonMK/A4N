@@ -4,7 +4,12 @@
 //! 可以从同一份方案投影，不能各自重新解释章节。
 
 mod contracts;
+mod contracts_v2;
+mod projection;
 mod validation;
+mod validation_v2;
 
 pub use contracts::*;
+pub use contracts_v2::*;
+pub use projection::*;
 pub use validation::ChapterVisualPlanValidationError;

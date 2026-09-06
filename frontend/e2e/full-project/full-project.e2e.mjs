@@ -3,7 +3,7 @@ import { readdir } from "node:fs/promises";
 
 const username = process.env.A4N_BROWSER_E2E_USERNAME;
 const password = process.env.A4N_BROWSER_E2E_PASSWORD;
-const providerUrl = process.env.A4N_BROWSER_E2E_PROVIDER_URL ?? "";
+const providerUrl = process.env.A4N_BROWSER_E2E_PROVIDER_URL;
 
 const exact = (value) => String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
@@ -38,6 +38,7 @@ async function buttonMatching(matcher, scope = null, timeout = 30_000) {
       let title;
       try {
         text = await button.getText();
+        if (!text) text = await browser.execute((element) => element.textContent ?? "", button);
         aria = (await button.getAttribute("aria-label")) ?? "";
         title = (await button.getAttribute("title")) ?? "";
       } catch {
@@ -80,6 +81,26 @@ async function currentDialog(timeout = 30_000) {
   return dialogs[dialogs.length - 1];
 }
 
+async function currentDialogContainingField(label, tag = "input", timeout = 30_000) {
+  let matched = null;
+  await browser.waitUntil(
+    async () => {
+      for (const dialog of (await visibleElements('[role="dialog"]')).reverse()) {
+        try {
+          await fieldByLabel(label, tag, dialog);
+          matched = dialog;
+          return true;
+        } catch {
+          // The nested editor may still be mounting above its library dialog.
+        }
+      }
+      return false;
+    },
+    { timeout, interval: 100, timeoutMsg: `未找到包含字段的对话框：${label}` },
+  );
+  return matched;
+}
+
 async function fieldByLabel(label, tag = "input", scope = null) {
   const root = scope ?? (await visibleElements('[role="dialog"]')).at(-1) ?? await $("body");
   // An accessible label may intentionally be sr-only.  Filter the associated
@@ -90,8 +111,9 @@ async function fieldByLabel(label, tag = "input", scope = null) {
     let text;
     try {
       // WebDriver's rendered-text algorithm can return an empty string for a
-      // sr-only label.  textContent still preserves the accessible contract.
-      text = (await item.getAttribute("textContent")) ?? await item.getText();
+      // sr-only label.  DOM textContent still preserves the accessible contract.
+      text = await browser.execute((element) => element.textContent ?? "", item);
+      if (!text) text = await item.getText();
     } catch {
       continue;
     }
@@ -99,6 +121,10 @@ async function fieldByLabel(label, tag = "input", scope = null) {
     const controls = await item.$$(tag);
     for (const control of controls) {
       if (await control.isDisplayed().catch(() => false)) return control;
+    }
+    if (tag === "select") {
+      const themedControl = await item.$('button[role="combobox"]');
+      if (await themedControl.isDisplayed().catch(() => false)) return themedControl;
     }
     const forId = await item.getAttribute("for");
     if (forId) {
@@ -198,6 +224,29 @@ async function closeDialog() {
   await waitForNoDialog();
 }
 
+async function clickModalBackdrop() {
+  const backdrop = await $(".a4n-modal-layer .dialog-backdrop");
+  await backdrop.waitForDisplayed({ timeout: 30_000 });
+  const rect = await browser.execute((element) => {
+    const value = element.getBoundingClientRect();
+    return { x: value.x, y: value.y };
+  }, backdrop);
+  try {
+    await browser.performActions([{
+      type: "pointer",
+      id: "mouse",
+      parameters: { pointerType: "mouse" },
+      actions: [
+        { type: "pointerMove", duration: 0, x: Math.round(rect.x + 8), y: Math.round(rect.y + 8) },
+        { type: "pointerDown", button: 0 },
+        { type: "pointerUp", button: 0 },
+      ],
+    }]);
+  } finally {
+    await browser.releaseActions();
+  }
+}
+
 async function waitAndCloseProgress(successText, timeout = 480_000) {
   let progressText = "";
   await browser.waitUntil(
@@ -216,7 +265,18 @@ async function waitAndCloseProgress(successText, timeout = 480_000) {
           progressText = await dialog.getText();
           const value = await bars[0].getAttribute("aria-valuenow");
           if (/生成失败|任务失败|调用失败|分析失败|同步失败/.test(progressText)) return true;
-          return value === "100" && progressText.includes(successText);
+          // The dialog title is also included in `getText()`, so a 100% running
+          // task can contain successText before it has entered its terminal
+          // state.  A close control is rendered only for terminal states.
+          let hasCloseButton = false;
+          for (const button of await visibleElements("button", dialog)) {
+            const label = (await button.getAttribute("aria-label")) ?? "";
+            if (label.includes("关闭") || (await button.getText()).trim() === "关闭") {
+              hasCloseButton = true;
+              break;
+            }
+          }
+          return value === "100" && progressText.includes(successText) && hasCloseButton;
         }
         return false;
       } catch {
@@ -230,6 +290,16 @@ async function waitAndCloseProgress(successText, timeout = 480_000) {
   await browser.waitUntil(
     async () => {
       try {
+        const hasProgressDialog = await browser.execute(() =>
+          Array.from(document.querySelectorAll('.a4n-modal-layer:not([data-modal-state="exiting"])')).some((layer) => {
+            const bar = layer.querySelector('[role="dialog"] [role="progressbar"]');
+            if (!bar) return false;
+            const rect = bar.getBoundingClientRect();
+            const style = getComputedStyle(bar);
+            return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+          }),
+        );
+        if (!hasProgressDialog) return true;
         const dialogs = await visibleElements('[role="dialog"]');
         let progress = null;
         for (const dialog of [...dialogs].reverse()) {
@@ -262,19 +332,35 @@ async function tab(label) {
   const scan = async () => {
     try {
       const tabs = await visibleElements('[role="tab"]');
+      const candidates = [];
       for (const item of tabs) {
         try {
-          const aria = (await item.getAttribute("aria-label")) ?? "";
           const text = await item.getText();
-          if (aria === label || text.includes(label)) {
-            await item.waitForClickable({ timeout: 5_000 });
-            await item.click();
-            return true;
-          }
+          if (text.includes(label)) candidates.push({ item, exact: text.trim() === label });
         } catch {
           // The tab can be replaced by a React render between the scan and
           // click; retry with a fresh collection.
         }
+      }
+      const visibleMatch = candidates.find(({ exact }) => exact) ?? candidates[0];
+      let ariaMatch = null;
+      if (!visibleMatch) {
+        for (const item of tabs) {
+          try {
+            if ((await item.getAttribute("aria-label")) === label) {
+              ariaMatch = item;
+              break;
+            }
+          } catch {
+            // Retry with a fresh collection if React replaces the tab.
+          }
+        }
+      }
+      const match = visibleMatch?.item ?? ariaMatch;
+      if (match) {
+        await match.waitForClickable({ timeout: 5_000 });
+        await match.click();
+        return true;
       }
     } catch {
       return false;
@@ -338,23 +424,30 @@ async function configureServerEmbedding() {
   await waitForBodyMatch(/嵌入配置|Embedding 配置/);
   const create = await buttonMatching(/新增\s*(Embedding|嵌入).*配置|新建\s*(Embedding|嵌入).*配置/i);
   await create.click();
-  const dialog = await currentDialog(0).catch(() => null);
-  if (dialog) {
-    // ConfigListPanel uses an inline editor rather than a modal; a dialog here
-    // is only the optional unsaved-draft confirmation.
-    await closeDialog();
-  }
   await waitForBodyMatch(/新建.*(?:嵌入|Embedding).*配置|嵌入配置|Embedding 配置/);
   await setField("配置名称", "Chromium E2E 嵌入");
   const backend = await fieldByLabel("后端", "select", null);
-  await backend.selectByAttribute("value", "api");
+  if ((await backend.getAttribute("role")) === "combobox") {
+    await backend.click();
+    await browser.waitUntil(
+      async () => {
+        try {
+          const option = await firstVisibleContaining("[role=\"option\"]", "OpenAI 兼容 API");
+          if (!option) return false;
+          await option.click();
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      { timeout: 30_000, interval: 100, timeoutMsg: "未找到 OpenAI 兼容 API 下拉选项" },
+    );
+  } else {
+    await backend.selectByVisibleText("OpenAI 兼容 API");
+  }
   await setField("模型", "a4n-virtual-embedding");
-  await setField("接口地址|端点|Endpoint", `${providerUrl}`).catch(async () => {
-    await setField("接口地址", `${providerUrl}`);
-  });
-  await setField("访问密钥|API Key|API key", "a4n-e2e-provider-key").catch(async () => {
-    await setField("访问密钥", "a4n-e2e-provider-key");
-  });
+  await setField("接口地址", providerUrl);
+  await setField("访问密钥", "a4n-e2e-provider-key");
   await setField("维度", "32");
   await setField("批量大小", "32");
   await clickButton("创建");
@@ -406,7 +499,7 @@ async function enterBlueprint(projectId) {
   await waitForBodyText("一封来自未来的信迫使林岚进入钟楼", 60_000);
 }
 
-async function createProfiles(projectId) {
+async function createProfiles() {
   await tab("角色档案");
   await clickButton("新建角色");
   let dialog = await currentDialog();
@@ -431,7 +524,6 @@ async function createProfiles(projectId) {
   await clickButton("保存", dialog);
   await waitForBodyText("旧车站", 60_000);
   await closeDialog();
-  assert.ok(projectId > 0);
 }
 
 async function createOutlines() {
@@ -468,7 +560,7 @@ const chapterBody = [
   "林岚没有把信交给他，只展开其中最后一页。纸上新浮出一行被雨水般的墨迹浸透的字：别相信替你校准时间的人。与此同时，钟楼顶端传来第二声钟鸣。站厅广告屏里的画面倒退七秒，周衡身后的影子却没有跟着移动。林岚合上怀表，沿着封闭通道向地下走去。她知道信中的第一个预告已经发生，而距离午夜只剩十八分钟。",
 ].join("\n\n");
 
-async function importChapter(projectId) {
+async function importChapter() {
   await tab("已生成章节");
   await clickButton("导入章节");
   const dialog = await currentDialog();
@@ -477,7 +569,7 @@ async function importChapter(projectId) {
   await setField("正文", chapterBody, "textarea", dialog);
   await clickButton("确认导入", dialog);
   await waitForBodyMatch(/章节.*导入|已导入/, 120_000);
-  await waitForNoDialog(120_000).catch(() => undefined);
+  await waitForNoDialog(120_000);
   await browser.waitUntil(async () => {
     const text = await $("body").getText();
     return text.includes("雨夜来信") && text.includes("1");
@@ -504,9 +596,9 @@ async function analyzeAndSync(projectId) {
   await waitForBodyMatch(/结构化分析已保存|Structured analysis saved/, 480_000);
   const progressDialogs = await visibleElements('[role="dialog"]');
   if (progressDialogs.length) {
-    const close = await buttonMatching("关闭", progressDialogs.at(-1), 5_000).catch(() => null);
-    if (close) await close.click();
-    await waitForNoDialog(30_000).catch(() => undefined);
+    const close = await buttonMatching("关闭", progressDialogs.at(-1), 5_000);
+    await close.click();
+    await waitForNoDialog(30_000);
   }
   const panelSelector = "section[aria-label='本章资料同步状态']";
   await $(panelSelector).waitForDisplayed({ timeout: 60_000 });
@@ -535,7 +627,274 @@ async function analyzeAndSync(projectId) {
   assert.doesNotMatch(await $("body").getText(), /重试资料同步/);
 }
 
-async function searchRag(projectId) {
+async function exerciseDirectorPlan(projectId) {
+  await browser.url(`/write/${projectId}?chapter=1`);
+  await waitForBodyText("正文");
+  await tab("导演编排");
+  const plan = await $("section.a4n-visual-plan");
+  await plan.waitForDisplayed({ timeout: 60_000 });
+  assert.equal(await plan.$("header.a4n-visual-plan__header").isExisting(), false, "导演编排仍渲染冗余顶部 header");
+
+  const measureLayout = () => browser.execute(() => {
+    const visualPlan = document.querySelector(".a4n-visual-plan");
+    let scrollHost = visualPlan?.parentElement ?? null;
+    while (scrollHost && scrollHost !== document.body) {
+      const style = getComputedStyle(scrollHost);
+      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
+      scrollHost = scrollHost.parentElement;
+    }
+    return {
+      widthOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      scrollHost: scrollHost ? {
+        scrollHeight: scrollHost.scrollHeight,
+        clientHeight: scrollHost.clientHeight,
+        scrollTop: scrollHost.scrollTop,
+      } : null,
+    };
+  });
+
+  // The empty starter plan is intentionally editable: create one minimum
+  // scene/shot so every editor surface has a real target to operate on.
+  await clickButton("添加场景");
+  const sceneDraftDialog = await currentDialog();
+  assert.match(await sceneDraftDialog.getText(), /场景标题/);
+  await clickButton("保存", sceneDraftDialog);
+  await waitForNoDialog();
+  await waitForBodyText("新场景");
+  const outsideWorkspaceButtons = await browser.execute(() => {
+    const workspace = document.querySelector(".a4n-visual-plan__workspace");
+    return Array.from(document.querySelectorAll(".a4n-visual-plan button"))
+      .filter((button) => !workspace?.contains(button))
+      .map((button) => button.getAttribute("aria-label") || button.textContent?.trim() || "(unnamed)");
+  });
+  assert.deepEqual(outsideWorkspaceButtons, [], "导演编排主页面存在卡片外按钮");
+  const initialLayout = await measureLayout();
+  assert.equal(initialLayout.widthOverflow, 0, "桌面导演编排出现横向溢出");
+  assert.ok(initialLayout.scrollHost && initialLayout.scrollHost.scrollHeight > initialLayout.scrollHost.clientHeight, "桌面导演编排没有可滚动内容");
+  const scrolled = await browser.execute(() => {
+    const visualPlan = document.querySelector(".a4n-visual-plan");
+    let scrollHost = visualPlan?.parentElement ?? null;
+    while (scrollHost && scrollHost !== document.body) {
+      const style = getComputedStyle(scrollHost);
+      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
+      scrollHost = scrollHost.parentElement;
+    }
+    if (!scrollHost) return 0;
+    scrollHost.scrollTop = scrollHost.scrollHeight;
+    return scrollHost.scrollTop;
+  });
+  assert.ok(scrolled > 0, "桌面导演编排滚动容器无法向下滚动");
+  const stickyContext = await browser.execute(() => {
+    const context = document.querySelector(".a4n-visual-plan__context");
+    let scrollHost = document.querySelector(".a4n-visual-plan")?.parentElement ?? null;
+    while (scrollHost && scrollHost !== document.body) {
+      const style = getComputedStyle(scrollHost);
+      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
+      scrollHost = scrollHost.parentElement;
+    }
+    if (!context || !scrollHost) return null;
+    const contextRect = context.getBoundingClientRect();
+    const hostRect = scrollHost.getBoundingClientRect();
+    return {
+      position: getComputedStyle(context).position,
+      contextTop: contextRect.top,
+      hostTop: hostRect.top,
+      text: context.textContent ?? "",
+    };
+  });
+  assert.ok(stickyContext, "桌面导演编排没有当前场景/镜头上下文");
+  assert.equal(stickyContext.position, "sticky", "导演编排上下文没有启用粘性定位");
+  assert.ok(stickyContext.contextTop >= stickyContext.hostTop - 1 && stickyContext.contextTop <= stickyContext.hostTop + 12, "导演编排滚动后上下文没有停留在滚动区顶部");
+  assert.match(stickyContext.text, /新场景/);
+  assert.match(stickyContext.text, /新镜头/);
+  await browser.execute(() => {
+    const visualPlan = document.querySelector(".a4n-visual-plan");
+    let scrollHost = visualPlan?.parentElement ?? null;
+    while (scrollHost && scrollHost !== document.body) {
+      const style = getComputedStyle(scrollHost);
+      if (scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /(auto|scroll)/.test(style.overflowY)) break;
+      scrollHost = scrollHost.parentElement;
+    }
+    if (scrollHost) scrollHost.scrollTop = 0;
+  });
+
+  const openDialog = async (buttonMatcher, expectedText) => {
+    await clickButton(buttonMatcher);
+    const dialog = await currentDialog();
+    assert.match(await dialog.getText(), new RegExp(exact(expectedText)));
+    return dialog;
+  };
+  const openContextDialog = async (buttonMatcher, expectedText) => {
+    const context = await $(".a4n-visual-plan__context");
+    await (await buttonMatching("更多", context)).click();
+    return openDialog(buttonMatcher, expectedText);
+  };
+
+  await openContextDialog("画幅设置", "画幅宽度");
+  await browser.keys("Escape");
+  await waitForNoDialog();
+
+  const sceneLibrary = await openDialog("场景列表", "场景列表");
+  assert.match(await sceneLibrary.getText(), /新场景/);
+  assert.match(await sceneLibrary.getText(), /新镜头/);
+  await clickButton("新镜头", sceneLibrary);
+  await waitForNoDialog();
+
+  await clickButton("添加镜头");
+  let shotDraftDialog = await currentDialog();
+  assert.match(await shotDraftDialog.getText(), /镜头标题/);
+  await setField("镜头标题", "附加镜头", "input", shotDraftDialog);
+  await clickButton("保存", shotDraftDialog);
+  await waitForNoDialog();
+  await waitForBodyText("附加镜头");
+
+  await clickButton("添加镜头");
+  shotDraftDialog = await currentDialog();
+  await setField("镜头标题", "临时镜头", "input", shotDraftDialog);
+  await clickButton("取消", shotDraftDialog);
+  await browser.waitUntil(
+    async () => (await visibleElements('[role="dialog"]')).length >= 2,
+    { timeout: 30_000, interval: 100, timeoutMsg: "未保存镜头确认弹窗未出现" },
+  );
+  const discardDialog = await currentDialog();
+  const discardButtons = await visibleElements("button", discardDialog);
+  await discardButtons.at(-1).click();
+  await waitForNoDialog();
+  assert.doesNotMatch(await $("body").getText(), /临时镜头/);
+
+  const planSummary = await openDialog("方案摘要", "方案摘要");
+  assert.match(await planSummary.getText(), /总时长/);
+  await closeDialog();
+
+  await openDialog("编辑场景", "场景标题");
+  await closeDialog();
+
+  await openDialog("编辑镜头", "镜头标题");
+  await clickModalBackdrop();
+  await waitForNoDialog();
+
+  const keyframeLibrary = await openDialog("关键帧", "关键帧");
+  await clickButton("添加关键帧", keyframeLibrary);
+  let keyframeDialog = await currentDialogContainingField("关键帧");
+  assert.match(await keyframeDialog.getText(), /关键帧/);
+  await setField("关键帧", "中段动作", "input", keyframeDialog);
+  await clickButton("保存", keyframeDialog);
+  await waitForNoDialog();
+
+  const keyframeLibraryAfterCreate = await openDialog("关键帧", "关键帧");
+  assert.match(await keyframeLibraryAfterCreate.getText(), /中段动作/);
+  await clickButton("编辑关键帧", keyframeLibraryAfterCreate);
+  keyframeDialog = await currentDialogContainingField("关键帧");
+  await setField("关键帧", "中段动作-已编辑", "input", keyframeDialog);
+  await clickButton("保存", keyframeDialog);
+  await waitForNoDialog();
+
+  const keyframeLibraryAfterEdit = await openDialog("关键帧", "关键帧");
+  assert.match(await keyframeLibraryAfterEdit.getText(), /中段动作-已编辑/);
+  await clickButton("删除关键帧", keyframeLibraryAfterEdit);
+  await browser.waitUntil(
+    async () => (await visibleElements('[role="dialog"]')).length >= 2,
+    { timeout: 30_000, interval: 100, timeoutMsg: "删除关键帧确认弹窗未出现" },
+  );
+  const deleteKeyframeDialog = await currentDialog();
+  const deleteButtons = await visibleElements("button", deleteKeyframeDialog);
+  await deleteButtons.at(-1).click();
+  await browser.waitUntil(
+    async () => (await visibleElements('[role="dialog"]')).length === 1,
+    { timeout: 30_000, interval: 250, timeoutMsg: "删除关键帧确认弹窗未关闭" },
+  );
+  const keyframeLibraryAfterDelete = await currentDialog();
+  assert.match(await keyframeLibraryAfterDelete.getText(), /关键帧/);
+  assert.doesNotMatch(await keyframeLibraryAfterDelete.getText(), /中段动作-已编辑/);
+  await closeDialog();
+
+  await openContextDialog("查看原文", "原文只读参考");
+  await closeDialog();
+
+  await clickButton("实体库");
+  let dialog = await currentDialog();
+  assert.match(await dialog.getText(), /实体库/);
+  await clickButton("添加", dialog);
+  await browser.waitUntil(async () => {
+    try {
+      const candidate = await currentDialog(0);
+      await fieldByLabel("名称", "input", candidate);
+      return true;
+    } catch {
+      return false;
+    }
+  }, { timeout: 30_000, interval: 100, timeoutMsg: "添加实体弹窗未稳定出现" });
+  dialog = await currentDialog();
+  await setField("名称", "林岚", "input", dialog);
+  await setField("实体配置", "章节主角，追查时间异常。", "textarea", dialog);
+  await clickButton("保存", dialog);
+  await waitForNoDialog();
+  await waitForBodyText("林岚");
+
+  const frame = await $("div[aria-label='视觉编排画面']");
+  await (await frame.$("button[aria-label='林岚']")).click();
+  await waitForNoDialog();
+  const selectedEntity = await frame.$(".a4n-visual-plan__entity--selected");
+  assert.equal(await selectedEntity.isDisplayed(), true);
+  await (await frame.$("button[aria-label='林岚']")).click();
+  dialog = await currentDialog();
+  assert.match(await dialog.getText(), /实体状态/);
+  await browser.keys("Escape");
+  await waitForNoDialog();
+
+  const eventLibrary = await openDialog("事件配置", "事件配置");
+  await clickButton("实体事件", eventLibrary);
+  await browser.waitUntil(async () => {
+    try {
+      const dialog = await currentDialog(0);
+      await fieldByLabel("事件说明", "textarea", dialog);
+      return true;
+    } catch {
+      return false;
+    }
+  }, { timeout: 30_000, interval: 100, timeoutMsg: "添加事件弹窗未稳定出现" });
+  const eventDialog = await currentDialog();
+  await setField("事件说明", "林岚抬头确认钟声。", "textarea", eventDialog);
+  await clickButton("保存", eventDialog);
+  await waitForNoDialog();
+
+  await browser.saveScreenshot(`${process.env.A4N_BROWSER_E2E_ARTIFACT_DIR}/director-plan-desktop.png`);
+
+  await browser.setWindowSize(390, 900);
+  await browser.pause(250);
+  const mobileLayout = await measureLayout();
+  assert.equal(mobileLayout.widthOverflow, 0, "390px 导演编排出现横向溢出");
+  const mobileContext = await $(".a4n-visual-plan__context");
+  await mobileContext.waitForDisplayed({ timeout: 30_000 });
+  await buttonMatching("编辑镜头", mobileContext);
+  await buttonMatching("更多", mobileContext).then((button) => button.click());
+  await buttonMatching("实体库");
+  await browser.keys("Escape");
+  const mobileSceneLibrary = await openDialog("场景列表", "场景列表");
+  await clickButton("新场景", mobileSceneLibrary);
+  await waitForNoDialog();
+  await openDialog("方案摘要", "方案摘要");
+  await closeDialog();
+
+  const timeline = await $("section[aria-label='章节时间条']");
+  const playhead = await timeline.$("input[aria-label='播放头']");
+  const before = await playhead.getValue();
+  await (await buttonMatching("播放", mobileContext)).click();
+  await browser.pause(250);
+  assert.notEqual(await playhead.getValue(), before, "播放头没有推进");
+  await (await buttonMatching("暂停", mobileContext)).click();
+
+  await browser.saveScreenshot(`${process.env.A4N_BROWSER_E2E_ARTIFACT_DIR}/director-plan-mobile.png`);
+  for (const width of [1024, 1440]) {
+    await browser.setWindowSize(width, 900);
+    await browser.pause(150);
+    const layout = await measureLayout();
+    assert.equal(layout.widthOverflow, 0, `${width}px 导演编排出现横向溢出`);
+  }
+  await browser.setWindowSize(1440, 1000);
+}
+
+async function searchRag() {
   // 资料检索属于正文编辑上下文；分析页上的入口按产品规则保持禁用。
   await tab("正文");
   const ragButton = await buttonMatching("资料检索");
@@ -557,17 +916,46 @@ async function searchRag(projectId) {
     { timeout: 120_000, interval: 1_000, timeoutMsg: "资料检索未返回结果" },
   );
   assert.match(await $(panelSelector).getText(), /旧怀表|七分钟/);
-  assert.ok(projectId > 0);
 }
 
 async function optimizeWithDomainAgent(projectId) {
   await browser.url(`/write/${projectId}?chapter=1&agent=1`);
-  const console = await $("section[aria-label='领域 Agent 控制台']");
-  await console.waitForDisplayed({ timeout: 60_000 });
-  const input = await fieldByLabel("发送给领域 Agent 的消息", "textarea", console);
+  const consoleSelector = "section[aria-label='领域 Agent 控制台']";
+  let input = null;
+  await browser.waitUntil(async () => {
+    try {
+      const console = (await visibleElements(consoleSelector)).at(-1);
+      if (!console) return false;
+      input = await fieldByLabel("发送给领域 Agent 的消息", "textarea", console);
+      return true;
+    } catch {
+      return false;
+    }
+  }, { timeout: 60_000, interval: 250, timeoutMsg: "领域 Agent 输入框未稳定出现" });
+  assert.ok(input, "领域 Agent 输入框未找到");
   await input.setValue("请优化这一章的表达与节奏，保持剧情事实和人物设定不变。");
-  await (await console.$("button[aria-label='发送给领域 Agent']")).click();
-  await browser.waitUntil(async () => (await console.getText()).includes("正文优化子 Agent 已完成"), { timeout: 480_000, interval: 1_000, timeoutMsg: "正文优化子 Agent 未完成" });
+  await browser.waitUntil(async () => {
+    try {
+      const console = (await visibleElements(consoleSelector)).at(-1);
+      if (!console) return false;
+      const button = await buttonMatching("发送给领域 Agent", console, 0);
+      if ((await button.getAttribute("disabled")) != null) return false;
+      await button.click();
+      return true;
+    } catch {
+      return false;
+    }
+  }, { timeout: 30_000, interval: 250, timeoutMsg: "领域 Agent 发送按钮未稳定出现" });
+  await browser.waitUntil(async () => {
+    try {
+      const console = (await visibleElements(consoleSelector)).at(-1);
+      return Boolean(console && (await console.getText()).includes("正文优化子 Agent 已完成"));
+    } catch {
+      return false;
+    }
+  }, { timeout: 480_000, interval: 1_000, timeoutMsg: "正文优化子 Agent 未完成" });
+  const console = (await visibleElements(consoleSelector)).at(-1);
+  assert.ok(console, "领域 Agent 控制台未找到");
   assert.match(await console.getText(), /剧情事实和人物设定保持不变/);
 }
 
@@ -577,10 +965,6 @@ async function generateImage(projectId) {
   await waitForBodyText("导入章节", 60_000);
   await tab("项目图像");
   await browser.pause(400);
-  const imageTab = await firstVisibleContaining('[role="tab"]', "图像");
-  if (!imageTab || (await imageTab.getAttribute("aria-selected")) !== "true") {
-    await tab("项目图像");
-  }
   // 项目详情页的“已生成章节”Tab 也包含“生成”文本；把按钮限制在
   // 当前页面内容区域，避免误点 Tab 导致回到章节页。
   await clickButton("生成", await $(".a4n-page-container"));
@@ -592,16 +976,10 @@ async function generateImage(projectId) {
   assert.ok((await $$('img')).length > 0, "图库没有生成图片");
 }
 
-async function createDerivedProjects(projectId) {
+async function createDerivedProjects() {
   await browser.url("/");
   await waitForBodyText("创建项目");
-  const rows = await visibleElements('[role="button"]');
-  let projectRow = await firstVisibleContaining('[role="button"]', "未命名项目");
-  if (!projectRow) {
-    const all = await $("body").getText();
-    assert.match(all, /都市时间悬疑|未命名/);
-    projectRow = await firstVisibleContaining('[role="button"]', "项目");
-  }
+  let projectRow = await firstVisibleContaining('[role="button"]', "未命名小说项目");
   assert.ok(projectRow, "首页找不到文本项目行");
   const more = await projectRow.$("button[aria-label='更多操作']");
   await more.click();
@@ -616,11 +994,7 @@ async function createDerivedProjects(projectId) {
     let dialog = await currentDialog();
     await clickButton("下一步", dialog);
     dialog = await currentDialog();
-    await setField("章节范围", "1-1", "input", dialog).catch(async () => {
-      const inputs = await dialog.$$("input");
-      assert.ok(inputs.length > 0);
-      await inputs[inputs.length - 1].setValue("1-1");
-    });
+    await setField("章节范围", "1-1", "input", dialog);
     await clickButton("创建", dialog);
     await waitForRoute(route, 120_000);
     const match = (await browser.getUrl()).match(route);
@@ -628,8 +1002,7 @@ async function createDerivedProjects(projectId) {
     ids[label] = Number(match[1]);
     await browser.url("/");
     await waitForBodyText("创建项目");
-    const candidates = await visibleElements('[role="button"]');
-    projectRow = await firstVisibleContaining('[role="button"]', "未命名项目") ?? await firstVisibleContaining('[role="button"]', "项目");
+    projectRow = await firstVisibleContaining('[role="button"]', "未命名小说项目");
     assert.ok(projectRow, `${label} 创建后找不到根项目`);
     await (await projectRow.$("button[aria-label='更多操作']")).click();
   }
@@ -776,7 +1149,7 @@ async function exerciseMainAgent(projectId) {
 async function exportFamily() {
   await browser.url("/");
   await waitForBodyText("创建项目");
-  const row = await firstVisibleContaining('[role="button"]', "项目");
+  const row = await firstVisibleContaining('[role="button"]', "未命名小说项目");
   assert.ok(row);
   await (await row.$("button[aria-label='更多操作']")).click();
   await clickButton("导出项目族");
@@ -795,7 +1168,7 @@ describe("A4N Chromium 全项目最终验收", () => {
   it("从真实登录到项目族导出完成完整用户流程", async () => {
     assert.ok(username, "缺少 A4N_BROWSER_E2E_USERNAME");
     assert.ok(password, "缺少 A4N_BROWSER_E2E_PASSWORD");
-    assert.ok(providerUrl.endsWith("/v1"), "缺少 A4N_BROWSER_E2E_PROVIDER_URL（必须是 /v1）");
+    assert.ok(providerUrl?.endsWith("/v1"), "缺少 A4N_BROWSER_E2E_PROVIDER_URL（必须是 /v1）");
 
     await browser.url("/");
     const loginUser = await $("input[autocomplete='username']");
@@ -805,15 +1178,15 @@ describe("A4N Chromium 全项目最终验收", () => {
     await (await $("form button[type='submit']")).click();
     await waitForBodyMatch(/创建项目|Create project/, 120_000);
 
-    const languageTrigger = await buttonMatching(/界面语言|Interface language/).catch(() => null);
-    if (languageTrigger) {
-      await languageTrigger.click();
-      const chineseOption = await firstVisibleContaining('button[role="menuitem"]', "中文")
-        ?? await firstVisibleContaining('button[role="menuitem"]', "Chinese");
-      if (!chineseOption) throw new Error("语言菜单缺少简体中文选项");
-      await chineseOption.click();
-      await waitForBodyText("创建项目", 30_000);
-    }
+    const statusBarToggle = await buttonMatching(/展开快捷工具|Open quick tools/);
+    await statusBarToggle.click();
+    const languageTrigger = await buttonMatching(/界面语言|Interface language/);
+    await languageTrigger.click();
+    const chineseOption = await firstVisibleContaining('button[role="menuitem"]', "中文")
+      ?? await firstVisibleContaining('button[role="menuitem"]', "Chinese");
+    if (!chineseOption) throw new Error("语言菜单缺少简体中文选项");
+    await chineseOption.click();
+    await waitForBodyText("创建项目", 30_000);
     await waitForBodyText("创建项目", 60_000);
 
     // Web 端将系统模板的个人密钥保存在浏览器运行时设置中；后续正文、图片和派生流程
@@ -827,14 +1200,15 @@ describe("A4N Chromium 全项目最终验收", () => {
     await waitForBodyText("创建项目", 60_000);
     const projectId = await createProject();
     await enterBlueprint(projectId);
-    await createProfiles(projectId);
+    await createProfiles();
     await createOutlines();
-    await importChapter(projectId);
+    await importChapter();
     await analyzeAndSync(projectId);
-    await searchRag(projectId);
+    await exerciseDirectorPlan(projectId);
+    await searchRag();
     await optimizeWithDomainAgent(projectId);
     await generateImage(projectId);
-    const derived = await createDerivedProjects(projectId);
+    const derived = await createDerivedProjects();
     await exerciseCanvas(derived["创建视频项目"]);
     await exerciseMainAgent(projectId);
     await exportFamily();

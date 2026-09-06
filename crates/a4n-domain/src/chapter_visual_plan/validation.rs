@@ -17,15 +17,6 @@ impl ChapterVisualPlanV1 {
         validate_plan(self)
     }
 
-    /// 返回稳定的、按合同字段序列化的 JSON；数据库和 API 回读都应基于此结果。
-    pub fn canonical_json(&self) -> Result<serde_json::Value, ChapterVisualPlanValidationError> {
-        self.validate()?;
-        serde_json::to_value(self).map_err(|error| ChapterVisualPlanValidationError {
-            path: "$".into(),
-            message: format!("序列化失败: {error}"),
-        })
-    }
-
     /// 校验当前方案恰好处理了本次正文的全部稳定 source span。
     pub fn validate_source_span_coverage(
         &self,
@@ -618,7 +609,10 @@ fn validate_dispositions(
             SourceSpanDispositionKindV1::Omit => {}
             SourceSpanDispositionKindV1::Adapt => {
                 let Some(unit_id) = disposition.narrative_unit_id.as_deref() else {
-                    continue;
+                    return invalid(
+                        format!("{path}.narrative_unit_id"),
+                        "adapt source span 缺少叙事单元",
+                    );
                 };
                 require_known_id(unit_id, unit_ids, &format!("{path}.narrative_unit_id"))?;
                 for shot_id in &disposition.shot_ids {
@@ -635,7 +629,7 @@ fn validate_dispositions(
             for source_span_id in &shot.source_span_ids {
                 let Some(disposition) = dispositions_by_source_span.get(source_span_id.as_str())
                 else {
-                    continue;
+                    return invalid("source_dispositions", "镜头引用了未登记的 source span");
                 };
                 if disposition.disposition != SourceSpanDispositionKindV1::Adapt
                     || disposition.narrative_unit_id.as_deref() != Some(unit.id.as_str())
@@ -1073,7 +1067,6 @@ mod tests {
             relations: vec![],
         };
         ChapterVisualPlanV1 {
-            schema_version: ChapterVisualPlanSchemaVersion::V1,
             frame: VisualFrameV1 {
                 width: 1920,
                 height: 1080,

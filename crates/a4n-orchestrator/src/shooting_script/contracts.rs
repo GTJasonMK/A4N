@@ -3,13 +3,13 @@ use a4n_db::{
     chapter_visual_plan::ParsedChapterVisualPlan, project::ResolvedChapterSource,
     shooting_script::ParsedChapterShootingScript,
 };
+use a4n_domain::chapter_visual_plan::ChapterVisualPlanV1;
 use a4n_domain::shooting_script::{
     ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
     ShootingTransitionContractV1,
 };
 use serde::{Deserialize, Serialize};
 
-pub(super) const CHAPTER_SCREENPLAY_SKELETON_PROMPT: &str = "chapter_screenplay_skeleton";
 pub(super) const CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT: &str = "chapter_screenplay_layout_unit";
 pub(super) const CHAPTER_SCREENPLAY_UNIT_ADAPTATION_PROMPT: &str =
     "chapter_screenplay_unit_adaptation";
@@ -159,22 +159,80 @@ pub(super) struct PreparedChapterShootingScriptRequest {
     pub(super) input_fingerprint_sha256: String,
     pub(super) existing: Option<ParsedChapterShootingScript>,
     pub(super) visual_plan: ParsedChapterVisualPlan,
+    pub(super) visual_plan_projection: ChapterVisualPlanV1,
     pub(super) layout_unit_system_prompt: String,
     pub(super) unit_adaptation_system_prompt: String,
     pub(super) design_unit_system_prompt: String,
 }
 
 #[cfg(test)]
-pub(super) fn visual_plan_fixture(
-    source: &ResolvedChapterSource,
-    source_spans: &[SourceSpan],
-) -> ParsedChapterVisualPlan {
+pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapterVisualPlan {
     use a4n_domain::chapter_visual_plan::{
-        CHAPTER_VISUAL_PLAN_V1, ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus,
+        CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanAuthoringMode, ChapterVisualPlanSchemaVersion,
+        ChapterVisualPlanStatus, VisualCameraStateV1, VisualFrameV2, VisualKeyframeV2,
+        VisualSceneV2, VisualShotV2,
     };
+    use a4n_domain::shooting_script::{ShootingCoverageV1, ShootingEditingModeV1};
 
-    let plan = crate::chapter_visual_plan::starter_plan(source, source_spans)
-        .expect("visual plan fixture");
+    let keyframe = |id: &str, at_ms: u64| VisualKeyframeV2 {
+        id: id.into(),
+        at_ms,
+        label: id.into(),
+        interpolation_to_next: a4n_domain::chapter_visual_plan::VisualInterpolationV1::Hold,
+        camera: VisualCameraStateV1 {
+            center_x: 0.5,
+            center_y: 0.5,
+            zoom: 1.0,
+            rotation_degrees: 0.0,
+            focus_entity_id: None,
+            framing_note: None,
+        },
+        entity_states: Vec::new(),
+        relations: Vec::new(),
+    };
+    let shot = |id: &str| VisualShotV2 {
+        id: id.into(),
+        title: id.into(),
+        duration_ms: 1_000,
+        narrative_purpose: "推进".into(),
+        coverage: ShootingCoverageV1::MustShow,
+        shot_size: None,
+        camera_angle: None,
+        camera_height: None,
+        lens_intent: None,
+        composition: None,
+        keyframes: vec![
+            keyframe(&format!("{id}-start"), 0),
+            keyframe(&format!("{id}-end"), 1_000),
+        ],
+        entity_events: Vec::new(),
+        camera_events: Vec::new(),
+        sound_events: Vec::new(),
+        technique_events: Vec::new(),
+        continuity_notes: Vec::new(),
+        transition_to_next: None,
+    };
+    let plan = a4n_domain::chapter_visual_plan::ChapterVisualPlanV2 {
+        schema_version: ChapterVisualPlanSchemaVersion::V2,
+        frame: VisualFrameV2 {
+            width: 1920,
+            height: 1080,
+            background: None,
+        },
+        entities: Vec::new(),
+        scenes: vec![VisualSceneV2 {
+            id: "scene-1".into(),
+            title: "场景".into(),
+            narrative_purpose: "推进".into(),
+            editing_mode: ShootingEditingModeV1::Continuity,
+            intercut_group_id: None,
+            location: None,
+            time_of_day: None,
+            participant_entity_ids: Vec::new(),
+            focal_entity_id: None,
+            shots: vec![shot("shot-1"), shot("shot-2")],
+        }],
+    };
     let plan_sha256 =
         a4n_db::generation::canonical_json_sha256(&plan).expect("visual plan fixture sha256");
     let now = chrono::Utc::now().naive_utc();
@@ -187,7 +245,7 @@ pub(super) fn visual_plan_fixture(
             source_snapshot_chapter_id: source.source_snapshot_chapter_id,
             source_revision_key: source.source_revision_key.clone(),
             source_content_sha256: source.content_sha256.clone(),
-            contract_version: CHAPTER_VISUAL_PLAN_V1.into(),
+            contract_version: CHAPTER_VISUAL_PLAN_V2.into(),
             plan_version: 1,
             revision: 1,
             status: ChapterVisualPlanStatus::Confirmed.as_str().into(),

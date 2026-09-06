@@ -95,14 +95,19 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) =
   }, [actionItems.length]);
 
   useEffect(() => {
+    if (!isOpen) return undefined;
     const handlePointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        closeMenu();
+        return;
+      }
       if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return;
       closeMenu();
     };
     document.addEventListener('pointerdown', handlePointerDown, true);
     return () => document.removeEventListener('pointerdown', handlePointerDown, true);
-  }, [closeMenu]);
+  }, [closeMenu, isOpen]);
 
   useLayoutEffect(() => {
     if (isOpen) updateMenuPosition();

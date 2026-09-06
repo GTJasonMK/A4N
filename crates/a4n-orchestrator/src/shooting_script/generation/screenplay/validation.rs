@@ -45,8 +45,7 @@ pub(super) fn validate_skeleton(
             )));
         }
         let planned = prepared
-            .visual_plan
-            .plan
+            .visual_plan_projection
             .narrative_units
             .get(offset)
             .ok_or_else(|| AppError::InvalidArgument("视觉编排叙事单元缺失".into()))?;

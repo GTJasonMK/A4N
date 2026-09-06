@@ -433,9 +433,7 @@ class CliContractRunnerTest(unittest.TestCase):
             "rag_ingest_all",
             "rag_prepare_enhanced_search",
             "rag_enhanced_search",
-            "generate_chapter_visual_plan_draft",
-            "propose_chapter_visual_plan_revision",
-            "apply_chapter_visual_plan_proposal",
+            "save_chapter_visual_plan_draft",
             "confirm_chapter_visual_plan",
             "get_chapter_visual_plan",
             "generate_chapter_shooting_script",
@@ -488,8 +486,6 @@ class CliContractRunnerTest(unittest.TestCase):
             "start_outline_generation",
             "start_chapter_generation",
             "generate_chapter_analysis",
-            "generate_chapter_visual_plan_draft",
-            "propose_chapter_visual_plan_revision",
             "start_video_generation",
             "sync_character_from_chapters",
             "sync_all_character_profiles",
@@ -551,24 +547,16 @@ class CliContractRunnerTest(unittest.TestCase):
             calls.append(command)
             payloads.append((command, payload))
             destructive_calls.append((command, allow_destructive))
-            if command == "generate_chapter_visual_plan_draft":
+            if command == "save_chapter_visual_plan_draft":
                 data = {
                     "record": {"id": 25, "revision": 1},
                     "plan": {},
                 }
-            elif command == "propose_chapter_visual_plan_revision":
-                data = {
-                    "record_id": 25,
-                    "base_revision": 1,
-                    "proposal": {},
-                }
             elif command in task_commands:
                 task_counter += 1
                 data = {"task_id": f"00000000-0000-4000-8000-{task_counter:012d}"}
-            elif command == "apply_chapter_visual_plan_proposal":
-                data = {"record": {"id": 25, "revision": 2}, "plan": {}}
             elif command == "confirm_chapter_visual_plan":
-                data = {"visual_plan": {"record": {"id": 25, "revision": 2}, "plan": {}}, "invalidated_project_ids": []}
+                data = {"visual_plan": {"record": {"id": 25, "revision": 1}, "plan": {}}, "invalidated_project_ids": []}
             elif command == "start_video_generation":
                 task_counter += 1
                 data = {"task_id": f"00000000-0000-4000-8000-{task_counter:012d}"}
@@ -626,6 +614,7 @@ class CliContractRunnerTest(unittest.TestCase):
         self.assertEqual(len(calls), len(records) - sum(record["command"] == "task watch" for record in records))
         self.assertEqual(records[0]["command"], "create_project")
         self.assertIn("save_canvas_graph", calls)
+        self.assertIn("save_chapter_visual_plan_draft", calls)
         self.assertIn("confirm_chapter_visual_plan", calls)
         self.assertIn("apply_source_sync_decisions", calls)
         coverage = fixture_path_coverage(records)
@@ -795,7 +784,6 @@ class CliContractRunnerTest(unittest.TestCase):
             ("foreshadowing_id", "get_foreshadowing", "foreshadowing_id"),
             ("theme_id", "get_theme", "theme_id"),
             ("record_id", "get_chapter_visual_plan", "visual_plan_id"),
-            ("base_revision", "apply_chapter_visual_plan_proposal", "visual_plan_revision"),
             ("sync_run_id", "apply_source_sync_decisions", "sync_run_id"),
             ("invite_id", "list_project_invites", "invite_id"),
             ("config_id", "check_llm_config", "llm_config_id"),

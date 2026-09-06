@@ -32,6 +32,7 @@ pub const MAIN_AGENT_CAPABILITY: &str = "main";
 pub const GENERAL_AGENT_CAPABILITY: &str = "general";
 pub const CONTENT_OPTIMIZATION_AGENT_CAPABILITY: &str = "content_optimization";
 pub const CANVAS_AGENT_CAPABILITY: &str = "canvas";
+pub const DIRECTOR_AGENT_CAPABILITY: &str = "director";
 pub const MAIN_AGENT_TOOLS: &[&str] = &[
     "search_agent_tools",
     "describe_agent_tool",
@@ -65,6 +66,21 @@ pub const CANVAS_AGENT_TOOLS: &[&str] = &[
     "run_canvas_node",
     "get_workflow_run_detail",
 ];
+pub const DIRECTOR_AGENT_TOOLS: &[&str] = &[
+    "search_agent_tools",
+    "describe_agent_tool",
+    "get_project",
+    "list_chapters",
+    "get_blueprint",
+    "list_chapter_outlines",
+    "list_chapter_scenes",
+    "get_chapter_visual_plan",
+    "list_profiles",
+    "list_scene_profiles",
+    "list_object_profiles",
+    "list_foreshadowing",
+    "save_chapter_visual_plan_draft",
+];
 
 /// Stable identity for a resource-bound sub-agent thread.
 pub fn canonical_subagent_binding_key(
@@ -83,7 +99,7 @@ pub fn canonical_subagent_binding_key(
 pub fn capability_has_restricted_tool_catalog(capability: &str) -> bool {
     matches!(
         capability.trim(),
-        CONTENT_OPTIMIZATION_AGENT_CAPABILITY | CANVAS_AGENT_CAPABILITY
+        CONTENT_OPTIMIZATION_AGENT_CAPABILITY | CANVAS_AGENT_CAPABILITY | DIRECTOR_AGENT_CAPABILITY
     )
 }
 
@@ -93,6 +109,7 @@ pub fn agent_tools_for_capability(capability: &str) -> &'static [&'static str] {
         GENERAL_AGENT_CAPABILITY => MAIN_AGENT_TOOLS,
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY => CONTENT_OPTIMIZATION_AGENT_TOOLS,
         CANVAS_AGENT_CAPABILITY => CANVAS_AGENT_TOOLS,
+        DIRECTOR_AGENT_CAPABILITY => DIRECTOR_AGENT_TOOLS,
         // A manually-created profile may carry a user-defined capability
         // label. Keep it useful by granting only the generic discovery/read
         // foundation; domain adapters remain explicitly registered.
@@ -1006,9 +1023,9 @@ pub struct AgentMessageAccepted {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, GENERAL_AGENT_CAPABILITY,
-        LocateWritingTargetInput, MAIN_AGENT_CAPABILITY, agent_tools_for_capability,
-        synthetic_agent_tool_descriptor,
+        CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
+        GENERAL_AGENT_CAPABILITY, LocateWritingTargetInput, MAIN_AGENT_CAPABILITY,
+        agent_tools_for_capability, synthetic_agent_tool_descriptor,
     };
     use crate::command_manifest::command_descriptor;
 
@@ -1019,6 +1036,7 @@ mod tests {
             GENERAL_AGENT_CAPABILITY,
             CONTENT_OPTIMIZATION_AGENT_CAPABILITY,
             CANVAS_AGENT_CAPABILITY,
+            DIRECTOR_AGENT_CAPABILITY,
         ] {
             let tools = agent_tools_for_capability(capability);
             assert!(!tools.is_empty(), "{capability} must expose tools");

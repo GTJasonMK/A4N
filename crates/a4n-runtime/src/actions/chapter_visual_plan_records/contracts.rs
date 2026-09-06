@@ -1,13 +1,11 @@
 use a4n_api_contract::chapter_visual_plan::{
-    ChapterVisualPlanRecordSummary, ChapterVisualPlanSourceSpanView, ChapterVisualPlanSourceView,
+    ChapterVisualPlanRecordSummary, ChapterVisualPlanSourceView,
 };
 use a4n_db::chapter_visual_plan::ParsedChapterVisualPlan;
 
 pub use a4n_api_contract::chapter_visual_plan::{
-    ApplyChapterVisualPlanProposalInput, ChapterVisualPlanProposalView,
     ChapterVisualPlanRecordInput, ChapterVisualPlanSetView, ChapterVisualPlanSourceInput,
-    ChapterVisualPlanView, ConfirmedChapterVisualPlanView, GenerateChapterVisualPlanDraftInput,
-    ProposeChapterVisualPlanRevisionInput, SaveChapterVisualPlanDraftInput,
+    ChapterVisualPlanView, ConfirmedChapterVisualPlanView, SaveChapterVisualPlanDraftInput,
 };
 
 pub(super) fn plan_view(value: ParsedChapterVisualPlan) -> ChapterVisualPlanView {
@@ -35,15 +33,6 @@ pub(super) fn plan_set_view(
             title: value.source.title,
             content: value.source.content,
             content_sha256: value.source.content_sha256,
-            source_spans: value
-                .source_spans
-                .into_iter()
-                .map(|span| ChapterVisualPlanSourceSpanView {
-                    id: span.id,
-                    text: span.text,
-                    paragraph_index: span.paragraph_index,
-                })
-                .collect(),
         },
         starter_plan: value.starter_plan,
         draft: value.plans.draft.map(plan_view),

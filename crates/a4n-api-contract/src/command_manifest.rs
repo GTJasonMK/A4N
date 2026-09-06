@@ -334,7 +334,6 @@ command_specs! {
     "add_profile_attribute" => args_add_profile_attribute, result_unit, "profile";
     "add_video_config" => args_add_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "apply_assembly_postprocess_edit" => args_apply_assembly_postprocess_edit, result_generated_video, "video", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
-    "apply_chapter_visual_plan_proposal" => args_apply_chapter_visual_plan_proposal, result_chapter_visual_plan, "chapter", references(REFERENCES_PROJECT_IDS);
     "apply_implicit_update_decision" => args_apply_implicit_update_decision, result_apply_implicit_update_decision, "profile";
     "apply_optimization_patches" => args_apply_optimization_patches, result_apply_optimization_patches, "optimize", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "apply_source_sync_decisions" => args_apply_source_sync, result_source_sync_plan, "source-sync", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -429,7 +428,6 @@ command_specs! {
     "generate_chapter_analysis" => args_chapter_analysis_task, result_chapter_analysis_mutation, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "generate_chapter_scene" => args_generate_chapter_scene, result_chapter_scene, "chapter", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "generate_chapter_shooting_script" => args_generate_chapter_shooting_script, result_generate_chapter_shooting_script, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
-    "generate_chapter_visual_plan_draft" => args_generate_chapter_visual_plan_draft, result_chapter_visual_plan, "chapter", execution("task"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
     "generate_next_chapter_shooting_script_unit" => args_generate_chapter_shooting_script, result_generate_next_chapter_shooting_script_unit, "chapter", execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "generate_object_profile_image_prompt" => args_generate_object_profile_image_prompt, result_object_profile_image_prompt, "profile", context(NO_CONTEXT), effect(READ_EFFECT);
     "generate_portrait_prompt" => args_generate_portrait_prompt, result_string, "prompt", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
@@ -557,7 +555,6 @@ command_specs! {
     "preview_chapter_prompt" => args_preview_chapter_prompt, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_chapter_scene_request" => args_preview_chapter_scene_request, result_model_request_preview, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_chapter_video_request" => args_preview_chapter_video_request, result_model_request_preview, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::WithoutSecrets);
-    "preview_chapter_visual_plan_request" => args_generate_chapter_visual_plan_draft_plain, result_model_request_preview, "chapter", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_check_character_conflict_request" => args_preview_check_character_conflict, result_model_request_preview, "profile", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_check_implicit_update_request" => args_check_implicit_update, result_model_request_preview, "profile", effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
     "preview_continue_part_outlines_request" => args_continue_part_outlines, result_model_request_preview, "outline", context(NO_CONTEXT), effect(READ_EFFECT), runtime(RuntimeConfigPolicy::WithoutSecrets);
@@ -612,7 +609,6 @@ command_specs! {
     "prompt_validate_variables" => args_prompt_validate_variables, result_prompt_validate_variables, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_version_diff" => args_prompt_version_diff, result_string, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
     "prompt_version_history" => args_prompt_name, result_prompt_version_history, "prompt", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_PROMPT);
-    "propose_chapter_visual_plan_revision" => args_propose_chapter_visual_plan_revision, result_chapter_visual_plan_proposal, "chapter", execution("task"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full);
     "push_assembled_chapter_video" => args_push_assembled_chapter_video, result_assembly_push, "video", context(PROJECT_CHAPTER_CONTEXT), capabilities(CAPABILITIES_VIDEO);
     "rag_enhanced_search" => args_rag_enhanced_search, result_rag_enhanced_search, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
     "rag_enhanced_search_with_vectors" => args_rag_enhanced_search_with_vectors, result_rag_enhanced_search, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
@@ -1435,26 +1431,6 @@ fn args_save_chapter_visual_plan_draft() -> Value {
 
 fn args_chapter_visual_plan_record() -> Value {
     strict_typed_input_schema::<crate::chapter_visual_plan::ChapterVisualPlanRecordInput>()
-}
-
-fn args_generate_chapter_visual_plan_draft() -> Value {
-    optional_task_runtime_typed_input_schema::<
-        crate::chapter_visual_plan::GenerateChapterVisualPlanDraftInput,
-    >()
-}
-
-fn args_generate_chapter_visual_plan_draft_plain() -> Value {
-    strict_typed_input_schema::<crate::chapter_visual_plan::GenerateChapterVisualPlanDraftInput>()
-}
-
-fn args_propose_chapter_visual_plan_revision() -> Value {
-    optional_task_runtime_typed_input_schema::<
-        crate::chapter_visual_plan::ProposeChapterVisualPlanRevisionInput,
-    >()
-}
-
-fn args_apply_chapter_visual_plan_proposal() -> Value {
-    strict_typed_input_schema::<crate::chapter_visual_plan::ApplyChapterVisualPlanProposalInput>()
 }
 
 fn args_export_batch_data() -> Value {
@@ -2715,10 +2691,6 @@ fn result_chapter_visual_plan_set() -> Value {
 
 fn result_confirmed_chapter_visual_plan() -> Value {
     typed_schema::<crate::chapter_visual_plan::ConfirmedChapterVisualPlanView>()
-}
-
-fn result_chapter_visual_plan_proposal() -> Value {
-    typed_schema::<crate::chapter_visual_plan::ChapterVisualPlanProposalView>()
 }
 
 fn result_export_batch_data() -> Value {

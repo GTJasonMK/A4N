@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef } from "react";
+import React, { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, CircleDot, Settings } from "lucide-react";
 import type { ChapterSummary } from "../../api/chapter";
 import type { ChapterOutline } from "../../api/outline";
@@ -11,6 +11,7 @@ import {
 import { BookButton } from "../../components/ui/BookButton";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { formatNumber, useI18n, type MessageKey } from "../../i18n";
+import { getScrollRailCue, scrollRailItemIntoView } from "../../utils/scrollRail";
 
 const AnalysisSubTab = lazy(() =>
   import("./AnalysisSubTab").then((module) => ({
@@ -123,6 +124,10 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
 }) => {
   const { locale, t } = useI18n();
   const editorRef = useRef<HTMLTextAreaElement | null>(null);
+  const tabListRef = useRef<HTMLElement | null>(null);
+  const activeTabRef = useRef<HTMLButtonElement | null>(null);
+  const [tabRailHasBefore, setTabRailHasBefore] = useState(false);
+  const [tabRailHasMore, setTabRailHasMore] = useState(false);
   const shouldAutoScrollRef = useRef(true);
   const lastScrollTopRef = useRef(0);
   const derivedSyncIncomplete = Boolean(
@@ -177,6 +182,33 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
 
     editor.scrollTop = lastScrollTopRef.current;
   }, [autoScrollEditorContent, bottomTab, editorContent]);
+
+  useLayoutEffect(() => {
+    scrollRailItemIntoView(tabListRef.current, activeTabRef.current, "smooth");
+  }, [activeNumber, bottomTab, locale]);
+
+  useLayoutEffect(() => {
+    const rail = tabListRef.current;
+    if (!rail) return;
+    const updateCue = () => {
+      const cue = getScrollRailCue(rail);
+      setTabRailHasBefore(cue.hasBefore);
+      setTabRailHasMore(cue.hasMore);
+    };
+    const frame = window.requestAnimationFrame(updateCue);
+    rail.addEventListener("scroll", updateCue, { passive: true });
+    window.addEventListener("resize", updateCue);
+    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateCue);
+    resizeObserver?.observe(rail);
+    document.fonts?.addEventListener("loadingdone", updateCue);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      rail.removeEventListener("scroll", updateCue);
+      window.removeEventListener("resize", updateCue);
+      resizeObserver?.disconnect();
+      document.fonts?.removeEventListener("loadingdone", updateCue);
+    };
+  }, [activeNumber, locale]);
 
   return (
     <section aria-label={t("writing.editArea")} className="a4n-writing-workspace flex min-h-0 min-w-0 flex-col overflow-hidden p-2.5 sm:p-3">
@@ -283,25 +315,36 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
             </div>
           ) : null}
 
-          <nav
-            className="a4n-writing-tabs tab-bar flex min-w-0 shrink-0 border-b border-book-border/80"
-            role="tablist"
-            aria-label={t("writing.chapterWorkspace")}
+          <div
+            className="a4n-tab-rail-wrap shrink-0"
+            data-has-before={tabRailHasBefore ? "true" : undefined}
+            data-has-more={tabRailHasMore ? "true" : undefined}
           >
-            {TABS.map(([id, labelKey]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={bottomTab === id}
-                onClick={() => onBottomTabChange(id)}
-                data-active={bottomTab === id ? "1" : undefined}
-                className="pyqt-tab"
-              >
-                {t(labelKey)}
-              </button>
-            ))}
-          </nav>
+            <nav
+              ref={tabListRef}
+              className="a4n-writing-tabs tab-bar a4n-mobile-scroll-rail flex min-w-0 shrink-0 border-b border-book-border/80"
+              role="tablist"
+              aria-label={t("writing.chapterWorkspace")}
+              aria-describedby="writing-tab-scroll-hint"
+            >
+              {TABS.map(([id, labelKey]) => (
+                <button
+                  ref={bottomTab === id ? activeTabRef : undefined}
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={bottomTab === id}
+                  onClick={() => onBottomTabChange(id)}
+                  onFocus={(event) => scrollRailItemIntoView(tabListRef.current, event.currentTarget, "instant")}
+                  data-active={bottomTab === id ? "1" : undefined}
+                  className="pyqt-tab"
+                >
+                  {t(labelKey)}
+                </button>
+              ))}
+            </nav>
+            <span id="writing-tab-scroll-hint" className="sr-only">{t("novel.scrollTabsHint")}</span>
+          </div>
 
           <div
             key={bottomTab}

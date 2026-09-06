@@ -12,7 +12,6 @@ export const HOST_API_COMMANDS = [
   "add_profile_attribute",
   "add_video_config",
   "apply_assembly_postprocess_edit",
-  "apply_chapter_visual_plan_proposal",
   "apply_implicit_update_decision",
   "apply_optimization_patches",
   "apply_source_sync_decisions",
@@ -107,7 +106,6 @@ export const HOST_API_COMMANDS = [
   "generate_chapter_analysis",
   "generate_chapter_scene",
   "generate_chapter_shooting_script",
-  "generate_chapter_visual_plan_draft",
   "generate_next_chapter_shooting_script_unit",
   "generate_object_profile_image_prompt",
   "generate_portrait_prompt",
@@ -235,7 +233,6 @@ export const HOST_API_COMMANDS = [
   "preview_chapter_prompt",
   "preview_chapter_scene_request",
   "preview_chapter_video_request",
-  "preview_chapter_visual_plan_request",
   "preview_check_character_conflict_request",
   "preview_check_implicit_update_request",
   "preview_continue_part_outlines_request",
@@ -290,7 +287,6 @@ export const HOST_API_COMMANDS = [
   "prompt_validate_variables",
   "prompt_version_diff",
   "prompt_version_history",
-  "propose_chapter_visual_plan_revision",
   "push_assembled_chapter_video",
   "rag_enhanced_search",
   "rag_enhanced_search_with_vectors",
@@ -443,7 +439,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "generate_chapter_analysis": "full",
   "generate_chapter_scene": "full",
   "generate_chapter_shooting_script": "full",
-  "generate_chapter_visual_plan_draft": "full",
   "generate_next_chapter_shooting_script_unit": "full",
   "generate_portrait_prompt": "full",
   "import_chapter": "full",
@@ -460,7 +455,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_chapter_prompt": "without_secrets",
   "preview_chapter_scene_request": "without_secrets",
   "preview_chapter_video_request": "without_secrets",
-  "preview_chapter_visual_plan_request": "without_secrets",
   "preview_check_character_conflict_request": "without_secrets",
   "preview_check_implicit_update_request": "without_secrets",
   "preview_continue_part_outlines_request": "without_secrets",
@@ -499,7 +493,6 @@ export const RUNTIME_CONFIG_POLICIES: Readonly<Record<string, RuntimeConfigPolic
   "preview_test_embedding_config_request": "without_secrets",
   "preview_test_image_config_request": "without_secrets",
   "preview_test_llm_config_request": "without_secrets",
-  "propose_chapter_visual_plan_revision": "full",
   "rag_enhanced_search": "full",
   "rag_enhanced_search_with_vectors": "full",
   "rag_ingest_all": "full",
@@ -4373,11 +4366,11 @@ export interface ForeshadowingWriteResult {
   warnings: string[];
 }
 
-export type ChapterVisualPlanSchemaVersion = "chapter_visual_plan_v1";
+export type ChapterVisualPlanSchemaVersion = "chapter_visual_plan_v2";
 
 export type ChapterVisualPlanStatus = "draft" | "confirmed" | "superseded" | "stale";
 
-export type ChapterVisualPlanAuthoringMode = "automatic" | "collaborative" | "manual";
+export type ChapterVisualPlanAuthoringMode = "collaborative" | "manual";
 
 export type VisualEntityKindV1 = "character" | "object" | "environment" | "text" | "effect";
 
@@ -4396,24 +4389,6 @@ export type VisualCameraEventKindV1 = "cut" | "pan" | "tilt" | "push_in" | "pull
 export type VisualSoundEventKindV1 = "dialogue" | "voice_over" | "narration" | "ambient" | "effect" | "music" | "silence";
 
 export type VisualTechniqueKindV1 = "montage" | "split_screen" | "slow_motion" | "fast_motion" | "freeze_frame" | "flashback" | "dream" | "subjective" | "symbolic" | "silhouette" | "reflection" | "overlay" | "text_on_screen" | "lighting" | "color_grade" | "match_action" | "offscreen" | "custom";
-
-export type SourceSpanDispositionKindV1 = "adapt" | "omit";
-
-export interface VisualFrameV1 {
-  background: string | null;
-  duration_ms: number;
-  height: number;
-  width: number;
-}
-
-export interface VisualEntityV1 {
-  description: string;
-  id: string;
-  kind: VisualEntityKindV1;
-  label: string;
-  source_span_ids: string[];
-  user_addition_ids: string[];
-}
 
 export interface VisualUserAdditionV1 {
   description: string;
@@ -4521,76 +4496,115 @@ export interface VisualTechniqueEventV1 {
   user_addition_ids: string[];
 }
 
-export interface VisualShotPlanV1 {
+export interface VisualFrameV2 {
+  background: string | null;
+  height: number;
+  width: number;
+}
+
+export interface VisualEntityV2 {
+  description: string;
+  id: string;
+  kind: VisualEntityKindV1;
+  label: string;
+}
+
+export interface VisualKeyframeV2 {
+  at_ms: number;
+  camera: VisualCameraStateV1;
+  entity_states: VisualEntityStateV1[];
+  id: string;
+  interpolation_to_next: VisualInterpolationV1;
+  label: string;
+  relations: VisualRelationV1[];
+}
+
+export interface VisualEntityEventV2 {
+  description: string;
+  end_ms: number;
+  entity_id: string;
+  id: string;
+  kind: VisualEntityEventKindV1;
+  parameters: Record<string, string>;
+  start_ms: number;
+  target_entity_id: string | null;
+}
+
+export interface VisualCameraEventV2 {
+  description: string;
+  end_ms: number;
+  id: string;
+  kind: VisualCameraEventKindV1;
+  parameters: Record<string, string>;
+  start_ms: number;
+  target_entity_id: string | null;
+}
+
+export interface VisualSoundEventV2 {
+  content: string;
+  end_ms: number;
+  id: string;
+  kind: VisualSoundEventKindV1;
+  parameters: Record<string, string>;
+  speaker_entity_id: string | null;
+  start_ms: number;
+}
+
+export interface VisualTechniqueEventV2 {
+  description: string;
+  end_ms: number;
+  id: string;
+  kind: VisualTechniqueKindV1;
+  parameters: Record<string, string>;
+  start_ms: number;
+}
+
+export interface VisualTransitionV2 {
+  duration_ms: number;
+  kind: ShootingTransitionTypeV1;
+  notes: string | null;
+  preserved_action: string | null;
+  preserved_sound: string | null;
+}
+
+export interface VisualShotV2 {
   camera_angle: ShootingCameraAngleV1 | null;
-  camera_events: VisualCameraEventV1[];
+  camera_events: VisualCameraEventV2[];
   camera_height: ShootingCameraHeightV1 | null;
   composition: string | null;
   continuity_notes: string[];
   coverage: ShootingCoverageV1;
-  end_ms: number;
-  entity_events: VisualEntityEventV1[];
+  duration_ms: number;
+  entity_events: VisualEntityEventV2[];
   id: string;
-  keyframes: VisualKeyframeV1[];
+  keyframes: VisualKeyframeV2[];
   lens_intent: string | null;
   narrative_purpose: string;
   shot_size: ShootingShotSizeV1 | null;
-  sound_events: VisualSoundEventV1[];
-  source_span_ids: string[];
-  start_ms: number;
-  technique_events: VisualTechniqueEventV1[];
+  sound_events: VisualSoundEventV2[];
+  technique_events: VisualTechniqueEventV2[];
   title: string;
-  user_addition_ids: string[];
+  transition_to_next: VisualTransitionV2 | null;
 }
 
-export interface VisualNarrativeUnitV1 {
+export interface VisualSceneV2 {
   editing_mode: ShootingEditingModeV1;
-  end_ms: number;
   focal_entity_id: string | null;
   id: string;
   intercut_group_id: string | null;
   location: string | null;
   narrative_purpose: string;
   participant_entity_ids: string[];
-  sequence_index: number;
-  shots: VisualShotPlanV1[];
-  source_span_ids: string[];
-  start_ms: number;
+  shots: VisualShotV2[];
   time_of_day: string | null;
-  timeline_position: number;
   title: string;
-  user_addition_ids: string[];
 }
 
-export interface VisualTransitionV1 {
-  at_ms: number;
-  duration_ms: number;
-  from_shot_id: string;
-  id: string;
-  kind: ShootingTransitionTypeV1;
-  notes: string | null;
-  preserved_action: string | null;
-  preserved_sound: string | null;
-  to_shot_id: string;
-}
-
-export interface SourceSpanDispositionV1 {
-  disposition: SourceSpanDispositionKindV1;
-  narrative_unit_id: string | null;
-  reason: string | null;
-  shot_ids: string[];
-  source_span_id: string;
-}
-
-export interface ChapterVisualPlanV1 {
-  directing_statement: ShootingDirectingStatementV1;
-  entities: VisualEntityV1[];
-  frame: VisualFrameV1;
-  narrative_units: VisualNarrativeUnitV1[];
+export interface ChapterVisualPlanV2 {
+  entities: VisualEntityV2[];
+  frame: VisualFrameV2;
+  scenes: VisualSceneV2[];
   schema_version: ChapterVisualPlanSchemaVersion;
-  source_dispositions: SourceSpanDispositionV1[];
-  transitions: VisualTransitionV1[];
-  user_additions: VisualUserAdditionV1[];
 }
 
 export interface ChapterVisualPlanSourceInput {
@@ -4601,7 +4615,7 @@ export interface ChapterVisualPlanSourceInput {
 export interface SaveChapterVisualPlanDraftInput {
   authoring_mode: ChapterVisualPlanAuthoringMode;
   expected_revision?: number | null;
-  plan: ChapterVisualPlanV1;
+  plan: ChapterVisualPlanV2;
   project_id: number;
   record_id?: number | null;
   source_chapter_id: number;
@@ -4610,29 +4624,6 @@ export interface SaveChapterVisualPlanDraftInput {
 export interface ChapterVisualPlanRecordInput {
   expected_revision: number;
   project_id: number;
-  record_id: number;
-  source_chapter_id: number;
-}
-
-export interface GenerateChapterVisualPlanDraftInput {
-  authoring_mode: ChapterVisualPlanAuthoringMode;
-  project_id: number;
-  source_chapter_id: number;
-  user_direction?: string | null;
-}
-
-export interface ProposeChapterVisualPlanRevisionInput {
-  base_revision: number;
-  instruction: string;
-  project_id: number;
-  record_id: number;
-  source_chapter_id: number;
-}
-
-export interface ApplyChapterVisualPlanProposalInput {
-  base_revision: number;
-  project_id: number;
-  proposal: ChapterVisualPlanV1;
   record_id: number;
   source_chapter_id: number;
 }
@@ -4648,22 +4639,15 @@ export interface ChapterVisualPlanRecordSummary {
   status: ChapterVisualPlanStatus;
 }
 
-export interface ChapterVisualPlanSourceSpanView {
-  id: string;
-  paragraph_index: number;
-  text: string;
-}
-
 export interface ChapterVisualPlanSourceView {
   chapter_number: number;
   content: string;
   content_sha256: string;
-  source_spans: ChapterVisualPlanSourceSpanView[];
   title: string | null;
 }
 
 export interface ChapterVisualPlanView {
-  plan: ChapterVisualPlanV1;
+  plan: ChapterVisualPlanV2;
   record: ChapterVisualPlanRecordSummary;
 }
 
@@ -4671,18 +4655,12 @@ export interface ChapterVisualPlanSetView {
   confirmed: ChapterVisualPlanView | null;
   draft: ChapterVisualPlanView | null;
   source: ChapterVisualPlanSourceView;
-  starter_plan: ChapterVisualPlanV1;
+  starter_plan: ChapterVisualPlanV2;
 }
 
 export interface ConfirmedChapterVisualPlanView {
   invalidated_project_ids: number[];
   visual_plan: ChapterVisualPlanView;
-}
-
-export interface ChapterVisualPlanProposalView {
-  base_revision: number;
-  proposal: ChapterVisualPlanV1;
-  record_id: number;
 }
 
 export type ChapterShootingScriptSchemaVersion = "chapter_shooting_script_v1";

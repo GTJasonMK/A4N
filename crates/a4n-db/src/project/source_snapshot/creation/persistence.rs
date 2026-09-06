@@ -64,6 +64,7 @@ where
         .filter(chapter_visual_plan::Column::RootProjectId.eq(root_project_id))
         .filter(chapter_visual_plan::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
         .filter(chapter_visual_plan::Column::SourceSnapshotId.is_null())
+        .filter(chapter_visual_plan::Column::SourceSnapshotChapterId.is_null())
         .filter(chapter_visual_plan::Column::Status.eq("confirmed"))
         .distinct_on([
             chapter_visual_plan::Column::SourceChapterId,
@@ -112,6 +113,7 @@ where
         .filter(chapter_shooting_script::Column::RootProjectId.eq(root_project_id))
         .filter(chapter_shooting_script::Column::SourceChapterId.is_in(chapter_ids.iter().copied()))
         .filter(chapter_shooting_script::Column::SourceSnapshotId.is_null())
+        .filter(chapter_shooting_script::Column::SourceSnapshotChapterId.is_null())
         .distinct_on([
             chapter_shooting_script::Column::SourceChapterId,
             chapter_shooting_script::Column::SourceContentSha256,

@@ -1,8 +1,8 @@
 use crate::AppState;
 
 use super::{
-    ApplyChapterVisualPlanProposalInput, ChapterVisualPlanRecordInput, ChapterVisualPlanView,
-    ConfirmedChapterVisualPlanView, SaveChapterVisualPlanDraftInput, contracts::plan_view,
+    ChapterVisualPlanRecordInput, ChapterVisualPlanView, ConfirmedChapterVisualPlanView,
+    SaveChapterVisualPlanDraftInput, contracts::plan_view,
 };
 
 pub async fn save_chapter_visual_plan_draft(
@@ -13,19 +13,6 @@ pub async fn save_chapter_visual_plan_draft(
     state
         .orchestrator()
         .save_chapter_visual_plan_draft_for_user_validated(user_id, input)
-        .await
-        .map(plan_view)
-        .map_err(|error| error.to_string())
-}
-
-pub async fn apply_chapter_visual_plan_proposal(
-    state: &AppState,
-    user_id: i64,
-    input: ApplyChapterVisualPlanProposalInput,
-) -> Result<ChapterVisualPlanView, String> {
-    state
-        .orchestrator()
-        .apply_chapter_visual_plan_proposal_for_user_validated(user_id, input)
         .await
         .map(plan_view)
         .map_err(|error| error.to_string())

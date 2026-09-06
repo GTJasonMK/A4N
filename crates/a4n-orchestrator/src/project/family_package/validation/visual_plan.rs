@@ -1,13 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::{
-    models::{
-        chapter::{chapter, chapter_visual_plan},
-        project::source_snapshot_chapter,
-    },
-    source_spans::source_spans_for_content,
+use a4n_core::models::{
+    chapter::{chapter, chapter_visual_plan},
+    project::source_snapshot_chapter,
 };
-use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V1, ChapterVisualPlanV1};
+use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanV2};
 
 use super::super::{ProjectFamilyPackage, hash_text};
 
@@ -42,13 +39,17 @@ pub(super) fn validate_visual_plan_manifest(package: &ProjectFamilyPackage) -> R
         if matches!(plan.status.as_str(), "draft" | "confirmed")
             && !mutable_heads.insert((
                 plan.source_chapter_id,
-                plan.source_revision_key.as_str(),
+                plan.source_snapshot_id,
+                plan.source_snapshot_chapter_id,
                 plan.status.as_str(),
             ))
         {
             return Err(format!(
-                "项目族导入包章节视觉编排活动状态重复: source_chapter_id={}, status={}",
-                plan.source_chapter_id, plan.status
+                "项目族导入包章节视觉编排活动状态重复: source_chapter_id={}, source_snapshot_id={:?}, source_snapshot_chapter_id={:?}, status={}",
+                plan.source_chapter_id,
+                plan.source_snapshot_id,
+                plan.source_snapshot_chapter_id,
+                plan.status
             ));
         }
     }
@@ -78,17 +79,14 @@ fn validate_plan_record(
         )
     })?;
     if chapter.project_id != package.root_project_id
-        || plan.contract_version != CHAPTER_VISUAL_PLAN_V1
+        || plan.contract_version != CHAPTER_VISUAL_PLAN_V2
         || plan.plan_version <= 0
         || plan.revision <= 0
         || !matches!(
             plan.status.as_str(),
             "draft" | "confirmed" | "superseded" | "stale"
         )
-        || !matches!(
-            plan.authoring_mode.as_str(),
-            "automatic" | "collaborative" | "manual"
-        )
+        || !matches!(plan.authoring_mode.as_str(), "collaborative" | "manual")
         || plan.author_user_id <= 0
         || (plan.status == "confirmed" && plan.confirmed_at.is_none())
     {
@@ -104,13 +102,12 @@ fn validate_plan_record(
     )?;
     validate_sha256(&plan.plan_sha256, "plan_sha256", plan.id)?;
 
-    let (source_content, chapter_number, expected_revision_key) = match (
+    let (source_content, expected_revision_key) = match (
         plan.source_snapshot_id,
         plan.source_snapshot_chapter_id,
     ) {
         (None, None) => (
             chapter.content.as_str(),
-            chapter.chapter_number,
             format!(
                 "live:{}:{}",
                 plan.source_chapter_id, plan.source_content_sha256
@@ -137,7 +134,6 @@ fn validate_plan_record(
             }
             (
                 snapshot_chapter.content.as_str(),
-                snapshot_chapter.chapter_number,
                 format!(
                     "snapshot:{snapshot_id}:chapter:{snapshot_chapter_id}:{}",
                     plan.source_content_sha256
@@ -160,15 +156,14 @@ fn validate_plan_record(
         ));
     }
 
-    let typed: ChapterVisualPlanV1 = serde_json::from_value(plan.plan_json.clone())
+    let typed: ChapterVisualPlanV2 = serde_json::from_value(plan.plan_json.clone())
         .map_err(|error| format!("项目族导入包章节视觉编排 JSON 无效: {}: {error}", plan.id))?;
-    let source_span_ids =
-        source_spans_for_content(plan.source_chapter_id, chapter_number, source_content)
-            .into_iter()
-            .map(|span| span.id)
-            .collect::<Vec<_>>();
-    typed
-        .validate_source_span_coverage(&source_span_ids)
+    let validation = if plan.status == "confirmed" {
+        typed.validate_confirmed()
+    } else {
+        typed.validate_draft()
+    };
+    validation
         .map_err(|error| format!("项目族导入包章节视觉编排内容无效: {}: {error}", plan.id))?;
     let canonical = typed
         .canonical_json()

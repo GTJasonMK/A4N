@@ -74,12 +74,14 @@ export const ContextMenuHost: React.FC = () => {
     itemRefs.current = [];
     const frame = window.requestAnimationFrame(() => itemRefs.current[0]?.focus());
     const onPointerDown = (e: PointerEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Node) || (menuRef.current && !menuRef.current.contains(target))) {
         setMenu(null);
       }
     };
     const onContextMenu = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+      const target = e.target;
+      if (!(target instanceof Node) || (menuRef.current && !menuRef.current.contains(target))) {
         setMenu(null);
       }
     };

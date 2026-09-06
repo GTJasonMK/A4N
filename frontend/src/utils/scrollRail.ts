@@ -7,6 +7,17 @@ function scrollPadding(rail: HTMLElement, side: "left" | "right"): number {
   return Number.isFinite(parsed) ? parsed : DEFAULT_SCROLL_PADDING;
 }
 
+export function getScrollRailCue(rail: HTMLElement): { hasBefore: boolean; hasMore: boolean } {
+  const paddingRight = typeof window === "undefined"
+    ? 0
+    : Number.parseFloat(window.getComputedStyle(rail).paddingRight) || 0;
+  const contentEnd = Math.max(0, rail.scrollWidth - paddingRight);
+  return {
+    hasBefore: rail.scrollLeft > 2,
+    hasMore: rail.scrollLeft + rail.clientWidth < contentEnd - 2,
+  };
+}
+
 /** Scroll only enough to reveal an item; visible tabs stay in place. */
 export function scrollRailItemIntoView(
   rail: HTMLElement | null,

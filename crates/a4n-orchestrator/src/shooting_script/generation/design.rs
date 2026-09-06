@@ -148,8 +148,7 @@ fn planned_visual_unit<'a>(
     unit: &ScreenplayPlanUnit,
 ) -> Result<&'a a4n_domain::chapter_visual_plan::VisualNarrativeUnitV1, AppError> {
     prepared
-        .visual_plan
-        .plan
+        .visual_plan_projection
         .narrative_units
         .get(usize::try_from(unit.narrative_unit_index - 1).map_err(|_| {
             AppError::InvalidArgument("narrative_unit_index 超出 usize 范围".into())
@@ -312,8 +311,8 @@ mod tests {
 
     #[test]
     fn fact_coverage_is_counted_by_beat_overlap_not_matching_span_count() {
-        let fact_sources = vec!["span-1".to_string(), "span-2".to_string()];
-        let beat_sources = vec![
+        let fact_sources = ["span-1".to_string(), "span-2".to_string()];
+        let beat_sources = [
             "span-1".to_string(),
             "span-2".to_string(),
             "span-3".to_string(),

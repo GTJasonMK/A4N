@@ -24,7 +24,9 @@ where
         scope,
         ProjectChapterAdaptationDeleteScope::CurrentProjectContent
     ) {
-        plan_query = plan_query.filter(chapter_visual_plan::Column::SourceSnapshotId.is_null());
+        plan_query = plan_query
+            .filter(chapter_visual_plan::Column::SourceSnapshotId.is_null())
+            .filter(chapter_visual_plan::Column::SourceSnapshotChapterId.is_null());
     }
     let plan_ids = plan_query
         .select_only()
@@ -58,8 +60,9 @@ where
         scope,
         ProjectChapterAdaptationDeleteScope::CurrentProjectContent
     ) {
-        script_delete =
-            script_delete.filter(chapter_shooting_script::Column::SourceSnapshotId.is_null());
+        script_delete = script_delete
+            .filter(chapter_shooting_script::Column::SourceSnapshotId.is_null())
+            .filter(chapter_shooting_script::Column::SourceSnapshotChapterId.is_null());
     }
     script_delete.exec(db).await?;
 
@@ -169,7 +172,9 @@ mod tests {
                 source_snapshot_chapter_id: Set(source_snapshot_chapter_id),
                 source_revision_key: Set(source_revision_key),
                 source_content_sha256: Set(content_sha256.clone()),
-                contract_version: Set("chapter_visual_plan_v1".to_string()),
+                contract_version: Set(
+                    a4n_domain::chapter_visual_plan::CHAPTER_VISUAL_PLAN_V2.to_string()
+                ),
                 plan_version: Set(plan_version),
                 revision: Set(1),
                 status: Set(status.to_string()),

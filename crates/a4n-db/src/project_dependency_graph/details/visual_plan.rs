@@ -40,7 +40,7 @@ pub(in crate::project_dependency_graph) async fn visual_plan_detail_records<C>(
 where
     C: ConnectionTrait,
 {
-    Ok(chapter_visual_plan::Entity::find()
+    let rows = chapter_visual_plan::Entity::find()
         .select_only()
         .column(chapter_visual_plan::Column::Id)
         .column(chapter_visual_plan::Column::RootProjectId)
@@ -63,58 +63,67 @@ where
         .into_model::<VisualPlanDetailRow>()
         .all(db)
         .await
-        .map_err(AppError::Database)?
-        .into_iter()
-        .map(|plan| AssetLineageRecord {
-            id: format!("chapter_visual_plan:{}", plan.id),
-            label: format!(
-                "章节 {} 导演编排 v{}",
-                plan.source_chapter_id, plan.plan_version
-            ),
-            asset_kind: "chapter_visual_plan".to_string(),
-            asset_id: Some(plan.id),
-            status: Some(plan.status.clone()),
-            origin: match plan.authoring_mode.as_str() {
-                "manual" => "user_authored",
-                "collaborative" => "user_ai_collaborative",
-                _ => "llm_generated",
-            }
-            .to_string(),
-            source_refs: vec![lineage_ref(
-                &format!("chapter:{}", plan.source_chapter_id),
-                "章节正文",
-                "text",
-                "chapter_content",
-                Some(plan.source_chapter_id),
-            )],
-            prompt_sources: Vec::new(),
-            media_sources: Vec::new(),
-            request_snapshot: None,
-            input_status: "complete".to_string(),
-            generation_inputs: Vec::new(),
-            result: json!({
-                "table": "chapter_visual_plan",
-                "record": {
-                    "id": plan.id,
-                    "root_project_id": plan.root_project_id,
-                    "source_chapter_id": plan.source_chapter_id,
-                    "source_snapshot_id": plan.source_snapshot_id,
-                    "source_snapshot_chapter_id": plan.source_snapshot_chapter_id,
-                    "source_content_sha256": plan.source_content_sha256,
-                    "contract_version": plan.contract_version,
-                    "plan_version": plan.plan_version,
-                    "revision": plan.revision,
-                    "status": plan.status,
-                    "authoring_mode": plan.authoring_mode,
-                    "plan_sha256": plan.plan_sha256,
-                    "confirmed_at": plan.confirmed_at,
-                    "created_at": plan.created_at,
-                    "updated_at": plan.updated_at,
-                }
-            }),
-            warnings: Vec::new(),
+        .map_err(AppError::Database)?;
+    rows.into_iter()
+        .map(|plan| {
+            let origin = authoring_mode_origin(&plan.authoring_mode)?;
+            Ok(AssetLineageRecord {
+                id: format!("chapter_visual_plan:{}", plan.id),
+                label: format!(
+                    "章节 {} 导演编排 v{}",
+                    plan.source_chapter_id, plan.plan_version
+                ),
+                asset_kind: "chapter_visual_plan".to_string(),
+                asset_id: Some(plan.id),
+                status: Some(plan.status.clone()),
+                origin: origin.to_string(),
+                source_refs: vec![lineage_ref(
+                    &format!("chapter:{}", plan.source_chapter_id),
+                    "章节正文",
+                    "text",
+                    "chapter_content",
+                    Some(plan.source_chapter_id),
+                )],
+                prompt_sources: Vec::new(),
+                media_sources: Vec::new(),
+                request_snapshot: None,
+                input_status: "complete".to_string(),
+                generation_inputs: Vec::new(),
+                result: json!({
+                    "table": "chapter_visual_plan",
+                    "record": {
+                        "id": plan.id,
+                        "root_project_id": plan.root_project_id,
+                        "source_chapter_id": plan.source_chapter_id,
+                        "source_snapshot_id": plan.source_snapshot_id,
+                        "source_snapshot_chapter_id": plan.source_snapshot_chapter_id,
+                        "source_content_sha256": plan.source_content_sha256,
+                        "contract_version": plan.contract_version,
+                        "plan_version": plan.plan_version,
+                        "revision": plan.revision,
+                        "status": plan.status,
+                        "authoring_mode": plan.authoring_mode,
+                        "plan_sha256": plan.plan_sha256,
+                        "confirmed_at": plan.confirmed_at,
+                        "created_at": plan.created_at,
+                        "updated_at": plan.updated_at,
+                    }
+                }),
+                warnings: Vec::new(),
+            })
         })
-        .collect())
+        .collect()
+}
+
+fn authoring_mode_origin(mode: &str) -> Result<&'static str, AppError> {
+    match mode {
+        "manual" => Ok("user_authored"),
+        "collaborative" => Ok("user_ai_collaborative"),
+        _ => Err(AppError::InvalidState {
+            current: mode.to_string(),
+            operation: "构建章节视觉编排依赖详情".to_string(),
+        }),
+    }
 }
 
 pub(in crate::project_dependency_graph) async fn shooting_script_detail_records<C>(
@@ -170,4 +179,23 @@ where
             }
         })
         .collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::authoring_mode_origin;
+    use a4n_core::error::AppError;
+
+    #[test]
+    fn authoring_modes_map_to_lineage_origins() {
+        assert_eq!(
+            authoring_mode_origin("collaborative").unwrap(),
+            "user_ai_collaborative"
+        );
+        assert_eq!(authoring_mode_origin("manual").unwrap(), "user_authored");
+        assert!(matches!(
+            authoring_mode_origin("future_mode"),
+            Err(AppError::InvalidState { .. })
+        ));
+    }
 }

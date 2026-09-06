@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { useI18n } from "../../i18n";
 
@@ -6,14 +6,8 @@ import { useI18n } from "../../i18n";
  * 应用底部快捷工具：默认收起为悬浮球，展开后显示状态与快捷操作。
  *
  * - 桌面端保持紧凑高度，触屏窄屏按控件触达尺寸自动撑开
- * - 左侧 message（普通文本提示，如"就绪"/"加载中"/"已保存"）
+ * - 左侧状态（当前就绪状态）
  * - 右侧 permanentWidgets（持续显示：用户名、连接状态、字符数等）
- * - 应用层通过 useStatusBar() 推送临时消息：会在 timeout 后恢复默认消息
- *
- * 用法：
- *   const { setMessage, addPermanent } = useStatusBar();
- *   setMessage("已保存", 2000);
- *   addPermanent("project", `项目 #${id}`);
  */
 
 interface PermanentWidget {
@@ -22,9 +16,7 @@ interface PermanentWidget {
 }
 
 interface StatusBarContextValue {
-  message: string;
   permanent: PermanentWidget[];
-  setMessage: (msg: string, timeoutMs?: number) => void;
   addPermanent: (id: string, content: React.ReactNode) => void;
   removePermanent: (id: string) => void;
 }
@@ -32,19 +24,7 @@ interface StatusBarContextValue {
 const StatusBarContext = createContext<StatusBarContextValue | null>(null);
 
 export const StatusBarProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { t } = useI18n();
-  const ready = t("common.ready");
-  const [message, setMessageState] = useState<string>(ready);
   const [permanent, setPermanent] = useState<PermanentWidget[]>([]);
-
-  const setMessage = useCallback((msg: string, timeoutMs?: number) => {
-    setMessageState(msg);
-    if (timeoutMs && timeoutMs > 0) {
-      const timer = window.setTimeout(() => setMessageState(ready), timeoutMs);
-      return () => window.clearTimeout(timer);
-    }
-    return undefined;
-  }, [ready]);
 
   const addPermanent = useCallback((id: string, content: React.ReactNode) => {
     setPermanent((prev) => {
@@ -59,8 +39,8 @@ export const StatusBarProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   }, []);
 
   const value = useMemo(
-    () => ({ message, permanent, setMessage, addPermanent, removePermanent }),
-    [message, permanent, setMessage, addPermanent, removePermanent],
+    () => ({ permanent, addPermanent, removePermanent }),
+    [permanent, addPermanent, removePermanent],
   );
 
   return <StatusBarContext.Provider value={value}>{children}</StatusBarContext.Provider>;
@@ -94,7 +74,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
   const { t } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [orbOverControl, setOrbOverControl] = useState(false);
-  const orbRef = useRef<HTMLButtonElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!expanded) return undefined;
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -104,7 +84,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [expanded]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (expanded) {
       setOrbOverControl(false);
       return undefined;
@@ -117,28 +97,32 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
     };
 
     /* 页面内容位于嵌套滚动区，固定球的位置不会随页面 DOM 一起移动。 */
+    const updateOrbPriority = () => {
+      const shell = shellRef.current;
+      if (!shell) return;
+      /* 用固定定位壳体检测，避免避让 transform 改变检测区域并造成抖动。 */
+      const shellRect = shell.getBoundingClientRect();
+      const overlapsControl = Array.from(document.querySelectorAll<HTMLElement>(
+        "button, a[href], input, select, textarea, [role=button]",
+      )).some((control) => {
+        if (control.closest(".a4n-status-bar-shell")) return false;
+        if (control.matches(":disabled, [hidden], [aria-hidden='true']") || getComputedStyle(control).pointerEvents === "none") return false;
+        const rect = control.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 &&
+          rect.left < shellRect.right && rect.right > shellRect.left &&
+          rect.top < shellRect.bottom && rect.bottom > shellRect.top;
+      });
+      setOrbOverControl((current) => current === overlapsControl ? current : overlapsControl);
+    };
     const scheduleOrbPriorityUpdate = () => {
       if (frame != null) return;
       frame = window.requestAnimationFrame(() => {
         frame = null;
-        const orb = orbRef.current;
-        if (!orb) return;
-        const orbRect = orb.getBoundingClientRect();
-        const overlapsControl = Array.from(document.querySelectorAll<HTMLElement>(
-          "button, a[href], input, select, textarea, [role=button]",
-        )).some((control) => {
-          if (control === orb || orb.contains(control) || control.closest(".a4n-status-bar-shell")) return false;
-          const rect = control.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0 &&
-            rect.left < orbRect.right && rect.right > orbRect.left &&
-            rect.top < orbRect.bottom && rect.bottom > orbRect.top;
-        });
-        setOrbOverControl((current) => current === overlapsControl ? current : overlapsControl);
+        updateOrbPriority();
       });
     };
-
+    updateOrbPriority();
     const observerCallback = () => scheduleOrbPriorityUpdate();
-    scheduleOrbPriorityUpdate();
     const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(observerCallback);
     resizeObserver?.observe(document.documentElement);
     const mutationObserver = typeof MutationObserver === "undefined" ? null : new MutationObserver(observerCallback);
@@ -146,7 +130,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["class", "style", "hidden", "disabled", "aria-hidden"],
+      attributeFilter: ["class", "hidden", "disabled", "aria-hidden"],
     });
     window.addEventListener("resize", scheduleOrbPriorityUpdate);
     window.addEventListener("scroll", scheduleOrbPriorityUpdate, true);
@@ -160,12 +144,13 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
   }, [expanded]);
 
   if (!ctx) return null;
-  const { message, permanent } = ctx;
+  const { permanent } = ctx;
   const toggleLabel = t(expanded ? "common.statusBarCollapse" : "common.statusBarExpand");
   const toggle = () => setExpanded((value) => !value);
 
   return (
     <div
+      ref={shellRef}
       className="a4n-status-bar-shell"
       data-expanded={expanded ? "true" : "false"}
     >
@@ -174,7 +159,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
           <div className="a4n-status-bar">
             <div className="a4n-status-bar__message flex min-w-0 items-center gap-2" role="status" aria-live="polite">
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" aria-hidden="true" />
-              <span className="truncate text-small text-book-text-sub">{message}</span>
+              <span className="truncate text-small text-book-text-sub">{t("common.ready")}</span>
             </div>
             <div className="a4n-status-bar__actions flex min-w-0 shrink-0 items-center gap-1">
               {actions != null ? (
@@ -197,7 +182,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
       ) : null}
       <button
         type="button"
-        ref={orbRef}
         className="a4n-status-bar-orb"
         data-over-control={orbOverControl ? "true" : "false"}
         tabIndex={orbOverControl ? -1 : 0}

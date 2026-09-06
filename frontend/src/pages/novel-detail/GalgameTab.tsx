@@ -67,6 +67,7 @@ import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { ThemedCombobox } from "../../components/ui/ThemedCombobox";
 import type { SourceSnapshotChapterSummary } from "../../api/project";
 import { pickLocalFile, readFileAsBase64 } from "../../utils/fileUpload";
 import { toMediaSrc } from "../../utils/mediaSrc";
@@ -1759,7 +1760,6 @@ const LineEditor: React.FC<LineEditorProps> = ({
   const expressionValue = selectValue(line.expression, EXPRESSIONS);
   const missingSpeakingExpression =
     isSpeakingLine && expressionValue.length === 0;
-  const poseDatalistId = `galgame-pose-suggestions-${line.id}`;
   const speaker = useMemo(
     () =>
       line.speaker_profile_id == null
@@ -1969,24 +1969,22 @@ const LineEditor: React.FC<LineEditorProps> = ({
               </option>
             ))}
           </ThemedSelect>
-          <input
-            list={poseDatalistId}
-            className="pyqt-input text-xs text-book-text-main"
+          <ThemedCombobox
             value={poseDisplayValue(pose, t)}
+            options={POSE_SUGGESTIONS.map((item) => ({
+              value: t(item.labelKey),
+              label: t(item.labelKey),
+            }))}
+            aria-label={t("galgame.posePlaceholder")}
             disabled={disabled}
             placeholder={t("galgame.posePlaceholder")}
-            onChange={(event) => setPose(event.target.value)}
+            onChange={setPose}
             onBlur={() => {
               const storedPose = poseStoredValue(pose, t);
               if (storedPose !== (line.pose ?? ""))
                 onPatch({ pose: storedPose || null });
             }}
           />
-          <datalist id={poseDatalistId}>
-            {POSE_SUGGESTIONS.map((item) => (
-              <option key={item.value} value={t(item.labelKey)} />
-            ))}
-          </datalist>
           <PresentationEditor
             line={line}
             disabled={disabled}

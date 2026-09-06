@@ -1,15 +1,10 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
+use crate::OrchestratorContext;
 use a4n_api_contract::chapter_visual_plan::{
-    ApplyChapterVisualPlanProposalInput, ChapterVisualPlanRecordInput,
-    ChapterVisualPlanSourceInput, GenerateChapterVisualPlanDraftInput,
-    ProposeChapterVisualPlanRevisionInput, SaveChapterVisualPlanDraftInput,
+    ChapterVisualPlanRecordInput, ChapterVisualPlanSourceInput, SaveChapterVisualPlanDraftInput,
 };
-use a4n_core::{
-    config::app_config::llm_token_profiles,
-    error::AppError,
-    source_spans::{SourceSpan, source_span_prompt_values, source_spans_for_content},
-};
+use a4n_core::{error::AppError, source_spans::SourceSpan};
 use a4n_db::{
     chapter_visual_plan::{
         ChapterVisualPlanDbError, ChapterVisualPlanSet, ConfirmChapterVisualPlanOutcome,
@@ -19,50 +14,20 @@ use a4n_db::{
 };
 use a4n_domain::{
     chapter_visual_plan::{
-        ChapterVisualPlanAuthoringMode, ChapterVisualPlanSchemaVersion, ChapterVisualPlanV1,
-        SourceSpanDispositionKindV1, SourceSpanDispositionV1, VisualCameraStateV1, VisualFrameV1,
-        VisualInterpolationV1, VisualKeyframeV1, VisualNarrativeUnitV1, VisualShotPlanV1,
+        ChapterVisualPlanSchemaVersion, ChapterVisualPlanV1, ChapterVisualPlanV2,
+        SourceSpanDispositionKindV1, SourceSpanDispositionV1, VisualCameraEventV1,
+        VisualEntityEventV1, VisualEntityV1, VisualFrameV1, VisualFrameV2, VisualKeyframeV1,
+        VisualNarrativeUnitV1, VisualSceneV2, VisualShotPlanV1, VisualSoundEventV1,
+        VisualTechniqueEventV1, VisualTransitionV1,
     },
-    shooting_script::{ShootingCoverageV1, ShootingDirectingStatementV1, ShootingEditingModeV1},
+    shooting_script::ShootingDirectingStatementV1,
 };
-use a4n_llm::provider::{ChatRequest, LlmTraceContext};
-use serde_json::json;
-use tokio_util::sync::CancellationToken;
-
-use crate::{
-    OrchestratorContext,
-    structured_llm::{ChatJsonStreamInput, parse_strict_json_response},
-};
-
-pub const CHAPTER_VISUAL_PLAN_PROGRESS_TOTAL: u32 = 100;
-const CHAPTER_VISUAL_PLAN_WORKFLOW: &str = "chapter_visual_plan";
-const OUTLINE_PROMPT: &str = "chapter_visual_plan_outline";
-const REVISION_PROMPT: &str = "chapter_visual_plan_revision";
-
-pub type ChapterVisualPlanProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
-pub type ChapterVisualPlanStreamReporter<'a> = &'a (dyn Fn(&str) + Send + Sync);
 
 #[derive(Debug, Clone)]
 pub struct ResolvedChapterVisualPlanSet {
     pub source: ResolvedChapterSource,
-    pub source_spans: Vec<SourceSpan>,
-    pub starter_plan: ChapterVisualPlanV1,
+    pub starter_plan: ChapterVisualPlanV2,
     pub plans: ChapterVisualPlanSet,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChapterVisualPlanProposal {
-    pub record_id: i64,
-    pub base_revision: i32,
-    pub proposal: ChapterVisualPlanV1,
-}
-
-#[derive(Debug, Clone)]
-pub struct PreparedChapterVisualPlanRequest {
-    pub source: ResolvedChapterSource,
-    pub request: ChatRequest,
-    pub title: String,
 }
 
 impl OrchestratorContext {
@@ -157,188 +122,6 @@ impl OrchestratorContext {
         .map_err(visual_plan_db_error)
     }
 
-    pub async fn prepare_chapter_visual_plan_request_for_user_validated(
-        &self,
-        user_id: i64,
-        input: GenerateChapterVisualPlanDraftInput,
-    ) -> Result<PreparedChapterVisualPlanRequest, AppError> {
-        self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
-            .await?;
-        let source = self
-            .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
-            .await?;
-        let source_spans = visual_plan_source_spans(&source)?;
-        let starter_plan = starter_plan(&source, &source_spans)?;
-        let request = self.build_visual_plan_request(
-            &source,
-            OUTLINE_PROMPT,
-            "outline",
-            json!({
-                "task": "generate_chapter_visual_plan",
-                "authoring_mode": input.authoring_mode,
-                "user_direction": input.user_direction,
-                "current_source": source_payload(&source, &source_spans),
-                "starter_plan": starter_plan,
-                "contract_guide": contract_guide(),
-            }),
-        )?;
-        Ok(PreparedChapterVisualPlanRequest {
-            title: format!("第 {} 章视觉编排", source.chapter_number),
-            source,
-            request,
-        })
-    }
-
-    pub async fn generate_chapter_visual_plan_draft_for_user_validated(
-        &self,
-        user_id: i64,
-        input: GenerateChapterVisualPlanDraftInput,
-        progress: ChapterVisualPlanProgressReporter<'_>,
-        stream_reporter: Option<ChapterVisualPlanStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-    ) -> Result<ParsedChapterVisualPlan, AppError> {
-        let mode = input.authoring_mode;
-        let project_id = input.project_id;
-        let source_chapter_id = input.source_chapter_id;
-        progress(
-            0,
-            CHAPTER_VISUAL_PLAN_PROGRESS_TOTAL,
-            "正在读取章节和导演意图",
-        )?;
-        let prepared = self
-            .prepare_chapter_visual_plan_request_for_user_validated(user_id, input)
-            .await?;
-        let proposal = self
-            .run_visual_plan_request(
-                prepared.request,
-                "章节视觉编排",
-                progress,
-                stream_reporter,
-                cancel_token,
-            )
-            .await?;
-        validate_plan_for_source(&proposal, &prepared.source)?;
-        progress(
-            88,
-            CHAPTER_VISUAL_PLAN_PROGRESS_TOTAL,
-            "方案校验完成，正在保存草稿",
-        )?;
-        let saved = a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
-            self.database.connection(),
-            a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
-                source: prepared.source,
-                author_user_id: user_id,
-                authoring_mode: mode,
-                expected: None,
-                plan: proposal,
-            },
-        )
-        .await
-        .map_err(|error| match error {
-            ChapterVisualPlanDbError::RevisionConflict { .. } => AppError::InvalidState {
-                current: format!(
-                    "visual_plan_draft_already_exists:project={project_id},chapter={source_chapter_id}"
-                ),
-                operation: "生成章节视觉编排草稿".into(),
-            },
-            other => visual_plan_db_error(other),
-        })?;
-        progress(
-            100,
-            CHAPTER_VISUAL_PLAN_PROGRESS_TOTAL,
-            "章节视觉编排草稿已保存",
-        )?;
-        Ok(saved)
-    }
-
-    pub async fn propose_chapter_visual_plan_revision_for_user_validated(
-        &self,
-        user_id: i64,
-        input: ProposeChapterVisualPlanRevisionInput,
-        progress: ChapterVisualPlanProgressReporter<'_>,
-        stream_reporter: Option<ChapterVisualPlanStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-    ) -> Result<ChapterVisualPlanProposal, AppError> {
-        self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
-            .await?;
-        if input.instruction.trim().is_empty() {
-            return Err(AppError::InvalidArgument("修改指令不能为空".into()));
-        }
-        let (source_result, current_result) = futures::join!(
-            self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
-            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-                self.database.connection(),
-                input.record_id,
-            ),
-        );
-        let source = source_result?;
-        let current = current_result.map_err(visual_plan_db_error)?;
-        ensure_plan_belongs_to_source(&current, &source)?;
-        ensure_base_revision(&current, input.base_revision)?;
-        let source_spans = visual_plan_source_spans(&source)?;
-        let request = self.build_visual_plan_request(
-            &source,
-            REVISION_PROMPT,
-            "revision",
-            json!({
-                "task": "propose_chapter_visual_plan_revision",
-                "instruction": input.instruction,
-                "current_source": source_payload(&source, &source_spans),
-                "base_plan": current.plan,
-                "contract_guide": contract_guide(),
-            }),
-        )?;
-        let proposal = self
-            .run_visual_plan_request(
-                request,
-                "章节视觉编排修改提案",
-                progress,
-                stream_reporter,
-                cancel_token,
-            )
-            .await?;
-        validate_plan_for_source(&proposal, &source)?;
-        Ok(ChapterVisualPlanProposal {
-            record_id: current.record.id,
-            base_revision: current.record.revision,
-            proposal,
-        })
-    }
-
-    pub async fn apply_chapter_visual_plan_proposal_for_user_validated(
-        &self,
-        user_id: i64,
-        input: ApplyChapterVisualPlanProposalInput,
-    ) -> Result<ParsedChapterVisualPlan, AppError> {
-        self.verify_project_or_derived_family_editor_validated(user_id, input.project_id)
-            .await?;
-        let (source_result, current_result) = futures::join!(
-            self.resolve_visual_plan_source(input.project_id, input.source_chapter_id),
-            a4n_db::chapter_visual_plan::chapter_visual_plan_by_id(
-                self.database.connection(),
-                input.record_id,
-            ),
-        );
-        let source = source_result?;
-        let current = current_result.map_err(visual_plan_db_error)?;
-        ensure_plan_belongs_to_source(&current, &source)?;
-        a4n_db::chapter_visual_plan::save_chapter_visual_plan_draft(
-            self.database.connection(),
-            a4n_db::chapter_visual_plan::SaveChapterVisualPlanDraftInput {
-                source,
-                author_user_id: user_id,
-                authoring_mode: ChapterVisualPlanAuthoringMode::Collaborative,
-                expected: Some(ExpectedVisualPlanDraft {
-                    record_id: input.record_id,
-                    revision: input.base_revision,
-                }),
-                plan: input.proposal,
-            },
-        )
-        .await
-        .map_err(visual_plan_db_error)
-    }
-
     pub(crate) async fn confirmed_visual_plan_for_shooting_script(
         &self,
         source: &ResolvedChapterSource,
@@ -372,8 +155,7 @@ impl OrchestratorContext {
         let source = self
             .resolve_visual_plan_source(input.project_id, input.source_chapter_id)
             .await?;
-        let source_spans = visual_plan_source_spans(&source)?;
-        let starter_plan = starter_plan(&source, &source_spans)?;
+        let starter_plan = starter_plan();
         let plans = a4n_db::chapter_visual_plan::chapter_visual_plans_for_source(
             self.database.connection(),
             &source,
@@ -382,7 +164,6 @@ impl OrchestratorContext {
         .map_err(visual_plan_db_error)?;
         Ok(ResolvedChapterVisualPlanSet {
             source,
-            source_spans,
             starter_plan,
             plans,
         })
@@ -401,276 +182,341 @@ impl OrchestratorContext {
         .await
         .map_err(crate::shooting_script::errors::resolve_source_error)
     }
+}
 
-    fn build_visual_plan_request(
-        &self,
-        source: &ResolvedChapterSource,
-        prompt_name: &str,
-        step_key: &str,
-        payload: serde_json::Value,
-    ) -> Result<ChatRequest, AppError> {
-        let system_prompt = self.prompt_render_template(
-            prompt_name,
-            &HashMap::new(),
-            Some(source.requested_project_id),
-        )?;
-        let user_prompt = serde_json::to_string_pretty(&payload)?;
-        Ok(ChatRequest::system_user(
-            system_prompt,
-            user_prompt,
-            Some(0.2),
-            None,
-            Some(llm_token_profiles::EXTRA_LONG.into()),
-        )
-        .with_json_response_format()
-        .with_stream_usage()
-        .with_trace_context(LlmTraceContext {
-            project_id: Some(source.requested_project_id),
-            root_project_id: Some(source.root_project_id),
-            workflow: CHAPTER_VISUAL_PLAN_WORKFLOW.into(),
-            step_key: step_key.into(),
-            generation_run_id: None,
-            workflow_run_id: None,
-            call_key: Some(format!("{step_key}:{}", source.source_chapter_id)),
-            input_fingerprint_sha256: None,
-            context_plan_json: None,
-            context_pack_refs_json: None,
-        }))
-    }
-
-    async fn run_visual_plan_request(
-        &self,
-        request: ChatRequest,
-        label: &str,
-        progress: ChapterVisualPlanProgressReporter<'_>,
-        stream_reporter: Option<ChapterVisualPlanStreamReporter<'_>>,
-        cancel_token: Option<&CancellationToken>,
-    ) -> Result<ChapterVisualPlanV1, AppError> {
-        progress(
-            8,
-            CHAPTER_VISUAL_PLAN_PROGRESS_TOTAL,
-            "正在生成结构化导演编排",
-        )?;
-        let mut streamed = String::new();
-        let mut stream_sink = stream_reporter.map(|reporter| {
-            move |delta: &str| {
-                streamed.push_str(delta);
-                reporter(&streamed);
-            }
-        });
-        let response = self
-            .chat_json_stream_result_with_sink(
-                ChatJsonStreamInput {
-                    request,
-                    prompt_name: CHAPTER_VISUAL_PLAN_WORKFLOW,
-                    truncated_message: "章节视觉编排输出达到 max_tokens 上限，JSON 未完整闭合",
-                    structured_progress: None,
-                    cancel_token,
-                    cancelled_message: "章节视觉编排生成已停止",
-                },
-                |_current, message| {
-                    progress(70, CHAPTER_VISUAL_PLAN_PROGRESS_TOTAL, message)
-                        .map_err(|error| error.to_string())
-                },
-                stream_sink
-                    .as_mut()
-                    .map(|sink| sink as &mut (dyn FnMut(&str) + Send)),
-            )
-            .await
-            .map_err(|error| {
-                if cancel_token.is_some_and(CancellationToken::is_cancelled) {
-                    AppError::Cancelled
-                } else {
-                    AppError::LlmError(error)
-                }
-            })?;
-        progress(
-            80,
-            CHAPTER_VISUAL_PLAN_PROGRESS_TOTAL,
-            "模型已返回，正在校验方案",
-        )?;
-        let plan =
-            parse_strict_json_response::<ChapterVisualPlanV1>(&response.response_content, label)?;
-        plan.validate()
-            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        Ok(plan)
+fn starter_plan() -> ChapterVisualPlanV2 {
+    ChapterVisualPlanV2 {
+        schema_version: ChapterVisualPlanSchemaVersion::V2,
+        frame: VisualFrameV2 {
+            width: 1920,
+            height: 1080,
+            background: None,
+        },
+        entities: Vec::new(),
+        scenes: Vec::new(),
     }
 }
 
-pub fn starter_plan(
-    source: &ResolvedChapterSource,
+/// 把不携带正文绑定的 V2 临时投影为拍摄剧本仍在使用的 V1 执行输入。
+/// source span 只存在于这一步，正文变化不会修改或阻塞 V2。
+pub(crate) fn project_visual_plan_for_shooting_script(
+    plan: &ChapterVisualPlanV2,
     source_spans: &[SourceSpan],
 ) -> Result<ChapterVisualPlanV1, AppError> {
     if source_spans.is_empty() {
         return Err(AppError::InvalidArgument(
-            "章节正文无法拆分出可编排 source span".into(),
+            "章节正文无法拆分出可引用 source span".into(),
         ));
     }
-    let shot_duration = 2_500_u64;
-    let duration_ms = shot_duration
-        .checked_mul(
-            u64::try_from(source_spans.len())
-                .map_err(|_| AppError::InvalidArgument("章节 source span 数量超限".into()))?,
-        )
-        .ok_or_else(|| AppError::InvalidArgument("章节视觉编排时长超限".into()))?;
-    let mut shots = Vec::with_capacity(source_spans.len());
-    let mut dispositions = Vec::with_capacity(source_spans.len());
-    for (offset, span) in source_spans.iter().enumerate() {
-        let start_ms = shot_duration
-            * u64::try_from(offset)
-                .map_err(|_| AppError::InvalidArgument("章节 source span 数量超限".into()))?;
-        let end_ms = start_ms + shot_duration;
-        let shot_id = format!("shot_{}", offset + 1);
-        shots.push(VisualShotPlanV1 {
-            id: shot_id.clone(),
-            title: format!("画面 {}", offset + 1),
-            start_ms,
-            end_ms,
-            source_span_ids: vec![span.id.clone()],
-            user_addition_ids: Vec::new(),
-            narrative_purpose: span.text.clone(),
-            coverage: ShootingCoverageV1::MustShow,
-            shot_size: None,
-            camera_angle: None,
-            camera_height: None,
-            lens_intent: None,
-            composition: None,
-            keyframes: vec![
-                starter_keyframe(format!("kf_{}_start", offset + 1), start_ms, "开始"),
-                starter_keyframe(format!("kf_{}_end", offset + 1), end_ms, "结束"),
-            ],
-            entity_events: Vec::new(),
-            camera_events: Vec::new(),
-            sound_events: Vec::new(),
-            technique_events: Vec::new(),
-            continuity_notes: Vec::new(),
-        });
-        dispositions.push(SourceSpanDispositionV1 {
-            source_span_id: span.id.clone(),
-            disposition: SourceSpanDispositionKindV1::Adapt,
-            narrative_unit_id: Some("unit_1".into()),
-            shot_ids: vec![shot_id],
-            reason: None,
-        });
+    let projection = plan
+        .project()
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+
+    let source_ids = source_spans
+        .iter()
+        .map(|span| span.id.clone())
+        .collect::<Vec<_>>();
+    if source_ids.len() < projection.scenes.len() {
+        return Err(AppError::InvalidArgument(format!(
+            "source span 数量不足以为每个场景建立来源绑定: scenes={}, source_spans={}",
+            projection.scenes.len(),
+            source_ids.len()
+        )));
     }
-    let plan = ChapterVisualPlanV1 {
-        schema_version: ChapterVisualPlanSchemaVersion::V1,
-        frame: VisualFrameV1 {
-            width: 1920,
-            height: 1080,
-            duration_ms,
-            background: None,
-        },
-        directing_statement: ShootingDirectingStatementV1 {
-            central_dramatic_question: "本章的核心悬念如何在画面中逐步揭示".into(),
-            protagonist_throughline: "保持原文主角行动与情绪变化的连续性".into(),
-            audience_experience: "清楚理解情节，同时保留原文节奏".into(),
-            viewpoint_strategy: "以原文叙事焦点为主，用户可继续调整".into(),
-            visual_strategy: "先按原文顺序建立可编辑关键画面".into(),
-            spatial_strategy: "使用观众画框坐标明确实体位置关系".into(),
-            sound_strategy: "对白、环境和效果音由用户按镜头补充".into(),
-            rhythm_strategy: "每个 source span 建立一个等长初始镜头".into(),
-        },
-        entities: Vec::new(),
-        user_additions: Vec::new(),
-        narrative_units: vec![VisualNarrativeUnitV1 {
-            id: "unit_1".into(),
-            sequence_index: 1,
-            timeline_position: 1,
-            title: source.title.clone().unwrap_or_else(|| "本章".into()),
-            start_ms: 0,
-            end_ms: duration_ms,
-            editing_mode: ShootingEditingModeV1::Continuity,
-            intercut_group_id: None,
-            narrative_purpose: "按原文顺序完成本章初始视觉编排".into(),
-            location: None,
-            time_of_day: None,
-            participant_entity_ids: Vec::new(),
-            focal_entity_id: None,
-            source_span_ids: source_spans.iter().map(|span| span.id.clone()).collect(),
+
+    // 先按场景顺序分桶；场景内镜头不足时只复用本场景的来源，不能按整条时间线循环到别的场景。
+    let scene_source_ids = projection
+        .scenes
+        .iter()
+        .enumerate()
+        .map(|(scene_index, _)| {
+            let start = scene_index * source_ids.len() / projection.scenes.len();
+            let end = (scene_index + 1) * source_ids.len() / projection.scenes.len();
+            source_ids[start..end].to_vec()
+        })
+        .collect::<Vec<_>>();
+    let mut entity_source_span_ids = HashMap::<&str, BTreeSet<&str>>::new();
+    for (scene_index, scene_projection) in projection.scenes.iter().enumerate() {
+        for entity_id in scene_entity_ids(&scene_projection.scene) {
+            entity_source_span_ids
+                .entry(entity_id)
+                .or_default()
+                .extend(scene_source_ids[scene_index].iter().map(String::as_str));
+        }
+    }
+    let entities = plan
+        .entities
+        .iter()
+        .filter_map(|entity| {
+            let source_span_ids = entity_source_span_ids.get(entity.id.as_str())?;
+            Some(VisualEntityV1 {
+                id: entity.id.clone(),
+                label: entity.label.clone(),
+                kind: entity.kind,
+                description: entity.description.clone(),
+                source_span_ids: source_span_ids.iter().map(|id| (*id).to_string()).collect(),
+                user_addition_ids: Vec::new(),
+            })
+        })
+        .collect::<Vec<_>>();
+    let mut scenes = Vec::with_capacity(projection.scenes.len());
+    let mut transitions = Vec::new();
+    let mut source_bindings = source_ids
+        .iter()
+        .cloned()
+        .map(|source_id| (source_id, (None::<String>, Vec::<String>::new())))
+        .collect::<HashMap<_, _>>();
+    if source_bindings.len() != source_ids.len() {
+        return Err(AppError::InvalidArgument(
+            "章节 source span ID 不能重复".into(),
+        ));
+    }
+
+    for (scene_index, scene_projection) in projection.scenes.iter().enumerate() {
+        let scene_source_ids = scene_source_ids[scene_index].clone();
+        let mut shots = Vec::with_capacity(scene_projection.shots.len());
+        for (scene_shot_index, shot_projection) in scene_projection.shots.iter().enumerate() {
+            let shot = &shot_projection.shot;
+            let shot_source_start =
+                scene_shot_index * scene_source_ids.len() / scene_projection.shots.len();
+            let shot_source_end =
+                (scene_shot_index + 1) * scene_source_ids.len() / scene_projection.shots.len();
+            let source_ids_for_shot = if shot_source_start < shot_source_end {
+                scene_source_ids[shot_source_start..shot_source_end].to_vec()
+            } else {
+                // 当前场景镜头多于来源时允许重复绑定当前场景来源，避免跨场景伪造归属。
+                vec![scene_source_ids[shot_source_start % scene_source_ids.len()].clone()]
+            };
+            let scene_id = scene_projection.scene.id.clone();
+            for source_id in &source_ids_for_shot {
+                let (bound_scene_id, shot_ids) = source_bindings
+                    .get_mut(source_id)
+                    .ok_or_else(|| AppError::InvalidArgument("章节 source span 不存在".into()))?;
+                if let Some(bound_scene_id) = bound_scene_id {
+                    if bound_scene_id != &scene_id {
+                        return Err(AppError::InvalidArgument(
+                            "source span 不能跨场景绑定".into(),
+                        ));
+                    }
+                } else {
+                    *bound_scene_id = Some(scene_id.clone());
+                }
+                shot_ids.push(shot.id.clone());
+            }
+            let keyframes = shot_projection
+                .keyframes
+                .iter()
+                .map(|item| VisualKeyframeV1 {
+                    id: item.keyframe.id.clone(),
+                    at_ms: item.at_ms,
+                    label: item.keyframe.label.clone(),
+                    interpolation_to_next: item.keyframe.interpolation_to_next,
+                    camera: item.keyframe.camera.clone(),
+                    entity_states: item.keyframe.entity_states.clone(),
+                    relations: item.keyframe.relations.clone(),
+                })
+                .collect::<Vec<_>>();
+            let entity_events = shot_projection
+                .entity_events
+                .iter()
+                .map(|item| VisualEntityEventV1 {
+                    id: item.event.id.clone(),
+                    kind: item.event.kind,
+                    start_ms: item.start_ms,
+                    end_ms: item.end_ms,
+                    entity_id: item.event.entity_id.clone(),
+                    target_entity_id: item.event.target_entity_id.clone(),
+                    description: item.event.description.clone(),
+                    source_span_ids: source_ids_for_shot.clone(),
+                    user_addition_ids: Vec::new(),
+                    parameters: item.event.parameters.clone(),
+                })
+                .collect::<Vec<_>>();
+            let camera_events = shot_projection
+                .camera_events
+                .iter()
+                .map(|item| VisualCameraEventV1 {
+                    id: item.event.id.clone(),
+                    kind: item.event.kind,
+                    start_ms: item.start_ms,
+                    end_ms: item.end_ms,
+                    target_entity_id: item.event.target_entity_id.clone(),
+                    description: item.event.description.clone(),
+                    source_span_ids: source_ids_for_shot.clone(),
+                    user_addition_ids: Vec::new(),
+                    parameters: item.event.parameters.clone(),
+                })
+                .collect::<Vec<_>>();
+            let sound_events = shot_projection
+                .sound_events
+                .iter()
+                .map(|item| VisualSoundEventV1 {
+                    id: item.event.id.clone(),
+                    kind: item.event.kind,
+                    start_ms: item.start_ms,
+                    end_ms: item.end_ms,
+                    speaker_entity_id: item.event.speaker_entity_id.clone(),
+                    content: item.event.content.clone(),
+                    source_span_ids: source_ids_for_shot.clone(),
+                    user_addition_ids: Vec::new(),
+                    parameters: item.event.parameters.clone(),
+                })
+                .collect::<Vec<_>>();
+            let technique_events = shot_projection
+                .technique_events
+                .iter()
+                .map(|item| VisualTechniqueEventV1 {
+                    id: item.event.id.clone(),
+                    kind: item.event.kind,
+                    start_ms: item.start_ms,
+                    end_ms: item.end_ms,
+                    description: item.event.description.clone(),
+                    source_span_ids: source_ids_for_shot.clone(),
+                    user_addition_ids: Vec::new(),
+                    parameters: item.event.parameters.clone(),
+                })
+                .collect::<Vec<_>>();
+            if let Some(transition) = shot.transition_to_next.as_ref() {
+                let next_shot_id = scene_projection
+                    .shots
+                    .get(scene_shot_index + 1)
+                    .map(|next| next.shot.id.clone())
+                    .ok_or_else(|| AppError::InvalidArgument("最后一个镜头不能携带转场".into()))?;
+                transitions.push(VisualTransitionV1 {
+                    id: format!("transition_{}", shot.id),
+                    from_shot_id: shot.id.clone(),
+                    to_shot_id: next_shot_id,
+                    at_ms: shot_projection.end_ms,
+                    duration_ms: transition.duration_ms,
+                    kind: transition.kind,
+                    preserved_action: transition.preserved_action.clone(),
+                    preserved_sound: transition.preserved_sound.clone(),
+                    notes: transition.notes.clone(),
+                });
+            }
+            shots.push(VisualShotPlanV1 {
+                id: shot.id.clone(),
+                title: shot.title.clone(),
+                start_ms: shot_projection.start_ms,
+                end_ms: shot_projection.end_ms,
+                source_span_ids: source_ids_for_shot,
+                user_addition_ids: Vec::new(),
+                narrative_purpose: shot.narrative_purpose.clone(),
+                coverage: shot.coverage,
+                shot_size: shot.shot_size,
+                camera_angle: shot.camera_angle,
+                camera_height: shot.camera_height,
+                lens_intent: shot.lens_intent.clone(),
+                composition: shot.composition.clone(),
+                keyframes,
+                entity_events,
+                camera_events,
+                sound_events,
+                technique_events,
+                continuity_notes: shot.continuity_notes.clone(),
+            });
+        }
+        scenes.push(VisualNarrativeUnitV1 {
+            id: scene_projection.scene.id.clone(),
+            sequence_index: scene_projection.sequence_index,
+            timeline_position: scene_projection.sequence_index,
+            title: scene_projection.scene.title.clone(),
+            start_ms: scene_projection.start_ms,
+            end_ms: scene_projection.end_ms,
+            editing_mode: scene_projection.scene.editing_mode,
+            intercut_group_id: scene_projection.scene.intercut_group_id.clone(),
+            narrative_purpose: scene_projection.scene.narrative_purpose.clone(),
+            location: scene_projection.scene.location.clone(),
+            time_of_day: scene_projection.scene.time_of_day.clone(),
+            participant_entity_ids: scene_projection.scene.participant_entity_ids.clone(),
+            focal_entity_id: scene_projection.scene.focal_entity_id.clone(),
+            source_span_ids: scene_source_ids,
             user_addition_ids: Vec::new(),
             shots,
-        }],
-        transitions: Vec::new(),
-        source_dispositions: dispositions,
-    };
-    validate_plan_for_source(&plan, source)?;
-    Ok(plan)
-}
-
-fn starter_keyframe(id: String, at_ms: u64, label: &str) -> VisualKeyframeV1 {
-    VisualKeyframeV1 {
-        id,
-        at_ms,
-        label: label.into(),
-        interpolation_to_next: VisualInterpolationV1::Hold,
-        camera: VisualCameraStateV1 {
-            center_x: 0.5,
-            center_y: 0.5,
-            zoom: 1.0,
-            rotation_degrees: 0.0,
-            focus_entity_id: None,
-            framing_note: None,
+        });
+    }
+    let source_dispositions = source_ids
+        .iter()
+        .map(|source_id| {
+            let (scene_id, shot_ids) = source_bindings
+                .remove(source_id)
+                .ok_or_else(|| AppError::InvalidArgument("章节 source span 未建立绑定".into()))?;
+            let narrative_unit_id = scene_id
+                .ok_or_else(|| AppError::InvalidArgument("章节 source span 未绑定到场景".into()))?;
+            Ok(SourceSpanDispositionV1 {
+                source_span_id: source_id.clone(),
+                disposition: SourceSpanDispositionKindV1::Adapt,
+                narrative_unit_id: Some(narrative_unit_id),
+                shot_ids,
+                reason: None,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    // V1 执行合同仍要求导演陈述；V2 明确不持久化该字段，因此这里只在适配输出中生成。
+    let projected = ChapterVisualPlanV1 {
+        frame: VisualFrameV1 {
+            width: plan.frame.width,
+            height: plan.frame.height,
+            duration_ms: projection.duration_ms,
+            background: plan.frame.background.clone(),
         },
-        entity_states: Vec::new(),
-        relations: Vec::new(),
+        directing_statement: projected_directing_statement(plan),
+        entities,
+        user_additions: Vec::new(),
+        narrative_units: scenes,
+        transitions,
+        source_dispositions,
+    };
+    projected
+        .validate_source_span_coverage(source_spans.iter().map(|span| span.id.as_str()))
+        .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+    Ok(projected)
+}
+
+fn scene_entity_ids(scene: &VisualSceneV2) -> BTreeSet<&str> {
+    let mut ids = scene
+        .participant_entity_ids
+        .iter()
+        .map(String::as_str)
+        .collect::<BTreeSet<_>>();
+    ids.extend(scene.focal_entity_id.as_deref());
+    for shot in &scene.shots {
+        for keyframe in &shot.keyframes {
+            for state in &keyframe.entity_states {
+                ids.insert(state.entity_id.as_str());
+                ids.extend(state.gaze_target_entity_id.as_deref());
+            }
+            ids.extend(keyframe.camera.focus_entity_id.as_deref());
+            for relation in &keyframe.relations {
+                ids.insert(relation.source_entity_id.as_str());
+                ids.insert(relation.target_entity_id.as_str());
+            }
+        }
+        for event in &shot.entity_events {
+            ids.insert(event.entity_id.as_str());
+            ids.extend(event.target_entity_id.as_deref());
+        }
+        for event in &shot.camera_events {
+            ids.extend(event.target_entity_id.as_deref());
+        }
+        for event in &shot.sound_events {
+            ids.extend(event.speaker_entity_id.as_deref());
+        }
     }
+    ids
 }
 
-fn visual_plan_source_spans(source: &ResolvedChapterSource) -> Result<Vec<SourceSpan>, AppError> {
-    let spans = source_spans_for_content(
-        source.source_chapter_id,
-        source.chapter_number,
-        &source.content,
-    );
-    if spans.is_empty() {
-        Err(AppError::InvalidArgument(
-            "章节正文无法拆分出可编排 source span".into(),
-        ))
-    } else {
-        Ok(spans)
+fn projected_directing_statement(plan: &ChapterVisualPlanV2) -> ShootingDirectingStatementV1 {
+    ShootingDirectingStatementV1 {
+        central_dramatic_question: "观众在每个场景中应该持续等待什么变化".into(),
+        protagonist_throughline: "沿场景和镜头顺序推进视觉行动".into(),
+        audience_experience: "先理解画面关系，再感受镜头节奏变化".into(),
+        viewpoint_strategy: "以当前关键帧中明确的实体和焦点为视点依据".into(),
+        visual_strategy: format!("{} 个场景共同组成连续视觉方案", plan.scenes.len()),
+        spatial_strategy: "使用画幅坐标、层级和实体关系保持空间连续".into(),
+        sound_strategy: "声音事件只在对应镜头的相对时间范围内发生".into(),
+        rhythm_strategy: "镜头总时长由场景内镜头顺序累加得到".into(),
     }
-}
-
-fn validate_plan_for_source(
-    plan: &ChapterVisualPlanV1,
-    source: &ResolvedChapterSource,
-) -> Result<(), AppError> {
-    let source_spans = visual_plan_source_spans(source)?;
-    plan.validate_source_span_coverage(source_spans.iter().map(|span| span.id.as_str()))
-        .map_err(|error| AppError::InvalidArgument(error.to_string()))
-}
-
-fn source_payload(
-    source: &ResolvedChapterSource,
-    source_spans: &[SourceSpan],
-) -> serde_json::Value {
-    json!({
-        "chapter_number": source.chapter_number,
-        "title": source.title,
-        "summary": source.summary,
-        "analysis": source.analysis_data_json,
-        "content": source.content,
-        "content_sha256": source.content_sha256,
-        "source_spans": source_span_prompt_values(source_spans),
-    })
-}
-
-fn contract_guide() -> serde_json::Value {
-    json!({
-        "time_unit": "integer milliseconds",
-        "frame_coordinates": "normalized x/y/width/height, top-left (0,0), bottom-right (1,1)",
-        "entity_kinds": ["character", "object", "environment", "text", "effect"],
-        "entity_event_kinds": ["enter", "exit", "move", "action", "dialogue", "expression", "gaze", "pose", "interaction", "transform", "custom"],
-        "camera_event_kinds": ["cut", "pan", "tilt", "push_in", "pull_out", "track", "dolly", "crane", "handheld", "whip_pan", "zoom", "focus", "shake", "orbit", "reframe", "custom"],
-        "sound_event_kinds": ["dialogue", "voice_over", "narration", "ambient", "effect", "music", "silence"],
-        "technique_kinds": ["montage", "split_screen", "slow_motion", "fast_motion", "freeze_frame", "flashback", "dream", "subjective", "symbolic", "silhouette", "reflection", "overlay", "text_on_screen", "lighting", "color_grade", "match_action", "offscreen", "custom"],
-        "relation_kinds": ["left_of", "right_of", "above", "below", "in_front_of", "behind", "inside", "overlapping", "facing", "looking_at", "touching", "holding", "following", "custom"],
-        "relation_constraint": "Each relation endpoint must have a visible entity_state in the same keyframe. Do not connect hidden or absent entities.",
-        "editing_modes": ["continuity", "intercut", "montage", "flashback", "parallel_action", "sound_bridge"],
-        "transition_types": ["continuous", "hard_cut", "match_cut", "whip_pan", "action_wipe", "sound_bridge", "dissolve", "fade", "focus_transition", "morph"],
-        "important_shape": "Return every field shown in starter_plan. Preserve null, [], and {} where no value is intended. Do not add unknown fields."
-    })
 }
 
 fn expected_draft(
@@ -697,31 +543,14 @@ fn ensure_plan_belongs_to_source(
 ) -> Result<(), AppError> {
     if plan.record.root_project_id != source.root_project_id
         || plan.record.source_chapter_id != source.source_chapter_id
-        || plan.record.source_revision_key != source.source_revision_key
-        || plan.record.source_content_sha256 != source.content_sha256
+        || plan.record.source_snapshot_id != source.source_snapshot_id
+        || plan.record.source_snapshot_chapter_id != source.source_snapshot_chapter_id
     {
         return Err(AppError::InvalidArgument(
             "章节视觉编排与当前章节正文不匹配".into(),
         ));
     }
     Ok(())
-}
-
-fn ensure_base_revision(
-    plan: &ParsedChapterVisualPlan,
-    base_revision: i32,
-) -> Result<(), AppError> {
-    if plan.record.revision == base_revision {
-        Ok(())
-    } else {
-        Err(AppError::InvalidState {
-            current: format!(
-                "visual_plan_revision_conflict:id={},expected={},actual={}",
-                plan.record.id, base_revision, plan.record.revision
-            ),
-            operation: "应用章节视觉编排修改".into(),
-        })
-    }
 }
 
 pub(crate) fn visual_plan_db_error(error: ChapterVisualPlanDbError) -> AppError {
@@ -747,28 +576,220 @@ pub(crate) fn visual_plan_db_error(error: ChapterVisualPlanDbError) -> AppError 
 
 #[cfg(test)]
 mod tests {
+    use a4n_core::source_spans::SourceSpan;
+    use a4n_db::project::ResolvedChapterSource;
+    use a4n_domain::chapter_visual_plan::VisualEntityV2;
+
     use super::*;
 
-    #[test]
-    fn starter_plan_covers_every_source_span() {
-        let source = ResolvedChapterSource {
+    fn source() -> ResolvedChapterSource {
+        ResolvedChapterSource {
             requested_project_id: 1,
             root_project_id: 1,
-            source_chapter_id: 2,
+            source_chapter_id: 3,
             source_snapshot_id: None,
             source_snapshot_chapter_id: None,
             chapter_number: 1,
-            title: Some("雨夜".into()),
+            title: Some("测试".into()),
             summary: None,
             analysis_data_json: None,
-            content: "甲推门。乙回头。".into(),
-            content_sha256: a4n_core::source_spans::source_text_hash("甲推门。乙回头。"),
-            source_revision_key: "live:2".into(),
-        };
-        let spans = visual_plan_source_spans(&source).expect("spans");
-        let plan = starter_plan(&source, &spans).expect("starter plan");
-        assert_eq!(plan.narrative_units[0].shots.len(), spans.len());
-        plan.validate_source_span_coverage(spans.iter().map(|span| span.id.as_str()))
-            .expect("exact coverage");
+            content: "甲进入教室。乙抬头看他。".into(),
+            content_sha256: "content-hash".into(),
+            source_revision_key: "revision-1".into(),
+        }
+    }
+
+    fn source_span(id: &str) -> SourceSpan {
+        SourceSpan {
+            id: id.into(),
+            chapter_id: 3,
+            chapter_number: 1,
+            paragraph_index: 1,
+            sentence_index: 1,
+            fragment_index: 1,
+            text: id.into(),
+            char_start: 0,
+            char_end: 1,
+        }
+    }
+
+    fn two_scene_plan() -> ChapterVisualPlanV2 {
+        let parsed = crate::shooting_script::visual_plan_fixture(&source());
+        let mut plan = parsed.plan;
+        let mut second_scene = plan.scenes[0].clone();
+        second_scene.id = "scene-2".into();
+        for (index, shot) in second_scene.shots.iter_mut().enumerate() {
+            let shot_id = format!("shot-{}", index + 3);
+            shot.id = shot_id.clone();
+            for (keyframe_index, keyframe) in shot.keyframes.iter_mut().enumerate() {
+                keyframe.id = format!(
+                    "{shot_id}-{}",
+                    if keyframe_index == 0 { "start" } else { "end" }
+                );
+            }
+        }
+        plan.scenes.push(second_scene);
+        plan
+    }
+
+    #[test]
+    fn projection_keeps_source_dispositions_inside_their_scene() {
+        let plan = two_scene_plan();
+        let projected = project_visual_plan_for_shooting_script(
+            &plan,
+            &[source_span("span-1"), source_span("span-2")],
+        )
+        .expect("projection");
+
+        assert_eq!(projected.narrative_units[0].source_span_ids, ["span-1"]);
+        assert_eq!(projected.narrative_units[1].source_span_ids, ["span-2"]);
+        assert!(
+            projected.narrative_units[0]
+                .shots
+                .iter()
+                .all(|shot| shot.source_span_ids == ["span-1"])
+        );
+        assert!(
+            projected.narrative_units[1]
+                .shots
+                .iter()
+                .all(|shot| shot.source_span_ids == ["span-2"])
+        );
+        assert_eq!(
+            projected.source_dispositions[0]
+                .narrative_unit_id
+                .as_deref(),
+            Some("scene-1")
+        );
+        assert_eq!(
+            projected.source_dispositions[1]
+                .narrative_unit_id
+                .as_deref(),
+            Some("scene-2")
+        );
+    }
+
+    #[test]
+    fn projection_rejects_fewer_source_spans_than_scenes() {
+        let error =
+            project_visual_plan_for_shooting_script(&two_scene_plan(), &[source_span("span-1")])
+                .expect_err("each scene needs a source span");
+        assert!(
+            error
+                .to_string()
+                .contains("source span 数量不足以为每个场景建立来源绑定")
+        );
+    }
+
+    #[test]
+    fn projection_reuses_only_current_scene_sources_when_scene_has_more_shots() {
+        let mut plan = two_scene_plan();
+        let mut extra_shot = plan.scenes[1].shots[0].clone();
+        extra_shot.id = "shot-extra".into();
+        for (keyframe_index, keyframe) in extra_shot.keyframes.iter_mut().enumerate() {
+            keyframe.id = format!(
+                "shot-extra-{}",
+                if keyframe_index == 0 { "start" } else { "end" }
+            );
+        }
+        plan.scenes[1].shots.push(extra_shot);
+
+        let projected = project_visual_plan_for_shooting_script(
+            &plan,
+            &[
+                source_span("span-1"),
+                source_span("span-2"),
+                source_span("span-3"),
+            ],
+        )
+        .expect("projection");
+
+        assert_eq!(projected.narrative_units[0].source_span_ids, ["span-1"]);
+        assert_eq!(
+            projected.narrative_units[1].source_span_ids,
+            ["span-2", "span-3"]
+        );
+        assert_eq!(
+            projected.narrative_units[1]
+                .shots
+                .iter()
+                .map(|shot| shot.source_span_ids.clone())
+                .collect::<Vec<_>>(),
+            vec![
+                vec![String::from("span-2")],
+                vec![String::from("span-2")],
+                vec![String::from("span-3")],
+            ]
+        );
+        assert!(projected.narrative_units[0].shots.iter().all(|shot| {
+            shot.source_span_ids
+                .iter()
+                .all(|source_span_id| source_span_id == "span-1")
+        }));
+        assert!(projected.narrative_units[1].shots.iter().all(|shot| {
+            shot.source_span_ids
+                .iter()
+                .all(|source_span_id| source_span_id != "span-1")
+        }));
+    }
+
+    #[test]
+    fn projection_scopes_entity_sources_to_scenes_where_they_appear() {
+        let mut plan = two_scene_plan();
+        plan.entities = vec![
+            VisualEntityV2 {
+                id: "entity-1".into(),
+                label: "甲".into(),
+                kind: a4n_domain::chapter_visual_plan::VisualEntityKindV1::Character,
+                description: "甲".into(),
+            },
+            VisualEntityV2 {
+                id: "entity-2".into(),
+                label: "乙".into(),
+                kind: a4n_domain::chapter_visual_plan::VisualEntityKindV1::Character,
+                description: "乙".into(),
+            },
+        ];
+        plan.scenes[0].participant_entity_ids = vec!["entity-1".into()];
+        plan.scenes[1].participant_entity_ids = vec!["entity-2".into()];
+
+        let projected = project_visual_plan_for_shooting_script(
+            &plan,
+            &[source_span("span-1"), source_span("span-2")],
+        )
+        .expect("projection");
+
+        assert_eq!(projected.entities[0].source_span_ids, ["span-1"]);
+        assert_eq!(projected.entities[1].source_span_ids, ["span-2"]);
+    }
+
+    #[test]
+    fn projection_excludes_entities_without_scene_usage() {
+        let mut plan = two_scene_plan();
+        plan.entities.push(VisualEntityV2 {
+            id: "unused-entity".into(),
+            label: "未使用".into(),
+            kind: a4n_domain::chapter_visual_plan::VisualEntityKindV1::Object,
+            description: "未使用实体".into(),
+        });
+
+        let projected = project_visual_plan_for_shooting_script(
+            &plan,
+            &[source_span("span-1"), source_span("span-2")],
+        )
+        .expect("unused library entities are excluded from execution projection");
+        assert!(
+            projected
+                .entities
+                .iter()
+                .all(|entity| entity.id != "unused-entity")
+        );
+    }
+
+    #[test]
+    fn starter_plan_is_an_empty_draft() {
+        let plan = starter_plan();
+        assert!(plan.scenes.is_empty());
+        plan.validate_draft().expect("draft validation");
     }
 }

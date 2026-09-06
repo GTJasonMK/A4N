@@ -9,8 +9,6 @@ use crate::shooting_script::{
     ShootingTransitionTypeV1,
 };
 
-pub const CHAPTER_VISUAL_PLAN_V1: &str = "chapter_visual_plan_v1";
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ChapterVisualPlanStatus {
@@ -34,7 +32,6 @@ impl ChapterVisualPlanStatus {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ChapterVisualPlanAuthoringMode {
-    Automatic,
     Collaborative,
     Manual,
 }
@@ -42,7 +39,6 @@ pub enum ChapterVisualPlanAuthoringMode {
 impl ChapterVisualPlanAuthoringMode {
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Automatic => "automatic",
             Self::Collaborative => "collaborative",
             Self::Manual => "manual",
         }
@@ -51,14 +47,13 @@ impl ChapterVisualPlanAuthoringMode {
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum ChapterVisualPlanSchemaVersion {
-    #[serde(rename = "chapter_visual_plan_v1")]
-    V1,
+    #[serde(rename = "chapter_visual_plan_v2")]
+    V2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ChapterVisualPlanV1 {
-    pub schema_version: ChapterVisualPlanSchemaVersion,
     pub frame: VisualFrameV1,
     pub directing_statement: ShootingDirectingStatementV1,
     pub entities: Vec<VisualEntityV1>,

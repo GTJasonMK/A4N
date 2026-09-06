@@ -1,10 +1,10 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { Radar } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { DiscoveredModel, ModelDiscoveryResult } from "../../../api/modelDiscovery";
 import { useToast } from "../../../components/feedback/Toast";
-import { BookInput } from "../../../components/ui/BookInput";
+import { ThemedCombobox } from "../../../components/ui/ThemedCombobox";
 import { useI18n } from "../../../i18n";
 
 interface ModelDiscoveryFieldProps {
@@ -26,7 +26,6 @@ export function ModelDiscoveryField({
   discoveryKey,
   detectModels,
 }: ModelDiscoveryFieldProps) {
-  const datalistId = useId();
   const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
   const [models, setModels] = useState<DiscoveredModel[]>([]);
@@ -57,10 +56,13 @@ export function ModelDiscoveryField({
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
-        <BookInput
+        <ThemedCombobox
           value={value}
-          list={models.length > 0 ? datalistId : undefined}
-          onChange={(event) => onChange(event.target.value)}
+          options={models.map((model) => ({
+            value: model.id,
+            label: modelOptionLabel(model),
+          }))}
+          onChange={onChange}
           placeholder={placeholder}
           disabled={inputDisabled}
         />
@@ -76,18 +78,9 @@ export function ModelDiscoveryField({
         </button>
       </div>
       {models.length > 0 ? (
-        <>
-          <datalist id={datalistId}>
-            {models.map((model) => (
-              <option key={model.id} value={model.id}>
-                {modelOptionLabel(model)}
-              </option>
-            ))}
-          </datalist>
-          <div className="text-small text-book-text-muted">
-            {t("settings.loadedModels", { count: models.length })}
-          </div>
-        </>
+        <div className="text-small text-book-text-muted">
+          {t("settings.loadedModels", { count: models.length })}
+        </div>
       ) : null}
     </div>
   );

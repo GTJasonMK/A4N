@@ -1,7 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use a4n_core::error::AppError;
 use a4n_db::chapter_visual_plan::ParsedChapterVisualPlan;
+use a4n_domain::chapter_visual_plan::ChapterVisualPlanV1;
 use a4n_domain::chapter_visual_plan::{
     VisualNarrativeUnitV1, VisualShotPlanV1, VisualTransitionV1,
 };
@@ -16,9 +17,16 @@ pub(super) fn assemble_chapter_shooting_script(
     directing_statement: &ShootingDirectingStatementV1,
     units: &[ScreenplayPlanUnit],
     scenes: Vec<ShootingSceneV1>,
-    visual_plan: &ParsedChapterVisualPlan,
+    visual_plan_record: &ParsedChapterVisualPlan,
+    visual_plan: &ChapterVisualPlanV1,
 ) -> Result<ChapterShootingScriptV1, AppError> {
-    let script = assemble_script(directing_statement, units, scenes, visual_plan)?;
+    let script = assemble_script(
+        directing_statement,
+        units,
+        scenes,
+        visual_plan_record,
+        visual_plan,
+    )?;
     script
         .validate()
         .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
@@ -29,21 +37,29 @@ pub(super) fn assemble_available_shooting_script(
     directing_statement: &ShootingDirectingStatementV1,
     units: &[ScreenplayPlanUnit],
     scenes: Vec<ShootingSceneV1>,
-    visual_plan: &ParsedChapterVisualPlan,
+    visual_plan_record: &ParsedChapterVisualPlan,
+    visual_plan: &ChapterVisualPlanV1,
 ) -> Result<ChapterShootingScriptV1, AppError> {
     if scenes.is_empty() {
         return Err(AppError::InvalidArgument(
             "已完成拍摄设计单元数量无效".to_string(),
         ));
     }
-    assemble_script(directing_statement, units, scenes, visual_plan)
+    assemble_script(
+        directing_statement,
+        units,
+        scenes,
+        visual_plan_record,
+        visual_plan,
+    )
 }
 
 fn assemble_script(
     directing_statement: &ShootingDirectingStatementV1,
     units: &[ScreenplayPlanUnit],
     scenes: Vec<ShootingSceneV1>,
-    visual_plan: &ParsedChapterVisualPlan,
+    visual_plan_record: &ParsedChapterVisualPlan,
+    visual_plan: &ChapterVisualPlanV1,
 ) -> Result<ChapterShootingScriptV1, AppError> {
     if scenes.len() != units.len() {
         return Err(AppError::InvalidArgument(format!(
@@ -52,7 +68,7 @@ fn assemble_script(
             units.len()
         )));
     }
-    if units.len() != visual_plan.plan.narrative_units.len() {
+    if units.len() != visual_plan.narrative_units.len() {
         return Err(AppError::InvalidArgument(
             "拍摄剧本叙事单元数量与 confirmed 导演编排不一致".into(),
         ));
@@ -60,7 +76,7 @@ fn assemble_script(
     let visual_index = VisualPlanIndex::new(visual_plan);
     let mut assembled = scenes
         .into_iter()
-        .zip(units.iter().zip(&visual_plan.plan.narrative_units))
+        .zip(units.iter().zip(&visual_plan.narrative_units))
         .enumerate()
         .map(|(planned_index, (scene, (unit, planned)))| {
             assemble_shooting_scene(unit, planned, planned_index, &visual_index, scene)
@@ -73,11 +89,11 @@ fn assemble_script(
     Ok(ChapterShootingScriptV1 {
         schema_version: ChapterShootingScriptSchemaVersion::V1,
         visual_plan_source: Some(ShootingVisualPlanSourceV1 {
-            plan_id: visual_plan.record.id,
-            plan_version: visual_plan.record.plan_version,
-            plan_sha256: visual_plan.record.plan_sha256.clone(),
+            plan_id: visual_plan_record.record.id,
+            plan_version: visual_plan_record.record.plan_version,
+            plan_sha256: visual_plan_record.record.plan_sha256.clone(),
         }),
-        user_additions: visual_plan.plan.user_additions.clone(),
+        user_additions: visual_plan.user_additions.clone(),
         directing_statement: directing_statement.clone(),
         scenes: assembled,
     })
@@ -139,9 +155,6 @@ fn assemble_shooting_scene(
             beat.beat_index = checked_index(beat_offset, "单个镜头表演节拍数量")?;
             beat.beat_id = format!("{}_beat_{}", shot.shot_id, beat.beat_index);
             beat.user_addition_ids = shot.user_addition_ids.clone();
-            if beat.source_span_ids.is_empty() && beat.user_addition_ids.is_empty() {
-                beat.source_span_ids = shot.source_span_ids.clone();
-            }
             if beat_ids
                 .insert(model_beat_id.clone(), beat.beat_id.clone())
                 .is_some()
@@ -177,27 +190,6 @@ fn apply_visual_shot_plan(
     shot.title = planned.title.clone();
     shot.source_span_ids = planned.source_span_ids.clone();
     shot.user_addition_ids = planned.user_addition_ids.clone();
-    let additional_user_addition_ids = {
-        let mut known_user_addition_ids = shot
-            .user_addition_ids
-            .iter()
-            .map(String::as_str)
-            .collect::<HashSet<_>>();
-        planned
-            .entity_events
-            .iter()
-            .flat_map(|event| &event.user_addition_ids)
-            .chain(
-                planned
-                    .sound_events
-                    .iter()
-                    .flat_map(|event| &event.user_addition_ids),
-            )
-            .filter(|id| known_user_addition_ids.insert(id.as_str()))
-            .cloned()
-            .collect::<Vec<_>>()
-    };
-    shot.user_addition_ids.extend(additional_user_addition_ids);
     shot.visual_constraints = Some(ShootingVisualConstraintsV1 {
         keyframes: planned.keyframes.clone(),
         entity_events: planned.entity_events.clone(),
@@ -297,50 +289,38 @@ struct VisualPlanIndex<'a> {
 }
 
 impl<'a> VisualPlanIndex<'a> {
-    fn new(visual_plan: &'a ParsedChapterVisualPlan) -> Self {
-        let plan = &visual_plan.plan;
-        let mut entity_labels = HashMap::with_capacity(plan.entities.len());
-        for entity in &plan.entities {
-            entity_labels
-                .entry(entity.id.as_str())
-                .or_insert(entity.label.as_str());
-        }
+    fn new(plan: &'a ChapterVisualPlanV1) -> Self {
+        let entity_labels = plan
+            .entities
+            .iter()
+            .map(|entity| (entity.id.as_str(), entity.label.as_str()))
+            .collect::<HashMap<_, _>>();
 
         let unit_ids = plan
             .narrative_units
             .iter()
             .map(|unit| unit.id.as_str())
             .collect::<Vec<_>>();
-        let mut shot_unit_indices = HashMap::new();
-        for (unit_index, unit) in plan.narrative_units.iter().enumerate() {
-            for shot in &unit.shots {
-                shot_unit_indices
-                    .entry(shot.id.as_str())
-                    .or_insert(unit_index);
-            }
-        }
+        let shot_unit_indices = plan
+            .narrative_units
+            .iter()
+            .enumerate()
+            .flat_map(|(unit_index, unit)| {
+                unit.shots
+                    .iter()
+                    .map(move |shot| (shot.id.as_str(), unit_index))
+            })
+            .collect::<HashMap<_, _>>();
 
         let mut transitions_by_unit = vec![Vec::new(); plan.narrative_units.len()];
         let mut transition_in = HashMap::with_capacity(plan.transitions.len());
         let mut transition_out = HashMap::with_capacity(plan.transitions.len());
         for transition in &plan.transitions {
-            transition_in
-                .entry(transition.to_shot_id.as_str())
-                .or_insert(transition);
-            transition_out
-                .entry(transition.from_shot_id.as_str())
-                .or_insert(transition);
-            let Some(&source_unit_index) = shot_unit_indices.get(transition.from_shot_id.as_str())
-            else {
-                continue;
-            };
-            let Some(&target_unit_index) = shot_unit_indices.get(transition.to_shot_id.as_str())
-            else {
-                continue;
-            };
-            if let Some(transitions) = transitions_by_unit.get_mut(source_unit_index) {
-                transitions.push((transition, target_unit_index));
-            }
+            transition_in.insert(transition.to_shot_id.as_str(), transition);
+            transition_out.insert(transition.from_shot_id.as_str(), transition);
+            let source_unit_index = shot_unit_indices[transition.from_shot_id.as_str()];
+            let target_unit_index = shot_unit_indices[transition.to_shot_id.as_str()];
+            transitions_by_unit[source_unit_index].push((transition, target_unit_index));
         }
 
         Self {
@@ -367,7 +347,7 @@ mod tests {
 
     use super::*;
 
-    fn fixture() -> ParsedChapterVisualPlan {
+    fn fixture() -> ChapterVisualPlanV1 {
         let source = ResolvedChapterSource {
             requested_project_id: 1,
             root_project_id: 1,
@@ -387,31 +367,27 @@ mod tests {
             source.chapter_number,
             &source.content,
         );
-        crate::shooting_script::contracts::visual_plan_fixture(&source, &spans)
+        let visual_plan = crate::shooting_script::contracts::visual_plan_fixture(&source);
+        crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+            &visual_plan.plan,
+            &spans,
+        )
+        .expect("visual plan projection")
     }
 
     #[test]
-    fn visual_plan_index_keeps_first_matches_and_transition_order() {
+    fn visual_plan_index_tracks_labels_and_transition_order() {
         let mut visual_plan = fixture();
-        visual_plan.plan.entities = vec![
-            VisualEntityV1 {
-                id: "entity_1".into(),
-                label: "首个标签".into(),
-                kind: VisualEntityKindV1::Character,
-                description: "实体".into(),
-                source_span_ids: Vec::new(),
-                user_addition_ids: Vec::new(),
-            },
-            VisualEntityV1 {
-                id: "entity_1".into(),
-                label: "后续标签".into(),
-                kind: VisualEntityKindV1::Character,
-                description: "实体".into(),
-                source_span_ids: Vec::new(),
-                user_addition_ids: Vec::new(),
-            },
-        ];
-        let shots = &visual_plan.plan.narrative_units[0].shots;
+        let source_span_id = visual_plan.narrative_units[0].source_span_ids[0].clone();
+        visual_plan.entities = vec![VisualEntityV1 {
+            id: "entity_1".into(),
+            label: "首个标签".into(),
+            kind: VisualEntityKindV1::Character,
+            description: "实体".into(),
+            source_span_ids: vec![source_span_id],
+            user_addition_ids: Vec::new(),
+        }];
+        let shots = &visual_plan.narrative_units[0].shots;
         assert!(shots.len() >= 2);
         let first = VisualTransitionV1 {
             id: "transition_1".into(),
@@ -424,12 +400,7 @@ mod tests {
             preserved_sound: None,
             notes: None,
         };
-        let second = VisualTransitionV1 {
-            id: "transition_2".into(),
-            kind: ShootingTransitionTypeV1::Dissolve,
-            ..first.clone()
-        };
-        visual_plan.plan.transitions = vec![first, second];
+        visual_plan.transitions = vec![first];
 
         let index = VisualPlanIndex::new(&visual_plan);
 
@@ -451,6 +422,6 @@ mod tests {
                 .map(|t| t.kind),
             Some(ShootingTransitionTypeV1::HardCut)
         );
-        assert_eq!(index.transitions_by_unit[0].len(), 2);
+        assert_eq!(index.transitions_by_unit[0].len(), 1);
     }
 }

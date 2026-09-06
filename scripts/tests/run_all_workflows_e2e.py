@@ -32,7 +32,7 @@ from run_cli_contract_e2e import (
     secure_json,
     start_provider,
 )
-from mock_openai_provider import chapter_body_response
+from mock_openai_provider import chapter_body_response, chapter_visual_plan_fixture
 
 
 PROBE_ID = 999_999_999
@@ -587,10 +587,8 @@ def _replace_fixture_ids(value: Any, key: str, state: dict[str, Any], command: s
         "foreshadowing_id": "foreshadowing_id",
         "themeid": "theme_id",
         "theme_id": "theme_id",
-        "recordid": "visual_plan_id",
         "record_id": "visual_plan_id",
         "visual_plan_id": "visual_plan_id",
-        "base_revision": "visual_plan_revision",
         "expected_revision": "visual_plan_revision",
         "sync_runid": "sync_run_id",
         "sync_run_id": "sync_run_id",
@@ -863,29 +861,6 @@ def fixture_payload(
             mime_type="image/png",
             data_base64=PNG_1X1_BASE64,
             file_path=None,
-        )
-    elif command == "generate_chapter_visual_plan_draft" and input_value is not None:
-        input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
-            source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
-            authoring_mode="automatic",
-            user_direction=None,
-        )
-    elif command == "propose_chapter_visual_plan_revision" and input_value is not None:
-        input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
-            source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
-            record_id=state.get("visual_plan_id", input_value.get("record_id")),
-            base_revision=state.get("visual_plan_revision", input_value.get("base_revision")),
-            instruction="让镜头更明确地表现怀表与齿轮暗记的连续性。",
-        )
-    elif command == "apply_chapter_visual_plan_proposal" and input_value is not None:
-        input_value.update(
-            project_id=state.get("project_id", input_value.get("project_id")),
-            source_chapter_id=state.get("chapter_id", input_value.get("source_chapter_id")),
-            record_id=state.get("visual_plan_id", input_value.get("record_id")),
-            base_revision=state.get("visual_plan_revision", input_value.get("base_revision")),
-            proposal=state.get("visual_plan", input_value.get("proposal")),
         )
     elif command == "confirm_chapter_visual_plan" and input_value is not None:
         input_value.update(
@@ -1331,9 +1306,7 @@ FIXTURE_PATHS: dict[str, tuple[str, ...]] = {
     ),
     "chapter_analysis_and_visual": (
         "generate_chapter_analysis",
-        "generate_chapter_visual_plan_draft",
-        "propose_chapter_visual_plan_revision",
-        "apply_chapter_visual_plan_proposal",
+        "save_chapter_visual_plan_draft",
         "confirm_chapter_visual_plan",
         "get_chapter_visual_plan",
         "generate_chapter_shooting_script",
@@ -1528,8 +1501,6 @@ def _watch_seed_task(cli: Cli, task_id: str, records: list[dict[str, Any]], labe
 SYNCHRONOUS_TASK_COMMANDS = frozenset(
     {
         "generate_chapter_analysis",
-        "generate_chapter_visual_plan_draft",
-        "propose_chapter_visual_plan_revision",
         "sync_character_from_chapters",
         "sync_all_character_profiles",
         "sync_scene_profiles",
@@ -1802,65 +1773,33 @@ def seed_fixtures(
         },
     )
 
-    visual_draft = task(
-        "generate_chapter_visual_plan_draft",
+    visual_plan = chapter_visual_plan_fixture()
+    visual_draft = call(
+        "save_chapter_visual_plan_draft",
         {
             "input": {
                 "project_id": project_id,
                 "source_chapter_id": chapter_id,
-                "authoring_mode": "automatic",
-                "user_direction": None,
+                "authoring_mode": "manual",
+                "record_id": None,
+                "expected_revision": None,
+                "plan": visual_plan,
             }
         },
     )
     visual_draft_data = visual_draft.get("data")
-    visual_record = visual_draft_data.get("record") if isinstance(visual_draft_data, dict) else None
-    visual_plan = visual_draft_data.get("plan") if isinstance(visual_draft_data, dict) else None
+    visual_record = (
+        visual_draft_data.get("record")
+        if isinstance(visual_draft_data, dict)
+        else None
+    )
     visual_plan_id = visual_record.get("id") if isinstance(visual_record, dict) else None
     visual_revision = visual_record.get("revision") if isinstance(visual_record, dict) else None
     if not isinstance(visual_plan_id, int) or visual_plan_id <= 0 or not isinstance(visual_revision, int):
-        raise RunnerError("fixture generate_chapter_visual_plan_draft 未返回有效 record")
+        raise RunnerError("fixture save_chapter_visual_plan_draft 未返回有效 record")
     state.update(
         visual_plan_id=visual_plan_id,
         visual_plan_revision=visual_revision,
-        visual_plan=visual_plan,
-    )
-    proposal_result = task(
-        "propose_chapter_visual_plan_revision",
-        {
-            "input": {
-                "project_id": project_id,
-                "source_chapter_id": chapter_id,
-                "record_id": visual_plan_id,
-                "base_revision": visual_revision,
-                "instruction": "让镜头更明确地表现怀表与齿轮暗记的连续性。",
-            }
-        },
-    )
-    proposal_data = proposal_result.get("data")
-    proposal = proposal_data.get("proposal") if isinstance(proposal_data, dict) else None
-    if not isinstance(proposal, dict):
-        raise RunnerError("fixture propose_chapter_visual_plan_revision 未返回 proposal")
-    applied = call(
-        "apply_chapter_visual_plan_proposal",
-        {
-            "input": {
-                "project_id": project_id,
-                "source_chapter_id": chapter_id,
-                "record_id": visual_plan_id,
-                "base_revision": visual_revision,
-                "proposal": proposal,
-            }
-        },
-    )
-    applied_data = applied.get("data")
-    applied_record = applied_data.get("record") if isinstance(applied_data, dict) else None
-    applied_plan = applied_data.get("plan") if isinstance(applied_data, dict) else None
-    if not isinstance(applied_record, dict) or not isinstance(applied_record.get("revision"), int):
-        raise RunnerError("fixture apply_chapter_visual_plan_proposal 未返回有效 revision")
-    state.update(
-        visual_plan_revision=applied_record["revision"],
-        visual_plan=applied_plan or proposal,
     )
     confirmed = call(
         "confirm_chapter_visual_plan",
@@ -1874,9 +1813,13 @@ def seed_fixtures(
         },
         destructive=True,
     )
-    confirmed_plan = confirmed.get("data", {}).get("visual_plan") if isinstance(confirmed.get("data"), dict) else None
-    if isinstance(confirmed_plan, dict):
-        state["visual_plan"] = confirmed_plan.get("plan", state["visual_plan"])
+    confirmed_data = confirmed.get("data")
+    if (
+        not isinstance(confirmed_data, dict)
+        or not isinstance(confirmed_data.get("visual_plan"), dict)
+        or not isinstance(confirmed_data["visual_plan"].get("plan"), dict)
+    ):
+        raise RunnerError("fixture confirm_chapter_visual_plan 未返回有效 visual_plan")
     call(
         "get_chapter_visual_plan",
         {"input": {"project_id": project_id, "source_chapter_id": chapter_id}},

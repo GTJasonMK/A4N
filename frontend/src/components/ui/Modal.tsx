@@ -137,7 +137,6 @@ export const Modal: React.FC<ModalProps> = ({
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const modalIdRef = useRef(Symbol('modal'));
   const [rendered, setRendered] = useState(isOpen);
-  const [isExiting, setIsExiting] = useState(false);
   const renderedRef = useRef(isOpen);
   const exitingRef = useRef(false);
   const closeTimerRef = useRef<number | null>(null);
@@ -151,18 +150,15 @@ export const Modal: React.FC<ModalProps> = ({
       renderedRef.current = true;
       exitingRef.current = false;
       setRendered(true);
-      setIsExiting(false);
       return;
     }
 
     if (!renderedRef.current || exitingRef.current) return;
     exitingRef.current = true;
-    setIsExiting(true);
     closeTimerRef.current = window.setTimeout(() => {
       renderedRef.current = false;
       exitingRef.current = false;
       closeTimerRef.current = null;
-      setIsExiting(false);
       setRendered(false);
     }, MODAL_EXIT_MS);
   }, [isOpen]);
@@ -187,16 +183,16 @@ export const Modal: React.FC<ModalProps> = ({
       window.cancelAnimationFrame(raf);
       unregisterModal(modalIdRef.current);
       const previousActiveElement = previousActiveElementRef.current;
-      if (previousActiveElement?.isConnected) {
+      if (openModalStack.length === 0 && previousActiveElement?.isConnected) {
         window.requestAnimationFrame(() => {
-          if (previousActiveElement.isConnected) previousActiveElement.focus();
+          if (openModalStack.length === 0 && previousActiveElement.isConnected) previousActiveElement.focus();
         });
       }
     };
   }, [initialFocusRef, rendered]);
 
   useEffect(() => {
-    if (!rendered || isExiting) return undefined;
+    if (!rendered || !isOpen) return undefined;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isTopModal(modalIdRef.current)) return;
@@ -235,7 +231,7 @@ export const Modal: React.FC<ModalProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [closeOnEscape, isExiting, onClose, rendered]);
+  }, [closeOnEscape, isOpen, onClose, rendered]);
 
   if (!rendered) return null;
 
@@ -273,7 +269,7 @@ export const Modal: React.FC<ModalProps> = ({
     <div
       ref={layerRef}
       className={`a4n-modal-layer fixed inset-0 ${zIndexClassName} flex items-end justify-center p-0 sm:items-center sm:p-4`}
-      data-modal-state={isExiting ? 'exiting' : 'entering'}
+      data-modal-state={isOpen ? 'entering' : 'exiting'}
     >
       <div
         className="dialog-backdrop absolute inset-0"

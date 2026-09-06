@@ -83,7 +83,6 @@ fn test_load_real_prompts_dir() {
         "chapter_summary_synthesis",
         "chapter_scene_generation",
         "inspiration_project_context_guard",
-        "chapter_screenplay_skeleton",
         "chapter_screenplay_layout_unit",
         "chapter_screenplay_unit_adaptation",
         "manga_character_binding",

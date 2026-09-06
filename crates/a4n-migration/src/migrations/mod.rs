@@ -25,6 +25,8 @@ pub mod chapter_video_timeline_contract;
 pub mod chapter_video_timeline_retirement;
 pub mod chapter_video_timeline_state_cleanup;
 pub mod chapter_visual_plan;
+pub mod chapter_visual_plan_authoring_mode_cleanup;
+pub mod chapter_visual_plan_lineage_identity;
 pub mod chapter_visual_plan_source_revision_identity;
 pub mod chapter_visual_plan_workflow_identity_cleanup;
 pub mod character_deletion_mark_provenance;

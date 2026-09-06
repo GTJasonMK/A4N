@@ -109,6 +109,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::agent_runtime_checkpoint_cleanup::Migration),
             Box::new(crate::migrations::agent_runtime_status_canonicalization::Migration),
             Box::new(crate::migrations::agent_runtime_dead_fields_cleanup::Migration),
+            Box::new(crate::migrations::chapter_visual_plan_lineage_identity::Migration),
+            Box::new(crate::migrations::chapter_visual_plan_authoring_mode_cleanup::Migration),
         ]
     }
 }
@@ -158,12 +160,11 @@ mod tests {
             names
                 .iter()
                 .rev()
-                .take(49)
+                .take(50)
                 .rev()
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "drop_chapter_video_prompt_identity_unique",
                 "unified_model_provider_requests",
                 "system_settings_key_unique",
                 "chapter_outline_provenance",
@@ -212,6 +213,8 @@ mod tests {
                 "agent_runtime_checkpoint_cleanup",
                 "agent_runtime_status_canonicalization",
                 "agent_runtime_dead_fields_cleanup",
+                "chapter_visual_plan_lineage_identity",
+                "chapter_visual_plan_authoring_mode_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

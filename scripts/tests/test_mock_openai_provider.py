@@ -29,6 +29,7 @@ from mock_openai_provider import (
     scene_occurrence_response,
     scene_profile_candidates_response,
     scene_transition_response,
+    shooting_span_ids,
     shooting_design_response,
     agent_chat_fixture,
     video_segment_plan_response,
@@ -418,7 +419,7 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(payload["error"]["type"], "unhandled_prompt")
         self.assertIn("No deterministic fixture matched prompt", payload["error"]["message"])
 
-    def test_reverse_and_visual_plan_contract_dispatch(self) -> None:
+    def test_reverse_contract_dispatch(self) -> None:
         cases = [
             (
                 "reverse_blueprint",
@@ -459,38 +460,6 @@ class MockOpenAIProviderTest(unittest.TestCase):
             )
             content = json.loads(payload["choices"][0]["message"]["content"])
             self.assertTrue(expected_keys.issubset(content))
-
-        starter = {
-            "schema_version": "chapter_visual_plan_v1",
-            "frame": {"width": 16, "height": 16, "duration_ms": 1},
-            "directing_statement": {},
-            "entities": [],
-            "user_additions": [],
-            "narrative_units": [],
-            "transitions": [],
-            "source_dispositions": [],
-        }
-        _, payload = self.request_json(
-            "/v1/chat/completions",
-            {
-                "model": "a4n-virtual-text",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": json.dumps(
-                            {
-                                "task": "generate_chapter_visual_plan",
-                                "starter_plan": starter,
-                            },
-                            ensure_ascii=False,
-                        ),
-                    }
-                ],
-            },
-        )
-        self.assertEqual(
-            json.loads(payload["choices"][0]["message"]["content"]), starter
-        )
 
     def test_shooting_design_mirrors_all_locked_visual_shots(self) -> None:
         spans = [
@@ -588,6 +557,10 @@ class MockOpenAIProviderTest(unittest.TestCase):
             ["ch1:s2:f1"],
         )
         self.assertIsNone(response["shots"][1]["performance_beats"][0]["actor"])
+
+    def test_shooting_span_ids_requires_structured_source_spans(self) -> None:
+        with self.assertRaisesRegex(ValueError, "shooting script prompt contains no source spans"):
+            shooting_span_ids("旧文本中出现 ch1:s1:f1，但没有 source_spans 对象")
 
     def test_manga_item_uses_available_source_span_contract(self) -> None:
         body = {

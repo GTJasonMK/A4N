@@ -175,6 +175,7 @@ export function PromptDialogHost() {
           <textarea
             ref={setInputRef}
             value={value}
+            aria-label={current.title}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onChange={handleChange}
@@ -186,6 +187,7 @@ export function PromptDialogHost() {
           <input
             ref={setInputRef}
             value={value}
+            aria-label={current.title}
             onCompositionStart={handleCompositionStart}
             onCompositionEnd={handleCompositionEnd}
             onChange={handleChange}

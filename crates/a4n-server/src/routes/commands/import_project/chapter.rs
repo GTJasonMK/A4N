@@ -25,8 +25,6 @@ pub(in crate::routes::commands) use shooting_script::{
     get_chapter_shooting_script_unit_progress,
 };
 pub(in crate::routes::commands) use visual_plan::{
-    apply_chapter_visual_plan_proposal, confirm_chapter_visual_plan,
-    discard_chapter_visual_plan_draft, generate_chapter_visual_plan_draft, get_chapter_visual_plan,
-    preview_chapter_visual_plan_request, propose_chapter_visual_plan_revision,
+    confirm_chapter_visual_plan, discard_chapter_visual_plan_draft, get_chapter_visual_plan,
     save_chapter_visual_plan_draft,
 };

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { scrollRailItemIntoView } from "../../../utils/scrollRail";
+import { getScrollRailCue, scrollRailItemIntoView } from "../../../utils/scrollRail";
 import { useI18n } from "../../../i18n";
 
 /**
@@ -45,10 +45,9 @@ export const VideoWorkspaceHeader: React.FC<VideoWorkspaceHeaderProps> = ({
     const rail = tabListRef.current;
     if (!rail) return;
     const updateCue = () => {
-      setTabRailHasBefore(rail.scrollLeft > 2);
-      setTabRailHasMore(
-        rail.scrollLeft + rail.clientWidth < rail.scrollWidth - 2,
-      );
+      const cue = getScrollRailCue(rail);
+      setTabRailHasBefore(cue.hasBefore);
+      setTabRailHasMore(cue.hasMore);
     };
     const frame = window.requestAnimationFrame(updateCue);
     rail.addEventListener("scroll", updateCue, { passive: true });

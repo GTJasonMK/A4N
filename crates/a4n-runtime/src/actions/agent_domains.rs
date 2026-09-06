@@ -7,6 +7,7 @@ pub(crate) mod content_optimization;
 pub(crate) use a4n_api_contract::agent::{
     CANVAS_AGENT_CAPABILITY as CANVAS_CAPABILITY,
     CONTENT_OPTIMIZATION_AGENT_CAPABILITY as CONTENT_OPTIMIZATION_CAPABILITY,
+    DIRECTOR_AGENT_CAPABILITY as DIRECTOR_CAPABILITY,
 };
 
 pub(crate) fn tools_for_capability(capability: &str) -> &'static [&'static str] {
@@ -18,7 +19,11 @@ pub(crate) fn tools_for_capability(capability: &str) -> &'static [&'static str] 
 pub(crate) fn requires_user_approval(tool: &str) -> bool {
     matches!(
         tool,
-        "apply_optimization_patches" | "save_canvas_graph" | "run_canvas_graph" | "run_canvas_node"
+        "apply_optimization_patches"
+            | "save_canvas_graph"
+            | "run_canvas_graph"
+            | "run_canvas_node"
+            | "save_chapter_visual_plan_draft"
     )
 }
 
@@ -129,6 +134,32 @@ pub(crate) fn canonical_subagent_binding(
                     hash: None,
                 }),
                 allowed_tools: a4n_api_contract::agent::CANVAS_AGENT_TOOLS
+                    .iter()
+                    .map(|tool| (*tool).to_string())
+                    .collect(),
+            })
+        }
+        DIRECTOR_CAPABILITY => {
+            let project_id = positive_id(project_id, "director projectId")?;
+            let chapter_id = positive_id(chapter_id, "director chapterId")?;
+            let key = a4n_api_contract::agent::canonical_subagent_binding_key(
+                &capability,
+                "chapter",
+                &chapter_id.to_string(),
+            );
+            Ok(CanonicalSubagentBinding {
+                capability,
+                key,
+                project_id: Some(project_id),
+                chapter_id: Some(chapter_id),
+                bound_resource: Some(AgentResourceRef {
+                    kind: "chapter".into(),
+                    id: chapter_id.to_string(),
+                    label: None,
+                    revision: None,
+                    hash: None,
+                }),
+                allowed_tools: a4n_api_contract::agent::DIRECTOR_AGENT_TOOLS
                     .iter()
                     .map(|tool| (*tool).to_string())
                     .collect(),
@@ -259,6 +290,22 @@ mod tests {
             !tools_for_capability(CONTENT_OPTIMIZATION_CAPABILITY).contains(&"save_canvas_graph")
         );
         assert!(requires_user_approval("run_canvas_graph"));
+        assert!(requires_user_approval("save_chapter_visual_plan_draft"));
         assert!(!requires_user_approval("send_content_optimization_message"));
+    }
+
+    #[test]
+    fn director_binding_is_chapter_scoped() {
+        let director = canonical_subagent_binding(DIRECTOR_CAPABILITY, Some(7), Some(11))
+            .expect("director binding should be valid");
+        assert_eq!(director.key, "subagent:director:chapter:11");
+        assert_eq!(director.bound_resource.as_ref().unwrap().kind, "chapter");
+        assert!(
+            director
+                .allowed_tools
+                .contains(&"save_chapter_visual_plan_draft".into())
+        );
+        assert!(canonical_subagent_binding(DIRECTOR_CAPABILITY, Some(7), None).is_err());
+        assert!(canonical_subagent_binding(DIRECTOR_CAPABILITY, None, Some(11)).is_err());
     }
 }

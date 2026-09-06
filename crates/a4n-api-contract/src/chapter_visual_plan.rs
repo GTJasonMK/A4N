@@ -22,7 +22,7 @@ pub struct SaveChapterVisualPlanDraftInput {
     pub authoring_mode: ChapterVisualPlanAuthoringMode,
     pub record_id: Option<i64>,
     pub expected_revision: Option<i32>,
-    pub plan: ChapterVisualPlanV1,
+    pub plan: ChapterVisualPlanV2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -36,45 +36,6 @@ pub struct ChapterVisualPlanRecordInput {
     pub record_id: i64,
     #[schemars(range(min = 1))]
     pub expected_revision: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GenerateChapterVisualPlanDraftInput {
-    #[schemars(range(min = 1))]
-    pub project_id: i64,
-    #[schemars(range(min = 1))]
-    pub source_chapter_id: i64,
-    pub authoring_mode: ChapterVisualPlanAuthoringMode,
-    pub user_direction: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ProposeChapterVisualPlanRevisionInput {
-    #[schemars(range(min = 1))]
-    pub project_id: i64,
-    #[schemars(range(min = 1))]
-    pub source_chapter_id: i64,
-    #[schemars(range(min = 1))]
-    pub record_id: i64,
-    #[schemars(range(min = 1))]
-    pub base_revision: i32,
-    pub instruction: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct ApplyChapterVisualPlanProposalInput {
-    #[schemars(range(min = 1))]
-    pub project_id: i64,
-    #[schemars(range(min = 1))]
-    pub source_chapter_id: i64,
-    #[schemars(range(min = 1))]
-    pub record_id: i64,
-    #[schemars(range(min = 1))]
-    pub base_revision: i32,
-    pub proposal: ChapterVisualPlanV1,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -92,22 +53,15 @@ pub struct ChapterVisualPlanRecordSummary {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanView {
     pub record: ChapterVisualPlanRecordSummary,
-    pub plan: ChapterVisualPlanV1,
+    pub plan: ChapterVisualPlanV2,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterVisualPlanSetView {
     pub source: ChapterVisualPlanSourceView,
-    pub starter_plan: ChapterVisualPlanV1,
+    pub starter_plan: ChapterVisualPlanV2,
     pub draft: Option<ChapterVisualPlanView>,
     pub confirmed: Option<ChapterVisualPlanView>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct ChapterVisualPlanSourceSpanView {
-    pub id: String,
-    pub text: String,
-    pub paragraph_index: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -116,20 +70,10 @@ pub struct ChapterVisualPlanSourceView {
     pub title: Option<String>,
     pub content: String,
     pub content_sha256: String,
-    pub source_spans: Vec<ChapterVisualPlanSourceSpanView>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ConfirmedChapterVisualPlanView {
     pub visual_plan: ChapterVisualPlanView,
     pub invalidated_project_ids: Vec<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ChapterVisualPlanProposalView {
-    #[schemars(range(min = 1))]
-    pub record_id: i64,
-    #[schemars(range(min = 1))]
-    pub base_revision: i32,
-    pub proposal: ChapterVisualPlanV1,
 }

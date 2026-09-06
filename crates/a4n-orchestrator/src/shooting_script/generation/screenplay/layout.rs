@@ -17,20 +17,15 @@ use crate::{
 
 use super::validation::{validate_layout_unit_detail, validate_skeleton};
 
-pub(in crate::shooting_script::generation) async fn generate_screenplay_skeleton(
-    _orchestrator: &OrchestratorContext,
-    _workflow_run_id: i64,
+pub(in crate::shooting_script::generation) fn generate_screenplay_skeleton(
     prepared: &PreparedChapterShootingScriptRequest,
     progress: ShootingScriptProgressReporter<'_>,
-    stream_reporter: Option<ShootingScriptStreamReporter<'_>>,
-    cancel_token: Option<&CancellationToken>,
 ) -> Result<ChapterScreenplaySkeletonV1, AppError> {
     progress(
         1,
         CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL,
         "正在生成或恢复全章叙事骨架",
     )?;
-    let _ = (stream_reporter, cancel_token);
     let skeleton = skeleton_from_visual_plan(prepared)?;
     validate_skeleton(&skeleton, prepared)?;
     progress(
@@ -41,22 +36,19 @@ pub(in crate::shooting_script::generation) async fn generate_screenplay_skeleton
     Ok(skeleton)
 }
 
-pub(in crate::shooting_script) async fn restore_screenplay_skeleton(
-    _orchestrator: &OrchestratorContext,
-    _workflow_run_id: i64,
+pub(in crate::shooting_script) fn restore_screenplay_skeleton(
     prepared: &PreparedChapterShootingScriptRequest,
-) -> Result<Option<ChapterScreenplaySkeletonV1>, AppError> {
+) -> Result<ChapterScreenplaySkeletonV1, AppError> {
     let skeleton = skeleton_from_visual_plan(prepared)?;
     validate_skeleton(&skeleton, prepared)?;
-    Ok(Some(skeleton))
+    Ok(skeleton)
 }
 
 fn skeleton_from_visual_plan(
     prepared: &PreparedChapterShootingScriptRequest,
 ) -> Result<ChapterScreenplaySkeletonV1, AppError> {
     let units = prepared
-        .visual_plan
-        .plan
+        .visual_plan_projection
         .narrative_units
         .iter()
         .enumerate()
@@ -76,7 +68,7 @@ fn skeleton_from_visual_plan(
         .collect::<Result<Vec<_>, AppError>>()?;
     Ok(ChapterScreenplaySkeletonV1 {
         schema_version: "chapter_screenplay_skeleton_v1".into(),
-        directing_statement: prepared.visual_plan.plan.directing_statement.clone(),
+        directing_statement: prepared.visual_plan_projection.directing_statement.clone(),
         units,
     })
 }

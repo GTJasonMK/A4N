@@ -363,44 +363,6 @@ prompts:
     dependencies: []
     description: "显式内容优化 Agent Loop：逐步读取上下文、调用工具并最终输出 issues JSON"
 
-  chapter_screenplay_skeleton:
-    path: "novel/05_analysis/chapter_screenplay_skeleton.md"
-    title: "章节叙事骨架"
-    category: "analysis"
-    tags: ["analysis", "screenplay", "skeleton", "editing"]
-    version: "1.0"
-    used_by:
-      - "OrchestratorContext.prepare_chapter_shooting_script_request"
-    dependencies:
-      - "chapter_fact_extraction"
-      - "chapter_summary_synthesis"
-    description: "规划全章导演命题、叙事单元身份、时间线和跨场景穿插拓扑"
-
-  chapter_visual_plan_outline:
-    path: "novel/05_analysis/chapter_visual_plan_outline.md"
-    title: "章节视觉编排方案"
-    category: "analysis"
-    tags: ["analysis", "directing", "visual-plan", "timeline"]
-    version: "1.0"
-    used_by:
-      - "OrchestratorContext.generate_chapter_visual_plan_draft_for_user_validated"
-    dependencies:
-      - "chapter_fact_extraction"
-      - "chapter_summary_synthesis"
-    description: "将章节正文和用户导演意图生成可编辑、可校验的章节视觉编排方案"
-
-  chapter_visual_plan_revision:
-    path: "novel/05_analysis/chapter_visual_plan_revision.md"
-    title: "章节视觉编排协作修改"
-    category: "analysis"
-    tags: ["analysis", "directing", "visual-plan", "revision"]
-    version: "1.0"
-    used_by:
-      - "OrchestratorContext.propose_chapter_visual_plan_revision_for_user_validated"
-    dependencies:
-      - "chapter_visual_plan_outline"
-    description: "按照用户指令对既有编排产生带 base revision 的完整修改提案"
-
   chapter_screenplay_layout_unit:
     path: "novel/05_analysis/chapter_screenplay_layout_unit.md"
     title: "叙事单元布局细化"
@@ -409,8 +371,7 @@ prompts:
     version: "1.0"
     used_by:
       - "OrchestratorContext.prepare_chapter_shooting_script_request"
-    dependencies:
-      - "chapter_screenplay_skeleton"
+    dependencies: []
     description: "在固定全章骨架下逐单元细化场记、戏剧状态和转场合同"
 
   chapter_screenplay_unit_adaptation:

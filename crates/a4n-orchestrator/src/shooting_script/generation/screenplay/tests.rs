@@ -36,14 +36,20 @@ fn prepared() -> PreparedChapterShootingScriptRequest {
         source_revision_key: "revision".into(),
     };
     let source_spans = source_spans_for_content(3, 1, &content);
-    let visual_plan =
-        crate::shooting_script::contracts::visual_plan_fixture(&source, &source_spans);
+    let visual_plan = crate::shooting_script::contracts::visual_plan_fixture(&source);
+    let visual_plan_projection =
+        crate::chapter_visual_plan::project_visual_plan_for_shooting_script(
+            &visual_plan.plan,
+            &source_spans,
+        )
+        .expect("visual plan projection");
     PreparedChapterShootingScriptRequest {
         source,
         source_spans,
         input_fingerprint_sha256: "fingerprint".into(),
         existing: None,
         visual_plan,
+        visual_plan_projection,
         layout_unit_system_prompt: String::new(),
         unit_adaptation_system_prompt: String::new(),
         design_unit_system_prompt: String::new(),
@@ -53,10 +59,10 @@ fn prepared() -> PreparedChapterShootingScriptRequest {
 #[test]
 fn skeleton_rejects_duplicate_timeline_positions_before_checkpoint_completion() {
     let mut prepared = prepared();
-    let mut second = prepared.visual_plan.plan.narrative_units[0].clone();
+    let mut second = prepared.visual_plan_projection.narrative_units[0].clone();
     second.id = "unit_2".into();
     second.sequence_index = 2;
-    prepared.visual_plan.plan.narrative_units.push(second);
+    prepared.visual_plan_projection.narrative_units.push(second);
     let skeleton = ChapterScreenplaySkeletonV1 {
         schema_version: "chapter_screenplay_skeleton_v1".into(),
         directing_statement: ShootingDirectingStatementV1 {
@@ -70,8 +76,7 @@ fn skeleton_rejects_duplicate_timeline_positions_before_checkpoint_completion() 
             rhythm_strategy: "节奏".into(),
         },
         units: prepared
-            .visual_plan
-            .plan
+            .visual_plan_projection
             .narrative_units
             .iter()
             .enumerate()

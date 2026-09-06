@@ -1,7 +1,6 @@
 use a4n_core::models::chapter::chapter_visual_plan;
-use sea_orm::{
-    ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
-};
+use a4n_domain::chapter_visual_plan::ChapterVisualPlanStatus;
+use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter};
 use std::collections::HashMap;
 
 use super::{
@@ -19,23 +18,14 @@ where
 {
     validate_source(source)?;
     let rows = chapter_visual_plan::Entity::find()
-        .filter(chapter_visual_plan::Column::RootProjectId.eq(source.root_project_id))
-        .filter(chapter_visual_plan::Column::SourceChapterId.eq(source.source_chapter_id))
-        .filter(chapter_visual_plan::Column::SourceRevisionKey.eq(&source.source_revision_key))
-        .filter(chapter_visual_plan::Column::SourceContentSha256.eq(&source.content_sha256))
+        .filter(lineage_condition(source)?)
         .filter(chapter_visual_plan::Column::Status.is_in(["draft", "confirmed"]))
-        .order_by_desc(chapter_visual_plan::Column::UpdatedAt)
-        .order_by_desc(chapter_visual_plan::Column::Id)
         .all(db)
         .await?;
     let mut result = ChapterVisualPlanSet::default();
     for row in rows {
         let parsed = parse_record(row)?;
-        match parsed.record.status.as_str() {
-            "draft" if result.draft.is_none() => result.draft = Some(parsed),
-            "confirmed" if result.confirmed.is_none() => result.confirmed = Some(parsed),
-            _ => {}
-        }
+        insert_live_plan(&mut result, parsed)?;
     }
     Ok(result)
 }
@@ -55,31 +45,11 @@ where
         return Ok(Vec::new());
     }
 
-    let mut rows = chapter_visual_plan::Entity::find()
-        .filter(source_condition(sources))
+    let rows = chapter_visual_plan::Entity::find()
+        .filter(source_condition(sources)?)
         .filter(chapter_visual_plan::Column::Status.is_in(["draft", "confirmed"]))
-        .distinct_on([
-            chapter_visual_plan::Column::RootProjectId,
-            chapter_visual_plan::Column::SourceChapterId,
-            chapter_visual_plan::Column::SourceRevisionKey,
-            chapter_visual_plan::Column::SourceContentSha256,
-            chapter_visual_plan::Column::Status,
-        ])
-        .order_by_asc(chapter_visual_plan::Column::RootProjectId)
-        .order_by_asc(chapter_visual_plan::Column::SourceChapterId)
-        .order_by_asc(chapter_visual_plan::Column::SourceRevisionKey)
-        .order_by_asc(chapter_visual_plan::Column::SourceContentSha256)
-        .order_by_asc(chapter_visual_plan::Column::Status)
-        .order_by_desc(chapter_visual_plan::Column::UpdatedAt)
-        .order_by_desc(chapter_visual_plan::Column::Id)
         .all(db)
         .await?;
-    rows.sort_by(|left, right| {
-        right
-            .updated_at
-            .cmp(&left.updated_at)
-            .then_with(|| right.id.cmp(&left.id))
-    });
     let mut rows_by_source = HashMap::<SourceIdentity, Vec<chapter_visual_plan::Model>>::new();
     for row in rows {
         rows_by_source
@@ -98,25 +68,26 @@ where
         if let Some(rows) = rows_by_source.remove(&source_key) {
             for row in rows {
                 let parsed = parse_record(row)?;
-                match parsed.record.status.as_str() {
-                    "draft" if plans.draft.is_none() => plans.draft = Some(parsed),
-                    "confirmed" if plans.confirmed.is_none() => plans.confirmed = Some(parsed),
-                    _ => {}
-                }
+                insert_live_plan(&mut plans, parsed)?;
             }
         }
         plans_by_source.insert(source_key, plans);
     }
 
-    Ok(sources
+    sources
         .iter()
         .map(|source| {
             plans_by_source
                 .get(&source_identity(source))
                 .cloned()
-                .unwrap_or_default()
+                .ok_or_else(|| {
+                    ChapterVisualPlanDbError::InvalidState(format!(
+                        "章节视觉编排来源索引丢失: root_project_id={}, source_chapter_id={}",
+                        source.root_project_id, source.source_chapter_id
+                    ))
+                })
         })
-        .collect())
+        .collect()
 }
 
 pub async fn confirmed_chapter_visual_plan_for_source<C>(
@@ -158,17 +129,25 @@ pub(super) fn validate_source(
             "章节视觉编排来源 ID 和章节号必须大于 0".into(),
         ));
     }
+    if !super::codec::valid_source_snapshot_identity(
+        source.source_snapshot_id,
+        source.source_snapshot_chapter_id,
+    ) {
+        return Err(ChapterVisualPlanDbError::InvalidArgument(
+            "source_snapshot_id 与 source_snapshot_chapter_id 必须同时为空或同时为正数".into(),
+        ));
+    }
     super::codec::validate_sha256(&source.content_sha256, "source_content_sha256")
 }
 
-type SourceIdentity = (i64, i64, String, String);
+type SourceIdentity = (i64, i64, Option<i64>, Option<i64>);
 
 fn source_identity(source: &ResolvedChapterSource) -> SourceIdentity {
     (
         source.root_project_id,
         source.source_chapter_id,
-        source.source_revision_key.clone(),
-        source.content_sha256.clone(),
+        source.source_snapshot_id,
+        source.source_snapshot_chapter_id,
     )
 }
 
@@ -178,19 +157,93 @@ fn source_identity_from_record(
     (
         record.root_project_id,
         record.source_chapter_id,
-        record.source_revision_key.clone(),
-        record.source_content_sha256.clone(),
+        record.source_snapshot_id,
+        record.source_snapshot_chapter_id,
     )
 }
 
-fn source_condition(sources: &[ResolvedChapterSource]) -> Condition {
-    sources.iter().fold(Condition::any(), |condition, source| {
-        condition.add(
-            Condition::all()
-                .add(chapter_visual_plan::Column::RootProjectId.eq(source.root_project_id))
-                .add(chapter_visual_plan::Column::SourceChapterId.eq(source.source_chapter_id))
-                .add(chapter_visual_plan::Column::SourceRevisionKey.eq(&source.source_revision_key))
-                .add(chapter_visual_plan::Column::SourceContentSha256.eq(&source.content_sha256)),
-        )
-    })
+fn insert_live_plan(
+    plans: &mut ChapterVisualPlanSet,
+    parsed: ParsedChapterVisualPlan,
+) -> Result<(), ChapterVisualPlanDbError> {
+    let (slot, status) = match parsed.status {
+        ChapterVisualPlanStatus::Draft => (&mut plans.draft, "draft"),
+        ChapterVisualPlanStatus::Confirmed => (&mut plans.confirmed, "confirmed"),
+        status => {
+            return Err(ChapterVisualPlanDbError::InvalidState(format!(
+                "查询到不受支持的章节视觉编排状态: {}",
+                status.as_str()
+            )));
+        }
+    };
+    if slot.is_some() {
+        return Err(ChapterVisualPlanDbError::InvalidState(format!(
+            "章节视觉编排存在重复的 {status} lineage: record_id={}",
+            parsed.record.id
+        )));
+    }
+    *slot = Some(parsed);
+    Ok(())
+}
+
+fn source_condition(
+    sources: &[ResolvedChapterSource],
+) -> Result<Condition, ChapterVisualPlanDbError> {
+    sources
+        .iter()
+        .try_fold(Condition::any(), |condition, source| {
+            Ok(condition.add(lineage_condition(source)?))
+        })
+}
+
+fn lineage_condition(
+    source: &ResolvedChapterSource,
+) -> Result<Condition, ChapterVisualPlanDbError> {
+    lineage_condition_for_identity(
+        source.root_project_id,
+        source.source_chapter_id,
+        source.source_snapshot_id,
+        source.source_snapshot_chapter_id,
+    )
+}
+
+pub(super) fn lineage_condition_for_identity(
+    root_project_id: i64,
+    source_chapter_id: i64,
+    source_snapshot_id: Option<i64>,
+    source_snapshot_chapter_id: Option<i64>,
+) -> Result<Condition, ChapterVisualPlanDbError> {
+    let mut condition = Condition::all()
+        .add(chapter_visual_plan::Column::RootProjectId.eq(root_project_id))
+        .add(chapter_visual_plan::Column::SourceChapterId.eq(source_chapter_id));
+    match (source_snapshot_id, source_snapshot_chapter_id) {
+        (Some(snapshot_id), Some(snapshot_chapter_id)) => {
+            condition = condition
+                .add(chapter_visual_plan::Column::SourceSnapshotId.eq(snapshot_id))
+                .add(chapter_visual_plan::Column::SourceSnapshotChapterId.eq(snapshot_chapter_id));
+        }
+        (None, None) => {
+            condition = condition
+                .add(chapter_visual_plan::Column::SourceSnapshotId.is_null())
+                .add(chapter_visual_plan::Column::SourceSnapshotChapterId.is_null());
+        }
+        _ => {
+            return Err(ChapterVisualPlanDbError::InvalidState(
+                "章节视觉编排 source snapshot lineage 身份不完整".into(),
+            ));
+        }
+    }
+    Ok(condition)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn incomplete_snapshot_identity_is_rejected() {
+        let error = lineage_condition_for_identity(1, 2, Some(3), None)
+            .expect_err("incomplete snapshot identity");
+        assert!(matches!(error, ChapterVisualPlanDbError::InvalidState(_)));
+    }
 }
