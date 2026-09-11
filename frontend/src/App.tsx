@@ -139,7 +139,6 @@ function RouteContent() {
       : navigationType === "POP" && currentDepth < previousDepth
         ? "back"
         : "neutral";
-  const routeKey = location.key || `${location.pathname}${location.search}${location.hash}`;
 
   useEffect(() => {
     previousPathRef.current = location.pathname;
@@ -147,7 +146,7 @@ function RouteContent() {
 
   return (
     <div
-      key={routeKey}
+      key={location.pathname}
       className="a4n-route-stage flex min-h-0 flex-1 flex-col overflow-hidden"
       data-route-direction={routeDirection}
     >

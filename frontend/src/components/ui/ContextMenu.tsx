@@ -59,6 +59,7 @@ export const ContextMenuHost: React.FC = () => {
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -70,6 +71,7 @@ export const ContextMenuHost: React.FC = () => {
 
   useEffect(() => {
     if (!menu) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setActiveIndex(0);
     itemRefs.current = [];
     const frame = window.requestAnimationFrame(() => itemRefs.current[0]?.focus());
@@ -86,12 +88,20 @@ export const ContextMenuHost: React.FC = () => {
       }
     };
     const onEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setMenu(null);
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      setMenu(null);
+      previousFocusRef.current?.focus();
+    };
+    const onFocusIn = (e: FocusEvent) => {
+      if (e.target instanceof Node && !menuRef.current?.contains(e.target)) setMenu(null);
     };
     const closeMenu = () => setMenu(null);
     document.addEventListener("pointerdown", onPointerDown, true);
     document.addEventListener("contextmenu", onContextMenu, true);
-    document.addEventListener("keydown", onEscape);
+    document.addEventListener("keydown", onEscape, true);
+    document.addEventListener("focusin", onFocusIn);
     window.addEventListener("resize", closeMenu);
     window.addEventListener("wheel", closeMenu, true);
     window.addEventListener("blur", closeMenu);
@@ -99,7 +109,8 @@ export const ContextMenuHost: React.FC = () => {
       window.cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("contextmenu", onContextMenu, true);
-      document.removeEventListener("keydown", onEscape);
+      document.removeEventListener("keydown", onEscape, true);
+      document.removeEventListener("focusin", onFocusIn);
       window.removeEventListener("resize", closeMenu);
       window.removeEventListener("wheel", closeMenu, true);
       window.removeEventListener("blur", closeMenu);
@@ -137,6 +148,11 @@ export const ContextMenuHost: React.FC = () => {
   const actionableItems = menu.items.filter((item): item is ContextMenuItem => !('divider' in item));
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Tab") {
+      setMenu(null);
+      previousFocusRef.current?.focus();
+      return;
+    }
     if (actionableItems.length === 0) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
@@ -178,14 +194,14 @@ export const ContextMenuHost: React.FC = () => {
             key={`i-${i}-${it.label}`}
             ref={(element) => { itemRefs.current[actionIndex] = element; }}
             type="button"
-            disabled={it.disabled}
             role="menuitem"
             tabIndex={actionIndex === activeIndex ? 0 : -1}
             aria-disabled={it.disabled || undefined}
             onMouseEnter={() => setActiveIndex(actionIndex)}
             onClick={() => {
+              if (it.disabled) return;
               setMenu(null);
-              if (!it.disabled) it.onClick();
+              it.onClick();
             }}
             className={`a4n-dropdown-menu-item flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs sm:min-h-9 ${
               it.disabled

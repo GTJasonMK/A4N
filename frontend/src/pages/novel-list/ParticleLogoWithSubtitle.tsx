@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef } from "react";
 import afnLogoUrl from "../../assets/afn-logo.svg";
 import { useI18n } from "../../i18n";
 
@@ -10,25 +10,12 @@ interface Particle {
   targetX: number;
   targetY: number;
   size: number;
-  opacity: number;
   color: string;
 }
 
 export const ParticleLogoWithSubtitle: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDark, setIsDark] = useState(false);
   const { t } = useI18n();
-
-  // 检测暗色模式
-  useEffect(() => {
-    const checkDarkMode = () => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    };
-    checkDarkMode();
-    const observer = new MutationObserver(checkDarkMode);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -46,8 +33,20 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     const edgeSoftZone = 28;
 
     const particles: Particle[] = [];
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let mouse = { x: -1000, y: -1000, active: false };
+    const motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const mouse = { x: -1000, y: -1000, active: false };
+    const img = new Image();
+    let animationId: number | null = null;
+    let visible = true;
+
+    const stopAnimation = () => {
+      if (animationId != null) window.cancelAnimationFrame(animationId);
+      animationId = null;
+    };
+    const startAnimation = () => {
+      if (animationId != null || !particles.length || !visible || document.hidden || motionPreference.matches) return;
+      animationId = window.requestAnimationFrame(animate);
+    };
 
     const randomInsideCanvas = (span: number) => edgePadding + Math.random() * (span - edgePadding * 2);
 
@@ -96,6 +95,7 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
       mouse.x = (e.clientX - rect.left) * scaleX;
       mouse.y = (e.clientY - rect.top) * scaleY;
       mouse.active = true;
+      startAnimation();
     };
 
     const handleMouseLeave = () => {
@@ -107,8 +107,6 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
 
     // 提取 Logo 像素
     const extractLogoPixels = () => {
-      const img = new Image();
-
       img.onload = () => {
         // 创建临时 Canvas 渲染 SVG
         const tempCanvas = document.createElement("canvas");
@@ -145,33 +143,23 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
                 targetX: logoOffsetX + x,
                 targetY: logoOffsetY + y,
                 size: Math.random() * 1.5 + 1,
-                opacity: 0.8,
-                color: `rgb(${r}, ${g}, ${b})`,
+                color: `rgba(${r}, ${g}, ${b}, 0.8)`,
               });
             }
           }
         }
 
-        if (reducedMotion) {
-          particles.forEach((particle) => {
-            particle.x = particle.targetX;
-            particle.y = particle.targetY;
-          });
-          drawParticles();
-        } else {
-          animate();
-        }
+        syncAnimation();
       };
 
       img.src = afnLogoUrl;
     };
 
-    let animationId: number | null = null;
     const drawParticles = () => {
       ctx.clearRect(0, 0, width, height);
 
       particles.forEach((p) => {
-        ctx.fillStyle = p.color.replace("rgb", "rgba").replace(")", `, ${p.opacity})`);
+        ctx.fillStyle = p.color;
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();
@@ -179,7 +167,8 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
     };
 
     const animate = () => {
-      ctx.clearRect(0, 0, width, height);
+      animationId = null;
+      let moving = false;
 
       particles.forEach((p) => {
         // 鼠标排斥力（增强效果）
@@ -212,24 +201,53 @@ export const ParticleLogoWithSubtitle: React.FC = () => {
         p.y += p.vy;
         keepParticleInsideCanvas(p);
 
-        // 绘制粒子
-        ctx.fillStyle = p.color.replace("rgb", "rgba").replace(")", `, ${p.opacity})`);
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
+        if (Math.abs(dx) + Math.abs(dy) + Math.abs(p.vx) + Math.abs(p.vy) > 0.1) {
+          moving = true;
+        } else {
+          p.x = p.targetX;
+          p.y = p.targetY;
+          p.vx = 0;
+          p.vy = 0;
+        }
       });
-
-      animationId = requestAnimationFrame(animate);
+      drawParticles();
+      if (moving) startAnimation();
     };
 
+    const syncAnimation = () => {
+      stopAnimation();
+      if (motionPreference.matches) {
+        particles.forEach((particle) => {
+          particle.x = particle.targetX;
+          particle.y = particle.targetY;
+          particle.vx = 0;
+          particle.vy = 0;
+        });
+        drawParticles();
+      } else {
+        startAnimation();
+      }
+    };
+    const visibilityObserver = new IntersectionObserver(([entry]) => {
+      visible = entry.isIntersecting;
+      syncAnimation();
+    });
+    visibilityObserver.observe(canvas);
+    document.addEventListener("visibilitychange", syncAnimation);
+    motionPreference.addEventListener("change", syncAnimation);
     extractLogoPixels();
 
     return () => {
-      if (animationId != null) cancelAnimationFrame(animationId);
+      // StrictMode and route changes can dispose the canvas before the SVG loads.
+      img.onload = null;
+      stopAnimation();
+      visibilityObserver.disconnect();
+      document.removeEventListener("visibilitychange", syncAnimation);
+      motionPreference.removeEventListener("change", syncAnimation);
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, [isDark]);
+  }, []);
 
   return (
     <canvas

@@ -8,9 +8,8 @@ A4N_SCRIPT_COMMON_SOURCED=1
 SCRIPT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_LIB_DIR/../.." && pwd)"
 
-# 所有入口共用一套主缓存，避免同一依赖图被编进多个 target 目录。
-# 临时输出、实验和计时产物也应放在仓库 target 子目录。
-export CARGO_TARGET_DIR="$PROJECT_ROOT/target"
+# 调用者负责选择隔离的构建目录；临时产物跟随同一目录。
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$PROJECT_ROOT/target}"
 
 make_target_temp_dir() {
     local temp_root="$CARGO_TARGET_DIR/tmp"

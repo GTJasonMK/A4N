@@ -85,7 +85,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) =
 
   const closeMenu = useCallback((restoreFocus = false) => {
     setIsOpen(false);
-    if (restoreFocus) window.requestAnimationFrame(() => buttonRef.current?.focus());
+    if (restoreFocus) buttonRef.current?.focus();
   }, []);
 
   const openMenu = useCallback((index: number) => {
@@ -105,8 +105,16 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) =
       if (buttonRef.current?.contains(target) || menuRef.current?.contains(target)) return;
       closeMenu();
     };
+    const handleFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (target instanceof Node && !buttonRef.current?.contains(target) && !menuRef.current?.contains(target)) closeMenu();
+    };
     document.addEventListener('pointerdown', handlePointerDown, true);
-    return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+    document.addEventListener('focusin', handleFocusIn);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true);
+      document.removeEventListener('focusin', handleFocusIn);
+    };
   }, [closeMenu, isOpen]);
 
   useLayoutEffect(() => {
@@ -145,6 +153,11 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) =
   }, [activeIndex, closeMenu, isOpen, updateMenuPosition]);
 
   const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Tab') {
+      closeMenu();
+      buttonRef.current?.focus();
+      return;
+    }
     if (actionItems.length === 0) return;
     const current = Math.max(0, Math.min(activeIndex, actionItems.length - 1));
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -195,7 +208,6 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) =
             type="button"
             role="menuitem"
             tabIndex={actionIndex === activeIndex ? 0 : -1}
-            disabled={menuItem.disabled}
             aria-disabled={menuItem.disabled || undefined}
             onMouseEnter={() => setActiveIndex(actionIndex)}
             onClick={(event) => {
@@ -204,7 +216,7 @@ export const Dropdown: React.FC<DropdownProps> = ({ items, label, ariaLabel }) =
               menuItem.onClick();
               closeMenu(true);
             }}
-            className={`a4n-dropdown-menu-item flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-45 sm:min-h-9 ${
+            className={`a4n-dropdown-menu-item flex min-h-11 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors aria-disabled:cursor-not-allowed aria-disabled:opacity-45 sm:min-h-9 ${
               menuItem.danger
                 ? 'text-error hover:bg-error-bg focus-visible:bg-error-bg'
                 : 'text-book-text-main hover:bg-book-bg-tertiary focus-visible:bg-book-bg-tertiary'

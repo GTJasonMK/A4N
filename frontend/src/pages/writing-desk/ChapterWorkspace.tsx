@@ -143,6 +143,8 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
         t,
       )
     : null;
+  const syncTitle = derivedSyncFailed ? t("writing.syncIncomplete") : t("writing.syncingMaterials");
+  const syncSummary = derivedSyncFailure?.summary ?? t("writing.syncDescription");
 
   const editorIsNearBottom = () => {
     const editor = editorRef.current;
@@ -273,12 +275,13 @@ export const ChapterWorkspace: React.FC<ChapterWorkspaceProps> = ({
               ) : null}
               <div className="min-w-0 flex-1">
                 <p className="text-small font-semibold text-book-text-main">
-                  {derivedSyncFailed ? t("writing.syncIncomplete") : t("writing.syncingMaterials")}
+                  {syncTitle}
                 </p>
-                <p className="mt-0.5 text-small leading-relaxed text-book-text-sub">
-                  {derivedSyncFailure?.summary ??
-                    t("writing.syncDescription")}
-                </p>
+                {syncSummary !== syncTitle ? (
+                  <p className="mt-0.5 text-small leading-relaxed text-book-text-sub">
+                    {syncSummary}
+                  </p>
+                ) : null}
                 {derivedSyncFailure?.detail ? (
                   <details className="mt-1.5 text-caption text-book-text-muted">
                     <summary className="w-fit cursor-pointer rounded px-1 py-0.5 hover:bg-book-bg-tertiary hover:text-book-text-main">

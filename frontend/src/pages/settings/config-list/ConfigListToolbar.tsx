@@ -24,7 +24,7 @@ export const ConfigListToolbar: React.FC<ConfigListToolbarProps> = ({
   const { t } = useI18n();
   const createLabel = t("settings.createConfig", { name: title });
   return (
-    <div className="a4n-flat-surface flex flex-wrap items-center gap-2 px-3 py-2.5 max-[360px]:items-start">
+    <div className="flex flex-wrap items-center gap-2 border-b border-book-border/60 pb-3 max-[360px]:items-start">
       <div className="min-w-0 flex-1 max-[360px]:basis-full">
         <h3 className="text-xs font-semibold text-book-text-main">{title}</h3>
         <p className="mt-0.5 text-small text-book-text-muted">
