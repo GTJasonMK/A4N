@@ -4,7 +4,7 @@ use a4n_db_models::models::ai::generated_video;
 use a4n_error::AppError;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::GenerationArtifactRef;
-use a4n_video::VideoGenerationRequest;
+use a4n_video::{VideoGenerationRequest, provider_request_snapshot_value};
 use a4n_video_contract::{
     ReferenceMediaVideoGenerationHostPort, ReferenceMediaVideoPreviewHostPort,
     ReferenceMediaVideoRequestPreview, VideoProviderRequestInput, VideoProviderValidationMode,
@@ -17,7 +17,6 @@ use crate::OrchestratorContext;
 use super::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND, VIDEO_GENERATION_PROGRESS_TOTAL,
     VideoGenerationProgress, VideoGenerationRecordInput, VideoProviderExecutionInput,
-    provider_request_snapshot_value,
     reference_media_rules::{
         ResolvedReferenceMediaVideoInput, ValidatedReferenceMediaUpload,
         build_reference_media_video_request, reference_media_prompt_from_recipe,
