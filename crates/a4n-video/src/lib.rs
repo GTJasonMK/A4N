@@ -6,6 +6,7 @@ use a4n_domain::ProviderError as AppError;
 
 mod config;
 mod import;
+mod prompt;
 mod provider_image;
 pub use config::{
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
@@ -16,6 +17,7 @@ pub use import::{
     canvas_frame_timestamp, import_video_extension, imported_chapter_video_metadata,
     trimmed_video_metadata, validate_upload_video_mime, validate_video_trim_range,
 };
+pub use prompt::{append_video_request_prompt_length_context, video_request_prompt_length_context};
 pub use provider_image::{
     ProviderImageInputTransport, encode_query_component, is_provider_supported_image_content_type,
     provider_image_input_transport_with_override, truncate_error_body, truncate_url_for_error,

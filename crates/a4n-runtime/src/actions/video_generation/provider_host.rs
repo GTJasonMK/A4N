@@ -5,10 +5,7 @@ use a4n_orchestrator::canvas::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoPersistedFile,
     CanvasVideoProviderInput,
 };
-use a4n_orchestrator::video::{
-    append_video_request_prompt_length_context, is_canvas_video_record_fields,
-    video_request_prompt_length_context,
-};
+use a4n_orchestrator::video::is_canvas_video_record_fields;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_service_protocol::GenerationArtifactRef;
@@ -16,7 +13,8 @@ use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::video_provider_capabilities;
 use a4n_video::{
     ProviderImageInputTransport, VideoGenerationResult, VideoJobState,
-    provider_image_input_transport_with_override,
+    append_video_request_prompt_length_context, provider_image_input_transport_with_override,
+    video_request_prompt_length_context,
 };
 use a4n_video_contract::{
     CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoResolvedImages,

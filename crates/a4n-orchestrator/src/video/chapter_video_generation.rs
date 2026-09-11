@@ -14,7 +14,10 @@ use a4n_domain::image::{
 use a4n_domain::source_spans::metadata_source_content_sha256;
 use a4n_domain::source_text_hash;
 use a4n_service_protocol::GenerationArtifactRef;
-use a4n_video::{ProviderImageInputTransport, VideoGenerationRequest};
+use a4n_video::{
+    ProviderImageInputTransport, VideoGenerationRequest,
+    append_video_request_prompt_length_context, video_request_prompt_length_context,
+};
 use a4n_video_contract::{
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
     ChapterVideoRequestPreview, VIDEO_EXECUTION_CONTRACT_EPOCH, VideoProviderRequestInput,
@@ -30,12 +33,10 @@ use crate::OrchestratorContext;
 use super::boundary_frame_rules::latest_boundary_frame_image_ids;
 use super::chapter_video_request_rules::{
     BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
-    append_provider_input_note, append_video_request_prompt_length_context,
-    apply_chapter_video_prompt_preview_override,
+    append_provider_input_note, apply_chapter_video_prompt_preview_override,
     build_video_generation_provider_prompt_with_renderer, chapter_video_provider_descriptor,
     enforce_provider_image_binding_contract, enforce_provider_prompt_length_contract,
     provider_specific_negative_prompt, sanitized_chapter_video_request_for_snapshot,
-    video_request_prompt_length_context,
 };
 use super::{
     NEWAPI_VIDEO_BACKEND, PromptChainFields, ProviderGenerationWorkflow,
