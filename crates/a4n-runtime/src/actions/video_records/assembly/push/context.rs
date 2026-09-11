@@ -46,7 +46,7 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
         return Ok(None);
     }
     let (width, height, fps, duration_secs) =
-        a4n_orchestrator::video::assembly_media_properties(clips.iter().map(|clip| {
+        a4n_video::assembly_media_properties(clips.iter().map(|clip| {
             (
                 clip.video_id,
                 clip.duration_secs,

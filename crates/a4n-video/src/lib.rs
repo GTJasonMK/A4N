@@ -4,9 +4,11 @@ use serde_json::Value;
 
 use a4n_domain::ProviderError as AppError;
 
+mod assembly;
 mod config;
 mod import;
 mod provider_image;
+pub use assembly::assembly_media_properties;
 pub use config::{
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
     VideoDurationCapability, duration_capability_for_params, validate_video_config_params,

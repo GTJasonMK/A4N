@@ -63,7 +63,6 @@ pub use a4n_video::VideoDurationCapability;
 pub use a4n_video_contract::{
     ChapterVideoGenerationHostPort, ReferenceMediaVideoGenerationHostPort, VideoGenerationHostPort,
 };
-pub use assembly_clip_rules::assembly_media_properties;
 pub(crate) use assembly_clip_rules::{
     AssemblyClipOrderAnchor, assembly_clip_display_shot_number,
     assembly_clip_insert_after_video_id, assembly_clip_sort_order,
