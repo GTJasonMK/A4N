@@ -123,9 +123,7 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
         workflow_run_id: Option<i64>,
         cancel_token: CancellationToken,
     ) -> Result<Box<dyn TaskLease>, AppError> {
-        let workflow = workflow_run_id
-            .map(|workflow_run_id| TaskWorkflowContext::new(workflow_run_id))
-            .transpose()?;
+        let workflow = workflow_run_id.map(TaskWorkflowContext::new).transpose()?;
         self.task_queue
             .start_task_with_cancel(
                 task_type,

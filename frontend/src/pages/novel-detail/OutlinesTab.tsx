@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
+import { promptDialog } from "../../components/feedback/PromptDialog";
 import { RequestPreviewModal } from "../../components/feedback/RequestPreviewModal";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { extractErrorMessage } from "../../api";
@@ -40,6 +41,7 @@ import {
   DELETE_LATEST_PARTS_ACTION,
   deleteChapterOutlinesFromAction,
   isPositiveInteger,
+  outlineOptimizationVariables,
   type NumberInputValue,
 } from "./outlines/outlineTabUtils";
 import { isCancelledOperation } from "../../utils/cancellation";
@@ -90,6 +92,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   });
   const [savingId, setSavingId] = useState<number | null>(null);
   const [regenId, setRegenId] = useState<number | null>(null);
+  const [partRegenId, setPartRegenId] = useState<number | null>(null);
   const [manualChapterInitial, setManualChapterInitial] =
     useState<ManualChapterOutlineForm | null>(null);
   const [manualPartEditor, setManualPartEditor] = useState<{
@@ -106,6 +109,15 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
   const [delChapterCount, setDelChapterCount] = useState(1);
   const [delActing, setDelActing] = useState<string | null>(null);
   const [regenLastPart, setRegenLastPart] = useState(false);
+
+  const requestOptimizationDirection = (title: string) =>
+    promptDialog({
+      title,
+      message: t("outline.dialogs.optimizationDirectionMessage"),
+      placeholder: t("outline.dialogs.optimizationDirectionPlaceholder"),
+      multiline: true,
+      confirmText: t("outline.dialogs.startOptimization"),
+    });
 
   const mountedRef = useRef(false);
   const activeProjectIdRef = useRef(projectId);
@@ -293,6 +305,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     setEditForm({ title: "", summary: "" });
     setSavingId(null);
     setRegenId(null);
+    setPartRegenId(null);
     setManualChapterInitial(null);
     setManualPartEditor(null);
     setManualSaving(null);
@@ -764,6 +777,11 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     if (actionSeq == null) return;
     setRegenId(o.id);
     try {
+      const direction = await requestOptimizationDirection(
+        t("outline.dialogs.refineChapter", { chapter: o.chapter_number }),
+      );
+      if (direction === null || !isActionCurrent(requestProjectId, actionSeq)) return;
+      const variables = outlineOptimizationVariables(direction);
       const warnings = await runOutlineGeneration(
         {
           title: t("outline.regenerateChapterTitle", { chapter: o.chapter_number }),
@@ -777,7 +795,7 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           operation: {
             kind: "regenerate_chapter_outline",
             outline_id: o.id,
-            variables: null,
+            variables,
           },
         },
         async (control) => {
@@ -800,6 +818,60 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
   };
 
+  const handleRefinePart = async (part: PartOutline) => {
+    const requestProjectId = projectId;
+    if (!canEditOutlines) {
+      addToast(t("outline.readOnlyRefinePart"), "error");
+      return;
+    }
+    if (part.project_id !== requestProjectId) {
+      addToast(t("outline.partNotInProjectRefine"), "error");
+      return;
+    }
+    const actionSeq = beginAction(requestProjectId);
+    if (actionSeq == null) return;
+    setPartRegenId(part.id);
+    try {
+      const direction = await requestOptimizationDirection(
+        t("outline.dialogs.refinePart", { part: part.part_number }),
+      );
+      if (direction === null || !isActionCurrent(requestProjectId, actionSeq)) return;
+      const warnings = await runOutlineGeneration(
+        {
+          title: t("outline.refinePartTitle", { part: part.part_number }),
+          startMessage: t("outline.refiningPart", { part: part.part_number }),
+          successMessage: t("outline.refinedPart", { part: part.part_number }),
+          errorMessage: t("outline.regenerateFailed"),
+          total: 3,
+        },
+        {
+          project_id: requestProjectId,
+          operation: {
+            kind: "regenerate_part_outline",
+            part_id: part.id,
+            variables: outlineOptimizationVariables(direction),
+          },
+        },
+        async (control) => {
+          if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
+          control.setProgress(t("outline.refreshing"), 2);
+          await load({ showLoading: false });
+          if (!isActionCurrent(requestProjectId, actionSeq)) throw new Error("任务已停止");
+        },
+      );
+      if (!isActionCurrent(requestProjectId, actionSeq)) return;
+      addOutlineMutationToast(t("outline.refinedPart", { part: part.part_number }), warnings);
+    } catch (err) {
+      if (isActionCurrent(requestProjectId, actionSeq)) {
+        const message = extractErrorMessage(err, t("outline.regenerateFailed"));
+        if (!isCancelledOperation(message)) addToast(message, "error");
+      }
+    } finally {
+      if (isActionCurrent(requestProjectId, actionSeq)) setPartRegenId(null);
+      finishAction(actionSeq);
+    }
+  };
+
   const handlePreviewRegenOutline = async (o: ChapterOutline) => {
     const requestProjectId = projectId;
     if (!canEditOutlines) {
@@ -812,14 +884,18 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     }
     const previewSeq = beginPreview(requestProjectId);
     if (previewSeq == null) return;
-    setRequestPreviewOpen(true);
-    setRequestPreviewLoading(true);
-    setRequestPreviewData(null);
     try {
+      const direction = await requestOptimizationDirection(
+        t("outline.dialogs.refineChapter", { chapter: o.chapter_number }),
+      );
+      if (direction === null || !isPreviewCurrent(requestProjectId, previewSeq)) return;
+      setRequestPreviewOpen(true);
+      setRequestPreviewLoading(true);
+      setRequestPreviewData(null);
       const preview = await previewRegenerateChapterOutlineRequest({
         project_id: requestProjectId,
         outline_id: o.id,
-        variables: null,
+        variables: outlineOptimizationVariables(direction),
       });
       if (!isPreviewCurrent(requestProjectId, previewSeq)) return;
       setRequestPreviewData(preview);
@@ -1081,7 +1157,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
     manualSaving != null ||
     regenId != null ||
     delActing != null ||
-    regenLastPart;
+    regenLastPart ||
+    partRegenId != null;
   const interactionBusy = mutationBusy || requestPreviewLoading;
 
   if (loading) {
@@ -1197,6 +1274,8 @@ export const OutlinesTab: React.FC<{ project: NovelProject }> = ({ project }) =>
           part={partDetail}
           onClose={() => setPartDetail(null)}
           onEdit={canEditOutlines ? openManualPart : undefined}
+          onRefine={canEditOutlines ? (part) => void handleRefinePart(part) : undefined}
+          disabled={interactionBusy}
         />
       )}
       {manualChapterInitial && canEditOutlines ? (

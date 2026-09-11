@@ -110,8 +110,8 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         .await
     {
         Ok(completion) => {
-            if completion.adopted_authoritative {
-                if let Some(cleanup_error) = enqueue_unadopted_video_file_cleanup(
+            if completion.adopted_authoritative
+                && let Some(cleanup_error) = enqueue_unadopted_video_file_cleanup(
                     state,
                     &format!("video-completion-duplicate:{record_id}"),
                     output_path_str,
@@ -119,13 +119,12 @@ pub(in crate::actions::video_records) async fn complete_video_record(
                     Some(&completion.summary),
                 )
                 .await
-                {
-                    tracing::error!(
-                        video_id = record_id,
-                        error = %cleanup_error,
-                        "清理未采用的视频文件失败"
-                    );
-                }
+            {
+                tracing::error!(
+                    video_id = record_id,
+                    error = %cleanup_error,
+                    "清理未采用的视频文件失败"
+                );
             }
             Ok(completion.summary)
         }

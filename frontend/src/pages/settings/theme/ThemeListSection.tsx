@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CheckCheck, RefreshCw, Square, Trash2 } from "lucide-react";
+import { Archive, CheckCheck, Plus, RefreshCw, Square, Trash2, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
 import { BookButton } from "../../../components/ui/BookButton";
@@ -35,6 +35,9 @@ interface ThemeListSectionProps {
   onDelete: (themeId: number, name: string) => void;
   onDeleteMany: (themes: ThemeDeleteTarget[]) => void;
   onExport: (themeId: number) => void;
+  onCreate: () => void;
+  onImport: () => void;
+  onPackage: () => void;
 }
 
 export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
@@ -62,6 +65,9 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
   onDelete,
   onDeleteMany,
   onExport,
+  onCreate,
+  onImport,
+  onPackage,
 }) => {
   const { t } = useI18n();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(() => new Set());
@@ -132,6 +138,17 @@ export const ThemeListSection: React.FC<ThemeListSectionProps> = ({
           ) : null}
         </div>
       ) : null}
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <BookButton variant="ghost" size="sm" onClick={onCreate} disabled={mutationBusy}>
+          <Plus size={13} /> {t("settingsTheme.create")}
+        </BookButton>
+        <BookButton variant="ghost" size="sm" onClick={onImport} disabled={mutationBusy}>
+          <Upload size={13} /> {t("settingsTheme.import")}
+        </BookButton>
+        <BookButton variant="ghost" size="sm" onClick={onPackage} disabled={mutationBusy}>
+          <Archive size={13} /> {t("settingsTheme.package")}
+        </BookButton>
+      </div>
       <button
         type="button"
         onClick={onRefresh}

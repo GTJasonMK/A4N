@@ -138,9 +138,10 @@ impl CliProxyOpenAiVideoProvider {
             .to_vec();
         let format = video_format_from_content_type_or_bytes(content_type.as_deref(), &bytes)
             .ok_or_else(|| {
-                AppError::Internal(format!(
+                AppError::Internal(
                     "CLIProxy 视频响应缺少可识别的 Content-Type，且视频字节格式无法识别"
-                ))
+                        .to_string(),
+                )
             })?;
         Ok(VideoGenerationResult {
             bytes,
@@ -199,7 +200,9 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         }
         let video_id = job_id.trim();
         if video_id.is_empty() {
-            return Err(AppError::Internal(format!("CLIProxy 视频任务 ID 不能为空")));
+            return Err(AppError::Internal(
+                "CLIProxy 视频任务 ID 不能为空".to_string(),
+            ));
         }
         let url = self.video_url(video_id);
         let v = transport::get_json(

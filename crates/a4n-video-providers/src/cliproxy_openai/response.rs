@@ -30,7 +30,9 @@ pub(super) fn video_id(v: &Value) -> Result<String, AppError> {
             return Ok(value.to_string());
         }
     }
-    Err(AppError::Internal(format!("CLIProxy 视频生成响应缺少 id")))
+    Err(AppError::Internal(
+        "CLIProxy 视频生成响应缺少 id".to_string(),
+    ))
 }
 
 pub(super) fn status(v: &Value) -> Option<String> {
@@ -43,7 +45,7 @@ pub(super) fn status(v: &Value) -> Option<String> {
 }
 
 pub(super) fn required_status(v: &Value) -> Result<String, AppError> {
-    status(v).ok_or_else(|| AppError::Internal(format!("CLIProxy 视频任务响应缺少 status")))
+    status(v).ok_or_else(|| AppError::Internal("CLIProxy 视频任务响应缺少 status".to_string()))
 }
 
 pub(super) fn is_completed_status(status: Option<&str>) -> bool {

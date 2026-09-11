@@ -231,7 +231,7 @@ impl OrchestratorContext {
         }
         let segment_recipe = segment_recipe?;
         let workflow_mode = ensure_video_workflow_mode_for_stage(&options, stage)?;
-        let mut options = validate_generate_prompt_options(options, &workflow_mode, None)?;
+        let mut options = validate_generate_prompt_options(options, &workflow_mode)?;
         options.target_shot_number = segment_recipe.as_ref().map(|recipe| recipe.segment_number);
         options.segment_recipe = segment_recipe;
         let (config, reference_access) = futures::join!(
@@ -1043,7 +1043,7 @@ fn validate_video_prompt_generation_options_for_stage(
         }
         _ => {}
     }
-    validate_generate_prompt_options(input.clone(), &workflow_mode, None).map(|_| ())
+    validate_generate_prompt_options(input.clone(), &workflow_mode).map(|_| ())
 }
 
 pub(crate) fn validate_video_segment_plan_generation_options(
@@ -1067,13 +1067,12 @@ pub(crate) fn validate_video_final_prompt_generation_options(
 fn validate_generate_prompt_options(
     input: VideoPromptGenerationOptions,
     workflow_mode: &str,
-    blank_style_placeholder: Option<&str>,
 ) -> Result<ChapterVideoPromptOptions, AppError> {
-    let mut style = input.style.trim().to_string();
+    let style = input.style.trim().to_string();
     if style.is_empty() {
-        style = blank_style_placeholder
-            .ok_or_else(|| AppError::InvalidArgument("视频提示词生成缺少 style".to_string()))?
-            .to_string();
+        return Err(AppError::InvalidArgument(
+            "视频提示词生成缺少 style".to_string(),
+        ));
     }
     let prompt_output_language = PromptOutputLanguage::from_code(&input.prompt_output_language)?;
     let reference_limit = if workflow_mode == chapter_video_prompt::WORKFLOW_MODE_CHAT_VIDEO {

@@ -1,6 +1,6 @@
 import { ThemedSelect } from "../../../components/ui/ThemedSelect";
 import React, { useEffect, useState } from "react";
-import { Archive, Download, Plus, Upload } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
@@ -30,49 +30,42 @@ export const CreateThemePanel: React.FC<CreateThemePanelProps> = ({
 }) => {
   const { t } = useI18n();
   return (
-    <details className="a4n-flat-surface shrink-0 overflow-hidden">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
-        <Plus size={13} />
-        <span>{t("settingsTheme.create")}</span>
-        <span className="ml-auto text-small text-book-text-muted">{t("settingsTheme.createHint")}</span>
-      </summary>
-      <div className="border-t border-book-border/35 p-4">
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-          <BookInput
-            label={t("settingsTheme.name")}
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            placeholder={t("settingsTheme.namePlaceholder")}
-            disabled={disabled}
+    <div className="grid gap-3">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <BookInput
+          label={t("settingsTheme.name")}
+          value={name}
+          onChange={(event) => onNameChange(event.target.value)}
+          placeholder={t("settingsTheme.namePlaceholder")}
+          disabled={disabled}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <SegmentedControl
+            ariaLabel={t("settingsTheme.mode")}
+            value={mode}
+            onChange={onModeChange}
+            options={[
+              { id: "light", label: t("settingsTheme.light"), disabled },
+              { id: "dark", label: t("settingsTheme.dark"), disabled },
+            ]}
           />
-          <div className="flex flex-wrap items-center gap-2">
-            <SegmentedControl
-              ariaLabel={t("settingsTheme.mode")}
-              value={mode}
-              onChange={onModeChange}
-              options={[
-                { id: "light", label: t("settingsTheme.light"), disabled },
-                { id: "dark", label: t("settingsTheme.dark"), disabled },
-              ]}
-            />
-            <BookButton
-              variant="primary"
-              onClick={onCreate}
-              disabled={disabled || name.trim().length === 0}
-            >
-              {creating ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <LoadingSpinner size="sm" /> {t("settingsTheme.creating")}
-                </span>
-              ) : (
-                t("settingsTheme.create")
-              )}
-            </BookButton>
-          </div>
+          <BookButton
+            variant="primary"
+            onClick={onCreate}
+            disabled={disabled || name.trim().length === 0}
+          >
+            {creating ? (
+              <span className="inline-flex items-center gap-1.5">
+                <LoadingSpinner size="sm" /> {t("settingsTheme.creating")}
+              </span>
+            ) : (
+              t("settingsTheme.create")
+            )}
+          </BookButton>
         </div>
-        <p className="mt-2 text-small text-book-text-muted">{t("settingsTheme.createAfter")}</p>
       </div>
-    </details>
+      <p className="text-small text-book-text-muted">{t("settingsTheme.createAfter")}</p>
+    </div>
   );
 };
 
@@ -93,37 +86,30 @@ export const SingleThemeImportPanel: React.FC<SingleThemeImportPanelProps> = ({
 }) => {
   const { t } = useI18n();
   return (
-    <details className="a4n-flat-surface group shrink-0 overflow-hidden">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
-        <Upload size={13} />
-        <span>{t("settingsTheme.import")}</span>
-        <span className="ml-auto text-small text-book-text-muted">{t("settingsTheme.importHint")}</span>
-      </summary>
-      <div className="border-t border-book-border/35 p-4">
-        <textarea
-          value={importText}
-          onChange={(event) => onImportTextChange(event.target.value)}
-          disabled={disabled}
-          placeholder={t("settingsTheme.importPlaceholder")}
-          className="pyqt-input h-24 w-full resize-y text-xs font-mono"
-        />
-        <div className="mt-2 flex justify-end">
-          <BookButton
-            variant="primary"
-            onClick={onImport}
-            disabled={disabled || importText.trim().length === 0}
-          >
-            {importing ? (
-              <span className="inline-flex items-center gap-1.5">
-                <LoadingSpinner size="sm" /> {t("settingsTheme.importing")}
-              </span>
-            ) : (
-              t("settingsTheme.import")
-            )}
-          </BookButton>
-        </div>
+    <div className="grid gap-3">
+      <textarea
+        value={importText}
+        onChange={(event) => onImportTextChange(event.target.value)}
+        disabled={disabled}
+        placeholder={t("settingsTheme.importPlaceholder")}
+        className="pyqt-input h-24 w-full resize-y text-xs font-mono"
+      />
+      <div className="flex justify-end">
+        <BookButton
+          variant="primary"
+          onClick={onImport}
+          disabled={disabled || importText.trim().length === 0}
+        >
+          {importing ? (
+            <span className="inline-flex items-center gap-1.5">
+              <LoadingSpinner size="sm" /> {t("settingsTheme.importing")}
+            </span>
+          ) : (
+            t("settingsTheme.import")
+          )}
+        </BookButton>
       </div>
-    </details>
+    </div>
   );
 };
 
@@ -166,57 +152,50 @@ export const ThemePackagePanel: React.FC<ThemePackagePanelProps> = ({
   };
 
   return (
-    <details className="a4n-flat-surface shrink-0 overflow-hidden">
-      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-xs text-book-text-sub transition-colors hover:bg-book-bg-tertiary/45 [&::-webkit-details-marker]:hidden">
-        <Archive size={13} />
-        <span>{t("settingsTheme.package")}</span>
-        <span className="ml-auto text-small text-book-text-muted">{t("settingsTheme.packageHint")}</span>
-      </summary>
-      <div className="grid gap-3 border-t border-book-border/35 p-4 sm:grid-cols-2">
-        <div className="min-w-0">
-          <label htmlFor="theme-package-theme" className="mb-1 block text-xs text-book-text-sub">
-            {t("settingsTheme.packageTheme")}
-          </label>
-          <div className="flex min-w-0 flex-wrap gap-2">
-            <ThemedSelect
-              id="theme-package-theme"
-              value={selectedId ?? ""}
-              onChange={(event) => setSelectedId(Number(event.target.value))}
-              disabled={disabled || themes.length === 0}
-              className="pyqt-input min-w-0 flex-1 !min-h-9 !px-2 text-xs"
-            >
-              {themes.map((theme) => (
-                <option key={theme.id} value={theme.id}>{theme.name}</option>
-              ))}
-            </ThemedSelect>
-            <BookButton
-              variant="secondary"
-              size="sm"
-              onClick={() => selectedId != null && onExport(selectedId)}
-              disabled={disabled || selectedId == null || exportingId != null}
-            >
-              {exportingId != null ? <LoadingSpinner size="sm" /> : <Download size={13} />}
-              {exportingId != null ? t("settingsTheme.exportingPackage") : t("settingsTheme.exportPackage")}
-            </BookButton>
-          </div>
-          <p className="mt-2 text-small text-book-text-muted">{t("settingsTheme.packageFormatHint")}</p>
-        </div>
-        <div className="flex min-w-0 flex-col justify-between gap-2 rounded-[var(--pyqt-radius-md)] border border-dashed border-book-border/45 bg-book-bg-tertiary/20 p-3">
-          <div>
-            <div className="text-xs font-medium text-book-text-sub">{t("settingsTheme.importPackage")}</div>
-            <p className="mt-1 text-small leading-relaxed text-book-text-muted">{t("settingsTheme.importPackageHint")}</p>
-          </div>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="min-w-0">
+        <label htmlFor="theme-package-theme" className="mb-1 block text-xs text-book-text-sub">
+          {t("settingsTheme.packageTheme")}
+        </label>
+        <div className="flex min-w-0 flex-wrap gap-2">
+          <ThemedSelect
+            id="theme-package-theme"
+            value={selectedId ?? ""}
+            onChange={(event) => setSelectedId(Number(event.target.value))}
+            disabled={disabled || themes.length === 0}
+            className="pyqt-input min-w-0 flex-1 !min-h-9 !px-2 text-xs"
+          >
+            {themes.map((theme) => (
+              <option key={theme.id} value={theme.id}>{theme.name}</option>
+            ))}
+          </ThemedSelect>
           <BookButton
             variant="secondary"
             size="sm"
-            onClick={() => void handleImport()}
-            disabled={disabled || importing || picking}
+            onClick={() => selectedId != null && onExport(selectedId)}
+            disabled={disabled || selectedId == null || exportingId != null}
           >
-            {importing || picking ? <LoadingSpinner size="sm" /> : <Upload size={13} />}
-            {importing || picking ? t("settingsTheme.importingPackage") : t("settingsTheme.importPackage")}
+            {exportingId != null ? <LoadingSpinner size="sm" /> : <Download size={13} />}
+            {exportingId != null ? t("settingsTheme.exportingPackage") : t("settingsTheme.exportPackage")}
           </BookButton>
         </div>
+        <p className="mt-2 text-small text-book-text-muted">{t("settingsTheme.packageFormatHint")}</p>
       </div>
-    </details>
+      <div className="flex min-w-0 flex-col justify-between gap-2 rounded-[var(--pyqt-radius-md)] border border-dashed border-book-border/45 bg-book-bg-tertiary/20 p-3">
+        <div>
+          <div className="text-xs font-medium text-book-text-sub">{t("settingsTheme.importPackage")}</div>
+          <p className="mt-1 text-small leading-relaxed text-book-text-muted">{t("settingsTheme.importPackageHint")}</p>
+        </div>
+        <BookButton
+          variant="secondary"
+          size="sm"
+          onClick={() => void handleImport()}
+          disabled={disabled || importing || picking}
+        >
+          {importing || picking ? <LoadingSpinner size="sm" /> : <Upload size={13} />}
+          {importing || picking ? t("settingsTheme.importingPackage") : t("settingsTheme.importPackage")}
+        </BookButton>
+      </div>
+    </div>
   );
 };

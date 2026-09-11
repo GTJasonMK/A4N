@@ -1453,8 +1453,7 @@ mod tests {
     #[test]
     fn replacement_commit_requires_cleanup_artifacts() {
         let error = replacement_cleanup_artifacts_from_checkpoint(&json!({"completed": true}))
-            .err()
-            .expect("missing replacement cleanup artifacts must fail explicitly");
+            .expect_err("missing replacement cleanup artifacts must fail explicitly");
 
         assert!(error.to_string().contains("cleanup_artifacts"));
     }

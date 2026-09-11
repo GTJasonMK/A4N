@@ -6,7 +6,7 @@ pub(super) fn required_operation_name(v: &Value) -> Result<&str, AppError> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::Internal(format!("Gemini Veo 视频生成响应缺少 operation name")))
+        .ok_or_else(|| AppError::Internal("Gemini Veo 视频生成响应缺少 operation name".to_string()))
 }
 
 pub(super) fn operation_error_message(v: &Value) -> Option<String> {

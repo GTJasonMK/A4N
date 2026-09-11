@@ -32,7 +32,7 @@ where
     Ok(videos)
 }
 
-pub(super) async fn copy_freeform_generated_videos_record<C, Copier: ?Sized>(
+pub(super) async fn copy_freeform_generated_videos_record<C, Copier>(
     db: &C,
     videos: &[generated_video::Model],
     new_project_id: i64,
@@ -41,7 +41,7 @@ pub(super) async fn copy_freeform_generated_videos_record<C, Copier: ?Sized>(
 ) -> Result<FreeformGeneratedVideoCopyRecords, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     if videos.is_empty() {
         return Ok(FreeformGeneratedVideoCopyRecords::default());

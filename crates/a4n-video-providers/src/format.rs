@@ -55,9 +55,10 @@ pub(crate) fn detect_video_format_from_bytes(bytes: &[u8]) -> Result<String, App
     if bytes.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
         return Ok("webm".into());
     }
-    Err(AppError::Internal(format!(
+    Err(AppError::Internal(
         "无法识别视频字节格式（仅支持 mp4 / webm 魔数嗅探，请在响应中显式给出 format 或 content_type）"
-    )))
+            .to_string(),
+    ))
 }
 
 #[cfg(test)]

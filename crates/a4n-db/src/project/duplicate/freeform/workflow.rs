@@ -26,7 +26,7 @@ use crate::project::duplicate::{
     },
 };
 
-pub async fn duplicate_freeform_project_record<Copier: ?Sized>(
+pub async fn duplicate_freeform_project_record<Copier>(
     db: &DatabaseConnection,
     original: &novel_project::Model,
     user_id: i64,
@@ -34,7 +34,7 @@ pub async fn duplicate_freeform_project_record<Copier: ?Sized>(
     media_file_copier: &mut Copier,
 ) -> Result<novel_project::Model, ProjectDuplicateError>
 where
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     if original.source_mode().map_err(|error| {
         ProjectDuplicateError::InvalidArgument(format!("项目 {}: {error}", original.id))

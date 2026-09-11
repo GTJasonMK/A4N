@@ -12,6 +12,13 @@ export const parseNumberInput = (value: string): NumberInputValue => {
 export const isPositiveInteger = (value: number | null): value is number =>
   value !== null && Number.isInteger(value) && value > 0;
 
+export const outlineOptimizationVariables = (
+  direction: string,
+): Record<string, unknown> | null => {
+  const trimmed = direction.trim();
+  return trimmed ? { optimization_direction: trimmed } : null;
+};
+
 export const DELETE_LATEST_PARTS_ACTION = "delete-latest-parts";
 export const DELETE_LATEST_CHAPTER_OUTLINES_ACTION =
   "delete-latest-chapter-outlines";

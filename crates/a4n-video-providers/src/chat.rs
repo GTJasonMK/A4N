@@ -125,9 +125,10 @@ impl VideoProvider for ChatCompletionsVideoProvider {
     }
 
     async fn poll(&self, _job_id: &str) -> Result<VideoJobState, AppError> {
-        Err(AppError::Internal(format!(
+        Err(AppError::Internal(
             "chat-completions 视频 backend 仅支持同步返回，不支持轮询（若需异步任务请改用 openai-compatible-video）"
-        )))
+                .to_string(),
+        ))
     }
 
     async fn status(&self, _job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {

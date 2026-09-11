@@ -160,7 +160,7 @@ pub async fn preview_generate_missing_portraits_request(
             state,
             user_id,
             input.project_id,
-            &prompt,
+            prompt,
             input.width,
             input.height,
             &[],

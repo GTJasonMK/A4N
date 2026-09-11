@@ -354,6 +354,7 @@ fn validate_supported_durations(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::NEWAPI_VIDEO_BACKEND;
 
     fn valid_params() -> VideoConfigParams {
         VideoConfigParams {

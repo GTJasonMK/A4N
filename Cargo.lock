@@ -70,7 +70,6 @@ dependencies = [
  "a4n-error",
  "async-trait",
  "serde",
- "serde_json",
  "thiserror 2.0.18",
 ]
 
@@ -115,7 +114,6 @@ dependencies = [
  "a4n-db-models",
  "a4n-domain",
  "a4n-error",
- "a4n-event",
  "a4n-migration",
  "a4n-queue",
  "a4n-service-protocol",
@@ -330,7 +328,6 @@ dependencies = [
  "axum 0.8.9",
  "base64 0.22.1",
  "futures",
- "serde",
  "serde_json",
  "tokio",
  "tracing",
@@ -388,10 +385,8 @@ dependencies = [
  "futures",
  "serde",
  "serde_json",
- "sha2",
  "tokio",
  "tokio-util",
- "url",
 ]
 
 [[package]]
@@ -916,7 +911,6 @@ dependencies = [
  "a4n-rag-core",
  "a4n-service-manager",
  "a4n-service-protocol",
- "a4n-task-runtime",
  "anyhow",
  "async-trait",
  "axum 0.8.9",

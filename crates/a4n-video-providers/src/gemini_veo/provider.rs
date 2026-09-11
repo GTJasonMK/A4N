@@ -165,9 +165,9 @@ impl GeminiVeoVideoProvider {
         }
 
         let Some(uri) = find_video_uri(v) else {
-            return Err(AppError::Internal(format!(
-                "Gemini Veo 任务已完成，但响应缺少 generatedVideos[0].video.uri"
-            )));
+            return Err(AppError::Internal(
+                "Gemini Veo 任务已完成，但响应缺少 generatedVideos[0].video.uri".to_string(),
+            ));
         };
         let url = self.absolute_media_url(uri)?;
         let (bytes, format) =

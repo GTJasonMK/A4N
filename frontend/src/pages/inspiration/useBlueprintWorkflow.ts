@@ -152,7 +152,10 @@ export const useBlueprintWorkflow = ({
   const taskKey = generationHandle
     ? generationTaskKey(generationHandle.task_id, generationHandle.attempt)
     : null;
-  const streamText = generationTask.text("raw_json");
+  const streamText = [
+    generationTask.text("reasoning"),
+    generationTask.text("raw_json"),
+  ].filter(Boolean).join("\n");
 
   const isCurrentProject = useCallback((requestProjectId: number) => {
     return mountedRef.current && activeProjectIdRef.current === requestProjectId;

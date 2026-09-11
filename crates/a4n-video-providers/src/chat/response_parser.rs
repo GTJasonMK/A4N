@@ -208,7 +208,7 @@ fn classify_video_string(
     let raw = raw.trim();
     if let Some(rest) = raw.strip_prefix("data:") {
         let (header, payload) = rest.split_once(',').ok_or_else(|| {
-            AppError::Internal(format!("chat-completions video data URI 缺少 ','"))
+            AppError::Internal("chat-completions video data URI 缺少 ','".to_string())
         })?;
         let payload = payload.trim();
         let mime = header.split(';').next().unwrap_or("").trim();

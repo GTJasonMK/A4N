@@ -1,5 +1,5 @@
 import React from "react";
-import { Edit3, ScrollText } from "lucide-react";
+import { Edit3, ScrollText, Wand2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
@@ -13,9 +13,11 @@ interface WorldPanelHeaderProps {
   hasBlueprint: boolean;
   hasWorldContent: boolean;
   worldObject: WorldObject | null;
+  refining: boolean;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onSave: () => void | Promise<void>;
+  onRefine: () => void | Promise<void>;
   onOpenDetail: () => void;
 }
 
@@ -26,9 +28,11 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
   hasBlueprint,
   hasWorldContent,
   worldObject,
+  refining,
   onStartEdit,
   onCancelEdit,
   onSave,
+  onRefine,
   onOpenDetail,
 }) => {
   const { t } = useI18n();
@@ -71,9 +75,29 @@ export const WorldPanelHeader: React.FC<WorldPanelHeaderProps> = ({
             ) : null}
             {canEdit ? (
               <BookButton
+                variant="secondary"
+                size="sm"
+                onClick={() => void onRefine()}
+                disabled={refining}
+                className="min-w-0 flex-1 !text-xs sm:flex-none"
+              >
+                {refining ? (
+                  <span className="inline-flex items-center gap-1.5">
+                    <LoadingSpinner size="sm" /> {t("novel.world.refining")}
+                  </span>
+                ) : (
+                  <>
+                    <Wand2 size={12} /> {t("novel.world.refine")}
+                  </>
+                )}
+              </BookButton>
+            ) : null}
+            {canEdit ? (
+              <BookButton
                 variant="primary"
                 size="sm"
                 onClick={onStartEdit}
+                disabled={refining}
                 className="min-w-0 flex-1 !text-xs sm:flex-none"
               >
                 <Edit3 size={12} /> {t("novel.world.edit")}

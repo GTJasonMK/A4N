@@ -17,7 +17,6 @@ a4n-llm = { path = "../a4n-llm" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
-a4n-task-runtime = { path = "../a4n-task-runtime" }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

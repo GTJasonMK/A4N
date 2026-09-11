@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 pub(in crate::project::duplicate::freeform) async fn copy_freeform_project_media_graph_record<
     C,
-    Copier: ?Sized,
+    Copier,
 >(
     db: &C,
     source_project_id: i64,
@@ -22,7 +22,7 @@ pub(in crate::project::duplicate::freeform) async fn copy_freeform_project_media
 ) -> Result<FreeformProjectMediaGraphCopyResult, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     let media_asset_ids = copy_freeform_media_assets_record(
         db,

@@ -16,7 +16,7 @@ use crate::project::duplicate::{
 
 pub(in crate::project::duplicate::freeform) async fn duplicate_freeform_project_media_record<
     C,
-    Copier: ?Sized,
+    Copier,
 >(
     db: &C,
     original: &novel_project::Model,
@@ -27,7 +27,7 @@ pub(in crate::project::duplicate::freeform) async fn duplicate_freeform_project_
 ) -> Result<FreeformProjectMediaCopyResult, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     let source_videos = freeform_generated_videos_for_copy_record(db, original.id).await?;
     let project = insert_project_copy_record(
