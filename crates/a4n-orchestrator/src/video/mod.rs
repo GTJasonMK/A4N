@@ -59,6 +59,7 @@ pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 #[cfg(test)]
 pub(crate) use a4n_error::AppError;
 
+use a4n_api_contract::video::ChapterVideoPromptSummary;
 pub use a4n_api_contract::video::VideoGenerationApplicationPort;
 pub use a4n_video::VideoDurationCapability;
 pub use a4n_video_contract::{
@@ -119,10 +120,7 @@ pub use library::{
     video_reference_scope_rank,
 };
 pub use prompt_application::{
-    ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, LoadVideoSegmentPlanDraftInput,
-    OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
-    UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
-    VideoSegmentPlanDraftState,
+    GenerateChapterVideoPromptInput, VideoPromptApplicationContext, VideoSegmentPlanDraftState,
 };
 pub(crate) use prompt_application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
