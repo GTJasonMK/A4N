@@ -27,7 +27,7 @@ use crate::context::dynamic_provider::ProviderRuntimeAdapter;
 use crate::task_queue::PersistentTaskQueue;
 
 impl OrchestratorContext {
-    pub fn capabilities(&self) -> &A4nCapabilities {
+    pub(crate) fn capabilities(&self) -> &A4nCapabilities {
         &self.capabilities
     }
 
@@ -163,24 +163,19 @@ impl OrchestratorContext {
     }
 
     /// 发布内部事件（状态/蓝图等），统一经 EventBus，避免旁路直连。
-    pub fn publish_internal_event(&self, event: InternalEvent) -> Result<usize, AppError> {
+    pub(crate) fn publish_internal_event(&self, event: InternalEvent) -> Result<usize, AppError> {
         self.event_bus.publish(event)
-    }
-
-    /// 订阅内部事件流（Host/Tauri 桥接用）。
-    pub fn subscribe_internal_events(&self) -> tokio::sync::broadcast::Receiver<InternalEvent> {
-        self.event_bus.subscribe()
     }
 }
 
 impl OrchestratorContext {
     /// embedding 批大小（runtime/RAG 同步用，不暴露完整 provider）。
-    pub fn embedding_batch_size(&self) -> usize {
+    pub(crate) fn embedding_batch_size(&self) -> usize {
         self.embedding.batch_size()
     }
 
     /// embedding 模型身份（runtime/RAG 同步用）。
-    pub async fn embedding_model_identity(
+    pub(crate) async fn embedding_model_identity(
         &self,
     ) -> Result<a4n_embedding::provider::EmbeddingModelIdentity, AppError> {
         self.embedding
@@ -189,102 +184,29 @@ impl OrchestratorContext {
             .map_err(AppError::from)
     }
 
-    /// 要求配置中已设置非空 JWT secret。
-    pub fn required_jwt_secret(&self) -> Result<&str, AppError> {
-        let secret = self
-            .config
-            .security
-            .jwt_secret
-            .as_deref()
-            .map(str::trim)
-            .filter(|value| !value.is_empty())
-            .ok_or_else(|| AppError::InvalidState {
-                current: "jwt_secret 未配置".to_string(),
-                operation: "读取 JWT 密钥".to_string(),
-            })?;
-        Ok(secret)
-    }
-
-    /// Host 窗口/路径初始化用配置视图（不暴露字段）。
-    pub fn host_app_config(&self) -> &a4n_config::app_config::AppConfig {
-        &self.config
-    }
-
     /// 数据目录。
-    pub fn data_dir(&self) -> &std::path::Path {
+    pub(crate) fn data_dir(&self) -> &std::path::Path {
         &self.config.data_dir
     }
 
     /// 日志目录。
-    pub fn log_dir(&self) -> &std::path::Path {
+    pub(crate) fn log_dir(&self) -> &std::path::Path {
         &self.config.log_dir
     }
 
     /// 临时目录。
-    pub fn temp_dir(&self) -> &std::path::Path {
+    pub(crate) fn temp_dir(&self) -> &std::path::Path {
         &self.config.temp_dir
     }
 
-    /// 应用路径聚合。
-    pub fn app_paths(&self) -> a4n_storage::paths::AppPaths {
-        a4n_storage::paths::AppPaths::new(
-            self.config.data_dir.clone(),
-            self.config.cache_dir.clone(),
-            self.config.temp_dir.clone(),
-            self.config.log_dir.clone(),
-        )
-    }
-
-    /// 配置中的数据库 URL。
-    pub fn configured_database_url(&self) -> &str {
-        &self.config.database_url
-    }
-
     /// Embedding 模型缓存目录。
-    pub fn embedding_models_dir(&self) -> std::path::PathBuf {
+    pub(crate) fn embedding_models_dir(&self) -> std::path::PathBuf {
         self.config.embedding_models_dir()
     }
 
-    /// 注册任务句柄。
-    pub fn register_task_handle(
-        &self,
-        handle: a4n_task_runtime::channel::TaskHandle,
-    ) -> Result<std::sync::Arc<a4n_task_runtime::channel::TaskHandle>, AppError> {
-        self.task_manager.register(handle)
-    }
-
-    /// 移除任务句柄。
-    pub fn remove_task_handle(
-        &self,
-        handle: &std::sync::Arc<a4n_task_runtime::channel::TaskHandle>,
-    ) -> Result<(), AppError> {
-        self.task_manager.remove(handle)
-    }
-
-    pub fn task_handle(
-        &self,
-        task_id: &str,
-    ) -> Option<std::sync::Arc<a4n_task_runtime::channel::TaskHandle>> {
-        self.task_manager.get(task_id)
-    }
-
     /// 取消已注册任务句柄。
-    pub fn cancel_task_handle(&self, task_id: &str) -> bool {
+    pub(crate) fn cancel_task_handle(&self, task_id: &str) -> bool {
         self.task_manager.cancel(task_id)
-    }
-
-    pub fn cancel_owned_task_handle(&self, task_id: &str, user_id: i64) -> bool {
-        self.task_manager.cancel_owned(task_id, user_id)
-    }
-
-    /// 取消任务；任务尚未注册时保留短期取消意图。
-    pub fn cancel_or_remember_task_handle(&self, task_id: &str, user_id: i64) -> bool {
-        self.task_manager.cancel_or_remember(task_id, user_id)
-    }
-
-    /// 当前活跃任务快照。
-    pub fn active_task_snapshots(&self) -> Vec<a4n_task_runtime::channel::TaskSnapshot> {
-        self.task_manager.list_active_snapshots()
     }
 
     /// 按内容哈希加载角色快照（不暴露 snapshot_store 句柄）。

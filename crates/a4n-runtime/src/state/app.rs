@@ -23,12 +23,12 @@ use super::profile::RuntimeProfile;
 use super::prompt_engine::create_prompt_engine;
 use super::rag::create_rag_store;
 
-/// 业务字段统一在 [`a4n_orchestrator::OrchestratorContext`]；本类型仅额外持有
-/// 进程生命周期相关的 managed sidecars。
+/// Runtime owns Host lifecycle state and receives business behavior through
+/// explicit application ports.
 #[derive(Clone)]
 pub struct AppState {
-    /// 业务编排唯一入口（含原 AppState 业务字段）。
-    orchestrator: a4n_orchestrator::OrchestratorContext,
+    /// Runtime-owned configuration view used by Host paths and adapters.
+    config: AppConfig,
     /// Process-local task handles and snapshots are owned by a4n-task-runtime.
     /// The same instance is injected into the orchestrator for workflow code.
     task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
@@ -454,6 +454,8 @@ pub struct AppState {
         Arc<dyn a4n_orchestrator::inspiration::InspirationRequestPreviewApplicationPort>,
     /// Runtime-owned capability registry used by adapters and lifecycle code.
     capabilities: A4nCapabilities,
+    /// Runtime-owned event bus used by Host bridges.
+    event_bus: Arc<BroadcastEventBus>,
     /// Runtime provider port captured during bootstrap; provider execution does
     /// not reach back into the orchestrator facade.
     provider_runtime: crate::provider_runtime::DynamicProviderFacade,
@@ -862,12 +864,12 @@ impl AppState {
 
     /// 数据目录（来自 AppConfig）。
     pub fn data_dir(&self) -> &Path {
-        self.orchestrator.data_dir()
+        &self.config.data_dir
     }
 
-    /// Host 窗口/路径初始化用配置视图（不暴露完整 orchestrator）。
+    /// Host 窗口/路径初始化用配置视图。
     pub fn host_app_config(&self) -> &a4n_config::app_config::AppConfig {
-        self.orchestrator.host_app_config()
+        &self.config
     }
 
     pub(crate) fn runtime_profile(&self) -> RuntimeProfile {
@@ -879,28 +881,32 @@ impl AppState {
     }
 
     pub(crate) fn log_dir(&self) -> &Path {
-        self.orchestrator.log_dir()
+        &self.config.log_dir
     }
 
     pub(crate) fn temp_dir(&self) -> &Path {
-        self.orchestrator.temp_dir()
+        &self.config.temp_dir
     }
 
     pub(crate) fn embedding_models_dir(&self) -> std::path::PathBuf {
-        self.orchestrator.embedding_models_dir()
+        self.config.embedding_models_dir()
     }
 
     pub(crate) fn required_jwt_secret(&self) -> Result<&str, a4n_error::AppError> {
-        self.orchestrator.required_jwt_secret()
+        self.config
+            .security
+            .jwt_secret
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| a4n_error::AppError::InvalidState {
+                current: "jwt_secret 未配置".to_string(),
+                operation: "读取 JWT 密钥".to_string(),
+            })
     }
 
     pub fn subscribe_internal_events(&self) -> tokio::sync::broadcast::Receiver<InternalEvent> {
-        self.orchestrator.subscribe_internal_events()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn orchestrator(&self) -> &a4n_orchestrator::OrchestratorContext {
-        &self.orchestrator
+        self.event_bus.subscribe()
     }
 
     pub(crate) fn auth_application(&self) -> &dyn a4n_api_contract::auth::AuthApplicationPort {
@@ -2038,6 +2044,7 @@ impl AppState {
         .await?;
 
         let state = Self {
+            config: config.clone(),
             task_manager: task_manager.clone(),
             generation_application: Arc::new(orchestrator.clone()),
             source_sync_read_application: Arc::new(orchestrator.clone()),
@@ -2171,8 +2178,8 @@ impl AppState {
             inspiration_application: Arc::new(orchestrator.clone()),
             inspiration_generation_application: Arc::new(orchestrator.clone()),
             inspiration_request_application: Arc::new(orchestrator.clone()),
-            orchestrator,
             capabilities,
+            event_bus,
             provider_runtime,
             rag_search,
             rag_ingest,

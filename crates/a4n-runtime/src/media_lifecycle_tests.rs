@@ -1,12 +1,11 @@
 use std::{path::Path, time::Duration};
 
 use a4n_config::app_config::{AppConfig, SecurityConfig};
-use a4n_db::video::{
-    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
-    ImagePublicationFileFacts,
-};
 use a4n_db_models::models::project::project_member;
 use a4n_error::AppError;
+use a4n_orchestrator::media::{
+    ImageImportApplicationPort, ImagePublicationRecoveryPort, PreparedImportedImageUpload,
+};
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use sha2::{Digest, Sha256};
 
@@ -64,6 +63,29 @@ async fn state() -> (
     .unwrap();
     (directory, state, db, owner.id, project.id)
 }
+
+fn prepared_image_upload(project_id: i64) -> PreparedImportedImageUpload {
+    let decoded = a4n_media::decode_uploaded_image_data(
+        "test.png",
+        "image/png",
+        TEST_IMAGE_BASE64,
+        50 * 1024 * 1024,
+    )
+    .unwrap();
+    PreparedImportedImageUpload {
+        project_id,
+        image_type: "imported".to_string(),
+        prompt: "test".to_string(),
+        model: "external_import".to_string(),
+        chapter_id: None,
+        panel_id: None,
+        metadata_json: None,
+        decoded,
+    }
+}
+
+const TEST_IMAGE_BASE64: &str =
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 #[tokio::test]
 async fn media_access_checks_membership_and_the_resolved_project_or_theme() {
@@ -175,35 +197,20 @@ async fn media_access_checks_membership_and_the_resolved_project_or_theme() {
 #[tokio::test]
 async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() {
     let (_directory, state, _db, user_id, project_id) = state().await;
-    let bytes = b"image";
-    let sha256 = format!("{:x}", Sha256::digest(bytes));
+    let prepared = prepared_image_upload(project_id);
+    let bytes = prepared.decoded.bytes.clone();
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
     let final_path = format!("projects/{project_id}/images/live.png");
-    let input = CreateImagePublicationIntentInput {
-        publication_id: "live-publication".to_string(),
-        project_id,
-        requested_by_user_id: user_id,
-        staging_path: format!("projects/{project_id}/images/live.part"),
-        final_path: final_path.clone(),
-        image: CreateGeneratedImageRecordDraftInput {
-            project_id,
-            image_type: "imported".to_string(),
-            file_path: final_path.clone(),
-            prompt: "test".to_string(),
-            model: "test".to_string(),
-            width: 1,
-            height: 1,
-            file_size: Some(bytes.len() as i64),
-            chapter_id: None,
-            panel_id: None,
-            metadata_json: None,
-            created_at: None,
-        },
-        expected_file_size: bytes.len() as i64,
-        expected_sha256: sha256.clone(),
-    };
     let (publication, guard) = state
-        .orchestrator()
-        .create_image_publication_intent_for_user_validated(user_id, input.clone())
+        .image_import_application()
+        .create_imported_publication_intent(
+            user_id,
+            &prepared,
+            "live-publication".to_string(),
+            format!("projects/{project_id}/images/live.part"),
+            final_path.clone(),
+            sha256.clone(),
+        )
         .await
         .unwrap();
     let recovery_state = state.clone();
@@ -220,17 +227,15 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     );
     let path = state.data_dir().join(final_path);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(&path, bytes).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
     state
-        .orchestrator()
-        .publish_imported_image_publication_for_user_validated(
+        .image_import_application()
+        .publish_imported_image(
             user_id,
             project_id,
             &publication.publication_id,
-            ImagePublicationFileFacts {
-                file_size: bytes.len() as i64,
-                sha256,
-            },
+            bytes.len() as i64,
+            sha256,
         )
         .await
         .unwrap();
@@ -241,7 +246,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
         .unwrap();
     assert_eq!(
         state
-            .orchestrator()
+            .image_publication_recovery_application()
             .image_publication_by_id(&publication.publication_id)
             .await
             .unwrap()
@@ -251,17 +256,20 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     );
     assert!(path.is_file());
 
-    let mut abandoned = input;
-    abandoned.publication_id = "abandoned-publication".to_string();
-    abandoned.staging_path = format!("projects/{project_id}/images/abandoned.part");
-    abandoned.final_path = format!("projects/{project_id}/images/abandoned.png");
-    abandoned.image.file_path = abandoned.final_path.clone();
+    let abandoned = prepared_image_upload(project_id);
     let writer_state = state.clone();
     let (started, writing) = tokio::sync::oneshot::channel();
     let writer = tokio::spawn(async move {
         let (_publication, _guard) = writer_state
-            .orchestrator()
-            .create_image_publication_intent_for_user_validated(user_id, abandoned)
+            .image_import_application()
+            .create_imported_publication_intent(
+                user_id,
+                &abandoned,
+                "abandoned-publication".to_string(),
+                format!("projects/{project_id}/images/abandoned.part"),
+                format!("projects/{project_id}/images/abandoned.png"),
+                format!("{:x}", Sha256::digest(&abandoned.decoded.bytes)),
+            )
             .await
             .unwrap();
         started.send(()).unwrap();
@@ -278,7 +286,7 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
     .unwrap();
     assert_eq!(
         state
-            .orchestrator()
+            .image_publication_recovery_application()
             .image_publication_by_id("abandoned-publication")
             .await
             .unwrap()
@@ -291,50 +299,33 @@ async fn media_recovery_waits_for_publication_and_recovers_a_cancelled_writer() 
 #[tokio::test]
 async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     let (_directory, state, _db, user_id, project_id) = state().await;
-    let bytes = b"image";
-    let sha256 = format!("{:x}", Sha256::digest(bytes));
+    let prepared = prepared_image_upload(project_id);
+    let bytes = prepared.decoded.bytes.clone();
+    let sha256 = format!("{:x}", Sha256::digest(&bytes));
     let final_path = format!("projects/{project_id}/images/drifted.png");
-    let input = CreateImagePublicationIntentInput {
-        publication_id: "drifted-publication".to_string(),
-        project_id,
-        requested_by_user_id: user_id,
-        staging_path: format!("projects/{project_id}/images/drifted.part"),
-        final_path: final_path.clone(),
-        image: CreateGeneratedImageRecordDraftInput {
-            project_id,
-            image_type: "imported".to_string(),
-            file_path: final_path.clone(),
-            prompt: "test".to_string(),
-            model: "test".to_string(),
-            width: 1,
-            height: 1,
-            file_size: Some(bytes.len() as i64),
-            chapter_id: None,
-            panel_id: None,
-            metadata_json: None,
-            created_at: None,
-        },
-        expected_file_size: bytes.len() as i64,
-        expected_sha256: sha256.clone(),
-    };
     let (publication, guard) = state
-        .orchestrator()
-        .create_image_publication_intent_for_user_validated(user_id, input)
+        .image_import_application()
+        .create_imported_publication_intent(
+            user_id,
+            &prepared,
+            "drifted-publication".to_string(),
+            format!("projects/{project_id}/images/drifted.part"),
+            final_path.clone(),
+            sha256.clone(),
+        )
         .await
         .unwrap();
     let path = state.data_dir().join(&final_path);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-    std::fs::write(&path, bytes).unwrap();
+    std::fs::write(&path, &bytes).unwrap();
     let image = state
-        .orchestrator()
-        .publish_imported_image_publication_for_user_validated(
+        .image_import_application()
+        .publish_imported_image(
             user_id,
             project_id,
             &publication.publication_id,
-            ImagePublicationFileFacts {
-                file_size: bytes.len() as i64,
-                sha256,
-            },
+            bytes.len() as i64,
+            sha256,
         )
         .await
         .unwrap();
@@ -344,7 +335,7 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     crate::cleanup_outbox::recover_cleanup_outbox(&state).await;
 
     let recovered = state
-        .orchestrator()
+        .image_publication_recovery_application()
         .image_publication_by_id(&publication.publication_id)
         .await
         .unwrap()
@@ -353,8 +344,8 @@ async fn media_recovery_retains_published_record_when_final_file_facts_drift() {
     assert_eq!(recovered.image_id, Some(image.id));
     assert_eq!(
         state
-            .orchestrator()
-            .generated_image_by_id(image.id)
+            .image_import_application()
+            .imported_image_summary(image.id)
             .await
             .unwrap()
             .unwrap()
