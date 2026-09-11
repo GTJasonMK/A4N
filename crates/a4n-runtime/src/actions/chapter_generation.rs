@@ -75,7 +75,7 @@ pub async fn preview_chapter_prompt(
     };
     let prompt_renderer = state;
     let preview = state
-        .chapter_generation_application()
+        .chapter_generation_preview_application()
         .preview_request(
             user_id,
             ChapterGenerationApplicationContext {
@@ -111,7 +111,7 @@ pub async fn prepare_chapter_generation_rag_embedding(
     input: PreviewChapterPromptInput,
 ) -> Result<PreparedGenerationRagEmbeddingRequest, String> {
     state
-        .chapter_generation_application()
+        .chapter_generation_preview_application()
         .prepare_rag_embedding(user_id, input, runtime_embedding_identity()?)
         .await
 }

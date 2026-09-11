@@ -97,7 +97,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
         }
     };
     match state
-        .video_record_application()
+        .video_record_lifecycle_application()
         .complete(CompleteVideoRecordInput {
             record_id,
             output_path: output_path_str.to_string(),
@@ -180,9 +180,11 @@ pub(in crate::actions::video_records) async fn complete_video_record(
             }) {
                 return Err(append_secondary_error(primary_error, cleanup_error));
             }
-            let delete_error =
-                delete_video_record_cleanup_error(state.video_record_application(), record_id)
-                    .await;
+            let delete_error = delete_video_record_cleanup_error(
+                state.video_record_lifecycle_application(),
+                record_id,
+            )
+            .await;
             Err(append_secondary_error(
                 append_secondary_error(primary_error, cleanup_error),
                 delete_error,

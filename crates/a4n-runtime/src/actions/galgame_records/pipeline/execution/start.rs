@@ -19,7 +19,7 @@ pub async fn start_galgame_pipeline_with_progress(
 ) -> Result<GalgameScriptDetail, String> {
     let prompt_renderer = state;
     state
-        .galgame_pipeline_application()
+        .galgame_pipeline_execution_application()
         .start(user_id, input, progress_reporter, prompt_renderer)
         .await
         .map_err(|error| error.to_string())

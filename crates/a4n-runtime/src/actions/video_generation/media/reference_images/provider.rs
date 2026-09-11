@@ -3,13 +3,13 @@ use crate::actions::video_generation::media::provider_images::{
     image_file_to_provider_input, public_media_base_url,
 };
 use crate::actions::video_generation::media::types::ProviderImageInputTransport;
+use a4n_api_contract::video::VideoRecordReadApplicationPort;
 use a4n_domain::image::validate_reference_image_id_list;
-use a4n_orchestrator::video::VideoRecordApplicationPort;
 use a4n_service_protocol::GenerationArtifactRef;
 use std::path::Path;
 
 pub(crate) async fn reference_image_provider_inputs_by_ids(
-    video: &dyn VideoRecordApplicationPort,
+    video: &dyn VideoRecordReadApplicationPort,
     data_dir: &Path,
     jwt_secret: Option<&str>,
     user_id: i64,
@@ -38,7 +38,7 @@ pub(crate) async fn reference_image_provider_inputs_by_ids(
 }
 
 pub(crate) async fn reference_image_provider_input_by_id(
-    video: &dyn VideoRecordApplicationPort,
+    video: &dyn VideoRecordReadApplicationPort,
     data_dir: &Path,
     jwt_secret: Option<&str>,
     user_id: i64,
@@ -67,7 +67,7 @@ pub(crate) async fn reference_image_provider_input_by_id(
 }
 
 async fn reference_image_provider_inputs_for_ids(
-    video: &dyn VideoRecordApplicationPort,
+    video: &dyn VideoRecordReadApplicationPort,
     data_dir: &Path,
     jwt_secret: Option<&str>,
     user_id: i64,

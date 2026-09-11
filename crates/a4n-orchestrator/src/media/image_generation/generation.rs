@@ -5,6 +5,7 @@ use std::sync::{
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
+    image::GeneratedImageSummary,
     image_generation::{
         GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
         GenerateSceneImageInput, ImageGenerationOperation, StartImageGenerationInput,
@@ -26,9 +27,9 @@ use crate::{
         generation_result_ref, publish_step_progress,
     },
     media::{
-        BatchImageGenerationOutcome, GeneratedImageSummary, ImageGenerationApplicationPort,
-        ImageGenerationHostPort, ImageGenerationProgress, ObjectProfileImageInput,
-        PreparedImageGenerationRequest, SceneProfileImageInput,
+        BatchImageGenerationOutcome, ImageGenerationApplicationPort, ImageGenerationHostPort,
+        ImageGenerationProgress, ObjectProfileImageInput, PreparedImageGenerationRequest,
+        SceneProfileImageInput,
     },
 };
 

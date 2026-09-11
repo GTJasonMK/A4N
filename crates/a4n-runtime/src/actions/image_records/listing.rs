@@ -1,7 +1,5 @@
-use crate::{
-    AppState,
-    actions::{app_error_message, image_generation::GeneratedImageSummary},
-};
+use crate::{AppState, actions::app_error_message};
+use a4n_api_contract::image::GeneratedImageSummary;
 
 use super::{
     ListImagesByChapterInput, ListImagesByProjectInput, ListImagesByProjectsInput,
@@ -14,7 +12,7 @@ pub async fn list_images_by_project(
     input: ListImagesByProjectInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     state
-        .image_record_application()
+        .image_record_read_application()
         .list_by_project(user_id, input)
         .await
         .map_err(app_error_message)
@@ -26,7 +24,7 @@ pub async fn list_images_by_projects(
     input: ListImagesByProjectsInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     state
-        .image_record_application()
+        .image_record_read_application()
         .list_by_projects(user_id, input)
         .await
         .map_err(app_error_message)
@@ -38,7 +36,7 @@ pub async fn list_images_by_chapter(
     input: ListImagesByChapterInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     state
-        .image_record_application()
+        .image_record_read_application()
         .list_by_chapter(user_id, input)
         .await
         .map_err(app_error_message)
@@ -50,7 +48,7 @@ pub async fn list_video_reference_images(
     input: ListVideoReferenceImagesInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
     state
-        .image_record_application()
+        .image_record_read_application()
         .list_video_reference_images(user_id, input)
         .await
         .map_err(app_error_message)

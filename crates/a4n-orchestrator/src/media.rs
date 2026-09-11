@@ -13,17 +13,17 @@ pub use batch_image_application::{
 };
 pub use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
-    GeneratedImageSummary, ImageGenerationApplicationPort, ImageGenerationExecutionInput,
-    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
-    ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
-    PreparedGeneratedImageFile, PreparedImageGenerationRequest, SceneProfileImageInput,
-    SceneProfileImagePromptOutput, generated_image_summary, image_generation_request_trace_json,
-    normalize_image_metadata,
+    ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
+    ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
+    ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
+    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
+    PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+    PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
+    generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
 };
 pub use image_record_lifecycle::{
-    GeneratedImageIdentity, ImageRecordApplicationPort, PreparedImportedImageUpload,
+    GeneratedImageIdentity, ImageImportApplicationPort, ImageMediaReferencePort,
+    ImagePublicationRecoveryPort, PreparedImportedImageUpload,
 };
 
 pub use image_workflow_rules::{

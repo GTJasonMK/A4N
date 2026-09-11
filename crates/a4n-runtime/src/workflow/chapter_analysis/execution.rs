@@ -40,7 +40,7 @@ pub(super) async fn run_chapter_analysis_application(
         active_task_id: progress.and_then(|progress| progress.task_id),
     };
     state
-        .chapter_analysis_application()
+        .chapter_analysis_generation_application()
         .generate(
             user_id,
             chapter_id,

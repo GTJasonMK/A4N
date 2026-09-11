@@ -31,7 +31,7 @@ async fn finish_chapter_derived_cleanup_inner(
     artifacts: ChapterDerivedCleanupArtifacts,
 ) -> Result<(), String> {
     state
-        .chapter_content_mutation_application()
+        .chapter_content_sync_application()
         .cleanup_derived_rag(project_id, chapter_id, chapter_number, &artifacts)
         .await
         .map_err(|error| error.to_string())?;

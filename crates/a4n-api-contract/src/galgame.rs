@@ -33,6 +33,60 @@ pub struct StartGalgamePipelineInput {
     pub resume_from_checkpoint: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct GalgamePipelinePreviewStep {
+    pub key: String,
+    pub title: String,
+    pub prompt_name: String,
+    pub request: Option<Value>,
+}
+
+/// Host-facing Galgame pipeline execution boundary.
+///
+/// Authorization and workflow persistence remain with the Galgame owner;
+/// Runtime supplies rendering/progress capabilities and routes the result.
+#[async_trait::async_trait]
+pub trait GalgamePipelineExecutionApplicationPort: Send + Sync {
+    async fn start(
+        &self,
+        user_id: i64,
+        input: StartGalgamePipelineInput,
+        progress_reporter: Option<GalgameProgressReporter>,
+        prompt_renderer: &dyn crate::prompt::PromptRenderPort,
+    ) -> Result<GalgameScriptDetail, a4n_error::AppError>;
+}
+
+/// Host-facing Galgame pipeline request-preview boundary.
+#[async_trait::async_trait]
+pub trait GalgamePipelinePreviewApplicationPort: Send + Sync {
+    async fn preview(
+        &self,
+        user_id: i64,
+        input: PreviewGalgamePipelineInput,
+        prompt_renderer: &dyn crate::prompt::PromptRenderPort,
+    ) -> Result<Vec<GalgamePipelinePreviewStep>, a4n_error::AppError>;
+}
+
+/// Host-facing Galgame pipeline status-read boundary.
+#[async_trait::async_trait]
+pub trait GalgamePipelineReadApplicationPort: Send + Sync {
+    async fn status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgamePipelineStatusSummary, a4n_error::AppError>;
+}
+
+/// Host-facing Galgame pipeline cancellation boundary.
+#[async_trait::async_trait]
+pub trait GalgamePipelineCancellationApplicationPort: Send + Sync {
+    async fn cancel(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgamePipelineStatusSummary, a4n_error::AppError>;
+}
+
 /// Progress snapshot emitted by the Galgame pipeline.
 #[derive(Debug, Clone)]
 pub struct GalgamePipelineProgressUpdate {
@@ -115,6 +169,77 @@ pub trait GalgameReadApplicationPort: Send + Sync {
         user_id: i64,
         project_id: i64,
     ) -> Result<GalgameScriptDetail, a4n_error::AppError>;
+}
+
+/// Host-facing Galgame script-record mutation boundary.
+#[async_trait::async_trait]
+pub trait GalgameRecordMutationApplicationPort: Send + Sync {
+    async fn update_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameLineInput,
+    ) -> Result<GalgameLine, a4n_error::AppError>;
+
+    async fn insert_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: InsertGalgameLineInput,
+    ) -> Result<GalgameLine, a4n_error::AppError>;
+
+    async fn update_scene(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameSceneInput,
+    ) -> Result<GalgameScene, a4n_error::AppError>;
+
+    async fn delete_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: DeleteGalgameLineInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn reorder_lines(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: ReorderGalgameLinesInput,
+    ) -> Result<Vec<GalgameLine>, a4n_error::AppError>;
+
+    async fn update_choices(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameChoicesInput,
+    ) -> Result<Vec<GalgameChoice>, a4n_error::AppError>;
+}
+
+/// Host-facing Galgame media-binding mutation boundary.
+///
+/// Media authorization, persistence, and DTO projection stay with the
+/// Galgame owner; Runtime only routes the typed commands.
+#[async_trait::async_trait]
+pub trait GalgameMediaMutationApplicationPort: Send + Sync {
+    async fn bind_media(
+        &self,
+        user_id: i64,
+        input: BindGalgameMediaInput,
+    ) -> Result<GalgameMediaBindingSummary, a4n_error::AppError>;
+
+    async fn unbind_media(
+        &self,
+        user_id: i64,
+        input: UnbindGalgameMediaInput,
+    ) -> Result<u64, a4n_error::AppError>;
+
+    async fn import_audio(
+        &self,
+        user_id: i64,
+        input: ImportGalgameAudioInput,
+    ) -> Result<GalgameMediaBindingSummary, a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -237,6 +362,19 @@ pub enum GalgameAssetPlanOutcome {
     Created,
     Updated,
     Reused,
+}
+
+/// Host-facing boundary for planning Galgame asset specifications.
+///
+/// Target discovery and generation-spec persistence stay with the Galgame
+/// owner; Runtime only routes the typed planning command.
+#[async_trait::async_trait]
+pub trait GalgameAssetPlanApplicationPort: Send + Sync {
+    async fn plan(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgameAssetPlan, a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

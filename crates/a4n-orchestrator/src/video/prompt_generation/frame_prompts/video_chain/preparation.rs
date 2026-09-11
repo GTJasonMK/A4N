@@ -4,6 +4,7 @@ mod frames;
 
 use std::collections::{HashMap, HashSet};
 
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_video_contract::{VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1};
 use serde_json::Value;
@@ -13,8 +14,8 @@ use self::contracts::{VideoChainAssetFinalizationInput, VideoChainFrameSelection
 use self::frames::select_video_chain_frames;
 use super::super::{
     AppError, ChapterVideoPromptOptions, ChapterVideoSourceContext, FramePromptGenerationSpec,
-    OrchestratorContext, PreparedVideoPromptInputs, PromptOutputLanguage, VideoFramePrompt,
-    VideoPromptProgress, VideoSegmentPlan, VideoUnitPlan, load_shared_segment_plan_for_execution,
+    OrchestratorContext, PreparedVideoPromptInputs, VideoFramePrompt, VideoPromptProgress,
+    VideoSegmentPlan, VideoUnitPlan, load_shared_segment_plan_for_execution,
     report_video_prompt_progress,
 };
 

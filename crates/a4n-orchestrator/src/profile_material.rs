@@ -1,6 +1,7 @@
 use a4n_api_contract::profile::{
-    ListProfileMaterialsInput, ProfileMaterialGroup, ProfileMaterialImageSummary,
-    ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput, UploadProfileMaterialImageInput,
+    ListProfileMaterialsInput, ProfileMaterialApplicationPort, ProfileMaterialGroup,
+    ProfileMaterialImageSummary, ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput,
+    UploadProfileMaterialImageInput,
 };
 pub(crate) use a4n_db::profile_material::{
     generated_image_profile_material_identity, is_project_reusable_video_material_image,
@@ -62,19 +63,7 @@ struct ProfileMaterialGroupProjection {
 }
 
 #[async_trait]
-pub trait ProfileMaterialApplicationPort: Send + Sync {
-    async fn list(
-        &self,
-        user_id: i64,
-        input: ListProfileMaterialsInput,
-    ) -> Result<Vec<ProfileMaterialGroup>, AppError>;
-
-    async fn set_primary(
-        &self,
-        user_id: i64,
-        input: SetProfilePrimaryMaterialInput,
-    ) -> Result<ProfileMaterialGroup, AppError>;
-
+pub trait ProfileMaterialUploadApplicationPort: Send + Sync {
     async fn upload(
         &self,
         user_id: i64,
@@ -771,7 +760,10 @@ impl ProfileMaterialApplicationPort for OrchestratorContext {
     ) -> Result<ProfileMaterialGroup, AppError> {
         OrchestratorContext::set_profile_primary_material_validated(self, user_id, input).await
     }
+}
 
+#[async_trait]
+impl ProfileMaterialUploadApplicationPort for OrchestratorContext {
     async fn upload(
         &self,
         user_id: i64,

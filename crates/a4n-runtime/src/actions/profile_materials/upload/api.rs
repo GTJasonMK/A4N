@@ -9,7 +9,7 @@ pub async fn upload_profile_material_image(
 ) -> Result<ProfileMaterialGroup, String> {
     let host = RuntimeImageGenerationHostPort::new(state);
     state
-        .profile_material_application()
+        .profile_material_upload_application()
         .upload(user_id, &host, input)
         .await
         .map_err(|error| error.to_string())

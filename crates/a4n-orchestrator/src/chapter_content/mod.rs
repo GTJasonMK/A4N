@@ -7,7 +7,10 @@ mod application;
 mod rules;
 mod sync;
 
-pub use application::{ChapterContentMutationApplicationPort, ChapterDerivedCleanupHostPort};
+pub use application::{
+    ChapterContentMutationApplicationPort, ChapterContentSyncApplicationPort,
+    ChapterDerivedCleanupHostPort,
+};
 pub(crate) use sync::{
     CHAPTER_CONTENT_SYNC_CLEANUP_STEP, chapter_content_sync_checkpoint_artifacts,
     chapter_content_sync_checkpoint_input, chapter_content_sync_workflow_business_key,

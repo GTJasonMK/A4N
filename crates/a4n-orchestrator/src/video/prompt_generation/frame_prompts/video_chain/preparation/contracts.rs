@@ -1,10 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use serde_json::Value;
 
 use super::super::super::{
-    ChapterVideoSourceContext, FramePromptGenerationSpec, OrchestratorContext,
-    PromptOutputLanguage, VideoFramePrompt, VideoPromptProgress, VideoSegmentPlan, VideoUnitPlan,
+    ChapterVideoSourceContext, FramePromptGenerationSpec, OrchestratorContext, VideoFramePrompt,
+    VideoPromptProgress, VideoSegmentPlan, VideoUnitPlan,
 };
 
 pub(super) struct VideoChainFrameSelectionInput<'a> {

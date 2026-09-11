@@ -1,14 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 
-use super::super::super::super::super::{
-    PromptOutputLanguage,
-    prompt_json::{
-        ChatVideoPromptShot, VideoPromptShot, VideoSegmentPlan,
-        validate_chat_video_prompt_shot_against_segment,
-        validate_video_prompt_shot_against_segment,
-    },
+use super::super::super::super::super::prompt_json::{
+    ChatVideoPromptShot, VideoPromptShot, VideoSegmentPlan,
+    validate_chat_video_prompt_shot_against_segment, validate_video_prompt_shot_against_segment,
 };
 
 pub(in crate::video) fn validate_video_prompts(

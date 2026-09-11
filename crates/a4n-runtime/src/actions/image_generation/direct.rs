@@ -1,10 +1,13 @@
-use a4n_api_contract::image_generation::{GenerateGalgameImageInput, GenerateSceneImageInput};
+use a4n_api_contract::{
+    image::GeneratedImageSummary,
+    image_generation::{GenerateGalgameImageInput, GenerateSceneImageInput},
+};
 use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_orchestrator::media::ImageGenerationProgress;
 
 use super::{
-    AppState, GeneratedImageSummary, ModelRequestPreview, RuntimeImageGenerationHostPort,
-    model_request_preview, preview::prepared_image_generation_preview_step,
+    AppState, ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,
+    preview::prepared_image_generation_preview_step,
 };
 
 pub async fn preview_scene_image_request(

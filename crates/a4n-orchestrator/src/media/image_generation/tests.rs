@@ -3,6 +3,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_db::{
     DatabaseConnection,
@@ -1100,7 +1101,7 @@ async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
 
 #[test]
 fn generated_image_summary_contract_remains_json_compatible() {
-    let summary = super::GeneratedImageSummary {
+    let summary = GeneratedImageSummary {
         id: 1,
         project_id: 2,
         image_type: "scene".to_string(),

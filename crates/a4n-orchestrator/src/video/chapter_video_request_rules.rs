@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
 use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::reference_image_ids;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::VideoGenerationRequest;
@@ -11,7 +12,7 @@ use serde_json::{Value, json};
 use super::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, MIN_PROVIDER_MOTION_PROMPT_CHARS,
     MIN_PROVIDER_VISUAL_PROMPT_CHARS, NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND,
-    OPENAI_COMPATIBLE_VIDEO_BACKEND, PromptOutputLanguage, ProviderGenerationWorkflow,
+    OPENAI_COMPATIBLE_VIDEO_BACKEND, ProviderGenerationWorkflow,
     cliproxy_prompt_length_violation_message, provider_image_binding_violation_messages,
     validate_provider_model_text,
 };

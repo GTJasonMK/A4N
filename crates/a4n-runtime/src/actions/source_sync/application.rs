@@ -8,7 +8,7 @@ pub async fn apply_source_sync_decisions(
     input: ApplySourceSyncInput,
 ) -> Result<SourceSyncPlanSummary, AppError> {
     state
-        .source_sync_application()
+        .source_sync_mutation_application()
         .apply(user_id, input, state)
         .await
 }

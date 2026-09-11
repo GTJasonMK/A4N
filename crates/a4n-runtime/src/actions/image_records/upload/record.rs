@@ -1,10 +1,10 @@
 use super::file::{create_imported_image_output, data_path_to_db_string};
 use crate::{
     AppState,
-    actions::image_generation::GeneratedImageSummary,
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::{inspect_data_file_facts, promote_data_file},
 };
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_orchestrator::media::PreparedImportedImageUpload;
 use sha2::{Digest, Sha256};
@@ -34,7 +34,7 @@ pub(super) async fn persist_imported_image(
     let staging_relative_path = data_path_to_db_string(state.data_dir(), &staging_path)?;
     let final_relative_path = data_path_to_db_string(state.data_dir(), &final_path)?;
     let (publication, _publication_guard) = state
-        .image_record_application()
+        .image_import_application()
         .create_imported_publication_intent(
             user_id,
             &prepared,
@@ -51,7 +51,7 @@ pub(super) async fn persist_imported_image(
             .image_id
             .ok_or_else(|| "已发布图片意图缺少 image_id".to_string())?;
         return state
-            .image_record_application()
+            .image_import_application()
             .imported_image_summary(image_id)
             .await
             .map_err(|error| error.to_string())?
@@ -105,7 +105,7 @@ pub(super) async fn persist_imported_image(
         return Err("导入图片最终文件在发布前被修改".to_string());
     }
     let record = state
-        .image_record_application()
+        .image_import_application()
         .publish_imported_image(
             user_id,
             project_id,

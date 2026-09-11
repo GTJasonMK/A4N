@@ -1,8 +1,8 @@
-use a4n_service_manager::{ManagedServiceConfig, ServiceManagerError};
+use a4n_service_manager::{ManagedServiceConfig, ServiceManagerError, ServiceMode};
 use a4n_service_protocol::ServiceHealth;
 
-use super::contracts::ManagedServiceHealthSummary;
 use super::errors::service_manager_error_message;
+use a4n_api_contract::service_health::{ManagedServiceHealthSummary, ManagedServiceMode};
 
 pub(crate) fn service_health_summary(
     config: ManagedServiceConfig,
@@ -33,7 +33,12 @@ pub(crate) fn service_health_summary(
         };
     ManagedServiceHealthSummary {
         name: config.name,
-        mode: config.mode,
+        mode: match config.mode {
+            ServiceMode::Embedded => ManagedServiceMode::Embedded,
+            ServiceMode::Sidecar => ManagedServiceMode::Sidecar,
+            ServiceMode::Remote => ManagedServiceMode::Remote,
+            ServiceMode::Disabled => ManagedServiceMode::Disabled,
+        },
         url,
         binary,
         pid: managed_pid,

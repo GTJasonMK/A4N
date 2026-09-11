@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
@@ -7,9 +8,8 @@ use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::{
     AppError, ChapterVideoSourceContext, FramePromptGenerationSpec, GeneratedVideoPromptShot,
-    OrchestratorContext, ProgressSpan, PromptOutputLanguage, VideoPromptChunk,
-    VideoPromptGenerationTrace, VideoPromptProgress, VideoSegmentPlan,
-    report_video_prompt_progress,
+    OrchestratorContext, ProgressSpan, VideoPromptChunk, VideoPromptGenerationTrace,
+    VideoPromptProgress, VideoSegmentPlan, report_video_prompt_progress,
 };
 use super::unit_execution::{VideoPromptUnitExecutionInput, execute_video_prompt_unit};
 

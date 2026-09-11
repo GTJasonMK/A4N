@@ -1,9 +1,9 @@
 use a4n_api_contract::image::GeneratedImageSummary;
-use a4n_orchestrator::video::VideoRecordApplicationPort;
+use a4n_api_contract::video::VideoRecordReadApplicationPort;
 use serde_json::json;
 
 pub(super) async fn validated_reference_images_for_ids(
-    video: &dyn VideoRecordApplicationPort,
+    video: &dyn VideoRecordReadApplicationPort,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,

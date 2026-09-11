@@ -24,7 +24,7 @@ pub(crate) async fn resume_chapter_content_sync_workflow_run(
 ) -> Result<(), String> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
-        .chapter_content_mutation_application()
+        .chapter_content_sync_application()
         .resume(&host_port, workflow_run_id)
         .await
         .map(|_| ())

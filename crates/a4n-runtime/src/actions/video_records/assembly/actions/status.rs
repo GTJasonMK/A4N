@@ -10,7 +10,7 @@ pub async fn update_assembly_push_status(
     input: UpdateAssemblyPushStatusInput,
 ) -> Result<GeneratedVideoSummary, String> {
     state
-        .video_record_application()
+        .video_assembly_application()
         .update_assembly_push_status(user_id, video_id, input)
         .await
         .map_err(app_error_message)

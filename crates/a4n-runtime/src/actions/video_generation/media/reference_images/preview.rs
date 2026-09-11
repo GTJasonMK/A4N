@@ -1,12 +1,12 @@
 use super::records::validated_reference_images_for_ids;
 use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_api_contract::video::VideoRecordReadApplicationPort;
 use a4n_domain::image::validate_reference_image_id_list;
 use a4n_domain::media::image_mime_from_path;
-use a4n_orchestrator::video::VideoRecordApplicationPort;
 use std::path::Path;
 
 pub(crate) async fn reference_image_request_preview_urls_by_ids(
-    video: &dyn VideoRecordApplicationPort,
+    video: &dyn VideoRecordReadApplicationPort,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -20,7 +20,7 @@ pub(crate) async fn reference_image_request_preview_urls_by_ids(
 }
 
 pub(crate) async fn reference_image_request_preview_url_by_id(
-    video: &dyn VideoRecordApplicationPort,
+    video: &dyn VideoRecordReadApplicationPort,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -41,7 +41,7 @@ pub(crate) async fn reference_image_request_preview_url_by_id(
 }
 
 async fn reference_image_request_preview_urls_for_ids(
-    video: &dyn VideoRecordApplicationPort,
+    video: &dyn VideoRecordReadApplicationPort,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,

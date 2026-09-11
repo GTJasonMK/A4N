@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_api_contract::image::{
-    DeleteImageInput, GeneratedImageSummary, ListImagesByChapterInput, ListImagesByProjectInput,
+    DeleteImageInput, GeneratedImageSummary, ImageRecordMutationApplicationPort,
+    ImageRecordReadApplicationPort, ListImagesByChapterInput, ListImagesByProjectInput,
     ListImagesByProjectsInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
     UploadImageInput,
 };
@@ -63,47 +64,10 @@ pub struct GeneratedImageIdentity {
     pub file_size: Option<i64>,
 }
 
-/// Host-facing image record boundary. Authorization, queries, patch
-/// normalization and deletion checks stay in the media owner.
+/// Host-facing image import boundary. File decoding, publication intent
+/// creation and final publication stay in the media owner.
 #[async_trait]
-pub trait ImageRecordApplicationPort: Send + Sync {
-    async fn reference_by_ids(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        image_ids: &[i64],
-    ) -> Result<Vec<GeneratedImageSummary>, AppError>;
-
-    async fn list_by_project(
-        &self,
-        user_id: i64,
-        input: ListImagesByProjectInput,
-    ) -> Result<Vec<GeneratedImageSummary>, AppError>;
-
-    async fn list_by_projects(
-        &self,
-        user_id: i64,
-        input: ListImagesByProjectsInput,
-    ) -> Result<Vec<GeneratedImageSummary>, AppError>;
-
-    async fn list_by_chapter(
-        &self,
-        user_id: i64,
-        input: ListImagesByChapterInput,
-    ) -> Result<Vec<GeneratedImageSummary>, AppError>;
-
-    async fn list_video_reference_images(
-        &self,
-        user_id: i64,
-        input: ListVideoReferenceImagesInput,
-    ) -> Result<Vec<GeneratedImageSummary>, AppError>;
-
-    async fn update(
-        &self,
-        user_id: i64,
-        input: UpdateGeneratedImageInput,
-    ) -> Result<GeneratedImageSummary, AppError>;
-
+pub trait ImageImportApplicationPort: Send + Sync {
     async fn prepare_imported_upload(
         &self,
         user_id: i64,
@@ -133,9 +97,12 @@ pub trait ImageRecordApplicationPort: Send + Sync {
         file_size: i64,
         sha256: String,
     ) -> Result<GeneratedImageSummary, AppError>;
+}
 
-    async fn delete(&self, user_id: i64, input: DeleteImageInput) -> Result<(), AppError>;
-
+/// Host-facing publication recovery boundary. Runtime supplies file facts and
+/// physical cleanup; the media owner keeps publication state transitions.
+#[async_trait]
+pub trait ImagePublicationRecoveryPort: Send + Sync {
     async fn lock_image_publications(&self) -> OwnedMutexGuard<()>;
 
     async fn image_publications_for_recovery(
@@ -182,7 +149,11 @@ pub trait ImageRecordApplicationPort: Send + Sync {
         version: i64,
         reason: Option<String>,
     ) -> Result<(), AppError>;
+}
 
+/// Host-facing media-reference boundary used by cleanup and orphan scans.
+#[async_trait]
+pub trait ImageMediaReferencePort: Send + Sync {
     async fn unreferenced_media_paths(&self, paths: &[String]) -> Result<Vec<String>, AppError>;
 
     async fn media_path_prefix_has_persisted_reference(
@@ -588,7 +559,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl ImageRecordApplicationPort for OrchestratorContext {
+impl ImageRecordReadApplicationPort for OrchestratorContext {
     async fn reference_by_ids(
         &self,
         user_id: i64,
@@ -661,7 +632,10 @@ impl ImageRecordApplicationPort for OrchestratorContext {
             .map(super::image_generation::generated_image_summary)
             .collect())
     }
+}
 
+#[async_trait]
+impl ImageRecordMutationApplicationPort for OrchestratorContext {
     async fn update(
         &self,
         user_id: i64,
@@ -696,6 +670,14 @@ impl ImageRecordApplicationPort for OrchestratorContext {
         Ok(super::image_generation::generated_image_summary(&image))
     }
 
+    async fn delete(&self, user_id: i64, input: DeleteImageInput) -> Result<(), AppError> {
+        self.delete_generated_image_for_user_validated(user_id, input.image_id)
+            .await
+    }
+}
+
+#[async_trait]
+impl ImageImportApplicationPort for OrchestratorContext {
     async fn prepare_imported_upload(
         &self,
         user_id: i64,
@@ -755,12 +737,10 @@ impl ImageRecordApplicationPort for OrchestratorContext {
             .await?;
         Ok(super::image_generation::generated_image_summary(&image))
     }
+}
 
-    async fn delete(&self, user_id: i64, input: DeleteImageInput) -> Result<(), AppError> {
-        self.delete_generated_image_for_user_validated(user_id, input.image_id)
-            .await
-    }
-
+#[async_trait]
+impl ImagePublicationRecoveryPort for OrchestratorContext {
     async fn lock_image_publications(&self) -> OwnedMutexGuard<()> {
         OrchestratorContext::lock_image_publications(self).await
     }
@@ -873,7 +853,10 @@ impl ImageRecordApplicationPort for OrchestratorContext {
             .await
             .map(|_| ())
     }
+}
 
+#[async_trait]
+impl ImageMediaReferencePort for OrchestratorContext {
     async fn unreferenced_media_paths(&self, paths: &[String]) -> Result<Vec<String>, AppError> {
         OrchestratorContext::unreferenced_media_paths(self, paths).await
     }

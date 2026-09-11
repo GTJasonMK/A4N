@@ -1,12 +1,12 @@
 use super::*;
 use std::collections::{HashMap, HashSet};
 
-use crate::video::PromptOutputLanguage;
 use crate::video::prompt_generation::frame_prompts::VideoUnitPlan;
 use crate::video::prompt_json::{
     StoryboardPanel, VideoFramePrompt, VideoPromptShot, VideoSegmentPlan,
 };
 use crate::video::prompt_store::NewChapterVideoPrompt;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 

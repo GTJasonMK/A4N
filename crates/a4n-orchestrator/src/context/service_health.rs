@@ -1,7 +1,8 @@
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
-use crate::service_health::{contracts::ManagedServiceHealthSummary, service_health_summary};
+use crate::service_health::service_health_summary;
+use a4n_api_contract::service_health::{ManagedServiceHealthSummary, ServiceHealthApplicationPort};
 
 impl OrchestratorContext {
     pub async fn managed_service_health_summaries(
@@ -29,10 +30,8 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl crate::service_health::ServiceHealthApplicationPort for OrchestratorContext {
-    async fn summaries(
-        &self,
-    ) -> Result<Vec<crate::service_health::ManagedServiceHealthSummary>, a4n_error::AppError> {
+impl ServiceHealthApplicationPort for OrchestratorContext {
+    async fn summaries(&self) -> Result<Vec<ManagedServiceHealthSummary>, a4n_error::AppError> {
         self.managed_service_health_summaries().await
     }
 }

@@ -1,3 +1,5 @@
+use a4n_domain::prompt_language::PromptOutputLanguage;
+
 fn frame_generation_options() -> ChapterVideoPromptOptions {
     ChapterVideoPromptOptions {
         style: "电影感写实".to_string(),

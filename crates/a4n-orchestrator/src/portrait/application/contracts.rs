@@ -1,4 +1,4 @@
-use a4n_api_contract::portrait::PortraitSummary;
+use a4n_api_contract::portrait::{PortraitReferenceImageSource, PortraitSummary};
 use a4n_domain::media::GeneratedMediaArtifactFile;
 use a4n_error::AppError;
 use async_trait::async_trait;
@@ -11,12 +11,6 @@ use crate::media::{
 };
 
 pub type PortraitProgress<'a> = &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), AppError> + Send);
-
-#[derive(Debug, Clone)]
-pub struct PortraitReferenceImageSource {
-    pub label: String,
-    pub file_path: String,
-}
 
 #[derive(Debug, Clone)]
 pub struct PortraitImageProviderInput {

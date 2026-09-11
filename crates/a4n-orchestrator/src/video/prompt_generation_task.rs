@@ -4,8 +4,8 @@ use std::{collections::HashMap, sync::Arc};
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
     video::{
-        StartVideoGenerationInput, VideoGenerationOperation, VideoInsertedSegmentGenerationOptions,
-        VideoPromptGenerationOptions,
+        ChapterVideoPromptSummary, StartVideoGenerationInput, VideoGenerationOperation,
+        VideoInsertedSegmentGenerationOptions, VideoPromptGenerationOptions,
     },
 };
 use a4n_db_models::models::chapter::chapter_video_prompt;
@@ -34,7 +34,7 @@ use crate::{
 };
 
 use super::{
-    ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, VIDEO_PROMPT_CHECKPOINT_STAGE_CODE,
+    GenerateChapterVideoPromptInput, VIDEO_PROMPT_CHECKPOINT_STAGE_CODE,
     VideoPromptApplicationContext, VideoPromptProgressUpdate,
     prompt_records::{expected_contract_version, video_execution_segment_identity_matches},
     provider_request_rules::required_video_execution_identity,

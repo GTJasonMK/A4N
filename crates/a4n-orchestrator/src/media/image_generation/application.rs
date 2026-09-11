@@ -1,5 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
@@ -148,7 +149,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: GenerateSceneImageInput,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<super::GeneratedImageSummary, AppError> {
+    ) -> Result<GeneratedImageSummary, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
         self.generate_direct_image(host, user_id, scene_image_plan(input), progress)
@@ -178,7 +179,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: GenerateGalgameImageInput,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<super::GeneratedImageSummary, AppError> {
+    ) -> Result<GeneratedImageSummary, AppError> {
         if input.generation_spec_id <= 0 || input.target_entity_id <= 0 {
             return Err(AppError::InvalidArgument(
                 "generation_spec_id 和 target_entity_id 必须是正整数".to_string(),
@@ -236,7 +237,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: ObjectProfileImageInput,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<super::GeneratedImageSummary, AppError> {
+    ) -> Result<GeneratedImageSummary, AppError> {
         let config_id = input.config_id;
         let chapter_id = input.chapter_id;
         let (width, height) = required_image_size(input.width, input.height)?;
@@ -253,7 +254,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: SceneProfileImageInput,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<super::GeneratedImageSummary, AppError> {
+    ) -> Result<GeneratedImageSummary, AppError> {
         let config_id = input.config_id;
         let chapter_id = input.chapter_id;
         let (width, height) = required_image_size(input.width, input.height)?;
@@ -281,7 +282,7 @@ impl OrchestratorContext {
         user_id: i64,
         input: GeneratePageImageInput,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<super::GeneratedImageSummary, AppError> {
+    ) -> Result<GeneratedImageSummary, AppError> {
         progress.progress(0, 4, "正在读取整页漫画提示词");
         check_progress_cancelled(progress)?;
         let chapter_number = input.chapter_number;
@@ -427,7 +428,7 @@ impl OrchestratorContext {
         width: i32,
         height: i32,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<super::GeneratedImageSummary, AppError> {
+    ) -> Result<GeneratedImageSummary, AppError> {
         self.generate_direct_image(
             host,
             user_id,
@@ -443,7 +444,7 @@ impl OrchestratorContext {
         user_id: i64,
         plan: DirectImagePlan,
         progress: &ImageGenerationProgress<'_>,
-    ) -> Result<super::GeneratedImageSummary, AppError> {
+    ) -> Result<GeneratedImageSummary, AppError> {
         progress.progress(0, 3, "正在准备图片生成配置");
         check_progress_cancelled(progress)?;
         let prepared = self

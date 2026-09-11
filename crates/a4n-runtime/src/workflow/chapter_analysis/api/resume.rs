@@ -11,7 +11,7 @@ pub async fn preflight_resume_chapter_analysis_sync(
     chapter_id: i64,
 ) -> Result<ChapterSummary, String> {
     state
-        .chapter_analysis_application()
+        .chapter_analysis_resume_application()
         .preflight_resume(user_id, chapter_id)
         .await
         .map_err(|error| error.to_string())
@@ -44,7 +44,7 @@ pub async fn resume_chapter_analysis_sync_with_progress(
         Ok(())
     };
     state
-        .chapter_analysis_application()
+        .chapter_analysis_resume_application()
         .resume_sync(
             user_id,
             chapter_id,
@@ -71,7 +71,7 @@ pub async fn resume_chapter_analysis_workflow_run(
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
     state
-        .chapter_analysis_application()
+        .chapter_analysis_resume_application()
         .resume_workflow_run(
             user_id,
             workflow_run_id,

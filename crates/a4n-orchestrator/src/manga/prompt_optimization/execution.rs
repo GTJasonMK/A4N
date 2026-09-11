@@ -1,3 +1,4 @@
+use a4n_api_contract::manga::MangaPromptDownstreamCleanupPort;
 use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use a4n_domain::project::required_text;
 use a4n_error::AppError;
@@ -12,8 +13,8 @@ use crate::{
 
 use super::{
     contracts::{
-        MangaPromptDownstreamCleanupPort, MangaPromptOptimizationInput,
-        PreparedMangaPromptOptimization, RequiredMangaPromptOptimizationInput,
+        MangaPromptOptimizationInput, PreparedMangaPromptOptimization,
+        RequiredMangaPromptOptimizationInput,
     },
     request::build_manga_prompt_optimization_request,
 };

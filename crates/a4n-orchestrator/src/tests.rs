@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
-use a4n_service_manager::{ManagedServiceConfig, ServiceManagerError, ServiceMode};
+use a4n_api_contract::service_health::ManagedServiceMode;
+use a4n_service_manager::{ManagedServiceConfig, ServiceManagerError};
 use a4n_service_protocol::{HealthStatus, ServiceHealth};
 
 use super::service_health::service_health_summary;
@@ -82,7 +83,7 @@ fn disabled_service_summary_keeps_mode_and_error_message() {
     );
 
     assert_eq!(summary.name, "rag");
-    assert_eq!(summary.mode, ServiceMode::Disabled);
+    assert_eq!(summary.mode, ManagedServiceMode::Disabled);
     assert!(!summary.healthy);
     assert_eq!(
         summary.error_message.as_deref(),

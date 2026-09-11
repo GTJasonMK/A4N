@@ -1,9 +1,9 @@
 use super::super::processing::{canvas_frame_output_path, run_ffmpeg_extract_frame};
 use crate::AppState;
 use crate::actions::access;
-use crate::actions::image_generation::GeneratedImageSummary;
 use crate::actions::video_generation::media::append_secondary_error;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_domain::CanvasFrameKind;
 use a4n_storage::{canonicalize_data_file_path, persist_created_media_file};
 
@@ -17,7 +17,7 @@ pub(crate) async fn extract_canvas_video_frame(
 ) -> Result<GeneratedImageSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let plan = state
-        .video_record_application()
+        .video_canvas_media_application()
         .prepare_canvas_frame(project_id, video_id, frame_kind, at_secs)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -46,7 +46,7 @@ pub(crate) async fn extract_canvas_video_frame(
         "画布抽帧图片",
     )?;
     let image = match state
-        .video_record_application()
+        .video_canvas_media_application()
         .create_canvas_frame_record(plan, output_path_str.clone(), file_size)
         .await
     {

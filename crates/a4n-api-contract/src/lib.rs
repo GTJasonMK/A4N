@@ -41,6 +41,7 @@ pub mod rag;
 pub mod request_preview;
 pub mod runtime_config;
 mod serde_update;
+pub mod service_health;
 pub mod shooting_script;
 pub mod source_sync;
 pub mod storage;

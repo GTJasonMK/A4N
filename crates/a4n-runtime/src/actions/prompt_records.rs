@@ -1,13 +1,12 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::prompt::{
-    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
-    PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
-    ValidateVarsInput, VersionDiffInput,
+    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntry, PromptEntrySummary,
+    PromptExecutionContext, PromptVersionSummary, RemoveOverrideInput, RenderInput,
+    SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
 };
 use a4n_error::AppError;
-use a4n_orchestrator::prompt_records::PromptExecutionContext;
-use a4n_prompt::{engine::PromptEntry, rendering::PromptRenderer};
+use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use serde_json::Value;
 
@@ -214,7 +213,7 @@ pub(crate) async fn prompt_update_many_runtime(
 }
 
 #[async_trait]
-impl PromptRenderer for AppState {
+impl a4n_api_contract::prompt::PromptRenderPort for AppState {
     async fn render_prompt(
         &self,
         template_name: &str,
@@ -224,6 +223,24 @@ impl PromptRenderer for AppState {
         render_prompt_template(self, template_name, variables.clone(), project_id)
             .await
             .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
+    }
+}
+
+#[async_trait]
+impl PromptRenderer for AppState {
+    async fn render_prompt(
+        &self,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        <Self as a4n_api_contract::prompt::PromptRenderPort>::render_prompt(
+            self,
+            template_name,
+            variables,
+            project_id,
+        )
+        .await
     }
 }
 

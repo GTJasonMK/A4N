@@ -53,7 +53,11 @@ pub trait ChapterContentMutationApplicationPort: Send + Sync {
         host_port: &dyn ChapterDerivedCleanupHostPort,
         input: a4n_api_contract::chapter::ImportChapterInput,
     ) -> Result<i64, AppError>;
+}
 
+/// Runtime-facing boundary for derived-data synchronization and recovery.
+#[async_trait]
+pub trait ChapterContentSyncApplicationPort: Send + Sync {
     async fn resume(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,
@@ -281,7 +285,10 @@ impl ChapterContentMutationApplicationPort for OrchestratorContext {
             .await?
             .id)
     }
+}
 
+#[async_trait]
+impl ChapterContentSyncApplicationPort for OrchestratorContext {
     async fn resume(
         &self,
         host_port: &dyn ChapterDerivedCleanupHostPort,

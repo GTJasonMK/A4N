@@ -1,4 +1,5 @@
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -8,7 +9,7 @@ use super::super::super::super::prompt_store::{
 };
 use super::super::super::super::{
     BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, FIRST_FRAME_CHAIN_CONTRACT_VERSION,
-    PromptOutputLanguage, STORYBOARD_PROMPT_CONTRACT_VERSION,
+    STORYBOARD_PROMPT_CONTRACT_VERSION,
 };
 use super::super::VideoUnitPlan;
 use super::rules::optional_prompt_text;

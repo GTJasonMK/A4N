@@ -1,7 +1,5 @@
-use crate::{
-    AppState,
-    actions::{app_error_message, image_generation::GeneratedImageSummary},
-};
+use crate::{AppState, actions::app_error_message};
+use a4n_api_contract::image::GeneratedImageSummary;
 
 use super::UpdateGeneratedImageInput;
 
@@ -11,7 +9,7 @@ pub async fn update_image(
     input: UpdateGeneratedImageInput,
 ) -> Result<GeneratedImageSummary, String> {
     state
-        .image_record_application()
+        .image_record_mutation_application()
         .update(user_id, input)
         .await
         .map_err(app_error_message)

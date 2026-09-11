@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use a4n_api_contract::portrait::{GeneratePortraitInput, GeneratePortraitPromptInput, PortraitType};
+use a4n_api_contract::portrait::{
+    GeneratePortraitInput, GeneratePortraitPromptInput, PortraitType,
+};
 use a4n_db_models::models::character::protagonist_profile;
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;

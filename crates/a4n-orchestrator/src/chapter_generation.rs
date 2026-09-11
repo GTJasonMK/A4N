@@ -32,12 +32,12 @@ pub(crate) use rag_context::{
 };
 pub use service::ChapterGenerationService;
 
-/// Host-facing boundary for chapter generation workers.
+/// Host-facing boundary for chapter request previews.
 ///
-/// Runtime supplies prompt, embedding and cleanup adapters; chapter
-/// preparation, workflow state and persistence stay in this owner.
+/// Runtime supplies prompt and embedding inputs; chapter preparation and
+/// validation stay in this owner.
 #[async_trait::async_trait]
-pub trait ChapterGenerationApplicationPort: Send + Sync {
+pub trait ChapterGenerationPreviewApplicationPort: Send + Sync {
     async fn preview_request(
         &self,
         user_id: i64,
@@ -51,7 +51,14 @@ pub trait ChapterGenerationApplicationPort: Send + Sync {
         input: PreviewChapterPromptInput,
         runtime_embedding_identity: Option<EmbeddingModelIdentity>,
     ) -> Result<PreparedGenerationRagEmbeddingRequest, String>;
+}
 
+/// Host-facing boundary for chapter generation workers.
+///
+/// Runtime supplies prompt, embedding and cleanup adapters; chapter
+/// workflow state and persistence stay in this owner.
+#[async_trait::async_trait]
+pub trait ChapterGenerationApplicationPort: Send + Sync {
     async fn start_task(
         &self,
         user_id: i64,

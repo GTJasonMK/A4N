@@ -48,7 +48,6 @@ mod test_support;
 #[cfg(test)]
 pub(crate) use test_support::{test_video_orchestrator, test_video_orchestrator_with_llm};
 
-pub use a4n_domain::prompt_language::PromptOutputLanguage;
 // 子模块通过 `use crate::video::{...}` / `super::` 共享的类型与错误映射。
 pub use a4n_db::generation::RecordStartedGenerationRunInput;
 pub use a4n_db::video::{
@@ -122,7 +121,6 @@ pub use prompt_application::{
     ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, LoadVideoSegmentPlanDraftInput,
     OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
     UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
-    VideoSegmentPlanDraftState,
 };
 pub(crate) use prompt_application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
@@ -133,10 +131,6 @@ pub(crate) use prompt_generation::validate_video_inserted_segment_generation_opt
 pub(in crate::video) use prompt_generation::{
     generate_inserted_segment_draft, load_video_segment_plan_draft_checkpoints,
     load_video_segment_plan_draft_recipe_state, update_video_segment_plan_draft_recipe_checkpoint,
-};
-pub use prompt_ports::{
-    VideoPromptDraftApplicationPort, VideoPromptMutationApplicationPort,
-    VideoPromptTimelineApplicationPort,
 };
 pub(crate) use prompt_workflow_rules::{
     video_prompt_optimization_workflow_run_input, video_prompt_workflow_run_input,
@@ -201,11 +195,7 @@ pub use self::prompt_records::VideoPromptUpdateInput;
 
 pub(crate) use errors::{video_db_error, video_llm_step_error};
 pub use records::{
-    AssemblyClipRecord, AssemblyPushAction, AssemblyVideoRecords, CanvasAssemblyPlan,
-    CanvasFramePlan, PreparedAssemblyPostprocessEditRecord, PreparedAssemblyPushRecord,
-    PreparedImportedChapterVideoRecord, SelectSegmentVideoInput, UpdateAssemblyPushStatusInput,
-    UpdateGeneratedVideoInput, VideoGenerationRecordInput, VideoImportRecordSummary,
-    VideoRecordApplicationPort, VideoTrimPlan, generated_video_summary,
+    PreparedImportedChapterVideoRecord, VideoGenerationRecordInput, generated_video_summary,
 };
 
 #[cfg(test)]

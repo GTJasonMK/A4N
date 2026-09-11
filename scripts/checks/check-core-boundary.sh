@@ -358,14 +358,20 @@ fi
 if rg -n 'state\.orchestrator\(\)\.(image_publications_for_recovery|lock_image_publications|image_publication_by_id|generated_image_by_id|publish_imported_image_publication_for_user_validated|ensure_(portrait|profile_material)_publication_identity_for_user_validated|mark_image_publication_(reclaiming|reclaimed)|unreferenced_media_paths|media_path_prefix_has_persisted_reference|project_has_active_image_publication|protected_image_publication_cleanup_paths)' \
     crates/a4n-runtime/src/cleanup_outbox/publication.rs \
     crates/a4n-runtime/src/cleanup_outbox/claim.rs; then
-    printf 'cleanup outbox media recovery must consume ImageRecordApplicationPort\n' >&2
+    printf 'cleanup outbox media recovery must avoid direct media-owner calls\n' >&2
     exit 1
 fi
 
-if ! rg -n 'image_record_application\(\)' \
+if ! rg -n 'image_publication_recovery_application\(\)' \
+    crates/a4n-runtime/src/cleanup_outbox/publication.rs; then
+    printf 'cleanup outbox publication recovery must route through ImagePublicationRecoveryPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'image_media_reference_application\(\)' \
     crates/a4n-runtime/src/cleanup_outbox/publication.rs \
     crates/a4n-runtime/src/cleanup_outbox/claim.rs; then
-    printf 'cleanup outbox media recovery must route through ImageRecordApplicationPort\n' >&2
+    printf 'cleanup outbox media reference checks must route through ImageMediaReferencePort\n' >&2
     exit 1
 fi
 
@@ -723,17 +729,22 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext|a4n_db_models::models::ai:
     exit 1
 fi
 
-if ! rg -n 'image_record_application\(\)' \
-    crates/a4n-runtime/src/actions/canvas_workflow/media_import/image.rs \
+if ! rg -n 'image_import_application\(\)' \
     crates/a4n-runtime/src/actions/image_records/upload.rs \
     crates/a4n-runtime/src/actions/image_records/upload/record.rs; then
-    printf 'Canvas image import and image upload must route through ImageRecordApplicationPort\n' >&2
+    printf 'Canvas image import and image upload must route through ImageImportApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait ImageRecordApplicationPort' \
+if ! rg -n 'pub trait ImageImportApplicationPort|pub trait ImagePublicationRecoveryPort|pub trait ImageMediaReferencePort' \
     crates/a4n-orchestrator/src/media/image_record_lifecycle.rs; then
-    printf 'ImageRecordApplicationPort contract is missing\n' >&2
+    printf 'image import/recovery/reference contracts are missing\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait ImageRecord(Read|Mutation)ApplicationPort' \
+    crates/a4n-api-contract/src/image.rs; then
+    printf 'image record read/mutation contracts are missing\n' >&2
     exit 1
 fi
 
@@ -759,41 +770,104 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext|actions::access' \
     crates/a4n-runtime/src/actions/video_records/playback.rs \
     crates/a4n-runtime/src/actions/video_records/assembly/actions/status.rs \
     crates/a4n-runtime/src/actions/video_records/imports/processing/trim.rs; then
-    printf 'Runtime video record CRUD actions must consume VideoRecordApplicationPort\n' >&2
+    printf 'Runtime video record actions must consume narrow application ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'video_record_application\(\)' \
+if rg -n 'VideoRecordApplicationPort|video_record_application\(\)' \
+    crates/a4n-api-contract/src/video.rs \
+    crates/a4n-orchestrator/src/video \
+    crates/a4n-runtime/src; then
+    printf 'the mixed VideoRecordApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'video_record_read_application\(\)' \
     crates/a4n-runtime/src/actions/video_records/records.rs \
-    crates/a4n-runtime/src/actions/video_records/deletion.rs \
     crates/a4n-runtime/src/actions/video_records/playback.rs \
-    crates/a4n-runtime/src/actions/video_records/assembly/actions/status.rs \
-    crates/a4n-runtime/src/actions/video_records/imports/processing/trim.rs; then
-    printf 'Runtime video record CRUD actions must route through VideoRecordApplicationPort\n' >&2
+    crates/a4n-runtime/src/actions/video_generation/reference_media/api.rs \
+    crates/a4n-runtime/src/actions/video_generation/media/reference_images; then
+    printf 'video record reads must route through VideoRecordReadApplicationPort\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait VideoRecordApplicationPort' \
-    crates/a4n-orchestrator/src/video/records.rs; then
-    printf 'VideoRecordApplicationPort contract is missing\n' >&2
+if ! rg -n 'video_record_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/video_records/records.rs \
+    crates/a4n-runtime/src/actions/video_records/deletion.rs; then
+    printf 'ordinary video record mutations must route through VideoRecordMutationApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'video_import_application\(\)' \
+    crates/a4n-runtime/src/actions/video_records/imports; then
+    printf 'video imports and trims must route through VideoImportApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'video_assembly_application\(\)' \
+    crates/a4n-runtime/src/actions/video_records/assembly; then
+    printf 'Assembly actions must route through VideoAssemblyApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'video_record_lifecycle_application\(\)' \
+    crates/a4n-runtime/src/actions/video_records \
+    crates/a4n-runtime/src/actions/video_generation/media/tail_frames; then
+    printf 'video completion and cleanup must route through VideoRecordLifecycleApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'video_canvas_media_application\(\)' \
+    crates/a4n-runtime/src/actions/video_records/imports/canvas; then
+    printf 'canvas video media actions must route through VideoCanvasMediaApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait VideoRecordReadApplicationPort|pub trait VideoRecordMutationApplicationPort|pub trait VideoImportApplicationPort|pub trait VideoAssemblyApplicationPort|pub trait VideoRecordLifecycleApplicationPort|pub trait VideoCanvasMediaApplicationPort' \
+    crates/a4n-api-contract/src/video.rs; then
+    printf 'split video record contracts are missing from the API contract\n' >&2
     exit 1
 fi
 
 if rg -n '\.orchestrator\(\)|OrchestratorContext' \
     crates/a4n-runtime/src/actions/galgame_records/pipeline; then
-    printf 'Runtime Galgame pipeline actions must consume GalgamePipelineApplicationPort\n' >&2
+    printf 'Runtime Galgame pipeline actions must consume split Galgame pipeline ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'galgame_pipeline_application\(\)' \
-    crates/a4n-runtime/src/actions/galgame_records/pipeline; then
-    printf 'Runtime Galgame pipeline actions must route through GalgamePipelineApplicationPort\n' >&2
+if ! rg -n 'galgame_pipeline_execution_application\(\)' \
+    crates/a4n-runtime/src/actions/galgame_records/pipeline/execution/start.rs || \
+   ! rg -n 'galgame_pipeline_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/galgame_records/pipeline/preview.rs || \
+   ! rg -n 'galgame_pipeline_read_application\(\)' \
+    crates/a4n-runtime/src/actions/galgame_records/pipeline/status.rs || \
+   ! rg -n 'galgame_pipeline_cancellation_application\(\)' \
+    crates/a4n-runtime/src/actions/galgame_records/pipeline/execution/cancel.rs; then
+    printf 'Runtime Galgame pipeline actions must route through split application ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait GalgamePipelineApplicationPort' \
-    crates/a4n-orchestrator/src/galgame/application.rs; then
-    printf 'GalgamePipelineApplicationPort contract is missing\n' >&2
+if rg -n 'pub trait GalgamePipeline(Application|Execution|Preview|Read|Cancellation)ApplicationPort|pub use .*GalgamePipeline(Application|Execution|Preview|Read|Cancellation)ApplicationPort' \
+    crates/a4n-orchestrator/src/galgame; then
+    printf 'Galgame pipeline ports must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait GalgamePipelineExecutionApplicationPort' \
+    crates/a4n-api-contract/src/galgame.rs || \
+   ! rg -n 'pub trait GalgamePipelinePreviewApplicationPort' \
+    crates/a4n-api-contract/src/galgame.rs || \
+   ! rg -n 'pub trait GalgamePipelineReadApplicationPort' \
+    crates/a4n-api-contract/src/galgame.rs || \
+   ! rg -n 'pub trait GalgamePipelineCancellationApplicationPort' \
+    crates/a4n-api-contract/src/galgame.rs; then
+    printf 'Galgame pipeline split contracts are missing from the API contract\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub struct GalgamePipelinePreviewStep' \
+    crates/a4n-api-contract/src/galgame.rs; then
+    printf 'Galgame pipeline preview contract is missing from the API contract\n' >&2
     exit 1
 fi
 
@@ -812,39 +886,91 @@ fi
 
 if rg -n '\.orchestrator\(\)|OrchestratorContext|actions::access' \
     crates/a4n-runtime/src/actions/manga_pipeline; then
-    printf 'Runtime Manga pipeline actions must consume MangaPipelineApplicationPort\n' >&2
+    printf 'Runtime Manga pipeline actions must consume split Manga pipeline ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'manga_pipeline_application\(\)' \
-    crates/a4n-runtime/src/actions/manga_pipeline; then
-    printf 'Runtime Manga pipeline actions must route through MangaPipelineApplicationPort\n' >&2
+if ! rg -n 'manga_pipeline_execution_application\(\)' \
+    crates/a4n-runtime/src/actions/manga_pipeline/execution.rs || \
+   ! rg -n 'manga_pipeline_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/manga_pipeline/preview.rs || \
+   ! rg -n 'manga_pipeline_read_application\(\)' \
+    crates/a4n-runtime/src/actions/manga_records/pipeline.rs || \
+   ! rg -n 'manga_pipeline_cancellation_application\(\)' \
+    crates/a4n-runtime/src/actions/manga_records/pipeline.rs; then
+    printf 'Runtime Manga pipeline actions must route through split application ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait MangaPipelineApplicationPort' \
-    crates/a4n-orchestrator/src/manga/application.rs; then
-    printf 'MangaPipelineApplicationPort contract is missing\n' >&2
+if rg -n 'pub trait MangaPipeline(Application|Execution|Preview|Read|Cancellation)ApplicationPort|pub use .*MangaPipeline(Application|Execution|Preview|Read|Cancellation)ApplicationPort' \
+    crates/a4n-orchestrator/src/manga; then
+    printf 'Manga pipeline ports must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait MangaPipelineExecutionApplicationPort' \
+    crates/a4n-api-contract/src/manga.rs || \
+   ! rg -n 'pub trait MangaPipelinePreviewApplicationPort' \
+    crates/a4n-api-contract/src/manga.rs || \
+   ! rg -n 'pub trait MangaPipelineReadApplicationPort' \
+    crates/a4n-api-contract/src/manga.rs || \
+   ! rg -n 'pub trait MangaPipelineCancellationApplicationPort' \
+    crates/a4n-api-contract/src/manga.rs; then
+    printf 'Manga pipeline split contracts are missing from the API contract\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub struct MangaPipelinePreviewStep' \
+    crates/a4n-api-contract/src/manga.rs; then
+    printf 'Manga pipeline preview contract is missing from the API contract\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub trait MangaRecord(Application|Read|Mutation)ApplicationPort|pub use .*MangaRecord(Application|Read|Mutation)ApplicationPort' \
+    crates/a4n-orchestrator/src/manga; then
+    printf 'Manga record application ports must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait MangaRecord(Read|Mutation)ApplicationPort' \
+    crates/a4n-api-contract/src/manga.rs; then
+    printf 'Manga record read/mutation contracts are missing from the API contract\n' >&2
     exit 1
 fi
 
 if rg -n '\.orchestrator\(\)|OrchestratorContext' \
     crates/a4n-runtime/src/actions/manga_records/records.rs \
     crates/a4n-runtime/src/actions/manga_records/optimization; then
-    printf 'Runtime Manga record actions must consume MangaRecordApplicationPort\n' >&2
+    printf 'Runtime Manga record actions must consume Manga record read/mutation ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'manga_record_application\(\)' \
+if ! rg -n 'manga_record_(read|mutation)_application\(\)' \
     crates/a4n-runtime/src/actions/manga_records/records.rs \
     crates/a4n-runtime/src/actions/manga_records/optimization; then
-    printf 'Runtime Manga record actions must route through MangaRecordApplicationPort\n' >&2
+    printf 'Runtime Manga record actions must route through Manga record read/mutation ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait MangaRecordApplicationPort' \
-    crates/a4n-orchestrator/src/manga/application.rs; then
-    printf 'MangaRecordApplicationPort contract is missing\n' >&2
+if ! rg -n 'pub trait MangaRecord(Read|Mutation)ApplicationPort' \
+    crates/a4n-api-contract/src/manga.rs; then
+    printf 'Manga record read/mutation contracts are missing from the API contract\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::manga::MangaPromptDownstreamCleanupPort|pub trait MangaPromptDownstreamCleanupPort' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src; then
+    printf 'Manga prompt cleanup must use the API contract directly, without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait MangaPromptDownstreamCleanupPort' \
+    crates/a4n-api-contract/src/manga.rs || \
+   ! rg -n 'a4n_api_contract::manga::MangaPromptDownstreamCleanupPort' \
+    crates/a4n-runtime/src/actions/manga_records.rs \
+    crates/a4n-orchestrator/src/manga/application.rs \
+    crates/a4n-orchestrator/src/manga/prompt_optimization/execution.rs; then
+    printf 'Manga prompt cleanup consumers must use the narrow API contract directly\n' >&2
     exit 1
 fi
 
@@ -913,6 +1039,31 @@ if ! rg -n 'task_cancellation_application\(\)' \
     exit 1
 fi
 
+if rg -n 'a4n_orchestrator::ServiceHealthApplicationPort|state\.orchestrator\(\)|OrchestratorContext' \
+    crates/a4n-runtime/src/actions/admin_records/tasks.rs; then
+    printf 'Runtime service health must consume ServiceHealthApplicationPort from the API contract\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'service_health_application\(\)' \
+    crates/a4n-runtime/src/actions/admin_records/tasks.rs \
+    crates/a4n-runtime/src/state/app.rs; then
+    printf 'Runtime service health must route through the injected service health port\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub trait ServiceHealthApplicationPort|pub use .*ServiceHealthApplicationPort' \
+    crates/a4n-orchestrator/src; then
+    printf 'ServiceHealthApplicationPort must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait ServiceHealthApplicationPort' \
+    crates/a4n-api-contract/src/service_health.rs; then
+    printf 'ServiceHealthApplicationPort contract is missing from the API contract\n' >&2
+    exit 1
+fi
+
 if rg -n 'state\.orchestrator\(\)|OrchestratorContext|llm_provider_config_from_model' \
     crates/a4n-runtime/src/actions/request_preview/chat/budget.rs; then
     printf 'Runtime chat request preview must consume ProviderRuntime configuration DTOs\n' >&2
@@ -922,6 +1073,31 @@ fi
 if ! rg -n 'provider_runtime\(\)' \
     crates/a4n-runtime/src/actions/request_preview/chat/budget.rs; then
     printf 'Runtime chat request preview must route LLM configuration through ProviderRuntime\n' >&2
+    exit 1
+fi
+
+if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
+    crates/a4n-runtime/src/actions/source_sync; then
+    printf 'Runtime source-sync actions must consume source-sync ports from the API contract\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'source_sync_(read|mutation)_application\(\)' \
+    crates/a4n-runtime/src/actions/source_sync \
+    crates/a4n-runtime/src/state/app.rs; then
+    printf 'Runtime source-sync actions must route through the injected source-sync port\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub trait SourceSync(Application|Read|Mutation)ApplicationPort|pub use .*SourceSync(Application|Read|Mutation)ApplicationPort' \
+    crates/a4n-orchestrator/src; then
+    printf 'source-sync application ports must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait SourceSync(Read|Mutation)ApplicationPort' \
+    crates/a4n-api-contract/src/source_sync.rs; then
+    printf 'source-sync read/mutation contracts are missing from the API contract\n' >&2
     exit 1
 fi
 
@@ -991,8 +1167,17 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     exit 1
 fi
 
-if ! rg -n 'pub trait PromptApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs; then
-    printf 'PromptApplicationPort contract is missing\n' >&2
+if rg -n 'pub trait PromptApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs || \
+   rg -n 'a4n_orchestrator::prompt_records::PromptApplicationPort' crates/a4n-runtime/src; then
+    printf 'PromptApplicationPort must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait PromptApplicationPort' crates/a4n-api-contract/src/prompt.rs || \
+   ! rg -n 'a4n_api_contract::prompt::PromptApplicationPort' \
+    crates/a4n-runtime/src/state/app.rs \
+    crates/a4n-orchestrator/src/prompt_records.rs; then
+    printf 'PromptApplicationPort consumers must use the API prompt contract\n' >&2
     exit 1
 fi
 
@@ -1001,25 +1186,46 @@ if ! rg -n 'prompt_application\(\)' crates/a4n-runtime/src/actions/prompt_record
     exit 1
 fi
 
+if rg -n 'a4n_orchestrator::prompt_records::PromptExecutionContext|pub struct PromptExecutionContext' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src; then
+    printf 'PromptExecutionContext must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub struct PromptExecutionContext' crates/a4n-api-contract/src/prompt.rs || \
+   ! rg -n 'PromptExecutionContext' \
+    crates/a4n-runtime/src/actions/prompt_records.rs \
+    crates/a4n-orchestrator/src/prompt_records.rs; then
+    printf 'Prompt consumers must use PromptExecutionContext from the API contract\n' >&2
+    exit 1
+fi
+
 if rg -n '\.orchestrator\(\)|OrchestratorContext' \
     crates/a4n-runtime/src/actions/galgame_records/mutations.rs \
     crates/a4n-runtime/src/actions/galgame_records/media/binding.rs \
     crates/a4n-runtime/src/actions/galgame_records/media/audio.rs; then
-    printf 'Runtime Galgame record actions must consume GalgameRecordApplicationPort\n' >&2
+    printf 'Runtime Galgame record actions must consume Galgame mutation ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'galgame_record_application\(\)' \
-    crates/a4n-runtime/src/actions/galgame_records/mutations.rs \
+if ! rg -n 'galgame_record_mutation_application\(\)' \
+    crates/a4n-runtime/src/actions/galgame_records/mutations.rs || \
+   ! rg -n 'galgame_media_mutation_application\(\)' \
     crates/a4n-runtime/src/actions/galgame_records/media/binding.rs \
     crates/a4n-runtime/src/actions/galgame_records/media/audio.rs; then
-    printf 'Runtime Galgame record actions must route through GalgameRecordApplicationPort\n' >&2
+    printf 'Runtime Galgame record actions must route through the Galgame mutation ports\n' >&2
     exit 1
 fi
 
-if ! rg -n 'pub trait GalgameRecordApplicationPort' \
-    crates/a4n-orchestrator/src/galgame/application.rs; then
-    printf 'GalgameRecordApplicationPort contract is missing\n' >&2
+if rg -n 'pub trait Galgame(Record|Media)MutationApplicationPort|pub use .*Galgame(Record|Media)MutationApplicationPort' \
+    crates/a4n-orchestrator/src/galgame; then
+    printf 'Galgame mutation ports must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait Galgame(Record|Media)MutationApplicationPort' \
+    crates/a4n-api-contract/src/galgame.rs; then
+    printf 'Galgame record/media mutation contracts are missing from the API contract\n' >&2
     exit 1
 fi
 
@@ -1290,6 +1496,20 @@ fi
 if ! rg -n 'pub trait ChapterContentMutationApplicationPort' \
     crates/a4n-orchestrator/src/chapter_content/application.rs; then
     printf 'ChapterContentMutationApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'chapter_content_sync_application\(\)' \
+    crates/a4n-runtime/src/actions/chapter_content/edit.rs \
+    crates/a4n-runtime/src/actions/optimize/patches/host_port.rs \
+    crates/a4n-runtime/src/workflow/chapter_cleanup.rs; then
+    printf 'Runtime chapter content synchronization must route through ChapterContentSyncApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait ChapterContentSyncApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_content/application.rs; then
+    printf 'ChapterContentSyncApplicationPort contract is missing\n' >&2
     exit 1
 fi
 
@@ -1646,15 +1866,47 @@ fi
 
 if ! rg -n 'profile_material_application\(\)' \
     crates/a4n-runtime/src/actions/profile_materials/list.rs \
-    crates/a4n-runtime/src/actions/profile_materials/primary.rs \
+    crates/a4n-runtime/src/actions/profile_materials/primary.rs; then
+    printf 'Runtime profile-material record actions must route through the API ProfileMaterialApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'profile_material_upload_application\(\)' \
     crates/a4n-runtime/src/actions/profile_materials/upload/api.rs; then
-    printf 'Runtime profile-material actions must route through ProfileMaterialApplicationPort\n' >&2
+    printf 'Runtime profile-material upload must route through ProfileMaterialUploadApplicationPort\n' >&2
     exit 1
 fi
 
 if ! rg -n 'pub trait ProfileMaterialApplicationPort' \
+    crates/a4n-api-contract/src/profile.rs || \
+   ! rg -n 'pub trait ProfileMaterialUploadApplicationPort' \
     crates/a4n-orchestrator/src/profile_material.rs; then
-    printf 'ProfileMaterialApplicationPort contract is missing\n' >&2
+    printf 'Profile-material split contracts are missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'shooting_script_application\(\)|ShootingScriptApplicationPort' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src crates/a4n-orchestrator/src/lib.rs; then
+    printf 'Shooting-script records and generation must use split application ports\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'shooting_script_record_application\(\)' \
+    crates/a4n-runtime/src/actions/shooting_script_records/read.rs \
+    crates/a4n-runtime/src/actions/shooting_script_records/edit.rs; then
+    printf 'Runtime shooting-script record actions must route through the API record port\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'shooting_script_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/shooting_script_records/generation.rs; then
+    printf 'Runtime shooting-script generation actions must route through the generation port\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait ShootingScriptRecordApplicationPort' \
+    crates/a4n-api-contract/src/shooting_script.rs; then
+    printf 'ShootingScriptRecordApplicationPort contract is missing\n' >&2
     exit 1
 fi
 
@@ -1684,6 +1936,24 @@ fi
 
 if ! rg -n 'pub trait GalgameReadApplicationPort' crates/a4n-api-contract/src/galgame.rs; then
     printf 'GalgameReadApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'galgame_asset_plan_application\(\)' \
+    crates/a4n-runtime/src/actions/galgame_records/asset_generation/execution.rs; then
+    printf 'Runtime Galgame asset planning must route through GalgameAssetPlanApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'galgame_asset_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/galgame_records/asset_generation/execution.rs; then
+    printf 'Runtime Galgame asset execution must route through GalgameAssetGenerationApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait GalgameAssetPlanApplicationPort' \
+    crates/a4n-api-contract/src/galgame.rs; then
+    printf 'GalgameAssetPlanApplicationPort contract is missing\n' >&2
     exit 1
 fi
 
@@ -1837,9 +2107,27 @@ if ! rg -n 'video_prompt_(timeline|draft|mutation)_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait VideoPrompt(Timeline|Draft|Mutation)ApplicationPort' \
-    crates/a4n-orchestrator/src/video/prompt_ports.rs; then
-    printf 'split video prompt application ports are missing\n' >&2
+if rg -n 'pub trait VideoPromptMutationApplicationPort|pub use .*VideoPromptMutationApplicationPort' \
+    crates/a4n-orchestrator/src/video; then
+    printf 'video prompt application ports must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait VideoPromptMutationApplicationPort|pub trait VideoPromptTimelineApplicationPort|pub trait VideoPromptDraftApplicationPort' \
+    crates/a4n-api-contract/src/video.rs; then
+    printf 'video prompt application ports must live in the API contract\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait VideoPromptTimelineApplicationPort|pub trait VideoPromptDraftApplicationPort' \
+    crates/a4n-api-contract/src/video.rs; then
+    printf 'video prompt timeline/draft ports must live in the API contract\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::video::VideoPrompt(Timeline|Draft)ApplicationPort|VideoSegmentPlanDraftState' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src/video; then
+    printf 'video prompt timeline/draft consumers must not use orchestrator-only ports or duplicate draft state\n' >&2
     exit 1
 fi
 
@@ -1946,6 +2234,47 @@ if rg -n 'GenerateGalgameImageInput' crates/a4n-orchestrator/src/media.rs \
     crates/a4n-orchestrator/src/media/image_generation.rs \
     || rg -n 'a4n_orchestrator::media::GenerateGalgameImageInput' crates/a4n-runtime/src; then
     printf 'Galgame image input must be consumed from the API contract\n' >&2
+    exit 1
+fi
+
+if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
+    crates/a4n-runtime/src; then
+    printf 'Video prompt DTOs must be consumed from the API contract without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub use a4n_api_contract::video::\{' \
+    crates/a4n-runtime/src/actions/video_prompts.rs; then
+    printf 'Video prompt actions must consume the API video contract directly\n' >&2
+    exit 1
+fi
+
+if rg -U -n 'pub use a4n_orchestrator::character::\{[^}]*\b(ApplyImplicitUpdateDecisionInput|CheckImplicitUpdateInput|GetImplicitReviewInput|ImplicitReviewSummary|ImplicitUpdateDecisionSummary)\b' \
+    crates/a4n-runtime/src; then
+    printf 'Implicit character-review DTOs must be consumed from the API contract without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub use a4n_api_contract::character::\{' \
+    crates/a4n-runtime/src/actions/character_implicit_review/mod.rs; then
+    printf 'Implicit character-review actions must consume the API character contract directly\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub use .*GeneratedImageSummary' \
+    crates/a4n-orchestrator/src/media.rs \
+    crates/a4n-runtime/src/actions/image_generation/mod.rs \
+    || rg -n 'actions::image_generation::GeneratedImageSummary' crates/a4n-runtime/src; then
+    printf 'GeneratedImageSummary must be consumed from the image API contract without runtime or orchestrator facades\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'a4n_api_contract::image::GeneratedImageSummary|image::GeneratedImageSummary' \
+    crates/a4n-orchestrator/src/media/image_generation \
+    crates/a4n-orchestrator/src/media/image_record_lifecycle.rs \
+    crates/a4n-runtime/src/actions/image_records \
+    crates/a4n-runtime/src/actions/video_records/imports/canvas/frame.rs; then
+    printf 'GeneratedImageSummary consumers must use the image API contract directly\n' >&2
     exit 1
 fi
 
@@ -2061,8 +2390,57 @@ if rg -n 'pub use .*PortraitSummary' \
     exit 1
 fi
 
+if ! rg -n 'pub enum PortraitType' crates/a4n-api-contract/src/portrait.rs; then
+    printf 'PortraitType contract is missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub use .*PortraitType' \
+    crates/a4n-orchestrator/src/portrait.rs \
+    crates/a4n-orchestrator/src/portrait/application.rs \
+    crates/a4n-orchestrator/src/portrait/application/contracts.rs \
+    || rg -U -n 'a4n_orchestrator::(?:\{[^;]*)?portrait::\{[^}]*PortraitType' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src; then
+    printf 'PortraitType must be consumed directly from the API contract\n' >&2
+    exit 1
+fi
+
+if rg -n 'portrait_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/portrait_generation/preview/requests.rs; then
+    printf 'Portrait prompt, upload and preview actions must use their narrow application ports\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'portrait_prompt_application\(\)' \
+    crates/a4n-runtime/src/actions/portrait_generation/application.rs || \
+   ! rg -n 'portrait_upload_application\(\)' \
+    crates/a4n-runtime/src/actions/portrait_generation/application.rs || \
+   ! rg -n 'portrait_request_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/portrait_generation/preview/requests.rs; then
+    printf 'Portrait actions must route through split application ports\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait Portrait(RequestPreview|Prompt|Upload|Generation)ApplicationPort' \
+    crates/a4n-orchestrator/src/portrait.rs; then
+    printf 'Portrait application ports are missing from the portrait owner\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub trait ProjectMutationApplicationPort' crates/a4n-api-contract/src/project.rs; then
     printf 'ProjectMutationApplicationPort contract is missing\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'chapter_generation_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/chapter_generation.rs; then
+    printf 'Runtime chapter previews must route through ChapterGenerationPreviewApplicationPort\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait ChapterGenerationPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_generation.rs; then
+    printf 'ChapterGenerationPreviewApplicationPort contract is missing\n' >&2
     exit 1
 fi
 
@@ -2107,8 +2485,12 @@ if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
 fi
 
 if ! rg -n 'import_analysis_application\(\)' \
-    crates/a4n-runtime/src/actions/import_analysis; then
-    printf 'Runtime import-analysis actions must route through ImportAnalysisApplicationPort\n' >&2
+    crates/a4n-runtime/src/actions/import_analysis/api.rs || \
+   ! rg -n 'import_analysis_progress_application\(\)' \
+    crates/a4n-runtime/src/actions/import_analysis/api.rs || \
+   ! rg -n 'import_analysis_preview_application\(\)' \
+    crates/a4n-runtime/src/actions/import_analysis/preview.rs; then
+    printf 'Runtime import-analysis actions must route through split application ports\n' >&2
     exit 1
 fi
 
@@ -2120,8 +2502,12 @@ if ! rg -n 'import_review_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ImportAnalysisApplicationPort' \
+    crates/a4n-orchestrator/src/import_analysis/application.rs || \
+   ! rg -n 'pub trait ImportAnalysisPreviewApplicationPort' \
+    crates/a4n-orchestrator/src/import_analysis/application.rs || \
+   ! rg -n 'pub trait ImportAnalysisProgressApplicationPort' \
     crates/a4n-orchestrator/src/import_analysis/application.rs; then
-    printf 'ImportAnalysisApplicationPort contract is missing\n' >&2
+    printf 'Import-analysis application ports are missing\n' >&2
     exit 1
 fi
 
@@ -2133,13 +2519,18 @@ fi
 
 if rg -n 'OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/workflow/chapter_analysis; then
-    printf 'Runtime chapter analysis must consume ChapterAnalysisApplicationPort and RagIngestPort\n' >&2
+    printf 'Runtime chapter analysis must consume split application ports and RagIngestPort\n' >&2
     exit 1
 fi
 
-if ! rg -n 'chapter_analysis_application\(\)' \
-    crates/a4n-runtime/src/workflow/chapter_analysis; then
-    printf 'Runtime chapter analysis must route through ChapterAnalysisApplicationPort\n' >&2
+if ! rg -n 'chapter_analysis_generation_application\(\)' \
+    crates/a4n-runtime/src/workflow/chapter_analysis/api/generation.rs \
+    crates/a4n-runtime/src/workflow/chapter_analysis/execution.rs || \
+   ! rg -n 'chapter_analysis_resume_application\(\)' \
+    crates/a4n-runtime/src/workflow/chapter_analysis/api/resume.rs || \
+   ! rg -n 'chapter_analysis_preview_application\(\)' \
+    crates/a4n-runtime/src/workflow/chapter_analysis/api/preview.rs; then
+    printf 'Runtime chapter analysis must route through split application ports\n' >&2
     exit 1
 fi
 
@@ -2149,9 +2540,13 @@ if ! rg -n 'rag_ingest\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ChapterAnalysisApplicationPort' \
+if ! rg -n 'pub trait ChapterAnalysisGenerationApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+   ! rg -n 'pub trait ChapterAnalysisResumeApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_analysis/application.rs || \
+   ! rg -n 'pub trait ChapterAnalysisPreviewApplicationPort' \
     crates/a4n-orchestrator/src/chapter_analysis/application.rs; then
-    printf 'ChapterAnalysisApplicationPort contract is missing\n' >&2
+    printf 'ChapterAnalysis split application ports are missing\n' >&2
     exit 1
 fi
 
@@ -2524,7 +2919,7 @@ fi
 
 if ! rg -n 'cleanup_outbox_application\(\)' \
     crates/a4n-runtime/src/actions/storage_paths/orphans.rs || \
-   ! rg -n 'image_record_application\(\)' \
+   ! rg -n 'image_media_reference_application\(\)' \
     crates/a4n-runtime/src/actions/storage_paths/orphans.rs; then
     printf 'Runtime orphan cleanup must route cleanup and media reference checks through application ports\n' >&2
     exit 1

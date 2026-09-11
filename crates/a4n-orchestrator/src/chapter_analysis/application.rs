@@ -120,20 +120,14 @@ pub struct ChapterAnalysisRequestPreview {
     pub steps: Vec<ChapterAnalysisRequestStep>,
 }
 
-/// Runtime-facing chapter-analysis boundary.
+/// Runtime-facing boundary for a new chapter-analysis run.
 ///
 /// Analysis validation, authorization, workflow state and API projections stay
 /// in the chapter-analysis owner. Runtime supplies only prompt, cleanup and
 /// progress adapters.
 #[async_trait]
-pub trait ChapterAnalysisApplicationPort: Send + Sync {
+pub trait ChapterAnalysisGenerationApplicationPort: Send + Sync {
     async fn preflight_generate(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-    ) -> Result<ChapterSummary, AppError>;
-
-    async fn preflight_resume(
         &self,
         user_id: i64,
         chapter_id: i64,
@@ -148,6 +142,17 @@ pub trait ChapterAnalysisApplicationPort: Send + Sync {
         progress: ChapterAnalysisApplicationProgress<'_>,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<ChapterAnalysisMutationResult, AppError>;
+}
+
+/// Runtime-facing boundary for chapter-analysis synchronization and workflow
+/// recovery.
+#[async_trait]
+pub trait ChapterAnalysisResumeApplicationPort: Send + Sync {
+    async fn preflight_resume(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, AppError>;
 
     async fn resume_sync(
         &self,
@@ -167,7 +172,11 @@ pub trait ChapterAnalysisApplicationPort: Send + Sync {
         host_port: &dyn ChapterAnalysisHostPort,
         character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
     ) -> Result<(), AppError>;
+}
 
+/// Runtime-facing boundary for chapter-analysis request previews.
+#[async_trait]
+pub trait ChapterAnalysisPreviewApplicationPort: Send + Sync {
     async fn preview(
         &self,
         user_id: i64,
@@ -1204,7 +1213,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl ChapterAnalysisApplicationPort for OrchestratorContext {
+impl ChapterAnalysisGenerationApplicationPort for OrchestratorContext {
     async fn preflight_generate(
         &self,
         user_id: i64,
@@ -1212,23 +1221,6 @@ impl ChapterAnalysisApplicationPort for OrchestratorContext {
     ) -> Result<ChapterSummary, AppError> {
         let chapter = self
             .preflight_chapter_analysis_validated(chapter_id, false)
-            .await?;
-        self.verify_project_permission(
-            chapter.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.chapter_summary_for_user(user_id, chapter.id).await
-    }
-
-    async fn preflight_resume(
-        &self,
-        user_id: i64,
-        chapter_id: i64,
-    ) -> Result<ChapterSummary, AppError> {
-        let chapter = self
-            .preflight_resume_chapter_analysis_validated(chapter_id)
             .await?;
         self.verify_project_permission(
             chapter.project_id,
@@ -1284,6 +1276,26 @@ impl ChapterAnalysisApplicationPort for OrchestratorContext {
                 })
             }
         }
+    }
+}
+
+#[async_trait]
+impl ChapterAnalysisResumeApplicationPort for OrchestratorContext {
+    async fn preflight_resume(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, AppError> {
+        let chapter = self
+            .preflight_resume_chapter_analysis_validated(chapter_id)
+            .await?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.chapter_summary_for_user(user_id, chapter.id).await
     }
 
     async fn resume_sync(
@@ -1346,7 +1358,10 @@ impl ChapterAnalysisApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait]
+impl ChapterAnalysisPreviewApplicationPort for OrchestratorContext {
     async fn preview(
         &self,
         user_id: i64,

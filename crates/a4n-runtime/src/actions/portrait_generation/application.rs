@@ -19,7 +19,7 @@ pub async fn generate_portrait_prompt(
     let variables = a4n_prompt::variables::parse_template_variables(input.variables.as_ref())?;
     let prompt_renderer = state;
     state
-        .portrait_generation_application()
+        .portrait_prompt_application()
         .generate_portrait_prompt(input, prompt_renderer, &variables)
         .await
         .map_err(|error| error.to_string())
@@ -105,7 +105,7 @@ pub async fn upload_portrait(
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let host_port = RuntimePortraitGenerationHostPort::new(state);
     state
-        .portrait_generation_application()
+        .portrait_upload_application()
         .upload_portrait(user_id, input, &host_port)
         .await
         .map_err(|error| error.to_string())

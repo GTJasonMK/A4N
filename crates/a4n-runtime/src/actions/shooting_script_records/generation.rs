@@ -14,7 +14,7 @@ pub async fn generate_chapter_shooting_script(
     active_task_id: Option<&str>,
 ) -> Result<ChapterShootingScriptView, String> {
     state
-        .shooting_script_application()
+        .shooting_script_generation_application()
         .generate(
             user_id,
             input,
@@ -37,7 +37,7 @@ pub async fn generate_next_chapter_shooting_script_unit(
     active_task_id: Option<&str>,
 ) -> Result<ChapterShootingScriptUnitProgressView, String> {
     state
-        .shooting_script_application()
+        .shooting_script_generation_application()
         .generate_next(
             user_id,
             input,

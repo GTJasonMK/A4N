@@ -1,3 +1,4 @@
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
@@ -21,10 +22,9 @@ use crate::{
 
 use super::{
     contracts::{
-        GeneratedImageSummary, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
-        ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
-        ImageGenerationProviderInput, ImageGenerationWorkflowBinding,
-        PersistGeneratedImageFileInput,
+        ImageGenerationExecutionInput, ImageGenerationExecutionOutcome, ImageGenerationHostPort,
+        ImageGenerationPostCommitAction, ImageGenerationProgress, ImageGenerationProviderInput,
+        ImageGenerationWorkflowBinding, PersistGeneratedImageFileInput,
     },
     trace::image_generation_request_trace_json,
 };

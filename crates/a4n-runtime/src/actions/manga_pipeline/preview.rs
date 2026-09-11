@@ -13,7 +13,7 @@ pub async fn preview_manga_pipeline_requests(
 ) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let steps = state
-        .manga_pipeline_application()
+        .manga_pipeline_preview_application()
         .preview(
             user_id,
             project_id,
@@ -26,16 +26,25 @@ pub async fn preview_manga_pipeline_requests(
         state,
         "manga_pipeline",
         format!("第 {chapter_number} 章漫画流水线请求预览"),
-        steps.into_iter().map(|step| {
-            ChatStatusPreviewStep::llm(
-                step.key,
-                step.title,
-                step.prompt_name,
-                step.state,
-                step.note,
-                step.request,
-            )
-        }),
+        steps
+            .into_iter()
+            .map(|step| {
+                let request = step
+                    .request
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .map_err(|error| format!("漫画预览请求格式无效: {error}"))?;
+                Ok(ChatStatusPreviewStep::llm(
+                    step.key,
+                    step.title,
+                    step.prompt_name,
+                    step.state,
+                    step.note,
+                    request,
+                ))
+            })
+            .collect::<Result<Vec<_>, String>>()
+            .map_err(AppError::InvalidArgument)?,
         "llm_chat",
     )
     .await

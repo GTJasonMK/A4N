@@ -1,11 +1,12 @@
 use std::collections::{BTreeMap, HashSet};
 
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use serde_json::Value;
 
 use super::super::{
     AppError, FramePromptGenerationSpec, GeneratedVideoPromptShot, OrchestratorContext,
-    PromptOutputLanguage, PromptWorkflowRowsContext, VideoExecutionIdentityMatch, VideoSegmentPlan,
+    PromptWorkflowRowsContext, VideoExecutionIdentityMatch, VideoSegmentPlan,
     chat_generated_video_prompt_map, ensure_chat_video_prompts_can_generate_without_overwriting,
     ensure_video_prompts_can_regenerate, reusable_generated_video_prompts_from_rows,
 };

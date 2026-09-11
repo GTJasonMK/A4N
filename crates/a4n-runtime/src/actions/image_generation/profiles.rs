@@ -1,7 +1,11 @@
+use a4n_api_contract::image_generation::{
+    ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
+    SceneProfileImagePromptOutput,
+};
+
 use super::{
-    AppState, ModelRequestPreview, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-    RuntimeImageGenerationHostPort, SceneProfileImageInput, SceneProfileImagePromptOutput,
-    model_request_preview, preview::prepared_image_generation_preview_step,
+    AppState, ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,
+    preview::prepared_image_generation_preview_step,
 };
 
 pub async fn generate_object_profile_image_prompt(

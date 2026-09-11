@@ -4,13 +4,14 @@ use std::{
 };
 
 use a4n_api_contract::prompt::{
-    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
-    PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
-    ValidateVarsInput, VersionDiffInput,
+    AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptApplicationPort,
+    PromptEntrySummary, PromptExecutionContext, PromptVersionSummary, RemoveOverrideInput,
+    RenderInput, SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
 };
 use a4n_capabilities::{PromptClient, sidecar_response_payload};
 use a4n_error::AppError;
 use a4n_prompt::engine::PromptVersion;
+use a4n_prompt::rendering::PromptRenderer;
 use a4n_prompt_contract::{
     CountOutput, PromptBatchUpdate, PromptCategory, PromptEmptyPayload, PromptEntry,
     PromptHydrateOverride, PromptHydrateOverridesPayload, PromptListOutput, PromptNamePayload,
@@ -31,135 +32,22 @@ use a4n_db::prompt_override::{
     ProjectOverrideIdentity, normalize_project_override_identity, validate_project_override_content,
 };
 
-#[derive(Debug, Clone)]
-pub struct PromptExecutionContext {
-    use_sidecar: bool,
-    user_id: Option<i64>,
-    runtime_config_snapshot: Option<Value>,
-}
+pub(crate) struct PromptRendererAdapter<'a>(
+    pub(crate) &'a dyn a4n_api_contract::prompt::PromptRenderPort,
+);
 
-impl PromptExecutionContext {
-    pub fn new(
-        use_sidecar: bool,
-        user_id: Option<i64>,
-        runtime_config_snapshot: Option<Value>,
-    ) -> Self {
-        Self {
-            use_sidecar,
-            user_id,
-            runtime_config_snapshot,
-        }
-    }
-}
-
-/// Prompt record application boundary. The owner chooses embedded versus
-/// prompt-service execution and owns project override persistence; Runtime
-/// only supplies this execution context and routes typed calls.
 #[async_trait]
-pub trait PromptApplicationPort: Send + Sync {
-    async fn list_records(
+impl PromptRenderer for PromptRendererAdapter<'_> {
+    async fn render_prompt(
         &self,
-        context: &PromptExecutionContext,
-    ) -> Result<Vec<PromptEntrySummary>, AppError>;
-
-    async fn load_defaults(&self, context: &PromptExecutionContext) -> Result<usize, AppError>;
-
-    async fn update_record(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: UpdatePromptInput,
-    ) -> Result<PromptEntrySummary, AppError>;
-
-    async fn reset_record(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<(), AppError>;
-
-    async fn version_history(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<Vec<PromptVersionSummary>, AppError>;
-
-    async fn render_record(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RenderInput,
-    ) -> Result<String, AppError>;
-
-    async fn render_template(
-        &self,
-        context: &PromptExecutionContext,
         template_name: &str,
-        variables: HashMap<String, Value>,
+        variables: &HashMap<String, Value>,
         project_id: Option<i64>,
-    ) -> Result<String, AppError>;
-
-    async fn render_ab(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RenderInput,
-    ) -> Result<AbRenderResult, AppError>;
-
-    async fn set_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: SetOverrideInput,
-    ) -> Result<(), AppError>;
-
-    async fn remove_project_override(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        input: RemoveOverrideInput,
-    ) -> Result<(), AppError>;
-
-    async fn list_project_overrides(
-        &self,
-        context: &PromptExecutionContext,
-        user_id: i64,
-        project_id: i64,
-    ) -> Result<Vec<ProjectPromptOverrideSummary>, AppError>;
-
-    async fn version_diff(
-        &self,
-        context: &PromptExecutionContext,
-        input: VersionDiffInput,
-    ) -> Result<String, AppError>;
-
-    async fn validate_variables(
-        &self,
-        context: &PromptExecutionContext,
-        input: ValidateVarsInput,
-    ) -> Result<Vec<String>, AppError>;
-
-    async fn list_categories(
-        &self,
-        context: &PromptExecutionContext,
-    ) -> Result<Vec<CategoryInfo>, AppError>;
-
-    async fn runtime_entry(
-        &self,
-        context: &PromptExecutionContext,
-        name: &str,
-    ) -> Result<PromptEntry, AppError>;
-
-    async fn runtime_entries(
-        &self,
-        context: &PromptExecutionContext,
-    ) -> Result<Vec<PromptEntry>, AppError>;
-
-    async fn update_many_runtime(
-        &self,
-        context: &PromptExecutionContext,
-        updates: Vec<(String, String)>,
-        author: &str,
-    ) -> Result<Vec<PromptEntry>, AppError>;
+    ) -> Result<String, AppError> {
+        self.0
+            .render_prompt(template_name, variables, project_id)
+            .await
+    }
 }
 
 impl OrchestratorContext {
@@ -603,7 +491,7 @@ impl OrchestratorContext {
         &self,
         context: &PromptExecutionContext,
     ) -> Result<Option<Arc<dyn PromptClient>>, AppError> {
-        if !context.use_sidecar {
+        if !context.use_sidecar() {
             return Ok(None);
         }
         self.capabilities().prompt.clone().map(Some).ok_or_else(|| {
@@ -966,10 +854,10 @@ fn prompt_service_request<T>(
             parent_span_id: None,
         },
     );
-    request.user_id = context.user_id;
+    request.user_id = context.user_id();
     request.project_id = project_id;
     request.root_project_id = root_project_id;
-    request.runtime_config_snapshot = context.runtime_config_snapshot.clone();
+    request.runtime_config_snapshot = context.runtime_config_snapshot().cloned();
     request
         .with_payload(PROMPT_RENDER_CAPABILITY_VERSION, payload)
         .map_err(prompt_sidecar_error)

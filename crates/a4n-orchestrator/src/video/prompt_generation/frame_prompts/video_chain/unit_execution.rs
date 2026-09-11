@@ -1,13 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use super::super::{
     ChapterVideoSourceContext, FinalVideoPromptContext, FramePromptGenerationSpec,
-    GeneratedVideoPromptShot, OrchestratorContext, PromptOutputLanguage,
-    VideoPromptGenerationTrace, VideoSegmentPlan,
+    GeneratedVideoPromptShot, OrchestratorContext, VideoPromptGenerationTrace, VideoSegmentPlan,
 };
 
 mod draft;
