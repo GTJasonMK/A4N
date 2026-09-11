@@ -167,9 +167,7 @@ pub use storyboard_frame_rules::{
     latest_storyboard_image_id, storyboard_prompt_matches_video_prompt,
 };
 pub use tail_frame_rules::{
-    completed_provider_metadata, is_first_frame_chain_video, is_first_frame_chain_workflow,
-    required_video_chapter_id, should_capture_video_tail_frame,
-    should_capture_video_tail_frame_fields, tail_frame_image_belongs_to_video,
+    is_first_frame_chain_video, should_capture_video_tail_frame, tail_frame_image_belongs_to_video,
     tail_frame_metadata_belongs_to_video, tail_frame_reference_belongs_to_video, video_shot_number,
 };
 

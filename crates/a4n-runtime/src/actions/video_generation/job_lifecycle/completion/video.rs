@@ -5,11 +5,11 @@ use crate::actions::video_generation::media::{
     append_secondary_error, best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
     save_video_bytes,
 };
-use a4n_orchestrator::video::{
+use a4n_storage::{data_dir_relative_file_path, remove_created_file_on_error};
+use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow, required_video_chapter_id,
     should_capture_video_tail_frame_fields,
 };
-use a4n_storage::{data_dir_relative_file_path, remove_created_file_on_error};
 use a4n_video_contract::{PersistedVideoResult, VideoProviderResultTarget};
 
 pub(in crate::actions::video_generation) async fn persist_video_result(

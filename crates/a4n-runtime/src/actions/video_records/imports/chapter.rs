@@ -11,7 +11,7 @@ use crate::actions::video_generation::media::{
 use crate::actions::video_records::{
     complete_video_record, delete_video_record_cleanup_error, video_record_output_path,
 };
-use a4n_orchestrator::video::{
+use a4n_video::{
     completed_provider_metadata, is_first_frame_chain_workflow,
     should_capture_video_tail_frame_fields,
 };

@@ -7,6 +7,7 @@ use a4n_domain::ProviderError as AppError;
 mod config;
 mod import;
 mod provider_image;
+mod tail_frame;
 pub use config::{
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
     VideoDurationCapability, duration_capability_for_params, validate_video_config_params,
@@ -19,6 +20,10 @@ pub use import::{
 pub use provider_image::{
     ProviderImageInputTransport, encode_query_component, is_provider_supported_image_content_type,
     provider_image_input_transport_with_override, truncate_error_body, truncate_url_for_error,
+};
+pub use tail_frame::{
+    completed_provider_metadata, is_first_frame_chain_workflow, required_video_chapter_id,
+    should_capture_video_tail_frame_fields,
 };
 
 pub const OPENAI_COMPATIBLE_VIDEO_BACKEND: &str = "openai-compatible-video";
