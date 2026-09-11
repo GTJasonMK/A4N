@@ -13,6 +13,7 @@ import {
   progressDisplayModel,
 } from "../../utils/progressPresentation";
 import { streamLineFromBuffer } from "../../utils/progressDisplay";
+import { usePacedStreamText } from "../../hooks/usePacedStreamText";
 import { formatNumber, formatTime, useI18n, type MessageTranslator, type Locale } from "../../i18n";
 
 export type ProgressDialogStatus = ProgressStatus;
@@ -28,6 +29,7 @@ interface ProgressDialogProps {
   message: string;
   meta?: ProgressMeta | null;
   streamText?: string | null;
+  streaming?: boolean;
   events?: ProgressTimelineItem[];
   error?: string | null;
   onClose: () => void;
@@ -49,6 +51,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   message,
   meta,
   streamText,
+  streaming = false,
   events = [],
   error,
   onClose,
@@ -114,8 +117,14 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     t,
   );
   const barDetail = display.detail ?? statusDetailLabel(status, t);
-  const incomingStreamText = streamLineFromBuffer(streamText ?? "");
-  const hasStreamText = incomingStreamText.length > 0;
+  const pacedStream = usePacedStreamText(
+    streamText ?? "",
+    streaming && status === "running",
+    streaming,
+  );
+  const displayedStreamText = streamLineFromBuffer(pacedStream.displayedText);
+  const hasStreamText = displayedStreamText.length > 0;
+  const showStreamPreview = hasStreamText || (streaming && pacedStream.isThinking);
   const timeline = compactProgressEvents(events, 12);
 
   useEffect(() => {
@@ -224,9 +233,16 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
                   </span>
                 ) : null}
               </div>
-              {hasStreamText ? (
-                <div className="mt-1 truncate font-mono text-small text-book-text-muted" title={incomingStreamText}>
-                  {incomingStreamText}
+              {showStreamPreview ? (
+                <div className="mt-1 flex min-w-0 items-center gap-1.5 font-mono text-small text-book-text-muted">
+                  {hasStreamText ? (
+                    <span className="min-w-0 truncate" title={displayedStreamText}>
+                      {displayedStreamText}
+                    </span>
+                  ) : null}
+                  {streaming && pacedStream.isThinking ? (
+                    <ThinkingDots label={t("feedback.progressThinking")} />
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -261,6 +277,14 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     </Modal>
   );
 };
+
+const ThinkingDots: React.FC<{ label: string }> = ({ label }) => (
+  <span className="inline-flex shrink-0 items-center gap-1 text-book-primary" role="status" aria-label={label}>
+    <span aria-hidden="true" className="h-1 w-1 animate-pulse rounded-full bg-current" style={{ animationDelay: "-300ms" }} />
+    <span aria-hidden="true" className="h-1 w-1 animate-pulse rounded-full bg-current" style={{ animationDelay: "-150ms" }} />
+    <span aria-hidden="true" className="h-1 w-1 animate-pulse rounded-full bg-current" />
+  </span>
+);
 
 const ProgressTimelineRow: React.FC<{
   item: ProgressTimelineItem;

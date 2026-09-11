@@ -48,6 +48,7 @@ export async function runGenerationProgressTaskThen<T>(
   return runProgressTask(
     {
       ...options,
+      streaming: true,
       cancelTaskId: handle.task_id,
       cancelTask: async () => {
         await generationClient.cancel(handle);
