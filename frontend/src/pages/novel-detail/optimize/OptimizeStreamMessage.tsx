@@ -1,5 +1,6 @@
 import { AlertCircle, Bot, CheckCircle2, User, Wrench } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
+import { usePacedStreamText } from "../../../hooks/usePacedStreamText";
 import type { ReactNode } from "react";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
@@ -11,36 +12,56 @@ import {
   type StreamItem,
   type StreamItemKind,
 } from "./optimizeTabUtils";
+import { previewModelStream } from "./modelStreamPreview";
 import type { ProgressDialogStatus } from "../../../components/feedback/ProgressDialog";
 
 export function StreamMessage({ item }: { item: StreamItem }) {
   const { locale, t } = useI18n();
+  const live = isLiveModelItem(item);
+  const pacedStream = usePacedStreamText(
+    item.streamSource ?? item.content,
+    live,
+    live,
+  );
+  const pacedPreview = live && item.streamSource != null && pacedStream.displayedText
+    ? previewModelStream(pacedStream.displayedText, t)
+    : null;
+  const displayItem = live && item.streamSource != null
+    ? pacedPreview
+      ? {
+          ...item,
+          kind: pacedPreview.kind,
+          title: pacedPreview.title,
+          content: pacedPreview.content,
+        }
+      : { ...item, kind: "agent" as const, title: t("optimize.thinking"), content: "" }
+    : item;
   const meta = formatItemMeta(item, locale);
-  const currentStep = currentProcessStep(item.steps);
+  const currentStep = currentProcessStep(displayItem.steps);
   const currentBehavior = currentStep ? processStepBehavior(currentStep, t) : null;
-  const isProcessItem = isProcessBubble(item) && currentBehavior != null;
+  const isProcessItem = isProcessBubble(displayItem) && currentBehavior != null;
   const title = isProcessItem
     ? currentBehavior.title
-    : item.title ?? kindLabel(item.kind, t);
-  const content = isProcessItem ? currentBehavior.detail : item.content;
+    : displayItem.title ?? kindLabel(displayItem.kind, t);
+  const content = isProcessItem ? currentBehavior.detail : displayItem.content;
   const contentClassName = "whitespace-pre-wrap break-words";
-  const processSteps = visibleProcessSteps(item.steps, isProcessItem, currentStep, t);
-  const showTimeline = item.kind !== "user" && (processSteps.length > 0 || isLiveModelItem(item));
+  const processSteps = visibleProcessSteps(displayItem.steps, isProcessItem, currentStep, t);
+  const showTimeline = displayItem.kind !== "user" && (processSteps.length > 0 || live);
   const showHeader = !showTimeline;
   return (
     <article
       className={`grid min-w-0 items-start gap-2 ${
-        item.kind === "user"
+        displayItem.kind === "user"
           ? "grid-cols-[minmax(0,1fr)_auto]"
           : "grid-cols-[auto_minmax(0,1fr)]"
       }`}
     >
-      {item.kind !== "user" ? <StreamIcon kind={item.kind} status={item.status} /> : null}
+      {displayItem.kind !== "user" ? <StreamIcon kind={displayItem.kind} status={displayItem.status} /> : null}
       <div
         className={`min-w-0 max-w-[96%] overflow-hidden rounded-2xl border px-3 py-2.5 text-xs leading-relaxed ${
-          item.kind === "user" ? "max-w-[90%] justify-self-end rounded-br-md" : "rounded-bl-md"
+          displayItem.kind === "user" ? "max-w-[90%] justify-self-end rounded-br-md" : "rounded-bl-md"
         } ${
-          itemClassName(item.kind)
+          itemClassName(displayItem.kind)
         }`}
       >
         {showHeader ? (
@@ -56,25 +77,26 @@ export function StreamMessage({ item }: { item: StreamItem }) {
         {showTimeline ? (
           <AgentTurnTimeline
             steps={processSteps}
-            currentItem={isLiveModelItem(item) ? item : null}
-            finalReply={isAssistantReplyItem(item) ? content : null}
+            currentItem={live ? displayItem : null}
+            finalReply={isAssistantReplyItem(displayItem) ? content : null}
+            showThinking={pacedStream.isThinking && live}
             t={t}
           />
         ) : (
           <MarkdownText className={contentClassName} text={content} />
         )}
-        {item.detail && !item.steps?.length ? (
+        {displayItem.detail && !displayItem.steps?.length ? (
           <details className="mt-2 min-w-0 overflow-hidden rounded-xl border border-book-border/70 bg-book-bg-paper/60">
             <summary className="cursor-pointer select-none px-2 py-1 text-small font-semibold text-book-text-sub hover:text-book-text-main">
-              {item.detailLabel ?? t("optimize.detail")}
+              {displayItem.detailLabel ?? t("optimize.detail")}
             </summary>
             <pre className="whitespace-pre-wrap break-words border-t border-book-border/70 px-2 py-2 font-mono text-small leading-relaxed text-book-text-sub">
-              {item.detail}
+              {displayItem.detail}
             </pre>
           </details>
         ) : null}
       </div>
-      {item.kind === "user" ? <StreamIcon kind={item.kind} status={item.status} /> : null}
+      {displayItem.kind === "user" ? <StreamIcon kind={displayItem.kind} status={displayItem.status} /> : null}
     </article>
   );
 }
@@ -83,11 +105,13 @@ function AgentTurnTimeline({
   steps,
   currentItem,
   finalReply,
+  showThinking,
   t,
 }: {
   steps: StreamItem[];
   currentItem: StreamItem | null;
   finalReply: string | null;
+  showThinking: boolean;
   t: MessageTranslator;
 }) {
   const rows: TimelineRow[] = [
@@ -109,6 +133,12 @@ function AgentTurnTimeline({
       {rows.map((row) => (
         <TimelineRowView key={row.id} row={row} t={t} />
       ))}
+      {showThinking && !rows.some((row) => isActiveThinkingRow(row, t)) ? (
+        <div className="flex min-w-0 items-center gap-1.5 text-book-text-sub">
+          <LoadingSpinner size="sm" />
+          <span>{t("optimize.thinking")}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

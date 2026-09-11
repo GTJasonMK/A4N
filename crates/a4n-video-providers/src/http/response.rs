@@ -46,12 +46,14 @@ fn first_data_item(value: &Value) -> Result<Option<&Value>, AppError> {
     };
     let items = data
         .as_array()
-        .ok_or_else(|| AppError::Internal(format!("视频响应 data 必须是数组")))?;
+        .ok_or_else(|| AppError::Internal("视频响应 data 必须是数组".to_string()))?;
     let Some(item) = items.first() else {
         return Ok(None);
     };
     if !item.is_object() {
-        return Err(AppError::Internal(format!("视频响应 data[0] 必须是对象")));
+        return Err(AppError::Internal(
+            "视频响应 data[0] 必须是对象".to_string(),
+        ));
     }
     Ok(Some(item))
 }
@@ -93,7 +95,7 @@ pub(super) fn required_string<'a>(
 
 pub(super) fn required_video_format(item: &Value) -> Result<String, AppError> {
     let raw = optional_string(item, "format", "data[0].format")?
-        .ok_or_else(|| AppError::Internal(format!("视频响应缺少 data[0].format")))?;
+        .ok_or_else(|| AppError::Internal("视频响应缺少 data[0].format".to_string()))?;
     let format = raw.to_ascii_lowercase();
     if matches!(format.as_str(), "mp4" | "webm" | "mov" | "m4v") {
         Ok(format)
@@ -108,12 +110,12 @@ pub(super) fn extract_job_id(value: &Value) -> Result<Option<String>, AppError> 
     };
     let id = value
         .as_str()
-        .ok_or_else(|| AppError::Internal(format!("视频生成响应 id 必须是非空字符串")))?
+        .ok_or_else(|| AppError::Internal("视频生成响应 id 必须是非空字符串".to_string()))?
         .trim();
     if id.is_empty() {
-        return Err(AppError::Internal(format!(
-            "视频生成响应 id 必须是非空字符串"
-        )));
+        return Err(AppError::Internal(
+            "视频生成响应 id 必须是非空字符串".to_string(),
+        ));
     }
     Ok(Some(id.to_string()))
 }

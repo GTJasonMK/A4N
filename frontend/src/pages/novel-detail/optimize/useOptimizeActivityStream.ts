@@ -65,6 +65,7 @@ export const useOptimizeActivityStream = ({
         activity: "llm_response",
         title: preview.title,
         content: preview.content,
+        streamSource: state.raw,
         status: "running",
         steps: [],
         timestamp: Date.now(),

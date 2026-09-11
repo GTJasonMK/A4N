@@ -186,7 +186,7 @@ impl VideoProvider for NewApiVideoProvider {
         }
 
         let status = extract_status(&v)
-            .ok_or_else(|| AppError::Internal(format!("New API 视频任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal("New API 视频任务响应缺少 status".to_string()))?
             .to_ascii_lowercase();
         if matches!(
             status.as_str(),
@@ -201,9 +201,9 @@ impl VideoProvider for NewApiVideoProvider {
             status.as_str(),
             "completed" | "complete" | "succeeded" | "success" | "done"
         ) {
-            return Err(AppError::Internal(format!(
-                "New API 视频任务已完成，但响应缺少可下载视频 URL 或 b64_json"
-            )));
+            return Err(AppError::Internal(
+                "New API 视频任务已完成，但响应缺少可下载视频 URL 或 b64_json".to_string(),
+            ));
         }
         if matches!(
             status.as_str(),
@@ -233,7 +233,7 @@ impl VideoProvider for NewApiVideoProvider {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };
         let status = extract_status(&value)
-            .ok_or_else(|| AppError::Internal(format!("New API 视频任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal("New API 视频任务响应缺少 status".to_string()))?
             .to_ascii_lowercase();
         if matches!(
             status.as_str(),

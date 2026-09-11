@@ -12,7 +12,7 @@ use super::media::{
 };
 use super::*;
 
-pub(super) async fn copy_derived_workflow_records<C, Copier: ?Sized>(
+pub(super) async fn copy_derived_workflow_records<C, Copier>(
     db: &C,
     source_project_id: i64,
     new_project: &novel_project::Model,
@@ -24,7 +24,7 @@ pub(super) async fn copy_derived_workflow_records<C, Copier: ?Sized>(
 ) -> Result<(), ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     let copied_specs = copy_derived_generation_specs(
         db,

@@ -2289,7 +2289,7 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
                     && authoritative.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
                 {
                     return Ok(VideoRecordCompletion {
-                        summary: generated_video_summary(&authoritative),
+                        summary: generated_video_summary(authoritative),
                         adopted_authoritative: true,
                     });
                 }

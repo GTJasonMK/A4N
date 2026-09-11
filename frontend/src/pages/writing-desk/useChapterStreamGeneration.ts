@@ -19,6 +19,7 @@ import {
   type ChapterOutline,
 } from "../../api/outline";
 import { useGenerationTask } from "../../hooks/useGenerationTask";
+import { usePacedStreamText } from "../../hooks/usePacedStreamText";
 import { sha256Hex } from "../../utils/contentHash";
 import {
   generationTaskRecoveryIssue,
@@ -227,23 +228,28 @@ export const useChapterStreamGeneration = ({
   const canGenerateChapter = !generationBlockReason && !wordCountRangeError;
 
   const streamedText = generationTask.text("main");
+  const pacedStream = usePacedStreamText(
+    streamedText,
+    generationHandle != null && !generationTask.terminalReceived,
+    generationHandle != null,
+  );
   const progressMessage = generationTask.progress?.message?.trim() ?? "";
 
   useEffect(() => {
     if (!generationHandle) return;
     if (progressMessage) setStreamMessage(progressMessage);
     if (
-      streamedText
+      pacedStream.displayedText
       && generationChapterRef.current === activeNumberRef.current
     ) {
-      setEditorState(streamedText, false);
+      setEditorState(pacedStream.displayedText, false);
     }
   }, [
     activeNumber,
     generationHandle,
     progressMessage,
     setEditorState,
-    streamedText,
+    pacedStream.displayedText,
   ]);
 
   useEffect(() => {
@@ -524,6 +530,7 @@ export const useChapterStreamGeneration = ({
     streamTaskChapterNumber,
     streamBusy,
     streamMessage,
+    streamThinking: pacedStream.isThinking,
     streamingActiveChapter,
     activeChapterBusy,
     activeChapterGeneratingMessage,

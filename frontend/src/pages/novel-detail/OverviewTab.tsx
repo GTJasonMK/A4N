@@ -6,6 +6,7 @@ import { BookButton } from "../../components/ui/BookButton";
 import { BookInput, BookTextarea } from "../../components/ui/BookInput";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
+import { promptDialog } from "../../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../../api";
 import { canEditProjectMaterials, type NovelProject } from "../../api/project";
 import {
@@ -21,6 +22,7 @@ import { BlueprintVersionsPanel } from "./overview/BlueprintVersionsPanel";
 import { ProjectOverviewCard } from "./overview/ProjectOverviewCard";
 import { SynopsisCard } from "./overview/SynopsisCard";
 import { getProjectAccessRoleLabel } from "../../utils/projectRouting";
+import { nonEmptyText } from "../../utils/text";
 import { useI18n } from "../../i18n";
 
 const ProjectCollaborationPanel = lazy(() =>
@@ -165,9 +167,17 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     refiningRef.current = true;
     setRefining(true);
     try {
+      const focus = await promptDialog({
+        title: t("novel.refineBlueprint"),
+        message: t("novel.refineBlueprintMessage"),
+        placeholder: t("novel.refineBlueprintPlaceholder"),
+        multiline: true,
+        confirmText: t("novel.startRefine"),
+      });
+      if (focus === null || !isCurrentProject(requestProjectId)) return;
       const handle = await refineBlueprint({
         project_id: requestProjectId,
-        focus: null,
+        focus: nonEmptyText(focus),
         variables: null,
       });
       if (!isCurrentRefine(requestProjectId, requestSeq)) return;

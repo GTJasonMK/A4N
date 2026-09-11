@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { type ThemeAppearance } from "../../api/theme";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { Modal } from "../../components/ui/Modal";
@@ -12,6 +12,8 @@ import { ThemeListSection } from "./theme/ThemeListSection";
 import { useThemeTabController } from "./theme/useThemeTabController";
 import { useI18n } from "../../i18n";
 
+type ThemeAction = "create" | "import" | "package" | null;
+
 /**
  * 主题与外观 Tab
  *
@@ -21,24 +23,7 @@ export const ThemeTab: React.FC = () => {
   const themeTab = useThemeTabController();
   const { t } = useI18n();
   const editingTheme = themeTab.themes.find((theme) => theme.id === themeTab.editingId) ?? null;
-  const editorRef = useRef<HTMLDivElement>(null);
-  const [isDesktop, setIsDesktop] = useState(
-    () => typeof window === "undefined" || window.matchMedia("(min-width: 768px)").matches,
-  );
-
-  useEffect(() => {
-    const media = window.matchMedia("(min-width: 768px)");
-    const sync = () => setIsDesktop(media.matches);
-    sync();
-    media.addEventListener("change", sync);
-    return () => media.removeEventListener("change", sync);
-  }, []);
-
-  useEffect(() => {
-    const editor = editorRef.current;
-    if (!isDesktop || !editingTheme || !editor || typeof editor.scrollIntoView !== "function") return;
-    editor.scrollIntoView({ block: "start" });
-  }, [editingTheme?.id, isDesktop]);
+  const [themeAction, setThemeAction] = useState<ThemeAction>(null);
   const appearanceOptions: Array<{
     id: ThemeAppearance;
     label: string;
@@ -48,7 +33,6 @@ export const ThemeTab: React.FC = () => {
     { id: "light", label: t("settingsTheme.light"), disabled: !themeTab.hasUser || themeTab.mutationBusy },
     { id: "dark", label: t("settingsTheme.dark"), disabled: !themeTab.hasUser || themeTab.mutationBusy },
   ];
-  const mobileEditorMode = !isDesktop;
   const editorPanel = editingTheme ? (
     <ThemeEditorPanel
       theme={editingTheme}
@@ -111,53 +95,71 @@ export const ThemeTab: React.FC = () => {
         onDelete={themeTab.handleDelete}
         onDeleteMany={themeTab.handleDeleteMany}
         onExport={themeTab.handleExport}
+        onCreate={() => setThemeAction("create")}
+        onImport={() => setThemeAction("import")}
+        onPackage={() => setThemeAction("package")}
       />
 
-      {!mobileEditorMode && editingTheme ? (
-        <div ref={editorRef} className="min-w-0 scroll-mt-3">
-          {editorPanel}
-        </div>
-      ) : null}
+      <Modal
+        isOpen={Boolean(editingTheme)}
+        onClose={themeTab.handleEditorCancel}
+        title={editingTheme?.name ?? t("settingsTheme.editorTitle")}
+        subtitle={editingTheme ? t("settingsTheme.editorHint") : undefined}
+        maxWidthClassName="max-w-3xl"
+        bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
+      >
+        {editorPanel}
+      </Modal>
 
-      {mobileEditorMode ? (
-        <Modal
-          isOpen={Boolean(editingTheme)}
-          onClose={themeTab.handleEditorCancel}
-          title={editingTheme?.name ?? t("settingsTheme.editorTitle")}
-          subtitle={editingTheme ? t("settingsTheme.editorHint") : undefined}
-          maxWidthClassName="max-w-3xl"
-          bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
-        >
-          {editorPanel}
-        </Modal>
-      ) : null}
-
-      <CreateThemePanel
-        name={themeTab.newName}
-        mode={themeTab.newMode}
-        creating={themeTab.creating}
-        disabled={themeTab.mutationBusy}
-        onNameChange={themeTab.setNewName}
-        onModeChange={themeTab.setNewMode}
-        onCreate={themeTab.handleCreate}
-      />
-
-      <SingleThemeImportPanel
-        importText={themeTab.importText}
-        importing={themeTab.importing}
-        disabled={themeTab.mutationBusy}
-        onImportTextChange={themeTab.setImportText}
-        onImport={themeTab.handleImport}
-      />
-
-      <ThemePackagePanel
-        themes={themeTab.themes}
-        exportingId={themeTab.packageExportingId}
-        importing={themeTab.packageImporting}
-        disabled={themeTab.mutationBusy}
-        onExport={themeTab.handleExportPackage}
-        onImport={themeTab.handleImportPackage}
-      />
+      <Modal
+        isOpen={themeAction != null}
+        onClose={() => setThemeAction(null)}
+        title={
+          themeAction === "create"
+            ? t("settingsTheme.create")
+            : themeAction === "import"
+              ? t("settingsTheme.import")
+              : t("settingsTheme.package")
+        }
+        subtitle={
+          themeAction === "create"
+            ? t("settingsTheme.createHint")
+            : themeAction === "import"
+              ? t("settingsTheme.importHint")
+              : t("settingsTheme.packageHint")
+        }
+        maxWidthClassName="max-w-3xl"
+        bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-4"
+      >
+        {themeAction === "create" ? (
+          <CreateThemePanel
+            name={themeTab.newName}
+            mode={themeTab.newMode}
+            creating={themeTab.creating}
+            disabled={themeTab.mutationBusy}
+            onNameChange={themeTab.setNewName}
+            onModeChange={themeTab.setNewMode}
+            onCreate={themeTab.handleCreate}
+          />
+        ) : themeAction === "import" ? (
+          <SingleThemeImportPanel
+            importText={themeTab.importText}
+            importing={themeTab.importing}
+            disabled={themeTab.mutationBusy}
+            onImportTextChange={themeTab.setImportText}
+            onImport={themeTab.handleImport}
+          />
+        ) : themeAction === "package" ? (
+          <ThemePackagePanel
+            themes={themeTab.themes}
+            exportingId={themeTab.packageExportingId}
+            importing={themeTab.packageImporting}
+            disabled={themeTab.mutationBusy}
+            onExport={themeTab.handleExportPackage}
+            onImport={themeTab.handleImportPackage}
+          />
+        ) : null}
+      </Modal>
     </div>
   );
 };

@@ -29,6 +29,7 @@ export interface StreamItem {
   activity?: StreamItemActivity;
   title?: string;
   content: string;
+  streamSource?: string;
   steps?: StreamItem[];
   detail?: string | null;
   detailLabel?: string;

@@ -77,9 +77,9 @@ impl VideoProvider for HttpVideoProvider {
             });
         }
 
-        Err(AppError::Internal(format!(
-            "视频生成响应缺少 data[0].b64_json、data[0].url 或 id"
-        )))
+        Err(AppError::Internal(
+            "视频生成响应缺少 data[0].b64_json、data[0].url 或 id".to_string(),
+        ))
     }
 
     async fn poll(&self, job_id: &str) -> Result<VideoJobState, AppError> {
@@ -118,9 +118,9 @@ impl VideoProvider for HttpVideoProvider {
         }
 
         if status == "completed" {
-            return Err(AppError::Internal(format!(
-                "视频任务已完成，但响应缺少 data[0].b64_json 或 data[0].url"
-            )));
+            return Err(AppError::Internal(
+                "视频任务已完成，但响应缺少 data[0].b64_json 或 data[0].url".to_string(),
+            ));
         }
 
         Err(AppError::Internal(format!("未知视频任务 status={status}")))

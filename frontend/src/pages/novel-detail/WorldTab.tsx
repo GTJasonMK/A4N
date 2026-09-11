@@ -1,8 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useToast } from "../../components/feedback/Toast";
+import { promptDialog } from "../../components/feedback/PromptDialog";
 import { extractErrorMessage } from "../../api";
-import { getBlueprint, updateWorldSetting, type Blueprint } from "../../api/blueprint";
+import {
+  getBlueprint,
+  loadBlueprintTaskResult,
+  refineBlueprint,
+  syncBlueprintMaterials,
+  updateWorldSetting,
+  type Blueprint,
+} from "../../api/blueprint";
+import { generationClient } from "../../api/generationTasks";
 import { WorldDetailModal } from "./world/WorldDetailModal";
 import { WorldEditor } from "./world/WorldEditor";
 import { WorldPanelHeader } from "./world/WorldPanelHeader";
@@ -14,6 +23,7 @@ import {
   type WorldEditMode,
   worldSettingSaveNotice,
 } from "./world/worldTabUtils";
+import { nonEmptyText } from "../../utils/text";
 import { useI18n } from "../../i18n";
 
 interface WorldTabProps {
@@ -37,10 +47,13 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   const [jsonDraft, setJsonDraft] = useState("{}");
   const [textDraft, setTextDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  const [refining, setRefining] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [loadedProjectId, setLoadedProjectId] = useState<number | null>(null);
   const activeProjectIdRef = useRef(projectId);
   const loadSeqRef = useRef(0);
+  const refineSeqRef = useRef(0);
+  const refineBusyRef = useRef(false);
   const saveBusyRef = useRef(false);
 
   activeProjectIdRef.current = projectId;
@@ -51,6 +64,10 @@ export const WorldTab: React.FC<WorldTabProps> = ({
 
   const isCurrentLoad = useCallback((requestProjectId: number, seq: number) => {
     return isCurrentProject(requestProjectId) && loadSeqRef.current === seq;
+  }, [isCurrentProject]);
+
+  const isCurrentRefine = useCallback((requestProjectId: number, seq: number) => {
+    return isCurrentProject(requestProjectId) && refineSeqRef.current === seq;
   }, [isCurrentProject]);
 
   const normalizedWorld = useMemo(() => parseMaybeJsonString(worldValue), [worldValue]);
@@ -96,7 +113,10 @@ export const WorldTab: React.FC<WorldTabProps> = ({
   useEffect(() => {
     setEditing(false);
     setSaving(false);
+    setRefining(false);
     saveBusyRef.current = false;
+    refineBusyRef.current = false;
+    refineSeqRef.current += 1;
     setDetailOpen(false);
   }, [projectId]);
 
@@ -168,6 +188,68 @@ export const WorldTab: React.FC<WorldTabProps> = ({
     }
   };
 
+  const handleRefine = async () => {
+    if (!canEditWorld) {
+      addToast(t("novel.world.permissionDenied"), "error");
+      return;
+    }
+    if (refineBusyRef.current) return;
+
+    const requestProjectId = projectId;
+    const requestSeq = refineSeqRef.current + 1;
+    refineSeqRef.current = requestSeq;
+    refineBusyRef.current = true;
+    setRefining(true);
+    try {
+      const direction = await promptDialog({
+        title: t("novel.world.refine"),
+        message: t("novel.world.refineMessage"),
+        placeholder: t("novel.world.refinePlaceholder"),
+        multiline: true,
+        confirmText: t("novel.world.startRefine"),
+      });
+      if (direction === null || !isCurrentRefine(requestProjectId, requestSeq)) return;
+
+      const focus = [
+        t("novel.world.refineInstruction"),
+        nonEmptyText(direction),
+      ]
+        .filter((value): value is string => value !== null)
+        .join("\n");
+      const handle = await refineBlueprint({
+        project_id: requestProjectId,
+        focus,
+        variables: null,
+      });
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      const task = await generationClient.waitForTerminal(handle);
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      await loadBlueprintTaskResult(requestProjectId, task.resultRef);
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      const syncWarnings = await syncBlueprintMaterials(requestProjectId);
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      await load();
+      if (!isCurrentRefine(requestProjectId, requestSeq)) return;
+      addToast(
+        syncWarnings.length > 0
+          ? t("novel.world.refinedWithWarnings", {
+              warnings: syncWarnings.join(t("common.summarySeparator")),
+            })
+          : t("novel.world.refined"),
+        syncWarnings.length > 0 ? "info" : "success",
+      );
+    } catch (err) {
+      if (isCurrentRefine(requestProjectId, requestSeq)) {
+        addToast(extractErrorMessage(err, t("novel.world.refineFailed")), "error");
+      }
+    } finally {
+      if (refineSeqRef.current === requestSeq) {
+        refineBusyRef.current = false;
+        if (isCurrentProject(requestProjectId)) setRefining(false);
+      }
+    }
+  };
+
   const displayBlueprint = loadedProjectId === projectId ? blueprint : null;
   const displayNormalizedWorld = loadedProjectId === projectId ? normalizedWorld : null;
   const displayWorldObject = loadedProjectId === projectId ? worldObject : null;
@@ -193,9 +275,11 @@ export const WorldTab: React.FC<WorldTabProps> = ({
             hasBlueprint={Boolean(displayBlueprint)}
             hasWorldContent={displayHasWorldContent}
             worldObject={displayWorldObject}
+            refining={refining}
             onStartEdit={handleStartEdit}
             onCancelEdit={() => setEditing(false)}
             onSave={handleSave}
+            onRefine={() => void handleRefine()}
             onOpenDetail={() => setDetailOpen(true)}
           />
 
@@ -218,9 +302,11 @@ export const WorldTab: React.FC<WorldTabProps> = ({
             hasBlueprint={Boolean(displayBlueprint)}
             hasWorldContent={displayHasWorldContent}
             worldObject={displayWorldObject}
+            refining={refining}
             onStartEdit={handleStartEdit}
             onCancelEdit={() => setEditing(false)}
             onSave={handleSave}
+            onRefine={() => void handleRefine()}
             onOpenDetail={() => setDetailOpen(true)}
           />
           <WorldReadPanel

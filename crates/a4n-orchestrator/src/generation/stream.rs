@@ -29,6 +29,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const TOTAL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BATCH_DELAY: Duration = Duration::from_millis(50);
 const BATCH_BYTES: usize = MAX_TEXT_DELTA_BYTES;
+pub(crate) const REASONING_STREAM_ID: &str = "reasoning";
 
 pub(crate) struct LlmGenerationCheckpoint<'a> {
     pub(crate) writer: &'a GenerationCheckpointWriter,
@@ -224,13 +225,15 @@ pub(crate) async fn execute_llm_generation(
     let mut saw_content = false;
     let mut content = String::new();
     let mut pending_text = String::new();
+    let mut pending_reasoning = String::new();
     let mut usage = None;
     let mut finish_reason = None;
 
     loop {
         flush_full_batches(publisher, &stream_id, &mut pending_text).await?;
+        flush_full_batches(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
         checkpoint_if_due(checkpoint.as_ref()).await?;
-        if pending_text.is_empty() {
+        if pending_text.is_empty() && pending_reasoning.is_empty() {
             flush_deadline = None;
         }
 
@@ -250,14 +253,17 @@ pub(crate) async fn execute_llm_generation(
         match next {
             Next::Flush => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
+                flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                 flush_deadline = None;
             }
             Next::Cancelled => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
+                flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                 return Err(cancelled_error());
             }
             Next::TotalTimeout => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
+                flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                 return Err(public_error(
                     "llm_stream_total_timeout",
                     "模型流超过总时限",
@@ -267,6 +273,7 @@ pub(crate) async fn execute_llm_generation(
             }
             Next::Item(None) => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
+                flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                 if let Some(finish_reason) = finish_reason {
                     let content_sha256 = format!("{:x}", Sha256::digest(content.as_bytes()));
                     return Ok(LlmGenerationOutput {
@@ -285,6 +292,7 @@ pub(crate) async fn execute_llm_generation(
             }
             Next::Item(Some(Err(error))) => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
+                flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                 tracing::error!(
                     stage_code = "provider_stream",
                     error = %error,
@@ -317,6 +325,14 @@ pub(crate) async fn execute_llm_generation(
                     pending_text.push_str(delta);
                     flush_deadline.get_or_insert(Instant::now() + BATCH_DELAY);
                 }
+                if let Some(delta) = chunk
+                    .reasoning_content
+                    .as_deref()
+                    .filter(|delta| !delta.is_empty())
+                {
+                    pending_reasoning.push_str(delta);
+                    flush_deadline.get_or_insert(Instant::now() + BATCH_DELAY);
+                }
                 if let Some(chunk_usage) = chunk.usage {
                     let cumulative = generation_usage(chunk_usage)?;
                     publish_generation_usage(publisher, &cumulative, usage_base.as_ref()).await?;
@@ -324,6 +340,7 @@ pub(crate) async fn execute_llm_generation(
                 }
                 if let Some(reason) = chunk.finish_reason.as_deref() {
                     flush_text(publisher, &stream_id, &mut pending_text).await?;
+                    flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                     finish_reason = Some(map_finish_reason(reason)?);
                 }
             }
@@ -671,6 +688,7 @@ mod tests {
     #[derive(Default)]
     struct RecordingPublisher {
         text: Mutex<Vec<String>>,
+        reasoning: Mutex<Vec<String>>,
         usage: Mutex<Option<GenerationUsage>>,
     }
 
@@ -685,10 +703,15 @@ mod tests {
 
         async fn text_delta(
             &self,
-            _stream_id: &str,
+            stream_id: &str,
             delta: &str,
         ) -> Result<(), super::super::events::GenerationSessionError> {
-            self.text.lock().unwrap().push(delta.to_string());
+            let target = if stream_id == REASONING_STREAM_ID {
+                &self.reasoning
+            } else {
+                &self.text
+            };
+            target.lock().unwrap().push(delta.to_string());
             Ok(())
         }
 
@@ -756,6 +779,46 @@ mod tests {
         );
         assert_eq!(output.finish_reason, GenerationFinishReason::Stop);
         assert_eq!(output.usage.unwrap().total_tokens, 30);
+    }
+
+    #[tokio::test]
+    async fn publishes_reasoning_without_polluting_response_content() {
+        let provider = FakeProvider(vec![
+            ChatChunk {
+                content: None,
+                reasoning_content: Some("先分析".to_string()),
+                tool_calls: None,
+                finish_reason: None,
+                index: 0,
+                usage: None,
+            },
+            ChatChunk {
+                content: Some("{\"ok\":true}".to_string()),
+                reasoning_content: None,
+                tool_calls: None,
+                finish_reason: Some("stop".to_string()),
+                index: 1,
+                usage: None,
+            },
+        ]);
+        let publisher = RecordingPublisher::default();
+        let output = execute_llm_generation(
+            &provider,
+            &publisher,
+            LlmGenerationRequest {
+                request: ChatRequest::new(vec![ChatMessage::user("写作")], None, None, None),
+                stream_id: "raw_json".to_string(),
+                cancellation: CancellationToken::new(),
+                checkpoint: None,
+                usage_base: None,
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(output.content, "{\"ok\":true}");
+        assert_eq!(publisher.text.lock().unwrap().concat(), "{\"ok\":true}");
+        assert_eq!(publisher.reasoning.lock().unwrap().concat(), "先分析");
     }
 
     #[tokio::test]

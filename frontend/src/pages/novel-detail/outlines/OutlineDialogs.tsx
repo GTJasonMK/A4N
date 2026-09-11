@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Eye, MoreHorizontal, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, RefreshCw, Trash2, Wand2 } from "lucide-react";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Modal } from "../../../components/ui/Modal";
 import { nonEmptyText } from "../../../utils/text";
@@ -257,10 +257,14 @@ export function PartDetailDialog({
   part,
   onClose,
   onEdit,
+  onRefine,
+  disabled = false,
 }: {
   part: PartOutline;
   onClose: () => void;
   onEdit?: (part: PartOutline) => void;
+  onRefine?: (part: PartOutline) => void;
+  disabled?: boolean;
 }) {
   const { t } = useI18n();
   return (
@@ -272,15 +276,32 @@ export function PartDetailDialog({
       maxWidthClassName="max-w-3xl"
       bodyClassName="px-5 py-5"
       footer={
-        onEdit ? (
-          <BookButton
-            onClick={() => {
-              onClose();
-              onEdit(part);
-            }}
-          >
-            {t("outline.dialogs.editPart")}
-          </BookButton>
+        onEdit || onRefine ? (
+          <div className="flex flex-wrap justify-end gap-2">
+            {onRefine ? (
+              <BookButton
+                variant="secondary"
+                onClick={() => {
+                  onClose();
+                  onRefine(part);
+                }}
+                disabled={disabled}
+              >
+                <Wand2 size={13} /> {t("outline.dialogs.refinePart", { part: part.part_number })}
+              </BookButton>
+            ) : null}
+            {onEdit ? (
+              <BookButton
+                onClick={() => {
+                  onClose();
+                  onEdit(part);
+                }}
+                disabled={disabled}
+              >
+                {t("outline.dialogs.editPart")}
+              </BookButton>
+            ) : null}
+          </div>
         ) : undefined
       }
     >
@@ -402,7 +423,10 @@ export function ChapterOutlineActionDialog({
           title={t("outline.dialogs.previewRegenerate")}
           description={t("outline.dialogs.previewRegenerateDescription")}
           disabled={busy}
-          onClick={() => onPreviewRegenerate(outline)}
+          onClick={() => {
+            onClose();
+            onPreviewRegenerate(outline);
+          }}
         />
         <OutlineActionButton
           icon={
@@ -414,9 +438,9 @@ export function ChapterOutlineActionDialog({
           title={t("outline.dialogs.regenerateOutline")}
           description={t("outline.dialogs.regenerateDescription")}
           disabled={busy}
-          onClick={async () => {
-            await onRegenerate(outline);
+          onClick={() => {
             onClose();
+            void onRegenerate(outline);
           }}
         />
         <OutlineActionButton

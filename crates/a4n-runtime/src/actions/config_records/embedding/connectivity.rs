@@ -36,7 +36,6 @@ pub async fn test_embedding_config(
                         &config,
                     )
                     .await
-                    .map_err(a4n_error::AppError::from)
                 },
             )
             .await

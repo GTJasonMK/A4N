@@ -7,7 +7,7 @@ use crate::project::duplicate::{
     ProjectDuplicateError, freeform::FreeformGeneratedImageCopyRecords,
 };
 
-pub(super) async fn copy_freeform_generated_images_record<C, Copier: ?Sized>(
+pub(super) async fn copy_freeform_generated_images_record<C, Copier>(
     db: &C,
     source_project_id: i64,
     new_project_id: i64,
@@ -16,7 +16,7 @@ pub(super) async fn copy_freeform_generated_images_record<C, Copier: ?Sized>(
 ) -> Result<FreeformGeneratedImageCopyRecords, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     let images = generated_image::Entity::find()
         .filter(generated_image::Column::ProjectId.eq(source_project_id))

@@ -52,6 +52,14 @@ name: outline
 - `beat_sheet` 只在节拍映射任务中出现；出现时必须把节拍自然映射到当前章节范围，不要照抄为未支持字段。
 - `wait_to_generate` 是本次任务的硬约束；输出章节数量和数组顺序必须完全匹配它，章节号由后端按顺序补齐。
 
+{% if optimization_direction %}
+## 本次优化方向
+
+{{ optimization_direction }}
+
+请优先满足该方向，但不得违反正式资料、已有大纲、输出字段和章节范围约束。
+{% endif %}
+
 ## 生成规则
 
 1. 严格承接 `novel_blueprint`、已有 `chapter_outline`、`part_outlines` 和 `active_part_outline`，不能引入与世界观、正式资料、角色动机或关系网络矛盾的新设定。正式资料描述当前事实，蓝图关系演化只能约束后续走向，不能被提前写成已经发生。

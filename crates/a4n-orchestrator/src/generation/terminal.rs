@@ -20,6 +20,7 @@ use a4n_service_protocol::{
     GenerationErrorCode, GenerationEvent, GenerationFinishReason, GenerationResultRef,
     GenerationTaskEvent, GenerationTaskSnapshot, GenerationTaskStatus, GenerationUsage,
     InterruptedEvent, InterruptionReason, ProgressEvent, StatusChangedEvent, StreamTextHash,
+    TextStreamSnapshot,
 };
 use futures::future::BoxFuture;
 use sea_orm::{DatabaseTransaction, TransactionTrait};
@@ -29,6 +30,7 @@ use super::events::{
     GenerationDurableCommit, GenerationSessionError, GenerationSessionRegistry,
     GenerationTaskSession, apply_committed_envelope_to_snapshot, now_ms,
 };
+use super::stream::REASONING_STREAM_ID;
 
 const TERMINAL_RETRY_DELAYS: [Duration; 5] = [
     Duration::from_millis(250),
@@ -390,7 +392,8 @@ impl GenerationTerminalCoordinator {
         let descriptor = write_result(&tx)
             .await
             .map_err(GenerationTerminalError::Completion)?;
-        let (descriptor, progress_events) = descriptor;
+        let (mut descriptor, progress_events) = descriptor;
+        append_reasoning_hash(&mut descriptor, &candidate.snapshot.streams);
         validate_batch_summary_presence(&candidate.snapshot, descriptor.batch_summary.as_ref())?;
         let events = committed_terminal_events_with_progress(
             artifacts,
@@ -880,6 +883,27 @@ fn validate_batch_summary_presence(
     }
 }
 
+fn append_reasoning_hash(descriptor: &mut CompletionDescriptor, streams: &[TextStreamSnapshot]) {
+    let Some(stream) = streams
+        .iter()
+        .find(|stream| stream.stream_id == REASONING_STREAM_ID)
+    else {
+        return;
+    };
+    if descriptor
+        .final_text_hashes
+        .iter()
+        .any(|hash| hash.stream_id == stream.stream_id)
+    {
+        return;
+    }
+    descriptor.final_text_hashes.push(StreamTextHash {
+        stream_id: stream.stream_id.clone(),
+        utf8_bytes: stream.next_offset,
+        sha256: stream.sha256.clone(),
+    });
+}
+
 fn committed_terminal_events(
     artifacts: Vec<PreparedArtifactEvent>,
     terminal: GenerationEvent,
@@ -1021,5 +1045,33 @@ mod tests {
 
         assert!(matches!(events[0], GenerationEvent::Progress(_)));
         assert!(matches!(events[1], GenerationEvent::Completed(_)));
+    }
+
+    #[test]
+    fn completion_hashes_include_reasoning_stream() {
+        let mut descriptor = CompletionDescriptor {
+            result_ref: None,
+            final_text_hashes: Vec::new(),
+            final_usage: None,
+            finish_reason: Some(GenerationFinishReason::Stop),
+            summary: None,
+            batch_summary: None,
+        };
+        let stream = TextStreamSnapshot {
+            stream_id: REASONING_STREAM_ID.to_string(),
+            text: "thought".to_string(),
+            next_offset: 7,
+            sha256: "a".repeat(64),
+        };
+
+        append_reasoning_hash(&mut descriptor, std::slice::from_ref(&stream));
+        append_reasoning_hash(&mut descriptor, std::slice::from_ref(&stream));
+
+        assert_eq!(descriptor.final_text_hashes.len(), 1);
+        assert_eq!(
+            descriptor.final_text_hashes[0].stream_id,
+            REASONING_STREAM_ID
+        );
+        assert_eq!(descriptor.final_text_hashes[0].utf8_bytes, 7);
     }
 }

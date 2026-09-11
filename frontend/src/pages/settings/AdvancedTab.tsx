@@ -1,5 +1,6 @@
 import React from "react";
 import { FullConfigBackupPanel } from "./advanced/FullConfigBackupPanel";
+import { StreamDisplaySettingsPanel } from "./advanced/StreamDisplaySettingsPanel";
 import { useFullConfigBackup } from "./advanced/useFullConfigBackup";
 
 /**
@@ -10,6 +11,7 @@ export const AdvancedTab: React.FC = () => {
 
   return (
     <div className="custom-scrollbar flex h-auto flex-col gap-4 overflow-visible md:h-full md:overflow-y-auto md:pr-2">
+      <StreamDisplaySettingsPanel />
       <FullConfigBackupPanel
         overwrite={fullConfigBackup.overwrite}
         exporting={fullConfigBackup.exporting}

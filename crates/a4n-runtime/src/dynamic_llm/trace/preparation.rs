@@ -107,34 +107,60 @@ fn configure_prompt_cache(
     request.cache_scope_key = None;
     request.cache_system_prefix = false;
     if !model_name.starts_with("gpt-5.6") {
+        request.cache_user_prefix_len = None;
         return;
     }
-    let run_scope = trace_context
-        .generation_run_id
-        .map(|id| format!("a4n:generation_run:{id}"))
-        .or_else(|| {
-            trace_context
-                .workflow_run_id
-                .map(|id| format!("a4n:workflow_run:{id}"))
-        });
-    request.cache_scope_key = run_scope
-        .zip(system_prefix_sha256(request))
-        .map(|(run_scope, prefix_sha256)| format!("{run_scope}:prefix:{}", &prefix_sha256[..16]));
-    request.cache_system_prefix = request.cache_scope_key.is_some();
+
+    let Some(project_id) = trace_context.root_project_id.or(trace_context.project_id) else {
+        request.cache_user_prefix_len = None;
+        return;
+    };
+    let Some(prefix_sha256) = cacheable_prefix_sha256(request) else {
+        request.cache_user_prefix_len = None;
+        return;
+    };
+    let model_sha256 = format!("{:x}", Sha256::digest(model_name.as_bytes()));
+    request.cache_scope_key = Some(format!(
+        "a4n:project:{project_id}:m{}:p{}",
+        &model_sha256[..12],
+        &prefix_sha256[..16]
+    ));
+    request.cache_system_prefix = true;
 }
 
-fn system_prefix_sha256(request: &ChatRequest) -> Option<String> {
+fn cacheable_prefix_sha256(request: &ChatRequest) -> Option<String> {
     let mut hasher = Sha256::new();
-    let mut count = 0_usize;
+    let mut has_prefix = false;
     for message in &request.messages {
         if !matches!(message.role, a4n_llm::provider::MessageRole::System) {
             continue;
         }
-        count += 1;
-        hasher.update(message.content.len().to_le_bytes());
-        hasher.update(message.content.as_bytes());
+        update_cache_hash(&mut hasher, b"system", message.content.as_bytes());
+        has_prefix = true;
     }
-    (count > 0).then(|| format!("{:x}", hasher.finalize()))
+    if let Some(prefix) = stable_user_prefix(request) {
+        update_cache_hash(&mut hasher, b"user", prefix.as_bytes());
+        has_prefix = true;
+    }
+    has_prefix.then(|| format!("{:x}", hasher.finalize()))
+}
+
+fn stable_user_prefix(request: &ChatRequest) -> Option<&str> {
+    let prefix_len = request.cache_user_prefix_len?;
+    let index = request
+        .messages
+        .iter()
+        .rposition(|message| matches!(message.role, a4n_llm::provider::MessageRole::User))?;
+    let content = &request.messages[index].content;
+    (prefix_len > 0 && prefix_len <= content.len() && content.is_char_boundary(prefix_len))
+        .then(|| &content[..prefix_len])
+}
+
+fn update_cache_hash(hasher: &mut Sha256, kind: &[u8], content: &[u8]) {
+    hasher.update(kind.len().to_le_bytes());
+    hasher.update(kind);
+    hasher.update(content.len().to_le_bytes());
+    hasher.update(content);
 }
 
 #[cfg(test)]
@@ -144,7 +170,7 @@ mod tests {
     use super::configure_prompt_cache;
 
     #[test]
-    fn gpt_5_6_cache_affinity_is_scoped_to_the_run_and_system_prefix() {
+    fn gpt_5_6_cache_reuses_stable_project_prefix_across_runs() {
         let mut request = ChatRequest::system_user("stable", "dynamic", None, None, None);
         let mut trace = LlmTraceContext {
             project_id: Some(1),
@@ -161,21 +187,82 @@ mod tests {
 
         configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
         let first_key = request.cache_scope_key.clone().expect("cache key");
-        assert!(first_key.starts_with("a4n:workflow_run:299:prefix:"));
+        assert!(first_key.starts_with("a4n:project:1:m"));
+        assert!(first_key.len() <= 64);
         assert!(request.cache_system_prefix);
 
         request.messages[1].content = "different dynamic input".to_string();
         configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
         assert_eq!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
 
-        request.messages[0].content = "different session".to_string();
+        trace.workflow_run_id = Some(300);
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        assert_eq!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
+
+        trace.generation_run_id = Some(301);
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        assert_eq!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
+
+        request.messages[0].content = "different stable prefix".to_string();
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        let changed_system_key = request.cache_scope_key.clone().expect("cache key");
+        assert_ne!(changed_system_key, first_key);
+
+        request.messages[0].content = "stable".to_string();
+        trace.root_project_id = Some(2);
         configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
         assert_ne!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
 
-        trace.workflow_run_id = None;
+        trace.root_project_id = Some(1);
+        configure_prompt_cache(&mut request, "gpt-5.6-other", &trace);
+        assert_ne!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
+
+        trace.root_project_id = None;
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        assert_eq!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
+
+        trace.project_id = None;
         let mut unrelated = ChatRequest::new(vec![ChatMessage::user("one shot")], None, None, None);
+        unrelated.cache_user_prefix_len = Some(1);
         configure_prompt_cache(&mut unrelated, "gpt-5.6-luna", &trace);
         assert!(unrelated.cache_scope_key.is_none());
         assert!(!unrelated.cache_system_prefix);
+        assert!(unrelated.cache_user_prefix_len.is_none());
+    }
+
+    #[test]
+    fn gpt_5_6_cache_key_includes_stable_manifest_user_prefix_only() {
+        let mut request = ChatRequest::system_user(
+            "stable system",
+            "stable context\n\ncurrent task one",
+            None,
+            None,
+            None,
+        );
+        request.cache_user_prefix_len = Some("stable context".len());
+        let trace = LlmTraceContext {
+            project_id: Some(1),
+            root_project_id: Some(1),
+            workflow: "manga_pipeline".to_string(),
+            step_key: "page".to_string(),
+            generation_run_id: Some(1),
+            workflow_run_id: Some(1),
+            call_key: Some("page:1".to_string()),
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        };
+
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        let first_key = request.cache_scope_key.clone().expect("cache key");
+
+        request.messages[1].content = "stable context\n\ncurrent task two".to_string();
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        assert_eq!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
+
+        request.messages[1].content = "different context\n\ncurrent task two".to_string();
+        request.cache_user_prefix_len = Some("different context".len());
+        configure_prompt_cache(&mut request, "gpt-5.6-luna", &trace);
+        assert_ne!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
     }
 }

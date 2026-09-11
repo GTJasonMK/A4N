@@ -1,7 +1,6 @@
 pub use a4n_prompt_contract::{PromptCategory, PromptEntry};
 
 /// Prompt version record kept by the implementation and version store.
-
 /// 提示词版本记录
 #[derive(Debug, Clone)]
 pub struct PromptVersion {

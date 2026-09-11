@@ -21,7 +21,7 @@ use types::DuplicatedDerivedSourceSnapshot;
 
 use snapshot::copy_derived_project_graph_record;
 
-pub async fn duplicate_derived_project_record<Copier: ?Sized>(
+pub async fn duplicate_derived_project_record<Copier>(
     db: &DatabaseConnection,
     original: &novel_project::Model,
     user_id: i64,
@@ -29,7 +29,7 @@ pub async fn duplicate_derived_project_record<Copier: ?Sized>(
     media_file_copier: &mut Copier,
 ) -> Result<novel_project::Model, ProjectDuplicateError>
 where
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     let txn = db.begin().await?;
     let now = Utc::now().naive_utc();

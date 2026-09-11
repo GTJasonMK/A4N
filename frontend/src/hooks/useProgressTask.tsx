@@ -14,7 +14,6 @@ import type {
 } from "../components/feedback/ProgressDialog";
 import type { ProgressMeta } from "../api/progress";
 import { isCancelledOperation } from "../utils/cancellation";
-import { streamLineFromBuffer } from "../utils/progressDisplay";
 import { useI18n } from "../i18n";
 
 interface ProgressTaskState {
@@ -26,6 +25,7 @@ interface ProgressTaskState {
   message: string;
   meta: ProgressMeta | null;
   streamText: string | null;
+  streaming: boolean;
   error: string | null;
   events: ProgressTimelineItem[];
   cancelLabel?: string;
@@ -48,6 +48,8 @@ export interface ProgressTaskOptions {
   cancelTask?: (taskId: string) => Promise<void>;
   /** Host workflow 使用轮询；generation task 使用事件订阅。 */
   pollTaskProgress?: boolean;
+  /** 是否显示固定速率的模型流预览。 */
+  streaming?: boolean;
 }
 
 export interface ProgressTaskControl {
@@ -141,6 +143,7 @@ const createProgressTaskState = (): ProgressTaskState => ({
   message: "",
   meta: null,
   streamText: null,
+  streaming: false,
   error: null,
   events: [],
   cancelLabel: undefined,
@@ -218,19 +221,17 @@ function useProgressTaskController(): ProgressTaskController {
       cancelLabel: options.cancelLabel,
       runningHint: options.runningHint,
       formatProgress: options.formatProgress,
-      // 流式行自适应：未收到任何 delta 前不占位，伪流式 provider 自然降级为纯阶段进度。
+      streaming: options.streaming === true,
+      // 保留累计流文本，由 ProgressDialog 负责逐字显示和尾部裁剪。
       streamText: null,
       events: [createEvent("running", 0, taskTotal, options.startMessage, null)],
     });
 
     const setStreamText = (text: string) => {
-      const line = streamLineFromBuffer(text);
-      // 空 delta 不触发渲染，避免只发一次尾块的 provider 提前占位。
-      if (!line) return;
-      setProgressTask((prev) => ({
-        ...prev,
-        streamText: line,
-      }));
+      if (!text.trim()) return;
+      setProgressTask((prev) => prev.streamText === text
+        ? prev
+        : { ...prev, streamText: text });
     };
 
     const control: ProgressTaskControl = {
@@ -386,6 +387,7 @@ export const ProgressTaskProvider: React.FC<{ children: React.ReactNode }> = ({ 
         message={controller.progressTask.message}
         meta={controller.progressTask.meta}
         streamText={controller.progressTask.streamText}
+        streaming={controller.progressTask.streaming}
         error={controller.progressTask.error}
         events={controller.progressTask.events}
         cancelLabel={controller.progressTask.cancelLabel}

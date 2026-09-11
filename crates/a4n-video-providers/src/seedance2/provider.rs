@@ -53,7 +53,7 @@ impl Seedance2VideoProvider {
         provider_job_id: Option<String>,
     ) -> Result<VideoGenerationResult, AppError> {
         let url = result_video_url(v).ok_or_else(|| {
-            AppError::Internal(format!("Seedance 2.0 完成响应缺少 result.video_url"))
+            AppError::Internal("Seedance 2.0 完成响应缺少 result.video_url".to_string())
         })?;
         let (bytes, format) = download_video_url(&self.client, url, None).await?;
         Ok(VideoGenerationResult {
@@ -94,8 +94,9 @@ impl VideoProvider for Seedance2VideoProvider {
         ) {
             return self.decode_completed(&v, extract_task_id(&v)).await;
         }
-        let task_id = extract_task_id(&v)
-            .ok_or_else(|| AppError::Internal(format!("Seedance 2.0 视频生成响应缺少 task_id")))?;
+        let task_id = extract_task_id(&v).ok_or_else(|| {
+            AppError::Internal("Seedance 2.0 视频生成响应缺少 task_id".to_string())
+        })?;
         Ok(VideoGenerationResult {
             bytes: Vec::new(),
             format: String::new(),
@@ -118,7 +119,7 @@ impl VideoProvider for Seedance2VideoProvider {
         )
         .await?;
         let status = extract_status(&v)
-            .ok_or_else(|| AppError::Internal(format!("Seedance 2.0 任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal("Seedance 2.0 任务响应缺少 status".to_string()))?
             .to_ascii_lowercase();
         match status.as_str() {
             "pending" | "queued" | "submitted" => Ok(VideoJobState::Pending),
@@ -152,7 +153,7 @@ impl VideoProvider for Seedance2VideoProvider {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };
         let status = extract_status(&value)
-            .ok_or_else(|| AppError::Internal(format!("Seedance 2.0 任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal("Seedance 2.0 任务响应缺少 status".to_string()))?
             .to_ascii_lowercase();
         match status.as_str() {
             "pending" | "queued" | "submitted" | "starting" => {

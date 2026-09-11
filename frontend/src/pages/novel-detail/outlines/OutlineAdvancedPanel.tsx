@@ -4,6 +4,7 @@ import { Eye } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton } from "../../../components/ui/BookButton";
 import { Dropdown } from "../../../components/ui/Dropdown";
+import { promptDialog } from "../../../components/feedback/PromptDialog";
 import { useToast } from "../../../components/feedback/Toast";
 import { RequestPreviewModal } from "../../../components/feedback/RequestPreviewModal";
 import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
@@ -27,6 +28,7 @@ import { isCancelledOperation } from "../../../utils/cancellation";
 import { nonEmptyText } from "../../../utils/text";
 import { formatNumber, useI18n, type Locale, type MessageTranslator } from "../../../i18n";
 import type { RunOutlineGeneration } from "./useOutlineGeneration";
+import { outlineOptimizationVariables } from "./outlineTabUtils";
 
 interface OutlineAdvancedPanelProps {
   projectId: number;
@@ -186,6 +188,14 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
 }) => {
   const { addToast } = useToast();
   const { locale, t } = useI18n();
+  const requestOptimizationDirection = (title: string) =>
+    promptDialog({
+      title,
+      message: t("outline.dialogs.optimizationDirectionMessage"),
+      placeholder: t("outline.dialogs.optimizationDirectionPlaceholder"),
+      multiline: true,
+      confirmText: t("outline.dialogs.startOptimization"),
+    });
   const showGenerationSuccess = (message: string, warnings: string[]) => {
     addToast(
       warnings.length > 0 ? `${message}${t("common.summarySeparator")}${warnings.join(t("common.summarySeparator"))}` : message,
@@ -738,6 +748,10 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     if (actionSeq == null) return;
     setPartRegenBusy(true);
     try {
+      const direction = await requestOptimizationDirection(
+        t("outline.dialogs.refinePart", { part: requestPart.part_number }),
+      );
+      if (direction === null || !isActionCurrent(requestProjectId, actionSeq)) return;
       const warnings = await runGeneration(
         {
           title: t("outline.advancedPanel.regeneratePart", { part: formatNumber(requestPart.part_number, locale) }),
@@ -751,7 +765,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           operation: {
             kind: "regenerate_part_outline",
             part_id: requestPart.id,
-            variables: null,
+            variables: outlineOptimizationVariables(direction),
           },
         },
         async (control) => {
@@ -777,12 +791,17 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
     const requestProjectId = projectId;
     const requestPart = selectedPart(requestProjectId);
     if (!requestPart) return;
+    const direction = await requestOptimizationDirection(
+      t("outline.dialogs.refinePart", { part: requestPart.part_number }),
+    );
+    if (direction === null || !isProjectCurrent(requestProjectId)) return;
     await openPreview(
       requestProjectId,
       () =>
         previewRegeneratePartOutlineRequest({
           project_id: requestProjectId,
           part_id: requestPart.id,
+          variables: outlineOptimizationVariables(direction),
         }),
       t("outline.advancedPanel.regeneratePartPreviewFailed"),
     );
@@ -882,6 +901,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           project_id: requestProjectId,
           expected_parts: expectedParts,
           chapters_per_part: requestChaptersPerPart,
+          variables: null,
         }),
       t("outline.advancedPanel.regenerateAllPreviewFailed"),
     );
@@ -985,6 +1005,7 @@ export const OutlineAdvancedPanel: React.FC<OutlineAdvancedPanelProps> = ({
           part_number: lastPart.part_number + 1,
           start_chapter: startChapter,
           end_chapter: endChapter,
+          variables: null,
         }),
       t("outline.advancedPanel.previewContinueFailed"),
     );

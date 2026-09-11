@@ -15,10 +15,7 @@ use super::{
     super::workflow::copy_derived_workflow_records, source::duplicate_derived_source_snapshot,
 };
 
-pub(in crate::project::duplicate::derived) async fn copy_derived_project_graph_record<
-    C,
-    Copier: ?Sized,
->(
+pub(in crate::project::duplicate::derived) async fn copy_derived_project_graph_record<C, Copier>(
     db: &C,
     original: &novel_project::Model,
     user_id: i64,
@@ -28,7 +25,7 @@ pub(in crate::project::duplicate::derived) async fn copy_derived_project_graph_r
 ) -> Result<novel_project::Model, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     if original.project_kind == PROJECT_KIND_TEXT {
         return Err(ProjectDuplicateError::InvalidArgument(

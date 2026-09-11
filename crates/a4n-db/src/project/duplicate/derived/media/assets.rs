@@ -11,7 +11,7 @@ use super::{
     super::types::DuplicatedDerivedSourceSnapshot, rules::ensure_copyable_derived_media_asset,
 };
 
-pub(in crate::project::duplicate::derived) async fn copy_derived_media_assets<C, Copier: ?Sized>(
+pub(in crate::project::duplicate::derived) async fn copy_derived_media_assets<C, Copier>(
     db: &C,
     source_project_id: i64,
     new_project_id: i64,
@@ -22,7 +22,7 @@ pub(in crate::project::duplicate::derived) async fn copy_derived_media_assets<C,
 ) -> Result<HashMap<i64, i64>, ProjectDuplicateError>
 where
     C: ConnectionTrait,
-    Copier: ProjectMediaFileCopier,
+    Copier: ProjectMediaFileCopier + ?Sized,
 {
     let assets = media_asset::Entity::find()
         .filter(media_asset::Column::ProjectId.eq(source_project_id))
