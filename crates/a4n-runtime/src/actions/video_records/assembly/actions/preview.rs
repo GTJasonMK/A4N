@@ -11,8 +11,8 @@ use crate::actions::video_generation::media::{
     append_secondary_error, combine_optional_errors, remove_partial_video_file,
 };
 use crate::actions::video_records::MAX_INLINE_PLAYBACK_VIDEO_BYTES;
-use crate::file_utils::data_file_record_facts;
-use a4n_core::media::video_mime_from_path;
+use a4n_domain::media::video_mime_from_path;
+use a4n_storage::data_file_record_facts;
 use base64::Engine;
 use chrono::Utc;
 use std::path::Path;

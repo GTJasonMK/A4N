@@ -7,6 +7,8 @@ pub(super) fn is_canvas_web_command(cmd: &str) -> bool {
     matches!(
         cmd,
         "get_canvas_graph"
+            | "read_canvas_graph"
+            | "edit_canvas_graph"
             | "get_canvas_node_contracts"
             | "save_canvas_graph"
             | "save_canvas_text_asset"
@@ -24,6 +26,24 @@ pub(super) async fn run_canvas_web_command(
     cmd: &str,
 ) -> Result<Value, ApiError> {
     match cmd {
+        "read_canvas_graph" => to_value(
+            canvas_workflow_actions::read_canvas_graph(
+                state.runtime(),
+                user_id,
+                command_input(args, cmd)?,
+            )
+            .await
+            .map_err(ApiError::bad_request)?,
+        ),
+        "edit_canvas_graph" => to_value(
+            canvas_workflow_actions::edit_canvas_graph(
+                state.runtime(),
+                user_id,
+                command_input(args, cmd)?,
+            )
+            .await
+            .map_err(ApiError::bad_request)?,
+        ),
         "get_canvas_graph" => get_canvas_graph(state, user_id, args).await,
         "get_canvas_node_contracts" => get_canvas_node_contracts(state, user_id, args).await,
         "save_canvas_graph" => save_canvas_graph(state, user_id, args).await,

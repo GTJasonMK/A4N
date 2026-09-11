@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::version_store::CommitInfo;
 use git2::{ErrorCode, Oid, Sort};
 

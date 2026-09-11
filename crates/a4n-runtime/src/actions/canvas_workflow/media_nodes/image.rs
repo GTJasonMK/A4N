@@ -1,8 +1,5 @@
-use a4n_core::models::canvas::canvas_node;
-use a4n_orchestrator::{
-    canvas::{CanvasGraphRecordDocument, CanvasImageNodeExecutionInput, CanvasNodeRunHandle},
-    media::ImageGenerationProgress,
-};
+use a4n_canvas_contract::{CanvasImageNodeApplicationInput, CanvasNodeRun};
+use a4n_orchestrator::media::ImageGenerationProgress;
 
 use crate::{AppState, actions::image_generation::RuntimeImageGenerationHostPort};
 
@@ -10,24 +7,24 @@ use super::super::CanvasRunSummary;
 
 pub(in crate::actions::canvas_workflow) async fn run_canvas_generate_image_node(
     state: &AppState,
+    requested_by_user_id: i64,
     project_id: i64,
     graph_id: i64,
-    node: &canvas_node::Model,
-    document: &CanvasGraphRecordDocument,
-    run_handle: Option<CanvasNodeRunHandle>,
+    node_id: i64,
+    run_handle: Option<CanvasNodeRun>,
     mode: &str,
 ) -> Result<CanvasRunSummary, String> {
     let host_port = RuntimeImageGenerationHostPort::new(state);
     state
-        .orchestrator()
-        .run_canvas_image_node_validated(
-            CanvasImageNodeExecutionInput {
+        .canvas_image_application()
+        .run_image(
+            CanvasImageNodeApplicationInput {
+                user_id: requested_by_user_id,
                 project_id,
                 graph_id,
-                node,
-                document,
+                node_id,
                 shared_run: run_handle,
-                mode,
+                mode: mode.to_string(),
             },
             &host_port,
             &ImageGenerationProgress::none(),

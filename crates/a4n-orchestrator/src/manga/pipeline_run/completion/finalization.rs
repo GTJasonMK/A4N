@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::super::MANGA_PIPELINE_TOTAL_STEPS;
 use super::super::contracts::MangaRunContext;

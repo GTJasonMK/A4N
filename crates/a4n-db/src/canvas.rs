@@ -16,10 +16,9 @@ pub use artifacts::{
 };
 pub use graph_record::{
     CanvasEdgeRecordInput, CanvasGraphRecordDocument, CanvasGraphRecordInput,
-    CanvasNodeRecordInput, CanvasTextAssetRecordInput, get_or_create_canvas_graph_record,
-    save_canvas_graph_record, upsert_canvas_text_asset_record,
-    validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
-    validate_canvas_record_viewport_json,
+    CanvasNodeRecordInput, get_or_create_canvas_graph_record, save_canvas_graph_record,
+    upsert_canvas_text_asset_record, validate_canvas_record_document_edge_contract,
+    validate_canvas_record_document_is_dag, validate_canvas_record_viewport_json,
 };
 pub use transfer::{
     VideoStudioProjectExportRows, VideoStudioProjectImportError,

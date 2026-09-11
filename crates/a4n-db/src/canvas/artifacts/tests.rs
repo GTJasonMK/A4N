@@ -3,14 +3,13 @@ use crate::canvas::CanvasDbError;
 use crate::generation::{
     GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
 };
-use a4n_core::models::{
-    ai::generated_video,
+use a4n_db_models::models::{
     generation::generation_spec,
     media::{media_asset, media_binding, media_provenance},
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_core::video_workflow::{WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_VIDEO};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use a4n_domain::video_workflow::{WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_VIDEO};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,
 };
@@ -144,7 +143,7 @@ async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips(
             crate::video::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: None,
-                video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+                video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
                 workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
                 prompt: format!("source-{index}"),
                 negative_prompt: None,
@@ -180,7 +179,7 @@ async fn canvas_assembly_batch_write_preserves_segment_chain_bindings_and_clips(
         crate::video::CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY.to_string(),
             workflow_mode: Some(WORKFLOW_MODE_CANVAS_ASSEMBLY.to_string()),
             prompt: "assembly".to_string(),
             negative_prompt: None,

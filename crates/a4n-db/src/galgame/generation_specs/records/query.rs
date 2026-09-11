@@ -1,5 +1,5 @@
 use crate::galgame::GalgameAssetPlanSpecRecordError;
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
 };

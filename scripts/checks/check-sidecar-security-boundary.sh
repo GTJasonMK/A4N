@@ -18,8 +18,8 @@ ROUTERS=(
 )
 
 for router in "${ROUTERS[@]}"; do
-    rg -q --fixed-strings 'a4n_sidecar_bootstrap::require_auth' "$router" || {
-        printf 'sidecar router is missing shared authentication middleware: %s\n' "$router" >&2
+    rg -q --fixed-strings 'a4n_sidecar_bootstrap::serve_sidecar' "$router" || {
+        printf 'sidecar entrypoint is missing shared authentication bootstrap: %s\n' "$router" >&2
         exit 1
     }
     rg -q --fixed-strings 'DefaultBodyLimit::max' "$router" || {

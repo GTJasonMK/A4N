@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::{chapter_outline, part_outline};
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};

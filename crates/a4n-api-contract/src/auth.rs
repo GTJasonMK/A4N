@@ -106,9 +106,126 @@ pub struct OAuth2CallbackInput {
     pub code: String,
 }
 
+/// Authentication application boundary used by Hosts and Runtime.
+///
+/// The port exposes only host-safe projections. ORM users/sessions and their
+/// password or refresh-token fields stay inside the authentication owner.
+#[async_trait::async_trait]
+pub trait AuthApplicationPort: Send + Sync {
+    async fn current_user(&self, user_id: i64) -> Result<UserSummary, a4n_error::AppError>;
+
+    async fn require_existing_user_or_bootstrap_admin(
+        &self,
+        bootstrap: Option<(&str, &str, &str)>,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn register_user(&self, input: RegisterInput)
+    -> Result<UserSummary, a4n_error::AppError>;
+
+    async fn login_user(&self, input: LoginInput) -> Result<UserSummary, a4n_error::AppError>;
+
+    async fn create_session(
+        &self,
+        user_id: i64,
+        refresh_token: &str,
+        user_agent: Option<&str>,
+    ) -> Result<SessionSummary, a4n_error::AppError>;
+
+    async fn list_sessions(&self, user_id: i64)
+    -> Result<Vec<SessionSummary>, a4n_error::AppError>;
+
+    async fn revoke_session(
+        &self,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn update_profile(
+        &self,
+        user_id: i64,
+        input: UpdateProfileInput,
+    ) -> Result<UserSummary, a4n_error::AppError>;
+
+    async fn change_password(
+        &self,
+        user_id: i64,
+        input: ChangePasswordInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn verify_session_refresh_token(
+        &self,
+        user_id: i64,
+        session_id: &str,
+        refresh_token: &str,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn verify_active_session(
+        &self,
+        user_id: i64,
+        session_id: &str,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn rotate_session_refresh_token(
+        &self,
+        user_id: i64,
+        session_id: &str,
+        old_refresh_token: &str,
+        new_refresh_token: &str,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn login_with_oauth2(
+        &self,
+        provider: &str,
+        provider_id: &str,
+        email: Option<&str>,
+        username_hint: Option<&str>,
+        avatar_url: Option<&str>,
+    ) -> Result<UserSummary, a4n_error::AppError>;
+}
+
+/// Session identifiers are validated at the contract boundary so every Host
+/// uses the same failure semantics without importing the orchestrator.
+pub fn required_session_user_id(user_id: i64, operation: &str) -> Result<i64, a4n_error::AppError> {
+    if user_id > 0 {
+        Ok(user_id)
+    } else {
+        Err(a4n_error::AppError::InvalidArgument(format!(
+            "{operation}缺少有效用户 ID"
+        )))
+    }
+}
+
+pub fn required_session_id(
+    session_id: &str,
+    operation: &str,
+) -> Result<String, a4n_error::AppError> {
+    let session_id = session_id.trim();
+    if session_id.is_empty() {
+        Err(a4n_error::AppError::InvalidArgument(format!(
+            "{operation}缺少会话 ID"
+        )))
+    } else {
+        Ok(session_id.to_string())
+    }
+}
+
+pub fn required_authorization_code(code: &str) -> Result<&str, a4n_error::AppError> {
+    let code = code.trim();
+    if code.is_empty() {
+        Err(a4n_error::AppError::InvalidArgument(
+            "OAuth2 授权码不能为空".into(),
+        ))
+    } else {
+        Ok(code)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{LoginInput, RevokeSessionInput, UpdateProfileInput};
+    use super::{
+        LoginInput, RevokeSessionInput, UpdateProfileInput, required_authorization_code,
+        required_session_id, required_session_user_id,
+    };
     use serde_json::json;
 
     #[test]
@@ -165,5 +282,19 @@ mod tests {
             }))
             .is_err()
         );
+    }
+
+    #[test]
+    fn session_rules_reject_missing_identity() {
+        assert!(required_session_user_id(0, "列出会话").is_err());
+        assert_eq!(required_session_user_id(2, "列出会话").unwrap(), 2);
+        assert!(required_session_id("  ", "撤销会话").is_err());
+        assert_eq!(required_session_id(" sid ", "撤销会话").unwrap(), "sid");
+    }
+
+    #[test]
+    fn authorization_code_rule_trims_and_rejects_blank() {
+        assert!(required_authorization_code(" \n\t ").is_err());
+        assert_eq!(required_authorization_code("  code  ").unwrap(), "code");
     }
 }

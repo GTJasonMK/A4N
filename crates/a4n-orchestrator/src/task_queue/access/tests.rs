@@ -1,4 +1,4 @@
-use a4n_core::models::task::task_queue;
+use a4n_db_models::models::task::task_queue;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use sea_orm::EntityTrait;
 use tokio_util::sync::CancellationToken;
@@ -26,6 +26,13 @@ async fn completed_task_preserves_memory_and_database_terminal_status() {
         .unwrap();
 
     queue.cancel(&task_id).await.unwrap();
+
+    drop(queue);
+    let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
+    queue
+        .cancel(&task_id)
+        .await
+        .expect("取消已无内存缓存的终态任务仍须幂等");
 
     let row = task_queue::Entity::find_by_id(task_id)
         .one(db.as_ref())

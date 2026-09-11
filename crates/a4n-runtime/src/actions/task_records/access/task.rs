@@ -2,7 +2,7 @@ use crate::{
     AppState,
     actions::{access, app_error_message},
 };
-use a4n_core::event::channel::TaskHandle;
+use a4n_task_runtime::channel::TaskHandle;
 
 use super::project::{require_admin_for_unscoped_task, verify_task_project_access};
 
@@ -23,22 +23,17 @@ pub(in crate::actions::task_records) async fn verify_task_access(
     task_id: &str,
 ) -> Result<(), String> {
     if let Some(task) = state
-        .orchestrator()
-        .persisted_task_by_id(task_id)
+        .workflow_task_lookup_application()
+        .task_by_id(task_id)
         .await
         .map_err(app_error_message)?
     {
-        return verify_task_project_access(
-            state,
-            user_id,
-            task.task.project_id,
-            task.task.root_project_id,
-        )
-        .await;
+        return verify_task_project_access(state, user_id, task.project_id, task.root_project_id)
+            .await;
     }
     let handle = state
-        .orchestrator()
-        .task_handle(task_id)
+        .task_manager()
+        .get(task_id)
         .ok_or_else(|| format!("任务不存在: {task_id}"))?;
     verify_task_handle_access(state, user_id, &handle).await
 }

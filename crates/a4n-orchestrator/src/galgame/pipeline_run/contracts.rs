@@ -1,8 +1,5 @@
-use std::sync::Arc;
-
-use a4n_core::config::app_config::llm_token_profiles;
-use a4n_core::error::AppError;
-use a4n_domain::progress::ProgressMeta;
+use a4n_api_contract::galgame::GalgameProgressReporter;
+use a4n_domain::llm::llm_token_profiles;
 use serde_json::Value;
 
 use super::super::{
@@ -40,17 +37,6 @@ pub(super) const ALL_GALGAME_PIPELINE_CHECKPOINT_KEYS: &[&str] = &[
     CHECKPOINT_PERSIST_SCRIPT,
     CHECKPOINT_ASSET_GENERATION,
 ];
-
-pub type GalgameProgressReporter =
-    Arc<dyn Fn(GalgamePipelineProgressUpdate) -> Result<(), AppError> + Send + Sync>;
-
-#[derive(Debug, Clone)]
-pub struct GalgamePipelineProgressUpdate {
-    pub current: u32,
-    pub total: u32,
-    pub message: String,
-    pub meta: ProgressMeta,
-}
 
 #[derive(Clone)]
 pub struct GalgamePipelineRunOptions {

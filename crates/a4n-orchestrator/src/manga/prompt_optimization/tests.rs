@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::{error::AppError, models::chapter::chapter_manga_prompt};
+use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_error::AppError;
 use a4n_llm::provider::ResponseFormat;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
@@ -15,7 +16,7 @@ use super::{
     },
     request::build_manga_prompt_optimization_request,
 };
-use a4n_core::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
+use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
 
 struct TestPromptRenderer;
 

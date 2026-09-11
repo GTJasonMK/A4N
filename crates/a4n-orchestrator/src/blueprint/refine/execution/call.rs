@@ -1,12 +1,8 @@
 use std::sync::Arc;
 
-use a4n_core::{
-    blueprint::{
-        BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
-        ParsedBlueprintOptimization,
-    },
-    error::AppError,
-};
+use a4n_domain::project::ParsedBlueprintOptimization;
+use a4n_domain::project::{BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WORKFLOW_KIND};
+use a4n_error::AppError;
 use a4n_service_protocol::GenerationFinishReason;
 use tokio_util::sync::CancellationToken;
 

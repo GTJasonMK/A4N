@@ -14,7 +14,6 @@ pub use blueprint_records::{
     blueprint_metadata_rag_record, blueprint_rag_record, blueprint_world_setting_rag_records,
     relationship_rag_record,
 };
-pub use chapter_records::ChapterRagChunkingMode;
 pub(crate) use chapter_records::chapter_rag_records_with_provider;
 pub use character_profile_records::{blueprint_character_rag_records, protagonist_rag_records};
 pub use continuity_records::{
@@ -33,20 +32,10 @@ pub use outline_records::{
 pub use scene_records::{
     scene_occurrence_rag_record, scene_profile_rag_record, scene_transition_rag_record,
 };
-pub use search::{
-    EnhancedRagQuery, EnhancedRagSearchResult, PreparedEnhancedRagSearch,
-    normalize_search_data_types, required_nonblank, required_top_k,
-};
 pub(crate) use search::{
     embed_queries_in_batch, hybrid_rag_search_with_validated_embedding_in_store,
-    identity_scoped_search_filter,
 };
-pub use sync::{
-    DeleteRagRecordsInput, PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, RagSyncContext,
-    RagSyncError, classify_rag_record, ensure_embedding_identity_matches,
-    ensure_project_embedding_identity_matches,
-};
-pub use write::RagEmbeddedInput;
+pub use sync::RagSyncContext;
 pub(crate) use write::RagEmbeddingInput;
 
 pub(crate) use write::{embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store};

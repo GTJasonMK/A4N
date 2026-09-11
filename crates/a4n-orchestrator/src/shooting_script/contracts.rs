@@ -1,4 +1,3 @@
-use a4n_core::{error::AppError, source_spans::SourceSpan};
 use a4n_db::{
     chapter_visual_plan::ParsedChapterVisualPlan, project::ResolvedChapterSource,
     shooting_script::ParsedChapterShootingScript,
@@ -8,6 +7,8 @@ use a4n_domain::shooting_script::{
     ChapterShootingScriptV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
     ShootingTransitionContractV1,
 };
+use a4n_domain::source_spans::SourceSpan;
+use a4n_error::AppError;
 use serde::{Deserialize, Serialize};
 
 pub(super) const CHAPTER_SCREENPLAY_LAYOUT_UNIT_PROMPT: &str = "chapter_screenplay_layout_unit";
@@ -237,7 +238,7 @@ pub(crate) fn visual_plan_fixture(source: &ResolvedChapterSource) -> ParsedChapt
         a4n_db::generation::canonical_json_sha256(&plan).expect("visual plan fixture sha256");
     let now = chrono::Utc::now().naive_utc();
     ParsedChapterVisualPlan {
-        record: a4n_core::models::chapter::chapter_visual_plan::Model {
+        record: a4n_db_models::models::chapter::chapter_visual_plan::Model {
             id: 1,
             root_project_id: source.root_project_id,
             source_chapter_id: source.source_chapter_id,

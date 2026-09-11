@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError;
 use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult, VectorStore,
 };
@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 
 use super::SidecarVectorStore;
 use super::transport::RagOperation;
+use crate::provider_error::from_app_error;
 
 #[async_trait]
 impl VectorStore for SidecarVectorStore {
@@ -16,8 +17,10 @@ impl VectorStore for SidecarVectorStore {
         &self,
         collection: &str,
         records: Vec<EmbeddingRecord>,
-    ) -> Result<usize, AppError> {
-        self.ingest(collection, records).await
+    ) -> Result<usize, ProviderError> {
+        self.ingest(collection, records)
+            .await
+            .map_err(from_app_error)
     }
 
     async fn query(
@@ -26,7 +29,7 @@ impl VectorStore for SidecarVectorStore {
         query_embedding: Vec<f32>,
         top_k: usize,
         filters: Option<SearchFilter>,
-    ) -> Result<Vec<SearchResult>, AppError> {
+    ) -> Result<Vec<SearchResult>, ProviderError> {
         self.call(
             RagOperation::Query,
             json!({
@@ -37,6 +40,7 @@ impl VectorStore for SidecarVectorStore {
             }),
         )
         .await
+        .map_err(from_app_error)
     }
 
     async fn search_text(
@@ -45,7 +49,7 @@ impl VectorStore for SidecarVectorStore {
         query_text: &str,
         top_k: usize,
         filters: Option<SearchFilter>,
-    ) -> Result<Vec<SearchResult>, AppError> {
+    ) -> Result<Vec<SearchResult>, ProviderError> {
         self.call(
             RagOperation::SearchText,
             json!({
@@ -56,6 +60,7 @@ impl VectorStore for SidecarVectorStore {
             }),
         )
         .await
+        .map_err(from_app_error)
     }
 
     async fn hybrid_search(
@@ -65,7 +70,7 @@ impl VectorStore for SidecarVectorStore {
         query_embedding: Vec<f32>,
         top_k: usize,
         filters: Option<SearchFilter>,
-    ) -> Result<Vec<SearchResult>, AppError> {
+    ) -> Result<Vec<SearchResult>, ProviderError> {
         self.call(
             RagOperation::Search,
             json!({
@@ -77,57 +82,63 @@ impl VectorStore for SidecarVectorStore {
             }),
         )
         .await
+        .map_err(from_app_error)
     }
 
-    async fn delete(&self, collection: &str, filter: DeleteFilter) -> Result<usize, AppError> {
+    async fn delete(&self, collection: &str, filter: DeleteFilter) -> Result<usize, ProviderError> {
         self.call(
             RagOperation::Delete,
             json!({ "collection": collection, "filter": filter }),
         )
         .await
+        .map_err(from_app_error)
     }
 
-    async fn drop_collection(&self, collection: &str) -> Result<(), AppError> {
+    async fn drop_collection(&self, collection: &str) -> Result<(), ProviderError> {
         self.call(
             RagOperation::DropCollection,
             json!({ "collection": collection }),
         )
         .await
+        .map_err(from_app_error)
     }
 
     async fn metadata_by_ids(
         &self,
         collection: &str,
         ids: &[String],
-    ) -> Result<HashMap<String, Value>, AppError> {
+    ) -> Result<HashMap<String, Value>, ProviderError> {
         self.call(
             RagOperation::MetadataByIds,
             json!({ "collection": collection, "ids": ids }),
         )
         .await
+        .map_err(from_app_error)
     }
 
     async fn metadata_by_filter(
         &self,
         collection: &str,
         filter: DeleteFilter,
-    ) -> Result<HashMap<String, Value>, AppError> {
+    ) -> Result<HashMap<String, Value>, ProviderError> {
         self.call(
             RagOperation::MetadataByFilter,
             json!({ "collection": collection, "filter": filter }),
         )
         .await
+        .map_err(from_app_error)
     }
 
     async fn completeness_report_by_ids(
         &self,
         collection: &str,
         expected_ids: &[String],
-    ) -> Result<CompletenessReport, AppError> {
+    ) -> Result<CompletenessReport, ProviderError> {
         self.call(
             RagOperation::CompletenessReportByIds,
             json!({ "collection": collection, "expected_ids": expected_ids }),
         )
         .await
+        .map_err(from_app_error)
     }
 }

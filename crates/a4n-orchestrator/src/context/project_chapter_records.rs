@@ -1,8 +1,6 @@
-use a4n_core::{
-    error::AppError,
-    models::{chapter::chapter, project::source_snapshot_chapter},
-};
 use a4n_db::DbHandle;
+use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
@@ -221,7 +219,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn validate_chapter_generation_readiness(
+    pub fn validate_chapter_generation_readiness(
         &self,
         _project_id: i64,
         chapter_number: i32,

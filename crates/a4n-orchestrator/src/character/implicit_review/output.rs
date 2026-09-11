@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::json_contract::reject_unknown_fields;
 use a4n_domain::character::ImplicitUpdateDecision;
+use a4n_domain::json_contract::reject_unknown_fields;
 use serde_json::{Map, Value, json};
 
 use crate::structured_llm::ensure_checkpoint_parsed_output_matches;

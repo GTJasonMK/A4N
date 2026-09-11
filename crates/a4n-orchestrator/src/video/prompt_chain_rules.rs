@@ -1,6 +1,6 @@
 //! 视频提示词链身份与合同匹配规则（无 DB、无 Host）。
 
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use serde_json::Value;
 
 use super::prompt_records::expected_contract_version;
@@ -119,9 +119,9 @@ fn video_execution_identity_matches<L: PromptChainFields, R: PromptChainFields>(
         return false;
     };
     if left_identity.get("contract_epoch").and_then(Value::as_u64)
-        != Some(a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH as u64)
+        != Some(a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH as u64)
         || right_identity.get("contract_epoch").and_then(Value::as_u64)
-            != Some(a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH as u64)
+            != Some(a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH as u64)
     {
         return false;
     }

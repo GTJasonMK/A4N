@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::{config::app_config::llm_token_profiles, error::AppError};
+use a4n_domain::llm::llm_token_profiles;
+use a4n_error::AppError;
 use a4n_llm::{
     context::{
         ContextAwareJsonLlmRequestInput, PACK_KIND_IMPLICIT_CLASSIFICATION_CONTEXT,

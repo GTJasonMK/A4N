@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use serde_json::Value;
 
 pub(super) struct VideoUrlPayload<'a> {
@@ -92,13 +92,11 @@ pub(super) fn optional_pointer_str<'a>(
         return Ok(None);
     };
     let text = value.as_str().ok_or_else(|| {
-        AppError::Internal(anyhow::anyhow!(
-            "New API 视频响应字段 {pointer} 必须是字符串"
-        ))
+        AppError::Internal(format!("New API 视频响应字段 {pointer} 必须是字符串"))
     })?;
     let text = text.trim();
     if text.is_empty() {
-        return Err(AppError::Internal(anyhow::anyhow!(
+        return Err(AppError::Internal(format!(
             "New API 视频响应字段 {pointer} 必须是非空字符串"
         )));
     }

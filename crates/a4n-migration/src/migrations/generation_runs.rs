@@ -1,6 +1,6 @@
 //! Persistent generation run provenance.
 
-use a4n_core::models::generation::{generation_run, generation_run_target};
+use a4n_db_models::models::generation::{generation_run, generation_run_target};
 use sea_orm::{DbBackend, EntityName, Schema};
 use sea_orm_migration::prelude::*;
 

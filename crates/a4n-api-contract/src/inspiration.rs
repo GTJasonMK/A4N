@@ -38,6 +38,19 @@ pub struct InspirationMessageSummary {
     pub created_at: String,
 }
 
+/// Host-facing inspiration conversation boundary.
+///
+/// Authorization, history limits, persistence reads, and DTO projection stay
+/// with the inspiration owner; Runtime only routes the typed query.
+#[async_trait::async_trait]
+pub trait InspirationApplicationPort: Send + Sync {
+    async fn history(
+        &self,
+        user_id: i64,
+        input: InspirationHistoryInput,
+    ) -> Result<Vec<InspirationMessageSummary>, a4n_error::AppError>;
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

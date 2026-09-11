@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(super) fn required_positive_id(value: i64, field: &str) -> Result<i64, AppError> {
     if value <= 0 {

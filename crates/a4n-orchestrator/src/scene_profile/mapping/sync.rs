@@ -1,9 +1,9 @@
-use a4n_core::error::AppError;
-use a4n_core::profile_text::required_text;
-use a4n_db::scene_profile::{
-    SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneProfileRecordDraft,
-    SceneSyncRecordInput, SceneTransitionRecordInput,
+use a4n_db::scene_profile::{SceneProfileRecordDraft, SceneSyncRecordInput};
+use a4n_domain::profile_text::required_text;
+use a4n_domain::scene_profile::{
+    SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneTransitionRecordInput,
 };
+use a4n_error::AppError;
 use serde_json::json;
 
 use super::super::contracts::{

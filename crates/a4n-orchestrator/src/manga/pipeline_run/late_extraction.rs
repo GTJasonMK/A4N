@@ -2,7 +2,7 @@ mod items;
 mod synthesis;
 mod visual;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 use self::items::run_item_extraction_stage;

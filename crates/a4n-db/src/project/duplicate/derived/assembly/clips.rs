@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::video_project::assembly_clip;
+use a4n_db_models::models::video_project::assembly_clip;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::project::duplicate::{

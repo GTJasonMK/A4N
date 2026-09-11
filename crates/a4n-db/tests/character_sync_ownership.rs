@@ -1,4 +1,14 @@
-use a4n_core::models::{
+use a4n_db::{
+    character::{
+        CharacterDbError, CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
+        CharacterSyncWriteStepRecordInput, add_profile_attribute,
+        apply_character_sync_persistence_record, create_profile,
+        create_profile_with_generation_run, profile_by_id, update_initial_profile,
+    },
+    generation::RecordCompletedGenerationRunInput,
+    project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
+};
+use a4n_db_models::models::{
     chapter::chapter,
     character::{
         attribute_event::{self, SOURCE_KIND_AI_SYNC},
@@ -6,16 +16,9 @@ use a4n_core::models::{
     },
     generation::generation_run_target,
 };
-use a4n_db::{
-    character::{
-        CharacterAttributeValueChangeInput, CharacterDbError,
-        CharacterSyncAttributeEventRecordInput, CharacterSyncChapterStateRecordInput,
-        CharacterSyncPersistenceInput, CharacterSyncWriteStepRecordInput,
-        InsertBehaviorRecordInput, add_profile_attribute, apply_character_sync_persistence_record,
-        create_profile, create_profile_with_generation_run, profile_by_id, update_initial_profile,
-    },
-    generation::RecordCompletedGenerationRunInput,
-    project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
+use a4n_domain::character::{
+    CharacterAttributeValueChangeInput, CharacterSyncChapterStateRecordInput,
+    InsertBehaviorRecordInput,
 };
 use chrono::Duration;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};

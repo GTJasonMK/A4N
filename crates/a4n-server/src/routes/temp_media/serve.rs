@@ -32,5 +32,5 @@ pub(in crate::routes) async fn serve(
         }
         Some(false) => {}
     }
-    file_response(&path, headers.get(header::RANGE), "临时媒体")
+    file_response(&path, headers.get(header::RANGE)).await
 }

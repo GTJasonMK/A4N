@@ -1,5 +1,5 @@
-use a4n_core::models::project::source_snapshot_chapter;
 use a4n_db::source_sync::SourceSyncGalgameAnchorRecord;
+use a4n_db_models::models::project::source_snapshot_chapter;
 
 use crate::galgame::GalgamePipelinePromptSourceSpan;
 

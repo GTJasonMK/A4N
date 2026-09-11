@@ -3,7 +3,7 @@ use super::ids::{
     remap_video_studio_json_i64_array_field, remap_video_studio_json_i64_field,
     remap_video_studio_required_id,
 };
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
 use serde_json::Value;
 

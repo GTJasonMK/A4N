@@ -1,9 +1,9 @@
-use a4n_core::models::chapter::{chapter_outline, chapter_outline_provenance, part_outline};
 use a4n_db::outline::{
-    ChapterOutlineSyncDraft, PartOutlineSyncDraft, sync_chapter_outline_records_by_number,
-    sync_part_outline_records,
+    PartOutlineSyncDraft, sync_chapter_outline_records_by_number, sync_part_outline_records,
 };
 use a4n_db::project::{CreateProjectRecordInput, create_project_record, part_outlines_by_ids};
+use a4n_db_models::models::chapter::{chapter_outline, chapter_outline_provenance, part_outline};
+use a4n_domain::chapter::ChapterOutlineSyncDraft;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;

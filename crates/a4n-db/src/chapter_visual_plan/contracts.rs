@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_visual_plan;
+use a4n_db_models::models::chapter::chapter_visual_plan;
 use a4n_domain::chapter_visual_plan::{
     ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus, ChapterVisualPlanV2,
 };
@@ -32,6 +32,7 @@ pub struct SaveChapterVisualPlanDraftInput {
     pub author_user_id: i64,
     pub authoring_mode: ChapterVisualPlanAuthoringMode,
     pub expected: Option<ExpectedVisualPlanDraft>,
+    pub expected_source_hash: Option<String>,
     pub plan: ChapterVisualPlanV2,
 }
 

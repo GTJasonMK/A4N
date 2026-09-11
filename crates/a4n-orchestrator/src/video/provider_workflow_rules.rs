@@ -1,6 +1,6 @@
 //! 视频 provider 轮询工作流指纹与 business key 纯规则（无 DB）。
 
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use a4n_domain::video::generated_video_prompt_id;
 use serde_json::{Value, json};
 

@@ -3,10 +3,11 @@ use std::collections::{BTreeSet, HashMap};
 use a4n_api_contract::character::{
     DiscoverCharacterProfilesInput, DiscoverCharacterProfilesResult,
 };
-use a4n_core::{error::AppError, structured_progress::StructuredJsonProgressSpec};
+use a4n_error::AppError;
 use a4n_llm::{
     context::chat_request_with_workflow_run_id, structured_stream::StructuredLlmProgress,
 };
+use a4n_progress::StructuredJsonProgressSpec;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
@@ -199,8 +200,8 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: Option<i32>,
         request: &a4n_llm::provider::ChatRequest,
-        chapters: &[a4n_core::models::chapter::chapter::Model],
-        text_anchors: &[a4n_core::models::project::text_anchor::Model],
+        chapters: &[a4n_db_models::models::chapter::chapter::Model],
+        text_anchors: &[a4n_db_models::models::project::text_anchor::Model],
         progress: Option<CharacterDiscoveryProgress<'_>>,
     ) -> Result<CharacterDiscoveryCallResult, AppError> {
         report_character_discovery_progress(progress, 10, "正在构造角色发现提示词")?;
@@ -360,8 +361,8 @@ pub(super) fn report_character_discovery_progress(
 fn parse_and_validate_character_discovery_content(
     content: &str,
     analyzed_chapters: &BTreeSet<i32>,
-    chapters: &[a4n_core::models::chapter::chapter::Model],
-    text_anchors: &[a4n_core::models::project::text_anchor::Model],
+    chapters: &[a4n_db_models::models::chapter::chapter::Model],
+    text_anchors: &[a4n_db_models::models::project::text_anchor::Model],
 ) -> Result<Vec<Value>, AppError> {
     let discovered = parse_character_discovery_output(content, chapters, text_anchors)
         .map_err(AppError::InvalidArgument)?;

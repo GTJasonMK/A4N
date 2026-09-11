@@ -1,4 +1,4 @@
-use a4n_core::json_contract::is_empty_json_value;
+use a4n_domain::json_contract::is_empty_json_value;
 use serde_json::{Map, Value};
 
 pub(super) fn merge_missing_seed_attributes(target: &mut Value, seed: &Value) -> bool {

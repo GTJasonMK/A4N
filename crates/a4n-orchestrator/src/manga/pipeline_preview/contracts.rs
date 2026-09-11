@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
 
-use a4n_core::source_spans::SourceSpan;
 use a4n_db::shooting_script::ParsedChapterShootingScript;
+use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::OrchestratorContext;

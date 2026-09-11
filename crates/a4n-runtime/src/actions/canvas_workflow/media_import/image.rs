@@ -1,17 +1,15 @@
 use super::super::{ImportCanvasMediaInput, ImportedCanvasMedia};
-use super::canvas_media_asset_summary;
 use crate::{
     AppState,
     actions::{
         app_error_message,
-        image_generation::to_summary,
         image_records::{UploadImageInput, import_image_record},
     },
 };
-use a4n_core::{error::AppError, models::ai::generated_image};
+use a4n_canvas_contract::{CanvasImageImportHostInput, CanvasImageImportHostPort};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
-use a4n_orchestrator::canvas::{CanvasImageImportHostInput, CanvasImageImportHostPort};
-use a4n_orchestrator::media::MEDIA_KIND_IMAGE;
+use a4n_domain::media::MEDIA_KIND_IMAGE;
+use a4n_error::AppError;
 use async_trait::async_trait;
 use serde_json::{Map, json};
 
@@ -25,8 +23,8 @@ pub(super) async fn import_canvas_image(
     }
     let host_port = RuntimeCanvasImageImportHostPort { state, user_id };
     let result = state
-        .orchestrator()
-        .import_canvas_image_validated(
+        .canvas_media_import_application()
+        .import_image(
             &host_port,
             user_id,
             CanvasImageImportHostInput {
@@ -46,9 +44,9 @@ pub(super) async fn import_canvas_image(
         .map_err(app_error_message)?;
     Ok(ImportedCanvasMedia {
         media_kind: MEDIA_KIND_IMAGE.to_string(),
-        image: Some(to_summary(&result.image)),
+        image: Some(result.image),
         video: None,
-        asset: canvas_media_asset_summary(result.asset),
+        asset: result.asset,
     })
 }
 
@@ -62,7 +60,7 @@ impl CanvasImageImportHostPort for RuntimeCanvasImageImportHostPort<'_> {
     async fn import_canvas_image(
         &self,
         input: CanvasImageImportHostInput,
-    ) -> Result<generated_image::Model, AppError> {
+    ) -> Result<a4n_api_contract::image::GeneratedImageSummary, AppError> {
         let file_name = input.file_name;
         import_image_record(
             self.state,

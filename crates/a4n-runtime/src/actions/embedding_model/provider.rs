@@ -2,11 +2,11 @@ use super::LocalEmbeddingConfigInput;
 #[cfg(feature = "local-embedding")]
 use super::host_adapter::required_text;
 #[cfg(feature = "local-embedding")]
-use a4n_core::config::{EmbeddingBackendKind, embedding_provider_capabilities};
-use a4n_core::error::AppError;
+use a4n_domain::embedding::{EmbeddingBackendKind, embedding_provider_capabilities};
 use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::FastEmbedProvider;
+use a4n_error::AppError;
 #[cfg(feature = "local-embedding")]
 use std::path::PathBuf;
 use std::sync::Arc;

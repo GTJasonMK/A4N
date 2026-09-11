@@ -2,7 +2,7 @@ use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::freeform::remap::remap_freeform_canvas_node_refs;
 use crate::project::duplicate::freeform::{FreeformCanvasCopyMaps, FreeformCopyMaps};
 use crate::project::duplicate::shared::remap_derived_required_id;
-use a4n_core::models::canvas::{canvas_edge, canvas_graph, canvas_node};
+use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node};
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{Alias, CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};

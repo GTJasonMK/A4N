@@ -2,11 +2,11 @@ use super::types::{
     ChapterAnchorMode, SceneProfileSyncRequestContext, SceneProfileSyncStableContext,
 };
 use crate::OrchestratorContext;
-use a4n_core::models::asset::object_profile;
-use a4n_core::models::chapter::chapter;
-use a4n_core::models::character::protagonist_profile;
-use a4n_core::models::project::text_anchor;
-use a4n_core::models::scene::scene_profile;
+use a4n_db_models::models::asset::object_profile;
+use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_db_models::models::project::text_anchor;
+use a4n_db_models::models::scene::scene_profile;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

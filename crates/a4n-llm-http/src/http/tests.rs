@@ -2,7 +2,7 @@ use super::errors::*;
 use super::provider::HttpLlmProvider;
 use super::response::*;
 use super::sse::*;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, normalize_extra_body};
 use reqwest::StatusCode;
 use serde_json::{Value, json};

@@ -1,6 +1,6 @@
 use super::shared::chapter_context_label;
-use a4n_core::chapter_analysis::{character_state_snapshots, foreshadowing_entries};
-use a4n_core::models::chapter::chapter;
+use a4n_chapter_analysis::{character_state_snapshots, foreshadowing_entries};
+use a4n_db_models::models::chapter::chapter;
 
 pub(super) fn chapter_analysis_context_line(chapter: &chapter::Model) -> Option<String> {
     let analysis = chapter.analysis_data.as_ref()?;

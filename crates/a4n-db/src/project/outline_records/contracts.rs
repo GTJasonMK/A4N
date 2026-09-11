@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::chapter::{chapter, chapter_outline},
-    source_spans::source_text_hash,
-};
+use a4n_db_models::models::chapter::{chapter, chapter_outline};
+use a4n_domain::source_text_hash;
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 use serde_json::Value;

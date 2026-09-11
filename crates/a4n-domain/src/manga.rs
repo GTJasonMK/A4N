@@ -18,6 +18,19 @@ pub use contracts::{
 };
 pub use validation::MangaPlanValidationError;
 
+/// 整页漫画提示词同步草稿，不包含 LLM generation trace 或持久化状态。
+#[derive(Debug, Clone)]
+pub struct MangaPagePromptSyncDraft {
+    pub chapter_id: i64,
+    pub project_id: i64,
+    pub page_number: i32,
+    pub image_prompt: String,
+    pub dialogue_text: Option<String>,
+    pub characters_in_frame: Option<Value>,
+    pub layout: Option<Value>,
+    pub status: String,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MangaReferenceAssetKind {

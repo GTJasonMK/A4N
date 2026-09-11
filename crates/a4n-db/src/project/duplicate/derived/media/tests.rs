@@ -1,4 +1,4 @@
-use a4n_core::models::media::media_asset;
+use a4n_db_models::models::media::media_asset;
 use chrono::Utc;
 
 use crate::project::duplicate::ProjectDuplicateError;

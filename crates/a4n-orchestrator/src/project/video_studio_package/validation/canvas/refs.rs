@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::models::canvas::canvas_node;
+use a4n_db_models::models::canvas::canvas_node;
 use a4n_domain::CanvasNodeRefKind;
 
 pub(in crate::project::video_studio_package::validation) struct CanvasNodeRefIds<'a> {

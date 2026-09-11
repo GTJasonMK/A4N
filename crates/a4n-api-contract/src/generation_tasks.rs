@@ -61,6 +61,57 @@ pub struct GenerationTaskHandle {
     pub status: GenerationTaskStatus,
 }
 
+/// Stable result returned when an application owner reserves a generation task.
+///
+/// Queue/session internals remain private to the owner; Runtime only needs the
+/// handle and whether it must dispatch a worker for this request.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerationTaskStart {
+    pub handle: GenerationTaskHandle,
+    pub should_run: bool,
+}
+
+/// Stable failure returned by a generation-specific start port.
+///
+/// The owner maps persistence, queue, and authorization details to a public
+/// code/message pair instead of exposing its internal error graph.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct GenerationTaskStartError {
+    #[schemars(length(min = 1, max = 128))]
+    code: String,
+    #[schemars(length(min = 1, max = 4096))]
+    message: String,
+    pub retryable: bool,
+}
+
+impl GenerationTaskStartError {
+    pub fn new(code: impl Into<String>, message: impl Into<String>, retryable: bool) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            retryable,
+        }
+    }
+
+    pub fn code(&self) -> &str {
+        &self.code
+    }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+}
+
+impl std::fmt::Display for GenerationTaskStartError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for GenerationTaskStartError {}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct GenerationSubscriptionHandle {

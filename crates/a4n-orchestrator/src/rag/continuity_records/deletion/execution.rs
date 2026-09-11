@@ -1,7 +1,8 @@
+use a4n_rag_core::RagSyncError;
+
 use crate::{
     OrchestratorContext,
     character::{CharacterProfileDeletionSummary, CharacterTimelineDeletionSummary},
-    rag::RagSyncError,
 };
 
 use super::{

@@ -1,7 +1,7 @@
 use super::{
     CharacterPortraitRecordError, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::{character_portrait, protagonist_profile},
     project::novel_blueprint,
 };

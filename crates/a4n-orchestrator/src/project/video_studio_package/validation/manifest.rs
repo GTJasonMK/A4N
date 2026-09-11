@@ -12,11 +12,11 @@ use self::canvas_records::validate_canvas_records;
 use self::generation::validate_generation_records;
 use self::ids::validate_and_collect_manifest_ids;
 use self::payload::validate_payload_entries;
-use a4n_core::state::validator::parse_project_status;
+use a4n_domain::project::{ProjectStatus, required_text};
 
 use crate::project::video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
 use crate::project::{
-    ImportMediaPayload, VideoStudioProjectPackage, normalize_project_type, required_text,
+    ImportMediaPayload, VideoStudioProjectPackage, normalize_project_type,
     validate_freeform_video_project,
 };
 
@@ -33,7 +33,7 @@ pub(super) fn validate_package_manifest(
     required_text(&package.project.title, "视频画布项目包项目标题")?;
     validate_freeform_video_project(&package.project, "视频画布项目包")?;
     normalize_project_type(&package.project.project_type).map_err(|err| err.to_string())?;
-    parse_project_status(&package.project.status).map_err(|err| err.to_string())?;
+    ProjectStatus::parse_storage(&package.project.status).map_err(|err| err.to_string())?;
 
     let ids = validate_and_collect_manifest_ids(package)?;
     validate_canvas_records(package, &ids)?;

@@ -1,4 +1,4 @@
-use a4n_core::models::project::{novel_project, project_source_snapshot};
+use a4n_db_models::models::project::{novel_project, project_source_snapshot};
 use sea_orm::{DbErr, FromQueryResult};
 
 #[derive(Debug, Clone, FromQueryResult)]

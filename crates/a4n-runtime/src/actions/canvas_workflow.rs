@@ -4,7 +4,6 @@ use a4n_api_contract::canvas::{
     SaveCanvasGraphInput, SaveCanvasTextAssetInput,
 };
 
-mod contracts;
 mod execution;
 mod media_import;
 mod media_nodes;
@@ -16,8 +15,10 @@ mod text_nodes;
 
 pub(crate) use execution::resume_canvas_graph_run;
 pub use execution::{run_canvas_graph, run_canvas_node};
+pub(crate) use execution::{run_canvas_graph_with_origin, run_canvas_node_with_origin};
 pub use media_import::import_canvas_media;
 pub use preview::preview_canvas_node_request;
 pub use records_api::{
-    get_canvas_graph, get_canvas_node_contracts, save_canvas_graph, save_canvas_text_asset,
+    edit_canvas_graph, get_canvas_graph, get_canvas_node_contracts, read_canvas_graph,
+    save_canvas_graph, save_canvas_text_asset,
 };

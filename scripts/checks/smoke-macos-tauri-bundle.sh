@@ -62,10 +62,21 @@ host_pid=""
 local_cli=""
 local_config=""
 local_server=""
+missing_sidecar_path=""
+missing_sidecar_backup=""
+missing_sidecar_moved=0
+
+restore_missing_sidecar() {
+    if [[ "$missing_sidecar_moved" -eq 1 ]]; then
+        mv "$missing_sidecar_backup" "$missing_sidecar_path"
+        missing_sidecar_moved=0
+    fi
+}
 
 finish() {
     local status=$?
     trap - EXIT
+    restore_missing_sidecar
     if [[ -n "$host_pid" ]] && kill -0 "$host_pid" 2>/dev/null; then
         kill -TERM "$host_pid" 2>/dev/null || true
         wait "$host_pid" 2>/dev/null || true
@@ -150,6 +161,24 @@ export A4N_TEMP_DIR="$tmp_root/tmp"
 export A4N_LOG_DIR="$tmp_root/logs"
 export A4N_MANAGED_SIDECARS=1
 unset A4N_ONNXRUNTIME_ROOT ORT_DYLIB_PATH ORT_LIB_PATH DYLD_LIBRARY_PATH
+
+missing_sidecar_path="$macos_dir/${packages[0]}"
+missing_sidecar_backup="$missing_sidecar_path.missing"
+[[ ! -e "$missing_sidecar_backup" ]] || {
+    printf 'Tauri bundle contains unexpected sidecar test path: %s\n' "$missing_sidecar_backup" >&2
+    exit 1
+}
+mv "$missing_sidecar_path" "$missing_sidecar_backup"
+missing_sidecar_moved=1
+set +e
+"$host" >/dev/null 2>&1
+missing_host_status=$?
+set -e
+restore_missing_sidecar
+[[ "$missing_host_status" -ne 0 ]] || {
+    printf 'Tauri bundle accepted a missing declared sidecar: %s\n' "${packages[0]}" >&2
+    exit 1
+}
 
 "$host" >"$launcher_log" 2>&1 &
 host_pid=$!

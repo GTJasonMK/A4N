@@ -1,11 +1,11 @@
-use a4n_core::error::AppError;
+use a4n_api_contract::video::VideoPromptDownstreamCleanupPort;
 use a4n_domain::DownstreamConflictStrategy;
-use a4n_orchestrator::video::VideoPromptDownstreamCleanupPort;
+use a4n_error::AppError;
 use async_trait::async_trait;
 
 use crate::{
     AppState,
-    actions::{image_records, task_records::workflow_run_summary, video_records},
+    actions::{image_records, video_records},
 };
 
 pub use a4n_api_contract::video::{
@@ -13,11 +13,11 @@ pub use a4n_api_contract::video::{
     GetVideoTimelineInput, MoveInsertedSegmentInput, VideoSegmentPlanDraftSummary,
     VideoTimelineSummary,
 };
-pub use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 pub use a4n_orchestrator::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
 };
+pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
 struct RuntimeVideoPromptCleanup<'a> {
     state: &'a AppState,
@@ -58,8 +58,8 @@ pub async fn list_chapter_video_prompts(
     chapter_id: i64,
 ) -> Result<Vec<ChapterVideoPromptSummary>, String> {
     state
-        .orchestrator()
-        .list_chapter_video_prompts_validated(user_id, project_id, chapter_id)
+        .video_prompt_read_application()
+        .list_chapter(user_id, project_id, chapter_id)
         .await
         .map_err(error_message)
 }
@@ -70,7 +70,7 @@ pub async fn get_chapter_video_timeline(
     input: GetVideoTimelineInput,
 ) -> Result<VideoTimelineSummary, String> {
     state
-        .orchestrator()
+        .video_prompt_timeline_application()
         .get_video_timeline(user_id, input)
         .await
         .map_err(error_message)
@@ -82,7 +82,7 @@ pub async fn commit_inserted_segment_draft(
     input: CommitInsertedSegmentDraftInput,
 ) -> Result<VideoTimelineSummary, String> {
     state
-        .orchestrator()
+        .video_prompt_timeline_application()
         .commit_inserted_segment_draft(user_id, input)
         .await
         .map_err(error_message)
@@ -94,7 +94,7 @@ pub async fn move_inserted_segment(
     input: MoveInsertedSegmentInput,
 ) -> Result<VideoTimelineSummary, String> {
     state
-        .orchestrator()
+        .video_prompt_timeline_application()
         .move_video_timeline_item(user_id, input)
         .await
         .map_err(error_message)
@@ -106,7 +106,7 @@ pub async fn delete_inserted_segment(
     input: DeleteInsertedSegmentInput,
 ) -> Result<VideoTimelineSummary, String> {
     state
-        .orchestrator()
+        .video_prompt_timeline_application()
         .delete_video_timeline_item(user_id, input)
         .await
         .map_err(error_message)
@@ -118,12 +118,12 @@ pub async fn load_video_segment_plan_draft(
     input: LoadVideoSegmentPlanDraftInput,
 ) -> Result<VideoSegmentPlanDraftSummary, String> {
     let draft = state
-        .orchestrator()
-        .load_video_segment_plan_draft_validated(user_id, input)
+        .video_prompt_draft_application()
+        .load_video_segment_plan_draft(user_id, input)
         .await
         .map_err(error_message)?;
     Ok(VideoSegmentPlanDraftSummary {
-        run: workflow_run_summary(draft.run),
+        run: draft.run,
         segments: draft.segments,
         recipes: draft.recipes,
         completed_shot_count: draft.completed_shot_count,
@@ -137,8 +137,8 @@ pub async fn update_video_segment_plan_draft_recipe(
     input: UpdateVideoSegmentPlanDraftRecipeInput,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .update_video_segment_plan_draft_recipe_validated(user_id, input)
+        .video_prompt_draft_application()
+        .update_video_segment_plan_draft_recipe(user_id, input)
         .await
         .map_err(error_message)
 }
@@ -150,8 +150,8 @@ pub async fn update_chapter_video_segment_recipe(
     recipe: VideoSegmentExecutionRecipeV1,
 ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, String> {
     state
-        .orchestrator()
-        .update_chapter_video_segment_recipe_validated(user_id, prompt_id, recipe)
+        .video_prompt_mutation_application()
+        .update_chapter_video_segment_recipe(user_id, prompt_id, recipe)
         .await
         .map_err(error_message)
 }
@@ -163,8 +163,8 @@ pub async fn update_chapter_video_prompt(
     input: UpdateChapterVideoPromptInput,
 ) -> Result<ChapterVideoPromptSummary, String> {
     state
-        .orchestrator()
-        .update_chapter_video_prompt_validated(
+        .video_prompt_mutation_application()
+        .update_chapter_video_prompt(
             user_id,
             prompt_id,
             input,
@@ -181,8 +181,8 @@ pub async fn delete_chapter_video_prompt(
     downstream_strategy: DownstreamConflictStrategy,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .delete_chapter_video_prompt_validated(
+        .video_prompt_mutation_application()
+        .delete_chapter_video_prompt(
             user_id,
             prompt_id,
             downstream_strategy,
@@ -200,8 +200,8 @@ pub async fn optimize_chapter_video_prompt(
 ) -> Result<ChapterVideoPromptSummary, String> {
     let prompt_renderer = state;
     state
-        .orchestrator()
-        .optimize_chapter_video_prompt_validated(
+        .video_prompt_mutation_application()
+        .optimize_chapter_video_prompt(
             user_id,
             prompt_id,
             input,
@@ -218,10 +218,10 @@ pub(crate) async fn resolve_project_chapter_video_source(
     chapter_id: i64,
     operation: &str,
     writable: bool,
-) -> Result<a4n_orchestrator::video::ProjectChapterVideoSource, String> {
+) -> Result<(), String> {
     state
-        .orchestrator()
-        .project_chapter_video_source(project_id, chapter_id, operation, writable)
+        .video_prompt_read_application()
+        .validate_project_chapter_source(project_id, chapter_id, operation, writable)
         .await
         .map_err(error_message)
 }

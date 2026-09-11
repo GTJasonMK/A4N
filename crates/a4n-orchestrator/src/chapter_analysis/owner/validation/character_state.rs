@@ -1,4 +1,5 @@
-use a4n_core::{chapter_analysis::CHAPTER_ANALYSIS_STAGE_CHARACTER_STATE, error::AppError};
+use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_CHARACTER_STATE;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::{super::materialize::analysis_materialize_error, common::reject_root_unknown_fields};

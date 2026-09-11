@@ -1,6 +1,6 @@
 use super::projections::persisted_task_info_from_row;
 use crate::workflow::{PersistedTaskInfo, WorkflowReadError, validate_positive_i64};
-use a4n_core::models::task::task_queue;
+use a4n_db_models::models::task::task_queue;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn persisted_task_history(

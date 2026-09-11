@@ -1,10 +1,10 @@
-use a4n_core::{error::AppError, models::character::protagonist_profile};
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_error::AppError;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use std::collections::HashMap;
 
-use super::super::{
-    ChapterDerivedCleanupArtifacts, chapter_cleanup_profile_state_should_restore_base,
-};
+use super::super::chapter_cleanup_profile_state_should_restore_base;
 
 pub(crate) async fn cleanup_character_profile_timeline_for_chapter_in<C>(
     db: &C,
@@ -26,9 +26,9 @@ where
         .iter()
         .filter(|profile| {
             profile.last_synced_chapter >= chapter_number
-                && !profile
+                && profile
                     .first_seen_chapter()
-                    .is_some_and(|first_seen| first_seen >= chapter_number)
+                    .is_none_or(|first_seen| first_seen < chapter_number)
                 && !chapter_cleanup_profile_state_should_restore_base(profile, restored_chapter)
         })
         .map(|profile| profile.id)
@@ -54,7 +54,14 @@ where
             let deleted = a4n_db::character::delete_profile_cascade_transaction(db, profile.id)
                 .await
                 .map_err(crate::character::character_profile_delete_error)?;
-            artifacts.extend_deleted_profile(deleted);
+            artifacts.stale_profile_ids.push(deleted.profile_id);
+            artifacts
+                .stale_character_state_ids
+                .extend(deleted.state_index_ids);
+            artifacts
+                .stale_attribute_event_ids
+                .extend(deleted.attribute_event_ids);
+            artifacts.media_file_paths.extend(deleted.portrait_paths);
             continue;
         }
 
@@ -73,7 +80,12 @@ where
         )
         .await
         .map_err(crate::character::character_db_error)?;
-        artifacts.extend_character_timeline(deleted);
+        artifacts
+            .stale_character_state_ids
+            .extend(deleted.state_index_ids);
+        artifacts
+            .stale_attribute_event_ids
+            .extend(deleted.attribute_event_ids);
 
         if should_rewind {
             let restored_state = profile_state_at_or_before_chapter(
@@ -110,7 +122,7 @@ where
 fn profile_state_at_or_before_chapter(
     profile: &protagonist_profile::Model,
     chapter_number: i32,
-    snapshot: Option<&a4n_core::models::character::snapshot_reference::Model>,
+    snapshot: Option<&a4n_db_models::models::character::snapshot_reference::Model>,
 ) -> Result<serde_json::Value, AppError> {
     if chapter_cleanup_profile_state_should_restore_base(profile, chapter_number) {
         return Ok(profile.base_attributes.clone());

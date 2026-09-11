@@ -1,7 +1,9 @@
-use a4n_core::{models::project::blueprint_relationship, rag::RagDataType};
+use a4n_db_models::models::project::blueprint_relationship;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
 
-use super::super::{RagRecord, rag_chunk_id};
+use super::super::rag_chunk_id;
 
 fn relationship_rag_text(relationship: &blueprint_relationship::Model) -> Result<String, String> {
     let character_a = required_rag_text(

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::super::MangaPipelineStage;
 use super::super::super::pipeline_json::parse_manga_page_plan;

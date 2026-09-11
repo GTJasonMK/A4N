@@ -45,6 +45,7 @@ describe("locale resolution", () => {
     } as unknown as Storage;
     const previousNavigator = globalThis.navigator;
     const previousStorage = globalThis.localStorage;
+    const previousWindow = globalThis.window;
     Object.defineProperty(globalThis, "navigator", {
       configurable: true,
       value: { languages: ["en-US"], language: "en-US" },
@@ -52,6 +53,10 @@ describe("locale resolution", () => {
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: localStorage,
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { localStorage, sessionStorage: localStorage },
     });
     clearLocalePreference();
     expect(resolveInitialLocale()).toBe("en-US");
@@ -65,6 +70,10 @@ describe("locale resolution", () => {
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,
       value: previousStorage,
+    });
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: previousWindow,
     });
   });
 });

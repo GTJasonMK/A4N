@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Map, Value};
 
-pub(in crate::manga::pipeline_prompt::validation) use a4n_core::source_spans::SourceSpanIndex;
+pub(in crate::manga::pipeline_prompt::validation) use a4n_domain::source_spans::SourceSpanIndex;
 
 use super::fields::{reject_manga_unknown_fields, required_manga_enum, required_manga_string};
 

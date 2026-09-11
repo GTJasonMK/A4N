@@ -1,4 +1,4 @@
-use a4n_core::models::project::text_anchor;
+use a4n_db_models::models::project::text_anchor;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use super::project::ensure_text_root_project;

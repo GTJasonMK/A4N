@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::decision::reject_unknown_action_argument_fields;

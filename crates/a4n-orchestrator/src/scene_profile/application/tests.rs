@@ -5,10 +5,10 @@ use super::types::{
     SCENE_OCCURRENCE_PROMPT, SCENE_PROFILE_CANDIDATES_PROMPT, SCENE_TRANSITION_REFERENCE_RULE,
     SceneProfileSyncRequestContext,
 };
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter;
-use a4n_core::models::project::text_anchor;
-use a4n_core::source_spans::source_spans_for_chapters;
+use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::project::text_anchor;
+use a4n_domain::source_spans::source_spans_for_chapters;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use serde_json::{Value, json};

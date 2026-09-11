@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Measurement targets are isolated; keep optional maintenance out of their timings.
+export CARGO_ARTIFACTS_DISABLED=1
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/../lib/common.sh"
+# shellcheck source=scripts/lib/build-cache.sh
+source "$SCRIPT_DIR/../lib/build-cache.sh"
 cd "$PROJECT_ROOT"
 
 RUNS=3
@@ -112,18 +117,22 @@ SAMPLES="$RUN_DIR/samples.tsv"
 TEMP_ROOT="$ARTIFACT_DIR/tmp"
 mkdir -p "$(dirname "$OUTPUT")" "$LOG_DIR" "$DEPENDENCY_DIR" "$TIMINGS_DIR" "$TEMP_ROOT"
 
-COLD_TARGET_DIR="$(mktemp -d "$TEMP_ROOT/cold.XXXXXX")"
+COLD_TARGET_DIR=""
 WARM_TARGET_DIR=""
 cleanup_targets() {
-    local directory
+    local directory status=0
     for directory in "$COLD_TARGET_DIR" "$WARM_TARGET_DIR"; do
         if [[ -n "$directory" && "$directory" == "$TEMP_ROOT/"* ]]; then
-            rm -rf -- "$directory"
+            clean_build_cache "$directory" "$PROJECT_ROOT/Cargo.toml" || status=1
         fi
     done
+    return "$status"
 }
-trap cleanup_targets EXIT
-WARM_TARGET_DIR="$(mktemp -d "$TEMP_ROOT/warm.XXXXXX")"
+trap 'exit_status=$?; trap - EXIT; cleanup_targets || exit_status=$?; exit "$exit_status"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+COLD_TARGET_DIR="$(make_build_cache "$TEMP_ROOT/cold.XXXXXX")"
+WARM_TARGET_DIR="$(make_build_cache "$TEMP_ROOT/warm.XXXXXX")"
 
 : > "$OUTPUT"
 printf '# method\t%s\n' "$METHOD" >> "$OUTPUT"
@@ -174,7 +183,7 @@ run_cargo_timed() {
     shift 2
     local duration
     rm -rf -- "$target_dir/cargo-timings"
-    duration="$(CARGO_TARGET_DIR="$target_dir" run_timed "$label" "$@")" || return 1
+    duration="$(CARGO_TARGET_DIR="$target_dir" CARGO_BUILD_BUILD_DIR="$target_dir" run_timed "$label" "$@")" || return 1
     capture_cargo_timings "$label" "$target_dir"
     printf '%s\n' "$duration"
 }
@@ -185,7 +194,7 @@ reset_warm_package() {
     local log="$LOG_DIR/${label}-reset.log"
     printf 'command: cargo clean -p %q\n' "$package" > "$log"
     printf 'cargo_target_dir: %s\n' "$WARM_TARGET_DIR" >> "$log"
-    CARGO_TARGET_DIR="$WARM_TARGET_DIR" cargo clean -p "$package" >>"$log" 2>&1 || {
+    CARGO_TARGET_DIR="$WARM_TARGET_DIR" CARGO_BUILD_BUILD_DIR="$WARM_TARGET_DIR" cargo clean -p "$package" >>"$log" 2>&1 || {
         cat "$log" >&2
         echo "无法重置 warm package artifact: $package" >&2
         return 1

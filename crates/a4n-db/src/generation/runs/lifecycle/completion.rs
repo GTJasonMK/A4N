@@ -5,7 +5,7 @@ use crate::generation::{
     RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
     RecordStartedGenerationRunInput,
 };
-use a4n_core::models::generation::generation_run;
+use a4n_db_models::models::generation::generation_run;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction, TransactionTrait};
 
 pub async fn record_completed_generation_run(

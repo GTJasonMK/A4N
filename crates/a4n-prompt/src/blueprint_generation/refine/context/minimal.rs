@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Map, Value, json};
 
 pub(super) fn minimal_blueprint_refine_context(

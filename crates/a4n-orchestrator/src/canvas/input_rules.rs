@@ -1,7 +1,7 @@
 //! 画布节点输入：边序、config 读取、节点种类纯规则（无 DB、无 Host）。
 
-use a4n_core::models::canvas::{canvas_edge, canvas_node};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db_models::models::canvas::{canvas_edge, canvas_node};
 use serde_json::Value;
 
 /// 指向 `node_id` 的入边。

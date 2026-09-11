@@ -3,10 +3,8 @@ use super::identity::{
     blueprint_relationship_identity_from_keys, blueprint_relationship_matches,
     blueprint_relationship_model_identity, normalized_blueprint_identity,
 };
-use a4n_core::{
-    blueprint::BLUEPRINT_RELATIONSHIP_TYPES, json_contract::is_empty_json_value,
-    models::project::blueprint_relationship,
-};
+use a4n_db_models::models::project::blueprint_relationship;
+use a4n_domain::{json_contract::is_empty_json_value, project::BLUEPRINT_RELATIONSHIP_TYPES};
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};

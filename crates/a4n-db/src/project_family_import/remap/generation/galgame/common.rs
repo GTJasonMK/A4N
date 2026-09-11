@@ -1,6 +1,6 @@
 use super::super::super::json_ids::remap_object_ids;
 use crate::project_family_import::{ProjectFamilyImportError, map_required};
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use serde_json::Value;
 use std::collections::HashMap;
 

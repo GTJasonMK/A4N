@@ -1,6 +1,6 @@
 use super::super::{ProjectCleanupDbError, ProjectOptimizationCleanupResult};
 use crate::project::validate_positive_i64;
-use a4n_core::models::ai::{
+use a4n_db_models::models::ai::{
     optimization_patch, optimization_patch_set, optimization_session, optimization_session_message,
     optimization_turn, optimization_turn_event,
 };

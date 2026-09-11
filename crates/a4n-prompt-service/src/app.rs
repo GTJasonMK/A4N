@@ -3,7 +3,6 @@ use crate::handlers::{
     remove_project_override, render_prompt, render_prompt_ab, reset_prompt, set_project_override,
     update_many_prompts, update_prompt, validate_prompt, version_diff, version_history,
 };
-use a4n_core::config::env::optional_non_empty_env_path;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use a4n_service_protocol::PROMPT_SERVICE_PROMPTS_DIR_ENV;
 use axum::{
@@ -88,6 +87,16 @@ fn init_tracing() -> anyhow::Result<()> {
         "A4N_PROMPT_SERVICE_LOG",
         "a4n_prompt_service=info,tower_http=warn",
     )
+}
+
+fn optional_non_empty_env_path(key: &str) -> anyhow::Result<Option<PathBuf>> {
+    let Some(value) = std::env::var_os(key) else {
+        return Ok(None);
+    };
+    if value.to_string_lossy().trim().is_empty() {
+        return Err(anyhow::anyhow!("{key} 不能为空"));
+    }
+    Ok(Some(PathBuf::from(value)))
 }
 
 fn prompts_dir() -> anyhow::Result<PathBuf> {

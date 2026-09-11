@@ -1,6 +1,6 @@
 use super::super::{ProjectCleanupDbError, ProjectConversationCleanupResult};
 use crate::project::validate_positive_i64;
-use a4n_core::models::user::{conversation, message};
+use a4n_db_models::models::user::{conversation, message};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn delete_project_conversations<C>(

@@ -1,5 +1,5 @@
-use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::chapter::chapter::{self, STATUS_DRAFT};
+use a4n_db_models::models::project::novel_project;
 use sea_orm::*;
 
 use crate::project::{PROJECT_KIND_TEXT, SOURCE_SYNC_CURRENT};

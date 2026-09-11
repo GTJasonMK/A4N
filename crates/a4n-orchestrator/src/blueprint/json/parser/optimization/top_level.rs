@@ -1,7 +1,5 @@
-use a4n_core::{
-    blueprint::{BLUEPRINT_REFINEMENT_FIELDS, BLUEPRINT_REFINEMENT_PROMPT},
-    error::AppError,
-};
+use a4n_domain::project::{BLUEPRINT_REFINEMENT_FIELDS, BLUEPRINT_REFINEMENT_PROMPT};
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::super::fields::reject_unknown_keys;

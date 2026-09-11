@@ -1,11 +1,11 @@
-use a4n_core::config::app_config::llm_token_profiles;
-use a4n_core::error::AppError;
+use a4n_domain::llm::llm_token_profiles;
+use a4n_error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::json;
 
 use super::context::optimization_context_manifest;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm::context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft, context_aware_system_user_request,
@@ -50,7 +50,14 @@ pub(in crate::optimize) fn build_content_optimization_patch_request(
 pub(in crate::optimize) fn optimize_llm_call_input_fingerprint_json(
     request: &ChatRequest,
 ) -> Result<serde_json::Value, AppError> {
-    context_aware_chat_request_trace_json(request)
+    let mut value = context_aware_chat_request_trace_json(request)?;
+    if let Some(trace) = value
+        .get_mut("trace_context")
+        .and_then(serde_json::Value::as_object_mut)
+    {
+        trace.remove("input_fingerprint_sha256");
+    }
+    Ok(value)
 }
 
 fn build_content_optimization_patch_context_manifest(

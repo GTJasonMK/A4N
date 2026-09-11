@@ -1,8 +1,8 @@
-use a4n_core::{
-    blueprint::{BLUEPRINT_RAW_JSON_STREAM_ID, blueprint_stage_call_key},
-    error::AppError,
-};
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
+use a4n_domain::project::{
+    BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_RAW_JSON_STREAM_ID, blueprint_stage_call_key,
+};
+use a4n_error::AppError;
 use a4n_prompt::blueprint_generation::parse_blueprint_stage_json_object;
 use a4n_service_protocol::GenerationUsage;
 
@@ -74,7 +74,7 @@ pub(super) async fn execute_blueprint_stage_call(
                 phase_kind: ProgressPhaseKind::Parse,
                 message: spec.restored_message.to_string(),
                 current: Some(u64::from(spec.progress_current)),
-                total: Some(a4n_core::blueprint::BLUEPRINT_GENERATE_PROGRESS_TOTAL as u64),
+                total: Some(BLUEPRINT_GENERATE_PROGRESS_TOTAL as u64),
                 unit_label: None,
                 item_key: None,
                 item_index: None,

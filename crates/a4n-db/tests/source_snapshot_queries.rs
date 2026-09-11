@@ -1,10 +1,10 @@
-use a4n_core::models::{
-    chapter::chapter,
-    project::{project_source_snapshot, source_snapshot_chapter},
-};
 use a4n_db::{
     project::source_snapshot_chapter_content_by_snapshot_and_source,
     project::{CreateProjectRecordInput, create_project_record},
+};
+use a4n_db_models::models::{
+    chapter::chapter,
+    project::{project_source_snapshot, source_snapshot_chapter},
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};

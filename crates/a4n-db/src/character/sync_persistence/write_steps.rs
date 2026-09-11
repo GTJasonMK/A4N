@@ -4,10 +4,8 @@ use super::{
 };
 use crate::character::CharacterDbError;
 use crate::character::attributes::{
-    AppliedCharacterImplicitDecisionAction, CharacterAttributeDeletionExecutionInput,
-    CharacterAttributeDeletionRequestInput, CharacterImplicitReviewDecisionRecordInput,
-    add_profile_attribute_with_profile_from_source_in, apply_attribute_to_state,
-    apply_implicit_review_decision_record_with_profile_from_source_in,
+    AppliedCharacterImplicitDecisionAction, add_profile_attribute_with_profile_from_source_in,
+    apply_attribute_to_state, apply_implicit_review_decision_record_with_profile_from_source_in,
     execute_ready_attribute_deletion_with_profile_from_source_in,
     modify_profile_attribute_with_profile_from_source_in,
     request_attribute_deletion_with_profile_in,
@@ -15,9 +13,12 @@ use crate::character::attributes::{
 use crate::character::behavior::record_behavior_in;
 use crate::character::profile_current_state_fields;
 use crate::character::timeline::CharacterAttributeOwnership;
-use a4n_core::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
-use a4n_core::models::character::{attribute_event, protagonist_profile};
-use a4n_domain::character::CHARACTER_DELETION_THRESHOLD;
+use a4n_db_models::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
+use a4n_db_models::models::character::{attribute_event, protagonist_profile};
+use a4n_domain::character::{
+    CHARACTER_DELETION_THRESHOLD, CharacterAttributeDeletionExecutionInput,
+    CharacterAttributeDeletionRequestInput, CharacterImplicitReviewDecisionRecordInput,
+};
 use sea_orm::ConnectionTrait;
 
 pub(super) async fn apply_character_sync_write_steps_in<C>(

@@ -1,5 +1,9 @@
 use std::collections::BTreeSet;
 
+use a4n_canvas_contract::{
+    CanvasGraphExecutionHostPort, CanvasGraphResumePreparationInput,
+    CanvasGraphRunPreparationInput, CanvasSingleNodeRunPreparationInput, PreparedCanvasGraphRun,
+};
 use a4n_db::canvas::{CanvasGraphRecordDocument, validate_canvas_record_document_edge_contract};
 use chrono::Utc;
 use serde_json::{Value, json};
@@ -10,16 +14,9 @@ use crate::{
     workflow::WORKFLOW_STATUS_COMPLETED,
 };
 
-use super::{
-    contracts::{
-        CanvasGraphExecutionHostPort, CanvasGraphResumePreparationInput,
-        CanvasGraphRunPreparationInput, CanvasSingleNodeRunPreparationInput,
-        PreparedCanvasGraphRun,
-    },
-    planning::{
-        is_runnable_canvas_node, runnable_canvas_node_ids, unsupported_canvas_node_execution_error,
-        validate_canvas_output_target,
-    },
+use super::planning::{
+    is_runnable_canvas_node, runnable_canvas_node_ids, unsupported_canvas_node_execution_error,
+    validate_canvas_output_target,
 };
 
 impl OrchestratorContext {

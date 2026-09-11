@@ -1,4 +1,4 @@
-use a4n_core::config::env::optional_non_empty_env_string;
+use a4n_config::optional_non_empty_env_string;
 use std::sync::OnceLock;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::Registry;

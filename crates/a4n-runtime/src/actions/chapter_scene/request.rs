@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use a4n_api_contract::chapter::GenerateChapterSceneInput;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn preview_chapter_scene_request(
     state: &AppState,
@@ -15,12 +15,8 @@ pub async fn preview_chapter_scene_request(
 ) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let preview = state
-        .orchestrator()
-        .prepare_chapter_scene_request_preview_for_user_validated(
-            user_id,
-            input.clone(),
-            prompt_renderer,
-        )
+        .chapter_scene_generation_application()
+        .preview_for_user(user_id, input.clone(), prompt_renderer)
         .await?;
     let step = chat_request_step_for_state(
         state,

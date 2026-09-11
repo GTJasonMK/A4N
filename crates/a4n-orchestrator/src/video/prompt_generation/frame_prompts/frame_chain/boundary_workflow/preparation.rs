@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::prompt_generation::frame_prompts::{
     prompt_row_draft, report_video_prompt_progress, validate_frame_prompts,

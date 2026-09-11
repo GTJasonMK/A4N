@@ -1,6 +1,6 @@
 use crate::video::prompt_json::validation::API_PROMPT_UPLOAD_STATUS_TERMS;
-use a4n_core::error::AppError;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_error::AppError;
 
 pub(in crate::video) fn validate_prompt_has_no_upload_status(
     value: &str,

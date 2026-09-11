@@ -6,7 +6,7 @@ mod types;
 pub use artifacts::project_status_artifacts;
 pub use history::{insert_project_status_history, project_status_history};
 pub use mutations::{update_project_status_record, update_project_status_record_in};
-pub use types::{ProjectStatusHistoryInput, ProjectStatusReadError, ProjectStatusWriteError};
+pub use types::{ProjectStatusReadError, ProjectStatusWriteError};
 
 pub(crate) use history::delete_project_status_history;
 

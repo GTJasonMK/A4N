@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::super::{
     FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT, PromptWorkflowMode, available_video_image_ids,

@@ -1,17 +1,15 @@
+use a4n_error::AppError;
 use std::collections::HashMap;
 
 use a4n_api_contract::video::VideoInsertedSegmentGenerationOptions;
-use a4n_core::{
-    error::AppError,
-    models::chapter::chapter_video_prompt,
-    prompt_language::PromptOutputLanguage,
-    source_spans::source_text_hash,
-    video_execution::{VideoSegmentGuidanceModeV1, VideoTimelineGap, timeline_gap_index},
-};
-use a4n_domain::VideoAspectRatio;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::image::validate_reference_image_id_list;
+use a4n_domain::video_timeline::{VideoTimelineGap, timeline_gap_index};
+use a4n_domain::{VideoAspectRatio, prompt_language::PromptOutputLanguage, source_text_hash};
 use a4n_llm::context::LlmContextLedger;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::GenerationResultRef;
+use a4n_video_contract::VideoSegmentGuidanceModeV1;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
@@ -81,7 +79,7 @@ pub(crate) fn validate_video_inserted_segment_generation_options(
             VideoAspectRatio::supported_values()
         )));
     }
-    crate::video::ensure_reference_image_ids_valid(&options.reference_image_ids)
+    validate_reference_image_id_list(&options.reference_image_ids)
         .map_err(AppError::InvalidArgument)?;
     Ok(())
 }

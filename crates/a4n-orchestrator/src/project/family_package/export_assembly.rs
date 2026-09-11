@@ -2,8 +2,8 @@
 
 use std::collections::HashSet;
 
-use a4n_core::models::project::{novel_project, project_source_snapshot};
 use a4n_db::project::ProjectFamilyExportRows;
+use a4n_db_models::models::project::{novel_project, project_source_snapshot};
 use a4n_domain::clear_canvas_transfer_runtime_identity;
 use chrono::Utc;
 
@@ -114,7 +114,7 @@ fn prepare_rows_for_export(rows: &mut ProjectFamilyExportRows) -> Result<(), Str
         }
     }
     for prompt in &mut rows.chapter_video_prompts {
-        if prompt.status == a4n_core::models::chapter::chapter_video_prompt::STATUS_RUNNING {
+        if prompt.status == a4n_db_models::models::chapter::chapter_video_prompt::STATUS_RUNNING {
             return Err(format!(
                 "项目族不能导出运行中的章节视频提示词: chapter_video_prompt_id={}",
                 prompt.id
@@ -131,7 +131,7 @@ fn prepare_rows_for_export(rows: &mut ProjectFamilyExportRows) -> Result<(), Str
         }
     }
     for video in &mut rows.generated_videos {
-        if !a4n_core::models::ai::generated_video::is_terminal_status(&video.status) {
+        if !a4n_domain::video_workflow::is_terminal_video_status(&video.status) {
             return Err(format!(
                 "项目族不能导出非终态生成视频: generated_video_id={}, status={}",
                 video.id, video.status
@@ -174,7 +174,7 @@ pub(crate) fn family_media_package_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::project::novel_project;
+    use a4n_db_models::models::project::novel_project;
     use chrono::NaiveDate;
 
     fn dt() -> chrono::NaiveDateTime {
@@ -245,20 +245,20 @@ mod tests {
     fn prepare_rows_rejects_active_or_timeline_video_rows() {
         let mut rows = ProjectFamilyExportRows {
             chapter_video_prompts: vec![video_prompt(
-                a4n_core::models::chapter::chapter_video_prompt::STATUS_RUNNING,
+                a4n_db_models::models::chapter::chapter_video_prompt::STATUS_RUNNING,
             )],
             ..Default::default()
         };
         assert!(prepare_rows_for_export(&mut rows).is_err());
 
         rows.chapter_video_prompts[0].status =
-            a4n_core::models::chapter::chapter_video_prompt::STATUS_PENDING.to_string();
+            a4n_db_models::models::chapter::chapter_video_prompt::STATUS_PENDING.to_string();
         rows.chapter_video_prompts[0].timeline_item_id = Some(7);
         assert!(prepare_rows_for_export(&mut rows).is_err());
 
         rows.chapter_video_prompts.clear();
         rows.generated_videos = vec![generated_video(
-            a4n_core::models::ai::generated_video::STATUS_INTERRUPTED,
+            a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED,
         )];
         assert!(prepare_rows_for_export(&mut rows).is_err());
     }
@@ -267,7 +267,7 @@ mod tests {
     fn prepare_rows_clears_video_runtime_identity() {
         let mut rows = ProjectFamilyExportRows {
             generated_videos: vec![generated_video(
-                a4n_core::models::ai::generated_video::STATUS_COMPLETED,
+                a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED,
             )],
             ..Default::default()
         };
@@ -281,8 +281,8 @@ mod tests {
         assert!(metadata["nested"].get("config_id").is_none());
     }
 
-    fn video_prompt(status: &str) -> a4n_core::models::chapter::chapter_video_prompt::Model {
-        a4n_core::models::chapter::chapter_video_prompt::Model {
+    fn video_prompt(status: &str) -> a4n_db_models::models::chapter::chapter_video_prompt::Model {
+        a4n_db_models::models::chapter::chapter_video_prompt::Model {
             id: 10,
             project_id: 2,
             chapter_id: 3,
@@ -307,8 +307,8 @@ mod tests {
         }
     }
 
-    fn generated_video(status: &str) -> a4n_core::models::ai::generated_video::Model {
-        a4n_core::models::ai::generated_video::Model {
+    fn generated_video(status: &str) -> a4n_db_models::models::ai::generated_video::Model {
+        a4n_db_models::models::ai::generated_video::Model {
             id: 20,
             project_id: 2,
             chapter_id: Some(3),

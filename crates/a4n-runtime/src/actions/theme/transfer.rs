@@ -1,7 +1,6 @@
-use super::projections::to_summary;
 use super::{CreateThemeInput, ThemeSummary};
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn export_theme_for_user(
     state: &AppState,
@@ -9,10 +8,9 @@ pub async fn export_theme_for_user(
     theme_id: i64,
 ) -> Result<String, AppError> {
     let theme = state
-        .orchestrator()
-        .export_theme_for_user_validated(user_id, theme_id)
+        .theme_application()
+        .export_theme(user_id, theme_id)
         .await?;
-    let theme = to_summary(state.orchestrator(), user_id, theme).await?;
     serde_json::to_string_pretty(&CreateThemeInput {
         name: theme.name,
         mode: theme.mode,
@@ -26,9 +24,5 @@ pub async fn import_theme_for_user(
     user_id: i64,
     input: CreateThemeInput,
 ) -> Result<ThemeSummary, AppError> {
-    let theme = state
-        .orchestrator()
-        .import_theme_for_user_validated(user_id, input)
-        .await?;
-    to_summary(state.orchestrator(), user_id, theme).await
+    state.theme_application().import_theme(user_id, input).await
 }

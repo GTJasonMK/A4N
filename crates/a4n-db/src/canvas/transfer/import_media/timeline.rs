@@ -2,7 +2,7 @@ use super::super::remap::{remap_video_studio_canvas_cache_key, remap_video_studi
 use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps, VideoStudioProjectImportRows,
 };
-use a4n_core::models::video_project::{assembly_clip, assembly_timeline, video_segment};
+use a4n_db_models::models::video_project::{assembly_clip, assembly_timeline, video_segment};
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 

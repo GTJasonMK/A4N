@@ -1,10 +1,12 @@
-use a4n_core::{error::AppError, models::chapter::chapter};
+use a4n_db_models::models::chapter::chapter;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, ChatResponse};
+use a4n_rag_core::{ChapterRagChunkingMode, RagRecord};
 use tokio_util::sync::CancellationToken;
 
 use super::OrchestratorContext;
 use crate::{
-    rag::{ChapterRagChunkingMode, RagRecord, chapter_rag_records_with_provider},
+    rag::chapter_rag_records_with_provider,
     structured_llm::{ChatJsonStreamInput, StructuredLlmStreamResult},
 };
 

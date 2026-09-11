@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::video::library::available_video_image_ids;
@@ -11,7 +11,7 @@ use crate::video::prompt_generation::frame_prompts::{
     video_unit_for_target_segment, video_units_for_segment_plan,
 };
 use crate::video::prompt_json::VideoSegmentPlan;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 use crate::video::FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT;
 use crate::video::prompt_generation::frame_prompts::{FramePromptLayout, VideoUnitPlan};
@@ -44,7 +44,7 @@ pub(super) struct PreparedFrameWorkflow<'a> {
     pub expected_frame_count: usize,
     pub video_units: Vec<VideoUnitPlan>,
     pub frame_draft_common: VideoPromptDraftCommonInput<'a>,
-    pub reusable_frame_rows: Vec<a4n_core::models::chapter::chapter_video_prompt::Model>,
+    pub reusable_frame_rows: Vec<a4n_db_models::models::chapter::chapter_video_prompt::Model>,
 }
 
 pub(super) async fn prepare_frame_workflow<'a, 'progress>(

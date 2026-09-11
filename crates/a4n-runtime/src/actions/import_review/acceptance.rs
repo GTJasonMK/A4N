@@ -1,8 +1,6 @@
-use super::{
-    AcceptImportReviewInput, BatchAcceptImportReviewsInput, ImportReviewSummary, projections,
-};
+use super::{AcceptImportReviewInput, BatchAcceptImportReviewsInput, ImportReviewSummary};
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn accept_import_review(
     state: &AppState,
@@ -10,16 +8,10 @@ pub async fn accept_import_review(
     input: AcceptImportReviewInput,
 ) -> Result<ImportReviewSummary, AppError> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
-    let accepted = state
-        .orchestrator()
-        .accept_import_review_for_user_validated(
-            user_id,
-            input.review_id,
-            input.analysis_result,
-            &host_port,
-        )
-        .await?;
-    projections::import_review_summary(&accepted.review)
+    state
+        .import_review_application()
+        .accept(user_id, input, &host_port)
+        .await
 }
 
 pub async fn batch_accept_import_reviews(
@@ -29,10 +21,7 @@ pub async fn batch_accept_import_reviews(
 ) -> Result<Vec<ImportReviewSummary>, AppError> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
     state
-        .orchestrator()
-        .batch_accept_import_reviews_for_user_validated(user_id, &input.review_ids, &host_port)
-        .await?
-        .iter()
-        .map(|accepted| projections::import_review_summary(&accepted.review))
-        .collect()
+        .import_review_application()
+        .batch_accept(user_id, input, &host_port)
+        .await
 }

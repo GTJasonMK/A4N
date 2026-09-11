@@ -2,8 +2,8 @@ use super::super::super::types::{
     SettingsAllConfigImportError, SettingsAllImageConfigRow, settings_all_config_database,
 };
 use crate::config::{ProviderConfigKind, clear_provider_config_defaults};
-use a4n_core::config::image_sizes_to_json;
-use a4n_core::models::ai::image_gen_config;
+use a4n_config::image_sizes_to_json;
+use a4n_db_models::models::ai::image_gen_config;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 

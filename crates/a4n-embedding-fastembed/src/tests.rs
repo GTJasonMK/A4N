@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use crate::cache::{model_cache_path, required_files};
 use crate::models::{

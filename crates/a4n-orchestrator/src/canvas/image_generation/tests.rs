@@ -3,14 +3,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_image, image_gen_config},
-        generation::{generation_run, generation_spec, workflow_checkpoint, workflow_run},
-        media::media_asset,
-    },
-};
+use a4n_canvas_contract::CanvasImageNodeApplicationInput;
 use a4n_db::{
     DatabaseConnection,
     canvas::{
@@ -20,20 +13,32 @@ use a4n_db::{
     generation::GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
-use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use a4n_db_models::models::{
+    ai::generated_image,
+    generation::{generation_run, generation_spec, workflow_checkpoint, workflow_run},
+    media::media_asset,
+};
+use a4n_domain::{image::IMAGE_TYPE_CANVAS, media::GeneratedMediaArtifactFile};
+use a4n_error::AppError;
+use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use base64::Engine as _;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 use serde_json::{Value, json};
+use uuid::Uuid;
 
 use crate::{
     OrchestratorContext, canvas::CanvasNodeRunHandle, test_support::TestOrchestratorBuilder,
 };
 
-use super::{CanvasImageNodeExecutionInput, build_canvas_image_node_input_for_preview};
+use super::{
+    CanvasImageNodeApplicationPort, CanvasImageNodeExecutionInput,
+    build_canvas_image_node_input_for_preview,
+};
 use crate::media::{
     ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
     ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
 };
 
 const PNG_1X1_B64: &str =
@@ -71,7 +76,7 @@ impl ImageGenerationHostPort for TestImageHost {
     async fn resolve_image_config(
         &self,
         _config_id: Option<i64>,
-    ) -> Result<image_gen_config::Model, AppError> {
+    ) -> Result<ImageProviderConfig, AppError> {
         Ok(image_config())
     }
 
@@ -109,12 +114,31 @@ impl ImageGenerationHostPort for TestImageHost {
         })
     }
 
+    fn prepare_generated_image_file(
+        &self,
+        input: PrepareGeneratedImageFileInput<'_>,
+    ) -> Result<PreparedGeneratedImageFile, AppError> {
+        let final_path = format!(
+            "projects/{}/images/{}_{}_{}.{}",
+            input.project_id,
+            input.image_type,
+            input.file_extra.unwrap_or("main"),
+            input.publication_id,
+            input.format
+        );
+        Ok(PreparedGeneratedImageFile {
+            staging_path: format!("{final_path}.part"),
+            final_path,
+        })
+    }
+
     fn persist_generated_image_file(
         &self,
         input: PersistGeneratedImageFileInput<'_>,
+        prepared: &PreparedGeneratedImageFile,
     ) -> Result<PersistedGeneratedImageFile, AppError> {
         Ok(PersistedGeneratedImageFile {
-            relative_path: format!("projects/{}/images/canvas-node.png", input.project_id),
+            relative_path: prepared.final_path.clone(),
             file_size: input.bytes.len() as i64,
         })
     }
@@ -131,8 +155,8 @@ impl ImageGenerationHostPort for TestImageHost {
         &self,
         _relative_path: &str,
         _label: &str,
-    ) -> Result<crate::generation::GeneratedMediaArtifactFile, AppError> {
-        Ok(crate::generation::GeneratedMediaArtifactFile {
+    ) -> Result<GeneratedMediaArtifactFile, AppError> {
+        Ok(GeneratedMediaArtifactFile {
             content_type: "image/png".to_string(),
             sha256: "test-sha256".to_string(),
             byte_size: png_1x1_bytes().len() as u64,
@@ -148,39 +172,46 @@ impl ImageGenerationHostPort for TestImageHost {
     }
 }
 
-fn image_config() -> image_gen_config::Model {
-    let now = chrono::Utc::now().naive_utc();
-    image_gen_config::Model {
+fn image_config() -> ImageProviderConfig {
+    ImageProviderConfig {
         id: 7,
         name: "Canvas 图片测试配置".to_string(),
         backend: "test-image-provider".to_string(),
         base_url: Some("http://127.0.0.1:47645".to_string()),
-        api_key_encrypted: None,
+        api_key: None,
         model: "configured-canvas-image-model".to_string(),
         max_concurrent: 1,
         supported_sizes_json: json!([{"width": 1024, "height": 576}]),
-        is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 
-async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext) {
+async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext, i64) {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user(
+        database.as_ref(),
+        &format!("canvas-image-test-{suffix}"),
+        &format!("canvas-image-test-{suffix}@example.test"),
+        "test-password-123",
+        "user",
+    )
+    .await
+    .expect("Canvas 图片测试用户应创建成功");
     let context = TestOrchestratorBuilder::new(Arc::clone(&database))
         .build()
         .await;
-    (database, context)
+    (database, context, user.id)
 }
 
 async fn insert_canvas(
     database: &DatabaseConnection,
     context: &OrchestratorContext,
+    user_id: i64,
     target_config: Value,
 ) -> (i64, CanvasGraphRecordDocument) {
     let project = create_freeform_video_project_record(
         database,
-        1,
+        user_id,
         CreateFreeformVideoProjectParams {
             title: "Canvas Image application 测试".to_string(),
             description: String::new(),
@@ -235,7 +266,7 @@ fn node_input(client_id: &str, node_kind: &str, config_json: Value) -> CanvasNod
 
 fn target_node(
     document: &CanvasGraphRecordDocument,
-) -> &a4n_core::models::canvas::canvas_node::Model {
+) -> &a4n_db_models::models::canvas::canvas_node::Model {
     document
         .nodes
         .iter()
@@ -246,7 +277,7 @@ fn target_node(
 #[test]
 fn canvas_image_input_rules_are_owned_by_orchestrator() {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_core::models::canvas::canvas_graph::Model {
+    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
         id: 1,
         project_id: 2,
         name: "测试".to_string(),
@@ -256,7 +287,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let source = a4n_core::models::canvas::canvas_node::Model {
+    let source = a4n_db_models::models::canvas::canvas_node::Model {
         id: 10,
         graph_id: 1,
         node_kind: "TextInputNode".to_string(),
@@ -268,7 +299,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let image = a4n_core::models::canvas::canvas_node::Model {
+    let image = a4n_db_models::models::canvas::canvas_node::Model {
         id: 11,
         graph_id: 1,
         node_kind: "GenerateImageNode".to_string(),
@@ -283,7 +314,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
     let document = CanvasGraphRecordDocument {
         graph,
         nodes: vec![source, image.clone()],
-        edges: vec![a4n_core::models::canvas::canvas_edge::Model {
+        edges: vec![a4n_db_models::models::canvas::canvas_edge::Model {
             id: 1,
             graph_id: 1,
             source_node_id: 10,
@@ -307,7 +338,7 @@ fn canvas_image_input_rules_are_owned_by_orchestrator() {
 #[test]
 fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_core::models::canvas::canvas_graph::Model {
+    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
         id: 1,
         project_id: 2,
         name: "测试".to_string(),
@@ -317,7 +348,7 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
         created_at: now,
         updated_at: now,
     };
-    let image = a4n_core::models::canvas::canvas_node::Model {
+    let image = a4n_db_models::models::canvas::canvas_node::Model {
         id: 11,
         graph_id: 1,
         node_kind: "GenerateImageNode".to_string(),
@@ -339,7 +370,7 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
         .expect_err("内联 prompt 不能作为操作输入");
     assert!(inline_error.contains("缺少 prompt 输入"));
 
-    let source = a4n_core::models::canvas::canvas_node::Model {
+    let source = a4n_db_models::models::canvas::canvas_node::Model {
         id: 10,
         node_kind: "RenderTextNode".to_string(),
         config_json: json!({"content": "旧结果"}),
@@ -348,7 +379,7 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
     let unresolved = CanvasGraphRecordDocument {
         graph,
         nodes: vec![source, image.clone()],
-        edges: vec![a4n_core::models::canvas::canvas_edge::Model {
+        edges: vec![a4n_db_models::models::canvas::canvas_edge::Model {
             id: 1,
             graph_id: 1,
             source_node_id: 10,
@@ -367,10 +398,11 @@ fn canvas_image_input_rejects_inline_prompt_and_unresolved_operation_source() {
 
 #[tokio::test]
 async fn canvas_image_application_persists_complete_artifact_chain() {
-    let (database, context) = setup_context().await;
+    let (database, context, user_id) = setup_context().await;
     let (project_id, document) = insert_canvas(
         database.as_ref(),
         &context,
+        user_id,
         json!({"image_config_id": 7, "width": 1024, "height": 576}),
     )
     .await;
@@ -378,14 +410,14 @@ async fn canvas_image_application_persists_complete_artifact_chain() {
     let host = TestImageHost::success();
 
     let summary = context
-        .run_canvas_image_node_validated(
-            CanvasImageNodeExecutionInput {
+        .run_image(
+            CanvasImageNodeApplicationInput {
+                user_id,
                 project_id,
                 graph_id: document.graph.id,
-                node,
-                document: &document,
+                node_id: node.id,
                 shared_run: None,
-                mode: "single_node",
+                mode: "single_node".to_string(),
             },
             &host,
             &ImageGenerationProgress::none(),
@@ -445,10 +477,11 @@ async fn canvas_image_application_persists_complete_artifact_chain() {
 
 #[tokio::test]
 async fn canvas_image_shared_run_completes_node_without_finalizing_graph_workflow() {
-    let (database, context) = setup_context().await;
+    let (database, context, user_id) = setup_context().await;
     let (project_id, document) = insert_canvas(
         database.as_ref(),
         &context,
+        user_id,
         json!({"image_config_id": 7, "width": 1024, "height": 576}),
     )
     .await;
@@ -474,6 +507,7 @@ async fn canvas_image_shared_run_completes_node_without_finalizing_graph_workflo
     let summary = context
         .run_canvas_image_node_validated(
             CanvasImageNodeExecutionInput {
+                requested_by_user_id: user_id,
                 project_id,
                 graph_id: document.graph.id,
                 node,
@@ -512,10 +546,11 @@ async fn canvas_image_shared_run_completes_node_without_finalizing_graph_workflo
 
 #[tokio::test]
 async fn canvas_image_provider_failure_marks_spec_and_workflow_failed() {
-    let (database, context) = setup_context().await;
+    let (database, context, user_id) = setup_context().await;
     let (project_id, document) = insert_canvas(
         database.as_ref(),
         &context,
+        user_id,
         json!({"width": 1024, "height": 576}),
     )
     .await;
@@ -525,6 +560,7 @@ async fn canvas_image_provider_failure_marks_spec_and_workflow_failed() {
     let summary = context
         .run_canvas_image_node_validated(
             CanvasImageNodeExecutionInput {
+                requested_by_user_id: 1,
                 project_id,
                 graph_id: document.graph.id,
                 node,

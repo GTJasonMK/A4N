@@ -1,22 +1,26 @@
-use a4n_core::{error::AppError, media::image_mime_from_path};
+use a4n_domain::media::GeneratedMediaArtifactFile;
+use a4n_domain::media::image_mime_from_path;
+use a4n_error::AppError;
 use a4n_image::ImageReference;
-use a4n_orchestrator::generation::GeneratedMediaArtifactFile;
 use a4n_orchestrator::media::{
     ImageGenerationHostPort, ImageGenerationProgress, ImageGenerationProviderInput,
     ImageGenerationProviderOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
 };
+use a4n_provider_contract::ImageProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use async_trait::async_trait;
 use base64::Engine as _;
 
 use super::{
-    generation_io::persist_generated_image_file, run_queued_request_with_cancel_and_workflow,
+    generation_io::{persist_reserved_generated_image_file, prepare_generated_image_file},
+    run_queued_request_with_cancel_and_workflow,
 };
 use crate::{
-    AppState,
-    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::{canonicalize_data_file_path, inspect_generated_media_file},
+    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
+    file_utils::inspect_generated_media_file,
 };
+use a4n_storage::canonicalize_data_file_path;
 
 pub(in crate::actions) struct RuntimeImageGenerationHostPort<'state> {
     state: &'state AppState,
@@ -33,8 +37,8 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
     async fn resolve_image_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<a4n_core::models::ai::image_gen_config::Model, AppError> {
-        super::resolve_image_config(self.state, config_id)
+    ) -> Result<ImageProviderConfig, AppError> {
+        super::resolve_image_provider_config(self.state, config_id)
             .await
             .map_err(host_error)
     }
@@ -107,25 +111,20 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
         })
     }
 
+    fn prepare_generated_image_file(
+        &self,
+        input: PrepareGeneratedImageFileInput<'_>,
+    ) -> Result<PreparedGeneratedImageFile, AppError> {
+        prepare_generated_image_file(self.state.data_dir(), input).map_err(host_error)
+    }
+
     fn persist_generated_image_file(
         &self,
         input: PersistGeneratedImageFileInput<'_>,
+        prepared: &PreparedGeneratedImageFile,
     ) -> Result<PersistedGeneratedImageFile, AppError> {
-        let (_, relative_path, file_size) = persist_generated_image_file(
-            self.state.data_dir(),
-            input.project_id,
-            input.chapter_id,
-            input.image_type,
-            input.file_extra,
-            input.bytes,
-            input.format,
-            input.file_context,
-        )
-        .map_err(host_error)?;
-        Ok(PersistedGeneratedImageFile {
-            relative_path,
-            file_size,
-        })
+        persist_reserved_generated_image_file(self.state.data_dir(), input, prepared)
+            .map_err(host_error)
     }
 
     fn validate_generated_image_file(

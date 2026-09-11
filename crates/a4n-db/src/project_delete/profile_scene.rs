@@ -7,8 +7,8 @@ pub(crate) async fn delete_project_profile_scene_data<C>(
 where
     C: ConnectionTrait,
 {
-    use a4n_core::models::asset::{object_profile, profile_primary_material};
-    use a4n_core::models::scene::{
+    use a4n_db_models::models::asset::{object_profile, profile_primary_material};
+    use a4n_db_models::models::scene::{
         scene_entity_state, scene_occurrence, scene_profile, scene_transition,
     };
 

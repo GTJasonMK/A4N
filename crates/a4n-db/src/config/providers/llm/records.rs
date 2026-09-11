@@ -1,5 +1,6 @@
 use super::contracts::LlmConfigRecordInput;
-use a4n_core::{error::AppError, models::ai::llm_config};
+use a4n_db_models::models::ai::llm_config;
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,

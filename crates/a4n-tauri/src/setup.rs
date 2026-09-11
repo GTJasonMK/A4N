@@ -5,10 +5,11 @@
 mod config;
 mod event_logger;
 
-use a4n_core::error::AppError;
-use a4n_core::files::paths::AppPaths;
-use a4n_runtime::{AppState, state::RuntimeProfile};
+use a4n_error::AppError;
+use a4n_runtime::{AppState, RuntimeProfile};
+#[cfg(not(feature = "embedded-capabilities"))]
 use a4n_service_protocol::MANAGED_SIDECARS_ENV;
+use a4n_storage::paths::AppPaths;
 use std::sync::Arc;
 use tauri::AppHandle;
 #[cfg(target_os = "macos")]
@@ -22,7 +23,12 @@ pub async fn initialize(app: &AppHandle) -> Result<AppState, AppError> {
     configure_bundled_sidecar_resources(app)?;
 
     let config = config::load_config(app)?;
-    let app_paths = AppPaths::from_config(&config);
+    let app_paths = AppPaths::new(
+        config.data_dir.clone(),
+        config.cache_dir.clone(),
+        config.temp_dir.clone(),
+        config.log_dir.clone(),
+    );
     app_paths.ensure_dirs().map_err(AppError::Io)?;
 
     let runtime_profile = runtime_profile_for_tauri_host()?;

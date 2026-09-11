@@ -4,7 +4,7 @@ use super::support::{
     internal_error, prepare_reference_image_for_upload, prompt_with_reference_labels,
     reference_image_field_name, required_non_empty, response_text, send_image_request,
 };
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 use reqwest::multipart::{Form, Part};

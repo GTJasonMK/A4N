@@ -1,13 +1,15 @@
-use a4n_core::{
-    config::{ensure_image_size_supported, image_sizes_from_json},
-    error::AppError,
-    models::ai::generated_image,
-};
+use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_db::generation::{
     GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
     RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
 };
+use a4n_db::video::{CreateImagePublicationIntentInput, ImagePublicationFileFacts};
+use a4n_db_models::models::ai::generated_image;
+use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
+use a4n_error::AppError;
+use a4n_provider_contract::ImageProviderConfig;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::{
     OrchestratorContext,
@@ -159,8 +161,7 @@ impl OrchestratorContext {
                 progress,
             )
             .await?;
-        let (actual_width, actual_height) =
-            crate::media::image_dimensions_from_bytes(&provider_output.bytes)?;
+        let (actual_width, actual_height) = provider_image_dimensions(&provider_output.bytes)?;
         progress
             .check_cancelled()
             .map_err(|_| AppError::Cancelled)?;
@@ -183,53 +184,136 @@ impl OrchestratorContext {
             },
         )?;
         let media_refs_json = metadata_json.as_ref().and_then(image_generation_media_refs);
-        let persisted = host_port.persist_generated_image_file(PersistGeneratedImageFileInput {
-            project_id: input.project_id,
-            chapter_id: input.chapter_id,
-            image_type: &input.image_type,
-            file_extra: input.file_extra.as_deref(),
-            bytes: &provider_output.bytes,
-            format: &provider_output.format,
-            file_context: &input.file_context,
-        })?;
-
-        let image = match self
-            .create_generated_image_record_with_generation_run_checkpoint(
-                CreateGeneratedImageRecordDraftInput {
+        let expected_file_size = i64::try_from(provider_output.bytes.len())
+            .map_err(|_| AppError::InvalidArgument("图片过大，无法记录文件大小".to_string()))?;
+        let expected_sha256 = format!("{:x}", Sha256::digest(&provider_output.bytes));
+        let publication_id = format!(
+            "image-publication-generation-{}",
+            generation_checkpoint_fingerprint_sha256(&workflow.fingerprint_json)
+                .map_err(|error| AppError::InvalidArgument(error.to_string()))?
+        );
+        let prepared_file = host_port.prepare_generated_image_file(
+            super::contracts::PrepareGeneratedImageFileInput {
+                project_id: input.project_id,
+                chapter_id: input.chapter_id,
+                image_type: &input.image_type,
+                file_extra: input.file_extra.as_deref(),
+                format: &provider_output.format,
+                publication_id: &publication_id,
+                file_context: &input.file_context,
+            },
+        )?;
+        let (publication, _publication_guard) = self
+            .create_image_publication_intent_for_user_validated(
+                input.requested_by_user_id,
+                CreateImagePublicationIntentInput {
+                    publication_id: publication_id.clone(),
                     project_id: input.project_id,
-                    image_type: input.image_type.clone(),
-                    file_path: persisted.relative_path.clone(),
-                    prompt: input.request.prompt.clone(),
-                    model: provider_output.model.clone(),
-                    width: actual_width,
-                    height: actual_height,
-                    file_size: Some(persisted.file_size),
-                    chapter_id: input.chapter_id,
-                    panel_id: input.panel_id.clone(),
-                    metadata_json,
-                    created_at: Some(created_at),
+                    requested_by_user_id: input.requested_by_user_id,
+                    staging_path: prepared_file.staging_path.clone(),
+                    final_path: prepared_file.final_path.clone(),
+                    image: CreateGeneratedImageRecordDraftInput {
+                        project_id: input.project_id,
+                        image_type: input.image_type.clone(),
+                        file_path: prepared_file.final_path.clone(),
+                        prompt: input.request.prompt.clone(),
+                        model: provider_output.model.clone(),
+                        width: actual_width,
+                        height: actual_height,
+                        file_size: Some(expected_file_size),
+                        chapter_id: input.chapter_id,
+                        panel_id: input.panel_id.clone(),
+                        metadata_json: metadata_json.clone(),
+                        created_at: Some(created_at),
+                    },
+                    expected_file_size,
+                    expected_sha256: expected_sha256.clone(),
                 },
-                generation_trace_input(
-                    &input,
-                    &provider_output,
-                    request_json,
-                    media_refs_json,
-                    workflow.workflow_run_id,
-                    persisted.file_size,
-                )?,
             )
-            .await
-        {
-            Ok(image) => image,
-            Err(error) => {
-                return Err(cleanup_created_file_after_error(
-                    host_port,
-                    &persisted.relative_path,
-                    "已写出的图片文件",
-                    error,
+            .await?;
+        let (image, restored) = if publication.status == IMAGE_PUBLICATION_STATUS_PUBLISHED {
+            let image_id = publication.image_id.ok_or_else(|| AppError::InvalidState {
+                current: publication.status.clone(),
+                operation: "读取图片发布结果".to_string(),
+            })?;
+            let image = self.generated_image_by_id(image_id).await?.ok_or_else(|| {
+                AppError::InvalidState {
+                    current: format!("published:image_id={image_id}"),
+                    operation: "读取图片发布结果".to_string(),
+                }
+            })?;
+            (image, true)
+        } else if publication.status == IMAGE_PUBLICATION_STATUS_PENDING {
+            let persisted = match host_port.persist_generated_image_file(
+                PersistGeneratedImageFileInput {
+                    project_id: input.project_id,
+                    chapter_id: input.chapter_id,
+                    image_type: &input.image_type,
+                    file_extra: input.file_extra.as_deref(),
+                    bytes: &provider_output.bytes,
+                    format: &provider_output.format,
+                    file_context: &input.file_context,
+                },
+                &prepared_file,
+            ) {
+                Ok(persisted) => persisted,
+                Err(error) => {
+                    return Err(cleanup_staging_after_error(
+                        host_port,
+                        &prepared_file.staging_path,
+                        "图片暂存文件",
+                        error,
+                    )
+                    .await);
+                }
+            };
+            let image = match self
+                .publish_image_publication_for_user_validated(
+                    input.requested_by_user_id,
+                    input.project_id,
+                    &publication_id,
+                    ImagePublicationFileFacts {
+                        file_size: persisted.file_size,
+                        sha256: expected_sha256,
+                    },
+                    Some(generation_trace_input(
+                        &input,
+                        &provider_output,
+                        request_json,
+                        media_refs_json,
+                        workflow.workflow_run_id,
+                        persisted.file_size,
+                    )?),
                 )
-                .await);
+                .await
+            {
+                Ok(image) => image,
+                Err(error) => {
+                    return Err(cleanup_staging_after_error(
+                        host_port,
+                        &prepared_file.staging_path,
+                        "图片暂存文件",
+                        error,
+                    )
+                    .await);
+                }
+            };
+            if let Err(error) = host_port
+                .remove_generated_image_file(&prepared_file.staging_path, "图片暂存文件")
+                .await
+            {
+                tracing::warn!(
+                    error = %error,
+                    publication_id = %publication_id,
+                    "图片发布成功但暂存文件清理意图登记失败"
+                );
             }
+            (image, false)
+        } else {
+            return Err(AppError::InvalidState {
+                current: publication.status,
+                operation: "发布图片".to_string(),
+            });
         };
         let summary = generated_image_summary(&image);
         self.save_completed_workflow_checkpoint(CompletedWorkflowCheckpointInput {
@@ -246,8 +330,12 @@ impl OrchestratorContext {
         .await?;
         let outcome = ImageGenerationExecutionOutcome {
             summary,
-            restored: false,
-            created_at,
+            restored,
+            created_at: if restored {
+                image.created_at
+            } else {
+                created_at
+            },
         };
         self.complete_image_generation_post_commit(host_port, &input, &outcome)
             .await?;
@@ -354,9 +442,26 @@ impl OrchestratorContext {
     }
 }
 
+fn provider_image_dimensions(bytes: &[u8]) -> Result<(i32, i32), AppError> {
+    a4n_media::image_dimensions_from_bytes(bytes).map_err(|error| match error {
+        a4n_media::ImageDimensionsError::Format(source) => AppError::InvalidState {
+            current: "provider_response".to_string(),
+            operation: format!("图片 provider 返回的媒体格式无法识别：{source}"),
+        },
+        a4n_media::ImageDimensionsError::Dimensions(source) => AppError::InvalidState {
+            current: "provider_response".to_string(),
+            operation: format!("图片 provider 返回的媒体尺寸无法读取：{source}"),
+        },
+        a4n_media::ImageDimensionsError::WidthOverflow
+        | a4n_media::ImageDimensionsError::HeightOverflow => {
+            AppError::InvalidArgument(error.to_string())
+        }
+    })
+}
+
 struct ImageGenerationTrace<'a> {
     command: &'a str,
-    config: &'a a4n_core::models::ai::image_gen_config::Model,
+    config: &'a ImageProviderConfig,
     image_type: &'a str,
     prompt: &'a str,
     provider_model: &'a str,
@@ -527,14 +632,14 @@ pub fn generated_image_summary(image: &generated_image::Model) -> GeneratedImage
     }
 }
 
-async fn cleanup_created_file_after_error(
+async fn cleanup_staging_after_error(
     host_port: &dyn ImageGenerationHostPort,
-    relative_path: &str,
+    staging_path: &str,
     label: &str,
     error: AppError,
 ) -> AppError {
     match host_port
-        .remove_generated_image_file(relative_path, label)
+        .remove_generated_image_file(staging_path, label)
         .await
     {
         Ok(()) => error,
@@ -546,6 +651,7 @@ async fn cleanup_created_file_after_error(
 }
 
 fn validate_execution_input(input: &ImageGenerationExecutionInput) -> Result<(), AppError> {
+    require_positive(input.requested_by_user_id, "requested_by_user_id")?;
     require_positive(input.project_id, "project_id")?;
     if let Some(chapter_id) = input.chapter_id {
         require_positive(chapter_id, "chapter_id")?;

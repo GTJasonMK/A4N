@@ -1,4 +1,4 @@
-use a4n_core::config::app_config::LlmMaxTokensConfig;
+use a4n_domain::LlmMaxTokensConfig;
 use serde_json::Value;
 
 use super::super::RuntimeConfigSnapshot;

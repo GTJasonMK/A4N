@@ -1,10 +1,3 @@
-use a4n_core::blueprint::{
-    BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_GENERATION_KIND,
-    BLUEPRINT_GENERATION_PROMPTS, ParsedBlueprint, project_status_after_blueprint_generation,
-};
-use a4n_core::error::AppError;
-use a4n_core::models::project::novel_blueprint;
-use a4n_core::state::validator::parse_project_status;
 use a4n_db::blueprint::{
     NovelBlueprintUpsertInput, SyncProjectAfterBlueprintInput, blueprint_version_snapshot,
     next_blueprint_version_record, sync_project_after_blueprint_record,
@@ -15,14 +8,20 @@ use a4n_db::generation::{
     record_completed_generation_run_in_transaction,
 };
 use a4n_db::project::{
-    ProjectStatusHistoryInput, blueprint_characters_for_project,
-    blueprint_relationships_for_project, insert_project_status_history, merge_blueprint_characters,
-    merge_blueprint_relationships, project_by_id_record,
+    blueprint_characters_for_project, blueprint_relationships_for_project,
+    insert_project_status_history, merge_blueprint_characters, merge_blueprint_relationships,
+    project_by_id_record,
 };
+use a4n_db_models::models::project::novel_blueprint;
 use a4n_domain::{
     progress::{ProgressPhaseKind, ProgressSeverity},
-    project::ProjectStatus,
+    project::{
+        BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_GENERATION_KIND,
+        BLUEPRINT_GENERATION_PROMPTS, ParsedBlueprint, ProjectStatus, ProjectStatusHistoryInput,
+        project_status_after_blueprint_generation,
+    },
 };
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_llm::trace::{
     chat_request_messages_json, context_aware_chat_request_trace_json, text_response_summary_json,
@@ -176,7 +175,7 @@ pub(super) async fn persist_generated_blueprint_in_transaction(
         .await
         .map_err(project_mutation_error_to_app_error)?
         .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
-    let previous_status = parse_project_status(&project.status)?;
+    let previous_status = ProjectStatus::parse_storage(&project.status)?;
     let next_status = project_status_after_blueprint_generation(previous_status);
     sync_project_after_blueprint_record(
         tx,

@@ -1,10 +1,10 @@
-use a4n_core::models::generation::{generation_run, generation_run_target};
 use a4n_db::generation::{
     attach_runs_to_workflow_for_target, cancel_runs_for_target, cancel_runs_for_targets,
     generation_run_exists_for_target_output,
 };
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
 use a4n_db::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING, upsert_workflow_run};
+use a4n_db_models::models::generation::{generation_run, generation_run_target};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use serde_json::json;

@@ -42,6 +42,6 @@ fi
 cargo_args+=("${target_args[@]}")
 cd "$PROJECT_ROOT"
 if ((${#test_args[@]} > 0)); then
-    exec cargo "${cargo_args[@]}" -- "${test_args[@]}"
+    exec "$PROJECT_ROOT/scripts/cargo.sh" "${cargo_args[@]}" -- "${test_args[@]}"
 fi
-exec cargo "${cargo_args[@]}"
+exec "$PROJECT_ROOT/scripts/cargo.sh" "${cargo_args[@]}"

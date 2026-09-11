@@ -2,7 +2,7 @@ use super::super::contracts::SceneRagSyncTraceSource;
 use super::super::expected_records::expected_scene_rag_records;
 use super::super::sync::sync_data_type_records;
 use crate::state::AppState;
-use a4n_core::rag::RagDataType;
+use a4n_domain::rag::RagDataType;
 
 const SCENE_RAG_DATA_TYPES: &[RagDataType] = &[
     RagDataType::SceneProfile,

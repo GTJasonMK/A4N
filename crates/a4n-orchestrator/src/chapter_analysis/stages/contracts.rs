@@ -1,4 +1,4 @@
-use a4n_core::chapter_analysis::{
+use a4n_chapter_analysis::{
     CHAPTER_ANALYSIS_CHARACTER_STATE_FIELDS, CHAPTER_ANALYSIS_FACT_FIELDS,
     CHAPTER_ANALYSIS_FORESHADOWING_FIELDS, CHAPTER_ANALYSIS_STAGE_CHARACTER_STATE,
     CHAPTER_ANALYSIS_STAGE_FACTS, CHAPTER_ANALYSIS_STAGE_FORESHADOWING_EVENTS,
@@ -6,7 +6,7 @@ use a4n_core::chapter_analysis::{
     CHAPTER_ANALYSIS_STEP_FACTS, CHAPTER_ANALYSIS_STEP_FORESHADOWING_EVENTS,
     CHAPTER_ANALYSIS_STEP_SUMMARY, CHAPTER_ANALYSIS_SUMMARY_FIELDS,
 };
-use a4n_core::structured_progress::{FieldMilestone, ProgressSpan};
+use a4n_progress::{FieldMilestone, ProgressSpan};
 use serde_json::Value;
 
 use super::super::execution::ChapterAnalysisStageTrace;

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::optimize::OptimizePatchApplyHostPort;
 use async_trait::async_trait;
 
@@ -22,8 +22,8 @@ impl OptimizePatchApplyHostPort for RuntimeOptimizePatchApplyHostPort<'_> {
     ) -> Result<(), AppError> {
         let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(self.state);
         self.state
-            .orchestrator()
-            .postprocess_chapter_derived_data_validated(&host_port, chapter_id)
+            .chapter_content_mutation_application()
+            .postprocess(&host_port, chapter_id)
             .await
     }
 }

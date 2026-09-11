@@ -3,7 +3,7 @@ use super::types::{
     SourceSyncGalgameAnchorConflictCandidateRecord, SourceSyncGalgameAnchorConflictLineRecord,
     SourceSyncGalgameSceneConflictCandidateRecord, SourceSyncGalgameSceneConflictSceneRecord,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
     project::{source_snapshot_chapter, text_anchor},
     source_sync::source_sync_run,

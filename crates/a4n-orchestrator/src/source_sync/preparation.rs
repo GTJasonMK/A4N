@@ -6,8 +6,8 @@ use super::decisions::{
     PreparedSourceSyncDecisionContext, parse_decision_payload,
     prepared_galgame_scene_regeneration_decision,
 };
-use a4n_core::error::AppError;
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(super) fn prepared_source_sync_decisions(

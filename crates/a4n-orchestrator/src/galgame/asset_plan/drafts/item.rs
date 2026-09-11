@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use a4n_core::error::AppError;
 use a4n_db::galgame::{
     GalgameAssetPlanSpecRecordInput, GalgameGenerationSpecUpsert,
     GalgameGenerationSpecUpsertOutcome,
 };
+use a4n_error::AppError;
 
 use super::super::contracts::{GalgameAssetPlanGroup, GalgameAssetPlanItemDraft, GalgameSpecInput};
 use super::super::{GalgameAssetPlanItem, GalgameAssetPlanOutcome, GalgameAssetPlanSummary};

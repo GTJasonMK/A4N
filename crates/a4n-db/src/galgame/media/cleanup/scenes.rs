@@ -2,7 +2,9 @@ use super::delete_generation_media_graph;
 use crate::galgame::{
     GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE, MEDIA_BINDING_ROLE_BACKGROUND, MEDIA_BINDING_ROLE_CG,
 };
-use a4n_core::models::{galgame::galgame_line, generation::generation_spec, media::media_binding};
+use a4n_db_models::models::{
+    galgame::galgame_line, generation::generation_spec, media::media_binding,
+};
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect,
 };

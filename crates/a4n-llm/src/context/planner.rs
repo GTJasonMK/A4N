@@ -1,10 +1,9 @@
 mod budget;
-mod model_ref;
 
 use super::contracts::{LlmContextPackDraft, LlmContextPackDraftInput};
 pub(super) use super::{canonical_json_text, estimate_context_tokens};
-use a4n_core::error::AppError;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_error::AppError;
 
 pub use budget::ContextBudgetPlanner;
 
@@ -29,5 +28,3 @@ impl LlmContextPackDraft {
         })
     }
 }
-
-pub use model_ref::context_pack_model_ref;

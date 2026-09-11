@@ -1,4 +1,4 @@
-use a4n_core::media::canonical_audio_mime;
+use a4n_domain::media::canonical_audio_mime;
 use base64::Engine as _;
 use std::ffi::OsStr;
 use std::path::Path;

@@ -1,11 +1,5 @@
+use a4n_domain::media::GeneratedMediaArtifactFile;
 use a4n_service_protocol::{ArtifactEvent, ArtifactOperation, GenerationArtifactRef};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GeneratedMediaArtifactFile {
-    pub content_type: String,
-    pub sha256: String,
-    pub byte_size: u64,
-}
 
 #[derive(Debug, Clone)]
 pub(crate) struct PreparedArtifactEvent(ArtifactEvent);

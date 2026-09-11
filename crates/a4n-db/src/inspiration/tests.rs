@@ -1,8 +1,9 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter,
     user::{conversation, message},
 };
+use a4n_domain::inspiration::InspirationExchangeInsertInput;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
     TransactionTrait,

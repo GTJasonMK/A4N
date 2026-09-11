@@ -1,6 +1,5 @@
-use crate::manga::{
-    MangaPagePromptSyncDraft, MangaPipelineDbError, validate_manga_page_prompt_layout,
-};
+use crate::manga::{MangaPipelineDbError, validate_manga_page_prompt_layout};
+use a4n_domain::manga::MangaPagePromptSyncDraft;
 use std::collections::HashSet;
 
 pub(super) fn validate_manga_sync_drafts(

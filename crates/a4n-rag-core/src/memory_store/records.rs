@@ -1,6 +1,6 @@
 use super::scoring;
 use crate::errors::vector_store_error;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 #[derive(Debug, Clone)]
 pub(super) struct StoredRecord {

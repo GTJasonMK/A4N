@@ -1,5 +1,5 @@
 use crate::video::{VideoDbError, validate_positive_video_i64};
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use serde_json::Value;
 
 pub(in crate::video::generated_images) fn validate_positive_image_i64(

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(in crate::manga::pipeline_prompt::validation) fn reject_manga_unknown_fields(

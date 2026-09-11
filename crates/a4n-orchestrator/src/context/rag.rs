@@ -3,17 +3,13 @@
 //! 持有 `DbHandle`，封装 ingest 读模型与 foreshadowing 查询的数据库行为。
 //! 向量库读写仍经 `context/rag_store`；搜索/同步编排仍在 `rag/` 模块。
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        chapter::{chapter, part_outline},
-        character::{
-            attribute_event, character_state_index, foreshadowing_index, protagonist_profile,
-        },
-        project::{blueprint_character, blueprint_relationship, novel_blueprint},
-    },
-};
 use a4n_db::DbHandle;
+use a4n_db_models::models::{
+    chapter::{chapter, part_outline},
+    character::{attribute_event, character_state_index, foreshadowing_index, protagonist_profile},
+    project::{blueprint_character, blueprint_relationship, novel_blueprint},
+};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 

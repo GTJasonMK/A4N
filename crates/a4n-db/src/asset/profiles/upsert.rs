@@ -1,13 +1,14 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::asset::object_profile;
-use a4n_core::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
-use a4n_core::profile_text::merge_profile_evidence_json;
+use a4n_db_models::models::asset::object_profile;
+use a4n_domain::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
+use a4n_domain::profile_text::merge_profile_evidence_json;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
-use crate::asset::{AssetDbError, ObjectProfileRecordInput, ObjectProfileUpsertRecordResult};
+use crate::asset::{AssetDbError, ObjectProfileUpsertRecordResult};
+use a4n_domain::object_profile::ObjectProfileRecordInput;
 
 use super::record::object_profile_active_model;
 
@@ -399,7 +400,7 @@ fn object_profile_matches_input(
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
+    use a4n_domain::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
     use chrono::NaiveDateTime;
     use serde_json::json;
 
@@ -499,7 +500,7 @@ mod tests {
             "object_profile_batch_insert",
             "object-profile-batch-insert@example.invalid",
             "object-profile-batch-insert-password",
-            a4n_core::models::user::role::ROLE_USER,
+            a4n_db_models::models::user::role::ROLE_USER,
         )
         .await
         .unwrap();
@@ -548,7 +549,7 @@ mod tests {
             "object_profile_batch_update",
             "object-profile-batch-update@example.invalid",
             "object-profile-batch-update-password",
-            a4n_core::models::user::role::ROLE_USER,
+            a4n_db_models::models::user::role::ROLE_USER,
         )
         .await
         .unwrap();

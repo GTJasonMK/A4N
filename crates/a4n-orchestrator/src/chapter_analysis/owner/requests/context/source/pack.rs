@@ -1,8 +1,9 @@
-use a4n_core::{
-    error::AppError,
-    models::chapter::chapter,
-    source_spans::{SourceSpan, source_span_prompt_values, source_text_hash},
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::{
+    source_spans::{SourceSpan, source_span_prompt_values},
+    source_text_hash,
 };
+use a4n_error::AppError;
 use a4n_llm::context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft,

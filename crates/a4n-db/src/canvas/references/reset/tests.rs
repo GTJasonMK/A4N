@@ -3,7 +3,7 @@ use super::{
     clear_reset_generated_ref_payload, reset_missing_canvas_ref_for_node,
 };
 use crate::{canvas::references::MissingCanvasRef, project::FreeformGeneratedResetTargets};
-use a4n_core::models::canvas::canvas_node;
+use a4n_db_models::models::canvas::canvas_node;
 use a4n_domain::CanvasNodeRefKind;
 use chrono::Utc;
 use serde_json::{Value, json};

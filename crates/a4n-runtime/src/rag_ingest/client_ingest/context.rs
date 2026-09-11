@@ -1,7 +1,7 @@
 use super::super::expected_records::{ExpectedRagRecords, expected_rag_records};
 use crate::{actions::access, state::AppState};
 use a4n_embedding::provider::EmbeddingModelIdentity;
-use a4n_orchestrator::rag::{
+use a4n_rag_core::contracts::sync::{
     ensure_embedding_identity_matches, ensure_project_embedding_identity_matches,
 };
 use serde_json::Value;
@@ -23,8 +23,7 @@ pub(super) async fn load_client_ingest_context(
     access::verify_project_editor(state, user_id, project_id)
         .await
         .map_err(|error| error.to_string())?;
-    let rag = state.orchestrator();
-    let embedding_identity = crate::actions::rag_search::current_embedding_identity(rag)
+    let embedding_identity = crate::actions::rag_search::current_embedding_identity(state)
         .await
         .map_err(|error| error.to_string())?;
     if let Some(expected_embedding_identity) = expected_embedding_identity {
@@ -35,7 +34,8 @@ pub(super) async fn load_client_ingest_context(
     let stored_metadata = if rebuild {
         None
     } else {
-        let stored_metadata = rag
+        let stored_metadata = state
+            .rag_ingest()
             .project_rag_metadata(project_id)
             .await
             .map_err(|error| error.to_string())?;

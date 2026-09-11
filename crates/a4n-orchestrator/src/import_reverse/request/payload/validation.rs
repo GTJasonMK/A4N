@@ -1,6 +1,6 @@
 //! 反推 payload 文本校验。
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(super) fn required_reverse_text<'a>(value: &'a str, field: &str) -> Result<&'a str, AppError> {
     let value = value.trim();

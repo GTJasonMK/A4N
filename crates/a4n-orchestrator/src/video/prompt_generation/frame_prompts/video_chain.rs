@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 
 use crate::video::{VideoPromptChunk, VideoPromptProgress};
 

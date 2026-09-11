@@ -2,7 +2,24 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
+
+mod config;
+mod import;
+mod provider_image;
+pub use config::{
+    VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
+    VideoDurationCapability, duration_capability_for_params, validate_video_config_params,
+    validate_video_duration_for_params_secs, validate_video_max_concurrent,
+};
+pub use import::{
+    canvas_frame_timestamp, import_video_extension, imported_chapter_video_metadata,
+    trimmed_video_metadata, validate_upload_video_mime, validate_video_trim_range,
+};
+pub use provider_image::{
+    ProviderImageInputTransport, encode_query_component, is_provider_supported_image_content_type,
+    provider_image_input_transport_with_override, truncate_error_body, truncate_url_for_error,
+};
 
 pub const OPENAI_COMPATIBLE_VIDEO_BACKEND: &str = "openai-compatible-video";
 pub const NEWAPI_VIDEO_BACKEND: &str = "newapi-video";

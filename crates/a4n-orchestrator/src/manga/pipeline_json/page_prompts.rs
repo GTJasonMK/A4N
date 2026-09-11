@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_domain::manga::{MANGA_PAGE_DRAWING_PROMPT_V2, MangaPageDrawingPromptV2};
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(crate) fn page_drawing_prompt_from_response(

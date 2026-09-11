@@ -1,6 +1,7 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_manga_prompt;
-use a4n_db::manga::{MangaPagePromptSyncDraft, sync_manga_page_prompts_by_chapter};
+use a4n_db::manga::sync_manga_page_prompts_by_chapter;
+use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::manga::MangaPagePromptSyncDraft;
+use a4n_error::AppError;
 use chrono::Utc;
 
 use super::super::OrchestratorContext;

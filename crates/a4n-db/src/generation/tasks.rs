@@ -1,9 +1,10 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{
         generation_run, generation_start_request, generation_task_checkpoint, workflow_run,
     },
     task::task_queue,
 };
+use a4n_domain::generation::GenerationTaskListCursor;
 use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority};
 use a4n_service_protocol::{
     BatchCommitPolicy, DEFAULT_GENERATION_ACTIVE_SESSION_MAX, GENERATION_EVENT_SCHEMA_VERSION,
@@ -116,12 +117,6 @@ pub enum GenerationPublicSnapshot {
     Available(GenerationTaskSnapshot),
     Expired,
     Corrupt,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenerationTaskListCursor {
-    pub updated_at_ms: i64,
-    pub task_id: String,
 }
 
 #[derive(Debug, Clone)]
@@ -321,6 +316,27 @@ pub async fn reserve_generation_task(
         prepared.input.root_project_id = Some(canonical_root_project_id);
     }
     let tx = db.begin().await?;
+
+    if let Some((package_id, reason_code)) = crate::package::package_admission_block(
+        &tx,
+        prepared.input.task_kind.as_str(),
+        prepared.input.task_scope.as_deref(),
+        prepared
+            .input
+            .target
+            .as_ref()
+            .map(|target| target.kind.as_str()),
+    )
+    .await?
+    {
+        tx.rollback().await?;
+        return Err(GenerationTaskPersistenceError::Rejected {
+            code: "package_admission_blocked",
+            message: format!(
+                "功能包 {package_id} 当前不允许创建生成任务: reason_code={reason_code}"
+            ),
+        });
+    }
 
     require_generation_owner_gates_active(
         &tx,

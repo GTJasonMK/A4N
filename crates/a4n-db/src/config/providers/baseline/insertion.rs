@@ -6,7 +6,7 @@ use super::super::{
 use super::existence::{
     embedding_configs_exist, image_configs_exist, llm_configs_exist, video_configs_exist,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use sea_orm::DatabaseConnection;
 
 pub async fn insert_baseline_embedding_config_if_empty(

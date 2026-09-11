@@ -1,8 +1,12 @@
-use a4n_core::{chapter_analysis::analysis_rag_items, models::chapter::chapter, rag::RagDataType};
+use a4n_chapter_analysis::analysis_rag_items;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::rag::RagDataType;
 use a4n_embedding::provider::EmbeddingProvider;
+use a4n_rag_core::RagRecord;
 
-use super::{chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode};
-use crate::rag::{RagRecord, chapter_rag_chunk_prefix};
+use super::chunks::chapter_rag_chunks_with_provider;
+use crate::rag::chapter_rag_chunk_prefix;
+use a4n_rag_core::ChapterRagChunkingMode;
 
 pub(crate) async fn chapter_rag_records_with_provider(
     chapter: &chapter::Model,

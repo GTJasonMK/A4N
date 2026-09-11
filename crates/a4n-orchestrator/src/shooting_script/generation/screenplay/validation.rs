@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
 use a4n_domain::shooting_script::ShootingEditingModeV1;
+use a4n_error::AppError;
 
 use crate::shooting_script::contracts::{
     ChapterScreenplaySkeletonV1, PreparedChapterShootingScriptRequest,

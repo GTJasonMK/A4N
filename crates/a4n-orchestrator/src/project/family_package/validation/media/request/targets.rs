@@ -1,4 +1,4 @@
-use a4n_core::models::media::media_asset;
+use a4n_db_models::models::media::media_asset;
 
 use super::super::contracts::MediaRequestRefContext;
 use super::galgame::validate_media_request_galgame_scene_project;

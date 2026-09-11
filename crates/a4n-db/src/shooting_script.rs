@@ -6,8 +6,7 @@ mod queries;
 mod validation;
 
 pub use contracts::{
-    ChapterVisualPlanIdentity, EditChapterShootingScriptOutcome,
-    EditStoredChapterShootingScriptInput, InsertChapterShootingScriptInput,
+    ChapterVisualPlanIdentity, EditChapterShootingScriptOutcome, InsertChapterShootingScriptInput,
     ParsedChapterShootingScript, ShootingScriptDbError, UpdateChapterShootingScriptInput,
 };
 pub use editing::edit_chapter_shooting_script_and_invalidate;

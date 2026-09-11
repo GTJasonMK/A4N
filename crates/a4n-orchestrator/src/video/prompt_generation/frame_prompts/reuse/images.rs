@@ -1,16 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::source_spans::{
-    SourceSpan, metadata_source_content_sha256, source_spans_for_content,
-};
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_STORYBOARD_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, image_generation_prompt_id,
     image_generation_shot_number, image_generation_source, image_generation_source_hash,
 };
+use a4n_domain::source_spans::{
+    SourceSpan, metadata_source_content_sha256, source_spans_for_content,
+};
+use a4n_error::AppError;
 
 use crate::video::{ChapterVideoSourceContext, OrchestratorContext};
 

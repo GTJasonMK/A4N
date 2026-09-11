@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
@@ -12,8 +12,8 @@ use crate::video::prompt_json::VideoSegmentPlan;
 use crate::video::{
     ChapterVideoSourceContext, OrchestratorContext, VideoPromptChunk, VideoPromptProgress,
 };
-use a4n_core::prompt_language::PromptOutputLanguage;
-use a4n_core::source_spans::SourceSpan;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::boundary_workflow::{BoundaryFrameWorkflowInput, generate_boundary_frame_workflow};

@@ -1,7 +1,7 @@
 use super::references::validate_direct_prompt_text;
 use crate::video::prompt_json::{InsertedSegmentDraft, validation::PromptTextKind};
-use a4n_core::error::AppError;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_error::AppError;
 
 pub(in crate::video::prompt_json::validation) fn required_text(
     value: String,

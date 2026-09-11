@@ -1,5 +1,8 @@
+use std::collections::HashMap;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub const PROJECT_FAMILY_PACKAGE_SUFFIX: &str = ".a4n-family.zip";
 pub const VIDEO_STUDIO_PROJECT_PACKAGE_SUFFIX: &str = ".a4n-video-studio.zip";
@@ -34,4 +37,147 @@ pub struct ExportProjectPackageData {
 pub struct ImportProjectPackageUploadInput {
     pub file_name: String,
     pub data_base64: String,
+}
+
+/// 项目包内的媒体文件索引。
+///
+/// 该类型只描述包合同，不携带 ORM 记录；`original_path` 由 Host 用于读取
+/// 已存在的文件，`package_path` 是归档内的稳定路径。
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MediaFileEntry {
+    pub owner_kind: String,
+    pub owner_id: i64,
+    pub field: String,
+    pub original_path: String,
+    pub package_path: String,
+}
+
+/// 已从归档读取的原始 manifest 与媒体字节。
+#[derive(Debug)]
+pub struct ProjectPackageImportPayload {
+    pub manifest: Value,
+    pub media_bytes: HashMap<String, Vec<u8>>,
+}
+
+/// Host 侧项目包归档输入。
+#[derive(Debug)]
+pub struct ProjectPackageExportInput {
+    pub manifest: Value,
+    pub manifest_path: String,
+    pub manifest_label: String,
+    pub package_label: String,
+    pub media_files: Vec<MediaFileEntry>,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+}
+
+#[derive(Debug)]
+pub struct ExportedProjectPackage {
+    pub project_title: String,
+    pub package_bytes: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub struct ImportProjectPackageApplicationInput {
+    pub user_id: i64,
+    pub package_bytes: Vec<u8>,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ProjectPackageTransferError {
+    #[error("{0}")]
+    Application(#[from] a4n_error::AppError),
+    #[error("{0}")]
+    Message(String),
+}
+
+impl From<String> for ProjectPackageTransferError {
+    fn from(message: String) -> Self {
+        Self::Message(message)
+    }
+}
+
+/// 项目包导入/导出的唯一 Host 能力边界。
+///
+/// 归档、文件和回滚由 Host 执行；项目包 ORM 模型及业务校验留在 Project owner。
+#[async_trait::async_trait]
+pub trait ProjectPackageTransferHostPort: Send + Sync {
+    fn write_imported_media_file(
+        &mut self,
+        relative_path: &str,
+        bytes: &[u8],
+        label: &str,
+    ) -> Result<(), String>;
+
+    async fn rollback_imported_media_files(&mut self) -> Result<(), String>;
+
+    async fn render_export_package(
+        &self,
+        input: ProjectPackageExportInput,
+    ) -> Result<Vec<u8>, String>;
+
+    async fn read_import_package(
+        &self,
+        package_bytes: Vec<u8>,
+        manifest_path: &str,
+        package_label: &str,
+        manifest_label: &str,
+    ) -> Result<ProjectPackageImportPayload, String>;
+}
+
+/// 项目族包的业务应用边界。
+#[async_trait::async_trait]
+pub trait ProjectFamilyTransferApplicationPort: Send + Sync {
+    async fn export_project_family(
+        &self,
+        input: ExportProjectFamilyPackageApplicationInput,
+        host_port: &dyn ProjectPackageTransferHostPort,
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>;
+
+    async fn export_derived_project(
+        &self,
+        input: ExportDerivedProjectPackageApplicationInput,
+        host_port: &dyn ProjectPackageTransferHostPort,
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>;
+
+    async fn import_project_family(
+        &self,
+        input: ImportProjectPackageApplicationInput,
+        host_port: &mut dyn ProjectPackageTransferHostPort,
+    ) -> Result<Vec<crate::project::ProjectSummary>, ProjectPackageTransferError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportProjectFamilyPackageApplicationInput {
+    pub user_id: i64,
+    pub root_project_id: i64,
+    pub include_derived_projects: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportDerivedProjectPackageApplicationInput {
+    pub user_id: i64,
+    pub derived_project_id: i64,
+}
+
+/// 视频画布项目包的业务应用边界。
+#[async_trait::async_trait]
+pub trait VideoStudioProjectTransferApplicationPort: Send + Sync {
+    async fn export_project(
+        &self,
+        input: ExportVideoStudioProjectApplicationInput,
+        host_port: &dyn ProjectPackageTransferHostPort,
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>;
+
+    async fn import_project(
+        &self,
+        input: ImportProjectPackageApplicationInput,
+        host_port: &mut dyn ProjectPackageTransferHostPort,
+    ) -> Result<crate::project::ProjectSummary, ProjectPackageTransferError>;
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExportVideoStudioProjectApplicationInput {
+    pub user_id: i64,
+    pub project_id: i64,
 }

@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 use super::contracts::{VideoPromptResponse, VideoPromptShot, VideoSegmentPlan};
 use super::derived_fields::video_prompt_shot_from_input;

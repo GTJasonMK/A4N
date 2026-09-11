@@ -1,4 +1,4 @@
-use a4n_orchestrator::rag::EnhancedRagSearchResult;
+use a4n_rag_core::EnhancedRagSearchResult;
 
 use super::super::{RagEnhancedQuerySummary, RagEnhancedSearchOutput, RagSearchResult};
 

@@ -3,7 +3,7 @@ use crate::collaboration::{
     ProjectInviteSummary, ProjectMemberRole, expire_project_invites, find_user_by_identity,
     invite_summaries, resolve_root_project, verify_project_permission,
 };
-use a4n_core::models::project::{project_invite, project_member};
+use a4n_db_models::models::project::{project_invite, project_member};
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,

@@ -1,10 +1,10 @@
 use std::future::Future;
 
-use a4n_core::error::AppError;
-use a4n_orchestrator::canvas::{
+use a4n_canvas_contract::{
     CanvasAssembleVideosHostInput, CanvasEditingNodeHostPort, CanvasExtractFrameHostInput,
     CanvasGeneratedImageArtifact, CanvasGeneratedVideoArtifact, CanvasTrimVideoHostInput,
 };
+use a4n_error::AppError;
 use a4n_queue::{
     TaskWorkflowContext,
     priority::{TaskKind as QueueTaskKind, TaskPriority},
@@ -38,7 +38,7 @@ impl<'a> RuntimeCanvasEditingNodeHostPort<'a> {
         let workflow_context = TaskWorkflowContext::new(workflow_run_id)
             .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))?;
         self.state
-            .orchestrator()
+            .provider_runtime()
             .queue_run_tracked_with_workflow_context(
                 QueueTaskKind::Assembly,
                 TaskPriority::Medium,

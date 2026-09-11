@@ -1,7 +1,7 @@
 use std::error::Error;
 
-use a4n_core::models::task::task_queue;
-use a4n_core::models::user::{llm_usage_log, theme_config};
+use a4n_db_models::models::task::task_queue;
+use a4n_db_models::models::user::{llm_usage_log, theme_config};
 use chrono::{Duration, NaiveDate, NaiveDateTime, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, EntityTrait, Set};
 

@@ -1,5 +1,5 @@
 use crate::manga::{MangaPromptRecordError, manga_record_database, require_positive_manga_id};
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_image, character::character_portrait, project::novel_project,
 };
 use a4n_domain::manga::{MangaBoundReferenceAsset, MangaReferenceAssetKind};

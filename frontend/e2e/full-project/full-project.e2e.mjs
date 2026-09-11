@@ -146,6 +146,7 @@ async function fieldByLabel(label, tag = "input", scope = null) {
 async function setField(label, value, tag = "input", scope = null) {
   const field = await fieldByLabel(label, tag, scope);
   await field.waitForDisplayed({ timeout: 30_000 });
+  await field.clearValue();
   await field.setValue(String(value));
   return field;
 }
@@ -591,15 +592,7 @@ async function analyzeAndSync(projectId) {
   assert.ok((await editor.getValue()).includes("林岚"));
   await tab("分析");
   await clickButton(/生成分析|重新分析|继续分析/);
-  // Locale is user-controlled; the material-sync panel below is the
-  // authoritative UI result, so accept the translated progress label here.
-  await waitForBodyMatch(/结构化分析已保存|Structured analysis saved/, 480_000);
-  const progressDialogs = await visibleElements('[role="dialog"]');
-  if (progressDialogs.length) {
-    const close = await buttonMatching("关闭", progressDialogs.at(-1), 5_000);
-    await close.click();
-    await waitForNoDialog(30_000);
-  }
+  await waitAndCloseProgress("任务已完成", 480_000);
   const panelSelector = "section[aria-label='本章资料同步状态']";
   await $(panelSelector).waitForDisplayed({ timeout: 60_000 });
   await browser.waitUntil(async () => {
@@ -734,22 +727,20 @@ async function exerciseDirectorPlan(projectId) {
   await browser.keys("Escape");
   await waitForNoDialog();
 
-  const sceneLibrary = await openDialog("场景列表", "场景列表");
+  const sceneLibrary = await openContextDialog("场景列表", "场景列表");
   assert.match(await sceneLibrary.getText(), /新场景/);
   assert.match(await sceneLibrary.getText(), /新镜头/);
   await clickButton("新镜头", sceneLibrary);
   await waitForNoDialog();
 
-  await clickButton("添加镜头");
-  let shotDraftDialog = await currentDialog();
+  let shotDraftDialog = await openContextDialog("添加镜头", "镜头标题");
   assert.match(await shotDraftDialog.getText(), /镜头标题/);
   await setField("镜头标题", "附加镜头", "input", shotDraftDialog);
   await clickButton("保存", shotDraftDialog);
   await waitForNoDialog();
   await waitForBodyText("附加镜头");
 
-  await clickButton("添加镜头");
-  shotDraftDialog = await currentDialog();
+  shotDraftDialog = await openContextDialog("添加镜头", "镜头标题");
   await setField("镜头标题", "临时镜头", "input", shotDraftDialog);
   await clickButton("取消", shotDraftDialog);
   await browser.waitUntil(
@@ -762,18 +753,18 @@ async function exerciseDirectorPlan(projectId) {
   await waitForNoDialog();
   assert.doesNotMatch(await $("body").getText(), /临时镜头/);
 
-  const planSummary = await openDialog("方案摘要", "方案摘要");
+  const planSummary = await openContextDialog("方案摘要", "方案摘要");
   assert.match(await planSummary.getText(), /总时长/);
   await closeDialog();
 
-  await openDialog("编辑场景", "场景标题");
+  await openContextDialog("编辑场景", "场景标题");
   await closeDialog();
 
-  await openDialog("编辑镜头", "镜头标题");
+  await openContextDialog("编辑镜头", "镜头标题");
   await clickModalBackdrop();
   await waitForNoDialog();
 
-  const keyframeLibrary = await openDialog("关键帧", "关键帧");
+  const keyframeLibrary = await openContextDialog("关键帧", "关键帧");
   await clickButton("添加关键帧", keyframeLibrary);
   let keyframeDialog = await currentDialogContainingField("关键帧");
   assert.match(await keyframeDialog.getText(), /关键帧/);
@@ -781,7 +772,7 @@ async function exerciseDirectorPlan(projectId) {
   await clickButton("保存", keyframeDialog);
   await waitForNoDialog();
 
-  const keyframeLibraryAfterCreate = await openDialog("关键帧", "关键帧");
+  const keyframeLibraryAfterCreate = await openContextDialog("关键帧", "关键帧");
   assert.match(await keyframeLibraryAfterCreate.getText(), /中段动作/);
   await clickButton("编辑关键帧", keyframeLibraryAfterCreate);
   keyframeDialog = await currentDialogContainingField("关键帧");
@@ -789,7 +780,7 @@ async function exerciseDirectorPlan(projectId) {
   await clickButton("保存", keyframeDialog);
   await waitForNoDialog();
 
-  const keyframeLibraryAfterEdit = await openDialog("关键帧", "关键帧");
+  const keyframeLibraryAfterEdit = await openContextDialog("关键帧", "关键帧");
   assert.match(await keyframeLibraryAfterEdit.getText(), /中段动作-已编辑/);
   await clickButton("删除关键帧", keyframeLibraryAfterEdit);
   await browser.waitUntil(
@@ -811,8 +802,7 @@ async function exerciseDirectorPlan(projectId) {
   await openContextDialog("查看原文", "原文只读参考");
   await closeDialog();
 
-  await clickButton("实体库");
-  let dialog = await currentDialog();
+  let dialog = await openContextDialog("实体库", "实体库");
   assert.match(await dialog.getText(), /实体库/);
   await clickButton("添加", dialog);
   await browser.waitUntil(async () => {
@@ -833,16 +823,12 @@ async function exerciseDirectorPlan(projectId) {
 
   const frame = await $("div[aria-label='视觉编排画面']");
   await (await frame.$("button[aria-label='林岚']")).click();
-  await waitForNoDialog();
-  const selectedEntity = await frame.$(".a4n-visual-plan__entity--selected");
-  assert.equal(await selectedEntity.isDisplayed(), true);
-  await (await frame.$("button[aria-label='林岚']")).click();
   dialog = await currentDialog();
   assert.match(await dialog.getText(), /实体状态/);
   await browser.keys("Escape");
   await waitForNoDialog();
 
-  const eventLibrary = await openDialog("事件配置", "事件配置");
+  const eventLibrary = await openContextDialog("事件配置", "事件配置");
   await clickButton("实体事件", eventLibrary);
   await browser.waitUntil(async () => {
     try {
@@ -866,14 +852,14 @@ async function exerciseDirectorPlan(projectId) {
   assert.equal(mobileLayout.widthOverflow, 0, "390px 导演编排出现横向溢出");
   const mobileContext = await $(".a4n-visual-plan__context");
   await mobileContext.waitForDisplayed({ timeout: 30_000 });
-  await buttonMatching("编辑镜头", mobileContext);
-  await buttonMatching("更多", mobileContext).then((button) => button.click());
-  await buttonMatching("实体库");
-  await browser.keys("Escape");
-  const mobileSceneLibrary = await openDialog("场景列表", "场景列表");
+  await openContextDialog("编辑镜头", "镜头标题");
+  await closeDialog();
+  await openContextDialog("实体库", "实体库");
+  await closeDialog();
+  const mobileSceneLibrary = await openContextDialog("场景列表", "场景列表");
   await clickButton("新场景", mobileSceneLibrary);
   await waitForNoDialog();
-  await openDialog("方案摘要", "方案摘要");
+  await openContextDialog("方案摘要", "方案摘要");
   await closeDialog();
 
   const timeline = await $("section[aria-label='章节时间条']");
@@ -949,14 +935,18 @@ async function optimizeWithDomainAgent(projectId) {
   await browser.waitUntil(async () => {
     try {
       const console = (await visibleElements(consoleSelector)).at(-1);
-      return Boolean(console && (await console.getText()).includes("正文优化子 Agent 已完成"));
+      if (!console) return false;
+      const text = await console.getText();
+      // Content optimization now returns a reviewable patch proposal; it does
+      // not write the chapter back until the user approves it in the editor.
+      return /已完成本章表达与节奏的复核|局部补丁提案|正文尚未写回/.test(text);
     } catch {
       return false;
     }
   }, { timeout: 480_000, interval: 1_000, timeoutMsg: "正文优化子 Agent 未完成" });
   const console = (await visibleElements(consoleSelector)).at(-1);
   assert.ok(console, "领域 Agent 控制台未找到");
-  assert.match(await console.getText(), /剧情事实和人物设定保持不变/);
+  assert.match(await console.getText(), /剧情事实和人物设定保持不变|局部补丁提案|正文尚未写回/);
 }
 
 async function generateImage(projectId) {
@@ -1098,7 +1088,10 @@ async function exerciseMainAgent(projectId) {
   await waitForBodyText("主 Agent", 60_000);
   await browser.waitUntil(async () => {
     const text = await $("body").getText();
-    return text.includes("委派") && text.includes("content_optimization") && text.includes("已验收正文优化子 Agent");
+    return text.includes("委派")
+      && text.includes("content_optimization")
+      && text.includes("已显式审阅正文优化子 Agent")
+      && text.includes("正文尚未写回");
   }, { timeout: 120_000, interval: 1_000, timeoutMsg: "主 Agent 未完成委派和验收" });
   const body = await $("body").getText();
   assert.match(body, new RegExp(exact(request)));

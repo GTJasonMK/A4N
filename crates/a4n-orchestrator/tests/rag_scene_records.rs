@@ -1,5 +1,5 @@
-use a4n_core::rag::RagDataType;
 use a4n_db::rag::{RagSceneOccurrenceRow, RagSceneProfileRow, RagSceneTransitionRow};
+use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{
     scene_occurrence_rag_record, scene_profile_rag_record, scene_transition_rag_record,
 };

@@ -1,18 +1,17 @@
-use a4n_core::models::ai::video_gen_config;
-use a4n_orchestrator::video::validate_video_config_model;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult};
+use a4n_provider_contract::VideoProviderConfig;
+use a4n_video::{VideoConfigParams, VideoGenerationRequest, VideoGenerationResult};
 use base64::Engine as _;
 use serde::de::Error as _;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub(in crate::sidecar_clients::video) fn video_provider_payload(
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,
     project_id: Option<i64>,
 ) -> Result<VideoProviderPayload, String> {
-    let params = validate_video_config_model(config)?;
+    let params = video_config_params(config)?;
     let api_key = params
         .api_key_encrypted
         .ok_or_else(|| "视频生成配置缺少 api_key_encrypted".to_string())?;
@@ -23,6 +22,30 @@ pub(in crate::sidecar_clients::video) fn video_provider_payload(
         provider_idempotency_key_sha256,
         project_id,
         request,
+    })
+}
+
+pub(in crate::sidecar_clients::video) fn video_config_params(
+    config: &VideoProviderConfig,
+) -> Result<VideoConfigParams, String> {
+    a4n_video::validate_video_config_params(VideoConfigParams {
+        name: config.name.clone(),
+        backend: config.backend.clone(),
+        base_url: config
+            .base_url
+            .clone()
+            .ok_or_else(|| "视频生成配置缺少 base_url".to_string())?,
+        api_key_encrypted: config.api_key.clone(),
+        model: config.model.clone(),
+        max_concurrent: config.max_concurrent,
+        default_width: config.default_width,
+        default_height: config.default_height,
+        default_duration_secs: config.default_duration_secs,
+        min_duration_secs: config.min_duration_secs,
+        max_duration_secs: config.max_duration_secs,
+        duration_mode: config.duration_mode.clone(),
+        supported_durations_json: config.supported_durations_json.clone(),
+        default_fps: config.default_fps,
     })
 }
 

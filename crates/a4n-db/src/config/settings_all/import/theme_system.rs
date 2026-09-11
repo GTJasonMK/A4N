@@ -6,7 +6,7 @@ use super::super::{
     },
     validation::validate_llm_max_tokens_import_against_current_default,
 };
-use a4n_core::models::{ai::system_settings, user::theme_config};
+use a4n_db_models::models::{ai::system_settings, user::theme_config};
 use a4n_domain::validate_theme_document;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};

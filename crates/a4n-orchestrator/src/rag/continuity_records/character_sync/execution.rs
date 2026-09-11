@@ -1,11 +1,9 @@
+use a4n_rag_core::{PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome};
 use std::collections::HashMap;
 
 use crate::{
     OrchestratorContext,
-    rag::{
-        PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, RagSyncContext,
-        character_attribute_event_rag_record, character_state_rag_record,
-    },
+    rag::{RagSyncContext, character_attribute_event_rag_record, character_state_rag_record},
 };
 
 use super::contracts::{CharacterSyncRagInput, CharacterSyncRagSummary};

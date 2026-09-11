@@ -2,14 +2,144 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use a4n_core::video_execution::VideoSegmentPlanV2;
+use a4n_provider_contract::VideoProviderConfig;
+use a4n_video_contract::{VideoProviderPollTarget, VideoSegmentPlanV2};
 
-pub use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
 pub use a4n_domain::{AssemblyPostprocessOperation, DownstreamConflictStrategy};
+pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
 use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
 
 use super::generation_tasks::GenerationStartRequestMeta;
+
+/// Host-facing lookup boundary for persisted video provider configuration.
+///
+/// Runtime may apply a local snapshot or user-scope policy before falling back
+/// to this owner; the implementation remains free of runtime state and ORM
+/// types.
+#[async_trait::async_trait]
+pub trait VideoProviderConfigPort: Send + Sync {
+    async fn by_id(&self, config_id: i64) -> Result<VideoProviderConfig, a4n_error::AppError>;
+
+    async fn default(&self) -> Result<VideoProviderConfig, a4n_error::AppError>;
+
+    async fn for_provider_job(
+        &self,
+        project_id: Option<i64>,
+        provider_kind: &str,
+        provider_job_id: &str,
+    ) -> Result<VideoProviderConfig, a4n_error::AppError>;
+}
+
+/// Host-facing video owner boundary for provider-job recovery.
+///
+/// The video owner keeps permission checks and status transitions; Runtime
+/// supplies only the provider execution adapter from `a4n-video-contract`.
+#[async_trait::async_trait]
+pub trait VideoProviderExecutionApplicationPort: Send + Sync {
+    async fn poll_target(
+        &self,
+        user_id: i64,
+        video_id: i64,
+    ) -> Result<VideoProviderPollTarget, a4n_error::AppError>;
+
+    async fn poll_provider_job(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        config: Option<&VideoProviderConfig>,
+        host_port: &dyn a4n_video_contract::VideoProviderHostPort,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+}
+
+/// Host-provided cleanup for media that becomes unreachable after a prompt
+/// mutation. The video owner decides which IDs are safe to remove.
+#[async_trait::async_trait]
+pub trait VideoPromptDownstreamCleanupPort: Send + Sync {
+    async fn delete_downstream_media(
+        &self,
+        image_ids: &[i64],
+        video_ids: &[i64],
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Input shared by chapter video request preview and generation.
+#[derive(Debug, Clone, Deserialize)]
+pub struct GenerateChapterVideoInput {
+    pub user_id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub prompt_id: i64,
+    #[serde(default)]
+    pub config_id: Option<i64>,
+}
+
+/// Input shared by reference-media video request preview and generation.
+#[derive(Debug, Clone, Deserialize)]
+pub struct GenerateReferenceMediaVideoInput {
+    pub user_id: i64,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub input: ReferenceMediaVideoInput,
+}
+
+/// Host-facing request preview boundary for all video entry points.
+///
+/// Video validation and request construction stay in the video owner. Runtime
+/// supplies only the provider and media preview adapters.
+#[async_trait::async_trait]
+pub trait VideoRequestPreviewApplicationPort: Send + Sync {
+    async fn preview_canvas(
+        &self,
+        input: crate::canvas::GenerateCanvasVideoInput,
+        host_port: &dyn a4n_video_contract::CanvasVideoPreviewHostPort,
+    ) -> Result<a4n_video_contract::CanvasVideoRequestPreview, a4n_error::AppError>;
+
+    async fn preview_chapter(
+        &self,
+        host_port: &dyn a4n_video_contract::ChapterVideoPreviewHostPort,
+        input: GenerateChapterVideoInput,
+        prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
+    ) -> Result<a4n_video_contract::ChapterVideoRequestPreview, a4n_error::AppError>;
+
+    async fn preview_reference_media(
+        &self,
+        host_port: &dyn a4n_video_contract::ReferenceMediaVideoPreviewHostPort,
+        input: GenerateReferenceMediaVideoInput,
+    ) -> Result<a4n_video_contract::ReferenceMediaVideoRequestPreview, a4n_error::AppError>;
+}
+
+/// Host-facing boundary for the video generation worker.
+///
+/// Runtime owns scheduling and supplies provider/prompt adapters. Reservation,
+/// validation, checkpointing, and result commits remain in the video owner.
+#[async_trait::async_trait]
+pub trait VideoGenerationApplicationPort: Send + Sync {
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartVideoGenerationInput,
+    ) -> Result<
+        crate::generation_tasks::GenerationTaskStart,
+        crate::generation_tasks::GenerationTaskStartError,
+    >;
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: StartVideoGenerationInput,
+        handle: crate::generation_tasks::GenerationTaskHandle,
+        host_port: &dyn a4n_video_contract::VideoGenerationHostPort,
+    ) -> Result<(), String>;
+
+    async fn run_prompt_task(
+        &self,
+        user_id: i64,
+        input: StartVideoGenerationInput,
+        handle: crate::generation_tasks::GenerationTaskHandle,
+        host_port: &dyn a4n_video_contract::VideoPromptGenerationHostPort,
+    ) -> Result<(), String>;
+}
 
 /// 视频生产的唯一启动合同。
 ///
@@ -352,6 +482,28 @@ pub struct ChapterVideoPromptSummary {
     pub updated_at: String,
 }
 
+/// Host-facing read boundary for persisted chapter video prompts.
+///
+/// Chapter ownership, authorization and ORM projection stay in the video
+/// owner; Runtime only routes stable summaries.
+#[async_trait::async_trait]
+pub trait VideoPromptReadApplicationPort: Send + Sync {
+    async fn list_chapter(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<ChapterVideoPromptSummary>, a4n_error::AppError>;
+
+    async fn validate_project_chapter_source(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        operation: &str,
+        writable: bool,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PreviewChapterVideoPromptOverrideInput {
@@ -488,6 +640,92 @@ pub struct GeneratedVideoSummary {
     pub is_favorite: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+/// Runtime supplies persisted file facts; the video owner commits the record.
+#[derive(Debug, Clone)]
+pub struct CompleteVideoRecordInput {
+    pub record_id: i64,
+    pub output_path: String,
+    pub thumbnail_path: Option<String>,
+    pub file_size: i64,
+    pub prompt_id: Option<i64>,
+    pub metadata_json: Option<Value>,
+    pub duration_secs: f32,
+}
+
+/// Result of committing a generated video record.
+#[derive(Debug)]
+pub struct VideoRecordCompletion {
+    pub summary: GeneratedVideoSummary,
+    pub adopted_authoritative: bool,
+}
+
+/// Stable failure surface for generated video record completion.
+#[derive(Debug)]
+pub enum VideoRecordCompletionError {
+    DurationWriteback {
+        error: a4n_error::AppError,
+    },
+    Submission {
+        error: a4n_error::AppError,
+        authoritative: Option<VideoRecordCompletion>,
+        lookup_error: Option<a4n_error::AppError>,
+    },
+}
+
+/// Runtime-provided facts used to register a captured video tail frame.
+#[derive(Debug, Clone)]
+pub struct VideoTailFrameInput {
+    pub video_id: i64,
+    pub file_path: String,
+    pub file_size: i64,
+}
+
+/// Persisted summary returned after registering a captured video tail frame.
+#[derive(Debug, Clone)]
+pub struct VideoTailFrameSummary {
+    pub image_id: i64,
+    pub file_path: String,
+    pub shot_number: i32,
+}
+
+/// Input used by the video owner to prepare an assembly push record.
+#[derive(Debug, Clone)]
+pub struct AssemblyPushClipInput {
+    pub video_id: i64,
+    pub sort_order: f64,
+    pub duration_secs: f32,
+    pub width: i32,
+    pub height: i32,
+    pub fps: i32,
+}
+
+/// Owner-approved base and push records for an assembly postprocess edit.
+#[derive(Debug, Clone)]
+pub struct AssemblyPostprocessPlan {
+    pub push: GeneratedVideoSummary,
+    pub base: GeneratedVideoSummary,
+    pub operation: AssemblyPostprocessOperation,
+}
+
+/// Source selected by the video owner for an assembly postprocess edit.
+#[derive(Debug, Clone)]
+pub enum AssemblyPostprocessSourcePlan {
+    None,
+    Existing(GeneratedVideoSummary),
+    Upload,
+}
+
+/// Runtime-provided source facts for an assembly postprocess edit record.
+#[derive(Debug, Clone)]
+pub struct AssemblyPostprocessEditRecordInput {
+    pub at_secs: Option<f32>,
+    pub start_secs: Option<f32>,
+    pub end_secs: Option<f32>,
+    pub source_video_id: Option<i64>,
+    pub source_file_name: Option<String>,
+    pub source_duration_secs: Option<f32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

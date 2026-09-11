@@ -1,10 +1,12 @@
-use a4n_core::{models::character::protagonist_profile, rag::RagDataType};
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{
     DimensionRagSection, dimension_fields_section, dimension_text_section, optional_json_text,
     required_rag_text,
 };
 
-use super::super::{RagRecord, protagonist_rag_chunk_id};
+use super::super::protagonist_rag_chunk_id;
 
 fn protagonist_rag_sections(
     profile: &protagonist_profile::Model,

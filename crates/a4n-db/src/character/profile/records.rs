@@ -1,4 +1,4 @@
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,

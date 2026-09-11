@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::{asset::object_profile, chapter::chapter, project::text_anchor},
-    source_spans::text_anchor_prompt_values,
-};
+use a4n_db_models::models::{asset::object_profile, chapter::chapter, project::text_anchor};
+use a4n_domain::source_spans::text_anchor_prompt_values;
 use serde_json::{Value, json};
 
 pub(super) fn object_discovery_stable_context(

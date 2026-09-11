@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 const JSON_USER_MESSAGE_INPUT_MARKER: &str = "\n\n输入：\n";

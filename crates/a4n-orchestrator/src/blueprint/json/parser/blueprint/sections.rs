@@ -1,5 +1,5 @@
-use a4n_core::blueprint::{ParsedBlueprintCharacter, ParsedBlueprintRelationship};
-use a4n_core::error::AppError;
+use a4n_domain::project::{ParsedBlueprintCharacter, ParsedBlueprintRelationship};
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::super::{

@@ -1,11 +1,7 @@
-use std::collections::HashSet;
-use std::io::{Cursor, Seek, Write};
-
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use zip::{ZipWriter, write::SimpleFileOptions};
 
-use crate::contracts::{ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput};
 use crate::errors::ExportRenderError;
+use a4n_export_contract::{ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput};
 
 pub fn render_zip(input: ExportRenderZipInput) -> Result<ExportRenderZipOutput, ExportRenderError> {
     let bytes = render_zip_package(input.into_package_input()?)?;
@@ -16,65 +12,20 @@ pub fn render_zip(input: ExportRenderZipInput) -> Result<ExportRenderZipOutput, 
 }
 
 pub fn render_zip_package(input: ExportZipPackageInput) -> Result<Vec<u8>, ExportRenderError> {
-    let mut zip = ExportZipWriter::new(Cursor::new(Vec::new()));
-    zip.write_entry_bytes(
-        &input.manifest_path,
-        &input.manifest_bytes,
-        input.manifest_label,
-    )?;
-    for entry in input.entries {
-        zip.write_entry_bytes(&entry.path, &entry.bytes, entry.label)?;
-    }
-    let cursor = zip.finish(input.package_label)?;
-    Ok(cursor.into_inner())
-}
-
-struct ExportZipWriter<W: Write + Seek> {
-    zip: ZipWriter<W>,
-    options: SimpleFileOptions,
-    entries: HashSet<String>,
-}
-
-impl<W: Write + Seek> ExportZipWriter<W> {
-    fn new(writer: W) -> Self {
-        Self {
-            zip: ZipWriter::new(writer),
-            options: SimpleFileOptions::default()
-                .compression_method(zip::CompressionMethod::Deflated),
-            entries: HashSet::new(),
-        }
-    }
-
-    fn write_entry_bytes(
-        &mut self,
-        path: &str,
-        bytes: &[u8],
-        label: impl Into<String>,
-    ) -> Result<(), ExportRenderError> {
-        let label = label.into();
-        a4n_archive_core::validate_zip_entry_path(path)?;
-        if !self.entries.insert(path.to_string()) {
-            return Err(ExportRenderError::DuplicateZipEntry {
-                path: path.to_string(),
-            });
-        }
-        self.zip.start_file(path, self.options).map_err(|source| {
-            ExportRenderError::ZipStartFile {
-                path: path.to_string(),
-                source,
-            }
-        })?;
-        self.zip
-            .write_all(bytes)
-            .map_err(|source| ExportRenderError::ZipEntryWrite { label, source })
-    }
-
-    fn finish(self, label: impl Into<String>) -> Result<W, ExportRenderError> {
-        self.zip
-            .finish()
-            .map_err(|source| ExportRenderError::ZipFinish {
-                label: label.into(),
-                source,
-            })
-    }
+    let entries = std::iter::once(a4n_archive_core::ArchiveEntry {
+        path: input.manifest_path,
+        bytes: input.manifest_bytes,
+        label: input.manifest_label,
+    })
+    .chain(
+        input
+            .entries
+            .into_iter()
+            .map(|entry| a4n_archive_core::ArchiveEntry {
+                path: entry.path,
+                bytes: entry.bytes,
+                label: entry.label,
+            }),
+    );
+    a4n_archive_core::write_zip(entries, input.package_label).map_err(Into::into)
 }

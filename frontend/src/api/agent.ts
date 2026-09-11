@@ -1,10 +1,12 @@
-import { authenticatedWebFetch } from ".";
+import { apiInvoke, authenticatedWebFetch } from ".";
 import { buildRuntimeConfigSnapshot } from "./runtimeConfigSnapshot";
 import { readSseStream } from "../utils/sseParser";
 import { runtimeInvoke } from "./runtime";
 import { shouldUseHttpBackend } from "../utils/runtimeMode";
 import type {
   AgentApprovalView,
+  RespondAgentEditorInput,
+  AgentEditorReply,
   AgentDelegationView,
   AgentEvent,
   AgentEventsInput,
@@ -37,6 +39,10 @@ import type {
 } from "./generated/host";
 
 export type {
+  AgentEditorSource,
+  AgentEditorState,
+  AgentEditorRequest,
+  AgentEditorResponse,
   AgentApprovalView,
   AgentBudget,
   AgentControlAction,
@@ -74,6 +80,10 @@ export type {
   SpawnAgentInput,
   UpdateAgentThreadInput,
 } from "./generated/host";
+
+export function respondAgentEditor(input: RespondAgentEditorInput): Promise<AgentEditorReply> {
+  return apiInvoke("respond_agent_editor", { input });
+}
 
 export class AgentRequestError extends Error {
   constructor(

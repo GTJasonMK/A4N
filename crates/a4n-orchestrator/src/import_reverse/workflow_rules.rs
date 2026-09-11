@@ -1,6 +1,6 @@
 //! 导入逆向工程工作流指纹与 business key 纯规则（无 DB）。
 
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 

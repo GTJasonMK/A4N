@@ -1,4 +1,4 @@
-use crate::project::ChapterDerivedCleanupArtifacts;
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 
 use super::plan::ChapterDerivedRagCleanupPlan;
 

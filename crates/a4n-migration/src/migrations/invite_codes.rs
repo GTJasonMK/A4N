@@ -1,6 +1,6 @@
 //! One-time registration invite codes.
 
-use a4n_core::models::user::invite_code;
+use a4n_db_models::models::user::invite_code;
 use sea_orm::{DbBackend, EntityName, Schema};
 use sea_orm_migration::prelude::*;
 

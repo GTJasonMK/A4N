@@ -2,7 +2,7 @@ use super::super::{
     ProjectCleanupDbError, ProjectTextAnchorCleanupResult, ProjectTextAnchorDeleteScope,
 };
 use crate::project::validate_positive_i64;
-use a4n_core::models::project::{profile_evidence, text_anchor};
+use a4n_db_models::models::project::{profile_evidence, text_anchor};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn delete_project_text_anchors<C>(

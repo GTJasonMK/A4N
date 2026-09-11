@@ -1,6 +1,6 @@
 use super::queries::{source_snapshot_chapter_summary, source_snapshot_id_for_project};
 use crate::project::ProjectMutationError;
-use a4n_core::models::project::{novel_project, source_snapshot_chapter};
+use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use chrono::NaiveDate;
 use serde_json::json;
 

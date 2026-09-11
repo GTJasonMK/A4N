@@ -1,7 +1,5 @@
-use crate::{
-    AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::data_dir_relative_file_path,
-};
+use crate::{AppState, cleanup_outbox::enqueue_file_artifact_cleanup_by_project};
+use a4n_storage::data_dir_relative_file_path;
 use std::{
     io::ErrorKind,
     path::Path,

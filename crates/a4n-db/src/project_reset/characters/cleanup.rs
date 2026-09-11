@@ -1,5 +1,5 @@
 use crate::{character, generation, project_reset::ProjectResetDbError};
-use a4n_core::models::character::{
+use a4n_db_models::models::character::{
     attribute_event, character_portrait, character_state_index, protagonist_behavior_record,
     protagonist_deletion_mark, snapshot_reference,
 };

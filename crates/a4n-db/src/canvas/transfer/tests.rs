@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     generation::{generation_spec, prompt_artifact},
@@ -107,7 +107,7 @@ async fn video_studio_import_batches_canvas_reference_fixups() {
         generated_video::Entity::insert_many((0..20).map(|index| generated_video::ActiveModel {
             project_id: Set(project.id),
             chapter_id: Set(None),
-            video_type: Set(generated_video::VIDEO_TYPE_CANVAS.to_string()),
+            video_type: Set(a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string()),
             workflow_mode: Set(Some("canvas_video".to_string())),
             file_path: Set(None),
             thumbnail_path: Set(None),
@@ -121,7 +121,7 @@ async fn video_studio_import_batches_canvas_reference_fixups() {
             file_size: Set(None),
             source_video_id: Set(None),
             source_image_id: Set(None),
-            status: Set(generated_video::STATUS_PENDING.to_string()),
+            status: Set(a4n_domain::video_workflow::VIDEO_STATUS_PENDING.to_string()),
             provider_job_id: Set(None),
             error_message: Set(None),
             timeline_item_id: Set(None),
@@ -295,7 +295,7 @@ async fn video_studio_import_batches_all_media_rows_and_preserves_id_maps() {
             id: 20_000 + index,
             project_id: 99,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
             workflow_mode: Some("canvas_video".to_string()),
             file_path: Some(format!("source/video-{index}.mp4")),
             thumbnail_path: Some(format!("source/video-{index}.webp")),
@@ -309,7 +309,7 @@ async fn video_studio_import_batches_all_media_rows_and_preserves_id_maps() {
             file_size: None,
             source_video_id: None,
             source_image_id: None,
-            status: generated_video::STATUS_COMPLETED.to_string(),
+            status: a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string(),
             provider_job_id: None,
             error_message: None,
             timeline_item_id: None,
@@ -823,14 +823,14 @@ async fn video_studio_import_batches_generated_video_source_ref_updates() {
     let now = Utc::now().naive_utc();
     let create_video = || generated_video::ActiveModel {
         project_id: Set(project.id),
-        video_type: Set(generated_video::VIDEO_TYPE_CANVAS.to_string()),
+        video_type: Set(a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string()),
         prompt: Set("prompt".to_string()),
         model: Set("model".to_string()),
         width: Set(1),
         height: Set(1),
         duration_secs: Set(1.0),
         fps: Set(24),
-        status: Set(generated_video::STATUS_COMPLETED.to_string()),
+        status: Set(a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string()),
         is_favorite: Set(false),
         created_at: Set(now),
         updated_at: Set(now),

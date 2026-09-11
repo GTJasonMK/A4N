@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::ai::image_gen_config};
+use a4n_db_models::models::ai::image_gen_config;
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::records::image_config_by_id;

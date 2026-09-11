@@ -1,8 +1,6 @@
-use a4n_core::{
-    error::AppError,
-    video_execution::{
-        VideoPerformanceActionV1, VideoPerformancePlanV2, VideoPerformanceTimeBlockV1,
-    },
+use a4n_error::AppError;
+use a4n_video_contract::{
+    VideoPerformanceActionV1, VideoPerformancePlanV2, VideoPerformanceTimeBlockV1,
 };
 
 use super::super::required_text;

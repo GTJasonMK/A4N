@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::{chapter_manga_prompt, chapter_video_prompt};
+use a4n_db_models::models::chapter::{chapter_manga_prompt, chapter_video_prompt};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter};
 
 use super::scope::MediaWorkflowV2ResetScope;

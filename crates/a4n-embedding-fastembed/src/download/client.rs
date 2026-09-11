@@ -5,8 +5,6 @@ use hf_hub::api::tokio::{Api, ApiBuilder};
 use reqwest::Client;
 use tokio_util::sync::CancellationToken;
 
-use a4n_core::config::env::optional_non_empty_env_string;
-
 use super::DOWNLOAD_CANCELLED_MESSAGE;
 use crate::proxy::ScopedHfHubEnv;
 
@@ -40,9 +38,12 @@ pub(super) fn cancelled_or_error(
 }
 
 pub(super) fn build_hf_api(cache_dir: &Path) -> Result<Api, String> {
-    let endpoint = optional_non_empty_env_string("HF_ENDPOINT")
-        .map_err(|error| error.to_string())?
-        .unwrap_or_else(|| "https://huggingface.co".to_string());
+    let endpoint = match std::env::var("HF_ENDPOINT") {
+        Ok(value) if !value.trim().is_empty() => value.trim().to_string(),
+        Ok(_) => return Err("HF_ENDPOINT 不能为空".to_string()),
+        Err(std::env::VarError::NotPresent) => "https://huggingface.co".to_string(),
+        Err(error) => return Err(format!("HF_ENDPOINT 无法读取: {error}")),
+    };
     ApiBuilder::new()
         .with_cache_dir(cache_dir.to_path_buf())
         .with_endpoint(endpoint)

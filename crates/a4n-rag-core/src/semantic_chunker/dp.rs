@@ -1,6 +1,6 @@
 use super::SemanticChunkConfig;
 use super::matrix::block_score;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 pub(super) fn dynamic_programming(
     prefix: &[f64],

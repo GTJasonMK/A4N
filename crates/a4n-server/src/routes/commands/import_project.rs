@@ -15,15 +15,15 @@ pub(super) use blueprint::{
 };
 pub(super) use chapter::{
     confirm_chapter_visual_plan, delete_chapter_scene, discard_chapter_visual_plan_draft,
-    edit_chapter_shooting_script, generate_chapter_analysis, generate_chapter_scene,
-    generate_chapter_shooting_script, generate_next_chapter_shooting_script_unit,
-    get_chapter_shooting_script, get_chapter_shooting_script_unit_progress,
-    get_chapter_visual_plan, import_chapter, list_chapter_scenes, list_chapters,
-    prepare_chapter_generation_rag_embedding, preview_chapter_analysis_request,
-    preview_chapter_prompt, preview_chapter_scene_request,
-    preview_resume_chapter_analysis_sync_request, reorder_chapter_scenes,
+    edit_chapter_shooting_script, edit_chapter_visual_plan_draft, generate_chapter_analysis,
+    generate_chapter_scene, generate_chapter_shooting_script,
+    generate_next_chapter_shooting_script_unit, get_chapter_shooting_script,
+    get_chapter_shooting_script_unit_progress, get_chapter_visual_plan, import_chapter,
+    list_chapter_scenes, list_chapters, prepare_chapter_generation_rag_embedding,
+    preview_chapter_analysis_request, preview_chapter_prompt, preview_chapter_scene_request,
+    preview_resume_chapter_analysis_sync_request, read_chapter_visual_plan, reorder_chapter_scenes,
     resume_chapter_analysis_sync, save_chapter_visual_plan_draft, update_chapter_content,
-    update_chapter_scene,
+    update_chapter_scene, validate_chapter_visual_plan,
 };
 pub(super) use export::{
     export_batch_data, export_characters_json_data, export_epub_data, export_markdown_data,

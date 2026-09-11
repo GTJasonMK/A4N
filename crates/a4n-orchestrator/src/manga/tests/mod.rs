@@ -6,7 +6,7 @@ use super::pipeline_prompt::{
     validate_manga_item_extraction_source_span_ids,
     validate_manga_speech_selection_source_span_ids, validate_manga_visual_anchor_source_span_ids,
 };
-use a4n_core::source_spans::source_spans_for_content;
+use a4n_domain::source_spans::source_spans_for_content;
 use serde_json::json;
 
 mod context;

@@ -1,6 +1,6 @@
 mod metadata;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::required_stage_field;

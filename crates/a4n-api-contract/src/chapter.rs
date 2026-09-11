@@ -83,6 +83,10 @@ pub struct GenerateChapterSceneInput {
     pub scene_prompt: String,
 }
 
+/// Host callback for chapter-scene generation progress.
+pub type ChapterSceneProgressReporter<'a> =
+    &'a (dyn Fn(u32, u32, &str) -> Result<(), a4n_error::AppError> + Send + Sync);
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct UpdateChapterSceneInput {
@@ -101,6 +105,33 @@ pub struct UpdateChapterSceneInput {
 pub struct ReorderChapterScenesInput {
     #[schemars(length(min = 1))]
     pub order: Vec<(i64, i32)>,
+}
+
+/// Host-facing chapter scene boundary.
+///
+/// Authorization, scene persistence and ordering remain owned by the chapter
+/// scene application; Runtime receives only API DTOs.
+#[async_trait::async_trait]
+pub trait ChapterSceneApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<ChapterSceneSummary>, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateChapterSceneInput,
+    ) -> Result<ChapterSceneSummary, a4n_error::AppError>;
+
+    async fn delete(&self, user_id: i64, scene_id: i64) -> Result<(), a4n_error::AppError>;
+
+    async fn reorder(
+        &self,
+        user_id: i64,
+        input: ReorderChapterScenesInput,
+    ) -> Result<Vec<ChapterSceneSummary>, a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
@@ -178,6 +209,25 @@ pub struct ChapterSummary {
     pub material_updates: Vec<ChapterMaterialUpdate>,
     pub created_at: Option<String>,
     pub updated_at: Option<String>,
+}
+
+/// Host-facing chapter content read boundary.
+///
+/// Chapter persistence, workflow status projection and project visibility stay
+/// with the chapter owner; Runtime only routes complete API summaries.
+#[async_trait::async_trait]
+pub trait ChapterContentReadApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterSummary>, a4n_error::AppError>;
+
+    async fn summary(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Serialize, JsonSchema, PartialEq)]

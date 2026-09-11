@@ -1,11 +1,11 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
 use a4n_db::shooting_script::ParsedChapterShootingScript;
 use a4n_domain::{
     manga::{MangaPagePlanV3, MangaShootingBeatRefV3},
     shooting_script::ShootingCoverageV1,
 };
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(crate) fn parse_manga_page_plan(

@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::{error::AppError, prompt_language::PromptOutputLanguage};
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_error::AppError;
 
 use super::contracts::{VideoPromptShot, VideoSegmentPlan, VideoShootingScriptProjection};
 use super::validation::{validate_model_shot, validate_shot};
@@ -126,7 +127,7 @@ pub(in crate::video) fn validate_segment_plan_against_shooting_script_projection
 
 fn validate_segment_characters(
     segment_plan: &[VideoSegmentPlan],
-    shot: &a4n_core::video_execution::VideoExecutionShotV2,
+    shot: &a4n_video_contract::VideoExecutionShotV2,
 ) -> Result<(), AppError> {
     for segment in segment_plan
         .iter()

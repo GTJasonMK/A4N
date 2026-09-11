@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use tokio_util::sync::CancellationToken;
 

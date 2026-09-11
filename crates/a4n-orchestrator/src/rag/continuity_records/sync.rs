@@ -1,9 +1,10 @@
-use a4n_core::models::character::{attribute_event, foreshadowing_index};
+use a4n_db_models::models::character::{attribute_event, foreshadowing_index};
+use a4n_rag_core::RagRecord;
 
 use super::{
     attributes::character_attribute_event_rag_record, foreshadowing::foreshadowing_rag_record,
 };
-use crate::{OrchestratorContext, rag::RagRecord, rag::RagSyncContext};
+use crate::{OrchestratorContext, rag::RagSyncContext};
 
 impl OrchestratorContext {
     pub(crate) async fn sync_character_attribute_event_rag(

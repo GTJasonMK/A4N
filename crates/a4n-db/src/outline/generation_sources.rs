@@ -1,14 +1,12 @@
 use super::OutlineDbError;
-use a4n_core::{
-    models::{
-        asset::object_profile,
-        chapter::{chapter, chapter_outline, chapter_outline_provenance, part_outline},
-        character::{foreshadowing_index, protagonist_profile},
-        project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
-        scene::scene_profile,
-    },
-    source_spans::source_text_hash,
+use a4n_db_models::models::{
+    asset::object_profile,
+    chapter::{chapter, chapter_outline, chapter_outline_provenance, part_outline},
+    character::{foreshadowing_index, protagonist_profile},
+    project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
+    scene::scene_profile,
 };
+use a4n_domain::source_text_hash;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DatabaseTransaction, DbBackend, DbErr,
     EntityTrait, QueryFilter, QueryOrder, QuerySelect, Select, Statement, TransactionTrait,

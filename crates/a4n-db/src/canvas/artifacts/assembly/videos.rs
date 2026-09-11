@@ -1,4 +1,4 @@
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter, QuerySelect, Select,
@@ -10,7 +10,7 @@ use crate::canvas::CanvasDbError;
 use super::super::types::CanvasVideoMediaSource;
 
 pub(super) fn canvas_video_media_origin(video: &CanvasVideoMediaSource) -> &str {
-    if video.video_type == generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY {
+    if video.video_type == a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY {
         "assembled_preview"
     } else if video.model == EXTERNAL_IMPORT_MODEL {
         "imported"

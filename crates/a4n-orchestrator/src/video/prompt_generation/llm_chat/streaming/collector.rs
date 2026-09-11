@@ -1,8 +1,8 @@
 use std::time::Instant;
 
-use a4n_core::error::AppError;
-use a4n_core::structured_progress::StructuredJsonProgressTracker;
+use a4n_error::AppError;
 use a4n_llm::provider::UsageInfo;
+use a4n_progress::StructuredJsonProgressTracker;
 
 use super::super::contracts::report_video_prompt_progress;
 use super::super::request::{ensure_video_output_not_truncated, ensure_video_prompt_not_cancelled};

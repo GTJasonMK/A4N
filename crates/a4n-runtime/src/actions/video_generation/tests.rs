@@ -3,13 +3,13 @@ use a4n_video::VideoGenerationResult;
 use chrono::Utc;
 use serde_json::{Value, json};
 
-fn reference_media_video_with_metadata(metadata_json: Option<Value>) -> generated_video::Model {
+fn reference_media_video_with_metadata(metadata_json: Option<Value>) -> GeneratedVideoSummary {
     let now = Utc::now().naive_utc();
-    generated_video::Model {
+    GeneratedVideoSummary {
         id: 42,
         project_id: 1,
         chapter_id: Some(2),
-        video_type: generated_video::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
         workflow_mode: Some("reference_media".to_string()),
         file_path: None,
         thumbnail_path: None,
@@ -29,8 +29,8 @@ fn reference_media_video_with_metadata(metadata_json: Option<Value>) -> generate
         timeline_item_id: None,
         metadata_json,
         is_favorite: false,
-        created_at: now,
-        updated_at: now,
+        created_at: now.to_string(),
+        updated_at: now.to_string(),
     }
 }
 

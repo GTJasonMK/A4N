@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    blueprint::{
+use a4n_domain::{
+    llm::llm_token_profiles,
+    project::{
         BLUEPRINT_REFINEMENT_PROMPT, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
         blueprint_refinement_call_key,
     },
-    config::app_config::llm_token_profiles,
-    error::AppError,
-    source_spans::source_text_hash as source_content_sha256,
+    source_text_hash as source_content_sha256,
 };
+use a4n_error::AppError;
 use a4n_llm::{
     context::context_aware_system_user_request,
     provider::{ChatRequest, LlmTraceContext},

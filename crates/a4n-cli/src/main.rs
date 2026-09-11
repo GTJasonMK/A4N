@@ -24,6 +24,7 @@ use a4n_api_contract::agent::{
 };
 use a4n_api_contract::auth::{ChangePasswordInput, RevokeSessionInput};
 use a4n_api_contract::command_manifest as catalog;
+use a4n_api_contract::package::PackageId;
 use a4n_api_contract::project::CreateProjectInput;
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use anyhow::{Context, Result, anyhow, bail};
@@ -163,6 +164,11 @@ enum Command {
     Task {
         #[command(subcommand)]
         command: TaskCommand,
+    },
+    /// 查询和管理 Host 功能包
+    Package {
+        #[command(subcommand)]
+        command: PackageCommand,
     },
     /// 高频项目操作；其他项目能力仍可通过 call 使用
     Project {
@@ -309,6 +315,50 @@ enum TaskCommand {
         attempt: u32,
         #[arg(long)]
         after_sequence: Option<u64>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum PackageCommand {
+    /// 查看 Host 功能包状态和健康度
+    Overview,
+    /// 查询命令的实时包准入结果；可重复提供 --command
+    Availability {
+        #[arg(long = "command")]
+        command_names: Vec<String>,
+    },
+    /// 查询一个生命周期操作
+    Operation { operation_id: String },
+    /// 查看当前用户的功能包导航偏好
+    Preferences,
+    /// 更新当前用户隐藏的可选功能包
+    SetPreferences {
+        #[arg(long = "hidden-package")]
+        hidden_packages: Vec<String>,
+    },
+    /// 启用功能包
+    Enable {
+        package_id: String,
+        #[arg(long)]
+        operation_id: Option<String>,
+        #[arg(long)]
+        expected_status_version: Option<u64>,
+        #[arg(long)]
+        requested_version: Option<String>,
+        #[arg(long)]
+        yes: bool,
+    },
+    /// 停用功能包；不会删除已有数据
+    Disable {
+        package_id: String,
+        #[arg(long)]
+        operation_id: Option<String>,
+        #[arg(long)]
+        expected_status_version: Option<u64>,
+        #[arg(long)]
+        requested_version: Option<String>,
+        #[arg(long)]
+        yes: bool,
     },
 }
 
@@ -473,6 +523,9 @@ enum AgentCommand {
         /// AgentBudget JSON、@文件路径或 -（stdin）
         #[arg(long, value_name = "JSON|@FILE|-")]
         budget: Option<String>,
+        /// 绑定原编辑器定位元数据；不接受正文或方案内容
+        #[arg(long, value_name = "JSON|@FILE|-")]
+        editor_source: Option<String>,
     },
     /// 暂停、恢复或取消一个持久化 Agent Run
     Run {
@@ -519,7 +572,7 @@ enum AgentCommand {
         effect: Option<String>,
         #[arg(long)]
         capability: Option<String>,
-        #[arg(long, default_value_t = 50)]
+        #[arg(long, default_value_t = a4n_api_contract::agent::AGENT_TOOLS_DEFAULT_LIMIT)]
         limit: u32,
     },
     /// 查看一个 Agent Host 工具
@@ -639,7 +692,7 @@ enum AgentThreadCommand {
         #[arg(long)]
         capability: Option<String>,
     },
-    /// 更新 Thread 标题、默认模型或 revision 前置条件
+    /// 更新 Thread 标题、默认模型或工具权限
     Update {
         thread_id: String,
         #[arg(long)]
@@ -648,6 +701,11 @@ enum AgentThreadCommand {
         model_config_id: Option<i64>,
         #[arg(long)]
         expected_revision: Option<u64>,
+        #[arg(long, conflicts_with = "use_capability_tools")]
+        allowed_tool: Vec<String>,
+        /// 显式使用当前能力域工具目录；要求 --expected-revision 且没有活动 Run
+        #[arg(long)]
+        use_capability_tools: bool,
     },
     /// 归档一个 Thread
     Archive { thread_id: String },
@@ -978,6 +1036,7 @@ impl Command {
             }
             Self::Request { method, .. } => format!("request {}", method.label()),
             Self::Task { command } => format!("task {}", command.label()),
+            Self::Package { command } => format!("package {}", command.label()),
             Self::Project { command } => format!("project {}", command.label()),
             Self::Chapter { command } => format!("chapter {}", command.label()),
             Self::Workflow { command } => format!("workflow {}", command.label()),
@@ -1063,6 +1122,20 @@ impl TaskCommand {
             Self::History { .. } => "history",
             Self::Cancel { .. } => "cancel",
             Self::Watch { .. } => "watch",
+        }
+    }
+}
+
+impl PackageCommand {
+    fn label(&self) -> &'static str {
+        match self {
+            Self::Overview => "overview",
+            Self::Availability { .. } => "availability",
+            Self::Operation { .. } => "operation",
+            Self::Preferences => "preferences",
+            Self::SetPreferences { .. } => "set-preferences",
+            Self::Enable { .. } => "enable",
+            Self::Disable { .. } => "disable",
         }
     }
 }
@@ -1574,6 +1647,7 @@ async fn execute_command(runtime: &mut CliRuntime, command: Command) -> Result<(
             }
         }
         Command::Task { command } => run_task(&mut runtime.client, command, &output).await,
+        Command::Package { command } => run_package(&mut runtime.client, command, &output).await,
         Command::Project { command } => run_project(runtime, command, &output).await,
         Command::Chapter { command } => run_chapter(runtime, command, &output).await,
         Command::Workflow { command } => run_workflow(runtime, command, &output).await,
@@ -1583,6 +1657,80 @@ async fn execute_command(runtime: &mut CliRuntime, command: Command) -> Result<(
         Command::Context { command } => run_context(runtime, command, &output).await,
         Command::Page { command } => page::run(runtime, command, &output).await,
     }
+}
+
+async fn run_package(
+    client: &mut ApiClient,
+    command: PackageCommand,
+    output: &OutputOptions,
+) -> Result<()> {
+    let lifecycle_action = if matches!(&command, PackageCommand::Enable { .. }) {
+        "enable"
+    } else {
+        "disable"
+    };
+    let (host_command, args) = match command {
+        PackageCommand::Overview => ("get_package_overview", json!({})),
+        PackageCommand::Availability { command_names } => (
+            "list_package_command_availability",
+            json!({ "input": { "commands": command_names } }),
+        ),
+        PackageCommand::Operation { operation_id } => {
+            validate_non_empty(&operation_id, "operation_id")?;
+            (
+                "get_package_operation",
+                json!({ "input": { "operation_id": operation_id } }),
+            )
+        }
+        PackageCommand::Preferences => ("get_package_preferences", json!({})),
+        PackageCommand::SetPreferences { hidden_packages } => {
+            let hidden_package_ids = hidden_packages
+                .into_iter()
+                .map(|value| {
+                    PackageId::parse(&value)
+                        .map(|package| package.as_str().to_string())
+                        .ok_or_else(|| anyhow!("未知功能包: {value}"))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            (
+                "update_package_preferences",
+                json!({ "input": { "hidden_package_ids": hidden_package_ids } }),
+            )
+        }
+        PackageCommand::Enable {
+            package_id,
+            operation_id,
+            expected_status_version,
+            requested_version,
+            yes,
+        }
+        | PackageCommand::Disable {
+            package_id,
+            operation_id,
+            expected_status_version,
+            requested_version,
+            yes,
+        } => {
+            if !yes {
+                bail!("package enable/disable 需要 --yes 显式授权");
+            }
+            let package =
+                PackageId::parse(&package_id).ok_or_else(|| anyhow!("未知功能包: {package_id}"))?;
+            (
+                "start_package_lifecycle",
+                json!({
+                    "input": {
+                        "package_id": package,
+                        "action": lifecycle_action,
+                        "operation_id": operation_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string()),
+                        "expected_status_version": expected_status_version,
+                        "requested_version": requested_version,
+                    }
+                }),
+            )
+        }
+    };
+    print_json(&invoke_host(client, host_command, args).await?, output)
 }
 
 async fn run_shell(
@@ -2224,6 +2372,7 @@ async fn run_agent(
             execution_mode,
             model_config_id,
             budget,
+            editor_source,
         } => {
             validate_non_empty(&thread_id, "thread_id")?;
             let content = read_text_source(&content)?.trim().to_string();
@@ -2247,6 +2396,13 @@ async fn run_agent(
                 execution_mode: execution_mode.into(),
                 model_config_id,
                 budget,
+                editor_source: editor_source
+                    .as_deref()
+                    .map(read_json_source)
+                    .transpose()?
+                    .map(serde_json::from_value)
+                    .transpose()
+                    .context("editor_source 合同无效")?,
                 runtime_config_snapshot: Some(runtime_config_snapshot),
             };
             let value = post_agent_message(&mut runtime.client, input).await?;
@@ -2607,17 +2763,30 @@ async fn run_agent_thread(
             title,
             model_config_id,
             expected_revision,
+            allowed_tool,
+            use_capability_tools,
         } => {
             validate_non_empty(&thread_id, "thread_id")?;
             validate_optional_positive(model_config_id, "model_config_id")?;
-            if title.is_none() && model_config_id.is_none() {
-                bail!("至少提供 --title 或 --model-config-id");
+            if title.is_none()
+                && model_config_id.is_none()
+                && allowed_tool.is_empty()
+                && !use_capability_tools
+            {
+                bail!(
+                    "至少提供 --title、--model-config-id、--allowed-tool 或 --use-capability-tools"
+                );
             }
             let input = UpdateAgentThreadInput {
                 thread_id: thread_id.clone(),
                 title,
                 default_model_config_id: model_config_id,
                 expected_revision,
+                allowed_tools: if use_capability_tools {
+                    Some(Vec::new())
+                } else {
+                    (!allowed_tool.is_empty()).then_some(allowed_tool)
+                },
             };
             let value = client
                 .send_json(JsonRequest {

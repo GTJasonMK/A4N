@@ -27,13 +27,13 @@ pub use ranges::{
     chapter_outline_ids_in_part_range, chapter_outline_ids_in_part_ranges,
     part_id_for_chapter_number, validate_part_outline_records,
 };
-pub use types::{ChapterOutlineSyncDraft, OutlineDbError, PartOutlineSyncDraft};
+pub use types::{OutlineDbError, PartOutlineSyncDraft};
 
 async fn lock_outline_project_for_write<C>(
     db: &C,
     project_id: i64,
     operation: &str,
-) -> Result<a4n_core::models::project::novel_project::Model, OutlineDbError>
+) -> Result<a4n_db_models::models::project::novel_project::Model, OutlineDbError>
 where
     C: sea_orm::ConnectionTrait,
 {

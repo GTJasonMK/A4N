@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use super::json::extract_character_names_from_value;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter_outline,
     character::foreshadowing_index,
     project::{blueprint_character, blueprint_relationship},

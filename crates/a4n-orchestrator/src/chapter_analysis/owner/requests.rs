@@ -1,7 +1,7 @@
-use a4n_core::{
-    chapter_analysis::CHAPTER_ANALYSIS_STAGE_FACTS, error::AppError, models::chapter::chapter,
-    source_spans::source_spans_for_chapters,
-};
+use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_FACTS;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::source_spans::source_spans_for_chapters;
+use a4n_error::AppError;
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 
 mod context;

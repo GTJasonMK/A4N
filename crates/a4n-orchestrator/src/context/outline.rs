@@ -1,6 +1,6 @@
 //! 大纲生成 workflow 入口。
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::OrchestratorContext;
@@ -15,7 +15,7 @@ impl OrchestratorContext {
         current_step_key: &str,
         task_id: Option<String>,
         input_fingerprint_json: Value,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let input = crate::outline::outline_workflow_run_input(
             project_id,
             workflow_kind,

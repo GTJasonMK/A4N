@@ -1,6 +1,6 @@
 use super::shared::{chapter_context_label, truncate_chars};
 use crate::chapter_generation::non_empty_trimmed;
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 
 const RECENT_SUMMARY_CHAPTERS: i32 = 10;
 const MAX_OLD_SUMMARY_LINES: usize = 80;

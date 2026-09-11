@@ -1,4 +1,5 @@
-use a4n_core::{blueprint_context::blueprint_llm_context, chapter_analysis::summary_text};
+use a4n_chapter_analysis::summary_text;
+use a4n_db::blueprint_context::blueprint_llm_context;
 use a4n_db::inspiration::{InspirationProjectContextRows, InspirationRecentChapterRow};
 use serde_json::{Value, json};
 

@@ -1,11 +1,18 @@
 use std::collections::HashMap;
 
-use a4n_api_contract::import_review::DedupResult;
-use a4n_core::{error::AppError, models::project::import_review_queue};
+use a4n_api_contract::import_review::{
+    AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
+    ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
+};
 use a4n_db::{
     DbHandle,
-    import_review::{AcceptedImportReview, ImportReviewCreateInput, ImportReviewMutationError},
+    import_review::{AcceptedImportReview, ImportReviewMutationError},
 };
+use a4n_db_models::models::project::import_review_queue;
+use a4n_domain::import_review::ImportChapterDraft;
+use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_error::AppError;
+use async_trait::async_trait;
 use serde_json::Value;
 
 use super::OrchestratorContext;
@@ -271,5 +278,112 @@ impl OrchestratorContext {
         self.verify_project_permission(review.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         Ok(review)
+    }
+}
+
+fn import_review_summary(
+    review: &import_review_queue::Model,
+) -> Result<ImportReviewSummary, AppError> {
+    let review_status = a4n_domain::import_review::ImportReviewStatus::parse(&review.review_status)
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!(
+                "导入审核 #{} review_status={:?}",
+                review.id, review.review_status
+            ),
+            operation: "读取导入审核状态".to_string(),
+        })?;
+    Ok(ImportReviewSummary {
+        id: review.id,
+        project_id: review.project_id,
+        filename: review.filename.clone(),
+        analysis_result: review.analysis_result.clone(),
+        review_status,
+        created_at: review.created_at.to_string(),
+        updated_at: review.updated_at.to_string(),
+    })
+}
+
+#[async_trait]
+impl crate::import_review::ImportReviewApplicationPort for OrchestratorContext {
+    async fn create_from_parsed(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        filename: &str,
+        chapters: &[ImportChapterDraft],
+    ) -> Result<Vec<ImportReviewSummary>, AppError> {
+        let reviews = crate::import_analysis::create_import_analysis_reviews_for_user_validated(
+            self, user_id, project_id, filename, chapters,
+        )
+        .await?;
+        reviews.iter().map(import_review_summary).collect()
+    }
+
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ImportProjectReviewsInput,
+    ) -> Result<Vec<ImportReviewSummary>, AppError> {
+        let reviews = self
+            .import_reviews_for_user_validated(user_id, input.project_id)
+            .await?;
+        reviews.iter().map(import_review_summary).collect()
+    }
+
+    async fn accept(
+        &self,
+        user_id: i64,
+        input: AcceptImportReviewInput,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+    ) -> Result<ImportReviewSummary, AppError> {
+        let accepted = self
+            .accept_import_review_for_user_validated(
+                user_id,
+                input.review_id,
+                input.analysis_result,
+                host_port,
+            )
+            .await?;
+        import_review_summary(&accepted.review)
+    }
+
+    async fn batch_accept(
+        &self,
+        user_id: i64,
+        input: BatchAcceptImportReviewsInput,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+    ) -> Result<Vec<ImportReviewSummary>, AppError> {
+        let accepted = self
+            .batch_accept_import_reviews_for_user_validated(user_id, &input.review_ids, host_port)
+            .await?;
+        accepted
+            .iter()
+            .map(|accepted| import_review_summary(&accepted.review))
+            .collect()
+    }
+
+    async fn delete(&self, user_id: i64, input: ImportReviewIdInput) -> Result<(), AppError> {
+        self.delete_import_review_for_user_validated(user_id, input.review_id)
+            .await
+    }
+
+    async fn reject(
+        &self,
+        user_id: i64,
+        input: ImportReviewIdInput,
+    ) -> Result<ImportReviewSummary, AppError> {
+        let updated = self
+            .reject_import_review_for_user_validated(user_id, input.review_id)
+            .await?;
+        import_review_summary(&updated)
+    }
+
+    async fn dedup(
+        &self,
+        user_id: i64,
+        input: CheckImportDedupInput,
+    ) -> Result<DedupResult, AppError> {
+        self.check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
+            .await
     }
 }

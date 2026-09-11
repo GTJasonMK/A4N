@@ -3,7 +3,7 @@ use super::{
     links::delete_project_generated_artifact_links, rows::delete_project_generated_artifact_rows,
 };
 use crate::project::validate_positive_i64;
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_spec, prompt_artifact},
     media::media_asset,
 };

@@ -4,7 +4,7 @@ use crate::galgame::{
     GalgameScriptRecordError, PersistGalgameScriptRecordInput,
     delete_galgame_target_generation_media_graph_record,
 };
-use a4n_core::models::galgame::galgame_script;
+use a4n_db_models::models::galgame::galgame_script;
 use sea_orm::{DatabaseConnection, TransactionTrait};
 
 pub async fn replace_galgame_script_for_project_record(

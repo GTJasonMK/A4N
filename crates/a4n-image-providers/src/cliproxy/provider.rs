@@ -2,7 +2,7 @@ use super::super::support::{
     build_image_http_client, image_provider_http_error, image_result_from_openai_payload,
     required_non_empty, response_text, send_image_request,
 };
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 

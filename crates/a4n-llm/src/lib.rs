@@ -1,6 +1,5 @@
 //! LLM request/response DTOs and provider traits.
 
-pub mod config;
 pub mod context;
 pub mod gateway;
 pub mod provider;

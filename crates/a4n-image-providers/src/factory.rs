@@ -5,12 +5,12 @@ use super::openai::OpenAiCompatibleImageProvider;
 use super::openai_edit::OpenAiCompatibleImageEditProvider;
 use super::sd_webui::StableDiffusionWebUiImageProvider;
 use super::support::internal_error;
-use a4n_core::config::{
+use a4n_domain::ProviderError as AppError;
+use a4n_domain::image::{
     CLIPROXY_IMAGE_BACKEND, COMFYUI_IMAGE_BACKEND, OPENAI_CHAT_IMAGE_BACKEND,
     OPENAI_COMPATIBLE_IMAGE_BACKEND, OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND,
     STABLE_DIFFUSION_IMAGE_BACKEND, image_provider_capabilities,
 };
-use a4n_core::error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageProvider};
 use serde_json::Value;
 
@@ -68,7 +68,7 @@ pub fn image_provider_request_body_preview(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::config::IMAGE_PROVIDER_CAPABILITIES;
+    use a4n_domain::image::IMAGE_PROVIDER_CAPABILITIES;
 
     #[test]
     fn accepts_and_previews_canonical_image_backends() {

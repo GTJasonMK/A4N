@@ -4,7 +4,7 @@ use a4n_capabilities::{
     A4nCapabilities, HttpEmbeddingClient, HttpExportClient, HttpImageClient, HttpImportClient,
     HttpLlmClient, HttpPromptClient, HttpRagClient, HttpVideoClient,
 };
-use a4n_service_manager::ServiceManager;
+use a4n_service_manager::{ServiceManager, ServiceMode};
 use a4n_service_protocol::{
     EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME,
     LLM_SERVICE_NAME, PROMPT_SERVICE_NAME, RAG_SERVICE_NAME, VIDEO_SERVICE_NAME,
@@ -20,24 +20,40 @@ pub(crate) fn runtime_capabilities(
         return Ok(A4nCapabilities::default());
     }
 
-    let prompt = http_prompt(service_manager)?;
-    let llm = http_llm(service_manager)?;
-    let embedding = http_embedding(service_manager)?;
-    let rag = http_rag(service_manager)?;
-    let image = http_image(service_manager)?;
-    let video = http_video(service_manager)?;
-    let import_client = http_import(service_manager)?;
-    let export = http_export(service_manager)?;
+    let mut capabilities = A4nCapabilities::default();
+    if service_is_configured(service_manager, PROMPT_SERVICE_NAME)? {
+        capabilities = capabilities.with_prompt(Arc::new(http_prompt(service_manager)?));
+    }
+    if service_is_configured(service_manager, LLM_SERVICE_NAME)? {
+        capabilities = capabilities.with_llm(Arc::new(http_llm(service_manager)?));
+    }
+    if service_is_configured(service_manager, EMBEDDING_SERVICE_NAME)? {
+        capabilities = capabilities.with_embedding(Arc::new(http_embedding(service_manager)?));
+    }
+    if service_is_configured(service_manager, RAG_SERVICE_NAME)? {
+        capabilities = capabilities.with_rag(Arc::new(http_rag(service_manager)?));
+    }
+    if service_is_configured(service_manager, IMAGE_SERVICE_NAME)? {
+        capabilities = capabilities.with_image(Arc::new(http_image(service_manager)?));
+    }
+    if service_is_configured(service_manager, VIDEO_SERVICE_NAME)? {
+        capabilities = capabilities.with_video(Arc::new(http_video(service_manager)?));
+    }
+    if service_is_configured(service_manager, IMPORT_SERVICE_NAME)? {
+        capabilities = capabilities.with_import(Arc::new(http_import(service_manager)?));
+    }
+    if service_is_configured(service_manager, EXPORT_SERVICE_NAME)? {
+        capabilities = capabilities.with_export(Arc::new(http_export(service_manager)?));
+    }
+    Ok(capabilities)
+}
 
-    Ok(A4nCapabilities::default()
-        .with_prompt(Arc::new(prompt))
-        .with_llm(Arc::new(llm))
-        .with_embedding(Arc::new(embedding))
-        .with_rag(Arc::new(rag))
-        .with_image(Arc::new(image))
-        .with_video(Arc::new(video))
-        .with_import(Arc::new(import_client))
-        .with_export(Arc::new(export)))
+fn service_is_configured(manager: &ServiceManager, name: &str) -> Result<bool, String> {
+    Ok(manager
+        .config(name)
+        .map_err(|error| error.to_string())?
+        .mode
+        != ServiceMode::Disabled)
 }
 
 fn service_url(manager: &ServiceManager, name: &str) -> Result<String, String> {

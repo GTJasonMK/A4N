@@ -1,4 +1,4 @@
-use a4n_core::config::app_config::{AppConfig, portable_home_dir};
+use a4n_config::app_config::{AppConfig, portable_home_dir};
 use reqwest::StatusCode;
 #[cfg(target_os = "linux")]
 use std::os::unix::process::CommandExt;
@@ -190,28 +190,6 @@ async fn wait_until_healthy(
         tokio::time::sleep(Duration::from_millis(300)).await;
     }
     Err("A4N Server 启动超时；请检查 Server 日志".into())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{ServerProbe, classify_server_response};
-    use reqwest::StatusCode;
-
-    #[test]
-    fn classifies_any_http_response_as_port_occupied() {
-        assert_eq!(
-            classify_server_response(StatusCode::OK, Some("ok\n")),
-            ServerProbe::Healthy
-        );
-        assert_eq!(
-            classify_server_response(StatusCode::NOT_FOUND, Some("not found")),
-            ServerProbe::Occupied
-        );
-        assert_eq!(
-            classify_server_response(StatusCode::OK, None),
-            ServerProbe::Occupied
-        );
-    }
 }
 
 fn run_migration(binary: &Path) -> Result<(), Box<dyn std::error::Error>> {
@@ -410,4 +388,26 @@ fn runtime_loader_path_var() -> &'static str {
 #[cfg(windows)]
 fn runtime_loader_path_var() -> &'static str {
     "PATH"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ServerProbe, classify_server_response};
+    use reqwest::StatusCode;
+
+    #[test]
+    fn classifies_any_http_response_as_port_occupied() {
+        assert_eq!(
+            classify_server_response(StatusCode::OK, Some("ok\n")),
+            ServerProbe::Healthy
+        );
+        assert_eq!(
+            classify_server_response(StatusCode::NOT_FOUND, Some("not found")),
+            ServerProbe::Occupied
+        );
+        assert_eq!(
+            classify_server_response(StatusCode::OK, None),
+            ServerProbe::Occupied
+        );
+    }
 }

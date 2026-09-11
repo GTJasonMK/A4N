@@ -95,7 +95,6 @@ impl From<project_db::ProjectMutationError> for ProjectResetDbError {
 
 #[derive(Debug, Clone)]
 pub struct ProjectGeneratedDataResetResult {
-    pub project: novel_project::Model,
     pub deleted_galgame_scripts: u64,
     pub deleted_galgame_scenes: u64,
     pub deleted_galgame_lines: u64,

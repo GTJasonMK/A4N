@@ -5,7 +5,7 @@ use crate::galgame::{
     GalgameCompletedVisualBindingRecord, GalgameMediaRecordError, require_galgame_media_text,
     validate_galgame_generation_id,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::generation_spec,
     media::{media_asset, media_binding, media_provenance},
 };

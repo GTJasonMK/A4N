@@ -2,7 +2,7 @@ mod family;
 mod generation;
 mod root;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use sea_orm::{ConnectionTrait, FromQueryResult};
 
 #[derive(Debug, FromQueryResult)]
@@ -89,7 +89,7 @@ pub(in crate::project_dependency_graph) struct CharacterProfileGraphRow {
 
 impl CharacterProfileGraphRow {
     pub(in crate::project_dependency_graph) fn first_seen_chapter(&self) -> Option<i32> {
-        a4n_core::models::character::protagonist_profile::first_seen_chapter_from_attributes(
+        a4n_db_models::models::character::protagonist_profile::first_seen_chapter_from_attributes(
             &self.base_attributes,
         )
     }

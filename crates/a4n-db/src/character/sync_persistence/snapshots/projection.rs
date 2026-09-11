@@ -1,4 +1,4 @@
-use a4n_core::models::character::attribute_event;
+use a4n_db_models::models::character::attribute_event;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 

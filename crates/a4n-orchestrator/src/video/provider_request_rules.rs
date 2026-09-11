@@ -1,6 +1,6 @@
 //! 视频 provider 请求：参考图 ID、provider 媒体合同、提示词元数据纯规则（无 DB、无 Host）。
 
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -104,7 +104,7 @@ pub fn ensure_provider_generation_workflow(
 
 pub(crate) fn prompt_provider_workflow_for_recipe(
     prompt: &chapter_video_prompt::Model,
-    recipe: &a4n_core::video_execution::VideoSegmentExecutionRecipeV1,
+    recipe: &a4n_video_contract::VideoSegmentExecutionRecipeV1,
 ) -> Result<ProviderGenerationWorkflow, String> {
     ensure_provider_generation_workflow(prompt)?;
     provider_generation_workflow_for_guidance(
@@ -117,9 +117,9 @@ pub(crate) fn prompt_provider_workflow_for_recipe(
 fn provider_generation_workflow_for_guidance(
     prompt_id: i64,
     workflow_mode: &str,
-    guidance_mode: a4n_core::video_execution::VideoSegmentGuidanceModeV1,
+    guidance_mode: a4n_video_contract::VideoSegmentGuidanceModeV1,
 ) -> Result<ProviderGenerationWorkflow, String> {
-    use a4n_core::video_execution::VideoSegmentGuidanceModeV1;
+    use a4n_video_contract::VideoSegmentGuidanceModeV1;
 
     match guidance_mode {
         VideoSegmentGuidanceModeV1::None => Ok(ProviderGenerationWorkflow::TextOnly),
@@ -150,7 +150,7 @@ fn provider_generation_workflow_for_guidance(
 }
 
 pub fn first_frame_chain_missing_start_image_message(
-    prompt: &a4n_core::models::chapter::chapter_video_prompt::Model,
+    prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
 ) -> String {
     if prompt.shot_number <= 1 {
         "首帧串联第 1 个视频单元缺少首帧图片，请先生成首帧提示词对应的首帧图片".to_string()
@@ -164,7 +164,7 @@ pub fn first_frame_chain_missing_start_image_message(
 }
 
 pub fn boundary_frame_missing_image_message(
-    prompt: &a4n_core::models::chapter::chapter_video_prompt::Model,
+    prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
     has_first_frame: bool,
     has_last_frame: bool,
 ) -> Option<String> {
@@ -190,7 +190,7 @@ pub fn boundary_frame_missing_image_message(
 }
 
 pub fn storyboard_missing_image_message(
-    prompt: &a4n_core::models::chapter::chapter_video_prompt::Model,
+    prompt: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
 ) -> String {
     format!(
         "分镜模式第 {} 个视频单元缺少分镜图，请先生成分镜提示词对应的分镜图片",
@@ -215,11 +215,11 @@ pub fn required_video_execution_identity(
             )
         })?;
     if identity.get("contract_epoch").and_then(Value::as_u64)
-        != Some(a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH as u64)
+        != Some(a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH as u64)
     {
         return Err(format!(
             "视频提示词 #{prompt_id} 的 video_execution_identity.contract_epoch 不是当前合同 {}",
-            a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH
+            a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH
         ));
     }
     for key in [
@@ -427,7 +427,7 @@ pub fn cliproxy_prompt_length_violation_message(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::chapter::chapter_video_prompt;
+    use a4n_db_models::models::chapter::chapter_video_prompt;
 
     #[test]
     fn reference_ids_dedupe_and_order() {
@@ -527,7 +527,7 @@ mod tests {
         assert!(required_video_execution_identity(1, None).is_err());
 
         let identity = json!({
-            "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+            "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
             "shooting_script_identity": {
                 "record_id": 1,
                 "revision": 2,
@@ -571,8 +571,8 @@ mod tests {
 
     #[test]
     fn provider_workflow_uses_recipe_instead_of_legacy_metadata() {
-        use a4n_core::models::chapter::chapter_video_prompt;
-        use a4n_core::video_execution::{
+        use a4n_db_models::models::chapter::chapter_video_prompt;
+        use a4n_video_contract::{
             VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentExecutionRecipeV1,
             VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
         };

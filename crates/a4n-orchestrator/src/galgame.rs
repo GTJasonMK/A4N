@@ -86,7 +86,6 @@ pub(in crate::galgame) use pipeline_prompt::{
     galgame_visual_planning_session_user_message,
 };
 pub(crate) use pipeline_run::validate_source_sync_scene_regeneration_stage_outputs;
-pub use pipeline_run::{GalgamePipelineProgressUpdate, GalgameProgressReporter};
 pub(crate) use pipeline_run::{
     GalgamePipelineRunOptions, GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
     galgame_shooting_script_projection,
@@ -119,5 +118,9 @@ use a4n_db::galgame::{
 #[cfg(test)]
 use a4n_domain::galgame::{GalgameFacingV2, GalgameStageLayerV2};
 
-pub use application::GalgamePipelineApplicationInput;
-pub use asset_generation_application::GalgameAssetGenerationHostPort;
+pub use application::{
+    GalgamePipelineApplicationInput, GalgamePipelineApplicationPort, GalgameRecordApplicationPort,
+};
+pub use asset_generation_application::{
+    GalgameAssetGenerationApplicationPort, GalgameAssetGenerationHostPort,
+};

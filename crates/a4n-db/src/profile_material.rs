@@ -12,6 +12,7 @@ pub use contracts::{
 pub use identity::{
     PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE, generated_image_profile_material_identity,
     is_project_reusable_video_material_image, profile_material_identity,
+    profile_material_identity_from_fields,
 };
 pub use primary::{delete_profile_primary_material, upsert_profile_primary_material};
 pub use queries::{

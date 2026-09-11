@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_scene;
+use a4n_db_models::models::chapter::chapter_scene;
 use chrono::NaiveDateTime;
 use sea_orm::DbErr;
 

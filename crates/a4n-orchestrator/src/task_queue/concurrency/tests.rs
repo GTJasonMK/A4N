@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::{image_gen_config, llm_config, video_gen_config};
+use a4n_db_models::models::ai::{image_gen_config, llm_config, video_gen_config};
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{EntityTrait, Set};
 

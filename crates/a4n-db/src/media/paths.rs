@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     character::character_portrait,
     media::media_asset,

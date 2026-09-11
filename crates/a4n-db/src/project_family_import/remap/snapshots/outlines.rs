@@ -1,4 +1,4 @@
-use a4n_core::models::project::source_snapshot_outline;
+use a4n_db_models::models::project::source_snapshot_outline;
 use serde_json::Value;
 
 use super::super::json_ids::{json_object, remap_object_id, remap_required_object_id};

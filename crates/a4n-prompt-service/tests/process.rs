@@ -1,4 +1,4 @@
-use a4n_prompt::contracts::{PromptEmptyPayload, PromptRenderPayload};
+use a4n_prompt_contract::{PromptEmptyPayload, PromptRenderPayload};
 use a4n_service_protocol::{PROMPT_SERVICE_PROMPTS_DIR_ENV, ServiceRequest};
 use a4n_test_support::process::{
     HttpPromptClient, PROMPT_RENDER_CAPABILITY_VERSION, PROMPT_SERVICE_NAME, PromptClient,

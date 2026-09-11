@@ -5,6 +5,11 @@ use super::{
     WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
 };
 
+pub use a4n_domain::workflow::{
+    cancel_workflow_requires_target, is_video_status_final_for_cancel_interrupt,
+    require_positive_workflow_run_id, validate_optional_project_id, validate_task_history_limit,
+};
+
 /// 统一恢复入口可分发的目标（不含 Host 访问与领域执行）。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnifiedResumeDispatch {
@@ -72,52 +77,6 @@ pub fn validate_begin_workflow_run_input(input: &UpsertWorkflowRunInput) -> Resu
         ));
     }
     Ok(())
-}
-
-/// 校验 workflow_run_id 为正。
-pub fn require_positive_workflow_run_id(workflow_run_id: i64) -> Result<(), String> {
-    if workflow_run_id <= 0 {
-        Err("workflow_run_id 必须大于 0".to_string())
-    } else {
-        Ok(())
-    }
-}
-
-/// 任务历史 limit 必须为正。
-pub fn validate_task_history_limit(limit: u64) -> Result<(), String> {
-    if limit == 0 {
-        Err("limit 必须大于 0".to_string())
-    } else {
-        Ok(())
-    }
-}
-
-/// 可选 project_id 若存在则必须为正。
-pub fn validate_optional_project_id(project_id: Option<i64>) -> Result<(), String> {
-    match project_id {
-        Some(project_id) if project_id <= 0 => Err("project_id 必须大于 0".to_string()),
-        _ => Ok(()),
-    }
-}
-
-/// 取消工作流必须提供 task_id 或 workflow_run_id 之一。
-pub fn cancel_workflow_requires_target(
-    has_task_id: bool,
-    has_workflow_run_id: bool,
-) -> Result<(), String> {
-    if !has_task_id && !has_workflow_run_id {
-        Err("必须提供 task_id 或 workflow_run_id".to_string())
-    } else {
-        Ok(())
-    }
-}
-
-/// 取消工作流时是否无需再把视频标为 interrupted。
-///
-/// 含 `interrupted`：已中断则跳过。与 video job lifecycle 的「provider 任务是否仍可轮询」
-/// 谓词不同（后者通常不含 interrupted）。
-pub fn is_video_status_final_for_cancel_interrupt(status: &str) -> bool {
-    matches!(status, "completed" | "failed" | "cancelled" | "interrupted")
 }
 
 /// 工作流是否允许恢复；状态本身可判定时直接拒绝，其余不可恢复状态必须有持久化原因。

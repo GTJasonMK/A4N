@@ -1,5 +1,5 @@
-use a4n_core::files::create_unique_timestamped_file;
-use a4n_core::files::paths::ProjectPaths;
+use a4n_storage::create_unique_timestamped_file;
+use a4n_storage::paths::ProjectPaths;
 use std::path::{Path, PathBuf};
 
 pub(in crate::actions::video_records::imports) fn canvas_frame_output_path(

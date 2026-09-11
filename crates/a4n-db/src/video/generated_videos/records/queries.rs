@@ -1,4 +1,4 @@
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };

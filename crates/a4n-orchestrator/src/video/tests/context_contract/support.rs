@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use std::future::Future;
 
 const PROMPT_PROJECT_ID: i64 = 1;

@@ -1,6 +1,6 @@
 use super::shared::truncate_chars;
 use crate::OrchestratorContext;
-use a4n_core::models::asset::object_profile;
+use a4n_db_models::models::asset::object_profile;
 use std::cmp::Ordering;
 
 const OBJECT_PROFILE_CONTEXT_LIMIT: usize = 8;

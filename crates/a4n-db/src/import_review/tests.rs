@@ -1,11 +1,10 @@
 use super::{
-    ImportReviewCreateInput, ImportReviewMutationError, accept_import_review,
-    chapter::required_import_chapter_number, create_import_reviews,
-    import_review_project_ids_by_ids, reject_import_review,
+    ImportReviewMutationError, accept_import_review, chapter::required_import_chapter_number,
+    create_import_reviews, import_review_project_ids_by_ids, reject_import_review,
 };
 use crate::project::{CreateProjectRecordInput, create_project_record};
-use a4n_core::models::chapter::chapter;
-use a4n_domain::import_review::ImportReviewStatus;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::import_review::{ImportReviewCreateInput, ImportReviewStatus};
 use sea_orm::EntityTrait;
 use serde_json::json;
 

@@ -182,7 +182,7 @@ build_frontend() {
 # —— 执行构建 ——
 do_build() {
     local cargo_args=()
-    local cargo_command=(cargo)
+    local cargo_command=("$PROJECT_ROOT/scripts/cargo.sh")
 
     while IFS= read -r arg; do
         cargo_args+=("$arg")

@@ -1,6 +1,6 @@
 //! 章节视频提示词工作流指纹与 begin 输入纯规则（无 DB）。
 
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 use serde_json::{Value, json};
 
 use super::{ChapterVideoPromptOptions, ChapterVideoSource};
@@ -183,7 +183,7 @@ pub(crate) fn video_prompt_optimization_workflow_run_input(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::prompt_language::PromptOutputLanguage;
+    use a4n_domain::prompt_language::PromptOutputLanguage;
 
     fn sample_options() -> ChapterVideoPromptOptions {
         ChapterVideoPromptOptions {

@@ -4,7 +4,6 @@ mod checkpoint;
 mod error;
 mod prompts;
 mod runs;
-mod trace;
 
 pub use self::artifacts::GenerationRunTraceTarget;
 pub(crate) use self::artifacts::append_generation_artifact_target;
@@ -23,6 +22,7 @@ pub use self::checkpoint::{
     GenerationRunCheckpointContext, generation_checkpoint_fingerprint_sha256,
 };
 pub use self::error::GenerationDbError;
+pub(super) use self::prompts::INTERNAL_PROMPT_TOKENS;
 pub use self::prompts::{
     GENERATION_PROMPT_KIND_CANVAS_PROMPT, GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
     GENERATION_PROMPT_KIND_VIDEO_PROMPT, GENERATION_PROMPT_KINDS, PromptArtifactInsertInput,
@@ -30,11 +30,8 @@ pub use self::prompts::{
 pub(in crate::generation) use self::prompts::{
     GENERATION_PROMPT_KIND_IMAGE_PROMPT, VIDEO_PROMPT_REQUIRED_SECTIONS,
 };
+pub(super) use self::runs::CreateGenerationRunInput;
 pub use self::runs::{
     AttachGenerationRunsToWorkflowInput, RecordCompletedGenerationRunInput,
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
-pub use self::trace::{LlmCallUsageTraceInput, RecordLlmCallTraceInput};
-
-pub(super) use self::prompts::INTERNAL_PROMPT_TOKENS;
-pub(super) use self::runs::CreateGenerationRunInput;

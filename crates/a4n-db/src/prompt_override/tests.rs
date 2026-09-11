@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::error::Error;
 
-use a4n_core::models::ai::system_settings;
+use a4n_db_models::models::ai::system_settings;
 use chrono::Utc;
 use sea_orm::DbErr;
 use serde_json::Value;

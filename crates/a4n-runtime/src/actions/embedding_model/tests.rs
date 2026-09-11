@@ -1,7 +1,7 @@
 use super::{
     EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary, host_adapter::required_text,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 #[test]
 fn blank_model_is_rejected() {

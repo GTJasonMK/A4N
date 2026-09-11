@@ -1,5 +1,5 @@
 use super::types::SceneProfileSyncRequestContext;
-use a4n_core::source_spans::anchor_quotes_in_exact_chapter;
+use a4n_domain::source_spans::anchor_quotes_in_exact_chapter;
 
 pub(super) fn resolve_scene_text_anchor_texts(
     path: &str,

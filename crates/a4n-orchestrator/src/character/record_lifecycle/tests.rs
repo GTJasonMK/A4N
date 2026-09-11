@@ -1,16 +1,15 @@
-use a4n_core::error::AppError;
 use a4n_db::character::{
     CharacterDeletionMarkRewindSummary, CharacterProfileDeletionSummary,
     CharacterProfileRollbackResult, CharacterTimelineDeletionSummary,
 };
+use a4n_error::AppError;
+use a4n_rag_core::RagSyncError;
 
 use super::{
     CharacterProfileRecordDeletionResult, CharacterRecordLifecycleError,
     CharacterTimelineRollbackLifecycleResult,
 };
-use crate::rag::{
-    CharacterProfileRagDeletionSummary, CharacterTimelineRagDeletionSummary, RagSyncError,
-};
+use crate::rag::{CharacterProfileRagDeletionSummary, CharacterTimelineRagDeletionSummary};
 
 #[test]
 fn lifecycle_error_preserves_persistence_and_rag_messages() {

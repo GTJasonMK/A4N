@@ -1,7 +1,226 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+
+use super::config::{
+    normalize_config_name, normalize_optional_config_value, positive_i32, required_config_value,
+};
 use std::collections::HashSet;
+
+#[derive(Debug, Clone)]
+pub struct CreateImageConfigParams {
+    pub name: String,
+    pub backend: String,
+    pub base_url: String,
+    pub api_key_encrypted: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub supported_sizes: Vec<ImageSize>,
+}
+
+pub const OPENAI_COMPATIBLE_IMAGE_BACKEND: &str = "openai-compatible-image";
+pub const OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND: &str = "openai-compatible-image-edit";
+pub const OPENAI_CHAT_IMAGE_BACKEND: &str = "openai-chat-image";
+pub const CLIPROXY_IMAGE_BACKEND: &str = "cliproxy-image";
+pub const STABLE_DIFFUSION_IMAGE_BACKEND: &str = "stable-diffusion";
+pub const COMFYUI_IMAGE_BACKEND: &str = "comfyui";
+
+/// 规范化立绘参考图 ID：正整数、去重保序。
+pub fn validate_reference_image_ids(image_ids: &[i64]) -> Result<Vec<i64>, String> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::with_capacity(image_ids.len());
+    for image_id in image_ids.iter().copied() {
+        if image_id <= 0 {
+            return Err(format!("参考图 ID 必须为正整数：{image_id}"));
+        }
+        if !seen.insert(image_id) {
+            return Err(format!("参考图包含重复 ID：{image_id}"));
+        }
+        normalized.push(image_id);
+    }
+    Ok(normalized)
+}
+
+/// 从 JSON 数组解析正整数参考图 ID，并拒绝重复。
+pub fn reference_image_ids(value: Option<&Value>) -> Result<Vec<i64>, String> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let values = value
+        .as_array()
+        .ok_or_else(|| "reference_image_ids 必须是数组".to_string())?;
+    let mut ids = Vec::with_capacity(values.len());
+    for (index, value) in values.iter().enumerate() {
+        let id = value
+            .as_i64()
+            .filter(|id| *id > 0)
+            .ok_or_else(|| format!("reference_image_ids[{index}] 必须是正整数"))?;
+        if ids.contains(&id) {
+            return Err(format!("reference_image_ids 包含重复 ID：{id}"));
+        }
+        ids.push(id);
+    }
+    Ok(ids)
+}
+
+/// 校验已解析的参考图 ID 列表（正整数、无重复）。
+pub fn validate_reference_image_id_list(ids: &[i64]) -> Result<(), String> {
+    let mut seen = HashSet::with_capacity(ids.len());
+    for (index, id) in ids.iter().copied().enumerate() {
+        if id <= 0 {
+            return Err(format!("reference_image_ids[{index}] 必须是正整数"));
+        }
+        if !seen.insert(id) {
+            return Err(format!("reference_image_ids 包含重复 ID：{id}"));
+        }
+    }
+    Ok(())
+}
+
+/// 从 batch 图片项上的 `reference_image_ids` 字段解析 ID 列表。
+pub fn batch_item_reference_image_ids(item: &Value) -> Result<Vec<i64>, String> {
+    let Some(value) = item
+        .get("reference_image_ids")
+        .filter(|value| !value.is_null())
+    else {
+        return Ok(Vec::new());
+    };
+    reference_image_ids(Some(value))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImageProviderCapabilities {
+    pub backend: &'static str,
+    pub display_name: &'static str,
+    pub requires_api_key: bool,
+    pub supports_reference_images: bool,
+}
+
+pub const IMAGE_PROVIDER_CAPABILITIES: &[ImageProviderCapabilities] = &[
+    ImageProviderCapabilities {
+        backend: OPENAI_COMPATIBLE_IMAGE_BACKEND,
+        display_name: "OpenAI 兼容图像",
+        requires_api_key: true,
+        supports_reference_images: false,
+    },
+    ImageProviderCapabilities {
+        backend: OPENAI_COMPATIBLE_IMAGE_EDIT_BACKEND,
+        display_name: "OpenAI 兼容图像编辑",
+        requires_api_key: true,
+        supports_reference_images: true,
+    },
+    ImageProviderCapabilities {
+        backend: OPENAI_CHAT_IMAGE_BACKEND,
+        display_name: "Chat Completions 图像",
+        requires_api_key: true,
+        supports_reference_images: true,
+    },
+    ImageProviderCapabilities {
+        backend: CLIPROXY_IMAGE_BACKEND,
+        display_name: "CLIProxy / Grok 图片",
+        requires_api_key: true,
+        supports_reference_images: true,
+    },
+    ImageProviderCapabilities {
+        backend: STABLE_DIFFUSION_IMAGE_BACKEND,
+        display_name: "Stable Diffusion WebUI",
+        requires_api_key: false,
+        supports_reference_images: false,
+    },
+    ImageProviderCapabilities {
+        backend: COMFYUI_IMAGE_BACKEND,
+        display_name: "ComfyUI",
+        requires_api_key: false,
+        supports_reference_images: false,
+    },
+];
+
+pub fn image_provider_capabilities(backend: &str) -> Option<ImageProviderCapabilities> {
+    IMAGE_PROVIDER_CAPABILITIES
+        .iter()
+        .copied()
+        .find(|capabilities| capabilities.backend == backend)
+}
+
+pub fn image_backend_requires_api_key(backend: &str) -> bool {
+    image_provider_capabilities(backend).is_some_and(|capabilities| capabilities.requires_api_key)
+}
+
+pub fn image_backend_supports_reference_images(backend: &str) -> bool {
+    image_provider_capabilities(backend)
+        .is_some_and(|capabilities| capabilities.supports_reference_images)
+}
+
+pub fn image_backend_api_key<'a>(
+    backend: &str,
+    api_key: Option<&'a str>,
+) -> Result<&'a str, String> {
+    let capabilities = image_provider_capabilities(backend)
+        .ok_or_else(|| format!("未知图片生成后端: {backend}"))?;
+    if capabilities.requires_api_key {
+        return api_key
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "图片生成配置缺少 api_key_encrypted".into());
+    }
+    Ok("")
+}
+
+pub fn validate_image_config_params(
+    mut params: CreateImageConfigParams,
+) -> Result<CreateImageConfigParams, String> {
+    params.name = normalize_config_name(params.name, "图片配置")?;
+    params.backend = required_config_value(&params.backend, "图片生成配置", "backend")?;
+    params.model = required_config_value(&params.model, "图片生成配置", "model")?;
+    params.base_url = required_config_value(&params.base_url, "图片生成配置", "base_url")?;
+    params.api_key_encrypted =
+        normalize_image_backend_api_key(&params.backend, params.api_key_encrypted)?;
+    params.max_concurrent = positive_i32(params.max_concurrent, "图片配置 max_concurrent")?;
+    validate_image_sizes(&params.supported_sizes)?;
+    Ok(params)
+}
+
+pub fn image_sizes_from_json(value: &Value) -> Result<Vec<ImageSize>, String> {
+    let sizes = serde_json::from_value::<Vec<ImageSize>>(value.clone())
+        .map_err(|error| format!("图片配置 supported_sizes 无效: {error}"))?;
+    validate_image_sizes(&sizes)?;
+    Ok(sizes)
+}
+
+pub fn image_sizes_to_json(sizes: &[ImageSize]) -> Result<Value, String> {
+    validate_image_sizes(sizes)
+        .map_err(|error| format!("图片配置 supported_sizes 无效: {error}"))?;
+    serde_json::to_value(sizes).map_err(|error| format!("图片配置 supported_sizes 无效: {error}"))
+}
+
+pub fn ensure_image_size_supported(
+    sizes: &[ImageSize],
+    width: i32,
+    height: i32,
+) -> Result<(), String> {
+    if sizes
+        .iter()
+        .any(|size| size.width == width && size.height == height)
+    {
+        return Ok(());
+    }
+    Err(format!(
+        "图片尺寸 {}x{} 不在配置 supported_sizes 白名单中",
+        width, height
+    ))
+}
+
+fn normalize_image_backend_api_key(
+    backend: &str,
+    api_key_encrypted: Option<String>,
+) -> Result<Option<String>, String> {
+    let capabilities = image_provider_capabilities(backend)
+        .ok_or_else(|| format!("未知图片生成后端: {backend}"))?;
+    if capabilities.requires_api_key {
+        return Ok(normalize_optional_config_value(api_key_encrypted));
+    }
+    Ok(None)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -177,6 +396,32 @@ mod tests {
         assert!(is_system_managed_image_type(" project_reference "));
         assert!(is_system_managed_image_type(IMAGE_TYPE_VIDEO_TAIL_FRAME));
         assert!(!is_system_managed_image_type("custom_reference"));
+    }
+
+    #[test]
+    fn reference_image_ids_are_positive_unique_and_ordered() {
+        assert_eq!(validate_reference_image_ids(&[3, 5]).unwrap(), vec![3, 5]);
+        assert_eq!(
+            validate_reference_image_ids(&[]).unwrap(),
+            Vec::<i64>::new()
+        );
+
+        let err = validate_reference_image_ids(&[0]).unwrap_err();
+        assert!(err.contains("必须为正整数"));
+        let err = validate_reference_image_ids(&[2, 2]).unwrap_err();
+        assert!(err.contains("重复 ID：2"));
+    }
+
+    #[test]
+    fn parses_reference_image_id_json_once_for_all_consumers() {
+        assert_eq!(reference_image_ids(None), Ok(Vec::new()));
+        assert_eq!(reference_image_ids(Some(&json!([3, 5]))), Ok(vec![3, 5]));
+        assert_eq!(
+            batch_item_reference_image_ids(&json!({"reference_image_ids": [1, 2]})),
+            Ok(vec![1, 2])
+        );
+        assert!(reference_image_ids(Some(&json!([3, 3]))).is_err());
+        assert!(validate_reference_image_id_list(&[0]).is_err());
     }
 
     #[test]

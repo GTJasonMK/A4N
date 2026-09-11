@@ -1,7 +1,7 @@
 use super::generic::{lineage_ref, optional_prompt_sources, prompt_source};
 use super::json_records::db_record_result;
 use crate::project_dependency_graph::{AssetLineageRecord, AssetLineageRef};
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use a4n_domain::GeneratedMediaReference;
 use serde_json::Value;
 

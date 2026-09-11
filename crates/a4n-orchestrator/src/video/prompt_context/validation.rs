@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
 use a4n_domain::VideoAspectRatio;
+use a4n_error::AppError;
 
 use super::super::ChapterVideoPromptOptions;
 use super::super::library::{MAX_REFERENCE_IMAGE_IDS, MAX_VIDEO_LIBRARY_IMAGE_IDS};

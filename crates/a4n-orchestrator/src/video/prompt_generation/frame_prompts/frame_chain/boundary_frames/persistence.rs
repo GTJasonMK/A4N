@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::prompt_generation::frame_prompts::{
     FramePromptDraftsInput, attach_generation_trace_to_draft, frame_prompt_drafts,

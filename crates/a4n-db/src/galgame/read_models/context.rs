@@ -4,7 +4,7 @@ use crate::galgame::{
     GalgamePersistValidationSpeakerProfileRecord, GalgamePersistValidationTextAnchorRecord,
     GalgamePipelinePromptSpeakerProfileRecord,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::protagonist_profile,
     project::{source_snapshot_chapter, text_anchor},
 };

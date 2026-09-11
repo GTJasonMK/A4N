@@ -1,4 +1,4 @@
-use a4n_core::models::galgame::galgame_scene;
+use a4n_db_models::models::galgame::galgame_scene;
 use serde_json::Value;
 use std::collections::HashSet;
 

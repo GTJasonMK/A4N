@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::{chapter::chapter, generation::workflow_run},
-    source_spans::source_text_hash as source_content_sha256,
-};
+use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_orchestrator::{
     chapter_analysis::{
         ChapterAnalysisOutputError, ChapterAnalysisResumeBlockReason,

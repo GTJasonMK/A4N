@@ -4,7 +4,7 @@ use crate::support::{
     build_image_http_client, detect_format_from_bytes, download_image_url,
     image_provider_http_error, required_non_empty, response_text, send_image_request,
 };
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 use serde_json::Value;

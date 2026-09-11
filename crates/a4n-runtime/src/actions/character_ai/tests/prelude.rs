@@ -2,8 +2,8 @@
 
 pub(super) use super::super::state_projection::fold_attribute_event_tuples;
 pub(super) use a4n_api_contract::character::CharacterProfileSyncSkipReason;
-pub(super) use a4n_core::models::chapter::chapter;
-pub(super) use a4n_core::models::character::protagonist_profile;
+pub(super) use a4n_db_models::models::chapter::chapter;
+pub(super) use a4n_db_models::models::character::protagonist_profile;
 pub(super) use a4n_orchestrator::character::apply_attribute_to_state;
 pub(super) use a4n_orchestrator::character::{
     CharacterSyncRange, CharacterSyncRangeMode, analysis_profile_sync_skip_reason,

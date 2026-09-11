@@ -2,7 +2,7 @@ use super::{
     WORKFLOW_STATUS_CANCELLED, WorkflowCheckpointContractError, WorkflowReadError,
     WorkflowWriteError,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(crate) fn workflow_checkpoint_contract_app_error(
     error: WorkflowCheckpointContractError,

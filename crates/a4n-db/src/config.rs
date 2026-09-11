@@ -18,7 +18,8 @@ pub use providers::{
     list_llm_config_records, list_video_config_records, llm_config_by_id, llm_configs_exist,
     resolve_image_config, resolve_llm_config, set_default_provider_config,
     update_embedding_config_record, update_image_config_record, update_llm_config_record,
-    update_video_config_record, video_config_by_id, video_configs_exist,
+    update_video_config_record, validate_embedding_config_model, validate_image_config_model,
+    video_config_by_id, video_configs_exist,
 };
 pub use settings_all::{
     SettingsAllConfigImportCounts, SettingsAllConfigImportError, SettingsAllConfigImportInput,

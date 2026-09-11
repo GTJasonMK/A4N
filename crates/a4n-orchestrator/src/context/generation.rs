@@ -19,23 +19,26 @@ use a4n_api_contract::{
     portrait::{PortraitGenerationOperation, StartPortraitGenerationInput},
     video::{StartVideoGenerationInput, VideoGenerationOperation, VideoPromptGenerationOptions},
 };
-use a4n_core::blueprint::{
+use a4n_db::DbHandle;
+use a4n_db::generation::{
+    AttachGenerationRunsToWorkflowInput, GenerationLifecycleGateError, GenerationPublicSnapshot,
+    GenerationTaskCheckpointPage, GenerationTaskLifecycleError, GenerationTaskPersistenceError,
+    PersistedGenerationTask, RecordCompletedGenerationRunInput,
+    RecordCompletedGenerationRunWithCheckpointInput, ReserveGenerationTaskInput,
+};
+use a4n_db_models::models::generation::{generation_run, llm_call_trace};
+use a4n_domain::generation::{
+    GenerationLifecycleTask, GenerationTaskListCursor, PendingLifecycleOperation,
+    ProjectLifecycleGateClaim, ProjectLifecycleOperation, UserLifecycleGateClaim,
+};
+use a4n_domain::llm::RecordLlmCallTraceInput;
+use a4n_domain::project::{
     BLUEPRINT_GENERATION_KIND, BLUEPRINT_REFINEMENT_TASK_KIND,
     blueprint_generation_input_fingerprint as canonical_blueprint_generation_input_fingerprint,
     blueprint_refinement_input_fingerprint as canonical_blueprint_refinement_input_fingerprint,
 };
-use a4n_core::error::AppError;
-use a4n_core::models::generation::{generation_run, llm_call_trace};
-use a4n_core::video_execution::{TimelineError, VideoTimelineGap};
-use a4n_db::DbHandle;
-use a4n_db::generation::{
-    AttachGenerationRunsToWorkflowInput, GenerationLifecycleGateError, GenerationLifecycleTask,
-    GenerationPublicSnapshot, GenerationTaskCheckpointPage, GenerationTaskLifecycleError,
-    GenerationTaskListCursor, GenerationTaskPersistenceError, PendingLifecycleOperation,
-    PersistedGenerationTask, ProjectLifecycleGateClaim, ProjectLifecycleOperation,
-    RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
-    RecordLlmCallTraceInput, ReserveGenerationTaskInput, UserLifecycleGateClaim,
-};
+use a4n_domain::video_timeline::{TimelineError, VideoTimelineGap};
+use a4n_error::AppError;
 use a4n_queue::priority::{TaskKind, TaskPermit, TaskPriority, TaskStatus};
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GENERATION_EVENT_SCHEMA_VERSION, GenerationDeliveryMode,
@@ -64,6 +67,137 @@ use crate::generation::{
 };
 use crate::task_queue::PersistentTaskQueue;
 use crate::video::validate_reference_media_start_input;
+pub use a4n_api_contract::generation_tasks::GenerationTaskStart;
+
+/// Runtime-facing generation boundary.
+///
+/// Generation task access, cancellation and destructive lifecycle coordination
+/// stay owned by this application. Runtime only supplies host routing and the
+/// external cleanup port needed by project reset.
+#[async_trait::async_trait]
+pub trait GenerationApplicationPort: Send + Sync {
+    async fn request_generation_cancel(
+        &self,
+        requested_by_user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskHandle, GenerationTerminalError>;
+
+    async fn authorize_generation_task(
+        &self,
+        user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError>;
+
+    async fn generation_task_summary_for_user(
+        &self,
+        user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskSummary, GenerationTaskAccessError>;
+
+    async fn list_active_generation_task_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+    ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError>;
+
+    async fn list_generation_task_history_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        limit: u32,
+        cursor: Option<GenerationTaskListCursor>,
+    ) -> Result<GenerationTaskHistorySummaries, GenerationTaskAccessError>;
+
+    fn subscribe_generation_task(
+        &self,
+        task: &AuthorizedGenerationTask,
+        after_sequence: Option<u64>,
+    ) -> Result<GenerationSubscription, GenerationTaskAccessError>;
+
+    async fn begin_generation_project_lifecycle_gate(
+        &self,
+        project_id: i64,
+        user_id: i64,
+        operation: ProjectLifecycleOperation,
+    ) -> Result<ProjectLifecycleGateClaim, GenerationLifecycleGateError>;
+
+    async fn begin_generation_user_disable_gate(
+        &self,
+        caller_user_id: i64,
+        user_id: i64,
+    ) -> Result<UserLifecycleGateClaim, GenerationLifecycleGateError>;
+
+    async fn active_generation_tasks_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError>;
+
+    async fn active_generation_tasks_for_user(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError>;
+
+    async fn active_generation_tasks(
+        &self,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError>;
+
+    async fn expire_generation_snapshot_bodies(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError>;
+
+    async fn purge_expired_generation_task_trees(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError>;
+
+    async fn pending_generation_lifecycle_operations(
+        &self,
+    ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError>;
+
+    async fn request_generation_destructive_cancel(
+        &self,
+        task: &GenerationLifecycleTask,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>;
+
+    async fn interrupt_generation_destructive_task(
+        &self,
+        task: &GenerationLifecycleTask,
+        reason: InterruptionReason,
+        summary: String,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError>;
+
+    async fn restore_generation_project_lifecycle_gate(
+        &self,
+        project_id: i64,
+        operation: ProjectLifecycleOperation,
+    ) -> Result<(), GenerationLifecycleGateError>;
+
+    async fn restore_generation_user_lifecycle_gate(
+        &self,
+        user_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError>;
+
+    async fn complete_generation_project_reset_gate(
+        &self,
+        project_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError>;
+
+    async fn complete_generation_user_disable_gate(
+        &self,
+        user_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError>;
+
+    async fn delete_project_cascade_validated(&self, project_id: i64) -> Result<(), AppError>;
+
+    async fn reset_project_generated_data_validated(
+        &self,
+        project_id: i64,
+    ) -> Result<crate::project::ProjectGeneratedDataResetApplicationResult, AppError>;
+}
 
 /// 生成运行账本 owner；章节生成服务可持有克隆以写 generation run。
 #[derive(Clone)]
@@ -91,6 +225,32 @@ struct RootGenerationTaskReservationInput<'a> {
 pub struct GenerationTaskHistorySummaries {
     pub items: Vec<GenerationTaskSummary>,
     pub next_cursor: Option<GenerationTaskListCursor>,
+}
+
+/// 已完成权限校验的 generation task 句柄。
+///
+/// Checkpoint 和 public snapshot 仍由 generation owner 持有；Runtime/Host
+/// 只能读取订阅所需的稳定投影，不能依赖数据库实体字段。
+#[derive(Debug, Clone)]
+pub struct AuthorizedGenerationTask {
+    persisted: PersistedGenerationTask,
+}
+
+impl AuthorizedGenerationTask {
+    pub fn public_snapshot(&self) -> Option<&GenerationTaskSnapshot> {
+        self.persisted.public_snapshot.as_ref()
+    }
+
+    pub fn snapshot_expired(&self) -> bool {
+        self.persisted
+            .checkpoint
+            .expires_at
+            .is_some_and(|expires_at| expires_at <= Utc::now().naive_utc())
+    }
+
+    pub fn covers_through_sequence(&self) -> i64 {
+        self.persisted.checkpoint.covers_through_sequence
+    }
 }
 
 /// 统一 generation read/subscribe 的权限与 attempt 错误。
@@ -136,13 +296,6 @@ impl GenerationTaskAccessError {
             Self::Project(_) => "generation_persist_failed",
         }
     }
-}
-
-/// 章节 generation start 的唯一 owner 返回值。
-#[derive(Debug, Clone)]
-pub struct GenerationTaskStart {
-    pub handle: GenerationTaskHandle,
-    pub should_run: bool,
 }
 
 /// 已取得 generation queue execution permit 的运行上下文。
@@ -1043,7 +1196,7 @@ impl GenerationApplication {
         &self,
         task_id: &str,
     ) -> Result<
-        a4n_core::models::generation::generation_task_checkpoint::Model,
+        a4n_db_models::models::generation::generation_task_checkpoint::Model,
         GenerationTaskAccessError,
     > {
         a4n_db::generation::load_generation_task_checkpoint(self.connection(), task_id)
@@ -1820,11 +1973,12 @@ impl OrchestratorContext {
         user_id: i64,
         task_id: &str,
         attempt: u32,
-    ) -> Result<PersistedGenerationTask, GenerationTaskAccessError> {
+    ) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError> {
         let checkpoint = self.generation.load_task_checkpoint(task_id).await?;
         authorize_checkpoint(&checkpoint, user_id, attempt, self).await?;
-        a4n_db::generation::persisted_generation_task_from_checkpoint(checkpoint)
-            .map_err(GenerationTaskAccessError::Persistence)
+        let persisted = a4n_db::generation::persisted_generation_task_from_checkpoint(checkpoint)
+            .map_err(GenerationTaskAccessError::Persistence)?;
+        Ok(AuthorizedGenerationTask { persisted })
     }
 
     /// 读取 summary 时只校验 checkpoint 规范列；损坏/过期 snapshot 仍返回可展示条目。
@@ -1885,12 +2039,12 @@ impl OrchestratorContext {
     /// 只从已授权 task 取得进程内 session；不存在 live session 时显式要求 snapshot。
     pub fn subscribe_generation_task(
         &self,
-        task: &PersistedGenerationTask,
+        task: &AuthorizedGenerationTask,
         after_sequence: Option<u64>,
     ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
         let session = self
             .generation
-            .session_for_authorized_task(task)?
+            .session_for_authorized_task(&task.persisted)?
             .ok_or(GenerationTaskAccessError::SnapshotRequired)?;
         session.subscribe(after_sequence).map_err(Into::into)
     }
@@ -2088,8 +2242,186 @@ impl OrchestratorContext {
     }
 }
 
+#[async_trait::async_trait]
+impl GenerationApplicationPort for OrchestratorContext {
+    async fn request_generation_cancel(
+        &self,
+        requested_by_user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
+        OrchestratorContext::request_generation_cancel(self, requested_by_user_id, task_id, attempt)
+            .await
+    }
+
+    async fn authorize_generation_task(
+        &self,
+        user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError> {
+        OrchestratorContext::authorize_generation_task(self, user_id, task_id, attempt).await
+    }
+
+    async fn generation_task_summary_for_user(
+        &self,
+        user_id: i64,
+        task_id: &str,
+        attempt: u32,
+    ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
+        OrchestratorContext::generation_task_summary_for_user(self, user_id, task_id, attempt).await
+    }
+
+    async fn list_active_generation_task_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+    ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
+        OrchestratorContext::list_active_generation_task_summaries(self, user_id, project_id).await
+    }
+
+    async fn list_generation_task_history_summaries(
+        &self,
+        user_id: i64,
+        project_id: Option<i64>,
+        limit: u32,
+        cursor: Option<GenerationTaskListCursor>,
+    ) -> Result<GenerationTaskHistorySummaries, GenerationTaskAccessError> {
+        OrchestratorContext::list_generation_task_history_summaries(
+            self, user_id, project_id, limit, cursor,
+        )
+        .await
+    }
+
+    fn subscribe_generation_task(
+        &self,
+        task: &AuthorizedGenerationTask,
+        after_sequence: Option<u64>,
+    ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
+        OrchestratorContext::subscribe_generation_task(self, task, after_sequence)
+    }
+
+    async fn begin_generation_project_lifecycle_gate(
+        &self,
+        project_id: i64,
+        user_id: i64,
+        operation: ProjectLifecycleOperation,
+    ) -> Result<ProjectLifecycleGateClaim, GenerationLifecycleGateError> {
+        OrchestratorContext::begin_generation_project_lifecycle_gate(
+            self, project_id, user_id, operation,
+        )
+        .await
+    }
+
+    async fn begin_generation_user_disable_gate(
+        &self,
+        caller_user_id: i64,
+        user_id: i64,
+    ) -> Result<UserLifecycleGateClaim, GenerationLifecycleGateError> {
+        OrchestratorContext::begin_generation_user_disable_gate(self, caller_user_id, user_id).await
+    }
+
+    async fn active_generation_tasks_for_project(
+        &self,
+        project_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        OrchestratorContext::active_generation_tasks_for_project(self, project_id).await
+    }
+
+    async fn active_generation_tasks_for_user(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        OrchestratorContext::active_generation_tasks_for_user(self, user_id).await
+    }
+
+    async fn active_generation_tasks(
+        &self,
+    ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
+        OrchestratorContext::active_generation_tasks(self).await
+    }
+
+    async fn expire_generation_snapshot_bodies(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        OrchestratorContext::expire_generation_snapshot_bodies(self, limit).await
+    }
+
+    async fn purge_expired_generation_task_trees(
+        &self,
+        limit: usize,
+    ) -> Result<u64, GenerationTaskLifecycleError> {
+        OrchestratorContext::purge_expired_generation_task_trees(self, limit).await
+    }
+
+    async fn pending_generation_lifecycle_operations(
+        &self,
+    ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError> {
+        OrchestratorContext::pending_generation_lifecycle_operations(self).await
+    }
+
+    async fn request_generation_destructive_cancel(
+        &self,
+        task: &GenerationLifecycleTask,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+        OrchestratorContext::request_generation_destructive_cancel(self, task).await
+    }
+
+    async fn interrupt_generation_destructive_task(
+        &self,
+        task: &GenerationLifecycleTask,
+        reason: InterruptionReason,
+        summary: String,
+    ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
+        OrchestratorContext::interrupt_generation_destructive_task(self, task, reason, summary)
+            .await
+    }
+
+    async fn restore_generation_project_lifecycle_gate(
+        &self,
+        project_id: i64,
+        operation: ProjectLifecycleOperation,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        OrchestratorContext::restore_generation_project_lifecycle_gate(self, project_id, operation)
+            .await
+    }
+
+    async fn restore_generation_user_lifecycle_gate(
+        &self,
+        user_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        OrchestratorContext::restore_generation_user_lifecycle_gate(self, user_id).await
+    }
+
+    async fn complete_generation_project_reset_gate(
+        &self,
+        project_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        OrchestratorContext::complete_generation_project_reset_gate(self, project_id).await
+    }
+
+    async fn complete_generation_user_disable_gate(
+        &self,
+        user_id: i64,
+    ) -> Result<(), GenerationLifecycleGateError> {
+        OrchestratorContext::complete_generation_user_disable_gate(self, user_id).await
+    }
+
+    async fn delete_project_cascade_validated(&self, project_id: i64) -> Result<(), AppError> {
+        OrchestratorContext::delete_project_cascade_validated(self, project_id).await
+    }
+
+    async fn reset_project_generated_data_validated(
+        &self,
+        project_id: i64,
+    ) -> Result<crate::project::ProjectGeneratedDataResetApplicationResult, AppError> {
+        OrchestratorContext::reset_project_generated_data_validated(self, project_id).await
+    }
+}
+
 async fn authorize_checkpoint(
-    checkpoint: &a4n_core::models::generation::generation_task_checkpoint::Model,
+    checkpoint: &a4n_db_models::models::generation::generation_task_checkpoint::Model,
     user_id: i64,
     attempt: u32,
     context: &OrchestratorContext,
@@ -2139,7 +2471,7 @@ fn summarize_checkpoint_page(
 }
 
 fn generation_task_summary_from_checkpoint(
-    checkpoint: &a4n_core::models::generation::generation_task_checkpoint::Model,
+    checkpoint: &a4n_db_models::models::generation::generation_task_checkpoint::Model,
     public_snapshot: GenerationPublicSnapshot,
 ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
     let started = a4n_db::generation::started_event_from_checkpoint(checkpoint)

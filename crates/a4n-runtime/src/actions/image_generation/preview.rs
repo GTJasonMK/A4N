@@ -6,9 +6,9 @@ use crate::{
     },
 };
 use a4n_capabilities::A4nCapabilities;
-use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
 use a4n_orchestrator::media::PreparedImageGenerationRequest;
+use a4n_provider_contract::ImageProviderConfig;
 
 pub(super) async fn prepared_image_generation_preview_step(
     state: &AppState,
@@ -25,7 +25,7 @@ pub(super) async fn prepared_image_generation_preview_step(
     image_generation_preview_step(
         state.runtime_profile(),
         state.capabilities(),
-        state.orchestrator(),
+        state.project_access_application(),
         project_id,
         key,
         title,
@@ -40,20 +40,20 @@ pub(super) async fn prepared_image_generation_preview_step(
 pub(super) async fn image_generation_preview_step(
     runtime_profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
-    collaboration: &a4n_orchestrator::OrchestratorContext,
+    collaboration: &dyn a4n_api_contract::collaboration::ProjectAccessApplicationPort,
     project_id: i64,
     key: impl Into<String>,
     title: impl Into<String>,
     prompt_name: Option<String>,
     note: Option<String>,
-    config: &image_gen_config::Model,
+    config: &ImageProviderConfig,
     request: ImageGenerationRequest,
 ) -> Result<ModelRequestPreviewStep, String> {
     let key = key.into();
     let title = title.into();
     if runtime_profile.uses_sidecars() {
         let root_project_id = collaboration
-            .collaboration_root_project(project_id)
+            .collaboration_root(project_id)
             .await
             .map(|root| Some(root.id))
             .map_err(crate::actions::app_error_message)?;

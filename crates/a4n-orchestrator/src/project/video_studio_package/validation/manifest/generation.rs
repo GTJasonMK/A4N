@@ -1,7 +1,7 @@
 use super::contracts::ManifestIds;
 use a4n_domain::canvas_transfer_runtime_identity_key;
 
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 
 use crate::project::video_studio_package::VideoStudioProjectPackage;
 

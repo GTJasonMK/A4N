@@ -2,8 +2,8 @@ use crate::galgame::{
     OrchestratorContext, ReorderGalgameLinesInput, galgame_line_record_error,
     galgame_line_reorder_record_error, validate_positive_id,
 };
-use a4n_core::error::AppError;
-use a4n_core::models::galgame::galgame_line;
+use a4n_db_models::models::galgame::galgame_line;
+use a4n_error::AppError;
 
 impl OrchestratorContext {
     pub async fn reorder_galgame_lines(

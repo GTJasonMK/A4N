@@ -1,6 +1,6 @@
 use super::ProjectStatusReadError;
 use crate::project::validate_positive_i64;
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use a4n_domain::project::ProjectStatusArtifacts;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,

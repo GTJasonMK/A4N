@@ -6,9 +6,10 @@ use a4n_test_support::{
     rag::{ShortWriteVectorStore, test_embedding_identity},
 };
 
-use super::contracts::{RagEmbeddedInput, RagEmbeddingInput};
+use super::RagEmbeddingInput;
 use super::embedded::store_embedded_rag_records_in_store;
 use super::provider::{embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store};
+use a4n_rag_core::RagEmbeddedInput;
 
 #[tokio::test]
 async fn direct_write_rejects_embedding_dimension_mismatch_without_writing_records() {

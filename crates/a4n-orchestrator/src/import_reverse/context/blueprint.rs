@@ -79,8 +79,8 @@ pub(super) fn has_blueprint_source(rows: &ReverseContextRows) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::models::project::{blueprint_relationship, novel_project};
     use a4n_db::import_reverse::{ReverseBlueprintContextRows, ReverseContextRows};
+    use a4n_db_models::models::project::{blueprint_relationship, novel_project};
     use chrono::NaiveDate;
     use serde_json::json;
 

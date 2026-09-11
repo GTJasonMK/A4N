@@ -6,7 +6,7 @@ use super::super::super::pipeline_prompt::{
 use super::super::super::pipeline_state::manga_drawing_prompt_call_order;
 use super::super::super::{MANGA_PIPELINE_TOTAL_STEPS, OrchestratorContext};
 use super::contracts::{SinglePageDrawingPromptInput, SinglePageDrawingPromptOutput};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 impl OrchestratorContext {
     pub(super) async fn run_single_page_drawing_prompt(

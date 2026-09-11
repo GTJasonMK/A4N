@@ -69,11 +69,11 @@ fn prompt_sync_output_language_identity(
     prompt_type: &str,
     metadata: Option<&Value>,
 ) -> Option<String> {
-    if !a4n_core::prompt_language::prompt_type_uses_prompt_output_language(prompt_type) {
+    if !a4n_domain::prompt_language::prompt_type_uses_prompt_output_language(prompt_type) {
         return None;
     }
     Some(
-        a4n_core::prompt_language::PromptOutputLanguage::from_metadata(metadata)
+        a4n_domain::prompt_language::PromptOutputLanguage::from_metadata(metadata)
             .expect("prompt sync identity must be built after output-language validation")
             .as_str()
             .to_string(),
@@ -97,7 +97,7 @@ pub(super) fn should_keep_unmatched_prompt(
     draft_scopes: &BTreeSet<PromptScope>,
 ) -> bool {
     // 只有同一稳定片段的语言变体需要并存；不同片段仍应按当前草稿清理。
-    if a4n_core::prompt_language::prompt_type_uses_prompt_output_language(&row.prompt_type) && {
+    if a4n_domain::prompt_language::prompt_type_uses_prompt_output_language(&row.prompt_type) && {
         let row_scope = prompt_scope_for_sync_row(row);
         draft_scopes
             .iter()

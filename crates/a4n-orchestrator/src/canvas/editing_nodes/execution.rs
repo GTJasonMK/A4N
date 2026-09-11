@@ -1,4 +1,7 @@
-use a4n_core::error::AppError;
+use a4n_canvas_contract::{
+    CanvasAssembleVideosHostInput, CanvasEditingNodeHostPort, CanvasExtractFrameHostInput,
+    CanvasTrimVideoHostInput,
+};
 use a4n_db::{
     canvas::{
         CanvasAssemblyContractSyncInput, CanvasAssemblySourceVideoInput,
@@ -11,6 +14,7 @@ use a4n_db::{
         GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
 };
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::{
@@ -21,9 +25,8 @@ use crate::{
 
 use super::{
     contracts::{
-        CanvasAssembleVideosHostInput, CanvasEditingNodeExecutionInput, CanvasEditingNodeHostPort,
-        CanvasEditingNodeInput, CanvasExtractFrameHostInput, CanvasExtractFrameNodeInput,
-        CanvasTrimVideoHostInput, CanvasTrimVideoNodeInput,
+        CanvasEditingNodeExecutionInput, CanvasEditingNodeInput, CanvasExtractFrameNodeInput,
+        CanvasTrimVideoNodeInput,
     },
     input::build_canvas_editing_node_input,
 };
@@ -191,7 +194,7 @@ impl OrchestratorContext {
         &self,
         input: &CanvasEditingNodeExecutionInput<'_>,
         node_input: &CanvasEditingNodeInput,
-    ) -> Result<Option<a4n_core::models::generation::generation_spec::Model>, AppError> {
+    ) -> Result<Option<a4n_db_models::models::generation::generation_spec::Model>, AppError> {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;

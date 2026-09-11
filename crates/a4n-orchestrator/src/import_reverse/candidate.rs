@@ -7,11 +7,6 @@
 use a4n_api_contract::import_reverse::{
     ReverseEngineeringCandidate, ReverseEngineeringCandidateState,
 };
-use a4n_core::{
-    error::AppError,
-    event::bridge::InternalEvent,
-    models::generation::{workflow_checkpoint, workflow_run},
-};
 use a4n_db::{
     import_reverse::{
         apply_reverse_blueprint_records, apply_reverse_outline_records,
@@ -23,6 +18,10 @@ use a4n_db::{
         completed_llm_call_checkpoint_from_model,
     },
 };
+use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
+use a4n_domain::project::ProjectStatus;
+use a4n_error::AppError;
+use a4n_event::InternalEvent;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
@@ -340,7 +339,7 @@ async fn apply_reverse_engineering_checkpoint(
                 .map_err(crate::project::project_mutation_error_to_app_error)?
                 .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?
                 .status;
-        let current_status = a4n_core::state::validator::parse_project_status(&current_status)?;
+        let current_status = ProjectStatus::parse_storage(&current_status)?;
         if current_status < target.applied_status() {
             return Err(AppError::InvalidState {
                 current: current_status.as_str().to_string(),
@@ -401,7 +400,7 @@ async fn apply_reverse_engineering_checkpoint(
     };
 
     let now = Utc::now().naive_utc();
-    let current_status = a4n_core::state::validator::parse_project_status(&project.status)?;
+    let current_status = ProjectStatus::parse_storage(&project.status)?;
     let target_status = target.applied_status();
     let status_change = if current_status < target_status {
         a4n_db::project::update_project_status_record_in(&tx, project, target_status, now)
@@ -458,7 +457,7 @@ fn publish_reverse_blueprint_updated(
             current: "missing_applied_blueprint_version".to_string(),
             operation: "发布蓝图归纳结果".to_string(),
         })?;
-    context.publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
+    context.publish_internal_event(a4n_event::InternalEvent::BlueprintUpdated {
         project_id,
         version: version.to_string(),
     })?;

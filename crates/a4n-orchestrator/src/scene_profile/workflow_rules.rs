@@ -1,7 +1,7 @@
 //! 场景档案同步工作流指纹纯规则（无 DB）。
 
-use a4n_core::models::chapter::chapter;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::source_text_hash as source_content_sha256;
 use serde_json::{Value, json};
 
 /// 场景档案同步 exclusive workflow business key。

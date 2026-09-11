@@ -1,11 +1,11 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::chapter,
     media::media_asset,
     project::novel_project,
 };
-use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 
@@ -16,7 +16,7 @@ pub(super) async fn setup_db() -> DatabaseConnection {
 pub(super) async fn set_project_gate(
     db: &DatabaseConnection,
     project: &novel_project::Model,
-    operation: crate::generation::ProjectLifecycleOperation,
+    operation: a4n_domain::generation::ProjectLifecycleOperation,
 ) {
     let mut active: novel_project::ActiveModel = project.clone().into();
     active.lifecycle_gate = Set(operation.gate().to_string());
@@ -143,7 +143,7 @@ pub(super) async fn generated_video_with_asset(
         crate::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
             workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "project cleanup video".to_string(),
             negative_prompt: None,

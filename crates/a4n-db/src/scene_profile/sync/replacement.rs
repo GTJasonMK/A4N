@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_core::models::scene::scene_occurrence;
+use a4n_db_models::models::scene::scene_occurrence;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 use super::super::persistence::{

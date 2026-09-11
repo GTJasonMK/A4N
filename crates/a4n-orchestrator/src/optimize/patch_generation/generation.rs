@@ -1,9 +1,9 @@
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizePatchGenerationInput,
 };
-use a4n_core::error::AppError;
 use a4n_db::optimize::{OptimizationPatchCreateInput, OptimizationPatchSetCreateInput};
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationFinishReason, GenerationResultRef, GenerationTaskStatus, StreamTextHash,
@@ -118,6 +118,7 @@ impl OrchestratorContext {
             cancellation: &cancel_token,
             checkpoint_writer: &checkpoint_writer,
             session: &session,
+            agent_max_output_tokens: None,
         };
         let pending = match prepare_patch_generation_result(
             self,

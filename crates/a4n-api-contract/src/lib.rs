@@ -29,6 +29,7 @@ pub mod logging;
 pub mod manga;
 pub mod optimize;
 pub mod outline;
+pub mod package;
 pub mod page;
 pub mod portrait;
 pub mod profile;

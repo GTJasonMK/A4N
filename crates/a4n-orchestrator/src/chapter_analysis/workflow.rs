@@ -1,5 +1,5 @@
-use a4n_core::models::chapter::chapter;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::source_text_hash as source_content_sha256;
 use serde_json::{Value, json};
 use uuid::Uuid;
 

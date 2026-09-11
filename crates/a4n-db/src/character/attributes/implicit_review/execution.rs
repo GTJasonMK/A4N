@@ -1,17 +1,17 @@
 use super::super::{
     events::modify_profile_attribute_with_profile_from_source_in,
-    types::{
-        AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
-        CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
-        CharacterImplicitReviewDecisionRecordInput,
-    },
+    types::{AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord},
 };
 use super::validation::{
     require_positive_chapter_number, validate_implicit_review_decision_record,
 };
 use crate::character::CharacterDbError;
 use crate::character::profile::require_profile_for_update;
-use a4n_core::models::character::attribute_event::SOURCE_KIND_USER;
+use a4n_db_models::models::character::attribute_event::SOURCE_KIND_USER;
+use a4n_domain::character::{
+    CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
+    CharacterImplicitReviewDecisionRecordInput,
+};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn apply_implicit_review_decision_record<C>(
@@ -48,7 +48,7 @@ pub(in crate::character) async fn apply_implicit_review_decision_record_with_pro
     C,
 >(
     db: &C,
-    profile: a4n_core::models::character::protagonist_profile::Model,
+    profile: a4n_db_models::models::character::protagonist_profile::Model,
     input: CharacterImplicitReviewDecisionRecordInput,
     source_kind: &str,
 ) -> Result<AppliedCharacterImplicitDecisionRecord, CharacterDbError>

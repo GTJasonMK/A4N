@@ -1,6 +1,6 @@
 use std::{collections::HashMap, pin::Pin, time::Instant};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{
     ChatChunk, ChatMessage, ChatRequest, LlmProvider, MessageRole, ModelCapabilities, ToolCall,
     UsageInfo,

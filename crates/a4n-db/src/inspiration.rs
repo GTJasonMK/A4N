@@ -5,8 +5,8 @@ mod project;
 
 pub use context::inspiration_project_context_rows;
 pub use contracts::{
-    InspirationBlueprintRows, InspirationDbError, InspirationExchangeInsertInput,
-    InspirationProjectContextRows, InspirationRecentChapterRow,
+    InspirationBlueprintRows, InspirationDbError, InspirationProjectContextRows,
+    InspirationRecentChapterRow,
 };
 pub use conversations::{
     ensure_inspiration_conversation, insert_inspiration_exchange_in_transaction,
@@ -14,7 +14,7 @@ pub use conversations::{
 };
 
 #[cfg(test)]
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 
 #[cfg(test)]
 mod tests;

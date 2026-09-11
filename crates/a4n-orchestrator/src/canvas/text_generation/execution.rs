@@ -1,19 +1,23 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
-use a4n_core::error::AppError;
 use a4n_db::{
     canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput},
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT,
     },
 };
+use a4n_error::AppError;
 use a4n_llm::{
-    provider::{UsageInfo, is_truncated_finish_reason},
+    provider::{ChatMessage, ChatResponse, UsageInfo, is_truncated_finish_reason},
     trace::context_aware_chat_request_trace_json,
 };
 use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
+    agent::{
+        AgentOwnedTask, AgentTaskExecutionInput, model_request_snapshot,
+        restore_model_request_snapshot,
+    },
     canvas::WORKFLOW_KIND_VIDEO_CANVAS_GRAPH,
     project::ProjectSourceMode,
     structured_llm::ensure_checkpoint_parsed_output_matches,
@@ -228,7 +232,7 @@ impl OrchestratorContext {
     async fn canvas_text_source_checkpoints(
         &self,
         workflow_run_id: Option<i64>,
-    ) -> Result<Option<Vec<a4n_core::models::generation::workflow_checkpoint::Model>>, AppError>
+    ) -> Result<Option<Vec<a4n_db_models::models::generation::workflow_checkpoint::Model>>, AppError>
     {
         match workflow_run_id {
             Some(workflow_run_id) => self
@@ -246,7 +250,7 @@ impl OrchestratorContext {
         status: &str,
         source_material_json: Value,
         params_json: Value,
-    ) -> Result<Option<a4n_core::models::generation::generation_spec::Model>, AppError> {
+    ) -> Result<Option<a4n_db_models::models::generation::generation_spec::Model>, AppError> {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;
@@ -315,10 +319,75 @@ impl OrchestratorContext {
             trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
         }
 
+        let agent = self.agent();
+        let task = AgentOwnedTask::Workflow(workflow_run_id);
+        let model_execution = if let Some(owner) = agent.workflow_owner(workflow_run_id).await? {
+            let key = task.execution_key(true, &call_key);
+            if let Some(execution) = agent.execution_by_key(owner.id, &key).await? {
+                let original =
+                    restore_model_request_snapshot(execution.arguments_json.clone().ok_or_else(
+                        || AppError::InvalidArgument("Canvas 模型缺少持久请求".into()),
+                    )?)?;
+                if original
+                    .trace_context
+                    .as_ref()
+                    .and_then(|t| t.input_fingerprint_sha256.as_ref())
+                    != request
+                        .trace_context
+                        .as_ref()
+                        .and_then(|t| t.input_fingerprint_sha256.as_ref())
+                {
+                    return Err(AppError::InvalidArgument(
+                        "Canvas 模型恢复请求与原输入不一致".into(),
+                    ));
+                }
+                request = original;
+                Some(execution)
+            } else {
+                agent
+                    .bound_model_request(
+                        owner.id,
+                        &mut request,
+                        llm_port.max_output_tokens(llm_input.config_id).await?,
+                    )
+                    .await?;
+                agent
+                    .prepare_task_execution(AgentTaskExecutionInput {
+                        task: task.clone(),
+                        execution_key: call_key.clone(),
+                        tool_name: None,
+                        arguments: model_request_snapshot(&request)?,
+                        input_message_id: None,
+                        base_input_fingerprint: None,
+                    })
+                    .await?
+            }
+        } else {
+            None
+        };
+
         if let Some(checkpoint) = self
             .load_completed_llm_call_checkpoint(workflow_run_id, &call_key, &input_fingerprint_json)
             .await?
         {
+            if let Some(execution) = &model_execution {
+                let response = ChatResponse {
+                    message: ChatMessage::assistant(checkpoint.response_content.clone()),
+                    usage: checkpoint
+                        .usage
+                        .clone()
+                        .map(serde_json::from_value)
+                        .transpose()?,
+                    finish_reason: checkpoint.finish_reason.clone(),
+                };
+                if execution.status != "succeeded"
+                    || execution.result_json.as_ref() != Some(&serde_json::to_value(response)?)
+                {
+                    return Err(AppError::InvalidArgument(
+                        "Canvas checkpoint 与 Agent 模型回执不一致".into(),
+                    ));
+                }
+            }
             return validate_restored_canvas_llm_text_checkpoint(
                 &checkpoint.parsed_output,
                 &checkpoint.response_content,
@@ -328,15 +397,69 @@ impl OrchestratorContext {
             );
         }
 
-        let response = llm_port
-            .stream_complete(CanvasTextGenerationLlmCall {
-                project_id: input.project_id,
-                workflow_run_id,
-                config_id: llm_input.config_id,
-                request,
+        let restored = model_execution
+            .as_ref()
+            .filter(|e| e.status == "succeeded")
+            .map(|e| {
+                serde_json::from_value::<ChatResponse>(
+                    e.result_json
+                        .clone()
+                        .ok_or_else(|| AppError::InvalidArgument("Canvas 模型缺少回执".into()))?,
+                )
+                .map_err(AppError::from)
             })
-            .await
-            .map_err(map_canvas_llm_error)?;
+            .transpose()?;
+        let response = if let Some(response) = restored {
+            response
+        } else {
+            if let Some(execution) = &model_execution {
+                if execution.status != "prepared" {
+                    return Err(AppError::InvalidArgument(
+                        "Canvas 模型上次调用结果不明，禁止重复派发".into(),
+                    ));
+                }
+                agent
+                    .record_task_execution(&task, execution.id, None, None, None)
+                    .await?;
+            }
+            let response = llm_port
+                .stream_complete(CanvasTextGenerationLlmCall {
+                    project_id: input.project_id,
+                    workflow_run_id,
+                    config_id: llm_input.config_id,
+                    request,
+                })
+                .await;
+            if let Some(execution) = &model_execution {
+                agent
+                    .record_task_execution(
+                        &task,
+                        execution.id,
+                        response
+                            .as_ref()
+                            .ok()
+                            .map(serde_json::to_value)
+                            .transpose()?,
+                        None,
+                        response.as_ref().err().map(ToString::to_string),
+                    )
+                    .await?;
+            }
+            response.map_err(map_canvas_llm_error)?
+        };
+        if let Some(execution) = &model_execution
+            && response.usage.is_none()
+            && agent
+                .run_budget_snapshot(execution.run_id)
+                .await?
+                .remaining
+                .max_tokens
+                .is_some()
+        {
+            return Err(AppError::InvalidArgument(
+                "Canvas 模型缺少 usage，无法核实 Agent token 预算".into(),
+            ));
+        }
         if is_truncated_finish_reason(response.finish_reason.as_deref()) {
             return Err(AppError::InvalidArgument(
                 "LlmTextNode 输出达到当前 max_tokens 上限，文本可能被截断；请调大输出档位或减少上游文本后重试"

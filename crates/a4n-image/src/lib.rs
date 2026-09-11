@@ -1,6 +1,7 @@
-use a4n_core::error::AppError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+pub use a4n_domain::ProviderError;
 
 /// 单次生成请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -25,6 +26,26 @@ pub struct ImageReference {
     pub data_uri: String,
 }
 
+/// Shared wire payload for image sidecar requests.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImageProviderPayload {
+    pub backend: String,
+    pub base_url: String,
+    #[serde(default)]
+    pub api_key: String,
+    pub request: ImageGenerationRequest,
+}
+
+/// Shared wire payload for completed image sidecar events.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImageGenerationOutput {
+    pub bytes_base64: String,
+    pub format: String,
+    pub model: String,
+}
+
 /// 单次生成结果
 #[derive(Debug, Clone)]
 pub struct ImageGenerationResult {
@@ -41,5 +62,5 @@ pub trait ImageProvider: Send + Sync {
     async fn generate(
         &self,
         req: ImageGenerationRequest,
-    ) -> Result<ImageGenerationResult, AppError>;
+    ) -> Result<ImageGenerationResult, ProviderError>;
 }

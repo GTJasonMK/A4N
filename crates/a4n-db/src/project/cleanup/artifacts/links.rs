@@ -1,6 +1,6 @@
 use super::super::{ProjectCleanupDbError, ProjectGeneratedArtifactLinkCleanupResult};
 use crate::project::validate_positive_i64;
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{
         generation_spec_entity_ref, generation_spec_media_ref, generation_spec_text_anchor,
         prompt_artifact,

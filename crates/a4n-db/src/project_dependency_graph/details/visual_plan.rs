@@ -1,7 +1,5 @@
-use a4n_core::{
-    error::AppError,
-    models::chapter::{chapter_shooting_script, chapter_visual_plan},
-};
+use a4n_db_models::models::chapter::{chapter_shooting_script, chapter_visual_plan};
+use a4n_error::AppError;
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
@@ -184,7 +182,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::authoring_mode_origin;
-    use a4n_core::error::AppError;
+    use a4n_error::AppError;
 
     #[test]
     fn authoring_modes_map_to_lineage_origins() {

@@ -3,7 +3,7 @@ use super::{
     progress::{cancel_import_progress, load_import_progress, load_import_progress_optional},
 };
 use crate::OrchestratorContext;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn project_import_analysis_progress(
     context: &OrchestratorContext,

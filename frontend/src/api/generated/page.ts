@@ -37,6 +37,8 @@ export interface CommandDescriptor {
   kind: string;
   name: string;
   navigation_hint: string | null;
+  package_category: PackageCommandCategory;
+  package_id: PackageId;
   page_scopes: string[];
   required_capabilities: string[];
   required_ui_context: string[];
@@ -45,6 +47,88 @@ export interface CommandDescriptor {
   runtime_config_policy: RuntimeConfigPolicy;
   secret_pointers: string[];
   summary: string;
+}
+
+export type PackageId = "platform" | "novel-management" | "export" | "ai-workflow" | "vector-rag" | "lineage-view" | "agent" | "manga" | "video" | "galgame" | "canvas" | "external-import";
+
+export type PackageCommandCategory = "normal" | "generation" | "maintenance";
+
+export type PackageInstallationState = "installed" | "missing" | "incompatible" | "unknown";
+
+export type PackageHostState = "enabled" | "disabled" | "enabling" | "disabling";
+
+export type PackageHealth = "healthy" | "unhealthy" | "unknown";
+
+export type PackageLifecycleAction = "enable" | "disable";
+
+export type PackageLifecycleState = "pending" | "draining" | "waiting_external" | "failed" | "completed";
+
+export type PackageReasonCode = "allowed" | "not_installed" | "incompatible" | "disabled" | "disabling" | "capability_unavailable" | "maintenance_unavailable" | "permission_denied" | "host_admin_required" | "operation_in_progress" | "version_conflict" | "unknown_command";
+
+export interface PackageDefinition {
+  dependencies: PackageId[];
+  id: PackageId;
+  required: boolean;
+}
+
+export interface PackageCatalog {
+  contract_version: number;
+  host_scope: string;
+  packages: PackageDefinition[];
+}
+
+export interface PackageLifecycleSummary {
+  action: PackageLifecycleAction;
+  error: string | null;
+  operation_id: string;
+  reason_code: PackageReasonCode | null;
+  requested_version: string | null;
+  state: PackageLifecycleState;
+  status_version: number;
+}
+
+export interface PackageOverview {
+  health: PackageHealth;
+  host_state: PackageHostState;
+  installation: PackageInstallationState;
+  lifecycle: PackageLifecycleSummary | null;
+  package_id: PackageId;
+  required: boolean;
+  status_version: number;
+}
+
+export interface PackageCommandAvailability {
+  available: boolean;
+  category: PackageCommandCategory;
+  command: string;
+  package_id: PackageId;
+  reason_code: PackageReasonCode;
+  status_version: number;
+}
+
+export interface ListPackageCommandAvailabilityInput {
+  commands?: string[] | null;
+}
+
+export interface StartPackageLifecycleInput {
+  action: PackageLifecycleAction;
+  expected_status_version?: number | null;
+  operation_id: string;
+  package_id: PackageId;
+  requested_version?: string | null;
+}
+
+export interface GetPackageOperationInput {
+  operation_id: string;
+}
+
+export interface PackagePreferencesSummary {
+  hidden_package_ids: PackageId[];
+  host_scope: string;
+}
+
+export interface UpdatePackagePreferencesInput {
+  hidden_package_ids: PackageId[];
 }
 
 export type PageSessionStatus = "idle" | "awaiting_attach" | "attached" | "running" | "paused" | "offline";

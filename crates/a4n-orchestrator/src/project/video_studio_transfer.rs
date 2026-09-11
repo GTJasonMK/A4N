@@ -1,39 +1,10 @@
 use std::collections::HashSet;
 
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use super::required_path_extension;
+use a4n_api_contract::project_transfer::MediaFileEntry;
 use a4n_db::canvas::VideoStudioProjectExportRows;
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
-use async_trait::async_trait;
-
-use super::{
-    ImportMediaPayload, MediaFileEntry, ProjectPackageFileHostPort, VideoStudioProjectPackage,
-    required_path_extension,
-};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ExportVideoStudioProjectApplicationInput {
-    pub user_id: i64,
-    pub project_id: i64,
-}
-
-#[derive(Debug)]
-pub struct ReadVideoStudioProjectPackage {
-    pub package: VideoStudioProjectPackage,
-    pub media_payload: ImportMediaPayload,
-}
-
-#[async_trait]
-pub trait VideoStudioProjectTransferHostPort: ProjectPackageFileHostPort {
-    async fn render_export_package(
-        &self,
-        package: &VideoStudioProjectPackage,
-    ) -> Result<Vec<u8>, String>;
-
-    async fn read_import_package(
-        &self,
-        package_bytes: Vec<u8>,
-    ) -> Result<ReadVideoStudioProjectPackage, String>;
-}
 
 pub(crate) fn video_studio_export_media_files(
     rows: &VideoStudioProjectExportRows,

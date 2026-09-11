@@ -1,9 +1,7 @@
-use a4n_core::{
-    error::AppError,
-    video_execution::{
-        VideoEmotionActionGoalV1, VideoEmotionalArcV1, VideoIntentV1, VideoMaterialCoverageV1,
-        VideoSpatialAnchorV1,
-    },
+use a4n_error::AppError;
+use a4n_video_contract::{
+    VideoEmotionActionGoalV1, VideoEmotionalArcV1, VideoIntentV1, VideoMaterialCoverageV1,
+    VideoSpatialAnchorV1,
 };
 
 use super::super::required_text;

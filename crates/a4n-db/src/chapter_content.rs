@@ -5,7 +5,7 @@ mod import;
 mod queries;
 mod types;
 
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use chrono::NaiveDateTime;
 use sea_orm::Set;
 
@@ -22,8 +22,8 @@ pub use import::import_chapter_content_record;
 pub use queries::{chapter_by_id_for_analysis, chapters_for_project};
 pub use types::{
     ChapterContentEditError, ChapterContentImportError, ChapterGenerationExistingRecord,
-    ChapterGenerationLifecycleError, EditChapterContentInput, GeneratedChapterContentRecordInput,
-    ImportChapterContentInput, StoreChapterAnalysisRecordInput,
+    ChapterGenerationLifecycleError, GeneratedChapterContentRecordInput,
+    StoreChapterAnalysisRecordInput,
 };
 
 pub(crate) fn assign_chapter_content(

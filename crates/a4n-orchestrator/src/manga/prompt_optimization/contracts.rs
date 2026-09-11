@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::chapter::chapter_manga_prompt};
+use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use async_trait::async_trait;
 

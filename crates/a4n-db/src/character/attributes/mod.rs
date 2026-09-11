@@ -30,10 +30,8 @@ pub(in crate::character) use state::attribute_value_in_state;
 pub(super) use state::category_storage_key;
 pub use types::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
-    CharacterAttributeDeletionExecutionInput, CharacterAttributeDeletionExecutionResult,
-    CharacterAttributeDeletionRequestInput, CharacterAttributeEventHistoryFilter,
-    CharacterAttributeMutationResult, CharacterAttributeValueChangeInput,
-    CharacterDeletionMarkRewindSummary, CharacterImplicitReviewDecisionRecordInput,
+    CharacterAttributeDeletionExecutionResult, CharacterAttributeEventHistoryFilter,
+    CharacterAttributeMutationResult, CharacterDeletionMarkRewindSummary,
 };
 pub(in crate::character::attributes) use types::{
     CharacterAttributeEventInsertInput, CharacterDeletionMarkExecutedUpdateInput,
@@ -44,9 +42,11 @@ use super::{
     CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
     validate_timeline_source_kind,
 };
-use a4n_core::models::character::attribute_event::SOURCE_KIND_USER;
-use a4n_core::models::character::{attribute_event, protagonist_profile};
-use a4n_domain::character::CHARACTER_DELETION_THRESHOLD;
+use a4n_db_models::models::character::attribute_event::SOURCE_KIND_USER;
+use a4n_db_models::models::character::{attribute_event, protagonist_profile};
+use a4n_domain::character::{
+    CHARACTER_DELETION_THRESHOLD, CharacterAttributeDeletionExecutionInput,
+};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::Value;
 use types::CharacterAttributeDeletionRecordInput;

@@ -1,4 +1,4 @@
-use a4n_core::models::scene::{scene_occurrence, scene_profile, scene_transition};
+use a4n_db_models::models::scene::{scene_occurrence, scene_profile, scene_transition};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 use sea_orm::{FromQueryResult, QuerySelect};
 use serde_json::Value;

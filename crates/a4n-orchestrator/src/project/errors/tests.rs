@@ -1,5 +1,5 @@
 use super::{BlueprintRestoreError, blueprint_restore_error_to_app};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use sea_orm::DbErr;
 
 #[test]

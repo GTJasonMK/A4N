@@ -1,8 +1,12 @@
+use std::sync::Arc;
+
 use a4n_domain::galgame::{
     GalgameAudioRole, GalgameGenerationTargetKind, GalgameLinePresentationDocumentV2,
     GalgameLineType, GalgameMediaRole, GalgameMediaTargetKind, GalgamePipelineStartStage,
     GalgameSceneEntryKind, GalgameStagePositionV2, GalgameTargetEntityKind,
 };
+use a4n_domain::progress::ProgressMeta;
+use a4n_error::AppError;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -28,6 +32,19 @@ pub struct StartGalgamePipelineInput {
     #[serde(default)]
     pub resume_from_checkpoint: bool,
 }
+
+/// Progress snapshot emitted by the Galgame pipeline.
+#[derive(Debug, Clone)]
+pub struct GalgamePipelineProgressUpdate {
+    pub current: u32,
+    pub total: u32,
+    pub message: String,
+    pub meta: ProgressMeta,
+}
+
+/// Host callback for Galgame pipeline progress.
+pub type GalgameProgressReporter =
+    Arc<dyn Fn(GalgamePipelineProgressUpdate) -> Result<(), AppError> + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
@@ -85,6 +102,19 @@ pub struct GalgameScriptDetail {
     pub text_anchors: Vec<GalgameTextAnchorSummary>,
     pub media_bindings: Vec<GalgameMediaBindingSummary>,
     pub scenes: Vec<GalgameSceneDetail>,
+}
+
+/// Host-facing Galgame read boundary.
+///
+/// Authorization, persistence reads, and DTO projection stay with the
+/// Galgame owner; Runtime only routes the typed query.
+#[async_trait::async_trait]
+pub trait GalgameReadApplicationPort: Send + Sync {
+    async fn script(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgameScriptDetail, a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]

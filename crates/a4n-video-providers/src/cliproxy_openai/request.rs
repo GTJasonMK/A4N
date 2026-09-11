@@ -1,5 +1,5 @@
 use super::response::aspect_ratio_from_size;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_video::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, VideoGenerationRequest, validate_video_provider_duration,
 };

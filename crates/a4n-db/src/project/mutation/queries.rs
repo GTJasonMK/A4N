@@ -1,5 +1,5 @@
 use super::contracts::ProjectMutationError;
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::{
     ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, FromQueryResult,
     QuerySelect,

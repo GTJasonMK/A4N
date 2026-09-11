@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::generated_image, project::novel_blueprint};
+use a4n_db_models::models::{ai::generated_image, project::novel_blueprint};
 use chrono::NaiveDateTime;
 use sea_orm::FromQueryResult;
 use serde_json::Value;
@@ -9,11 +9,18 @@ use super::{
 };
 
 mod create;
+mod publication;
 mod records;
 mod references;
 
 pub use create::{
     create_generated_image_record, create_generated_image_record_with_generation_run_checkpoint,
+};
+pub use publication::{
+    CreateImagePublicationIntentInput, ImagePublicationFileFacts, create_image_publication_intent,
+    image_publication_by_id, image_publications_for_recovery, mark_image_publication_reclaimed,
+    mark_image_publication_reclaiming, publish_image_publication,
+    publish_image_publication_with_generation_run_checkpoint, update_image_publication_metadata,
 };
 pub(crate) use records::clear_generated_image_references_record;
 pub(crate) use records::generated_images_for_chapter_by_id_desc;

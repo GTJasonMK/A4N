@@ -1,10 +1,9 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::character::{CharacterProfileSyncPreviewStep, CharacterProfileSyncProgress};
 
 use super::{CharacterAiProgress, SyncAllCharacterProfilesInput, SyncAllCharacterProfilesResult};
 use crate::{
     AppState,
-    actions::access,
     sidecar_clients::{rag_operation_timestamp, scope_rag_operation_trace},
 };
 
@@ -14,9 +13,6 @@ pub async fn sync_all_character_profiles_to_chapter(
     input: SyncAllCharacterProfilesInput,
     progress: Option<&CharacterAiProgress<'_>>,
 ) -> Result<SyncAllCharacterProfilesResult, String> {
-    access::verify_project_editor(state, user_id, input.project_id)
-        .await
-        .map_err(|error| error.to_string())?;
     let prompt_renderer = state;
     let trace_port =
         super::sync_trace::RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
@@ -36,18 +32,16 @@ pub async fn sync_all_character_profiles_to_chapter(
     };
     scope_rag_operation_trace(
         batch_character_sync_trace_id("all", input.project_id, input.chapter_number)?,
-        state
-            .orchestrator()
-            .run_all_character_profile_sync_validated(
-                input.project_id,
-                input.chapter_number,
-                prompt_renderer,
-                CharacterProfileSyncProgress {
-                    reporter: Some(&report_progress),
-                    active_task_id: progress.and_then(|progress| progress.task_id),
-                },
-                Some(&trace_port),
-            ),
+        state.character_ai_application().sync_all_profiles(
+            user_id,
+            input,
+            prompt_renderer,
+            CharacterProfileSyncProgress {
+                reporter: Some(&report_progress),
+                active_task_id: progress.and_then(|progress| progress.task_id),
+            },
+            Some(&trace_port),
+        ),
     )
     .await
     .map_err(|error| error.to_string())
@@ -58,17 +52,10 @@ pub(crate) async fn sync_all_character_profiles_preview_steps(
     user_id: i64,
     input: SyncAllCharacterProfilesInput,
 ) -> Result<Vec<CharacterProfileSyncPreviewStep>, String> {
-    access::verify_project_editor(state, user_id, input.project_id)
-        .await
-        .map_err(|error| error.to_string())?;
     let prompt_renderer = state;
     state
-        .orchestrator()
-        .prepare_all_character_profile_sync_preview_validated(
-            input.project_id,
-            input.chapter_number,
-            prompt_renderer,
-        )
+        .character_ai_application()
+        .preview_all_profiles_sync(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())
 }

@@ -1,8 +1,8 @@
-use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_error::AppError;
 
-use super::contracts::RagEmbeddedInput;
 use crate::OrchestratorContext;
+use a4n_rag_core::RagEmbeddedInput;
 
 impl OrchestratorContext {
     pub async fn store_embedded_rag_records(

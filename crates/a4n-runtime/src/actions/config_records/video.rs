@@ -1,4 +1,3 @@
-mod mapping;
 mod records;
 
 pub use records::{

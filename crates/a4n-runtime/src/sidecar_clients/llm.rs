@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use crate::provider_runtime::DynamicProviderFacade;
 use a4n_capabilities::A4nCapabilities;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::LlmProvider;
-use a4n_orchestrator::DynamicProviderFacade;
 
 use crate::state::RuntimeProfile;
 

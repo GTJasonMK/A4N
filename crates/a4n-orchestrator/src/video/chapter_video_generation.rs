@@ -1,27 +1,27 @@
+use a4n_error::AppError;
 use std::collections::HashMap;
 
-use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_video, video_gen_config},
-        chapter::{chapter_video_prompt, chapter_video_timeline_item},
-    },
-    source_spans::{metadata_source_content_sha256, source_text_hash},
-    video_execution::{
-        VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
-        VideoSegmentPlanV2, validate_video_segment_recipes_for_plan,
-        video_segment_recipes_from_metadata,
-    },
-};
+use a4n_api_contract::video::{GenerateChapterVideoInput, PreviewChapterVideoPromptOverrideInput};
 use a4n_db::collaboration::ProjectAccessRole;
+use a4n_db_models::models::{
+    ai::generated_video,
+    chapter::{chapter_video_prompt, chapter_video_timeline_item},
+};
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT, image_generation_prompt_id,
-    image_generation_source,
+    image_generation_source, reference_image_ids,
 };
+use a4n_domain::source_spans::metadata_source_content_sha256;
+use a4n_domain::source_text_hash;
 use a4n_service_protocol::GenerationArtifactRef;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult};
-use async_trait::async_trait;
+use a4n_video::{ProviderImageInputTransport, VideoGenerationRequest};
+use a4n_video_contract::{
+    ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
+    ChapterVideoRequestPreview, VIDEO_EXECUTION_CONTRACT_EPOCH, VideoProviderRequestInput,
+    VideoProviderValidationMode, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
+    VideoSegmentPlanV2, validate_video_segment_recipes_for_plan,
+    video_segment_recipes_from_metadata,
+};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -39,27 +39,15 @@ use super::chapter_video_request_rules::{
 };
 use super::{
     NEWAPI_VIDEO_BACKEND, PromptChainFields, ProviderGenerationWorkflow,
-    ProviderImageInputTransport, VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress,
-    VideoGenerationRecordInput, VideoProviderExecutionInput, VideoProviderHostPort,
-    VideoProviderRequestBody, VideoProviderRequestInput, VideoProviderValidationMode,
-    boundary_frame_numbers_for_prompt, ensure_newapi_first_frame_image_supported,
-    first_frame_prompt_matches_video_prompt, frame_prompt_matches_video_prompt,
-    latest_storyboard_image_id, linked_video_preview_config_id,
-    prompt_provider_workflow_for_recipe, reference_ids_with_storyboard_image, reference_image_ids,
+    VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoGenerationRecordInput,
+    VideoProviderExecutionInput, boundary_frame_numbers_for_prompt,
+    ensure_newapi_first_frame_image_supported, first_frame_prompt_matches_video_prompt,
+    frame_prompt_matches_video_prompt, latest_storyboard_image_id, linked_video_preview_config_id,
+    prompt_provider_workflow_for_recipe, reference_ids_with_storyboard_image,
     required_prompt_source_prompt_type, required_video_execution_identity,
     storyboard_prompt_matches_video_prompt, tail_frame_reference_belongs_to_video,
-    validate_video_duration_for_config_secs,
+    validate_video_duration_for_provider_config_secs,
 };
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct GenerateChapterVideoInput {
-    pub user_id: i64,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub prompt_id: i64,
-    #[serde(default)]
-    pub config_id: Option<i64>,
-}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct GenerateChapterVideosBatchInput {
@@ -69,13 +57,6 @@ pub struct GenerateChapterVideosBatchInput {
     pub prompt_ids: Vec<i64>,
     #[serde(default)]
     pub config_id: Option<i64>,
-}
-
-pub struct ChapterVideoRequestPreview {
-    pub request: Value,
-    pub request_kind: &'static str,
-    pub request_title: &'static str,
-    pub note: String,
 }
 
 #[derive(Default)]
@@ -89,56 +70,6 @@ struct VideoPromptValidationCache {
 struct SharedSegmentValidationIndex {
     segment_numbers_by_shot: HashMap<String, HashMap<i32, i32>>,
     recipes_by_number: HashMap<i32, VideoSegmentExecutionRecipeV1>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChapterVideoImageInput {
-    pub user_id: i64,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub mode: VideoProviderValidationMode,
-    pub transport: ProviderImageInputTransport,
-    pub reference_image_ids: Vec<i64>,
-    pub first_frame_image_id: Option<i64>,
-    pub last_frame_image_id: Option<i64>,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct ResolvedChapterVideoImageInputs {
-    pub reference_image_urls: Vec<String>,
-    pub first_frame_image_url: Option<String>,
-    pub last_frame_image_url: Option<String>,
-    pub staging_artifacts: Vec<GenerationArtifactRef>,
-}
-
-#[async_trait]
-pub trait ChapterVideoGenerationHostPort: Send + Sync {
-    async fn resolve_video_config(
-        &self,
-        config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError>;
-
-    fn resolve_image_transport(&self) -> Result<ProviderImageInputTransport, AppError>;
-
-    async fn resolve_chapter_video_image_inputs(
-        &self,
-        input: ChapterVideoImageInput,
-    ) -> Result<ResolvedChapterVideoImageInputs, AppError>;
-
-    async fn chapter_video_provider_request_body(
-        &self,
-        input: VideoProviderRequestInput,
-    ) -> Result<VideoProviderRequestBody, AppError>;
-
-    async fn submit_chapter_video(
-        &self,
-        input: VideoProviderRequestInput,
-        progress: &mut VideoGenerationProgress<'_>,
-    ) -> Result<VideoGenerationResult, AppError>;
-
-    fn runtime_config_snapshot(&self) -> Option<Value>;
-
-    fn video_provider_host_port(&self) -> &dyn VideoProviderHostPort;
 }
 
 struct PreparedChapterVideoGeneration {
@@ -165,7 +96,7 @@ struct VideoPromptExecutionContract {
 impl OrchestratorContext {
     pub async fn preview_chapter_video_request_validated(
         &self,
-        host_port: &dyn ChapterVideoGenerationHostPort,
+        host_port: &dyn ChapterVideoPreviewHostPort,
         input: GenerateChapterVideoInput,
         prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
     ) -> Result<ChapterVideoRequestPreview, AppError> {
@@ -178,7 +109,7 @@ impl OrchestratorContext {
             )
             .await?;
         let body = host_port
-            .chapter_video_provider_request_body(VideoProviderRequestInput {
+            .chapter_video_provider_request_body_for_preview(VideoProviderRequestInput {
                 project_id: prepared.project_id,
                 config: prepared.context.config.clone(),
                 request: prepared.context.request.clone(),
@@ -317,7 +248,7 @@ impl OrchestratorContext {
 
     async fn prepare_chapter_video_generation(
         &self,
-        host_port: &dyn ChapterVideoGenerationHostPort,
+        host_port: &dyn ChapterVideoPreviewHostPort,
         input: GenerateChapterVideoInput,
         mode: VideoProviderValidationMode,
         prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
@@ -383,8 +314,10 @@ impl OrchestratorContext {
         } else {
             config_id
         };
-        let config = host_port.resolve_video_config(config_id).await?;
-        validate_video_duration_for_config_secs(&config, prompt.duration_secs)
+        let config = host_port
+            .resolve_video_config_for_preview(config_id)
+            .await?;
+        validate_video_duration_for_provider_config_secs(&config, prompt.duration_secs)
             .map_err(AppError::InvalidArgument)?;
 
         let prompt_reference_image_ids_json = prompt.reference_image_ids_json.clone();
@@ -408,7 +341,7 @@ impl OrchestratorContext {
         )
         .map_err(AppError::InvalidArgument)?;
 
-        let transport = host_port.resolve_image_transport()?;
+        let transport = host_port.resolve_image_transport_for_preview()?;
         if transport == ProviderImageInputTransport::RemoteTempUpload {
             append_provider_input_note(
                 &mut provider_input_note,
@@ -449,7 +382,7 @@ impl OrchestratorContext {
             None
         };
         let image_inputs = host_port
-            .resolve_chapter_video_image_inputs(ChapterVideoImageInput {
+            .resolve_chapter_video_image_inputs_for_preview(ChapterVideoImageInput {
                 user_id,
                 project_id,
                 chapter_id,
@@ -595,7 +528,7 @@ impl OrchestratorContext {
         self.create_video_generation_record_validated(VideoGenerationRecordInput {
             project_id: prepared.project_id,
             chapter_id: Some(prepared.chapter_id),
-            video_type: generated_video::VIDEO_TYPE_CHAPTER.into(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.into(),
             workflow_mode: Some(context.workflow_mode.clone()),
             prompt: context.request.prompt.clone(),
             negative_prompt: context.request.negative_prompt.clone(),
@@ -744,19 +677,22 @@ impl OrchestratorContext {
                     invalid_argument(format!("插入片段提示词 #{} 缺少有效时间线项 ID", prompt.id))
                 })?;
             let timeline_key = (prompt.project_id, prompt.chapter_id);
-            if !cache.inserted_timeline_items.contains_key(&timeline_key) {
-                let timeline = self
-                    .chapter_video_timeline_by_scope(
-                        prompt.project_id,
-                        prompt.chapter_id,
-                        chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
-                    )
-                    .await?
-                    .ok_or_else(|| invalid_argument("当前章节不存在插入片段时间线"))?;
-                let snapshot = self.chapter_video_timeline_snapshot(timeline.id).await?;
-                cache
-                    .inserted_timeline_items
-                    .insert(timeline_key, timeline_items_by_id(snapshot.items));
+            match cache.inserted_timeline_items.get(&timeline_key) {
+                Some(_) => {}
+                None => {
+                    let timeline = self
+                        .chapter_video_timeline_by_scope(
+                            prompt.project_id,
+                            prompt.chapter_id,
+                            chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+                        )
+                        .await?
+                        .ok_or_else(|| invalid_argument("当前章节不存在插入片段时间线"))?;
+                    let snapshot = self.chapter_video_timeline_snapshot(timeline.id).await?;
+                    cache
+                        .inserted_timeline_items
+                        .insert(timeline_key, timeline_items_by_id(snapshot.items));
+                }
             }
             let items_by_id = cache
                 .inserted_timeline_items
@@ -820,90 +756,94 @@ impl OrchestratorContext {
             .and_then(Value::as_i64)
             .and_then(|value| i32::try_from(value).ok())
             .ok_or_else(|| invalid_argument(format!("视频提示词 #{} 缺少镜头内序号", prompt.id)))?;
-        if !cache.shared_segment_plans.contains_key(&plan_id) {
-            let plan = self
-                .require_current_shared_segment_plan(prompt.project_id, prompt.chapter_id, plan_id)
-                .await?;
-            cache.shared_segment_plans.insert(plan_id, plan);
+        match cache.shared_segment_plans.get(&plan_id) {
+            Some(_) => {}
+            None => {
+                let plan = self
+                    .require_current_shared_segment_plan(
+                        prompt.project_id,
+                        prompt.chapter_id,
+                        plan_id,
+                    )
+                    .await?;
+                cache.shared_segment_plans.insert(plan_id, plan);
+            }
         }
         let plan = cache
             .shared_segment_plans
             .get(&plan_id)
             .expect("shared segment plan is loaded");
-        let segment_number = if !cache.shared_segment_indexes.contains_key(&plan_id) {
-            let source_shot_id = source_shot_id.trim();
-            if source_shot_id.is_empty() || segment_index_in_shot <= 0 {
-                return Err(invalid_argument(
-                    "稳定片段目标必须提供镜头 ID 和正整数镜头内序号",
-                ));
+        let segment_number = match cache.shared_segment_indexes.get(&plan_id) {
+            Some(index) => {
+                let segment_number =
+                    resolve_cached_segment_number(index, source_shot_id, segment_index_in_shot)
+                        .map_err(AppError::InvalidArgument)?;
+                plan.style
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|style| !style.is_empty())
+                    .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
+                segment_number
             }
-            let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
-                plan.metadata_json
-                    .as_ref()
-                    .and_then(|metadata| metadata.get("segments"))
-                    .cloned()
-                    .ok_or_else(|| invalid_argument("片段规划 metadata_json 缺少 segments"))?,
-            )
-            .map_err(|error| invalid_argument(format!("片段规划 segments 无效：{error}")))?;
-            let mut segment_numbers_by_shot = HashMap::with_capacity(segments.len());
-            for segment in &segments {
-                segment_numbers_by_shot
-                    .entry(segment.source_shot_id.clone())
-                    .or_insert_with(HashMap::new)
-                    .entry(segment.segment_index_in_shot)
-                    .or_insert(segment.segment_number);
+            None => {
+                let source_shot_id = source_shot_id.trim();
+                if source_shot_id.is_empty() || segment_index_in_shot <= 0 {
+                    return Err(invalid_argument(
+                        "稳定片段目标必须提供镜头 ID 和正整数镜头内序号",
+                    ));
+                }
+                let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
+                    plan.metadata_json
+                        .as_ref()
+                        .and_then(|metadata| metadata.get("segments"))
+                        .cloned()
+                        .ok_or_else(|| invalid_argument("片段规划 metadata_json 缺少 segments"))?,
+                )
+                .map_err(|error| invalid_argument(format!("片段规划 segments 无效：{error}")))?;
+                let mut segment_numbers_by_shot = HashMap::with_capacity(segments.len());
+                for segment in &segments {
+                    segment_numbers_by_shot
+                        .entry(segment.source_shot_id.clone())
+                        .or_insert_with(HashMap::new)
+                        .entry(segment.segment_index_in_shot)
+                        .or_insert(segment.segment_number);
+                }
+                let segment_number = segment_numbers_by_shot
+                    .get(source_shot_id)
+                    .and_then(|by_index| by_index.get(&segment_index_in_shot))
+                    .copied()
+                    .ok_or_else(|| {
+                        invalid_argument(format!(
+                            "当前片段规划不存在镜头 {source_shot_id} 的第 {segment_index_in_shot} 个片段"
+                        ))
+                    })?;
+                let plan_style = plan
+                    .style
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|style| !style.is_empty())
+                    .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
+                let recipes = video_segment_recipes_from_metadata(plan.metadata_json.as_ref())
+                    .map_err(AppError::InvalidArgument)?;
+                validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)
+                    .map_err(AppError::InvalidArgument)?;
+                let recipe_count = recipes.len();
+                let recipes_by_number = recipes.into_iter().fold(
+                    HashMap::with_capacity(recipe_count),
+                    |mut by_number, recipe| {
+                        by_number.entry(recipe.segment_number).or_insert(recipe);
+                        by_number
+                    },
+                );
+                cache.shared_segment_indexes.insert(
+                    plan_id,
+                    SharedSegmentValidationIndex {
+                        segment_numbers_by_shot,
+                        recipes_by_number,
+                    },
+                );
+                segment_number
             }
-            let segment_number = segment_numbers_by_shot
-                .get(source_shot_id)
-                .and_then(|by_index| by_index.get(&segment_index_in_shot))
-                .copied()
-                .ok_or_else(|| {
-                    invalid_argument(format!(
-                        "当前片段规划不存在镜头 {source_shot_id} 的第 {segment_index_in_shot} 个片段"
-                    ))
-                })?;
-            let plan_style = plan
-                .style
-                .as_deref()
-                .map(str::trim)
-                .filter(|style| !style.is_empty())
-                .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
-            let recipes = video_segment_recipes_from_metadata(plan.metadata_json.as_ref())
-                .map_err(AppError::InvalidArgument)?;
-            validate_video_segment_recipes_for_plan(&recipes, &segments, plan_style)
-                .map_err(AppError::InvalidArgument)?;
-            let recipe_count = recipes.len();
-            let recipes_by_number = recipes.into_iter().fold(
-                HashMap::with_capacity(recipe_count),
-                |mut by_number, recipe| {
-                    by_number.entry(recipe.segment_number).or_insert(recipe);
-                    by_number
-                },
-            );
-            cache.shared_segment_indexes.insert(
-                plan_id,
-                SharedSegmentValidationIndex {
-                    segment_numbers_by_shot,
-                    recipes_by_number,
-                },
-            );
-            segment_number
-        } else {
-            let segment_number = resolve_cached_segment_number(
-                cache
-                    .shared_segment_indexes
-                    .get(&plan_id)
-                    .expect("shared segment index is loaded"),
-                source_shot_id,
-                segment_index_in_shot,
-            )
-            .map_err(AppError::InvalidArgument)?;
-            plan.style
-                .as_deref()
-                .map(str::trim)
-                .filter(|style| !style.is_empty())
-                .ok_or_else(|| invalid_argument("当前片段规划缺少 style"))?;
-            segment_number
         };
         let recipe = cache
             .shared_segment_indexes
@@ -1131,7 +1071,7 @@ impl OrchestratorContext {
                 })?;
             if source_video.project_id != project_id
                 || source_video.chapter_id != Some(chapter_id)
-                || source_video.status != generated_video::STATUS_COMPLETED
+                || source_video.status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
             {
                 return Err(invalid_argument(format!(
                     "连续性来源视频 #{source_video_id} 不再是当前章节的已完成视频，请重新选择"

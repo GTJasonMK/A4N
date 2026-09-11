@@ -1,10 +1,10 @@
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::project::duplicate::{
     ProjectDuplicateError, freeform::FreeformGeneratedVideoCopyRecords,
-    shared::ProjectMediaFileCopier,
 };
 
 pub(super) async fn freeform_generated_videos_for_copy_record<C>(
@@ -22,7 +22,7 @@ where
         .map_err(ProjectDuplicateError::Database)?;
     if let Some(video) = videos
         .iter()
-        .find(|video| !generated_video::is_terminal_status(&video.status))
+        .find(|video| !a4n_domain::video_workflow::is_terminal_video_status(&video.status))
     {
         return Err(ProjectDuplicateError::InvalidState {
             current: format!("生成视频 {} 仍处于 {} 状态", video.id, video.status),
@@ -32,7 +32,7 @@ where
     Ok(videos)
 }
 
-pub(super) async fn copy_freeform_generated_videos_record<C, Copier>(
+pub(super) async fn copy_freeform_generated_videos_record<C, Copier: ?Sized>(
     db: &C,
     videos: &[generated_video::Model],
     new_project_id: i64,

@@ -2,7 +2,7 @@ use super::chapter::upsert_imported_chapter_from_review;
 use super::contracts::{
     AcceptedImportReview, ImportReviewMutationError, ensure_pending_import_review,
 };
-use a4n_core::models::project::import_review_queue;
+use a4n_db_models::models::project::import_review_queue;
 use a4n_domain::import_review::ImportReviewStatus;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set, TransactionTrait};

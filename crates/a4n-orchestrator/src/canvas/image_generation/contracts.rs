@@ -1,5 +1,5 @@
-use a4n_core::models::canvas::canvas_node;
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db_models::models::canvas::canvas_node;
 
 use crate::canvas::CanvasNodeRunHandle;
 
@@ -14,6 +14,7 @@ pub struct CanvasImageNodeInput {
 }
 
 pub struct CanvasImageNodeExecutionInput<'a> {
+    pub requested_by_user_id: i64,
     pub project_id: i64,
     pub graph_id: i64,
     pub node: &'a canvas_node::Model,

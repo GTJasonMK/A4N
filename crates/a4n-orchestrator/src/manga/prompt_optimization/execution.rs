@@ -1,13 +1,12 @@
-use a4n_core::{
-    error::AppError,
-    models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
-};
+use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_domain::project::required_text;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, is_truncated_finish_reason};
 use a4n_prompt::rendering::PromptRenderer;
 use serde::Deserialize;
 
 use crate::{
-    OrchestratorContext, manga::ensure_manga_source_can_write, project::required_text,
+    OrchestratorContext, manga::ensure_manga_source_can_write,
     structured_llm::parse_strict_json_response,
 };
 

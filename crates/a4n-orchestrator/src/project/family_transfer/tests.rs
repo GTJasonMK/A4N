@@ -6,7 +6,13 @@ use std::{
     },
 };
 
-use a4n_core::models::{
+use a4n_api_contract::project_transfer::{
+    ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
+    ImportProjectPackageApplicationInput, ProjectPackageExportInput, ProjectPackageImportPayload,
+    ProjectPackageTransferHostPort,
+};
+use a4n_archive_core::{ArchiveEntry, write_zip};
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{chapter, chapter_manga_prompt, chapter_shooting_script},
     character::{character_portrait, protagonist_profile},
@@ -23,25 +29,37 @@ use sea_orm::{ActiveModelTrait, Set};
 use serde_json::{Value, json};
 
 use crate::project::{
-    FAMILY_PACKAGE_MANIFEST_PATH, ImportProjectPackageApplicationInput,
-    PROJECT_FAMILY_PACKAGE_VERSION, ProjectPackageFileHostPort, hash_json, hash_text,
-    media_file_key, sha256_bytes, validate_family_media_manifest, validate_family_package_manifest,
+    FAMILY_PACKAGE_MANIFEST_PATH, ImportMediaPayload, PROJECT_FAMILY_PACKAGE_VERSION,
+    ProjectFamilyPackage, hash_json, hash_text, media_file_key, sha256_bytes,
+    validate_family_media_manifest, validate_family_package_manifest,
 };
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
 use super::{
-    ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    ImportMediaPayload, MediaFileEntry, ProjectFamilyExportRows, ProjectFamilyPackage,
-    ProjectFamilyTransferHostPort, ReadProjectFamilyPackage, imported_project_family_media_path,
+    MediaFileEntry, ProjectFamilyExportRows, imported_project_family_media_path,
     project_family_export_media_files,
 };
+
+struct ReadProjectFamilyPackage {
+    package: ProjectFamilyPackage,
+    media_payload: ImportMediaPayload,
+}
+
+impl ReadProjectFamilyPackage {
+    fn into_host_payload(self) -> ProjectPackageImportPayload {
+        ProjectPackageImportPayload {
+            manifest: serde_json::to_value(self.package).expect("serialize test package"),
+            media_bytes: self.media_payload.bytes,
+        }
+    }
+}
 
 #[derive(Default)]
 struct TestProjectFamilyTransferHost {
     render_calls: AtomicUsize,
     rendered_mode: Mutex<Option<String>>,
     rendered_project_ids: Mutex<Vec<i64>>,
-    read_package: Mutex<Option<ReadProjectFamilyPackage>>,
+    read_package: Mutex<Option<ProjectPackageImportPayload>>,
     written_paths: Vec<String>,
     rollback_calls: AtomicUsize,
 }
@@ -91,18 +109,20 @@ impl ZipProjectFamilyTransferHost {
 impl TestProjectFamilyTransferHost {
     fn with_read_package(read_package: ReadProjectFamilyPackage) -> Self {
         Self {
-            read_package: Mutex::new(Some(read_package)),
+            read_package: Mutex::new(Some(read_package.into_host_payload())),
             ..Self::default()
         }
     }
 }
 
 #[async_trait]
-impl ProjectFamilyTransferHostPort for TestProjectFamilyTransferHost {
+impl ProjectPackageTransferHostPort for TestProjectFamilyTransferHost {
     async fn render_export_package(
         &self,
-        package: &ProjectFamilyPackage,
+        input: ProjectPackageExportInput,
     ) -> Result<Vec<u8>, String> {
+        let package: ProjectFamilyPackage =
+            serde_json::from_value(input.manifest).map_err(|error| error.to_string())?;
         self.render_calls.fetch_add(1, Ordering::SeqCst);
         *self.rendered_mode.lock().expect("rendered mode lock") = Some(package.mode.clone());
         *self
@@ -116,17 +136,16 @@ impl ProjectFamilyTransferHostPort for TestProjectFamilyTransferHost {
     async fn read_import_package(
         &self,
         _package_bytes: Vec<u8>,
-    ) -> Result<ReadProjectFamilyPackage, String> {
+        _manifest_path: &str,
+        _package_label: &str,
+        _manifest_label: &str,
+    ) -> Result<ProjectPackageImportPayload, String> {
         self.read_package
             .lock()
             .expect("read package lock")
             .take()
             .ok_or_else(|| "missing test package".to_string())
     }
-}
-
-#[async_trait]
-impl ProjectPackageFileHostPort for TestProjectFamilyTransferHost {
     fn write_imported_media_file(
         &mut self,
         relative_path: &str,
@@ -144,48 +163,7 @@ impl ProjectPackageFileHostPort for TestProjectFamilyTransferHost {
 }
 
 #[async_trait]
-impl ProjectFamilyTransferHostPort for ZipProjectFamilyTransferHost {
-    async fn render_export_package(
-        &self,
-        package: &ProjectFamilyPackage,
-    ) -> Result<Vec<u8>, String> {
-        let files = self.files.lock().expect("round-trip files lock");
-        let entries = package
-            .media_files
-            .iter()
-            .map(|entry| {
-                let bytes = files
-                    .get(&entry.original_path)
-                    .cloned()
-                    .ok_or_else(|| format!("round-trip 导出媒体不存在: {}", entry.original_path))?;
-                Ok(a4n_export_core::ExportZipEntryBytes {
-                    path: entry.package_path.clone(),
-                    bytes,
-                    label: format!("round-trip 媒体 {}", entry.package_path),
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        let manifest_bytes = serde_json::to_vec(package).map_err(|error| error.to_string())?;
-        a4n_export_core::render_zip_package(a4n_export_core::ExportZipPackageInput {
-            manifest_path: FAMILY_PACKAGE_MANIFEST_PATH.to_string(),
-            manifest_bytes,
-            manifest_label: "项目族 round-trip 清单".to_string(),
-            entries,
-            package_label: "项目族 round-trip 包".to_string(),
-        })
-        .map_err(|error| error.to_string())
-    }
-
-    async fn read_import_package(
-        &self,
-        package_bytes: Vec<u8>,
-    ) -> Result<ReadProjectFamilyPackage, String> {
-        Self::read_package(&package_bytes)
-    }
-}
-
-#[async_trait]
-impl ProjectPackageFileHostPort for ZipProjectFamilyTransferHost {
+impl ProjectPackageTransferHostPort for ZipProjectFamilyTransferHost {
     fn write_imported_media_file(
         &mut self,
         relative_path: &str,
@@ -211,6 +189,60 @@ impl ProjectPackageFileHostPort for ZipProjectFamilyTransferHost {
             files.remove(&path);
         }
         Ok(())
+    }
+
+    async fn render_export_package(
+        &self,
+        input: ProjectPackageExportInput,
+    ) -> Result<Vec<u8>, String> {
+        let files = self.files.lock().expect("round-trip files lock");
+        let entries = input
+            .media_files
+            .iter()
+            .map(|entry| {
+                let bytes = files
+                    .get(&entry.original_path)
+                    .cloned()
+                    .ok_or_else(|| format!("round-trip 导出媒体不存在: {}", entry.original_path))?;
+                Ok(ArchiveEntry {
+                    path: entry.package_path.clone(),
+                    bytes,
+                    label: format!("round-trip 媒体 {}", entry.package_path),
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let manifest_bytes =
+            serde_json::to_vec(&input.manifest).map_err(|error| error.to_string())?;
+        write_zip(
+            std::iter::once(ArchiveEntry {
+                path: input.manifest_path,
+                bytes: manifest_bytes,
+                label: input.manifest_label,
+            })
+            .chain(entries),
+            input.package_label,
+        )
+        .map_err(|error| error.to_string())
+    }
+
+    async fn read_import_package(
+        &self,
+        package_bytes: Vec<u8>,
+        manifest_path: &str,
+        package_label: &str,
+        manifest_label: &str,
+    ) -> Result<ProjectPackageImportPayload, String> {
+        let (manifest, media_bytes) = a4n_import_core::read_media_package_zip_bytes(
+            &package_bytes,
+            manifest_path,
+            package_label,
+            manifest_label,
+        )
+        .map_err(|error| error.to_string())?;
+        Ok(ProjectPackageImportPayload {
+            manifest,
+            media_bytes,
+        })
     }
 }
 
@@ -247,7 +279,7 @@ async fn root_export_application_enforces_owner_before_rows_assembly_and_render(
         .await
         .expect("根项目族导出 application 应成功");
 
-    assert_eq!(exported.project.id, root.id);
+    assert_eq!(exported.project_title, root.title);
     assert_eq!(exported.package_bytes, vec![1, 2, 3]);
     assert_eq!(host.render_calls.load(Ordering::SeqCst), 1);
     assert_eq!(
@@ -285,7 +317,7 @@ async fn derived_export_application_reuses_collaboration_root_owner_check() {
         .await
         .expect("派生项目包导出 application 应成功");
 
-    assert_eq!(exported.project.id, derived.id);
+    assert_eq!(exported.project_title, derived.title);
     assert_eq!(
         host.rendered_mode
             .lock()
@@ -382,7 +414,7 @@ fn media_index_and_import_path_preserve_field_and_extension() {
         id: 11,
         project_id: 2,
         chapter_id: None,
-        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
         workflow_mode: None,
         file_path: Some("projects/2/video/output.webm".to_string()),
         thumbnail_path: Some("projects/2/video/output.jpg".to_string()),
@@ -396,7 +428,7 @@ fn media_index_and_import_path_preserve_field_and_extension() {
         file_size: None,
         source_video_id: None,
         source_image_id: None,
-        status: generated_video::STATUS_COMPLETED.to_string(),
+        status: a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string(),
         provider_job_id: None,
         error_message: None,
         timeline_item_id: None,
@@ -433,7 +465,7 @@ fn media_index_and_import_path_preserve_field_and_extension() {
             20,
             "media_asset",
             30,
-            a4n_core::models::media::media_asset::THUMBNAIL_PATH_FIELD,
+            a4n_db_models::models::media::media_asset::THUMBNAIL_PATH_FIELD,
             "media/x.png",
         )
         .expect("导入路径应可生成"),
@@ -905,7 +937,7 @@ async fn seed_manga_family_round_trip(
             snapshot.id, snapshot_chapter.id, content_hash
         ),
     };
-    let source_spans = a4n_core::source_spans::source_spans_for_content(
+    let source_spans = a4n_domain::source_spans::source_spans_for_content(
         chapter.id,
         chapter.chapter_number,
         &chapter.content,
@@ -918,6 +950,7 @@ async fn seed_manga_family_round_trip(
             author_user_id: user_id,
             authoring_mode: a4n_domain::chapter_visual_plan::ChapterVisualPlanAuthoringMode::Manual,
             expected: None,
+            expected_source_hash: None,
             plan,
         },
     )
@@ -1101,7 +1134,7 @@ async fn seed_manga_family_round_trip(
 
 fn round_trip_shooting_script(
     visual_plan: &a4n_db::chapter_visual_plan::ParsedChapterVisualPlan,
-    source_spans: &[a4n_core::source_spans::SourceSpan],
+    source_spans: &[a4n_domain::source_spans::SourceSpan],
 ) -> ChapterShootingScriptV1 {
     let mut script: ChapterShootingScriptV1 = serde_json::from_str(
         r#"{

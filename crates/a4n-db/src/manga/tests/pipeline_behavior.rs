@@ -1,14 +1,15 @@
-use a4n_core::models::chapter::{
+use a4n_db_models::models::chapter::{
     chapter,
     chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
 };
+use a4n_domain::manga::MangaPagePromptSyncDraft;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };
 use serde_json::json;
 
 use crate::manga::{
-    MangaPagePromptSyncDraft, MangaPipelineDbError, manga_page_prompt_statuses_by_chapter,
+    MangaPipelineDbError, manga_page_prompt_statuses_by_chapter,
     manga_page_prompt_statuses_by_chapters, sync_manga_page_prompts_by_chapter,
 };
 

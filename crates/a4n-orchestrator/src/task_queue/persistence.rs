@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
 use a4n_db::SharedDatabaseConnection;
+use a4n_error::AppError;
 use a4n_queue::memory_queue::MemoryTaskQueue;
 
 use super::concurrency::QueueConcurrencyLimits;

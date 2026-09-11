@@ -12,6 +12,7 @@ pub(in crate::optimize) struct AgentLoopGenerationContext<'a> {
     pub(in crate::optimize) cancellation: &'a CancellationToken,
     pub(in crate::optimize) checkpoint_writer: &'a GenerationCheckpointWriter,
     pub(in crate::optimize) session: &'a Arc<GenerationTaskSession>,
+    pub(in crate::optimize) agent_max_output_tokens: Option<usize>,
 }
 
 #[derive(Debug)]

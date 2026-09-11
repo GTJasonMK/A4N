@@ -1,4 +1,4 @@
-use a4n_core::models::project::{project_source_snapshot, source_snapshot_chapter};
+use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
 use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 
 use crate::text_anchor::{TextAnchorDbError, TextAnchorDbResult};

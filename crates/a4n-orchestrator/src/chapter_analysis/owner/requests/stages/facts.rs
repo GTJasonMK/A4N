@@ -1,7 +1,7 @@
-use a4n_core::{
-    chapter_analysis::CHAPTER_ANALYSIS_STAGE_FACTS, error::AppError, models::chapter::chapter,
-    source_spans::SourceSpan,
-};
+use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_FACTS;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::source_spans::SourceSpan;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::json;
 
@@ -20,7 +20,7 @@ pub async fn build_chapter_fact_extraction_request(
     let input = json!({
         "chapter_title": chapter_title,
         "content": ch.content,
-        "source_spans": a4n_core::source_spans::source_span_prompt_values(source_spans),
+        "source_spans": a4n_domain::source_spans::source_span_prompt_values(source_spans),
     });
     build_chapter_analysis_stage_request(
         ch,

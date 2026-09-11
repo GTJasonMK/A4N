@@ -88,28 +88,32 @@ pub(in crate::routes::commands) async fn start_or_resume_manga_pipeline(
     let task_id = manga_pipeline_actions::new_manga_pipeline_task_id(project_id, chapter_number)?;
     let state_clone = state.clone();
     let task_id_clone = task_id.clone();
-    let runtime_config_snapshot = a4n_runtime::runtime_config::current_snapshot();
+    let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::current_snapshot();
     tokio::spawn(async move {
-        a4n_runtime::runtime_config::request_scope(user_id, runtime_config_snapshot, async move {
-            if let Err(error) = manga_pipeline_actions::run_manga_pipeline(
-                state_clone.runtime(),
-                user_id,
-                project_id,
-                chapter_number,
-                &task_id_clone,
-                resume_from_checkpoint,
-            )
-            .await
-            {
-                tracing::error!(
-                    task_id = task_id_clone,
+        a4n_runtime::host_api::runtime_config::request_scope(
+            user_id,
+            runtime_config_snapshot,
+            async move {
+                if let Err(error) = manga_pipeline_actions::run_manga_pipeline(
+                    state_clone.runtime(),
+                    user_id,
                     project_id,
                     chapter_number,
-                    %error,
-                    "漫画流水线执行失败"
-                );
-            }
-        })
+                    &task_id_clone,
+                    resume_from_checkpoint,
+                )
+                .await
+                {
+                    tracing::error!(
+                        task_id = task_id_clone,
+                        project_id,
+                        chapter_number,
+                        %error,
+                        "漫画流水线执行失败"
+                    );
+                }
+            },
+        )
         .await;
     });
 

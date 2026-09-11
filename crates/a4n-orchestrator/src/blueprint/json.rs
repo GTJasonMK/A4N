@@ -17,7 +17,7 @@ pub(crate) fn validate_sparse_blueprint_sections(
     world_setting: &serde_json::Value,
     characters: &[serde_json::Value],
     relationships: &[serde_json::Value],
-) -> Result<(), a4n_core::error::AppError> {
+) -> Result<(), a4n_error::AppError> {
     world::validate_sparse_world_setting(world_setting)?;
     entities::parse_sparse_characters(characters)?;
     entities::parse_sparse_relationships(relationships)?;

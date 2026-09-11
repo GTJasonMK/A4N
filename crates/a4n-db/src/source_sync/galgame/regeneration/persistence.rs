@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
     source_sync::source_sync_run,
 };

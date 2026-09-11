@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::{chapter_shooting_script, chapter_visual_plan},
     project::{project_source_snapshot, source_snapshot_chapter},
 };

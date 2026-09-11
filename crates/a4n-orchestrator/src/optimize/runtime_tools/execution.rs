@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::rules::*;
@@ -27,40 +27,60 @@ pub(in crate::optimize) fn execute_optimization_runtime_tool(
     }
 }
 
-pub(in crate::optimize) fn runtime_tool_reads_current_chapter(
-    tool_name: &str,
-    arguments: &Value,
-) -> bool {
-    if tool_name != GET_PROJECT_INFORMATION_TOOL {
-        return false;
-    }
-    arguments.get("mode").and_then(Value::as_str) == Some("read")
-        && arguments.get("source").and_then(Value::as_str) == Some("current_chapter")
-}
-
 pub(in crate::optimize) fn execute_get_project_information(
     arguments: Value,
     context: &Value,
 ) -> Result<Value, AppError> {
+    let object = arguments
+        .as_object()
+        .ok_or_else(|| AppError::InvalidArgument("读取参数必须是对象".into()))?;
+    for key in object.keys() {
+        if ![
+            "mode",
+            "source",
+            "query",
+            "limit",
+            "offset",
+            "path",
+            "expected_hash",
+        ]
+        .contains(&key.as_str())
+        {
+            return Err(AppError::InvalidArgument(format!("未知读取参数: {key}")));
+        }
+    }
     let mode = required_string(&arguments, "mode")?;
     match mode {
         "read" => {
             let source = required_information_source(&arguments, "source")?;
-            let result = context.get(source).cloned().ok_or_else(|| {
+            if arguments.get("query").is_some() {
+                return Err(AppError::InvalidArgument("read 不接受 query".into()));
+            }
+            let result = context.get(source).ok_or_else(|| {
                 AppError::InvalidArgument(format!("当前会话没有可读取的信息源: {source}"))
             })?;
-            Ok(json!({
-                "tool": GET_PROJECT_INFORMATION_TOOL,
-                "mode": "read",
-                "source": source,
-                "content": result,
-            }))
+            super::read::read_source(&arguments, source, result)
         }
         "search" => {
+            if ["offset", "path", "expected_hash"]
+                .iter()
+                .any(|key| arguments.get(key).is_some())
+            {
+                return Err(AppError::InvalidArgument(
+                    "search 不接受 offset/path/expected_hash".into(),
+                ));
+            }
             let query = required_string(&arguments, "query")?;
             let source = optional_information_source(&arguments, "source")?;
             let limit = optional_limit(&arguments)?;
-            let matches = search_context(context, source, query, limit);
+            let mut matches = search_context(context, source, query, limit);
+            for item in &mut matches {
+                let source = item["source"]
+                    .as_str()
+                    .expect("search returns source")
+                    .to_string();
+                item["resource"] = json!({"kind": "optimization_source", "id": source, "hash": super::read::source_hash(&context[&source])?});
+            }
             Ok(json!({
                 "tool": GET_PROJECT_INFORMATION_TOOL,
                 "mode": "search",

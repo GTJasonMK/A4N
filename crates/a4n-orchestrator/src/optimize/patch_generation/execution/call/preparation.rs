@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::workflow;
+use a4n_error::AppError;
 use a4n_llm::{provider::ChatRequest, trace::context_aware_chat_request_trace_json};
 
 use crate::{

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(in crate::optimize) const AGENT_LOOP_RUNAWAY_GUARD_STEPS: usize = 32;

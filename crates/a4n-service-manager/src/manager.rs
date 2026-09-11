@@ -153,9 +153,10 @@ impl ServiceManager {
             )));
         }
         config.validate()?;
-        if let Some(status) = self.process_status(&config.name).await?
+        let mut process_statuses = self.process_statuses.write().await;
+        if let Some(status) = process_statuses.get(&config.name)
             && !matches!(
-                status.state,
+                status.borrow().state,
                 super::process::ManagedSidecarState::Stopped
                     | super::process::ManagedSidecarState::CircuitOpen
             )
@@ -168,7 +169,7 @@ impl ServiceManager {
         let process =
             ManagedSidecarProcess::start(config, self.client.clone(), self.integrity.clone())
                 .await?;
-        self.process_statuses.write().await.insert(
+        process_statuses.insert(
             process.service_name().to_string(),
             process.status_receiver(),
         );

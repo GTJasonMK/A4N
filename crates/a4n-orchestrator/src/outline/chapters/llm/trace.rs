@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_outline;
 use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
+use a4n_db_models::models::chapter::chapter_outline;
+use a4n_error::AppError;
 use a4n_llm::{
     provider::ChatRequest,
     trace::{chat_request_messages_json, text_response_summary_json},

@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter,
     project::{source_snapshot_chapter, text_anchor},
 };

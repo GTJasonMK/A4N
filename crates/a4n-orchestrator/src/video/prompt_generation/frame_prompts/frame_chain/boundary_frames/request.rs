@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::library::available_video_image_ids;
 use crate::video::prompt_context::{

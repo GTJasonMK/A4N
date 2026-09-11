@@ -1,5 +1,5 @@
 use a4n_capabilities::A4nCapabilities;
-use a4n_export_core::{
+use a4n_export_contract::{
     ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput,
 };
 use serde::Serialize;
@@ -34,7 +34,12 @@ pub(crate) async fn render_export_json(
         return typed_response_payload(response, "export");
     }
 
-    a4n_export_core::render_json(input).map_err(|err| err.to_string())
+    if input.pretty {
+        serde_json::to_string_pretty(&input.payload)
+    } else {
+        serde_json::to_string(&input.payload)
+    }
+    .map_err(|err| err.to_string())
 }
 
 pub(crate) async fn render_export_json_manifest_bytes<T>(
@@ -65,7 +70,7 @@ where
         return Ok(rendered.into_bytes());
     }
 
-    a4n_export_core::render_json_manifest_pretty(payload, label).map_err(|err| err.to_string())
+    serde_json::to_vec_pretty(payload).map_err(|err| format!("{label}序列化失败：{err}"))
 }
 
 pub(crate) async fn render_export_zip_package(
@@ -99,5 +104,20 @@ pub(crate) async fn render_export_zip_package(
         return output.into_zip_bytes().map_err(|err| err.to_string());
     }
 
-    a4n_export_core::render_zip_package(input).map_err(|err| err.to_string())
+    let entries = std::iter::once(a4n_archive_core::ArchiveEntry {
+        path: input.manifest_path,
+        bytes: input.manifest_bytes,
+        label: input.manifest_label,
+    })
+    .chain(
+        input
+            .entries
+            .into_iter()
+            .map(|entry| a4n_archive_core::ArchiveEntry {
+                path: entry.path,
+                bytes: entry.bytes,
+                label: entry.label,
+            }),
+    );
+    a4n_archive_core::write_zip(entries, input.package_label).map_err(|err| err.to_string())
 }

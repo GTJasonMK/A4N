@@ -4,7 +4,7 @@ mod project;
 mod queries;
 mod scenes;
 
-use a4n_core::models::media::media_binding;
+use a4n_db_models::models::media::media_binding;
 use sea_orm::{Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashSet;
 

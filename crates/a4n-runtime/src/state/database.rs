@@ -1,4 +1,4 @@
-use a4n_core::config::app_config::AppConfig;
+use a4n_config::app_config::AppConfig;
 use sea_orm::{
     ConnectOptions, ConnectionTrait, Database, DatabaseBackend, DatabaseConnection, Statement,
 };
@@ -9,7 +9,7 @@ const GENERATION_OWNER_LOCK_KEY: i32 = 1;
 
 pub(super) async fn acquire_generation_owner_lock(
     database_url: &str,
-) -> Result<DatabaseConnection, a4n_core::error::AppError> {
+) -> Result<DatabaseConnection, a4n_error::AppError> {
     let mut options = ConnectOptions::new(database_url.to_string());
     options
         .max_connections(1)
@@ -18,7 +18,7 @@ pub(super) async fn acquire_generation_owner_lock(
         .max_lifetime(Duration::from_secs(10 * 365 * 24 * 60 * 60));
     let db = Database::connect(options)
         .await
-        .map_err(a4n_core::error::AppError::Database)?;
+        .map_err(a4n_error::AppError::Database)?;
     let row = db
         .query_one(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
@@ -29,17 +29,17 @@ pub(super) async fn acquire_generation_owner_lock(
             ],
         ))
         .await
-        .map_err(a4n_core::error::AppError::Database)?
+        .map_err(a4n_error::AppError::Database)?
         .ok_or_else(|| {
-            a4n_core::error::AppError::ConfigError(
+            a4n_error::AppError::ConfigError(
                 "generation Host owner lock 查询未返回结果".to_string(),
             )
         })?;
     let acquired: bool = row
         .try_get("", "acquired")
-        .map_err(a4n_core::error::AppError::Database)?;
+        .map_err(a4n_error::AppError::Database)?;
     if !acquired {
-        return Err(a4n_core::error::AppError::ConfigError(
+        return Err(a4n_error::AppError::ConfigError(
             "同一 PostgreSQL 数据库已有 generation Host owner".to_string(),
         ));
     }
@@ -49,17 +49,17 @@ pub(super) async fn acquire_generation_owner_lock(
 #[cfg(feature = "migration")]
 pub(super) async fn run_startup_migrations(
     db: &DatabaseConnection,
-) -> Result<(), a4n_core::error::AppError> {
+) -> Result<(), a4n_error::AppError> {
     a4n_migration::migrator::run_migrations(db)
         .await
-        .map_err(a4n_core::error::AppError::Database)
+        .map_err(a4n_error::AppError::Database)
 }
 
 #[cfg(not(feature = "migration"))]
 pub(super) async fn run_startup_migrations(
     db: &DatabaseConnection,
-) -> Result<(), a4n_core::error::AppError> {
-    let required = a4n_core::schema::REQUIRED_SCHEMA_MIGRATION;
+) -> Result<(), a4n_error::AppError> {
+    let required = a4n_db_models::REQUIRED_SCHEMA_MIGRATION;
     let applied = db
         .query_one(Statement::from_sql_and_values(
             DatabaseBackend::Postgres,
@@ -68,23 +68,20 @@ pub(super) async fn run_startup_migrations(
         ))
         .await
         .map_err(|error| {
-            a4n_core::error::AppError::ConfigError(format!(
+            a4n_error::AppError::ConfigError(format!(
                 "无法验证数据库 schema 版本；当前 host 未编译 migration feature，请先运行 `a4n-migration`：{error}"
             ))
         })?;
     if applied.is_none() {
-        return Err(a4n_core::error::AppError::ConfigError(format!(
+        return Err(a4n_error::AppError::ConfigError(format!(
             "数据库 schema 版本过旧：缺少必需迁移 `{required}`；当前 host 未编译 migration feature，请先运行 `a4n-migration`"
         )));
     }
     Ok(())
 }
 
-pub(super) fn validate_runtime_config(config: &AppConfig) -> Result<(), a4n_core::error::AppError> {
-    a4n_core::config::env::validate_postgres_database_url(
-        "A4N_DATABASE_URL",
-        &config.database_url,
-    )?;
+pub(super) fn validate_runtime_config(config: &AppConfig) -> Result<(), a4n_error::AppError> {
+    a4n_config::validate_postgres_database_url("A4N_DATABASE_URL", &config.database_url)?;
     if config
         .security
         .jwt_secret
@@ -93,7 +90,7 @@ pub(super) fn validate_runtime_config(config: &AppConfig) -> Result<(), a4n_core
         .filter(|secret| !secret.is_empty())
         .is_none()
     {
-        return Err(a4n_core::error::AppError::ConfigError(
+        return Err(a4n_error::AppError::ConfigError(
             "A4N_JWT_SECRET 不能为空".to_string(),
         ));
     }

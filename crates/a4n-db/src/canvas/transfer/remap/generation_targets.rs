@@ -4,7 +4,7 @@ use super::super::types::{
 };
 use super::ids::remap_video_studio_required_id;
 use crate::generation::GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE;
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 
 #[cfg(test)]
 pub(in crate::canvas::transfer) fn remap_video_studio_generation_spec_target_entity_id(

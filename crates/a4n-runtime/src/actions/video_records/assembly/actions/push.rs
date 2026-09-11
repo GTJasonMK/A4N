@@ -5,9 +5,9 @@ use super::persistence::persist_assembly_record_output;
 use crate::AppState;
 use crate::actions::app_error_message;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
-use crate::actions::video_generation::video_to_summary;
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
-use a4n_orchestrator::video::{ASSEMBLY_PUSH_STATUS_PENDING, AssemblyPushClipInput};
+use a4n_api_contract::video::AssemblyPushClipInput;
+use a4n_domain::video_workflow::ASSEMBLY_PUSH_STATUS_PENDING;
 
 pub async fn push_assembled_chapter_video(
     state: &AppState,
@@ -28,8 +28,8 @@ pub async fn push_assembled_chapter_video(
     .await?
     .ok_or_else(|| "当前视频生成流程还没有可推送的成片片段".to_string())?;
     let prepared = state
-        .orchestrator()
-        .create_assembly_push_record_validated(
+        .video_record_application()
+        .create_assembly_push_record(
             project_id,
             chapter_id,
             &context.manifest.workflow_mode,
@@ -119,7 +119,7 @@ pub async fn push_assembled_chapter_video(
     )
     .await?;
     Ok(AssemblyPushResult {
-        video: video_to_summary(&updated),
+        video: updated,
         source_video_ids: prepared.source_video_ids,
         push_index: prepared.push_index,
         status: ASSEMBLY_PUSH_STATUS_PENDING.to_string(),

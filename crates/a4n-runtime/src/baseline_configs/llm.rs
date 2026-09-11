@@ -1,17 +1,11 @@
 use super::env::{
     any_env_present, env_i32_or, env_string_or, optional_env_json, u64_to_i32, usize_to_i32,
 };
-use a4n_core::{
-    config::{
-        app_config::LlmConfig, app_error_plain_message, env::optional_non_empty_env_string,
-        normalize_optional_config_value,
-    },
-    error::AppError,
+use a4n_api_contract::config::{ConfigApplicationPort, CreateLlmInput};
+use a4n_config::{
+    app_config::LlmConfig, normalize_optional_config_value, optional_non_empty_env_string,
 };
-use a4n_llm::config::{
-    CreateLlmConfigInput, NormalizedLlmConfig, normalize_create_llm_config_input,
-};
-use a4n_orchestrator::OrchestratorContext;
+use a4n_error::AppError;
 
 const PUBLIC_LLM_ENV_KEYS: &[&str] = &[
     "A4N_PUBLIC_LLM_NAME",
@@ -27,22 +21,22 @@ const PUBLIC_LLM_ENV_KEYS: &[&str] = &[
 ];
 
 pub(super) async fn ensure_public_llm_config(
-    orchestrator: &OrchestratorContext,
+    config_application: &dyn ConfigApplicationPort,
     fallback: &LlmConfig,
 ) -> Result<(), AppError> {
-    if orchestrator.llm_configs_exist().await? {
+    if config_application.llm_configs_exist().await? {
         return Ok(());
     }
     let Some(seed) = public_llm_seed(fallback)? else {
         return Ok(());
     };
-    orchestrator
-        .insert_baseline_llm_config_if_empty(seed)
+    config_application
+        .insert_baseline_llm_if_empty(seed)
         .await?;
     Ok(())
 }
 
-fn public_llm_seed(fallback: &LlmConfig) -> Result<Option<NormalizedLlmConfig>, AppError> {
+fn public_llm_seed(fallback: &LlmConfig) -> Result<Option<CreateLlmInput>, AppError> {
     let public_api_key = optional_non_empty_env_string("A4N_PUBLIC_LLM_API_KEY")?;
     let api_key =
         public_api_key.or_else(|| normalize_optional_config_value(fallback.api_key.clone()));
@@ -84,24 +78,17 @@ fn public_llm_seed(fallback: &LlmConfig) -> Result<Option<NormalizedLlmConfig>, 
             "A4N_PUBLIC_LLM_MAX_OUTPUT_TOKENS",
         )?,
     )?;
-    normalize_create_llm_config_input(CreateLlmConfigInput {
-        name: &name,
-        provider: &provider,
-        base_url: &base_url,
-        api_key_encrypted: api_key.as_deref(),
-        model: &model,
+    Ok(Some(CreateLlmInput {
+        name,
+        provider,
+        base_url,
+        api_key_encrypted: api_key,
+        model,
         max_concurrent,
         timeout_secs,
         max_context_tokens,
         max_output_tokens,
         extra_body_json: optional_env_json("A4N_PUBLIC_LLM_EXTRA_BODY_JSON")?
             .or_else(|| fallback.extra_body_json.clone()),
-    })
-    .map(Some)
-    .map_err(|err| {
-        AppError::ConfigError(format!(
-            "公共 LLM 配置无效：{}",
-            app_error_plain_message(err)
-        ))
-    })
+    }))
 }

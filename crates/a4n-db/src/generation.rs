@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{
         generation_run, generation_run_target, generation_spec, generation_spec_entity_ref,
         generation_spec_media_ref, generation_spec_text_anchor, llm_call_trace, prompt_artifact,
@@ -11,7 +11,6 @@ use sea_orm::{
     QueryFilter, QueryOrder, QuerySelect, Set, TransactionTrait, sea_query::Expr,
 };
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 const RUN_STATUS_RUNNING: &str = "running";
 const RUN_STATUS_COMPLETED: &str = "completed";
 const RUN_STATUS_FAILED: &str = "failed";
@@ -37,9 +36,8 @@ pub use types::{
     GENERATION_SPEC_TARGET_KIND_CANVAS_ASSEMBLY, GENERATION_SPEC_TARGET_KIND_CANVAS_IMAGE,
     GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     GENERATION_SPEC_TARGET_KINDS, GENERATION_TEXT_ANCHOR_ROLES, GenerationDbError,
-    GenerationRunCheckpointContext, GenerationRunTraceTarget, LlmCallUsageTraceInput,
-    PromptArtifactInsertInput, RecordCompletedGenerationRunInput,
-    RecordCompletedGenerationRunWithCheckpointInput, RecordLlmCallTraceInput,
+    GenerationRunCheckpointContext, GenerationRunTraceTarget, PromptArtifactInsertInput,
+    RecordCompletedGenerationRunInput, RecordCompletedGenerationRunWithCheckpointInput,
     RecordStartedGenerationRunInput, SPEC_STATUS_DRAFT, generation_checkpoint_fingerprint_sha256,
     is_valid_generation_entity_kind, is_valid_generation_entity_role,
     is_valid_generation_media_ref_role, is_valid_generation_spec_status,
@@ -85,9 +83,9 @@ pub use prompts::{is_valid_generation_prompt_kind, render_prompt_text};
 mod tasks;
 pub use tasks::{
     GENERATION_SEQUENCE_LEASE_SIZE, GenerationPublicSnapshot, GenerationSequenceLease,
-    GenerationTaskCheckpointPage, GenerationTaskListCursor, GenerationTaskPersistenceError,
-    GenerationTaskReservation, PersistGenerationCheckpointInput, PersistedGenerationCheckpoint,
-    PersistedGenerationTask, ReserveGenerationTaskInput, extend_generation_sequence_lease,
+    GenerationTaskCheckpointPage, GenerationTaskPersistenceError, GenerationTaskReservation,
+    PersistGenerationCheckpointInput, PersistedGenerationCheckpoint, PersistedGenerationTask,
+    ReserveGenerationTaskInput, extend_generation_sequence_lease,
     generation_public_snapshot_for_summary, list_active_generation_task_checkpoints,
     list_generation_task_history_checkpoints, load_generation_task,
     load_generation_task_checkpoint, persist_generation_checkpoint,
@@ -109,9 +107,7 @@ pub use task_lifecycle::{
 
 mod lifecycle_gate;
 pub use lifecycle_gate::{
-    GenerationLifecycleGateError, GenerationLifecycleTask, LifecycleGateClaimState,
-    PROJECT_GATE_ACTIVE, PendingLifecycleOperation, ProjectLifecycleGateClaim,
-    ProjectLifecycleOperation, UserLifecycleGateClaim, active_generation_tasks,
+    GenerationLifecycleGateError, PROJECT_GATE_ACTIVE, active_generation_tasks,
     active_generation_tasks_for_project, active_generation_tasks_for_user,
     begin_project_lifecycle_gate, begin_user_disable_gate, complete_project_reset_gate,
     complete_user_disable_gate, pending_lifecycle_operations, restore_project_lifecycle_gate,

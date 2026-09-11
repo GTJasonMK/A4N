@@ -1,6 +1,6 @@
 use super::parser::ChatImagePayload;
 use super::provider::ChatCompletionsImageProvider;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 /// 用最小 1x1 PNG 像素的 base64 作为测试样本，避免重复书写魔数。
 const PNG_1X1_B64: &str =

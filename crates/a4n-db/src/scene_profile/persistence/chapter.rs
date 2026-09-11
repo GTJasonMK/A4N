@@ -1,5 +1,5 @@
 use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use sea_orm::{ConnectionTrait, EntityTrait};
 
 pub(in crate::scene_profile) async fn ensure_chapter_in<C>(

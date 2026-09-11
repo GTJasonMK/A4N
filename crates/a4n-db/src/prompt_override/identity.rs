@@ -1,4 +1,4 @@
-use a4n_core::models::ai::system_settings;
+use a4n_db_models::models::ai::system_settings;
 
 use super::types::invalid_argument;
 use super::{ProjectOverrideIdentity, PromptOverrideDbError};

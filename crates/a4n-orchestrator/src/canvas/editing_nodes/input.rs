@@ -1,5 +1,5 @@
-use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_domain::{CanvasFrameKind, CanvasNodeRefKind};
 use serde_json::Value;
 

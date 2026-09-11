@@ -1,5 +1,5 @@
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashSet;
 

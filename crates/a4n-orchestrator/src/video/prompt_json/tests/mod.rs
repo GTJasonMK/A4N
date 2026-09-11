@@ -13,7 +13,7 @@ fn derives_environment_shot_source_spans_without_beats() {
     script.scenes[0].shots[0].estimated_natural_seconds = 2.0;
     let projection = crate::video::prompt_generation::video_projection_from_shooting_script(
         &script,
-        a4n_core::video_execution::VideoShootingScriptIdentityV1 {
+        a4n_video_contract::VideoShootingScriptIdentityV1 {
             record_id: 1,
             revision: 1,
             source_revision_key: "revision-1".to_string(),
@@ -36,7 +36,7 @@ fn validates_environment_segment_without_fake_character() {
     script.scenes[0].shots.truncate(1);
     let mut projection = crate::video::prompt_generation::video_projection_from_shooting_script(
         &script,
-        a4n_core::video_execution::VideoShootingScriptIdentityV1 {
+        a4n_video_contract::VideoShootingScriptIdentityV1 {
             record_id: 1,
             revision: 1,
             source_revision_key: "revision-1".to_string(),
@@ -79,7 +79,7 @@ fn validates_environment_segment_without_fake_character() {
     let mut invalid = segment;
     invalid
         .emotion_action_goals
-        .push(a4n_core::video_execution::VideoEmotionActionGoalV1 {
+        .push(a4n_video_contract::VideoEmotionActionGoalV1 {
             character: "青城夜景".to_string(),
             emotion: "安静".to_string(),
             visible_action: "灯光闪烁".to_string(),
@@ -95,7 +95,7 @@ fn participant_segment_still_requires_character_actions() {
     script.scenes[0].shots.truncate(1);
     let projection = crate::video::prompt_generation::video_projection_from_shooting_script(
         &script,
-        a4n_core::video_execution::VideoShootingScriptIdentityV1 {
+        a4n_video_contract::VideoShootingScriptIdentityV1 {
             record_id: 1,
             revision: 1,
             source_revision_key: "revision-1".to_string(),

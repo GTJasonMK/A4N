@@ -1,6 +1,6 @@
-use super::{ImportReviewIdInput, ImportReviewSummary, projections};
+use super::{ImportReviewIdInput, ImportReviewSummary};
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn delete_import_review(
     state: &AppState,
@@ -8,8 +8,8 @@ pub async fn delete_import_review(
     input: ImportReviewIdInput,
 ) -> Result<(), AppError> {
     state
-        .orchestrator()
-        .delete_import_review_for_user_validated(user_id, input.review_id)
+        .import_review_application()
+        .delete(user_id, input)
         .await
 }
 
@@ -18,9 +18,8 @@ pub async fn reject_import_review(
     user_id: i64,
     input: ImportReviewIdInput,
 ) -> Result<ImportReviewSummary, AppError> {
-    let updated = state
-        .orchestrator()
-        .reject_import_review_for_user_validated(user_id, input.review_id)
-        .await?;
-    projections::import_review_summary(&updated)
+    state
+        .import_review_application()
+        .reject(user_id, input)
+        .await
 }

@@ -1,15 +1,15 @@
 use super::{
     ProjectResetDbError, reset_project_generated_data_record, rollback_project_status_record,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::chapter,
     project::novel_project,
     scene::scene_occurrence,
     task::cleanup_outbox,
 };
-use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
-use a4n_domain::project::ProjectStatus;
+use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
+use a4n_domain::{project::ProjectStatus, scene_profile::SceneProfileRecordInput};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait,
@@ -97,7 +97,7 @@ async fn completed_generated_video_record(
         crate::video::CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: Some(chapter_id),
-            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
             workflow_mode: Some("storyboard".to_string()),
             prompt: "reset outcome test video".to_string(),
             negative_prompt: None,
@@ -147,7 +147,7 @@ fn database_error_keeps_sea_orm_source() {
 
 #[test]
 fn rollback_status_parse_error_is_invalid_argument() {
-    let error = a4n_core::state::validator::parse_project_status("unknown")
+    let error = ProjectStatus::parse_storage("unknown")
         .map_err(|error| ProjectResetDbError::InvalidArgument(error.to_string()))
         .expect_err("unknown status should fail");
 
@@ -199,7 +199,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
     let scene_profile = crate::scene_profile::create_scene_profile_record(
         &db,
         project.id,
-        crate::scene_profile::SceneProfileRecordInput {
+        SceneProfileRecordInput {
             name: "旧车站".to_string(),
             normalized_name: "旧车站".to_string(),
             aliases_json: json!([]),
@@ -259,7 +259,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
     assert_eq!(outcome.result.deleted_scene_occurrences, 1);
     assert_eq!(
         scene_occurrence::Entity::find()
-            .filter(scene_occurrence::Column::ProjectId.eq(outcome.result.project.id))
+            .filter(scene_occurrence::Column::ProjectId.eq(project_id))
             .count(&db)
             .await
             .unwrap(),
@@ -267,7 +267,7 @@ async fn reset_deletes_scene_occurrences_before_chapters() {
     );
     assert_eq!(
         chapter::Entity::find()
-            .filter(chapter::Column::ProjectId.eq(outcome.result.project.id))
+            .filter(chapter::Column::ProjectId.eq(project_id))
             .count(&db)
             .await
             .unwrap(),
@@ -443,9 +443,10 @@ async fn rollback_status_history_failure_rolls_back_cleanup_and_status() {
             .is_some()
     );
     assert_eq!(
-        a4n_core::models::project::project_status_history::Entity::find()
+        a4n_db_models::models::project::project_status_history::Entity::find()
             .filter(
-                a4n_core::models::project::project_status_history::Column::ProjectId.eq(project.id),
+                a4n_db_models::models::project::project_status_history::Column::ProjectId
+                    .eq(project.id),
             )
             .count(&db)
             .await

@@ -4,6 +4,10 @@ use sea_orm::{
 };
 
 use super::tasks::{GenerationTaskPersistenceError, validate_safe_id};
+use a4n_domain::generation::{
+    GenerationLifecycleTask, LifecycleGateClaimState, PendingLifecycleOperation,
+    ProjectLifecycleGateClaim, ProjectLifecycleOperation, UserLifecycleGateClaim,
+};
 
 pub const PROJECT_GATE_ACTIVE: &str = "active";
 pub(crate) const PROJECT_GATE_DELETING: &str = "deleting";
@@ -120,67 +124,6 @@ FROM generation_task_checkpoint
 WHERE status IN ('reserved', 'running', 'finalizing', 'cancelling')
 ORDER BY task_id
 "#;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProjectLifecycleOperation {
-    Delete,
-    Reset,
-}
-
-impl ProjectLifecycleOperation {
-    pub fn gate(self) -> &'static str {
-        match self {
-            Self::Delete => PROJECT_GATE_DELETING,
-            Self::Reset => PROJECT_GATE_RESETTING,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LifecycleGateClaimState {
-    Started,
-    InProgress,
-    Complete,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectLifecycleGateClaim {
-    pub project_id: i64,
-    pub user_id: i64,
-    pub root_project_id: Option<i64>,
-    pub operation: ProjectLifecycleOperation,
-    pub state: LifecycleGateClaimState,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UserLifecycleGateClaim {
-    pub user_id: i64,
-    pub state: LifecycleGateClaimState,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenerationLifecycleTask {
-    pub task_id: String,
-    pub attempt: u32,
-    pub status: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum PendingLifecycleOperation {
-    DisableUser {
-        user_id: i64,
-    },
-    DeleteProject {
-        project_id: i64,
-        user_id: i64,
-        root_project_id: Option<i64>,
-    },
-    ResetProject {
-        project_id: i64,
-        user_id: i64,
-        root_project_id: Option<i64>,
-    },
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum GenerationLifecycleGateError {

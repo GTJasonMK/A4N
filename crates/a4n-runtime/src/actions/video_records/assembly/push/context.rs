@@ -14,15 +14,15 @@ pub(in crate::actions::video_records::assembly) async fn assembly_request_contex
 ) -> Result<Option<AssemblyRequestContext>, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let prepared = state
-        .orchestrator()
-        .assembly_video_records_validated(project_id, chapter_id, &workflow_mode, action)
+        .video_record_application()
+        .assembly_records(project_id, chapter_id, &workflow_mode, action)
         .await
         .map_err(app_error_message)?;
     let clips = prepared
         .clips
         .into_iter()
         .map(|clip| {
-            let path = crate::file_utils::canonicalize_data_file_path(
+            let path = a4n_storage::canonicalize_data_file_path(
                 state.data_dir(),
                 &clip.file_path,
                 &format!("成片片段视频 #{}", clip.video_id),

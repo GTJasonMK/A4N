@@ -1,16 +1,16 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_domain::llm::{ContextPackReference, RecordOrReuseContextPackInput};
+use a4n_error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::context::{
     COMPRESSION_FULL_RAW, LlmContextPackDraft, LlmContextPackDraftInput, LlmContextPackRef,
     LlmContextPackRequirement, PlannedContextPack,
 };
 use a4n_llm::provider::{ChatMessage, LlmProvider, LlmTraceContext, MessageRole};
-use a4n_orchestrator::llm_context::{ContextPackReference, RecordOrReuseContextPackInput};
 use serde_json::json;
 
-use a4n_orchestrator::DynamicProviderFacade;
+use crate::provider_runtime::DynamicProviderFacade;
 
 pub(super) type ContextContentByRef = HashMap<(String, String, String), String>;
 

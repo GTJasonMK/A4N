@@ -5,28 +5,22 @@ use crate::{
     state::AppState,
 };
 
-use super::{
-    generation::preflight_generate_chapter_analysis, resume::preflight_resume_chapter_analysis_sync,
-};
-
 pub async fn preview_chapter_analysis_request(
     state: &AppState,
     user_id: i64,
     chapter_id: i64,
 ) -> Result<ModelRequestPreview, String> {
-    let chapter = preflight_generate_chapter_analysis(state, user_id, chapter_id).await?;
     let prompt_renderer = state;
-    let step = a4n_orchestrator::chapter_analysis::build_chapter_analysis_initial_request(
-        &chapter,
-        prompt_renderer,
-    )
-    .await
-    .map_err(|error| error.to_string())?;
+    let preview = state
+        .chapter_analysis_application()
+        .preview(user_id, chapter_id, prompt_renderer)
+        .await
+        .map_err(|error| error.to_string())?;
     chat_status_preview_for_state(
         state,
         "chapter_analysis",
-        format!("第 {} 章结构化分析请求预览", chapter.chapter_number),
-        [preview_step(step)],
+        preview.title,
+        preview.steps.into_iter().map(preview_step),
         "llm_chat",
     )
     .await
@@ -37,18 +31,17 @@ pub async fn preview_resume_chapter_analysis_sync_request(
     user_id: i64,
     chapter_id: i64,
 ) -> Result<ModelRequestPreview, String> {
-    let chapter = preflight_resume_chapter_analysis_sync(state, user_id, chapter_id).await?;
     let prompt_renderer = state;
-    let steps = state
-        .orchestrator()
-        .prepare_resume_chapter_analysis_preview_validated(&chapter, prompt_renderer)
+    let preview = state
+        .chapter_analysis_application()
+        .preview_resume(user_id, chapter_id, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     chat_status_preview_for_state(
         state,
         "chapter_analysis_resume_sync",
-        format!("第 {} 章分析继续同步请求预览", chapter.chapter_number),
-        steps.into_iter().map(preview_step),
+        preview.title,
+        preview.steps.into_iter().map(preview_step),
         "llm_chat",
     )
     .await

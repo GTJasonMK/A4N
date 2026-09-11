@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 

@@ -1,13 +1,16 @@
-use a4n_core::models::chapter::chapter_outline;
+use a4n_db_models::models::chapter::chapter_outline;
 use a4n_embedding::provider::EmbeddingModelIdentity;
-use a4n_rag_core::vector_store::SearchFilter;
+use a4n_rag_core::{
+    contracts::sync::ensure_project_embedding_identity_matches,
+    search::identity_scoped_search_filter, vector_store::SearchFilter,
+};
 
 use super::{
     contracts::PreparedGenerationRagSearch,
     query::build_generation_rag_queries,
     rules::{generation_rag_search_data_types, previous_chapter_range},
 };
-use crate::{OrchestratorContext, rag};
+use crate::OrchestratorContext;
 
 impl OrchestratorContext {
     pub(crate) async fn prepare_generation_rag_search(
@@ -33,7 +36,7 @@ impl OrchestratorContext {
             .project_rag_metadata(project_id)
             .await
             .map_err(|error| error.to_string())?;
-        rag::ensure_project_embedding_identity_matches(&stored_metadata, &embedding_identity)
+        ensure_project_embedding_identity_matches(&stored_metadata, &embedding_identity)
             .map_err(|error| error.to_string())?;
         let filter =
             build_chapter_generation_rag_search_filter(chapter_number, embedding_identity.clone())?;
@@ -51,10 +54,8 @@ pub(super) fn build_chapter_generation_rag_search_filter(
     chapter_number: i32,
     embedding_identity: EmbeddingModelIdentity,
 ) -> Result<SearchFilter, String> {
-    let mut filter = rag::identity_scoped_search_filter(
-        embedding_identity,
-        Some(generation_rag_search_data_types()),
-    );
+    let mut filter =
+        identity_scoped_search_filter(embedding_identity, Some(generation_rag_search_data_types()));
     filter.chapter_range = Some(previous_chapter_range(chapter_number)?);
     Ok(filter)
 }

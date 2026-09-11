@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set, TransactionTrait};
 

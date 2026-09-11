@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
 
 use super::{
@@ -80,7 +80,7 @@ async fn unavailable_provider_preserves_explicit_failure_contract() {
 
     assert!(matches!(
         error,
-        AppError::EmbeddingError(message) if message == "embedding is not configured"
+        AppError::Embedding(message) if message == "embedding is not configured"
     ));
     assert_eq!(provider.dimension(), 0);
     assert_eq!(provider.model_name(), "test-unavailable");

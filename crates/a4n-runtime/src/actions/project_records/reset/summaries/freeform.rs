@@ -1,19 +1,17 @@
-use super::super::super::summaries::{project_record_by_id, project_summary_with_family_for_user};
+use super::super::super::summaries::project_summary_with_family_for_user;
 use crate::AppState;
 use a4n_api_contract::project::ProjectGeneratedDataResetSummary;
-use a4n_core::models::project::novel_project;
 use a4n_orchestrator::project::FreeformVideoGeneratedDataResetResult;
 
 pub(in crate::actions::project_records::reset) async fn to_freeform_generated_data_reset_summary(
     state: &AppState,
     user_id: i64,
-    project: &novel_project::Model,
+    project_id: i64,
     result: &FreeformVideoGeneratedDataResetResult,
     deleted_media_files: usize,
 ) -> Result<ProjectGeneratedDataResetSummary, String> {
-    let project = project_record_by_id(state, project.id).await?;
     Ok(ProjectGeneratedDataResetSummary {
-        project: project_summary_with_family_for_user(state, user_id, &project).await?,
+        project: project_summary_with_family_for_user(state, user_id, project_id).await?,
         deleted_galgame_scripts: 0,
         deleted_galgame_scenes: 0,
         deleted_galgame_lines: 0,

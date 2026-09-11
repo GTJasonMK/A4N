@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::{chapter_outline, part_outline};
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 use serde_json::Value;
 
 pub(in crate::outline) struct ChapterOutlineGenerationContext {

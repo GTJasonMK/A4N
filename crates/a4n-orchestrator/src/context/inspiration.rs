@@ -3,13 +3,14 @@
 //! 持有 `DbHandle`，封装消息历史、项目上下文读与对话往返落库。
 //! LLM 流式编排仍在 `inspiration/` 模块，经本 owner 读写。
 
-use a4n_core::error::AppError;
-use a4n_core::models::user::message;
 use a4n_db::DbHandle;
 use a4n_db::inspiration::{
-    InspirationDbError, InspirationExchangeInsertInput, InspirationProjectContextRows,
-    ensure_inspiration_conversation, insert_inspiration_exchange_in_transaction,
+    InspirationDbError, InspirationProjectContextRows, ensure_inspiration_conversation,
+    insert_inspiration_exchange_in_transaction,
 };
+use a4n_db_models::models::user::message;
+use a4n_domain::inspiration::InspirationExchangeInsertInput;
+use a4n_error::AppError;
 use sea_orm::DatabaseTransaction;
 
 use super::OrchestratorContext;
@@ -138,7 +139,7 @@ impl OrchestratorContext {
         mode: &str,
         request: &a4n_llm::provider::ChatRequest,
         active_task_id: Option<String>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let input = crate::inspiration::inspiration_workflow_run_input(
             project_id,
             mode,

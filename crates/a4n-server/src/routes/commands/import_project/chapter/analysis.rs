@@ -5,7 +5,7 @@ use crate::routes::commands::{
 };
 use crate::state::ServerState;
 use a4n_api_contract::chapter::{CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisInput};
-use a4n_core::event::channel::TaskKind;
+use a4n_domain::task_queue::TaskKind;
 use serde_json::Value;
 
 macro_rules! chapter_analysis_web_task_command {
@@ -39,7 +39,7 @@ macro_rules! chapter_analysis_web_task_command {
             let reporter = web_fire_and_forget_progress_reporter(task.clone());
             // 与桌面端对称：活体信号必须双端一致。
             let stream_reporter = web_stream_reporter(task.clone());
-            let progress = a4n_runtime::workflow::ChapterAnalysisProgress::new(
+            let progress = a4n_runtime::host_api::chapter_analysis::ChapterAnalysisProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
                 task_id.as_deref(),
@@ -78,27 +78,27 @@ macro_rules! chapter_analysis_web_preview_command {
 chapter_analysis_web_task_command!(
     generate_chapter_analysis,
     "generate_chapter_analysis",
-    a4n_runtime::workflow::preflight_generate_chapter_analysis,
-    a4n_runtime::workflow::generate_chapter_analysis_with_progress,
+    a4n_runtime::host_api::chapter_analysis::preflight_generate_chapter_analysis,
+    a4n_runtime::host_api::chapter_analysis::generate_chapter_analysis_with_progress,
     "正在准备章节结构化分析",
 );
 
 chapter_analysis_web_preview_command!(
     preview_chapter_analysis_request,
     "preview_chapter_analysis_request",
-    a4n_runtime::workflow::preview_chapter_analysis_request,
+    a4n_runtime::host_api::chapter_analysis::preview_chapter_analysis_request,
 );
 
 chapter_analysis_web_task_command!(
     resume_chapter_analysis_sync,
     "resume_chapter_analysis_sync",
-    a4n_runtime::workflow::preflight_resume_chapter_analysis_sync,
-    a4n_runtime::workflow::resume_chapter_analysis_sync_with_progress,
+    a4n_runtime::host_api::chapter_analysis::preflight_resume_chapter_analysis_sync,
+    a4n_runtime::host_api::chapter_analysis::resume_chapter_analysis_sync_with_progress,
     "正在准备继续同步章节分析",
 );
 
 chapter_analysis_web_preview_command!(
     preview_resume_chapter_analysis_sync_request,
     "preview_resume_chapter_analysis_sync_request",
-    a4n_runtime::workflow::preview_resume_chapter_analysis_sync_request,
+    a4n_runtime::host_api::chapter_analysis::preview_resume_chapter_analysis_sync_request,
 );

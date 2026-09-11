@@ -4,7 +4,7 @@ use super::{
     UsageLogSummary, UsageTrendsInput, UserSummary, permissions, projects, tasks, usage, users,
 };
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 macro_rules! admin_record_command {

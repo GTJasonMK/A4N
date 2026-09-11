@@ -4,7 +4,7 @@ mod rules;
 mod selection;
 
 use super::super::contracts::{COMPRESSION_MINIMAL, LlmContextPackRequirement, LlmContextPlan};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use capacity::calculate_input_capacity;
 use rules::compression_rank;

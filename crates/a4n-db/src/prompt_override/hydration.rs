@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::models::ai::system_settings;
+use a4n_db_models::models::ai::system_settings;
 use sea_orm::DatabaseConnection;
 
 use super::identity::{parse_project_override_key, validate_project_override_project_id};

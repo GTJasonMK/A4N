@@ -1,29 +1,26 @@
 use std::sync::{Arc, Mutex};
 
 use a4n_api_contract::canvas::CanvasRunSummary;
-use a4n_core::models::{
-    canvas::{canvas_edge, canvas_graph, canvas_node},
-    generation::workflow_run,
+use a4n_canvas_contract::{
+    CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphResumePreparationInput,
+    CanvasGraphRunPreparationInput, CanvasSingleNodeRunPreparationInput,
 };
 use a4n_db::{
     DatabaseConnection,
     canvas::{CanvasGraphRecordDocument, CanvasGraphRecordInput, CanvasNodeRecordInput},
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
+use a4n_db_models::models::{
+    canvas::{canvas_edge, canvas_graph, canvas_node},
+    generation::workflow_run,
+};
 use async_trait::async_trait;
 use sea_orm::EntityTrait;
 use serde_json::json;
 
-use super::{
-    contracts::{
-        CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput,
-        CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput,
-        CanvasSingleNodeRunPreparationInput,
-    },
-    planning::{
-        canvas_node_kind_is_executable, canvas_node_kind_is_output, runnable_canvas_node_ids,
-        unsupported_canvas_node_execution_error,
-    },
+use super::planning::{
+    canvas_node_kind_is_executable, canvas_node_kind_is_output, runnable_canvas_node_ids,
+    unsupported_canvas_node_execution_error,
 };
 use crate::{
     OrchestratorContext,
@@ -327,20 +324,20 @@ impl CanvasGraphExecutionHostPort for TestGraphHostPort {
 
     async fn execute_node(
         &self,
-        input: CanvasGraphNodeExecutionInput<'_>,
+        input: CanvasGraphNodeExecutionInput,
     ) -> Result<CanvasRunSummary, String> {
         self.executed_node_ids
             .lock()
             .expect("execution mutex")
-            .push(input.node.id);
-        if self.fail_node_id == Some(input.node.id) {
-            return Err(format!("模拟节点失败: {}", input.node.id));
+            .push(input.node_id);
+        if self.fail_node_id == Some(input.node_id) {
+            return Err(format!("模拟节点失败: {}", input.node_id));
         }
         Ok(CanvasRunSummary {
             workflow_run_id: input.shared_run.workflow_run_id,
             project_id: input.project_id,
             graph_id: input.graph_id,
-            mode: input.mode.to_string(),
+            mode: input.mode,
             status: WORKFLOW_STATUS_COMPLETED.to_string(),
             error_message: None,
         })

@@ -2,7 +2,7 @@ use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::freeform::FreeformCopyMaps;
 use crate::project::duplicate::freeform::remap::remap_freeform_canvas_cache_key;
 use crate::project::duplicate::shared::remap_derived_optional_id;
-use a4n_core::models::video_project::assembly_timeline;
+use a4n_db_models::models::video_project::assembly_timeline;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
@@ -141,7 +141,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::video_project::assembly_timeline;
+    use a4n_db_models::models::video_project::assembly_timeline;
     use chrono::Utc;
     use sea_orm::{EntityTrait, QueryFilter};
 

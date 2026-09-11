@@ -1,12 +1,19 @@
-use a4n_core::models::ai::image_gen_config;
+use a4n_provider_contract::ImageProviderConfig;
 
 use crate::AppState;
 
 pub(crate) async fn resolve_image_config(
     state: &AppState,
     config_id: Option<i64>,
-) -> Result<image_gen_config::Model, String> {
-    if let Some(config) = crate::runtime_config::current_image_model_for_id(config_id) {
+) -> Result<ImageProviderConfig, String> {
+    resolve_image_provider_config(state, config_id).await
+}
+
+pub(crate) async fn resolve_image_provider_config(
+    state: &AppState,
+    config_id: Option<i64>,
+) -> Result<ImageProviderConfig, String> {
+    if let Some(config) = crate::runtime_config::current_image_provider_config_for_id(config_id) {
         return Ok(config);
     }
     if config_id.is_none() && crate::runtime_config::uses_system_default_image_template() {
@@ -28,24 +35,23 @@ pub(crate) async fn resolve_image_config(
         });
     }
 
-    state
-        .orchestrator()
-        .resolve_image_config(config_id)
-        .await
-        .map_err(|err| err.to_string())
+    let config = match config_id {
+        Some(config_id) => state.image_provider_config().by_id(config_id).await,
+        None => state.image_provider_config().default().await,
+    };
+    config.map_err(|err| err.to_string())
 }
 
 pub(super) async fn resolve_system_default_image_template_with_user_key(
     state: &AppState,
-) -> Result<image_gen_config::Model, String> {
+) -> Result<ImageProviderConfig, String> {
     let mut model = state
-        .orchestrator()
-        .resolve_image_config(None)
+        .image_provider_config()
+        .default()
         .await
         .map_err(|err| err.to_string())?;
-    model.api_key_encrypted = crate::runtime_config::current_system_image_api_key();
-    if model.api_key_encrypted.is_none()
-        && a4n_core::config::image_backend_requires_api_key(&model.backend)
+    model.api_key = crate::runtime_config::current_system_image_api_key();
+    if model.api_key.is_none() && a4n_domain::image::image_backend_requires_api_key(&model.backend)
     {
         return Err("使用系统默认图片配置需要先在用户配置页填写并保存你的个人 API Key".to_string());
     }

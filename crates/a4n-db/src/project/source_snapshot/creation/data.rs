@@ -1,4 +1,4 @@
-use a4n_core::models::{chapter::chapter, project::blueprint_version};
+use a4n_db_models::models::{chapter::chapter, project::blueprint_version};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::json;
 

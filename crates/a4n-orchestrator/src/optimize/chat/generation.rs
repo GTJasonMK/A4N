@@ -1,8 +1,8 @@
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizeChatGenerationInput,
 };
-use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, GenerationResultRef, GenerationTaskStatus,
@@ -27,6 +27,7 @@ use crate::{
 
 pub struct OptimizeChatGenerationApplicationContext<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,
+    pub agent_max_output_tokens: Option<usize>,
 }
 
 impl OrchestratorContext {
@@ -123,6 +124,7 @@ impl OrchestratorContext {
             cancellation: &cancel_token,
             checkpoint_writer: &checkpoint_writer,
             session: &session,
+            agent_max_output_tokens: context.agent_max_output_tokens,
         };
         let pending = match self
             .send_user_message_with_permissions(OptimizeSendUserMessageInput {

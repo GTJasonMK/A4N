@@ -1,13 +1,13 @@
 use super::*;
-use a4n_core::models::media::{media_asset, media_binding, media_provenance};
-use a4n_core::models::task::cleanup_outbox;
-use a4n_core::models::{
+use a4n_db_models::models::media::{media_asset, media_binding, media_provenance};
+use a4n_db_models::models::task::cleanup_outbox;
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{chapter, chapter_video_prompt},
     project::novel_project,
 };
-use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter,
@@ -468,7 +468,7 @@ async fn delete_generated_video_with_cleanup_records_video_and_thumbnail_paths()
         CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
             workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "cleanup".to_string(),
             negative_prompt: None,
@@ -532,7 +532,7 @@ async fn delete_generated_video_rebinds_prompt_to_completed_candidate() {
     let video_input = |metadata| CreateGeneratedVideoRecordDraftInput {
         project_id: project.id,
         chapter_id: Some(chapter.id),
-        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("boundary_frames".to_string()),
         prompt: "replacement candidate".to_string(),
         negative_prompt: None,
@@ -601,7 +601,7 @@ async fn batch_error_status_updates_many_videos_in_one_contract() {
                 CreateGeneratedVideoRecordDraftInput {
                     project_id: project.id,
                     chapter_id: None,
-                    video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+                    video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
                     workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
                     prompt: format!("batch-{index}"),
                     negative_prompt: None,
@@ -625,7 +625,7 @@ async fn batch_error_status_updates_many_videos_in_one_contract() {
         .map(|video| GeneratedVideoErrorStatusBatchInput {
             video_id: video.id,
             prompt_id: None,
-            status: generated_video::STATUS_INTERRUPTED.to_string(),
+            status: a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED.to_string(),
         })
         .collect::<Vec<_>>();
     assert_eq!(
@@ -644,7 +644,7 @@ async fn batch_error_status_updates_many_videos_in_one_contract() {
     assert!(
         stored
             .iter()
-            .all(|video| video.status == generated_video::STATUS_INTERRUPTED)
+            .all(|video| video.status == a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED)
     );
 }
 
@@ -657,7 +657,7 @@ async fn missing_video_repair_uses_binding_project_and_removes_dangling_binding(
         CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
             workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "missing video".to_string(),
             negative_prompt: None,

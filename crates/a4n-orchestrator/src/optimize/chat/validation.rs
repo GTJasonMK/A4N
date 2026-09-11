@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::optimization_session;
+use a4n_db_models::models::ai::optimization_session;
+use a4n_error::AppError;
 
 pub(in crate::optimize) fn required_chat_user_text(message: &str) -> Result<&str, AppError> {
     let user_text = message.trim();

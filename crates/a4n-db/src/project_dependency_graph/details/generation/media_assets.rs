@@ -1,12 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        generation::prompt_artifact,
-        media::{media_asset, media_provenance},
-    },
+use a4n_db_models::models::{
+    generation::prompt_artifact,
+    media::{media_asset, media_provenance},
 };
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use crate::project_dependency_graph::AssetLineageRecord;

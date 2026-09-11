@@ -2,10 +2,8 @@ use crate::project_dependency_graph::AssetLineageRecord;
 use crate::project_dependency_graph::details::records::{
     db_record_result, lineage_ref, optional_prompt_sources, prompt_source,
 };
-use a4n_core::{
-    error::AppError,
-    models::project::{blueprint_version, novel_blueprint},
-};
+use a4n_db_models::models::project::{blueprint_version, novel_blueprint};
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub(in crate::project_dependency_graph) async fn blueprint_detail_records<C>(

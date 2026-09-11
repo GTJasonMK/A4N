@@ -1,10 +1,10 @@
-use a4n_core::models::{chapter::chapter, character::foreshadowing_index};
 use a4n_db::project::{
     ChapterSourceSnapshot, CreateProjectRecordInput, ForeshadowingAnalysisDraft,
     ForeshadowingDbError, cleanup_foreshadowing_for_chapter, create_foreshadowing_record,
     create_project_record, delete_foreshadowing_record, sync_chapter_analysis_foreshadowing,
     update_foreshadowing_record,
 };
+use a4n_db_models::models::{chapter::chapter, character::foreshadowing_index};
 use a4n_domain::character::{ForeshadowingRecordInput, ForeshadowingStatus};
 use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set, TransactionTrait};

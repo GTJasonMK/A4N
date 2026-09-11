@@ -12,7 +12,7 @@ use crate::character::{
     CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
     validate_timeline_source_kind,
 };
-use a4n_core::models::character::{attribute_event, protagonist_profile};
+use a4n_db_models::models::character::{attribute_event, protagonist_profile};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
 
 pub(in crate::character::attributes) fn default_attribute_change_description(

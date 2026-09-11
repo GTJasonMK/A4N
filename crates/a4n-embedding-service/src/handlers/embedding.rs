@@ -1,6 +1,6 @@
-use a4n_core::{
-    config::{EmbeddingBackendKind, embedding_provider_capabilities},
-    error::AppError,
+use a4n_domain::{
+    ProviderError as AppError,
+    embedding::{EmbeddingBackendKind, embedding_provider_capabilities},
 };
 use a4n_embedding::http::HttpEmbeddingProvider;
 use a4n_embedding::local::LocalEmbeddingProvider;
@@ -40,23 +40,23 @@ pub(crate) fn embedding_provider(
 ) -> Result<Box<dyn EmbeddingProvider>, AppError> {
     let model = payload.model.trim();
     if model.is_empty() {
-        return Err(AppError::ConfigError(
+        return Err(AppError::Configuration(
             "embedding sidecar 模型名不能为空".to_string(),
         ));
     }
     if payload.dimension == 0 {
-        return Err(AppError::ConfigError(
+        return Err(AppError::Configuration(
             "embedding sidecar 向量维度必须大于 0".to_string(),
         ));
     }
     if payload.batch_size == 0 {
-        return Err(AppError::ConfigError(
+        return Err(AppError::Configuration(
             "embedding sidecar batch_size 必须大于 0".to_string(),
         ));
     }
 
     let backend = embedding_provider_capabilities(&payload.backend).ok_or_else(|| {
-        AppError::ConfigError(format!(
+        AppError::Configuration(format!(
             "embedding sidecar 不支持 backend={}",
             payload.backend.trim()
         ))
@@ -70,14 +70,14 @@ pub(crate) fn embedding_provider(
         )?),
         #[cfg(not(feature = "fastembed"))]
         EmbeddingBackendKind::FastEmbed => {
-            return Err(AppError::ConfigError(
+            return Err(AppError::Configuration(
                 "embedding sidecar fastembed 支持未编译".to_string(),
             ));
         }
         EmbeddingBackendKind::LocalHash => {
             let expected_model = LocalEmbeddingProvider::new(payload.dimension);
             if model != expected_model.model_name() {
-                return Err(AppError::ConfigError(format!(
+                return Err(AppError::Configuration(format!(
                     "local_hash embedding 模型必须是 {}，实际为 {model}",
                     expected_model.model_name()
                 )));
@@ -94,7 +94,7 @@ pub(crate) fn embedding_provider(
     };
 
     if provider.dimension() != payload.dimension {
-        return Err(AppError::ConfigError(format!(
+        return Err(AppError::Configuration(format!(
             "embedding 配置向量维度为 {}，但模型 {} 实际输出 {} 维",
             payload.dimension,
             provider.model_name(),
@@ -110,5 +110,5 @@ fn required_api_base_url(payload: &EmbedTextsPayload) -> Result<&str, AppError> 
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| AppError::ConfigError("API embedding base_url 不能为空".to_string()))
+        .ok_or_else(|| AppError::Configuration("API embedding base_url 不能为空".to_string()))
 }

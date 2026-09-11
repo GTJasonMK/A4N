@@ -1,5 +1,5 @@
 use super::contracts::ImportReviewMutationError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter::{self, STATUS_IMPORTED},
     project::import_review_queue,
 };

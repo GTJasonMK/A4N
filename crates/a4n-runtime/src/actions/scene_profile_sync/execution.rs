@@ -1,9 +1,9 @@
 use a4n_api_contract::profile::SyncSceneProfilesInput;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress};
 use async_trait::async_trait;
 
-use crate::{actions::access, rag_ingest::SceneRagSyncTraceSource, state::AppState};
+use crate::{rag_ingest::SceneRagSyncTraceSource, state::AppState};
 
 pub(crate) struct RuntimeSceneProfileSyncHostPort {
     state: AppState,
@@ -43,18 +43,11 @@ pub async fn sync_scene_profiles(
     input: SyncSceneProfilesInput,
     progress: Option<&SceneProfileSyncProgress<'_>>,
 ) -> Result<(), String> {
-    access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let prompt_renderer = state;
     let host_port = RuntimeSceneProfileSyncHostPort::new(state);
     state
-        .orchestrator()
-        .sync_scene_profiles_validated(
-            input.project_id,
-            input.chapter_number,
-            prompt_renderer,
-            &host_port,
-            progress,
-        )
+        .scene_profile_sync_application()
+        .sync(user_id, input, prompt_renderer, &host_port, progress)
         .await
         .map_err(|error| error.to_string())
 }

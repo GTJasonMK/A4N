@@ -1,7 +1,7 @@
 use super::super::ApiError;
 
 pub(in crate::routes::commands) fn sanitize_task_id(task_id: String) -> Result<String, ApiError> {
-    a4n_core::event::channel::normalize_task_id(&task_id).map_err(ApiError::from)
+    a4n_task_runtime::channel::normalize_task_id(&task_id).map_err(ApiError::from)
 }
 
 pub(in crate::routes::commands) fn sanitize_optional_task_id(

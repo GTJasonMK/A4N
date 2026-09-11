@@ -1,6 +1,6 @@
 use super::sync::{generated_prompt_status, validate_prompt_sync_draft};
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::{chapter, chapter_video_prompt},
     generation::{generation_run, generation_run_target},
 };
@@ -683,17 +683,17 @@ async fn segment_recipe_update_writes_only_the_locked_plan_metadata() {
     active.shot_number = Set(0);
     active.metadata_json = Set(Some(json!({
         "video_execution_identity": {
-            "source_content_sha256": a4n_core::source_spans::source_text_hash(&chapter.content)
+            "source_content_sha256": a4n_domain::source_text_hash(&chapter.content)
         },
         "segments": [segment],
         "segment_recipes": [recipe.clone()]
     })));
     let plan = active.update(&db).await.unwrap();
 
-    let mut updated: a4n_core::video_execution::VideoSegmentExecutionRecipeV1 =
+    let mut updated: a4n_video_contract::VideoSegmentExecutionRecipeV1 =
         serde_json::from_value(recipe).unwrap();
-    updated.workflow_mode = a4n_core::video_execution::VideoSegmentWorkflowModeV1::Storyboard;
-    updated.guidance_mode = a4n_core::video_execution::VideoSegmentGuidanceModeV1::SystemFrames;
+    updated.workflow_mode = a4n_video_contract::VideoSegmentWorkflowModeV1::Storyboard;
+    updated.guidance_mode = a4n_video_contract::VideoSegmentGuidanceModeV1::SystemFrames;
     let recipes = update_chapter_video_segment_recipe(&db, plan.id, updated)
         .await
         .unwrap();
@@ -701,7 +701,7 @@ async fn segment_recipe_update_writes_only_the_locked_plan_metadata() {
     assert_eq!(recipes.len(), 1);
     assert_eq!(
         recipes[0].workflow_mode,
-        a4n_core::video_execution::VideoSegmentWorkflowModeV1::Storyboard
+        a4n_video_contract::VideoSegmentWorkflowModeV1::Storyboard
     );
     let stored = chapter_video_prompt::Entity::find_by_id(plan.id)
         .one(&db)

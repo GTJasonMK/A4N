@@ -1,8 +1,8 @@
-use a4n_core::error::AppError;
 use a4n_db::galgame::{
     PersistGalgameChoiceRecordInput, PersistGalgameLineRecordInput, PersistGalgameSceneRecordInput,
     PersistGalgameScriptRecordInput,
 };
+use a4n_error::AppError;
 use serde_json::json;
 
 use crate::galgame::{

@@ -4,7 +4,7 @@ use super::super::super::references::{
 use super::locking::generated_images_for_delete;
 use super::references::clear_generated_image_references_record;
 use crate::video::VideoDbError;
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,
 };

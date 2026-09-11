@@ -55,7 +55,7 @@ pub(super) fn add_summary_or_preview(
         );
     }
 }
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::{Map, Value, json};
 
-use a4n_core::chapter_analysis::summary_text;
+use a4n_chapter_analysis::summary_text;

@@ -643,7 +643,12 @@ def check_provider_contract(base_url: str, timeout: float) -> dict[str, Any]:
     }
 
 
-def start_provider(args: argparse.Namespace, report_dir: Path, run_id: str) -> tuple[Provider, Path | None]:
+def start_provider(
+    args: argparse.Namespace,
+    report_dir: Path,
+    run_id: str,
+    request_log_path: Path | None = None,
+) -> tuple[Provider, Path | None]:
     if args.provider_url:
         base_url = normalize_provider_url(args.provider_url)
         wait_for_provider(base_url, args.provider_start_timeout, None)
@@ -656,7 +661,8 @@ def start_provider(args: argparse.Namespace, report_dir: Path, run_id: str) -> t
     port = args.provider_port or free_port(args.provider_host)
     host_for_url = "127.0.0.1" if args.provider_host == "localhost" else args.provider_host
     base_url = f"http://{host_for_url}:{port}/v1"
-    request_log = report_dir / f"provider-requests-{run_id}.jsonl"
+    request_log = (request_log_path or report_dir / f"provider-requests-{run_id}.jsonl").expanduser().resolve()
+    request_log.parent.mkdir(parents=True, exist_ok=True)
     process_log = report_dir / f"provider-process-{run_id}.log"
     request_log.touch(mode=0o600)
     log_handle = os.fdopen(

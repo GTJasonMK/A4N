@@ -161,6 +161,57 @@ pub struct BlueprintMutationResult {
     pub warnings: Vec<String>,
 }
 
+/// Host-facing blueprint read boundary.
+///
+/// Permission checks, persistence reads and API projections stay with the
+/// blueprint owner; Runtime only routes the typed reads.
+#[async_trait::async_trait]
+pub trait BlueprintReadApplicationPort: Send + Sync {
+    async fn summary(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Option<BlueprintSummary>, a4n_error::AppError>;
+
+    async fn versions(
+        &self,
+        user_id: i64,
+        input: ListBlueprintVersionsInput,
+    ) -> Result<Vec<BlueprintVersionSummary>, a4n_error::AppError>;
+
+    async fn diff(
+        &self,
+        user_id: i64,
+        input: DiffBlueprintVersionsInput,
+    ) -> Result<BlueprintDiffSummary, a4n_error::AppError>;
+}
+
+/// Host-facing blueprint mutation boundary.
+///
+/// Permission checks, durable writes and version events stay with the
+/// blueprint owner; Runtime only routes the typed commands and handles its
+/// separate RAG warning path.
+#[async_trait::async_trait]
+pub trait BlueprintMutationApplicationPort: Send + Sync {
+    async fn save(
+        &self,
+        user_id: i64,
+        input: SaveBlueprintInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn update_world_setting(
+        &self,
+        user_id: i64,
+        input: UpdateWorldSettingInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn restore(
+        &self,
+        user_id: i64,
+        input: RestoreBlueprintVersionInput,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;

@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile, character::protagonist_profile, scene::scene_profile,
 };
 use sea_orm::sea_query::{CaseStatement, Expr};

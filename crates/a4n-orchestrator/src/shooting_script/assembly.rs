@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
 use a4n_db::chapter_visual_plan::ParsedChapterVisualPlan;
 use a4n_domain::chapter_visual_plan::ChapterVisualPlanV1;
 use a4n_domain::chapter_visual_plan::{
@@ -10,6 +9,7 @@ use a4n_domain::shooting_script::{
     ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1, ShootingDirectingStatementV1,
     ShootingSceneV1, ShootingVisualConstraintsV1, ShootingVisualPlanSourceV1,
 };
+use a4n_error::AppError;
 
 use super::contracts::ScreenplayPlanUnit;
 
@@ -340,10 +340,10 @@ fn checked_index(offset: usize, label: &str) -> Result<u32, AppError> {
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::{source_spans::SourceSpan, source_spans::source_spans_for_content};
     use a4n_db::project::ResolvedChapterSource;
     use a4n_domain::chapter_visual_plan::{VisualEntityKindV1, VisualEntityV1, VisualTransitionV1};
     use a4n_domain::shooting_script::ShootingTransitionTypeV1;
+    use a4n_domain::source_spans::{SourceSpan, source_spans_for_content};
 
     use super::*;
 

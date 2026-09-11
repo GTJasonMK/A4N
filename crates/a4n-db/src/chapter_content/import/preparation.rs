@@ -1,6 +1,6 @@
 use super::super::ChapterContentImportError;
 use super::ImportChapterContentTarget;
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 pub(super) async fn prepare_import_chapter_content<C>(

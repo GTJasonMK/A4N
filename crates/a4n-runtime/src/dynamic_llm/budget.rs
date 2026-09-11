@@ -1,7 +1,7 @@
-use a4n_core::config::app_config::LlmMaxTokensConfig;
-use a4n_core::error::AppError;
-use a4n_core::models::ai::llm_config;
+use a4n_domain::LlmMaxTokensConfig;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
+use a4n_provider_contract::LlmProviderConfig;
 
 #[derive(Debug, Clone)]
 pub(crate) struct EffectiveLlmPreviewBudget {
@@ -13,7 +13,7 @@ pub(crate) struct EffectiveLlmPreviewBudget {
 }
 
 pub(crate) fn resolve_effective_llm_preview_budget_for_config(
-    model: llm_config::Model,
+    model: LlmProviderConfig,
     request: &ChatRequest,
     max_tokens_config: Option<&LlmMaxTokensConfig>,
 ) -> Result<EffectiveLlmPreviewBudget, AppError> {

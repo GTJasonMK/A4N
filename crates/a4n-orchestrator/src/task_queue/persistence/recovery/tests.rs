@@ -1,9 +1,3 @@
-use a4n_core::models::{
-    ai::generated_video,
-    generation::{generation_run, generation_run_target, workflow_run},
-    task::task_queue,
-};
-use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_db::{
     generation::RecordStartedGenerationRunInput,
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
@@ -15,6 +9,12 @@ use a4n_db::{
         upsert_workflow_run,
     },
 };
+use a4n_db_models::models::{
+    ai::generated_video,
+    generation::{generation_run, generation_run_target, workflow_run},
+    task::task_queue,
+};
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use sea_orm::{ActiveModelTrait, Set};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
@@ -206,7 +206,7 @@ async fn insert_video_with_run(
         CreateGeneratedVideoRecordDraftInput {
             project_id,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
             workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "prompt".to_string(),
             negative_prompt: None,

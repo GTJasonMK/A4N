@@ -1,10 +1,10 @@
 use a4n_api_contract::profile::SceneProfileInput;
-use a4n_core::error::AppError;
-use a4n_core::profile_text::{
+use a4n_domain::profile_text::{
     normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
     validate_importance,
 };
-use a4n_db::scene_profile::SceneProfileRecordInput;
+use a4n_domain::scene_profile::SceneProfileRecordInput;
+use a4n_error::AppError;
 use serde_json::json;
 
 use super::super::contracts::SceneProfileDraft;
@@ -134,7 +134,7 @@ fn normalize_optional_importance(value: &str, field_name: &str) -> Result<String
     if value.is_empty() {
         Ok(String::new())
     } else {
-        validate_importance(value, field_name)
+        Ok(validate_importance(value, field_name)?)
     }
 }
 

@@ -1,4 +1,4 @@
-use a4n_core::models::scene::scene_occurrence;
+use a4n_db_models::models::scene::scene_occurrence;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, PaginatorTrait, QueryFilter,
     QuerySelect,

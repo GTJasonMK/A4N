@@ -81,6 +81,11 @@ def parse_args() -> argparse.Namespace:
         default=ROOT / "frontend",
         help="前端工作目录（包含 node_modules）",
     )
+    parser.add_argument(
+        "--spec",
+        type=Path,
+        help="只运行指定的 WebdriverIO spec；相对路径以 frontend-dir 为基准",
+    )
     parser.add_argument("--server-port", type=int, default=0)
     parser.add_argument("--provider-port", type=int, default=0)
     parser.add_argument("--vite-port", type=int, default=0)
@@ -241,7 +246,8 @@ def provider_path(path: object) -> str:
     return value
 
 
-def provider_audit(path: Path) -> dict[str, object]:
+def provider_audit(path: Path, *, required_paths: set[str] | None = None) -> dict[str, object]:
+    required = REQUIRED_PROVIDER_PATHS if required_paths is None else required_paths
     observed: list[str] = []
     if path.is_file():
         for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
@@ -252,13 +258,13 @@ def provider_audit(path: Path) -> dict[str, object]:
             if isinstance(record, dict) and "path" in record:
                 observed.append(provider_path(record["path"]))
     observed_set = set(observed)
-    missing = sorted(REQUIRED_PROVIDER_PATHS - observed_set)
+    missing = sorted(required - observed_set)
     if missing:
         raise RunnerError(f"Provider 路径审计缺少：{', '.join(missing)}；实际路径：{', '.join(sorted(observed_set)) or '<none>'}")
     return {
         "request_count": len(observed),
         "observed_paths": sorted(observed_set),
-        "required_paths": sorted(REQUIRED_PROVIDER_PATHS),
+        "required_paths": sorted(required),
         "missing_paths": missing,
     }
 
@@ -342,6 +348,14 @@ def run(args: argparse.Namespace) -> int:
     frontend_dir = args.frontend_dir.expanduser().resolve()
     if not (frontend_dir / "package.json").is_file():
         raise RunnerError(f"前端目录缺少 package.json: {frontend_dir}")
+    spec_path = None
+    if args.spec is not None:
+        spec_path = args.spec.expanduser()
+        if not spec_path.is_absolute():
+            spec_path = frontend_dir / spec_path
+        spec_path = spec_path.resolve()
+        if not spec_path.is_file():
+            raise RunnerError(f"WebdriverIO spec 不存在：{spec_path}")
 
     server_port = args.server_port or free_port()
     provider_port = args.provider_port or free_port()
@@ -422,6 +436,15 @@ def run(args: argparse.Namespace) -> int:
             "A4N_BROWSER_E2E_DOWNLOAD_DIR": str(data_dir / "downloads"),
         }
     )
+    for key in (
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+    ):
+        browser_env.pop(key, None)
 
     provider_process: subprocess.Popen[bytes] | None = None
     provider_handle: object | None = None
@@ -494,8 +517,11 @@ def run(args: argparse.Namespace) -> int:
         wdio_log = report_dir / "wdio.log"
         wdio_handle = open_log(wdio_log)
         try:
+            browser_command = ["npm", "run", "test:browser-full-project"]
+            if spec_path is not None:
+                browser_command.extend(["--", "--spec", str(spec_path)])
             wdio = subprocess.Popen(
-                ["npm", "run", "test:browser-full-project"],
+                browser_command,
                 cwd=str(frontend_dir),
                 env=browser_env,
                 stdin=subprocess.DEVNULL,
@@ -513,7 +539,12 @@ def run(args: argparse.Namespace) -> int:
         finally:
             wdio_handle.close()
 
-        result["provider"] = provider_audit(request_log)
+        result["provider"] = provider_audit(
+            request_log,
+            required_paths=None if spec_path is None else set(),
+        )
+        if spec_path is not None:
+            result["provider"]["scope_note"] = "自定义 spec 未强制要求 Provider 路径；仅记录实际请求"
         result["success"] = True
         result["exit_code"] = 0
     except Exception as error:
@@ -529,7 +560,15 @@ def run(args: argparse.Namespace) -> int:
         ):
             stop_process(process, handle)
         try:
-            result.setdefault("provider", provider_audit(request_log))
+            result.setdefault(
+                "provider",
+                provider_audit(
+                    request_log,
+                    required_paths=None if spec_path is None else set(),
+                ),
+            )
+            if spec_path is not None and isinstance(result["provider"], dict):
+                result["provider"]["scope_note"] = "自定义 spec 未强制要求 Provider 路径；仅记录实际请求"
         except RunnerError as error:
             result.setdefault("provider_error", str(error))
         result["artifacts"] = {

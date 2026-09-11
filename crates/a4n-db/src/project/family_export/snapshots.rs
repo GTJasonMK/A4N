@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     project::{
         profile_evidence, project_source_snapshot, source_snapshot_chapter,
         source_snapshot_outline, source_snapshot_profile, text_anchor,

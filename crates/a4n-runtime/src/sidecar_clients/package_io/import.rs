@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_capabilities::A4nCapabilities;
-use a4n_import_core::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
+use a4n_import_contract::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use serde_json::Value;
 
 use crate::state::RuntimeProfile;

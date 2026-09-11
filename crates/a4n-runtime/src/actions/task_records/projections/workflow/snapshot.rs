@@ -1,5 +1,5 @@
 use a4n_api_contract::{task::TaskProgressSummary, workflow::WorkflowStateSummary};
-use a4n_core::event::channel::TaskSnapshot;
+use a4n_task_runtime::channel::TaskSnapshot;
 
 use super::events::task_progress_event;
 

@@ -1,10 +1,8 @@
 use super::super::contracts::BlueprintStageSpec;
-use a4n_core::{
-    blueprint::{
-        BLUEPRINT_GENERATION_KIND, BLUEPRINT_GENERATION_PROMPTS, blueprint_stage_call_key,
-    },
-    error::AppError,
+use a4n_domain::project::{
+    BLUEPRINT_GENERATION_KIND, BLUEPRINT_GENERATION_PROMPTS, blueprint_stage_call_key,
 };
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::{Value, json};
 

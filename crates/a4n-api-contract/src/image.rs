@@ -2,7 +2,17 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use a4n_provider_contract::ImageProviderConfig;
+
 use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
+
+/// Host-facing lookup boundary for persisted image provider configuration.
+#[async_trait::async_trait]
+pub trait ImageProviderConfigPort: Send + Sync {
+    async fn by_id(&self, config_id: i64) -> Result<ImageProviderConfig, a4n_error::AppError>;
+
+    async fn default(&self) -> Result<ImageProviderConfig, a4n_error::AppError>;
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct GeneratedImageSummary {

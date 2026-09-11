@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::create_access_token_with_role;
 use crate::jwt::verify_token;

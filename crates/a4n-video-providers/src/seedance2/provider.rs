@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde_json::Value;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
 
 use super::super::download::download_video_url;
@@ -53,9 +53,7 @@ impl Seedance2VideoProvider {
         provider_job_id: Option<String>,
     ) -> Result<VideoGenerationResult, AppError> {
         let url = result_video_url(v).ok_or_else(|| {
-            AppError::Internal(anyhow::anyhow!(
-                "Seedance 2.0 完成响应缺少 result.video_url"
-            ))
+            AppError::Internal(format!("Seedance 2.0 完成响应缺少 result.video_url"))
         })?;
         let (bytes, format) = download_video_url(&self.client, url, None).await?;
         Ok(VideoGenerationResult {
@@ -75,7 +73,7 @@ impl VideoProvider for Seedance2VideoProvider {
         provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let url = self.submit_url();
         let body = Self::request_body(&req)?;
@@ -96,9 +94,8 @@ impl VideoProvider for Seedance2VideoProvider {
         ) {
             return self.decode_completed(&v, extract_task_id(&v)).await;
         }
-        let task_id = extract_task_id(&v).ok_or_else(|| {
-            AppError::Internal(anyhow::anyhow!("Seedance 2.0 视频生成响应缺少 task_id"))
-        })?;
+        let task_id = extract_task_id(&v)
+            .ok_or_else(|| AppError::Internal(format!("Seedance 2.0 视频生成响应缺少 task_id")))?;
         Ok(VideoGenerationResult {
             bytes: Vec::new(),
             format: String::new(),
@@ -109,7 +106,7 @@ impl VideoProvider for Seedance2VideoProvider {
 
     async fn poll(&self, job_id: &str) -> Result<VideoJobState, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let url = self.task_url(job_id);
         let v = transport::get_json(
@@ -121,7 +118,7 @@ impl VideoProvider for Seedance2VideoProvider {
         )
         .await?;
         let status = extract_status(&v)
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Seedance 2.0 任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal(format!("Seedance 2.0 任务响应缺少 status")))?
             .to_ascii_lowercase();
         match status.as_str() {
             "pending" | "queued" | "submitted" => Ok(VideoJobState::Pending),
@@ -133,7 +130,7 @@ impl VideoProvider for Seedance2VideoProvider {
             "failed" | "error" | "cancelled" | "canceled" => {
                 Ok(VideoJobState::Failed(failure_message(&v)))
             }
-            other => Err(AppError::Internal(anyhow::anyhow!(
+            other => Err(AppError::Internal(format!(
                 "未知 Seedance 2.0 任务状态：{other}"
             ))),
         }
@@ -141,7 +138,7 @@ impl VideoProvider for Seedance2VideoProvider {
 
     async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let value = transport::get_status_json(
             &self.client,
@@ -155,7 +152,7 @@ impl VideoProvider for Seedance2VideoProvider {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };
         let status = extract_status(&value)
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("Seedance 2.0 任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal(format!("Seedance 2.0 任务响应缺少 status")))?
             .to_ascii_lowercase();
         match status.as_str() {
             "pending" | "queued" | "submitted" | "starting" => {
@@ -169,7 +166,7 @@ impl VideoProvider for Seedance2VideoProvider {
             "failed" | "error" | "failure" | "expired" => {
                 Ok(a4n_video::VideoJobStatus::Failed(failure_message(&value)))
             }
-            other => Err(AppError::Internal(anyhow::anyhow!(
+            other => Err(AppError::Internal(format!(
                 "未知 Seedance 2.0 任务状态：{other}"
             ))),
         }

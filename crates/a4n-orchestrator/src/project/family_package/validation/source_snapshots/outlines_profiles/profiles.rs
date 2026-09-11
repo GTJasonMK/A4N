@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::project::source_snapshot_profile;
+use a4n_db_models::models::project::source_snapshot_profile;
 
 use crate::project::{required_json_i64_field, required_json_string_field, snapshot_profile_key};
 

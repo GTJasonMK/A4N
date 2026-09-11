@@ -1,5 +1,7 @@
-use a4n_core::{error::AppError, models::chapter::chapter};
+use a4n_db_models::models::chapter::chapter;
+use a4n_error::AppError;
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
+use async_trait::async_trait;
 
 use crate::{
     OrchestratorContext,
@@ -20,6 +22,37 @@ use super::{
         prepare_import_project_analysis, record_import_analysis_failure, save_import_stage,
     },
 };
+
+/// Runtime-facing import-analysis boundary.
+///
+/// Authorization and progress state remain owned by the import-analysis
+/// application. Runtime supplies only prompt/rendering and cleanup adapters.
+#[async_trait]
+pub trait ImportAnalysisApplicationPort: Send + Sync {
+    async fn progress(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Option<ProjectImportAnalysisProgress>, AppError>;
+
+    async fn run(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<ImportProjectAnalysisSummary, AppError>;
+
+    async fn cancel(&self, user_id: i64, project_id: i64) -> Result<(), AppError>;
+
+    async fn preview(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError>;
+}
 
 impl OrchestratorContext {
     pub async fn run_import_project_analysis_validated(
@@ -182,6 +215,72 @@ impl OrchestratorContext {
         )
         .await?;
         Ok(ImportAnalysisStageResult::Complete(total))
+    }
+}
+
+#[async_trait]
+impl ImportAnalysisApplicationPort for OrchestratorContext {
+    async fn progress(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Option<ProjectImportAnalysisProgress>, AppError> {
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        super::lifecycle::project_import_analysis_progress(self, project_id).await
+    }
+
+    async fn run(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        chapter_analysis_host_port: &dyn ChapterAnalysisHostPort,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<ImportProjectAnalysisSummary, AppError> {
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.run_import_project_analysis_validated(
+            project_id,
+            prompt_renderer,
+            chapter_analysis_host_port,
+            character_trace_port,
+        )
+        .await
+    }
+
+    async fn cancel(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        super::lifecycle::cancel_import_analysis(self, project_id).await
+    }
+
+    async fn preview(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Vec<ChapterAnalysisRequestStep>, AppError> {
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.prepare_import_project_analysis_preview_validated(project_id, prompt_renderer)
+            .await
     }
 }
 

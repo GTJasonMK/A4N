@@ -6,24 +6,38 @@ use std::{
     },
 };
 
-use a4n_core::models::media::media_asset::FILE_PATH_FIELD;
-use a4n_core::models::{media::media_asset, project::novel_project, user::user};
+use a4n_api_contract::project_transfer::{
+    ExportVideoStudioProjectApplicationInput, ImportProjectPackageApplicationInput,
+    ProjectPackageExportInput, ProjectPackageImportPayload, ProjectPackageTransferHostPort,
+};
 use a4n_db::project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record};
+use a4n_db_models::models::media::media_asset::FILE_PATH_FIELD;
+use a4n_db_models::models::{media::media_asset, project::novel_project, user::user};
 use a4n_domain::CanvasNodeRefKind;
 use async_trait::async_trait;
 use sea_orm::ActiveModelTrait;
 
 use crate::project::{
-    ImportMediaPayload, ImportProjectPackageApplicationInput, MediaFileEntry, PACKAGE_MODE,
-    ProjectPackageFileHostPort, VIDEO_STUDIO_PACKAGE_VERSION, VideoStudioProjectPackage,
-    media_file_key,
+    ImportMediaPayload, MediaFileEntry, PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION,
+    VideoStudioProjectPackage, media_file_key,
 };
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
-use super::{
-    ExportVideoStudioProjectApplicationInput, ReadVideoStudioProjectPackage,
-    VideoStudioProjectTransferHostPort, media_package_path,
-};
+use super::media_package_path;
+
+struct ReadVideoStudioProjectPackage {
+    package: VideoStudioProjectPackage,
+    media_payload: ImportMediaPayload,
+}
+
+impl ReadVideoStudioProjectPackage {
+    fn into_host_payload(self) -> ProjectPackageImportPayload {
+        ProjectPackageImportPayload {
+            manifest: serde_json::to_value(self.package).expect("serialize test package"),
+            media_bytes: self.media_payload.bytes,
+        }
+    }
+}
 
 #[derive(Default)]
 struct TestVideoStudioTransferHost {
@@ -32,25 +46,27 @@ struct TestVideoStudioTransferHost {
     write_calls: AtomicUsize,
     rollback_calls: AtomicUsize,
     written_paths: Mutex<Vec<String>>,
-    read_package: Mutex<Option<ReadVideoStudioProjectPackage>>,
+    read_package: Mutex<Option<ProjectPackageImportPayload>>,
     rendered_package: Mutex<Option<VideoStudioProjectPackage>>,
 }
 
 impl TestVideoStudioTransferHost {
     fn with_read_package(read_package: ReadVideoStudioProjectPackage) -> Self {
         Self {
-            read_package: Mutex::new(Some(read_package)),
+            read_package: Mutex::new(Some(read_package.into_host_payload())),
             ..Self::default()
         }
     }
 }
 
 #[async_trait]
-impl VideoStudioProjectTransferHostPort for TestVideoStudioTransferHost {
+impl ProjectPackageTransferHostPort for TestVideoStudioTransferHost {
     async fn render_export_package(
         &self,
-        package: &VideoStudioProjectPackage,
+        input: ProjectPackageExportInput,
     ) -> Result<Vec<u8>, String> {
+        let package: VideoStudioProjectPackage =
+            serde_json::from_value(input.manifest).map_err(|error| error.to_string())?;
         self.render_calls.fetch_add(1, Ordering::SeqCst);
         *self.rendered_package.lock().expect("rendered package lock") = Some(package.clone());
         Ok(vec![1, 2, 3])
@@ -59,7 +75,10 @@ impl VideoStudioProjectTransferHostPort for TestVideoStudioTransferHost {
     async fn read_import_package(
         &self,
         _package_bytes: Vec<u8>,
-    ) -> Result<ReadVideoStudioProjectPackage, String> {
+        _manifest_path: &str,
+        _package_label: &str,
+        _manifest_label: &str,
+    ) -> Result<ProjectPackageImportPayload, String> {
         self.read_calls.fetch_add(1, Ordering::SeqCst);
         self.read_package
             .lock()
@@ -67,10 +86,6 @@ impl VideoStudioProjectTransferHostPort for TestVideoStudioTransferHost {
             .take()
             .ok_or_else(|| "测试导入包缺失".to_string())
     }
-}
-
-#[async_trait]
-impl ProjectPackageFileHostPort for TestVideoStudioTransferHost {
     fn write_imported_media_file(
         &mut self,
         relative_path: &str,
@@ -122,7 +137,7 @@ async fn export_application_enforces_owner_before_rows_assembly_and_render() {
         .await
         .expect("视频画布导出 application 应成功");
 
-    assert_eq!(exported.project.id, source.id);
+    assert_eq!(exported.project_title, source.title);
     assert_eq!(exported.package_bytes, vec![1, 2, 3]);
     assert_eq!(host.render_calls.load(Ordering::SeqCst), 1);
     let package = host.rendered_package.lock().expect("rendered package lock");

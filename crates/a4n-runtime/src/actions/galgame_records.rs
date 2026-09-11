@@ -7,8 +7,6 @@ pub use a4n_api_contract::galgame::{
     UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
 };
 pub use a4n_domain::galgame::GALGAME_PIPELINE_TOTAL_STEPS;
-pub type GalgamePipelineProgressUpdate = a4n_orchestrator::galgame::GalgamePipelineProgressUpdate;
-
 mod asset_generation;
 pub use asset_generation::{plan_galgame_assets, run_galgame_asset_generation};
 mod media;

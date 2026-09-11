@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::models::chapter::{chapter, chapter_outline, part_outline};
+use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, QueryFilter,

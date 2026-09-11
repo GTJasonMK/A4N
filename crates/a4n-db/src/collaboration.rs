@@ -1,4 +1,4 @@
-use a4n_core::models::project::project_member;
+use a4n_db_models::models::project::project_member;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,

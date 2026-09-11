@@ -13,8 +13,8 @@ pub use records::{
 pub use references::{missing_portrait_profiles, portrait_reference_images_by_ids};
 pub use rollback::rollback_failed_portrait_creation_records;
 pub use types::{
-    CharacterPortraitCreateInput, CharacterPortraitRecordError, CharacterPortraitRollbackError,
-    CharacterPortraitRollbackResult, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
+    CharacterPortraitRecordError, CharacterPortraitRollbackError, CharacterPortraitRollbackResult,
+    PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
 
 #[cfg(test)]
@@ -24,7 +24,7 @@ use rollback::generated_image_matches_portrait;
 pub(super) use rollback::generated_image_metadata_matches_any_portrait;
 
 #[cfg(test)]
-use a4n_core::models::{ai::generated_image, character::character_portrait};
+use a4n_db_models::models::{ai::generated_image, character::character_portrait};
 #[cfg(test)]
 use serde_json::Value;
 

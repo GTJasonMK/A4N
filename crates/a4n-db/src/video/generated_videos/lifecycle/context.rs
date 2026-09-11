@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 
@@ -29,7 +29,7 @@ pub(super) fn ensure_generated_video_status_mutable(
     status: &str,
     operation: &str,
 ) -> Result<(), VideoDbError> {
-    if generated_video::is_terminal_status(status) {
+    if a4n_domain::video_workflow::is_terminal_video_status(status) {
         Err(VideoDbError::InvalidState {
             current: status.to_string(),
             operation: operation.to_string(),
@@ -44,7 +44,8 @@ pub(super) fn ensure_generated_video_status_allows_completion(
 ) -> Result<(), VideoDbError> {
     if matches!(
         status,
-        generated_video::STATUS_PENDING | generated_video::STATUS_RUNNING
+        a4n_domain::video_workflow::VIDEO_STATUS_PENDING
+            | a4n_domain::video_workflow::VIDEO_STATUS_RUNNING
     ) {
         Ok(())
     } else {

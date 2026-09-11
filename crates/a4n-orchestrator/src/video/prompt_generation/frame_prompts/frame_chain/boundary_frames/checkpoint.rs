@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::workflow;
+use a4n_error::AppError;
 
 use crate::video::prompt_generation::VideoPromptStepProgress;
 use crate::video::prompt_generation::frame_prompts::{

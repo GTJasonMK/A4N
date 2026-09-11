@@ -9,7 +9,7 @@ pub(crate) use self::ffmpeg::run_ffmpeg_trim;
 pub(super) use self::files::required_video_file_extension;
 pub(crate) use self::files::{
     append_secondary_error, combine_optional_errors, persist_canvas_video_bytes,
-    prompt_id_from_video, remove_partial_video_file, save_video_bytes,
+    remove_partial_video_file, save_video_bytes,
 };
 pub(super) use self::paths::video_tail_frame_path;
 #[cfg(test)]

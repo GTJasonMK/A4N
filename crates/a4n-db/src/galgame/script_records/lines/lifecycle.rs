@@ -4,7 +4,7 @@ use crate::galgame::{
     delete_galgame_line_generation_media_graph_record,
     delete_galgame_line_visual_generation_media_graph_record,
 };
-use a4n_core::models::galgame::{galgame_choice, galgame_line};
+use a4n_db_models::models::galgame::{galgame_choice, galgame_line};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter,

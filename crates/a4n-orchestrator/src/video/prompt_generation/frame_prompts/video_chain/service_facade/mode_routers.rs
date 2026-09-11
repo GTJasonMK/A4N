@@ -1,6 +1,6 @@
 //! 按 workflow_mode 分发 video application 的 generate/preview 入口。
 
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 
 use super::super::super::{
     AppError, ChapterVideoPromptStageInput, OrchestratorContext, VideoPromptChunk,

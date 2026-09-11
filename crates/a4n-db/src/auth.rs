@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::user::{invite_code, role::ROLE_USER, user, user_session};
+use a4n_db_models::models::user::{invite_code, role::ROLE_USER, user, user_session};
+use a4n_error::AppError;
 use argon2::password_hash::{SaltString, rand_core::OsRng};
 use argon2::{Argon2, PasswordHash, PasswordHasher, PasswordVerifier};
 use chrono::{Duration, Utc};

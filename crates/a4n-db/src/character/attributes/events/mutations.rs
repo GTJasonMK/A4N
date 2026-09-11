@@ -1,7 +1,4 @@
-use super::super::{
-    state::attribute_value_in_state,
-    types::{CharacterAttributeMutationResult, CharacterAttributeValueChangeInput},
-};
+use super::super::{state::attribute_value_in_state, types::CharacterAttributeMutationResult};
 use super::recording::{
     default_attribute_change_description, record_attribute_event_with_profile_in,
 };
@@ -9,10 +6,11 @@ use crate::character::profile::require_profile_for_update;
 use crate::character::{
     CharacterDbError, require_non_empty, validate_category, validate_chapter_number,
 };
-use a4n_core::models::character::{
+use a4n_db_models::models::character::{
     attribute_event::{self, SOURCE_KIND_USER},
     protagonist_profile,
 };
+use a4n_domain::character::CharacterAttributeValueChangeInput;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::Value;
 

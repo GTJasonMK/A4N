@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::contracts::SCRIPT_LINE_TYPES;
 use super::invalid;

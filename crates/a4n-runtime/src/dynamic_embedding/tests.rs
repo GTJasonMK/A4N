@@ -1,30 +1,23 @@
 use std::path::PathBuf;
 
-use a4n_core::error::AppError;
-use a4n_core::models::ai::embedding_config;
+use a4n_error::AppError;
+use a4n_provider_contract::EmbeddingProviderConfig;
 
 use super::contracts::{positive_usize, required_text};
 use super::factory::make_provider_from_default_model;
 use super::model_identity_from_config;
 
-fn embedding_model(backend: &str) -> embedding_config::Model {
-    let now = chrono::NaiveDate::from_ymd_opt(2026, 7, 13)
-        .unwrap()
-        .and_hms_opt(0, 0, 0)
-        .unwrap();
-    embedding_config::Model {
+fn embedding_model(backend: &str) -> EmbeddingProviderConfig {
+    EmbeddingProviderConfig {
         id: 1,
         name: "embedding-test".to_string(),
         backend: backend.to_string(),
         base_url: None,
-        api_key_encrypted: None,
+        api_key: None,
         model: " test-model ".to_string(),
         dimension: 384,
         batch_size: 8,
         local_model_path: None,
-        is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 

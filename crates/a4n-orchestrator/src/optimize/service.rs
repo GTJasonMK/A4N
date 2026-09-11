@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::optimize::OptimizeDbError;
+use a4n_error::AppError;
 
 pub fn optimize_db_error(error: OptimizeDbError) -> AppError {
     match error {

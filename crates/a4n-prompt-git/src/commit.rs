@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use git2::{ErrorCode, Signature};
 
 use crate::files::{

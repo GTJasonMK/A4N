@@ -4,7 +4,7 @@ use super::classification::{
 };
 use super::contracts::{FreeformGeneratedResetDbError, FreeformGeneratedResetTargets};
 use crate::project::validate_positive_i64;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     generation::{generation_spec, prompt_artifact},
     media::media_asset,

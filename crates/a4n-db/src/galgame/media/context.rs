@@ -3,7 +3,7 @@ mod generated_image;
 mod portrait;
 mod target;
 
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectKind;
 use sea_orm::{ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect};
 

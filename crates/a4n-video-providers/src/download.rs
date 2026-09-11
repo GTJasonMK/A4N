@@ -1,6 +1,6 @@
 use reqwest::header::CONTENT_TYPE;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use super::format::{
     normalize_video_format_str, video_format_from_content_type_or_bytes, video_format_from_url,
@@ -37,14 +37,14 @@ async fn download_video_request(
     let resp = request
         .send()
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("下载视频失败：{e}")))?;
+        .map_err(|e| AppError::Internal(format!("下载视频失败：{e}")))?;
     let status = resp.status();
     if !status.is_success() {
         let text = resp
             .text()
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("读取视频下载错误响应失败：{e}")))?;
-        return Err(AppError::Internal(anyhow::anyhow!(
+            .map_err(|e| AppError::Internal(format!("读取视频下载错误响应失败：{e}")))?;
+        return Err(AppError::Internal(format!(
             "下载视频返回 {status}：{}",
             text.chars().take(500).collect::<String>()
         )));
@@ -58,14 +58,14 @@ async fn download_video_request(
     let bytes = resp
         .bytes()
         .await
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("读取视频字节失败：{e}")))?
+        .map_err(|e| AppError::Internal(format!("读取视频字节失败：{e}")))?
         .to_vec();
     let format = match hint_format {
         Some(format) => normalize_video_format_str(format)?,
         None => video_format_from_url(url)
             .or_else(|| video_format_from_content_type_or_bytes(content_type.as_deref(), &bytes))
             .ok_or_else(|| {
-                AppError::Internal(anyhow::anyhow!(
+                AppError::Internal(format!(
                     "无法从 URL、Content-Type 或字节推断视频格式：{url}"
                 ))
             })?,

@@ -1,6 +1,6 @@
 use super::references::generation_spec_id_for_source_sync_run;
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::prompt_artifact,
     source_sync::source_sync_run,
     video_project::{assembly_clip, video_segment},

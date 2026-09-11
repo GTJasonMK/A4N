@@ -2,6 +2,18 @@
 //!
 //! 对应文档 04-大纲系统
 
+use a4n_api_contract::{
+    generation_tasks::GenerationTaskHandle,
+    outline::{
+        ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ContinuePartOutlinesInput,
+        GenerateChapterOutlinesByCountInput, GeneratePartChapterOutlinesInput, GeneratePartsInput,
+        RegenerateChapterOutlineInput, RegenerateLastPartInput, RegeneratePartOutlineInput,
+        RegeneratePartsInput, StartOutlineGenerationInput,
+    },
+};
+use a4n_error::AppError;
+use a4n_llm::provider::ChatRequest;
+
 mod application;
 mod chapter_contract;
 mod chapters;
@@ -25,7 +37,6 @@ pub(in crate::outline) use llm_stream::{
     OutlineLlmStreamContext, execute_outline_llm_call, with_outline_llm_stream,
 };
 pub(in crate::outline) use preview::{ready_outline_preview_step, reused_outline_preview_step};
-pub use rules::required_outline_pacing_score;
 pub(in crate::outline) use rules::{
     batch_parts_progress_total, order_parts_for_batch_generation, part_chapter_count,
     progress_total,
@@ -42,3 +53,79 @@ mod tests;
 
 pub(in crate::outline) use chapter_contract::outline_db_error;
 pub(crate) use context::{chapter_outline_context_json, outline_formal_materials_context_json};
+
+/// Host-facing boundary for outline generation workers.
+///
+/// Runtime owns task scheduling; outline validation, LLM workflow state and
+/// persistence remain in the outline owner.
+#[async_trait::async_trait]
+pub trait OutlineGenerationApplicationPort: Send + Sync {
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartOutlineGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
+
+    async fn run_task(
+        &self,
+        input: StartOutlineGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
+}
+
+/// Host-facing boundary for outline request previews.
+///
+/// Runtime performs command-level authorization and formats the returned
+/// request steps; outline validation and prompt construction stay here.
+#[async_trait::async_trait]
+pub trait OutlinePreviewApplicationPort: Send + Sync {
+    async fn preview_generate_parts(
+        &self,
+        input: GeneratePartsInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError>;
+
+    async fn preview_regenerate_parts(
+        &self,
+        input: RegeneratePartsInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError>;
+
+    async fn preview_regenerate_last_part(
+        &self,
+        input: RegenerateLastPartInput,
+    ) -> Result<ChatRequest, AppError>;
+
+    async fn preview_continue_part_outlines(
+        &self,
+        input: ContinuePartOutlinesInput,
+    ) -> Result<ChatRequest, AppError>;
+
+    async fn preview_regenerate_part_outline(
+        &self,
+        input: RegeneratePartOutlineInput,
+    ) -> Result<ChatRequest, AppError>;
+
+    async fn preview_generate_part_chapter_outlines(
+        &self,
+        input: GeneratePartChapterOutlinesInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError>;
+
+    async fn preview_batch_generate_part_outlines(
+        &self,
+        input: BatchGeneratePartOutlinesInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError>;
+
+    async fn preview_generate_chapter_outlines_by_count(
+        &self,
+        input: GenerateChapterOutlinesByCountInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError>;
+
+    async fn preview_regenerate_chapter_outline(
+        &self,
+        input: RegenerateChapterOutlineInput,
+    ) -> Result<ChatRequest, AppError>;
+
+    async fn preview_apply_beat_mapping(
+        &self,
+        input: ApplyBeatMappingInput,
+    ) -> Result<ChatRequest, AppError>;
+}

@@ -1,5 +1,5 @@
 use super::super::contracts::SourceSyncReferenceSets;
-use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_db_models::models::source_sync::source_sync_conflict;
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::Value;
 

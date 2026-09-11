@@ -1,4 +1,4 @@
-use a4n_core::json_contract::reject_unknown_fields;
+use a4n_domain::json_contract::reject_unknown_fields;
 use serde_json::{Map, Value, json};
 
 use super::IMPLICIT_CLASSIFICATION_KIND;

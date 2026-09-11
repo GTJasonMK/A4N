@@ -4,9 +4,9 @@ mod scenes;
 
 use std::collections::BTreeSet;
 
-use a4n_core::error::AppError;
-use a4n_core::models::galgame::{galgame_choice, galgame_scene};
 use a4n_db::galgame::{ReplaceGalgameChoiceRecordInput, UpdateGalgameSceneRecordInput};
+use a4n_db_models::models::galgame::{galgame_choice, galgame_scene};
+use a4n_error::AppError;
 
 use super::{
     LINE_TYPE_CHOICE, OrchestratorContext, SCENE_ENTRY_BRANCH, SCENE_ENTRY_MAIN,

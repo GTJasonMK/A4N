@@ -1,8 +1,8 @@
-use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
 use a4n_db::generation::{
     GENERATION_PROMPT_KIND_CANVAS_PROMPT, GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT,
 };
+use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 
 use crate::canvas::{
     canvas_config_f32, canvas_config_i64, canvas_config_string,

@@ -3,7 +3,7 @@ use super::contracts::{
     validated_project_deletion_cleanup_payload,
 };
 use super::*;
-use a4n_core::models::task::cleanup_outbox;
+use a4n_db_models::models::task::cleanup_outbox;
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection,

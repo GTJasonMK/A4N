@@ -7,8 +7,8 @@ use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps,
     VideoStudioProjectImportMediaFileWriter,
 };
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_core::models::media::{media_asset, media_provenance};
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::media::{media_asset, media_provenance};
 use a4n_domain::CanvasNodeRefKind;
 use sea_orm::{ConnectionTrait, EntityTrait, Set};
 

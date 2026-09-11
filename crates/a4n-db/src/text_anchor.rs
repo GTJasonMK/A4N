@@ -17,10 +17,7 @@ pub(crate) use insertion::insert_content_anchor_records;
 pub(crate) use insertion::insert_content_anchor_records_batch;
 pub(crate) use types::TextAnchorContentInsertInput;
 use types::TextAnchorDbResult;
-pub use types::{
-    CurrentChapterContentAnchorRows, CurrentChapterContentSource, TextAnchorDbError,
-    TextAnchorEvidenceInput, TextAnchorProfileKind,
-};
+pub use types::{CurrentChapterContentAnchorRows, CurrentChapterContentSource, TextAnchorDbError};
 pub use validation::validate_anchor_ref_records;
 
 pub const SOURCE_KIND_CHAPTER_CONTENT: &str = "chapter_content";

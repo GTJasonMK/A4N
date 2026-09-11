@@ -1,5 +1,4 @@
-use a4n_core::config::app_config::LlmMaxTokensConfig;
-use a4n_domain::ImageSize;
+use a4n_domain::{ImageSize, LlmMaxTokensConfig};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::Value;

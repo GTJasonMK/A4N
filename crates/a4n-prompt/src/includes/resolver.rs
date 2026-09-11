@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::frontmatter::strip_frontmatter;
 use super::syntax::{include_re, unquote};

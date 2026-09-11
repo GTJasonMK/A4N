@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
 use a4n_domain::manga::MangaPageV3;
+use a4n_error::AppError;
 use serde_json::{Map, Value, json};
 
 use super::super::validation::required_manga_string;

@@ -1,4 +1,4 @@
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};

@@ -11,9 +11,10 @@ pub use defaults::{
     uses_system_default_video_template,
 };
 pub use models::{
-    current_embedding_model, current_image_model, current_image_model_for_id,
-    current_image_snapshot_scope_present, current_llm_model, current_llm_model_for_id,
-    current_llm_snapshot_scope_present, current_video_model, current_video_model_for_id,
+    current_embedding_provider_config, current_image_provider_config_for_id,
+    current_image_snapshot_scope_present, current_llm_provider_config,
+    current_llm_provider_config_for_id, current_llm_snapshot_scope_present,
+    current_video_provider_config, current_video_provider_config_for_id,
     current_video_snapshot_scope_present,
 };
 pub use secrets::{

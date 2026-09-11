@@ -1,5 +1,5 @@
 use super::super::super::{ImportIdMaps, ProjectFamilyImportError, map_required};
-use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_db_models::models::source_sync::source_sync_conflict;
 
 pub(in crate::project_family_import) fn remap_source_sync_target_id(
     conflict: &source_sync_conflict::Model,

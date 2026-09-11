@@ -1,8 +1,8 @@
 mod design;
 mod screenplay;
 
-use a4n_core::error::AppError;
 use a4n_db::project::ResolvedChapterSource;
+use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
 
 use crate::{OrchestratorContext, workflow::WORKFLOW_STATUS_INTERRUPTED};

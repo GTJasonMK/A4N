@@ -1,5 +1,6 @@
-use a4n_core::{error::AppError, models::galgame::galgame_line};
 use a4n_db::galgame::UpdateGalgameLineRecordInput;
+use a4n_db_models::models::galgame::galgame_line;
+use a4n_error::AppError;
 
 use crate::galgame::{
     OrchestratorContext, UpdateGalgameLineInput, galgame_line_record_error,

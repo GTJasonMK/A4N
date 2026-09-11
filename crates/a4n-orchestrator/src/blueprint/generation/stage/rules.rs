@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
 
 pub(in crate::blueprint::generation) fn ensure_not_cancelled(

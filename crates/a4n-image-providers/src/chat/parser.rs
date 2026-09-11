@@ -1,5 +1,5 @@
 use crate::support::{internal_error, normalize_image_format};
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use base64::Engine as _;
 
 /// chat-completions 响应中提取出的图像负载。

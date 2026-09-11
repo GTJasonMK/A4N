@@ -1,4 +1,4 @@
-use a4n_core::models::galgame::galgame_line;
+use a4n_db_models::models::galgame::galgame_line;
 
 pub(in crate::project::family_package::validation) fn normalized_galgame_position(
     line: &galgame_line::Model,

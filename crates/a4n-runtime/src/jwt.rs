@@ -2,7 +2,7 @@
 //!
 //! 基于 jsonwebtoken crate 实现访问令牌和刷新令牌的签发与验证。
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 mod contracts;
 mod signing;

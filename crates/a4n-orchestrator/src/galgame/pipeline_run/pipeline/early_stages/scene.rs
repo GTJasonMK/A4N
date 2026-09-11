@@ -1,6 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 
-use a4n_core::{error::AppError, source_spans::source_spans_for_content};
+use a4n_domain::source_spans::source_spans_for_content;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{

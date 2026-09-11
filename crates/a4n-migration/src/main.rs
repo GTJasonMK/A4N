@@ -31,7 +31,7 @@ async fn run() -> Result<(), String> {
         return Err("数据库连接 URL 不能为空".to_string());
     }
 
-    a4n_core::config::env::validate_postgres_database_url("A4N_DATABASE_URL", database_url)
+    a4n_config::validate_postgres_database_url("A4N_DATABASE_URL", database_url)
         .map_err(|error| error.to_string())?;
 
     let db = Database::connect(ConnectOptions::new(database_url))

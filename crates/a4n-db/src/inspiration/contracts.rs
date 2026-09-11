@@ -1,4 +1,4 @@
-use a4n_core::models::project::{
+use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, novel_blueprint, novel_project,
 };
 use sea_orm::DbErr;
@@ -26,13 +26,6 @@ pub struct InspirationRecentChapterRow {
     pub analysis_data: Option<Value>,
     pub word_count: i32,
     pub has_content: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct InspirationExchangeInsertInput {
-    pub project_id: i64,
-    pub user_input: String,
-    pub assistant_output: String,
 }
 
 #[derive(Debug, thiserror::Error)]

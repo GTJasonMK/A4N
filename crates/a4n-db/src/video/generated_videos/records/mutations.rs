@@ -1,4 +1,4 @@
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 
@@ -20,7 +20,7 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
-    if video.status == generated_video::STATUS_RUNNING {
+    if video.status == a4n_domain::video_workflow::VIDEO_STATUS_RUNNING {
         return Err(VideoDbError::InvalidArgument(
             "视频生成中，不能编辑视频记录".to_string(),
         ));
@@ -73,7 +73,7 @@ where
         .one(db)
         .await?
         .ok_or_else(|| VideoDbError::NotFound("视频不存在".to_string()))?;
-    if status == generated_video::STATUS_RUNNING {
+    if status == a4n_domain::video_workflow::VIDEO_STATUS_RUNNING {
         return Err(VideoDbError::InvalidArgument(
             "视频生成中，不能回写视频实际时长".to_string(),
         ));

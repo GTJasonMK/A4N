@@ -1,4 +1,4 @@
-use super::super::shared::{require_config_admin, validate_runtime_snapshot_config_id};
+use super::super::shared::validate_runtime_snapshot_config_id;
 use super::contracts::{positive_model_context_cap, positive_model_output_cap};
 use super::max_tokens::load_effective_llm_max_tokens_config;
 use crate::actions::request_preview::{
@@ -6,8 +6,8 @@ use crate::actions::request_preview::{
     chat_request_step_with_budget, model_request_preview,
 };
 use crate::{AppState, actions::app_error_message};
-use a4n_core::models::ai::llm_config;
 use a4n_llm::provider::{ChatMessage, ChatRequest};
+use a4n_provider_contract::LlmProviderConfig;
 
 const LLM_CONNECTIVITY_TEST_PROMPT: &str = "ping";
 
@@ -19,7 +19,7 @@ pub async fn test_llm_config(state: &AppState, user_id: i64, config_id: i64) -> 
         .map_err(|error| error.to_string())?;
     if state.runtime_profile().uses_sidecars() {
         return provider
-            .probe_with_config(config, request)
+            .probe_with_config(config.clone(), request)
             .await
             .map_err(|error| error.to_string());
     }
@@ -70,24 +70,21 @@ async fn resolve_llm_config_for_connectivity_test(
     state: &AppState,
     user_id: i64,
     config_id: i64,
-) -> Result<llm_config::Model, String> {
-    if let Some(config) = crate::runtime_config::current_llm_model() {
+) -> Result<LlmProviderConfig, String> {
+    if let Some(config) = crate::runtime_config::current_llm_provider_config() {
         validate_llm_runtime_snapshot_config_id(&config, config_id)?;
         return Ok(config);
     }
-    require_config_admin(state, user_id)
-        .await
-        .map_err(app_error_message)?;
     state
-        .orchestrator()
-        .llm_config_by_id(config_id)
+        .config_application()
+        .llm_config_for_connectivity_test(user_id, config_id)
         .await
         .map_err(app_error_message)
 }
 
 async fn build_llm_connectivity_test_request(
     state: &AppState,
-    config: &llm_config::Model,
+    config: &a4n_provider_contract::LlmProviderConfig,
 ) -> Result<ChatRequest, String> {
     let max_tokens = load_effective_llm_max_tokens_config(state)
         .await?
@@ -102,7 +99,7 @@ async fn build_llm_connectivity_test_request(
 }
 
 pub(super) fn validate_llm_runtime_snapshot_config_id(
-    config: &llm_config::Model,
+    config: &a4n_provider_contract::LlmProviderConfig,
     config_id: i64,
 ) -> Result<(), String> {
     validate_runtime_snapshot_config_id("llm", config.id, config_id)
@@ -110,7 +107,7 @@ pub(super) fn validate_llm_runtime_snapshot_config_id(
 
 pub(super) fn validate_llm_connection_test_max_tokens(
     max_tokens: usize,
-    config: &llm_config::Model,
+    config: &a4n_provider_contract::LlmProviderConfig,
 ) -> Result<(), String> {
     let model_cap = positive_model_output_cap(config.max_output_tokens)?;
     if max_tokens <= model_cap {

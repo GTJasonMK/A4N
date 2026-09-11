@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_image,
     asset::profile_primary_material,
     character::{

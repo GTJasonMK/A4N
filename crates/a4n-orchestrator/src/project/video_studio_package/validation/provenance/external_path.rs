@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::models::media::media_provenance;
+use a4n_db_models::models::media::media_provenance;
 use a4n_domain::{GeneratedMediaReference, parse_generated_media_reference};
 
 pub(in crate::project::video_studio_package::validation) fn validate_media_provenance_source_external_path(

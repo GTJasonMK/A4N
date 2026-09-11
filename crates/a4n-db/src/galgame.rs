@@ -1,6 +1,6 @@
 #[cfg(test)]
-use a4n_core::models::media::media_asset;
-use a4n_core::models::{
+use a4n_db_models::models::media::media_asset;
+use a4n_db_models::models::{
     ai::generated_image,
     character::{character_portrait, protagonist_profile},
     galgame::galgame_scene,

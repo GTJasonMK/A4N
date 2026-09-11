@@ -4,13 +4,13 @@ use std::{
     time::Instant,
 };
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext};
-use a4n_orchestrator::DynamicProviderFacade;
-use a4n_orchestrator::task_queue::RunningTask;
 use futures::Stream;
 
 use super::terminal::{QueueTrackedStreamTerminal, StreamKind};
+use crate::provider_runtime::DynamicProviderFacade;
+use a4n_provider_runtime_contract::TaskLease;
 
 pub(in crate::dynamic_llm) struct QueueTrackedLlmStream {
     inner: Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>,
@@ -21,7 +21,7 @@ impl QueueTrackedLlmStream {
     pub(in crate::dynamic_llm) fn new(
         inner: Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>,
         facade: DynamicProviderFacade,
-        running_task: RunningTask,
+        running_task: Box<dyn TaskLease>,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,

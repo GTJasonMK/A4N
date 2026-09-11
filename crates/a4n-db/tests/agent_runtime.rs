@@ -1,14 +1,18 @@
-use a4n_core::models::agent::{approval, delegation, execution, inbox, run, thread, turn};
 use a4n_db::agent::{
-    AgentApprovalInput, AgentDbError, AgentDelegationInput, AgentExecutionInput, AgentInboxInput,
-    AgentMessageInput, AgentThreadCreateInput, AgentTurnInput, AgentUserDelegationInput,
-    append_message, bind_delegation_child, cancel_run_tree, claim_inbox, claim_runnable_run,
-    consume_inbox_with_message, create_delegation, create_execution_for_run_lease, create_thread,
-    create_turn_with_run, create_user_delegation, delegation_by_parent_and_key, enqueue_inbox,
-    expire_pending_approvals, expired_running_runs, finish_run_with_message,
-    mark_turn_active_for_run_lease, recover_expired_run, release_inbox_claim, renew_run_lease,
-    request_approval_for_run_lease, supersede_inbox, update_delegation,
-    update_execution_for_run_lease, update_run_state, update_run_usage,
+    AgentDbError, AgentUserDelegationInput, append_message, bind_delegation_child, cancel_run_tree,
+    claim_inbox, claim_runnable_run, consume_inbox_with_message, create_delegation,
+    create_execution_for_run_lease, create_thread, create_turn_with_run, create_user_delegation,
+    delegation_by_parent_and_key, enqueue_inbox, expire_pending_approvals, expired_running_runs,
+    finish_run_with_message, mark_turn_active_for_run_lease, recover_expired_run,
+    release_inbox_claim, renew_run_lease, request_approval_for_run_lease, supersede_inbox,
+    update_delegation, update_execution_for_run_lease, update_run_state, update_run_usage,
+};
+use a4n_db_models::models::agent::{
+    approval, delegation, event, execution, inbox, run, thread, turn,
+};
+use a4n_domain::agent::{
+    AgentApprovalInput, AgentDelegationInput, AgentExecutionInput, AgentInboxInput,
+    AgentMessageInput, AgentThreadCreateInput, AgentTurnInput,
 };
 use chrono::{Duration, Utc};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set};
@@ -78,6 +82,665 @@ async fn create_test_run(
     .await
     .expect("turn and run must be created");
     (turn, run)
+}
+
+fn budget_execution(run_id: i64, key: &str, model: bool) -> AgentExecutionInput {
+    AgentExecutionInput {
+        run_id,
+        execution_key: key.into(),
+        execution_kind: if model { "model_call" } else { "tool_call" }.into(),
+        status: "prepared".into(),
+        tool_name: (!model).then(|| "read_canvas_graph".into()),
+        effect: Some("read".into()),
+        replay_policy: Some("safe".into()),
+        arguments_json: Some(json!({"max_tokens": 100})),
+        resource_preconditions_json: None,
+    }
+}
+
+#[tokio::test]
+async fn generation_ownership_fences_attempts_and_keeps_cancelled_call_cost() {
+    use a4n_db::agent::{
+        AgentOwnedTask, AgentTaskExecutionInput, create_task_execution, generation_owner,
+        generation_owner_stopped, run_budget_snapshot, update_task_execution, wait_run_for_lease,
+    };
+    use a4n_db::generation::{
+        PersistGenerationLifecycleInput, ReserveGenerationTaskInput,
+        persist_generation_status_changed, reserve_generation_task,
+    };
+    use a4n_queue::priority::{TaskKind, TaskPriority};
+    use a4n_service_protocol::{GenerationDeliveryMode, GenerationTaskStatus};
+
+    let db = setup_db().await;
+    a4n_db::package::ensure_host_package_states(&db, &["ai-workflow".into()])
+        .await
+        .unwrap();
+    let user = a4n_db::auth::create_user(
+        &db,
+        "agent_generation",
+        "agent_generation@example.invalid",
+        "test-password",
+        "user",
+    )
+    .await
+    .unwrap();
+    assert_eq!(user.id, 1);
+    let thread = create_test_thread(&db, "content_optimization").await;
+    let (_, owner) = create_test_run(&db, thread.id, "user").await;
+    let claimed = claim_runnable_run(&db, "owner").await.unwrap().unwrap();
+    let request_id = Uuid::new_v4().to_string();
+    let mut start = budget_execution(owner.id, "tool-call:optimization-start", false);
+    start.tool_name = Some("send_content_optimization_message".into());
+    start.resource_preconditions_json = Some(json!({"generation_start_request_id": request_id}));
+    create_execution_for_run_lease(&db, start, claimed.lease_token.as_deref().unwrap())
+        .await
+        .unwrap();
+    let reservation = ReserveGenerationTaskInput {
+        requested_by_user_id: 1,
+        start_request_id: request_id,
+        business_key_json: json!({"version": 1, "agent_test": owner.id}),
+        input_fingerprint_json: json!({"prompt": "original request"}),
+        task_kind: TaskKind::TextGeneration,
+        priority: TaskPriority::High,
+        delivery_mode: GenerationDeliveryMode::Stream,
+        batch_policy: None,
+        project_id: None,
+        root_project_id: None,
+        source_snapshot_id: None,
+        task_scope: None,
+        workflow_run_id: None,
+        generation_run_id: None,
+        target: None,
+        root_task_id: None,
+        parent_task_id: None,
+        item_key: None,
+        retry_of_task_id: None,
+    };
+    let task = reserve_generation_task(&db, reservation.clone())
+        .await
+        .unwrap()
+        .task;
+    let attempt = task.checkpoint.attempt as u32;
+    let task_id = task.checkpoint.task_id.clone();
+    let mut running_snapshot = task.public_snapshot.clone().unwrap();
+    running_snapshot.covers_through_sequence += 1;
+    running_snapshot.status = GenerationTaskStatus::Running;
+    running_snapshot.updated_at_ms = Utc::now().timestamp_millis();
+    persist_generation_status_changed(
+        &db,
+        PersistGenerationLifecycleInput {
+            task_id: task_id.clone(),
+            attempt,
+            expected_checkpoint_revision: task.checkpoint.checkpoint_revision,
+            expected_status: GenerationTaskStatus::Reserved,
+            public_snapshot: running_snapshot,
+        },
+    )
+    .await
+    .unwrap();
+    wait_run_for_lease(
+        &db,
+        owner.id,
+        claimed.lease_token.as_deref().unwrap(),
+        "external",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        generation_owner(&db, &task_id, attempt)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        owner.id
+    );
+    assert!(generation_owner(&db, &task_id, attempt + 1).await.is_err());
+
+    let alias_thread = create_test_thread(&db, "content_optimization").await;
+    let (_, alias_run) = create_test_run(&db, alias_thread.id, "user").await;
+    let alias_claimed = claim_runnable_run(&db, "observer").await.unwrap().unwrap();
+    let mut alias = reservation;
+    alias.start_request_id = Uuid::new_v4().to_string();
+    let mut alias_start = budget_execution(alias_run.id, "tool-call:alias", false);
+    alias_start.tool_name = Some("send_content_optimization_message".into());
+    alias_start.resource_preconditions_json =
+        Some(json!({"generation_start_request_id": alias.start_request_id}));
+    create_execution_for_run_lease(
+        &db,
+        alias_start,
+        alias_claimed.lease_token.as_deref().unwrap(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        reserve_generation_task(&db, alias)
+            .await
+            .unwrap()
+            .task
+            .checkpoint
+            .task_id,
+        task_id
+    );
+    assert_eq!(
+        generation_owner(&db, &task_id, attempt)
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        owner.id
+    );
+
+    let owned_task = AgentOwnedTask::Generation {
+        task_id: task_id.clone(),
+        attempt,
+    };
+    let input = || AgentTaskExecutionInput {
+        task: owned_task.clone(),
+        execution_key: "decision:1".into(),
+        tool_name: None,
+        arguments: json!({"max_tokens": 100}),
+        input_message_id: None,
+        base_input_fingerprint: None,
+    };
+    let model = create_task_execution(&db, input()).await.unwrap().unwrap();
+    assert_eq!(
+        create_task_execution(&db, input())
+            .await
+            .unwrap()
+            .unwrap()
+            .id,
+        model.id
+    );
+    update_task_execution(&db, &owned_task, model.id, None, None, None)
+        .await
+        .unwrap();
+    cancel_run_tree(&db, owner.id, Some("test cancellation"))
+        .await
+        .unwrap();
+    let stopped = generation_owner(&db, &task_id, attempt)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(generation_owner_stopped(&db, &stopped).await.unwrap());
+    assert!(create_task_execution(&db, input()).await.is_err());
+    update_task_execution(
+        &db,
+        &owned_task,
+        model.id,
+        Some(json!({"usage": {"total_tokens": 125}})),
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    let usage = run_budget_snapshot(&db, owner.id).await.unwrap().usage;
+    assert_eq!(usage["tokens_used"], 125);
+    assert_eq!(usage["tokens_reserved"], 0);
+    assert_eq!(usage["model_calls_used"], 1);
+    assert!(
+        update_task_execution(
+            &db,
+            &owned_task,
+            model.id,
+            Some(json!({"usage": {"total_tokens": 1}})),
+            None,
+            None
+        )
+        .await
+        .is_err()
+    );
+}
+
+#[tokio::test]
+async fn shared_budget_serializes_siblings_and_counts_replay_once() {
+    use a4n_db::agent::run_budget_snapshot;
+    let db = setup_db().await;
+    let root_thread = create_test_thread(&db, "main").await;
+    let (_, root) = create_test_run(&db, root_thread.id, "user").await;
+    let mut active: run::ActiveModel = root.clone().into();
+    active.budget_json = Set(json!({"max_model_calls": 1, "max_tokens": 5000}));
+    active.update(&db).await.unwrap();
+    let root_claim = claim_runnable_run(&db, "root").await.unwrap().unwrap();
+    let mut claims = Vec::new();
+    for _ in 0..2 {
+        let thread = create_test_thread(&db, "general").await;
+        let (_, child) = create_test_run(&db, thread.id, "delegation").await;
+        let mut child: run::ActiveModel = child.into();
+        child.parent_run_id = Set(Some(root.id));
+        child.root_run_id = Set(Some(root.id));
+        child.update(&db).await.unwrap();
+        claims.push(claim_runnable_run(&db, "child").await.unwrap().unwrap());
+    }
+    let inputs = [
+        budget_execution(claims[0].id, "model-call:1", true),
+        budget_execution(claims[1].id, "model-call:1", true),
+    ];
+    let (a, b) = tokio::join!(
+        create_execution_for_run_lease(
+            &db,
+            inputs[0].clone(),
+            claims[0].lease_token.as_deref().unwrap()
+        ),
+        create_execution_for_run_lease(
+            &db,
+            inputs[1].clone(),
+            claims[1].lease_token.as_deref().unwrap()
+        ),
+    );
+    let (winner, loser, index) = match (a, b) {
+        (Ok(winner), Err(loser)) => (winner, loser, 0),
+        (Err(loser), Ok(winner)) => (winner, loser, 1),
+        _ => panic!("exactly one sibling must reserve the shared model budget"),
+    };
+    assert!(matches!(loser, AgentDbError::BudgetExhausted(_)));
+    let token = claims[index].lease_token.as_deref().unwrap();
+    update_execution_for_run_lease(
+        &db,
+        winner.run_id,
+        token,
+        winner.id,
+        "succeeded",
+        Some(json!({"usage": {"total_tokens": 123}})),
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    let replay = create_execution_for_run_lease(&db, inputs[index].clone(), token)
+        .await
+        .unwrap();
+    assert_eq!(replay.id, winner.id);
+    let total = run_budget_snapshot(&db, root.id).await.unwrap();
+    assert_eq!(total.usage["model_calls_used"], 1);
+    assert_eq!(total.usage["tokens_used"], 123);
+    assert_eq!(total.remaining.max_tokens, Some(4877));
+    assert_eq!(total.remaining.max_model_calls, Some(0));
+    assert!(
+        create_execution_for_run_lease(
+            &db,
+            budget_execution(root.id, "model-call:parent", true),
+            root_claim.lease_token.as_deref().unwrap()
+        )
+        .await
+        .is_err()
+    );
+    assert_eq!(
+        run::Entity::find_by_id(root.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .usage_json,
+        root.usage_json
+    );
+}
+
+#[tokio::test]
+async fn token_reservation_is_shared_until_an_actual_receipt_arrives() {
+    use a4n_db::agent::run_budget_snapshot;
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "main").await;
+    let (_, row) = create_test_run(&db, thread.id, "user").await;
+    let request = budget_execution(row.id, "model-call:1", true);
+    let reservation =
+        a4n_domain::agent::agent_model_token_reservation(request.arguments_json.as_ref().unwrap());
+    let mut active: run::ActiveModel = row.clone().into();
+    active.budget_json = Set(json!({"max_tokens": reservation + 100}));
+    active.update(&db).await.unwrap();
+    let claimed = claim_runnable_run(&db, "tokens").await.unwrap().unwrap();
+    let token = claimed.lease_token.as_deref().unwrap();
+    let first = create_execution_for_run_lease(&db, request, token)
+        .await
+        .unwrap();
+    assert!(matches!(
+        create_execution_for_run_lease(&db, budget_execution(row.id, "model-call:2", true), token)
+            .await,
+        Err(AgentDbError::BudgetExhausted(_))
+    ));
+    update_execution_for_run_lease(
+        &db,
+        row.id,
+        token,
+        first.id,
+        "failed",
+        None,
+        None,
+        None,
+        Some("receipt lost".into()),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        run_budget_snapshot(&db, row.id)
+            .await
+            .unwrap()
+            .remaining
+            .max_tokens,
+        Some(100)
+    );
+    assert_eq!(
+        run_budget_snapshot(&db, row.id).await.unwrap().usage["tokens_reserved"],
+        reservation
+    );
+}
+
+#[tokio::test]
+async fn delegation_review_requires_matching_observed_versions_and_is_not_implicit() {
+    use a4n_db::agent::review_delegation;
+    use a4n_domain::agent::AgentDelegationReviewInput;
+    let db = setup_db().await;
+    let parent_thread = create_test_thread(&db, "main").await;
+    let child_thread = create_test_thread(&db, "canvas").await;
+    let (turn, parent) = create_test_run(&db, parent_thread.id, "user").await;
+    let (child_turn, child) = create_test_run(&db, child_thread.id, "delegation").await;
+    let ref1 = json!({"kind": "canvas_graph", "id": "17", "revision": "2"});
+    let mut ids = Vec::new();
+    for key in ["accept", "revise"] {
+        let row = create_delegation(
+            &db,
+            AgentDelegationInput {
+                parent_thread_id: parent_thread.id,
+                parent_run_id: parent.id,
+                parent_execution_id: None,
+                child_thread_id: child_thread.id,
+                child_turn_id: None,
+                child_run_id: None,
+                delegation_key: key.into(),
+                capability: "canvas".into(),
+                objective: "修改画布".into(),
+                success_criteria_json: json!([]),
+                scope_json: json!({}),
+                budget_json: json!({}),
+                status: "pending".into(),
+            },
+        )
+        .await
+        .unwrap();
+        bind_delegation_child(&db, row.id, parent.id, child_turn.id, child.id)
+            .await
+            .unwrap();
+        update_delegation(
+            &db,
+            row.id,
+            "awaiting_acceptance",
+            Some(json!([ref1])),
+            Some("交付".into()),
+            None,
+        )
+        .await
+        .unwrap();
+        ids.push(row.id);
+    }
+    let review = |id, status: &str, refs| AgentDelegationReviewInput {
+        user_id: 1,
+        delegation_id: id,
+        expected_child_run_id: child.id,
+        status: status.into(),
+        reason: "核查了指定版本".into(),
+        reviewed_refs: refs,
+    };
+    assert!(
+        review_delegation(&db, review(ids[0], "accepted", vec![ref1.clone()]))
+            .await
+            .is_err()
+    );
+    let claimed = claim_runnable_run(&db, "review").await.unwrap().unwrap();
+    let token = claimed.lease_token.as_deref().unwrap();
+    let evidence = create_execution_for_run_lease(
+        &db,
+        budget_execution(parent.id, "tool-call:read", false),
+        token,
+    )
+    .await
+    .unwrap();
+    update_execution_for_run_lease(
+        &db,
+        parent.id,
+        token,
+        evidence.id,
+        "succeeded",
+        Some(json!({})),
+        None,
+        Some(json!([ref1])),
+        None,
+    )
+    .await
+    .unwrap();
+    finish_run_with_message(
+        &db,
+        parent.id,
+        token,
+        AgentMessageInput {
+            thread_id: parent_thread.id,
+            turn_id: Some(turn.id),
+            run_id: Some(parent.id),
+            role: "assistant".into(),
+            sender_kind: "agent".into(),
+            sender_thread_id: None,
+            client_message_id: Some("final-review".into()),
+            content: "完成答复".into(),
+            status: "complete".into(),
+            payload_json: None,
+        },
+        None,
+        turn.input_message_id,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        delegation::Entity::find_by_id(ids[0])
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .status,
+        "awaiting_acceptance"
+    );
+    let mut wrong_user = review(ids[0], "accepted", vec![ref1.clone()]);
+    wrong_user.user_id = 2;
+    assert!(review_delegation(&db, wrong_user).await.is_err());
+    assert!(
+        review_delegation(
+            &db,
+            review(
+                ids[0],
+                "accepted",
+                vec![json!({"kind": "canvas_graph", "id": "17", "revision": "1"})]
+            )
+        )
+        .await
+        .is_err()
+    );
+    let accepted = review_delegation(&db, review(ids[0], "accepted", vec![ref1.clone()]))
+        .await
+        .unwrap();
+    assert_eq!(accepted.status, "accepted");
+    assert_eq!(
+        review_delegation(&db, review(ids[0], "accepted", vec![ref1]))
+            .await
+            .unwrap()
+            .id,
+        accepted.id
+    );
+    assert_eq!(
+        review_delegation(&db, review(ids[1], "revision_requested", vec![]))
+            .await
+            .unwrap()
+            .status,
+        "revision_requested"
+    );
+}
+
+#[tokio::test]
+async fn external_task_wait_wakes_only_its_live_execution() {
+    use a4n_db::agent::{
+        list_external_task_waits, wait_run_for_lease_with_request, wake_external_task_wait,
+    };
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "canvas").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+    let claim = claim_runnable_run(&db, "wait").await.unwrap().unwrap();
+    let token = claim.lease_token.as_deref().unwrap();
+    let mut input = budget_execution(run.id, "tool-call:wait", false);
+    input.execution_kind = "wait".into();
+    input.tool_name = Some("wait_workflow_run".into());
+    let execution = create_execution_for_run_lease(&db, input, token)
+        .await
+        .unwrap();
+    update_execution_for_run_lease(
+        &db,
+        run.id,
+        token,
+        execution.id,
+        "running",
+        None,
+        None,
+        None,
+        None,
+    )
+    .await
+    .unwrap();
+    wait_run_for_lease_with_request(&db, run.id, token, "external", None)
+        .await
+        .unwrap();
+    assert_eq!(list_external_task_waits(&db, 0).await.unwrap().len(), 1);
+    wake_external_task_wait(&db, run.id, execution.id + 1)
+        .await
+        .unwrap();
+    assert!(claim_runnable_run(&db, "wrong").await.unwrap().is_none());
+    wake_external_task_wait(&db, run.id, execution.id)
+        .await
+        .unwrap();
+    assert_eq!(
+        claim_runnable_run(&db, "ready").await.unwrap().unwrap().id,
+        run.id
+    );
+    cancel_run_tree(&db, run.id, None).await.unwrap();
+    wake_external_task_wait(&db, run.id, execution.id)
+        .await
+        .unwrap();
+    assert!(
+        claim_runnable_run(&db, "cancelled")
+            .await
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[tokio::test]
+async fn editor_wait_is_fenced_and_expires_without_dispatching() {
+    use a4n_db::agent::{
+        claim_editor_execution, expire_editor_requests, wait_run_for_lease_with_request,
+    };
+    let db = setup_db().await;
+    let thread = create_test_thread(&db, "director").await;
+    let (_, run) = create_test_run(&db, thread.id, "user").await;
+    let claimed = claim_runnable_run(&db, "editor-test")
+        .await
+        .unwrap()
+        .unwrap();
+    let token = claimed.lease_token.as_deref().unwrap();
+    let input = AgentExecutionInput {
+        run_id: run.id,
+        execution_key: "tool-call:editor-1".into(),
+        execution_kind: "tool_call".into(),
+        status: "prepared".into(),
+        tool_name: Some("inspect_editor_target".into()),
+        effect: Some("read".into()),
+        replay_policy: Some("safe".into()),
+        arguments_json: Some(json!({})),
+        resource_preconditions_json: None,
+    };
+    let execution = create_execution_for_run_lease(&db, input.clone(), token)
+        .await
+        .unwrap();
+    let mut different_tool = input;
+    different_tool.tool_name = Some("save_editor_draft".into());
+    assert!(
+        create_execution_for_run_lease(&db, different_tool, token)
+            .await
+            .is_err()
+    );
+    let request =
+        json!({"execution_id": execution.id.to_string(), "source":{"view_instance_id":"original"}});
+    let waiting =
+        wait_run_for_lease_with_request(&db, run.id, token, "external", Some(request.clone()))
+            .await
+            .unwrap();
+    assert!(waiting.lease_token.is_none());
+    assert!(claim_runnable_run(&db, "other").await.unwrap().is_none());
+    assert!(
+        claim_editor_execution(&db, 2, run.id, execution.id)
+            .await
+            .is_err()
+    );
+    assert!(
+        claim_editor_execution(&db, 1, run.id, execution.id + 1)
+            .await
+            .is_err()
+    );
+    let (left, right) = tokio::join!(
+        claim_editor_execution(&db, 1, run.id, execution.id),
+        claim_editor_execution(&db, 1, run.id, execution.id),
+    );
+    let claims = [left, right]
+        .into_iter()
+        .filter_map(Result::ok)
+        .collect::<Vec<_>>();
+    assert_eq!(claims.len(), 1);
+    assert!(
+        update_run_usage(&db, run.id, token, json!({}))
+            .await
+            .is_err()
+    );
+    wait_run_for_lease_with_request(
+        &db,
+        run.id,
+        claims[0].lease_token.as_deref().unwrap(),
+        "external",
+        Some(request),
+    )
+    .await
+    .unwrap();
+    assert_eq!(expire_editor_requests(&db, 10).await.unwrap(), 0);
+    let past = Utc::now().naive_utc() - Duration::seconds(31);
+    event::Entity::update_many()
+        .col_expr(
+            event::Column::CreatedAt,
+            sea_orm::sea_query::Expr::value(past),
+        )
+        .filter(event::Column::RunId.eq(run.id))
+        .filter(event::Column::Kind.eq("run_waiting"))
+        .exec(&db)
+        .await
+        .unwrap();
+    run::Entity::update_many()
+        .col_expr(
+            run::Column::UpdatedAt,
+            sea_orm::sea_query::Expr::value(past),
+        )
+        .filter(run::Column::Id.eq(run.id))
+        .exec(&db)
+        .await
+        .unwrap();
+    assert!(
+        claim_editor_execution(&db, 1, run.id, execution.id)
+            .await
+            .is_err()
+    );
+    assert_eq!(expire_editor_requests(&db, 10).await.unwrap(), 1);
+    assert_eq!(expire_editor_requests(&db, 10).await.unwrap(), 0);
+    let failed = execution::Entity::find_by_id(execution.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(failed.status, "failed");
+    assert!(failed.result_json.is_none());
+    assert!(failed.error_message.unwrap().contains("未执行写入"));
+    let requeued = claim_runnable_run(&db, "resumed").await.unwrap().unwrap();
+    assert_eq!(requeued.id, run.id);
 }
 
 #[tokio::test]
@@ -803,9 +1466,11 @@ async fn finish_run_with_message_closes_message_turn_and_run_atomically() {
             payload_json: None,
         },
         Some(json!([{"kind": "chapter", "id": "1"}])),
+        turn.input_message_id,
     )
     .await
-    .expect("run completion must succeed");
+    .expect("run completion must succeed")
+    .expect("no new input should defer completion");
 
     assert_eq!(completed.status, "completed");
     assert!(!completed.is_active);

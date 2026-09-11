@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 
-use a4n_core::models::project::text_anchor;
+use a4n_db_models::models::project::text_anchor;
 
 use crate::text_anchor::{TextAnchorDbError, TextAnchorDbResult};
 

@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
+use a4n_error::AppError;
 use chrono::Utc;
 
 use crate::outline::context::{load_part_generation_context, lock_outline_generation_sources};

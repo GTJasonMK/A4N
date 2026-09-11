@@ -1,13 +1,12 @@
-use a4n_core::models::project::novel_project;
-use a4n_core::state::validator::parse_project_status;
-use a4n_domain::project::ProjectStatus;
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::{ProjectStatus, ProjectStatusHistoryInput};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use super::super::types::{ProjectGeneratedDataResetOutcome, ProjectResetDbError};
 use super::result::{GalgameResetOutcomeInput, galgame_reset_outcome};
 use crate::galgame::delete_galgame_script_records_for_project;
-use crate::project::{self as project_db, ProjectStatusHistoryInput};
+use crate::project as project_db;
 use crate::project_delete::{GeneratedImageDeleteScope, delete_chapter_generation_outputs};
 
 pub(in crate::project_reset) async fn reset_galgame_generated_data_in_tx(
@@ -16,11 +15,12 @@ pub(in crate::project_reset) async fn reset_galgame_generated_data_in_tx(
     candidate_media_paths: Vec<String>,
 ) -> Result<ProjectGeneratedDataResetOutcome, ProjectResetDbError> {
     let project_id = project.id;
-    let previous_status =
-        parse_project_status(&project.status).map_err(|_| ProjectResetDbError::InvalidState {
+    let previous_status = ProjectStatus::parse_storage(&project.status).map_err(|_| {
+        ProjectResetDbError::InvalidState {
             current: project.status.clone(),
             operation: "重置 Galgame 项目生成数据".to_string(),
-        })?;
+        }
+    })?;
     let now = Utc::now().naive_utc();
 
     let optimization_cleanup =
@@ -40,7 +40,7 @@ pub(in crate::project_reset) async fn reset_galgame_generated_data_in_tx(
     active.total_chapters = Set(None);
     active.import_analysis_progress = Set(None);
     active.updated_at = Set(now);
-    let updated = active.update(&tx).await?;
+    active.update(&tx).await?;
 
     if previous_status != ProjectStatus::Draft {
         project_db::insert_project_status_history(
@@ -68,7 +68,6 @@ pub(in crate::project_reset) async fn reset_galgame_generated_data_in_tx(
     tx.commit().await?;
 
     Ok(galgame_reset_outcome(GalgameResetOutcomeInput {
-        project: updated,
         previous_status,
         optimization_cleanup,
         chapter_generation_cleanup,

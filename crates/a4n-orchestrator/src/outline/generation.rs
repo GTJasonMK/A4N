@@ -10,8 +10,9 @@ use a4n_api_contract::{
         StartOutlineGenerationInput,
     },
 };
-use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_error::AppError;
+use a4n_llm::provider::ChatRequest;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, StreamTextHash, TextStreamSnapshot,
 };
@@ -26,6 +27,7 @@ use crate::{
         GenerationProgressUpdate, generation_public_error, publish_step_progress,
         terminal::CompletionDescriptor,
     },
+    outline::{OutlineGenerationApplicationPort, OutlineRequestPreviewStep},
 };
 
 use super::{OutlineLlmStreamContext, ProgressReporter, with_outline_llm_stream};
@@ -463,6 +465,102 @@ fn outline_app_error_to_generation_error(error: AppError, stage_code: &str) -> G
         _ => ("generation_persist_failed", stage_code),
     };
     generation_public_error(code, stage, error)
+}
+
+#[async_trait::async_trait]
+impl OutlineGenerationApplicationPort for OrchestratorContext {
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartOutlineGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_outline_generation_task(self, user_id, input).await
+    }
+
+    async fn run_task(
+        &self,
+        input: StartOutlineGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_outline_generation_task(self, input, handle).await
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::outline::OutlinePreviewApplicationPort for OrchestratorContext {
+    async fn preview_generate_parts(
+        &self,
+        input: GeneratePartsInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
+        self.preview_generate_parts_validated(input).await
+    }
+
+    async fn preview_regenerate_parts(
+        &self,
+        input: RegeneratePartsInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
+        self.preview_regenerate_parts_validated(input).await
+    }
+
+    async fn preview_regenerate_last_part(
+        &self,
+        input: RegenerateLastPartInput,
+    ) -> Result<ChatRequest, AppError> {
+        self.preview_regenerate_last_part_validated(input).await
+    }
+
+    async fn preview_continue_part_outlines(
+        &self,
+        input: ContinuePartOutlinesInput,
+    ) -> Result<ChatRequest, AppError> {
+        self.preview_continue_part_outlines_validated(input).await
+    }
+
+    async fn preview_regenerate_part_outline(
+        &self,
+        input: RegeneratePartOutlineInput,
+    ) -> Result<ChatRequest, AppError> {
+        self.preview_regenerate_part_outline_validated(input).await
+    }
+
+    async fn preview_generate_part_chapter_outlines(
+        &self,
+        input: GeneratePartChapterOutlinesInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
+        self.preview_generate_part_chapter_outlines_validated(input)
+            .await
+    }
+
+    async fn preview_batch_generate_part_outlines(
+        &self,
+        input: BatchGeneratePartOutlinesInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
+        self.preview_batch_generate_part_outlines_validated(input)
+            .await
+    }
+
+    async fn preview_generate_chapter_outlines_by_count(
+        &self,
+        input: GenerateChapterOutlinesByCountInput,
+    ) -> Result<Vec<OutlineRequestPreviewStep>, AppError> {
+        self.preview_generate_chapter_outlines_by_count_validated(input)
+            .await
+    }
+
+    async fn preview_regenerate_chapter_outline(
+        &self,
+        input: RegenerateChapterOutlineInput,
+    ) -> Result<ChatRequest, AppError> {
+        self.preview_regenerate_chapter_outline_validated(input)
+            .await
+    }
+
+    async fn preview_apply_beat_mapping(
+        &self,
+        input: ApplyBeatMappingInput,
+    ) -> Result<ChatRequest, AppError> {
+        self.preview_apply_beat_mapping_validated(input).await
+    }
 }
 
 fn outline_operation_key(operation: &OutlineGenerationOperation) -> &'static str {

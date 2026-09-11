@@ -1,10 +1,10 @@
 //! 反推请求上下文 manifest。
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 use a4n_api_contract::import_reverse::ReverseEngineeringTarget;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm::context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
     LlmContextLedgerPackDraft, LlmContextManifest,

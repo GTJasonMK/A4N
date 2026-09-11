@@ -1,6 +1,6 @@
 use super::super::types::CharacterDeletionMarkUpsertInput;
 use super::rules::next_deletion_mark_count;
-use a4n_core::models::character::protagonist_deletion_mark;
+use a4n_db_models::models::character::protagonist_deletion_mark;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set,

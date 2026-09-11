@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
 use a4n_db::workflow;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
 

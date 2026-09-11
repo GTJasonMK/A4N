@@ -2,7 +2,7 @@ use crate::galgame::{
     GalgameCompletedVisualAssetRecord, GalgameMediaRecordError, GalgameTargetContext,
     MEDIA_KIND_IMAGE, MEDIA_STATUS_COMPLETED,
 };
-use a4n_core::models::{generation::generation_spec, media::media_asset};
+use a4n_db_models::models::{generation::generation_spec, media::media_asset};
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
 
 pub(in crate::galgame) fn validate_galgame_media_asset_source_context(

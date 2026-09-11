@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::ai::generated_video};
+use a4n_db_models::models::ai::generated_video;
+use a4n_error::AppError;
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,

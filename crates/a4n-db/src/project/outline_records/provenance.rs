@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::{chapter, chapter_outline, chapter_outline_provenance};
+use a4n_db_models::models::chapter::{chapter, chapter_outline, chapter_outline_provenance};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{
@@ -478,8 +478,8 @@ mod source_contract_tests {
     use crate::project::outline_records::contracts::{
         chapter_source_snapshot_matches, chapter_source_snapshot_targets,
     };
-    use a4n_core::models::chapter::chapter;
-    use a4n_core::source_spans::source_text_hash;
+    use a4n_db_models::models::chapter::chapter;
+    use a4n_domain::source_text_hash;
     use chrono::Utc;
     use sea_orm::{DbBackend, QueryTrait};
 

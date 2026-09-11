@@ -3,27 +3,26 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::generated_video,
-        canvas::{canvas_graph, canvas_node},
-        generation::generation_spec,
-        media::media_asset,
-        project::novel_project,
-    },
-    video_workflow::WORKFLOW_MODE_CANVAS_VIDEO,
-};
 use a4n_db::{
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
     project::{
-        CreateFreeformVideoProjectParams, PROJECT_KIND_TEXT, ProjectMediaCopyError,
-        ProjectMediaFileCopier, SOURCE_SYNC_CURRENT, create_freeform_video_project_record,
+        CreateFreeformVideoProjectParams, PROJECT_KIND_TEXT, SOURCE_SYNC_CURRENT,
+        create_freeform_video_project_record,
     },
 };
+use a4n_db_models::models::{
+    ai::generated_video,
+    canvas::{canvas_graph, canvas_node},
+    generation::generation_spec,
+    media::media_asset,
+    project::novel_project,
+};
 use a4n_domain::canvas_transfer_runtime_identity_key;
+use a4n_domain::project::{ProjectMediaCopyError, ProjectMediaFileCopier};
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_error::AppError;
 use async_trait::async_trait;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -387,7 +386,7 @@ async fn insert_generated_video(
     generated_video::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(None),
-        video_type: Set(generated_video::VIDEO_TYPE_CANVAS.to_string()),
+        video_type: Set(a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string()),
         workflow_mode: Set(Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string())),
         file_path: Set(None),
         thumbnail_path: Set(None),

@@ -1,6 +1,6 @@
 //! Durable project deletion cleanup outbox.
 
-use a4n_core::models::task::cleanup_outbox;
+use a4n_db_models::models::task::cleanup_outbox;
 use sea_orm::{DbBackend, EntityName, Schema};
 use sea_orm_migration::prelude::*;
 

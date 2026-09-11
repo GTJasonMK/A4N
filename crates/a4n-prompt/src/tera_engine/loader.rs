@@ -6,7 +6,7 @@ mod scan;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use self::commit::staged_tera_for_entries;
 use self::registry::runtime_commit_plan_for_registry;

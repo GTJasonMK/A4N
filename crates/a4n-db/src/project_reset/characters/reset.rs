@@ -4,7 +4,7 @@ use super::{
     queries::load_character_profile_reset_scope,
 };
 use crate::{character, project_reset::ProjectResetDbError};
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 use chrono::NaiveDateTime;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter,

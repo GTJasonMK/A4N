@@ -1,8 +1,6 @@
-use super::contracts::{
-    ImportReviewCreateInput, ImportReviewMutationError, ensure_pending_import_review,
-};
-use a4n_core::models::{chapter::chapter, project::import_review_queue};
-use a4n_domain::import_review::ImportReviewStatus;
+use super::contracts::{ImportReviewMutationError, ensure_pending_import_review};
+use a4n_db_models::models::{chapter::chapter, project::import_review_queue};
+use a4n_domain::import_review::{ImportReviewCreateInput, ImportReviewStatus};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,

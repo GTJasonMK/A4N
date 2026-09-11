@@ -6,9 +6,6 @@ mod contracts;
 mod image_generation;
 mod image_record_lifecycle;
 mod image_workflow_rules;
-mod rules;
-mod upload_rules;
-mod uploaded_image_rules;
 
 pub use batch_image_application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationItem,
@@ -16,29 +13,27 @@ pub use batch_image_application::{
 };
 pub use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
-    GenerateBatchImagesInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
-    GeneratePageImageInput, GenerateSceneImageInput, GeneratedImageSummary,
-    ImageGenerationExecutionInput, ImageGenerationExecutionOutcome, ImageGenerationHostPort,
-    ImageGenerationPostCommitAction, ImageGenerationProgress, ImageGenerationProviderInput,
-    ImageGenerationProviderOutput, ImageGenerationWorkflowBinding, ObjectProfileImageInput,
-    ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
-    PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
-    generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
+    GeneratedImageSummary, ImageGenerationApplicationPort, ImageGenerationExecutionInput,
+    ImageGenerationExecutionOutcome, ImageGenerationHostPort, ImageGenerationPostCommitAction,
+    ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
+    ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
+    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
+    PreparedGeneratedImageFile, PreparedImageGenerationRequest, SceneProfileImageInput,
+    SceneProfileImagePromptOutput, generated_image_summary, image_generation_request_trace_json,
+    normalize_image_metadata,
 };
-pub use image_record_lifecycle::PreparedImportedImageUpload;
+pub use image_record_lifecycle::{
+    GeneratedImageIdentity, ImageRecordApplicationPort, PreparedImportedImageUpload,
+};
+
 pub use image_workflow_rules::{
     batch_image_item_step_key, batch_image_workflow_business_key, batch_image_workflow_fingerprint,
     batch_image_workflow_run_input, image_generation_step_key,
     image_generation_workflow_business_key, image_generation_workflow_fingerprint,
     image_generation_workflow_run_input,
 };
-pub use upload_rules::{
-    DecodedUploadedAudio, MAX_IMPORT_AUDIO_BYTES, decode_uploaded_audio_data,
-    decode_uploaded_bytes, required_upload_file_name,
-};
-pub use uploaded_image_rules::{DecodedUploadedImage, decode_uploaded_image_data};
 
-pub use rules::{
+pub use a4n_domain::media::{
     MEDIA_BINDING_ROLE_BACKGROUND, MEDIA_BINDING_ROLE_BGM, MEDIA_BINDING_ROLE_CG,
     MEDIA_BINDING_ROLE_SFX, MEDIA_BINDING_ROLES, MEDIA_BINDING_TARGET_GALGAME_LINE,
     MEDIA_BINDING_TARGET_GALGAME_SCENE, MEDIA_BINDING_TARGET_KINDS, MEDIA_KIND_AUDIO,
@@ -52,17 +47,18 @@ pub use rules::{
 };
 
 use std::fs::{self, File};
-use std::io::{Cursor, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use a4n_core::error::AppError;
-use a4n_core::files::{
+use a4n_db::media::MediaDbError;
+use a4n_db_models::models::media::media_asset;
+use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput};
+use a4n_error::AppError;
+use a4n_storage::{
     create_unique_timestamped_file,
     paths::{ProjectPaths, data_dir_relative_file_path},
     remove_created_file_on_error_sync,
 };
-use a4n_core::models::media::media_asset;
-use a4n_db::media::{CreateMediaAssetRecordInput, MediaDbError, MediaProvenanceRecordInput};
 use sha2::{Digest, Sha256};
 
 use crate::OrchestratorContext;
@@ -195,7 +191,7 @@ impl OrchestratorContext {
 /// 单张图片生成 begin 的返回值（workflow + Host 后续 checkpoint 所需字段）。
 #[derive(Debug, Clone)]
 pub struct ImageGenerationWorkflowStart {
-    pub workflow_run: a4n_core::models::generation::workflow_run::Model,
+    pub workflow_run: a4n_db_models::models::generation::workflow_run::Model,
     pub step_key: String,
     pub fingerprint_json: serde_json::Value,
 }
@@ -228,27 +224,6 @@ fn media_file_checksum(path: &Path) -> Result<String, AppError> {
     let mut hasher = Sha256::new();
     hasher.update(&bytes);
     Ok(format!("{:x}", hasher.finalize()))
-}
-
-pub fn image_dimensions_from_bytes(bytes: &[u8]) -> Result<(i32, i32), AppError> {
-    let reader = image::ImageReader::new(Cursor::new(bytes))
-        .with_guessed_format()
-        .map_err(|error| AppError::InvalidState {
-            current: "provider_response".to_string(),
-            operation: format!("图片 provider 返回的媒体格式无法识别：{error}"),
-        })?;
-    let (width, height) = reader
-        .into_dimensions()
-        .map_err(|error| AppError::InvalidState {
-            current: "provider_response".to_string(),
-            operation: format!("图片 provider 返回的媒体尺寸无法读取：{error}"),
-        })?;
-    Ok((
-        i32::try_from(width)
-            .map_err(|_| AppError::InvalidArgument("图片宽度超出支持范围".to_string()))?,
-        i32::try_from(height)
-            .map_err(|_| AppError::InvalidArgument("图片高度超出支持范围".to_string()))?,
-    ))
 }
 
 fn required_text<'a>(value: &'a str, label: &str) -> Result<&'a str, AppError> {
@@ -313,10 +288,6 @@ fn media_db_error(error: MediaDbError) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use base64::Engine as _;
-
-    const PNG_1X1: &str = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
-
     #[test]
     fn media_thumbnail_path_must_be_relative_to_data_dir() {
         let error = resolve_data_file(
@@ -331,14 +302,6 @@ mod tests {
             AppError::InvalidArgument(message)
                 if message == "媒体缩略图必须是应用数据目录内的相对路径"
         ));
-    }
-
-    #[test]
-    fn image_dimensions_use_actual_media_bytes() {
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(PNG_1X1)
-            .expect("测试 PNG 应有效");
-        assert_eq!(image_dimensions_from_bytes(&bytes).unwrap(), (1, 1));
     }
 
     #[test]

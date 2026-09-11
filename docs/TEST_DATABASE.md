@@ -1,29 +1,33 @@
 # 测试数据库
 
-项目的 PostgreSQL 使用 Docker Compose 中的 `a4n-postgres` 容器。当前数据库角色如下：
+## 隔离要求
 
-- 主库：`a4n`，当前 `.env` 的 `A4N_DATABASE_URL` 指向这里；禁止对它执行测试清库或破坏性 fixture。
-- 本次 CLI E2E 测试库：`a4n_cli_e2e_20260826`，专供本轮隔离 Server 和 fixture 使用，可安全清理或重建。
-- 旧共享测试库：`a4n_test`，本轮不使用，避免把历史数据混入结果。
+数据库测试只连接本轮明确分配的独立 PostgreSQL 数据库。开发库 `a4n`、生产库和其他会话正在使用的测试库不能用于清表、重建 schema 或破坏性 fixture。库名中的 `test` 不是清理授权；执行前确认实际服务器、数据库和所有者。
 
-公共连接信息为 `postgres://a4n@127.0.0.1:5432/<database>`；密码只从本机配置文件读取，不写入文档、代码或日志。
+`A4N_TEST_DATABASE_URL` 是 Rust 数据库测试的连接入口。不要照抄历史记录中的带日期库名，也不要假定其他机器或之前的会话已创建好测试库。
 
-当前开发机上的测试库已经创建完成。其他会话开始数据库测试前，先确认容器已启动：
+## 准备与执行
+
+本地 PostgreSQL 的启动入口：
 
 ```bash
 ./scripts/dev/dev-db.sh up
 ```
 
-然后在当前 shell 设置本轮测试连接（不要写入提交的 `.env`，也不要把凭据复制到代码或日志）：
+创建并确认本轮专用库后，在当前 shell 配置连接串。下面是格式示例，需替换为本机测试角色与凭据：
 
 ```bash
-export A4N_TEST_DATABASE_URL='postgres://a4n:<本机配置中的密码>@127.0.0.1:5432/a4n_cli_e2e_20260826'
+export A4N_TEST_DATABASE_URL='postgres://TEST_USER:TEST_PASSWORD@127.0.0.1:5432/a4n_test_example'
+timeout 60s ./scripts/cargo.sh test -p a4n-db --lib -- --test-threads=1
 ```
 
-数据库测试默认应串行运行，因为部分测试会重建或清理共享 schema：
+涉及 schema 或共享表的测试必须串行；并行会话各自使用不同数据库。前述命令只设置测试连接，不负责创建数据库。测试数据库和凭据不写入仓库，也不在日志中输出完整连接串。
 
-```bash
-cargo test -p a4n-db --lib -- --test-threads=1
-```
+部分测试在环境变量缺失时会提前返回，因此进程退出为零不一定说明数据库路径已被验证。记录连接环境、测试筛选条件、结果及跳过项；不要把编译完成或超时写成测试通过。
 
-运行单个 crate 时同样保留 `--test-threads=1`。测试库可以安全清理和重建；不要对开发数据库 `a4n` 执行测试清库操作。
+## 脚本差异
+
+- `scripts/test.sh` 只支持 `--crate` 和 `--nocapture`，不能直接追加任意 Cargo/test 参数；需要筛选或 `--test-threads=1` 时使用上面的 `scripts/cargo.sh`。
+- 需要 ONNX Runtime 的 crate 先按 [README](../README.md)准备依赖；不要为了绕过环境检查修改测试语义。
+- CLI、浏览器和 export Worker 的集成测试还需要各自的 Server、端口和数据目录。具体要求见 [CLI E2E](virtual-provider-cli-e2e.md)、[浏览器验收](browser-full-project-e2e.md)和 [CLI 测试指南](../crates/a4n-cli/TEST.md)。
+- 只有在确认没有其他使用者、且属于本轮可销毁 fixture 时，才回收该测试数据库。

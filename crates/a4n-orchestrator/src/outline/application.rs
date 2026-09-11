@@ -6,12 +6,10 @@ use a4n_api_contract::outline::{
     OutlineGenerationProgressSummary, RegenerateChapterOutlineInput, RegenerateLastPartInput,
     RegeneratePartOutlineInput, RegeneratePartsInput,
 };
-use a4n_core::{
-    error::AppError,
-    models::chapter::{chapter_outline, part_outline},
-};
 use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgressPart};
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 use a4n_domain::project::ProjectStatus;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::variables::parse_template_variables_app_error;
 use serde_json::json;

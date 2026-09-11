@@ -3,7 +3,7 @@ use super::{
     ReverseEngineerInput, ReverseEngineeringCandidate, ReverseEngineeringTarget,
 };
 use crate::{AppState, actions::access};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub struct AuthorizedReverseEngineerInput {
     input: ReverseEngineerInput,
@@ -35,7 +35,7 @@ pub async fn authorize_reverse_engineer(
 pub async fn reverse_engineer(
     state: &AppState,
     authorized: AuthorizedReverseEngineerInput,
-    progress: &(dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync),
+    progress: &(dyn for<'a> Fn(u32, u32, &'a str) -> Result<(), AppError> + Send + Sync),
     active_task_id: Option<&str>,
 ) -> Result<ReverseEngineeringCandidate, AppError> {
     let input = authorized.input;
@@ -43,8 +43,8 @@ pub async fn reverse_engineer(
     let target = input.target;
     let prompt_renderer = state;
     let mut result = state
-        .orchestrator()
-        .run_reverse_engineering_validated(input, prompt_renderer, progress, active_task_id)
+        .import_reverse_application()
+        .run(input, prompt_renderer, progress, active_task_id)
         .await?;
     if target == ReverseEngineeringTarget::Blueprint {
         result
@@ -61,8 +61,8 @@ pub async fn get_reverse_engineering_candidate(
 ) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
     access::verify_project_access(state, user_id, input.project_id).await?;
     state
-        .orchestrator()
-        .latest_reverse_engineering_candidate_validated(input.project_id, input.target)
+        .import_reverse_application()
+        .latest(input.project_id, input.target)
         .await
 }
 
@@ -72,8 +72,8 @@ pub async fn confirm_reverse_engineering_candidate(
     input: &ConfirmReverseEngineeringCandidateInput,
 ) -> Result<ReverseEngineeringCandidate, AppError> {
     let run = state
-        .orchestrator()
-        .workflow_run_model_by_id(input.workflow_run_id)
+        .workflow_task_lookup_application()
+        .workflow_run_summary(input.workflow_run_id)
         .await?;
     let project_id = run
         .project_id
@@ -87,8 +87,8 @@ pub async fn confirm_reverse_engineering_candidate(
         })?;
     access::verify_project_editor(state, user_id, project_id).await?;
     let mut result = state
-        .orchestrator()
-        .confirm_reverse_engineering_candidate_validated(input.workflow_run_id)
+        .import_reverse_application()
+        .confirm(input.workflow_run_id)
         .await?;
     let target = result.target;
     result

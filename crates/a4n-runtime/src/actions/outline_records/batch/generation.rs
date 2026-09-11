@@ -1,6 +1,6 @@
 use super::super::{BatchGeneratePartOutlinesInput, outline_preview};
 use crate::{AppState, actions::request_preview::ModelRequestPreview};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn preview_batch_generate_part_outlines_request(
     state: &AppState,
@@ -8,16 +8,16 @@ pub async fn preview_batch_generate_part_outlines_request(
     input: BatchGeneratePartOutlinesInput,
 ) -> Result<ModelRequestPreview, AppError> {
     state
-        .orchestrator()
-        .verify_project_permission(
-            input.project_id,
+        .project_access_application()
+        .verify_permission(
             user_id,
-            a4n_orchestrator::collaboration::ProjectAccessRole::Editor,
+            input.project_id,
+            a4n_api_contract::collaboration::ProjectAccessRole::Editor,
         )
         .await?;
     let all_steps = state
-        .orchestrator()
-        .preview_batch_generate_part_outlines_validated(input)
+        .outline_preview_application()
+        .preview_batch_generate_part_outlines(input)
         .await?;
     outline_preview(
         state,

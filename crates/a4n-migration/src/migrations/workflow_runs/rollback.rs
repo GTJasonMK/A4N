@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_run, workflow_checkpoint, workflow_progress_event, workflow_run},
     task::task_queue,
 };

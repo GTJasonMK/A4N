@@ -5,7 +5,7 @@ use super::prompt_json::{
     video_prompt_missing_required_section_for_language, video_prompt_stale_section_for_language,
     video_prompt_upload_status_term,
 };
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 /// 与 motion prompt 下限一致（单一来源）。
 pub const MIN_PROVIDER_MOTION_PROMPT_CHARS: usize = 60;

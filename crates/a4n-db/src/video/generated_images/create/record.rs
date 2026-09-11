@@ -1,8 +1,8 @@
 use super::super::CreateGeneratedImageRecordInput;
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
 
-pub(super) async fn insert_generated_image_record<C>(
+pub(in crate::video::generated_images) async fn insert_generated_image_record<C>(
     db: &C,
     input: CreateGeneratedImageRecordInput,
 ) -> Result<generated_image::Model, DbErr>

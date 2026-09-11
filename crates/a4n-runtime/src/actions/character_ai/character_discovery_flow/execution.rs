@@ -1,13 +1,10 @@
 use a4n_api_contract::character::{
     DiscoverCharacterProfilesInput, DiscoverCharacterProfilesResult,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::character::CharacterDiscoveryProgress;
 
-use crate::{
-    AppState,
-    actions::{access, character_ai::CharacterAiProgress},
-};
+use crate::{AppState, actions::character_ai::CharacterAiProgress};
 
 pub async fn discover_character_profiles(
     state: &AppState,
@@ -15,9 +12,6 @@ pub async fn discover_character_profiles(
     input: DiscoverCharacterProfilesInput,
     progress: Option<&CharacterAiProgress<'_>>,
 ) -> Result<DiscoverCharacterProfilesResult, String> {
-    access::verify_project_editor(state, user_id, input.project_id)
-        .await
-        .map_err(|err| err.to_string())?;
     let prompt_renderer = state;
     let reporter = |current, total, message: &str| match progress {
         Some(progress) => progress
@@ -37,8 +31,8 @@ pub async fn discover_character_profiles(
         active_task_id: progress.task_id,
     });
     state
-        .orchestrator()
-        .discover_character_profiles_validated(input, prompt_renderer, application_progress)
+        .character_ai_application()
+        .discover(user_id, input, prompt_renderer, application_progress)
         .await
         .map_err(|error| error.to_string())
 }

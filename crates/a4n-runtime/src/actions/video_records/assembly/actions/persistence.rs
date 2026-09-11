@@ -1,6 +1,6 @@
 use crate::AppState;
 use crate::actions::video_records::append_video_record_cleanup_error;
-use crate::file_utils::persist_created_media_file;
+use a4n_storage::persist_created_media_file;
 use std::path::{Path, PathBuf};
 
 pub(super) async fn persist_assembly_record_output<B, R>(
@@ -27,5 +27,5 @@ where
         )
         .map(|(relative_path, file_size)| (output, relative_path, file_size))
     });
-    append_video_record_cleanup_error(state.orchestrator(), record_id, result).await
+    append_video_record_cleanup_error(state.video_record_application(), record_id, result).await
 }

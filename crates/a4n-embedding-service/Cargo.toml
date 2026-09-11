@@ -9,7 +9,6 @@ default = ["fastembed"]
 fastembed = ["dep:a4n-embedding-fastembed"]
 
 [dependencies]
-a4n-core = { path = "../a4n-core" }
 a4n-domain = { path = "../a4n-domain" }
 a4n-embedding = { path = "../a4n-embedding" }
 a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed", optional = true }

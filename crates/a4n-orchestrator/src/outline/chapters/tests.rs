@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
 use a4n_llm::provider::MessageRole;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use chrono::Utc;

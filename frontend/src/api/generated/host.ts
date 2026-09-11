@@ -86,7 +86,9 @@ export const HOST_API_COMMANDS = [
   "discover_character_profiles",
   "download_embedding_model",
   "duplicate_project",
+  "edit_canvas_graph",
   "edit_chapter_shooting_script",
+  "edit_chapter_visual_plan_draft",
   "execute_attribute_deletion",
   "export_all_configs_json",
   "export_batch_data",
@@ -133,6 +135,9 @@ export const HOST_API_COMMANDS = [
   "get_log_dir",
   "get_manga_pipeline_status",
   "get_optimize_session",
+  "get_package_operation",
+  "get_package_overview",
+  "get_package_preferences",
   "get_primary_portrait",
   "get_profile_state_at_chapter",
   "get_project",
@@ -193,6 +198,7 @@ export const HOST_API_COMMANDS = [
   "list_optimize_sessions",
   "list_optimize_turns",
   "list_orphan_project_data_dirs",
+  "list_package_command_availability",
   "list_parts",
   "list_pending_tasks",
   "list_portraits_by_project",
@@ -294,6 +300,8 @@ export const HOST_API_COMMANDS = [
   "rag_prepare_enhanced_search",
   "rag_prepare_ingest_all",
   "rag_upload_ingest_embeddings",
+  "read_canvas_graph",
+  "read_chapter_visual_plan",
   "read_recent_logs",
   "record_optimize_agent_event",
   "refresh_token",
@@ -307,11 +315,13 @@ export const HOST_API_COMMANDS = [
   "request_attribute_deletion",
   "reset_deletion_marks",
   "reset_project_generated_data",
+  "respond_agent_editor",
   "restore_blueprint_version",
   "resume_chapter_analysis_sync",
   "resume_manga_pipeline",
   "resume_workflow_run",
   "reverse_engineer",
+  "review_agent_delegation",
   "revoke_project_invite",
   "revoke_session",
   "rollback_project_status",
@@ -345,6 +355,7 @@ export const HOST_API_COMMANDS = [
   "start_optimize_chat_generation",
   "start_optimize_patch_generation",
   "start_outline_generation",
+  "start_package_lifecycle",
   "start_portrait_generation",
   "start_video_generation",
   "sync_all_character_profiles",
@@ -375,6 +386,7 @@ export const HOST_API_COMMANDS = [
   "update_llm_max_tokens_config",
   "update_manga_prompt",
   "update_object_profile",
+  "update_package_preferences",
   "update_project",
   "update_project_member_role",
   "update_scene_profile",
@@ -393,6 +405,7 @@ export const HOST_API_COMMANDS = [
   "upload_profile_material_image",
   "upload_reference_media_video",
   "upload_theme_resource",
+  "validate_chapter_visual_plan",
 ] as const;
 
 export type HostApiCommand = (typeof HOST_API_COMMANDS)[number];
@@ -545,8 +558,8 @@ export const AGENT_EVENTS_DEFAULT_LIMIT = 100;
 export const AGENT_EVENTS_MAX_LIMIT = 1000;
 export const AGENT_THREADS_DEFAULT_LIMIT = 50;
 export const AGENT_THREADS_MAX_LIMIT = 500;
-export const AGENT_TOOLS_DEFAULT_LIMIT = 50;
-export const AGENT_TOOLS_MAX_LIMIT = 500;
+export const AGENT_TOOLS_DEFAULT_LIMIT = 20;
+export const AGENT_TOOLS_MAX_LIMIT = 100;
 
 export type AgentThreadKind = "main" | "subagent";
 
@@ -605,6 +618,75 @@ export interface AgentScope {
   project_id: number | null;
   resource_id: string | null;
   resource_kind: string | null;
+}
+
+export interface AgentEditorSource {
+  chapter_id: number;
+  editor_revision: string;
+  entity_id: string | null;
+  keyframe_id: string | null;
+  project_id: number;
+  scene_id: string | null;
+  shot_id: string | null;
+  view_instance_id: string;
+}
+
+export interface AgentEditorState {
+  dirty: boolean;
+  editor_revision: string;
+  has_uncommitted_dialog: boolean;
+  record_id: number | null;
+  record_revision: number | null;
+}
+
+export type AgentEditorOperation = { kind: "inspect" } | { input: ReadEditorDraftInput; kind: "read" } | { input: SaveEditorDraftInput; kind: "save" } | { expected_editor_revision: string; kind: "prepare_write"; record_id?: number | null; record_revision?: number | null };
+
+export interface AgentEditorRequest {
+  execution_id: string;
+  operation: AgentEditorOperation;
+  source: AgentEditorSource;
+}
+
+export type AgentEditorResponse = { kind: "state"; state: AgentEditorState } | { editor_revision: string; kind: "draft"; plan: ChapterVisualPlanV2 } | { kind: "save_draft"; plan: ChapterVisualPlanV2; state: AgentEditorState } | { kind: "ready_to_write"; state: AgentEditorState } | { kind: "error"; message: string };
+
+export interface AgentEditorReply {
+  error_message: string | null;
+  execution_id: string;
+  saved_draft: ChapterVisualPlanView | null;
+  status: AgentExecutionStatus;
+}
+
+export interface AgentEditorTarget {
+  source: AgentEditorSource;
+  state: AgentEditorState;
+}
+
+export interface AgentEditorDraftView {
+  editor_revision: string;
+  projection: VisualPlanProjection;
+  source: string;
+  view_instance_id: string;
+}
+
+export interface AgentEditorSavedView {
+  editor_revision: string;
+  resource: AgentResourceRef;
+}
+
+export interface ReadEditorDraftInput {
+  expected_editor_revision: string;
+  view: VisualPlanReadView;
+}
+
+export interface SaveEditorDraftInput {
+  expected_editor_revision: string;
+}
+
+export interface RespondAgentEditorInput {
+  execution_id: string;
+  response: AgentEditorResponse;
+  run_id: string;
+  view_instance_id: string;
 }
 
 export interface AgentBudget {
@@ -731,6 +813,16 @@ export interface AgentDelegationView {
   updated_at: string;
 }
 
+export type AgentDelegationReviewDecision = "accept" | "request_revision";
+
+export interface ReviewAgentDelegationInput {
+  decision: AgentDelegationReviewDecision;
+  delegation_id: string;
+  expected_child_run_id: string;
+  reason: string;
+  reviewed_refs: AgentResourceRef[];
+}
+
 export interface AgentApprovalView {
   args_digest: string | null;
   command: string;
@@ -777,11 +869,39 @@ export interface AgentMemoryView {
   updated_at: string;
 }
 
+export interface ReadAgentMemoryInput {
+  limit?: number | null;
+  query?: string | null;
+}
+
+export interface AgentMemorySearchResult {
+  memories: AgentMemoryView[];
+  total: number;
+}
+
+export interface ReadAgentExecutionResultInput {
+  execution_id: string;
+  limit?: number | null;
+  offset?: number;
+  pointer?: string;
+}
+
+export interface AgentExecutionResultPage {
+  complete: boolean;
+  execution_id: string;
+  next_offset: number | null;
+  offset: number;
+  pointer: string;
+  text: string;
+  total_chars: number;
+}
+
 export interface AgentEvent {
   actor_id: string | null;
   actor_kind: string;
   created_at: string;
   delegation_id: string | null;
+  editor_request: AgentEditorRequest | null;
   execution_id: string | null;
   kind: string;
   message_id: string | null;
@@ -822,8 +942,19 @@ export interface AgentToolDescriptor {
   tags: string[];
 }
 
+export interface AgentToolSummary {
+  cost_class: AgentToolCostClass;
+  domain: string;
+  effect: string;
+  exposure: AgentToolExposure;
+  name: string;
+  risk: AgentToolRisk;
+  summary: string;
+  tags: string[];
+}
+
 export interface AgentToolSearchResult {
-  tools: AgentToolDescriptor[];
+  tools: AgentToolSummary[];
   total: number;
 }
 
@@ -849,6 +980,7 @@ export interface ForkAgentThreadInput {
 }
 
 export interface UpdateAgentThreadInput {
+  allowed_tools?: string[] | null;
   default_model_config_id?: number | null;
   expected_revision?: number | null;
   thread_id: string;
@@ -942,6 +1074,7 @@ export interface SendAgentMessageInput {
   client_message_id: string;
   content: string;
   delivery_mode?: AgentDeliveryMode;
+  editor_source?: AgentEditorSource | null;
   execution_mode?: AgentExecutionMode;
   model_config_id?: number | null;
   runtime_config_snapshot?: RuntimeConfigSnapshot | null;
@@ -2558,6 +2691,45 @@ export interface CanvasGraphDocument {
   edges: CanvasEdgeSummary[];
   graph: CanvasGraphSummary;
   nodes: CanvasNodeSummary[];
+}
+
+export interface CanvasNodeIndex {
+  id: number;
+  node_kind: string;
+  state: string;
+}
+
+export type CanvasGraphProjection = { next_offset?: number | null; nodes: CanvasNodeIndex[]; total: number; view: "index" } | { adjacent_nodes: CanvasNodeIndex[]; edges: CanvasEdgeSummary[]; nodes: CanvasNodeSummary[]; view: "nodes" };
+
+export interface CanvasGraphReadResult {
+  projection: CanvasGraphProjection;
+  resource: AgentResourceRef;
+}
+
+export type CanvasGraphEditOperation = { config_json: Record<string, unknown>; kind: "set_node_config"; node_id: number } | { edge: CanvasEdgeInput; kind: "connect" } | { edge_id: number; kind: "disconnect" };
+
+export interface CanvasGraphEditResult {
+  added_edges: CanvasEdgeSummary[];
+  changed: boolean;
+  changed_nodes: CanvasNodeSummary[];
+  removed_edge_ids: number[];
+  resource: AgentResourceRef;
+}
+
+export interface ReadCanvasGraphInput {
+  expected_version?: number | null;
+  graph_id: number;
+  limit?: number | null;
+  node_ids?: number[] | null;
+  offset?: number;
+  project_id: number;
+}
+
+export interface EditCanvasGraphInput {
+  expected_version: number;
+  graph_id: number;
+  operations: CanvasGraphEditOperation[];
+  project_id: number;
 }
 
 export interface CanvasNodeInput {
@@ -4614,7 +4786,9 @@ export interface ChapterVisualPlanSourceInput {
 
 export interface SaveChapterVisualPlanDraftInput {
   authoring_mode: ChapterVisualPlanAuthoringMode;
+  editor_revision?: string | null;
   expected_revision?: number | null;
+  expected_source_hash?: string | null;
   plan: ChapterVisualPlanV2;
   project_id: number;
   record_id?: number | null;
@@ -4656,6 +4830,110 @@ export interface ChapterVisualPlanSetView {
   draft: ChapterVisualPlanView | null;
   source: ChapterVisualPlanSourceView;
   starter_plan: ChapterVisualPlanV2;
+}
+
+export interface ReadChapterVisualPlanInput {
+  expected_revision?: number | null;
+  project_id: number;
+  record_id?: number | null;
+  source_chapter_id: number;
+  view: VisualPlanReadView;
+}
+
+export type VisualPlanReadView = { kind: "outline"; limit?: number | null; offset?: number } | { kind: "shot"; limit?: number | null; offset?: number; shot_id: string } | { keyframe_id: string; kind: "keyframe"; shot_id: string } | { entity_id: string; kind: "entity" } | { expected_hash?: string | null; kind: "source"; limit?: number | null; offset?: number };
+
+export interface VisualPlanOutlineItem {
+  duration_ms: number;
+  keyframe_count: number;
+  scene_id: string;
+  scene_title: string;
+  shot_id: string | null;
+  title: string | null;
+}
+
+export type VisualPlanProjection = { items: VisualPlanOutlineItem[]; kind: "outline"; next_offset?: number | null; total: number } | { kind: "shot"; scene_id: string; shot: VisualPlanShotDetails } | { keyframe: VisualKeyframeV2; kind: "keyframe"; shot_id: string } | { entity: VisualEntityV2; kind: "entity" } | { kind: "source"; next_offset?: number | null; offset: number; text: string; total_chars: number };
+
+export interface VisualPlanKeyframeIndex {
+  at_ms: number;
+  id: string;
+  label: string;
+}
+
+export interface VisualPlanShotDetails {
+  composition: string | null;
+  duration_ms: number;
+  id: string;
+  keyframes: VisualPlanKeyframeIndex[];
+  lens_intent: string | null;
+  narrative_purpose: string;
+  next_offset: number | null;
+  title: string;
+  total_keyframes: number;
+}
+
+export interface ChapterVisualPlanReadResult {
+  projection: VisualPlanProjection;
+  resource: AgentResourceRef | null;
+  source_hash: string;
+}
+
+export interface VisualShotFieldChanges {
+  composition: string | null;
+  lens_intent: string | null;
+  narrative_purpose: string | null;
+  title: string | null;
+}
+
+export type VisualPlanEditOperation = { changes: VisualShotFieldChanges; kind: "update_shot_fields"; shot_id: string };
+
+export interface EditChapterVisualPlanDraftInput {
+  editor_revision?: string | null;
+  expected_revision: number;
+  expected_source_hash?: string | null;
+  operation: VisualPlanEditOperation;
+  project_id: number;
+  record_id: number;
+  source_chapter_id: number;
+}
+
+export interface VisualPlanFieldChange {
+  after: string | null;
+  before: string | null;
+  field: string;
+  object_id: string;
+}
+
+export type VisualPlanValidationMode = "draft" | "confirmed";
+
+export interface ValidateChapterVisualPlanInput {
+  expected_revision: number;
+  mode: VisualPlanValidationMode;
+  project_id: number;
+  record_id: number;
+  source_chapter_id: number;
+}
+
+export interface VisualPlanDiagnostic {
+  message: string;
+  path: string;
+}
+
+export interface VisualPlanValidationResult {
+  diagnostics: VisualPlanDiagnostic[];
+  mode: VisualPlanValidationMode;
+  valid: boolean;
+}
+
+export interface ChapterVisualPlanEditResult {
+  changed: boolean;
+  changes: VisualPlanFieldChange[];
+  resource: AgentResourceRef;
+  validation: VisualPlanValidationResult;
+}
+
+export interface ChapterVisualPlanValidationResult {
+  resource: AgentResourceRef;
+  validation: VisualPlanValidationResult;
 }
 
 export interface ConfirmedChapterVisualPlanView {

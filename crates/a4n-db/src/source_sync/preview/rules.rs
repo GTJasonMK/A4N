@@ -1,5 +1,5 @@
 use super::types::AnchorChange;
-use a4n_core::models::project::text_anchor;
+use a4n_db_models::models::project::text_anchor;
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
 };

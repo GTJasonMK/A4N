@@ -1,4 +1,4 @@
-pub use a4n_db::generation::{LlmCallUsageTraceInput, RecordLlmCallTraceInput};
+pub use a4n_domain::llm::{LlmCallUsageTraceInput, RecordLlmCallTraceInput};
 
 pub(crate) mod artifacts;
 pub(crate) mod checkpoint;
@@ -6,14 +6,13 @@ pub(crate) mod events;
 pub(crate) mod stream;
 pub(crate) mod terminal;
 
-pub use artifacts::GeneratedMediaArtifactFile;
 pub use events::{GenerationReplay, GenerationSessionError, GenerationSubscription};
 pub use terminal::{GenerationTerminalError, GenerationTerminalWriteOutcome};
 
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
+use a4n_error::AppError;
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationError, GenerationErrorCode, GenerationFinishReason,
     GenerationResultRef, GenerationTaskStatus, ProgressEvent,

@@ -4,7 +4,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{
     ChatChunk, ChatMessage, ChatRequest, ChatResponse, LlmProvider, ModelCapabilities, UsageInfo,
 };

@@ -2,7 +2,7 @@ use super::{
     super::PROJECT_KIND_TEXT,
     types::{ProjectFamilyExportError, ProjectFamilyExportSelection},
 };
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn project_family_export_selection<C>(

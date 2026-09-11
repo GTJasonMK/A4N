@@ -1,6 +1,6 @@
 use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::shared::{remap_derived_optional_id, remap_derived_required_id};
-use a4n_core::models::video_project::video_segment;
+use a4n_db_models::models::video_project::video_segment;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};

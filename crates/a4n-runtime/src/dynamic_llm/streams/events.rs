@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatChunk;
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 

@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider};
 use futures::{Stream, StreamExt};
 use tokio::time::{Instant as TokioInstant, MissedTickBehavior, interval_at};

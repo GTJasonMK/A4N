@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::source_spans::SourceSpan;
+use a4n_domain::source_spans::SourceSpan;
 
 use super::super::VideoCinematicShot;
 

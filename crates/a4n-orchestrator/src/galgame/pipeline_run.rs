@@ -7,8 +7,7 @@ mod regeneration;
 mod validation;
 
 pub use contracts::{
-    GalgamePipelineProgressUpdate, GalgamePipelineRunOptions, GalgameProgressReporter,
-    GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
+    GalgamePipelineRunOptions, GalgameSceneRegenerationInput, GalgameSceneRegenerationPlan,
 };
 pub use pipeline::galgame_shooting_script_projection;
 pub(crate) use validation::validate_source_sync_scene_regeneration_stage_outputs;

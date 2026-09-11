@@ -7,8 +7,8 @@ source "$SCRIPT_DIR/../lib/common.sh"
 cd "$PROJECT_ROOT"
 
 for entity in \
-    crates/a4n-core/src/models/project/novel_project.rs \
-    crates/a4n-core/src/models/user/user.rs; do
+    crates/a4n-db-models/src/models/project/novel_project.rs \
+    crates/a4n-db-models/src/models/user/user.rs; do
     rg -U -q '#\[serde\(skip\)\][[:space:]]+pub lifecycle_gate: String' "$entity" || {
         printf 'generation lifecycle gate 缺失或可被序列化: %s\n' "$entity" >&2
         exit 1

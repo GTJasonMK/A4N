@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use crate::errors::vector_store_error;
 use crate::vector_store::{SearchFilter, SearchResult, filters::metadata_matches_search_filter};

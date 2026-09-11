@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(crate) fn video_llm_step_error(prompt_name: &str, err: AppError) -> AppError {
     match err {

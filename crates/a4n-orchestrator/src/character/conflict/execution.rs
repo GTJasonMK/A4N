@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_domain::project::required_text;
+use a4n_error::AppError;
 use a4n_llm::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
@@ -19,7 +20,6 @@ use crate::{
         },
         conflict_rules::character_conflict_call_fingerprint_json,
     },
-    project::required_text,
     workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 
@@ -260,6 +260,29 @@ impl OrchestratorContext {
         })
         .await?;
         Ok(conflicts)
+    }
+}
+
+#[async_trait::async_trait]
+impl super::CharacterConflictApplicationPort for OrchestratorContext {
+    async fn preview(
+        &self,
+        input: CharacterConflictCheckInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+        self.prepare_character_conflict_request_preview_validated(input, prompt_renderer)
+            .await
+    }
+
+    async fn check(
+        &self,
+        input: CharacterConflictCheckInput,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: CharacterConflictProgressReporter<'_>,
+        active_task_id: Option<&str>,
+    ) -> Result<Vec<CharacterConflictSummary>, AppError> {
+        self.check_character_conflict_validated(input, prompt_renderer, progress, active_task_id)
+            .await
     }
 }
 

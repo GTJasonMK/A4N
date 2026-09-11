@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use base64::Engine as _;
 use serde_json::{Map, Value, json};
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
 
 use crate::download::download_video_url_with_api_key;
@@ -32,7 +32,7 @@ impl GeminiVeoVideoProvider {
     pub(super) fn api_base_url(&self) -> Result<String, AppError> {
         let base = self.base_url.trim().trim_end_matches('/');
         if base.is_empty() {
-            return Err(AppError::ConfigError(
+            return Err(AppError::Configuration(
                 "Gemini Veo 视频配置缺少 API Base URL".into(),
             ));
         }
@@ -48,7 +48,7 @@ impl GeminiVeoVideoProvider {
     fn generation_url(&self, model: &str) -> Result<String, AppError> {
         let model = model.trim().trim_start_matches("models/").trim();
         if model.is_empty() {
-            return Err(AppError::ConfigError(
+            return Err(AppError::Configuration(
                 "Gemini Veo 视频配置缺少 model".into(),
             ));
         }
@@ -154,9 +154,7 @@ impl GeminiVeoVideoProvider {
         if let Some(payload) = find_video_b64(v)? {
             let bytes = base64::engine::general_purpose::STANDARD
                 .decode(payload)
-                .map_err(|e| {
-                    AppError::Internal(anyhow::anyhow!("Gemini Veo 视频 base64 解码失败：{e}"))
-                })?;
+                .map_err(|e| AppError::Internal(format!("Gemini Veo 视频 base64 解码失败：{e}")))?;
             let format = detect_video_format_from_bytes(&bytes)?;
             return Ok(VideoGenerationResult {
                 bytes,
@@ -167,7 +165,7 @@ impl GeminiVeoVideoProvider {
         }
 
         let Some(uri) = find_video_uri(v) else {
-            return Err(AppError::Internal(anyhow::anyhow!(
+            return Err(AppError::Internal(format!(
                 "Gemini Veo 任务已完成，但响应缺少 generatedVideos[0].video.uri"
             )));
         };
@@ -203,7 +201,7 @@ impl VideoProvider for GeminiVeoVideoProvider {
         provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.api_key.is_empty() {
-            return Err(AppError::ConfigError(
+            return Err(AppError::Configuration(
                 "Gemini Veo 视频配置缺少 api_key".into(),
             ));
         }
@@ -237,7 +235,7 @@ impl VideoProvider for GeminiVeoVideoProvider {
 
     async fn poll(&self, job_id: &str) -> Result<VideoJobState, AppError> {
         if self.api_key.is_empty() {
-            return Err(AppError::ConfigError(
+            return Err(AppError::Configuration(
                 "Gemini Veo 视频配置缺少 api_key".into(),
             ));
         }
@@ -261,7 +259,7 @@ impl VideoProvider for GeminiVeoVideoProvider {
 
     async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
         if self.api_key.is_empty() {
-            return Err(AppError::ConfigError(
+            return Err(AppError::Configuration(
                 "Gemini Veo 视频配置缺少 api_key".into(),
             ));
         }

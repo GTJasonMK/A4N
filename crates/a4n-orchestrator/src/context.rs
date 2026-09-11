@@ -14,6 +14,7 @@ mod asset;
 mod auth;
 mod canvas;
 mod chapter_content;
+mod chapter_content_projection;
 mod character;
 mod collaboration;
 mod construction;
@@ -28,7 +29,9 @@ mod llm_context;
 mod manga;
 mod optimize;
 mod outline;
+mod package;
 mod profile_material;
+mod profile_mutation;
 mod project_blueprint;
 mod project_chapter_context;
 mod project_chapter_records;
@@ -45,6 +48,8 @@ mod prompt_engine;
 mod prompt_override;
 mod providers;
 mod rag;
+mod rag_ingest;
+mod rag_search;
 mod rag_store;
 mod scene_profile;
 mod service_health;
@@ -141,9 +146,9 @@ pub struct OrchestratorContext {
     service_manager: Arc<ServiceManager>,
 
     /// 应用配置（含 data_dir）；仅 context 子树与用途方法可访问。
-    config: a4n_core::config::app_config::AppConfig,
-    event_bus: Arc<a4n_core::event::bridge::BroadcastEventBus>,
-    task_manager: Arc<a4n_core::event::channel::TaskManager>,
+    config: a4n_config::app_config::AppConfig,
+    event_bus: Arc<a4n_event::BroadcastEventBus>,
+    task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
     /// 章节生成服务（进程内 generation lock，必须共享实例）。
     chapter: ChapterGenerationService,
     rag_store: Arc<dyn VectorStore>,

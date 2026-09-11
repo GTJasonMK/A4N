@@ -1,8 +1,8 @@
 use std::path::Path;
 
-use a4n_core::error::AppError;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::delete_fastembed_model;
+use a4n_error::AppError;
 
 use crate::AppState;
 

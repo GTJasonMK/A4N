@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await

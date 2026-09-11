@@ -2,7 +2,8 @@ use a4n_api_contract::character::{
     CharacterProfileProtectedAttribute, CharacterProfileSyncRange, CharacterProfileSyncedResult,
     SyncCharacterProfileResult,
 };
-use a4n_core::error::AppError;
+use a4n_domain::character::CharacterSyncChapterStateRecordInput;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::json;
 
@@ -16,10 +17,9 @@ use super::{
         AppliedCharacterSyncPersistenceRecord, CHARACTER_PROFILE_SYNC_STEPS,
         CharacterImplicitClassificationInput, CharacterProfileSyncChapterStateDraft,
         CharacterProfileSyncPreviewStep, CharacterProfileSyncStageTracePort,
-        CharacterSyncChapterStateRecordInput, CharacterSyncImplicitReviewInput,
-        CharacterSyncPersistenceInput, RecordCompletedGenerationRunInput,
-        character_profile_skipped_result, pending_character_sync_attribute_events,
-        sync_rules::profile_sync_skip_reason_for_mode,
+        CharacterSyncImplicitReviewInput, CharacterSyncPersistenceInput,
+        RecordCompletedGenerationRunInput, character_profile_skipped_result,
+        pending_character_sync_attribute_events, sync_rules::profile_sync_skip_reason_for_mode,
     },
     context::PreparedCharacterProfileSync,
     contracts::{CharacterProfileSyncApplicationInput, CharacterProfileSyncProgress},

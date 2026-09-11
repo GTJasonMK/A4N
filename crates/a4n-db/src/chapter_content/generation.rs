@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
+use a4n_db_models::models::chapter::chapter::{self, STATUS_DRAFT};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,

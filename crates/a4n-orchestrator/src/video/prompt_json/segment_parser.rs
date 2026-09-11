@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
-use a4n_core::source_spans::SourceSpan;
-use a4n_core::video_execution::VIDEO_SEGMENT_PLAN_V2;
+use a4n_domain::source_spans::SourceSpan;
+use a4n_video_contract::VIDEO_SEGMENT_PLAN_V2;
 
 use super::contracts::{
     StoredVideoSegmentPlanResponse, VideoSegmentPlan, VideoSegmentPlanDefaults,
@@ -216,7 +216,7 @@ fn apply_segment_transitions(
     segments: &mut [VideoSegmentPlan],
     projection: &VideoShootingScriptProjection,
 ) -> Result<(), AppError> {
-    use a4n_core::video_execution::VideoSegmentTransitionV1;
+    use a4n_video_contract::VideoSegmentTransitionV1;
 
     if segments.len() < 2 {
         return Ok(());

@@ -2,10 +2,8 @@ use super::{
     SOURCE_KIND_CHAPTER_CONTENT, TextAnchorContentInsertInput, TextAnchorDbError,
     TextAnchorDbResult,
 };
-use a4n_core::{
-    models::project::text_anchor,
-    source_spans::{source_spans_for_content, source_text_hash},
-};
+use a4n_db_models::models::project::text_anchor;
+use a4n_domain::{source_spans::source_spans_for_content, source_text_hash};
 use chrono::Utc;
 use sea_orm::{ConnectionTrait, EntityTrait, Set};
 use std::collections::HashMap;

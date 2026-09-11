@@ -1,7 +1,10 @@
-use a4n_core::{
-    models::{ai::generated_video, chapter::chapter_video_prompt},
-    video_execution::VideoSegmentWorkflowModeV1,
+use a4n_api_contract::video::GeneratedVideoSummary;
+use a4n_domain::video_workflow::{
+    VIDEO_STATUS_CANCELLED, VIDEO_STATUS_COMPLETED, VIDEO_STATUS_FAILED, VIDEO_STATUS_PENDING,
+    VIDEO_STATUS_RUNNING, VIDEO_TYPE_CHAPTER, VIDEO_TYPE_REFERENCE_MEDIA,
+    WORKFLOW_MODE_BOUNDARY_FRAMES, WORKFLOW_MODE_FIRST_FRAME_CHAIN, WORKFLOW_MODE_STORYBOARD,
 };
+use a4n_video_contract::VideoSegmentWorkflowModeV1;
 use serde_json::Value;
 
 use super::contract::{optional_snapshot_string, required_snapshot_string};
@@ -11,7 +14,7 @@ use crate::actions::request_preview::{
 use crate::actions::video_generation::common::PROVIDER_REQUEST_SNAPSHOT_METADATA_KEY;
 
 pub(in crate::actions::video_generation) fn model_request_preview_from_provider_snapshot(
-    video: &generated_video::Model,
+    video: &GeneratedVideoSummary,
     workflow: &str,
     title: &str,
 ) -> Result<ModelRequestPreview, String> {
@@ -78,15 +81,15 @@ pub(in crate::actions::video_generation) fn model_request_preview_from_provider_
 
 fn snapshot_note_for_video_record(
     note: Option<String>,
-    video: &generated_video::Model,
+    video: &GeneratedVideoSummary,
 ) -> Option<String> {
     let status = video.status.trim();
     let status_note = match status {
-        generated_video::STATUS_COMPLETED => None,
-        generated_video::STATUS_RUNNING | generated_video::STATUS_PENDING => Some(format!(
+        VIDEO_STATUS_COMPLETED => None,
+        VIDEO_STATUS_RUNNING | VIDEO_STATUS_PENDING => Some(format!(
             "视频当前状态为 {status}；下方快照是生成流程已经构造出的 provider 请求，任务可能仍在处理中"
         )),
-        generated_video::STATUS_FAILED | generated_video::STATUS_CANCELLED => Some(format!(
+        VIDEO_STATUS_FAILED | VIDEO_STATUS_CANCELLED => Some(format!(
             "视频当前状态为 {status}；无法仅凭该状态确认 provider 是否实际接收请求，下方展示的是生成流程构造出的 provider 请求快照"
         )),
         other if !other.is_empty() => Some(format!(
@@ -105,34 +108,31 @@ fn snapshot_note_for_video_record(
 }
 
 pub(in crate::actions::video_generation) fn validate_video_provider_request_snapshot_owner(
-    video: &generated_video::Model,
+    video: &GeneratedVideoSummary,
 ) -> Result<(), String> {
     match (video.video_type.as_str(), video.workflow_mode.as_deref()) {
         (
-            generated_video::VIDEO_TYPE_CHAPTER,
+            VIDEO_TYPE_CHAPTER,
             Some(
-                chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
-                | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
-                | chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
+                WORKFLOW_MODE_BOUNDARY_FRAMES
+                | WORKFLOW_MODE_FIRST_FRAME_CHAIN
+                | WORKFLOW_MODE_STORYBOARD,
             ),
         ) => Ok(()),
-        (generated_video::VIDEO_TYPE_REFERENCE_MEDIA, Some(mode))
+        (VIDEO_TYPE_REFERENCE_MEDIA, Some(mode))
             if mode == VideoSegmentWorkflowModeV1::ReferenceMedia.as_str() =>
         {
             Ok(())
         }
-        (generated_video::VIDEO_TYPE_CHAPTER, Some(mode)) => Err(format!(
+        (VIDEO_TYPE_CHAPTER, Some(mode)) => Err(format!(
             "视频 #{} 的 workflow_mode={} 与 chapter_video 类型不匹配，无法直接预览 provider 请求",
             video.id, mode
         )),
-        (generated_video::VIDEO_TYPE_REFERENCE_MEDIA, Some(mode)) => Err(format!(
+        (VIDEO_TYPE_REFERENCE_MEDIA, Some(mode)) => Err(format!(
             "视频 #{} 的 workflow_mode={} 与 reference_media_video 类型不匹配，无法直接预览 provider 请求",
             video.id, mode
         )),
-        (
-            generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA,
-            None,
-        ) => Err(format!(
+        (VIDEO_TYPE_CHAPTER | VIDEO_TYPE_REFERENCE_MEDIA, None) => Err(format!(
             "视频 #{} 缺少 workflow_mode，无法直接预览 provider 请求",
             video.id
         )),

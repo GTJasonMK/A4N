@@ -6,18 +6,20 @@ use std::{
     },
 };
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::generated_image,
-        character::character_portrait,
-        generation::{generation_run, workflow_checkpoint, workflow_run},
-    },
+use a4n_api_contract::portrait::{
+    GenerateMissingPortraitsInput, GeneratePortraitInput, PortraitType, UploadPortraitInput,
 };
 use a4n_db::{
     DatabaseConnection,
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
+use a4n_db_models::models::{
+    ai::generated_image,
+    character::character_portrait,
+    generation::{generation_run, workflow_checkpoint, workflow_run},
+};
+use a4n_domain::media::GeneratedMediaArtifactFile;
+use a4n_error::AppError;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use async_trait::async_trait;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
@@ -25,15 +27,17 @@ use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    OrchestratorContext, generation::GeneratedMediaArtifactFile,
+    OrchestratorContext,
+    media::{
+        PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+        PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+    },
     test_support::TestOrchestratorBuilder,
 };
 
 use super::{
-    DecodedPortraitImage, GenerateMissingPortraitsInput, GeneratePortraitInput,
-    GeneratedPortraitImage, PersistPortraitFileInput, PersistedPortraitFile,
-    PortraitGenerationHostPort, PortraitImageProviderInput, PortraitType, UploadPortraitInput,
-    image::generate_portrait_image,
+    DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
+    PortraitImageProviderInput, image::generate_portrait_image,
 };
 
 #[derive(Default)]
@@ -87,16 +91,31 @@ impl PortraitGenerationHostPort for TestPortraitHost {
         })
     }
 
+    fn prepare_portrait_file(
+        &self,
+        input: PrepareGeneratedImageFileInput<'_>,
+    ) -> Result<PreparedGeneratedImageFile, AppError> {
+        let final_path = format!(
+            "projects/{}/portraits/portrait_{}_{}.{}",
+            input.project_id,
+            input.file_extra.unwrap_or("main"),
+            input.publication_id,
+            input.format
+        );
+        Ok(PreparedGeneratedImageFile {
+            staging_path: format!("{final_path}.part"),
+            final_path,
+        })
+    }
+
     fn persist_portrait_file(
         &self,
-        input: PersistPortraitFileInput<'_>,
-    ) -> Result<PersistedPortraitFile, AppError> {
+        input: PersistGeneratedImageFileInput<'_>,
+        prepared: &PreparedGeneratedImageFile,
+    ) -> Result<PersistedGeneratedImageFile, AppError> {
         self.persist_calls.fetch_add(1, Ordering::SeqCst);
-        Ok(PersistedPortraitFile {
-            relative_path: format!(
-                "portraits/project-{}/profile-{}.{}",
-                input.project_id, input.profile_id, input.format
-            ),
+        Ok(PersistedGeneratedImageFile {
+            relative_path: prepared.final_path.clone(),
             file_size: i64::try_from(input.bytes.len())
                 .map_err(|_| AppError::InvalidArgument("测试图片过大".to_string()))?,
         })
@@ -148,8 +167,8 @@ fn prompts_dir() -> PathBuf {
 async fn insert_project_and_profile(
     database: &DatabaseConnection,
 ) -> (
-    a4n_core::models::project::novel_project::Model,
-    a4n_core::models::character::protagonist_profile::Model,
+    a4n_db_models::models::project::novel_project::Model,
+    a4n_db_models::models::character::protagonist_profile::Model,
 ) {
     let project = create_freeform_video_project_record(
         database,
@@ -189,6 +208,7 @@ async fn portrait_application_rejects_cancellation_before_provider() {
 
     let error = context
         .generate_portrait_validated(
+            1,
             GeneratePortraitInput {
                 project_id: 1,
                 character_name: "不会被查询".to_string(),
@@ -243,6 +263,7 @@ async fn portrait_application_rejects_blank_upload_prompt_before_host_io() {
 
     let error = context
         .upload_portrait_validated(
+            1,
             UploadPortraitInput {
                 project_id: project.id,
                 profile_id: profile.id,
@@ -275,6 +296,7 @@ async fn portrait_application_persists_complete_missing_portrait_trace() {
 
     let portraits = context
         .generate_missing_portraits_validated(
+            1,
             GenerateMissingPortraitsInput {
                 project_id: project.id,
                 width: 1024,
@@ -366,6 +388,7 @@ async fn missing_portrait_batch_continues_after_one_item_fails() {
 
     let outcome = context
         .generate_missing_portraits_validated(
+            1,
             GenerateMissingPortraitsInput {
                 project_id: project.id,
                 width: 1024,

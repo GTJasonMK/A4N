@@ -1,6 +1,6 @@
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter};
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_image,
     media::{media_asset, media_binding},
     project::novel_project,
@@ -39,7 +39,7 @@ async fn project_cascade_rolls_back_when_final_project_delete_fails() {
     set_project_gate(
         &db,
         &project,
-        crate::generation::ProjectLifecycleOperation::Delete,
+        a4n_domain::generation::ProjectLifecycleOperation::Delete,
     )
     .await;
     let error = delete_project_cascade_record(&db, project.id)
@@ -106,7 +106,7 @@ async fn project_delete_commits_cleanup_intent_with_media_paths() {
     set_project_gate(
         &db,
         &project,
-        crate::generation::ProjectLifecycleOperation::Delete,
+        a4n_domain::generation::ProjectLifecycleOperation::Delete,
     )
     .await;
     delete_project_cascade_record(&db, project.id)

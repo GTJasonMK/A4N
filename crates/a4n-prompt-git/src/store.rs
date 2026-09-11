@@ -2,7 +2,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use git2::{ErrorCode, Repository};
 
 use crate::naming::sanitize_filename;

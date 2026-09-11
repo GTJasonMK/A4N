@@ -3,13 +3,11 @@ use crate::project_dependency_graph::details::records::{
     VideoPromptSourceRecord, generated_image_record, lineage_ref, video_prompt_sources_from_record,
 };
 use crate::project_dependency_graph::helpers::video_frame_image_prompt_id;
-use a4n_core::{
-    error::AppError,
-    models::{ai::generated_image, chapter::chapter_video_prompt},
-};
+use a4n_db_models::models::{ai::generated_image, chapter::chapter_video_prompt};
 use a4n_domain::image::{
     IMAGE_TYPE_VIDEO_KEY_FRAME, IMAGE_TYPE_VIDEO_START_FRAME, IMAGE_TYPE_VIDEO_STORYBOARD_FRAME,
 };
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashMap;
 

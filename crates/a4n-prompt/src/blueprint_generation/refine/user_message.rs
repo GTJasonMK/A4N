@@ -1,12 +1,10 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    blueprint::{
-        BLUEPRINT_REFINEMENT_FIELDS, BLUEPRINT_REFINEMENT_USER_PROMPT,
-        BLUEPRINT_RELATIONSHIP_TYPES, normalized_blueprint_refinement_focus,
-    },
-    error::AppError,
+use a4n_domain::project::{
+    BLUEPRINT_REFINEMENT_FIELDS, BLUEPRINT_REFINEMENT_USER_PROMPT, BLUEPRINT_RELATIONSHIP_TYPES,
+    normalized_blueprint_refinement_focus,
 };
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::rendering::PromptRenderer;

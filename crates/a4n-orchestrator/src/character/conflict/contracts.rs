@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 pub use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 
 use crate::character::conflict_context_rules::CharacterConflictChapterScope;

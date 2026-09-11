@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::{AppState, actions::access};
 
@@ -11,8 +11,8 @@ pub async fn save_blueprint(
 ) -> Result<BlueprintMutationResult, AppError> {
     let project_id = input.project_id;
     state
-        .orchestrator()
-        .save_blueprint_for_user_validated(user_id, input)
+        .blueprint_mutation_application()
+        .save(user_id, input)
         .await?;
     Ok(BlueprintMutationResult {
         warnings: blueprint_material_sync_warnings(state, project_id).await,

@@ -1,7 +1,6 @@
 mod mutations;
 mod package;
 mod preference;
-mod projections;
 mod queries;
 mod resources;
 mod transfer;

@@ -1,13 +1,13 @@
 use super::shared::{ProgressCounts, progress_count_detail, project_progress};
 use super::{ProjectProgressReadError, ProjectProgressSummary};
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
 const FREEFORM_VIDEO_PROGRESS_TYPES: [&str; 3] = [
-    generated_video::VIDEO_TYPE_CANVAS,
-    generated_video::VIDEO_TYPE_TRIMMED_CLIP,
-    generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY,
+    a4n_domain::video_workflow::VIDEO_TYPE_CANVAS,
+    a4n_domain::video_workflow::VIDEO_TYPE_TRIMMED_CLIP,
+    a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY,
 ];
 
 pub(super) async fn freeform_video_project_progress_by_project(

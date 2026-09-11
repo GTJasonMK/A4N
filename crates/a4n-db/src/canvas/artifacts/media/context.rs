@@ -1,6 +1,8 @@
 use super::super::types::CanvasMediaSourceContext;
 use crate::canvas::{CanvasDbError, PROJECT_KIND_VIDEO};
-use a4n_core::models::project::{novel_project, project_source_snapshot, source_snapshot_chapter};
+use a4n_db_models::models::project::{
+    novel_project, project_source_snapshot, source_snapshot_chapter,
+};
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,

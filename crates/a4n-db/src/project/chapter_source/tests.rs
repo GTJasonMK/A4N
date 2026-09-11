@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::{chapter::chapter, project::source_snapshot_chapter},
-    source_spans::source_text_hash,
-};
+use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
+use a4n_domain::source_text_hash;
 use chrono::Utc;
 
 use super::{live::live_source_from_chapter, snapshot::snapshot_source_from_chapter};

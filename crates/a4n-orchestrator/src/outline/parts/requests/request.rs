@@ -1,9 +1,9 @@
-use a4n_core::config::app_config::llm_token_profiles;
-use a4n_core::error::AppError;
+use a4n_domain::llm::llm_token_profiles;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
 
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm::context::context_aware_system_user_request;
 
 use super::super::super::context::part_context_json;

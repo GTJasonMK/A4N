@@ -1,14 +1,12 @@
 use super::SessionSummary;
-use super::projections::to_session_summary;
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn list_sessions(
     state: &AppState,
     user_id: i64,
 ) -> Result<Vec<SessionSummary>, AppError> {
-    let sessions = state.orchestrator().list_sessions(user_id).await?;
-    Ok(sessions.iter().map(to_session_summary).collect())
+    state.auth_application().list_sessions(user_id).await
 }
 
 pub async fn revoke_session(
@@ -17,7 +15,7 @@ pub async fn revoke_session(
     session_id: &str,
 ) -> Result<(), AppError> {
     state
-        .orchestrator()
+        .auth_application()
         .revoke_session(user_id, session_id)
         .await
 }

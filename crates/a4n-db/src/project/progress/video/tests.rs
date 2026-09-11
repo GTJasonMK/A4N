@@ -1,7 +1,7 @@
 use super::facts::video_progress_facts_from_rows;
 use super::identity::{GeneratedVideoProgressRow, VideoPromptProgressRow};
 use super::status::video_project_progress_from_counts;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use serde_json::json;
 

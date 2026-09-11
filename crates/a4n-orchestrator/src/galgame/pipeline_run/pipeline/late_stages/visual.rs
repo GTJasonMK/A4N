@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::galgame::{
     GalgamePipelineStartStage, GalgameVisualPlan, galgame_visual_planning_session_user_message,

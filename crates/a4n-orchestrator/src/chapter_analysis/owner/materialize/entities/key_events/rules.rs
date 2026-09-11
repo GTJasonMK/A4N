@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Map;
 
 use super::super::super::super::values::validate_required_string_enum;

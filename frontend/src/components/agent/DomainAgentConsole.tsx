@@ -61,6 +61,8 @@ export interface DomainAgentConsoleProps {
   fill?: boolean;
   className?: string;
   onResourceChanged?: () => void | Promise<void>;
+  getEditorSource?: () => import("../../api/agent").AgentEditorSource | null;
+  onEditorRequest?: (request: import("../../api/agent").AgentEditorRequest, runId: string) => Promise<void>;
 }
 
 export interface DomainAgentBinding {
@@ -271,48 +273,6 @@ function executionTone(execution: AgentExecutionView): string {
   return "text-book-primary";
 }
 
-type DirectorProgressPhase =
-  | "context_loading"
-  | "context_ready"
-  | "plan_drafting"
-  | "plan_saved";
-
-function latestDirectorProgress(
-  snapshot: AgentThreadSnapshot | null,
-): { phase: DirectorProgressPhase; current: number; total: number } | null {
-  const event = snapshot?.events
-    .slice()
-    .reverse()
-    .find((item) => item.kind.startsWith("director_"));
-  if (!event) return null;
-  const phase = event.kind.slice("director_".length) as DirectorProgressPhase;
-  if (
-    ![
-      "context_loading",
-      "context_ready",
-      "plan_drafting",
-      "plan_saved",
-    ].includes(phase)
-  ) {
-    return null;
-  }
-  const payload = objectValue(event.payload);
-  const total = payload?.total;
-  const current = payload?.current;
-  if (
-    typeof total !== "number" ||
-    !Number.isSafeInteger(total) ||
-    total <= 0 ||
-    typeof current !== "number" ||
-    !Number.isSafeInteger(current) ||
-    current <= 0 ||
-    current > total
-  ) {
-    return null;
-  }
-  return { phase, current, total };
-}
-
 export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   capability,
   projectId,
@@ -322,6 +282,8 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   fill = false,
   className = "",
   onResourceChanged,
+  getEditorSource,
+  onEditorRequest,
 }) => {
   const { locale, t } = useI18n();
   const { addToast } = useToast();
@@ -331,6 +293,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sending, setSending] = useState(false);
+  const pendingEditorRequests = useRef(new Set<string>());
   const [draft, setDraft] = useState("");
   const [deliveryMode, setDeliveryMode] =
     useState<AgentDeliveryMode>("followup");
@@ -543,27 +506,45 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     [snapshot],
   );
   const latestMutationExecutionId = useMemo(() => {
-    const mutationTool =
+    const resourceKind =
       capability === "content_optimization"
-        ? "apply_optimization_patches"
+        ? "chapter"
         : capability === "director"
-          ? "save_chapter_visual_plan_draft"
-          : "save_canvas_graph";
+          ? "chapter_visual_plan"
+          : "canvas_graph";
     return (
       snapshot?.executions
         .slice()
         .reverse()
         .find(
           (execution) =>
-            execution.tool_name === mutationTool &&
+            execution.effect !== "read" &&
+            execution.result_refs.some((ref) => ref.kind === resourceKind) &&
             execution.status === "succeeded",
         )?.id ?? null
     );
   }, [capability, snapshot]);
-  const directorProgress = useMemo(
-    () => (isDirector ? latestDirectorProgress(snapshot) : null),
-    [isDirector, snapshot],
-  );
+
+  useEffect(() => {
+    const source = getEditorSource?.();
+    if (!source || !onEditorRequest || !snapshot || pendingEditorRequests.current.size > 0) return;
+    for (const event of snapshot.events) {
+      const request = event.editor_request;
+      if (!request || !event.run_id || request.source.view_instance_id !== source.view_instance_id) continue;
+      const execution = snapshot.executions.find((item) => item.id === request.execution_id);
+      const run = snapshot.runs.find((item) => item.id === event.run_id);
+      if (!execution || !["prepared", "awaiting_user", "dispatching"].includes(execution.status)
+        || run?.status !== "waiting" || run.waiting_reason !== "external"
+        || pendingEditorRequests.current.has(request.execution_id)) continue;
+      pendingEditorRequests.current.add(request.execution_id);
+      void onEditorRequest(request, event.run_id).catch((error) => {
+        addToast(extractErrorMessage(error, t("agent.domain.resourceRefreshFailed")), "error");
+      }).finally(() => {
+        pendingEditorRequests.current.delete(request.execution_id);
+        void loadSnapshot(snapshot.thread.id, true);
+      });
+    }
+  }, [addToast, getEditorSource, loadSnapshot, onEditorRequest, snapshot, t]);
   const latestEvent = useMemo<AgentEvent | null>(
     () => snapshot?.events[snapshot.events.length - 1] ?? null,
     [snapshot],
@@ -628,6 +609,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         content,
         delivery_mode: deliveryMode,
         execution_mode: executionMode,
+        editor_source: getEditorSource?.() ?? undefined,
       });
       setDraft("");
       await loadSnapshot(thread.id, true);
@@ -783,43 +765,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
         >
           <Clock3 size={12} className="shrink-0" />
           <span className="min-w-0 flex-1 break-words">{connectionError}</span>
-        </div>
-      ) : null}
-
-      {directorProgress ? (
-        <div className="shrink-0 border-b border-book-primary/20 bg-book-primary/5 px-3 py-2.5">
-          <div className="flex min-w-0 items-center justify-between gap-2 text-[10px]">
-            <span className="min-w-0 truncate font-medium text-book-text-sub">
-              {directorProgress.phase === "context_loading"
-                ? t("agent.domain.directorContextLoading")
-                : directorProgress.phase === "context_ready"
-                  ? t("agent.domain.directorContextReady")
-                  : directorProgress.phase === "plan_drafting"
-                    ? t("agent.domain.directorPlanDrafting")
-                    : t("agent.domain.directorPlanSaved")}
-            </span>
-            <span className="shrink-0 tabular-nums text-book-text-muted">
-              {directorProgress.current}/{directorProgress.total}
-            </span>
-          </div>
-          <div
-            className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-book-primary/10"
-            role="progressbar"
-            aria-label={t("agent.domain.directorProgress")}
-            aria-valuemin={0}
-            aria-valuemax={directorProgress.total}
-            aria-valuenow={directorProgress.current}
-          >
-            <div
-              className="h-full rounded-full bg-book-primary transition-[width] duration-300"
-              style={{ width: `${(directorProgress.current / directorProgress.total) * 100}%` }}
-            />
-          </div>
-          {directorProgress.phase === "plan_saved" ? (
-            <p className="mt-1 text-[10px] text-book-text-muted">
-              {t("agent.domain.directorAwaitingReview")}
-            </p>
-          ) : null}
         </div>
       ) : null}
 

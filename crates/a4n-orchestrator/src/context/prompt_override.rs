@@ -4,11 +4,12 @@
 
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
 use a4n_db::DbHandle;
 use a4n_db::prompt_override::{
     ProjectOverrideIdentity, ProjectPromptOverrideSummary, PromptOverrideDbError,
 };
+use a4n_error::AppError;
+use a4n_prompt::tera_engine::TeraPromptEngine;
 
 use super::OrchestratorContext;
 
@@ -91,6 +92,19 @@ impl PromptOverrideApplication {
         .await
         .map_err(prompt_override_db_error)
     }
+
+    async fn hydrate_prompt_engine(&self, engine: &TeraPromptEngine) -> Result<(), AppError> {
+        let plan = a4n_db::prompt_override::project_override_hydration_plan(self.connection())
+            .await
+            .map_err(prompt_override_db_error)?;
+        let overrides = plan
+            .into_iter()
+            .map(|item| (item.identity.project_id, item.identity.name, item.content))
+            .collect();
+        engine
+            .hydrate_project_overrides(overrides)
+            .map_err(|error| AppError::ConfigError(error.to_string()))
+    }
 }
 
 fn prompt_override_db_error(error: PromptOverrideDbError) -> AppError {
@@ -156,6 +170,16 @@ impl OrchestratorContext {
     ) -> Result<Vec<ProjectPromptOverrideSummary>, AppError> {
         self.prompt_override
             .project_override_summaries(project_id, active_prompt_names)
+            .await
+    }
+
+    /// Load persisted project overrides into the prompt engine during bootstrap.
+    ///
+    /// Runtime creates the engine, while this owner performs the database read
+    /// and applies the validated overrides.
+    pub async fn hydrate_prompt_overrides(&self) -> Result<(), AppError> {
+        self.prompt_override
+            .hydrate_prompt_engine(&self.engine)
             .await
     }
 }

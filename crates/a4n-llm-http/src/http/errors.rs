@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use reqwest::{Client, header::CONTENT_ENCODING};
 use std::error::Error;
 use std::time::Duration;

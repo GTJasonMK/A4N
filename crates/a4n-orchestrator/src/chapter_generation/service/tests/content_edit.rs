@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::EditChapterContentInput;
 use sea_orm::*;
 
 use super::support::{insert_chapter, insert_project, setup_db};
@@ -13,7 +14,7 @@ async fn save_content_edit_rejects_empty_content_without_changing_chapter() {
 
     let err = a4n_db::chapter_content::save_chapter_content_edit_record(
         db.as_ref(),
-        a4n_db::chapter_content::EditChapterContentInput {
+        EditChapterContentInput {
             chapter_id: chapter.id,
             content: " \n\t ".to_string(),
             title: None,

@@ -3,7 +3,7 @@ use super::{
     queries::galgame_portrait_generation_spec_ids_for_source_lines_record,
 };
 use crate::galgame::{GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE};
-use a4n_core::models::{
+use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
     generation::generation_spec,
     media::media_binding,

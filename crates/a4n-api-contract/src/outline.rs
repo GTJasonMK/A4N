@@ -305,6 +305,83 @@ pub struct OutlineGenerationProgressSummary {
     pub completed_chapter_outlines: u64,
 }
 
+/// Host-facing outline read boundary.
+///
+/// Outline visibility, source-kind projection and generation progress remain
+/// owned by the outline application; Runtime only routes complete DTOs.
+#[async_trait::async_trait]
+pub trait OutlineReadApplicationPort: Send + Sync {
+    async fn list_chapters(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterOutlineSummary>, a4n_error::AppError>;
+
+    async fn list_parts(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<PartOutlineSummary>, a4n_error::AppError>;
+
+    async fn generation_progress(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<OutlineGenerationProgressSummary, a4n_error::AppError>;
+
+    async fn ensure_chapter_outline_access(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        outline_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn ensure_part_access(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        part_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing outline mutation boundary.
+///
+/// Permission checks, input normalization, persistence and outline DTO
+/// projection stay with the outline owner. Runtime may append index warnings
+/// from its RAG adapter after the durable mutation succeeds.
+#[async_trait::async_trait]
+pub trait OutlineMutationApplicationPort: Send + Sync {
+    async fn delete_latest_chapters(
+        &self,
+        user_id: i64,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<OutlineMutationResult, a4n_error::AppError>;
+
+    async fn delete_latest_parts(
+        &self,
+        user_id: i64,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<OutlineMutationResult, a4n_error::AppError>;
+
+    async fn save_chapter(
+        &self,
+        user_id: i64,
+        input: SaveChapterOutlineInput,
+    ) -> Result<SaveChapterOutlineResult, a4n_error::AppError>;
+
+    async fn update_chapter(
+        &self,
+        user_id: i64,
+        input: UpdateChapterOutlineInput,
+    ) -> Result<UpdateChapterOutlineResult, a4n_error::AppError>;
+
+    async fn save_part(
+        &self,
+        user_id: i64,
+        input: SavePartOutlineInput,
+    ) -> Result<SavePartOutlineResult, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChapterOutlinePacingAnalysis {
     pub chapter_number: i32,

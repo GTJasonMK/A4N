@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
 
 use super::response::{decode_result, extract_job_id, required_string};
@@ -47,7 +47,7 @@ impl VideoProvider for HttpVideoProvider {
         provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let url = self.generation_url();
         let body = Self::request_body(&req);
@@ -77,14 +77,14 @@ impl VideoProvider for HttpVideoProvider {
             });
         }
 
-        Err(AppError::Internal(anyhow::anyhow!(
+        Err(AppError::Internal(format!(
             "视频生成响应缺少 data[0].b64_json、data[0].url 或 id"
         )))
     }
 
     async fn poll(&self, job_id: &str) -> Result<VideoJobState, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let url = self.job_url(job_id);
         let v = transport::get_json(
@@ -118,19 +118,17 @@ impl VideoProvider for HttpVideoProvider {
         }
 
         if status == "completed" {
-            return Err(AppError::Internal(anyhow::anyhow!(
+            return Err(AppError::Internal(format!(
                 "视频任务已完成，但响应缺少 data[0].b64_json 或 data[0].url"
             )));
         }
 
-        Err(AppError::Internal(anyhow::anyhow!(
-            "未知视频任务 status={status}"
-        )))
+        Err(AppError::Internal(format!("未知视频任务 status={status}")))
     }
 
     async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let value = transport::get_status_json(
             &self.client,
@@ -174,8 +172,6 @@ impl VideoProvider for HttpVideoProvider {
         ) {
             return Ok(a4n_video::VideoJobStatus::Completed);
         }
-        Err(AppError::Internal(anyhow::anyhow!(
-            "未知视频任务 status={status}"
-        )))
+        Err(AppError::Internal(format!("未知视频任务 status={status}")))
     }
 }

@@ -1,8 +1,8 @@
-use a4n_core::models::ai::{generated_image, generated_video};
-use a4n_core::models::canvas::{canvas_graph, canvas_node};
-use a4n_core::models::chapter::{chapter, chapter_video_prompt};
-use a4n_core::models::generation::{generation_run, generation_run_target, workflow_run};
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::ai::{generated_image, generated_video};
+use a4n_db_models::models::canvas::{canvas_graph, canvas_node};
+use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
+use a4n_db_models::models::generation::{generation_run, generation_run_target, workflow_run};
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,
@@ -132,7 +132,7 @@ async fn insert_confirmed_visual_plan_and_shooting_script(
     let source = a4n_db::project::resolve_chapter_source(db, project_id, chapter.id)
         .await
         .expect("video test chapter source should resolve");
-    let source_spans = a4n_core::source_spans::source_spans_for_content(
+    let source_spans = a4n_domain::source_spans::source_spans_for_content(
         chapter.id,
         chapter.chapter_number,
         &chapter.content,
@@ -145,6 +145,7 @@ async fn insert_confirmed_visual_plan_and_shooting_script(
             author_user_id: 1,
             authoring_mode: a4n_domain::chapter_visual_plan::ChapterVisualPlanAuthoringMode::Manual,
             expected: None,
+            expected_source_hash: None,
             plan,
         },
     )
@@ -396,7 +397,7 @@ fn video_record_input(project_id: i64) -> a4n_db::video::CreateGeneratedVideoRec
     a4n_db::video::CreateGeneratedVideoRecordDraftInput {
         project_id,
         chapter_id: None,
-        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("boundary_frames".to_string()),
         prompt: "雨夜街巷，人物对峙".to_string(),
         negative_prompt: None,

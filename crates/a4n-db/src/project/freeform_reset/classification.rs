@@ -1,7 +1,10 @@
 #[cfg(test)]
-use a4n_core::models::{ai::generated_image, media::media_asset};
-use a4n_core::{models::ai::generated_video, video_workflow::WORKFLOW_MODE_CANVAS_VIDEO};
-use a4n_domain::{EXTERNAL_IMPORT_MODEL, image::IMAGE_TYPE_CANVAS};
+use a4n_db_models::models::ai::generated_video;
+#[cfg(test)]
+use a4n_db_models::models::{ai::generated_image, media::media_asset};
+use a4n_domain::{
+    EXTERNAL_IMPORT_MODEL, image::IMAGE_TYPE_CANVAS, video_workflow::WORKFLOW_MODE_CANVAS_VIDEO,
+};
 
 const MEDIA_ORIGIN_IMPORTED: &str = "imported";
 
@@ -41,7 +44,7 @@ fn is_freeform_imported_canvas_video_fields(
     model: &str,
     metadata_json: Option<&serde_json::Value>,
 ) -> bool {
-    video_type == generated_video::VIDEO_TYPE_CANVAS
+    video_type == a4n_domain::video_workflow::VIDEO_TYPE_CANVAS
         && workflow_mode == Some(WORKFLOW_MODE_CANVAS_VIDEO)
         && model == EXTERNAL_IMPORT_MODEL
         && metadata_json

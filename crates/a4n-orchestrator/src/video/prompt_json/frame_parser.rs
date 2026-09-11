@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 use super::contracts::{
     StaticVideoFramePromptInput, StaticVideoFramePromptResponse, StoryboardVideoFramePromptInput,

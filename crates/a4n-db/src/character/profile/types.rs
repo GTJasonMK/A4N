@@ -22,19 +22,6 @@ pub struct CharacterProfileCurrentStateFields {
     pub current_state: Value,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub struct CharacterProfileCreateInput {
-    pub project_id: i64,
-    pub name: String,
-    pub base_attributes: Value,
-    pub current_state: Value,
-    pub gender: Option<String>,
-    pub age: Option<String>,
-    pub appearance: Option<String>,
-    pub background: Option<String>,
-    pub personality: Option<String>,
-}
-
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CharacterProfileDeletionSummary {
     pub project_id: i64,

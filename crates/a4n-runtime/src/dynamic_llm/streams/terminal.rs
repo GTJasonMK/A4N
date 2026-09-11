@@ -8,9 +8,11 @@ use std::{
     time::Instant,
 };
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext, UsageInfo};
-use a4n_orchestrator::{DynamicProviderFacade, task_queue::RunningTask};
+use a4n_provider_runtime_contract::TaskLease;
+
+use crate::provider_runtime::DynamicProviderFacade;
 
 pub(in crate::dynamic_llm::streams) use kind::StreamKind;
 use sync::{TerminalSyncContext, start_completed_sync, start_failed_sync};
@@ -18,7 +20,7 @@ use sync::{TerminalSyncContext, start_completed_sync, start_failed_sync};
 pub(super) struct QueueTrackedStreamTerminal {
     kind: StreamKind,
     facade: DynamicProviderFacade,
-    running_task: Option<RunningTask>,
+    running_task: Option<Box<dyn TaskLease>>,
     trace_context: Option<LlmTraceContext>,
     model_name: String,
     started: Instant,
@@ -32,7 +34,7 @@ impl QueueTrackedStreamTerminal {
     pub(super) fn new(
         kind: StreamKind,
         facade: DynamicProviderFacade,
-        running_task: RunningTask,
+        running_task: Box<dyn TaskLease>,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,

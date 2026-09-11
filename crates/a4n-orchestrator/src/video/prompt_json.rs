@@ -1,10 +1,9 @@
-use a4n_core::error::AppError;
+#[cfg(test)]
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::source_spans::SourceSpan;
+use a4n_error::AppError;
 use serde_json::Value;
 use std::collections::HashSet;
-
-#[cfg(test)]
-use a4n_core::prompt_language::PromptOutputLanguage;
-use a4n_core::source_spans::SourceSpan;
 
 mod chat_prompts;
 mod contracts;

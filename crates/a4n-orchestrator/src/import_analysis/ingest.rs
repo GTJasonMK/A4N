@@ -1,15 +1,15 @@
 use crate::{OrchestratorContext, collaboration::ProjectAccessRole};
-use a4n_core::error::AppError;
-use a4n_core::models::project::import_review_queue;
-use a4n_db::import_review::ImportReviewCreateInput;
-use a4n_import_core::file_parsers::ParsedChapter;
+use a4n_db_models::models::project::import_review_queue;
+use a4n_domain::import_review::ImportChapterDraft;
+use a4n_domain::import_review::ImportReviewCreateInput;
+use a4n_error::AppError;
 
 pub async fn create_import_analysis_reviews_for_user_validated(
     context: &OrchestratorContext,
     user_id: i64,
     project_id: i64,
     filename: &str,
-    chapters: &[ParsedChapter],
+    chapters: &[ImportChapterDraft],
 ) -> Result<Vec<import_review_queue::Model>, AppError> {
     context
         .verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
@@ -34,7 +34,7 @@ pub async fn create_import_analysis_reviews_for_user_validated(
 fn import_review_input(
     project_id: i64,
     filename: &str,
-    chapter: &ParsedChapter,
+    chapter: &ImportChapterDraft,
 ) -> Result<ImportReviewCreateInput, AppError> {
     if chapter.number <= 0 {
         return Err(AppError::InvalidArgument(format!(

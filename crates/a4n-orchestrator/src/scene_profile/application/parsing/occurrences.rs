@@ -2,7 +2,7 @@ use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::SceneProfileSyncRequestContext;
 use super::validation::{validate_character_refs, validate_object_refs};
 use crate::scene_profile::SceneOccurrenceDraft;
-use a4n_core::json_contract::{
+use a4n_domain::json_contract::{
     ensure_object, optional_string, positive_i64_array, reject_unknown_fields, required_array,
     required_object_value, required_string, string_array_value,
 };

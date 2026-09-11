@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    config::app_config::llm_token_profiles,
-    error::AppError,
-    models::{chapter::chapter, character::protagonist_profile, project::text_anchor},
-    source_spans::text_anchor_prompt_values,
+use a4n_db_models::models::{
+    chapter::chapter, character::protagonist_profile, project::text_anchor,
 };
+use a4n_domain::llm::llm_token_profiles;
+use a4n_domain::source_spans::text_anchor_prompt_values;
+use a4n_error::AppError;
 use a4n_llm::{
     context::{
         ContextAwareJsonLlmRequestInput, PACK_KIND_PROFILE_SYNC_SOURCE_CONTEXT,

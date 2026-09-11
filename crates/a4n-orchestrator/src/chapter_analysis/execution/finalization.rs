@@ -1,9 +1,7 @@
-use a4n_core::chapter_analysis::{
-    CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL, CHAPTER_ANALYSIS_STEP_FINAL,
-};
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter;
-use a4n_core::source_spans::SourceSpan;
+use a4n_chapter_analysis::{CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL, CHAPTER_ANALYSIS_STEP_FINAL};
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::source_spans::SourceSpan;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::owner::{

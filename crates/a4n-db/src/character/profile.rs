@@ -4,11 +4,11 @@ mod records;
 mod state;
 mod types;
 
-use a4n_core::models::character::{
+use a4n_db_models::models::character::{
     attribute_event, character_state_index, protagonist_behavior_record, protagonist_deletion_mark,
     protagonist_profile, snapshot_reference,
 };
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult,
     QueryFilter, QuerySelect, Set, TransactionTrait,
@@ -30,8 +30,8 @@ use state::normalize_base_attributes;
 pub use state::profile_current_state_fields;
 pub(in crate::character) use types::CharacterProfileCurrentStateUpdate;
 pub use types::{
-    CharacterProfileCreateError, CharacterProfileCreateInput, CharacterProfileCurrentStateFields,
-    CharacterProfileDeleteError, CharacterProfileDeletionSummary,
+    CharacterProfileCreateError, CharacterProfileCurrentStateFields, CharacterProfileDeleteError,
+    CharacterProfileDeletionSummary,
 };
 
 #[derive(Debug, FromQueryResult)]

@@ -18,9 +18,14 @@ embedded-media-providers = [
 
 [dependencies]
 a4n-api-contract = { path = "../a4n-api-contract" }
-a4n-core = { path = "../a4n-core" }
+a4n-config = { path = "../a4n-config" }
+a4n-domain = { path = "../a4n-domain" }
+a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-media = { path = "../a4n-media" }
 a4n-runtime = { path = "../a4n-runtime", default-features = false }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
+a4n-storage = { path = "../a4n-storage" }
+a4n-task-runtime = { path = "../a4n-task-runtime" }
 
 anyhow = { workspace = true }
 axum = { workspace = true }
@@ -40,6 +45,7 @@ uuid = { workspace = true }
 
 [dev-dependencies]
 a4n-db = { path = "../a4n-db" }
+a4n-db-models = { path = "../a4n-db-models" }
 a4n-migration = { path = "../a4n-migration" }
 a4n-queue = { path = "../a4n-queue" }
 reqwest = { workspace = true }

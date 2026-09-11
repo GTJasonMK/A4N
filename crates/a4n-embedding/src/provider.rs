@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 pub use a4n_domain::embedding::EmbeddingModelIdentity;
 
 pub const EMBEDDING_CONNECTIVITY_TEST_TEXT: &str = "test";
@@ -15,18 +15,18 @@ pub fn validate_embedding_connectivity_vectors(
     expected_dimension: usize,
 ) -> Result<(), AppError> {
     if expected_dimension == 0 {
-        return Err(AppError::ConfigError(
+        return Err(AppError::Configuration(
             "嵌入连接测试配置维度必须为正整数".to_string(),
         ));
     }
     let [embedding] = embeddings else {
-        return Err(AppError::EmbeddingError(format!(
+        return Err(AppError::Embedding(format!(
             "嵌入连接测试返回 {} 个向量，期望 1 个",
             embeddings.len()
         )));
     };
     if embedding.len() != expected_dimension {
-        return Err(AppError::EmbeddingError(format!(
+        return Err(AppError::Embedding(format!(
             "嵌入连接测试向量维度不匹配：返回 {}，期望 {expected_dimension}",
             embedding.len()
         )));

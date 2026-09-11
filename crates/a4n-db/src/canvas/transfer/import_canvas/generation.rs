@@ -6,7 +6,7 @@ use super::super::types::{
     DeferredVideoStudioImportGenerationSpecTarget, VideoStudioProjectImportError,
     VideoStudioProjectImportIdMaps,
 };
-use a4n_core::models::generation::{generation_spec, prompt_artifact};
+use a4n_db_models::models::generation::{generation_spec, prompt_artifact};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set,
     sea_query::{Alias, CaseStatement, Expr},

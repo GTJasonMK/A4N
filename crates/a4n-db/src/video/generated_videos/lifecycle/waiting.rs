@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
 
@@ -32,7 +32,8 @@ where
 pub(super) fn validate_generated_video_waiting_status(status: &str) -> Result<(), VideoDbError> {
     if matches!(
         status,
-        generated_video::STATUS_PENDING | generated_video::STATUS_RUNNING
+        a4n_domain::video_workflow::VIDEO_STATUS_PENDING
+            | a4n_domain::video_workflow::VIDEO_STATUS_RUNNING
     ) {
         Ok(())
     } else {

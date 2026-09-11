@@ -4,7 +4,7 @@ use super::super::{
 use super::record::insert_generated_image_record;
 use super::trace::{image_generation_parsed_output, image_generation_response_summary};
 use super::validation::validate_create_generated_image_record_input;
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 fn generated_image_target(

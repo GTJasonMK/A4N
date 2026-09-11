@@ -1,5 +1,5 @@
 use crate::media::MEDIA_STATUS_COMPLETED;
-use a4n_core::models::media::{media_asset, media_provenance};
+use a4n_db_models::models::media::{media_asset, media_provenance};
 
 use super::super::contracts::MediaProvenanceRefContext;
 use super::context::validate_media_provenance_source_context;

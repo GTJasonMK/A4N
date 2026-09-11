@@ -2,6 +2,7 @@ use super::claim::{
     process_claimed_cleanup, process_claimed_file_artifact_cleanup,
     process_claimed_generation_cleanup, process_claimed_media_workflow_reset,
 };
+use super::publication::recover_image_publications;
 use crate::AppState;
 use crate::actions::app_error_message;
 use std::time::Duration;
@@ -48,7 +49,7 @@ pub async fn drain_cleanup_outbox(
         match kind {
             CleanupKind::FileArtifact => {
                 if let Some(claim) = state
-                    .orchestrator()
+                    .cleanup_outbox_application()
                     .claim_file_artifact_cleanup(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -64,7 +65,7 @@ pub async fn drain_cleanup_outbox(
             }
             CleanupKind::MediaWorkflowReset => {
                 if let Some(claim) = state
-                    .orchestrator()
+                    .cleanup_outbox_application()
                     .claim_media_workflow_v2_reset(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -80,7 +81,7 @@ pub async fn drain_cleanup_outbox(
             }
             CleanupKind::ProjectDeletion => {
                 if let Some(claim) = state
-                    .orchestrator()
+                    .cleanup_outbox_application()
                     .claim_project_deletion_cleanup(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -95,7 +96,7 @@ pub async fn drain_cleanup_outbox(
             }
             CleanupKind::Generation => {
                 if let Some(claim) = state
-                    .orchestrator()
+                    .cleanup_outbox_application()
                     .claim_generation_cleanup(project_id)
                     .await
                     .map_err(app_error_message)?
@@ -126,6 +127,7 @@ pub async fn recover_cleanup_outbox(state: &AppState) {
     if let Err(error) = drain_cleanup_outbox(state, None, STARTUP_DRAIN_LIMIT).await {
         tracing::warn!(error = %error, "启动恢复 cleanup outbox 失败");
     }
+    recover_image_publications(state, &mut None).await;
     expire_generation_snapshot_bodies(state).await;
     purge_expired_generation_task_trees(state).await;
     purge_completed_cleanup_audits(state).await;
@@ -134,12 +136,14 @@ pub async fn recover_cleanup_outbox(state: &AppState) {
 pub fn spawn_cleanup_worker(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(WORKER_INTERVAL);
+        let mut published_after = None;
         interval.tick().await;
         loop {
             interval.tick().await;
             if let Err(error) = drain_cleanup_outbox(&state, None, STARTUP_DRAIN_LIMIT).await {
                 tracing::warn!(error = %error, "后台恢复 cleanup outbox 失败");
             }
+            recover_image_publications(&state, &mut published_after).await;
             expire_generation_snapshot_bodies(&state).await;
             purge_expired_generation_task_trees(&state).await;
             purge_completed_cleanup_audits(&state).await;
@@ -149,7 +153,7 @@ pub fn spawn_cleanup_worker(state: AppState) {
 
 async fn expire_generation_snapshot_bodies(state: &AppState) {
     match state
-        .orchestrator()
+        .generation_application()
         .expire_generation_snapshot_bodies(GENERATION_SNAPSHOT_TTL_LIMIT)
         .await
     {
@@ -163,7 +167,7 @@ async fn expire_generation_snapshot_bodies(state: &AppState) {
 
 async fn purge_expired_generation_task_trees(state: &AppState) {
     match state
-        .orchestrator()
+        .generation_application()
         .purge_expired_generation_task_trees(GENERATION_TASK_TREE_TTL_LIMIT)
         .await
     {
@@ -177,7 +181,7 @@ async fn purge_expired_generation_task_trees(state: &AppState) {
 
 async fn purge_completed_cleanup_audits(state: &AppState) {
     match state
-        .orchestrator()
+        .cleanup_outbox_application()
         .purge_completed_cleanup_audits(CLEANUP_AUDIT_TTL_LIMIT)
         .await
     {

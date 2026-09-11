@@ -1,9 +1,11 @@
 use super::{read_import_media_package_zip, render_export_zip_package};
 use crate::state::RuntimeProfile;
+use a4n_archive_core::{ArchiveEntry, write_zip};
 use a4n_capabilities::A4nCapabilities;
-use a4n_export_core::{ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput};
+use a4n_export_contract::{ExportRenderZipOutput, ExportZipPackageInput};
 use a4n_service_protocol::{ServiceResponse, ServiceStatus};
 use a4n_test_support::capability::RecordingExportClient;
+use base64::Engine as _;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -106,9 +108,20 @@ async fn export_sidecar_request_carries_explicit_project_scope() {
 }
 
 fn successful_export_zip_response() -> ServiceResponse<ExportRenderZipOutput> {
-    let input = ExportRenderZipInput::from_package_input(zip_package_input());
-    let output = a4n_export_core::render_zip(input).expect("render ZIP output");
-    ok_response(output)
+    let input = zip_package_input();
+    let bytes = write_zip(
+        [ArchiveEntry {
+            path: input.manifest_path,
+            bytes: input.manifest_bytes,
+            label: input.manifest_label,
+        }],
+        input.package_label,
+    )
+    .expect("render ZIP output");
+    ok_response(ExportRenderZipOutput {
+        bytes_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
+        content_type: "application/zip".to_string(),
+    })
 }
 
 fn ok_response<T>(payload: T) -> ServiceResponse<T> {

@@ -1,4 +1,4 @@
-use a4n_core::models::{chapter::chapter, generation::workflow_run};
+use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
 use serde_json::{Value, json};
 
 use super::{chapter_analysis_run_input_matches, chapter_analysis_workflow_fingerprint};

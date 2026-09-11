@@ -9,7 +9,7 @@ use a4n_service_protocol::{
 };
 use std::time::Duration;
 use tokio::process::{Child, Command};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 
 const SHUTDOWN_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
@@ -19,6 +19,7 @@ const SIDECAR_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
 pub enum ManagedSidecarState {
     Starting,
     Running,
+    Stopping,
     BackingOff,
     CircuitOpen,
     Stopped,
@@ -31,9 +32,19 @@ pub struct ManagedSidecarStatus {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum StopMode {
+    Graceful,
+    Force,
+}
+
+type StopReply = oneshot::Sender<Result<(), ServiceManagerError>>;
+
+#[derive(Debug)]
 enum SupervisorCommand {
-    GracefulStop,
-    ForceStop,
+    Stop {
+        mode: StopMode,
+        reply: Option<StopReply>,
+    },
 }
 
 #[derive(Debug)]
@@ -42,6 +53,7 @@ pub struct ManagedSidecarProcess {
     command: mpsc::UnboundedSender<SupervisorCommand>,
     status: watch::Receiver<ManagedSidecarStatus>,
     task: Option<JoinHandle<Result<(), ServiceManagerError>>>,
+    stop_failure: Option<String>,
 }
 
 impl ManagedSidecarProcess {
@@ -82,6 +94,7 @@ impl ManagedSidecarProcess {
             command: command_tx,
             status: status_rx,
             task: Some(task),
+            stop_failure: None,
         })
     }
 
@@ -94,31 +107,78 @@ impl ManagedSidecarProcess {
     }
 
     pub async fn stop(mut self) -> Result<(), ServiceManagerError> {
-        self.finish(SupervisorCommand::GracefulStop).await
+        self.stop_in_place().await
     }
 
     pub async fn force_stop(mut self) -> Result<(), ServiceManagerError> {
-        self.finish(SupervisorCommand::ForceStop).await
+        self.stop_in_place_with(StopMode::Force).await
     }
 
-    async fn finish(&mut self, command: SupervisorCommand) -> Result<(), ServiceManagerError> {
-        let _ = self.command.send(command);
-        let task = self
-            .task
-            .take()
-            .expect("managed sidecar supervisor task must exist until finish");
-        task.await
-            .map_err(|error| ServiceManagerError::SupervisorTaskFailed {
+    /// Stop without transferring ownership to the caller. Package lifecycle
+    /// retries keep a failed stop attached to the owning collection.
+    pub async fn stop_in_place(&mut self) -> Result<(), ServiceManagerError> {
+        self.stop_in_place_with(StopMode::Graceful).await
+    }
+
+    async fn stop_in_place_with(&mut self, mode: StopMode) -> Result<(), ServiceManagerError> {
+        if let Some(reason) = &self.stop_failure {
+            return Err(ServiceManagerError::SupervisorTaskFailed {
+                service: self.config.name.clone(),
+                reason: format!("previous stop attempt failed: {reason}"),
+            });
+        }
+
+        if self.task.as_ref().is_some_and(|task| task.is_finished()) {
+            return self.take_task_result().await;
+        }
+
+        let (reply_tx, reply_rx) = oneshot::channel();
+        if self
+            .command
+            .send(SupervisorCommand::Stop {
+                mode,
+                reply: Some(reply_tx),
+            })
+            .is_err()
+        {
+            return self.take_task_result().await;
+        }
+
+        match reply_rx.await {
+            Ok(Ok(())) => self.take_task_result().await,
+            Ok(Err(error)) => Err(error),
+            Err(error) => Err(ServiceManagerError::SupervisorTaskFailed {
+                service: self.config.name.clone(),
+                reason: format!("stop reply channel failed: {error}"),
+            }),
+        }
+    }
+
+    async fn take_task_result(&mut self) -> Result<(), ServiceManagerError> {
+        let Some(task) = self.task.take() else {
+            return Ok(());
+        };
+        let result = match task.await {
+            Ok(result) => result,
+            Err(error) => Err(ServiceManagerError::SupervisorTaskFailed {
                 service: self.config.name.clone(),
                 reason: error.to_string(),
-            })?
+            }),
+        };
+        if let Err(error) = &result {
+            self.stop_failure = Some(error.to_string());
+        }
+        result
     }
 }
 
 impl Drop for ManagedSidecarProcess {
     fn drop(&mut self) {
         if self.task.take().is_some() {
-            let _ = self.command.send(SupervisorCommand::ForceStop);
+            let _ = self.command.send(SupervisorCommand::Stop {
+                mode: StopMode::Force,
+                reply: None,
+            });
         }
     }
 }
@@ -131,19 +191,79 @@ async fn supervise(
     mut commands: mpsc::UnboundedReceiver<SupervisorCommand>,
     status: watch::Sender<ManagedSidecarStatus>,
 ) -> Result<(), ServiceManagerError> {
+    enum StartupEvent {
+        Healthy(Result<(), ServiceManagerError>),
+        Command(Option<SupervisorCommand>),
+    }
+
     let mut restart_count = 0;
+    let mut stopping = false;
     loop {
+        if stopping {
+            let command = tokio::select! {
+                command = commands.recv() => command,
+                result = child.wait() => {
+                    match result {
+                        Ok(_) => {
+                            set_status(&status, ManagedSidecarState::Stopped, None);
+                            return Ok(());
+                        }
+                        Err(source) => {
+                            return Err(ServiceManagerError::ProcessStatusFailed {
+                                service: config.name.clone(),
+                                source,
+                            });
+                        }
+                    }
+                }
+            };
+            let (mode, reply) = match command {
+                Some(SupervisorCommand::Stop { mode, reply }) => (mode, reply),
+                None => (StopMode::Force, None),
+            };
+            match stop_child(&config, &mut child, &client, mode).await {
+                Ok(()) => {
+                    if let Some(reply) = reply {
+                        let _ = reply.send(Ok(()));
+                    }
+                    set_status(&status, ManagedSidecarState::Stopped, None);
+                    return Ok(());
+                }
+                Err(error) => {
+                    set_status(&status, ManagedSidecarState::Stopping, child.id());
+                    if let Some(reply) = reply {
+                        let _ = reply.send(Err(error));
+                        continue;
+                    }
+                    return Err(error);
+                }
+            }
+        }
+
         let exit_error = tokio::select! {
             command = commands.recv() => {
-                stop_child(
-                    &config,
-                    &mut child,
-                    &client,
-                    command.unwrap_or(SupervisorCommand::ForceStop),
-                )
-                .await?;
-                set_status(&status, ManagedSidecarState::Stopped, None);
-                return Ok(());
+                let (mode, reply) = match command {
+                    Some(SupervisorCommand::Stop { mode, reply }) => (mode, reply),
+                    None => (StopMode::Force, None),
+                };
+                match stop_child(&config, &mut child, &client, mode).await {
+                    Ok(()) => {
+                        if let Some(reply) = reply {
+                            let _ = reply.send(Ok(()));
+                        }
+                        set_status(&status, ManagedSidecarState::Stopped, None);
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        stopping = true;
+                        set_status(&status, ManagedSidecarState::Stopping, child.id());
+                        if let Some(reply) = reply {
+                            let _ = reply.send(Err(error));
+                            continue;
+                        }
+                        return Err(error);
+                    }
+                }
             }
             result = child.wait() => {
                 match result {
@@ -172,7 +292,13 @@ async fn supervise(
             set_status(&status, ManagedSidecarState::BackingOff, None);
             tokio::select! {
                 _ = tokio::time::sleep(Duration::from_millis(backoff_ms)) => {}
-                _ = commands.recv() => {
+                command = commands.recv() => {
+                    if let Some(SupervisorCommand::Stop {
+                        reply: Some(reply), ..
+                    }) = command
+                    {
+                        let _ = reply.send(Ok(()));
+                    }
                     set_status(&status, ManagedSidecarState::Stopped, None);
                     return Ok(());
                 }
@@ -193,21 +319,18 @@ async fn supervise(
             };
 
             let startup_result = tokio::select! {
-                result = wait_until_healthy(&config, &mut next, &client) => Ok(result),
-                command = commands.recv() => Err(command.unwrap_or(SupervisorCommand::ForceStop)),
+                result = wait_until_healthy(&config, &mut next, &client) => {
+                    StartupEvent::Healthy(result)
+                }
+                command = commands.recv() => StartupEvent::Command(command),
             };
             match startup_result {
-                Err(command) => {
-                    stop_child(&config, &mut next, &client, command).await?;
-                    set_status(&status, ManagedSidecarState::Stopped, None);
-                    return Ok(());
-                }
-                Ok(Ok(())) => {
+                StartupEvent::Healthy(Ok(())) => {
                     child = next;
                     set_status(&status, ManagedSidecarState::Running, child.id());
                     break;
                 }
-                Ok(Err(error)) => {
+                StartupEvent::Healthy(Err(error)) => {
                     let next_last_error = status_error(&error);
                     next.kill().await.map_err(|kill_source| {
                         ServiceManagerError::StartupCleanupFailed {
@@ -217,6 +340,31 @@ async fn supervise(
                         }
                     })?;
                     last_error = next_last_error;
+                }
+                StartupEvent::Command(command) => {
+                    let (mode, reply) = match command {
+                        Some(SupervisorCommand::Stop { mode, reply }) => (mode, reply),
+                        None => (StopMode::Force, None),
+                    };
+                    match stop_child(&config, &mut next, &client, mode).await {
+                        Ok(()) => {
+                            if let Some(reply) = reply {
+                                let _ = reply.send(Ok(()));
+                            }
+                            set_status(&status, ManagedSidecarState::Stopped, None);
+                            return Ok(());
+                        }
+                        Err(error) => {
+                            if let Some(reply) = reply {
+                                let _ = reply.send(Err(error));
+                                child = next;
+                                stopping = true;
+                                set_status(&status, ManagedSidecarState::Stopping, child.id());
+                                break;
+                            }
+                            return Err(error);
+                        }
+                    }
                 }
             }
         }
@@ -260,11 +408,9 @@ async fn stop_child(
     config: &ManagedServiceConfig,
     child: &mut Child,
     client: &reqwest::Client,
-    command: SupervisorCommand,
+    mode: StopMode,
 ) -> Result<(), ServiceManagerError> {
-    if matches!(command, SupervisorCommand::GracefulStop)
-        && request_graceful_shutdown(config, client).await?
-    {
+    if matches!(mode, StopMode::Graceful) && request_graceful_shutdown(config, client).await? {
         match tokio::time::timeout(SIDECAR_DRAIN_TIMEOUT, child.wait()).await {
             Ok(Ok(_)) => return Ok(()),
             Ok(Err(source)) => {

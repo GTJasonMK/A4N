@@ -1,7 +1,7 @@
 use super::super::types::CharacterAttributeEventHistoryFilter;
 use super::validation::validate_attribute_history_filter;
 use crate::character::CharacterDbError;
-use a4n_core::models::character::attribute_event;
+use a4n_db_models::models::character::attribute_event;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };

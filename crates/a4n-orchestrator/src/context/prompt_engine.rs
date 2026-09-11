@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::{
     engine::{PromptCategory, PromptEntry, PromptVersion},
     rendering::PromptRenderer,

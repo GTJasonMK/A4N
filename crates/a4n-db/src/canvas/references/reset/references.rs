@@ -2,7 +2,7 @@ use super::super::config::{
     IMAGE_REF_CONFIG_KEY, VIDEO_REF_CONFIG_KEY, config_id_in, validate_positive_id,
 };
 use crate::canvas::CanvasDbError;
-use a4n_core::models::canvas::{canvas_graph, canvas_node};
+use a4n_db_models::models::canvas::{canvas_graph, canvas_node};
 use a4n_domain::CanvasNodeRefKind;
 use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 use std::collections::{BTreeSet, HashMap, HashSet};

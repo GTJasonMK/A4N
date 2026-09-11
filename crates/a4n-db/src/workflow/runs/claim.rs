@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::task::task_queue;
+use a4n_db_models::models::task::task_queue;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ActiveModelTrait, DbBackend, Statement, TransactionTrait};
 

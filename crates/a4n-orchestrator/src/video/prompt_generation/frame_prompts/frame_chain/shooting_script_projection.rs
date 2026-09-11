@@ -3,9 +3,9 @@ use crate::video::prompt_generation::frame_prompts::{
     render_staged_segment_plan_with_duration, report_video_prompt_progress,
     video_projection_from_shooting_script, video_prompt_generation_trace,
 };
-use a4n_core::error::AppError;
-use a4n_core::video_execution::VideoShootingScriptIdentityV1;
 use a4n_domain::shooting_script::ChapterShootingScriptV1;
+use a4n_error::AppError;
+use a4n_video_contract::VideoShootingScriptIdentityV1;
 
 use super::contracts::{
     SegmentPlanFromShootingScriptProjectionInput, ShootingScriptProjectionPreparationInput,
@@ -92,8 +92,8 @@ pub(super) async fn render_segment_plan_from_shooting_script_projection(
                         "workflow:{}:unit:{}",
                         unit_progress.workflow_run_id, narrative_unit_index
                     ),
-                    source_content_sha256: a4n_core::source_spans::source_text_hash(source.content),
-                    script_sha256: a4n_core::source_spans::source_text_hash(&script_json),
+                    source_content_sha256: a4n_domain::source_text_hash(source.content),
+                    script_sha256: a4n_domain::source_text_hash(&script_json),
                 },
                 source_shot_order,
                 source_complete,

@@ -1,4 +1,5 @@
 use super::*;
+use a4n_domain::project::ProjectStatusHistoryInput;
 use sea_orm::QuerySelect;
 
 pub(super) async fn sync_project_after_blueprint_restore_record<C>(
@@ -19,14 +20,14 @@ where
         .await
         .map_err(|error| BlueprintRestoreError::database("读取恢复目标项目失败", error))?
         .ok_or(BlueprintRestoreError::ProjectNotFound { project_id })?;
-    let previous_status = parse_project_status(&project).map_err(|_| {
+    let previous_status = ProjectStatus::parse_storage(&project).map_err(|_| {
         BlueprintRestoreError::InvalidProjectStatus {
             project_id,
             status: project.clone(),
         }
     })?;
     let next_status =
-        a4n_core::blueprint::project_status_after_blueprint_generation(previous_status);
+        a4n_domain::project::project_status_after_blueprint_generation(previous_status);
     let total_chapters = blueprint.total_chapters.ok_or_else(|| {
         BlueprintRestoreError::invalid_snapshot("蓝图版本缺少 total_chapters，无法同步项目章节目标")
     })?;

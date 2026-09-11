@@ -9,8 +9,8 @@ pub async fn start_inspiration_generation_typed(
     input: StartInspirationGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .orchestrator()
-        .start_inspiration_generation_task(user_id, &input)
+        .inspiration_generation_application()
+        .start_generation(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -22,8 +22,8 @@ pub async fn start_inspiration_generation_typed(
         "inspiration_generation",
         move |handle| async move {
             worker_state
-                .orchestrator()
-                .run_inspiration_generation_task(&worker_state, input, handle)
+                .inspiration_generation_application()
+                .run_generation(&worker_state, input, handle)
                 .await
         },
     );

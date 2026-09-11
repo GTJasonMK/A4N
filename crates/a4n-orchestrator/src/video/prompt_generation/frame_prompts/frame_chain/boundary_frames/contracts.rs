@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::prompt_language::PromptOutputLanguage;
-use a4n_core::source_spans::SourceSpan;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::source_spans::SourceSpan;
 use a4n_llm::context::LlmContextManifest;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;

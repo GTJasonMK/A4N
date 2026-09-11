@@ -1,7 +1,7 @@
 mod build;
 pub use build::assemble_staged_chapter_analysis;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 fn required_stage_field(value: &Value, stage: &str, field: &str) -> Result<Value, AppError> {

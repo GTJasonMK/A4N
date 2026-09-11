@@ -1,5 +1,5 @@
 use crate::video::VideoDbError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 
 pub(in crate::video::prompt_records) fn validate_chapter_video_prompt_duration(
     duration_secs: i32,

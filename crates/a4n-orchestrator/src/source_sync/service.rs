@@ -4,9 +4,9 @@ use super::preparation::prepared_source_sync_decisions;
 use super::rules::source_sync_decisions_require_galgame_preparation;
 use crate::OrchestratorContext;
 use crate::source_sync::source_sync_db_error;
-use a4n_core::error::AppError;
-use a4n_core::models::source_sync::source_sync_run;
 use a4n_db::source_sync::SourceSyncPlanRecord;
+use a4n_db_models::models::source_sync::source_sync_run;
+use a4n_error::AppError;
 
 pub struct ApplySourceSyncApplicationInput<'a> {
     pub run: source_sync_run::Model,

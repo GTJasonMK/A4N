@@ -1,17 +1,15 @@
+use a4n_error::AppError;
 use std::collections::HashSet;
 
-use a4n_core::{
-    error::AppError,
-    video_execution::{
-        VIDEO_EXECUTION_CONTRACT_EPOCH, VIDEO_EXECUTION_PROJECTION_V2, VideoActionLoadV1,
-        VideoDirectingAuditV2, VideoExecutionBeatV2, VideoExecutionProjectionV2,
-        VideoExecutionQualityV2, VideoExecutionRiskLevelV1, VideoExecutionRiskV1,
-        VideoExecutionSceneV2, VideoExecutionShotV2, VideoShootingScriptIdentityV1,
-        VideoSourceSpanRangeV1,
-    },
-};
 use a4n_domain::shooting_script::{
     ChapterShootingScriptV1, ShootingCoverageV1, ShootingViewpointModeV1,
+};
+use a4n_video_contract::{
+    VIDEO_EXECUTION_CONTRACT_EPOCH, VIDEO_EXECUTION_PROJECTION_V2, VideoActionLoadV1,
+    VideoDirectingAuditV2, VideoExecutionBeatV2, VideoExecutionProjectionV2,
+    VideoExecutionQualityV2, VideoExecutionRiskLevelV1, VideoExecutionRiskV1,
+    VideoExecutionSceneV2, VideoExecutionShotV2, VideoShootingScriptIdentityV1,
+    VideoSourceSpanRangeV1,
 };
 
 pub(in crate::video) fn video_projection_from_shooting_script(

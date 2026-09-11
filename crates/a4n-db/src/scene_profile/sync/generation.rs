@@ -3,17 +3,16 @@ use std::collections::BTreeSet;
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 
 use super::super::{
-    SceneProfileDbError, SceneProfileDbResult, SceneProfileEvidenceRecordInput,
-    SceneSyncRecordInput, SceneSyncRecordResult,
+    SceneProfileDbError, SceneProfileDbResult, SceneSyncRecordInput, SceneSyncRecordResult,
 };
 use super::replacement::replace_chapter_scene_sync_records;
 use super::rules::{
     scene_sync_generation_response_summary, validate_scene_sync_generation_run_scope,
 };
 use crate::project::{ChapterSourceSnapshot, chapter_source_snapshot_targets};
-use crate::text_anchor::{
-    EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind,
-};
+use crate::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
+use a4n_domain::scene_profile::SceneProfileEvidenceRecordInput;
+use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 
 pub async fn replace_chapter_scene_sync_with_generation_run_records(
     db: &DatabaseConnection,

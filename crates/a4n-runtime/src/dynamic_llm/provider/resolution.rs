@@ -1,15 +1,23 @@
 use std::sync::Arc;
 
+use crate::provider_runtime::DynamicProviderFacade;
 use a4n_capabilities::LlmClient;
-use a4n_core::error::AppError;
-use a4n_core::models::ai::llm_config;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
-use a4n_orchestrator::DynamicProviderFacade;
+use a4n_provider_contract::LlmProviderConfig;
 
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 use crate::runtime_config;
 
 impl DynamicLlmProvider {
+    pub(crate) async fn capabilities_for_config_id(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<a4n_llm::provider::ModelCapabilities, AppError> {
+        let model = self.resolve_model_by_id(config_id).await?;
+        super::super::config::model_capabilities(&model)
+    }
+
     /// 使用动态 provider 窄 facade 构造（不持有完整编排上下文）。
     pub(crate) fn new(facade: DynamicProviderFacade) -> Self {
         Self {
@@ -31,8 +39,9 @@ impl DynamicLlmProvider {
     pub(super) async fn resolve_model_by_id(
         &self,
         config_id: Option<i64>,
-    ) -> Result<llm_config::Model, AppError> {
-        if let Some(snapshot_model) = runtime_config::current_llm_model_for_id(config_id) {
+    ) -> Result<LlmProviderConfig, AppError> {
+        if let Some(snapshot_model) = runtime_config::current_llm_provider_config_for_id(config_id)
+        {
             return Ok(snapshot_model);
         }
         if config_id.is_none() && runtime_config::uses_system_default_llm_template() {
@@ -59,14 +68,14 @@ impl DynamicLlmProvider {
 
     async fn resolve_system_default_template_with_user_key(
         &self,
-    ) -> Result<llm_config::Model, AppError> {
+    ) -> Result<LlmProviderConfig, AppError> {
         let api_key = runtime_config::current_system_llm_api_key().ok_or_else(|| {
             AppError::ConfigError(
                 "使用系统默认 LLM 需要先在用户配置页填写并保存你的个人 API Key".to_string(),
             )
         })?;
         let mut model = self.facade.resolve_llm_config(None).await?;
-        model.api_key_encrypted = Some(api_key);
+        model.api_key = Some(api_key);
         Ok(model)
     }
 

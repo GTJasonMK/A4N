@@ -70,12 +70,6 @@ export const initializePortableStorage = async (): Promise<void> => {
   entries.clear();
 
   if (!desktopRuntime) {
-    for (const [key, value] of collectStorageEntries(window.localStorage)) {
-      entries.set(key, value);
-    }
-    for (const [key, value] of collectStorageEntries(window.sessionStorage)) {
-      entries.set(key, value);
-    }
     initialized = true;
     return;
   }
@@ -106,7 +100,7 @@ export const readPortableItem = (key: string): string | null => {
     }
     return entries.get(key) ?? null;
   }
-  if (entries.has(key)) return entries.get(key) ?? null;
+  // Browser storage is shared across tabs; a per-tab copy would retain rotated credentials.
   return readBrowserItem(key);
 };
 
@@ -122,7 +116,6 @@ export const writePortableItem = (key: string, value: string): boolean => {
     scheduleFlush();
     return true;
   }
-  entries.set(key, value);
   writeBrowserItem(key, value);
   return true;
 };
@@ -139,7 +132,6 @@ export const removePortableItem = (key: string): void => {
     scheduleFlush();
     return;
   }
-  entries.delete(key);
   removeBrowserItem(key);
 };
 

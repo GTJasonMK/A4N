@@ -1,4 +1,4 @@
-use a4n_core::models::source_sync::source_sync_run;
+use a4n_db_models::models::source_sync::source_sync_run;
 use sea_orm::ConnectionTrait;
 
 use super::cleanup::cleanup_galgame_scene_regeneration_records;

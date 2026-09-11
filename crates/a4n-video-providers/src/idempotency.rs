@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 pub(crate) fn with_provider_idempotency_key(
     request: reqwest::RequestBuilder,

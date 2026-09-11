@@ -1,8 +1,8 @@
-use a4n_core::{
-    error::AppError,
-    models::user::{theme_config, theme_preference as theme_preference_entity, theme_resource},
+use a4n_db_models::models::user::{
+    theme_config, theme_preference as theme_preference_entity, theme_resource,
 };
 use a4n_domain::{ThemeAppearance, ThemeDocument, ThemeMode};
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, DatabaseConnection, EntityTrait, QueryFilter,

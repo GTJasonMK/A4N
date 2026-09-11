@@ -1,5 +1,5 @@
 use super::scope::rag_operation_timestamp;
-use a4n_core::event::channel::normalize_task_id;
+use a4n_task_runtime::channel::normalize_task_id;
 
 pub(crate) fn rag_ingest_operation_trace_id(
     project_id: i64,

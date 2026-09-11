@@ -33,7 +33,7 @@ use rules::{
 
 pub(in crate::project_family_import) use rules::hash_json;
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::generation_spec,
     media::media_binding,

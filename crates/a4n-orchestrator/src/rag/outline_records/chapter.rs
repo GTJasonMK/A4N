@@ -1,9 +1,11 @@
-use a4n_core::{models::chapter::chapter_outline, rag::RagDataType};
 use a4n_db::rag::RagChapterOutlineRow;
+use a4n_db_models::models::chapter::chapter_outline;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
 use serde_json::Value;
 
-use super::super::{RagRecord, rag_chunk_id};
+use super::super::rag_chunk_id;
 
 fn outline_rag_text(
     id: i64,

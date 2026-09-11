@@ -1,4 +1,5 @@
-use a4n_core::{chapter_analysis::summary_text, models::chapter::chapter};
+use a4n_chapter_analysis::summary_text;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::{Map, Value, json};
 
 pub fn character_llm_chapter_context(chapter: &chapter::Model) -> Value {

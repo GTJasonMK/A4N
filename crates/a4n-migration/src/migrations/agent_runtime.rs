@@ -4,7 +4,7 @@
 //! workflows and generated artifacts remain the source of truth for their
 //! respective work; agent rows only coordinate and reference them.
 
-use a4n_core::models::agent::{
+use a4n_db_models::models::agent::{
     approval, delegation, event, execution, inbox, memory, message, run, thread, turn,
 };
 use sea_orm::{ConnectionTrait, DbBackend, Schema, Statement};

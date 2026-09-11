@@ -3,14 +3,14 @@ use super::{
     RunGalgameAssetGenerationInput,
 };
 use crate::actions::{image_generation, portrait_generation};
-use crate::file_utils::canonicalize_data_file_path;
-use a4n_core::error::AppError;
-use a4n_orchestrator::{
-    galgame::GalgameAssetGenerationHostPort,
-    media::{GenerateGalgameImageInput, GeneratedImageSummary},
+use a4n_api_contract::{
+    image_generation::GenerateGalgameImageInput,
     portrait::{GeneratePortraitInput, PortraitSummary},
 };
+use a4n_error::AppError;
+use a4n_orchestrator::{galgame::GalgameAssetGenerationHostPort, media::GeneratedImageSummary};
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_storage::canonicalize_data_file_path;
 use async_trait::async_trait;
 
 pub async fn plan_galgame_assets(
@@ -19,8 +19,8 @@ pub async fn plan_galgame_assets(
     input: GalgameProjectInput,
 ) -> Result<GalgameAssetPlan, String> {
     state
-        .orchestrator()
-        .plan_galgame_assets_for_user_validated(user_id, input.project_id)
+        .galgame_asset_generation_application()
+        .plan(user_id, input.project_id)
         .await
         .map_err(|err| err.to_string())
 }
@@ -32,8 +32,8 @@ pub async fn run_galgame_asset_generation(
 ) -> Result<GalgameAssetGenerationSummary, String> {
     let host_port = RuntimeGalgameAssetGenerationHostPort { state };
     state
-        .orchestrator()
-        .run_galgame_asset_generation_for_user_validated(&host_port, user_id, input)
+        .galgame_asset_generation_application()
+        .run(&host_port, user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
 }

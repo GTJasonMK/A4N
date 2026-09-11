@@ -1,4 +1,4 @@
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set,
     TransactionTrait,
@@ -7,8 +7,9 @@ use serde_json::Value;
 
 use super::{
     state::{normalize_base_attributes, profile_current_state_fields},
-    types::{CharacterProfileCreateError, CharacterProfileCreateInput},
+    types::CharacterProfileCreateError,
 };
+use a4n_domain::character::CharacterProfileCreateInput;
 
 async fn create_profile_record<C>(
     db: &C,

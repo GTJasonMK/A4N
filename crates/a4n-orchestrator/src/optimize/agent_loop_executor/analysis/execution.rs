@@ -1,10 +1,9 @@
 use super::super::{
     AGENT_LOOP_RUNAWAY_GUARD_STEPS, AgentLoopAction, AgentLoopDecisionRequest,
     AgentLoopExecutionError, AgentLoopThinkObservationInput, ExplicitAnalysisAgentLoopInput,
-    FailedAgentLoopToolInput, OptimizeAnalysisTurnExecution, OrchestratorContext,
-    execute_optimization_runtime_tool, runtime_tool_reads_current_chapter, tool_observation,
+    FailedAgentLoopToolInput, OptimizeAnalysisTurnExecution, OrchestratorContext, tool_observation,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 impl OrchestratorContext {
     pub(in crate::optimize) async fn run_explicit_analysis_agent_loop(
@@ -27,7 +26,6 @@ impl OrchestratorContext {
         .await?;
 
         let mut observations = Vec::new();
-        let mut has_read_current_chapter = false;
         for step in 1..=AGENT_LOOP_RUNAWAY_GUARD_STEPS {
             let phase = format!("内容优化 Agent Loop #{step}");
             let decision = self
@@ -84,14 +82,18 @@ impl OrchestratorContext {
                             "Agent Loop",
                         )
                         .await?;
-                    let result = match execute_optimization_runtime_tool(
-                        &tool_name,
-                        tool_arguments.clone(),
-                        &analysis_context,
-                        session.id,
-                        session.project_id,
-                        session.chapter_id,
-                    ) {
+                    let result = match self
+                        .execute_accounted_optimization_tool(
+                            generation,
+                            &session,
+                            turn_id,
+                            step,
+                            &tool_name,
+                            tool_arguments.clone(),
+                            &analysis_context,
+                        )
+                        .await
+                    {
                         Ok(result) => result,
                         Err(err) => {
                             observations.push(
@@ -109,9 +111,6 @@ impl OrchestratorContext {
                             continue;
                         }
                     };
-                    if runtime_tool_reads_current_chapter(&tool_name, &tool_arguments) {
-                        has_read_current_chapter = true;
-                    }
                     let observation = tool_observation(
                         step,
                         &AgentLoopAction::RunTool,
@@ -131,13 +130,22 @@ impl OrchestratorContext {
                     observations.push(observation);
                 }
                 AgentLoopAction::Final => {
+                    if crate::optimize::runtime_tools::accounting::has_new_user_input(
+                        self, generation,
+                    )
+                    .await?
+                    {
+                        continue;
+                    }
                     return self
                         .finish_explicit_analysis_agent_loop(
                             session,
                             turn_id,
                             decision.arguments,
-                            &analysis_context,
-                            has_read_current_chapter,
+                            &crate::optimize::runtime_tools::observed_evidence_context(
+                                &analysis_context,
+                                &observations,
+                            )?,
                         )
                         .await
                         .map_err(AgentLoopExecutionError::App);

@@ -9,7 +9,7 @@ use super::{
         validate_generated_image_update_panel_binding_fields,
     },
 };
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect, Set};
 
 #[derive(Debug, FromQueryResult)]

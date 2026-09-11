@@ -2,7 +2,7 @@ use super::GALGAME_PIPELINE_WORKFLOW_KIND;
 use super::status::galgame_project_progress_from_counts;
 use crate::project::progress::shared::latest_pipeline_states_by_project;
 use crate::project::progress::{ProjectProgressReadError, ProjectProgressSummary};
-use a4n_core::models::galgame::{galgame_line, galgame_scene, galgame_script};
+use a4n_db_models::models::galgame::{galgame_line, galgame_scene, galgame_script};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
 };

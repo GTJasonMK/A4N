@@ -3,6 +3,7 @@
 mod contracts;
 mod decisions;
 mod preparation;
+mod projection;
 mod rules;
 mod service;
 mod workflow_rules;
@@ -10,8 +11,106 @@ mod workflow_rules;
 pub use contracts::{
     GalgameSourceSyncExecutionContext, SourceSyncDecisionInput, SourceSyncExecutionContext,
 };
+pub(crate) use projection::source_sync_plan_summary;
 pub use service::ApplySourceSyncApplicationInput;
 pub(crate) use workflow_rules::source_sync_apply_workflow_run_input;
+
+use a4n_api_contract::source_sync::{
+    ApplySourceSyncInput, SourceSyncPlanSummary, SourceSyncProjectInput,
+};
+use a4n_error::AppError;
+use a4n_prompt::rendering::PromptRenderer;
+use a4n_queue::TaskFamilyContext;
+use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
+
+/// Host-facing source-sync boundary.
+///
+/// Permission checks, queue registration, persistence and API projection stay
+/// in the source-sync owner. Runtime only supplies the prompt renderer needed
+/// by the Galgame regeneration branch.
+#[async_trait::async_trait]
+pub trait SourceSyncApplicationPort: Send + Sync {
+    async fn preview(
+        &self,
+        user_id: i64,
+        input: SourceSyncProjectInput,
+    ) -> Result<SourceSyncPlanSummary, AppError>;
+
+    async fn apply(
+        &self,
+        user_id: i64,
+        input: ApplySourceSyncInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<SourceSyncPlanSummary, AppError>;
+
+    async fn detach(&self, user_id: i64, input: SourceSyncProjectInput) -> Result<(), AppError>;
+}
+
+#[async_trait::async_trait]
+impl SourceSyncApplicationPort for crate::OrchestratorContext {
+    async fn preview(
+        &self,
+        user_id: i64,
+        input: SourceSyncProjectInput,
+    ) -> Result<SourceSyncPlanSummary, AppError> {
+        let family = self
+            .source_sync_preview_context_for_user_validated(user_id, input.derived_project_id)
+            .await?;
+        let context = TaskFamilyContext::new(
+            family.project.id,
+            family.root_project.id,
+            Some(family.source_snapshot.id),
+            "source_sync",
+        )?;
+        let plan = self
+            .queue_run_tracked_with_family_context(
+                QueueTaskKind::SourceSync,
+                TaskPriority::Medium,
+                context,
+                || async move { self.preview_source_sync(input.derived_project_id).await },
+            )
+            .await?;
+        source_sync_plan_summary(plan)
+    }
+
+    async fn apply(
+        &self,
+        user_id: i64,
+        input: ApplySourceSyncInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<SourceSyncPlanSummary, AppError> {
+        let run = self
+            .source_sync_run_for_user_validated(user_id, input.sync_run_id)
+            .await?;
+        let context = TaskFamilyContext::new(
+            run.derived_project_id,
+            run.root_project_id,
+            Some(run.from_snapshot_id),
+            "source_sync",
+        )?;
+        let plan = self
+            .queue_run_tracked_with_family_context(
+                QueueTaskKind::SourceSync,
+                TaskPriority::Medium,
+                context,
+                || async move {
+                    self.run_source_sync_apply_validated(ApplySourceSyncApplicationInput {
+                        run,
+                        decisions: input.decisions,
+                        galgame_prompt_renderer: Some(prompt_renderer),
+                    })
+                    .await
+                },
+            )
+            .await?;
+        source_sync_plan_summary(plan)
+    }
+
+    async fn detach(&self, user_id: i64, input: SourceSyncProjectInput) -> Result<(), AppError> {
+        self.detach_derived_project_for_user_validated(user_id, input.derived_project_id)
+            .await
+    }
+}
 
 #[cfg(test)]
 use contracts::{RefreshSpecPayload, RegenerateGalgameScenePayload};
@@ -25,25 +124,25 @@ mod tests;
 
 pub(crate) fn source_sync_db_error(
     error: a4n_db::source_sync::SourceSyncDbError,
-) -> a4n_core::error::AppError {
+) -> a4n_error::AppError {
     match error {
         a4n_db::source_sync::SourceSyncDbError::InvalidArgument(message) => {
-            a4n_core::error::AppError::InvalidArgument(message)
+            a4n_error::AppError::InvalidArgument(message)
         }
         a4n_db::source_sync::SourceSyncDbError::InvalidState { current, operation } => {
-            a4n_core::error::AppError::InvalidState { current, operation }
+            a4n_error::AppError::InvalidState { current, operation }
         }
         a4n_db::source_sync::SourceSyncDbError::NotFound(message) => {
-            a4n_core::error::AppError::NotFound(message)
+            a4n_error::AppError::NotFound(message)
         }
         a4n_db::source_sync::SourceSyncDbError::Forbidden(message) => {
-            a4n_core::error::AppError::Forbidden(message)
+            a4n_error::AppError::Forbidden(message)
         }
         a4n_db::source_sync::SourceSyncDbError::Internal(message) => {
-            a4n_core::error::AppError::Internal(anyhow::anyhow!(message))
+            a4n_error::AppError::Internal(anyhow::anyhow!(message))
         }
         a4n_db::source_sync::SourceSyncDbError::Database(error) => {
-            a4n_core::error::AppError::Database(error)
+            a4n_error::AppError::Database(error)
         }
     }
 }

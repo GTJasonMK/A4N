@@ -29,18 +29,22 @@ pub(crate) use generated_images::generated_images_for_chapter_by_id_desc;
 pub(crate) use generated_images::validated_video_reference_image_records_batch;
 pub(crate) use generated_images::video_project_record;
 pub use generated_images::{
-    CreateGeneratedImageRecordDraftInput, UpdateGeneratedImageRecordInput,
-    VideoProfileMaterialReadModel, VideoProfilePrimaryMaterialRow, VideoProfileRelevanceRow,
-    VideoProjectContextReadModel, VideoProjectIdentity, VideoPromptBlueprintCharacterRecord,
-    VideoPromptProtagonistProfileRecord, create_generated_image_record,
-    create_generated_image_record_with_generation_run_checkpoint,
-    delete_generated_image_record_with_cleanup, delete_manga_page_image_records,
-    ensure_image_chapter_belongs_to_project_record, ensure_video_chapter_belongs_to_project_record,
-    ensure_video_reference_images_available_record, generated_image_by_id, generated_image_exists,
-    generated_image_ids_by_ids, generated_images_by_ids, generated_images_for_chapter,
-    generated_images_for_project, generated_images_for_projects,
-    generated_images_for_projects_chapter_by_id_desc, generated_images_for_video_prompt_references,
-    update_generated_image_record, validated_video_reference_image_records,
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    ImagePublicationFileFacts, UpdateGeneratedImageRecordInput, VideoProfileMaterialReadModel,
+    VideoProfilePrimaryMaterialRow, VideoProfileRelevanceRow, VideoProjectContextReadModel,
+    VideoProjectIdentity, VideoPromptBlueprintCharacterRecord, VideoPromptProtagonistProfileRecord,
+    create_generated_image_record, create_generated_image_record_with_generation_run_checkpoint,
+    create_image_publication_intent, delete_generated_image_record_with_cleanup,
+    delete_manga_page_image_records, ensure_image_chapter_belongs_to_project_record,
+    ensure_video_chapter_belongs_to_project_record, ensure_video_reference_images_available_record,
+    generated_image_by_id, generated_image_exists, generated_image_ids_by_ids,
+    generated_images_by_ids, generated_images_for_chapter, generated_images_for_project,
+    generated_images_for_projects, generated_images_for_projects_chapter_by_id_desc,
+    generated_images_for_video_prompt_references, image_publication_by_id,
+    image_publications_for_recovery, mark_image_publication_reclaimed,
+    mark_image_publication_reclaiming, publish_image_publication,
+    publish_image_publication_with_generation_run_checkpoint, update_generated_image_record,
+    update_image_publication_metadata, validated_video_reference_image_records,
     video_asset_project_ids_record, video_chapter_record, video_library_chapter_image_records,
     video_library_explicit_image_records, video_profile_material_read_model,
     video_project_context_read_model, video_reference_candidate_image_records,
@@ -146,6 +150,21 @@ where
             operation: "写入生成媒体".to_string(),
         });
     }
+    Ok(())
+}
+
+async fn lock_generated_media_project_for_update<C>(
+    db: &C,
+    project_id: i64,
+) -> Result<(), VideoDbError>
+where
+    C: ConnectionTrait,
+{
+    let project_id = validate_positive_video_i64(project_id, "project_id")?;
+    crate::project::project_write_identity_for_update(db, project_id)
+        .await
+        .map_err(VideoDbError::Database)?
+        .ok_or_else(|| VideoDbError::NotFound(format!("项目不存在: {project_id}")))?;
     Ok(())
 }
 

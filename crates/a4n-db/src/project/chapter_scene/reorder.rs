@@ -1,5 +1,5 @@
 use super::ProjectChapterSceneWriteError;
-use a4n_core::models::chapter::{chapter, chapter_scene};
+use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect,

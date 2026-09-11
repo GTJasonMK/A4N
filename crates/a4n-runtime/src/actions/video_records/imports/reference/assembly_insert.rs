@@ -5,8 +5,8 @@ use super::super::source::{
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
+use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
-use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
 use chrono::Utc;
 
@@ -50,8 +50,8 @@ async fn create_assembly_insert_video(
     let properties = probe_imported_video_properties(&source, "插入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .orchestrator()
-        .create_imported_assembly_insert_video_record_validated(
+        .video_record_application()
+        .create_imported_assembly_insert_video_record(
             project_id,
             chapter_id,
             &workflow_mode,
@@ -65,7 +65,7 @@ async fn create_assembly_insert_video(
         .map_err(app_error_message)?;
 
     let (output, output_path_str) = persist_imported_video_file(
-        state.orchestrator(),
+        state,
         state.data_dir(),
         record.id,
         &source.path,
@@ -102,5 +102,5 @@ async fn create_assembly_insert_video(
         "插入视频记录完成失败",
     )
     .await?;
-    Ok(video_to_summary(&updated))
+    Ok(updated)
 }

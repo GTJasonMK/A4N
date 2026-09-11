@@ -34,8 +34,8 @@ pub use decisions::{
     apply_prepared_source_sync_decisions_records_transaction,
 };
 pub use dry_run::{
-    CreateSourceSyncDryRunRecordInput, UpdateSourceSyncDryRunSummaryInput,
-    insert_source_sync_dry_run_record, update_source_sync_dry_run_summary,
+    UpdateSourceSyncDryRunSummaryInput, insert_source_sync_dry_run_record,
+    update_source_sync_dry_run_summary,
 };
 use galgame::validate_prepared_galgame_scene_regeneration_record;
 pub use galgame::{

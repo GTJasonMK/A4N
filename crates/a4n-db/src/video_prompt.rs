@@ -1,6 +1,6 @@
 //! 视频提示词下游依赖与可变性规则（从 a4n-services 收敛，供 orchestrator facade 使用）。
 
-use a4n_core::models::chapter::{chapter, chapter_video_prompt};
+use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, QuerySelect};
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};

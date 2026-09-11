@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
 use a4n_db::workflow;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
 
@@ -13,8 +13,8 @@ use crate::video::{
     ChapterVideoSourceContext, OrchestratorContext, VideoPromptChunk, VideoPromptProgress,
 };
 use crate::workflow::workflow_checkpoint_contract_app_error;
-use a4n_core::prompt_language::PromptOutputLanguage;
-use a4n_core::source_spans::SourceSpan;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::video::prompt_generation::frame_prompts::{

@@ -15,6 +15,7 @@ pub mod chapter_generation;
 pub mod chapter_scene;
 pub mod chapter_visual_plan;
 pub mod character;
+pub mod cleanup_outbox;
 pub mod collaboration;
 pub mod config;
 pub mod export;
@@ -22,9 +23,15 @@ pub mod galgame;
 pub mod generation;
 pub mod import_analysis;
 pub mod import_reverse;
-mod import_review;
-mod inspiration;
-pub use a4n_db::llm_context;
+pub mod import_review;
+pub mod inspiration;
+pub mod llm_context {
+    pub use a4n_db::llm_context::{
+        LlmContextPackDbError, record_or_reuse_context_pack,
+        record_or_reuse_context_pack_reference, record_or_reuse_context_pack_references,
+    };
+    pub use a4n_domain::llm::{ContextPackReference, RecordOrReuseContextPackInput};
+}
 pub mod manga;
 pub mod media;
 mod object_discovery;
@@ -53,12 +60,19 @@ mod service_health;
 #[cfg(test)]
 pub(crate) mod test_support;
 
+pub use blueprint::BlueprintGenerationApplicationPort;
+pub use blueprint::BlueprintRequestPreviewApplicationPort;
+pub use cleanup_outbox::CleanupOutboxApplicationPort;
 pub use context::OrchestratorContext;
-pub use context::dynamic_provider::DynamicProviderFacade;
 pub use context::generation::{
-    GenerationTaskAccessError, GenerationTaskHistorySummaries, GenerationTaskStart,
+    AuthorizedGenerationTask, GenerationApplicationPort, GenerationTaskAccessError,
+    GenerationTaskHistorySummaries, GenerationTaskStart,
 };
-pub use service_health::contracts::ManagedServiceHealthSummary;
+pub use outline::OutlinePreviewApplicationPort;
+pub use profile_material::ProfileMaterialApplicationPort;
+pub use service_health::{ManagedServiceHealthSummary, ServiceHealthApplicationPort};
+pub use shooting_script::ShootingScriptApplicationPort;
+pub use source_sync::SourceSyncApplicationPort;
 
 pub(crate) use errors::{
     chapter_content_edit_error_to_app_error, freeform_generated_reset_error_to_app_error,

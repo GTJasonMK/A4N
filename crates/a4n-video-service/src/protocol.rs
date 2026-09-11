@@ -1,5 +1,5 @@
 use crate::contracts::{VideoPollPayload, VideoProviderPayload};
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_service_protocol::{
     ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse, VIDEO_SERVICE_NAME,
     redact_sensitive_message,
@@ -62,7 +62,7 @@ fn validate_project_scope(
 
 fn service_error_code(err: &AppError) -> ServiceErrorCode {
     match err {
-        AppError::InvalidArgument(_) | AppError::ConfigError(_) => {
+        AppError::InvalidArgument(_) | AppError::Configuration(_) => {
             ServiceErrorCode::ConfigurationError
         }
         AppError::Cancelled => ServiceErrorCode::Cancelled,

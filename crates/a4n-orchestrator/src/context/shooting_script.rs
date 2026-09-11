@@ -4,16 +4,15 @@
 //! LLM 生成编排仍在 `shooting_script/` 模块，但 DB 只经本 owner。
 
 use a4n_api_contract::shooting_script::EditChapterShootingScriptInput;
-use a4n_core::error::AppError;
 use a4n_db::DbHandle;
 use a4n_db::chapter_visual_plan::ParsedChapterVisualPlan;
 use a4n_db::project::ResolvedChapterSource;
 use a4n_db::shooting_script::{
-    ChapterVisualPlanIdentity, EditStoredChapterShootingScriptInput,
-    InsertChapterShootingScriptInput, ParsedChapterShootingScript,
+    ChapterVisualPlanIdentity, InsertChapterShootingScriptInput, ParsedChapterShootingScript,
     UpdateChapterShootingScriptInput,
 };
-use a4n_domain::shooting_script::ChapterShootingScriptV1;
+use a4n_domain::shooting_script::{ChapterShootingScriptV1, EditStoredChapterShootingScriptInput};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::chapter_visual_plan::visual_plan_db_error;

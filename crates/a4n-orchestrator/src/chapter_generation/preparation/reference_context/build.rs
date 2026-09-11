@@ -9,7 +9,7 @@ use super::selection::{
     select_generation_relationships,
 };
 use crate::OrchestratorContext;
-use a4n_core::models::chapter::chapter_outline;
+use a4n_db_models::models::chapter::chapter_outline;
 
 impl OrchestratorContext {
     pub async fn resolve_generation_reference_context(

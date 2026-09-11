@@ -1,4 +1,4 @@
-use crate::file_utils::{data_dir_relative_file_path, remove_created_file_on_error_sync};
+use a4n_storage::{data_dir_relative_file_path, remove_created_file_on_error_sync};
 use std::path::{Path, PathBuf};
 
 fn video_thumbnail_path(video_id: i64, video_path: &Path) -> Result<PathBuf, String> {

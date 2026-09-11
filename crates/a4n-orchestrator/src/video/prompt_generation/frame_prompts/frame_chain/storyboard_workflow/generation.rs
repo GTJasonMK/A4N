@@ -2,9 +2,9 @@ mod checkpoint;
 
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
-use a4n_core::prompt_language::PromptOutputLanguage;
-use a4n_core::source_spans::SourceSpan;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::source_spans::SourceSpan;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;

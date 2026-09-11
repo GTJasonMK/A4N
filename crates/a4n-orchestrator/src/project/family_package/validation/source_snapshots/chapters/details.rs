@@ -1,4 +1,4 @@
-use a4n_core::models::project::source_snapshot_chapter;
+use a4n_db_models::models::project::source_snapshot_chapter;
 use std::collections::{HashMap, HashSet};
 
 use super::super::super::super::{ProjectFamilyPackage, hash_json, hash_text};

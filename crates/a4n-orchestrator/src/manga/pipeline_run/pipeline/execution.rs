@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::manga::MangaPagePromptSourceSummary;
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::source_spans::source_spans_for_content;
+use a4n_error::AppError;
 
 use crate::shooting_script::ChapterShootingScriptSourceInput;
-use a4n_core::source_spans::source_spans_for_content;
 
 use super::super::super::pipeline_prompt::manga_pipeline_prompt_fingerprint;
 use super::super::super::pipeline_state::manga_pipeline_stage_status;

@@ -1,5 +1,5 @@
 use a4n_api_contract::profile::SyncSceneProfilesInput;
-use a4n_core::event::channel::TaskKind;
+use a4n_domain::task_queue::TaskKind;
 use serde_json::Value;
 
 use super::super::super::{

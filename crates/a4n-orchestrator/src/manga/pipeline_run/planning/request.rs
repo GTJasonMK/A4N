@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::super::pipeline_prompt::{
     MangaPromptGenerationTrace, MangaRenderTraceInput, manga_page_planning_user_message,

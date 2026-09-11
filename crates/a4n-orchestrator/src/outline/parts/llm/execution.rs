@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
+use a4n_error::AppError;
 
 use crate::outline::part_contract::parse_part_outline_single_response;
 use crate::outline::{OrchestratorContext, ensure_response_not_truncated};

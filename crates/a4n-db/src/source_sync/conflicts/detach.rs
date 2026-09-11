@@ -1,5 +1,5 @@
 use crate::source_sync::{SOURCE_SYNC_DETACHED, SourceSyncDbError};
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, sea_query::Expr};
 

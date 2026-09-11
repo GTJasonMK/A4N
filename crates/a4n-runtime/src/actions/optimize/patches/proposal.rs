@@ -6,9 +6,7 @@ use crate::{
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizePatchGenerationInput,
 };
-use a4n_orchestrator::{
-    GenerationTaskAccessError, optimize::OptimizePatchGenerationApplicationContext,
-};
+use a4n_orchestrator::GenerationTaskAccessError;
 
 pub async fn start_optimize_patch_generation_typed(
     state: &AppState,
@@ -16,8 +14,8 @@ pub async fn start_optimize_patch_generation_typed(
     input: StartOptimizePatchGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .orchestrator()
-        .start_optimize_patch_generation_task(user_id, &input)
+        .optimize_application()
+        .start_patch_generation(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -29,13 +27,8 @@ pub async fn start_optimize_patch_generation_typed(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .orchestrator()
-                .run_optimize_patch_generation_task(
-                    OptimizePatchGenerationApplicationContext { prompt_renderer },
-                    user_id,
-                    input,
-                    handle,
-                )
+                .optimize_application()
+                .run_patch_generation(prompt_renderer, user_id, input, handle)
                 .await
         },
     );
@@ -49,14 +42,8 @@ pub async fn preview_propose_optimization_patches_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let request = state
-        .orchestrator()
-        .build_propose_patches_preview_request_for_user_validated(
-            user_id,
-            input.session_id,
-            input.issue_ids,
-            prompt_renderer,
-            input.agent_instruction.as_deref(),
-        )
+        .optimize_application()
+        .preview_propose_patches(user_id, input, prompt_renderer)
         .await
         .map_err(|err| err.to_string())?;
     chat_status_preview_for_state(

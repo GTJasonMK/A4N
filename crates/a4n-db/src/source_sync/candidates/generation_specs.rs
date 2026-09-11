@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_spec, generation_spec_entity_ref},
     source_sync::source_sync_run,
 };

@@ -1,8 +1,12 @@
 use crate::AppState;
+use a4n_api_contract::chapter_visual_plan::{
+    ChapterVisualPlanEditResult, EditChapterVisualPlanDraftInput,
+};
+use a4n_error::AppError;
 
 use super::{
     ChapterVisualPlanRecordInput, ChapterVisualPlanView, ConfirmedChapterVisualPlanView,
-    SaveChapterVisualPlanDraftInput, contracts::plan_view,
+    SaveChapterVisualPlanDraftInput,
 };
 
 pub async fn save_chapter_visual_plan_draft(
@@ -11,11 +15,21 @@ pub async fn save_chapter_visual_plan_draft(
     input: SaveChapterVisualPlanDraftInput,
 ) -> Result<ChapterVisualPlanView, String> {
     state
-        .orchestrator()
-        .save_chapter_visual_plan_draft_for_user_validated(user_id, input)
+        .chapter_visual_plan_mutation_application()
+        .save_draft(user_id, input)
         .await
-        .map(plan_view)
         .map_err(|error| error.to_string())
+}
+
+pub async fn edit_chapter_visual_plan_draft(
+    state: &AppState,
+    user_id: i64,
+    input: EditChapterVisualPlanDraftInput,
+) -> Result<ChapterVisualPlanEditResult, AppError> {
+    state
+        .chapter_visual_plan_mutation_application()
+        .edit_draft(user_id, input)
+        .await
 }
 
 pub async fn confirm_chapter_visual_plan(
@@ -23,15 +37,11 @@ pub async fn confirm_chapter_visual_plan(
     user_id: i64,
     input: ChapterVisualPlanRecordInput,
 ) -> Result<ConfirmedChapterVisualPlanView, String> {
-    let outcome = state
-        .orchestrator()
-        .confirm_chapter_visual_plan_for_user_validated(user_id, input)
+    state
+        .chapter_visual_plan_mutation_application()
+        .confirm(user_id, input)
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(ConfirmedChapterVisualPlanView {
-        visual_plan: plan_view(outcome.visual_plan),
-        invalidated_project_ids: outcome.invalidated_project_ids,
-    })
+        .map_err(|error| error.to_string())
 }
 
 pub async fn discard_chapter_visual_plan_draft(
@@ -40,8 +50,8 @@ pub async fn discard_chapter_visual_plan_draft(
     input: ChapterVisualPlanRecordInput,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .discard_chapter_visual_plan_draft_for_user_validated(user_id, input)
+        .chapter_visual_plan_mutation_application()
+        .discard(user_id, input)
         .await
         .map_err(|error| error.to_string())
 }

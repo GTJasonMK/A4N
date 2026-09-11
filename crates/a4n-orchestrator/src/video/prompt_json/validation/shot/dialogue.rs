@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Map, Value};
 
 use super::super::super::VIDEO_PROMPT_DIALOGUE_BEAT_FIELDS;

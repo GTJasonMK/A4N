@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
@@ -18,19 +18,20 @@ impl MemoryTaskQueue {
         cancellation_token: CancellationToken,
         semaphore: Option<Arc<Semaphore>>,
     ) -> TaskPermit {
-        let tasks = self.tasks.clone();
-        let cancel_tokens = self.cancel_tokens.clone();
+        let queue = self.clone();
         let task_id_clone = task_id.clone();
 
         let on_complete = Box::new(move |status: TaskStatus| {
-            if let Some(mut task) = tasks.get_mut(&task_id_clone)
+            if let Some(mut task) = queue.tasks.get_mut(&task_id_clone)
                 && !is_terminal_status(&task.status)
             {
                 task.status = status;
                 task.completed_at = Some(chrono::Utc::now().naive_utc());
+                drop(task);
+                queue.retain_terminal_task(&task_id_clone);
             }
 
-            cancel_tokens.remove(&task_id_clone);
+            queue.cancel_tokens.remove(&task_id_clone);
             if let Some(semaphore) = semaphore {
                 semaphore.add_permits(1);
             }

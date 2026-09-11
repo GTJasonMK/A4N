@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde::Deserialize;
 use serde_json::Value;
 

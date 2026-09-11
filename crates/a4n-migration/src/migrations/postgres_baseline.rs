@@ -1,6 +1,6 @@
 //! PostgreSQL baseline schema.
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{
         embedding_config, generated_image, generated_video, image_gen_config, llm_config,
         optimization_patch, optimization_patch_set, optimization_session,

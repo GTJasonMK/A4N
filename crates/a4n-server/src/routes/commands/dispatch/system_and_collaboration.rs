@@ -11,7 +11,7 @@ use super::super::{
     get_task_history, get_workflow_progress_events, get_workflow_run_detail,
     import_project_text_upload, list_active_workflows, list_behaviors, list_deletion_marks,
     list_import_queue, list_parts, list_profiles, list_sessions, list_snapshots,
-    list_workflow_runs, modify_profile_attribute, prepare_optimization_analysis_session,
+    list_workflow_runs, modify_profile_attribute, package, prepare_optimization_analysis_session,
     preview_check_implicit_update_request, preview_create_optimization_analysis_session_request,
     preview_generate_parts_request, preview_prepare_optimization_analysis_session_request,
     preview_propose_optimization_patches_request, preview_regenerate_last_part_request,
@@ -53,6 +53,16 @@ pub(super) async fn try_dispatch(
         "prompt_validate_variables" => prompt_validate_variables(state, user_id, args).await?,
         "prompt_render_ab" => prompt_render_ab(state, user_id, args).await?,
         "prompt_list_categories" => prompt_list_categories(state, user_id, args).await?,
+        "list_package_command_availability" => {
+            package::list_package_command_availability(state, user_id, args).await?
+        }
+        "get_package_overview" => package::get_package_overview(state, user_id, args).await?,
+        "get_package_operation" => package::get_package_operation(state, user_id, args).await?,
+        "start_package_lifecycle" => package::start_package_lifecycle(state, user_id, args).await?,
+        "get_package_preferences" => package::get_package_preferences(state, user_id, args).await?,
+        "update_package_preferences" => {
+            package::update_package_preferences(state, user_id, args).await?
+        }
         "get_user_usage" => admin::get_user_usage(state, user_id, args).await?,
         "get_token_summary" => admin::get_token_summary(state, user_id, args).await?,
         "list_pending_tasks" => admin::list_pending_tasks(state, user_id, args).await?,

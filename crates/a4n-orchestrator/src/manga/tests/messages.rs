@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use serde_json::Value;

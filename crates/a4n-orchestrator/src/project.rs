@@ -8,8 +8,7 @@ pub(crate) use a4n_db::project::{
 pub use a4n_db::project::{
     CreateDerivedProjectParams, CreateFreeformVideoProjectParams, CreateProjectRecordInput,
     DerivedChapterScope, FreeformVideoGeneratedDataResetResult, PROJECT_KIND_TEXT,
-    ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectMediaCopyError,
-    ProjectMediaFileCopier, ProjectProgressQuery,
+    ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
 };
 pub(crate) use a4n_db::project_family_import::{
     ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter, snapshot_profile_key,
@@ -20,61 +19,7 @@ pub use a4n_db::project_reset::{
 pub(crate) use a4n_domain::project::ProjectSourceMode;
 pub use a4n_domain::project::{ProjectProgressSummary, SourceSnapshotChapterSummary};
 
-use a4n_core::models::character::protagonist_profile;
-use a4n_db::character::{CharacterProfileDeletionSummary, CharacterTimelineDeletionSummary};
-use serde::{Deserialize, Serialize};
-
-#[derive(Default, Serialize, Deserialize)]
-#[serde(default)]
-pub struct ChapterDerivedCleanupArtifacts {
-    pub stale_profile_ids: Vec<i64>,
-    pub stale_character_state_ids: Vec<i64>,
-    pub stale_attribute_event_ids: Vec<i64>,
-    pub changed_foreshadowing_ids: Vec<i64>,
-    pub media_file_paths: Vec<String>,
-    pub scene_records_changed: bool,
-}
-
-impl ChapterDerivedCleanupArtifacts {
-    fn extend_deleted_profile(&mut self, summary: CharacterProfileDeletionSummary) {
-        self.stale_profile_ids.push(summary.profile_id);
-        self.stale_character_state_ids
-            .extend(summary.state_index_ids);
-        self.stale_attribute_event_ids
-            .extend(summary.attribute_event_ids);
-        self.media_file_paths.extend(summary.portrait_paths);
-    }
-
-    fn extend_character_timeline(&mut self, artifacts: CharacterTimelineDeletionSummary) {
-        self.stale_character_state_ids
-            .extend(artifacts.state_index_ids);
-        self.stale_attribute_event_ids
-            .extend(artifacts.attribute_event_ids);
-    }
-
-    pub(crate) fn merge(&mut self, other: Self) {
-        self.stale_profile_ids.extend(other.stale_profile_ids);
-        self.stale_character_state_ids
-            .extend(other.stale_character_state_ids);
-        self.stale_attribute_event_ids
-            .extend(other.stale_attribute_event_ids);
-        self.changed_foreshadowing_ids
-            .extend(other.changed_foreshadowing_ids);
-        self.media_file_paths.extend(other.media_file_paths);
-        self.scene_records_changed |= other.scene_records_changed;
-
-        self.stale_profile_ids.sort_unstable();
-        self.stale_profile_ids.dedup();
-        self.stale_character_state_ids.sort_unstable();
-        self.stale_character_state_ids.dedup();
-        self.stale_attribute_event_ids.sort_unstable();
-        self.stale_attribute_event_ids.dedup();
-        self.changed_foreshadowing_ids.sort_unstable();
-        self.changed_foreshadowing_ids.dedup();
-        self.media_file_paths.sort();
-        self.media_file_paths.dedup();
-    }
-}
+use a4n_db_models::models::character::protagonist_profile;
 
 fn chapter_cleanup_profile_state_should_restore_base(
     profile: &protagonist_profile::Model,
@@ -100,15 +45,14 @@ pub enum ProjectGeneratedDataResetApplicationResult {
     Standard(ProjectGeneratedDataResetOutcome),
     /// 自由画布视频重置。
     Freeform {
-        project: a4n_core::models::project::novel_project::Model,
         result: FreeformVideoGeneratedDataResetResult,
     },
 }
 
 /// 项目 ID 必须为正。
-pub(crate) fn ensure_positive_project_id(project_id: i64) -> Result<(), a4n_core::error::AppError> {
+pub(crate) fn ensure_positive_project_id(project_id: i64) -> Result<(), a4n_error::AppError> {
     if project_id <= 0 {
-        return Err(a4n_core::error::AppError::InvalidArgument(
+        return Err(a4n_error::AppError::InvalidArgument(
             "项目 ID 必须大于 0".to_string(),
         ));
     }
@@ -123,40 +67,22 @@ mod errors;
 mod family_package;
 mod family_transfer;
 mod generation_params_rules;
-mod input_rules;
 mod json_field_rules;
 mod package_rules;
 mod package_transfer;
 mod video_studio_package;
 mod video_studio_transfer;
 
-pub use duplication::{DuplicateProjectApplicationInput, ProjectDuplicationHostPort};
-pub(crate) use generation_params_rules::{
-    generation_spec_params_object, optional_params_i64, required_generation_spec_target_id,
-    required_params_i64, required_params_i64_array, required_params_object, required_params_string,
-    required_params_string_array, validate_generation_spec_canonical_key,
-    validate_params_id_equals, validate_required_galgame_cg_importance,
-    validate_snapshot_character_profile_id,
+pub use a4n_api_contract::project_transfer::{
+    ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
+    ExportVideoStudioProjectApplicationInput, ExportedProjectPackage,
+    ImportProjectPackageApplicationInput, MediaFileEntry, ProjectFamilyTransferApplicationPort,
+    ProjectPackageTransferError, ProjectPackageTransferHostPort,
+    VideoStudioProjectTransferApplicationPort,
 };
-pub use input_rules::{optional_text, project_list_offset, required_text};
-pub(crate) use json_field_rules::{
-    required_json_i32_field, required_json_i64_field, required_json_string_field,
-    required_optional_json_string_field,
+pub use duplication::{
+    DuplicateProjectApplicationInput, ProjectDuplicationApplicationPort, ProjectDuplicationHostPort,
 };
-pub use package_rules::{ImportMediaPayload, MediaFileEntry, media_asset_path, media_file_key};
-pub(crate) use package_rules::{
-    collect_unique_ids, hash_json, hash_text, is_valid_snapshot_outline_kind,
-    is_valid_snapshot_profile_kind, parse_chapter_scope_json, required_package_extension,
-    required_path_extension, sha256_bytes, validate_freeform_video_project,
-    validate_import_unique_ids, validate_import_unique_key_strings,
-    validate_snapshot_payload_identity,
-};
-pub(crate) use package_transfer::import_result_with_file_rollback;
-pub use package_transfer::{
-    ExportedProjectPackage, ImportProjectPackageApplicationInput, ProjectPackageFileHostPort,
-    ProjectPackageTransferError,
-};
-
 #[cfg(test)]
 pub(crate) use family_package::PROJECT_FAMILY_PACKAGE_VERSION;
 pub use family_package::{
@@ -168,12 +94,30 @@ pub(crate) use family_package::{
     validate_media_manifest as validate_family_media_manifest,
     validate_package_manifest as validate_family_package_manifest,
 };
-pub use family_transfer::{
-    ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
-    ProjectFamilyTransferHostPort, ReadProjectFamilyPackage,
-};
 pub(crate) use family_transfer::{
     imported_project_family_media_path, project_family_export_media_files,
+};
+pub(crate) use generation_params_rules::{
+    generation_spec_params_object, optional_params_i64, required_generation_spec_target_id,
+    required_params_i64, required_params_i64_array, required_params_object, required_params_string,
+    required_params_string_array, validate_generation_spec_canonical_key,
+    validate_params_id_equals, validate_required_galgame_cg_importance,
+    validate_snapshot_character_profile_id,
+};
+pub(crate) use json_field_rules::{
+    required_json_i32_field, required_json_i64_field, required_json_string_field,
+    required_optional_json_string_field,
+};
+pub use package_rules::{ImportMediaPayload, media_asset_path, media_file_key};
+pub(crate) use package_rules::{
+    collect_unique_ids, hash_json, hash_text, is_valid_snapshot_outline_kind,
+    is_valid_snapshot_profile_kind, parse_chapter_scope_json, required_package_extension,
+    required_path_extension, sha256_bytes, validate_freeform_video_project,
+    validate_import_unique_ids, validate_import_unique_key_strings,
+    validate_snapshot_payload_identity,
+};
+pub(crate) use package_transfer::{
+    import_result_with_file_rollback, index_import_media_payload, project_package_export_input,
 };
 
 pub use video_studio_package::{
@@ -186,10 +130,6 @@ pub(crate) use video_studio_package::{
     assemble_video_studio_export_package, validate_package_manifest,
 };
 pub(crate) use video_studio_transfer::video_studio_export_media_files;
-pub use video_studio_transfer::{
-    ExportVideoStudioProjectApplicationInput, ReadVideoStudioProjectPackage,
-    VideoStudioProjectTransferHostPort,
-};
 
 pub(crate) use chapter_scene_rules::chapter_scene_update_record_input;
 pub(crate) use chapters::{

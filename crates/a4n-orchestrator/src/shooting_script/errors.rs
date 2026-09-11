@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::{project::ResolveChapterSourceError, shooting_script::ShootingScriptDbError};
+use a4n_error::AppError;
 
 pub(crate) fn resolve_source_error(error: ResolveChapterSourceError) -> AppError {
     match error {

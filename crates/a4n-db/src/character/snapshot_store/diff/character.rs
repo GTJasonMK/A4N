@@ -1,6 +1,6 @@
 //! 角色快照差异投影。
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 mod attributes;

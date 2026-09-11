@@ -1,8 +1,8 @@
 use crate::scene_profile::SceneProfileDbResult;
-use a4n_core::models::scene::{
+use a4n_db_models::models::scene::{
     scene_entity_state, scene_occurrence, scene_profile, scene_transition,
 };
-use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
+use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,

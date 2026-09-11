@@ -1,5 +1,5 @@
-use a4n_core::models::canvas::canvas_node;
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db_models::models::canvas::canvas_node;
 
 use crate::canvas::CanvasNodeRunHandle;
 

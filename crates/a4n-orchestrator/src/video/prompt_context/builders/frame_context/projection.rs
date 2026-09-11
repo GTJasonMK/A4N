@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::rendering::chapter_analysis_context;

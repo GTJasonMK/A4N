@@ -207,6 +207,107 @@ pub struct SceneProfileDeleteResult {
     pub warnings: Vec<String>,
 }
 
+/// Internal application outcome. The image ids are passed to the media owner
+/// for post-commit cleanup and are intentionally not part of the wire result.
+#[derive(Debug)]
+pub struct ObjectProfileMutationOutcome {
+    pub result: ObjectProfileMutationResult,
+    pub downstream_image_ids: Vec<i64>,
+}
+
+#[derive(Debug)]
+pub struct ObjectProfileDeleteOutcome {
+    pub result: ObjectProfileDeleteResult,
+    pub downstream_image_ids: Vec<i64>,
+}
+
+#[derive(Debug)]
+pub struct SceneProfileMutationOutcome {
+    pub result: SceneProfileMutationResult,
+    pub downstream_image_ids: Vec<i64>,
+}
+
+#[derive(Debug)]
+pub struct SceneProfileDeleteOutcome {
+    pub result: SceneProfileDeleteResult,
+    pub project_id: i64,
+    pub downstream_image_ids: Vec<i64>,
+}
+
+/// Host-facing object profile mutation boundary.
+///
+/// Authorization, conflict policy, persistence and DTO projection stay with
+/// the object profile owner. Runtime only executes media cleanup returned by
+/// the committed mutation.
+#[async_trait::async_trait]
+pub trait ObjectProfileMutationApplicationPort: Send + Sync {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateObjectProfileInput,
+    ) -> Result<ObjectProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateObjectProfileInput,
+    ) -> Result<ObjectProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteObjectProfileInput,
+    ) -> Result<ObjectProfileDeleteOutcome, a4n_error::AppError>;
+}
+
+/// Host-facing scene profile mutation boundary.
+#[async_trait::async_trait]
+pub trait SceneProfileMutationApplicationPort: Send + Sync {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, a4n_error::AppError>;
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteSceneProfileInput,
+    ) -> Result<SceneProfileDeleteOutcome, a4n_error::AppError>;
+}
+
+/// Host-facing object profile read boundary.
+///
+/// Object persistence, project visibility and material-count projection stay
+/// with the asset owner; Runtime only routes the typed read.
+#[async_trait::async_trait]
+pub trait ObjectProfileReadApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ObjectProfileSummary>, a4n_error::AppError>;
+}
+
+/// Host-facing scene profile read boundary.
+///
+/// Scene persistence, project visibility and occurrence/material projections
+/// stay with the scene owner; Runtime only routes the typed read.
+#[async_trait::async_trait]
+pub trait SceneProfileReadApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<SceneProfileSummary>, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ListProfileMaterialsInput {
@@ -340,6 +441,37 @@ pub struct ForeshadowingSummary {
 pub struct ForeshadowingWriteResult {
     #[serde(default)]
     pub warnings: Vec<String>,
+}
+
+/// Host-facing foreshadowing record boundary.
+///
+/// Authorization, persistence, RAG synchronization and API projection stay
+/// with the foreshadowing owner; Runtime only routes the typed operations.
+#[async_trait::async_trait]
+pub trait ForeshadowingApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ForeshadowingSummary>, a4n_error::AppError>;
+
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, a4n_error::AppError>;
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, a4n_error::AppError>;
 }
 
 #[cfg(test)]

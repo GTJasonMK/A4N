@@ -6,20 +6,19 @@ use std::{
 use a4n_api_contract::theme::{
     CreateThemeInput, ThemePackageExport, ThemePackageUploadInput, ThemeResourceUploadInput,
 };
-use a4n_core::error::AppError;
+use a4n_archive_core::{ArchiveEntry, write_zip};
+use a4n_error::AppError;
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use zip::ZipArchive;
 
-use super::projections::to_summary;
 use super::resources::{
     MAX_THEME_RESOURCE_BYTES, theme_resource_relative_path, upload_theme_resource_for_user,
     validate_resource_metadata,
 };
-use super::transfer::import_theme_for_user;
 use crate::AppState;
-use crate::file_utils::remove_data_file_in_data_dir;
+use a4n_storage::{canonicalize_data_file_path, remove_data_file_in_data_dir};
 
 const PACKAGE_VERSION: u16 = 1;
 const MAX_PACKAGE_BYTES: usize = 24 * 1024 * 1024;
@@ -52,17 +51,15 @@ pub async fn export_theme_package_for_user(
     theme_id: i64,
 ) -> Result<ThemePackageExport, AppError> {
     let theme = state
-        .orchestrator()
-        .export_theme_for_user_validated(user_id, theme_id)
+        .theme_application()
+        .export_theme(user_id, theme_id)
         .await?;
-    let document =
-        serde_json::from_value::<a4n_domain::ThemeDocument>(theme.theme_document.clone())
-            .map_err(|error| AppError::ConfigError(format!("主题文档无效：{error}")))?;
+    let document = theme.document.clone();
     a4n_domain::validate_theme_document(&document).map_err(AppError::InvalidArgument)?;
 
     let resources = state
-        .orchestrator()
-        .list_theme_resources_for_user_validated(user_id, theme_id)
+        .theme_application()
+        .list_resources(user_id, theme_id)
         .await?;
     let mut entries = Vec::with_capacity(resources.len());
     let mut manifest_resources = Vec::with_capacity(resources.len());
@@ -73,12 +70,9 @@ pub async fn export_theme_package_for_user(
             &resource.mime_type,
         )
         .map_err(|error| AppError::ConfigError(format!("主题资源元数据无效：{error}")))?;
-        let path = crate::file_utils::canonicalize_data_file_path(
-            state.data_dir(),
-            &resource.file_path,
-            "主题包背景图片",
-        )
-        .map_err(AppError::InvalidArgument)?;
+        let path =
+            canonicalize_data_file_path(state.data_dir(), &resource.file_path, "主题包背景图片")
+                .map_err(AppError::InvalidArgument)?;
         let bytes = std::fs::read(&path).map_err(|error| {
             AppError::Internal(anyhow::anyhow!(
                 "读取主题资源失败：{}：{error}",
@@ -100,7 +94,7 @@ pub async fn export_theme_package_for_user(
             path: package_path.clone(),
             sha256: digest,
         });
-        entries.push(a4n_export_core::ExportZipEntryBytes {
+        entries.push(ArchiveEntry {
             path: package_path,
             bytes,
             label: format!("主题资源 {}", resource.resource_key),
@@ -109,21 +103,20 @@ pub async fn export_theme_package_for_user(
     let manifest = ThemePackageManifest {
         version: PACKAGE_VERSION,
         name: theme.name.clone(),
-        mode: theme
-            .mode
-            .parse()
-            .map_err(|error| AppError::ConfigError(format!("主题 mode 无效：{error}")))?,
+        mode: theme.mode,
         document,
         resources: manifest_resources,
     };
     let manifest_bytes = serde_json::to_vec_pretty(&manifest).map_err(AppError::Serialization)?;
-    let bytes = a4n_export_core::render_zip_package(a4n_export_core::ExportZipPackageInput {
-        manifest_path: "theme.json".to_string(),
-        manifest_bytes,
-        manifest_label: "主题清单".to_string(),
-        entries,
-        package_label: "主题包".to_string(),
-    })
+    let bytes = write_zip(
+        std::iter::once(ArchiveEntry {
+            path: "theme.json".to_string(),
+            bytes: manifest_bytes,
+            label: "主题清单".to_string(),
+        })
+        .chain(entries),
+        "主题包",
+    )
     .map_err(|error| AppError::Internal(anyhow::anyhow!("生成主题包失败：{error}")))?;
     Ok(ThemePackageExport {
         file_name: format!("{}.a4n-theme.zip", safe_file_name(&theme.name)),
@@ -179,16 +172,17 @@ pub async fn import_theme_package_for_user(
             )));
         }
     }
-    let theme = import_theme_for_user(
-        state,
-        user_id,
-        CreateThemeInput {
-            name: manifest.name,
-            mode: manifest.mode,
-            document: manifest.document,
-        },
-    )
-    .await?;
+    let theme = state
+        .theme_application()
+        .import_theme(
+            user_id,
+            CreateThemeInput {
+                name: manifest.name,
+                mode: manifest.mode,
+                document: manifest.document,
+            },
+        )
+        .await?;
     let mut created_files = Vec::new();
     let import_result = async {
         for resource in &manifest.resources {
@@ -237,12 +231,10 @@ pub async fn import_theme_package_for_user(
                 created_files.push(uploaded.file_path);
             }
         }
-        let theme_model = state
-            .orchestrator()
-            .theme_by_id(theme.id)
-            .await?
-            .ok_or_else(|| AppError::NotFound("导入的主题不存在".to_string()))?;
-        to_summary(state.orchestrator(), user_id, theme_model).await
+        state
+            .theme_application()
+            .export_theme(user_id, theme.id)
+            .await
     }
     .await;
     match import_result {
@@ -309,8 +301,8 @@ async fn cleanup_failed_import(
         }
     }
     if let Err(error) = state
-        .orchestrator()
-        .delete_theme_for_user_validated(user_id, theme_id)
+        .theme_application()
+        .delete_theme(user_id, theme_id)
         .await
     {
         tracing::error!(theme_id, %error, "清理失败的主题导入记录失败");

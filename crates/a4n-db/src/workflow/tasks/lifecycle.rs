@@ -1,5 +1,5 @@
 use crate::workflow::{WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WorkflowWriteError};
-use a4n_core::models::{generation::generation_run, generation::workflow_run};
+use a4n_db_models::models::{generation::generation_run, generation::workflow_run};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::Expr;
 use sea_orm::{

@@ -1,8 +1,8 @@
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use a4n_core::error::AppError;
-use a4n_core::structured_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
+use a4n_error::AppError;
+use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
 use async_trait::async_trait;
 use futures::{Stream, stream};
 use tokio_util::sync::CancellationToken;

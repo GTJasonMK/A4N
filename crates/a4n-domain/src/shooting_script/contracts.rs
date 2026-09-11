@@ -10,6 +10,13 @@ use crate::chapter_visual_plan::{
 
 pub const CHAPTER_SHOOTING_SCRIPT_V1: &str = "chapter_shooting_script_v1";
 
+#[derive(Debug, Clone)]
+pub struct EditStoredChapterShootingScriptInput {
+    pub record_id: i64,
+    pub expected_revision: i32,
+    pub script: ChapterShootingScriptV1,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub enum ChapterShootingScriptSchemaVersion {
     #[serde(rename = "chapter_shooting_script_v1")]

@@ -1,6 +1,6 @@
 use super::super::{UpdateGeneratedImageRecordInput, VideoDbError};
 #[cfg(test)]
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use a4n_domain::image::is_system_managed_image_type;
 
 pub(super) fn validate_generated_image_update_clear_flags(

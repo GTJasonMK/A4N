@@ -1,3 +1,4 @@
+use a4n_error::AppError;
 use std::{collections::HashMap, sync::Arc};
 
 use a4n_api_contract::{
@@ -7,17 +8,16 @@ use a4n_api_contract::{
         VideoPromptGenerationOptions,
     },
 };
-use a4n_core::{
-    error::AppError,
-    models::chapter::chapter_video_prompt,
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::{
+    progress::ProgressPhaseKind,
     prompt_language::{PromptOutputLanguage, metadata_matches_prompt_output_language},
-    video_execution::{resolve_video_segment_number, video_segment_recipe_from_metadata},
 };
-use a4n_domain::progress::ProgressPhaseKind;
 use a4n_service_protocol::{
     BatchCommitPolicy, BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,
     MAX_TEXT_DELTA_BYTES, ProgressEvent, StreamTextHash,
 };
+use a4n_video_contract::{resolve_video_segment_number, video_segment_recipe_from_metadata};
 use futures::future::BoxFuture;
 use sha2::{Digest, Sha256};
 use tokio::sync::mpsc;
@@ -1046,7 +1046,7 @@ mod tests {
 
     fn test_base_execution_identity() -> Value {
         json!({
-            "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+            "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
             "shooting_script_identity": {},
             "projection_sha256": "projection",
             "segment_plan_sha256": "segment-plan",

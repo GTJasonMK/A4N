@@ -1,4 +1,4 @@
-use a4n_core::models::project::{
+use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
@@ -111,7 +111,9 @@ mod tests {
     use serde_json::json;
 
     use super::{blueprint_version_snapshot, canonical_version_text};
-    use a4n_core::models::project::{blueprint_character, blueprint_relationship, novel_blueprint};
+    use a4n_db_models::models::project::{
+        blueprint_character, blueprint_relationship, novel_blueprint,
+    };
 
     #[test]
     fn blueprint_version_metadata_requires_canonical_text() {

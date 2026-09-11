@@ -4,7 +4,7 @@ use crate::project_family_import::{
     remap_snapshot_outline_source_id, remap_source_snapshot_outline_payload,
     remap_source_snapshot_profile_payload, snapshot_profile_key,
 };
-use a4n_core::models::project::{
+use a4n_db_models::models::project::{
     project_source_snapshot, source_snapshot_chapter, source_snapshot_outline,
     source_snapshot_profile,
 };

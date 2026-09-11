@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use crate::vector_store::EmbeddingRecord;
 

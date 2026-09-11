@@ -5,12 +5,12 @@ mod reuse;
 mod source_and_units;
 
 use super::*;
-use a4n_core::models::ai::generated_image;
-use a4n_core::models::chapter::{chapter, chapter_video_prompt};
 use a4n_db::project::{
     CreateDerivedProjectParams, CreateProjectRecordInput, DerivedChapterScope, PROJECT_KIND_VIDEO,
     create_derived_project_record, create_project_record,
 };
+use a4n_db_models::models::ai::generated_image;
+use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
 use a4n_domain::image::IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT;
 use sea_orm::{ActiveModelTrait, Set};
 use std::collections::{HashMap, HashSet};
@@ -50,7 +50,7 @@ fn frame(frame_number: i32, reference_image_ids: Vec<i64>) -> VideoFramePrompt {
 }
 
 pub(super) fn segment(segment_number: i32) -> VideoSegmentPlan {
-    use a4n_core::video_execution::*;
+    use a4n_video_contract::*;
     VideoSegmentPlan {
         schema_version: VIDEO_SEGMENT_PLAN_V2.to_string(),
         segment_number,
@@ -119,8 +119,8 @@ pub(super) fn segment(segment_number: i32) -> VideoSegmentPlan {
 
 pub(super) fn shooting_script_projection() -> VideoShootingScriptProjection {
     serde_json::from_value(json!({
-        "schema_version": a4n_core::video_execution::VIDEO_EXECUTION_PROJECTION_V2,
-        "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+        "schema_version": a4n_video_contract::VIDEO_EXECUTION_PROJECTION_V2,
+        "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
         "shooting_script_identity": {
             "record_id": 1,
             "revision": 1,
@@ -168,7 +168,7 @@ fn segment_plan_row(id: i64, source_hash: Option<&str>) -> chapter_video_prompt:
         "16:9",
     )
     .unwrap();
-    let recipes = a4n_core::video_execution::default_video_segment_recipes(
+    let recipes = a4n_video_contract::default_video_segment_recipes(
         std::slice::from_ref(&segment),
         "测试风格",
         "zh_cn",

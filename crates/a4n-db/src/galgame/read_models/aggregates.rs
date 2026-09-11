@@ -5,7 +5,7 @@ use crate::galgame::{
     GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord, GalgameScriptDetailScriptRecord,
     galgame_media_binding_read_model,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::protagonist_profile,
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     project::{source_snapshot_chapter, text_anchor},

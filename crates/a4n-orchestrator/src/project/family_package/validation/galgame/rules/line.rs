@@ -1,4 +1,4 @@
-use a4n_core::models::galgame::galgame_line;
+use a4n_db_models::models::galgame::galgame_line;
 
 use crate::galgame::galgame_line_from_model;
 

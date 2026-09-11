@@ -1,37 +1,36 @@
+use a4n_archive_core::{ArchiveEntry, write_zip};
 use a4n_test_support::process::{
-    ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput, HttpImportClient,
-    IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportClient,
+    HttpImportClient, IMPORT_SERVICE_NAME, IMPORT_TRANSFORM_CAPABILITY_VERSION, ImportClient,
     ImportReadMediaPackageZipInput, SIDECAR_PROCESS_TEST_TOKEN, ServiceRequestContext,
     ServiceStatus, TraceContext, assert_process_concurrency_saturation,
     assert_protected_route_rejects_invalid_auth, assert_route_rejects_malformed_json,
     assert_route_rejects_oversized_json, assert_route_rejects_unknown_payload_field,
     assert_route_rejects_version_mismatch, disconnect_during_request_body, finish_sidecar,
-    render_zip, sidecar_base_url, sidecar_manager, start_sidecar, unused_local_addr,
+    sidecar_base_url, sidecar_manager, start_sidecar, unused_local_addr,
 };
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 fn media_package_input(
     manifest: serde_json::Value,
     entries: &[(&str, &[u8])],
 ) -> ImportReadMediaPackageZipInput {
-    let rendered = render_zip(ExportRenderZipInput::from_package_input(
-        ExportZipPackageInput {
-            manifest_path: "manifest.json".to_string(),
-            manifest_bytes: serde_json::to_vec(&manifest).expect("serialize import manifest"),
-            manifest_label: "process manifest".to_string(),
-            entries: entries
-                .iter()
-                .map(|(path, bytes)| ExportZipEntryBytes {
-                    path: (*path).to_string(),
-                    bytes: bytes.to_vec(),
-                    label: (*path).to_string(),
-                })
-                .collect(),
-            package_label: "process package".to_string(),
-        },
-    ))
+    let rendered = write_zip(
+        std::iter::once(ArchiveEntry {
+            path: "manifest.json".to_string(),
+            bytes: serde_json::to_vec(&manifest).expect("serialize import manifest"),
+            label: "process manifest".to_string(),
+        })
+        .chain(entries.iter().map(|(path, bytes)| ArchiveEntry {
+            path: (*path).to_string(),
+            bytes: bytes.to_vec(),
+            label: (*path).to_string(),
+        })),
+        "process package",
+    )
+    .map(|bytes| BASE64.encode(bytes))
     .expect("render process import zip");
     ImportReadMediaPackageZipInput {
-        zip_bytes_base64: rendered.bytes_base64,
+        zip_bytes_base64: rendered,
         manifest_path: "manifest.json".to_string(),
         package_label: "process package".to_string(),
         manifest_label: "process manifest".to_string(),

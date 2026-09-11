@@ -1,4 +1,5 @@
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::ConnectionTrait;
 
@@ -6,7 +7,7 @@ use crate::project::{
     PROJECT_KIND_TEXT,
     duplicate::{
         ProjectDuplicateError,
-        shared::{ProjectCopyInsert, ProjectMediaFileCopier, insert_project_copy_record},
+        shared::{ProjectCopyInsert, insert_project_copy_record},
     },
 };
 
@@ -14,7 +15,10 @@ use super::{
     super::workflow::copy_derived_workflow_records, source::duplicate_derived_source_snapshot,
 };
 
-pub(in crate::project::duplicate::derived) async fn copy_derived_project_graph_record<C, Copier>(
+pub(in crate::project::duplicate::derived) async fn copy_derived_project_graph_record<
+    C,
+    Copier: ?Sized,
+>(
     db: &C,
     original: &novel_project::Model,
     user_id: i64,

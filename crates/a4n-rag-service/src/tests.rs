@@ -55,7 +55,7 @@ fn rejects_secret_forwarding_policy() {
 
 #[test]
 fn rag_service_error_redacts_provider_secrets() {
-    let error = service_error(a4n_core::error::AppError::VectorStoreError(
+    let error = service_error(a4n_domain::ProviderError::VectorStore(
         "Authorization: Bearer private-token".to_string(),
     ));
     assert_eq!(error.code, ServiceErrorCode::ProviderError);

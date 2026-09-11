@@ -5,10 +5,14 @@ use std::sync::{
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
-    image_generation::{ImageGenerationOperation, StartImageGenerationInput},
+    image_generation::{
+        GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
+        GenerateSceneImageInput, ImageGenerationOperation, StartImageGenerationInput,
+    },
 };
-use a4n_core::error::AppError;
+use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_error::AppError;
 use a4n_service_protocol::{BatchSummary, GenerationError, GenerationResultRef};
 use tokio::sync::mpsc;
 
@@ -22,9 +26,9 @@ use crate::{
         generation_result_ref, publish_step_progress,
     },
     media::{
-        BatchImageGenerationOutcome, GenerateBatchImagesInput, GeneratePageImageInput,
-        GenerateSceneImageInput, GeneratedImageSummary, ImageGenerationHostPort,
-        ImageGenerationProgress, ObjectProfileImageInput, SceneProfileImageInput,
+        BatchImageGenerationOutcome, GeneratedImageSummary, ImageGenerationApplicationPort,
+        ImageGenerationHostPort, ImageGenerationProgress, ObjectProfileImageInput,
+        PreparedImageGenerationRequest, SceneProfileImageInput,
     },
 };
 
@@ -391,6 +395,107 @@ impl OrchestratorContext {
                 single_image_result(host_port, summary, "场景素材图生成完成")
             }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl ImageGenerationApplicationPort for OrchestratorContext {
+    async fn prepare_scene_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateSceneImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError> {
+        self.prepare_scene_image_request_validated(host_port, user_id, input)
+            .await
+    }
+
+    async fn prepare_canvas_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateCanvasImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError> {
+        self.prepare_canvas_image_request_validated(host_port, user_id, input)
+            .await
+    }
+
+    async fn prepare_page_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GeneratePageImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError> {
+        self.prepare_page_image_request_validated(host_port, user_id, input)
+            .await
+    }
+
+    async fn prepare_batch_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateBatchImagesInput,
+    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError> {
+        self.prepare_batch_images_request_validated(host_port, user_id, input)
+            .await
+    }
+
+    async fn prepare_object_profile_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: ObjectProfileImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError> {
+        self.prepare_object_profile_image_request_validated(host_port, user_id, input)
+            .await
+    }
+
+    async fn generate_galgame_image(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateGalgameImageInput,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<GeneratedImageSummary, AppError> {
+        self.generate_galgame_image_validated(host_port, user_id, input, progress)
+            .await
+    }
+
+    async fn object_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &ObjectProfileImageInput,
+    ) -> Result<crate::media::ObjectProfileImagePromptOutput, AppError> {
+        self.generate_object_profile_image_prompt_validated(user_id, input)
+            .await
+    }
+
+    async fn scene_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &SceneProfileImageInput,
+    ) -> Result<crate::media::SceneProfileImagePromptOutput, AppError> {
+        self.generate_scene_profile_image_prompt_validated(user_id, input)
+            .await
+    }
+
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartImageGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_image_generation_task(self, user_id, input).await
+    }
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: StartImageGenerationInput,
+        handle: GenerationTaskHandle,
+        host_port: &dyn ImageGenerationHostPort,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_image_generation_task(self, user_id, input, handle, host_port)
+            .await
     }
 }
 

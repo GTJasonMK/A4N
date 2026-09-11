@@ -1,8 +1,13 @@
 use super::implicit_review::require_positive_chapter_number;
 use super::*;
 use crate::character::{CharacterDbError, validate_category};
-use sea_orm::DatabaseConnection;
+use a4n_domain::character::{
+    CharacterAttributeDeletionExecutionInput, CharacterAttributeDeletionRequestInput,
+    CharacterAttributeValueChangeInput, CharacterImplicitReviewDecisionRecordInput,
+};
+use sea_orm::{ConnectOptions, Database, DatabaseConnection};
 use serde_json::json;
+use std::time::Duration;
 
 #[test]
 fn attribute_state_contract_errors_are_structured() {
@@ -94,7 +99,13 @@ async fn attribute_mutation_contract_preserves_invalid_argument_and_database_err
 
 #[tokio::test]
 async fn attribute_deletion_request_preserves_invalid_argument_and_database_errors() {
-    let disconnected = DatabaseConnection::default();
+    let mut options = ConnectOptions::new("postgres://a4n@127.0.0.1:1/a4n");
+    options
+        .connect_lazy(true)
+        .connect_timeout(Duration::from_millis(100));
+    let disconnected = Database::connect(options)
+        .await
+        .expect("lazy database connection should be constructible");
     let invalid_argument = request_attribute_deletion_in(
         &disconnected,
         CharacterAttributeDeletionRequestInput {

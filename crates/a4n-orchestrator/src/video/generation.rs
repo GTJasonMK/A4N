@@ -4,13 +4,25 @@ use std::sync::{
 };
 
 use a4n_api_contract::{
-    generation_tasks::GenerationTaskHandle,
-    video::{StartVideoGenerationInput, VideoGenerationOperation},
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStart, GenerationTaskStartError},
+    video::{
+        GenerateChapterVideoInput, GenerateReferenceMediaVideoInput,
+        PreviewChapterVideoPromptOverrideInput, StartVideoGenerationInput,
+        VideoGenerationOperation,
+    },
 };
-use a4n_core::{error::AppError, models::ai::generated_video};
+use a4n_canvas_contract::GenerateCanvasVideoInput;
+use a4n_db_models::models::ai::generated_video;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_error::AppError;
 use a4n_service_protocol::{
     BatchSummary, GenerationError, GenerationFinishReason, GenerationResultRef,
+};
+use a4n_video_contract::{
+    CanvasVideoPreviewHostPort, CanvasVideoRequestPreview, ChapterVideoGenerationHostPort,
+    ChapterVideoPreviewHostPort, ChapterVideoRequestPreview, ReferenceMediaVideoGenerationHostPort,
+    ReferenceMediaVideoPreviewHostPort, ReferenceMediaVideoRequestPreview, VideoGenerationHostPort,
+    VideoPromptGenerationHostPort, VideoProviderHostPort,
 };
 use futures::future::BoxFuture;
 use tokio::sync::mpsc;
@@ -27,10 +39,9 @@ use crate::{
 };
 
 use super::{
-    ChapterVideoGenerationHostPort, GenerateChapterVideoInput, GenerateChapterVideosBatchInput,
-    GenerateReferenceMediaVideoInput, ReferenceMediaVideoGenerationHostPort,
-    VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationCheckpointContext, VideoGenerationProgress,
-    VideoProviderHostPort, has_active_provider_job,
+    GenerateChapterVideosBatchInput, VIDEO_GENERATION_PROGRESS_TOTAL,
+    VideoGenerationCheckpointContext, VideoGenerationProgress, VideoPromptApplicationContext,
+    has_active_provider_job,
 };
 
 struct VideoTaskResult {
@@ -54,16 +65,13 @@ struct BatchAccumulator {
 }
 
 impl OrchestratorContext {
-    pub async fn run_video_generation_task<H>(
+    pub async fn run_video_generation_task(
         &self,
         user_id: i64,
         input: StartVideoGenerationInput,
         handle: GenerationTaskHandle,
-        host_port: &H,
-    ) -> Result<(), String>
-    where
-        H: ChapterVideoGenerationHostPort + ReferenceMediaVideoGenerationHostPort,
-    {
+        host_port: &dyn VideoGenerationHostPort,
+    ) -> Result<(), String> {
         let Some(execution) = self
             .acquire_generation_task_execution(&handle)
             .await
@@ -192,16 +200,13 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    async fn execute_video_generation_operation<H>(
+    async fn execute_video_generation_operation(
         &self,
         user_id: i64,
         input: StartVideoGenerationInput,
-        host_port: &H,
+        host_port: &dyn VideoGenerationHostPort,
         progress: &mut VideoGenerationProgress<'_>,
-    ) -> Result<VideoTaskResult, AppError>
-    where
-        H: ChapterVideoGenerationHostPort + ReferenceMediaVideoGenerationHostPort,
-    {
+    ) -> Result<VideoTaskResult, AppError> {
         let project_id = input.project_id;
         match input.operation {
             VideoGenerationOperation::Chapter {
@@ -268,19 +273,16 @@ impl OrchestratorContext {
     }
 
     #[allow(clippy::too_many_arguments)]
-    async fn run_canonical_chapter_video_batch<H>(
+    async fn run_canonical_chapter_video_batch(
         &self,
-        host_port: &H,
+        host_port: &dyn VideoGenerationHostPort,
         user_id: i64,
         project_id: i64,
         chapter_id: i64,
         prompt_ids: Vec<i64>,
         config_id: Option<i64>,
         progress: &mut VideoGenerationProgress<'_>,
-    ) -> Result<VideoTaskResult, AppError>
-    where
-        H: ChapterVideoGenerationHostPort + ReferenceMediaVideoGenerationHostPort,
-    {
+    ) -> Result<VideoTaskResult, AppError> {
         let input = GenerateChapterVideosBatchInput {
             user_id,
             project_id,
@@ -359,7 +361,7 @@ impl OrchestratorContext {
                 .await;
             drop(child_progress);
             match result {
-                Ok(video) if video.status == generated_video::STATUS_COMPLETED => {
+                Ok(video) if video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED => {
                     let artifact = video_artifact_event(
                         ChapterVideoGenerationHostPort::video_provider_host_port(host_port),
                         &video,
@@ -372,7 +374,7 @@ impl OrchestratorContext {
                 }
                 Ok(video)
                     if has_active_provider_job(video.provider_job_id.as_deref(), &video.status)
-                        || video.status == generated_video::STATUS_INTERRUPTED =>
+                        || video.status == a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED =>
                 {
                     batch.failed += 1;
                     batch.failed_item_keys.push(item_key);
@@ -464,7 +466,7 @@ fn single_video_result(
     video: generated_video::Model,
     summary: &str,
 ) -> Result<VideoTaskResult, AppError> {
-    if video.status == generated_video::STATUS_COMPLETED {
+    if video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
         let artifact = video_artifact_event(host_port, &video, None, None, None)?;
         return Ok(VideoTaskResult {
             summary: summary.to_string(),
@@ -479,7 +481,7 @@ fn single_video_result(
         });
     }
     let interrupted = has_active_provider_job(video.provider_job_id.as_deref(), &video.status)
-        || video.status == generated_video::STATUS_INTERRUPTED;
+        || video.status == a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED;
     Ok(VideoTaskResult {
         summary: video
             .error_message
@@ -542,15 +544,126 @@ fn video_app_error(error: AppError, stage_code: &str) -> GenerationError {
     generation_public_error(code, stage_code, error)
 }
 
+fn map_video_start_error(error: crate::GenerationTaskAccessError) -> GenerationTaskStartError {
+    let code = error.code();
+    let retryable = !matches!(
+        code,
+        "generation_request_invalid"
+            | "generation_task_forbidden"
+            | "generation_task_unauthenticated"
+            | "generation_task_not_found"
+    );
+    GenerationTaskStartError::new(code, error.to_string(), retryable)
+}
+
+struct VideoPromptRendererAdapter<'a> {
+    host_port: &'a dyn VideoPromptGenerationHostPort,
+}
+
+#[async_trait::async_trait]
+impl a4n_prompt::rendering::PromptRenderer for VideoPromptRendererAdapter<'_> {
+    async fn render_prompt(
+        &self,
+        template_name: &str,
+        variables: &std::collections::HashMap<String, serde_json::Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        self.host_port
+            .render_prompt(template_name, variables, project_id)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::video::VideoGenerationApplicationPort for OrchestratorContext {
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartVideoGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskStartError> {
+        OrchestratorContext::start_video_generation_task(self, user_id, input)
+            .await
+            .map_err(map_video_start_error)
+    }
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: StartVideoGenerationInput,
+        handle: GenerationTaskHandle,
+        host_port: &dyn VideoGenerationHostPort,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_video_generation_task(self, user_id, input, handle, host_port)
+            .await
+    }
+
+    async fn run_prompt_task(
+        &self,
+        user_id: i64,
+        input: StartVideoGenerationInput,
+        handle: GenerationTaskHandle,
+        host_port: &dyn VideoPromptGenerationHostPort,
+    ) -> Result<(), String> {
+        let runtime_video_config = host_port.runtime_video_config();
+        let prompt_renderer = VideoPromptRendererAdapter { host_port };
+        OrchestratorContext::run_video_prompt_generation_task(
+            self,
+            user_id,
+            input,
+            handle,
+            VideoPromptApplicationContext {
+                runtime_video_config: runtime_video_config.as_ref(),
+                prompt_renderer: &prompt_renderer,
+            },
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::video::VideoRequestPreviewApplicationPort for OrchestratorContext {
+    async fn preview_canvas(
+        &self,
+        input: GenerateCanvasVideoInput,
+        host_port: &dyn CanvasVideoPreviewHostPort,
+    ) -> Result<CanvasVideoRequestPreview, AppError> {
+        self.preview_canvas_video_request_validated(input, host_port)
+            .await
+    }
+
+    async fn preview_chapter(
+        &self,
+        host_port: &dyn ChapterVideoPreviewHostPort,
+        input: GenerateChapterVideoInput,
+        prompt_override: Option<PreviewChapterVideoPromptOverrideInput>,
+    ) -> Result<ChapterVideoRequestPreview, AppError> {
+        self.preview_chapter_video_request_validated(host_port, input, prompt_override)
+            .await
+    }
+
+    async fn preview_reference_media(
+        &self,
+        host_port: &dyn ReferenceMediaVideoPreviewHostPort,
+        input: GenerateReferenceMediaVideoInput,
+    ) -> Result<ReferenceMediaVideoRequestPreview, AppError> {
+        self.preview_reference_media_video_request_validated(host_port, input)
+            .await
+    }
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
     use a4n_api_contract::video::VideoGenerationOperation;
-    use a4n_core::models::ai::generated_video;
+    use a4n_db_models::models::ai::generated_video;
+    use a4n_domain::media::GeneratedMediaArtifactFile;
+    use a4n_provider_contract::VideoProviderConfig;
     use a4n_video::VideoJobState;
+    use a4n_video_contract::{
+        PersistedVideoResult, VideoCancellationHandle, VideoProviderResultTarget,
+    };
     use async_trait::async_trait;
     use chrono::Utc;
-    use tokio_util::sync::CancellationToken;
 
     struct InspectOnlyHostPort {
         content_type: &'static str,
@@ -564,8 +677,8 @@ mod unit_tests {
             &self,
             _relative_path: &str,
             _label: &str,
-        ) -> Result<crate::generation::GeneratedMediaArtifactFile, AppError> {
-            Ok(crate::generation::GeneratedMediaArtifactFile {
+        ) -> Result<GeneratedMediaArtifactFile, AppError> {
+            Ok(GeneratedMediaArtifactFile {
                 content_type: self.content_type.to_string(),
                 sha256: self.sha256.to_string(),
                 byte_size: self.byte_size,
@@ -576,25 +689,25 @@ mod unit_tests {
             &self,
             _project_id: i64,
             _workflow_run_id: i64,
-            _config: &a4n_core::models::ai::video_gen_config::Model,
+            _config: &VideoProviderConfig,
             _job_id: &str,
-            _cancel_token: CancellationToken,
+            _cancel_token: &VideoCancellationHandle,
         ) -> Result<VideoJobState, AppError> {
             unreachable!("unit test host 不应进入 poll")
         }
 
         async fn persist_video_result(
             &self,
-            _video: &generated_video::Model,
+            _target: &VideoProviderResultTarget,
             _prompt_id: Option<i64>,
             _result: a4n_video::VideoGenerationResult,
-        ) -> Result<crate::video::PersistedVideoResult, AppError> {
+        ) -> Result<PersistedVideoResult, AppError> {
             unreachable!("unit test host 不应进入 persist")
         }
 
         async fn remove_video_result(
             &self,
-            _persisted: &crate::video::PersistedVideoResult,
+            _persisted: &PersistedVideoResult,
         ) -> Result<(), AppError> {
             unreachable!("unit test host 不应进入 remove")
         }
@@ -606,7 +719,7 @@ mod unit_tests {
             id,
             project_id: 1,
             chapter_id: Some(2),
-            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
             workflow_mode: Some("boundary_frames".to_string()),
             file_path: Some(path.to_string()),
             thumbnail_path: None,
@@ -620,7 +733,7 @@ mod unit_tests {
             file_size: Some(12),
             source_video_id: None,
             source_image_id: None,
-            status: generated_video::STATUS_COMPLETED.to_string(),
+            status: a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string(),
             provider_job_id: None,
             error_message: None,
             timeline_item_id: None,

@@ -1,5 +1,6 @@
-use a4n_core::{error::AppError, models::canvas::canvas_node};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db_models::models::canvas::canvas_node;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, ChatResponse};
 use async_trait::async_trait;
 
@@ -46,6 +47,7 @@ pub struct CanvasTextGenerationLlmCall {
 
 #[async_trait]
 pub trait CanvasTextGenerationLlmPort: Send + Sync {
+    async fn max_output_tokens(&self, config_id: Option<i64>) -> Result<usize, AppError>;
     /// 通过统一 stream 收集完整文本结果（禁止完整响应 chat）。
     async fn stream_complete(
         &self,

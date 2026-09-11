@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
 use async_trait::async_trait;
 
@@ -105,7 +105,7 @@ impl UnavailableEmbeddingProvider {
 #[async_trait]
 impl EmbeddingProvider for UnavailableEmbeddingProvider {
     async fn embed(&self, _texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
-        Err(AppError::EmbeddingError(self.error.clone()))
+        Err(AppError::Embedding(self.error.clone()))
     }
 
     fn dimension(&self) -> usize {

@@ -1,7 +1,7 @@
 use super::context::{VideoProjectIdentity, video_chapter_project_id_record, video_project_record};
 use super::rules::validate_positive_image_i64;
 use crate::video::VideoDbError;
-use a4n_core::models::{ai::generated_image, project::novel_project};
+use a4n_db_models::models::{ai::generated_image, project::novel_project};
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,

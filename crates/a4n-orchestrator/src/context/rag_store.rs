@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_error::AppError;
 use a4n_rag_core::vector_store::DeleteFilter;
 use serde_json::Value;
 
 use super::OrchestratorContext;
+use a4n_rag_core::{EnhancedRagSearchResult, PreparedEnhancedRagSearch, RagEmbeddedInput};
+
 use crate::rag::{
-    RagEmbeddedInput, RagEmbeddingInput, embed_and_store_rag_record_in_store,
-    embed_and_store_rag_records_in_store, store_embedded_rag_records_in_store,
+    RagEmbeddingInput, embed_and_store_rag_record_in_store, embed_and_store_rag_records_in_store,
+    store_embedded_rag_records_in_store,
 };
 
 impl OrchestratorContext {
@@ -66,6 +68,7 @@ impl OrchestratorContext {
         self.rag_store
             .drop_collection(&project_id.to_string())
             .await
+            .map_err(AppError::from)
     }
 
     pub(crate) async fn rag_delete_project_records(
@@ -73,7 +76,10 @@ impl OrchestratorContext {
         project_id: i64,
         filter: DeleteFilter,
     ) -> Result<usize, AppError> {
-        self.rag_store.delete(&project_id.to_string(), filter).await
+        self.rag_store
+            .delete(&project_id.to_string(), filter)
+            .await
+            .map_err(AppError::from)
     }
 
     pub(crate) async fn rag_project_metadata_by_filter(
@@ -84,6 +90,7 @@ impl OrchestratorContext {
         self.rag_store
             .metadata_by_filter(&project_id.to_string(), filter)
             .await
+            .map_err(AppError::from)
     }
 
     pub(crate) async fn rag_project_metadata_by_ids(
@@ -94,6 +101,7 @@ impl OrchestratorContext {
         self.rag_store
             .metadata_by_ids(&project_id.to_string(), ids)
             .await
+            .map_err(AppError::from)
     }
 
     pub(crate) async fn execute_prepared_chapter_generation_rag_search(
@@ -125,8 +133,8 @@ impl OrchestratorContext {
 
     pub async fn execute_prepared_enhanced_rag_search(
         &self,
-        prepared: crate::rag::PreparedEnhancedRagSearch,
-    ) -> Result<crate::rag::EnhancedRagSearchResult, a4n_core::error::AppError> {
+        prepared: PreparedEnhancedRagSearch,
+    ) -> Result<EnhancedRagSearchResult, a4n_error::AppError> {
         crate::rag::search::enhanced::execute_prepared_enhanced_rag_search_in_store(
             self.rag_store.as_ref(),
             self.embedding.as_ref(),
@@ -137,10 +145,10 @@ impl OrchestratorContext {
 
     pub async fn execute_prepared_enhanced_rag_search_with_vectors(
         &self,
-        prepared: crate::rag::PreparedEnhancedRagSearch,
+        prepared: PreparedEnhancedRagSearch,
         embedding_identity: &a4n_embedding::provider::EmbeddingModelIdentity,
         query_vectors: Vec<Vec<f32>>,
-    ) -> Result<crate::rag::EnhancedRagSearchResult, a4n_core::error::AppError> {
+    ) -> Result<EnhancedRagSearchResult, a4n_error::AppError> {
         crate::rag::search::enhanced::execute_prepared_enhanced_rag_search_with_vectors_in_store(
             self.rag_store.as_ref(),
             prepared,

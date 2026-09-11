@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 const MANGA_DRAWING_PROMPT_CALL_ORDER_BASE: i32 = 800;
 

@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::prompt_language::metadata_matches_prompt_output_language;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::prompt_language::metadata_matches_prompt_output_language;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::video::prompt_json::{VideoFramePrompt, VideoSegmentPlan};

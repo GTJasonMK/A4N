@@ -3,9 +3,9 @@ use super::super::contracts::{
 };
 use super::chat_request_step_with_budget;
 use crate::{AppState, dynamic_llm, runtime_config};
-use a4n_core::config::app_config::LlmMaxTokensConfig;
-use a4n_core::models::ai::llm_config;
+use a4n_domain::LlmMaxTokensConfig;
 use a4n_llm::provider::ChatRequest;
+use a4n_provider_contract::LlmProviderConfig;
 
 pub(crate) async fn chat_request_step_for_state(
     state: &AppState,
@@ -37,17 +37,17 @@ pub(crate) async fn chat_request_step_for_state(
 
 async fn resolve_preview_llm_model_for_state(
     state: &AppState,
-) -> Result<llm_config::Model, String> {
-    if let Some(model) = runtime_config::current_llm_model() {
+) -> Result<LlmProviderConfig, String> {
+    if let Some(model) = runtime_config::current_llm_provider_config() {
         return Ok(model);
     }
     if runtime_config::uses_system_default_llm_template() {
         let mut model = state
-            .orchestrator()
+            .provider_runtime()
             .resolve_llm_config(None)
             .await
             .map_err(|err| err.to_string())?;
-        model.api_key_encrypted = None;
+        model.api_key = None;
         return Ok(model);
     }
     if runtime_config::current_user_id().is_some() {
@@ -57,7 +57,7 @@ async fn resolve_preview_llm_model_for_state(
         );
     }
     state
-        .orchestrator()
+        .provider_runtime()
         .resolve_llm_config(None)
         .await
         .map_err(|err| err.to_string())
@@ -73,7 +73,7 @@ async fn resolve_preview_llm_max_tokens_config_for_state(
     match runtime_config::current_llm_max_tokens() {
         Some(config) => Ok(Some(config)),
         None => state
-            .orchestrator()
+            .provider_runtime()
             .llm_max_tokens_config()
             .await
             .map(Some)

@@ -1,4 +1,4 @@
-use a4n_orchestrator::rag::RagRecord;
+use a4n_rag_core::RagRecord;
 use serde_json::json;
 
 use super::ExpectedRagRecords;

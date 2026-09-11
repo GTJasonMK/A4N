@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     project::novel_project,
     source_sync::{source_sync_conflict, source_sync_run},
 };

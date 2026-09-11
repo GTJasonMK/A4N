@@ -1,10 +1,10 @@
 use std::collections::{BTreeSet, HashMap};
 
 use crate::OrchestratorContext;
+mod tools;
 use a4n_api_contract::chapter_visual_plan::{
     ChapterVisualPlanRecordInput, ChapterVisualPlanSourceInput, SaveChapterVisualPlanDraftInput,
 };
-use a4n_core::{error::AppError, source_spans::SourceSpan};
 use a4n_db::{
     chapter_visual_plan::{
         ChapterVisualPlanDbError, ChapterVisualPlanSet, ConfirmChapterVisualPlanOutcome,
@@ -21,7 +21,10 @@ use a4n_domain::{
         VisualTechniqueEventV1, VisualTransitionV1,
     },
     shooting_script::ShootingDirectingStatementV1,
+    source_spans::SourceSpan,
 };
+use a4n_error::AppError;
+pub use tools::project_editor_visual_plan;
 
 #[derive(Debug, Clone)]
 pub struct ResolvedChapterVisualPlanSet {
@@ -59,6 +62,7 @@ impl OrchestratorContext {
                 author_user_id: user_id,
                 authoring_mode: input.authoring_mode,
                 expected,
+                expected_source_hash: input.expected_source_hash,
                 plan: input.plan,
             },
         )
@@ -181,6 +185,123 @@ impl OrchestratorContext {
         )
         .await
         .map_err(crate::shooting_script::errors::resolve_source_error)
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::chapter_visual_plan::ChapterVisualPlanReadApplicationPort
+    for OrchestratorContext
+{
+    async fn get(
+        &self,
+        user_id: i64,
+        input: ChapterVisualPlanSourceInput,
+    ) -> Result<a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSetView, AppError> {
+        self.current_chapter_visual_plan_for_user_validated(user_id, input)
+            .await
+            .map(chapter_visual_plan_set_view)
+    }
+
+    async fn read(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::chapter_visual_plan::ReadChapterVisualPlanInput,
+    ) -> Result<a4n_api_contract::chapter_visual_plan::ChapterVisualPlanReadResult, AppError> {
+        self.read_chapter_visual_plan_for_user(user_id, input).await
+    }
+
+    async fn validate(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::chapter_visual_plan::ValidateChapterVisualPlanInput,
+    ) -> Result<a4n_api_contract::chapter_visual_plan::ChapterVisualPlanValidationResult, AppError>
+    {
+        self.validate_chapter_visual_plan_for_user(user_id, input)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::chapter_visual_plan::ChapterVisualPlanMutationApplicationPort
+    for OrchestratorContext
+{
+    async fn save_draft(
+        &self,
+        user_id: i64,
+        input: SaveChapterVisualPlanDraftInput,
+    ) -> Result<a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView, AppError> {
+        self.save_chapter_visual_plan_draft_for_user_validated(user_id, input)
+            .await
+            .map(chapter_visual_plan_view)
+    }
+
+    async fn edit_draft(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::chapter_visual_plan::EditChapterVisualPlanDraftInput,
+    ) -> Result<a4n_api_contract::chapter_visual_plan::ChapterVisualPlanEditResult, AppError> {
+        self.edit_chapter_visual_plan_draft_for_user(user_id, input)
+            .await
+    }
+
+    async fn confirm(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordInput,
+    ) -> Result<a4n_api_contract::chapter_visual_plan::ConfirmedChapterVisualPlanView, AppError>
+    {
+        let outcome = self
+            .confirm_chapter_visual_plan_for_user_validated(user_id, input)
+            .await?;
+        Ok(
+            a4n_api_contract::chapter_visual_plan::ConfirmedChapterVisualPlanView {
+                visual_plan: chapter_visual_plan_view(outcome.visual_plan),
+                invalidated_project_ids: outcome.invalidated_project_ids,
+            },
+        )
+    }
+
+    async fn discard(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordInput,
+    ) -> Result<(), AppError> {
+        self.discard_chapter_visual_plan_draft_for_user_validated(user_id, input)
+            .await
+    }
+}
+
+fn chapter_visual_plan_set_view(
+    value: ResolvedChapterVisualPlanSet,
+) -> a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSetView {
+    a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSetView {
+        source: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanSourceView {
+            chapter_number: value.source.chapter_number,
+            title: value.source.title,
+            content: value.source.content,
+            content_sha256: value.source.content_sha256,
+        },
+        starter_plan: value.starter_plan,
+        draft: value.plans.draft.map(chapter_visual_plan_view),
+        confirmed: value.plans.confirmed.map(chapter_visual_plan_view),
+    }
+}
+
+fn chapter_visual_plan_view(
+    value: ParsedChapterVisualPlan,
+) -> a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView {
+    a4n_api_contract::chapter_visual_plan::ChapterVisualPlanView {
+        record: a4n_api_contract::chapter_visual_plan::ChapterVisualPlanRecordSummary {
+            id: value.record.id,
+            plan_version: value.record.plan_version,
+            revision: value.record.revision,
+            status: value.status,
+            authoring_mode: value.authoring_mode,
+            source_content_sha256: value.record.source_content_sha256,
+            plan_sha256: value.record.plan_sha256,
+            confirmed_at: value.record.confirmed_at.map(|value| value.to_string()),
+        },
+        plan: value.plan,
     }
 }
 
@@ -576,9 +697,9 @@ pub(crate) fn visual_plan_db_error(error: ChapterVisualPlanDbError) -> AppError 
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::source_spans::SourceSpan;
     use a4n_db::project::ResolvedChapterSource;
     use a4n_domain::chapter_visual_plan::VisualEntityV2;
+    use a4n_domain::source_spans::SourceSpan;
 
     use super::*;
 

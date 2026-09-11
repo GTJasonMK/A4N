@@ -1,67 +1,136 @@
-use crate::file_utils::persist_created_media_file;
-use a4n_core::files::{create_unique_timestamped_file, paths::ProjectPaths};
+use crate::file_utils::promote_data_file;
+use a4n_orchestrator::media::{
+    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
+    PreparedGeneratedImageFile,
+};
+use a4n_storage::data_file_record_facts;
+use a4n_storage::paths::ProjectPaths;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
-pub(in crate::actions::image_generation) fn persist_generated_image_file(
+pub(crate) fn prepare_generated_image_file(
     data_dir: &Path,
-    project_id: i64,
-    chapter_id: Option<i64>,
-    kind: &str,
-    extra: Option<&str>,
-    bytes: &[u8],
-    format: &str,
-    file_context: &str,
-) -> Result<(PathBuf, String, i64), String> {
-    let kind = required_filename_segment(kind, "kind")?;
-    let format = required_filename_segment(format, "format")?;
-    let suffix = match extra {
+    input: PrepareGeneratedImageFileInput<'_>,
+) -> Result<PreparedGeneratedImageFile, String> {
+    let kind = required_filename_segment(input.image_type, "kind")?;
+    let format = required_filename_segment(input.format, "format")?;
+    let publication_id = required_filename_segment(input.publication_id, "publication_id")?;
+    let suffix = match input.file_extra {
         Some(value) => format!("_{}", required_filename_segment(value, "extra")?),
         None => String::new(),
     };
-    let (path, mut output_file) =
-        create_image_output(data_dir, project_id, chapter_id, kind, &suffix, format)?;
-    let (relative_path, file_size) = persist_created_media_file(
+    let dir = image_output_dir(
         data_dir,
-        &path,
-        move |_| {
-            output_file
-                .write_all(bytes)
-                .map_err(|error| format!("无法写入图片：{error}"))
-        },
-        file_context,
-        file_context,
-        file_context,
+        input.project_id,
+        input.image_type,
+        input.chapter_id,
     )?;
-    Ok((path, relative_path, file_size))
+    std::fs::create_dir_all(&dir).map_err(|error| format!("无法创建图片目录 {dir:?}：{error}"))?;
+    let stem = format!("{kind}{suffix}_{publication_id}");
+    let staging = dir.join(format!("{stem}.{format}.part"));
+    let final_path = dir.join(format!("{stem}.{format}"));
+    Ok(PreparedGeneratedImageFile {
+        staging_path: a4n_storage::paths::data_dir_relative_path(
+            data_dir,
+            &staging,
+            input.file_context,
+        )?,
+        final_path: a4n_storage::paths::data_dir_relative_path(
+            data_dir,
+            &final_path,
+            input.file_context,
+        )?,
+    })
 }
 
-fn create_image_output(
+pub(crate) fn persist_reserved_generated_image_file(
     data_dir: &Path,
-    project_id: i64,
-    chapter_id: Option<i64>,
-    kind: &str,
-    suffix: &str,
-    format: &str,
-) -> Result<(PathBuf, std::fs::File), String> {
-    let dir = image_output_dir(data_dir, project_id, chapter_id)?;
-    std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建图片目录 {dir:?}：{e}"))?;
-    create_unique_timestamped_file(&dir, &format!("{kind}{suffix}"), format)
-        .map_err(|error| format!("无法创建图片文件：{error}"))
+    input: PersistGeneratedImageFileInput<'_>,
+    prepared: &PreparedGeneratedImageFile,
+) -> Result<PersistedGeneratedImageFile, String> {
+    let staging = resolve_reserved_path(data_dir, &prepared.staging_path, input.file_context)?;
+    let final_path = resolve_reserved_path(data_dir, &prepared.final_path, input.file_context)?;
+    let mut output_file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&staging)
+        .map_err(|error| format!("无法创建{}暂存文件：{error}", input.file_context))?;
+    output_file
+        .write_all(input.bytes)
+        .map_err(|error| format!("无法写入{}：{error}", input.file_context))?;
+    output_file
+        .flush()
+        .map_err(|error| format!("刷新{}失败：{error}", input.file_context))?;
+    output_file
+        .sync_all()
+        .map_err(|error| format!("同步{}失败：{error}", input.file_context))?;
+    drop(output_file);
+    promote_data_file(
+        data_dir,
+        &prepared.staging_path,
+        &prepared.final_path,
+        input.file_context,
+    )?;
+    let (relative_path, file_size) = data_file_record_facts(
+        data_dir,
+        &final_path,
+        input.file_context,
+        input.file_context,
+    )?;
+    Ok(PersistedGeneratedImageFile {
+        relative_path,
+        file_size,
+    })
+}
+
+fn resolve_reserved_path(
+    data_dir: &Path,
+    relative_path: &str,
+    label: &str,
+) -> Result<PathBuf, String> {
+    let raw = Path::new(relative_path.trim());
+    if raw.is_absolute()
+        || raw.as_os_str().is_empty()
+        || raw
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        return Err(format!("{label}暂存/最终路径无效"));
+    }
+    let canonical_data_dir = data_dir
+        .canonicalize()
+        .map_err(|error| format!("无法解析数据目录：{error}"))?;
+    let file_name = raw
+        .file_name()
+        .ok_or_else(|| format!("{label}路径缺少文件名"))?;
+    let parent = canonical_data_dir
+        .join(raw)
+        .parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| format!("{label}路径缺少父目录"))?;
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|error| format!("无法解析{label}目录：{error}"))?;
+    if !canonical_parent.starts_with(&canonical_data_dir) {
+        return Err(format!("{label}路径不在应用数据目录内"));
+    }
+    Ok(canonical_parent.join(file_name))
 }
 
 fn image_output_dir(
     data_dir: &Path,
     project_id: i64,
+    image_type: &str,
     chapter_id: Option<i64>,
 ) -> Result<PathBuf, String> {
     let project_paths = ProjectPaths::new(data_dir, project_id);
-    match chapter_id {
-        Some(chapter_id) if chapter_id > 0 => Ok(project_paths.chapter_images_dir(chapter_id)),
-        Some(chapter_id) => Err(format!(
+    match (image_type, chapter_id) {
+        ("portrait", None) => Ok(project_paths.portraits_dir()),
+        (_, Some(chapter_id)) if chapter_id > 0 => Ok(project_paths.chapter_images_dir(chapter_id)),
+        (_, Some(chapter_id)) => Err(format!(
             "章节图片目录需要有效 chapter_id，收到 {chapter_id}"
         )),
-        None => Ok(project_paths.images_dir()),
+        (_, None) => Ok(project_paths.images_dir()),
     }
 }
 

@@ -2,7 +2,7 @@ use super::super::{
     generated_prompt_status,
     preservation::{prompt_sync_draft_fields_match, prompt_sync_generation_fields_changed},
 };
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use sea_orm::{ConnectionTrait, Set};
 
 use crate::video::{self, VideoDbError};

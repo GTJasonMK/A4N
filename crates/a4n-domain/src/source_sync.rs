@@ -94,6 +94,16 @@ source_sync_enum!(SourceSyncDecisionActor {
     System => "system",
 });
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CreateSourceSyncDryRunRecordInput {
+    pub derived_project_id: i64,
+    pub root_project_id: i64,
+    pub from_snapshot_id: i64,
+    pub to_snapshot_id: i64,
+    pub chapter_change_count: usize,
+    pub profile_change_count: usize,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

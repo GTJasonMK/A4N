@@ -1,4 +1,4 @@
-use a4n_core::models::user::llm_usage_log;
+use a4n_db_models::models::user::llm_usage_log;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,

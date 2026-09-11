@@ -38,7 +38,7 @@ async fn connect_test_database_result() -> Result<DatabaseConnection, DbErr> {
     let database_url = std::env::var("A4N_TEST_DATABASE_URL").map_err(|_| {
         DbErr::Custom("缺少 A4N_TEST_DATABASE_URL，数据库测试必须显式指定 PostgreSQL 测试库".into())
     })?;
-    a4n_core::config::env::validate_postgres_database_url("A4N_TEST_DATABASE_URL", &database_url)
+    a4n_config::validate_postgres_database_url("A4N_TEST_DATABASE_URL", &database_url)
         .map_err(|error| DbErr::Custom(error.to_string()))?;
 
     let schema = format!(

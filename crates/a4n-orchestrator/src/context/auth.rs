@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
-use a4n_core::models::user::{invite_code, user, user_session};
 use a4n_db::DbHandle;
+use a4n_db_models::models::user::{invite_code, user, user_session};
 use a4n_domain::auth::UserSummary;
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::auth::{BootstrapAdminInput, required_session_id, required_session_user_id};
@@ -377,5 +377,189 @@ impl OrchestratorContext {
         self.auth
             .login_with_oauth2(provider, provider_id, email, username_hint, avatar_url)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::auth::AuthApplicationPort for OrchestratorContext {
+    async fn current_user(
+        &self,
+        user_id: i64,
+    ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        self.auth.current_user_summary(user_id).await
+    }
+
+    async fn require_existing_user_or_bootstrap_admin(
+        &self,
+        bootstrap: Option<(&str, &str, &str)>,
+    ) -> Result<(), AppError> {
+        let bootstrap = bootstrap.map(|(username, email, password)| BootstrapAdminInput {
+            username,
+            email,
+            password,
+        });
+        self.auth
+            .require_existing_user_or_bootstrap_admin(bootstrap)
+            .await
+    }
+
+    async fn register_user(
+        &self,
+        input: a4n_api_contract::auth::RegisterInput,
+    ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        let user = self
+            .auth
+            .register_user_with_invite(
+                &input.username,
+                &input.email,
+                &input.password,
+                &input.invite_code,
+            )
+            .await?;
+        Ok(auth_user_summary(&user))
+    }
+
+    async fn login_user(
+        &self,
+        input: a4n_api_contract::auth::LoginInput,
+    ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        let user = self
+            .auth
+            .login_user(&input.username, &input.password)
+            .await?;
+        Ok(auth_user_summary(&user))
+    }
+
+    async fn create_session(
+        &self,
+        user_id: i64,
+        refresh_token: &str,
+        user_agent: Option<&str>,
+    ) -> Result<a4n_api_contract::auth::SessionSummary, AppError> {
+        let session = self
+            .auth
+            .create_session(user_id, refresh_token, user_agent)
+            .await?;
+        Ok(auth_session_summary(&session))
+    }
+
+    async fn list_sessions(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<a4n_api_contract::auth::SessionSummary>, AppError> {
+        let sessions = self.auth.list_sessions(user_id).await?;
+        Ok(sessions.iter().map(auth_session_summary).collect())
+    }
+
+    async fn revoke_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
+        self.auth.revoke_session(user_id, session_id).await
+    }
+
+    async fn update_profile(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::auth::UpdateProfileInput,
+    ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        let avatar_url = input.avatar_url.as_ref().map(|value| value.as_deref());
+        let user = self
+            .auth
+            .update_user_profile(
+                user_id,
+                input.email.as_deref(),
+                avatar_url,
+                input.page_cli_enabled,
+            )
+            .await?;
+        Ok(auth_user_summary(&user))
+    }
+
+    async fn change_password(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::auth::ChangePasswordInput,
+    ) -> Result<(), AppError> {
+        self.auth
+            .change_user_password(user_id, &input.old_password, &input.new_password)
+            .await
+    }
+
+    async fn verify_session_refresh_token(
+        &self,
+        user_id: i64,
+        session_id: &str,
+        refresh_token: &str,
+    ) -> Result<(), AppError> {
+        self.auth
+            .verify_session_refresh_token(user_id, session_id, refresh_token)
+            .await
+            .map(|_| ())
+    }
+
+    async fn verify_active_session(&self, user_id: i64, session_id: &str) -> Result<(), AppError> {
+        self.auth
+            .verify_active_session(user_id, session_id)
+            .await
+            .map(|_| ())
+    }
+
+    async fn rotate_session_refresh_token(
+        &self,
+        user_id: i64,
+        session_id: &str,
+        old_refresh_token: &str,
+        new_refresh_token: &str,
+    ) -> Result<(), AppError> {
+        let user_id = required_session_user_id(user_id, "刷新令牌")?;
+        let session_id = required_session_id(session_id, "刷新令牌")?;
+        let session = self
+            .auth
+            .verify_session_refresh_token(user_id, &session_id, old_refresh_token)
+            .await?;
+        self.auth
+            .rotate_session_refresh_token(session, old_refresh_token, new_refresh_token)
+            .await
+            .map(|_| ())
+    }
+
+    async fn login_with_oauth2(
+        &self,
+        provider: &str,
+        provider_id: &str,
+        email: Option<&str>,
+        username_hint: Option<&str>,
+        avatar_url: Option<&str>,
+    ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        let user = self
+            .auth
+            .login_with_oauth2(provider, provider_id, email, username_hint, avatar_url)
+            .await?;
+        Ok(auth_user_summary(&user))
+    }
+}
+
+pub(super) fn auth_user_summary(user: &user::Model) -> a4n_api_contract::auth::UserSummary {
+    a4n_api_contract::auth::UserSummary {
+        id: user.id,
+        username: user.username.clone(),
+        email: user.email.clone(),
+        role: user.role.clone(),
+        oauth_provider: user.oauth_provider.clone(),
+        oauth_subject: user.oauth_subject.clone(),
+        avatar_url: user.avatar_url.clone(),
+        page_cli_enabled: user.page_cli_enabled,
+        is_active: user.is_active,
+        created_at: Some(user.created_at.to_string()),
+        updated_at: Some(user.updated_at.to_string()),
+        last_login_at: user.last_login_at.map(|value| value.to_string()),
+    }
+}
+
+fn auth_session_summary(session: &user_session::Model) -> a4n_api_contract::auth::SessionSummary {
+    a4n_api_contract::auth::SessionSummary {
+        id: session.id.clone(),
+        user_agent: session.user_agent.clone(),
+        created_at: session.created_at.to_string(),
+        expires_at: session.expires_at.to_string(),
+        last_used_at: session.last_used_at.map(|value| value.to_string()),
     }
 }

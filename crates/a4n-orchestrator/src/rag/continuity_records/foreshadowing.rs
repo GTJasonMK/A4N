@@ -1,8 +1,10 @@
-use a4n_core::{models::character::foreshadowing_index, rag::RagDataType};
 use a4n_db::rag::RagForeshadowingRow;
+use a4n_db_models::models::character::foreshadowing_index;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text, short_rag_title};
 
-use crate::rag::{RagRecord, foreshadowing_rag_chunk_id};
+use crate::rag::foreshadowing_rag_chunk_id;
 
 pub(super) fn foreshadowing_rag_text(item: &foreshadowing_index::Model) -> Result<String, String> {
     foreshadowing_rag_text_fields(

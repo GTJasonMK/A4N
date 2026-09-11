@@ -1,5 +1,5 @@
-use a4n_core::{
-    error::AppError,
+use a4n_domain::{
+    ProviderError as AppError,
     rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION},
 };
 use a4n_embedding::provider::EmbeddingModelIdentity;

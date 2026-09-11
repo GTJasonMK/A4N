@@ -1,8 +1,11 @@
-use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
-use a4n_rag_core::vector_store::SearchFilter;
+use a4n_error::AppError;
+use a4n_rag_core::{
+    contracts::sync::ensure_project_embedding_identity_matches,
+    search::identity_scoped_search_filter, vector_store::SearchFilter,
+};
 
-use crate::{OrchestratorContext, rag};
+use crate::OrchestratorContext;
 
 impl OrchestratorContext {
     pub async fn enhanced_rag_search_filter(
@@ -15,9 +18,9 @@ impl OrchestratorContext {
             .project_rag_metadata(project_id)
             .await
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        rag::ensure_project_embedding_identity_matches(&stored_metadata, embedding_identity)
+        ensure_project_embedding_identity_matches(&stored_metadata, embedding_identity)
             .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
-        Ok(rag::identity_scoped_search_filter(
+        Ok(identity_scoped_search_filter(
             embedding_identity.clone(),
             data_types,
         ))

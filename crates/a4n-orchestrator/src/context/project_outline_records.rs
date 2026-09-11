@@ -1,14 +1,17 @@
 use std::collections::HashMap;
 
-use a4n_api_contract::outline::{
-    DeleteLatestOutlineRecordsInput, SaveChapterOutlineInput, SavePartOutlineInput,
-    UpdateChapterOutlineInput,
-};
-use a4n_core::{
-    error::AppError,
-    models::chapter::{chapter_outline, part_outline},
+use a4n_api_contract::{
+    collaboration::ProjectAccessRole,
+    outline::{
+        ChapterOutlineSummary, DeleteLatestOutlineRecordsInput, OutlineGenerationProgressSummary,
+        OutlineMutationResult, PartOutlineSummary, SaveChapterOutlineInput,
+        SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
+        UpdateChapterOutlineInput, UpdateChapterOutlineResult,
+    },
 };
 use a4n_db::{DbHandle, project::OutlineGenerationProgressRows};
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::project::{
@@ -182,6 +185,52 @@ impl ProjectOutlineRecordsApplication {
 }
 
 impl OrchestratorContext {
+    pub async fn list_chapter_outlines_for_user(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterOutlineSummary>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        let outlines = self.chapter_outlines_for_project(project_id).await?;
+        let source_kinds = self
+            .chapter_outline_source_kinds_for_ids(
+                &outlines
+                    .iter()
+                    .map(|outline| outline.id)
+                    .collect::<Vec<_>>(),
+            )
+            .await?;
+        Ok(outlines
+            .iter()
+            .map(|outline| chapter_outline_summary(outline, source_kinds.get(&outline.id)))
+            .collect())
+    }
+
+    pub async fn list_part_outlines_for_user(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<PartOutlineSummary>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        Ok(self
+            .part_outlines_for_project(project_id)
+            .await?
+            .iter()
+            .map(part_outline_summary)
+            .collect())
+    }
+
+    pub async fn outline_generation_progress_for_user(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<OutlineGenerationProgressSummary, AppError> {
+        self.outline_generation_progress_for_user_validated(user_id, project_id)
+            .await
+    }
+
     pub async fn chapter_outline_by_project_number(
         &self,
         project_id: i64,
@@ -301,6 +350,232 @@ impl OrchestratorContext {
             .outline_generation_progress_rows(project_id)
             .await
     }
+
+    pub async fn delete_latest_chapter_outlines_for_user(
+        &self,
+        user_id: i64,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<OutlineMutationResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.delete_latest_chapter_outline_records_validated(input)
+            .await?;
+        Ok(OutlineMutationResult {
+            warnings: Vec::new(),
+        })
+    }
+
+    pub async fn delete_latest_part_outlines_for_user(
+        &self,
+        user_id: i64,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<OutlineMutationResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.delete_latest_part_outline_records_validated(input)
+            .await?;
+        Ok(OutlineMutationResult {
+            warnings: Vec::new(),
+        })
+    }
+
+    pub async fn save_chapter_outline_for_user(
+        &self,
+        user_id: i64,
+        input: SaveChapterOutlineInput,
+    ) -> Result<SaveChapterOutlineResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let outline = self.save_manual_chapter_outline_validated(input).await?;
+        Ok(SaveChapterOutlineResult {
+            outline: chapter_outline_summary(&outline, None),
+            warnings: Vec::new(),
+        })
+    }
+
+    pub async fn update_chapter_outline_for_user(
+        &self,
+        user_id: i64,
+        input: UpdateChapterOutlineInput,
+    ) -> Result<UpdateChapterOutlineResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let outline = self.update_chapter_outline_validated(input).await?;
+        Ok(UpdateChapterOutlineResult {
+            outline: chapter_outline_summary(&outline, None),
+            warnings: Vec::new(),
+        })
+    }
+
+    pub async fn save_part_outline_for_user(
+        &self,
+        user_id: i64,
+        input: SavePartOutlineInput,
+    ) -> Result<SavePartOutlineResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let part = self.save_manual_part_outline_validated(input).await?;
+        Ok(SavePartOutlineResult {
+            part: part_outline_summary(&part),
+            warnings: Vec::new(),
+        })
+    }
+}
+
+fn chapter_outline_summary(
+    outline: &chapter_outline::Model,
+    source_kind: Option<&String>,
+) -> ChapterOutlineSummary {
+    ChapterOutlineSummary {
+        id: outline.id,
+        project_id: outline.project_id,
+        part_id: outline.part_id,
+        chapter_number: outline.chapter_number,
+        title: outline.title.clone(),
+        summary: outline.summary.clone(),
+        beats: outline.beats.clone(),
+        key_scenes: outline.key_scenes.clone(),
+        pacing_score: outline.pacing_score,
+        foreshadowing_setup: outline.foreshadowing_setup.clone(),
+        foreshadowing_payoff: outline.foreshadowing_payoff.clone(),
+        characters_involved: outline.characters_involved.clone(),
+        word_count_target: outline.word_count_target,
+        source_kind: source_kind.cloned(),
+        status: outline.status.clone(),
+        created_at: Some(outline.created_at.to_string()),
+        updated_at: Some(outline.updated_at.to_string()),
+    }
+}
+
+fn part_outline_summary(part: &part_outline::Model) -> PartOutlineSummary {
+    PartOutlineSummary {
+        id: part.id,
+        project_id: part.project_id,
+        part_number: part.part_number,
+        title: part.title.clone(),
+        start_chapter: part.start_chapter,
+        end_chapter: part.end_chapter,
+        summary: part.summary.clone(),
+        theme: part.theme.clone(),
+        key_events: part.key_events.clone(),
+        character_focus: part.character_focus.clone(),
+        created_at: Some(part.created_at.to_string()),
+        updated_at: Some(part.updated_at.to_string()),
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::outline::OutlineReadApplicationPort for OrchestratorContext {
+    async fn list_chapters(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterOutlineSummary>, AppError> {
+        self.list_chapter_outlines_for_user(user_id, project_id)
+            .await
+    }
+
+    async fn list_parts(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<PartOutlineSummary>, AppError> {
+        self.list_part_outlines_for_user(user_id, project_id).await
+    }
+
+    async fn generation_progress(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<OutlineGenerationProgressSummary, AppError> {
+        self.outline_generation_progress_for_user(user_id, project_id)
+            .await
+    }
+
+    async fn ensure_chapter_outline_access(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        outline_id: i64,
+    ) -> Result<(), AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let outline = self
+            .chapter_outline_by_id(outline_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("章节大纲不存在: {outline_id}")))?;
+        if outline.project_id != project_id {
+            return Err(AppError::Forbidden(format!(
+                "章节大纲 {outline_id} 不属于项目 {project_id}"
+            )));
+        }
+        Ok(())
+    }
+
+    async fn ensure_part_access(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        part_id: i64,
+    ) -> Result<(), AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let part = self
+            .part_outline_by_id(part_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("分部大纲不存在: {part_id}")))?;
+        if part.project_id != project_id {
+            return Err(AppError::Forbidden(format!(
+                "分部大纲 {part_id} 不属于项目 {project_id}"
+            )));
+        }
+        Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::outline::OutlineMutationApplicationPort for OrchestratorContext {
+    async fn delete_latest_chapters(
+        &self,
+        user_id: i64,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<OutlineMutationResult, AppError> {
+        self.delete_latest_chapter_outlines_for_user(user_id, input)
+            .await
+    }
+
+    async fn delete_latest_parts(
+        &self,
+        user_id: i64,
+        input: DeleteLatestOutlineRecordsInput,
+    ) -> Result<OutlineMutationResult, AppError> {
+        self.delete_latest_part_outlines_for_user(user_id, input)
+            .await
+    }
+
+    async fn save_chapter(
+        &self,
+        user_id: i64,
+        input: SaveChapterOutlineInput,
+    ) -> Result<SaveChapterOutlineResult, AppError> {
+        self.save_chapter_outline_for_user(user_id, input).await
+    }
+
+    async fn update_chapter(
+        &self,
+        user_id: i64,
+        input: UpdateChapterOutlineInput,
+    ) -> Result<UpdateChapterOutlineResult, AppError> {
+        self.update_chapter_outline_for_user(user_id, input).await
+    }
+
+    async fn save_part(
+        &self,
+        user_id: i64,
+        input: SavePartOutlineInput,
+    ) -> Result<SavePartOutlineResult, AppError> {
+        self.save_part_outline_for_user(user_id, input).await
+    }
 }
 
 fn normalize_chapter_outline_update_input(
@@ -378,5 +653,49 @@ fn require_outline_json_array(value: Value, field: &str) -> Result<Value, AppErr
         Err(AppError::InvalidArgument(format!(
             "章节大纲字段 {field} 必须是数组"
         )))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+
+    fn sample_outline() -> chapter_outline::Model {
+        let now = NaiveDate::from_ymd_opt(2026, 6, 6)
+            .unwrap()
+            .and_hms_opt(10, 0, 0)
+            .unwrap();
+        chapter_outline::Model {
+            id: 42,
+            project_id: 1,
+            part_id: None,
+            chapter_number: 3,
+            title: Some("旧标题".to_string()),
+            summary: Some("旧概要".to_string()),
+            beats: None,
+            key_scenes: None,
+            pacing_score: None,
+            foreshadowing_setup: None,
+            foreshadowing_payoff: None,
+            characters_involved: None,
+            word_count_target: None,
+            status: "draft".to_string(),
+            created_at: now,
+            updated_at: now,
+        }
+    }
+
+    #[test]
+    fn chapter_outline_summary_exposes_derived_source() {
+        let summary = chapter_outline_summary(
+            &sample_outline(),
+            Some(&"retrospective_analysis".to_string()),
+        );
+
+        assert_eq!(
+            summary.source_kind.as_deref(),
+            Some("retrospective_analysis")
+        );
     }
 }

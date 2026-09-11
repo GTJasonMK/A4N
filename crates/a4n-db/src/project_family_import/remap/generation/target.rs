@@ -1,4 +1,4 @@
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 
 use crate::project_family_import::{
     ImportIdMaps, ProjectFamilyImportError, map_required, remap_profile_id,

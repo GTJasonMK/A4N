@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::ai::optimization_session};
+use a4n_db_models::models::ai::optimization_session;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::optimize::runtime_tools::EDIT_ARTICLE_TOOL;

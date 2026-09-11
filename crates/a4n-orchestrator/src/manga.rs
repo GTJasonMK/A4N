@@ -22,7 +22,10 @@ mod shooting_script_projection;
 mod source;
 mod workflow;
 
-pub use application::{MangaPipelineApplicationInput, MangaPipelinePreviewApplicationInput};
+pub use application::{
+    MangaPipelineApplicationInput, MangaPipelineApplicationPort,
+    MangaPipelinePreviewApplicationInput, MangaRecordApplicationPort,
+};
 pub(crate) use layout_rules::manga_page_generation_layout;
 pub use pipeline_preview::MangaPipelineRequestPreviewStep;
 pub(in crate::manga) use pipeline_state::{MANGA_PIPELINE_TOTAL_STEPS, MangaPipelineStage};
@@ -59,8 +62,8 @@ use crate::workflow::{
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
     WORKFLOW_STATUS_RUNNING,
 };
-use a4n_core::error::AppError;
-use a4n_core::models::generation::workflow_run;
+use a4n_db_models::models::generation::workflow_run;
+use a4n_error::AppError;
 
 impl OrchestratorContext {
     pub(crate) async fn resumable_manga_workflow_validated(

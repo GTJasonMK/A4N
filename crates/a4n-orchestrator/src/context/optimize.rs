@@ -3,14 +3,14 @@
 //! 持有 `DbHandle`，封装优化会话、消息、Turn、补丁集与上下文读模型的数据库行为。
 //! 分析/对话/补丁编排仍在 `optimize/` 模块，但 DB 只经本 owner。
 
-use a4n_core::error::AppError;
-use a4n_core::models::ai::{
+use a4n_db::DbHandle;
+use a4n_db::optimize::{OptimizationChapterPatchWriteInput, OptimizationSessionMessageInsertInput};
+use a4n_db_models::models::ai::{
     optimization_patch, optimization_patch_set, optimization_session, optimization_session_message,
     optimization_turn, optimization_turn_event,
 };
-use a4n_core::models::chapter::chapter;
-use a4n_db::DbHandle;
-use a4n_db::optimize::{OptimizationChapterPatchWriteInput, OptimizationSessionMessageInsertInput};
+use a4n_db_models::models::chapter::chapter;
+use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use std::collections::HashMap;
 
@@ -492,7 +492,7 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_id: i64,
         active_task_id: Option<String>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let mut input = crate::optimize::optimize_session_workflow_run_input(
             session_id,
             workflow_kind,

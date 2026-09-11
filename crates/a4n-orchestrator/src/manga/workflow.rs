@@ -1,5 +1,5 @@
-use a4n_core::source_spans::{ChapterSourceContext, source_metadata};
 use a4n_db::project::MangaCharacterPortraitRefSummary;
+use a4n_domain::source_spans::{ChapterSourceContext, source_metadata};
 
 use super::reference_assets::manga_reference_assets_json;
 

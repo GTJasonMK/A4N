@@ -67,6 +67,7 @@ import type {
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { DomainAgentConsole } from "../../components/agent/DomainAgentConsole";
+import { respondAgentEditor, type AgentEditorSource, type AgentEditorState, type AgentEditorRequest, type AgentEditorResponse } from "../../api/agent";
 import { BookButton, BookIconButton } from "../../components/ui/BookButton";
 import { Dropdown, type DropdownItem } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -156,13 +157,16 @@ interface PendingDraftSave {
 }
 
 interface ChapterEditorRuntime {
+  viewInstanceId: string;
   projectId: number;
   chapterId: number;
   record: ChapterVisualPlanView | null;
   pendingSave: PendingDraftSave | null;
-  savePromise: Promise<ChapterVisualPlanView | null> | null;
+  savePromise: Promise<DraftSaveResult> | null;
   externalUpdatePending: boolean;
 }
+
+type DraftSaveResult = { status: "saved" | "unchanged"; record: ChapterVisualPlanView } | { status: "error"; message: string };
 
 interface FrameDraft {
   width: number;
@@ -663,6 +667,9 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
   const [relationEditingId, setRelationEditingId] = useState<string | null>(null);
   const planRef = useRef<ChapterVisualPlanV2 | null>(null);
   const runtimeRef = useRef<ChapterEditorRuntime | null>(null);
+  const editorVersionRef = useRef({ plan: null as ChapterVisualPlanV2 | null, serialized: "", revision: crypto.randomUUID() });
+  const resourceRefreshRef = useRef<Promise<void> | null>(null);
+  const dialogDirtyRef = useRef(false);
   const lockingRef = useRef(false);
   const editableRef = useRef(false);
 
@@ -769,16 +776,15 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     }
     return false;
   })();
+  dialogDirtyRef.current = editorDraftHasChanges;
 
-  const resetEditor = useCallback((value: ChapterVisualPlanSetView, runtime: ChapterEditorRuntime) => {
+  const resetEditor = useCallback((value: ChapterVisualPlanSetView, runtime: ChapterEditorRuntime, preserveView = false) => {
     const source = value.draft ?? value.confirmed;
     const next = clonePlan(source?.plan ?? value.starter_plan);
     runtime.record = value.draft;
     runtime.pendingSave = null;
     runtime.savePromise = null;
     runtime.externalUpdatePending = false;
-    lockingRef.current = false;
-    setLocking(false);
     setPlanSet(value);
     setPlan(next);
     planRef.current = next;
@@ -786,6 +792,9 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     setEditing(Boolean(value.draft) || !value.confirmed);
     setUndoStack([]);
     setRedoStack([]);
+    if (preserveView) return;
+    lockingRef.current = false;
+    setLocking(false);
     const first = visualShots(next)[0];
     setSelectedSceneId(first?.scene.id ?? next.scenes[0]?.id ?? null);
     setSelectedShotId(first?.shot.id ?? null);
@@ -799,8 +808,9 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     runtime: ChapterEditorRuntime,
     currentPlan: ChapterVisualPlanV2,
     notify = false,
-  ) => {
-    if (!canEdit || runtime.externalUpdatePending) return null;
+    save: typeof saveChapterVisualPlanDraft = saveChapterVisualPlanDraft,
+  ): Promise<DraftSaveResult> => {
+    if (!canEdit || runtime.externalUpdatePending) return { status: "error", message: t("visualPlan.agentEditorChanged") };
     const pending = runtime.pendingSave;
     runtime.pendingSave = {
       plan: clonePlan(currentPlan),
@@ -808,13 +818,14 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     };
     if (runtime.savePromise) return runtime.savePromise;
     if (runtimeRef.current === runtime) setSaving(true);
-    runtime.savePromise = (async () => {
+    runtime.savePromise = (async (): Promise<DraftSaveResult> => {
       let lastSaved: ChapterVisualPlanView | null = null;
+      const initialRevision = runtime.record?.record.revision;
       while (runtime.pendingSave) {
         const request = runtime.pendingSave;
         runtime.pendingSave = null;
         try {
-          const saved = await saveChapterVisualPlanDraft(runtime.projectId, runtime.chapterId, runtime.record, request.plan);
+          const saved = await save(runtime.projectId, runtime.chapterId, runtime.record, request.plan);
           runtime.record = saved;
           lastSaved = saved;
           if (runtimeRef.current === runtime) {
@@ -827,10 +838,12 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
           if (runtimeRef.current === runtime && !(runtime.externalUpdatePending && isVisualPlanRevisionConflict(error))) {
             addToast(extractErrorMessage(error, t("visualPlan.draftSaveFailed")), "error");
           }
-          return null;
+          return { status: "error", message: extractErrorMessage(error, t("visualPlan.draftSaveFailed")) };
         }
       }
-      return lastSaved;
+      return lastSaved
+        ? { status: lastSaved.record.revision === initialRevision ? "unchanged" : "saved", record: lastSaved }
+        : { status: "error", message: t("visualPlan.draftSaveFailed") };
     })().finally(() => {
       runtime.savePromise = null;
       if (runtimeRef.current === runtime && !lockingRef.current) setSaving(false);
@@ -843,10 +856,13 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     const previousRuntime = runtimeRef.current;
     const previousPlan = planRef.current;
     if (persistPrevious && previousRuntime && previousPlan && editableRef.current) {
-      await persistRuntimeDraft(previousRuntime, previousPlan, false);
+      const result = await persistRuntimeDraft(previousRuntime, previousPlan, false);
+      if (result.status === "error") return;
       if (runtimeRef.current !== previousRuntime) return;
     }
     const runtime: ChapterEditorRuntime = {
+      viewInstanceId: previousRuntime?.projectId === projectId && previousRuntime.chapterId === chapterId
+        ? previousRuntime.viewInstanceId : crypto.randomUUID(),
       projectId,
       chapterId,
       record: null,
@@ -878,23 +894,33 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
   }, [chapterId, persistRuntimeDraft, projectId, resetEditor, t]);
 
   const handleDirectorResourceChanged = useCallback(async () => {
-    const runtime = runtimeRef.current;
-    if (runtime) {
+    if (resourceRefreshRef.current) return resourceRefreshRef.current;
+    const refresh = async () => {
+      const runtime = runtimeRef.current;
+      if (!runtime) return;
       runtime.externalUpdatePending = true;
       runtime.pendingSave = null;
       if (runtime.savePromise) await runtime.savePromise;
       if (runtimeRef.current !== runtime) return;
-    }
-    const currentPlan = planRef.current;
-    const hasLocalChanges = runtime?.record
-      ? Boolean(currentPlan && JSON.stringify(currentPlan) !== JSON.stringify(runtime.record.plan))
-      : planDirty;
-    if (hasLocalChanges) {
-      addToast(t("visualPlan.externalUpdateWhileEditing"), "info");
-      return;
-    }
-    await loadPlan({ persistPrevious: false });
-  }, [addToast, loadPlan, planDirty, t]);
+      const hasLocalChanges = () => dialogDirtyRef.current || (runtime.record
+        ? Boolean(planRef.current && JSON.stringify(planRef.current) !== JSON.stringify(runtime.record.plan))
+        : planDirty);
+      if (hasLocalChanges()) {
+        addToast(t("visualPlan.externalUpdateWhileEditing"), "info");
+        return;
+      }
+      const value = await getChapterVisualPlan(runtime.projectId, runtime.chapterId);
+      if (runtimeRef.current !== runtime) return;
+      if (hasLocalChanges()) {
+        addToast(t("visualPlan.externalUpdateWhileEditing"), "info");
+        return;
+      }
+      // Keep the originating view and its background Agent connection alive.
+      resetEditor(value, runtime, true);
+    };
+    resourceRefreshRef.current = refresh().finally(() => { resourceRefreshRef.current = null; });
+    return resourceRefreshRef.current;
+  }, [addToast, planDirty, resetEditor, t]);
 
   useEffect(() => {
     if (chapterId == null) {
@@ -983,11 +1009,12 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
   const releaseLock = useCallback(() => {
     lockingRef.current = false;
     setLocking(false);
+    setSaving(false);
   }, []);
 
   const commit = useCallback((edit: ((next: ChapterVisualPlanV2) => void) | ChapterVisualPlanV2): ChapterVisualPlanV2 | null => {
     const current = planRef.current;
-    if (!current || !editable) return null;
+    if (!current || !editable || lockingRef.current) return null;
     const next = typeof edit === "function" ? clonePlan(current) : edit;
     if (typeof edit === "function") edit(next);
     if (JSON.stringify(next) === JSON.stringify(current)) return null;
@@ -1047,11 +1074,105 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
   }, [editable, persistDraft, plan, planDirty]);
 
   const ensureLatestDraft = useCallback(async (runtime: ChapterEditorRuntime) => {
-    if (runtime.savePromise) await runtime.savePromise;
+    if (runtime.savePromise) {
+      const result = await runtime.savePromise;
+      if (result.status === "error") throw new Error(result.message);
+    }
     if (runtimeRef.current !== runtime || !planRef.current) return null;
     if (runtime.record && JSON.stringify(planRef.current) === JSON.stringify(runtime.record.plan)) return runtime.record;
-    return persistDraft(false);
+    const result = await persistDraft(false);
+    if (!result) return null;
+    if (result.status === "error") throw new Error(result.message);
+    return result.record;
   }, [persistDraft]);
+
+  const currentEditorRevision = useCallback(() => {
+    if (editorVersionRef.current.plan !== planRef.current) {
+      const serialized = JSON.stringify(planRef.current);
+      editorVersionRef.current = {
+        plan: planRef.current, serialized,
+        revision: serialized === editorVersionRef.current.serialized ? editorVersionRef.current.revision : crypto.randomUUID(),
+      };
+    }
+    return editorVersionRef.current.revision;
+  }, []);
+
+  const getEditorSource = useCallback((): AgentEditorSource | null => {
+    const runtime = runtimeRef.current;
+    if (!runtime || !planRef.current) return null;
+    return {
+      view_instance_id: runtime.viewInstanceId,
+      project_id: runtime.projectId,
+      chapter_id: runtime.chapterId,
+      editor_revision: currentEditorRevision(),
+      scene_id: selectedScene?.id ?? null,
+      shot_id: selectedShot?.id ?? null,
+      keyframe_id: selectedKeyframe?.id ?? null,
+      entity_id: selectedEntityId,
+    };
+  }, [currentEditorRevision, selectedEntityId, selectedKeyframe?.id, selectedScene?.id, selectedShot?.id]);
+
+  const handleEditorRequest = useCallback(async (request: AgentEditorRequest, runId: string) => {
+    const runtime = runtimeRef.current;
+    if (!runtime || request.source.view_instance_id !== runtime.viewInstanceId) return;
+    let submitted = false;
+    const respond = async (response: AgentEditorResponse) => {
+      submitted = true;
+      const reply = await respondAgentEditor({ run_id: runId, execution_id: request.execution_id, view_instance_id: runtime.viewInstanceId, response });
+      if (reply.status !== "succeeded") throw new Error(reply.error_message || t("visualPlan.agentEditorChanged"));
+      return reply;
+    };
+    const locked = acquireLock();
+    try {
+      if (!locked) throw new Error(t("visualPlan.agentEditorBusy"));
+      if (runtime.savePromise) {
+        const result = await runtime.savePromise;
+        if (result.status === "error") throw new Error(result.message);
+      }
+      const current = planRef.current;
+      if (runtimeRef.current !== runtime || !current) throw new Error(t("visualPlan.agentEditorUnavailable"));
+      const source = request.source;
+      if ((source.scene_id && !current.scenes.some((scene) => scene.id === source.scene_id))
+        || (source.shot_id && !findPlanShot(current, source.shot_id))
+        || (source.keyframe_id && (!source.shot_id || !findPlanKeyframe(current, source.shot_id, source.keyframe_id)))
+        || (source.entity_id && !current.entities.some((entity) => entity.id === source.entity_id))) {
+        throw new Error(t("visualPlan.agentEditorChanged"));
+      }
+      const editor: AgentEditorState = {
+        editor_revision: currentEditorRevision(),
+        record_id: runtime.record?.record.id ?? null,
+        record_revision: runtime.record?.record.revision ?? null,
+        dirty: !runtime.record || JSON.stringify(current) !== JSON.stringify(runtime.record.plan),
+        has_uncommitted_dialog: editorDraftHasChanges,
+      };
+      const operation = request.operation;
+      const expected = operation.kind === "prepare_write" ? operation.expected_editor_revision
+        : operation.kind === "read" || operation.kind === "save" ? operation.input.expected_editor_revision : null;
+      if (expected && expected !== editor.editor_revision) throw new Error(t("visualPlan.agentEditorChanged"));
+      if (operation.kind === "inspect") {
+        await respond({ kind: "state", state: editor });
+      } else if (operation.kind === "read") {
+        await respond({ kind: "draft", editor_revision: editor.editor_revision, plan: clonePlan(current) });
+      } else if (operation.kind === "save") {
+        if (editorDraftHasChanges) throw new Error(t("visualPlan.agentEditorDialogPending"));
+        const result = await persistRuntimeDraft(runtime, current, false, async (_project, _chapter, record, draft) => {
+          const reply = await respond({ kind: "save_draft", state: { ...editor, record_id: record?.record.id ?? null, record_revision: record?.record.revision ?? null }, plan: draft });
+          if (!reply.saved_draft) throw new Error(t("visualPlan.draftSaveFailed"));
+          return reply.saved_draft;
+        });
+        if (result.status === "error") throw new Error(result.message);
+      } else {
+        if (editor.dirty || editor.has_uncommitted_dialog || runtime.externalUpdatePending) throw new Error(t("visualPlan.agentEditorChanged"));
+        await respond({ kind: "ready_to_write", state: editor });
+        if (runtimeRef.current === runtime) await handleDirectorResourceChanged();
+      }
+    } catch (error) {
+      if (!submitted) await respond({ kind: "error", message: extractErrorMessage(error, t("visualPlan.agentEditorUnavailable")) });
+      throw error;
+    } finally {
+      if (locked && runtimeRef.current === runtime) releaseLock();
+    }
+  }, [acquireLock, currentEditorRevision, editorDraftHasChanges, handleDirectorResourceChanged, persistRuntimeDraft, releaseLock, t]);
 
   const undo = useCallback(() => {
     const current = planRef.current;
@@ -2501,6 +2622,7 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
 
       <Modal
         isOpen={modal === "director"}
+        keepMounted
         onClose={dismissModal}
         title={t("agent.domain.directorTitle")}
         icon={<Film size={15} />}
@@ -2514,6 +2636,8 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
             resourceLabel={chapter.title || `${t("novel.chapter")} ${chapter.chapter_number}`}
             fill
             onResourceChanged={handleDirectorResourceChanged}
+            getEditorSource={getEditorSource}
+            onEditorRequest={handleEditorRequest}
           />
         </div>
       </Modal>
@@ -2856,16 +2980,7 @@ const VisualFrame: React.FC<{
     interactionRef.current = null;
     setInteraction(null);
     if (!commitChanges) return;
-    if (!active.moved) {
-      if (active.mode === "move") {
-        suppressClickRef.current = true;
-        onSelectEntityRef.current(active.state);
-        window.setTimeout(() => {
-          suppressClickRef.current = false;
-        }, 0);
-      }
-      return;
-    }
+    if (!active.moved) return;
     suppressClickRef.current = true;
     window.setTimeout(() => {
       suppressClickRef.current = false;

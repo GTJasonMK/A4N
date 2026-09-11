@@ -1,8 +1,9 @@
-use a4n_core::{error::AppError, models::asset::object_profile};
 use a4n_db::{
-    asset::{ObjectProfileEvidenceRecordInput, ObjectProfileUpsertRecordResult},
-    generation::RecordCompletedGenerationRunInput,
+    asset::ObjectProfileUpsertRecordResult, generation::RecordCompletedGenerationRunInput,
 };
+use a4n_db_models::models::asset::object_profile;
+use a4n_domain::object_profile::ObjectProfileEvidenceRecordInput;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::{OrchestratorContext, asset::object_profiles::normalize_object_name};
@@ -96,7 +97,7 @@ impl OrchestratorContext {
 }
 
 fn object_discovery_result(
-    chapters: Vec<a4n_core::models::chapter::chapter::Model>,
+    chapters: Vec<a4n_db_models::models::chapter::chapter::Model>,
     discovered_count: usize,
     result: ObjectProfileUpsertRecordResult,
 ) -> Value {

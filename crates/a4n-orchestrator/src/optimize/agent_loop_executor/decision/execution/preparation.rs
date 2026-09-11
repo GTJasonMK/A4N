@@ -50,6 +50,14 @@ pub(super) async fn prepare_agent_loop_decision_call(
     if let Some(trace_context) = chat_request.trace_context.as_mut() {
         trace_context.input_fingerprint_sha256 = Some(input_fingerprint_sha256);
     }
+    let execution = crate::optimize::runtime_tools::accounting::prepare_model_execution(
+        context,
+        request.generation,
+        &call_key,
+        &mut chat_request,
+    )
+    .await?;
+    let input_fingerprint_json = optimize_llm_call_input_fingerprint_json(&chat_request)?;
     context
         .save_agent_event(
             session_id,
@@ -70,5 +78,6 @@ pub(super) async fn prepare_agent_loop_decision_call(
         chat_request,
         call_key,
         input_fingerprint_json,
+        execution,
     })
 }

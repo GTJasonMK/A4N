@@ -1,16 +1,14 @@
 //! 成片推送（assembly_push）metadata 纯规则。
 
-use a4n_core::{models::ai::generated_video, video_workflow::is_assembly_video_workflow_mode};
+use a4n_db_models::models::ai::generated_video;
+use a4n_domain::video_workflow::is_assembly_video_workflow_mode;
 use chrono::Utc;
 use serde_json::{Map, Value, json};
 use std::collections::HashSet;
 
-/// 推送待审。
-pub const ASSEMBLY_PUSH_STATUS_PENDING: &str = "pending";
-/// 推送已接受。
-pub const ASSEMBLY_PUSH_STATUS_ACCEPTED: &str = "accepted";
-/// 推送已拒绝。
-pub const ASSEMBLY_PUSH_STATUS_REJECTED: &str = "rejected";
+pub use a4n_domain::video_workflow::{
+    ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_PENDING, ASSEMBLY_PUSH_STATUS_REJECTED,
+};
 
 /// 从 generated_video.metadata_json 解析出的推送批次纯字段。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,9 +33,9 @@ pub fn is_completed_assembly_push_row(
     status: &str,
     expected_workflow_mode: &str,
 ) -> bool {
-    video_type == generated_video::VIDEO_TYPE_ASSEMBLY_PUSH
+    video_type == a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH
         && workflow_mode == Some(expected_workflow_mode)
-        && status == generated_video::STATUS_COMPLETED
+        && status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
 }
 
 /// 解析 assembly_push 对象上的 status。
@@ -291,7 +289,7 @@ mod tests {
         assert_eq!(meta.status, ASSEMBLY_PUSH_STATUS_ACCEPTED);
         assert_eq!(meta.source_video_ids, vec![1, 2]);
         assert!(is_completed_assembly_push_row(
-            generated_video::VIDEO_TYPE_ASSEMBLY_PUSH,
+            a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH,
             Some("first_frame_chain"),
             "completed",
             "first_frame_chain"
@@ -359,7 +357,7 @@ mod tests {
         );
         assert_eq!(
             validate_assembly_workflow_mode(" mixed "),
-            Ok(a4n_core::video_workflow::WORKFLOW_MODE_MIXED)
+            Ok(a4n_domain::video_workflow::WORKFLOW_MODE_MIXED)
         );
         assert!(validate_assembly_workflow_mode(" ").is_err());
         assert!(validate_assembly_workflow_mode("unknown").is_err());

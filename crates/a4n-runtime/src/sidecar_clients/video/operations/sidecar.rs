@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use a4n_capabilities::{A4nCapabilities, VideoClient};
-use a4n_core::models::ai::video_gen_config;
-use a4n_orchestrator::video::validate_video_config_model;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus};
 use serde_json::Value;
 
@@ -12,13 +11,13 @@ use super::super::super::{
     sidecar_context_for_workflow_operation_with_root,
 };
 use super::super::contracts::{
-    VideoDeleteOutput, VideoJobOutput, VideoPollPayload, VideoStatusOutput,
+    VideoDeleteOutput, VideoJobOutput, VideoPollPayload, VideoStatusOutput, video_config_params,
     video_generation_result, video_provider_payload,
 };
 
 pub(crate) async fn preview_video_provider_request(
     capabilities: &A4nCapabilities,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
@@ -41,13 +40,13 @@ pub(crate) async fn preview_video_provider_request(
 
 pub(super) async fn poll_video_via_sidecar(
     client: Arc<dyn VideoClient>,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
     workflow_run_id: Option<i64>,
 ) -> Result<VideoJobState, String> {
-    let params = validate_video_config_model(config)?;
+    let params = video_config_params(config)?;
     let api_key = params
         .api_key_encrypted
         .ok_or_else(|| "视频生成配置缺少 api_key_encrypted".to_string())?;
@@ -83,12 +82,12 @@ pub(super) async fn poll_video_via_sidecar(
 
 pub(super) async fn video_status_via_sidecar(
     client: Arc<dyn VideoClient>,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<VideoJobStatus, String> {
-    let params = validate_video_config_model(config)?;
+    let params = video_config_params(config)?;
     let api_key = params
         .api_key_encrypted
         .ok_or_else(|| "视频生成配置缺少 api_key_encrypted".to_string())?;
@@ -119,12 +118,12 @@ pub(super) async fn video_status_via_sidecar(
 
 pub(super) async fn delete_video_via_sidecar(
     client: Arc<dyn VideoClient>,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<VideoJobDeleteOutcome, String> {
-    let params = validate_video_config_model(config)?;
+    let params = video_config_params(config)?;
     let api_key = params
         .api_key_encrypted
         .ok_or_else(|| "视频生成配置缺少 api_key_encrypted".to_string())?;

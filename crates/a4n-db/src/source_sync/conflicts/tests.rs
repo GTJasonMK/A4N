@@ -1,6 +1,6 @@
 use super::{SourceSyncConflictRecordInput, insert_source_sync_conflict_records};
 use crate::source_sync::SourceSyncDbError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     project::{novel_project, project_source_snapshot},
     source_sync::{source_sync_conflict, source_sync_decision, source_sync_run},
 };
@@ -129,7 +129,7 @@ async fn auto_apply_batches_info_conflict_updates_and_decisions() {
     .expect("派生项目应可创建");
     let run = crate::source_sync::insert_source_sync_dry_run_record(
         &db,
-        crate::source_sync::CreateSourceSyncDryRunRecordInput {
+        a4n_domain::source_sync::CreateSourceSyncDryRunRecordInput {
             derived_project_id: derived.id,
             root_project_id: root.id,
             from_snapshot_id: snapshot.id,

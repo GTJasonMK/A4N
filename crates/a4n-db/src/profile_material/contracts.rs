@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::generated_image, asset::profile_primary_material};
+use a4n_db_models::models::{ai::generated_image, asset::profile_primary_material};
 use sea_orm::{DbErr, FromQueryResult};
 
 #[derive(Debug, thiserror::Error)]

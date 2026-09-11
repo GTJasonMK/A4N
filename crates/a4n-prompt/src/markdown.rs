@@ -3,7 +3,7 @@
 use std::fs;
 use std::path::Path;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde::Deserialize;
 
 #[derive(Deserialize)]

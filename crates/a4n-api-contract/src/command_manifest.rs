@@ -6,8 +6,9 @@ use crate::agent::{
     AgentToolCostClass, AgentToolExposure, AgentToolReplayPolicy, AgentToolReversibility,
     AgentToolRisk,
 };
+use crate::package::{PackageCommandCategory, PackageId};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 16;
+pub const COMMAND_MANIFEST_VERSION: u32 = 17;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -79,6 +80,8 @@ pub struct CommandDescriptor {
     pub approval_policy: String,
     pub navigation_hint: Option<String>,
     pub agent_policy: Option<AgentCommandPolicy>,
+    pub package_id: PackageId,
+    pub package_category: PackageCommandCategory,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
@@ -408,7 +411,9 @@ command_specs! {
     "discover_character_profiles" => args_discover_character_profiles, result_discover_character_profiles, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
     "download_embedding_model" => args_download_embedding_model, result_download_embedding_model, "rag", execution("task"), capabilities(CAPABILITIES_EMBEDDING);
     "duplicate_project" => args_duplicate_project, result_create_project, "project", context(NO_CONTEXT), references(REFERENCES_PROJECT_IDS);
+    "edit_canvas_graph" => args_edit_canvas_graph, result_edit_canvas_graph, "canvas", context(NO_CONTEXT);
     "edit_chapter_shooting_script" => args_edit_chapter_shooting_script, result_edit_chapter_shooting_script, "chapter", references(REFERENCES_PROJECT_IDS);
+    "edit_chapter_visual_plan_draft" => args_edit_chapter_visual_plan_draft, result_edit_chapter_visual_plan_draft, "chapter";
     "execute_attribute_deletion" => args_execute_attribute_deletion, result_unit, "profile", effect(DESTRUCTIVE_EFFECT);
     "export_all_configs_json" => args_export_all_configs_json, result_string, "export", identity(ADMIN_IDENTITY), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT), references(REFERENCES_ARTIFACTS);
     "export_batch_data" => args_export_batch_data, result_export_batch_data, "export", context(NO_CONTEXT), effect(READ_EFFECT), execution("download"), file_outputs(FILE_OUTPUTS_SAVE_BASE64_SAVE_TEXT);
@@ -455,6 +460,9 @@ command_specs! {
     "get_log_dir" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "get_optimize_session" => args_optimize_session, result_optimization_session, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
+    "get_package_operation" => args_get_package_operation, result_package_lifecycle, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_package_overview" => empty_args_schema, result_package_overview, "system", context(NO_CONTEXT), effect(READ_EFFECT);
+    "get_package_preferences" => empty_args_schema, result_package_preferences, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_primary_portrait" => args_get_primary_portrait, result_get_primary_portrait, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "get_profile_state_at_chapter" => args_get_profile_state_at_chapter, result_get_profile_state_at_chapter, "profile", effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "get_project" => args_project_id, result_create_project, "project", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
@@ -515,6 +523,7 @@ command_specs! {
     "list_optimize_sessions" => args_list_optimize_sessions, result_optimization_sessions, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_optimize_turns" => args_optimize_session, result_optimization_turns, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_orphan_project_data_dirs" => empty_args_schema, result_cleanup_orphan_project_data_dirs, "project", identity(ADMIN_IDENTITY), effect(READ_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "list_package_command_availability" => args_list_package_command_availability, result_package_command_availability, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_parts" => args_project_id, result_part_outlines, "outline", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "list_pending_tasks" => empty_args_schema, result_list_pending_tasks, "task", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "list_portraits_by_project" => args_list_portraits_by_project, result_list_portraits, "profile", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
@@ -616,6 +625,8 @@ command_specs! {
     "rag_prepare_enhanced_search" => args_rag_enhanced_search, result_rag_prepare_enhanced_search, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
     "rag_prepare_ingest_all" => args_rag_prepare_ingest_all, result_rag_prepare_ingest_all, "rag", context(PROJECT_CONTEXT), effect(READ_EFFECT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_RAG), runtime(RuntimeConfigPolicy::Full);
     "rag_upload_ingest_embeddings" => args_rag_upload_ingest_embeddings, result_rag_ingest, "rag", context(PROJECT_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_EMBEDDING_RAG), runtime(RuntimeConfigPolicy::Full);
+    "read_canvas_graph" => args_read_canvas_graph, result_read_canvas_graph, "canvas", effect(READ_EFFECT), context(NO_CONTEXT);
+    "read_chapter_visual_plan" => args_read_chapter_visual_plan, result_read_chapter_visual_plan, "chapter", effect(READ_EFFECT);
     "read_recent_logs" => args_read_recent_logs, result_read_recent_logs, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "record_optimize_agent_event" => args_record_optimize_agent_event, result_unit, "optimize", context(NO_CONTEXT);
     "refresh_token" => args_refresh_token, result_refresh_token, "auth", identity(PUBLIC_IDENTITY), secrets(REFRESH_TOKEN_SECRET_POINTERS);
@@ -629,11 +640,13 @@ command_specs! {
     "request_attribute_deletion" => args_request_attribute_deletion, result_request_attribute_deletion, "profile", effect(DESTRUCTIVE_EFFECT);
     "reset_deletion_marks" => args_reset_deletion_marks, result_reset_deletion_marks, "profile", effect(DESTRUCTIVE_EFFECT);
     "reset_project_generated_data" => args_project_id, result_project_generated_data_reset, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
+    "respond_agent_editor" => args_respond_agent_editor, result_agent_editor_reply, "agent";
     "restore_blueprint_version" => args_restore_blueprint_version, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "resume_chapter_analysis_sync" => args_chapter_analysis_task, result_chapter_summary, "chapter", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_CHAPTER_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_manga_pipeline" => args_preview_resume_manga_pipeline_request, result_string, "manga", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), capabilities(CAPABILITIES_PROMPT_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "resume_workflow_run" => args_resume_workflow_run, result_workflow_run, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full), idempotency("server_workflow");
     "reverse_engineer" => args_reverse_engineer, result_reverse_engineering_candidate, "workflow", context(NO_CONTEXT), execution("workflow"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_WORKFLOW_RUN_IDS), runtime(RuntimeConfigPolicy::Full);
+    "review_agent_delegation" => args_review_agent_delegation, result_agent_delegation, "agent", idempotency("same_review");
     "revoke_project_invite" => args_invite_id, result_unit, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "revoke_session" => args_revoke_session, result_unit, "auth", context(NO_CONTEXT), effect(DESTRUCTIVE_EFFECT);
     "rollback_project_status" => args_forward_project_status, result_create_project, "project", context(PROJECT_CONTEXT), effect(DESTRUCTIVE_EFFECT), references(REFERENCES_PROJECT_IDS);
@@ -667,6 +680,7 @@ command_specs! {
     "start_optimize_chat_generation" => args_start_optimize_chat_generation, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_optimize_patch_generation" => args_start_optimize_patch_generation, result_generation_task_handle, "system", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_outline_generation" => args_start_outline_generation, result_generation_task_handle, "outline", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
+    "start_package_lifecycle" => args_start_package_lifecycle, result_package_lifecycle, "system", identity(ADMIN_IDENTITY), effect(DESTRUCTIVE_EFFECT), idempotency("operation_id");
     "start_portrait_generation" => args_start_portrait_generation, result_generation_task_handle, "profile", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_PROMPT_LLM_IMAGE), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "start_video_generation" => args_start_video_generation, result_generation_task_handle, "video", context(NO_CONTEXT), execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_VIDEO), runtime(RuntimeConfigPolicy::Full), idempotency("client_request_id");
     "sync_all_character_profiles" => args_sync_all_character_profiles, result_sync_all_character_profiles, "profile", execution("task"), secrets(RUNTIME_SECRET_POINTERS), references(REFERENCES_TASK_IDS), capabilities(CAPABILITIES_LLM), runtime(RuntimeConfigPolicy::Full);
@@ -697,6 +711,7 @@ command_specs! {
     "update_llm_max_tokens_config" => args_update_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT);
     "update_manga_prompt" => args_update_manga_prompt, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
     "update_object_profile" => args_update_object_profile, result_object_profile_mutation, "profile";
+    "update_package_preferences" => args_update_package_preferences, result_package_preferences, "settings", context(NO_CONTEXT);
     "update_project" => args_update_project, result_create_project, "project", context(PROJECT_CONTEXT), references(REFERENCES_PROJECT_IDS);
     "update_project_member_role" => args_update_project_member_role, result_unit, "project", context(PROJECT_CONTEXT);
     "update_scene_profile" => args_update_scene_profile, result_scene_profile_mutation, "profile", secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
@@ -711,10 +726,11 @@ command_specs! {
     "upload_assembly_insert_video" => args_upload_assembly_insert_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_chapter_video" => args_upload_chapter_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_image" => args_upload_image, result_update_image, "asset", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
-    "upload_portrait" => args_upload_portrait, result_portrait_summary, "profile", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
-    "upload_profile_material_image" => args_upload_profile_material_image, result_profile_material_group, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT), capabilities(CAPABILITIES_IMAGE);
+    "upload_portrait" => args_upload_portrait, result_portrait_summary, "profile", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
+    "upload_profile_material_image" => args_upload_profile_material_image, result_profile_material_group, "profile", file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_reference_media_video" => args_upload_reference_media_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_theme_resource" => args_theme_resource_upload, result_theme_resource, "settings", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
+    "validate_chapter_visual_plan" => args_validate_chapter_visual_plan, result_validate_chapter_visual_plan, "chapter", effect(READ_EFFECT);
 }
 
 pub fn list(filter: Option<&str>) -> Value {
@@ -847,11 +863,20 @@ fn command_spec(command: &str) -> Option<&'static CommandSpec> {
 
 fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
     let agent_policy = default_agent_policy(spec).map(|policy| agent_command_policy(&policy));
+    let (package_id, package_category) = package_policy(spec);
     CommandDescriptor {
         name: spec.name.to_string(),
         kind: "host_api".into(),
         domain: spec.domain.into(),
-        summary: spec.name.replace('_', " "),
+        summary: match spec.name {
+            "read_chapter_visual_plan" => "Read a saved visual plan's outline, one shot/keyframe/entity, or a bounded source text range. Pin record_id and expected_revision to continue reading the same version. Does not read an editor's unsaved draft.".into(),
+            "review_agent_delegation" => "Explicitly accept a child's delivered resources or request revision, recording the reason and exact inspected versions. Acceptance requires successful parent read/verification executions for every delivered resource; delegate results and child completion text are not evidence. A final reply alone never accepts a delegation.".into(),
+            "read_canvas_graph" => "Read a paged graph index, or selected node IDs with incident edges and neighbor IDs. Use expected_version when continuing a read. Never creates a graph; node configs are returned only when requested.".into(),
+            "edit_canvas_graph" => "Apply 1..20 typed node-config or connection edits at expected_version. Reuses graph/port/reference validation and transactional CAS. Unrelated nodes and edges keep their IDs; returns actual changed records and the saved version. Does not run the graph.".into(),
+            "edit_chapter_visual_plan_draft" => "Update only specified text fields of an existing shot in a saved collaborative draft, using record_id and expected_revision. Returns actual before/after changes and draft validation. No timing/identity changes or formal confirmation. Unchanged values keep the revision.".into(),
+            "validate_chapter_visual_plan" => "Check a saved plan at the specified revision with draft or confirmed structure rules. Returns the first diagnostic with its path; never confirms the plan or assesses visual quality.".into(),
+            _ => spec.name.replace('_', " "),
+        },
         auth: spec.auth.into(),
         effect: spec.effect.into(),
         execution: spec.execution.into(),
@@ -874,7 +899,73 @@ fn descriptor(spec: &CommandSpec) -> CommandDescriptor {
         },
         navigation_hint: page_navigation_hint(spec.domain),
         agent_policy,
+        package_id,
+        package_category,
     }
+}
+
+fn package_policy(spec: &CommandSpec) -> (PackageId, PackageCommandCategory) {
+    let package_id = if spec.domain == "export" || spec.name.starts_with("export_") {
+        PackageId::Export
+    } else if spec.domain == "import" || spec.name.starts_with("import_") {
+        PackageId::ExternalImport
+    } else if spec.domain == "manga" {
+        PackageId::Manga
+    } else if spec.domain == "video" {
+        PackageId::Video
+    } else if spec.domain == "galgame" {
+        PackageId::Galgame
+    } else if spec.domain == "canvas" {
+        PackageId::Canvas
+    } else if spec.domain == "agent" {
+        PackageId::Agent
+    } else if spec.domain == "rag"
+        || spec.required_capabilities.contains(&"embedding")
+        || spec.required_capabilities.contains(&"rag")
+    {
+        PackageId::VectorRag
+    } else if spec.domain == "prompt"
+        || spec.required_capabilities.contains(&"llm")
+        || spec.required_capabilities.contains(&"prompt")
+        || spec.required_capabilities.contains(&"image")
+    {
+        PackageId::AiWorkflow
+    } else if spec.domain == "profile"
+        && (spec.name.contains("history")
+            || spec.name.contains("snapshot")
+            || spec.name.contains("state_at"))
+    {
+        PackageId::LineageView
+    } else if spec.domain == "auth"
+        || matches!(
+            spec.domain,
+            "settings" | "system" | "task" | "collaboration" | "logging"
+        )
+    {
+        PackageId::Platform
+    } else {
+        PackageId::NovelManagement
+    };
+
+    let category = if spec.name.starts_with("cancel_")
+        || spec.name.starts_with("resume_")
+        || spec.name.starts_with("restore_")
+        || spec.name.starts_with("rollback_")
+        || spec.name.starts_with("reset_")
+        || spec.name.starts_with("cleanup_")
+    {
+        PackageCommandCategory::Maintenance
+    } else if spec.execution == "task"
+        || spec.execution == "workflow"
+        || spec.name.starts_with("start_")
+        || spec.name.contains("generation")
+        || spec.name.contains("generate")
+    {
+        PackageCommandCategory::Generation
+    } else {
+        PackageCommandCategory::Normal
+    };
+    (package_id, category)
 }
 
 fn default_agent_policy(spec: &CommandSpec) -> Option<AgentPolicySpec> {
@@ -884,6 +975,7 @@ fn default_agent_policy(spec: &CommandSpec) -> Option<AgentPolicySpec> {
         || !spec.secret_pointers.is_empty()
         || spec.runtime_config_policy != RuntimeConfigPolicy::None
         || matches!(spec.domain, "auth" | "settings" | "system")
+        || spec.name == "respond_agent_editor"
     {
         return None;
     }
@@ -1433,6 +1525,34 @@ fn args_chapter_visual_plan_record() -> Value {
     strict_typed_input_schema::<crate::chapter_visual_plan::ChapterVisualPlanRecordInput>()
 }
 
+fn args_read_chapter_visual_plan() -> Value {
+    strict_typed_input_schema::<crate::chapter_visual_plan::ReadChapterVisualPlanInput>()
+}
+
+fn args_respond_agent_editor() -> Value {
+    strict_typed_input_schema::<crate::agent::RespondAgentEditorInput>()
+}
+
+fn result_agent_editor_reply() -> Value {
+    typed_schema::<crate::agent::AgentEditorReply>()
+}
+
+fn args_review_agent_delegation() -> Value {
+    strict_typed_input_schema::<crate::agent::ReviewAgentDelegationInput>()
+}
+
+fn result_agent_delegation() -> Value {
+    typed_schema::<crate::agent::AgentDelegationView>()
+}
+
+fn args_edit_chapter_visual_plan_draft() -> Value {
+    strict_typed_input_schema::<crate::chapter_visual_plan::EditChapterVisualPlanDraftInput>()
+}
+
+fn args_validate_chapter_visual_plan() -> Value {
+    strict_typed_input_schema::<crate::chapter_visual_plan::ValidateChapterVisualPlanInput>()
+}
+
 fn args_export_batch_data() -> Value {
     required_task_typed_input_schema::<crate::export::BatchExportInput>()
 }
@@ -1547,6 +1667,10 @@ fn args_get_snapshot() -> Value {
 
 fn args_get_llm_max_tokens_config() -> Value {
     empty_args_schema()
+}
+
+fn args_get_package_operation() -> Value {
+    strict_typed_input_schema::<crate::package::GetPackageOperationInput>()
 }
 
 fn args_get_task_history() -> Value {
@@ -1743,6 +1867,10 @@ fn args_list_optimize_sessions() -> Value {
 
 fn args_list_object_profiles() -> Value {
     strict_typed_input_schema::<crate::profile::ListObjectProfilesInput>()
+}
+
+fn args_list_package_command_availability() -> Value {
+    strict_typed_input_schema::<crate::package::ListPackageCommandAvailabilityInput>()
 }
 
 fn args_list_foreshadowing() -> Value {
@@ -2084,6 +2212,19 @@ fn args_save_canvas_graph() -> Value {
     strict_typed_input_schema::<crate::canvas::SaveCanvasGraphInput>()
 }
 
+fn args_read_canvas_graph() -> Value {
+    strict_typed_input_schema::<crate::canvas::ReadCanvasGraphInput>()
+}
+fn result_read_canvas_graph() -> Value {
+    typed_schema::<crate::canvas::CanvasGraphReadResult>()
+}
+fn args_edit_canvas_graph() -> Value {
+    strict_typed_input_schema::<crate::canvas::EditCanvasGraphInput>()
+}
+fn result_edit_canvas_graph() -> Value {
+    typed_schema::<crate::canvas::CanvasGraphEditResult>()
+}
+
 fn args_save_canvas_text_asset() -> Value {
     strict_typed_input_schema::<crate::canvas::SaveCanvasTextAssetInput>()
 }
@@ -2161,6 +2302,10 @@ fn args_start_optimize_chat_generation() -> Value {
 
 fn args_start_optimize_patch_generation() -> Value {
     strict_runtime_typed_input_schema::<crate::optimize::StartOptimizePatchGenerationInput>()
+}
+
+fn args_start_package_lifecycle() -> Value {
+    strict_typed_input_schema::<crate::package::StartPackageLifecycleInput>()
 }
 
 fn args_start_outline_generation() -> Value {
@@ -2263,6 +2408,10 @@ fn args_update_llm_max_tokens_config() -> Value {
 
 fn args_update_manga_prompt() -> Value {
     strict_typed_input_schema::<crate::manga::UpdateMangaPromptInput>()
+}
+
+fn args_update_package_preferences() -> Value {
+    strict_typed_input_schema::<crate::package::UpdatePackagePreferencesInput>()
 }
 
 fn args_update_project() -> Value {
@@ -2689,6 +2838,18 @@ fn result_chapter_visual_plan_set() -> Value {
     typed_schema::<crate::chapter_visual_plan::ChapterVisualPlanSetView>()
 }
 
+fn result_read_chapter_visual_plan() -> Value {
+    typed_schema::<crate::chapter_visual_plan::ChapterVisualPlanReadResult>()
+}
+
+fn result_edit_chapter_visual_plan_draft() -> Value {
+    typed_schema::<crate::chapter_visual_plan::ChapterVisualPlanEditResult>()
+}
+
+fn result_validate_chapter_visual_plan() -> Value {
+    typed_schema::<crate::chapter_visual_plan::ChapterVisualPlanValidationResult>()
+}
+
 fn result_confirmed_chapter_visual_plan() -> Value {
     typed_schema::<crate::chapter_visual_plan::ConfirmedChapterVisualPlanView>()
 }
@@ -2795,6 +2956,22 @@ fn result_get_project_asset_dependency_graph_node_detail() -> Value {
 
 fn result_get_project_status_machine() -> Value {
     typed_schema::<crate::project::ProjectStatusMachineSummary>()
+}
+
+fn result_package_command_availability() -> Value {
+    typed_schema::<Vec<crate::package::PackageCommandAvailability>>()
+}
+
+fn result_package_lifecycle() -> Value {
+    typed_schema::<crate::package::PackageLifecycleSummary>()
+}
+
+fn result_package_overview() -> Value {
+    typed_schema::<Vec<crate::package::PackageOverview>>()
+}
+
+fn result_package_preferences() -> Value {
+    typed_schema::<crate::package::PackagePreferencesSummary>()
 }
 
 fn result_get_queue_stats() -> Value {
@@ -3742,6 +3919,13 @@ mod tests {
             );
         }
 
+        assert!(
+            command_descriptor("upload_profile_material_image")
+                .unwrap()
+                .required_capabilities
+                .is_empty()
+        );
+
         for command in [
             "generate_object_profile_image_prompt",
             "generate_scene_profile_image_prompt",
@@ -4638,6 +4822,12 @@ mod tests {
 
         let generation = command_descriptor("start_portrait_generation").unwrap();
         assert_eq!(generation.required_capabilities, ["prompt", "llm", "image"]);
+        assert!(
+            command_descriptor("upload_portrait")
+                .unwrap()
+                .required_capabilities
+                .is_empty()
+        );
     }
 
     #[test]
@@ -4932,6 +5122,68 @@ mod tests {
                 descriptor.args_schema["additionalProperties"], false,
                 "{command}"
             );
+        }
+    }
+
+    #[test]
+    fn package_contract_covers_all_commands_and_representative_boundaries() {
+        use crate::package::{PackageCommandCategory, PackageId, package_catalog};
+
+        let package_ids = package_catalog()
+            .packages
+            .into_iter()
+            .map(|package| package.id)
+            .collect::<HashSet<_>>();
+        for command in API_COMMANDS {
+            let descriptor = command_descriptor(command).expect("declared command descriptor");
+            assert!(package_ids.contains(&descriptor.package_id), "{command}");
+        }
+
+        for (command, package_id, category) in [
+            (
+                "get_package_overview",
+                PackageId::Platform,
+                PackageCommandCategory::Normal,
+            ),
+            (
+                "list_chapters",
+                PackageId::NovelManagement,
+                PackageCommandCategory::Normal,
+            ),
+            (
+                "start_chapter_generation",
+                PackageId::AiWorkflow,
+                PackageCommandCategory::Generation,
+            ),
+            (
+                "start_video_generation",
+                PackageId::Video,
+                PackageCommandCategory::Generation,
+            ),
+            (
+                "list_manga_page_prompts",
+                PackageId::Manga,
+                PackageCommandCategory::Normal,
+            ),
+            (
+                "import_project_family_upload",
+                PackageId::ExternalImport,
+                PackageCommandCategory::Normal,
+            ),
+            (
+                "export_project_family_data",
+                PackageId::Export,
+                PackageCommandCategory::Normal,
+            ),
+            (
+                "cancel_generation_task",
+                PackageId::Platform,
+                PackageCommandCategory::Maintenance,
+            ),
+        ] {
+            let descriptor = command_descriptor(command).expect("representative command");
+            assert_eq!(descriptor.package_id, package_id, "{command}");
+            assert_eq!(descriptor.package_category, category, "{command}");
         }
     }
 }

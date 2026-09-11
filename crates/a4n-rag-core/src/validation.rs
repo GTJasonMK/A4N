@@ -1,4 +1,5 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
+use a4n_embedding::provider::EmbeddingModelIdentity;
 
 pub fn required_chunk_id(chunk_id: &str) -> Result<String, AppError> {
     let chunk_id = chunk_id.trim();
@@ -24,7 +25,7 @@ pub fn ensure_embedding_write_count(expected: usize, actual: usize) -> Result<()
     if actual == expected {
         Ok(())
     } else {
-        Err(AppError::VectorStoreError(format!(
+        Err(AppError::VectorStore(format!(
             "向量存储写入数量不匹配：expected={expected}, actual={actual}"
         )))
     }
@@ -36,7 +37,7 @@ pub fn validate_embedding_batch<T: AsRef<[f32]>>(
     expected_dimension: usize,
 ) -> Result<(), AppError> {
     if embeddings.len() != expected_count {
-        return Err(AppError::EmbeddingError(format!(
+        return Err(AppError::Embedding(format!(
             "嵌入返回数量不匹配：expected={expected_count}, actual={}",
             embeddings.len()
         )));
@@ -45,7 +46,7 @@ pub fn validate_embedding_batch<T: AsRef<[f32]>>(
         .iter()
         .any(|embedding| embedding.as_ref().is_empty())
     {
-        return Err(AppError::EmbeddingError("嵌入返回空向量".to_string()));
+        return Err(AppError::Embedding("嵌入返回空向量".to_string()));
     }
     for (index, embedding) in embeddings
         .iter()
@@ -53,14 +54,59 @@ pub fn validate_embedding_batch<T: AsRef<[f32]>>(
         .enumerate()
     {
         if embedding.len() != expected_dimension {
-            return Err(AppError::EmbeddingError(format!(
+            return Err(AppError::Embedding(format!(
                 "嵌入返回维度不匹配：index={index}, expected={expected_dimension}, actual={}",
                 embedding.len()
             )));
         }
         if embedding.iter().any(|value| !value.is_finite()) {
-            return Err(AppError::EmbeddingError(format!(
+            return Err(AppError::Embedding(format!(
                 "嵌入返回包含非有限数：index={index}"
+            )));
+        }
+    }
+    Ok(())
+}
+
+pub fn validate_embedding_identity_match(
+    actual: &EmbeddingModelIdentity,
+    expected: &EmbeddingModelIdentity,
+) -> Result<(), AppError> {
+    if actual == expected {
+        return Ok(());
+    }
+    Err(AppError::InvalidArgument(format!(
+        "Embedding identity 不匹配，服务器期望 {} / {} / {} 维，客户端提交 {} / {} / {} 维；请切回项目模型或重建 RAG",
+        expected.backend,
+        expected.model,
+        expected.dimension,
+        actual.backend,
+        actual.model,
+        actual.dimension
+    )))
+}
+
+pub fn validate_query_vectors(
+    vectors: &[Vec<f32>],
+    expected_count: usize,
+    expected_dimension: usize,
+) -> Result<(), AppError> {
+    if vectors.len() != expected_count {
+        return Err(AppError::InvalidArgument(format!(
+            "RAG query vector 数量不匹配：expected={expected_count}, actual={}",
+            vectors.len()
+        )));
+    }
+    for (index, vector) in vectors.iter().enumerate() {
+        if vector.len() != expected_dimension {
+            return Err(AppError::InvalidArgument(format!(
+                "RAG query vector 维度不匹配：index={index}, expected={expected_dimension}, actual={}",
+                vector.len()
+            )));
+        }
+        if vector.iter().any(|value| !value.is_finite()) {
+            return Err(AppError::InvalidArgument(format!(
+                "RAG query vector 包含非有限数：index={index}"
             )));
         }
     }

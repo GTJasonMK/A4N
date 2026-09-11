@@ -1,6 +1,6 @@
 use super::super::SourceSyncDbError;
 use super::contracts::SourceSnapshotProfileChangeRecord;
-use a4n_core::models::project::source_snapshot_profile;
+use a4n_db_models::models::project::source_snapshot_profile;
 use a4n_domain::source_sync::SourceSyncChangeKind;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,

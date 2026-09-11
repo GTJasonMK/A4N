@@ -1,19 +1,18 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use a4n_api_contract::export::{BatchExportInput, ExportFileData};
 pub use a4n_orchestrator::export::ExportProgress;
 
-use crate::{AppState, actions::access::verify_project_editor};
+use crate::AppState;
 
 pub async fn export_txt_data(
     state: &AppState,
     user_id: i64,
     project_id: i64,
 ) -> Result<ExportFileData, AppError> {
-    verify_project_editor(state, user_id, project_id).await?;
     state
-        .orchestrator()
-        .run_export_txt_validated(project_id)
+        .export_application()
+        .export_txt(user_id, project_id)
         .await
 }
 
@@ -24,10 +23,9 @@ pub async fn export_markdown_data(
     title: &str,
     author: &str,
 ) -> Result<ExportFileData, AppError> {
-    verify_project_editor(state, user_id, project_id).await?;
     state
-        .orchestrator()
-        .run_export_markdown_validated(project_id, title, author)
+        .export_application()
+        .export_markdown(user_id, project_id, title, author)
         .await
 }
 
@@ -36,10 +34,9 @@ pub async fn export_outline_json_data(
     user_id: i64,
     project_id: i64,
 ) -> Result<ExportFileData, AppError> {
-    verify_project_editor(state, user_id, project_id).await?;
     state
-        .orchestrator()
-        .run_export_outline_json_validated(project_id)
+        .export_application()
+        .export_outline_json(user_id, project_id)
         .await
 }
 
@@ -48,10 +45,9 @@ pub async fn export_characters_json_data(
     user_id: i64,
     project_id: i64,
 ) -> Result<ExportFileData, AppError> {
-    verify_project_editor(state, user_id, project_id).await?;
     state
-        .orchestrator()
-        .run_export_characters_json_validated(project_id)
+        .export_application()
+        .export_characters_json(user_id, project_id)
         .await
 }
 
@@ -63,10 +59,9 @@ pub async fn export_epub_data(
     author: &str,
     progress: &ExportProgress<'_>,
 ) -> Result<ExportFileData, AppError> {
-    verify_project_editor(state, user_id, project_id).await?;
     state
-        .orchestrator()
-        .run_export_epub_validated(project_id, title, author, progress)
+        .export_application()
+        .export_epub(user_id, project_id, title, author, progress)
         .await
 }
 
@@ -76,10 +71,9 @@ pub async fn export_pdf_data(
     project_id: i64,
     progress: &ExportProgress<'_>,
 ) -> Result<ExportFileData, AppError> {
-    verify_project_editor(state, user_id, project_id).await?;
     state
-        .orchestrator()
-        .run_export_pdf_validated(project_id, progress)
+        .export_application()
+        .export_pdf(user_id, project_id, progress)
         .await
 }
 
@@ -89,9 +83,8 @@ pub async fn export_batch_data(
     input: BatchExportInput,
     progress: &ExportProgress<'_>,
 ) -> Result<Vec<ExportFileData>, AppError> {
-    verify_project_editor(state, user_id, input.project_id).await?;
     state
-        .orchestrator()
-        .run_batch_export_validated(input, progress)
+        .export_application()
+        .export_batch(user_id, input, progress)
         .await
 }

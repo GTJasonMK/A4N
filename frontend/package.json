@@ -14,6 +14,7 @@
     "test:browser-video-mode": "wdio run ./e2e/video-mode-switch/wdio.conf.mjs",
     "test:browser-video-scrub": "wdio run ./e2e/video-scrub/wdio.conf.mjs",
     "test:browser-full-project": "wdio run ./e2e/full-project/wdio.conf.mjs",
+    "test:browser-package-lifecycle": "wdio run ./e2e/full-project/wdio.conf.mjs --spec ./e2e/package-lifecycle/package-lifecycle.e2e.mjs",
     "test:tauri-generation": "wdio run ./e2e/tauri-generation/wdio.conf.mjs",
     "test:run": "vitest run",
     "preview": "vite preview"

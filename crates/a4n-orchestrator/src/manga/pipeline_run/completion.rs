@@ -3,8 +3,8 @@ mod drawing;
 mod finalization;
 mod persistence;
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_error::AppError;
 
 use self::drawing::run_completion_drawing;
 use self::finalization::finalize_completed_pipeline;

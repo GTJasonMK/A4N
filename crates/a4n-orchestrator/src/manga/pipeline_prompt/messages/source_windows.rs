@@ -2,9 +2,9 @@ use std::collections::{HashMap, HashSet};
 
 use serde_json::{Value, json};
 
-use a4n_core::error::AppError;
-use a4n_core::source_spans::SourceSpan;
-use a4n_core::source_spans::source_span_prompt_value;
+use a4n_domain::source_spans::SourceSpan;
+use a4n_domain::source_spans::source_span_prompt_value;
+use a4n_error::AppError;
 
 pub(super) fn push_unique_source_span_id(
     value: Option<&Value>,

@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::optimize::OptimizationSessionUpdateInput;
+use a4n_error::AppError;
 use serde_json::json;
 
 use super::super::patch::OptimizationPatch;

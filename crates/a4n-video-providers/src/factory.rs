@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use super::chat::ChatCompletionsVideoProvider;
 use super::cliproxy_openai::provider::CliProxyOpenAiVideoProvider;
@@ -19,9 +19,7 @@ pub fn pick_video_provider(
     api_key: &str,
 ) -> Result<Box<dyn VideoProvider>, AppError> {
     if video_provider_capabilities(backend).is_none() {
-        return Err(AppError::Internal(anyhow::anyhow!(
-            "未知视频 backend={backend}"
-        )));
+        return Err(AppError::Internal(format!("未知视频 backend={backend}")));
     }
     match backend {
         OPENAI_COMPATIBLE_VIDEO_BACKEND => Ok(Box::new(HttpVideoProvider::new(base_url, api_key))),

@@ -5,7 +5,9 @@ use crate::workflow::{
     is_terminal_workflow_status, locked_workflow_run_by_id, required_text,
     trim_workflow_progress_events, validate_positive_i64,
 };
-use a4n_core::models::generation::{workflow_checkpoint, workflow_progress_event, workflow_run};
+use a4n_db_models::models::generation::{
+    workflow_checkpoint, workflow_progress_event, workflow_run,
+};
 use chrono::Utc;
 use sea_orm::sea_query::{Expr, extension::postgres::PgExpr};
 use sea_orm::{

@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::generated_image, task::cleanup_outbox};
+use a4n_db_models::models::{ai::generated_image, task::cleanup_outbox};
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use sea_orm::{ColumnTrait, DbErr, EntityTrait, QueryFilter};
 

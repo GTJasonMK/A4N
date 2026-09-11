@@ -1,5 +1,5 @@
 use crate::galgame::ReplaceGalgameChoiceRecordInput;
-use a4n_core::models::galgame::galgame_choice;
+use a4n_db_models::models::galgame::galgame_choice;
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,

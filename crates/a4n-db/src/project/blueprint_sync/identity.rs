@@ -1,5 +1,5 @@
 use super::contracts::{BlueprintCharacterDraft, BlueprintRelationshipDraft};
-use a4n_core::models::project::{blueprint_character, blueprint_relationship};
+use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
 
 pub(crate) fn normalized_blueprint_identity(value: &str) -> String {
     value

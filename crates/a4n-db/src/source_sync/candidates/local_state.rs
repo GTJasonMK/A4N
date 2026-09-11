@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_spec, prompt_artifact},
     media::{media_asset, media_provenance},
     video_project::assembly_clip,

@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use a4n_api_contract::outline::OutlineDeleteTarget;
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
+use a4n_error::AppError;
 
 pub(super) fn plan_next_parts(
     existing_parts: &[part_outline::Model],
@@ -91,7 +91,7 @@ pub(super) fn validate_replacement_part_sources(
 #[cfg(test)]
 mod tests {
     use a4n_api_contract::outline::OutlineDeleteTarget;
-    use a4n_core::models::chapter::part_outline;
+    use a4n_db_models::models::chapter::part_outline;
     use chrono::DateTime;
 
     use super::validate_replacement_part_sources;

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::models::ai::system_settings;
+use a4n_db_models::models::ai::system_settings;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::PromptOverrideDbError;

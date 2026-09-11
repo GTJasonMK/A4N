@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
 use a4n_db::DbHandle;
 use a4n_domain::project::{AssetDependencyGraph, AssetGraphNodeDetail};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
@@ -59,5 +59,25 @@ impl OrchestratorContext {
         self.project_dependency_graph
             .node_detail(project_id, node_id)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::project::ProjectAssetGraphApplicationPort for OrchestratorContext {
+    async fn graph(&self, user_id: i64, project_id: i64) -> Result<AssetDependencyGraph, AppError> {
+        OrchestratorContext::asset_dependency_graph_for_user_validated(self, user_id, project_id)
+            .await
+    }
+
+    async fn node_detail(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        node_id: String,
+    ) -> Result<AssetGraphNodeDetail, AppError> {
+        OrchestratorContext::asset_dependency_graph_node_detail_for_user_validated(
+            self, user_id, project_id, &node_id,
+        )
+        .await
     }
 }

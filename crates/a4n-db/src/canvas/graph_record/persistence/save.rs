@@ -26,6 +26,7 @@ where
     validate_canvas_graph_record_references(&tx, project_id, &input).await?;
     let graph = upsert_canvas_graph_record(&tx, &project, project_id, &input, now).await?;
     replace_canvas_graph_topology(&tx, graph.id, &input, now).await?;
+    let document = canvas_graph_record_document(&tx, graph).await?;
     tx.commit().await?;
-    canvas_graph_record_document(db, graph).await
+    Ok(document)
 }

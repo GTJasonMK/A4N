@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use dashmap::DashMap;
 use parking_lot::RwLock;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use super::scoring;
 use crate::errors::vector_store_error;

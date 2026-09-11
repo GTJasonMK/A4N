@@ -5,7 +5,7 @@ mod sentences;
 #[cfg(test)]
 mod tests;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use a4n_embedding::provider::EmbeddingProvider;
 
@@ -67,7 +67,7 @@ async fn chunk_text(
     let (embeddings, embedding_identity) = provider
         .embed_with_identity(sentences.clone())
         .await
-        .map_err(|err| AppError::EmbeddingError(err.to_string()))?;
+        .map_err(|err| AppError::Embedding(err.to_string()))?;
     validate_embedding_batch(&embeddings, sentences.len(), embedding_identity.dimension)?;
 
     chunk_sentences_with_embeddings(sentences, embeddings, config)

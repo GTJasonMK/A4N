@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::super::super::prompt_json::{VideoFramePrompt, VideoPromptShot};
@@ -12,7 +12,7 @@ use super::super::super::super::{
 };
 use super::super::VideoUnitPlan;
 use super::rules::optional_prompt_text;
-use a4n_core::prompt_language::with_prompt_output_language_metadata;
+use a4n_domain::prompt_language::with_prompt_output_language_metadata;
 
 pub(in crate::video) fn prompt_row_draft(
     row: &chapter_video_prompt::Model,

@@ -1,20 +1,21 @@
-use std::{io::Write, path::Path};
-
-use a4n_core::{
-    error::AppError,
-    files::{create_unique_timestamped_file, paths::ProjectPaths},
-    media::image_mime_from_path,
-    models::ai::image_gen_config,
-};
+use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
+use a4n_domain::image::validate_reference_image_ids;
+use a4n_domain::media::{GeneratedMediaArtifactFile, image_mime_from_path};
+use a4n_error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_media::{decode_uploaded_image_data, image_dimensions_from_bytes};
 use a4n_orchestrator::{
-    generation::GeneratedMediaArtifactFile,
+    media::{
+        PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+        PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+    },
     portrait::{
-        DecodedPortraitImage, GeneratedPortraitImage, PersistPortraitFileInput,
-        PersistedPortraitFile, PortraitGenerationHostPort, PortraitImageProviderInput,
+        DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
+        PortraitImageProviderInput,
     },
 };
+use a4n_provider_contract::ImageProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use async_trait::async_trait;
 use base64::Engine as _;
@@ -22,12 +23,13 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     AppState,
-    actions::image_generation::resolve_image_config,
-    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
-    file_utils::{
-        canonicalize_data_file_path, inspect_generated_media_file, persist_created_media_file,
+    actions::image_generation::{
+        persist_reserved_generated_image_file, prepare_generated_image_file, resolve_image_config,
     },
+    cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
+    file_utils::inspect_generated_media_file,
 };
+use a4n_storage::canonicalize_data_file_path;
 
 pub(super) struct RuntimePortraitGenerationHostPort<'a> {
     state: &'a AppState,
@@ -35,7 +37,7 @@ pub(super) struct RuntimePortraitGenerationHostPort<'a> {
 
 pub(super) struct PortraitImageRequestPreviewContext {
     pub(super) request: ImageGenerationRequest,
-    pub(super) config: image_gen_config::Model,
+    pub(super) config: ImageProviderConfig,
 }
 
 impl<'a> RuntimePortraitGenerationHostPort<'a> {
@@ -46,6 +48,7 @@ impl<'a> RuntimePortraitGenerationHostPort<'a> {
 
 pub(super) async fn build_portrait_image_request_preview(
     state: &AppState,
+    user_id: i64,
     project_id: i64,
     prompt: &str,
     width: i32,
@@ -55,6 +58,7 @@ pub(super) async fn build_portrait_image_request_preview(
     let config = resolve_image_config(state, None).await?;
     build_portrait_image_request_preview_with_config(
         state,
+        user_id,
         project_id,
         prompt,
         width,
@@ -67,21 +71,22 @@ pub(super) async fn build_portrait_image_request_preview(
 
 pub(super) async fn build_portrait_image_request_preview_with_config(
     state: &AppState,
+    user_id: i64,
     project_id: i64,
     prompt: &str,
     width: i32,
     height: i32,
     reference_image_ids: &[i64],
-    config: &image_gen_config::Model,
+    config: &ImageProviderConfig,
 ) -> Result<PortraitImageRequestPreviewContext, String> {
-    let image_ids = a4n_orchestrator::portrait::validate_reference_image_ids(reference_image_ids)?;
-    let supported_sizes = a4n_core::config::image_sizes_from_json(&config.supported_sizes_json)
-        .map_err(|error| error.to_string())?;
-    a4n_core::config::ensure_image_size_supported(&supported_sizes, width, height)
+    let image_ids = validate_reference_image_ids(reference_image_ids)?;
+    let supported_sizes =
+        image_sizes_from_json(&config.supported_sizes_json).map_err(|error| error.to_string())?;
+    ensure_image_size_supported(&supported_sizes, width, height)
         .map_err(|error| error.to_string())?;
     let records = state
-        .orchestrator()
-        .portrait_reference_images_by_ids(project_id, &image_ids)
+        .image_record_application()
+        .reference_by_ids(user_id, project_id, &image_ids)
         .await
         .map_err(|error| error.to_string())?;
     let sources = records
@@ -102,7 +107,7 @@ pub(super) async fn build_portrait_image_request_preview_with_config(
         })
         .collect::<Result<Vec<_>, _>>()?;
     if !reference_images.is_empty()
-        && !a4n_core::config::image_backend_supports_reference_images(&config.backend)
+        && !a4n_domain::image::image_backend_supports_reference_images(&config.backend)
     {
         return Err(format!(
             "当前图片后端 {} 不支持真实参考图输入，请切换到 openai-compatible-image-edit、openai-chat-image 或 cliproxy-image，或移除参考图",
@@ -139,15 +144,14 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         let config = resolve_image_config(self.state, None)
             .await
             .map_err(host_error)?;
-        let supported_sizes =
-            a4n_core::config::image_sizes_from_json(&config.supported_sizes_json)?;
-        a4n_core::config::ensure_image_size_supported(&supported_sizes, width, height)?;
+        let supported_sizes = image_sizes_from_json(&config.supported_sizes_json)?;
+        ensure_image_size_supported(&supported_sizes, width, height)?;
         let reference_images = reference_images
             .iter()
             .map(|source| read_reference_image(self.state, &source.label, &source.file_path))
             .collect::<Result<Vec<_>, _>>()?;
         if !reference_images.is_empty()
-            && !a4n_core::config::image_backend_supports_reference_images(&config.backend)
+            && !a4n_domain::image::image_backend_supports_reference_images(&config.backend)
         {
             return Err(AppError::InvalidArgument(format!(
                 "当前图片后端 {} 不支持真实参考图输入，请切换到 openai-compatible-image-edit、openai-chat-image 或 cliproxy-image，或移除参考图",
@@ -189,7 +193,21 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         )
         .await
         .map_err(host_error)?;
-        let (width, height) = a4n_orchestrator::media::image_dimensions_from_bytes(&result.bytes)?;
+        let (width, height) =
+            image_dimensions_from_bytes(&result.bytes).map_err(|error| match error {
+                a4n_media::ImageDimensionsError::Format(source) => AppError::InvalidState {
+                    current: "provider_response".to_string(),
+                    operation: format!("图片 provider 返回的媒体格式无法识别：{source}"),
+                },
+                a4n_media::ImageDimensionsError::Dimensions(source) => AppError::InvalidState {
+                    current: "provider_response".to_string(),
+                    operation: format!("图片 provider 返回的媒体尺寸无法读取：{source}"),
+                },
+                a4n_media::ImageDimensionsError::WidthOverflow
+                | a4n_media::ImageDimensionsError::HeightOverflow => {
+                    AppError::InvalidArgument(error.to_string())
+                }
+            })?;
         Ok(GeneratedPortraitImage {
             bytes: result.bytes,
             format: result.format,
@@ -207,13 +225,9 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         mime_type: &str,
         data_base64: &str,
     ) -> Result<DecodedPortraitImage, AppError> {
-        let decoded = a4n_orchestrator::media::decode_uploaded_image_data(
-            file_name,
-            mime_type,
-            data_base64,
-            50 * 1024 * 1024,
-        )
-        .map_err(host_error)?;
+        let decoded =
+            decode_uploaded_image_data(file_name, mime_type, data_base64, 50 * 1024 * 1024)
+                .map_err(host_error)?;
         Ok(DecodedPortraitImage {
             bytes: decoded.bytes,
             format: decoded.extension.to_string(),
@@ -223,11 +237,20 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
         })
     }
 
+    fn prepare_portrait_file(
+        &self,
+        input: PrepareGeneratedImageFileInput<'_>,
+    ) -> Result<PreparedGeneratedImageFile, AppError> {
+        prepare_generated_image_file(self.state.data_dir(), input).map_err(host_error)
+    }
+
     fn persist_portrait_file(
         &self,
-        input: PersistPortraitFileInput<'_>,
-    ) -> Result<PersistedPortraitFile, AppError> {
-        persist_portrait_file_at(self.state.data_dir(), input).map(|(_, persisted)| persisted)
+        input: PersistGeneratedImageFileInput<'_>,
+        prepared: &PreparedGeneratedImageFile,
+    ) -> Result<PersistedGeneratedImageFile, AppError> {
+        persist_reserved_generated_image_file(self.state.data_dir(), input, prepared)
+            .map_err(host_error)
     }
 
     fn inspect_portrait_file(
@@ -261,34 +284,6 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
     }
 }
 
-pub(super) fn persist_portrait_file_at(
-    data_dir: &Path,
-    input: PersistPortraitFileInput<'_>,
-) -> Result<(std::path::PathBuf, PersistedPortraitFile), AppError> {
-    let (path, mut output_file) =
-        create_portrait_output(data_dir, input.project_id, input.profile_id, input.format)?;
-    let (relative_path, file_size) = persist_created_media_file(
-        data_dir,
-        &path,
-        move |_| {
-            output_file
-                .write_all(input.bytes)
-                .map_err(|error| format!("无法写入立绘：{error}"))
-        },
-        input.path_context,
-        input.path_context,
-        input.path_context,
-    )
-    .map_err(host_error)?;
-    Ok((
-        path,
-        PersistedPortraitFile {
-            relative_path,
-            file_size,
-        },
-    ))
-}
-
 fn read_reference_image(
     state: &AppState,
     label: &str,
@@ -303,18 +298,6 @@ fn read_reference_image(
         label: label.to_string(),
         data_uri: format!("data:{mime};base64,{encoded}"),
     })
-}
-
-fn create_portrait_output(
-    data_dir: &Path,
-    project_id: i64,
-    profile_id: i64,
-    format: &str,
-) -> Result<(std::path::PathBuf, std::fs::File), AppError> {
-    let directory = ProjectPaths::new(data_dir, project_id).portraits_dir();
-    std::fs::create_dir_all(&directory)?;
-    create_unique_timestamped_file(&directory, &format!("portrait_{profile_id}"), format)
-        .map_err(AppError::Io)
 }
 
 fn host_error(message: String) -> AppError {

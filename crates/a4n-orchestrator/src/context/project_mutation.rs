@@ -1,11 +1,13 @@
-use a4n_core::{error::AppError, models::project::novel_project};
 use a4n_db::DbHandle;
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::{optional_text, required_text};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::project::{
     CreateDerivedProjectParams, CreateFreeformVideoProjectParams, CreateProjectRecordInput,
-    UpdateProjectRecordInput, optional_text, project_basic_record_error_to_app_error,
-    project_mutation_error_to_app_error, required_text,
+    UpdateProjectRecordInput, project_basic_record_error_to_app_error,
+    project_mutation_error_to_app_error,
 };
 
 #[derive(Clone)]
@@ -160,6 +162,117 @@ impl OrchestratorContext {
     ) -> Result<(), AppError> {
         self.project_mutation
             .save_import_analysis_progress(project_id, progress)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::project::ProjectMutationApplicationPort for OrchestratorContext {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::project::CreateProjectInput,
+    ) -> Result<a4n_api_contract::project::ProjectSummary, AppError> {
+        let title = required_text(&input.title, "项目标题")
+            .map_err(AppError::InvalidArgument)?
+            .to_string();
+        let description = optional_text(input.description.as_deref());
+        let project_type = required_text(&input.project_type, "项目类型")
+            .map_err(AppError::InvalidArgument)?
+            .to_string();
+        let project = OrchestratorContext::create_project(
+            self,
+            CreateProjectRecordInput {
+                user_id,
+                title,
+                description,
+                project_type,
+            },
+        )
+        .await?;
+        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project.id)
+            .await
+    }
+
+    async fn create_derived(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::project::CreateDerivedProjectInput,
+    ) -> Result<a4n_api_contract::project::ProjectSummary, AppError> {
+        let title = required_text(&input.title, "项目标题")
+            .map_err(AppError::InvalidArgument)?
+            .to_string();
+        let description = required_text(&input.description, "项目简介")
+            .map_err(AppError::InvalidArgument)?
+            .to_string();
+        let root =
+            OrchestratorContext::collaboration_root_project(self, input.root_project_id).await?;
+        OrchestratorContext::verify_project_permission(
+            self,
+            input.root_project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        let project = OrchestratorContext::create_derived_project(
+            self,
+            root.user_id,
+            CreateDerivedProjectParams {
+                root_project_id: input.root_project_id,
+                derived_kind: input.derived_kind,
+                title,
+                description,
+                chapter_scope: crate::project::DerivedChapterScope {
+                    start_chapter: input.start_chapter,
+                    end_chapter: input.end_chapter,
+                },
+            },
+        )
+        .await?;
+        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project.id)
+            .await
+    }
+
+    async fn create_freeform_video(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::project::CreateFreeformVideoProjectInput,
+    ) -> Result<a4n_api_contract::project::ProjectSummary, AppError> {
+        let title = required_text(&input.title, "项目标题")
+            .map_err(AppError::InvalidArgument)?
+            .to_string();
+        let description = optional_text(input.description.as_deref());
+        let project = OrchestratorContext::create_freeform_video_project(
+            self,
+            user_id,
+            CreateFreeformVideoProjectParams { title, description },
+        )
+        .await?;
+        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project.id)
+            .await
+    }
+
+    async fn update(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: a4n_api_contract::project::UpdateProjectInput,
+    ) -> Result<a4n_api_contract::project::ProjectSummary, AppError> {
+        OrchestratorContext::verify_project_permission(
+            self,
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        OrchestratorContext::update_project_validated(
+            self,
+            project_id,
+            input.title,
+            input.description,
+        )
+        .await?;
+        a4n_api_contract::project::ProjectReadApplicationPort::summary(self, user_id, project_id)
             .await
     }
 }

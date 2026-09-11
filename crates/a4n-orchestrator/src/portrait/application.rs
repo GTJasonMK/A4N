@@ -8,11 +8,8 @@ mod workflow;
 mod tests;
 
 pub use contracts::{
-    DecodedPortraitImage, GenerateAgeVariantInput, GenerateMissingPortraitsInput,
-    GeneratePortraitInput, GeneratePortraitPromptInput, GeneratedPortraitImage,
-    PersistPortraitFileInput, PersistedPortraitFile, PortraitBatchItem, PortraitBatchOutcome,
+    DecodedPortraitImage, GeneratedPortraitImage, PortraitBatchItem, PortraitBatchOutcome,
     PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
-    PortraitReferenceImageSource, PortraitSummary, PortraitType, RegeneratePortraitInput,
-    UploadPortraitInput,
+    PortraitReferenceImageSource,
 };
 pub use image::portrait_summary;

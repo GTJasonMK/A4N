@@ -1,5 +1,5 @@
 use crate::galgame::{GALGAME_SPEC_REF_INSERT_CHUNK_SIZE, GalgameGenerationSpecRefsRecordInput};
-use a4n_core::models::generation::{generation_spec_entity_ref, generation_spec_text_anchor};
+use a4n_db_models::models::generation::{generation_spec_entity_ref, generation_spec_text_anchor};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, Set};
 
 pub(super) async fn replace_galgame_generation_spec_ref_records<C>(

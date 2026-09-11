@@ -1,11 +1,10 @@
-use super::super::contracts::{LlmConfigSummary, llm_config_summary};
-use crate::{AppState, actions::app_error_message};
+use super::super::contracts::LlmConfigSummary;
+use crate::AppState;
 
 pub async fn list_llm_config(state: &AppState) -> Result<Vec<LlmConfigSummary>, String> {
-    let configs = state
-        .orchestrator()
-        .list_llm_config_records()
+    state
+        .config_application()
+        .list_llm()
         .await
-        .map_err(app_error_message)?;
-    Ok(configs.iter().map(llm_config_summary).collect())
+        .map_err(|error| error.to_string())
 }

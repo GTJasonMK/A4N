@@ -24,6 +24,7 @@ impl OrchestratorContext {
             chat_request,
             call_key,
             input_fingerprint_json,
+            execution,
         } = prepare_agent_loop_decision_call(self, session_id, &request).await?;
         let result = execute_agent_loop_decision_call(
             self,
@@ -33,6 +34,7 @@ impl OrchestratorContext {
             chat_request,
             &call_key,
             &input_fingerprint_json,
+            execution,
         )
         .await?;
         persist_agent_loop_decision_call(

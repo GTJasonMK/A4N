@@ -3,7 +3,7 @@ use super::super::remap::{
     remap_media_source_external_path, remap_source_sync_target_ref, remap_video_metadata,
 };
 use super::super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::generation_spec,
     media::media_binding,
     project::{source_snapshot_outline, source_snapshot_profile},

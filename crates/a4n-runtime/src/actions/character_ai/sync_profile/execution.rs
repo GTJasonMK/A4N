@@ -4,14 +4,10 @@ use super::super::{
 };
 use crate::{
     AppState,
-    actions::access,
     sidecar_clients::{rag_operation_timestamp, scope_rag_operation_trace},
 };
-use a4n_core::error::AppError;
-use a4n_orchestrator::character::{
-    CHARACTER_PROFILE_SYNC_STEPS, CharacterProfileSyncApplicationInput,
-    CharacterProfileSyncProgress, CharacterProfileSyncSubject,
-};
+use a4n_error::AppError;
+use a4n_orchestrator::character::{CHARACTER_PROFILE_SYNC_STEPS, CharacterProfileSyncProgress};
 
 pub async fn sync_character_profile_from_chapters(
     state: &AppState,
@@ -19,16 +15,10 @@ pub async fn sync_character_profile_from_chapters(
     input: SyncCharacterProfileInput,
     progress: Option<&CharacterAiProgress<'_>>,
 ) -> Result<SyncCharacterProfileResult, String> {
-    access::verify_project_editor(state, user_id, input.project_id)
-        .await
-        .map_err(|error| error.to_string())?;
     sync_character_profile_input_with_scope(
         state,
-        CharacterProfileSyncApplicationInput::incremental_by_name(
-            input.project_id,
-            input.name,
-            input.chapter_number,
-        ),
+        user_id,
+        input,
         CharacterProgressScope::root(progress, CHARACTER_PROFILE_SYNC_STEPS, "角色同步已停止"),
     )
     .await
@@ -36,13 +26,11 @@ pub async fn sync_character_profile_from_chapters(
 
 pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_scope(
     state: &AppState,
-    input: CharacterProfileSyncApplicationInput,
+    user_id: i64,
+    input: SyncCharacterProfileInput,
     progress: CharacterProgressScope<'_>,
 ) -> Result<SyncCharacterProfileResult, String> {
-    let display_name = match &input.subject {
-        CharacterProfileSyncSubject::ByName { name, .. } => name.clone(),
-        CharacterProfileSyncSubject::Profile(profile) => profile.name.clone(),
-    };
+    let display_name = input.name.clone();
     progress.report(
         0,
         CHARACTER_PROFILE_SYNC_STEPS,
@@ -65,8 +53,9 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
             })
         };
         state
-            .orchestrator()
-            .run_character_profile_sync_validated(
+            .character_ai_application()
+            .sync_profile(
+                user_id,
                 input,
                 prompt_renderer,
                 Some(CharacterProfileSyncProgress {
@@ -82,19 +71,12 @@ pub(in crate::actions::character_ai) async fn sync_character_profile_input_with_
 }
 
 fn character_profile_sync_rag_trace_id(
-    input: &CharacterProfileSyncApplicationInput,
+    input: &SyncCharacterProfileInput,
 ) -> Result<String, String> {
-    let subject = match &input.subject {
-        CharacterProfileSyncSubject::ByName { project_id, name } => {
-            format!("{project_id}:name:{name}")
-        }
-        CharacterProfileSyncSubject::Profile(profile) => {
-            format!("{}:profile:{}", profile.project_id, profile.id)
-        }
-    };
+    let subject = format!("{}:name:{}", input.project_id, input.name);
     Ok(format!(
         "character_profile_sync:{subject}:{}:{timestamp}",
-        input.target_chapter,
+        input.chapter_number,
         timestamp = rag_operation_timestamp()?,
     ))
 }

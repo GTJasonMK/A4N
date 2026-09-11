@@ -4,9 +4,9 @@ use crate::actions::request_preview::{
     provider_request_step,
 };
 use crate::state::AppState;
-use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
 use a4n_llm::provider::ChatRequest;
+use a4n_provider_contract::ImageProviderConfig;
 
 pub(in crate::actions::portrait_generation) fn portrait_preview(
     workflow: impl Into<String>,
@@ -42,7 +42,7 @@ pub(super) async fn provider_preview_step(
     project_id: i64,
     key: &str,
     title: &str,
-    config: &image_gen_config::Model,
+    config: &ImageProviderConfig,
     request: ImageGenerationRequest,
 ) -> Result<ModelRequestPreviewStep, String> {
     if state.runtime_profile().uses_sidecars() {

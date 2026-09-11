@@ -1,7 +1,7 @@
 use super::WORKFLOW_STATUS_COMPLETED;
 use super::types::{CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput};
 use crate::canvas::CanvasDbError;
-use a4n_core::models::canvas::canvas_node;
+use a4n_db_models::models::canvas::canvas_node;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use serde_json::Value;

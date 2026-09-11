@@ -3,7 +3,7 @@ use super::super::support::{
     reference_image_field_name,
 };
 use super::provider::CliProxyImageProvider;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_image::ImageGenerationRequest;
 use reqwest::multipart::{Form, Part};
 use serde_json::{Value, json};

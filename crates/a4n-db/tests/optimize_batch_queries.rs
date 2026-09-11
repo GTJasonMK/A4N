@@ -1,7 +1,3 @@
-use a4n_core::models::{
-    chapter::{chapter, chapter_outline},
-    character::foreshadowing_index,
-};
 use a4n_db::optimize::{
     OptimizationContextReadInput, OptimizationPatchCreateInput, OptimizationPatchSetCreateInput,
     OptimizationSessionCreateInput, OptimizationTurnCreateInput, OptimizationTurnEventAppendInput,
@@ -10,6 +6,10 @@ use a4n_db::optimize::{
     optimization_patch_sets, optimization_turn_events_for_turns,
 };
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
+use a4n_db_models::models::{
+    chapter::{chapter, chapter_outline},
+    character::foreshadowing_index,
+};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
 use serde_json::json;

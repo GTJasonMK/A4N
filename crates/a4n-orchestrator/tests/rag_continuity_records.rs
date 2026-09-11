@@ -1,7 +1,7 @@
-use a4n_core::{
-    models::character::{attribute_event, character_state_index, foreshadowing_index},
-    rag::RagDataType,
+use a4n_db_models::models::character::{
+    attribute_event, character_state_index, foreshadowing_index,
 };
+use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{
     character_attribute_event_rag_record, character_state_rag_record, foreshadowing_rag_record,
 };

@@ -5,7 +5,7 @@ use crate::generation::{
     CreateGenerationRunInput, GenerationDbError, GenerationRunCheckpointContext,
     RecordStartedGenerationRunInput,
 };
-use a4n_core::models::generation::generation_run;
+use a4n_db_models::models::generation::generation_run;
 use sea_orm::ConnectionTrait;
 
 pub(crate) async fn record_started_generation_run<C>(

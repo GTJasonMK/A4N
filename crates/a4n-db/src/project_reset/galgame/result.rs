@@ -1,4 +1,3 @@
-use a4n_core::models::project::novel_project;
 use a4n_domain::project::ProjectStatus;
 
 use super::super::types::{ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult};
@@ -10,7 +9,6 @@ use crate::project::{
 use crate::project_delete::ChapterGenerationCleanupResult;
 
 pub(super) struct GalgameResetOutcomeInput {
-    pub project: novel_project::Model,
     pub previous_status: ProjectStatus,
     pub optimization_cleanup: ProjectOptimizationCleanupResult,
     pub chapter_generation_cleanup: ChapterGenerationCleanupResult,
@@ -26,7 +24,6 @@ pub(super) fn galgame_reset_outcome(
 ) -> ProjectGeneratedDataResetOutcome {
     ProjectGeneratedDataResetOutcome {
         result: ProjectGeneratedDataResetResult {
-            project: input.project,
             deleted_galgame_scripts: input.galgame_cleanup.deleted_scripts,
             deleted_galgame_scenes: input.galgame_cleanup.deleted_scenes,
             deleted_galgame_lines: input.galgame_cleanup.deleted_lines,

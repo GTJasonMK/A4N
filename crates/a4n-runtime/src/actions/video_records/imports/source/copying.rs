@@ -1,9 +1,10 @@
+use crate::AppState;
 use crate::actions::video_records::append_video_record_cleanup_error;
-use crate::file_utils::{data_dir_relative_file_path, remove_created_file_on_error_sync};
+use a4n_storage::{data_dir_relative_file_path, remove_created_file_on_error_sync};
 use std::path::{Path, PathBuf};
 
 pub(in crate::actions::video_records::imports) async fn persist_imported_video_file<F>(
-    video: &a4n_orchestrator::OrchestratorContext,
+    state: &AppState,
     data_dir: &Path,
     record_id: i64,
     source: &Path,
@@ -26,7 +27,7 @@ where
         )
         .map(|relative_path| (output, relative_path))
     });
-    append_video_record_cleanup_error(video, record_id, result).await
+    append_video_record_cleanup_error(state.video_record_application(), record_id, result).await
 }
 
 pub(in crate::actions::video_records) fn copy_imported_video_file(

@@ -1,12 +1,13 @@
-use a4n_core::models::scene::scene_profile;
-use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
+use a4n_db_models::models::scene::scene_profile;
+use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER;
+use a4n_domain::scene_profile::SceneProfileRecordInput;
 use sea_orm::DatabaseConnection;
 
 use super::{
     read::{ensure_project_exists, maybe_scene_profile_by_normalized_name, scene_profile_by_id},
     record::{create_scene_profile_record, replace_scene_profile_record},
 };
-use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordInput};
+use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
 pub async fn create_scene_profile_record_checked(
     db: &DatabaseConnection,

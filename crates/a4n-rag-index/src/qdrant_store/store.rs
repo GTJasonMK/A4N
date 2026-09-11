@@ -4,7 +4,7 @@ use super::config::QdrantStoreConfig;
 use super::filters::{self, KEY_CHAPTER, KEY_CHUNK_ID, KEY_DATA_TYPE, KEY_ID_PREFIX};
 use crate::point_id::chunk_id_to_point_uuid;
 use crate::sparse_text::{bm25_document, bm25_query};
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult, VectorStore,
 };
@@ -46,19 +46,21 @@ impl QdrantVectorStore {
         }
         let client = builder
             .build()
-            .map_err(|e| AppError::ConfigError(format!("连接 Qdrant 失败: {e}")))?;
+            .map_err(|e| AppError::Configuration(format!("连接 Qdrant 失败: {e}")))?;
         let store = Arc::new(Self {
             client,
             base_collection: config.collection,
         });
-        store.client.list_collections().await.map_err(|e| {
-            AppError::VectorStoreError(format!("Qdrant list_collections 失败: {e}"))
-        })?;
+        store
+            .client
+            .list_collections()
+            .await
+            .map_err(|e| AppError::VectorStore(format!("Qdrant list_collections 失败: {e}")))?;
         Ok(store)
     }
 
     fn map_err(context: &str, err: impl std::fmt::Display) -> AppError {
-        AppError::VectorStoreError(format!("{context}: {err}"))
+        AppError::VectorStore(format!("{context}: {err}"))
     }
 
     fn physical_collection(&self, logical_collection: &str) -> String {
@@ -157,8 +159,8 @@ impl QdrantVectorStore {
             {
                 let error = format!("create_field_index `{field}` 失败: {error}");
                 return match self.client.delete_collection(physical.clone()).await {
-                    Ok(_) => Err(AppError::VectorStoreError(error)),
-                    Err(cleanup_error) => Err(AppError::VectorStoreError(format!(
+                    Ok(_) => Err(AppError::VectorStore(error)),
+                    Err(cleanup_error) => Err(AppError::VectorStore(format!(
                         "{error}；删除未完成 Qdrant collection `{physical}` 失败: {cleanup_error}"
                     ))),
                 };
@@ -169,16 +171,10 @@ impl QdrantVectorStore {
 
     fn record_to_point(record: &EmbeddingRecord) -> Result<PointStruct, AppError> {
         if record.embedding.is_empty() {
-            return Err(AppError::VectorStoreError(format!(
-                "空向量: id={}",
-                record.id
-            )));
+            return Err(AppError::VectorStore(format!("空向量: id={}", record.id)));
         }
         if record.content.trim().is_empty() {
-            return Err(AppError::VectorStoreError(format!(
-                "空内容: id={}",
-                record.id
-            )));
+            return Err(AppError::VectorStore(format!("空内容: id={}", record.id)));
         }
         let mut named = NamedVectors::default().add_vector(DENSE_NAME, record.embedding.clone());
         let sparse = bm25_document(&record.content);
@@ -208,7 +204,7 @@ impl QdrantVectorStore {
             payload_json[KEY_CHAPTER] = json!(ch);
         }
         let payload = Payload::try_from(payload_json)
-            .map_err(|e| AppError::VectorStoreError(format!("构造 payload 失败: {e}")))?;
+            .map_err(|e| AppError::VectorStore(format!("构造 payload 失败: {e}")))?;
         Ok(PointStruct::new(Self::point_id(&record.id), named, payload))
     }
 
@@ -222,7 +218,7 @@ impl QdrantVectorStore {
             .filter(|value| !value.trim().is_empty())
             .cloned()
             .ok_or_else(|| {
-                AppError::VectorStoreError(format!("Qdrant payload 缺少非空字符串字段 `{key}`"))
+                AppError::VectorStore(format!("Qdrant payload 缺少非空字符串字段 `{key}`"))
             })
     }
 
@@ -230,11 +226,13 @@ impl QdrantVectorStore {
         payload: &HashMap<String, QdrantValue>,
         key: &str,
     ) -> Result<Value, AppError> {
-        let value = payload.get(key).cloned().map(Value::from).ok_or_else(|| {
-            AppError::VectorStoreError(format!("Qdrant payload 缺少字段 `{key}`"))
-        })?;
+        let value = payload
+            .get(key)
+            .cloned()
+            .map(Value::from)
+            .ok_or_else(|| AppError::VectorStore(format!("Qdrant payload 缺少字段 `{key}`")))?;
         if value.is_null() {
-            return Err(AppError::VectorStoreError(format!(
+            return Err(AppError::VectorStore(format!(
                 "Qdrant payload 字段 `{key}` 不能为 null"
             )));
         }
@@ -248,9 +246,7 @@ impl QdrantVectorStore {
         payload
             .get(key)
             .and_then(|value| value.as_bool())
-            .ok_or_else(|| {
-                AppError::VectorStoreError(format!("Qdrant payload 缺少布尔字段 `{key}`"))
-            })
+            .ok_or_else(|| AppError::VectorStore(format!("Qdrant payload 缺少布尔字段 `{key}`")))
     }
 
     fn scored_to_result(point: &ScoredPoint) -> Result<SearchResult, AppError> {
@@ -276,13 +272,10 @@ impl QdrantVectorStore {
 
     fn required_count(result: Option<CountResult>) -> Result<usize, AppError> {
         let count = result
-            .ok_or_else(|| {
-                AppError::VectorStoreError("Qdrant count 成功响应缺少 result".to_string())
-            })?
+            .ok_or_else(|| AppError::VectorStore("Qdrant count 成功响应缺少 result".to_string()))?
             .count;
-        usize::try_from(count).map_err(|_| {
-            AppError::VectorStoreError(format!("Qdrant count 超出 usize 范围: {count}"))
-        })
+        usize::try_from(count)
+            .map_err(|_| AppError::VectorStore(format!("Qdrant count 超出 usize 范围: {count}")))
     }
 
     async fn count_filter(&self, physical: &str, filter: Filter) -> Result<usize, AppError> {
@@ -320,7 +313,7 @@ impl VectorStore for QdrantVectorStore {
         let dim = records[0].embedding.len();
         for r in &records {
             if r.embedding.len() != dim {
-                return Err(AppError::VectorStoreError(format!(
+                return Err(AppError::VectorStore(format!(
                     "批量写入维度不一致: id={}, expected={dim}, actual={}",
                     r.id,
                     r.embedding.len()

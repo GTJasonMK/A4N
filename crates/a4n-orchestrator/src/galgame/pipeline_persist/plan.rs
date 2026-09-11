@@ -9,7 +9,7 @@ use super::contracts::*;
 use super::rules::*;
 use super::sources::*;
 use super::visual::*;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub fn build_galgame_script_persist_plan(
     scenes: &GalgameShootingScriptProjection,

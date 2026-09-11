@@ -1,13 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::generated_image,
-        chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
-    },
+use a4n_db_models::models::{
+    ai::generated_image,
+    chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
 };
 use a4n_domain::project::AssetLineageRecord;
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use crate::project_dependency_graph::details::records::{

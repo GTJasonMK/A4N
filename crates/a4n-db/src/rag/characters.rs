@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::{attribute_event, character_state_index, protagonist_profile},
     project::{blueprint_character, blueprint_relationship},
 };

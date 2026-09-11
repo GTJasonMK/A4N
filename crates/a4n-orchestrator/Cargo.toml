@@ -5,29 +5,44 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
+a4n-archive-core = { path = "../a4n-archive-core" }
 a4n-api-contract = { path = "../a4n-api-contract" }
+a4n-config = { path = "../a4n-config" }
+a4n-chapter-analysis = { path = "../a4n-chapter-analysis" }
 a4n-capabilities = { path = "../a4n-capabilities" }
-a4n-core = { path = "../a4n-core" }
+a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
+a4n-canvas-contract = { path = "../a4n-canvas-contract" }
+a4n-db-models = { path = "../a4n-db-models" }
+a4n-document-export-core = { path = "../a4n-document-export-core" }
 a4n-domain = { path = "../a4n-domain" }
+ a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-event = { path = "../a4n-event" }
 a4n-db = { path = "../a4n-db" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
+a4n-storage = { path = "../a4n-storage" }
+a4n-task-runtime = { path = "../a4n-task-runtime" }
 a4n-llm = { path = "../a4n-llm" }
+a4n-llm-config = { path = "../a4n-llm-config" }
 a4n-prompt = { path = "../a4n-prompt" }
+a4n-prompt-contract = { path = "../a4n-prompt-contract" }
+a4n-progress = { path = "../a4n-progress" }
+a4n-provider-contract = { path = "../a4n-provider-contract" }
+a4n-provider-runtime-contract = { path = "../a4n-provider-runtime-contract" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-embedding = { path = "../a4n-embedding" }
 a4n-rag-core = { path = "../a4n-rag-core" }
+a4n-rag-contract = { path = "../a4n-rag-contract" }
 a4n-import-core = { path = "../a4n-import-core" }
-a4n-export-core = { path = "../a4n-export-core" }
 a4n-media = { path = "../a4n-media" }
 a4n-image = { path = "../a4n-image" }
 a4n-video = { path = "../a4n-video" }
+a4n-video-contract = { path = "../a4n-video-contract" }
 
 anyhow = { workspace = true }
 base64 = { workspace = true }
 dashmap = { workspace = true }
 chrono = { workspace = true }
-image = { workspace = true }
 sea-orm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

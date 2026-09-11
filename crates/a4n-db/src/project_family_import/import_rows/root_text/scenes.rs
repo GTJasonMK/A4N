@@ -1,4 +1,4 @@
-use a4n_core::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
+use a4n_db_models::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project_family_import::{

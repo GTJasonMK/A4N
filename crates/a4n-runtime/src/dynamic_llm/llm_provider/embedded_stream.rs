@@ -1,6 +1,6 @@
 use std::{pin::Pin, time::Instant};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;
@@ -69,7 +69,7 @@ impl DynamicLlmProvider {
             ))),
             Err(error) => {
                 let message = error.to_string();
-                let error = match running_task.fail(&message).await {
+                let error = match running_task.fail(message.clone()).await {
                     Ok(()) => error,
                     Err(status_error) => AppError::Internal(anyhow::anyhow!(
                         "{error}；同步 LLM stream 建立失败队列状态失败: {status_error}"

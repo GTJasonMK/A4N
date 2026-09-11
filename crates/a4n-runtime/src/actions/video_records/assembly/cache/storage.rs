@@ -1,6 +1,6 @@
 use super::super::contracts::AssemblyCacheManifest;
 use crate::actions::video_generation::media::remove_partial_video_file;
-use crate::file_utils::remove_created_file_on_error_sync;
+use a4n_storage::remove_created_file_on_error_sync;
 use std::path::Path;
 
 use super::expiry::assembly_cache_is_fresh;

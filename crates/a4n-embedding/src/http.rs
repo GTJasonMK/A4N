@@ -8,10 +8,10 @@ use serde_json::Value;
 use std::time::Duration;
 
 use super::provider::{EmbeddingBackend, EmbeddingProvider};
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 fn internal_error(message: impl Into<String>) -> AppError {
-    AppError::Internal(anyhow::anyhow!(message.into()))
+    AppError::Internal(message.into())
 }
 
 async fn response_text(resp: reqwest::Response, label: &str) -> Result<String, AppError> {
@@ -88,7 +88,7 @@ impl HttpEmbeddingProvider {
         let resp = req
             .send()
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("嵌入 API 请求失败: {e}")))?;
+            .map_err(|e| internal_error(format!("嵌入 API 请求失败: {e}")))?;
 
         if !resp.status().is_success() {
             let status = resp.status();

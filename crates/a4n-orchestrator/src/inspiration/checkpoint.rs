@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_service_protocol::GenerationUsage;
 use serde_json::Value;

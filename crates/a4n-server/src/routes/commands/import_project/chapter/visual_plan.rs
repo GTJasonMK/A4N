@@ -4,6 +4,40 @@ use serde_json::{Value, json};
 use crate::routes::commands::{ApiError, strict_command_input, string_action_result};
 use crate::state::ServerState;
 
+pub(in crate::routes::commands) async fn read_chapter_visual_plan(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input = strict_command_input(args, "read_chapter_visual_plan")?;
+    Ok(json!(
+        visual_plan_actions::read_chapter_visual_plan(state.runtime(), user_id, input).await?
+    ))
+}
+
+pub(in crate::routes::commands) async fn edit_chapter_visual_plan_draft(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input = strict_command_input(args, "edit_chapter_visual_plan_draft")?;
+    Ok(json!(
+        visual_plan_actions::edit_chapter_visual_plan_draft(state.runtime(), user_id, input)
+            .await?
+    ))
+}
+
+pub(in crate::routes::commands) async fn validate_chapter_visual_plan(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+) -> Result<Value, ApiError> {
+    let input = strict_command_input(args, "validate_chapter_visual_plan")?;
+    Ok(json!(
+        visual_plan_actions::validate_chapter_visual_plan(state.runtime(), user_id, input).await?
+    ))
+}
+
 pub(in crate::routes::commands) async fn get_chapter_visual_plan(
     state: &ServerState,
     user_id: i64,

@@ -1,7 +1,7 @@
 use crate::media::{
     MEDIA_STATUS_COMPLETED, is_valid_media_kind, is_valid_media_origin, is_valid_media_status,
 };
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 
 use super::super::assets::validate_media_asset_source_context;
 use super::context::MediaManifestContext;

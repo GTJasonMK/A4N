@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_domain::embedding::LocalEmbeddingModelSummary;
 use a4n_embedding::provider::DownloadProgress;
 
@@ -39,7 +39,7 @@ pub async fn download_fastembed_model(
         if cancel_token.is_cancelled() {
             return Err(AppError::Cancelled);
         }
-        return Err(AppError::ConfigError(fastembed_download_error(
+        return Err(AppError::Configuration(fastembed_download_error(
             &resolved.name,
             &resolved.info.model_code,
             &resolved.info.model_file,
@@ -61,9 +61,9 @@ pub async fn download_fastembed_model(
         }
         result = &mut build_handle => result,
     }
-    .map_err(|err| AppError::EmbeddingError(format!("初始化 fastembed 模型线程失败: {err}")))?;
+    .map_err(|err| AppError::Embedding(format!("初始化 fastembed 模型线程失败: {err}")))?;
     if let Err(err) = build_result {
-        return Err(AppError::ConfigError(fastembed_download_error(
+        return Err(AppError::Configuration(fastembed_download_error(
             &resolved.name,
             &resolved.info.model_code,
             &resolved.info.model_file,
@@ -74,7 +74,7 @@ pub async fn download_fastembed_model(
 
     let status = model_status_from_info(resolved.info, &cache_dir)?;
     if !status.downloaded {
-        return Err(AppError::ConfigError(format!(
+        return Err(AppError::Configuration(format!(
             "fastembed 模型 {} 下载结束但缓存仍不完整，请删除缓存后重新下载；缓存目录：{}",
             resolved.name,
             cache_dir.to_string_lossy()

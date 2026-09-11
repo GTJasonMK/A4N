@@ -1,33 +1,20 @@
 use a4n_api_contract::chapter::ChapterSummary;
-use a4n_core::{
-    error::AppError,
-    models::{chapter::chapter, generation::workflow_run},
-};
+use a4n_error::AppError;
 use a4n_orchestrator::chapter_analysis::ChapterAnalysisApplicationProgress;
 
 use super::super::{ChapterAnalysisProgress, host_port::RuntimeChapterAnalysisHostPort};
-use crate::{
-    actions::{
-        access, app_error_message, chapter_content::chapter_summary_with_sync_state,
-        character_ai::RuntimeCharacterProfileSyncStageTracePort,
-    },
-    state::AppState,
-};
+use crate::{actions::character_ai::RuntimeCharacterProfileSyncStageTracePort, state::AppState};
 
 pub async fn preflight_resume_chapter_analysis_sync(
     state: &AppState,
     user_id: i64,
     chapter_id: i64,
-) -> Result<chapter::Model, String> {
-    let chapter = state
-        .orchestrator()
-        .preflight_resume_chapter_analysis_validated(chapter_id)
+) -> Result<ChapterSummary, String> {
+    state
+        .chapter_analysis_application()
+        .preflight_resume(user_id, chapter_id)
         .await
-        .map_err(|error| error.to_string())?;
-    access::verify_project_editor(state, user_id, chapter.project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-    Ok(chapter)
+        .map_err(|error| error.to_string())
 }
 
 pub async fn resume_chapter_analysis_sync_with_progress(
@@ -36,7 +23,6 @@ pub async fn resume_chapter_analysis_sync_with_progress(
     chapter_id: i64,
     progress: Option<&ChapterAnalysisProgress<'_>>,
 ) -> Result<ChapterSummary, String> {
-    preflight_resume_chapter_analysis_sync(state, user_id, chapter_id).await?;
     let prompt_renderer = state;
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
@@ -57,9 +43,10 @@ pub async fn resume_chapter_analysis_sync_with_progress(
         }
         Ok(())
     };
-    let chapter = state
-        .orchestrator()
-        .resume_chapter_analysis_sync_validated(
+    state
+        .chapter_analysis_application()
+        .resume_sync(
+            user_id,
             chapter_id,
             prompt_renderer,
             &host_port,
@@ -72,37 +59,22 @@ pub async fn resume_chapter_analysis_sync_with_progress(
             Some(&trace_port),
         )
         .await
-        .map_err(|error| error.to_string())?;
-    chapter_summary_with_sync_state(state, &chapter)
-        .await
         .map_err(|error| error.to_string())
 }
 
 pub async fn resume_chapter_analysis_workflow_run(
     state: &AppState,
     user_id: i64,
-    run: &workflow_run::Model,
+    workflow_run_id: i64,
 ) -> Result<(), String> {
-    let chapter_id = run
-        .chapter_id
-        .ok_or_else(|| "章节结构化分析工作流缺少 chapter_id".to_string())?;
-    let chapter = state
-        .orchestrator()
-        .chapter_by_id(chapter_id)
-        .await
-        .map_err(app_error_message)?
-        .ok_or_else(|| format!("章节不存在: chapter_id={chapter_id}"))?;
-    access::verify_project_editor(state, user_id, chapter.project_id)
-        .await
-        .map_err(|error| error.to_string())?;
-
     let prompt_renderer = state;
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = RuntimeCharacterProfileSyncStageTracePort::new(state.log_dir());
     state
-        .orchestrator()
-        .resume_chapter_analysis_workflow_run_validated(
-            run,
+        .chapter_analysis_application()
+        .resume_workflow_run(
+            user_id,
+            workflow_run_id,
             prompt_renderer,
             &host_port,
             Some(&trace_port),

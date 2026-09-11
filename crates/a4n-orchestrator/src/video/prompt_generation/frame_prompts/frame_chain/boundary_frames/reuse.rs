@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::prompt_generation::frame_prompts::{
     FrameImageLookupContext, FrameImageLookupRowsQuery, boundary_frame_image_ids_by_number,

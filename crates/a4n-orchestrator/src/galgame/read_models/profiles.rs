@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::galgame::{
     GalgameSpeakerProfile, OrchestratorContext, galgame_speaker_profiles_from_prompt_records,

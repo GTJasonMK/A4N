@@ -5,10 +5,9 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-core = { path = "../a4n-core" }
+a4n-domain = { path = "../a4n-domain" }
 a4n-image = { path = "../a4n-image" }
 
-anyhow = { workspace = true }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 image = { workspace = true }

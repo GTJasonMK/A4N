@@ -1,6 +1,6 @@
 use super::{WORKFLOW_STATUS_COMPLETED, types::CanvasMediaSourceContext};
 use crate::canvas::CanvasDbError;
-use a4n_core::models::media::media_asset;
+use a4n_db_models::models::media::media_asset;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{

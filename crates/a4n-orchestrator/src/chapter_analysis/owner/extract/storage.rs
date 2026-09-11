@@ -1,4 +1,5 @@
-use a4n_core::{chapter_analysis::summary_text, models::chapter::chapter};
+use a4n_chapter_analysis::summary_text;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::{Value, json};
 
 use super::{merge_tags, metadata_tags, should_replace_summary};

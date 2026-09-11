@@ -91,8 +91,25 @@ impl BinaryIntegrityVerifier {
         let catalog = service_catalog().map_err(|_| {
             ServiceManagerError::ReleaseManifestInvalid("service catalog is invalid".to_string())
         })?;
+        let catalog_services = catalog
+            .iter()
+            .map(|entry| entry.name.clone())
+            .collect::<HashSet<_>>();
+        let selected_service_names = if manifest.services.is_empty() {
+            catalog_services.clone()
+        } else {
+            let selected = manifest.services.iter().cloned().collect::<HashSet<_>>();
+            if selected.len() != manifest.services.len()
+                || selected.iter().any(|name| !catalog_services.contains(name))
+            {
+                return Err(ServiceManagerError::ReleaseManifestInvalid(
+                    "manifest services contain an unknown or duplicated service".to_string(),
+                ));
+            }
+            selected
+        };
         let expected_services = std::iter::once("host".to_string())
-            .chain(catalog.iter().map(|entry| entry.name.clone()))
+            .chain(selected_service_names.iter().cloned())
             .collect::<HashSet<_>>();
         if services != expected_services || by_service.len() != expected_services.len() {
             return Err(ServiceManagerError::ReleaseManifestInvalid(
@@ -106,6 +123,15 @@ impl BinaryIntegrityVerifier {
             ""
         };
         let expected_host_name = format!("{}{extension}", manifest.package);
+        let host = by_service.get("host").expect("host is checked above");
+        let tauri_app_root = manifest_tauri_app_root(&host.path);
+        if tauri_app_root.is_some()
+            && !(manifest.target.contains("darwin") || manifest.target.contains("macos"))
+        {
+            return Err(ServiceManagerError::ReleaseManifestInvalid(
+                "Tauri app layout requires a macOS target".to_string(),
+            ));
+        }
         let tool_catalog = release_tool_catalog().map_err(|_| {
             ServiceManagerError::ReleaseManifestInvalid(
                 "release tool catalog is invalid".to_string(),
@@ -137,7 +163,7 @@ impl BinaryIntegrityVerifier {
         let mut tool_names = HashSet::new();
         for tool in &manifest.tools {
             if tool.name.trim().is_empty()
-                || tool.path != format!("bin/{}", tool.name)
+                || tool.path != expected_tool_path(tauri_app_root, &tool.name)
                 || !valid_manifest_path(&tool.path)
                 || manifest_file_name(&tool.path) != Some(tool.name.as_str())
                 || tool.version.trim().is_empty()
@@ -155,23 +181,25 @@ impl BinaryIntegrityVerifier {
                 "manifest tools do not match release tool catalog".to_string(),
             ));
         }
-        let host = by_service.get("host").expect("host is checked above");
         if host.name != expected_host_name
             || host.version != manifest.version
             || host.capability_version.is_some()
-            || host.path != format!("bin/{}", host.name)
+            || host.path != expected_host_path(tauri_app_root, &host.name)
         {
             return Err(ServiceManagerError::ReleaseManifestInvalid(
                 "manifest host entry is invalid".to_string(),
             ));
         }
         for entry in catalog {
+            if !selected_service_names.contains(&entry.name) {
+                continue;
+            }
             let binary_name = format!("{}{extension}", entry.binary);
             let binary = by_service
                 .get(&entry.name)
                 .expect("catalog service is checked above");
             if binary.name != binary_name
-                || binary.path != format!("bin/services/{binary_name}")
+                || binary.path != expected_service_path(tauri_app_root, &binary_name)
                 || binary.capability_version.as_deref() != Some(entry.capability_version.as_str())
             {
                 return Err(ServiceManagerError::ReleaseManifestInvalid(
@@ -193,7 +221,7 @@ impl BinaryIntegrityVerifier {
         }
         let runtime = &manifest.runtime_files[0];
         if runtime.name != expected_runtime_name
-            || runtime.path != format!("bin/services/{expected_runtime_name}")
+            || runtime.path != expected_runtime_path(tauri_app_root, expected_runtime_name)
             || !valid_manifest_path(&runtime.path)
             || manifest_file_name(&runtime.path) != Some(runtime.name.as_str())
             || !is_sha256(&runtime.sha256)
@@ -311,6 +339,48 @@ fn manifest_file_name(path: &str) -> Option<&str> {
     path.rsplit(['/', '\\']).find(|part| !part.is_empty())
 }
 
+fn manifest_tauri_app_root(host_path: &str) -> Option<&str> {
+    let mut parts = host_path.split('/');
+    let root = parts.next()?;
+    if !root.ends_with(".app")
+        || parts.next() != Some("Contents")
+        || parts.next() != Some("MacOS")
+        || parts.next().is_none()
+        || parts.next().is_some()
+    {
+        return None;
+    }
+    Some(root)
+}
+
+fn expected_host_path(tauri_app_root: Option<&str>, name: &str) -> String {
+    tauri_app_root.map_or_else(
+        || format!("bin/{name}"),
+        |root| format!("{root}/Contents/MacOS/{name}"),
+    )
+}
+
+fn expected_service_path(tauri_app_root: Option<&str>, name: &str) -> String {
+    tauri_app_root.map_or_else(
+        || format!("bin/services/{name}"),
+        |root| format!("{root}/Contents/MacOS/{name}"),
+    )
+}
+
+fn expected_tool_path(tauri_app_root: Option<&str>, name: &str) -> String {
+    tauri_app_root.map_or_else(
+        || format!("bin/{name}"),
+        |root| format!("{root}/Contents/MacOS/{name}"),
+    )
+}
+
+fn expected_runtime_path(tauri_app_root: Option<&str>, name: &str) -> String {
+    tauri_app_root.map_or_else(
+        || format!("bin/services/{name}"),
+        |root| format!("{root}/Contents/Resources/{name}"),
+    )
+}
+
 fn sha256(path: &Path) -> std::io::Result<String> {
     let mut file = File::open(path)?;
     let mut digest = Sha256::new();
@@ -379,6 +449,11 @@ mod tests {
             version: "0.1.0".to_string(),
             target: "linux-x86_64".to_string(),
             protocol_version: PROTOCOL_VERSION,
+            services: service_catalog()
+                .unwrap()
+                .into_iter()
+                .map(|entry| entry.name)
+                .collect(),
             binaries,
             tools,
             runtime_files: vec![ReleaseRuntimeFileManifest {
@@ -445,6 +520,15 @@ mod tests {
     }
 
     #[test]
+    fn manifest_accepts_declared_service_subset() {
+        let mut manifest = valid_manifest("a".repeat(64));
+        manifest.binaries.retain(|entry| entry.service != "video");
+        manifest.services.retain(|service| service != "video");
+        BinaryIntegrityVerifier::new(manifest, None)
+            .expect("a manifest may omit an undeclared optional service");
+    }
+
+    #[test]
     fn manifest_requires_every_release_tool() {
         let mut manifest = valid_manifest("a".repeat(64));
         manifest.tools.pop();
@@ -478,6 +562,47 @@ mod tests {
         verifier.verify_runtime_files().unwrap();
         std::fs::write(&runtime, b"tampered").unwrap();
         assert!(verifier.verify_runtime_files().is_err());
+        let _ = std::fs::remove_dir_all(directory);
+    }
+
+    #[test]
+    fn macos_tauri_manifest_paths_are_accepted() {
+        let directory = std::env::temp_dir().join(format!(
+            "a4n-tauri-integrity-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let app_root = directory.join("A4N.app");
+        let macos_dir = app_root.join("Contents/MacOS");
+        let resources_dir = app_root.join("Contents/Resources");
+        std::fs::create_dir_all(&macos_dir).unwrap();
+        std::fs::create_dir_all(&resources_dir).unwrap();
+
+        let mut manifest = valid_manifest("a".repeat(64));
+        manifest.target = "aarch64-apple-darwin".to_string();
+        for binary in &mut manifest.binaries {
+            binary.target = manifest.target.clone();
+            binary.path = format!("A4N.app/Contents/MacOS/{}", binary.name);
+        }
+        for tool in &mut manifest.tools {
+            tool.target = manifest.target.clone();
+            tool.path = format!("A4N.app/Contents/MacOS/{}", tool.name);
+            let path = directory.join(&tool.path);
+            std::fs::write(&path, tool.name.as_bytes()).unwrap();
+            tool.sha256 = sha256(&path).unwrap();
+        }
+        let runtime = resources_dir.join("libonnxruntime.dylib");
+        std::fs::write(&runtime, b"runtime").unwrap();
+        manifest.runtime_files[0].name = "libonnxruntime.dylib".to_string();
+        manifest.runtime_files[0].path =
+            "A4N.app/Contents/Resources/libonnxruntime.dylib".to_string();
+        manifest.runtime_files[0].sha256 = sha256(&runtime).unwrap();
+
+        let verifier = BinaryIntegrityVerifier::new(manifest, Some(directory.clone())).unwrap();
+        verifier.verify_runtime_files().unwrap();
         let _ = std::fs::remove_dir_all(directory);
     }
 }

@@ -4,16 +4,18 @@ use super::source::{
 };
 use crate::AppState;
 use crate::actions::access;
+use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::{
     append_secondary_error, best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
 };
-use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
 use crate::actions::video_records::{
     complete_video_record, delete_video_record_cleanup_error, video_record_output_path,
 };
 use a4n_orchestrator::video::{
-    completed_provider_metadata, is_first_frame_chain_video, should_capture_video_tail_frame,
+    completed_provider_metadata, is_first_frame_chain_workflow,
+    should_capture_video_tail_frame_fields,
 };
+use a4n_video_contract::VideoProviderResultTarget;
 use chrono::Utc;
 use serde_json::Value;
 
@@ -53,9 +55,9 @@ async fn create_imported_chapter_video(
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let properties = probe_imported_video_properties(&source, "导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
-    let prepared = state
-        .orchestrator()
-        .create_imported_chapter_video_record_validated(
+    let record = state
+        .video_record_application()
+        .create_imported_chapter_video_record(
             project_id,
             chapter_id,
             prompt_id,
@@ -66,11 +68,9 @@ async fn create_imported_chapter_video(
         )
         .await
         .map_err(crate::actions::app_error_message)?;
-    let record = prepared.video;
-    let prompt = prepared.prompt;
 
     let (output, output_path_str) = persist_imported_video_file(
-        state.orchestrator(),
+        state,
         state.data_dir(),
         record.id,
         &source.path,
@@ -97,11 +97,21 @@ async fn create_imported_chapter_video(
         &output,
     );
     let mut tail_frame_capture_error = None;
-    let tail_frame_metadata = if should_capture_video_tail_frame(&record) {
-        match capture_video_tail_frame_asset(state, &record, chapter_id, &output).await {
+    let tail_frame_metadata = if should_capture_video_tail_frame_fields(
+        &record.video_type,
+        record.workflow_mode.as_deref(),
+    ) {
+        let target = VideoProviderResultTarget {
+            video_id: record.id,
+            project_id: record.project_id,
+            chapter_id: record.chapter_id,
+            video_type: record.video_type.clone(),
+            workflow_mode: record.workflow_mode.clone(),
+        };
+        match capture_video_tail_frame_asset(state, &target, chapter_id, &output).await {
             Ok(metadata) => Some(metadata),
             Err(err) => {
-                if is_first_frame_chain_video(&record) {
+                if is_first_frame_chain_workflow(record.workflow_mode.as_deref()) {
                     let cleanup_error =
                         crate::actions::video_generation::cleanup_saved_video_outputs(
                             state,
@@ -110,8 +120,11 @@ async fn create_imported_chapter_video(
                             thumbnail_path.as_deref(),
                         )
                         .await;
-                    let delete_error =
-                        delete_video_record_cleanup_error(state.orchestrator(), record.id).await;
+                    let delete_error = delete_video_record_cleanup_error(
+                        state.video_record_application(),
+                        record.id,
+                    )
+                    .await;
                     return Err(append_secondary_error(
                         append_secondary_error(
                             format!("导入视频已复制但首帧串联尾帧采集失败：{err}"),
@@ -133,10 +146,10 @@ async fn create_imported_chapter_video(
         &output_path_str,
         thumbnail_path.as_deref(),
         source.file_size,
-        Some(prompt.id),
+        record.prompt_id,
         completed_provider_metadata(Value::Null, tail_frame_metadata, tail_frame_capture_error),
         "导入视频记录完成失败",
     )
     .await?;
-    Ok(video_to_summary(&updated))
+    Ok(updated)
 }

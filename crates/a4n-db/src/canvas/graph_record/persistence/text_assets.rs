@@ -1,10 +1,11 @@
-use a4n_core::models::canvas::canvas_text_asset;
+use a4n_db_models::models::canvas::canvas_text_asset;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, Set};
 use sha2::{Digest, Sha256};
 
-use super::super::{types::CanvasTextAssetRecordInput, validation::required_canvas_record_text};
+use super::super::validation::required_canvas_record_text;
 use super::context::require_canvas_project_record;
 use crate::canvas::CanvasDbError;
+use a4n_domain::canvas::CanvasTextAssetRecordInput;
 
 pub async fn upsert_canvas_text_asset_record<C>(
     db: &C,

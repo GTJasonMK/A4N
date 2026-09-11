@@ -1,9 +1,9 @@
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use serde_json::Value;
 
 use crate::video::prompt_store::PromptWorkflowMode;
 use crate::video::{OrchestratorContext, PromptOutputLanguage};
-use a4n_core::source_spans::SourceSpan;
+use a4n_domain::source_spans::SourceSpan;
 
 use crate::video::prompt_json::VideoShootingScriptProjection;
 

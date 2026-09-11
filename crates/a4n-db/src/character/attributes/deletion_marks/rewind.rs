@@ -1,6 +1,6 @@
 use super::super::types::CharacterDeletionMarkRewindSummary;
 use super::rules::retained_deletion_mark_count;
-use a4n_core::models::character::{
+use a4n_db_models::models::character::{
     attribute_event::SOURCE_KIND_AI_SYNC, protagonist_deletion_mark,
 };
 use chrono::Utc;

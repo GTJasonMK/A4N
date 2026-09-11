@@ -7,8 +7,8 @@ pub async fn list_profile_materials(
     input: ListProfileMaterialsInput,
 ) -> Result<Vec<ProfileMaterialGroup>, String> {
     state
-        .orchestrator()
-        .list_profile_materials_validated(user_id, input)
+        .profile_material_application()
+        .list(user_id, input)
         .await
         .map_err(|error| error.to_string())
 }

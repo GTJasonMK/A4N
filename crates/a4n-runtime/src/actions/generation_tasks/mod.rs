@@ -5,7 +5,8 @@ use a4n_api_contract::generation_tasks::{
     CancelGenerationTaskInput, GenerationTaskHandle, GenerationTaskHistoryPage,
     GenerationTaskHistoryQuery, GenerationTaskSummary,
 };
-use a4n_db::generation::{GenerationTaskListCursor, PersistedGenerationTask};
+use a4n_domain::generation::GenerationTaskListCursor;
+pub use a4n_orchestrator::AuthorizedGenerationTask;
 pub use a4n_orchestrator::GenerationTaskAccessError;
 pub use a4n_orchestrator::generation::{
     GenerationReplay, GenerationSubscription, GenerationTerminalError,
@@ -21,7 +22,7 @@ pub async fn cancel_generation_task(
     input: CancelGenerationTaskInput,
 ) -> Result<GenerationTaskHandle, GenerationTerminalError> {
     state
-        .orchestrator()
+        .generation_application()
         .request_generation_cancel(user_id, &input.task_id, input.attempt)
         .await
 }
@@ -31,9 +32,9 @@ pub async fn authorize_generation_task(
     user_id: i64,
     task_id: &str,
     attempt: u32,
-) -> Result<PersistedGenerationTask, GenerationTaskAccessError> {
+) -> Result<AuthorizedGenerationTask, GenerationTaskAccessError> {
     state
-        .orchestrator()
+        .generation_application()
         .authorize_generation_task(user_id, task_id, attempt)
         .await
 }
@@ -45,7 +46,7 @@ pub async fn generation_task_summary(
     attempt: u32,
 ) -> Result<GenerationTaskSummary, GenerationTaskAccessError> {
     state
-        .orchestrator()
+        .generation_application()
         .generation_task_summary_for_user(user_id, task_id, attempt)
         .await
 }
@@ -56,7 +57,7 @@ pub async fn list_active_generation_tasks(
     project_id: Option<i64>,
 ) -> Result<Vec<GenerationTaskSummary>, GenerationTaskAccessError> {
     state
-        .orchestrator()
+        .generation_application()
         .list_active_generation_task_summaries(user_id, project_id)
         .await
 }
@@ -68,7 +69,7 @@ pub async fn list_generation_task_history(
     cursor: Option<GenerationTaskListCursor>,
 ) -> Result<GenerationTaskHistoryPage, GenerationTaskAccessError> {
     let result = state
-        .orchestrator()
+        .generation_application()
         .list_generation_task_history_summaries(user_id, input.project_id, input.limit, cursor)
         .await?;
     let next_cursor = result
@@ -77,9 +78,9 @@ pub async fn list_generation_task_history(
         .map(encode_generation_history_cursor)
         .transpose()
         .map_err(|error| {
-            GenerationTaskAccessError::Persistence(
-                a4n_db::generation::GenerationTaskPersistenceError::Corrupt(error.to_string()),
-            )
+            GenerationTaskAccessError::InvalidArgument(format!(
+                "生成任务历史 cursor 编码失败: {error}"
+            ))
         })?;
     Ok(GenerationTaskHistoryPage {
         items: result.items,
@@ -89,10 +90,10 @@ pub async fn list_generation_task_history(
 
 pub fn subscribe_generation_task(
     state: &AppState,
-    task: &PersistedGenerationTask,
+    task: &AuthorizedGenerationTask,
     after_sequence: Option<u64>,
 ) -> Result<GenerationSubscription, GenerationTaskAccessError> {
     state
-        .orchestrator()
+        .generation_application()
         .subscribe_generation_task(task, after_sequence)
 }

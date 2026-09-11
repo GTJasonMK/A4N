@@ -1,3 +1,5 @@
+use super::access::current_image_provider_config_for_id;
+use super::redaction::redacted_snapshot_value;
 use super::*;
 use a4n_domain::ImageSize;
 use serde_json::json;
@@ -76,36 +78,59 @@ async fn explicit_config_id_lookup_accepts_active_or_list_config() {
     };
 
     scope(snapshot, async {
-        assert_eq!(current_llm_model().expect("default LLM").id, 1);
-        assert_eq!(current_image_model().expect("default image").id, 1);
-        assert_eq!(current_video_model().expect("default video").id, 1);
+        assert_eq!(current_llm_provider_config().expect("default LLM").id, 1);
+        assert_eq!(
+            current_image_provider_config_for_id(None)
+                .expect("default image")
+                .id,
+            1
+        );
+        assert_eq!(
+            current_video_provider_config().expect("default video").id,
+            1
+        );
 
         assert_eq!(
-            current_llm_model_for_id(Some(1))
+            current_llm_provider_config_for_id(Some(1))
                 .expect("active LLM by ID")
                 .id,
             1
         );
         assert_eq!(
-            current_image_model_for_id(Some(1))
+            current_image_provider_config_for_id(Some(1))
                 .expect("active image by ID")
                 .id,
             1
         );
         assert_eq!(
-            current_video_model_for_id(Some(1))
+            current_video_provider_config_for_id(Some(1))
                 .expect("active video by ID")
                 .id,
             1
         );
 
-        assert_eq!(current_llm_model_for_id(Some(2)).expect("LLM by ID").id, 2);
         assert_eq!(
-            current_image_model_for_id(Some(2)).expect("image by ID").id,
+            current_llm_provider_config_for_id(Some(2))
+                .expect("LLM by ID")
+                .id,
             2
         );
         assert_eq!(
-            current_video_model_for_id(Some(2)).expect("video by ID").id,
+            current_image_provider_config_for_id(Some(2))
+                .expect("image by ID")
+                .id,
+            2
+        );
+        assert_eq!(
+            current_image_provider_config_for_id(Some(2))
+                .expect("provider image by ID")
+                .id,
+            2
+        );
+        assert_eq!(
+            current_video_provider_config_for_id(Some(2))
+                .expect("video by ID")
+                .id,
             2
         );
     })
@@ -134,17 +159,26 @@ async fn config_lists_do_not_define_runtime_defaults() {
     };
 
     scope(snapshot, async {
-        assert!(current_llm_model().is_none());
-        assert!(current_image_model().is_none());
-        assert!(current_video_model().is_none());
+        assert!(current_llm_provider_config().is_none());
+        assert!(current_image_provider_config_for_id(None).is_none());
+        assert!(current_video_provider_config().is_none());
 
-        assert_eq!(current_llm_model_for_id(Some(2)).expect("LLM by ID").id, 2);
         assert_eq!(
-            current_image_model_for_id(Some(3)).expect("image by ID").id,
+            current_llm_provider_config_for_id(Some(2))
+                .expect("LLM by ID")
+                .id,
+            2
+        );
+        assert_eq!(
+            current_image_provider_config_for_id(Some(3))
+                .expect("image by ID")
+                .id,
             3
         );
         assert_eq!(
-            current_video_model_for_id(Some(4)).expect("video by ID").id,
+            current_video_provider_config_for_id(Some(4))
+                .expect("video by ID")
+                .id,
             4
         );
     })

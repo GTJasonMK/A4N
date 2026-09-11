@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::{character::protagonist_profile, project::blueprint_character},
-    rag::RagDataType,
-};
+use a4n_db_models::models::{character::protagonist_profile, project::blueprint_character};
+use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{blueprint_character_rag_records, protagonist_rag_records};
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;

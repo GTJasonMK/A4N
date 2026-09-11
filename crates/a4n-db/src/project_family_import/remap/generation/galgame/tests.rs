@@ -2,7 +2,7 @@ use super::{
     remap_galgame_background_params, remap_galgame_cg_params, remap_galgame_portrait_params,
 };
 use crate::project_family_import::ImportIdMaps;
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use chrono::Utc;
 use serde_json::{Value, json};
 

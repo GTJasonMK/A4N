@@ -156,3 +156,114 @@ pub struct GetWorkflowRunInput {
 pub struct ResumeWorkflowRunInput {
     pub workflow_run_id: i64,
 }
+
+/// Runtime-only task/workflow lookup record. Persistence and ORM models stay
+/// inside the workflow owner; Runtime receives only the fields needed for
+/// access checks, progress routing, and resume dispatch.
+#[derive(Debug, Clone)]
+pub struct TaskLookupRecord {
+    pub task_id: String,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+    pub workflow_run_id: Option<i64>,
+    pub status: String,
+}
+
+pub struct ActiveTaskLookupRecord {
+    pub task_id: String,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+    pub status: String,
+    pub workflow: WorkflowStateSummary,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkflowTaskAccessRecord {
+    pub workflow_run_id: i64,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkflowResumeRecord {
+    pub id: i64,
+    pub workflow_kind: String,
+    pub project_id: Option<i64>,
+    pub root_project_id: Option<i64>,
+    pub chapter_id: Option<i64>,
+    pub scope_table: Option<String>,
+    pub scope_id: Option<i64>,
+    pub input_fingerprint_json: Option<Value>,
+    pub status: String,
+    pub can_resume: bool,
+    pub resume_block_reason: Option<String>,
+}
+
+/// Narrow lookup boundary used by Runtime task/workflow actions.
+#[async_trait::async_trait]
+pub trait WorkflowTaskLookupApplicationPort: Send + Sync {
+    async fn task_by_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<TaskLookupRecord>, a4n_error::AppError>;
+
+    async fn active_tasks(&self) -> Result<Vec<ActiveTaskLookupRecord>, a4n_error::AppError>;
+
+    async fn workflow_access_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<WorkflowTaskAccessRecord>, a4n_error::AppError>;
+
+    async fn workflow_run_for_resume(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowResumeRecord, a4n_error::AppError>;
+
+    async fn workflow_run_summary(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowRunSummary, a4n_error::AppError>;
+
+    async fn workflow_progress_events(
+        &self,
+        workflow_run_id: i64,
+        limit: usize,
+    ) -> Result<Vec<WorkflowProgressEvent>, a4n_error::AppError>;
+}
+
+/// Narrow workflow lifecycle boundary for Runtime workers.
+///
+/// The workflow owner retains persistence, queue cancellation, generated-video
+/// interruption, and resume state transitions.
+#[async_trait::async_trait]
+pub trait WorkflowCancellationPort: Send + Sync {
+    async fn mark_running(&self, workflow_run_id: i64) -> Result<(), a4n_error::AppError>;
+
+    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<(), a4n_error::AppError>;
+
+    async fn resume_with_active_task(
+        &self,
+        workflow_run_id: i64,
+        active_task_id: &str,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing workflow read boundary.
+///
+/// Workflow visibility, persistence queries and API projection stay in the
+/// workflow owner. Runtime retains only live task-handle and cancellation
+/// coordination.
+#[async_trait::async_trait]
+pub trait WorkflowReadApplicationPort: Send + Sync {
+    async fn list_for_user(
+        &self,
+        user_id: i64,
+        input: ListWorkflowRunsInput,
+    ) -> Result<Vec<WorkflowRunSummary>, a4n_error::AppError>;
+
+    async fn detail_for_user(
+        &self,
+        user_id: i64,
+        input: GetWorkflowRunInput,
+    ) -> Result<WorkflowRunDetailSummary, a4n_error::AppError>;
+}

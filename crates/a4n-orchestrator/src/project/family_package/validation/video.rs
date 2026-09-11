@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    models::{
-        ai::{generated_image, generated_video},
-        chapter::{chapter, chapter_shooting_script, chapter_video_prompt},
-        project::novel_project,
-    },
-    video_execution::VideoShootingScriptIdentityV1,
+use a4n_db_models::models::{
+    ai::{generated_image, generated_video},
+    chapter::{chapter, chapter_shooting_script, chapter_video_prompt},
+    project::novel_project,
 };
 use a4n_domain::canvas_transfer_runtime_identity_key;
+use a4n_domain::image::reference_image_ids;
+use a4n_video_contract::VideoShootingScriptIdentityV1;
 use serde_json::Value;
 
 use crate::project::{PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, ProjectFamilyPackage};
@@ -117,8 +116,8 @@ fn validate_video_prompt(
         ));
     }
 
-    for image_id in crate::video::reference_image_ids(prompt.reference_image_ids_json.as_ref())
-        .map_err(|error| {
+    for image_id in
+        reference_image_ids(prompt.reference_image_ids_json.as_ref()).map_err(|error| {
             format!(
                 "项目族导入包章节视频提示词参考图片无效: chapter_video_prompt_id={}, error={error}",
                 prompt.id
@@ -215,7 +214,7 @@ fn validate_generated_video(
             context,
         )?;
     }
-    if !generated_video::is_terminal_status(&video.status) {
+    if !a4n_domain::video_workflow::is_terminal_video_status(&video.status) {
         return Err(format!(
             "项目族导入包只能包含终态生成视频: generated_video_id={}, status={}",
             video.id, video.status
@@ -295,7 +294,7 @@ fn validate_generated_video(
             context,
         )?;
         if prompt.generated_video_id.is_some_and(|id| id != video.id)
-            || (video.status == generated_video::STATUS_COMPLETED
+            || (video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
                 && prompt.generated_video_id != Some(video.id))
         {
             return Err(format!(

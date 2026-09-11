@@ -8,7 +8,7 @@ use crate::source_sync::{
     SourceSyncGalgameAnchorConflictCandidateRecord, anchor_conflict_candidates_for_run,
     galgame_anchor_conflict_candidates_for_run,
 };
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
 use a4n_domain::source_sync::SourceSyncLocalStateKind;
 use sea_orm::ConnectionTrait;
 use serde_json::json;

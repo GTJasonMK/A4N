@@ -1,5 +1,5 @@
 use super::super::VideoDbError;
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use serde_json::{Value, json};
 
 pub(crate) fn image_generation_response_summary(

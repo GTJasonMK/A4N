@@ -4,7 +4,7 @@ use crate::video::{
     ensure_video_chapter_belongs_to_project_record, generated_image_by_id, generated_video_by_id,
     validate_positive_video_i64,
 };
-use a4n_core::video_workflow::is_generated_video_workflow_mode;
+use a4n_domain::video_workflow::is_generated_video_workflow_mode;
 use sea_orm::ConnectionTrait;
 
 pub(super) async fn validate_create_generated_video_record_input<C>(
@@ -101,7 +101,7 @@ fn normalize_video_provider_job_id(value: Option<&str>) -> Result<Option<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::video_workflow::{
+    use a4n_domain::video_workflow::{
         WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM, WORKFLOW_MODE_CANVAS_VIDEO,
         WORKFLOW_MODE_MIXED,
     };

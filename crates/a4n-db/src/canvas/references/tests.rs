@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     canvas::{canvas_graph, canvas_node},
 };
@@ -74,7 +74,7 @@ async fn canvas_reference_cleanup_batches_missing_image_and_video_nodes() {
         generated_video::Entity::insert_many((0..20).map(|index| generated_video::ActiveModel {
             project_id: Set(project.id),
             chapter_id: Set(None),
-            video_type: Set(generated_video::VIDEO_TYPE_CANVAS.to_string()),
+            video_type: Set(a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string()),
             workflow_mode: Set(Some("canvas_video".to_string())),
             file_path: Set(None),
             thumbnail_path: Set(None),
@@ -88,7 +88,7 @@ async fn canvas_reference_cleanup_batches_missing_image_and_video_nodes() {
             file_size: Set(None),
             source_video_id: Set(None),
             source_image_id: Set(None),
-            status: Set(generated_video::STATUS_COMPLETED.to_string()),
+            status: Set(a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string()),
             provider_job_id: Set(None),
             error_message: Set(None),
             timeline_item_id: Set(None),

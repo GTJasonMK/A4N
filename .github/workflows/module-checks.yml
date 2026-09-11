@@ -72,6 +72,9 @@ jobs:
       - name: Check a4n-core boundary inventory
         run: ./scripts/checks/check-core-boundary.sh
 
+      - name: Check export Worker isolation boundary
+        run: timeout 900 ./scripts/checks/check-worker-isolation.sh
+
       - name: Check generation contracts and safety
         run: |
           ./scripts/checks/check-generation-contracts.sh

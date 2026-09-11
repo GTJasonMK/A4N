@@ -1,5 +1,5 @@
 use super::CharacterDbError;
-use a4n_core::models::character::snapshot_reference;
+use a4n_db_models::models::character::snapshot_reference;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,

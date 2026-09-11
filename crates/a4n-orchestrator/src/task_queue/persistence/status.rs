@@ -1,5 +1,5 @@
 use super::super::{PersistentTaskQueue, queue_db_error};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 #[cfg(test)]
 mod tests;

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(super) fn validate_prompt_update_content(content: &str) -> Result<(), AppError> {
     if content.trim().is_empty() {

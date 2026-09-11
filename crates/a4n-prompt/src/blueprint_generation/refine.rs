@@ -36,7 +36,7 @@ mod tests {
         assert!(message.contains(r#""style""#));
         assert!(message.contains(r#""field_schemas""#));
         assert!(message.contains(r#""relationship_type""#));
-        for relationship_type in a4n_core::blueprint::BLUEPRINT_RELATIONSHIP_TYPES {
+        for relationship_type in a4n_domain::project::BLUEPRINT_RELATIONSHIP_TYPES {
             assert!(message.contains(&format!(r#""{relationship_type}""#)));
         }
     }
@@ -118,7 +118,7 @@ mod tests {
             .expect("trace context should be attached");
         assert_eq!(
             trace_context.workflow,
-            a4n_core::blueprint::BLUEPRINT_REFINEMENT_WORKFLOW_KIND
+            a4n_domain::project::BLUEPRINT_REFINEMENT_WORKFLOW_KIND
         );
         assert_eq!(
             trace_context.call_key.as_deref(),

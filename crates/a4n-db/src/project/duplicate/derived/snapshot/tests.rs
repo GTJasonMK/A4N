@@ -1,11 +1,9 @@
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::{ProjectMediaCopyError, ProjectMediaFileCopier};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;
 
-use crate::project::{
-    PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO,
-    duplicate::{ProjectDuplicateError, ProjectMediaCopyError, ProjectMediaFileCopier},
-};
+use crate::project::{PROJECT_KIND_TEXT, PROJECT_KIND_VIDEO, duplicate::ProjectDuplicateError};
 
 use super::execution::copy_derived_project_graph_record;
 

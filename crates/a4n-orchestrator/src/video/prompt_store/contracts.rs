@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, UsageInfo};
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -166,7 +166,7 @@ pub(in crate::video) fn new_prompt_draft(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::video_execution::{
+    use a4n_video_contract::{
         VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
     };
 

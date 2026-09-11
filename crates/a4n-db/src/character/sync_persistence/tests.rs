@@ -1,12 +1,10 @@
 use super::snapshots::character_sync_required_i32;
 use super::validation::validate_character_sync_persistence_input;
-use super::{
-    CharacterSyncChapterStateRecordInput, CharacterSyncPersistenceInput,
-    apply_character_sync_persistence_record,
-};
+use super::{CharacterSyncPersistenceInput, apply_character_sync_persistence_record};
 use crate::character::CharacterDbError;
 use crate::project::ChapterSourceSnapshot;
-use a4n_core::source_spans::source_text_hash;
+use a4n_domain::character::CharacterSyncChapterStateRecordInput;
+use a4n_domain::source_text_hash;
 use sea_orm::DatabaseConnection;
 use serde_json::json;
 

@@ -1,5 +1,5 @@
 use super::contracts::{ChapterGenerationReferenceContextRows, ProjectChapterContextError};
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::protagonist_profile,
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };

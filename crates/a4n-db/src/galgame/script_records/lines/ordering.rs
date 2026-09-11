@@ -1,5 +1,5 @@
 use crate::galgame::{GalgameLineRecordError, GalgameLineReorderRecordError};
-use a4n_core::models::galgame::galgame_line;
+use a4n_db_models::models::galgame::galgame_line;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{

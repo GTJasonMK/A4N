@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::sync::Mutex;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use chrono::Utc;
 
 use crate::engine::PromptEntry;

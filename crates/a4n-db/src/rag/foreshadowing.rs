@@ -1,4 +1,4 @@
-use a4n_core::models::character::foreshadowing_index;
+use a4n_db_models::models::character::foreshadowing_index;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
     QuerySelect,

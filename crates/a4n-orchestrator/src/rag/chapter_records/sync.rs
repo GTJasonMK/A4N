@@ -1,10 +1,10 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 
-use super::contracts::ChapterRagChunkingMode;
 use crate::{
     OrchestratorContext,
     rag::{RagSyncContext, chapter_rag_chunk_prefix},
 };
+use a4n_rag_core::ChapterRagChunkingMode;
 
 impl OrchestratorContext {
     pub async fn sync_chapter_rag_records(

@@ -1,10 +1,19 @@
 use std::collections::BTreeMap;
 
-use a4n_api_contract::profile::SceneProfileInput;
-use a4n_core::error::AppError;
+use a4n_api_contract::{
+    collaboration::ProjectAccessRole,
+    profile::{
+        CreateSceneProfileInput, DeleteSceneProfileInput, SceneProfileDeleteOutcome,
+        SceneProfileDeleteResult, SceneProfileInput, SceneProfileMutationOutcome,
+        SceneProfileMutationResult, SceneProfileSummary, UpdateSceneProfileInput,
+    },
+};
 use a4n_db::DbHandle;
+use a4n_db_models::models::scene::scene_profile;
+use a4n_domain::profile_material::ProfileMaterialKind;
+use a4n_error::AppError;
 
-use super::OrchestratorContext;
+use super::{OrchestratorContext, profile_mutation::resolve_downstream_image_ids};
 use crate::scene_profile::{
     SceneProfileEvidenceRecordInput, SceneSyncInput, SceneSyncRecordResult,
     normalize_scene_profile_record_input, normalize_scene_sync_record_input,
@@ -24,7 +33,7 @@ impl SceneProfileApplication {
     async fn scene_profiles_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<a4n_core::models::scene::scene_profile::Model>, AppError> {
+    ) -> Result<Vec<a4n_db_models::models::scene::scene_profile::Model>, AppError> {
         a4n_db::scene_profile::scene_profiles_by_project(self.database.connection(), project_id)
             .await
             .map_err(scene_profile_db_error)
@@ -33,7 +42,7 @@ impl SceneProfileApplication {
     async fn scene_profile_by_id(
         &self,
         scene_profile_id: i64,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
         a4n_db::scene_profile::scene_profile_by_id(self.database.connection(), scene_profile_id)
             .await
             .map_err(scene_profile_db_error)
@@ -53,7 +62,7 @@ impl SceneProfileApplication {
         &self,
         project_id: i64,
         input: SceneProfileInput,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
         let record = normalize_scene_profile_record_input(input)?;
         a4n_db::scene_profile::create_scene_profile_record_checked(
             self.database.connection(),
@@ -69,7 +78,7 @@ impl SceneProfileApplication {
         &self,
         scene_profile_id: i64,
         input: SceneProfileInput,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
         let record = normalize_scene_profile_record_input(input)?;
         a4n_db::scene_profile::update_scene_profile_record_checked(
             self.database.connection(),
@@ -136,10 +145,47 @@ impl SceneProfileApplication {
 }
 
 impl OrchestratorContext {
+    pub async fn list_scene_profiles_for_user(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<SceneProfileSummary>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        let profiles = self.scene_profiles_by_project(project_id).await?;
+        let profile_ids = profiles
+            .iter()
+            .map(|profile| profile.id)
+            .collect::<Vec<_>>();
+        let occurrence_counts = self
+            .scene_occurrence_counts_by_profile(project_id, &profile_ids)
+            .await?;
+        let image_counts = self
+            .count_profile_material_images_by_profile(
+                project_id,
+                ProfileMaterialKind::Scene,
+                &profile_ids,
+            )
+            .await?;
+        Ok(profiles
+            .iter()
+            .map(|profile| {
+                scene_profile_summary(
+                    profile,
+                    occurrence_counts
+                        .get(&profile.id)
+                        .copied()
+                        .unwrap_or_default(),
+                    image_counts.get(&profile.id).copied().unwrap_or_default(),
+                )
+            })
+            .collect())
+    }
+
     pub async fn scene_profiles_by_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<a4n_core::models::scene::scene_profile::Model>, AppError> {
+    ) -> Result<Vec<a4n_db_models::models::scene::scene_profile::Model>, AppError> {
         self.scene_profile
             .scene_profiles_by_project(project_id)
             .await
@@ -148,7 +194,7 @@ impl OrchestratorContext {
     pub async fn scene_profile_by_id(
         &self,
         scene_profile_id: i64,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
         self.scene_profile
             .scene_profile_by_id(scene_profile_id)
             .await
@@ -159,7 +205,7 @@ impl OrchestratorContext {
         &self,
         project_id: i64,
         input: SceneProfileInput,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
         self.scene_profile
             .create_scene_profile_validated(project_id, input)
             .await
@@ -170,7 +216,7 @@ impl OrchestratorContext {
         &self,
         scene_profile_id: i64,
         input: SceneProfileInput,
-    ) -> Result<a4n_core::models::scene::scene_profile::Model, AppError> {
+    ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
         self.scene_profile
             .update_scene_profile_validated(scene_profile_id, input)
             .await
@@ -233,5 +279,142 @@ impl OrchestratorContext {
         self.scene_profile
             .scene_occurrence_counts_by_profile(project_id, profile_ids)
             .await
+    }
+}
+
+fn scene_profile_summary(
+    profile: &scene_profile::Model,
+    occurrence_count: u64,
+    generated_image_count: i64,
+) -> SceneProfileSummary {
+    SceneProfileSummary {
+        id: profile.id,
+        project_id: profile.project_id,
+        ownership_kind: profile.ownership_kind.clone(),
+        name: profile.name.clone(),
+        normalized_name: profile.normalized_name.clone(),
+        aliases_json: profile.aliases_json.clone(),
+        scene_type: profile.scene_type.clone(),
+        importance: profile.importance.clone(),
+        parent_scene_id: profile.parent_scene_id,
+        base_description: profile.base_description.clone(),
+        visual_description: profile.visual_description.clone(),
+        spatial_layout: profile.spatial_layout.clone(),
+        atmosphere: profile.atmosphere.clone(),
+        entry_points_json: profile.entry_points_json.clone(),
+        rules_json: profile.rules_json.clone(),
+        current_state_json: profile.current_state_json.clone(),
+        first_seen_chapter: profile.first_seen_chapter,
+        last_seen_chapter: profile.last_seen_chapter,
+        evidence_json: profile.evidence_json.clone(),
+        image_prompt_seed: profile.image_prompt_seed.clone(),
+        occurrence_count,
+        generated_image_count,
+        created_at: Some(profile.created_at.to_string()),
+        updated_at: Some(profile.updated_at.to_string()),
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::profile::SceneProfileReadApplicationPort for OrchestratorContext {
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<SceneProfileSummary>, AppError> {
+        self.list_scene_profiles_for_user(user_id, project_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::profile::SceneProfileMutationApplicationPort for OrchestratorContext {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let project_id = input.project_id;
+        let profile = self
+            .create_scene_profile_validated(project_id, input.profile)
+            .await?;
+        Ok(SceneProfileMutationOutcome {
+            result: SceneProfileMutationResult {
+                profile: scene_profile_summary(&profile, 0, 0),
+                warnings: Vec::new(),
+            },
+            downstream_image_ids: Vec::new(),
+        })
+    }
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateSceneProfileInput,
+    ) -> Result<SceneProfileMutationOutcome, AppError> {
+        let existing = self.scene_profile_by_id(input.scene_profile_id).await?;
+        self.verify_project_permission(existing.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let image_ids = self
+            .profile_material_image_ids(
+                existing.project_id,
+                ProfileMaterialKind::Scene,
+                existing.id,
+            )
+            .await?;
+        let image_count = i64::try_from(image_ids.len()).map_err(|_| AppError::InvalidState {
+            current: existing.id.to_string(),
+            operation: "场景档案素材数量超过 i64 上限".to_string(),
+        })?;
+        let occurrence_count = self
+            .scene_occurrence_count(existing.project_id, existing.id)
+            .await?;
+        let downstream_image_ids = resolve_downstream_image_ids(
+            image_ids,
+            input.downstream_strategy,
+            &format!("场景档案 #{} ", existing.id),
+            "修改",
+        )?;
+        let profile = self
+            .update_scene_profile_validated(input.scene_profile_id, input.profile)
+            .await?;
+        Ok(SceneProfileMutationOutcome {
+            result: SceneProfileMutationResult {
+                profile: scene_profile_summary(&profile, occurrence_count, image_count),
+                warnings: Vec::new(),
+            },
+            downstream_image_ids,
+        })
+    }
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteSceneProfileInput,
+    ) -> Result<SceneProfileDeleteOutcome, AppError> {
+        let existing = self.scene_profile_by_id(input.scene_profile_id).await?;
+        self.verify_project_permission(existing.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let downstream_image_ids = resolve_downstream_image_ids(
+            self.profile_material_image_ids(
+                existing.project_id,
+                ProfileMaterialKind::Scene,
+                existing.id,
+            )
+            .await?,
+            input.downstream_strategy,
+            &format!("场景档案 #{} ", existing.id),
+            "删除",
+        )?;
+        self.delete_scene_profile_records_validated(input.scene_profile_id)
+            .await?;
+        Ok(SceneProfileDeleteOutcome {
+            result: SceneProfileDeleteResult {
+                warnings: Vec::new(),
+            },
+            project_id: existing.project_id,
+            downstream_image_ids,
+        })
     }
 }

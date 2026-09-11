@@ -11,10 +11,11 @@ use a4n_api_contract::{
     },
     generation_tasks::GenerationTaskHandle,
 };
-use a4n_core::{error::AppError, models::chapter::chapter_outline};
 use a4n_db::workflow;
+use a4n_db_models::models::chapter::chapter_outline;
 use a4n_domain::progress::ProgressPhaseKind;
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
@@ -50,11 +51,12 @@ use super::service::{
 };
 
 use super::{
-    ChapterGenerationWordCountRange, generation_chapter_title, generation_rag_query_fingerprint,
-    merge_generation_outline_text, non_empty_trimmed, resolve_generation_word_count_range,
-    upsert_chapter_generation_variables, validate_generation_rag_query_fingerprint,
+    ChapterGenerationApplicationPort, ChapterGenerationWordCountRange, generation_chapter_title,
+    generation_rag_query_fingerprint, merge_generation_outline_text, non_empty_trimmed,
+    resolve_generation_word_count_range, upsert_chapter_generation_variables,
+    validate_generation_rag_query_fingerprint,
 };
-use crate::rag::search::enhanced::validate_query_vectors;
+use a4n_rag_core::validation::validate_query_vectors;
 
 pub struct ChapterGenerationApplicationContext<'a> {
     pub prompt_renderer: &'a dyn PromptRenderer,
@@ -792,8 +794,7 @@ impl OrchestratorContext {
             .map_err(|error| error.to_string())?;
         self.ensure_text_source_project(project_id, operation)
             .await?;
-        self.validate_chapter_generation_readiness(project_id, chapter_number)
-            .await?;
+        self.validate_chapter_generation_readiness(project_id, chapter_number)?;
         self.preflight_chapter_content_change_validated(project_id, chapter_number)
             .await
             .map_err(|error| error.to_string())
@@ -1162,6 +1163,55 @@ impl OrchestratorContext {
                 .await
                 .map_err(|error| error.to_string()),
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl ChapterGenerationApplicationPort for OrchestratorContext {
+    async fn preview_request(
+        &self,
+        user_id: i64,
+        context: ChapterGenerationApplicationContext<'_>,
+        input: PreviewChapterPromptInput,
+    ) -> Result<ChapterGenerationRequestPreview, String> {
+        OrchestratorContext::preview_chapter_generation_request_validated(
+            self, user_id, context, input,
+        )
+        .await
+    }
+
+    async fn prepare_rag_embedding(
+        &self,
+        user_id: i64,
+        input: PreviewChapterPromptInput,
+        runtime_embedding_identity: Option<EmbeddingModelIdentity>,
+    ) -> Result<PreparedGenerationRagEmbeddingRequest, String> {
+        OrchestratorContext::prepare_chapter_generation_rag_embedding_validated(
+            self,
+            user_id,
+            input,
+            runtime_embedding_identity,
+        )
+        .await
+    }
+
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartChapterGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_chapter_generation_task(self, user_id, input).await
+    }
+
+    async fn run_task(
+        &self,
+        context: ChapterGenerationApplicationContext<'_>,
+        input: StartChapterGenerationInput,
+        handle: GenerationTaskHandle,
+        host_port: Arc<dyn crate::chapter_content::ChapterDerivedCleanupHostPort>,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_chapter_generation_task(self, context, input, handle, host_port)
+            .await
     }
 }
 

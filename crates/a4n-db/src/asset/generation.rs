@@ -1,14 +1,11 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use super::contracts::{
-    AssetDbError, ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput,
-    ObjectProfileUpsertRecordResult,
-};
+use super::contracts::{AssetDbError, ObjectProfileUpsertRecordResult};
 use super::profiles::{ensure_object_profile_project_exists, upsert_object_profiles_in};
 use crate::project::ChapterSourceSnapshot;
-use crate::text_anchor::{
-    EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind,
-};
+use crate::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
+use a4n_domain::object_profile::{ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput};
+use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 use sea_orm::{ConnectionTrait, TransactionTrait};
 use serde_json::{Value, json};
 

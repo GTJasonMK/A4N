@@ -1,8 +1,7 @@
-use super::{
-    InsertBehaviorRecordInput, record_behavior_in, validate_behavior_classification_results,
-    validation::validate_behavior_record_input,
-};
+use super::validation::validate_behavior_record_input;
+use super::{record_behavior_in, validate_behavior_classification_results};
 use crate::character::CharacterDbError;
+use a4n_domain::character::InsertBehaviorRecordInput;
 use serde_json::json;
 
 #[test]

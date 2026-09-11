@@ -4,8 +4,8 @@ use super::contracts::{
     workflow_checkpoint_fingerprint_sha256,
 };
 use crate::OrchestratorContext;
-use a4n_core::error::AppError;
-use a4n_core::models::generation::workflow_checkpoint;
+use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_error::AppError;
 use serde_json::Value;
 
 impl OrchestratorContext {

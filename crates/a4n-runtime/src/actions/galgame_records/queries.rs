@@ -7,8 +7,8 @@ pub async fn get_galgame_script(
     input: GalgameProjectInput,
 ) -> Result<GalgameScriptDetail, String> {
     state
-        .orchestrator()
-        .get_galgame_script_for_user_validated(user_id, input.project_id)
+        .galgame_read_application()
+        .script(user_id, input.project_id)
         .await
         .map_err(|err| err.to_string())
 }

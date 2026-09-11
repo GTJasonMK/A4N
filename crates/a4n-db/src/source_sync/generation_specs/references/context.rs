@@ -1,5 +1,5 @@
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::generation_spec,
     project::{project_source_snapshot, source_snapshot_chapter},
     source_sync::source_sync_run,

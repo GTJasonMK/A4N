@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use a4n_core::event::channel::{TaskHandle, TaskKind};
+use a4n_api_contract::galgame::GalgamePipelineProgressUpdate;
+use a4n_domain::task_queue::TaskKind;
 use a4n_runtime::host_api::galgame_records as galgame_records_actions;
+use a4n_task_runtime::channel::TaskHandle;
 use serde_json::Value;
 
 use crate::state::ServerState;
@@ -13,16 +15,12 @@ use super::super::{
 
 fn web_galgame_progress_reporter(
     task: Option<Arc<TaskHandle>>,
-) -> impl Fn(
-    galgame_records_actions::GalgamePipelineProgressUpdate,
-) -> Result<(), a4n_core::error::AppError>
-+ Send
-+ Sync
-+ 'static {
+) -> impl Fn(GalgamePipelineProgressUpdate) -> Result<(), a4n_error::AppError> + Send + Sync + 'static
+{
     move |event| {
         if let Some(handle) = task.as_ref() {
             if handle.is_cancelled() {
-                return Err(a4n_core::error::AppError::Cancelled);
+                return Err(a4n_error::AppError::Cancelled);
             }
             handle.update_progress_with_meta(
                 event.current,

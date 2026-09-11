@@ -274,34 +274,9 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(delegate["arguments"]["chapterId"], 11)
         self.assertTrue(delegate["arguments"]["successCriteria"])
 
-        child_chunks = self.request_sse_chunks(
-            {
-                "model": "a4n-virtual-text",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "你是 A4N 项目 Agent。你是由上级 Agent 委派的领域子 Agent。\n"
-                            "当前能力域：content_optimization\n"
-                            "当前目标：优化项目 7 的章节 11"
-                        ),
-                    },
-                    {"role": "user", "content": delegate["arguments"]["task"]},
-                ],
-            }
-        )
-        child_result = "".join(
-            chunk["choices"][0]["delta"].get("content", "")
-            for chunk in child_chunks
-        )
-        self.assertIn("正文优化子 Agent 已完成", child_result)
-        self.assertEqual(child_chunks[-1]["choices"][0]["finish_reason"], "stop")
-        self.assertFalse(
-            any(
-                "tool_calls" in chunk["choices"][0]["delta"]
-                for chunk in child_chunks
-            )
-        )
+        with self.assertRaisesRegex(ValueError, "without an outer model call"):
+            agent_chat_fixture({"messages": [{"role": "system", "content":
+                "你是 A4N 项目 Agent。\n当前能力域：content_optimization"}]})
 
         delegate_assistant = {
             "role": "assistant",
@@ -327,24 +302,16 @@ class MockOpenAIProviderTest(unittest.TestCase):
                     locate_tool,
                     delegate_assistant,
                     {
-                        "role": "user",
-                        "content": "[Agent inbox:child_result] Child Agent completed",
+                        "role": "tool", "tool_call_id": delegate["id"],
+                        "content": json.dumps({"delegation_id": "3", "child_run_id": "5",
+                            "result_refs": [{"kind": "generation_task", "id": "test-task", "revision": "1"}]}),
                     },
                 ],
             }
         )
-        parent_summary = "".join(
-            chunk["choices"][0]["delta"].get("content", "")
-            for chunk in parent_chunks
-        )
-        self.assertIn("已验收正文优化子 Agent 的回传结果", parent_summary)
-        self.assertEqual(parent_chunks[-1]["choices"][0]["finish_reason"], "stop")
-        self.assertFalse(
-            any(
-                "tool_calls" in chunk["choices"][0]["delta"]
-                for chunk in parent_chunks
-            )
-        )
+        review_read = self.streamed_tool_call(parent_chunks,
+            "call_a4n_get_generation_task_summary", "get_generation_task_summary")
+        self.assertEqual(review_read["arguments"], {"taskId": "test-task", "attempt": 1})
 
     def test_agent_fixture_scopes_decisions_to_latest_turn(self) -> None:
         system = {
@@ -400,6 +367,42 @@ class MockOpenAIProviderTest(unittest.TestCase):
         )
         self.assertEqual(second["tool_call"]["name"], "delegate")
         self.assertEqual(second["tool_call"]["arguments"]["projectId"], 7)
+
+    def test_content_optimization_chat_fixture_matches_current_workflow(self) -> None:
+        response = json.loads(
+            response_for(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "content_optimization_chat_agent_loop",
+                        }
+                    ]
+                }
+            )
+        )
+        self.assertEqual(response["action"], "run_tool")
+        self.assertEqual(response["arguments"]["tool"], "get_project_information")
+
+        response = json.loads(
+            response_for(
+                {
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                "content_optimization_chat_agent_loop\n"
+                                '{"loop_state":{"observations":[{"tool":"get_project_information",'
+                                '"success":true,"result":{"content":{"source_spans":[{"id":"ch1:s1:f1","text":"原文。"}]}}}]}}'
+                            ),
+                        }
+                    ]
+                }
+            )
+        )
+        self.assertEqual(response["action"], "run_tool")
+        self.assertEqual(response["arguments"]["tool"], "edit_article")
+        self.assertEqual(response["arguments"]["arguments"]["patches"][0]["old_text"], "原文。")
 
     def test_unmatched_prompt_is_rejected(self) -> None:
         with self.assertRaises(HTTPError) as caught:

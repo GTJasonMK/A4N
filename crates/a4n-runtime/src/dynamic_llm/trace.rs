@@ -1,9 +1,9 @@
 mod preparation;
 mod recording;
 
-use a4n_core::error::AppError;
+use crate::provider_runtime::DynamicProviderFacade;
+use a4n_error::AppError;
 use a4n_llm::provider::LlmTraceContext;
-use a4n_orchestrator::DynamicProviderFacade;
 
 pub(in crate::dynamic_llm) use preparation::prepare_dynamic_llm_trace_context;
 pub(in crate::dynamic_llm) use recording::record_dynamic_llm_trace;
@@ -54,14 +54,16 @@ pub(super) async fn complete_llm_trace_project_scope(
             trace_context.workflow, trace_context.step_key
         )));
     }
-    let project = facade
-        .project_by_id(project_id)
-        .await?
-        .ok_or_else(|| AppError::NotFound(format!("LLM trace 引用的项目不存在: {project_id}")))?;
+    let stored_root_project_id = facade.project_root_id(project_id).await?;
+    if stored_root_project_id.is_none() {
+        return Err(AppError::NotFound(format!(
+            "LLM trace 引用的项目不存在: {project_id}"
+        )));
+    }
     trace_context.root_project_id = Some(validated_authoritative_trace_root_project_id(
         project_id,
         trace_context.root_project_id,
-        project.root_project_id,
+        stored_root_project_id,
     )?);
     Ok(())
 }

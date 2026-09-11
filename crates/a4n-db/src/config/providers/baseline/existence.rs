@@ -1,7 +1,5 @@
-use a4n_core::{
-    error::AppError,
-    models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config},
-};
+use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
+use a4n_error::AppError;
 use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect};
 
 pub(super) async fn embedding_configs_exist(db: &DatabaseConnection) -> Result<bool, AppError> {

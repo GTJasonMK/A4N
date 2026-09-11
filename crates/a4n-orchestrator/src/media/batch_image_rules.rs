@@ -88,7 +88,7 @@ pub fn image_size_for_aspect_ratio(
 
 /// 批量生成使用参考图时，后端必须支持真实参考图输入。
 pub fn ensure_batch_reference_image_backend(backend: &str) -> Result<(), String> {
-    if a4n_core::config::image_backend_supports_reference_images(backend) {
+    if a4n_domain::image::image_backend_supports_reference_images(backend) {
         return Ok(());
     }
     Err(format!(

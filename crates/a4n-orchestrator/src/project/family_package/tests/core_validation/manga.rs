@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_image, chapter::chapter_manga_prompt, character::character_portrait,
 };
 

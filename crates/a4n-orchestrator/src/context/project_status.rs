@@ -1,13 +1,11 @@
-use a4n_core::{
-    error::AppError,
-    event::bridge::InternalEvent,
-    models::project::novel_project,
-    state::{rollback::rollback_actions, validator::parse_project_status},
-};
 use a4n_db::{DbHandle, project_reset::ProjectStatusRollbackOutcome};
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{
     ProjectRollbackPreview, ProjectStatus, ProjectStatusArtifacts, ProjectStatusMachineSummary,
+    rollback_actions,
 };
+use a4n_error::AppError;
+use a4n_event::InternalEvent;
 use chrono::{NaiveDateTime, Utc};
 
 use super::OrchestratorContext;
@@ -58,10 +56,11 @@ impl ProjectStatusApplication {
                 "非文本项目不能使用文本写作状态机".to_string(),
             ));
         }
-        let status = parse_project_status(&project.status).map_err(|_| AppError::InvalidState {
-            current: project.status.clone(),
-            operation: operation.to_string(),
-        })?;
+        let status =
+            ProjectStatus::parse_storage(&project.status).map_err(|_| AppError::InvalidState {
+                current: project.status.clone(),
+                operation: operation.to_string(),
+            })?;
         Ok((project, status))
     }
 
@@ -363,5 +362,53 @@ impl OrchestratorContext {
             self.publish_project_status_transition(project_id, &transition)?;
         }
         Ok(())
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::project::ProjectStatusApplicationPort for OrchestratorContext {
+    async fn status_machine(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ProjectStatusMachineSummary, AppError> {
+        self.project_status_machine_for_user_validated(user_id, project_id)
+            .await
+    }
+
+    async fn preview_rollback(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<ProjectRollbackPreview, AppError> {
+        self.preview_project_status_rollback_for_user_validated(user_id, project_id, target)
+            .await
+    }
+
+    async fn forward_status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<a4n_api_contract::project::ProjectSummary, AppError> {
+        self.forward_project_status_for_user_validated(user_id, project_id, target)
+            .await?;
+        self.project_summary_for_user(user_id, project_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
+    }
+
+    async fn rollback_status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<a4n_api_contract::project::ProjectSummary, AppError> {
+        self.rollback_project_status_for_user_validated(user_id, project_id, target)
+            .await?;
+        self.project_summary_for_user(user_id, project_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))
     }
 }

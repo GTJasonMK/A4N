@@ -9,9 +9,9 @@ use crate::video::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSourceContext,
     OrchestratorContext,
 };
-use a4n_core::source_spans::SourceSpan;
-use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
+use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
 pub(in crate::video::prompt_generation::frame_prompts) struct SharedSegmentPlanInput<'a, 'source> {
     pub service: &'a OrchestratorContext,

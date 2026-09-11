@@ -3,7 +3,7 @@ mod galgame;
 mod manifest;
 mod targets;
 
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 
 pub(super) use manifest::validate_media_request_snapshot_refs;
 

@@ -1,5 +1,5 @@
-use a4n_core::models::chapter::chapter;
-use a4n_core::structured_progress::ProgressSpan;
+use a4n_db_models::models::chapter::chapter;
+use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::super::SceneProfileSyncHostPort;

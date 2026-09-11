@@ -1,14 +1,12 @@
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_image, generated_video},
-        chapter::{
-            chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
-            chapter_video_prompt,
-        },
-        character::character_portrait,
+use a4n_db_models::models::{
+    ai::{generated_image, generated_video},
+    chapter::{
+        chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
+        chapter_video_prompt,
     },
+    character::character_portrait,
 };
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::{

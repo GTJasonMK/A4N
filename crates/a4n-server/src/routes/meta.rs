@@ -2,6 +2,7 @@ use a4n_api_contract::command_manifest::{
     API_COMMANDS, COMMAND_MANIFEST_VERSION, CommandDescriptor, CommandManifest, HOST_IDENTITY,
     command_descriptor, command_manifest,
 };
+use a4n_api_contract::package::{PackageCatalog, package_catalog};
 use axum::Json;
 use axum::extract::Path;
 use serde_json::{Value, json};
@@ -22,6 +23,10 @@ pub(super) async fn get() -> Json<Value> {
 
 pub(super) async fn commands() -> Json<CommandManifest> {
     Json(command_manifest(None, None, None))
+}
+
+pub(super) async fn packages() -> Json<PackageCatalog> {
+    Json(package_catalog())
 }
 
 pub(super) async fn command(

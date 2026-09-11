@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 
@@ -68,7 +68,7 @@ fn agent_loop_progress(observations: &[Value]) -> Value {
     let mut last_action = None;
     let mut latest_information_gaps: Option<Vec<String>> = None;
     let mut tools_used = Vec::new();
-    let mut current_chapter_read = false;
+    let mut current_chapter_reads = Vec::new();
     let mut edit_article_results = Vec::new();
 
     for observation in observations {
@@ -111,7 +111,15 @@ fn agent_loop_progress(observations: &[Value]) -> Value {
             && arguments.get("source").and_then(Value::as_str) == Some("current_chapter")
             && success
         {
-            current_chapter_read = true;
+            let result = &observation["result"];
+            current_chapter_reads.push(json!({
+                "resource": result.get("resource"),
+                "path": result.get("path"),
+                "unit": result.get("unit"),
+                "offset": result.get("offset"),
+                "next_offset": result.get("next_offset"),
+                "complete": result.get("complete"),
+            }));
         }
         if tool == EDIT_ARTICLE_TOOL {
             let result = observation
@@ -139,7 +147,7 @@ fn agent_loop_progress(observations: &[Value]) -> Value {
         "last_action": last_action,
         "latest_information_gaps": latest_information_gaps,
         "tools_used": tools_used,
-        "current_chapter_read": current_chapter_read,
+        "current_chapter_reads": current_chapter_reads,
         "edit_article_results": edit_article_results,
     })
 }

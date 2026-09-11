@@ -1,10 +1,12 @@
-use super::super::shared::{require_config_admin, validate_runtime_snapshot_config_id};
+use super::super::shared::validate_runtime_snapshot_config_id;
 use crate::actions::request_preview::{
     ModelRequestPreview, image_provider_request_step, model_request_preview, provider_request_step,
 };
 use crate::{AppState, actions::app_error_message};
-use a4n_core::{error::AppError, models::ai::image_gen_config};
+use a4n_api_contract::config::ImageConfigForConnectivityTest;
+use a4n_error::AppError;
 use a4n_image::ImageGenerationRequest;
+use a4n_provider_contract::ImageProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 
 const IMAGE_CONNECTIVITY_TEST_PROMPT: &str = "test connectivity, draw a tiny dot";
@@ -19,7 +21,7 @@ pub async fn test_image_config(
     let profile = state.runtime_profile();
     let capabilities = state.capabilities().clone();
     state
-        .orchestrator()
+        .provider_runtime()
         .queue_run_tracked(
             QueueTaskKind::ImageGeneration,
             TaskPriority::High,
@@ -96,25 +98,38 @@ async fn resolve_image_config_for_connectivity_test(
     state: &AppState,
     user_id: i64,
     config_id: i64,
-) -> Result<image_gen_config::Model, String> {
-    if let Some(config) = crate::runtime_config::current_image_model() {
+) -> Result<ImageProviderConfig, String> {
+    if let Some(config) = crate::runtime_config::current_image_provider_config_for_id(None) {
         validate_runtime_snapshot_config_id("image", config.id, config_id)?;
         return Ok(config);
     }
-    require_config_admin(state, user_id)
-        .await
-        .map_err(app_error_message)?;
     state
-        .orchestrator()
-        .image_config_by_id(config_id)
+        .config_application()
+        .image_config_for_connectivity_test(user_id, config_id)
         .await
+        .map(image_provider_config_from_connectivity_config)
         .map_err(app_error_message)
 }
 
+fn image_provider_config_from_connectivity_config(
+    config: ImageConfigForConnectivityTest,
+) -> ImageProviderConfig {
+    ImageProviderConfig {
+        id: config.id,
+        name: config.name,
+        backend: config.backend,
+        base_url: config.base_url,
+        api_key: config.api_key,
+        model: config.model,
+        max_concurrent: config.max_concurrent,
+        supported_sizes_json: config.supported_sizes_json,
+    }
+}
+
 fn build_image_connectivity_test_request(
-    config: &image_gen_config::Model,
+    config: &ImageProviderConfig,
 ) -> Result<ImageGenerationRequest, String> {
-    let sizes = a4n_core::config::image_sizes_from_json(&config.supported_sizes_json)
+    let sizes = a4n_config::image_sizes_from_json(&config.supported_sizes_json)
         .map_err(|error| error.to_string())?;
     let size = sizes[0];
     Ok(ImageGenerationRequest {

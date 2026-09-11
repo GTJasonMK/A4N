@@ -3,9 +3,10 @@
 //! 持有 `DbHandle`，封装漫画页面提示词账本与输出同步的数据库行为。
 //! 生成编排（LLM/preview/pipeline）仍在 `manga/` 模块，但 DB 只经本 owner。
 
-use a4n_core::{error::AppError, models::chapter::chapter_manga_prompt};
 use a4n_db::{DbHandle, manga::MangaPromptUpdatedAt};
+use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::manga::{MangaBoundReferenceAsset, MangaReferenceAssetKind};
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::OrchestratorContext;

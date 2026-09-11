@@ -2,11 +2,13 @@ use super::super::evidence::resolve_scene_text_anchor_texts;
 use super::super::types::{SceneProfileEvidenceRefs, SceneProfileSyncRequestContext};
 use super::validation::validate_id_in_set;
 use crate::scene_profile::{SCENE_TYPES, SceneProfileDraft, normalize_scene_type_value};
-use a4n_core::json_contract::{
-    ensure_object, optional_positive_i64, positive_i64_array, reject_unknown_fields,
-    required_array, required_array_value, required_string, string_array,
+use a4n_domain::{
+    json_contract::{
+        ensure_object, optional_positive_i64, positive_i64_array, reject_unknown_fields,
+        required_array, required_array_value, required_string, string_array,
+    },
+    profile_text::normalize_importance_value,
 };
-use a4n_core::profile_text::normalize_importance_value;
 use serde_json::Value;
 use std::collections::HashSet;
 

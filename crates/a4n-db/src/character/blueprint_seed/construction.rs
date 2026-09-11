@@ -1,5 +1,5 @@
 use super::contracts::BlueprintProfileSeed;
-use a4n_core::models::project::{blueprint_character, blueprint_relationship};
+use a4n_db_models::models::project::{blueprint_character, blueprint_relationship};
 use serde_json::{Map, Value, json};
 use std::collections::HashMap;
 

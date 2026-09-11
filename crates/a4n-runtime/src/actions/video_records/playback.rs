@@ -1,9 +1,8 @@
 use super::VideoPlaybackData;
 use crate::AppState;
-use crate::actions::access;
-use crate::file_utils::canonicalize_data_file_path;
 use a4n_api_contract::video::VideoScrubFramesData;
-use a4n_core::media::video_mime_from_path;
+use a4n_domain::media::video_mime_from_path;
+use a4n_storage::canonicalize_data_file_path;
 use base64::Engine as _;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
@@ -52,11 +51,10 @@ async fn authorized_video_path(
     video_id: i64,
 ) -> Result<PathBuf, String> {
     let video = state
-        .orchestrator()
-        .required_video_record(video_id)
+        .video_record_application()
+        .playback_source(user_id, video_id)
         .await
         .map_err(crate::actions::app_error_message)?;
-    access::verify_project_editor_string(state, user_id, video.project_id).await?;
     let file_path = video
         .file_path
         .as_deref()

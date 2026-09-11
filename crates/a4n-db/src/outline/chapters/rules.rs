@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use a4n_core::models::chapter::chapter_outline;
+use a4n_db_models::models::chapter::chapter_outline;
 
 use super::super::types::OutlineDbError;
 

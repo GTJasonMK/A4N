@@ -3,7 +3,7 @@ use super::{
     contracts::SourceSyncAnchorMappingRecord,
 };
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_spec, generation_spec_text_anchor},
     project::text_anchor,
     source_sync::source_sync_run,

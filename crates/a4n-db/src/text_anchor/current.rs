@@ -4,10 +4,8 @@ use super::{
     TextAnchorContentInsertInput, TextAnchorDbError, TextAnchorDbResult,
     insert_content_anchor_records,
 };
-use a4n_core::{
-    models::{chapter::chapter, project::text_anchor},
-    source_spans::source_text_hash,
-};
+use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::source_text_hash;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
     TransactionTrait,

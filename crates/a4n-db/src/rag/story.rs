@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::{chapter, chapter_outline, part_outline},
     project::novel_blueprint,
 };

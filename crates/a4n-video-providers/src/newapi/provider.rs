@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use base64::Engine as _;
 use serde_json::{Map, Value, json};
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState, VideoProvider};
 
 use crate::download::download_video_url;
@@ -97,7 +97,7 @@ impl NewApiVideoProvider {
         if let Some(payload) = find_video_b64(v)? {
             let bytes = base64::engine::general_purpose::STANDARD
                 .decode(payload.b64)
-                .map_err(|e| AppError::Internal(anyhow::anyhow!("视频 base64 解码失败：{e}")))?;
+                .map_err(|e| AppError::Internal(format!("视频 base64 解码失败：{e}")))?;
             let format = match payload.format {
                 Some(format) => normalize_video_format_str(format)?,
                 None => detect_video_format_from_bytes(&bytes)?,
@@ -132,7 +132,7 @@ impl VideoProvider for NewApiVideoProvider {
         provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let url = self.generation_url();
         let body = Self::request_body(&req)?;
@@ -161,7 +161,7 @@ impl VideoProvider for NewApiVideoProvider {
             });
         }
 
-        Err(AppError::Internal(anyhow::anyhow!(
+        Err(AppError::Internal(format!(
             "New API 视频生成响应缺少 task_id/id{}",
             api_error_suffix(&v)
         )))
@@ -169,7 +169,7 @@ impl VideoProvider for NewApiVideoProvider {
 
     async fn poll(&self, job_id: &str) -> Result<VideoJobState, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let url = self.job_url(job_id);
         let v = transport::get_json(
@@ -186,7 +186,7 @@ impl VideoProvider for NewApiVideoProvider {
         }
 
         let status = extract_status(&v)
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("New API 视频任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal(format!("New API 视频任务响应缺少 status")))?
             .to_ascii_lowercase();
         if matches!(
             status.as_str(),
@@ -201,7 +201,7 @@ impl VideoProvider for NewApiVideoProvider {
             status.as_str(),
             "completed" | "complete" | "succeeded" | "success" | "done"
         ) {
-            return Err(AppError::Internal(anyhow::anyhow!(
+            return Err(AppError::Internal(format!(
                 "New API 视频任务已完成，但响应缺少可下载视频 URL 或 b64_json"
             )));
         }
@@ -212,14 +212,14 @@ impl VideoProvider for NewApiVideoProvider {
             return Ok(VideoJobState::Failed(extract_failure_message(&v)));
         }
 
-        Err(AppError::Internal(anyhow::anyhow!(
+        Err(AppError::Internal(format!(
             "未知 New API 视频任务 status={status}"
         )))
     }
 
     async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let value = transport::get_status_json(
             &self.client,
@@ -233,7 +233,7 @@ impl VideoProvider for NewApiVideoProvider {
             return Ok(a4n_video::VideoJobStatus::NotFound);
         };
         let status = extract_status(&value)
-            .ok_or_else(|| AppError::Internal(anyhow::anyhow!("New API 视频任务响应缺少 status")))?
+            .ok_or_else(|| AppError::Internal(format!("New API 视频任务响应缺少 status")))?
             .to_ascii_lowercase();
         if matches!(
             status.as_str(),
@@ -258,7 +258,7 @@ impl VideoProvider for NewApiVideoProvider {
         ) {
             return Ok(a4n_video::VideoJobStatus::Completed);
         }
-        Err(AppError::Internal(anyhow::anyhow!(
+        Err(AppError::Internal(format!(
             "未知 New API 视频任务 status={status}"
         )))
     }

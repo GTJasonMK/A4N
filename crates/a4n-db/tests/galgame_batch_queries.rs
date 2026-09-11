@@ -1,8 +1,8 @@
-use a4n_core::source_spans::source_text_hash;
 use a4n_db::{
     chapter_visual_plan::chapter_visual_plans_for_sources, project::ResolvedChapterSource,
     shooting_script::chapter_shooting_scripts_for_sources,
 };
+use a4n_domain::source_text_hash;
 
 fn source(source_chapter_id: i64) -> ResolvedChapterSource {
     let content = format!("chapter content {source_chapter_id}");

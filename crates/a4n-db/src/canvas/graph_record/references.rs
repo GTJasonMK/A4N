@@ -1,7 +1,7 @@
 use super::types::CanvasGraphRecordInput;
 use super::validation::validate_canvas_record_node_ref_shape;
 use crate::canvas::CanvasDbError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     canvas::canvas_text_asset,
     generation::{generation_spec, prompt_artifact},

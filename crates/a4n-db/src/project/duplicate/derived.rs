@@ -1,9 +1,10 @@
-use a4n_core::models::project::{novel_project, project_source_snapshot};
+use a4n_db_models::models::project::{novel_project, project_source_snapshot};
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 use std::collections::HashMap;
 
-use super::{ProjectDuplicateError, shared::ProjectMediaFileCopier};
+use super::ProjectDuplicateError;
 
 mod assembly;
 mod generation;
@@ -20,7 +21,7 @@ use types::DuplicatedDerivedSourceSnapshot;
 
 use snapshot::copy_derived_project_graph_record;
 
-pub async fn duplicate_derived_project_record<Copier>(
+pub async fn duplicate_derived_project_record<Copier: ?Sized>(
     db: &DatabaseConnection,
     original: &novel_project::Model,
     user_id: i64,

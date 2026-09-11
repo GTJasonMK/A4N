@@ -1,12 +1,3 @@
-struct NoopVideoRecordLifecycleHost;
-
-#[async_trait::async_trait]
-impl VideoRecordLifecycleHostPort for NoopVideoRecordLifecycleHost {
-    async fn delete_video_tail_frame_assets(&self, _video_id: i64) -> Result<(), AppError> {
-        Ok(())
-    }
-}
-
 #[tokio::test]
 async fn delete_missing_video_returns_not_found_without_touching_prompt_reference() {
     let db = Arc::new(setup_db().await);
@@ -58,7 +49,7 @@ async fn delete_video_cancels_active_provider_workflow() {
         .unwrap();
 
     service
-        .delete_video_record_validated(&NoopVideoRecordLifecycleHost, video.id)
+        .delete_video_record_validated(video.id)
         .await
         .unwrap();
 
@@ -113,9 +104,9 @@ async fn delete_video_marks_canvas_nodes_missing_without_deleting_them() {
     let project = insert_video_project(db.as_ref(), "视频项目").await;
     let service = crate::video::test_video_orchestrator(db.clone()).await;
     let mut input = video_record_input(project.id);
-    input.video_type = generated_video::VIDEO_TYPE_CANVAS.to_string();
+    input.video_type = a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string();
     input.workflow_mode = Some(
-        a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
+        a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
     );
     let video = service.create_video_record(input).await.unwrap();
     let now = fixed_time(3);

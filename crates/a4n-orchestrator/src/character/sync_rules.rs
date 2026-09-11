@@ -1,8 +1,8 @@
 //! 角色同步范围与跳过判定纯规则（无 DB）。
 
 use a4n_api_contract::character::{CharacterProfileSkippedResult, CharacterProfileSyncSkipReason};
-use a4n_core::models::chapter::chapter;
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::character::protagonist_profile;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 

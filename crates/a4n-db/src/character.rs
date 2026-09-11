@@ -10,37 +10,31 @@ mod timeline;
 
 pub use attributes::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
-    CharacterAttributeDeletionExecutionInput, CharacterAttributeDeletionExecutionResult,
-    CharacterAttributeDeletionRequestInput, CharacterAttributeEventHistoryFilter,
-    CharacterAttributeMutationResult, CharacterAttributeValueChangeInput,
-    CharacterDeletionMarkRewindSummary, CharacterImplicitReviewDecisionRecordInput,
-    add_profile_attribute, apply_attribute_to_state, apply_implicit_review_decision_record,
-    attribute_events_by_ids, attribute_history, deletion_marks_by_profile,
-    execute_ready_attribute_deletion, modify_profile_attribute, request_attribute_deletion,
-    reset_deletion_marks_in, rewind_deletion_marks_after,
+    CharacterAttributeDeletionExecutionResult, CharacterAttributeEventHistoryFilter,
+    CharacterAttributeMutationResult, CharacterDeletionMarkRewindSummary, add_profile_attribute,
+    apply_attribute_to_state, apply_implicit_review_decision_record, attribute_events_by_ids,
+    attribute_history, deletion_marks_by_profile, execute_ready_attribute_deletion,
+    modify_profile_attribute, request_attribute_deletion, reset_deletion_marks_in,
+    rewind_deletion_marks_after,
 };
-pub use behavior::{
-    InsertBehaviorRecordInput, behavior_records_by_profile, implicit_review_behavior_records,
-};
+pub use behavior::{behavior_records_by_profile, implicit_review_behavior_records};
 pub use blueprint_seed::{CharacterProfileSeedError, sync_character_profiles_from_blueprint};
 pub use portrait::{
-    CharacterPortraitCreateInput, CharacterPortraitRecordError, CharacterPortraitRollbackError,
-    CharacterPortraitRollbackResult, PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
-    character_portrait_by_id, character_portrait_records_by_project,
-    create_character_portrait_for_profile, missing_portrait_profiles,
-    portrait_named_prompt_profile_rows, portrait_prompt_profile_rows,
+    CharacterPortraitRecordError, CharacterPortraitRollbackError, CharacterPortraitRollbackResult,
+    PortraitNamedPromptProfileRows, PortraitPromptProfileRows, character_portrait_by_id,
+    character_portrait_records_by_project, create_character_portrait_for_profile,
+    missing_portrait_profiles, portrait_named_prompt_profile_rows, portrait_prompt_profile_rows,
     portrait_reference_images_by_ids, primary_character_portrait_record,
     rollback_failed_portrait_creation_records, set_primary_character_portrait_record,
 };
 pub(crate) use profile::apply_profile_current_state;
 pub(crate) use profile::delete_profiles_cascade_in;
 pub use profile::{
-    CharacterProfileCreateError, CharacterProfileCreateInput, CharacterProfileCurrentStateFields,
-    CharacterProfileDeleteError, CharacterProfileDeletionSummary, create_profile,
-    create_profile_with_generation_run, create_profile_with_generation_run_in,
-    delete_profile_cascade_transaction, profile_by_id, profile_by_project_name,
-    profile_current_state_fields, profiles_by_project, profiles_with_timeline_state,
-    update_initial_profile,
+    CharacterProfileCreateError, CharacterProfileCurrentStateFields, CharacterProfileDeleteError,
+    CharacterProfileDeletionSummary, create_profile, create_profile_with_generation_run,
+    create_profile_with_generation_run_in, delete_profile_cascade_transaction, profile_by_id,
+    profile_by_project_name, profile_current_state_fields, profiles_by_project,
+    profiles_with_timeline_state, update_initial_profile,
 };
 pub use snapshot::{
     snapshot_attributes_from_data, snapshot_reference_by_chapter, snapshot_references_by_profile,
@@ -48,8 +42,8 @@ pub use snapshot::{
 pub use snapshot_store::Sha256SnapshotStore;
 pub use sync_persistence::{
     AppliedCharacterSyncPersistenceRecord, CharacterSyncAttributeEventRecordInput,
-    CharacterSyncChapterStateRecordInput, CharacterSyncPersistenceInput,
-    CharacterSyncProtectedAttribute, CharacterSyncWriteStepRecordInput, CharacterSyncWriteSummary,
+    CharacterSyncPersistenceInput, CharacterSyncProtectedAttribute,
+    CharacterSyncWriteStepRecordInput, CharacterSyncWriteSummary,
     apply_character_sync_persistence_record, character_sync_attribute_events_at_chapter,
 };
 pub use timeline::{
@@ -59,7 +53,7 @@ pub use timeline::{
     rollback_profile_to_chapter,
 };
 
-use a4n_core::models::character::attribute_event::{
+use a4n_db_models::models::character::attribute_event::{
     SOURCE_KIND_AI_SYNC, SOURCE_KIND_LEGACY_UNKNOWN, SOURCE_KIND_USER,
 };
 use sea_orm::DbErr;

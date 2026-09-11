@@ -3,7 +3,7 @@ use crate::project::duplicate::freeform::{
     CopiedFreeformGenerationSpecs, DeferredFreeformSpecTarget,
 };
 use crate::project::duplicate::shared::remap_derived_optional_id;
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
@@ -122,7 +122,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::generation::generation_spec;
+    use a4n_db_models::models::generation::generation_spec;
     use chrono::Utc;
     use sea_orm::EntityTrait;
     use serde_json::json;

@@ -1,27 +1,5 @@
 use crate::AppState;
 use crate::actions::image_records;
-use a4n_domain::DownstreamConflictStrategy;
-
-pub(super) fn resolve_downstream_id_conflict(
-    ids: Vec<i64>,
-    strategy: DownstreamConflictStrategy,
-    subject: &str,
-    downstream_label: &str,
-    operation: &str,
-    source_label: &str,
-) -> Result<Vec<i64>, String> {
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    match strategy {
-        DownstreamConflictStrategy::Reject => Err(format!(
-            "{subject}已派生 {} {downstream_label}，{operation}前需要选择：删除下游派生产物，或保留下游只覆盖{source_label}",
-            ids.len()
-        )),
-        DownstreamConflictStrategy::KeepDownstream => Ok(Vec::new()),
-        DownstreamConflictStrategy::DeleteDownstream => Ok(ids),
-    }
-}
 
 pub(super) async fn delete_downstream_images_if_requested(
     state: &AppState,

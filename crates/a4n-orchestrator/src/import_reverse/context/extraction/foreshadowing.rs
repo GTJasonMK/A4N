@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::{Value, json};
 
 fn push_foreshadowing_entry(out: &mut Vec<Value>, chapter_number: i32, item: &Value, status: &str) {

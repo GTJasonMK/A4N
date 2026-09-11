@@ -7,11 +7,9 @@ mod queries;
 mod regeneration;
 mod requests;
 
-use a4n_core::{
-    error::AppError,
-    models::chapter::{chapter_outline, part_outline},
-};
 use a4n_db::project as project_db;
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_error::AppError;
 
 use crate::outline::{
     OrchestratorContext,

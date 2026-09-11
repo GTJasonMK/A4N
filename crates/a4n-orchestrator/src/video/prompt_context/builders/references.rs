@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use serde_json::{Map, Value, json};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::prompt_json::sanitize_prompt_asset_text;
 

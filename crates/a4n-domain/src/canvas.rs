@@ -5,6 +5,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::DomainError;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CanvasTextAssetRecordInput {
+    pub id: Option<i64>,
+    pub title: String,
+    pub text_kind: String,
+    pub content: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum CanvasNodeRefKind {

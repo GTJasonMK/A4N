@@ -1,8 +1,8 @@
-use a4n_core::models::ai::{embedding_config, image_gen_config, llm_config};
-use a4n_core::models::chapter::chapter;
-use a4n_core::models::project::novel_project;
-use a4n_core::models::task::task_queue;
-use a4n_core::models::user::{llm_usage_log, theme_config, user};
+use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config};
+use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::project::novel_project;
+use a4n_db_models::models::task::task_queue;
+use a4n_db_models::models::user::{llm_usage_log, theme_config, user};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{

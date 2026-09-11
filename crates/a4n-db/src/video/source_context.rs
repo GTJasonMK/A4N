@@ -1,4 +1,4 @@
-use a4n_core::models::{chapter::chapter, project::source_snapshot_chapter};
+use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 
 use super::{

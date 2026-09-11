@@ -1,7 +1,7 @@
 //! 导入审核 application 输入门禁（无 DB）。
 
 use a4n_api_contract::import_review::DedupResult;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_import_core::dedup;
 
 const SIMHASH_NGRAM: usize = 3;

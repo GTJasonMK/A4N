@@ -1,6 +1,6 @@
 use super::types::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput};
 use crate::canvas::CanvasDbError;
-use a4n_core::models::generation::{generation_spec, prompt_artifact};
+use a4n_db_models::models::generation::{generation_spec, prompt_artifact};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,

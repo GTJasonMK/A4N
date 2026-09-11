@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::video_project::video_segment;
+use a4n_db_models::models::video_project::video_segment;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};

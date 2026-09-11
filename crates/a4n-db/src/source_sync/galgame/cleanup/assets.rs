@@ -1,5 +1,5 @@
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
-use a4n_core::models::media::media_provenance;
+use a4n_db_models::models::media::media_provenance;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::{BTreeSet, HashSet};
 

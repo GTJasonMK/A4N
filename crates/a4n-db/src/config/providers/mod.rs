@@ -16,13 +16,13 @@ pub(crate) use embedding::insert_embedding_config_record;
 pub use embedding::{
     EmbeddingConfigRecordInput, create_embedding_config_record, default_embedding_config,
     default_embedding_config_optional, delete_embedding_config_record, embedding_config_by_id,
-    list_embedding_configs, update_embedding_config_record,
+    list_embedding_configs, update_embedding_config_record, validate_embedding_config_model,
 };
 pub(crate) use image::insert_image_config_record;
 pub use image::{
     ImageConfigRecordInput, create_image_config_record, delete_image_config_record,
     image_config_by_id, list_image_config_records, resolve_image_config,
-    update_image_config_record,
+    update_image_config_record, validate_image_config_model,
 };
 pub(crate) use llm::insert_llm_config_record;
 pub use llm::{

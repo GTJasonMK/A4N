@@ -1,28 +1,5 @@
-use a4n_core::models::project::text_anchor;
+use a4n_db_models::models::project::text_anchor;
 use sea_orm::{DbErr, FromQueryResult};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TextAnchorProfileKind {
-    Character,
-    Object,
-    Scene,
-}
-
-impl TextAnchorProfileKind {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Character => "character",
-            Self::Object => "object",
-            Self::Scene => "scene",
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct TextAnchorEvidenceInput {
-    pub text_anchor_id: i64,
-    pub evidence_role: String,
-}
 
 #[derive(Debug, Clone, FromQueryResult)]
 pub struct CurrentChapterContentSource {

@@ -3,8 +3,9 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
 };
 
-use a4n_core::{error::AppError, models::ai::image_gen_config};
+use a4n_error::AppError;
 use a4n_image::ImageGenerationRequest;
+use a4n_provider_contract::ImageProviderConfig;
 use futures::stream::{self, StreamExt};
 use serde_json::{Value, json};
 
@@ -24,11 +25,12 @@ pub struct BatchImageExecutionItem {
     pub chapter_id: Option<i64>,
     pub panel_id: Option<String>,
     pub metadata_json: Option<Value>,
-    pub config: image_gen_config::Model,
+    pub config: ImageProviderConfig,
 }
 
 #[derive(Debug)]
 pub struct BatchImageGenerationApplicationInput {
+    pub requested_by_user_id: i64,
     pub project_id: i64,
     pub requests: Vec<Value>,
     pub items: Vec<BatchImageExecutionItem>,
@@ -159,6 +161,7 @@ impl OrchestratorContext {
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<BatchImageGenerationOutcome, AppError> {
         let BatchImageGenerationApplicationInput {
+            requested_by_user_id,
             project_id,
             requests: _,
             items,
@@ -207,6 +210,7 @@ impl OrchestratorContext {
                         .run_image_generation_validated(
                             host_port,
                             ImageGenerationExecutionInput {
+                                requested_by_user_id,
                                 project_id,
                                 chapter_id: item.chapter_id,
                                 image_type: item.image_type,

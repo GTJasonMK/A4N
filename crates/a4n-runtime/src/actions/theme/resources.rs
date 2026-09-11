@@ -1,12 +1,13 @@
 use a4n_api_contract::theme::{
-    DeleteThemeResourceInput, ThemeResourceSummary, ThemeResourceUploadInput,
+    DeleteThemeResourceInput, PersistThemeResourceInput, ThemeResourceRecord, ThemeResourceSummary,
+    ThemeResourceUploadInput,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
-use super::projections::resource_to_summary;
-use crate::{AppState, file_utils::write_new_data_file};
+use crate::AppState;
+use a4n_storage::{remove_data_file_in_data_dir, write_new_data_file};
 
 pub(super) const MAX_THEME_RESOURCE_BYTES: usize = 20 * 1024 * 1024;
 
@@ -23,8 +24,8 @@ pub async fn upload_theme_resource_for_user(
         ));
     }
     let previous_file_path = state
-        .orchestrator()
-        .list_theme_resources_for_user_validated(user_id, input.theme_id)
+        .theme_application()
+        .list_resources(user_id, input.theme_id)
         .await?
         .into_iter()
         .find(|resource| resource.resource_key == input.resource_key)
@@ -48,16 +49,18 @@ pub async fn upload_theme_resource_for_user(
             .map_err(AppError::InvalidArgument)?;
     }
     let resource = match state
-        .orchestrator()
-        .upsert_theme_resource_for_user_validated(
+        .theme_application()
+        .upsert_resource(
             user_id,
-            input.theme_id,
-            &input.resource_key,
-            &input.file_name,
-            &input.mime_type,
-            &relative_path,
-            &digest,
-            bytes.len() as i64,
+            PersistThemeResourceInput {
+                theme_id: input.theme_id,
+                resource_key: input.resource_key.clone(),
+                file_name: input.file_name.clone(),
+                mime_type: input.mime_type.clone(),
+                file_path: relative_path.clone(),
+                sha256: digest,
+                byte_size: bytes.len() as i64,
+            },
         )
         .await
     {
@@ -71,22 +74,20 @@ pub async fn upload_theme_resource_for_user(
     };
     if let Some(previous_file_path) =
         previous_file_path.filter(|file_path| file_path != &relative_path)
-    {
-        if let Err(error) = remove_theme_resource_file_if_unused(
+        && let Err(error) = remove_theme_resource_file_if_unused(
             state,
             user_id,
             input.theme_id,
             &previous_file_path,
         )
         .await
-        {
-            tracing::warn!(
-                theme_id = input.theme_id,
-                file_path = previous_file_path,
-                %error,
-                "清理被替换的主题资源文件失败"
-            );
-        }
+    {
+        tracing::warn!(
+            theme_id = input.theme_id,
+            file_path = previous_file_path,
+            %error,
+            "清理被替换的主题资源文件失败"
+        );
     }
     Ok(resource_to_summary(resource))
 }
@@ -97,8 +98,8 @@ pub async fn delete_theme_resource_for_user(
     input: DeleteThemeResourceInput,
 ) -> Result<(), AppError> {
     let resource = state
-        .orchestrator()
-        .delete_theme_resource_for_user_validated(user_id, input.resource_id)
+        .theme_application()
+        .delete_resource(user_id, input.resource_id)
         .await?;
     remove_theme_resource_file_if_unused(state, user_id, resource.theme_id, &resource.file_path)
         .await
@@ -111,16 +112,28 @@ async fn remove_theme_resource_file_if_unused(
     file_path: &str,
 ) -> Result<(), AppError> {
     let still_referenced = state
-        .orchestrator()
-        .list_theme_resources_for_user_validated(user_id, theme_id)
+        .theme_application()
+        .list_resources(user_id, theme_id)
         .await?
         .into_iter()
         .any(|resource| resource.file_path == file_path);
     if still_referenced {
         return Ok(());
     }
-    crate::file_utils::remove_data_file_in_data_dir(state.data_dir(), file_path, "主题背景图片")
+    remove_data_file_in_data_dir(state.data_dir(), file_path, "主题背景图片")
         .map_err(AppError::InvalidArgument)
+}
+
+fn resource_to_summary(resource: ThemeResourceRecord) -> ThemeResourceSummary {
+    ThemeResourceSummary {
+        id: resource.id,
+        theme_id: resource.theme_id,
+        resource_key: resource.resource_key,
+        file_name: resource.file_name,
+        mime_type: resource.mime_type,
+        file_path: resource.file_path,
+        byte_size: resource.byte_size,
+    }
 }
 
 pub(super) fn validate_resource_metadata(

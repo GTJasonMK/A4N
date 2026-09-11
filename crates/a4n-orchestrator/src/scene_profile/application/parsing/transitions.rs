@@ -4,7 +4,7 @@ use super::validation::id_array_value;
 use crate::scene_profile::{
     SCENE_TRANSITION_MOVEMENT_TYPES, SceneTransitionDraft, normalize_movement_type_value,
 };
-use a4n_core::json_contract::{
+use a4n_domain::json_contract::{
     ensure_object, optional_string, positive_i64_array, reject_unknown_fields, required_array,
     required_string,
 };

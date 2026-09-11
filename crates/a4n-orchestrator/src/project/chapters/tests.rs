@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 
 use super::readiness::validate_chapter_generation_number;
 use super::records::is_character_sync_available_chapter;

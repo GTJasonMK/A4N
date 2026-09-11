@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::part_outline;
 use a4n_db::project as project_db;
+use a4n_db_models::models::chapter::part_outline;
+use a4n_error::AppError;
 
 use crate::outline::OrchestratorContext;
 

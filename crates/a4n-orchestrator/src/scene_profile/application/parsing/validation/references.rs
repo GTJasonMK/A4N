@@ -1,4 +1,4 @@
-use a4n_core::json_contract::{ensure_object, required_array, required_string};
+use a4n_domain::json_contract::{ensure_object, required_array, required_string};
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashSet};
 

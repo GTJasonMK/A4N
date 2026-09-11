@@ -1,6 +1,6 @@
 use super::super::types::CanvasVideoMediaSource;
 use crate::canvas::CanvasDbError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_image,
     generation::generation_spec,
     media::{media_asset, media_provenance},

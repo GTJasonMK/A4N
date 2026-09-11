@@ -2,11 +2,11 @@
 //!
 //! 持有 `DbHandle`，封装资料列表、按类型图片查询与主素材 upsert/delete。
 
-use a4n_core::error::AppError;
 use a4n_db::DbHandle;
 use a4n_db::profile_material::{
     ProfileMaterialDbError, ProfileMaterialImageIdentityRow, ProfileMaterialListRows,
 };
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 

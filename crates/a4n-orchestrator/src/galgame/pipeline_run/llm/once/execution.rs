@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatMessage, ChatRequest, LlmTraceContext, is_truncated_finish_reason};
 use serde_json::{Value, json};
 

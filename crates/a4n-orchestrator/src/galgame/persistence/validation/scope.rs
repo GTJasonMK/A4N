@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::error::AppError;
 use a4n_db::galgame::{
     GalgamePersistValidationScopeReadModel, GalgamePersistValidationSourceSnapshotChapterRecord,
     GalgamePersistValidationSpeakerProfileRecord, GalgamePersistValidationTextAnchorRecord,
 };
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::galgame::{GalgameScriptPersistPlan, OrchestratorContext};

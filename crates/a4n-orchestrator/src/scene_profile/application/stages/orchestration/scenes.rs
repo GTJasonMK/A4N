@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 
-use a4n_core::structured_progress::ProgressSpan;
 use a4n_llm::provider::ChatRequest;
+use a4n_progress::ProgressSpan;
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::OrchestratorContext;

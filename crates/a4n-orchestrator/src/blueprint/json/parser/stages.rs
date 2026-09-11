@@ -1,7 +1,7 @@
 use super::super::entities::{parse_characters, parse_relationships};
 use super::super::fields::{required_array, required_object_clone, required_string};
 use super::super::world::validate_world_setting;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(in crate::blueprint) fn validate_story_core_stage(value: &Value) -> Result<(), AppError> {

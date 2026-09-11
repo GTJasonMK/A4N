@@ -3,8 +3,8 @@ use super::super::{
     types::{VideoStudioProjectImportError, VideoStudioProjectImportMediaFileWriter},
 };
 use super::VideoStudioProjectImportMediaRowsContext;
-use a4n_core::models::ai::{generated_image, generated_video};
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::ai::{generated_image, generated_video};
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
@@ -91,7 +91,7 @@ where
     let mut thumbnail_paths = Vec::with_capacity(videos.len());
     let mut imported = HashMap::new();
     for video in videos {
-        if !generated_video::is_terminal_status(&video.status) {
+        if !a4n_domain::video_workflow::is_terminal_video_status(&video.status) {
             return Err(VideoStudioProjectImportError::InvalidPackage(format!(
                 "视频画布项目包不能导入非终态生成视频: generated_video_id={}, status={}",
                 video.id, video.status

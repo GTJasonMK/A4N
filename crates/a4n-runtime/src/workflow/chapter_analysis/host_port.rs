@@ -1,18 +1,18 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter;
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_error::AppError;
 use a4n_orchestrator::{
     chapter_analysis::ChapterAnalysisHostPort, chapter_content::ChapterDerivedCleanupHostPort,
-    project::ChapterDerivedCleanupArtifacts, scene_profile::SceneProfileSyncHostPort,
+    scene_profile::SceneProfileSyncHostPort,
 };
 use async_trait::async_trait;
 
 use crate::{
     actions::scene_profile_sync::RuntimeSceneProfileSyncHostPort,
-    file_utils::deletable_data_file_path,
     rag_ingest::chapter_rag_chunking_mode,
     sidecar_clients::{scope_rag_operation_trace, workflow_rag_operation_trace_id},
     state::AppState,
 };
+use a4n_storage::deletable_data_file_path;
 
 pub(crate) struct RuntimeChapterAnalysisHostPort {
     state: AppState,
@@ -65,18 +65,18 @@ impl ChapterDerivedCleanupHostPort for RuntimeChapterAnalysisHostPort {
 
     async fn sync_chapter_rag_records(
         &self,
-        chapter: &chapter::Model,
+        project_id: i64,
+        chapter_id: i64,
         workflow_run_id: i64,
     ) -> Result<(), AppError> {
         let trace_id =
             workflow_rag_operation_trace_id(workflow_run_id).map_err(AppError::InvalidArgument)?;
         scope_rag_operation_trace(trace_id, async {
             self.state
-                .orchestrator()
-                .sync_chapter_rag_records(chapter, chapter_rag_chunking_mode())
+                .rag_ingest()
+                .sync_chapter_records(project_id, chapter_id, chapter_rag_chunking_mode())
                 .await
                 .map(|_| ())
-                .map_err(host_error)
         })
         .await
     }

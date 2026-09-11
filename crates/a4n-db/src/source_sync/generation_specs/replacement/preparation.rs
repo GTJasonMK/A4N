@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::generation_spec, project::project_source_snapshot, source_sync::source_sync_run,
     video_project::video_segment,
 };

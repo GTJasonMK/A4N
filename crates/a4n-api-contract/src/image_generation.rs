@@ -45,6 +45,23 @@ pub struct GenerateBatchImagesInput {
     pub requests: Vec<Value>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GenerateGalgameImageInput {
+    pub project_id: i64,
+    pub prompt: String,
+    pub image_type: String,
+    pub config_id: Option<i64>,
+    pub width: i32,
+    pub height: i32,
+    pub chapter_id: Option<i64>,
+    pub generation_spec_id: i64,
+    pub target_kind: String,
+    pub target_entity_kind: String,
+    pub target_entity_id: i64,
+    pub workflow_run_id: Option<i64>,
+}
+
 /// 图片生产生成的唯一启动合同。
 ///
 /// 图片查询、上传和 provider 请求预览继续使用各自合同；只有生产生成

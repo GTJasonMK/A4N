@@ -1,5 +1,5 @@
 #[cfg(test)]
-use a4n_core::models::ai::{generated_image, generated_video};
+use a4n_db_models::models::ai::{generated_image, generated_video};
 #[cfg(test)]
 use std::path::Path;
 
@@ -13,8 +13,6 @@ pub(crate) use self::provider_images::{
     RemoteTempMediaDeleteOutcome, delete_remote_temp_media_artifact,
     media_bytes_to_remote_temp_media_url,
 };
-#[cfg(test)]
-pub(super) use self::reference_images::reference_image_ids;
 pub(crate) use self::reference_images::{
     reference_image_provider_input_by_id, reference_image_provider_inputs_by_ids,
     reference_image_request_preview_url_by_id, reference_image_request_preview_urls_by_ids,
@@ -26,8 +24,7 @@ pub(crate) use self::tail_frames::{
 pub(crate) use self::video_files::{
     append_secondary_error, best_effort_video_thumbnail_path, combine_optional_errors,
     ensure_chapter_videos_dir, ensure_project_videos_dir, persist_canvas_video_bytes,
-    prompt_id_from_video, remove_partial_video_file, run_ffmpeg_trim, save_video_bytes,
-    trimmed_video_path,
+    remove_partial_video_file, run_ffmpeg_trim, save_video_bytes, trimmed_video_path,
 };
 
 #[cfg(test)]

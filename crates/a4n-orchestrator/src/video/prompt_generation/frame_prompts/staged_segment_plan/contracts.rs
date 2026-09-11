@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use a4n_core::source_spans::SourceSpan;
-use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
+use a4n_domain::source_spans::SourceSpan;
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 

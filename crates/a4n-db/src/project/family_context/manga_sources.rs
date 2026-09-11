@@ -1,6 +1,6 @@
 use super::context::project_family_access_row;
 use super::contracts::{ChapterMangaSourceSummary, ProjectFamilyAccessRow, ProjectFamilyDbError};
-use a4n_core::models::{chapter::chapter, project::source_snapshot_chapter};
+use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
 use a4n_domain::project::ProjectKind;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;

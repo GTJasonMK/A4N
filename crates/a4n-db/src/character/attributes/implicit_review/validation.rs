@@ -1,8 +1,7 @@
-use super::super::{
-    state::attribute_value_in_state, types::CharacterImplicitReviewDecisionRecordInput,
-};
+use super::super::state::attribute_value_in_state;
 use crate::character::CharacterDbError;
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterImplicitReviewDecisionRecordInput;
 
 pub(super) fn validate_implicit_review_decision_record(
     profile: &protagonist_profile::Model,

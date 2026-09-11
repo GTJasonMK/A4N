@@ -1,5 +1,5 @@
 use crate::source_sync::{SourceSyncDbError, validate_positive_id};
-use a4n_core::models::media::media_binding;
+use a4n_db_models::models::media::media_binding;
 use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn bound_media_asset_ids_for_galgame_scene<C>(

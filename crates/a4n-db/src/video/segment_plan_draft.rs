@@ -1,4 +1,4 @@
-use a4n_core::models::generation::workflow_checkpoint;
+use a4n_db_models::models::generation::workflow_checkpoint;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
     Select,

@@ -1,8 +1,6 @@
 use crate::auth::{create_invite_code, login_user, register_user, register_user_with_invite};
-use a4n_core::{
-    error::AppError,
-    models::user::{invite_code, user},
-};
+use a4n_db_models::models::user::{invite_code, user};
+use a4n_error::AppError;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
 
 use super::support::{

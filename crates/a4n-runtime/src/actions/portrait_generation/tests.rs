@@ -1,20 +1,9 @@
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 use a4n_orchestrator::portrait::{
-    PersistPortraitFileInput, optional_profile_text, portrait_profile_context,
-    profile_portrait_seed_prompt,
+    optional_profile_text, portrait_profile_context, profile_portrait_seed_prompt,
 };
 use chrono::NaiveDate;
 use serde_json::json;
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
-
-fn unique_temp_dir(prefix: &str) -> PathBuf {
-    let stamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock after UNIX_EPOCH")
-        .as_nanos();
-    std::env::temp_dir().join(format!("{prefix}_{}_{}", std::process::id(), stamp))
-}
 
 fn profile_for_test() -> protagonist_profile::Model {
     let now = NaiveDate::from_ymd_opt(2026, 5, 31)
@@ -48,33 +37,6 @@ fn optional_profile_text_trims_blank_to_none() {
     );
     assert_eq!(optional_profile_text(Some(" \n\t ")), None);
     assert_eq!(optional_profile_text(None), None);
-}
-
-#[test]
-fn portrait_file_persistence_keeps_output_and_reports_actual_size() {
-    let data_dir = unique_temp_dir("a4n_portrait_persist");
-
-    let (path, persisted) = super::host_port::persist_portrait_file_at(
-        &data_dir,
-        PersistPortraitFileInput {
-            project_id: 7,
-            profile_id: 42,
-            bytes: b"portrait-image",
-            format: "png",
-            path_context: "立绘图片",
-        },
-    )
-    .expect("persist portrait file");
-
-    assert!(path.is_file());
-    assert!(
-        persisted
-            .relative_path
-            .starts_with("projects/7/portraits/portrait_42_")
-    );
-    assert!(persisted.relative_path.ends_with(".png"));
-    assert_eq!(persisted.file_size, 14);
-    let _ = std::fs::remove_dir_all(&data_dir);
 }
 
 #[test]

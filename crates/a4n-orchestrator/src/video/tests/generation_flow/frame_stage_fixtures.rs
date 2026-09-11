@@ -32,14 +32,14 @@ async fn set_segment_recipe_mode(
     project_id: i64,
     chapter_id: i64,
     segment_number: i32,
-    workflow_mode: a4n_core::video_execution::VideoSegmentWorkflowModeV1,
-    guidance_mode: a4n_core::video_execution::VideoSegmentGuidanceModeV1,
+    workflow_mode: a4n_video_contract::VideoSegmentWorkflowModeV1,
+    guidance_mode: a4n_video_contract::VideoSegmentGuidanceModeV1,
 ) {
     let plan = service
         .current_shared_segment_plan(project_id, chapter_id)
         .await
         .unwrap();
-    let mut recipe = a4n_core::video_execution::video_segment_recipes_for_plan_from_metadata(
+    let mut recipe = a4n_video_contract::video_segment_recipes_for_plan_from_metadata(
         plan.metadata_json.as_ref(),
         plan.style.as_deref().unwrap(),
     )
@@ -49,7 +49,7 @@ async fn set_segment_recipe_mode(
     .unwrap();
     recipe.workflow_mode = workflow_mode;
     recipe.guidance_mode = guidance_mode;
-    if guidance_mode == a4n_core::video_execution::VideoSegmentGuidanceModeV1::SystemFrames {
+    if guidance_mode == a4n_video_contract::VideoSegmentGuidanceModeV1::SystemFrames {
         recipe.reference_image_ids.clear();
     }
     service

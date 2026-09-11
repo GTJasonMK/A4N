@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::rag::{ClientRagIngestUploadInput, RagIngestResult};
-use a4n_orchestrator::rag::{
-    DeleteRagRecordsInput, RagEmbeddedInput, RagRecord, RagRecordSyncOutcome, classify_rag_record,
+use a4n_rag_core::{
+    RagEmbeddedInput, RagRecord, RagRecordSyncOutcome, contracts::sync::classify_rag_record,
 };
 use a4n_rag_core::{metadata::content_hash, validation::validate_embedding_batch};
 
@@ -125,39 +125,28 @@ async fn rag_upload_ingest_embeddings_inner(
             embedding: uploaded.embedding,
         });
     }
-    if input.rebuild {
-        state
-            .orchestrator()
-            .clear_project_rag(project_id)
-            .await
-            .map_err(|error| error.to_string())?;
-    }
-    state
-        .orchestrator()
-        .store_embedded_rag_records(project_id, embedded_inputs, embedding_identity)
+    let stale_ids = stored_metadata
+        .as_ref()
+        .map(|stored| {
+            stored
+                .keys()
+                .filter(|id| !expected_ids.contains(*id))
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let deleted = state
+        .rag_ingest()
+        .commit_embedded_rag_records(
+            project_id,
+            input.rebuild,
+            embedded_inputs,
+            embedding_identity,
+            stale_ids,
+        )
         .await
         .map_err(|error| error.to_string())?;
-
-    if let Some(stored_metadata) = stored_metadata {
-        let stale_ids = stored_metadata
-            .keys()
-            .filter(|id| !expected_ids.contains(*id))
-            .cloned()
-            .collect::<Vec<_>>();
-        let deleted = state
-            .orchestrator()
-            .delete_rag_records(DeleteRagRecordsInput {
-                project_id,
-                ids: stale_ids,
-                id_prefixes: Vec::new(),
-            })
-            .await
-            .map_err(|error| format!("清理过期 RAG 记录失败: {error}"))?;
-        stats.add_deleted(
-            u32::try_from(deleted)
-                .map_err(|_| format!("清理过期 RAG 记录数量超过 u32 上限：{deleted}"))?,
-        )?;
-    }
+    stats.add_deleted(deleted)?;
 
     Ok(stats.into_result())
 }

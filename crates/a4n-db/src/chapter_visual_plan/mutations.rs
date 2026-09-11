@@ -1,5 +1,5 @@
-use a4n_core::models::{
-    chapter::chapter_visual_plan,
+use a4n_db_models::models::{
+    chapter::{chapter, chapter_visual_plan},
     project::{novel_project, source_snapshot_chapter},
 };
 use a4n_domain::chapter_visual_plan::{CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanStatus};
@@ -32,6 +32,48 @@ pub async fn save_chapter_visual_plan_draft(
     }
     let (plan_json, plan_sha256) = serialize_plan(&input.plan)?;
     let tx = db.begin().await?;
+    if let Some(expected_hash) = input.expected_source_hash.as_deref() {
+        super::codec::validate_sha256(expected_hash, "expected_source_hash")?;
+        // Keep the source and its project binding stable through the plan CAS.
+        // The initial source read in the application cannot close this race.
+        novel_project::Entity::find_by_id(input.source.requested_project_id)
+            .lock_shared()
+            .one(&tx)
+            .await?
+            .ok_or_else(|| ChapterVisualPlanDbError::NotFound("视觉方案项目不存在".into()))?;
+        if let Some(id) = input.source.source_snapshot_chapter_id {
+            source_snapshot_chapter::Entity::find_by_id(id)
+                .lock_shared()
+                .one(&tx)
+                .await?
+                .ok_or_else(|| ChapterVisualPlanDbError::NotFound("原文快照不存在".into()))?;
+        } else {
+            chapter::Entity::find_by_id(input.source.source_chapter_id)
+                .lock_shared()
+                .one(&tx)
+                .await?
+                .ok_or_else(|| ChapterVisualPlanDbError::NotFound("原文章节不存在".into()))?;
+        }
+        let current = crate::project::resolve_chapter_source(
+            &tx,
+            input.source.requested_project_id,
+            input.source.source_chapter_id,
+        )
+        .await
+        .map_err(|error| match error {
+            crate::project::ResolveChapterSourceError::Database(error) => {
+                ChapterVisualPlanDbError::Database(error)
+            }
+            error => ChapterVisualPlanDbError::InvalidState(error.to_string()),
+        })?;
+        if current.source_revision_key != input.source.source_revision_key
+            || current.content_sha256 != expected_hash
+        {
+            return Err(ChapterVisualPlanDbError::InvalidArgument(
+                "原文版本已变化，不能提交基于旧原文的修改".into(),
+            ));
+        }
+    }
     let existing = chapter_visual_plan::Entity::find()
         .filter(lineage_condition_for_identity(
             input.source.root_project_id,
@@ -40,6 +82,7 @@ pub async fn save_chapter_visual_plan_draft(
             input.source.source_snapshot_chapter_id,
         )?)
         .filter(chapter_visual_plan::Column::Status.eq("draft"))
+        .lock_exclusive()
         .one(&tx)
         .await?;
     let result = if let Some(existing) = existing {

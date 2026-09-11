@@ -1,18 +1,14 @@
 use super::{
     CreateInviteCodeInput, CreateUserInput, InviteCodeSummary, UpdateUserRoleInput, UserSummary,
 };
-use crate::{
-    AppState,
-    actions::{app_error_message, auth_records::to_user_summary},
-};
-use a4n_core::models::user::invite_code;
+use crate::AppState;
 
 pub(super) async fn list_all_users(state: &AppState) -> Result<Vec<UserSummary>, String> {
     let users = state
-        .orchestrator()
-        .list_auth_users()
+        .admin_application()
+        .list_users()
         .await
-        .map_err(app_error_message)?;
+        .map_err(|error| error.to_string())?;
     Ok(users)
 }
 
@@ -20,21 +16,19 @@ pub(super) async fn create_user(
     state: &AppState,
     input: CreateUserInput,
 ) -> Result<UserSummary, String> {
-    let user = state
-        .orchestrator()
-        .create_auth_user(&input.username, &input.email, &input.password, &input.role)
+    state
+        .admin_application()
+        .create_user(input)
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(to_user_summary(&user))
+        .map_err(|error| error.to_string())
 }
 
 pub(super) async fn list_invite_codes(state: &AppState) -> Result<Vec<InviteCodeSummary>, String> {
-    let codes = state
-        .orchestrator()
-        .list_invite_code_records()
+    state
+        .admin_application()
+        .list_invite_codes()
         .await
-        .map_err(app_error_message)?;
-    Ok(codes.iter().map(invite_code_summary).collect())
+        .map_err(|error| error.to_string())
 }
 
 pub(super) async fn create_invite_code(
@@ -42,12 +36,11 @@ pub(super) async fn create_invite_code(
     caller_user_id: i64,
     input: CreateInviteCodeInput,
 ) -> Result<InviteCodeSummary, String> {
-    let code = state
-        .orchestrator()
-        .create_invite_code_record(&input.code, Some(caller_user_id))
+    state
+        .admin_application()
+        .create_invite_code(caller_user_id, input)
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(invite_code_summary(&code))
+        .map_err(|error| error.to_string())
 }
 
 pub(super) async fn update_user_role(
@@ -55,12 +48,11 @@ pub(super) async fn update_user_role(
     user_id: i64,
     input: UpdateUserRoleInput,
 ) -> Result<UserSummary, String> {
-    let user = state
-        .orchestrator()
-        .update_auth_user_role(user_id, &input.role)
+    state
+        .admin_application()
+        .update_user_role(user_id, input)
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(to_user_summary(&user))
+        .map_err(|error| error.to_string())
 }
 
 pub(super) async fn disable_user(
@@ -72,15 +64,4 @@ pub(super) async fn disable_user(
         .destructive_lifecycle()
         .disable_user(state, caller_user_id, user_id)
         .await
-}
-
-fn invite_code_summary(code: &invite_code::Model) -> InviteCodeSummary {
-    InviteCodeSummary {
-        id: code.id,
-        code: code.code.clone(),
-        created_by_user_id: code.created_by_user_id,
-        used_by_user_id: code.used_by_user_id,
-        created_at: Some(code.created_at.to_string()),
-        used_at: code.used_at.map(|value| value.to_string()),
-    }
 }

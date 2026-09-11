@@ -1,6 +1,7 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
-use a4n_orchestrator::canvas::{
-    CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphNodeExecutionKind,
+use a4n_canvas_contract::{
+    CanvasEditingNodeRun, CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput,
+    CanvasGraphNodeExecutionKind, CanvasNodeRun,
 };
 use async_trait::async_trait;
 
@@ -38,43 +39,51 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
 
     async fn execute_node(
         &self,
-        input: CanvasGraphNodeExecutionInput<'_>,
+        input: CanvasGraphNodeExecutionInput,
     ) -> Result<CanvasRunSummary, String> {
-        let run_handle = Some(input.shared_run);
         let summary = match input.kind {
             CanvasGraphNodeExecutionKind::RenderText => {
                 run_canvas_render_text_node(
                     self.state,
+                    input.user_id,
                     input.project_id,
                     input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
+                    input.node_id,
+                    Some(CanvasNodeRun {
+                        workflow_run_id: input.shared_run.workflow_run_id,
+                        finalize_on_success: input.shared_run.finalize_on_success,
+                    }),
+                    input.mode.as_str(),
                 )
                 .await
             }
             CanvasGraphNodeExecutionKind::LlmText => {
                 run_canvas_llm_text_node(
                     self.state,
+                    input.user_id,
                     input.project_id,
                     input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
+                    input.node_id,
+                    Some(CanvasNodeRun {
+                        workflow_run_id: input.shared_run.workflow_run_id,
+                        finalize_on_success: input.shared_run.finalize_on_success,
+                    }),
+                    input.mode.as_str(),
                 )
                 .await
             }
             CanvasGraphNodeExecutionKind::GenerateImage => {
                 run_canvas_generate_image_node(
                     self.state,
+                    input.user_id,
                     input.project_id,
                     input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
+                    input.node_id,
+                    Some(CanvasNodeRun {
+                        workflow_run_id: input.shared_run.workflow_run_id,
+                        finalize_on_success: input.shared_run.finalize_on_success,
+                    }),
+                    input.mode.as_str(),
                 )
                 .await
             }
@@ -84,37 +93,45 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
                     input.user_id,
                     input.project_id,
                     input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
+                    input.node_id,
+                    Some(CanvasNodeRun {
+                        workflow_run_id: input.shared_run.workflow_run_id,
+                        finalize_on_success: input.shared_run.finalize_on_success,
+                    }),
+                    input.mode.as_str(),
                 )
                 .await
             }
             CanvasGraphNodeExecutionKind::ExtractFrame
             | CanvasGraphNodeExecutionKind::TrimVideo
             | CanvasGraphNodeExecutionKind::AssembleVideo => {
+                let editing_run = Some(CanvasEditingNodeRun {
+                    workflow_run_id: input.shared_run.workflow_run_id,
+                    finalize_on_success: input.shared_run.finalize_on_success,
+                });
                 run_canvas_editing_node(
                     self.state,
                     input.user_id,
                     input.project_id,
                     input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
+                    input.node_id,
+                    editing_run,
+                    input.mode.as_str(),
                 )
                 .await
             }
             CanvasGraphNodeExecutionKind::Probe => {
                 run_canvas_probe_node(
-                    self.state.orchestrator(),
+                    self.state,
+                    input.user_id,
                     input.project_id,
                     input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
+                    input.node_id,
+                    Some(CanvasNodeRun {
+                        workflow_run_id: input.shared_run.workflow_run_id,
+                        finalize_on_success: input.shared_run.finalize_on_success,
+                    }),
+                    input.mode.as_str(),
                 )
                 .await
             }
@@ -123,13 +140,16 @@ impl CanvasGraphExecutionHostPort for RuntimeCanvasGraphExecutionHostPort<'_> {
             | CanvasGraphNodeExecutionKind::VideoOutput
             | CanvasGraphNodeExecutionKind::AudioOutput => {
                 run_canvas_output_node(
-                    self.state.orchestrator(),
+                    self.state,
+                    input.user_id,
                     input.project_id,
                     input.graph_id,
-                    input.node,
-                    input.document,
-                    run_handle,
-                    input.mode,
+                    input.node_id,
+                    Some(CanvasNodeRun {
+                        workflow_run_id: input.shared_run.workflow_run_id,
+                        finalize_on_success: input.shared_run.finalize_on_success,
+                    }),
+                    input.mode.as_str(),
                 )
                 .await
             }

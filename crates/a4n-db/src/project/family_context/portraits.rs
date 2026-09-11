@@ -1,6 +1,6 @@
 use super::context::project_family_access_row;
 use super::contracts::{MangaCharacterPortraitRefSummary, ProjectFamilyDbError};
-use a4n_core::models::character::{character_portrait, protagonist_profile};
+use a4n_db_models::models::character::{character_portrait, protagonist_profile};
 use a4n_domain::project::ProjectKind;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 use std::collections::HashMap;
@@ -125,7 +125,7 @@ async fn manga_profile_project_id(
 #[cfg(test)]
 mod tests {
     use super::portrait_index;
-    use a4n_core::models::character::character_portrait;
+    use a4n_db_models::models::character::character_portrait;
     use chrono::Utc;
 
     fn portrait(id: i64, profile_id: i64, is_primary: bool) -> character_portrait::Model {

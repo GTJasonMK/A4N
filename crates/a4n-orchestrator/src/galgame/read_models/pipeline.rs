@@ -1,11 +1,9 @@
 use a4n_api_contract::galgame::{
     GalgamePipelineStatusSummary, GalgameWorkflowCheckpointSummary, GalgameWorkflowRunSummary,
 };
-use a4n_core::{
-    error::AppError,
-    models::generation::{workflow_checkpoint, workflow_run},
-};
 use a4n_db::galgame::GalgamePipelinePromptContextRecord;
+use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
+use a4n_error::AppError;
 
 use crate::galgame::{
     GalgameChapterShootingScript, GalgamePipelinePromptContext, OrchestratorContext,

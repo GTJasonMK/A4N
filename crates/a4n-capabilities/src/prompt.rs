@@ -1,14 +1,11 @@
 use super::contracts::{CapabilityClient, CapabilityResult, PromptClient};
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
-use a4n_prompt::{
-    contracts::{
-        CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptListOutput,
-        PromptNamePayload, PromptRenderAbOutput, PromptRenderOutput, PromptRenderPayload,
-        PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
-        PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
-        PromptVersionDiffPayload, PromptVersionHistoryOutput,
-    },
-    engine::{PromptCategory, PromptEntry},
+use a4n_prompt_contract::{
+    CountOutput, PromptCategory, PromptEmptyPayload, PromptEntry, PromptHydrateOverridesPayload,
+    PromptListOutput, PromptNamePayload, PromptRenderAbOutput, PromptRenderOutput,
+    PromptRenderPayload, PromptSetProjectOverridePayload, PromptUpdateManyPayload,
+    PromptUpdatePayload, PromptValidateOutput, PromptValidatePayload, PromptVersionDiffOutput,
+    PromptVersionDiffPayload, PromptVersionHistoryOutput,
 };
 use a4n_service_protocol::{PROMPT_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;

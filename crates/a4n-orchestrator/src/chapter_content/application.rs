@@ -1,17 +1,13 @@
 use std::collections::BTreeSet;
 
-use a4n_core::{
-    error::AppError,
-    models::{chapter::chapter, character::protagonist_profile},
-};
+use a4n_db_models::models::{chapter::chapter, character::protagonist_profile};
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_error::AppError;
 use async_trait::async_trait;
 
 use crate::{
     OrchestratorContext,
-    project::{
-        ChapterDerivedCleanupArtifacts, chapter_cleanup_requires_snapshot,
-        validate_chapter_generation_number,
-    },
+    project::{chapter_cleanup_requires_snapshot, validate_chapter_generation_number},
 };
 
 use super::rules::ensure_text_project_kind;
@@ -33,8 +29,49 @@ pub trait ChapterDerivedCleanupHostPort: Send + Sync {
 
     async fn sync_chapter_rag_records(
         &self,
-        chapter: &chapter::Model,
+        project_id: i64,
+        chapter_id: i64,
         workflow_run_id: i64,
+    ) -> Result<(), AppError>;
+}
+
+/// Runtime-facing content mutation boundary. The cleanup host port is kept
+/// explicit because file, RAG and derived-artifact side effects remain Host
+/// responsibilities; chapter validation and durable writes stay here.
+#[async_trait]
+pub trait ChapterContentMutationApplicationPort: Send + Sync {
+    async fn update(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::UpdateChapterContentInput,
+    ) -> Result<i64, AppError>;
+
+    async fn import(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::ImportChapterInput,
+    ) -> Result<i64, AppError>;
+
+    async fn resume(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        workflow_run_id: i64,
+    ) -> Result<(), AppError>;
+
+    async fn postprocess(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        chapter_id: i64,
+    ) -> Result<(), AppError>;
+
+    async fn cleanup_derived_rag(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        chapter_number: i32,
+        artifacts: &ChapterDerivedCleanupArtifacts,
     ) -> Result<(), AppError>;
 }
 
@@ -203,6 +240,81 @@ impl OrchestratorContext {
             .await?
             .ok_or_else(|| AppError::NotFound(format!("项目不存在: {project_id}")))?;
         ensure_text_project_kind(&project.project_kind, operation)
+    }
+}
+
+#[async_trait]
+impl ChapterContentMutationApplicationPort for OrchestratorContext {
+    async fn update(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::UpdateChapterContentInput,
+    ) -> Result<i64, AppError> {
+        Ok(self
+            .update_chapter_content_validated(
+                user_id,
+                host_port,
+                input.chapter_id,
+                input.content,
+                input.title,
+            )
+            .await?
+            .id)
+    }
+
+    async fn import(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: a4n_api_contract::chapter::ImportChapterInput,
+    ) -> Result<i64, AppError> {
+        Ok(self
+            .import_chapter_validated(
+                user_id,
+                host_port,
+                input.project_id,
+                input.chapter_number,
+                input.content,
+                input.title,
+            )
+            .await?
+            .id)
+    }
+
+    async fn resume(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        workflow_run_id: i64,
+    ) -> Result<(), AppError> {
+        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        self.resume_chapter_content_sync_workflow_run_validated(host_port, &run)
+            .await
+            .map(|_| ())
+    }
+
+    async fn postprocess(
+        &self,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        chapter_id: i64,
+    ) -> Result<(), AppError> {
+        self.postprocess_chapter_derived_data_validated(host_port, chapter_id)
+            .await
+    }
+
+    async fn cleanup_derived_rag(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        chapter_number: i32,
+        artifacts: &ChapterDerivedCleanupArtifacts,
+    ) -> Result<(), AppError> {
+        self.cleanup_chapter_derived_rag(project_id, chapter_id, chapter_number, artifacts)
+            .await
+            .map_err(|error| AppError::InvalidState {
+                current: "chapter_derived_rag_cleanup".to_string(),
+                operation: error,
+            })
     }
 }
 

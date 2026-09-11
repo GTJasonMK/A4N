@@ -6,7 +6,7 @@ mod preparation;
 pub(in crate::import_reverse) use checkpoint::restored_import_reverse_checkpoint;
 
 use a4n_api_contract::import_reverse::{ReverseEngineeringCandidate, ReverseEngineeringTarget};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 
 use crate::OrchestratorContext;

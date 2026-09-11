@@ -1,11 +1,14 @@
 mod api;
-mod contracts;
 mod embedded;
 mod provider;
 mod records;
 
-pub use contracts::RagEmbeddedInput;
-pub(crate) use contracts::RagEmbeddingInput;
+#[derive(Debug, Clone)]
+pub(crate) struct RagEmbeddingInput {
+    pub(crate) chunk_id: String,
+    pub(crate) text: String,
+    pub(crate) metadata: serde_json::Value,
+}
 
 #[cfg(test)]
 mod tests;

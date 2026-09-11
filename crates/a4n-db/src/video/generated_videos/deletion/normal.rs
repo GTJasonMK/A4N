@@ -1,6 +1,6 @@
 use super::locking::{GeneratedVideoDeleteContext, generated_video_for_delete};
 use crate::video::VideoDbError;
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use sea_orm::{ConnectionTrait, EntityTrait, TransactionTrait};
 
 async fn delete_locked_generated_video_record_in<C>(

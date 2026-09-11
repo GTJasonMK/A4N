@@ -4,7 +4,7 @@ use super::{
     normalize_scene_type_value,
 };
 use a4n_api_contract::profile::SceneProfileInput;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 fn valid_scene_profile_input() -> SceneProfileInput {

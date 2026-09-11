@@ -1,9 +1,9 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use a4n_db::generation::{
     GenerationRunCheckpointContext, GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
     generation_checkpoint_fingerprint_sha256,
 };
+use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_error::AppError;
 use serde_json::json;
 
 use super::super::super::layout_rules::manga_page_generation_layout;

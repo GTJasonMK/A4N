@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::{chapter_outline, chapter_outline_provenance};
+use a4n_db_models::models::chapter::{chapter_outline, chapter_outline_provenance};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,

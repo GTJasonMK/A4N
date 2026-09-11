@@ -7,7 +7,8 @@ use a4n_api_contract::{
     },
     workflow::{GetWorkflowRunInput, WorkflowRunDetailSummary},
 };
-use a4n_core::error::AppError;
+use a4n_domain::agent::AgentWorkflowOrigin;
+use a4n_error::AppError;
 
 pub(crate) async fn get_graph(
     state: &AppState,
@@ -54,11 +55,17 @@ pub(crate) async fn run_graph(
     user_id: i64,
     scope: &AgentScope,
     input: RunCanvasGraphInput,
+    origin: &AgentWorkflowOrigin,
 ) -> Result<CanvasRunSummary, AppError> {
     super::super::agent_runtime::ensure_project_scope(scope, input.project_id)?;
-    let result = crate::actions::canvas_workflow::run_canvas_graph(state, user_id, input)
-        .await
-        .map_err(AppError::InvalidArgument)?;
+    let result = crate::actions::canvas_workflow::run_canvas_graph_with_origin(
+        state,
+        user_id,
+        input,
+        Some(origin),
+    )
+    .await
+    .map_err(AppError::InvalidArgument)?;
     ensure_running_workflow(&result)?;
     Ok(result)
 }
@@ -68,11 +75,17 @@ pub(crate) async fn run_node(
     user_id: i64,
     scope: &AgentScope,
     input: RunCanvasNodeInput,
+    origin: &AgentWorkflowOrigin,
 ) -> Result<CanvasRunSummary, AppError> {
     super::super::agent_runtime::ensure_project_scope(scope, input.project_id)?;
-    let result = crate::actions::canvas_workflow::run_canvas_node(state, user_id, input)
-        .await
-        .map_err(AppError::InvalidArgument)?;
+    let result = crate::actions::canvas_workflow::run_canvas_node_with_origin(
+        state,
+        user_id,
+        input,
+        Some(origin),
+    )
+    .await
+    .map_err(AppError::InvalidArgument)?;
     ensure_running_workflow(&result)?;
     Ok(result)
 }

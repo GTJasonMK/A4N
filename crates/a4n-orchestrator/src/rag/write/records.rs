@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_error::AppError;
 use a4n_rag_core::{
     errors::vector_store_error,
     metadata::normalize_metadata,

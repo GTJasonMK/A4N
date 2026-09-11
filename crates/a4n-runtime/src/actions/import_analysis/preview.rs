@@ -1,24 +1,20 @@
 use crate::{
-    actions::{
-        access,
-        request_preview::{
-            ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
-        },
+    actions::request_preview::{
+        ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
     },
     state::AppState,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn preview_import_project_analysis_request(
     state: &AppState,
     user_id: i64,
     project_id: i64,
 ) -> Result<ModelRequestPreview, AppError> {
-    access::verify_project_editor(state, user_id, project_id).await?;
     let prompt_renderer = state;
     let steps = state
-        .orchestrator()
-        .prepare_import_project_analysis_preview_validated(project_id, prompt_renderer)
+        .import_analysis_application()
+        .preview(user_id, project_id, prompt_renderer)
         .await?
         .into_iter()
         .map(|step| {

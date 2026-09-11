@@ -3,7 +3,7 @@ use crate::generation::{
     CreateGenerationRunInput, GenerationDbError, RUN_STATUS_RUNNING, normalize_optional_owned_text,
     required_owned_text, validate_positive_id,
 };
-use a4n_core::models::{generation::generation_run, project::novel_project};
+use a4n_db_models::models::{generation::generation_run, project::novel_project};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 

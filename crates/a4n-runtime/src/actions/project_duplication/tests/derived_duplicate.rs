@@ -231,7 +231,7 @@ async fn duplicate_derived_project_record_copies_snapshot_without_copying_root_c
     .insert(&db)
     .await
     .unwrap();
-    a4n_core::models::generation::generation_spec_media_ref::ActiveModel {
+    a4n_db_models::models::generation::generation_spec_media_ref::ActiveModel {
         generation_spec_id: Set(spec.id),
         media_asset_id: Set(asset.id),
         role: Set("style_reference".to_string()),

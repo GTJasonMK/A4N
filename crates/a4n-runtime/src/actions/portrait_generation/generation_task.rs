@@ -10,8 +10,8 @@ pub async fn start_portrait_generation_typed(
     input: StartPortraitGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .orchestrator()
-        .start_portrait_generation_task(user_id, &input)
+        .portrait_generation_application()
+        .start_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -25,8 +25,8 @@ pub async fn start_portrait_generation_typed(
             let prompt_renderer = &worker_state;
             let host_port = RuntimePortraitGenerationHostPort::new(&worker_state);
             worker_state
-                .orchestrator()
-                .run_portrait_generation_task(input, handle, prompt_renderer, &host_port)
+                .portrait_generation_application()
+                .run_task(user_id, input, handle, prompt_renderer, &host_port)
                 .await
         },
     );

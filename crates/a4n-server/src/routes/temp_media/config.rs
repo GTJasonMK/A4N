@@ -1,5 +1,5 @@
 use a4n_api_contract::temp_media::TEMP_MEDIA_MAX_TTL_SECONDS;
-use a4n_core::config::env::{required_non_empty_env_string, required_public_app_endpoint};
+use a4n_config::{required_non_empty_env_string, required_public_app_endpoint};
 
 use super::super::error::ApiError;
 

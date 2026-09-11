@@ -6,7 +6,7 @@ use super::contracts::{
     CONTEXT_MANIFEST_SCHEMA_VERSION, LlmContextLedgerPackInput, LlmContextManifest,
     LlmContextManifestPack,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 #[derive(Debug, Default, Clone)]
 pub struct LlmContextLedger {

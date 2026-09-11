@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(in crate::blueprint::json) fn validate_enum(
     value: &str,

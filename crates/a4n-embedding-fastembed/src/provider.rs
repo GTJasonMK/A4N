@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
 use async_trait::async_trait;
 use fastembed::{EmbeddingModel, ModelInfo, TextEmbedding, TextInitOptions};
@@ -26,7 +26,7 @@ impl FastEmbedProvider {
     ) -> Result<Self, AppError> {
         let resolved = resolve_model_info(model_name.as_ref())?;
         if batch_size == 0 {
-            return Err(AppError::ConfigError(
+            return Err(AppError::Configuration(
                 "fastembed 嵌入批量大小必须为正整数".to_string(),
             ));
         }
@@ -45,7 +45,7 @@ impl FastEmbedProvider {
         if snapshot_with_required_files(&self.model_info, &cache_path)?.is_some() {
             return Ok(());
         }
-        Err(AppError::ConfigError(format!(
+        Err(AppError::Configuration(format!(
             "本地嵌入模型 {} 尚未下载，请先在设置页下载后再使用",
             self.model_name
         )))
@@ -64,10 +64,10 @@ impl FastEmbedProvider {
         tokio::task::spawn_blocking(move || build_text_embedding(model, cache_dir))
             .await
             .map_err(|err| {
-                AppError::EmbeddingError(format!("初始化 fastembed 线程失败: {err}"))
+                AppError::Embedding(format!("初始化 fastembed 线程失败: {err}"))
             })?
             .map_err(|err| {
-                AppError::EmbeddingError(format!(
+                AppError::Embedding(format!(
                     "初始化 fastembed 模型失败：本地模型缓存可能不完整，请在设置页删除缓存后重新下载；底层错误：{err}"
                 ))
             })
@@ -87,11 +87,11 @@ impl EmbeddingProvider for FastEmbedProvider {
         let (model, embeddings) = tokio::task::spawn_blocking(move || {
             let embeddings = model
                 .embed(texts, Some(batch_size))
-                .map_err(|err| AppError::EmbeddingError(format!("fastembed 嵌入失败: {err}")));
+                .map_err(|err| AppError::Embedding(format!("fastembed 嵌入失败: {err}")));
             (model, embeddings)
         })
         .await
-        .map_err(|err| AppError::EmbeddingError(format!("执行 fastembed 线程失败: {err}")))?;
+        .map_err(|err| AppError::Embedding(format!("执行 fastembed 线程失败: {err}")))?;
         *self.inner.lock().await = Some(model);
         embeddings
     }

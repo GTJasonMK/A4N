@@ -1,9 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use a4n_core::{
-    error::AppError,
-    models::generation::{generation_run, generation_run_target},
-};
+use a4n_db_models::models::generation::{generation_run, generation_run_target};
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use super::projection::GenerationRunInputRecord;

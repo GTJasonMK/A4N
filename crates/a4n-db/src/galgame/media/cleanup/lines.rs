@@ -3,7 +3,7 @@ use super::{
     queries::galgame_portrait_generation_spec_ids_for_source_lines_record,
 };
 use crate::galgame::{GALGAME_ENTITY_LINE, GalgameLineRecordError, MEDIA_BINDING_ROLE_CG};
-use a4n_core::models::{generation::generation_spec, media::media_binding};
+use a4n_db_models::models::{generation::generation_spec, media::media_binding};
 use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub(in crate::galgame) async fn delete_galgame_line_visual_generation_media_graph_record<C>(

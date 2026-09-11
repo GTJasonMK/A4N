@@ -2,7 +2,7 @@ use super::super::super::contracts::{
     COMPRESSION_COMPRESSED_SCENE, COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW,
     COMPRESSION_MINIMAL, LlmContextPackRequirement,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(super) fn remaining_required_min_token_suffix(
     requirements: &[LlmContextPackRequirement],

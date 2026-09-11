@@ -125,6 +125,177 @@ pub struct CharacterProfileSummary {
     pub updated_at: Option<String>,
 }
 
+/// Host-facing read boundary for character profiles.
+///
+/// The character owner reads records, applies access checks and projects
+/// profile data for Runtime consumers.
+#[async_trait::async_trait]
+pub trait CharacterProfileReadApplicationPort: Send + Sync {
+    async fn profile_project_id(
+        &self,
+        user_id: i64,
+        profile_id: i64,
+    ) -> Result<i64, a4n_error::AppError>;
+
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<CharacterProfileSummary>, a4n_error::AppError>;
+
+    async fn character_arc_by_name(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        name: String,
+    ) -> Result<Option<Value>, a4n_error::AppError>;
+
+    async fn voice_fingerprint_by_name(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        name: String,
+    ) -> Result<Option<Value>, a4n_error::AppError>;
+
+    async fn attribute_history(
+        &self,
+        user_id: i64,
+        input: AttributeHistoryInput,
+    ) -> Result<Vec<AttributeEventSummary>, a4n_error::AppError>;
+
+    async fn behavior_history(
+        &self,
+        user_id: i64,
+        input: ListBehaviorsInput,
+    ) -> Result<Vec<BehaviorRecordSummary>, a4n_error::AppError>;
+
+    async fn deletion_marks(
+        &self,
+        user_id: i64,
+        input: ListDeletionMarksInput,
+    ) -> Result<Vec<DeletionMarkSummary>, a4n_error::AppError>;
+
+    async fn snapshots(
+        &self,
+        user_id: i64,
+        input: ListSnapshotsInput,
+    ) -> Result<Vec<SnapshotReferenceSummary>, a4n_error::AppError>;
+
+    async fn state_at_chapter(
+        &self,
+        user_id: i64,
+        input: GetProfileStateAtChapterInput,
+    ) -> Result<ProfileChapterStateSummary, a4n_error::AppError>;
+
+    async fn snapshot_by_hash(
+        &self,
+        user_id: i64,
+        input: GetSnapshotInput,
+    ) -> Result<SnapshotSummary, a4n_error::AppError>;
+
+    async fn diff_chapters(
+        &self,
+        user_id: i64,
+        input: DiffProfileChaptersInput,
+    ) -> Result<SnapshotDeltaSummary, a4n_error::AppError>;
+
+    async fn sync_conflict(
+        &self,
+        user_id: i64,
+        input: CheckProfileSyncConflictInput,
+    ) -> Result<ProfileSyncConflictSummary, a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for initial character profiles.
+///
+/// Authorization, persistence and the profile projection stay with the
+/// character owner; Runtime only appends post-commit RAG warnings.
+#[async_trait::async_trait]
+pub trait CharacterProfileMutationApplicationPort: Send + Sync {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateProfileInput,
+    ) -> Result<CharacterProfileCreateResult, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateCharacterProfileInput,
+    ) -> Result<CharacterProfileMutationResult, a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for deleting a character profile.
+///
+/// The owner keeps the committed database cascade and post-commit RAG warning
+/// semantics together; Runtime only forwards the authorized command.
+#[async_trait::async_trait]
+pub trait CharacterProfileDeletionApplicationPort: Send + Sync {
+    async fn delete(
+        &self,
+        user_id: i64,
+        profile_id: i64,
+    ) -> Result<CharacterProfileDeleteResult, a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for character timeline rollback.
+///
+/// The character owner keeps authorization, timeline persistence, RAG cleanup
+/// and the final result projection together; Runtime only scopes the RAG trace
+/// and forwards the command.
+#[async_trait::async_trait]
+pub trait CharacterProfileTimelineMutationApplicationPort: Send + Sync {
+    async fn rollback(
+        &self,
+        user_id: i64,
+        input: RollbackToChapterInput,
+    ) -> Result<RollbackResultSummary, a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for explicit character attribute changes.
+///
+/// Attribute validation, persistence and the post-write RAG synchronization
+/// stay with the character owner.
+#[async_trait::async_trait]
+pub trait CharacterProfileAttributeMutationApplicationPort: Send + Sync {
+    async fn add(
+        &self,
+        user_id: i64,
+        input: AddProfileAttributeInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn modify(
+        &self,
+        user_id: i64,
+        input: ModifyProfileAttributeInput,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for character attribute deletion marks.
+///
+/// Mark validation, persistence, execution and DTO projection stay with the
+/// character owner; Runtime only forwards the typed command.
+#[async_trait::async_trait]
+pub trait CharacterProfileAttributeDeletionApplicationPort: Send + Sync {
+    async fn request(
+        &self,
+        user_id: i64,
+        input: RequestAttributeDeletionInput,
+    ) -> Result<DeletionMarkSummary, a4n_error::AppError>;
+
+    async fn execute(
+        &self,
+        user_id: i64,
+        input: ExecuteAttributeDeletionInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn reset(
+        &self,
+        user_id: i64,
+        input: ResetDeletionMarksInput,
+    ) -> Result<u64, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 pub struct CharacterProfileCreateResult {
     pub profile_id: i64,

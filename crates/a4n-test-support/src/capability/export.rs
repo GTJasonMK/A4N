@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use a4n_capabilities::{CapabilityClient, CapabilityResult, ExportClient};
-use a4n_export_core::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
 use a4n_service_protocol::{ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 

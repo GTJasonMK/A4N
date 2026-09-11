@@ -1,4 +1,4 @@
-use a4n_core::rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION};
+use a4n_domain::rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION};
 use a4n_embedding::provider::EmbeddingModelIdentity;
 
 use super::*;

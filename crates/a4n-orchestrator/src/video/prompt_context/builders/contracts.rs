@@ -1,6 +1,6 @@
 use serde_json::{Map, Value};
 
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_prompt::rendering::PromptRenderer;
 
 #[derive(Clone, Copy)]

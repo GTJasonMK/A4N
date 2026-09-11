@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::source_spans::source_text_hash;
+use a4n_domain::source_text_hash;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::context::{LlmContextManifest, estimate_context_tokens};

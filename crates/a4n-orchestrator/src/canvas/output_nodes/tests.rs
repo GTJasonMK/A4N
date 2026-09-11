@@ -1,11 +1,6 @@
 use std::sync::Arc;
 
-use a4n_core::models::{
-    ai::{generated_image, generated_video},
-    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
-    generation::{workflow_checkpoint, workflow_run},
-    media::media_asset,
-};
+use a4n_canvas_contract::{CanvasOutputNodeApplicationInput, CanvasOutputNodeApplicationPort};
 use a4n_db::{
     DatabaseConnection,
     canvas::{
@@ -13,6 +8,12 @@ use a4n_db::{
         CanvasNodeRecordInput,
     },
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
+};
+use a4n_db_models::models::{
+    ai::{generated_image, generated_video},
+    canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
+    generation::{workflow_checkpoint, workflow_run},
+    media::media_asset,
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -273,13 +274,13 @@ async fn canvas_output_application_persists_text_image_audio_and_video_artifacts
             .find(|node| node.node_kind == node_kind)
             .expect("输出节点应存在");
         let summary = context
-            .run_canvas_output_node_validated(CanvasOutputNodeExecutionInput {
+            .run_output(CanvasOutputNodeApplicationInput {
+                user_id: 1,
                 project_id: project.id,
                 graph_id: document.graph.id,
-                node,
-                document: &document,
                 shared_run: None,
-                mode: "single_node",
+                node_id: node.id,
+                mode: "single_node".to_string(),
             })
             .await
             .expect("输出节点 application 应成功");
@@ -446,7 +447,7 @@ async fn insert_generated_video(
     generated_video::ActiveModel {
         project_id: Set(project_id),
         chapter_id: Set(None),
-        video_type: Set(generated_video::VIDEO_TYPE_CANVAS.to_string()),
+        video_type: Set(a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string()),
         workflow_mode: Set(None),
         file_path: Set(Some("projects/output/video.mp4".to_string())),
         thumbnail_path: Set(Some("projects/output/video.jpg".to_string())),

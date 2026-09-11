@@ -1,15 +1,15 @@
 use std::collections::HashSet;
 use std::net::{SocketAddr, TcpListener};
+use std::path::PathBuf;
 
-use a4n_core::config::app_config::AppConfig;
-use a4n_core::config::env::{optional_non_empty_env_path, optional_non_empty_env_string};
+use a4n_config::app_config::AppConfig;
+use a4n_config::{optional_non_empty_env_path, optional_non_empty_env_string};
 use a4n_service_manager::{
-    ManagedServiceConfig, ManagedSidecarProcess, RemoteSecurityConfig, ServiceManager,
-    is_loopback_http_url,
+    ManagedServiceConfig, RemoteSecurityConfig, ServiceManager, is_loopback_http_url,
 };
 use a4n_service_protocol::{
-    EXPORT_SERVICE_NAME, IMPORT_SERVICE_NAME, PROMPT_SERVICE_NAME, SIDECAR_AUTH_TOKEN_ENV,
-    ServiceCatalogEntry,
+    EXPORT_SERVICE_NAME, IMPORT_SERVICE_NAME, PROMPT_SERVICE_NAME, RELEASE_MANIFEST_ENV,
+    ReleaseManifest, SIDECAR_AUTH_TOKEN_ENV, ServiceCatalogEntry,
 };
 
 use crate::state::RuntimeProfile;
@@ -26,59 +26,6 @@ pub(crate) fn runtime_service_manager(
     config: &AppConfig,
 ) -> Result<ServiceManager, String> {
     ServiceManager::new(runtime_service_configs(profile, config)?).map_err(|err| err.to_string())
-}
-
-pub(crate) async fn start_managed_sidecars(
-    profile: RuntimeProfile,
-    service_manager: &ServiceManager,
-) -> Result<Vec<ManagedSidecarProcess>, String> {
-    if !profile.uses_sidecars() || !managed_sidecars_enabled()? {
-        return Ok(Vec::new());
-    }
-
-    let results = futures::future::join_all(capability_service_names().into_iter().map(
-        |name| async move {
-            let result = service_manager
-                .start_sidecar(&name)
-                .await
-                .map_err(|err| err.to_string());
-            (name, result)
-        },
-    ))
-    .await;
-
-    let mut processes = Vec::with_capacity(results.len());
-    let mut first_error = None;
-    for (_, result) in results {
-        match result {
-            Ok(process) => processes.push(process),
-            Err(error) if first_error.is_none() => first_error = Some(error),
-            Err(_) => {}
-        }
-    }
-
-    if let Some(error) = first_error {
-        let cleanup_failures = futures::future::join_all(
-            processes
-                .into_iter()
-                .map(a4n_service_manager::ManagedSidecarProcess::force_stop),
-        )
-        .await
-        .into_iter()
-        .filter_map(Result::err)
-        .map(|error| error.to_string())
-        .collect::<Vec<_>>();
-        if !cleanup_failures.is_empty() {
-            tracing::error!(
-                primary_error = %error,
-                cleanup_errors = %cleanup_failures.join("; "),
-                "managed sidecar startup failed and cleanup was incomplete"
-            );
-        }
-        return Err(error);
-    }
-
-    Ok(processes)
 }
 
 pub(super) fn runtime_service_configs(
@@ -105,10 +52,14 @@ pub(super) fn runtime_service_configs(
             .collect()),
         RuntimeProfile::Sidecar => {
             let managed_sidecars_enabled = managed_sidecars_enabled()?;
+            let selected_services = selected_service_names()?;
             let mut reserved_addrs = HashSet::new();
             sidecar_service_specs()
                 .into_iter()
                 .map(|spec| {
+                    if !selected_services.contains(&spec.name) {
+                        return Ok(ManagedServiceConfig::disabled(spec.name));
+                    }
                     if managed_sidecars_enabled {
                         managed_sidecar_service(spec, config, &mut reserved_addrs)
                     } else {
@@ -118,6 +69,28 @@ pub(super) fn runtime_service_configs(
                 .collect()
         }
     }
+}
+
+fn selected_service_names() -> Result<HashSet<String>, String> {
+    let all = capability_service_names()
+        .into_iter()
+        .collect::<HashSet<_>>();
+    let Some(path) = std::env::var_os(RELEASE_MANIFEST_ENV).map(PathBuf::from) else {
+        return Ok(all);
+    };
+    let bytes =
+        std::fs::read(&path).map_err(|error| format!("读取 release manifest 失败: {error}"))?;
+    let manifest: ReleaseManifest = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("解析 release manifest 失败: {error}"))?;
+    if manifest.services.is_empty() {
+        return Ok(all);
+    }
+    let services = manifest.services;
+    let selected = services.iter().cloned().collect::<HashSet<_>>();
+    if selected.len() != services.len() || selected.iter().any(|name| !all.contains(name)) {
+        return Err("release manifest services 包含未知或重复 service".to_string());
+    }
+    Ok(selected)
 }
 
 fn managed_sidecar_service(

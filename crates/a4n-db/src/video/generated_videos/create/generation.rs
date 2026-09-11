@@ -3,7 +3,7 @@ use crate::generation::{
     GenerationRunTraceTarget, RecordStartedGenerationRunInput, record_started_generation_run,
 };
 use crate::video::VideoDbError;
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use sea_orm::ConnectionTrait;
 
 pub(super) fn validate_generation_run_for_video(
@@ -50,8 +50,8 @@ mod tests {
         CreateGeneratedVideoRecordInput {
             project_id,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
-            workflow_mode: a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string(),
             prompt: "prompt".to_string(),
             negative_prompt: None,
             model: "test".to_string(),

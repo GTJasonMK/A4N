@@ -5,8 +5,8 @@ use super::messages::{
     optimization_chat_history, parse_content_optimization_issues, parse_optimization_issues,
 };
 use super::*;
-use a4n_core::error::AppError;
-use a4n_core::models::ai::{optimization_session, optimization_turn};
+use a4n_db_models::models::ai::{optimization_session, optimization_turn};
+use a4n_error::AppError;
 use a4n_llm::provider::MessageRole;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use chrono::Utc;

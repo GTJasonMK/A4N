@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::gateway::{LlmProbeOutput, LlmProbePayload};
 use a4n_llm::provider::{ChatRequest, LlmProvider, collect_chat_stream};
 use a4n_service_protocol::{LLM_SERVICE_NAME, ServiceRequest, ServiceResponse};

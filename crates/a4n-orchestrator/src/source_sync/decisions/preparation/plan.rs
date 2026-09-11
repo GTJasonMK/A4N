@@ -1,12 +1,12 @@
 use std::collections::BTreeSet;
 
-use a4n_core::error::AppError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter_shooting_script,
     project::source_snapshot_chapter,
     source_sync::{source_sync_conflict, source_sync_run},
 };
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
+use a4n_error::AppError;
 
 use super::spans::galgame_regeneration_source_spans;
 use crate::OrchestratorContext;

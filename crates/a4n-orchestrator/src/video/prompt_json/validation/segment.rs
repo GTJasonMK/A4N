@@ -3,8 +3,8 @@ mod performance;
 
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
-use a4n_core::video_execution::VIDEO_SEGMENT_PLAN_V2;
+use a4n_error::AppError;
+use a4n_video_contract::VIDEO_SEGMENT_PLAN_V2;
 
 use super::super::VideoSegmentPlan;
 use super::{required_text, validate_duration};

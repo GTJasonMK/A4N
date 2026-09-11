@@ -5,7 +5,7 @@ use super::mutability::{
 use super::{frame_images::generated_frame_images_for_prompts, rules::prompt_stage};
 use crate::video::{self, VideoDbError};
 use crate::video_prompt::PromptStage;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::image_generation_prompt_id;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, TransactionTrait};
 use std::collections::{BTreeSet, HashMap};
@@ -88,17 +88,20 @@ where
                 ensure_no_generated_frame_image(row, "删除", generated_images.get(&row.id))?;
             }
             let scope = (row.project_id, row.chapter_id);
-            if !sibling_rows_by_scope.contains_key(&scope) {
-                let sibling_rows = video::chapter_video_prompt_dependency_records(
-                    &txn,
-                    row.project_id,
-                    row.chapter_id,
-                )
-                .await
-                .map_err(VideoDbError::Database)?;
-                dependency_indexes_by_scope
-                    .insert(scope, PromptDependencyIndex::build(&sibling_rows));
-                sibling_rows_by_scope.insert(scope, sibling_rows);
+            match sibling_rows_by_scope.get(&scope) {
+                Some(_) => {}
+                None => {
+                    let sibling_rows = video::chapter_video_prompt_dependency_records(
+                        &txn,
+                        row.project_id,
+                        row.chapter_id,
+                    )
+                    .await
+                    .map_err(VideoDbError::Database)?;
+                    dependency_indexes_by_scope
+                        .insert(scope, PromptDependencyIndex::build(&sibling_rows));
+                    sibling_rows_by_scope.insert(scope, sibling_rows);
+                }
             }
             let sibling_rows = sibling_rows_by_scope
                 .get(&scope)

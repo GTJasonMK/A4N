@@ -1,13 +1,11 @@
 use crate::video::VideoDbError;
-use a4n_core::{
-    models::{
-        ai::{generated_image, generated_video},
-        chapter::{chapter_manga_prompt, chapter_video_prompt},
-    },
-    video_execution::{
-        VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1,
-        propagate_adopted_video_change, video_segment_recipes_from_metadata,
-    },
+use a4n_db_models::models::{
+    ai::{generated_image, generated_video},
+    chapter::{chapter_manga_prompt, chapter_video_prompt},
+};
+use a4n_video_contract::{
+    VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1,
+    propagate_adopted_video_change, video_segment_recipes_from_metadata,
 };
 use chrono::Utc;
 use sea_orm::{

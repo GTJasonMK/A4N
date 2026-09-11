@@ -1,4 +1,3 @@
-use a4n_core::{error::AppError, models::project::novel_blueprint};
 use a4n_db::blueprint::{
     BlueprintRefinePatchInput, InsertBlueprintVersionInput, SyncProjectAfterBlueprintInput,
     apply_blueprint_refine_patch_record, blueprint_version_snapshot,
@@ -9,6 +8,9 @@ use a4n_db::project::{
     blueprint_characters_for_project, blueprint_relationships_for_project,
     merge_blueprint_characters, merge_blueprint_relationships,
 };
+use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::project::ProjectStatus;
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::DatabaseTransaction;
 use serde_json::Value;
@@ -20,7 +22,7 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
     tx: &DatabaseTransaction,
     project_id: i64,
     expected_source_snapshot: Value,
-    parsed: a4n_core::blueprint::ParsedBlueprintOptimization,
+    parsed: a4n_domain::project::ParsedBlueprintOptimization,
 ) -> Result<novel_blueprint::Model, AppError> {
     let locked_sources =
         a4n_db::outline::load_outline_generation_source_rows_for_update(tx, project_id)
@@ -97,8 +99,7 @@ pub(super) async fn persist_blueprint_refinement_in_transaction(
     )
     .await
     .map_err(blueprint_db_error)?;
-    let project_status =
-        a4n_core::state::validator::parse_project_status(&locked_sources.project.status)?;
+    let project_status = ProjectStatus::parse_storage(&locked_sources.project.status)?;
     let total_chapters = updated.total_chapters.ok_or_else(|| {
         AppError::InvalidArgument("蓝图缺少 total_chapters，无法同步项目".to_string())
     })?;

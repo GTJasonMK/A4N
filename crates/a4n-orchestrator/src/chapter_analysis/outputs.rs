@@ -1,14 +1,11 @@
 use std::collections::HashSet;
 
 use a4n_api_contract::character::CharacterProfileSyncFailure;
-use a4n_core::{
-    chapter_analysis::{
-        foreshadowing_entries, priority_to_importance, summary_text,
-        validate_saved_chapter_analysis,
-    },
-    error::AppError,
-    models::chapter::chapter,
+use a4n_chapter_analysis::{
+    foreshadowing_entries, priority_to_importance, summary_text, validate_saved_chapter_analysis,
 };
+use a4n_db_models::models::chapter::chapter;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::{OrchestratorContext, project::ForeshadowingAnalysisDraft};
@@ -238,7 +235,7 @@ impl OrchestratorContext {
         self.reingest_foreshadowing_rag_by_ids(chapter.project_id, &current_ids)
             .await
             .map_err(ChapterAnalysisOutputError::Rag)?;
-        let rows = |items: &[a4n_core::models::character::foreshadowing_index::Model]| {
+        let rows = |items: &[a4n_db_models::models::character::foreshadowing_index::Model]| {
             items
                 .iter()
                 .map(|item| json!({ "id": item.id, "name": item.description }))

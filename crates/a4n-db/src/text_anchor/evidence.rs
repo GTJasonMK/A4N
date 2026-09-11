@@ -1,13 +1,12 @@
 use super::validation::ensure_profile_belongs_to_root;
-use super::{
-    TextAnchorDbResult, TextAnchorEvidenceInput, TextAnchorProfileKind, validate_anchor_ref_records,
+use super::{TextAnchorDbResult, validate_anchor_ref_records};
+use a4n_db_models::models::{
+    chapter::chapter,
+    project::{profile_evidence, text_anchor},
 };
-use a4n_core::{
-    models::{
-        chapter::chapter,
-        project::{profile_evidence, text_anchor},
-    },
-    source_spans::source_text_hash,
+use a4n_domain::{
+    source_text_hash,
+    text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind},
 };
 use chrono::Utc;
 use sea_orm::{
@@ -193,12 +192,12 @@ where
     super::validation::ensure_text_root_project(db, root_project_id).await?;
     match profile_kind {
         TextAnchorProfileKind::Character => {
-            let profiles = a4n_core::models::character::protagonist_profile::Entity::find()
+            let profiles = a4n_db_models::models::character::protagonist_profile::Entity::find()
                 .select_only()
-                .column(a4n_core::models::character::protagonist_profile::Column::Id)
-                .column(a4n_core::models::character::protagonist_profile::Column::ProjectId)
+                .column(a4n_db_models::models::character::protagonist_profile::Column::Id)
+                .column(a4n_db_models::models::character::protagonist_profile::Column::ProjectId)
                 .filter(
-                    a4n_core::models::character::protagonist_profile::Column::Id
+                    a4n_db_models::models::character::protagonist_profile::Column::Id
                         .is_in(profile_ids.iter().copied()),
                 )
                 .into_tuple::<(i64, i64)>()
@@ -218,12 +217,12 @@ where
             }
         }
         TextAnchorProfileKind::Object => {
-            let profiles = a4n_core::models::asset::object_profile::Entity::find()
+            let profiles = a4n_db_models::models::asset::object_profile::Entity::find()
                 .select_only()
-                .column(a4n_core::models::asset::object_profile::Column::Id)
-                .column(a4n_core::models::asset::object_profile::Column::ProjectId)
+                .column(a4n_db_models::models::asset::object_profile::Column::Id)
+                .column(a4n_db_models::models::asset::object_profile::Column::ProjectId)
                 .filter(
-                    a4n_core::models::asset::object_profile::Column::Id
+                    a4n_db_models::models::asset::object_profile::Column::Id
                         .is_in(profile_ids.iter().copied()),
                 )
                 .into_tuple::<(i64, i64)>()
@@ -243,12 +242,12 @@ where
             }
         }
         TextAnchorProfileKind::Scene => {
-            let profiles = a4n_core::models::scene::scene_profile::Entity::find()
+            let profiles = a4n_db_models::models::scene::scene_profile::Entity::find()
                 .select_only()
-                .column(a4n_core::models::scene::scene_profile::Column::Id)
-                .column(a4n_core::models::scene::scene_profile::Column::ProjectId)
+                .column(a4n_db_models::models::scene::scene_profile::Column::Id)
+                .column(a4n_db_models::models::scene::scene_profile::Column::ProjectId)
                 .filter(
-                    a4n_core::models::scene::scene_profile::Column::Id
+                    a4n_db_models::models::scene::scene_profile::Column::Id
                         .is_in(profile_ids.iter().copied()),
                 )
                 .into_tuple::<(i64, i64)>()

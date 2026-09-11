@@ -1,5 +1,5 @@
 use super::ProjectFamilyDbError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::profile_primary_material,
     character::{character_portrait, protagonist_profile},
 };

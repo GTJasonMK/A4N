@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::chapter::chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 
 use super::source::validate_import_chapter_video_prompt;
 use super::{OrchestratorContext, video_db_error};

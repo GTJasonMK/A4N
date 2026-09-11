@@ -1,9 +1,6 @@
 mod host_port;
 
-use a4n_core::models::canvas::canvas_node;
-use a4n_orchestrator::canvas::{
-    CanvasEditingNodeExecutionInput, CanvasGraphRecordDocument, CanvasNodeRunHandle,
-};
+use a4n_canvas_contract::{CanvasEditingNodeApplicationInput, CanvasEditingNodeRun};
 
 use super::super::CanvasRunSummary;
 use crate::state::AppState;
@@ -15,24 +12,21 @@ pub(in crate::actions::canvas_workflow) async fn run_canvas_editing_node(
     user_id: i64,
     project_id: i64,
     graph_id: i64,
-    node: &canvas_node::Model,
-    document: &CanvasGraphRecordDocument,
-    run_handle: Option<CanvasNodeRunHandle>,
+    node_id: i64,
+    shared_run: Option<CanvasEditingNodeRun>,
     mode: &str,
 ) -> Result<CanvasRunSummary, String> {
-    let shared_run = run_handle;
     let host_port = RuntimeCanvasEditingNodeHostPort::new(state);
     let summary = state
-        .orchestrator()
-        .run_canvas_editing_node_validated(
-            CanvasEditingNodeExecutionInput {
+        .canvas_editing_application()
+        .run_editing(
+            CanvasEditingNodeApplicationInput {
                 user_id,
                 project_id,
                 graph_id,
-                node,
-                document,
                 shared_run,
-                mode,
+                node_id,
+                mode: mode.to_string(),
             },
             &host_port,
         )

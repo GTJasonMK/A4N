@@ -1,8 +1,10 @@
-use super::{PersistTaskQueueRecordInput, QueueDbError};
-use a4n_core::models::{generation::generation_task_checkpoint, task::task_queue};
+use super::QueueDbError;
+use a4n_db_models::models::{generation::generation_task_checkpoint, task::task_queue};
+use a4n_domain::task_queue::PersistTaskQueueRecordInput;
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, QueryTrait, Set,
+    TransactionTrait,
 };
 
 pub async fn recoverable_active_task_ids(
@@ -28,6 +30,21 @@ pub async fn insert_task_queue_record(
     input: PersistTaskQueueRecordInput,
 ) -> Result<(), QueueDbError> {
     let now = Utc::now().naive_utc();
+    let tx = db.begin().await?;
+    if let Some((package_id, reason_code)) = crate::package::package_admission_block(
+        &tx,
+        &input.task_type,
+        input.task_scope.as_deref(),
+        None,
+    )
+    .await?
+    {
+        tx.rollback().await?;
+        return Err(QueueDbError::AdmissionBlocked {
+            package_id,
+            reason_code,
+        });
+    }
     task_queue::Entity::insert(task_queue::ActiveModel {
         id: Set(input.task_id),
         task_type: Set(input.task_type),
@@ -46,7 +63,8 @@ pub async fn insert_task_queue_record(
         started_at: Set(None),
         completed_at: Set(None),
     })
-    .exec(db)
+    .exec(&tx)
     .await?;
+    tx.commit().await?;
     Ok(())
 }

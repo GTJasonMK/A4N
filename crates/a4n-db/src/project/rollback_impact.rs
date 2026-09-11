@@ -2,11 +2,8 @@ mod contracts;
 
 pub use contracts::ProjectRollbackImpactReadError;
 
-use a4n_core::{
-    models::chapter::{chapter_outline, part_outline},
-    state::rollback::CleanupAction,
-};
-use a4n_domain::project::ProjectRollbackImpactSummary;
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::project::{CleanupAction, ProjectRollbackImpactSummary};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, DbErr, EntityTrait, QueryFilter,
     QuerySelect, Statement,

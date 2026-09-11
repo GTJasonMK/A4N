@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub fn validate_direct_prompt_text(text: &str, field: &str) -> Result<(), AppError> {
     if text.trim().is_empty() {

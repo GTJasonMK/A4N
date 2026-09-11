@@ -1,6 +1,17 @@
-use a4n_core::error::AppError;
+use std::collections::HashMap;
+
+use a4n_api_contract::{
+    generation_tasks::GenerationTaskHandle,
+    portrait::{
+        GeneratePortraitInput as ApiGeneratePortraitInput,
+        GeneratePortraitPromptInput as ApiGeneratePortraitPromptInput, PortraitSummary,
+        PortraitType, StartPortraitGenerationInput, UploadPortraitInput,
+    },
+};
 use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, is_truncated_finish_reason};
+use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
@@ -13,16 +24,13 @@ mod generation;
 mod llm_stream;
 mod prompt_generation;
 mod prompt_rules;
-mod reference_id_rules;
 mod workflow_rules;
 
+pub(crate) use application::portrait_summary;
 pub use application::{
-    DecodedPortraitImage, GenerateAgeVariantInput, GenerateMissingPortraitsInput,
-    GeneratePortraitInput, GeneratePortraitPromptInput, GeneratedPortraitImage,
-    PersistPortraitFileInput, PersistedPortraitFile, PortraitBatchItem, PortraitBatchOutcome,
+    DecodedPortraitImage, GeneratedPortraitImage, PortraitBatchItem, PortraitBatchOutcome,
     PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
-    PortraitReferenceImageSource, PortraitSummary, PortraitType, RegeneratePortraitInput,
-    UploadPortraitInput, portrait_summary,
+    PortraitReferenceImageSource,
 };
 pub use prompt_generation::{
     PortraitPromptGenerationInput, PortraitPromptRequestInput, PortraitPromptSpec,
@@ -32,7 +40,6 @@ pub use prompt_rules::{
     DEFAULT_PORTRAIT_EXPRESSION, expression_or_default, optional_profile_text,
     portrait_profile_context, portrait_style_with_pose, profile_portrait_seed_prompt,
 };
-pub use reference_id_rules::validate_reference_image_ids;
 pub use workflow_rules::{
     missing_portrait_item_fingerprint, portrait_generate_business_key,
     portrait_generate_workflow_fingerprint, portrait_image_business_key,
@@ -40,8 +47,57 @@ pub use workflow_rules::{
     portrait_prompt_checkpoint_fingerprint, portrait_prompt_workflow_fingerprint,
 };
 
+/// Host-facing boundary for portrait generation workers.
+///
+/// Runtime owns task scheduling and supplies prompt/file/provider adapters;
+/// portrait validation, persistence and workflow state stay here.
+#[async_trait::async_trait]
+pub trait PortraitGenerationApplicationPort: Send + Sync {
+    async fn prepare_portrait_prompt_request(
+        &self,
+        input: &ApiGeneratePortraitPromptInput,
+        prompt_renderer: &dyn PromptRenderer,
+        variables: &HashMap<String, Value>,
+    ) -> Result<ChatRequest, AppError>;
+
+    async fn prepare_portrait_request(
+        &self,
+        input: &ApiGeneratePortraitInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError>;
+
+    async fn generate_portrait_prompt(
+        &self,
+        input: ApiGeneratePortraitPromptInput,
+        prompt_renderer: &dyn PromptRenderer,
+        variables: &HashMap<String, Value>,
+    ) -> Result<String, AppError>;
+
+    async fn upload_portrait(
+        &self,
+        user_id: i64,
+        input: UploadPortraitInput,
+        host_port: &dyn PortraitGenerationHostPort,
+    ) -> Result<PortraitSummary, AppError>;
+
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartPortraitGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: StartPortraitGenerationInput,
+        handle: GenerationTaskHandle,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn PortraitGenerationHostPort,
+    ) -> Result<(), String>;
+}
+
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
-use a4n_core::models::generation::workflow_run;
+use a4n_db_models::models::generation::workflow_run;
 
 #[cfg(test)]
 mod tests;

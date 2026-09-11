@@ -1,6 +1,6 @@
 use super::super::super::truncate_text_chars;
 use super::super::rules::metadata_str;
-use a4n_core::rag::RagDataType;
+use a4n_domain::rag::RagDataType;
 use a4n_rag_core::metadata::metadata_i64;
 use a4n_rag_core::vector_store::SearchResult;
 

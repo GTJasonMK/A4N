@@ -1,16 +1,51 @@
-use a4n_api_contract::{generation_tasks::GenerationTaskHandle, video::StartVideoGenerationInput};
-use a4n_orchestrator::GenerationTaskAccessError;
+use std::collections::HashMap;
+
+use a4n_api_contract::{
+    generation_tasks::{GenerationTaskHandle, GenerationTaskStartError},
+    video::StartVideoGenerationInput,
+};
+use a4n_error::AppError;
+use a4n_provider_contract::VideoProviderConfig;
+use a4n_video_contract::VideoPromptGenerationHostPort;
+use async_trait::async_trait;
+use serde_json::Value;
 
 use crate::{AppState, actions::video_generation::provider_host::RuntimeVideoProviderHostPort};
+
+struct RuntimeVideoPromptGenerationHostPort<'state> {
+    state: &'state AppState,
+}
+
+#[async_trait]
+impl VideoPromptGenerationHostPort for RuntimeVideoPromptGenerationHostPort<'_> {
+    async fn render_prompt(
+        &self,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, AppError> {
+        a4n_prompt::rendering::PromptRenderer::render_prompt(
+            self.state,
+            template_name,
+            variables,
+            project_id,
+        )
+        .await
+    }
+
+    fn runtime_video_config(&self) -> Option<VideoProviderConfig> {
+        crate::runtime_config::current_video_provider_config()
+    }
+}
 
 pub async fn start_video_generation_typed(
     state: &AppState,
     user_id: i64,
     input: StartVideoGenerationInput,
-) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
+) -> Result<GenerationTaskHandle, GenerationTaskStartError> {
     let start = state
-        .orchestrator()
-        .start_video_generation_task(user_id, &input)
+        .video_generation_application()
+        .start_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -22,19 +57,12 @@ pub async fn start_video_generation_typed(
             start.handle.clone(),
             "video_prompt_generation",
             move |handle| async move {
-                let runtime_video_config = crate::runtime_config::current_video_model();
-                let prompt_renderer = &worker_state;
+                let prompt_host = RuntimeVideoPromptGenerationHostPort {
+                    state: &worker_state,
+                };
                 worker_state
-                    .orchestrator()
-                    .run_video_prompt_generation_task(
-                        user_id,
-                        input,
-                        handle,
-                        a4n_orchestrator::video::VideoPromptApplicationContext {
-                            runtime_video_config: runtime_video_config.as_ref(),
-                            prompt_renderer,
-                        },
-                    )
+                    .video_generation_application()
+                    .run_prompt_task(user_id, input, handle, &prompt_host)
                     .await
             },
         );
@@ -45,8 +73,8 @@ pub async fn start_video_generation_typed(
             move |handle| async move {
                 let host_port = RuntimeVideoProviderHostPort::new(&worker_state);
                 worker_state
-                    .orchestrator()
-                    .run_video_generation_task(user_id, input, handle, &host_port)
+                    .video_generation_application()
+                    .run_task(user_id, input, handle, &host_port)
                     .await
             },
         );

@@ -1,5 +1,5 @@
 use super::super::{VideoDbError, validate_positive_video_i64, validate_positive_video_ids};
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,

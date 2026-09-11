@@ -10,9 +10,7 @@ mod records;
 pub use a4n_api_contract::video::UpdateGeneratedVideoInput;
 pub use a4n_api_contract::video::VideoPlaybackData;
 pub(crate) use assembly::recover_expired_assembly_caches;
-pub(in crate::actions::video_records) use completion::{
-    complete_video_record, enqueue_unadopted_video_file_cleanup,
-};
+pub(in crate::actions::video_records) use completion::complete_video_record;
 pub(crate) use imports::recover_expired_uploaded_video_sources;
 pub(in crate::actions::video_records) use paths::video_record_output_path;
 pub(in crate::actions::video_records) use probe::probe_video_properties;

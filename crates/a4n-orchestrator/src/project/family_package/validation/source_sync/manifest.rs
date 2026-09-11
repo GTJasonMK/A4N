@@ -4,7 +4,7 @@ mod runs;
 
 use std::collections::HashMap;
 
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
 
 use super::super::ProjectFamilyPackage;
 use super::contracts::SourceSyncReferenceSets;

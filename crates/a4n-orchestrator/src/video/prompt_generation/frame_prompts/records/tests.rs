@@ -7,12 +7,12 @@ use crate::video::prompt_json::{
     StoryboardPanel, VideoFramePrompt, VideoPromptShot, VideoSegmentPlan,
 };
 use crate::video::prompt_store::NewChapterVideoPrompt;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 fn segment(segment_number: i32) -> VideoSegmentPlan {
     serde_json::from_value(json!({
-        "schema_version": a4n_core::video_execution::VIDEO_SEGMENT_PLAN_V2,
+        "schema_version": a4n_video_contract::VIDEO_SEGMENT_PLAN_V2,
         "segment_number": segment_number,
         "source_shot_id": format!("shot-{segment_number}"),
         "segment_index_in_shot": 1,
@@ -213,7 +213,7 @@ fn storyboard_prompts_require_frame_prompt_panel_markers() {
 #[test]
 fn targeted_storyboard_prompt_uses_target_content_segment_after_action_bridge() {
     let mut first = segment(1);
-    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+    first.transition_to_next = Some(a4n_video_contract::VideoSegmentTransitionV1 {
         transition_type: a4n_domain::shooting_script::ShootingTransitionTypeV1::MatchCut,
         editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("角色推门动作连续完成".to_string()),

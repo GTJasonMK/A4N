@@ -1,12 +1,13 @@
-use a4n_core::models::scene::scene_profile;
+use a4n_db_models::models::scene::scene_profile;
 use chrono::NaiveDateTime;
 use serde_json::json;
 
-use a4n_core::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
+use a4n_domain::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
+use a4n_domain::scene_profile::SceneProfileRecordInput;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 
 use super::rules::{SceneProfileDraftTracker, merge_scene_profile_record_input};
-use crate::scene_profile::{SceneProfileDbError, SceneProfileRecordDraft, SceneProfileRecordInput};
+use crate::scene_profile::{SceneProfileDbError, SceneProfileRecordDraft};
 
 fn input(name: &str, normalized_name: &str) -> SceneProfileRecordInput {
     SceneProfileRecordInput {

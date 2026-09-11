@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_service_protocol::{GenerationError, GenerationUsage};
 
 use crate::generation::{events::GenerationTaskSession, generation_public_error};

@@ -1,4 +1,4 @@
-use a4n_core::models::canvas::canvas_text_asset;
+use a4n_db_models::models::canvas::canvas_text_asset;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;

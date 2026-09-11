@@ -31,7 +31,7 @@ pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
                         "mode": {
                             "type": "string",
                             "enum": ["read", "search"],
-                            "description": "read 按 source 读取完整上下文段；search 按 query 在指定 sources 或全部上下文中搜索。"
+                            "description": "read 有界读取快照；current_chapter 默认返回正文字符页及完整 source_spans，其他对象返回字段索引。search 返回关键词片段，不能替代完整证据。"
                         },
                         "source": {
                             "type": "string",
@@ -45,8 +45,20 @@ pub(crate) fn optimization_runtime_tool_specs() -> Vec<Value> {
                         "limit": {
                             "type": "integer",
                             "minimum": 1,
-                            "maximum": 20,
-                            "description": "search 模式返回的最大匹配数；不填时返回 8 条。"
+                            "maximum": 4096,
+                            "description": "read 文本默认 2048/最多4096字符，数组或字段默认20/最多100项；search 默认8/最多20条。结果最多16KiB，超限需缩小范围。"
+                        },
+                        "offset": {
+                            "type": "integer", "minimum": 0,
+                            "description": "read 页偏移，按返回的 unit 计数；用 next_offset 继续读取。"
+                        },
+                        "path": {
+                            "type": "string",
+                            "description": "read 的 JSON pointer，如 /summary 或 /source_spans；省略则读来源根。"
+                        },
+                        "expected_hash": {
+                            "type": "string",
+                            "description": "read 后续页携带上页 resource.hash，快照变化时明确失败。"
                         }
                     }
                 }

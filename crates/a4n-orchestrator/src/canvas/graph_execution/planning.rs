@@ -1,9 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashSet, VecDeque};
 
-use a4n_core::models::canvas::canvas_node;
+use a4n_canvas_contract::CanvasGraphNodeExecutionKind;
 use a4n_db::canvas::CanvasGraphRecordDocument;
-
-use super::contracts::CanvasGraphNodeExecutionKind;
+use a4n_db_models::models::canvas::canvas_node;
 
 pub(super) fn canvas_node_kind_is_executable(node_kind: &str) -> bool {
     CanvasGraphNodeExecutionKind::from_node_kind(node_kind).is_ok()

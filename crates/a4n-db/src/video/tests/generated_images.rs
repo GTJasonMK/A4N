@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{chapter, chapter_manga_prompt, chapter_video_prompt},
     project::novel_project,
@@ -198,7 +198,7 @@ async fn delete_image_clears_direct_prompt_and_video_bindings_in_batch() {
         CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: Some(chapter.id),
-            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
             workflow_mode: Some("boundary_frames".to_string()),
             prompt: "video reference".to_string(),
             negative_prompt: None,

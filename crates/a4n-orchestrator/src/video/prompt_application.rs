@@ -1,26 +1,21 @@
+use a4n_error::AppError;
 use std::collections::{BTreeSet, HashMap};
 
-use a4n_api_contract::video::VideoPromptGenerationOptions;
 pub use a4n_api_contract::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
 };
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::video_gen_config,
-        chapter::{chapter, chapter_video_prompt},
-    },
-    prompt_language::PromptOutputLanguage,
-    source_spans::source_text_hash as source_content_sha256,
-    video_execution::{
-        VideoSegmentExecutionRecipeV1, VideoSegmentWorkflowModeV1, resolve_video_segment_number,
-        video_segment_recipes_for_plan_from_metadata,
-    },
-};
+use a4n_api_contract::video::{VideoPromptDownstreamCleanupPort, VideoPromptGenerationOptions};
 use a4n_db::video_prompt::ChapterVideoPromptPatch;
-use a4n_domain::DownstreamConflictStrategy;
+use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::{DownstreamConflictStrategy, source_text_hash as source_content_sha256};
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_provider_contract::VideoProviderConfig;
+use a4n_video_contract::{
+    VideoSegmentExecutionRecipeV1, VideoSegmentWorkflowModeV1, resolve_video_segment_number,
+    video_segment_recipes_for_plan_from_metadata,
+};
 use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -29,7 +24,9 @@ use tokio_util::sync::CancellationToken;
 use crate::{
     OrchestratorContext,
     collaboration::ProjectAccessRole,
-    workflow::{WorkflowRunSummary, workflow_run_is_running_or_resumable},
+    workflow::{
+        WorkflowRunSummary, workflow_run_is_running_or_resumable, workflow_run_summary_to_api,
+    },
 };
 
 use super::prompt_context::validate_prompt_options_with_reference_limit;
@@ -37,10 +34,10 @@ use super::prompt_optimization::VideoPromptOptimizationInput;
 use super::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSource,
     ChapterVideoSourceContext, VideoPromptChunk, VideoPromptDownstreamDependencies,
-    VideoPromptProgress, VideoPromptProgressUpdate, duration_capability_for_config,
+    VideoPromptProgress, VideoPromptProgressUpdate, duration_capability_for_provider_config,
     load_video_segment_plan_draft_checkpoints, load_video_segment_plan_draft_recipe_state,
-    update_video_segment_plan_draft_recipe_checkpoint, validate_video_duration_for_config_secs,
-    video_db_error,
+    update_video_segment_plan_draft_recipe_checkpoint,
+    validate_video_duration_for_provider_config_secs, video_db_error,
 };
 
 const MAX_NON_CHAT_REFERENCE_IMAGE_IDS: usize = 4;
@@ -61,25 +58,16 @@ pub struct GenerateChapterVideoPromptInput {
 }
 
 pub struct VideoSegmentPlanDraftState {
-    pub run: WorkflowRunSummary,
-    pub segments: Vec<a4n_core::video_execution::VideoSegmentPlanV2>,
+    pub run: a4n_api_contract::workflow::WorkflowRunSummary,
+    pub segments: Vec<a4n_video_contract::VideoSegmentPlanV2>,
     pub recipes: Vec<VideoSegmentExecutionRecipeV1>,
     pub completed_shot_count: usize,
     pub total_shot_count: usize,
 }
 
 pub struct VideoPromptApplicationContext<'a> {
-    pub runtime_video_config: Option<&'a video_gen_config::Model>,
+    pub runtime_video_config: Option<&'a VideoProviderConfig>,
     pub prompt_renderer: &'a dyn PromptRenderer,
-}
-
-#[async_trait]
-pub trait VideoPromptDownstreamCleanupPort: Send + Sync {
-    async fn delete_downstream_media(
-        &self,
-        image_ids: &[i64],
-        video_ids: &[i64],
-    ) -> Result<(), AppError>;
 }
 
 #[derive(Clone, Copy)]
@@ -207,7 +195,7 @@ impl OrchestratorContext {
 
     async fn prepare_video_prompt_generation(
         &self,
-        runtime_video_config: Option<&video_gen_config::Model>,
+        runtime_video_config: Option<&VideoProviderConfig>,
         input: GenerateChapterVideoPromptInput,
         stage: PromptGenerationStage,
         spec: GenerationSpec,
@@ -253,7 +241,7 @@ impl OrchestratorContext {
                         .await
                         .map(Some)
                 } else {
-                    Ok::<Option<video_gen_config::Model>, AppError>(None)
+                    Ok::<Option<VideoProviderConfig>, AppError>(None)
                 }
             },
             self.verify_video_reference_image_access(
@@ -480,7 +468,7 @@ impl OrchestratorContext {
             load_video_segment_plan_draft_recipe_state(&checkpoints, &style)?
         };
         Ok(VideoSegmentPlanDraftState {
-            run,
+            run: workflow_run_summary_to_api(run),
             segments,
             recipes,
             completed_shot_count,
@@ -910,11 +898,14 @@ impl OrchestratorContext {
 
     async fn effective_video_config(
         &self,
-        runtime_video_config: Option<&video_gen_config::Model>,
-    ) -> Result<video_gen_config::Model, AppError> {
+        runtime_video_config: Option<&VideoProviderConfig>,
+    ) -> Result<VideoProviderConfig, AppError> {
         match runtime_video_config {
             Some(config) => Ok(config.clone()),
-            None => self.default_video_config().await,
+            None => self
+                .default_video_config()
+                .await
+                .map(|config| super::video_provider_config_from_model(&config)),
         }
     }
 
@@ -1113,12 +1104,13 @@ fn validate_generate_prompt_options(
 }
 
 fn apply_duration_capability(
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     options: &mut ChapterVideoPromptOptions,
 ) -> Result<(), AppError> {
-    validate_video_duration_for_config_secs(config, options.duration_secs)
+    validate_video_duration_for_provider_config_secs(config, options.duration_secs)
         .map_err(AppError::InvalidArgument)?;
-    let capability = duration_capability_for_config(config).map_err(AppError::InvalidArgument)?;
+    let capability =
+        duration_capability_for_provider_config(config).map_err(AppError::InvalidArgument)?;
     capability.validate_duration_options(&options.duration_secs_options)?;
     options.duration_capability = Some(capability);
     Ok(())
@@ -1245,6 +1237,31 @@ fn mutation_plan_from_dependencies(
             allow_downstream: false,
             delete_dependencies: Some(dependencies),
         }),
+    }
+}
+
+#[async_trait]
+impl a4n_api_contract::video::VideoPromptReadApplicationPort for OrchestratorContext {
+    async fn list_chapter(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<ChapterVideoPromptSummary>, AppError> {
+        self.list_chapter_video_prompts_validated(user_id, project_id, chapter_id)
+            .await
+    }
+
+    async fn validate_project_chapter_source(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        operation: &str,
+        writable: bool,
+    ) -> Result<(), AppError> {
+        self.project_chapter_video_source(project_id, chapter_id, operation, writable)
+            .await
+            .map(|_| ())
     }
 }
 

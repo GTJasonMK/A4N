@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use a4n_core::config::env::optional_non_empty_env_path;
+use a4n_config::optional_non_empty_env_path;
 
 use super::super::specs::SIDECAR_BIN_DIR_ENV;
 use super::names::sidecar_executable_name;

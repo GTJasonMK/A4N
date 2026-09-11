@@ -47,5 +47,17 @@ pub(super) async fn persist_agent_loop_decision_call(
             })
             .await?;
     }
+    if decision.action != crate::optimize::agent_loop::AgentLoopAction::Final {
+        let task = request.generation.session.snapshot();
+        context
+            .agent()
+            .publish_generation_progress(
+                &task.task_id,
+                task.attempt,
+                request.step,
+                decision.public_update_for_non_final()?,
+            )
+            .await?;
+    }
     Ok(decision)
 }

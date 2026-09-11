@@ -1,5 +1,6 @@
 use super::contracts::{CreateLlmInput, UpdateLlmInput};
 use super::*;
+use a4n_provider_contract::LlmProviderConfig;
 
 #[test]
 fn create_llm_input_requires_model_token_limits() {
@@ -102,22 +103,18 @@ fn llm_connectivity_test_rejects_connection_tokens_above_tested_model_cap() {
     assert!(err.contains("model_max_output_tokens=4"));
 }
 
-fn test_llm_config_model(id: i64, max_output_tokens: i32) -> llm_config::Model {
-    let now = chrono::Utc::now().naive_utc();
-    llm_config::Model {
+fn test_llm_config_model(id: i64, max_output_tokens: i32) -> LlmProviderConfig {
+    LlmProviderConfig {
         id,
         name: format!("test llm {id}"),
         provider: "openai".to_string(),
         base_url: "https://api.example/v1".to_string(),
-        api_key_encrypted: Some("sk-test".to_string()),
+        api_key: Some("sk-test".to_string()),
         model: "gpt-test".to_string(),
         max_concurrent: 1,
         timeout_secs: 30,
         max_context_tokens: 128_000,
         max_output_tokens,
         extra_body_json: None,
-        is_default: false,
-        created_at: now,
-        updated_at: now,
     }
 }

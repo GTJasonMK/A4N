@@ -1,13 +1,13 @@
 use super::error::ApiError;
 use crate::state::ServerState;
-use a4n_core::models::user::user;
+use a4n_api_contract::auth::UserSummary;
 use a4n_runtime::host_api::auth_records;
 use axum::http::HeaderMap;
 
 pub(crate) async fn authenticated_user(
     state: &ServerState,
     headers: &HeaderMap,
-) -> Result<user::Model, ApiError> {
+) -> Result<UserSummary, ApiError> {
     let token = bearer_token(headers)?;
     authenticated_user_from_access_token(state, token).await
 }
@@ -15,20 +15,10 @@ pub(crate) async fn authenticated_user(
 pub(crate) async fn authenticated_user_from_access_token(
     state: &ServerState,
     token: &str,
-) -> Result<user::Model, ApiError> {
+) -> Result<UserSummary, ApiError> {
     auth_records::user_from_access_token(state.runtime(), token)
         .await
         .map_err(ApiError::from)
-}
-
-pub(crate) async fn issue_auth_response(
-    state: &ServerState,
-    headers: &HeaderMap,
-    user: user::Model,
-) -> Result<auth_records::AuthResult, ApiError> {
-    auth_records::issue_auth_result(state.runtime(), user, user_agent(headers).as_deref())
-        .await
-        .map_err(Into::into)
 }
 
 fn bearer_token(headers: &HeaderMap) -> Result<&str, ApiError> {

@@ -1,10 +1,8 @@
-use crate::{
-    AppState, actions::access, cleanup_outbox::enqueue_file_artifact_cleanup_by_project, file_utils,
-};
-use a4n_core::error::AppError;
-use a4n_orchestrator::project::{
-    ProjectDuplicationHostPort, ProjectMediaCopyError, ProjectMediaFileCopier,
-};
+use crate::{AppState, actions::access, cleanup_outbox::enqueue_file_artifact_cleanup_by_project};
+use a4n_domain::project::{ProjectMediaCopyError, ProjectMediaFileCopier};
+use a4n_error::AppError;
+use a4n_orchestrator::project::ProjectDuplicationHostPort;
+use a4n_storage::{canonicalize_data_file_path, data_dir_relative_file_path};
 use async_trait::async_trait;
 use std::{
     fs,
@@ -22,7 +20,7 @@ fn copy_media_file(
     let Some(relative_path) = relative_path else {
         return Ok(None);
     };
-    let source = file_utils::canonicalize_data_file_path(data_dir, relative_path, "媒体文件")
+    let source = canonicalize_data_file_path(data_dir, relative_path, "媒体文件")
         .map_err(ProjectMediaCopyError::InvalidSourcePath)?;
     let extension = source
         .extension()
@@ -108,7 +106,7 @@ impl ProjectDuplicationHostPort for RuntimeProjectDuplicationHostPort<'_> {
         let paths = self
             .copied_media_files
             .iter()
-            .map(|path| file_utils::data_dir_relative_file_path(&self.data_dir, path, label))
+            .map(|path| data_dir_relative_file_path(&self.data_dir, path, label))
             .collect::<Result<Vec<_>, _>>()?;
         enqueue_file_artifact_cleanup_by_project(self.state, &self.cleanup_token, &paths).await
     }

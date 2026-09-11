@@ -1,10 +1,18 @@
+use std::collections::HashMap;
+
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
-    portrait::{PortraitGenerationOperation, StartPortraitGenerationInput},
+    portrait::{
+        GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
+        GeneratePortraitPromptInput, PortraitGenerationOperation, PortraitSummary,
+        RegeneratePortraitInput, StartPortraitGenerationInput, UploadPortraitInput,
+    },
 };
-use a4n_core::error::AppError;
-use a4n_domain::progress::ProgressPhaseKind;
+use a4n_domain::{image::validate_reference_image_ids, progress::ProgressPhaseKind};
+use a4n_error::AppError;
+use a4n_llm::provider::ChatRequest;
 use a4n_service_protocol::{BatchSummary, GenerationError, GenerationResultRef};
+use serde_json::Value;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
@@ -17,11 +25,7 @@ use crate::{
         best_effort_batch_summary, generation_batch_result_ref, generation_public_error,
         generation_result_ref, publish_step_progress,
     },
-    portrait::{
-        GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
-        PortraitGenerationHostPort, PortraitProgress, PortraitSummary, RegeneratePortraitInput,
-        validate_reference_image_ids,
-    },
+    portrait::{PortraitGenerationApplicationPort, PortraitGenerationHostPort, PortraitProgress},
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -141,6 +145,7 @@ impl OrchestratorContext {
 
     pub async fn run_portrait_generation_task(
         &self,
+        user_id: i64,
         input: StartPortraitGenerationInput,
         handle: GenerationTaskHandle,
         prompt_renderer: &dyn PromptRenderer,
@@ -191,6 +196,7 @@ impl OrchestratorContext {
             crate::portrait::llm_stream::with_portrait_llm_stream(llm_stream, || async {
                 let progress: PortraitProgress<'_> = &mut reporter;
                 self.execute_portrait_generation_operation(
+                    user_id,
                     input,
                     prompt_renderer,
                     host_port,
@@ -253,6 +259,7 @@ impl OrchestratorContext {
 
     async fn execute_portrait_generation_operation(
         &self,
+        user_id: i64,
         input: StartPortraitGenerationInput,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn PortraitGenerationHostPort,
@@ -272,6 +279,7 @@ impl OrchestratorContext {
             } => {
                 let summary = self
                     .generate_portrait_validated(
+                        user_id,
                         GeneratePortraitInput {
                             project_id,
                             character_name,
@@ -307,6 +315,7 @@ impl OrchestratorContext {
             } => {
                 let summary = self
                     .regenerate_portrait_validated(
+                        user_id,
                         RegeneratePortraitInput {
                             portrait_id,
                             reference_image_ids,
@@ -338,6 +347,7 @@ impl OrchestratorContext {
             } => {
                 let summary = self
                     .generate_age_variant_validated(
+                        user_id,
                         GenerateAgeVariantInput {
                             portrait_id,
                             age,
@@ -364,6 +374,7 @@ impl OrchestratorContext {
             PortraitGenerationOperation::GenerateMissing { width, height } => {
                 let outcome = self
                     .generate_missing_portraits_validated(
+                        user_id,
                         GenerateMissingPortraitsInput {
                             project_id,
                             width,
@@ -434,6 +445,88 @@ impl OrchestratorContext {
                 })
             }
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl PortraitGenerationApplicationPort for OrchestratorContext {
+    async fn prepare_portrait_prompt_request(
+        &self,
+        input: &GeneratePortraitPromptInput,
+        prompt_renderer: &dyn PromptRenderer,
+        variables: &HashMap<String, Value>,
+    ) -> Result<ChatRequest, AppError> {
+        OrchestratorContext::prepare_generate_portrait_prompt_request_preview_validated(
+            self,
+            input,
+            prompt_renderer,
+            variables,
+        )
+        .await
+    }
+
+    async fn prepare_portrait_request(
+        &self,
+        input: &GeneratePortraitInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError> {
+        OrchestratorContext::prepare_generate_portrait_request_preview_validated(
+            self,
+            input,
+            prompt_renderer,
+        )
+        .await
+    }
+
+    async fn generate_portrait_prompt(
+        &self,
+        input: GeneratePortraitPromptInput,
+        prompt_renderer: &dyn PromptRenderer,
+        variables: &HashMap<String, Value>,
+    ) -> Result<String, AppError> {
+        OrchestratorContext::generate_portrait_prompt_validated(
+            self,
+            input,
+            prompt_renderer,
+            variables,
+        )
+        .await
+    }
+
+    async fn upload_portrait(
+        &self,
+        user_id: i64,
+        input: UploadPortraitInput,
+        host_port: &dyn PortraitGenerationHostPort,
+    ) -> Result<PortraitSummary, AppError> {
+        OrchestratorContext::upload_portrait_validated(self, user_id, input, host_port).await
+    }
+
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartPortraitGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_portrait_generation_task(self, user_id, input).await
+    }
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: StartPortraitGenerationInput,
+        handle: GenerationTaskHandle,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn PortraitGenerationHostPort,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_portrait_generation_task(
+            self,
+            user_id,
+            input,
+            handle,
+            prompt_renderer,
+            host_port,
+        )
+        .await
     }
 }
 

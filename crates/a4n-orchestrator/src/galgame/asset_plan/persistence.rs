@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::galgame::{OrchestratorContext, galgame_asset_plan_spec_record_error};
 

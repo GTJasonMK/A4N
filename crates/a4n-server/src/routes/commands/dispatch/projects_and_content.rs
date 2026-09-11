@@ -1,26 +1,25 @@
 use super::super::{
     ApiError, ServerState, accept_project_invite, admin, apply_source_sync_decisions,
-    cleanup_orphan_project_data_dirs, confirm_chapter_visual_plan, create_derived_project,
-    create_freeform_video_project, create_project, decline_project_invite, delete_chapter_scene,
-    delete_latest_chapter_outlines, delete_optimize_session, delete_project,
-    detach_derived_project, diff_blueprint_versions, diff_profile_chapters,
-    discard_chapter_visual_plan_draft, discard_pending_optimize_patch_sets, duplicate_project,
+    cleanup_orphan_project_data_dirs, create_derived_project, create_freeform_video_project,
+    create_project, decline_project_invite, delete_chapter_scene, delete_latest_chapter_outlines,
+    delete_optimize_session, delete_project, detach_derived_project, diff_blueprint_versions,
+    diff_profile_chapters, discard_pending_optimize_patch_sets, duplicate_project,
     edit_chapter_shooting_script, export_derived_project_data, export_outline_json_data,
     export_project_family_data, forward_project_status, generate_chapter_analysis,
     generate_chapter_scene, generate_chapter_shooting_script,
     generate_next_chapter_shooting_script_unit, get_blueprint, get_chapter_outlines_pacing,
     get_chapter_shooting_script, get_chapter_shooting_script_unit_progress,
-    get_chapter_visual_plan, get_generation_progress, get_inspiration_history,
-    get_optimize_session, get_profile_state_at_chapter, get_project,
-    get_project_import_analysis_progress, get_project_status_machine, import_chapter,
-    import_project_family_upload, invite_project_member, leave_project, list_blueprint_versions,
-    list_chapter_outlines, list_chapter_scenes, list_chapters, list_my_project_invites,
-    list_optimize_patch_sets, list_optimize_sessions, list_optimize_turns,
-    list_orphan_project_data_dirs, list_project_invites, list_project_members, list_projects,
-    list_source_snapshot_chapters, preview_apply_beat_mapping_request,
-    preview_batch_generate_part_outlines_request, preview_chapter_analysis_request,
-    preview_chapter_prompt, preview_chapter_scene_request, preview_continue_part_outlines_request,
-    preview_generate_blueprint_request, preview_generate_chapter_outlines_by_count_request,
+    get_generation_progress, get_inspiration_history, get_optimize_session,
+    get_profile_state_at_chapter, get_project, get_project_import_analysis_progress,
+    get_project_status_machine, import_chapter, import_project_family_upload,
+    invite_project_member, leave_project, list_blueprint_versions, list_chapter_outlines,
+    list_chapter_scenes, list_chapters, list_my_project_invites, list_optimize_patch_sets,
+    list_optimize_sessions, list_optimize_turns, list_orphan_project_data_dirs,
+    list_project_invites, list_project_members, list_projects, list_source_snapshot_chapters,
+    preview_apply_beat_mapping_request, preview_batch_generate_part_outlines_request,
+    preview_chapter_analysis_request, preview_chapter_prompt, preview_chapter_scene_request,
+    preview_continue_part_outlines_request, preview_generate_blueprint_request,
+    preview_generate_chapter_outlines_by_count_request,
     preview_generate_part_chapter_outlines_request, preview_import_project_analysis_request,
     preview_inspiration_request, preview_refine_blueprint_request,
     preview_regenerate_chapter_outline_request, preview_regenerate_part_outline_request,
@@ -29,14 +28,26 @@ use super::super::{
     record_optimize_agent_event, remove_project_member, reorder_chapter_scenes,
     reset_project_generated_data, restore_blueprint_version, resume_chapter_analysis_sync,
     revoke_project_invite, rollback_project_status, rollback_to_chapter,
-    run_import_project_analysis, save_blueprint, save_chapter_outline,
-    save_chapter_visual_plan_draft, save_part_outline, sync_blueprint_materials,
-    sync_outline_materials, update_chapter_content, update_chapter_outline, update_chapter_scene,
-    update_project, update_project_member_role,
+    run_import_project_analysis, save_blueprint, save_chapter_outline, save_part_outline,
+    sync_blueprint_materials, sync_outline_materials, update_chapter_content,
+    update_chapter_outline, update_chapter_scene, update_project, update_project_member_role,
 };
 use serde_json::Value;
 
 pub(super) async fn try_dispatch(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+    cmd: &str,
+) -> Result<Option<Value>, ApiError> {
+    // Keep the debug poll frames bounded for native runtime worker stacks.
+    if let Some(result) = Box::pin(try_dispatch_projects(state, user_id, args, cmd)).await? {
+        return Ok(Some(result));
+    }
+    Box::pin(try_dispatch_content(state, user_id, args, cmd)).await
+}
+
+async fn try_dispatch_projects(
     state: &ServerState,
     user_id: i64,
     args: &Value,
@@ -119,18 +130,22 @@ pub(super) async fn try_dispatch(
         "preview_source_sync" => preview_source_sync(state, user_id, args).await?,
         "apply_source_sync_decisions" => apply_source_sync_decisions(state, user_id, args).await?,
         "detach_derived_project" => detach_derived_project(state, user_id, args).await?,
+        _ => return Ok(None),
+    };
+    Ok(Some(result))
+}
+
+async fn try_dispatch_content(
+    state: &ServerState,
+    user_id: i64,
+    args: &Value,
+    cmd: &str,
+) -> Result<Option<Value>, ApiError> {
+    let result = match cmd {
         "list_chapters" => list_chapters(state, user_id, args).await?,
         "preview_chapter_prompt" => preview_chapter_prompt(state, user_id, args).await?,
         "import_chapter" => import_chapter(state, user_id, args).await?,
         "update_chapter_content" => update_chapter_content(state, user_id, args).await?,
-        "get_chapter_visual_plan" => get_chapter_visual_plan(state, user_id, args).await?,
-        "save_chapter_visual_plan_draft" => {
-            save_chapter_visual_plan_draft(state, user_id, args).await?
-        }
-        "confirm_chapter_visual_plan" => confirm_chapter_visual_plan(state, user_id, args).await?,
-        "discard_chapter_visual_plan_draft" => {
-            discard_chapter_visual_plan_draft(state, user_id, args).await?
-        }
         "get_chapter_shooting_script" => get_chapter_shooting_script(state, user_id, args).await?,
         "get_chapter_shooting_script_unit_progress" => {
             get_chapter_shooting_script_unit_progress(state, user_id, args).await?

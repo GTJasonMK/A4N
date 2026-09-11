@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::optimization_session;
+use a4n_db_models::models::ai::optimization_session;
+use a4n_error::AppError;
 
 use super::super::OptimizeIssue;
 use super::parsing::parse_optimization_issues;

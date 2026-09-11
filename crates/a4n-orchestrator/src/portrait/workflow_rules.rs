@@ -1,8 +1,8 @@
 //! 立绘生成工作流指纹与 business key 纯规则（无 DB、无 Host）。
 
-use a4n_core::models::character::protagonist_profile;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
 use a4n_db::generation::generation_checkpoint_fingerprint_sha256;
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm::provider::ChatRequest;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use serde_json::{Value, json};

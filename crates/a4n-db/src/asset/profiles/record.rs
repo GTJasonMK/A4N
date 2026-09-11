@@ -1,9 +1,10 @@
-use a4n_core::models::asset::object_profile;
-use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
+use a4n_db_models::models::asset::object_profile;
+use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
-use crate::asset::{AssetDbError, ObjectProfileRecordInput};
+use crate::asset::AssetDbError;
+use a4n_domain::object_profile::ObjectProfileRecordInput;
 
 pub(super) async fn insert_object_profile_record<C>(
     db: &C,

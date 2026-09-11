@@ -7,7 +7,7 @@ mod payload;
 #[cfg(test)]
 mod tests;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::context::context_aware_system_user_request;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 

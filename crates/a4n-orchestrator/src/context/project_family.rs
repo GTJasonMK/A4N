@@ -1,6 +1,8 @@
-use a4n_core::{error::AppError, event::bridge::InternalEvent, models::project::novel_project};
 use a4n_db::{DbHandle, project::MangaCharacterPortraitRefSummary};
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{ProjectSourceMode, ProjectStatus};
+use a4n_error::AppError;
+use a4n_event::InternalEvent;
 use chrono::{Duration, Utc};
 
 use super::OrchestratorContext;
@@ -208,24 +210,26 @@ impl ProjectFamilyApplication {
     async fn claim_project_deletion_cleanup(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedProjectCleanup>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::ProjectDeletionCleanupClaim>, AppError> {
         a4n_db::cleanup_outbox::claim_project_deletion_cleanup(
             self.database.connection(),
             project_id,
         )
         .await
+        .map(|claim| claim.map(Into::into))
         .map_err(AppError::Database)
     }
 
     async fn claim_media_workflow_v2_reset(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedMediaWorkflowV2Reset>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::MediaWorkflowV2ResetClaim>, AppError> {
         a4n_db::cleanup_outbox::claim_media_workflow_v2_reset(
             self.database.connection(),
             project_id,
         )
         .await
+        .map(|claim| claim.map(Into::into))
         .map_err(AppError::Database)
     }
 
@@ -248,18 +252,20 @@ impl ProjectFamilyApplication {
     async fn claim_file_artifact_cleanup(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedFileArtifactCleanup>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::FileArtifactCleanupClaim>, AppError> {
         a4n_db::cleanup_outbox::claim_file_artifact_cleanup(self.database.connection(), project_id)
             .await
+            .map(|claim| claim.map(Into::into))
             .map_err(AppError::Database)
     }
 
     async fn claim_generation_cleanup(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedGenerationCleanup>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::GenerationCleanupClaim>, AppError> {
         a4n_db::cleanup_outbox::claim_generation_cleanup(self.database.connection(), project_id)
             .await
+            .map(|claim| claim.map(Into::into))
             .map_err(AppError::Database)
     }
 
@@ -312,7 +318,7 @@ impl ProjectFamilyApplication {
         &self,
         id: i64,
         lease_token: &str,
-        outcome: a4n_db::cleanup_outbox::GenerationCleanupOutcome,
+        outcome: a4n_cleanup_contract::GenerationCleanupOutcome,
     ) -> Result<(), AppError> {
         a4n_db::cleanup_outbox::complete_claimed_generation_cleanup(
             self.database.connection(),
@@ -329,7 +335,7 @@ impl ProjectFamilyApplication {
         id: i64,
         lease_token: &str,
         retry_after_seconds: i64,
-    ) -> Result<a4n_db::cleanup_outbox::GenerationCleanupObservationOutcome, AppError> {
+    ) -> Result<a4n_cleanup_contract::GenerationCleanupObservationOutcome, AppError> {
         a4n_db::cleanup_outbox::observe_claimed_generation_reconcile(
             self.database.connection(),
             id,
@@ -344,13 +350,14 @@ impl ProjectFamilyApplication {
         &self,
         id: i64,
         lease_token: &str,
-    ) -> Result<a4n_core::models::task::cleanup_outbox::Model, AppError> {
+    ) -> Result<(), AppError> {
         a4n_db::cleanup_outbox::schedule_provider_delete_from_reconcile(
             self.database.connection(),
             id,
             lease_token,
         )
         .await
+        .map(|_| ())
         .map_err(AppError::Database)
     }
 
@@ -383,7 +390,7 @@ impl ProjectFamilyApplication {
         id: i64,
         lease_token: &str,
         error: String,
-    ) -> Result<a4n_db::cleanup_outbox::GenerationCleanupRetryOutcome, AppError> {
+    ) -> Result<a4n_cleanup_contract::GenerationCleanupRetryOutcome, AppError> {
         a4n_db::cleanup_outbox::retry_or_fail_claimed_generation_cleanup(
             self.database.connection(),
             id,
@@ -590,7 +597,7 @@ impl OrchestratorContext {
     pub async fn claim_project_deletion_cleanup(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedProjectCleanup>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::ProjectDeletionCleanupClaim>, AppError> {
         self.project_family
             .claim_project_deletion_cleanup(project_id)
             .await
@@ -599,7 +606,7 @@ impl OrchestratorContext {
     pub async fn claim_media_workflow_v2_reset(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedMediaWorkflowV2Reset>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::MediaWorkflowV2ResetClaim>, AppError> {
         self.project_family
             .claim_media_workflow_v2_reset(project_id)
             .await
@@ -619,7 +626,7 @@ impl OrchestratorContext {
     pub async fn claim_file_artifact_cleanup(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedFileArtifactCleanup>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::FileArtifactCleanupClaim>, AppError> {
         self.project_family
             .claim_file_artifact_cleanup(project_id)
             .await
@@ -628,7 +635,7 @@ impl OrchestratorContext {
     pub async fn claim_generation_cleanup(
         &self,
         project_id: Option<i64>,
-    ) -> Result<Option<a4n_db::cleanup_outbox::ClaimedGenerationCleanup>, AppError> {
+    ) -> Result<Option<a4n_cleanup_contract::GenerationCleanupClaim>, AppError> {
         self.project_family
             .claim_generation_cleanup(project_id)
             .await
@@ -687,7 +694,7 @@ impl OrchestratorContext {
         &self,
         id: i64,
         lease_token: &str,
-        outcome: a4n_db::cleanup_outbox::GenerationCleanupOutcome,
+        outcome: a4n_cleanup_contract::GenerationCleanupOutcome,
     ) -> Result<(), AppError> {
         self.project_family
             .complete_claimed_generation_cleanup(id, lease_token, outcome)
@@ -699,7 +706,7 @@ impl OrchestratorContext {
         id: i64,
         lease_token: &str,
         retry_after_seconds: i64,
-    ) -> Result<a4n_db::cleanup_outbox::GenerationCleanupObservationOutcome, AppError> {
+    ) -> Result<a4n_cleanup_contract::GenerationCleanupObservationOutcome, AppError> {
         self.project_family
             .observe_claimed_generation_reconcile(id, lease_token, retry_after_seconds)
             .await
@@ -709,7 +716,7 @@ impl OrchestratorContext {
         &self,
         id: i64,
         lease_token: &str,
-    ) -> Result<a4n_core::models::task::cleanup_outbox::Model, AppError> {
+    ) -> Result<(), AppError> {
         self.project_family
             .schedule_provider_delete_from_reconcile(id, lease_token)
             .await
@@ -738,7 +745,7 @@ impl OrchestratorContext {
         id: i64,
         lease_token: &str,
         error: String,
-    ) -> Result<a4n_db::cleanup_outbox::GenerationCleanupRetryOutcome, AppError> {
+    ) -> Result<a4n_cleanup_contract::GenerationCleanupRetryOutcome, AppError> {
         self.project_family
             .retry_or_fail_claimed_generation_cleanup(id, lease_token, error)
             .await
@@ -779,7 +786,7 @@ impl OrchestratorContext {
                 .project_family
                 .reset_freeform_video_generated_data_records(project_id)
                 .await?;
-            return Ok(ProjectGeneratedDataResetApplicationResult::Freeform { project, result });
+            return Ok(ProjectGeneratedDataResetApplicationResult::Freeform { result });
         }
         let outcome = self
             .project_family
@@ -796,5 +803,132 @@ impl OrchestratorContext {
         Ok(ProjectGeneratedDataResetApplicationResult::Standard(
             outcome,
         ))
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::cleanup_outbox::CleanupOutboxApplicationPort for OrchestratorContext {
+    async fn insert_file_artifact_cleanup_intent(
+        &self,
+        project_id: i64,
+        dedupe_key: String,
+        paths: Vec<String>,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::insert_file_artifact_cleanup_intent(
+            self, project_id, dedupe_key, paths,
+        )
+        .await
+    }
+
+    async fn claim_project_deletion_cleanup(
+        &self,
+        project_id: Option<i64>,
+    ) -> Result<Option<a4n_cleanup_contract::ProjectDeletionCleanupClaim>, AppError> {
+        OrchestratorContext::claim_project_deletion_cleanup(self, project_id).await
+    }
+
+    async fn claim_media_workflow_v2_reset(
+        &self,
+        project_id: Option<i64>,
+    ) -> Result<Option<a4n_cleanup_contract::MediaWorkflowV2ResetClaim>, AppError> {
+        OrchestratorContext::claim_media_workflow_v2_reset(self, project_id).await
+    }
+
+    async fn claim_file_artifact_cleanup(
+        &self,
+        project_id: Option<i64>,
+    ) -> Result<Option<a4n_cleanup_contract::FileArtifactCleanupClaim>, AppError> {
+        OrchestratorContext::claim_file_artifact_cleanup(self, project_id).await
+    }
+
+    async fn claim_generation_cleanup(
+        &self,
+        project_id: Option<i64>,
+    ) -> Result<Option<a4n_cleanup_contract::GenerationCleanupClaim>, AppError> {
+        OrchestratorContext::claim_generation_cleanup(self, project_id).await
+    }
+
+    async fn project_ids_with_incomplete_cleanup(&self) -> Result<Vec<i64>, AppError> {
+        OrchestratorContext::project_ids_with_incomplete_cleanup(self).await
+    }
+
+    async fn purge_completed_cleanup_audits(&self, limit: usize) -> Result<u64, AppError> {
+        OrchestratorContext::purge_completed_cleanup_audits(self, limit).await
+    }
+
+    async fn reset_media_workflows_to_v2(
+        &self,
+        project_id: i64,
+        cleanup_intent_id: i64,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::reset_media_workflows_to_v2(self, project_id, cleanup_intent_id).await
+    }
+
+    async fn complete_claimed_cleanup(&self, id: i64, lease_token: &str) -> Result<(), AppError> {
+        OrchestratorContext::complete_claimed_cleanup(self, id, lease_token).await
+    }
+
+    async fn complete_claimed_generation_cleanup(
+        &self,
+        id: i64,
+        lease_token: &str,
+        outcome: a4n_cleanup_contract::GenerationCleanupOutcome,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::complete_claimed_generation_cleanup(self, id, lease_token, outcome)
+            .await
+    }
+
+    async fn observe_claimed_generation_reconcile(
+        &self,
+        id: i64,
+        lease_token: &str,
+        retry_after_seconds: i64,
+    ) -> Result<a4n_cleanup_contract::GenerationCleanupObservationOutcome, AppError> {
+        OrchestratorContext::observe_claimed_generation_reconcile(
+            self,
+            id,
+            lease_token,
+            retry_after_seconds,
+        )
+        .await
+    }
+
+    async fn schedule_provider_delete_from_reconcile(
+        &self,
+        id: i64,
+        lease_token: &str,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::schedule_provider_delete_from_reconcile(self, id, lease_token).await
+    }
+
+    async fn renew_claimed_cleanup(&self, id: i64, lease_token: &str) -> Result<(), AppError> {
+        OrchestratorContext::renew_claimed_cleanup(self, id, lease_token).await
+    }
+
+    async fn retry_claimed_cleanup(
+        &self,
+        id: i64,
+        lease_token: &str,
+        error: String,
+        retry_after_seconds: i64,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::retry_claimed_cleanup(
+            self,
+            id,
+            lease_token,
+            error,
+            retry_after_seconds,
+        )
+        .await
+    }
+
+    async fn retry_or_fail_claimed_generation_cleanup(
+        &self,
+        id: i64,
+        lease_token: &str,
+        error: String,
+    ) -> Result<a4n_cleanup_contract::GenerationCleanupRetryOutcome, AppError> {
+        OrchestratorContext::retry_or_fail_claimed_generation_cleanup(self, id, lease_token, error)
+            .await
     }
 }

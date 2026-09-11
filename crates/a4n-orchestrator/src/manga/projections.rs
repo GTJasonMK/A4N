@@ -1,5 +1,5 @@
 use a4n_api_contract::manga::MangaPagePromptSummary;
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_db_models::models::chapter::chapter_manga_prompt;
 
 use super::layout_rules::manga_page_generation_layout;
 
@@ -29,7 +29,7 @@ pub fn manga_page_prompt_summary(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
+    use a4n_db_models::models::chapter::chapter_manga_prompt::MANGA_PAGE_PROMPT_TYPE;
     use chrono::NaiveDateTime;
     use serde_json::{Value, json};
 

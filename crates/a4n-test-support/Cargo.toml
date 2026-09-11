@@ -7,14 +7,17 @@ publish = false
 
 [dependencies]
 a4n-capabilities = { path = "../a4n-capabilities", features = ["test-support"] }
-a4n-core = { path = "../a4n-core" }
+a4n-db-models = { path = "../a4n-db-models" }
+a4n-domain = { path = "../a4n-domain" }
+a4n-error = { path = "../a4n-error" }
 a4n-embedding = { path = "../a4n-embedding" }
-a4n-export-core = { path = "../a4n-export-core" }
+a4n-export-contract = { path = "../a4n-export-contract" }
+a4n-import-contract = { path = "../a4n-import-contract" }
 a4n-llm = { path = "../a4n-llm" }
-a4n-import-core = { path = "../a4n-import-core" }
 a4n-rag-core = { path = "../a4n-rag-core" }
 a4n-service-manager = { path = "../a4n-service-manager" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
+a4n-task-runtime = { path = "../a4n-task-runtime" }
 
 anyhow = { workspace = true }
 axum = { workspace = true }

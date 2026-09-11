@@ -3,13 +3,9 @@ use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle, optimize::StartOptimizeAnalysisGenerationInput,
 };
 use a4n_orchestrator::GenerationTaskAccessError;
-use a4n_orchestrator::optimize::{
-    PrepareOptimizeAnalysisApplicationInput, optimization_analysis_variables,
-};
 
 use super::{
     AnalyzeChapterInput, OptimizationSessionSummary, PrepareOptimizationAnalysisSessionInput,
-    projections::to_session_summary,
 };
 
 mod request_preview;
@@ -25,8 +21,8 @@ pub async fn start_optimize_analysis_generation_typed(
     input: StartOptimizeAnalysisGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .orchestrator()
-        .start_optimize_analysis_generation_task(user_id, &input)
+        .optimize_application()
+        .start_analysis_generation(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -37,8 +33,8 @@ pub async fn start_optimize_analysis_generation_typed(
         "optimize_analysis",
         move |handle| async move {
             worker_state
-                .orchestrator()
-                .run_optimize_analysis_generation_task(user_id, input, handle)
+                .optimize_application()
+                .run_analysis_generation(user_id, input, handle)
                 .await
         },
     );
@@ -50,26 +46,13 @@ pub async fn create_optimization_analysis_session(
     user_id: i64,
     input: AnalyzeChapterInput,
 ) -> Result<OptimizationSessionSummary, String> {
-    let variables = optimization_analysis_variables(
-        &input.mode,
-        input.scope.as_deref(),
-        &input.permissions,
-        input.agent_instruction.as_deref(),
-    );
     let prompt_renderer = state;
     let session = state
-        .orchestrator()
-        .create_optimize_analysis_session_for_user_validated(
-            user_id,
-            input.project_id,
-            input.chapter_number,
-            &input.name,
-            prompt_renderer,
-            &variables,
-        )
+        .optimize_application()
+        .create_analysis_session(user_id, input, prompt_renderer)
         .await
         .map_err(|err| err.to_string())?;
-    to_session_summary(&session)
+    Ok(session)
 }
 
 pub async fn prepare_optimization_analysis_session(
@@ -77,23 +60,11 @@ pub async fn prepare_optimization_analysis_session(
     user_id: i64,
     input: PrepareOptimizationAnalysisSessionInput,
 ) -> Result<OptimizationSessionSummary, String> {
-    let session_id = input.session_id;
-    let variables = optimization_analysis_variables(
-        &input.mode,
-        input.scope.as_deref(),
-        &input.permissions,
-        input.agent_instruction.as_deref(),
-    );
     let prompt_renderer = state;
     let session = state
-        .orchestrator()
-        .prepare_optimize_analysis_session_validated(PrepareOptimizeAnalysisApplicationInput {
-            user_id,
-            session_id,
-            prompt_renderer,
-            variables: &variables,
-        })
+        .optimize_application()
+        .prepare_analysis_session(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
-    to_session_summary(&session)
+    Ok(session)
 }

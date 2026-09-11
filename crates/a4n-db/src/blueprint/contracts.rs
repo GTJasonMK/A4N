@@ -79,7 +79,7 @@ pub struct BlueprintMutationStatusChange {
 
 #[derive(Debug, Clone)]
 pub struct VersionedBlueprintMutationResult {
-    pub blueprint: a4n_core::models::project::novel_blueprint::Model,
+    pub blueprint: a4n_db_models::models::project::novel_blueprint::Model,
     pub status_change: Option<BlueprintMutationStatusChange>,
 }
 

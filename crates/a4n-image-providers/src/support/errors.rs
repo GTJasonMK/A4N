@@ -1,10 +1,10 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use reqwest::StatusCode;
 use std::error::Error;
 
 const HTTP_ERROR_PREVIEW_CHARS: usize = 500;
 pub(crate) fn internal_error(message: impl Into<String>) -> AppError {
-    AppError::Internal(anyhow::anyhow!(message.into()))
+    AppError::Internal(message.into())
 }
 
 pub(crate) fn request_error(label: &str, error: reqwest::Error) -> AppError {

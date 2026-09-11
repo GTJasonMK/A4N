@@ -6,6 +6,8 @@ const chromiumBinary = process.env.A4N_WDIO_CHROMIUM_BINARY ?? "/usr/bin/chromiu
 const chromedriverBinary = process.env.A4N_WDIO_CHROMEDRIVER_BINARY ?? "/usr/bin/chromedriver";
 const downloadDir = process.env.A4N_BROWSER_E2E_DOWNLOAD_DIR ?? `${artifactDir}/downloads`;
 
+if (!process.env.CHROMEDRIVER_PATH) process.env.CHROMEDRIVER_PATH = chromedriverBinary;
+
 mkdirSync(artifactDir, { recursive: true });
 mkdirSync(downloadDir, { recursive: true });
 
@@ -20,7 +22,7 @@ export const config = {
   maxInstances: 1,
   capabilities: [{
     browserName: "chrome",
-    "wdio:chromedriverOptions": { binary: chromedriverBinary },
+    "wdio:chromedriverOptions": {},
     "goog:chromeOptions": {
       binary: chromiumBinary,
       args: [

@@ -57,11 +57,16 @@ export const SettingsPage: React.FC = () => {
   };
 
   useEffect(() => {
-    const fromHash = window.location.hash.replace("#", "") as TabId;
-    if (fromHash && TABS.some((item) => item.id === fromHash)) {
-      setTab(fromHash);
-    }
-  }, []);
+    const syncTabFromHash = () => {
+      const fromHash = window.location.hash.replace("#", "") as TabId;
+      if (fromHash && TABS.some((item) => item.id === fromHash)) {
+        setTab(fromHash);
+      }
+    };
+    syncTabFromHash();
+    window.addEventListener("hashchange", syncTabFromHash);
+    return () => window.removeEventListener("hashchange", syncTabFromHash);
+  }, [setTab]);
 
   useEffect(() => {
     if (window.location.hash !== `#${tab}`) {

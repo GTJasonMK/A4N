@@ -1,9 +1,7 @@
 use super::contracts::ManifestIds;
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
 use a4n_domain::CanvasNodeRefKind;
 use a4n_domain::canvas_transfer_runtime_identity_key;
-
-use a4n_core::models::ai::generated_video;
 
 use crate::media::{
     MEDIA_STATUS_COMPLETED, is_valid_media_kind, is_valid_media_origin, is_valid_media_status,
@@ -53,7 +51,7 @@ pub(super) fn validate_asset_records(
                 video.id
             ));
         }
-        if !generated_video::is_terminal_status(&video.status) {
+        if !a4n_domain::video_workflow::is_terminal_video_status(&video.status) {
             return Err(format!(
                 "视频画布项目包只能传输终态生成视频: generated_video_id={}, status={}",
                 video.id, video.status

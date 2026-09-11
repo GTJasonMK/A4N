@@ -1,6 +1,7 @@
 use a4n_capabilities::LlmClient;
-use a4n_orchestrator::DynamicProviderFacade;
 use std::sync::Arc;
+
+use crate::provider_runtime::DynamicProviderFacade;
 
 pub(crate) struct DynamicLlmProvider {
     pub(in crate::dynamic_llm) facade: DynamicProviderFacade,

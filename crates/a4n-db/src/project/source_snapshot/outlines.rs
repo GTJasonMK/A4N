@@ -3,7 +3,7 @@ use super::{
     hashing::{hash_json, to_json},
     types::DerivedChapterScope,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::{chapter_outline, part_outline},
     project::source_snapshot_outline,
 };

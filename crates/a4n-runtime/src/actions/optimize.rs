@@ -2,7 +2,6 @@ mod analysis;
 mod chat;
 mod patches;
 mod preview;
-mod projections;
 mod sessions;
 
 pub use a4n_api_contract::optimize::{
@@ -19,6 +18,7 @@ pub use analysis::{
     preview_prepare_optimization_analysis_session_request,
     start_optimize_analysis_generation_typed,
 };
+pub(crate) use chat::start_optimize_chat_generation_with_output_limit;
 pub use chat::{
     create_optimization_chat_session, preview_send_optimization_message_request,
     start_optimize_chat_generation_typed,

@@ -1,6 +1,5 @@
-use a4n_core::blueprint::ParsedBlueprint;
-use a4n_core::blueprint::validate_blueprint_chapter_count;
-use a4n_core::error::AppError;
+use a4n_domain::project::{ParsedBlueprint, validate_blueprint_chapter_count};
+use a4n_error::AppError;
 
 mod derived;
 mod metadata;
@@ -15,7 +14,8 @@ pub(in crate::blueprint) fn parse_blueprint_json(
     content: &str,
     requested_chapters: i32,
 ) -> Result<ParsedBlueprint, AppError> {
-    validate_blueprint_chapter_count(requested_chapters, "requested_chapter_count")?;
+    validate_blueprint_chapter_count(requested_chapters, "requested_chapter_count")
+        .map_err(AppError::InvalidArgument)?;
     let raw = parse_blueprint_top_level(content)?;
 
     let (total_chapters, needs_part_outlines, chapters_per_part) =

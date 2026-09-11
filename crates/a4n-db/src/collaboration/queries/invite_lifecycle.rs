@@ -1,6 +1,6 @@
 use crate::collaboration::CollaborationDbError;
 use crate::collaboration::types::{INVITE_STATUS_EXPIRED, INVITE_STATUS_PENDING};
-use a4n_core::models::project::project_invite;
+use a4n_db_models::models::project::project_invite;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};

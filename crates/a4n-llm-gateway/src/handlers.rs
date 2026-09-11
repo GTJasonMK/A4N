@@ -2,8 +2,8 @@ mod discovery;
 mod probe;
 mod stream;
 
-use a4n_core::config::app_config::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
-use a4n_core::error::AppError;
+use a4n_domain::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
+use a4n_error::AppError;
 use a4n_llm::gateway::LlmGatewayProviderConfig;
 use a4n_llm::provider::{LlmProvider, ModelCapabilities};
 use a4n_service_protocol::{HealthStatus, LLM_SERVICE_NAME, ServiceHealth, known_service_health};

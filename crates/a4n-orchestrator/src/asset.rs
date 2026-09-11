@@ -1,7 +1,7 @@
 pub(crate) mod object_profiles;
 
-use a4n_core::error::AppError;
 use a4n_db::asset::AssetDbError;
+use a4n_error::AppError;
 
 pub(crate) fn asset_error(error: AssetDbError) -> AppError {
     match error {

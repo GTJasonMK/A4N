@@ -1,7 +1,10 @@
 use std::collections::HashMap;
 
-use a4n_api_contract::chapter::{CHAPTER_SCENE_PROGRESS_TOTAL, GenerateChapterSceneInput};
-use a4n_core::{error::AppError, models::chapter::chapter_scene};
+use a4n_api_contract::chapter::{
+    CHAPTER_SCENE_PROGRESS_TOTAL, ChapterSceneProgressReporter, GenerateChapterSceneInput,
+};
+use a4n_db_models::models::chapter::chapter_scene;
+use a4n_error::AppError;
 use a4n_llm::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
@@ -15,9 +18,8 @@ use crate::{
 use super::{
     context::build_scene_generation_context,
     contracts::{
-        ChapterSceneGenerationInput, ChapterSceneGenerationResult, ChapterSceneProgressReporter,
-        ChapterSceneRequestPreview, PreparedChapterSceneGeneration,
-        RequiredChapterSceneGenerationInput,
+        ChapterSceneGenerationInput, ChapterSceneGenerationResult, ChapterSceneRequestPreview,
+        PreparedChapterSceneGeneration, RequiredChapterSceneGenerationInput,
     },
     output::{normalize_scene_generation_output, restored_chapter_scene_checkpoint},
     request::{

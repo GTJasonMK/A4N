@@ -26,15 +26,15 @@ use super::{
     report_progress, validate_existing_chapter_outline_for_request,
 };
 
-use a4n_core::error::AppError;
-use a4n_core::models::{
+use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgressPart};
+use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter_outline, part_outline},
     character::{foreshadowing_index, protagonist_profile},
     project::{blueprint_character, blueprint_relationship, novel_blueprint, novel_project},
     scene::scene_profile,
 };
-use a4n_db::project::{OutlineGenerationProgressChapter, OutlineGenerationProgressPart};
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,

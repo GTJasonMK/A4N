@@ -2,7 +2,7 @@ use super::{
     errors::{llm_response_shape_error, upstream_error_message},
     json::{optional_nested_usize, optional_usize, required_usize},
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::UsageInfo;
 use serde_json::Value;
 

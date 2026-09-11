@@ -1,7 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
-use a4n_core::models::generation::workflow_checkpoint;
 use a4n_db::galgame::{
     GalgameMediaAssetReadRecord, GalgameMediaBindingReadRecord,
     GalgamePersistValidationScopeReadModel, GalgamePersistValidationSourceSnapshotChapterRecord,
@@ -11,6 +9,8 @@ use a4n_db::galgame::{
     GalgameScriptDetailChoiceRecord, GalgameScriptDetailReadModel, GalgameScriptDetailSceneRecord,
     GalgameScriptDetailScriptRecord,
 };
+use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_error::AppError;
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
 use chrono::NaiveDate;
 use serde_json::json;

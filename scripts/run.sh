@@ -433,12 +433,12 @@ preflight_runtime_dependencies() {
 preflight_runtime_dependencies
 
 if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
-  migration_command=(cargo build)
+  migration_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && migration_command+=(--release)
   migration_command+=(-p a4n-migration)
   "${migration_command[@]}"
 
-  server_command=(cargo build)
+  server_command=("$PROJECT_ROOT/scripts/cargo.sh" build)
   $RELEASE && server_command+=(--release)
   server_command+=(-p a4n-server)
   $FULL_HOST && server_command+=(--features embedded-capabilities)
@@ -446,7 +446,7 @@ if ! $SERVER && [[ "$MODE" == "local-server" ]]; then
 fi
 
 if $SERVER && ! $REMOTE_API; then
-  cargo run -p a4n-cli -- local migrate
+  "$PROJECT_ROOT/scripts/cargo.sh" run -p a4n-cli -- local migrate
 fi
 
 if $FULL_HOST; then
@@ -462,7 +462,7 @@ elif $MANAGED_SIDECARS && ! $REMOTE_API; then
   for package in "${sidecar_packages[@]}"; do
     build_args+=(-p "$package")
   done
-  cargo build "${build_args[@]}"
+  "$PROJECT_ROOT/scripts/cargo.sh" build "${build_args[@]}"
 else
   export A4N_RUNTIME_PROFILE=sidecar
   export A4N_MANAGED_SIDECARS=0
@@ -470,14 +470,14 @@ fi
 
 if $SERVER; then
   npm --prefix frontend run build
-  command=(cargo run)
+  command=("$PROJECT_ROOT/scripts/cargo.sh" run)
   $RELEASE && command+=(--release)
   command+=(-p a4n-server)
   $FULL_HOST && command+=(--features embedded-capabilities)
   exec "${command[@]}"
 fi
 
-command=(cargo tauri dev)
+command=("$PROJECT_ROOT/scripts/cargo.sh" tauri dev)
 $RELEASE && command+=(--release)
 $FULL_HOST && command+=(-f embedded-capabilities)
 if ! $HOT_RELOAD; then

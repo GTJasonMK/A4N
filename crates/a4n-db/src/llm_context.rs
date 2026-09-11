@@ -1,35 +1,10 @@
-use a4n_core::models::generation::llm_context_pack;
+use a4n_db_models::models::generation::llm_context_pack;
+use a4n_domain::llm::{ContextPackReference, RecordOrReuseContextPackInput};
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect, Set,
 };
-use serde_json::Value;
 use std::collections::{HashMap, HashSet};
-
-#[derive(Debug, Clone)]
-pub struct RecordOrReuseContextPackInput {
-    pub project_id: i64,
-    pub root_project_id: i64,
-    pub scope_kind: String,
-    pub workflow: String,
-    pub pack_kind: String,
-    pub source_refs_json: Option<Value>,
-    pub config_hash: String,
-    pub content_sha256: String,
-    pub canonical_content_json: Value,
-    pub canonical_content_text: String,
-    pub compression_level: String,
-    pub token_estimate: usize,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ContextPackReference {
-    pub id: i64,
-    pub pack_kind: String,
-    pub content_sha256: String,
-    pub compression_level: String,
-    pub token_estimate: i32,
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum LlmContextPackDbError {

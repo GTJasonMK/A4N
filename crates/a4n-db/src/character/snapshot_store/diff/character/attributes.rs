@@ -1,6 +1,6 @@
 //! 角色属性差异。
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Map, Value, json};
 
 pub(super) fn required_category_attributes<'a>(

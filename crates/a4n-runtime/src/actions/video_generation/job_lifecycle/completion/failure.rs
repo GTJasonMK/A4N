@@ -5,7 +5,7 @@ use crate::actions::video_generation::media::{
     combine_optional_errors, delete_video_tail_frame_assets,
 };
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
-use crate::file_utils::data_dir_relative_file_path;
+use a4n_storage::data_dir_relative_file_path;
 
 pub(crate) async fn cleanup_saved_video_outputs(
     state: &AppState,

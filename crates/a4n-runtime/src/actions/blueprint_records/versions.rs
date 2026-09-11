@@ -2,7 +2,7 @@ use a4n_api_contract::blueprint::{
     BlueprintDiffSummary, BlueprintMutationResult, BlueprintVersionSummary,
     DiffBlueprintVersionsInput, ListBlueprintVersionsInput, RestoreBlueprintVersionInput,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::AppState;
 
@@ -13,8 +13,8 @@ pub async fn list_blueprint_versions(
     input: ListBlueprintVersionsInput,
 ) -> Result<Vec<BlueprintVersionSummary>, AppError> {
     state
-        .orchestrator()
-        .blueprint_version_summaries_for_user_validated(user_id, input.project_id)
+        .blueprint_read_application()
+        .versions(user_id, input)
         .await
 }
 
@@ -23,16 +23,10 @@ pub async fn diff_blueprint_versions(
     user_id: i64,
     input: DiffBlueprintVersionsInput,
 ) -> Result<BlueprintDiffSummary, AppError> {
-    let diff = state
-        .orchestrator()
-        .diff_blueprint_versions_for_user_validated(
-            user_id,
-            input.project_id,
-            &input.version_a,
-            &input.version_b,
-        )
-        .await?;
-    Ok(BlueprintDiffSummary { diff })
+    state
+        .blueprint_read_application()
+        .diff(user_id, input)
+        .await
 }
 
 pub async fn restore_blueprint_version(
@@ -40,11 +34,12 @@ pub async fn restore_blueprint_version(
     user_id: i64,
     input: RestoreBlueprintVersionInput,
 ) -> Result<BlueprintMutationResult, AppError> {
+    let project_id = input.project_id;
     state
-        .orchestrator()
-        .restore_blueprint_version_for_user_validated(user_id, input.project_id, &input.version)
+        .blueprint_mutation_application()
+        .restore(user_id, input)
         .await?;
     Ok(BlueprintMutationResult {
-        warnings: blueprint_material_sync_warnings(state, input.project_id).await,
+        warnings: blueprint_material_sync_warnings(state, project_id).await,
     })
 }

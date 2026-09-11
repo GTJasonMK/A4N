@@ -1,7 +1,9 @@
-use a4n_core::{
-    error::AppError,
-    models::generation::{generation_spec, prompt_artifact},
+use a4n_api_contract::{
+    image_generation::GenerateGalgameImageInput,
+    portrait::{GeneratePortraitInput, PortraitSummary},
 };
+use a4n_db_models::models::generation::{generation_spec, prompt_artifact};
+use a4n_error::AppError;
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
@@ -10,16 +12,13 @@ use super::{
     GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE,
     GALGAME_EXPRESSIONS, GALGAME_TARGET_BACKGROUND, GALGAME_TARGET_CG,
     GALGAME_TARGET_PORTRAIT_EXPRESSION, GalgameAssetGenerationItem, GalgameAssetGenerationSummary,
-    GalgameCgImportance, GalgameGenerationTargetKind, GalgameMediaBindingSummary, GalgameMediaRole,
-    GalgameMediaTargetKind, GalgamePortraitSpecTargetInput, GalgamePromptArtifactUpsertInput,
-    GalgameTargetContext, GalgameTargetEntityKind, RunGalgameAssetGenerationInput,
+    GalgameAssetPlan, GalgameCgImportance, GalgameGenerationTargetKind, GalgameMediaBindingSummary,
+    GalgameMediaRole, GalgameMediaTargetKind, GalgamePortraitSpecTargetInput,
+    GalgamePromptArtifactUpsertInput, GalgameTargetContext, GalgameTargetEntityKind,
+    RunGalgameAssetGenerationInput,
 };
 use crate::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING};
-use crate::{
-    OrchestratorContext,
-    media::{GenerateGalgameImageInput, GeneratedImageSummary},
-    portrait::{GeneratePortraitInput, PortraitSummary},
-};
+use crate::{OrchestratorContext, media::GeneratedImageSummary};
 
 const GALGAME_PORTRAIT_VARIANT_STYLE: &str =
     "Galgame 视觉小说角色立绘表情差分；必须保持参考图中的角色身份、服装、体型比例和美术风格一致。";
@@ -46,6 +45,22 @@ pub trait GalgameAssetGenerationHostPort: Send + Sync {
     ) -> Result<PortraitSummary, AppError>;
 
     fn validate_data_file(&self, relative_path: &str, label: &str) -> Result<(), AppError>;
+}
+
+/// Host-facing Galgame asset-generation boundary.
+///
+/// Runtime supplies visual-generation and file adapters; asset planning,
+/// authorization and generation-spec persistence remain in the Galgame owner.
+#[async_trait]
+pub trait GalgameAssetGenerationApplicationPort: Send + Sync {
+    async fn plan(&self, user_id: i64, project_id: i64) -> Result<GalgameAssetPlan, AppError>;
+
+    async fn run(
+        &self,
+        host_port: &dyn GalgameAssetGenerationHostPort,
+        user_id: i64,
+        input: RunGalgameAssetGenerationInput,
+    ) -> Result<GalgameAssetGenerationSummary, AppError>;
 }
 
 impl OrchestratorContext {
@@ -97,6 +112,24 @@ impl OrchestratorContext {
             summary.items.push(item);
         }
         Ok(summary)
+    }
+}
+
+#[async_trait]
+impl GalgameAssetGenerationApplicationPort for OrchestratorContext {
+    async fn plan(&self, user_id: i64, project_id: i64) -> Result<GalgameAssetPlan, AppError> {
+        self.plan_galgame_assets_for_user_validated(user_id, project_id)
+            .await
+    }
+
+    async fn run(
+        &self,
+        host_port: &dyn GalgameAssetGenerationHostPort,
+        user_id: i64,
+        input: RunGalgameAssetGenerationInput,
+    ) -> Result<GalgameAssetGenerationSummary, AppError> {
+        self.run_galgame_asset_generation_for_user_validated(host_port, user_id, input)
+            .await
     }
 }
 

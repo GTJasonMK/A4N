@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 const DEFAULT_INVALID_MESSAGE: &str = "variables 必须是对象或 null";

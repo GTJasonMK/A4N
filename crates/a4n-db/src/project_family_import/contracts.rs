@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::project::ProjectFamilyTextCoreRows;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::{
         chapter_manga_prompt, chapter_shooting_script, chapter_video_prompt, chapter_visual_plan,

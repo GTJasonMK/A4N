@@ -1,4 +1,4 @@
-use a4n_core::source_spans::source_text_hash;
+use a4n_domain::source_text_hash;
 use serde_json::{Value, json};
 
 use super::super::{

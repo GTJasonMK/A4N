@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use a4n_core::config::app_config::AppConfig;
-use a4n_core::config::env::{optional_non_empty_env_path, optional_non_empty_env_string};
+use a4n_config::app_config::AppConfig;
+use a4n_config::{optional_non_empty_env_path, optional_non_empty_env_string};
 use a4n_service_protocol::{EMBEDDING_CACHE_DIR_ENV, PROMPT_SERVICE_PROMPTS_DIR_ENV};
 
 pub(super) fn apply_common_sidecar_env(

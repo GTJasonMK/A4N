@@ -1,4 +1,4 @@
-use a4n_core::models::{chapter::chapter_visual_plan, project::source_snapshot_chapter};
+use a4n_db_models::models::{chapter::chapter_visual_plan, project::source_snapshot_chapter};
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter, Set};
 

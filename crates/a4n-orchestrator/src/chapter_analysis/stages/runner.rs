@@ -1,7 +1,7 @@
 mod call;
 
-use a4n_core::chapter_analysis::CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL;
-use a4n_core::error::AppError;
+use a4n_chapter_analysis::CHAPTER_ANALYSIS_SERVICE_PROGRESS_TOTAL;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::chapter_analysis::chapter_analysis_stage_fingerprint;
 use serde_json::Value;

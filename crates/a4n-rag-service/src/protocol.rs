@@ -1,12 +1,12 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_service_protocol::{ServiceError, ServiceErrorCode, redact_sensitive_message};
 
 fn service_error_code(err: &AppError) -> ServiceErrorCode {
     match err {
-        AppError::InvalidArgument(_) | AppError::ConfigError(_) => {
+        AppError::InvalidArgument(_) | AppError::Configuration(_) => {
             ServiceErrorCode::ConfigurationError
         }
-        AppError::VectorStoreError(_) => ServiceErrorCode::ProviderError,
+        AppError::VectorStore(_) => ServiceErrorCode::ProviderError,
         AppError::Cancelled => ServiceErrorCode::Cancelled,
         _ => ServiceErrorCode::Internal,
     }

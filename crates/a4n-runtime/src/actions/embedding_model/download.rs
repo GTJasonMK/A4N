@@ -2,9 +2,9 @@ use super::{
     DownloadProgress, EmbeddingModelInput, LocalEmbeddingModelSummary, host_adapter::required_text,
 };
 use crate::AppState;
-use a4n_core::error::AppError;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::download_fastembed_model;
+use a4n_error::AppError;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use std::path::PathBuf;
 use tokio::sync::mpsc::UnboundedSender;
@@ -21,7 +21,7 @@ pub async fn download_embedding_model(
         let capabilities = state.capabilities().clone();
         let queue_cancel_token = cancel_token.clone();
         return state
-            .orchestrator()
+            .provider_runtime()
             .queue_run_tracked_with_cancel(
                 QueueTaskKind::EmbeddingDownload,
                 TaskPriority::Low,
@@ -45,7 +45,7 @@ pub async fn download_embedding_model(
         let cache_dir = state.embedding_models_dir();
         let queue_cancel_token = cancel_token.clone();
         state
-            .orchestrator()
+            .provider_runtime()
             .queue_run_tracked_with_cancel(
                 QueueTaskKind::EmbeddingDownload,
                 TaskPriority::Low,

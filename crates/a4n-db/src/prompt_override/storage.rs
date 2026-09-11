@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::models::{ai::system_settings, project::novel_project};
+use a4n_db_models::models::{ai::system_settings, project::novel_project};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,

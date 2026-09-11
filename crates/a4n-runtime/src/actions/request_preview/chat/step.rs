@@ -2,7 +2,7 @@ use super::super::contracts::{
     ChatRequestStepInput, ChatRequestStepWithBudgetInput, ModelRequestPreviewStep,
 };
 use super::super::sanitize::{redact_data_uris_in_text, sanitize_preview_value};
-use a4n_core::config::app_config::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
+use a4n_domain::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
 use a4n_llm::context::preview_context_aware_chat_request;
 use a4n_llm::provider::MessageRole;
 use serde_json::json;

@@ -1,7 +1,7 @@
 use std::pin::Pin;
 use std::time::Instant;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest};
 use futures::Stream;
 

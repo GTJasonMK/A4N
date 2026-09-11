@@ -3,7 +3,7 @@ use super::super::super::contracts::{
     LlmContextPackRef, LlmContextPackRequirement, PlannedContextPack,
 };
 use super::rules::{checked_context_token_add, remaining_required_min_token_suffix};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 mod variant;
 

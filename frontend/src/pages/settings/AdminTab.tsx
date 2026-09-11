@@ -7,9 +7,10 @@ import { ProjectsSection } from "./admin/ProjectsSection";
 import { TasksSection } from "./admin/TasksSection";
 import { TrendsSection } from "./admin/TrendsSection";
 import { UsersSection } from "./admin/UsersSection";
+import { PackageSection } from "./admin/PackageSection";
 import { useI18n } from "../../i18n";
 
-type Section = "overview" | "users" | "projects" | "tasks" | "api" | "trends";
+type Section = "overview" | "users" | "projects" | "tasks" | "api" | "trends" | "packages";
 
 export const AdminTab: React.FC = () => {
   const { user } = useAuthStore();
@@ -22,6 +23,7 @@ export const AdminTab: React.FC = () => {
     { id: "tasks", label: t("settingsAdmin.tasks") },
     { id: "api", label: t("settingsAdmin.configuration") },
     { id: "trends", label: t("settingsAdmin.trends") },
+    { id: "packages", label: t("settingsAdmin.packages") },
   ];
 
   if (!user) {
@@ -46,7 +48,7 @@ export const AdminTab: React.FC = () => {
 
   return (
     <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
-      <div className="tab-bar shrink-0 border-b border-book-border/45" aria-label={t("settingsAdmin.view")}>
+      <div className="tab-bar flex-wrap shrink-0 border-b border-book-border/45" aria-label={t("settingsAdmin.view")}>
         {sectionDefs.map((s) => (
           <button
             key={s.id}
@@ -69,6 +71,7 @@ export const AdminTab: React.FC = () => {
         {section === "tasks" && <TasksSection />}
         {section === "api" && <ApiConfigSection />}
         {section === "trends" && <TrendsSection />}
+        {section === "packages" && <PackageSection />}
       </div>
     </div>
   );

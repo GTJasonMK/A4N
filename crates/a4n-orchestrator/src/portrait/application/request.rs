@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use a4n_core::{error::AppError, models::character::protagonist_profile};
+use a4n_api_contract::portrait::{GeneratePortraitInput, GeneratePortraitPromptInput, PortraitType};
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
@@ -8,12 +10,10 @@ use serde_json::Value;
 use crate::{
     OrchestratorContext,
     portrait::{
-        PortraitPromptRequestInput, PortraitPromptSpec, PortraitType, expression_or_default,
+        PortraitPromptRequestInput, PortraitPromptSpec, expression_or_default,
         portrait_profile_context, portrait_style_with_pose,
     },
 };
-
-use super::contracts::{GeneratePortraitInput, GeneratePortraitPromptInput};
 
 pub(super) struct PreparedNamedPortraitRequest {
     pub(super) profile: protagonist_profile::Model,

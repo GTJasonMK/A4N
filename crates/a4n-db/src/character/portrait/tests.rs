@@ -1,7 +1,8 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::protagonist_profile, media::media_binding, project::novel_project,
 };
+use a4n_domain::character::CharacterPortraitCreateInput;
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder,

@@ -1,11 +1,6 @@
-use a4n_core::{
-    error::AppError,
-    models::chapter::{chapter, chapter_scene},
-};
+use a4n_db_models::models::chapter::{chapter, chapter_scene};
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
-
-pub type ChapterSceneProgressReporter<'a> =
-    &'a (dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync);
 
 pub(super) struct ChapterSceneGenerationInput {
     pub(super) chapter: chapter::Model,

@@ -1,4 +1,5 @@
-use a4n_core::{chapter_analysis::CHAPTER_ANALYSIS_STAGE_FORESHADOWING_EVENTS, error::AppError};
+use a4n_chapter_analysis::CHAPTER_ANALYSIS_STAGE_FORESHADOWING_EVENTS;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::common::reject_root_unknown_fields;

@@ -1,13 +1,13 @@
 use crate::routes::{agents::AgentRegistry, page_sessions::PageSessionRegistry};
-use a4n_core::config::app_config::{AppConfig, apply_storage_env_overrides, portable_home_dir};
-use a4n_core::config::env::{
+use a4n_config::app_config::{AppConfig, apply_storage_env_overrides, portable_home_dir};
+use a4n_config::{
     optional_non_empty_env_path, optional_non_empty_env_string, required_non_empty_env_string,
     validate_postgres_database_url,
 };
-use a4n_core::error::AppError;
-use a4n_core::files::paths::AppPaths;
+use a4n_error::AppError;
+use a4n_runtime::RuntimeProfile;
 use a4n_runtime::host_api::auth_records;
-use a4n_runtime::state::RuntimeProfile;
+use a4n_storage::paths::AppPaths;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -63,9 +63,14 @@ impl ServerState {
     pub async fn new(config: ServerConfig) -> Result<Self, AppError> {
         let bootstrap_admin = config.bootstrap_admin.clone();
         let app_config = config.into_app_config()?;
-        AppPaths::from_config(&app_config)
-            .ensure_dirs()
-            .map_err(AppError::Io)?;
+        AppPaths::new(
+            app_config.data_dir.clone(),
+            app_config.cache_dir.clone(),
+            app_config.temp_dir.clone(),
+            app_config.log_dir.clone(),
+        )
+        .ensure_dirs()
+        .map_err(AppError::Io)?;
         let runtime_profile = runtime_profile_for_server_host()?;
         let runtime =
             Arc::new(a4n_runtime::AppState::new_with_profile(app_config, runtime_profile).await?);
@@ -140,7 +145,7 @@ impl ServerConfig {
     fn into_app_config(self) -> Result<AppConfig, AppError> {
         let mut config = AppConfig {
             database_url: self.database_url,
-            security: a4n_core::config::app_config::SecurityConfig {
+            security: a4n_config::app_config::SecurityConfig {
                 jwt_secret: Some(self.jwt_secret),
             },
             ..Default::default()

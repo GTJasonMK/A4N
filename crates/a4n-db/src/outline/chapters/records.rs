@@ -1,8 +1,9 @@
-use a4n_core::models::chapter::chapter_outline;
+use a4n_db_models::models::chapter::chapter_outline;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DatabaseConnection, Set, TransactionTrait};
 
-use super::super::types::{ChapterOutlineSyncDraft, OutlineDbError};
+use super::super::types::OutlineDbError;
+use a4n_domain::chapter::ChapterOutlineSyncDraft;
 
 pub(super) fn chapter_outline_active_model(
     project_id: i64,

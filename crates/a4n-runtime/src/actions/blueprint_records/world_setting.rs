@@ -1,6 +1,6 @@
 use crate::AppState;
 use a4n_api_contract::blueprint::{BlueprintMutationResult, UpdateWorldSettingInput};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::manual::blueprint_material_sync_warnings;
 
@@ -11,8 +11,8 @@ pub async fn update_world_setting(
 ) -> Result<BlueprintMutationResult, AppError> {
     let project_id = input.project_id;
     state
-        .orchestrator()
-        .update_blueprint_world_setting_for_user_validated(user_id, project_id, input.world_setting)
+        .blueprint_mutation_application()
+        .update_world_setting(user_id, input)
         .await?;
     Ok(BlueprintMutationResult {
         warnings: blueprint_material_sync_warnings(state, project_id).await,

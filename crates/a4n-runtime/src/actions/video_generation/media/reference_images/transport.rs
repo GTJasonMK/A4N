@@ -1,7 +1,7 @@
 use crate::actions::video_generation::media::types::{
     REMOTE_TEMP_UPLOAD_TOKEN_ENV, REMOTE_TEMP_UPLOAD_URL_ENV,
 };
-use a4n_core::config::env::required_non_empty_env_string;
+use a4n_config::required_non_empty_env_string;
 
 pub(crate) fn remote_temp_upload_config() -> Result<(String, String), String> {
     let upload_url = required_non_empty_env_string(REMOTE_TEMP_UPLOAD_URL_ENV)

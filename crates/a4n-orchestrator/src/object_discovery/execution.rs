@@ -1,10 +1,11 @@
 use std::collections::BTreeSet;
 
-use a4n_core::{error::AppError, structured_progress::StructuredJsonProgressSpec};
+use a4n_error::AppError;
 use a4n_llm::{
     context::chat_request_with_workflow_run_id, provider::ChatRequest,
     structured_stream::StructuredLlmProgress,
 };
+use a4n_progress::StructuredJsonProgressSpec;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 
@@ -178,8 +179,8 @@ impl OrchestratorContext {
         project_id: i64,
         chapter_number: Option<i32>,
         request: &a4n_llm::provider::ChatRequest,
-        chapters: &[a4n_core::models::chapter::chapter::Model],
-        text_anchors: &[a4n_core::models::project::text_anchor::Model],
+        chapters: &[a4n_db_models::models::chapter::chapter::Model],
+        text_anchors: &[a4n_db_models::models::project::text_anchor::Model],
         progress: Option<ObjectDiscoveryProgress<'_>>,
     ) -> Result<ObjectDiscoveryCallResult, AppError> {
         report_object_discovery_progress(

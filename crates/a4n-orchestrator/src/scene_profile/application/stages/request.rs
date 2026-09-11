@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
-use a4n_core::config::app_config::llm_token_profiles;
-use a4n_core::source_spans::text_anchor_prompt_values;
+use a4n_domain::llm::llm_token_profiles;
+use a4n_domain::source_spans::text_anchor_prompt_values;
 use a4n_llm::context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT,
     context_aware_system_user_json_llm_request,

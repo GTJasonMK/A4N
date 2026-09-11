@@ -1,4 +1,4 @@
-use a4n_core::models::{generation::generation_spec, project::text_anchor};
+use a4n_db_models::models::{generation::generation_spec, project::text_anchor};
 use a4n_domain::source_sync::SourceSyncLocalStateKind;
 
 #[derive(Debug, Clone)]

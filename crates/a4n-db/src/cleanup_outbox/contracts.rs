@@ -1,10 +1,15 @@
-use a4n_core::models::task::cleanup_outbox;
-use a4n_service_protocol::GenerationArtifactRef;
+pub use a4n_cleanup_contract::{
+    CLEANUP_PAYLOAD_VERSION, CleanupClaimRecord, CleanupContractError, FileArtifactCleanupClaim,
+    FileArtifactCleanupPayload, GenerationArtifactUnbindPayload, GenerationCleanupClaim,
+    GenerationCleanupObservationOutcome, GenerationCleanupOutcome, GenerationCleanupPayload,
+    GenerationCleanupRetryOutcome, GenerationCleanupScope, GenerationProviderJobCleanupOperation,
+    GenerationProviderJobCleanupPayload, GenerationStagingArtifactDeletePayload,
+    MediaWorkflowV2ResetClaim, MediaWorkflowV2ResetPayload, ProjectDeletionCleanupClaim,
+    ProjectDeletionCleanupPayload,
+};
+use a4n_db_models::models::task::cleanup_outbox;
 use chrono::Duration;
 use sea_orm::DbErr;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
-use std::path::Component;
 
 pub const PROJECT_DELETE_CLEANUP_KIND: &str = "project_delete";
 pub const MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND: &str = "media_workflow_contract_v2_reset";
@@ -18,176 +23,11 @@ pub const CLEANUP_STATUS_COMPLETED: &str = "completed";
 pub const CLEANUP_STATUS_FAILED: &str = "failed";
 pub(super) const CLEANUP_LEASE_SECONDS: i64 = 300;
 pub(crate) const CLEANUP_AUDIT_TTL: Duration = Duration::days(30);
-const CLEANUP_PAYLOAD_VERSION: u32 = 1;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GenerationCleanupOutcome {
-    Cancelled,
-    Deleted,
-    Unbound,
-    NotFound,
-    Unsupported,
-    RemoteFailed,
-    DeleteScheduled,
-}
-
-impl GenerationCleanupOutcome {
-    pub(super) const fn as_str(self) -> &'static str {
-        match self {
-            Self::Cancelled => "cancelled",
-            Self::Deleted => "deleted",
-            Self::Unbound => "unbound",
-            Self::NotFound => "not_found",
-            Self::Unsupported => "unsupported",
-            Self::RemoteFailed => "remote_failed",
-            Self::DeleteScheduled => "delete_scheduled",
-        }
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct GenerationCleanupScope {
-    pub requested_by_user_id: i64,
-    pub project_id: Option<i64>,
+pub struct PendingGenerationProviderJobCleanup {
     pub task_id: String,
-    pub attempt: u32,
-}
-
-impl GenerationCleanupScope {
-    pub fn validate(&self) -> Result<(), DbErr> {
-        if self.requested_by_user_id <= 0 {
-            return Err(DbErr::Custom(
-                "generation cleanup requested_by_user_id 必须为正整数".to_string(),
-            ));
-        }
-        if self.project_id.is_some_and(|project_id| project_id <= 0) {
-            return Err(DbErr::Custom(
-                "generation cleanup project_id 必须为正整数".to_string(),
-            ));
-        }
-        if self.task_id.trim().is_empty() || self.attempt == 0 {
-            return Err(DbErr::Custom(
-                "generation cleanup task_id 不能为空且 attempt 必须大于 0".to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum GenerationProviderJobCleanupOperation {
-    Cancel,
-    Delete,
-    Reconcile,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GenerationProviderJobCleanupPayload {
-    pub version: u32,
-    pub operation: GenerationProviderJobCleanupOperation,
-    pub provider_kind: String,
     pub provider_job_id: String,
-    pub provider_idempotency_key_sha256: String,
-}
-
-impl GenerationProviderJobCleanupPayload {
-    pub fn new(
-        operation: GenerationProviderJobCleanupOperation,
-        provider_kind: String,
-        provider_job_id: String,
-        provider_idempotency_key_sha256: String,
-    ) -> Result<Self, DbErr> {
-        let payload = Self {
-            version: CLEANUP_PAYLOAD_VERSION,
-            operation,
-            provider_kind: required_text(provider_kind, "provider_kind", 128)?,
-            provider_job_id: required_text(provider_job_id, "provider_job_id", 256)?,
-            provider_idempotency_key_sha256,
-        };
-        validate_sha256(
-            &payload.provider_idempotency_key_sha256,
-            "provider_idempotency_key_sha256",
-        )?;
-        Ok(payload)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GenerationStagingArtifactDeletePayload {
-    pub version: u32,
-    pub artifact_id: String,
-    pub sha256: String,
-    pub revision: String,
-}
-
-impl GenerationStagingArtifactDeletePayload {
-    pub fn from_artifact(artifact: &GenerationArtifactRef) -> Result<Self, DbErr> {
-        if !artifact.temporary {
-            return Err(DbErr::Custom(
-                "staging artifact cleanup 只接受 temporary artifact".to_string(),
-            ));
-        }
-        validate_sha256(&artifact.sha256, "artifact.sha256")?;
-        Ok(Self {
-            version: CLEANUP_PAYLOAD_VERSION,
-            artifact_id: required_text(artifact.artifact_id.clone(), "artifact_id", 256)?,
-            sha256: artifact.sha256.clone(),
-            revision: required_text(artifact.revision.clone(), "artifact.revision", 256)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct GenerationArtifactUnbindPayload {
-    pub version: u32,
-    pub artifact_id: String,
-    pub revision: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum GenerationCleanupPayload {
-    ProviderJob(GenerationProviderJobCleanupPayload),
-    StagingArtifactDelete(GenerationStagingArtifactDeletePayload),
-    ArtifactUnbind(GenerationArtifactUnbindPayload),
-}
-
-#[derive(Debug, Clone)]
-pub struct ClaimedGenerationCleanup {
-    pub record: cleanup_outbox::Model,
-    pub payload: GenerationCleanupPayload,
-}
-
-impl GenerationArtifactUnbindPayload {
-    pub fn from_artifact(artifact: &GenerationArtifactRef) -> Result<Self, DbErr> {
-        Ok(Self {
-            version: CLEANUP_PAYLOAD_VERSION,
-            artifact_id: required_text(artifact.artifact_id.clone(), "artifact_id", 256)?,
-            revision: required_text(artifact.revision.clone(), "artifact.revision", 256)?,
-        })
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct ProjectDeletionCleanupPayload {
-    pub version: u32,
-    pub project_id: i64,
-    pub media_paths: Vec<String>,
-}
-
-impl ProjectDeletionCleanupPayload {
-    pub fn new(project_id: i64, media_paths: Vec<String>) -> Self {
-        let media_paths = normalized_paths(media_paths);
-        Self {
-            version: CLEANUP_PAYLOAD_VERSION,
-            project_id,
-            media_paths,
-        }
-    }
 }
 
 pub(crate) fn validated_project_deletion_cleanup_payload(
@@ -195,7 +35,7 @@ pub(crate) fn validated_project_deletion_cleanup_payload(
     media_paths: Vec<String>,
 ) -> Result<ProjectDeletionCleanupPayload, DbErr> {
     let payload = ProjectDeletionCleanupPayload::new(project_id, media_paths);
-    validate_project_scoped_paths(payload.project_id, &payload.media_paths, "项目删除 cleanup")?;
+    payload.validate().map_err(contract_error_to_db_error)?;
     Ok(payload)
 }
 
@@ -205,45 +45,16 @@ pub struct ClaimedProjectCleanup {
     pub payload: ProjectDeletionCleanupPayload,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct MediaWorkflowV2ResetPayload {
-    pub version: u32,
-    pub project_id: i64,
-}
-
-impl MediaWorkflowV2ResetPayload {
-    pub fn new(project_id: i64) -> Self {
-        Self {
-            version: CLEANUP_PAYLOAD_VERSION,
-            project_id,
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct ClaimedMediaWorkflowV2Reset {
     pub record: cleanup_outbox::Model,
     pub payload: MediaWorkflowV2ResetPayload,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(deny_unknown_fields)]
-pub struct FileArtifactCleanupPayload {
-    pub version: u32,
-    pub project_id: i64,
-    pub paths: Vec<String>,
-}
-
-impl FileArtifactCleanupPayload {
-    pub fn new(project_id: i64, paths: Vec<String>) -> Self {
-        let paths = normalized_paths(paths);
-        Self {
-            version: CLEANUP_PAYLOAD_VERSION,
-            project_id,
-            paths,
-        }
-    }
+#[derive(Debug, Clone)]
+pub struct ClaimedGenerationCleanup {
+    pub record: cleanup_outbox::Model,
+    pub payload: GenerationCleanupPayload,
 }
 
 pub(crate) fn validated_file_artifact_cleanup_payload(
@@ -251,50 +62,63 @@ pub(crate) fn validated_file_artifact_cleanup_payload(
     paths: Vec<String>,
 ) -> Result<FileArtifactCleanupPayload, DbErr> {
     let payload = FileArtifactCleanupPayload::new(project_id, paths);
-    validate_project_scoped_paths(payload.project_id, &payload.paths, "文件 artifact cleanup")?;
+    payload.validate().map_err(contract_error_to_db_error)?;
     Ok(payload)
-}
-
-fn normalized_paths(paths: Vec<String>) -> Vec<String> {
-    paths
-        .into_iter()
-        .map(|path| path.trim().to_string())
-        .filter(|path| !path.is_empty())
-        .collect::<BTreeSet<_>>()
-        .into_iter()
-        .collect()
-}
-
-fn validate_project_scoped_paths(
-    project_id: i64,
-    paths: &[String],
-    payload_label: &str,
-) -> Result<(), DbErr> {
-    if project_id <= 0 {
-        return Err(DbErr::Custom(format!(
-            "{payload_label} project_id 必须为正整数"
-        )));
-    }
-    let prefix = format!("projects/{project_id}/");
-    if let Some(path) = paths.iter().find(|path| {
-        !path.starts_with(&prefix)
-            || path.len() == prefix.len()
-            || path.contains('\\')
-            || std::path::Path::new(path)
-                .components()
-                .any(|component| !matches!(component, Component::Normal(_)))
-    }) {
-        return Err(DbErr::Custom(format!(
-            "{payload_label} 路径不属于项目 {project_id}: {path}"
-        )));
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone)]
 pub struct ClaimedFileArtifactCleanup {
     pub record: cleanup_outbox::Model,
     pub payload: FileArtifactCleanupPayload,
+}
+
+impl From<ClaimedProjectCleanup> for ProjectDeletionCleanupClaim {
+    fn from(claim: ClaimedProjectCleanup) -> Self {
+        Self {
+            record: cleanup_claim_record(&claim.record),
+            payload: claim.payload,
+        }
+    }
+}
+
+impl From<ClaimedMediaWorkflowV2Reset> for MediaWorkflowV2ResetClaim {
+    fn from(claim: ClaimedMediaWorkflowV2Reset) -> Self {
+        Self {
+            record: cleanup_claim_record(&claim.record),
+            payload: claim.payload,
+        }
+    }
+}
+
+impl From<ClaimedFileArtifactCleanup> for FileArtifactCleanupClaim {
+    fn from(claim: ClaimedFileArtifactCleanup) -> Self {
+        Self {
+            record: cleanup_claim_record(&claim.record),
+            payload: claim.payload,
+        }
+    }
+}
+
+impl From<ClaimedGenerationCleanup> for GenerationCleanupClaim {
+    fn from(claim: ClaimedGenerationCleanup) -> Self {
+        Self {
+            record: cleanup_claim_record(&claim.record),
+            payload: claim.payload,
+        }
+    }
+}
+
+fn cleanup_claim_record(record: &cleanup_outbox::Model) -> CleanupClaimRecord {
+    CleanupClaimRecord {
+        id: record.id,
+        project_id: record.project_id,
+        attempt_count: record.attempt_count,
+        lease_token: record.lease_token.clone(),
+    }
+}
+
+fn contract_error_to_db_error(error: CleanupContractError) -> DbErr {
+    DbErr::Custom(error.to_string())
 }
 
 pub(super) fn parse_project_deletion_payload(
@@ -392,7 +216,8 @@ pub(super) fn parse_generation_cleanup_payload(
                 payload.provider_kind.clone(),
                 payload.provider_job_id.clone(),
                 payload.provider_idempotency_key_sha256.clone(),
-            )?;
+            )
+            .map_err(contract_error_to_db_error)?;
             if normalized != payload {
                 return Err(DbErr::Custom(format!(
                     "generation provider job cleanup payload 合同不一致: id={}",
@@ -408,13 +233,14 @@ pub(super) fn parse_generation_cleanup_payload(
                         "解析 generation staging artifact cleanup payload 失败: {error}"
                     ))
                 })?;
-            validate_sha256(&payload.sha256, "artifact.sha256")?;
-            if payload.version != CLEANUP_PAYLOAD_VERSION
-                || required_text(payload.artifact_id.clone(), "artifact_id", 256)?
-                    != payload.artifact_id
-                || required_text(payload.revision.clone(), "artifact.revision", 256)?
-                    != payload.revision
-            {
+            let normalized = GenerationStagingArtifactDeletePayload::from_artifact_parts(
+                true,
+                payload.artifact_id.clone(),
+                payload.sha256.clone(),
+                payload.revision.clone(),
+            )
+            .map_err(contract_error_to_db_error)?;
+            if normalized != payload {
                 return Err(DbErr::Custom(format!(
                     "generation staging artifact cleanup payload 合同不一致: id={}",
                     record.id
@@ -429,12 +255,12 @@ pub(super) fn parse_generation_cleanup_payload(
                         "解析 generation artifact unbind payload 失败: {error}"
                     ))
                 })?;
-            if payload.version != CLEANUP_PAYLOAD_VERSION
-                || required_text(payload.artifact_id.clone(), "artifact_id", 256)?
-                    != payload.artifact_id
-                || required_text(payload.revision.clone(), "artifact.revision", 256)?
-                    != payload.revision
-            {
+            let normalized = GenerationArtifactUnbindPayload::from_artifact_parts(
+                payload.artifact_id.clone(),
+                payload.revision.clone(),
+            )
+            .map_err(contract_error_to_db_error)?;
+            if normalized != payload {
                 return Err(DbErr::Custom(format!(
                     "generation artifact unbind payload 合同不一致: id={}",
                     record.id
@@ -470,6 +296,7 @@ fn validate_generation_cleanup_scope(record: &cleanup_outbox::Model) -> Result<(
         attempt,
     }
     .validate()
+    .map_err(contract_error_to_db_error)
 }
 
 fn validate_record_payload_hash(record: &cleanup_outbox::Model) -> Result<(), DbErr> {
@@ -481,31 +308,6 @@ fn validate_record_payload_hash(record: &cleanup_outbox::Model) -> Result<(), Db
         Err(DbErr::Custom(format!(
             "cleanup payload SHA-256 不匹配: id={}",
             record.id
-        )))
-    }
-}
-
-fn required_text(value: String, label: &str, max_bytes: usize) -> Result<String, DbErr> {
-    let value = value.trim().to_string();
-    if value.is_empty() || value.len() > max_bytes {
-        Err(DbErr::Custom(format!(
-            "generation cleanup {label} 必须在 1..={max_bytes} 字节内"
-        )))
-    } else {
-        Ok(value)
-    }
-}
-
-fn validate_sha256(value: &str, label: &str) -> Result<(), DbErr> {
-    if value.len() == 64
-        && value
-            .bytes()
-            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-    {
-        Ok(())
-    } else {
-        Err(DbErr::Custom(format!(
-            "generation cleanup {label} 必须是 64 位小写 SHA-256 hex"
         )))
     }
 }

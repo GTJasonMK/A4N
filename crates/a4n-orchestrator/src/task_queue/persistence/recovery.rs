@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::{PersistentTaskQueue, queue_db_error};
 use crate::workflow::workflow_write_app_error;

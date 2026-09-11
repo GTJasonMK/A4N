@@ -15,5 +15,23 @@ pub use contracts::{
 };
 pub use execution::validate_character_conflict_input;
 
+/// Runtime-facing character-consistency boundary.
+#[async_trait::async_trait]
+pub trait CharacterConflictApplicationPort: Send + Sync {
+    async fn preview(
+        &self,
+        input: CharacterConflictCheckInput,
+        prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, a4n_error::AppError>;
+
+    async fn check(
+        &self,
+        input: CharacterConflictCheckInput,
+        prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
+        progress: CharacterConflictProgressReporter<'_>,
+        active_task_id: Option<&str>,
+    ) -> Result<Vec<CharacterConflictSummary>, a4n_error::AppError>;
+}
+
 #[cfg(test)]
 mod tests;

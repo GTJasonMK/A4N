@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::TeraPromptEngine;
 use super::support::{make_entry, write_test_registry};

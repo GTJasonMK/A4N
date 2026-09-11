@@ -295,14 +295,23 @@ def main() -> int:
             )
             if child_run.get("status") != "completed":
                 raise RunnerError(f"child Agent 未完成: {child_run.get('status')!r}")
-            if not messages_with_content(
-                child_snapshot, "正文优化子 Agent 已完成", child_run_id
-            ):
-                raise RunnerError("child Agent 缺少真实完成消息")
-            if not messages_with_content(
-                parent_snapshot, "已验收正文优化子 Agent 的回传结果", parent_run_id
-            ):
-                raise RunnerError("parent Agent 缺少验收后的最终消息")
+            child_executions = [row for row in child_snapshot["executions"] if row["run_id"] == child_run_id]
+            if not any(row["tool_name"] == "edit_article" and row["status"] == "succeeded"
+                       and any(ref["kind"] == "optimization_patch_set" for ref in row["result_refs"])
+                       for row in child_executions):
+                raise RunnerError("child Agent 未生成真实 PatchSet")
+            if child_run["model_calls_used"] != 3 or child_run["tool_calls_used"] != 4:
+                raise RunnerError("专业执行的模型/工具计数不完整，或仍包含外层模型调用")
+            if not any(row["run_id"] == parent_run_id and row["tool_name"] == "review_agent_delegation"
+                       and row["status"] == "succeeded" for row in parent_snapshot["executions"]):
+                raise RunnerError("parent Agent 缺少显式验收执行")
+            if parent_run["model_calls_used"] <= child_run["model_calls_used"] or parent_run["tokens_used"] <= child_run["tokens_used"]:
+                raise RunnerError("父子成本未累计到共享用量")
+            if not messages_with_content(child_snapshot, "正文尚未写回", child_run_id):
+                raise RunnerError("child Agent 未区分提案与正式写回")
+            current, _ = checked(cli, ["chapter", "get", str(chapter_id)], "verify unchanged chapter")
+            if data(current, "chapter get")["content"] != chapter_value["content"]:
+                raise RunnerError("待确认提案意外写回了章节正文")
 
             followup, _ = checked(
                 cli,

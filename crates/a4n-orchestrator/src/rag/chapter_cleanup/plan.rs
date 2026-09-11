@@ -1,4 +1,4 @@
-use crate::project::ChapterDerivedCleanupArtifacts;
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) struct ChapterDerivedRagCleanupPlan<'a> {

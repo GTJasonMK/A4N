@@ -1,5 +1,5 @@
 use crate::galgame::{GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_TARGET_PORTRAIT_EXPRESSION};
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_spec, prompt_artifact},
     media::media_provenance,
 };

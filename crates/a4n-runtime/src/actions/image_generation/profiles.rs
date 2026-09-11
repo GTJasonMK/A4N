@@ -10,8 +10,8 @@ pub async fn generate_object_profile_image_prompt(
     input: ObjectProfileImageInput,
 ) -> Result<ObjectProfileImagePromptOutput, String> {
     state
-        .orchestrator()
-        .generate_object_profile_image_prompt_validated(user_id, &input)
+        .image_generation_application()
+        .object_profile_prompt(user_id, &input)
         .await
         .map_err(|error| error.to_string())
 }
@@ -23,8 +23,8 @@ pub async fn preview_object_profile_image_request(
 ) -> Result<ModelRequestPreview, String> {
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .orchestrator()
-        .prepare_object_profile_image_request_validated(&host, user_id, input)
+        .image_generation_application()
+        .prepare_object_profile_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     let project_id = prepared.project_id;
@@ -56,8 +56,8 @@ pub async fn generate_scene_profile_image_prompt(
     input: SceneProfileImageInput,
 ) -> Result<SceneProfileImagePromptOutput, String> {
     state
-        .orchestrator()
-        .generate_scene_profile_image_prompt_validated(user_id, &input)
+        .image_generation_application()
+        .scene_profile_prompt(user_id, &input)
         .await
         .map_err(|error| error.to_string())
 }

@@ -5,20 +5,17 @@ use a4n_api_contract::video::{
     MoveInsertedSegmentInput, VideoTimelineItemKind as ApiItemKind,
     VideoTimelineItemStatus as ApiItemStatus, VideoTimelineItemSummary, VideoTimelineSummary,
 };
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_image, generated_video},
-        chapter::{chapter_video_prompt, chapter_video_timeline_item},
-    },
-    prompt_language::PromptOutputLanguage,
-    source_spans::source_text_hash,
-    video_execution::{
-        NativeVideoTimelineKey, VIDEO_EXECUTION_CONTRACT_EPOCH, VIDEO_SEGMENT_EXECUTION_RECIPE_V1,
-        VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1, VideoSegmentPlanV2,
-        VideoSegmentWorkflowModeV1, VideoTimelineGap, timeline_gap_index,
-        video_segment_recipes_for_plan_from_metadata,
-    },
+use a4n_db_models::models::{
+    ai::{generated_image, generated_video},
+    chapter::{chapter_video_prompt, chapter_video_timeline_item},
+};
+use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap, timeline_gap_index};
+use a4n_domain::{prompt_language::PromptOutputLanguage, source_text_hash};
+use a4n_error::AppError;
+use a4n_video_contract::{
+    VIDEO_EXECUTION_CONTRACT_EPOCH, VIDEO_SEGMENT_EXECUTION_RECIPE_V1,
+    VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1, VideoSegmentPlanV2,
+    VideoSegmentWorkflowModeV1, video_segment_recipes_for_plan_from_metadata,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -309,7 +306,7 @@ impl OrchestratorContext {
             input.timeline_id,
             input.expected_timeline_revision,
             input.timeline_item_id,
-            a4n_core::video_execution::VideoTimelineGap {
+            VideoTimelineGap {
                 previous_item_id: input.previous_item_id,
                 next_item_id: input.next_item_id,
             },
@@ -529,7 +526,7 @@ impl OrchestratorContext {
                     })?;
                     if video.project_id != project_id
                         || video.chapter_id != Some(chapter_id)
-                        || video.status != generated_video::STATUS_COMPLETED
+                        || video.status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
                         || !video_matches_timeline_item(video, item)
                     {
                         return Err(AppError::InvalidState {
@@ -635,8 +632,8 @@ pub(crate) fn video_timeline_assembly_order_from_snapshot(
 }
 
 pub(crate) fn video_matches_timeline_item(
-    video: &a4n_core::models::ai::generated_video::Model,
-    item: &a4n_core::models::chapter::chapter_video_timeline_item::Model,
+    video: &a4n_db_models::models::ai::generated_video::Model,
+    item: &a4n_db_models::models::chapter::chapter_video_timeline_item::Model,
 ) -> bool {
     let identity = video
         .metadata_json
@@ -827,7 +824,7 @@ pub(crate) fn current_timeline_item_video_id(
             current: format!("timeline_selected_video_missing:{video_id}"),
             operation: format!("读取时间线项 {} 的当前视频", item.id),
         })?;
-    if video.status != generated_video::STATUS_COMPLETED
+    if video.status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
         || !video_matches_timeline_item(video, item)
     {
         return Err(AppError::InvalidState {
@@ -839,7 +836,7 @@ pub(crate) fn current_timeline_item_video_id(
 }
 
 pub(crate) fn shared_plan_segments(
-    plan: &a4n_core::models::chapter::chapter_video_prompt::Model,
+    plan: &a4n_db_models::models::chapter::chapter_video_prompt::Model,
 ) -> Result<Vec<VideoSegmentPlanV2>, AppError> {
     let segments = serde_json::from_value::<Vec<VideoSegmentPlanV2>>(
         plan.metadata_json
@@ -895,7 +892,7 @@ struct InsertedSegmentConstraints {
 }
 
 fn validate_inserted_workflow_scope(
-    run: &a4n_core::models::generation::workflow_run::Model,
+    run: &a4n_db_models::models::generation::workflow_run::Model,
     input: &CommitInsertedSegmentDraftInput,
 ) -> Result<(), AppError> {
     if run.workflow_kind != INSERTED_SEGMENT_WORKFLOW_KIND {
@@ -921,7 +918,7 @@ fn validate_inserted_workflow_scope(
 }
 
 fn inserted_workflow_fingerprint(
-    run: &a4n_core::models::generation::workflow_run::Model,
+    run: &a4n_db_models::models::generation::workflow_run::Model,
     value: &Value,
 ) -> Result<InsertedSegmentWorkflowFingerprint, AppError> {
     let fingerprint: InsertedSegmentWorkflowFingerprint = serde_json::from_value(value.clone())
@@ -1024,7 +1021,10 @@ async fn validate_inserted_continuity_source(
         .await?;
     let video = videos
         .iter()
-        .find(|video| video.id == video_id && video.status == generated_video::STATUS_COMPLETED)
+        .find(|video| {
+            video.id == video_id
+                && video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+        })
         .ok_or_else(|| {
             AppError::InvalidArgument(format!(
                 "插入片段续接来源视频 #{video_id} 已失效，请刷新时间线后重试"
@@ -1100,7 +1100,7 @@ fn native_timeline_needs_reconcile(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::{
+    use a4n_db_models::models::{
         ai::generated_video,
         chapter::{chapter_video_timeline, chapter_video_timeline_item},
     };
@@ -1150,7 +1150,7 @@ mod tests {
             id,
             project_id: 1,
             chapter_id: Some(1),
-            video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
             workflow_mode: Some("boundary_frames".to_string()),
             file_path: Some(format!("{id}.mp4")),
             thumbnail_path: None,

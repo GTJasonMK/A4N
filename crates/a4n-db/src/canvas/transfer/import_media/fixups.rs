@@ -5,7 +5,7 @@ use super::super::remap::{
 use super::super::types::{
     VideoStudioProjectImportError, VideoStudioProjectImportIdMaps, VideoStudioProjectImportRows,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     canvas::canvas_node,
 };

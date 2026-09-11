@@ -26,18 +26,3 @@ pub struct PartOutlineSyncDraft {
     pub key_events: Value,
     pub character_focus: Value,
 }
-
-/// 章节大纲同步草稿（字段已解析）。
-#[derive(Debug, Clone)]
-pub struct ChapterOutlineSyncDraft {
-    pub chapter_number: i32,
-    pub title: String,
-    pub summary: String,
-    pub beats: Option<Value>,
-    pub key_scenes: Option<Value>,
-    pub pacing_score: Option<f32>,
-    pub foreshadowing_setup: Option<Value>,
-    pub foreshadowing_payoff: Option<Value>,
-    pub characters_involved: Option<Value>,
-    pub word_count_target: Option<i32>,
-}

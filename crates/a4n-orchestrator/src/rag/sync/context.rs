@@ -1,15 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::rag::RagDataType;
+use a4n_domain::rag::RagDataType;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_rag_core::{metadata::content_hash, vector_store::DeleteFilter};
 use serde_json::Value;
 
-use super::contracts::{
+use super::identity::current_embedding_identity;
+use crate::{OrchestratorContext, rag::rag_project_prefix};
+use a4n_rag_core::contracts::sync::classify_rag_record;
+use a4n_rag_core::{
     DeleteRagRecordsInput, PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, RagSyncError,
 };
-use super::identity::{classify_rag_record, current_embedding_identity};
-use crate::{OrchestratorContext, rag::rag_project_prefix};
 
 pub struct RagSyncContext {
     pub(super) project_id: i64,
@@ -128,6 +129,14 @@ impl RagSyncContext {
         self.project_id
     }
 
+    pub(crate) fn into_port_snapshot(
+        self,
+    ) -> (EmbeddingModelIdentity, HashMap<String, Value>, Vec<String>) {
+        let mut stale_ids = self.stale_ids.into_iter().collect::<Vec<_>>();
+        stale_ids.sort();
+        (self.embedding_identity, self.stored_metadata, stale_ids)
+    }
+
     pub fn prepare_record(
         &mut self,
         record: RagRecord,
@@ -142,7 +151,7 @@ impl RagSyncContext {
             &self.embedding_identity,
         );
         self.stale_ids.remove(&record.chunk_id);
-        Ok(PreparedRagRecordSync { record, outcome })
+        Ok(PreparedRagRecordSync::new(record, outcome))
     }
 
     pub(crate) async fn sync_record(
@@ -151,14 +160,14 @@ impl RagSyncContext {
         record: RagRecord,
     ) -> Result<RagRecordSyncOutcome, RagSyncError> {
         let prepared = self.prepare_record(record)?;
-        let outcome = prepared.outcome;
+        let (record, outcome) = prepared.into_parts();
         if outcome != RagRecordSyncOutcome::Skipped {
             context
                 .rag_embed_and_store_record(
                     self.project_id,
-                    &prepared.record.chunk_id,
-                    &prepared.record.text,
-                    prepared.record.metadata,
+                    &record.chunk_id,
+                    &record.text,
+                    record.metadata,
                 )
                 .await
                 .map_err(|error| RagSyncError::Store {

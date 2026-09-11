@@ -1,4 +1,3 @@
-use a4n_core::models::generation::generation_run;
 use a4n_db::workflow::{
     GetWorkflowRunInput, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
     WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING,
@@ -7,6 +6,7 @@ use a4n_db::workflow::{
     upsert_workflow_run, workflow_checkpoint_statuses_for_runs, workflow_checkpoint_step_statuses,
     workflow_run_detail, workflow_run_models_by_ids, workflow_run_statuses_by_ids,
 };
+use a4n_db_models::models::generation::generation_run;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
 use serde_json::json;

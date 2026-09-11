@@ -1,10 +1,8 @@
 use crate::AppState;
-use crate::actions::access;
 use crate::actions::request_preview::{
     ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
 };
-use a4n_core::error::AppError;
-use a4n_orchestrator::manga::MangaPipelinePreviewApplicationInput;
+use a4n_error::AppError;
 
 pub async fn preview_manga_pipeline_requests(
     state: &AppState,
@@ -13,16 +11,16 @@ pub async fn preview_manga_pipeline_requests(
     chapter_number: i32,
     resume_from_checkpoint: bool,
 ) -> Result<ModelRequestPreview, AppError> {
-    access::verify_project_or_derived_family_editor(state, user_id, project_id).await?;
     let prompt_renderer = state;
     let steps = state
-        .orchestrator()
-        .prepare_manga_pipeline_preview_validated(MangaPipelinePreviewApplicationInput {
+        .manga_pipeline_application()
+        .preview(
+            user_id,
             project_id,
             chapter_number,
-            prompt_renderer,
             resume_from_checkpoint,
-        })
+            prompt_renderer,
+        )
         .await?;
     chat_status_preview_for_state(
         state,

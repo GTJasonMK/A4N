@@ -1,5 +1,5 @@
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn detach_derived_project(
     state: &AppState,
@@ -7,7 +7,10 @@ pub async fn detach_derived_project(
     derived_project_id: i64,
 ) -> Result<(), AppError> {
     state
-        .orchestrator()
-        .detach_derived_project_for_user_validated(user_id, derived_project_id)
+        .source_sync_application()
+        .detach(
+            user_id,
+            a4n_api_contract::source_sync::SourceSyncProjectInput { derived_project_id },
+        )
         .await
 }

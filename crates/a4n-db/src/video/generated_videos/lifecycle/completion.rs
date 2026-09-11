@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set, TransactionTrait};
 use serde_json::Value;
@@ -13,7 +13,7 @@ pub(super) fn completed_video_write_is_idempotent(
     existing_file_path: Option<&str>,
     requested_file_path: &str,
 ) -> Result<bool, VideoDbError> {
-    if status != generated_video::STATUS_COMPLETED {
+    if status != a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
         return Ok(false);
     }
     if existing_file_path == Some(requested_file_path) {
@@ -58,7 +58,7 @@ where
         active.thumbnail_path = Set(Some(path.to_string()));
     }
     active.file_size = Set(Some(file_size));
-    active.status = Set(generated_video::STATUS_COMPLETED.to_string());
+    active.status = Set(a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string());
     active.error_message = Set(None);
     if metadata_json.is_some() {
         active.metadata_json = Set(merge_video_provider_response_metadata(

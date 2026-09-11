@@ -2,15 +2,15 @@ use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::workflow::{
     WorkflowProgressEvent, WorkflowProgressEventsInput, WorkflowProgressEventsResponse,
 };
-use a4n_core::event::channel::normalize_task_id;
-use a4n_orchestrator::workflow::require_positive_workflow_run_id;
+use a4n_domain::workflow::require_positive_workflow_run_id;
+use a4n_task_runtime::channel::normalize_task_id;
 
 use super::super::super::{
     access::{
         verify_task_access, verify_task_handle_access, verify_task_project_access,
         verify_workflow_run_summary_access,
     },
-    projections::{persisted_progress_event, task_progress_event},
+    projections::task_progress_event,
 };
 
 pub async fn get_workflow_progress_events(
@@ -26,7 +26,7 @@ pub async fn get_workflow_progress_events(
         }
         ProgressEventsTarget::Task(task_id) => task_id,
     };
-    if let Some(handle) = state.orchestrator().task_handle(&task_id) {
+    if let Some(handle) = state.task_manager().get(&task_id) {
         verify_task_handle_access(state, user_id, &handle).await?;
         let events = handle
             .progress_events
@@ -48,8 +48,8 @@ pub async fn get_workflow_progress_events(
         });
     }
     if let Some(task) = state
-        .orchestrator()
-        .persisted_task_by_id(&task_id)
+        .workflow_task_lookup_application()
+        .task_by_id(&task_id)
         .await
         .map_err(app_error_message)?
     {
@@ -64,18 +64,18 @@ pub async fn get_workflow_progress_events(
         };
     }
     if let Some(run) = state
-        .orchestrator()
-        .workflow_run_access_record_by_active_task_id(&task_id)
+        .workflow_task_lookup_application()
+        .workflow_access_by_active_task_id(&task_id)
         .await
         .map_err(app_error_message)?
     {
         verify_task_project_access(state, user_id, run.project_id, run.root_project_id).await?;
         return state
-            .orchestrator()
-            .workflow_progress_events(run.id, input.limit)
+            .workflow_task_lookup_application()
+            .workflow_progress_events(run.workflow_run_id, input.limit)
             .await
             .map_err(app_error_message)
-            .map(|events| events_only(events.into_iter().map(persisted_progress_event).collect()));
+            .map(events_only);
     }
     Err(format!("任务不存在: {task_id}"))
 }
@@ -122,17 +122,17 @@ async fn workflow_progress_events_for_user(
     limit: usize,
 ) -> Result<Vec<WorkflowProgressEvent>, String> {
     let run = state
-        .orchestrator()
+        .workflow_task_lookup_application()
         .workflow_run_summary(workflow_run_id)
         .await
         .map_err(app_error_message)?;
     verify_workflow_run_summary_access(state, user_id, &run).await?;
     let events = state
-        .orchestrator()
+        .workflow_task_lookup_application()
         .workflow_progress_events(workflow_run_id, limit)
         .await
         .map_err(app_error_message)?;
-    Ok(events.into_iter().map(persisted_progress_event).collect())
+    Ok(events)
 }
 
 #[cfg(test)]

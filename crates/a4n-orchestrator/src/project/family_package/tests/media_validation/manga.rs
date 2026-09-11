@@ -1,6 +1,6 @@
 use super::*;
 use crate::project::{ImportMediaPayload, MediaFileEntry, media_file_key};
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 
 #[test]
 fn validate_media_manifest_rejects_generated_image_unknown_owner_field() {

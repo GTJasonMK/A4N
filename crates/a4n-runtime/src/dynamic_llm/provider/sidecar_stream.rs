@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use a4n_capabilities::LlmClient;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;

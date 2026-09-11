@@ -1,11 +1,7 @@
 //! 项目生成态重置与状态回退清理（阶段 11：从 a4n-services::project 迁入）。
 
-use a4n_core::models::project::novel_project;
-use a4n_core::state::{
-    rollback::{CleanupAction, rollback_actions},
-    validator::parse_project_status,
-};
-use a4n_domain::project::{ProjectKind, ProjectStatus};
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::{CleanupAction, ProjectKind, ProjectStatus, rollback_actions};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DbErr, EntityTrait, PaginatorTrait,
@@ -14,9 +10,7 @@ use sea_orm::{
 
 use crate::character;
 use crate::generation;
-use crate::project::{
-    self as project_db, PROJECT_KIND_TEXT, ProjectStatusHistoryInput, ProjectTextAnchorDeleteScope,
-};
+use crate::project::{self as project_db, PROJECT_KIND_TEXT, ProjectTextAnchorDeleteScope};
 use crate::project_delete::{
     GeneratedImageDeleteScope, delete_chapter_generation_outputs, delete_project_profile_scene_data,
 };

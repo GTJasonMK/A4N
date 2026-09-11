@@ -7,7 +7,8 @@ use super::context::{
 use super::events::handle_rag_ingest_event;
 use super::request::rag_service_request;
 use super::store::SidecarVectorStore;
-use a4n_core::error::AppError;
+use a4n_capabilities::A4nCapabilities;
+use a4n_error::AppError;
 use a4n_rag_core::vector_store::{EmbeddingRecord, VectorStore};
 use a4n_service_protocol::{CapabilityTaskEvent, SecretForwardingPolicy, ServiceErrorCode};
 use a4n_test_support::capability::RecordingRagClient;
@@ -15,6 +16,15 @@ use serde_json::json;
 use std::sync::Arc;
 
 use crate::rag_ingest::SceneRagSyncTraceSource;
+
+#[test]
+fn sidecar_rag_requires_capability_without_disabled_fallback() {
+    let Err(error) = super::store::create_sidecar_rag_store(&A4nCapabilities::default()) else {
+        panic!("missing RAG sidecar capability must fail at startup");
+    };
+
+    assert!(error.to_string().contains("RAG sidecar capability 未配置"));
+}
 
 #[test]
 fn rag_service_request_uses_numeric_collection_scope_without_changing_payload() {

@@ -1,13 +1,5 @@
-use a4n_core::models::project::import_review_queue;
+use a4n_db_models::models::project::import_review_queue;
 use a4n_domain::import_review::ImportReviewStatus;
-use serde_json::Value;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct ImportReviewCreateInput {
-    pub project_id: i64,
-    pub filename: String,
-    pub analysis_result: Value,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct AcceptedImportReview {

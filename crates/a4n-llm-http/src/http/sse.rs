@@ -2,7 +2,7 @@ use super::errors::internal_error;
 use super::response::{
     first_choice, required_object, required_usize, stream_usage, stream_usage_only_chunk,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatChunk;
 use serde_json::{Map, Value, json};
 use std::collections::VecDeque;

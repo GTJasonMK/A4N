@@ -1,6 +1,6 @@
 //! 立绘提示词纯规则（无 DB、无 Host）。
 
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 use serde_json::{Map, Value};
 
 use super::design_brief::character_sheet_seed_instruction;

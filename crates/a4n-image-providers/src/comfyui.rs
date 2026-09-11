@@ -2,7 +2,7 @@ use super::support::{
     detect_format_from_bytes, internal_error, percent_encode_query, required_json_string,
     required_json_string_field, required_non_empty, response_bytes, response_text, time_seed,
 };
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
 use async_trait::async_trait;
 use serde_json::json;

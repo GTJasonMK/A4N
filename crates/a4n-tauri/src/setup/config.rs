@@ -5,9 +5,9 @@ use self::environment::apply_env_overrides;
 #[cfg(test)]
 use self::file_io::write_config_file;
 use self::file_io::{config_file_path, load_config_from_file};
-use a4n_core::config::app_config::{AppConfig, portable_home_dir};
-use a4n_core::config::env::validate_postgres_database_url;
-use a4n_core::error::AppError;
+use a4n_config::app_config::{AppConfig, portable_home_dir};
+use a4n_config::validate_postgres_database_url;
+use a4n_error::AppError;
 use tauri::AppHandle;
 
 pub(super) fn load_config(_app: &AppHandle) -> Result<AppConfig, AppError> {

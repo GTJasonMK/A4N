@@ -1,8 +1,7 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
+use a4n_rag_core::RagSyncError;
 
-use crate::rag::{
-    CharacterProfileRagDeletionSummary, CharacterTimelineRagDeletionSummary, RagSyncError,
-};
+use crate::rag::{CharacterProfileRagDeletionSummary, CharacterTimelineRagDeletionSummary};
 use a4n_db::character::{CharacterProfileDeletionSummary, CharacterProfileRollbackResult};
 
 #[derive(Debug, thiserror::Error)]

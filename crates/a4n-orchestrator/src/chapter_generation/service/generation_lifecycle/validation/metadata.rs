@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::super::response_json::GeneratedChapterMetadata;
 use super::super::session::ChapterGenerationSession;

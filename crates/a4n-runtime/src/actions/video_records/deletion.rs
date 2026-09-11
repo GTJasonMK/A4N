@@ -1,26 +1,21 @@
 use crate::AppState;
 use crate::actions::app_error_message;
-use crate::actions::video_generation::media::{
-    append_secondary_error, delete_video_tail_frame_assets,
-};
-use a4n_core::error::AppError;
-use a4n_orchestrator::collaboration::ProjectAccessRole;
-use a4n_orchestrator::video::VideoRecordLifecycleHostPort;
-use async_trait::async_trait;
+use crate::actions::video_generation::media::append_secondary_error;
+use a4n_orchestrator::video::VideoRecordApplicationPort;
 
 pub(in crate::actions::video_records) async fn delete_video_record_cleanup_error(
-    video: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     record_id: i64,
 ) -> Option<String> {
     video
-        .delete_generated_video_record_with_cleanup(record_id)
+        .delete_record_with_cleanup(record_id)
         .await
         .err()
         .map(crate::actions::app_error_message)
 }
 
 pub(in crate::actions::video_records) async fn append_video_record_cleanup_error<T>(
-    video: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     record_id: i64,
     result: Result<T, String>,
 ) -> Result<T, String> {
@@ -33,36 +28,10 @@ pub(in crate::actions::video_records) async fn append_video_record_cleanup_error
     }
 }
 
-struct VideoRecordLifecycleHost<'a> {
-    state: &'a AppState,
-}
-
-#[async_trait]
-impl VideoRecordLifecycleHostPort for VideoRecordLifecycleHost<'_> {
-    async fn delete_video_tail_frame_assets(&self, video_id: i64) -> Result<(), AppError> {
-        delete_video_tail_frame_assets(self.state, video_id)
-            .await
-            .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))
-    }
-}
-
 pub async fn delete_video(state: &AppState, user_id: i64, video_id: i64) -> Result<(), String> {
-    let project_ids = state
-        .orchestrator()
-        .missing_video_reference_project_ids(video_id)
-        .await
-        .map_err(app_error_message)?;
-    if project_ids.is_empty() {
-        return Err("视频不存在".to_string());
-    }
     state
-        .orchestrator()
-        .verify_project_permissions(&project_ids, user_id, ProjectAccessRole::Editor)
-        .await
-        .map_err(app_error_message)?;
-    state
-        .orchestrator()
-        .delete_video_record_validated(&VideoRecordLifecycleHost { state }, video_id)
+        .video_record_application()
+        .delete(user_id, video_id)
         .await
         .map_err(app_error_message)
 }

@@ -1,7 +1,7 @@
 use super::contracts::{CapabilityClient, CapabilityResult, ExportClient, ImportClient};
 use super::transport::{HttpClientFactory, HttpSidecarTransport};
-use a4n_export_core::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
-use a4n_import_core::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
+use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_import_contract::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use a4n_service_protocol::{
     EXPORT_SERVICE_NAME, IMPORT_SERVICE_NAME, ServiceHealth, ServiceRequest, ServiceResponse,
 };

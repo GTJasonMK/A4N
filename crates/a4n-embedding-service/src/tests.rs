@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_service_protocol::{
     EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EmbedTextsPayload, EmbeddingModelPayload,
     PROTOCOL_VERSION, ServiceErrorCode, ServiceRequest, ServiceResponse, ServiceStatus,
@@ -67,7 +67,7 @@ fn embedding_sidecar_rejects_zero_batch_size() {
 
     assert!(matches!(
         result,
-        Err(AppError::ConfigError(message)) if message.contains("batch_size 必须大于 0")
+        Err(AppError::Configuration(message)) if message.contains("batch_size 必须大于 0")
     ));
 }
 
@@ -142,7 +142,7 @@ fn api_key_requires_local_user_secret_policy() {
 #[test]
 #[cfg(feature = "fastembed")]
 fn service_error_redacts_secret_material() {
-    let message = service_error(AppError::ConfigError(
+    let message = service_error(AppError::Configuration(
         "base_url=https://provider.example api_key=sk-test".to_string(),
     ))
     .message;

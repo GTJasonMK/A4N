@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_spec, prompt_artifact},
     media::media_asset,
 };
@@ -9,7 +9,8 @@ use sea_orm::{
     QuerySelect,
 };
 
-use crate::media::{MediaDbError, MediaProvenanceRecordInput};
+use crate::media::MediaDbError;
+use a4n_domain::media::MediaProvenanceRecordInput;
 
 use super::context::validate_provenance_source_context;
 

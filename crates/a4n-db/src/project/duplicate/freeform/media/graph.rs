@@ -4,14 +4,14 @@ use super::timelines::copy_freeform_assembly_timelines_record;
 use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::derived::copy_derived_assembly_clips;
 use crate::project::duplicate::freeform::FreeformProjectMediaGraphCopyResult;
-use crate::project::duplicate::shared::ProjectMediaFileCopier;
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::ConnectionTrait;
 use std::collections::HashMap;
 
 pub(in crate::project::duplicate::freeform) async fn copy_freeform_project_media_graph_record<
     C,
-    Copier,
+    Copier: ?Sized,
 >(
     db: &C,
     source_project_id: i64,

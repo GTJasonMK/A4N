@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 use super::super::VideoFramePrompt;
 use super::prompt_text::{required_min_prompt_text, required_text, validate_reference_label_text};

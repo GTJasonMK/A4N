@@ -7,7 +7,7 @@
 //!   - `HttpEmbeddingProvider`：调 OpenAI 兼容 `/v1/embeddings` 端点
 //!   - `FastEmbedProvider`：使用当前支持的本地 ONNX 嵌入模型
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 

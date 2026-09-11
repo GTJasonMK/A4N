@@ -1,9 +1,10 @@
-use super::super::{
+use super::super::{CharacterDeletionMarkRewindSummary, CharacterTimelineDeletionSummary};
+use a4n_db_models::models::character::character_state_index;
+use a4n_domain::character::{
     CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
-    CharacterDeletionMarkRewindSummary, CharacterImplicitReviewDecisionRecordInput,
-    CharacterTimelineDeletionSummary, InsertBehaviorRecordInput,
+    CharacterImplicitReviewDecisionRecordInput, CharacterSyncChapterStateRecordInput,
+    InsertBehaviorRecordInput,
 };
-use a4n_core::models::character::character_state_index;
 use chrono::NaiveDateTime;
 use serde::Serialize;
 use serde_json::Value;
@@ -43,15 +44,6 @@ pub struct CharacterSyncProtectedAttribute {
     pub category: String,
     pub key: String,
     pub operation: String,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct CharacterSyncChapterStateRecordInput {
-    pub chapter_number: i32,
-    pub state_summary: String,
-    pub current_location: Option<String>,
-    pub current_goal: Option<String>,
-    pub emotional_state: Option<String>,
 }
 
 #[derive(Debug, Clone)]

@@ -1,7 +1,5 @@
 use a4n_capabilities::A4nCapabilities;
-use a4n_core::models::ai::video_gen_config;
-#[cfg(feature = "embedded-media-providers")]
-use a4n_orchestrator::video::validate_video_config_model;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{
     VideoGenerationRequest, VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState,
     VideoJobStatus, VideoProvider,
@@ -13,15 +11,17 @@ use tokio::sync::mpsc::UnboundedSender;
 use crate::state::RuntimeProfile;
 
 use super::super::super::missing_sidecar_capability_message;
+#[cfg(feature = "embedded-media-providers")]
+use super::super::contracts::video_config_params;
 use super::super::events::generate_video_via_sidecar;
 use super::sidecar::{delete_video_via_sidecar, poll_video_via_sidecar, video_status_via_sidecar};
 
 fn pick_provider_for_config(
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
 ) -> Result<Box<dyn VideoProvider>, String> {
     #[cfg(feature = "embedded-media-providers")]
     {
-        let params = validate_video_config_model(config)?;
+        let params = video_config_params(config)?;
         let api_key = params
             .api_key_encrypted
             .as_deref()
@@ -42,7 +42,7 @@ fn pick_provider_for_config(
 pub(crate) async fn generate_video(
     profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,
     project_id: Option<i64>,
@@ -78,7 +78,7 @@ pub(crate) async fn generate_video(
 pub(crate) async fn poll_video(
     profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
@@ -107,7 +107,7 @@ pub(crate) async fn poll_video(
 pub(crate) async fn video_job_status(
     profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
@@ -127,7 +127,7 @@ pub(crate) async fn video_job_status(
 pub(crate) async fn delete_video_job(
     profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
@@ -151,14 +151,13 @@ pub(crate) async fn delete_video_job(
 mod tests {
     use super::*;
 
-    fn video_config(api_key: Option<&str>) -> video_gen_config::Model {
-        let now = chrono::Utc::now().naive_utc();
-        video_gen_config::Model {
+    fn video_config(api_key: Option<&str>) -> VideoProviderConfig {
+        VideoProviderConfig {
             id: 1,
             name: "primary".to_string(),
             backend: "openai-compatible-video".to_string(),
             base_url: Some("http://localhost:3000".to_string()),
-            api_key_encrypted: api_key.map(str::to_string),
+            api_key: api_key.map(str::to_string),
             model: "video-model".to_string(),
             max_concurrent: 1,
             default_width: 1280,
@@ -170,8 +169,6 @@ mod tests {
             supported_durations_json: None,
             default_fps: 24,
             is_default: true,
-            created_at: now,
-            updated_at: now,
         }
     }
 

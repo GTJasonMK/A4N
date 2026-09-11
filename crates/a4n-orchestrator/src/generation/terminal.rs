@@ -1,6 +1,5 @@
 use std::{future::Future, sync::Arc, time::Duration};
 
-use a4n_core::error::AppError;
 use a4n_db::{
     DbHandle,
     generation::{
@@ -14,6 +13,7 @@ use a4n_db::{
         persist_locked_generation_completion,
     },
 };
+use a4n_error::AppError;
 use a4n_service_protocol::{
     BatchSummary, CancelRequestedEvent, CancellationReason, CancelledEvent, CompletedEvent,
     DraftDisposition, FailedEvent, GENERATION_EVENT_SCHEMA_VERSION, GenerationError,

@@ -1,19 +1,17 @@
 use std::collections::HashMap;
 
-use a4n_core::models::media::media_asset;
+use a4n_db_models::models::media::media_asset;
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
-use crate::project::duplicate::{
-    ProjectDuplicateError,
-    shared::{ProjectMediaFileCopier, remap_derived_optional_id},
-};
+use crate::project::duplicate::{ProjectDuplicateError, shared::remap_derived_optional_id};
 
 use super::{
     super::types::DuplicatedDerivedSourceSnapshot, rules::ensure_copyable_derived_media_asset,
 };
 
-pub(in crate::project::duplicate::derived) async fn copy_derived_media_assets<C, Copier>(
+pub(in crate::project::duplicate::derived) async fn copy_derived_media_assets<C, Copier: ?Sized>(
     db: &C,
     source_project_id: i64,
     new_project_id: i64,

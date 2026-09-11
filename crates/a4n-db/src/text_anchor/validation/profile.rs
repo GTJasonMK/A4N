@@ -1,10 +1,11 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile, character::protagonist_profile, scene::scene_profile,
 };
 use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 
 use super::project::ensure_text_root_project;
-use crate::text_anchor::{TextAnchorDbError, TextAnchorDbResult, TextAnchorProfileKind};
+use crate::text_anchor::{TextAnchorDbError, TextAnchorDbResult};
+use a4n_domain::text_anchor::TextAnchorProfileKind;
 
 pub(in crate::text_anchor) async fn ensure_profile_belongs_to_root<C>(
     db: &C,

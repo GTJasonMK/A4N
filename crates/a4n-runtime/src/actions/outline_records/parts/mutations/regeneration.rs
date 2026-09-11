@@ -8,7 +8,7 @@ use crate::{
         request_preview::ModelRequestPreview,
     },
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn preview_regenerate_part_outline_request(
     state: &AppState,
@@ -16,8 +16,7 @@ pub async fn preview_regenerate_part_outline_request(
     input: RegeneratePartOutlineInput,
 ) -> Result<ModelRequestPreview, AppError> {
     ensure_part_access(
-        state.orchestrator(),
-        state.orchestrator(),
+        state.outline_read_application(),
         user_id,
         input.project_id,
         input.part_id,
@@ -25,8 +24,8 @@ pub async fn preview_regenerate_part_outline_request(
     .await?;
     let part_id = input.part_id;
     let request = state
-        .orchestrator()
-        .preview_regenerate_part_outline_validated(input)
+        .outline_preview_application()
+        .preview_regenerate_part_outline(input)
         .await?;
     single_request_preview(
         state,

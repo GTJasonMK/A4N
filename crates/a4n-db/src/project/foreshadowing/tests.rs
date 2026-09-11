@@ -1,4 +1,4 @@
-use a4n_core::models::character::foreshadowing_index;
+use a4n_db_models::models::character::foreshadowing_index;
 use chrono::Utc;
 use serde_json::json;
 

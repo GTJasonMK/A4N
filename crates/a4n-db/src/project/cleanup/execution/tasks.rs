@@ -1,6 +1,6 @@
 use super::super::{ProjectCleanupDbError, ProjectTaskQueueCleanupResult};
 use crate::project::validate_positive_i64;
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::generation_start_request,
     task::{task_dependency, task_queue},
 };

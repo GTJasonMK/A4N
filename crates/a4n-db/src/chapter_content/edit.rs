@@ -1,8 +1,9 @@
-use a4n_core::models::chapter::chapter::{self, STATUS_DRAFT};
+use a4n_db_models::models::chapter::chapter::{self, STATUS_DRAFT};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, EntityTrait, QuerySelect, Set};
 
-use super::{ChapterContentEditError, EditChapterContentInput, assign_chapter_content};
+use super::{ChapterContentEditError, assign_chapter_content};
+use a4n_domain::chapter::EditChapterContentInput;
 
 pub async fn save_chapter_content_edit_record<C>(
     db: &C,

@@ -15,10 +15,8 @@ pub use sync::{
     replace_chapter_scene_sync_with_generation_run_records,
 };
 pub use types::{
-    SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneProfileDbError,
-    SceneProfileDbResult, SceneProfileEvidenceRecordInput, SceneProfileRecordDraft,
-    SceneProfileRecordInput, SceneSyncRecordInput, SceneSyncRecordResult,
-    SceneTransitionRecordInput,
+    SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordDraft, SceneSyncRecordInput,
+    SceneSyncRecordResult,
 };
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use super::super::SourceSyncDbError;
 use crate::project::DerivedChapterScope;
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile, chapter::chapter, character::protagonist_profile,
     project::blueprint_version, scene::scene_profile,
 };

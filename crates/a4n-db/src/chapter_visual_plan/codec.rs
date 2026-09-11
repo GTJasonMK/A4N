@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_visual_plan;
+use a4n_db_models::models::chapter::chapter_visual_plan;
 use a4n_domain::chapter_visual_plan::{
     CHAPTER_VISUAL_PLAN_V2, ChapterVisualPlanAuthoringMode, ChapterVisualPlanStatus,
     ChapterVisualPlanV2,

@@ -8,7 +8,7 @@ use a4n_api_contract::chapter::{
     CHAPTER_SCENE_PROGRESS_TOTAL, GenerateChapterSceneInput, ReorderChapterScenesInput,
     UpdateChapterSceneInput,
 };
-use a4n_core::event::channel::TaskKind;
+use a4n_domain::task_queue::TaskKind;
 use serde_json::Value;
 
 pub(in crate::routes::commands) async fn list_chapter_scenes(

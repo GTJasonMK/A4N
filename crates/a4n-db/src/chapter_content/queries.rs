@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use super::ChapterContentEditError;

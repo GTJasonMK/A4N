@@ -1,8 +1,9 @@
 use super::records::{manga_prompt_active_model, manga_prompt_updated_model};
 use super::validation::validate_manga_sync_drafts;
 use crate::generation::delete_generation_run_targets_for;
-use crate::manga::{MangaPagePromptSyncDraft, MangaPipelineDbError};
-use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use crate::manga::MangaPipelineDbError;
+use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_domain::manga::MangaPagePromptSyncDraft;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, TransactionTrait,

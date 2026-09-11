@@ -1,0 +1,11 @@
+[package]
+name = "a4n-document-export-core"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+chrono = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+zip = { workspace = true, features = ["deflate"] }

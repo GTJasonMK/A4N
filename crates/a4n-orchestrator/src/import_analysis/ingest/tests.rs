@@ -1,9 +1,9 @@
-use a4n_import_core::file_parsers::ParsedChapter;
+use a4n_domain::import_review::ImportChapterDraft;
 
 use super::import_review_input;
 
-fn parsed_chapter(number: i32, title: &str, content: &str) -> ParsedChapter {
-    ParsedChapter {
+fn parsed_chapter(number: i32, title: &str, content: &str) -> ImportChapterDraft {
+    ImportChapterDraft {
         number,
         title: title.to_string(),
         content: content.to_string(),

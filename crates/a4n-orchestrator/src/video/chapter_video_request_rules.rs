@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::video::PreviewChapterVideoPromptOverrideInput;
-use a4n_core::models::{ai::video_gen_config, chapter::chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::image::reference_image_ids;
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::VideoGenerationRequest;
 use serde_json::{Value, json};
 
@@ -11,7 +13,7 @@ use super::{
     MIN_PROVIDER_VISUAL_PROMPT_CHARS, NEWAPI_VIDEO_BACKEND, OPENAI_CHAT_VIDEO_BACKEND,
     OPENAI_COMPATIBLE_VIDEO_BACKEND, PromptOutputLanguage, ProviderGenerationWorkflow,
     cliproxy_prompt_length_violation_message, provider_image_binding_violation_messages,
-    reference_image_ids, validate_provider_model_text,
+    validate_provider_model_text,
 };
 
 const CHAPTER_VIDEO_PROVIDER_PROMPT_NAME: &str = "chapter_video_provider_prompt";
@@ -35,7 +37,7 @@ pub struct ProviderPromptImageBinding {
 #[derive(Clone)]
 pub struct ChapterVideoProviderRequestContext {
     pub prompt: chapter_video_prompt::Model,
-    pub config: video_gen_config::Model,
+    pub config: VideoProviderConfig,
     pub request: VideoGenerationRequest,
     pub prompt_reference_image_ids: Option<Value>,
     pub provider_reference_image_ids: Option<Value>,

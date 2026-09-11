@@ -1,27 +1,31 @@
-use a4n_core::{
-    config::env::optional_non_empty_env_string,
-    error::AppError,
-    media::video_mime_from_path,
-    models::ai::{generated_video, video_gen_config},
-};
+use a4n_config::optional_non_empty_env_string;
+use a4n_domain::media::{GeneratedMediaArtifactFile, video_mime_from_path};
+use a4n_error::AppError;
 use a4n_orchestrator::canvas::{
-    CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoImageInput,
-    CanvasVideoPersistedFile, CanvasVideoProviderInput, CanvasVideoResolvedImages,
+    CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoPersistedFile,
+    CanvasVideoProviderInput,
 };
-use a4n_orchestrator::generation::GeneratedMediaArtifactFile;
 use a4n_orchestrator::video::{
-    ChapterVideoGenerationHostPort, ChapterVideoImageInput, PersistedVideoResult,
-    ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort,
-    ResolvedChapterVideoImageInputs, VideoGenerationProgress, VideoProviderHostPort,
-    VideoProviderRequestBody, VideoProviderRequestInput, VideoProviderValidationMode,
-    append_video_request_prompt_length_context, is_canvas_video_record,
-    provider_image_input_transport_with_override, video_request_prompt_length_context,
+    append_video_request_prompt_length_context, is_canvas_video_record_fields,
+    video_request_prompt_length_context,
 };
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_service_protocol::GenerationArtifactRef;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_video::video_provider_capabilities;
-use a4n_video::{VideoGenerationResult, VideoJobState};
+use a4n_video::{
+    ProviderImageInputTransport, VideoGenerationResult, VideoJobState,
+    provider_image_input_transport_with_override,
+};
+use a4n_video_contract::{
+    CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoResolvedImages,
+    ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
+    PersistedVideoResult, ReferenceMediaVideoGenerationHostPort,
+    ReferenceMediaVideoPreviewHostPort, ResolvedChapterVideoImageInputs, VideoCancellationHandle,
+    VideoGenerationProgressPort, VideoProviderHostPort, VideoProviderRequestBody,
+    VideoProviderRequestInput, VideoProviderResultTarget, VideoProviderValidationMode,
+};
 use async_trait::async_trait;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -60,8 +64,8 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
     async fn resolve_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError> {
-        resolve_video_config(self.state.orchestrator(), config_id)
+    ) -> Result<VideoProviderConfig, AppError> {
+        resolve_video_config(self.state.video_provider_config(), config_id)
             .await
             .map_err(host_error)
     }
@@ -71,10 +75,9 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         input: VideoProviderRequestInput,
     ) -> Result<VideoProviderRequestBody, AppError> {
         if self.state.runtime_profile().uses_sidecars() {
-            let collaboration = self.state.orchestrator();
             let root_project_id = video_sidecar_root_project_id(
                 self.state.runtime_profile(),
-                collaboration,
+                self.state.project_access_application(),
                 input.project_id,
             )
             .await
@@ -132,42 +135,53 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
     async fn submit_video(
         &self,
         input: VideoProviderRequestInput,
-        progress: &mut VideoGenerationProgress<'_>,
+        progress: &mut dyn VideoGenerationProgressPort,
     ) -> Result<VideoGenerationResult, AppError> {
-        let collaboration = self.state.orchestrator();
         let root_project_id = video_sidecar_root_project_id(
             self.state.runtime_profile(),
-            collaboration,
+            self.state.project_access_application(),
             input.project_id,
         )
         .await
         .map_err(host_error)?;
         let prompt_length_context = video_request_prompt_length_context(&input.request);
         let (sidecar_progress_tx, sidecar_progress_rx) = tokio::sync::mpsc::unbounded_channel();
-        let request_future = run_queued_request_with_cancel(
-            self.state,
-            QueueTaskKind::VideoGeneration,
-            TaskPriority::Medium,
-            Some(input.project_id),
-            progress.cancel_token(),
-            {
-                let state = self.state;
-                move || async move {
-                    crate::sidecar_clients::generate_video(
-                        state.runtime_profile(),
-                        state.capabilities(),
-                        &input.config,
-                        input.request,
-                        input.provider_idempotency_key_sha256,
-                        Some(input.project_id),
-                        root_project_id,
-                        None,
-                        Some(sidecar_progress_tx),
-                    )
-                    .await
+        let provider_cancel = CancellationToken::new();
+        let cancellation = progress.cancellation_handle();
+        let request_future = async move {
+            let request = run_queued_request_with_cancel(
+                self.state,
+                QueueTaskKind::VideoGeneration,
+                TaskPriority::Medium,
+                Some(input.project_id),
+                provider_cancel.clone(),
+                {
+                    let state = self.state;
+                    move || async move {
+                        crate::sidecar_clients::generate_video(
+                            state.runtime_profile(),
+                            state.capabilities(),
+                            &input.config,
+                            input.request,
+                            input.provider_idempotency_key_sha256,
+                            Some(input.project_id),
+                            root_project_id,
+                            None,
+                            Some(sidecar_progress_tx),
+                        )
+                        .await
+                    }
+                },
+            );
+            tokio::pin!(request);
+            tokio::select! {
+                result = &mut request => result,
+                _ = cancellation.cancelled() => {
+                    provider_cancel.cancel();
+                    (&mut request).await
                 }
-            },
-        );
+            }
+        };
         relay_video_sidecar_progress(progress, sidecar_progress_rx, request_future)
             .await
             .map_err(|error| {
@@ -182,12 +196,11 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         &self,
         input: ChapterVideoImageInput,
     ) -> Result<ResolvedChapterVideoImageInputs, AppError> {
-        let video = self.state.orchestrator();
-        let collaboration = self.state.orchestrator();
+        let video = self.state.video_record_application();
         match input.mode {
             VideoProviderValidationMode::Generate => {
                 let jwt_secret = if input.transport == ProviderImageInputTransport::PublicUrl {
-                    Some(self.state.orchestrator().required_jwt_secret()?)
+                    Some(self.state.required_jwt_secret()?)
                 } else {
                     None
                 };
@@ -195,7 +208,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     let mut staging_artifacts = Vec::new();
                     let reference_image_urls = reference_image_provider_inputs_by_ids(
                         video,
-                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -209,7 +221,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     .map_err(host_error)?;
                     let first_frame_image_url = reference_image_provider_input_by_id(
                         video,
-                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -223,7 +234,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     .map_err(host_error)?;
                     let last_frame_image_url = reference_image_provider_input_by_id(
                         video,
-                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -248,7 +258,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 let (reference_result, first_frame_result, last_frame_result) = futures::join!(
                     reference_image_provider_inputs_by_ids(
                         video,
-                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -260,7 +269,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     ),
                     reference_image_provider_input_by_id(
                         video,
-                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -272,7 +280,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     ),
                     reference_image_provider_input_by_id(
                         video,
-                        collaboration,
                         self.state.data_dir(),
                         jwt_secret,
                         input.user_id,
@@ -300,7 +307,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                 let (reference_result, first_frame_result, last_frame_result) = futures::join!(
                     reference_image_request_preview_urls_by_ids(
                         video,
-                        collaboration,
                         input.user_id,
                         input.project_id,
                         input.chapter_id,
@@ -308,7 +314,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     ),
                     reference_image_request_preview_url_by_id(
                         video,
-                        collaboration,
                         input.user_id,
                         input.project_id,
                         input.chapter_id,
@@ -316,7 +321,6 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     ),
                     reference_image_request_preview_url_by_id(
                         video,
-                        collaboration,
                         input.user_id,
                         input.project_id,
                         input.chapter_id,
@@ -341,6 +345,14 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
     }
 }
 
+fn video_cancellation_handle(token: CancellationToken) -> VideoCancellationHandle {
+    let cancelled = token;
+    VideoCancellationHandle::new(move || {
+        let token = cancelled.clone();
+        Box::pin(async move { token.cancelled().await })
+    })
+}
+
 #[async_trait]
 impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
     fn inspect_video_file(
@@ -361,16 +373,19 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         project_id: i64,
         workflow_run_id: i64,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         job_id: &str,
-        cancel_token: CancellationToken,
+        cancel_token: &VideoCancellationHandle,
     ) -> Result<VideoJobState, AppError> {
-        let collaboration = self.state.orchestrator();
-        let root_project_id =
-            video_sidecar_root_project_id(self.state.runtime_profile(), collaboration, project_id)
-                .await
-                .map_err(host_error)?;
-        poll_provider_job(
+        let root_project_id = video_sidecar_root_project_id(
+            self.state.runtime_profile(),
+            self.state.project_access_application(),
+            project_id,
+        )
+        .await
+        .map_err(host_error)?;
+        let provider_cancel = CancellationToken::new();
+        let poll = poll_provider_job(
             self.state,
             config,
             project_id,
@@ -378,31 +393,38 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
             job_id,
             TaskPriority::Low,
             Some(workflow_run_id),
-            cancel_token,
-        )
-        .await
-        .map_err(host_error)
+            provider_cancel.clone(),
+        );
+        tokio::pin!(poll);
+        let result = tokio::select! {
+            result = &mut poll => result,
+            _ = cancel_token.cancelled() => {
+                provider_cancel.cancel();
+                (&mut poll).await
+            }
+        };
+        result.map_err(host_error)
     }
 
     async fn persist_video_result(
         &self,
-        video: &generated_video::Model,
+        target: &VideoProviderResultTarget,
         _prompt_id: Option<i64>,
         mut result: VideoGenerationResult,
     ) -> Result<PersistedVideoResult, AppError> {
         result.metadata = completed_video_artifact_metadata(&result);
-        if is_canvas_video_record(video) {
+        if is_canvas_video_record_fields(target.chapter_id, target.workflow_mode.as_deref()) {
             let (file_path, file_size) = persist_canvas_video_bytes(
                 self.state.data_dir(),
-                video.project_id,
-                video.id,
+                target.project_id,
+                target.video_id,
                 &result.bytes,
                 &result.format,
             )
             .map_err(host_error)?;
             return Ok(PersistedVideoResult {
-                video_id: video.id,
-                project_id: video.project_id,
+                video_id: target.video_id,
+                project_id: target.project_id,
                 file_path,
                 thumbnail_path: None,
                 file_size,
@@ -412,7 +434,7 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
                 })),
             });
         }
-        super::job_lifecycle::persist_video_result(self.state, video, result)
+        super::job_lifecycle::persist_video_result(self.state, target, result)
             .await
             .map_err(host_error)
     }
@@ -424,18 +446,16 @@ impl VideoProviderHostPort for RuntimeVideoProviderHostPort<'_> {
         if let Some(path) = persisted.thumbnail_path.clone() {
             paths.push(path);
         }
-        self.state
-            .orchestrator()
-            .insert_file_artifact_cleanup_intent(
-                persisted.project_id,
-                format!(
-                    "video-provider-result:{}:{}",
-                    persisted.project_id, persisted.video_id
-                ),
-                paths,
-            )
-            .await
-            .map_err(|error| host_error(format!("写入视频文件 cleanup intent 失败：{error}")))?;
+        enqueue_file_artifact_cleanup_by_project(
+            self.state,
+            &format!(
+                "video-provider-result:{}:{}",
+                persisted.project_id, persisted.video_id
+            ),
+            &paths,
+        )
+        .await
+        .map_err(host_error)?;
         if let Err(error) = delete_video_tail_frame_assets(self.state, persisted.video_id).await {
             return Err(host_error(format!(
                 "视频文件 cleanup intent 已写入，但尾帧同步清理失败：{error}"
@@ -457,30 +477,22 @@ pub(super) fn completed_video_artifact_metadata(result: &VideoGenerationResult) 
 }
 
 #[async_trait]
-impl ReferenceMediaVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
-    async fn resolve_video_config(
+impl ReferenceMediaVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
+    async fn resolve_video_config_for_preview(
         &self,
         config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError> {
+    ) -> Result<VideoProviderConfig, AppError> {
         self.resolve_config(config_id).await
     }
 
-    async fn reference_media_provider_request_body(
+    async fn reference_media_provider_request_body_for_preview(
         &self,
         input: VideoProviderRequestInput,
     ) -> Result<VideoProviderRequestBody, AppError> {
         self.provider_request_body(input).await
     }
 
-    async fn submit_reference_media_video(
-        &self,
-        input: VideoProviderRequestInput,
-        progress: &mut VideoGenerationProgress<'_>,
-    ) -> Result<VideoGenerationResult, AppError> {
-        self.submit_video(input, progress).await
-    }
-
-    async fn upload_reference_media_input(
+    async fn upload_reference_media_input_for_preview(
         &self,
         owner_user_id: i64,
         project_id: i64,
@@ -503,6 +515,57 @@ impl ReferenceMediaVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> 
         .map_err(host_error)?;
         Ok((uploaded.url, uploaded.artifact))
     }
+}
+
+#[async_trait]
+impl ReferenceMediaVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
+    async fn resolve_video_config(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<VideoProviderConfig, AppError> {
+        self.resolve_config(config_id).await
+    }
+
+    async fn reference_media_provider_request_body(
+        &self,
+        input: VideoProviderRequestInput,
+    ) -> Result<VideoProviderRequestBody, AppError> {
+        <Self as ReferenceMediaVideoPreviewHostPort>::reference_media_provider_request_body_for_preview(
+            self, input,
+        )
+        .await
+    }
+
+    async fn submit_reference_media_video(
+        &self,
+        input: VideoProviderRequestInput,
+        progress: &mut dyn VideoGenerationProgressPort,
+    ) -> Result<VideoGenerationResult, AppError> {
+        self.submit_video(input, progress).await
+    }
+
+    async fn upload_reference_media_input(
+        &self,
+        owner_user_id: i64,
+        project_id: i64,
+        source_media_id: i64,
+        source_media_kind: &str,
+        file_name: &str,
+        mime_type: &str,
+        bytes: &[u8],
+    ) -> Result<(String, GenerationArtifactRef), AppError> {
+        <Self as ReferenceMediaVideoPreviewHostPort>::upload_reference_media_input_for_preview(
+            self,
+            owner_user_id,
+            project_id,
+            source_media_id,
+            source_media_kind,
+            file_name,
+            mime_type,
+            bytes,
+        )
+        .await
+    }
 
     fn runtime_config_snapshot(&self) -> Option<Value> {
         self.redacted_runtime_config_snapshot()
@@ -514,19 +577,22 @@ impl ReferenceMediaVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> 
 }
 
 #[async_trait]
-impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
-    async fn resolve_video_config(
+impl CanvasVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
+    async fn resolve_video_config_for_preview(
         &self,
         config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError> {
+    ) -> Result<VideoProviderConfig, AppError> {
         self.resolve_config(config_id).await
     }
 
-    async fn resolve_canvas_video_images(
+    async fn resolve_canvas_video_images_for_preview(
         &self,
         input: CanvasVideoImageInput,
     ) -> Result<CanvasVideoResolvedImages, AppError> {
-        let transport = ChapterVideoGenerationHostPort::resolve_image_transport(self)?;
+        let transport = provider_image_input_transport_with_override(
+            optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?.as_deref(),
+        )
+        .map_err(host_error)?;
         let resolved = self
             .resolve_video_image_inputs(ChapterVideoImageInput {
                 user_id: input.user_id,
@@ -545,15 +611,32 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
             reference_image_urls: resolved.reference_image_urls,
         })
     }
+}
+
+#[async_trait]
+impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
+    async fn resolve_video_config(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<VideoProviderConfig, AppError> {
+        self.resolve_config(config_id).await
+    }
+
+    async fn resolve_canvas_video_images(
+        &self,
+        input: CanvasVideoImageInput,
+    ) -> Result<CanvasVideoResolvedImages, AppError> {
+        <Self as CanvasVideoPreviewHostPort>::resolve_canvas_video_images_for_preview(self, input)
+            .await
+    }
 
     async fn submit_canvas_video(
         &self,
         input: CanvasVideoProviderInput,
     ) -> Result<VideoGenerationResult, AppError> {
-        let collaboration = self.state.orchestrator();
         let root_project_id = video_sidecar_root_project_id(
             self.state.runtime_profile(),
-            collaboration,
+            self.state.project_access_application(),
             input.project_id,
         )
         .await
@@ -588,16 +671,17 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         project_id: i64,
         workflow_run_id: i64,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         job_id: &str,
     ) -> Result<VideoJobState, AppError> {
+        let cancellation = video_cancellation_handle(CancellationToken::new());
         <Self as VideoProviderHostPort>::poll_video_job(
             self,
             project_id,
             workflow_run_id,
             config,
             job_id,
-            CancellationToken::new(),
+            &cancellation,
         )
         .await
     }
@@ -636,11 +720,40 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
 }
 
 #[async_trait]
+impl ChapterVideoPreviewHostPort for RuntimeVideoProviderHostPort<'_> {
+    async fn resolve_video_config_for_preview(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<VideoProviderConfig, AppError> {
+        self.resolve_config(config_id).await
+    }
+
+    fn resolve_image_transport_for_preview(&self) -> Result<ProviderImageInputTransport, AppError> {
+        let override_value = optional_non_empty_env_string("A4N_VIDEO_IMAGE_INPUT_TRANSPORT")?;
+        provider_image_input_transport_with_override(override_value.as_deref()).map_err(host_error)
+    }
+
+    async fn resolve_chapter_video_image_inputs_for_preview(
+        &self,
+        input: ChapterVideoImageInput,
+    ) -> Result<ResolvedChapterVideoImageInputs, AppError> {
+        self.resolve_video_image_inputs(input).await
+    }
+
+    async fn chapter_video_provider_request_body_for_preview(
+        &self,
+        input: VideoProviderRequestInput,
+    ) -> Result<VideoProviderRequestBody, AppError> {
+        self.provider_request_body(input).await
+    }
+}
+
+#[async_trait]
 impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
     async fn resolve_video_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError> {
+    ) -> Result<VideoProviderConfig, AppError> {
         self.resolve_config(config_id).await
     }
 
@@ -653,20 +766,26 @@ impl ChapterVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
         &self,
         input: ChapterVideoImageInput,
     ) -> Result<ResolvedChapterVideoImageInputs, AppError> {
-        self.resolve_video_image_inputs(input).await
+        <Self as ChapterVideoPreviewHostPort>::resolve_chapter_video_image_inputs_for_preview(
+            self, input,
+        )
+        .await
     }
 
     async fn chapter_video_provider_request_body(
         &self,
         input: VideoProviderRequestInput,
     ) -> Result<VideoProviderRequestBody, AppError> {
-        self.provider_request_body(input).await
+        <Self as ChapterVideoPreviewHostPort>::chapter_video_provider_request_body_for_preview(
+            self, input,
+        )
+        .await
     }
 
     async fn submit_chapter_video(
         &self,
         input: VideoProviderRequestInput,
-        progress: &mut VideoGenerationProgress<'_>,
+        progress: &mut dyn VideoGenerationProgressPort,
     ) -> Result<VideoGenerationResult, AppError> {
         self.submit_video(input, progress).await
     }

@@ -2,7 +2,7 @@ use super::types::InsertConflictInput;
 use crate::source_sync::{
     SourceSyncConflictRecordInput, SourceSyncDbError, insert_source_sync_conflict_records,
 };
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
 use sea_orm::ConnectionTrait;
 
 pub(super) async fn insert_conflicts<C>(

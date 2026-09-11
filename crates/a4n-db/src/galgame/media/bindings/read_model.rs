@@ -2,7 +2,7 @@ use crate::galgame::{
     GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE, GalgameMediaAssetReadRecord,
     GalgameMediaBindingReadModel, GalgameMediaBindingReadRecord,
 };
-use a4n_core::models::media::{media_asset, media_binding};
+use a4n_db_models::models::media::{media_asset, media_binding};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };

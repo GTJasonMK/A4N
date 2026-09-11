@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::config::app_config::AppConfig;
+use a4n_config::app_config::AppConfig;
 use a4n_service_manager::ServiceMode;
 use a4n_service_protocol::service_catalog;
 

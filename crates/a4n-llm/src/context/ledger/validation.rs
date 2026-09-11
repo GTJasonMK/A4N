@@ -1,5 +1,5 @@
 use super::super::contracts::{LlmContextLedgerPackDraft, LlmContextManifestPackVariant};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use std::collections::BTreeSet;
 
 pub(super) fn validate_variants(

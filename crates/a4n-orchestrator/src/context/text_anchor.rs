@@ -2,10 +2,11 @@
 //!
 //! 持有 `DbHandle`，封装章节正文锚点 ensure/read 与档案证据章节查询。
 
-use a4n_core::error::AppError;
-use a4n_core::models::project::text_anchor;
 use a4n_db::DbHandle;
-use a4n_db::text_anchor::{CurrentChapterContentAnchorRows, TextAnchorProfileKind};
+use a4n_db::text_anchor::CurrentChapterContentAnchorRows;
+use a4n_db_models::models::project::text_anchor;
+use a4n_domain::text_anchor::TextAnchorProfileKind;
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::text_anchor::text_anchor_db_error;

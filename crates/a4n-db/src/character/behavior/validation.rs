@@ -1,5 +1,5 @@
-use super::contracts::InsertBehaviorRecordInput;
 use crate::character::{CharacterDbError, validate_timeline_source_kind};
+use a4n_domain::character::InsertBehaviorRecordInput;
 use serde_json::Value;
 
 pub(super) fn validate_behavior_classification_results(

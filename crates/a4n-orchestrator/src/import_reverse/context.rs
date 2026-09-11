@@ -5,8 +5,8 @@ mod project;
 #[cfg(test)]
 mod test_support;
 
-use a4n_core::source_spans::source_text_hash;
 use a4n_db::import_reverse::ReverseContextRows;
+use a4n_domain::source_text_hash;
 use serde_json::json;
 
 use self::blueprint::has_blueprint_source;

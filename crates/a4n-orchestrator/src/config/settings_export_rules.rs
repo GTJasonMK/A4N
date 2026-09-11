@@ -2,20 +2,20 @@
 
 use std::collections::HashSet;
 
-use a4n_core::config::{
-    CreateEmbeddingConfigParams, CreateImageConfigParams, app_error_plain_message,
-};
+use a4n_config::app_error_plain_message;
+use a4n_config::{validate_embedding_config_params, validate_image_config_params};
 use a4n_db::config::{
     SettingsAllConfigImportCounts, SettingsAllEmbeddingConfigRow, SettingsAllImageConfigRow,
     SettingsAllImportTableCounts, SettingsAllLlmConfigRow, SettingsAllSystemSettingRow,
     SettingsAllThemeRow, SettingsAllVideoConfigRow,
 };
-use a4n_llm::config::{
+use a4n_domain::{embedding::CreateEmbeddingConfigParams, image::CreateImageConfigParams};
+use a4n_llm_config::{
     CreateLlmConfigInput, NormalizedLlmConfig, normalize_create_llm_config_input,
 };
 use serde::{Deserialize, Serialize};
 
-use crate::video::{VideoConfigParams, validate_video_config_params};
+use a4n_video::{VideoConfigParams, validate_video_config_params};
 
 pub const SETTINGS_ALL_FORMAT_VERSION: &str = "3.0";
 
@@ -150,13 +150,12 @@ fn normalize_provider_rows(incoming: &mut AllConfigsExport) -> Result<(), String
         apply_llm_params_to_row(row, params);
     }
     for (index, row) in incoming.embedding_configs.iter_mut().enumerate() {
-        let params =
-            a4n_core::config::validate_embedding_config_params(embedding_params_from_row(row))
-                .map_err(|error| format!("嵌入配置 #{} 规范化失败：{error}", index + 1))?;
+        let params = validate_embedding_config_params(embedding_params_from_row(row))
+            .map_err(|error| format!("嵌入配置 #{} 规范化失败：{error}", index + 1))?;
         apply_embedding_params_to_row(row, params);
     }
     for (index, row) in incoming.image_configs.iter_mut().enumerate() {
-        let params = a4n_core::config::validate_image_config_params(image_params_from_row(row))
+        let params = validate_image_config_params(image_params_from_row(row))
             .map_err(|error| format!("图片配置 #{} 规范化失败：{error}", index + 1))?;
         apply_image_params_to_row(row, params);
     }

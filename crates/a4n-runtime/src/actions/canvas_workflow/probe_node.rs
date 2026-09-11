@@ -1,27 +1,27 @@
-use a4n_core::models::canvas::canvas_node;
-use a4n_orchestrator::canvas::{
-    CanvasGraphRecordDocument, CanvasNodeRunHandle, CanvasProbeNodeExecutionInput,
-};
+use a4n_canvas_contract::{CanvasNodeRun, CanvasProbeNodeApplicationInput};
+
+use crate::state::AppState;
 
 use super::CanvasRunSummary;
 
 pub(in crate::actions::canvas_workflow) async fn run_canvas_probe_node(
-    canvas: &a4n_orchestrator::OrchestratorContext,
+    state: &AppState,
+    user_id: i64,
     project_id: i64,
     graph_id: i64,
-    node: &canvas_node::Model,
-    document: &CanvasGraphRecordDocument,
-    run_handle: Option<CanvasNodeRunHandle>,
+    node_id: i64,
+    run_handle: Option<CanvasNodeRun>,
     mode: &str,
 ) -> Result<CanvasRunSummary, String> {
-    canvas
-        .run_canvas_probe_node_validated(CanvasProbeNodeExecutionInput {
+    state
+        .canvas_probe_application()
+        .run_probe(CanvasProbeNodeApplicationInput {
+            user_id,
             project_id,
             graph_id,
-            node,
-            document,
+            node_id,
             shared_run: run_handle,
-            mode,
+            mode: mode.to_string(),
         })
         .await
         .map_err(|error| error.to_string())

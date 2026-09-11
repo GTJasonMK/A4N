@@ -1,12 +1,14 @@
-use a4n_core::error::AppError;
 use a4n_embedding::provider::{EmbeddingModelIdentity, EmbeddingProvider};
-use a4n_rag_core::vector_store::{SearchResult, VectorStore};
-
-use super::{
-    contracts::{EnhancedRagSearchResult, PreparedEnhancedRagSearch},
-    fusion::fuse_enhanced_rag_results,
-    rules::{enhanced_rag_pull_k, validate_embedding_identity_match, validate_query_vectors},
+use a4n_error::AppError;
+use a4n_rag_core::{
+    search::enhanced_rag_pull_k,
+    validation::{validate_embedding_identity_match, validate_query_vectors},
+    vector_store::{SearchResult, VectorStore},
 };
+
+use a4n_rag_core::{EnhancedRagSearchResult, PreparedEnhancedRagSearch};
+
+use super::fusion::fuse_enhanced_rag_results;
 use crate::rag::search::execution::{
     embed_queries_in_batch, hybrid_rag_search_with_validated_embedding_in_store,
 };

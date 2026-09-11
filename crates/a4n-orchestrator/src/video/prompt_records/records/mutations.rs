@@ -1,9 +1,9 @@
 //! 视频提示词更新的测试辅助实现（仅 `cfg(test)`）。
 
 #[cfg(test)]
-use a4n_core::error::AppError;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 #[cfg(test)]
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 #[cfg(test)]
 use serde_json::Value;
 

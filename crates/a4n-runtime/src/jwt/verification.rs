@@ -1,6 +1,6 @@
 mod refresh;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::Claims;
 pub use refresh::refresh_access_token_with_role;

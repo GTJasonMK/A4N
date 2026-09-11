@@ -1,4 +1,4 @@
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

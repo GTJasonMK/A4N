@@ -1,5 +1,5 @@
 use super::super::CharacterDeletionMarkRewindSummary;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter,
     character::{attribute_event, character_state_index},
 };

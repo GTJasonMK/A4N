@@ -8,12 +8,13 @@ use super::{
 use crate::{
     project::{ProjectFamilyDbError, ProjectMutationError},
     source_sync::{
-        CreateSourceSyncDryRunRecordInput, SOURCE_SYNC_DETACHED, SourceSyncDbError,
-        SourceSyncPlanRecord, UpdateSourceSyncDryRunSummaryInput, diff_source_snapshots,
+        SOURCE_SYNC_DETACHED, SourceSyncDbError, SourceSyncPlanRecord,
+        UpdateSourceSyncDryRunSummaryInput, diff_source_snapshots,
         insert_source_sync_dry_run_record, source_sync_chapter_scope_for_derived_project,
         update_source_sync_dry_run_summary,
     },
 };
+use a4n_domain::source_sync::CreateSourceSyncDryRunRecordInput;
 use chrono::Utc;
 use sea_orm::TransactionTrait;
 

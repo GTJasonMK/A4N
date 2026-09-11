@@ -1,13 +1,12 @@
 use super::*;
-use crate::file_utils::{canonicalize_data_file_path, data_dir_relative_file_path};
+use a4n_domain::image::reference_image_ids;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_VIDEO_TAIL_FRAME,
 };
-use a4n_orchestrator::video::{
-    encode_query_component, is_provider_supported_image_content_type,
-    tail_frame_image_belongs_to_video, video_shot_number,
-};
+use a4n_orchestrator::video::{tail_frame_image_belongs_to_video, video_shot_number};
+use a4n_storage::{canonicalize_data_file_path, data_dir_relative_file_path};
+use a4n_video::{encode_query_component, is_provider_supported_image_content_type};
 use chrono::Utc;
 use serde_json::{Value, json};
 
@@ -43,7 +42,7 @@ fn video_with_chapter(chapter_id: Option<i64>) -> generated_video::Model {
 
 fn video_with_shot_number(shot_number: Option<Value>) -> generated_video::Model {
     let mut video = video_with_chapter(Some(2));
-    video.video_type = generated_video::VIDEO_TYPE_CHAPTER.to_string();
+    video.video_type = a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string();
     video.workflow_mode = Some("first_frame_chain".to_string());
     video.width = 1280;
     video.height = 720;
@@ -215,7 +214,8 @@ fn trimmed_video_path_uses_chapter_video_directory() {
     let root = tempfile::tempdir().expect("create trim data directory");
     let video = video_with_chapter(Some(7));
 
-    let path = trimmed_video_path(root.path(), &video).expect("create chapter trim path");
+    let path = trimmed_video_path(root.path(), video.project_id, video.chapter_id, video.id)
+        .expect("create chapter trim path");
 
     assert_eq!(
         path.parent(),
@@ -238,7 +238,8 @@ fn trimmed_video_path_uses_project_video_directory_without_chapter() {
     let root = tempfile::tempdir().expect("create trim data directory");
     let video = video_with_chapter(None);
 
-    let path = trimmed_video_path(root.path(), &video).expect("create project trim path");
+    let path = trimmed_video_path(root.path(), video.project_id, video.chapter_id, video.id)
+        .expect("create project trim path");
 
     assert_eq!(
         path.parent(),

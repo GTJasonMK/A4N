@@ -1,5 +1,5 @@
-use a4n_core::blueprint::ParsedBlueprintCharacter;
 use a4n_db::project::BlueprintCharacterDraft;
+use a4n_domain::project::ParsedBlueprintCharacter;
 
 pub(in crate::blueprint) fn blueprint_character_drafts(
     characters: &[ParsedBlueprintCharacter],

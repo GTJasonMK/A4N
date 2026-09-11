@@ -1,7 +1,9 @@
-use a4n_core::{models::character::character_state_index, rag::RagDataType};
+use a4n_db_models::models::character::character_state_index;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use crate::rag::{RagRecord, character_state_rag_chunk_id};
+use crate::rag::character_state_rag_chunk_id;
 
 pub(super) fn character_state_rag_text(
     state_index: &character_state_index::Model,

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(in crate::outline) fn required_string(json: &Value, key: &str) -> Result<String, AppError> {

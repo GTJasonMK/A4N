@@ -23,7 +23,7 @@ pub(super) use reference::{
 pub(super) fn required_non_empty<'a>(
     value: &'a str,
     field: &str,
-) -> Result<&'a str, a4n_core::error::AppError> {
+) -> Result<&'a str, a4n_domain::ProviderError> {
     let value = value.trim();
     if value.is_empty() {
         return Err(internal_error(format!("图片生成配置缺少 {field}")));
@@ -34,7 +34,7 @@ pub(super) fn required_non_empty<'a>(
 pub(super) fn required_json_string<'a>(
     value: &'a serde_json::Value,
     field: &str,
-) -> Result<&'a str, a4n_core::error::AppError> {
+) -> Result<&'a str, a4n_domain::ProviderError> {
     value
         .as_str()
         .map(str::trim)
@@ -45,13 +45,13 @@ pub(super) fn required_json_string<'a>(
 pub(super) fn required_json_string_field<'a>(
     value: &'a serde_json::Value,
     field: &str,
-) -> Result<&'a str, a4n_core::error::AppError> {
+) -> Result<&'a str, a4n_domain::ProviderError> {
     value
         .as_str()
         .ok_or_else(|| internal_error(format!("图片生成响应缺少 {field}")))
 }
 
-fn time_seed_at(now: std::time::SystemTime) -> Result<i64, a4n_core::error::AppError> {
+fn time_seed_at(now: std::time::SystemTime) -> Result<i64, a4n_domain::ProviderError> {
     now.duration_since(std::time::UNIX_EPOCH)
         .map(|duration| (duration.as_nanos() % (i64::MAX as u128)) as i64)
         .map_err(|error| {
@@ -61,6 +61,6 @@ fn time_seed_at(now: std::time::SystemTime) -> Result<i64, a4n_core::error::AppE
         })
 }
 
-pub(super) fn time_seed() -> Result<i64, a4n_core::error::AppError> {
+pub(super) fn time_seed() -> Result<i64, a4n_domain::ProviderError> {
     time_seed_at(std::time::SystemTime::now())
 }

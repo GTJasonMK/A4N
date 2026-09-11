@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use git2::{ErrorCode, Index, Repository};
 
 pub(super) struct PromptFileChange {

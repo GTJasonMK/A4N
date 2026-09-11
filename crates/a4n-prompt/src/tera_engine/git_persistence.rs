@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::engine::PromptVersion;
 use crate::version_store::{CommitInfo, PromptVersionStore};

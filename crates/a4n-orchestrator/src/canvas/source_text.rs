@@ -2,8 +2,8 @@ use crate::canvas::{
     canvas_config_i64, canvas_config_string, incoming_edges,
     source_checkpoint::source_operation_checkpoint_output, source_node,
 };
-use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_domain::CanvasNodeRefKind;
 use serde_json::Value;
 

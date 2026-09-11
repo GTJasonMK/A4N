@@ -1,6 +1,10 @@
 use super::*;
 use serde::Serialize;
 
+pub use a4n_domain::generation::{
+    canonical_json_bytes, canonical_json_sha256, canonical_json_text,
+};
+
 pub(super) fn required_text<'a>(value: &'a str, label: &str) -> Result<&'a str, GenerationDbError> {
     let value = value.trim();
     if value.is_empty() {
@@ -46,30 +50,6 @@ pub(super) fn validate_positive_id(value: i64, label: &str) -> Result<(), Genera
             "{label} 必须为正数"
         )))
     }
-}
-
-pub fn canonical_json_bytes<T>(value: &T) -> Result<Vec<u8>, serde_json::Error>
-where
-    T: Serialize,
-{
-    serde_json_canonicalizer::to_vec(value)
-}
-
-pub fn canonical_json_text<T>(value: &T) -> Result<String, serde_json::Error>
-where
-    T: Serialize,
-{
-    serde_json_canonicalizer::to_string(value)
-}
-
-pub fn canonical_json_sha256<T>(value: &T) -> Result<String, serde_json::Error>
-where
-    T: Serialize,
-{
-    let canonical = canonical_json_bytes(value)?;
-    let mut hasher = Sha256::new();
-    hasher.update(canonical);
-    Ok(format!("{:x}", hasher.finalize()))
 }
 
 pub(in crate::generation) fn verify_canonical_json_sha256<T>(

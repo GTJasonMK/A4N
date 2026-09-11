@@ -3,7 +3,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 mod execution;
 mod preview;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub use a4n_api_contract::manga::{MangaPipelineResumeInput, MangaPipelineStartInput};
 pub use execution::{preflight_manga_pipeline, run_manga_pipeline};

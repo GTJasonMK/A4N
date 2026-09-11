@@ -1,8 +1,8 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::video_execution::{
+use a4n_video_contract::{
     VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2, validate_video_segment_recipes_for_plan,
 };
 use serde_json::json;
@@ -417,7 +417,7 @@ mod tests {
         tests::{segment, shooting_script_projection},
         video_segment_execution_identity,
     };
-    use a4n_core::video_execution::default_video_segment_recipes;
+    use a4n_video_contract::default_video_segment_recipes;
 
     #[test]
     fn incremental_plan_appends_new_shots_and_replaces_existing_shots_in_place() {

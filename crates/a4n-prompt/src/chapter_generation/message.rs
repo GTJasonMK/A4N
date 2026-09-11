@@ -1,5 +1,5 @@
 use crate::request::build_json_task_user_message;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 #[cfg(test)]

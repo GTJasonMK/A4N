@@ -1,7 +1,7 @@
 use super::super::super::{ImportIdMaps, ProjectFamilyImportError};
 use super::super::{json_object, remap_object_ids, remap_profile_source_id};
 use super::decisions::remap_source_sync_decision_payload;
-use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_db_models::models::source_sync::source_sync_conflict;
 use serde_json::Value;
 
 pub(in crate::project_family_import) fn remap_conflict_source_summary(

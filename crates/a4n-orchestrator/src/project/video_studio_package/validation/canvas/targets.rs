@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 
 pub(in crate::project::video_studio_package::validation) fn validate_generation_spec_target(
     spec: &generation_spec::Model,

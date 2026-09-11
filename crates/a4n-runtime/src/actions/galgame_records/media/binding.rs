@@ -8,8 +8,8 @@ pub async fn bind_galgame_media(
     input: BindGalgameMediaInput,
 ) -> Result<GalgameMediaBindingSummary, String> {
     state
-        .orchestrator()
-        .bind_galgame_media_for_user_validated(user_id, input)
+        .galgame_record_application()
+        .bind_media(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
 }
@@ -20,8 +20,8 @@ pub async fn unbind_galgame_media(
     input: UnbindGalgameMediaInput,
 ) -> Result<u64, String> {
     state
-        .orchestrator()
-        .unbind_galgame_media_for_user_validated(user_id, input)
+        .galgame_record_application()
+        .unbind_media(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
 }

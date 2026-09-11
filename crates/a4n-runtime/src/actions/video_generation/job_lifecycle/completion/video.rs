@@ -1,4 +1,3 @@
-use a4n_core::models::ai::generated_video;
 use a4n_video::VideoGenerationResult;
 
 use crate::AppState;
@@ -6,27 +5,27 @@ use crate::actions::video_generation::media::{
     append_secondary_error, best_effort_video_thumbnail_path, capture_video_tail_frame_asset,
     save_video_bytes,
 };
-use crate::file_utils::{data_dir_relative_file_path, remove_created_file_on_error};
-use a4n_orchestrator::video::PersistedVideoResult;
 use a4n_orchestrator::video::{
-    completed_provider_metadata, is_first_frame_chain_video, required_video_chapter_id,
-    should_capture_video_tail_frame,
+    completed_provider_metadata, is_first_frame_chain_workflow, required_video_chapter_id,
+    should_capture_video_tail_frame_fields,
 };
+use a4n_storage::{data_dir_relative_file_path, remove_created_file_on_error};
+use a4n_video_contract::{PersistedVideoResult, VideoProviderResultTarget};
 
 pub(in crate::actions::video_generation) async fn persist_video_result(
     state: &AppState,
-    video: &generated_video::Model,
+    target: &VideoProviderResultTarget,
     result: VideoGenerationResult,
 ) -> Result<PersistedVideoResult, String> {
     if result.bytes.is_empty() {
         return Err("视频 provider 返回了空文件，无法保存生成结果".to_string());
     }
-    let chapter_id = required_video_chapter_id(video.chapter_id, video.id)?;
+    let chapter_id = required_video_chapter_id(target.chapter_id, target.video_id)?;
     let path = save_video_bytes(
         state.data_dir(),
-        video.project_id,
+        target.project_id,
         chapter_id,
-        video.id,
+        target.video_id,
         &result.bytes,
         &result.format,
     )?;
@@ -37,21 +36,24 @@ pub(in crate::actions::video_generation) async fn persist_video_result(
     .await?;
     let thumbnail_path = best_effort_video_thumbnail_path(
         state.data_dir(),
-        video.project_id,
+        target.project_id,
         chapter_id,
-        video.id,
+        target.video_id,
         &path,
     );
     let mut tail_frame_capture_error = None;
-    let tail_frame_metadata = if should_capture_video_tail_frame(video) {
-        match capture_video_tail_frame_asset(state, video, chapter_id, &path).await {
+    let tail_frame_metadata = if should_capture_video_tail_frame_fields(
+        &target.video_type,
+        target.workflow_mode.as_deref(),
+    ) {
+        match capture_video_tail_frame_asset(state, target, chapter_id, &path).await {
             Ok(metadata) => Some(metadata),
             Err(msg) => {
-                if is_first_frame_chain_video(video) {
+                if is_first_frame_chain_workflow(target.workflow_mode.as_deref()) {
                     let message = format!("视频已生成但首帧串联尾帧采集失败：{msg}");
                     let cleanup = super::failure::cleanup_saved_video_outputs(
                         state,
-                        video.id,
+                        target.video_id,
                         &path,
                         thumbnail_path.as_deref(),
                     )
@@ -73,8 +75,8 @@ pub(in crate::actions::video_generation) async fn persist_video_result(
     let file_size = i64::try_from(result.bytes.len())
         .map_err(|_| "视频文件过大，无法记录文件大小".to_string())?;
     Ok(PersistedVideoResult {
-        video_id: video.id,
-        project_id: video.project_id,
+        video_id: target.video_id,
+        project_id: target.project_id,
         file_path: video_path_str,
         thumbnail_path,
         file_size,

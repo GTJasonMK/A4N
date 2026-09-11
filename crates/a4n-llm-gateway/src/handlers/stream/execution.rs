@@ -3,7 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::gateway::LlmGatewayPayload;
 use a4n_llm::provider::ChatChunk;
 use a4n_service_protocol::{CapabilityTaskEvent, SIDECAR_STREAM_IDLE_TIMEOUT, ServiceRequest};

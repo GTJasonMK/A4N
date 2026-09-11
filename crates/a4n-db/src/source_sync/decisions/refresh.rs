@@ -4,7 +4,7 @@ use crate::source_sync::{
     source_sync_generation_db_error, source_sync_params_with_prompt_kind,
     update_generation_spec_params_record, update_generation_spec_to_snapshot_record,
 };
-use a4n_core::models::{generation::generation_spec, source_sync::source_sync_run};
+use a4n_db_models::models::{generation::generation_spec, source_sync::source_sync_run};
 use sea_orm::ConnectionTrait;
 
 pub(super) async fn refresh_source_sync_generation_spec_record<C>(

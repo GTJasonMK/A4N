@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 
 use super::super::super::{
     AppError, BOUNDARY_FRAME_PROMPT_GENERATION, CHAT_VIDEO_PROMPT_GENERATION,

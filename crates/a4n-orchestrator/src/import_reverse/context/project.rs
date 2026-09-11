@@ -93,11 +93,11 @@ fn part_outline_source_end(rows: &ReverseContextRows) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::models::{
+    use a4n_db::import_reverse::ReverseContextRows;
+    use a4n_db_models::models::{
         chapter::{chapter_outline, part_outline},
         project::novel_project,
     };
-    use a4n_db::import_reverse::ReverseContextRows;
     use chrono::NaiveDateTime;
 
     use super::super::ReverseContextKind;

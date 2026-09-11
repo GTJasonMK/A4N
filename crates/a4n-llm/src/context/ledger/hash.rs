@@ -1,7 +1,7 @@
 use super::super::contracts::CONTEXT_MANIFEST_SCHEMA_VERSION;
 use super::super::planner::canonical_json_text;
-use a4n_core::error::AppError;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(super) fn context_config_hash(

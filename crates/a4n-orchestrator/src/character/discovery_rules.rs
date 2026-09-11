@@ -1,6 +1,6 @@
 //! 角色发现章节选择与输出范围校验纯规则（无 DB）。
 
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::Value;
 use std::collections::BTreeSet;
 

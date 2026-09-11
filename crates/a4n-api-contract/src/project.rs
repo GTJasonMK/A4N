@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::collaboration::ProjectAccessRole;
+pub use a4n_domain::collaboration::ProjectAccessScope;
 pub use a4n_domain::project::{
     AssetDependencyGraph, AssetGraphEdge, AssetGraphLayer, AssetGraphNode, AssetGraphNodeDetail,
     AssetLineageRecord, AssetLineageRef, GenerationInputSource, ProjectKind,
@@ -38,12 +39,135 @@ pub struct ProjectSummary {
     pub updated_at: String,
 }
 
+/// Host-facing project status application boundary.
+///
+/// Status transitions, rollback impact checks, permissions and project-family
+/// projections remain owned by the project application. Hosts receive only
+/// stable API DTOs and never handle the persisted project model.
+#[async_trait::async_trait]
+pub trait ProjectStatusApplicationPort: Send + Sync {
+    async fn status_machine(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ProjectStatusMachineSummary, a4n_error::AppError>;
+
+    async fn preview_rollback(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<ProjectRollbackPreview, a4n_error::AppError>;
+
+    async fn forward_status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+
+    async fn rollback_status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        target: ProjectStatus,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+}
+
 #[derive(Serialize, JsonSchema)]
 pub struct PaginatedProjects {
     pub items: Vec<ProjectSummary>,
     pub total: u64,
     pub page: u64,
     pub page_size: u64,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectListInput {
+    pub page: u64,
+    pub page_size: u64,
+    pub project_kind: Option<ProjectKind>,
+    pub root_project_id: Option<i64>,
+    pub access_scope: Option<ProjectAccessScope>,
+}
+
+/// Host-facing project read boundary.
+///
+/// Project owner code returns complete API summaries, so Runtime does not
+/// import project ORM models or duplicate family/progress/access projections.
+#[async_trait::async_trait]
+pub trait ProjectReadApplicationPort: Send + Sync {
+    async fn summary(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ProjectListInput,
+    ) -> Result<PaginatedProjects, a4n_error::AppError>;
+
+    async fn source_snapshot_chapters(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<SourceSnapshotChapterSummary>, a4n_error::AppError>;
+
+    async fn all_project_ids(&self) -> Result<Vec<i64>, a4n_error::AppError>;
+
+    async fn exists(&self, project_id: i64) -> Result<bool, a4n_error::AppError>;
+}
+
+/// Host-facing project mutation boundary.
+///
+/// Validation, permission checks and the final summary projection stay in the
+/// project owner; Runtime only routes the typed command.
+#[async_trait::async_trait]
+pub trait ProjectMutationApplicationPort: Send + Sync {
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateProjectInput,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+
+    async fn create_derived(
+        &self,
+        user_id: i64,
+        input: CreateDerivedProjectInput,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+
+    async fn create_freeform_video(
+        &self,
+        user_id: i64,
+        input: CreateFreeformVideoProjectInput,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+
+    async fn update(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateProjectInput,
+    ) -> Result<ProjectSummary, a4n_error::AppError>;
+}
+
+/// Host-facing project asset dependency graph boundary.
+#[async_trait::async_trait]
+pub trait ProjectAssetGraphApplicationPort: Send + Sync {
+    async fn graph(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<AssetDependencyGraph, a4n_error::AppError>;
+
+    async fn node_detail(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        node_id: String,
+    ) -> Result<AssetGraphNodeDetail, a4n_error::AppError>;
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]

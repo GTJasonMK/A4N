@@ -1,16 +1,4 @@
-use a4n_domain::project::ProjectStatus;
-use chrono::NaiveDateTime;
 use sea_orm::DbErr;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectStatusHistoryInput {
-    pub project_id: i64,
-    pub from_status: ProjectStatus,
-    pub to_status: ProjectStatus,
-    pub reason: String,
-    pub changed_by: String,
-    pub changed_at: NaiveDateTime,
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProjectStatusWriteError {

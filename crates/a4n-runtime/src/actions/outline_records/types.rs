@@ -1,5 +1,3 @@
-mod summaries;
-
 pub use a4n_api_contract::outline::{
     ApplyBeatMappingInput, BatchGeneratePartOutlinesInput, ChapterOutlinePacing,
     ContinuePartOutlinesInput, DeleteLatestOutlineRecordsInput,
@@ -9,5 +7,4 @@ pub use a4n_api_contract::outline::{
     SaveChapterOutlineInput, SaveChapterOutlineResult, SavePartOutlineInput, SavePartOutlineResult,
     UpdateChapterOutlineInput, UpdateChapterOutlineResult,
 };
-pub use summaries::{ChapterOutlineSummary, PartOutlineSummary};
-pub(super) use summaries::{chapter_outline_summary, part_outline_summary};
+pub use a4n_api_contract::outline::{ChapterOutlineSummary, PartOutlineSummary};

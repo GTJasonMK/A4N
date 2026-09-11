@@ -1,13 +1,14 @@
 use super::*;
+use a4n_domain::project::ProjectStatusHistoryInput;
 
 /// 重置项目生成态（含事务与状态写回）。事件发布仍由调用方负责。
 pub async fn reset_project_generated_data_record(
     db: &DatabaseConnection,
     project_id: i64,
 ) -> Result<ProjectGeneratedDataResetOutcome, ProjectResetDbError> {
-    use a4n_core::models::chapter::{chapter, chapter_outline, part_outline};
-    use a4n_core::models::character::foreshadowing_index;
-    use a4n_core::models::project::{blueprint_version, import_review_queue};
+    use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
+    use a4n_db_models::models::character::foreshadowing_index;
+    use a4n_db_models::models::project::{blueprint_version, import_review_queue};
 
     let tx = db.begin().await?;
     let project = project_db::project_by_id_for_update(&tx, project_id)
@@ -38,11 +39,12 @@ pub async fn reset_project_generated_data_record(
         .await
         .map_err(ProjectResetDbError::from)?;
 
-    let previous_status =
-        parse_project_status(&project.status).map_err(|_| ProjectResetDbError::InvalidState {
+    let previous_status = ProjectStatus::parse_storage(&project.status).map_err(|_| {
+        ProjectResetDbError::InvalidState {
             current: project.status.clone(),
             operation: "重置项目生成数据".to_string(),
-        })?;
+        }
+    })?;
     let now = Utc::now().naive_utc();
 
     let optimization_cleanup =
@@ -115,7 +117,7 @@ pub async fn reset_project_generated_data_record(
     active.avatar_svg = Set(None);
     active.avatar_animal = Set(None);
     active.updated_at = Set(now);
-    let updated = active.update(&tx).await?;
+    active.update(&tx).await?;
     project_db::mark_derived_projects_root_updated_in_record(&tx, project_id, now).await?;
 
     if previous_status != ProjectStatus::Draft {
@@ -145,7 +147,6 @@ pub async fn reset_project_generated_data_record(
 
     Ok(ProjectGeneratedDataResetOutcome {
         result: ProjectGeneratedDataResetResult {
-            project: updated,
             deleted_galgame_scripts: 0,
             deleted_galgame_scenes: 0,
             deleted_galgame_lines: 0,

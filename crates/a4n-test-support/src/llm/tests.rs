@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatMessage, ChatRequest, LlmProvider, collect_chat_stream};
 use tokio_util::sync::CancellationToken;
 

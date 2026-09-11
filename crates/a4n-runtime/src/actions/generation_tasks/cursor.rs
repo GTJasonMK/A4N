@@ -1,4 +1,4 @@
-use a4n_db::generation::{GenerationTaskListCursor, canonical_json_bytes};
+use a4n_domain::generation::{GenerationTaskListCursor, canonical_json_bytes};
 use a4n_service_protocol::JS_SAFE_INTEGER_I64;
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;

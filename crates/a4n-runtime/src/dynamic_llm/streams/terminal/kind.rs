@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 #[derive(Clone, Copy)]
 pub(in crate::dynamic_llm::streams) enum StreamKind {

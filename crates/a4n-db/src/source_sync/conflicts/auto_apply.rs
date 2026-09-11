@@ -1,5 +1,7 @@
 use crate::source_sync::{CONFLICT_STATUS_PENDING, SourceSyncDbError};
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_decision, source_sync_run};
+use a4n_db_models::models::source_sync::{
+    source_sync_conflict, source_sync_decision, source_sync_run,
+};
 use a4n_domain::source_sync::{
     SourceSyncConflictSeverity, SourceSyncConflictStatus, SourceSyncDecisionActor,
     SourceSyncResolutionStrategy,

@@ -1,11 +1,11 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 use crate::outline::context::{
     ChapterOutlineGenerationContext, focused_part_context, minimal_blueprint_context,
     minimal_part_context, part_context_json,
 };
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::context::{
     COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,

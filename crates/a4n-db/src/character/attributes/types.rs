@@ -1,4 +1,4 @@
-use a4n_core::models::character::{
+use a4n_db_models::models::character::{
     attribute_event, protagonist_deletion_mark, protagonist_profile,
 };
 use serde_json::Value;
@@ -29,18 +29,6 @@ pub(in crate::character::attributes) struct CharacterAttributeEventInsertInput {
 }
 
 #[derive(Debug, Clone)]
-pub struct CharacterAttributeValueChangeInput {
-    pub profile_id: i64,
-    pub chapter_number: i32,
-    pub category: String,
-    pub key: String,
-    pub value: Value,
-    pub change_description: Option<String>,
-    pub cause: String,
-    pub evidence: String,
-}
-
-#[derive(Debug, Clone)]
 pub struct CharacterAttributeMutationResult {
     pub profile: protagonist_profile::Model,
     pub event: attribute_event::Model,
@@ -57,28 +45,6 @@ pub(in crate::character::attributes) struct CharacterDeletionMarkUpsertInput {
     pub evidence: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct CharacterAttributeDeletionRequestInput {
-    pub profile_id: i64,
-    pub category: String,
-    pub key: String,
-    pub chapter_number: i32,
-    pub reason: String,
-    pub evidence: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct CharacterImplicitReviewDecisionRecordInput {
-    pub profile_id: i64,
-    pub chapter_number: i32,
-    pub attribute_key: String,
-    pub current_value: Value,
-    pub decision: String,
-    pub suggested_new_value: Option<Value>,
-    pub reasoning: String,
-    pub evidence_summary: String,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppliedCharacterImplicitDecisionAction {
     Keep,
@@ -92,16 +58,6 @@ pub struct AppliedCharacterImplicitDecisionRecord {
     pub action: AppliedCharacterImplicitDecisionAction,
     pub event: Option<attribute_event::Model>,
     pub deletion_mark: Option<protagonist_deletion_mark::Model>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CharacterAttributeDeletionExecutionInput {
-    pub profile_id: i64,
-    pub category: String,
-    pub key: String,
-    pub event_cause: String,
-    pub evidence: String,
-    pub chapter_number: i32,
 }
 
 #[derive(Debug, Clone)]

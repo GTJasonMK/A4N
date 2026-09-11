@@ -1,8 +1,3 @@
-use a4n_core::models::{
-    chapter::{chapter, chapter_outline},
-    character::foreshadowing_index,
-    scene::{scene_occurrence, scene_profile, scene_transition},
-};
 use a4n_db::{
     project::{CreateProjectRecordInput, create_project_record},
     rag::{
@@ -10,6 +5,11 @@ use a4n_db::{
         pending_foreshadowing_search_rows, scene_occurrences_for_rag_ingest,
         scene_profiles_for_rag_ingest, scene_transitions_for_rag_ingest,
     },
+};
+use a4n_db_models::models::{
+    chapter::{chapter, chapter_outline},
+    character::foreshadowing_index,
+    scene::{scene_occurrence, scene_profile, scene_transition},
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};

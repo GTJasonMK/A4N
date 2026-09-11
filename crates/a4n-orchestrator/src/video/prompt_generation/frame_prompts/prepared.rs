@@ -6,7 +6,7 @@ use super::{
     FRAME_SEGMENT_PLAN_CONTRACT_VERSION, NewChapterVideoPrompt, PromptOutputLanguage, SourceSpan,
     VideoPromptGenerationTrace, VideoSegmentPlan, VideoShootingScriptProjection,
 };
-use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
 pub(in crate::video) struct PreparedVideoPromptInputs {
     pub(in crate::video) source_metadata: Value,

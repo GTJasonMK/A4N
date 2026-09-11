@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::{chapter, chapter_outline, part_outline},
     generation::{generation_spec, generation_spec_text_anchor, prompt_artifact},
     media::{media_asset, media_binding, media_provenance},

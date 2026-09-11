@@ -40,9 +40,7 @@ use response::{
     GenerationEvent, parse_generation_event, service_app_error, service_error_app_error,
     service_error_string, typed_response_payload,
 };
-pub(crate) use service_manager::{
-    runtime_capabilities, runtime_service_manager, start_managed_sidecars,
-};
+pub(crate) use service_manager::{runtime_capabilities, runtime_service_manager};
 pub(crate) use video::{
     delete_video_job, generate_video, poll_video, preview_video_provider_request, video_job_status,
 };

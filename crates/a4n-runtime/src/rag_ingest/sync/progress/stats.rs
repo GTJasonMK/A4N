@@ -1,4 +1,4 @@
-use a4n_orchestrator::rag::RagRecordSyncOutcome;
+use a4n_rag_core::RagRecordSyncOutcome;
 
 #[derive(Default)]
 pub(crate) struct ExpectedSyncStats {

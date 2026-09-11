@@ -14,9 +14,9 @@ use super::rules::{
     generation_rag_query_fingerprint, generation_rag_search_data_types, previous_chapter_range,
     validate_generation_rag_query_fingerprint,
 };
-use a4n_core::models::{chapter::chapter_outline, character::foreshadowing_index};
-use a4n_core::rag::RagDataType;
-use a4n_core::text_location::extract_scene_location;
+use a4n_db_models::models::{chapter::chapter_outline, character::foreshadowing_index};
+use a4n_domain::rag::RagDataType;
+use a4n_domain::text_location::extract_scene_location;
 use a4n_rag_core::{
     memory_store::MemoryVectorStore,
     metadata::metadata_i64,

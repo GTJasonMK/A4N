@@ -1,4 +1,4 @@
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 pub(crate) use a4n_domain::project::ProjectProgressSummary;
 use a4n_domain::project::{ProjectKind, ProjectSourceMode, ProjectSourceModeError, ProjectStatus};
 use sea_orm::DbErr;

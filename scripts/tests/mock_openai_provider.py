@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import threading
+import time
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -891,6 +892,39 @@ def optimization_patch_response() -> dict[str, Any]:
             }
         ],
     }
+
+
+def optimization_chat_response(combined: str) -> dict[str, Any]:
+    states = [value["loop_state"] for value in embedded_json_objects(combined)
+              if isinstance(value.get("loop_state"), dict)]
+    observations = states[-1].get("observations", []) if states else []
+    instruction = re.search(r"# 本次用户指令\s*\n([\s\S]*?)\n# 可用工具", combined)
+    current = instruction.group(1) if instruction else ""
+    if "A4N_OPTIMIZATION_WAIT" in current:
+        time.sleep(3)
+    if "A4N_OPTIMIZATION_PLAIN" in current:
+        return {"thought": "该问题可直接回答。", "action": "final", "arguments": {"reply": "局部补丁提案需要用户确认后才会写回正文。"}}
+    reads = [item["result"] for item in observations
+             if item.get("tool") == "get_project_information" and item.get("success") is True]
+    if not reads:
+        return {"thought": "读取需要修改的局部。", "action": "run_tool", "public_update": "读取本次修改所需的正文片段。",
+                "arguments": {"tool": "get_project_information", "arguments": {"mode": "read", "source": "current_chapter", "limit": 128}}}
+    proposals = [item["result"] for item in observations
+                 if item.get("tool") == "edit_article" and item.get("success") is True]
+    if proposals:
+        if not proposals[-1].get("patch_set_id") or proposals[-1].get("mode") != "pending_confirmation":
+            raise ValueError("optimization tool returned no persisted pending proposal")
+        return {"thought": "补丁已持久化，等待用户确认。", "action": "final", "arguments": {"reply": "已生成局部补丁提案，等待用户审阅；正文尚未写回。"}}
+    spans = reads[-1]["content"]["source_spans"]
+    if not spans:
+        raise ValueError("optimization read returned no complete source span")
+    original = spans[0]["text"]
+    return {"thought": "已有足够的原文证据。", "action": "run_tool", "public_update": "根据已读原文生成局部修改提案。", "arguments": {
+        "tool": "edit_article", "arguments": {"summary": "局部表达优化提案", "patches": [{
+            "patch_id": "patch-local-1", "operation": "replace", "old_text": original,
+            "new_text": original + "她握紧信封，停下脚步。", "reason": "以可见动作承接原文。",
+        }]},
+    }}
 
 
 def shooting_span_ids(combined: str) -> list[str]:
@@ -2238,112 +2272,18 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
     if capability is None:
         return None
 
-    if any(
-        isinstance(message, dict)
-        and isinstance(message.get("content"), str)
-        and "[Agent inbox:child_result]" in message["content"]
-        for message in current_messages
+    if capability in {"director", "canvas"} or any(
+        str(message.get("content", "")).startswith("A4N_SPECIALIZED ")
+        for message in current_messages if message.get("role") == "user"
     ):
-        return {
-            "content": (
-                "已验收正文优化子 Agent 的回传结果：最新章节的正文优化已经完成，"
-                "剧情事实与人物设定保持不变。"
-            )
-        }
-
-    # A completed delegation is persisted as the durable `delegate` tool
-    # observation on the parent transcript.  Treat that observation as the
-    # parent's acceptance input even when the inbox row is consumed without
-    # adding a second user message to the model context.
-    tool_call_ids = {
-        tool_call.get("id")
-        for message in current_messages
-        if isinstance(message, dict)
-        and message.get("role") == "assistant"
-        for tool_call in (message.get("tool_calls") or [])
-        if isinstance(tool_call, dict)
-        and isinstance(tool_call.get("function"), dict)
-        and tool_call["function"].get("name") == "delegate"
-        and isinstance(tool_call.get("id"), str)
-    }
-    if any(
-        isinstance(message, dict)
-        and message.get("role") == "tool"
-        and message.get("tool_call_id") in tool_call_ids
-        for message in current_messages
-    ):
-        return {
-            "content": (
-                "已验收正文优化子 Agent 的回传结果：最新章节的正文优化已经完成，"
-                "剧情事实与人物设定保持不变。"
-            )
-        }
-
+        from specialized_agent_fixture import director_fixture
+        return director_fixture(body, messages)
     if capability == "content_optimization":
-        return {
-            "content": (
-                "正文优化子 Agent 已完成目标章节的正文优化并核对结果："
-                "表达与节奏已改善，剧情事实和人物设定保持不变。"
-            )
-        }
+        raise ValueError("content_optimization must enter the professional executor without an outer model call")
     if capability != "main":
         return None
-
-    tool_names_by_id: dict[str, str] = {}
-    for message in current_messages:
-        if not isinstance(message, dict) or message.get("role") != "assistant":
-            continue
-        tool_calls = message.get("tool_calls")
-        if not isinstance(tool_calls, list):
-            continue
-        for tool_call in tool_calls:
-            if not isinstance(tool_call, dict):
-                continue
-            function = tool_call.get("function")
-            if isinstance(tool_call.get("id"), str) and isinstance(function, dict):
-                name = function.get("name")
-                if isinstance(name, str):
-                    tool_names_by_id[tool_call["id"]] = name
-
-    for message in current_messages:
-        if not isinstance(message, dict) or message.get("role") != "tool":
-            continue
-        tool_call_id = message.get("tool_call_id")
-        if (
-            not isinstance(tool_call_id, str)
-            or tool_names_by_id.get(tool_call_id) != "locate_writing_target"
-        ):
-            continue
-        try:
-            observation = json.loads(message.get("content", ""))
-            project_id = int(observation["project"]["id"])
-            chapter_id = int(observation["chapter"]["id"])
-        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
-            continue
-        return {
-            "tool_call": {
-                "id": "call_a4n_delegate_content_optimization",
-                "name": "delegate",
-                "arguments": {
-                    "capability": "content_optimization",
-                    "task": "优化已定位的最新章节正文，并提交可供主 Agent 验收的真实结果。",
-                    "projectId": project_id,
-                    "chapterId": chapter_id,
-                    "successCriteria": [
-                        "完成目标章节的正文优化",
-                        "保持剧情事实与人物设定一致",
-                    ],
-                },
-            }
-        }
-
-    return {
-        "tool_call": {
-            "id": "call_a4n_locate_writing_target",
-            "name": "locate_writing_target",
-            "arguments": {},
-        }
-    }
+    from specialized_agent_fixture import main_fixture
+    return main_fixture(body, current_messages)
 
 
 def response_for(body: dict[str, Any]) -> str:
@@ -2517,6 +2457,9 @@ def response_for(body: dict[str, Any]) -> str:
 
     if '"name": "chapter_scene_generation"' in combined:
         return chapter_body_response()
+
+    if "content_optimization_chat_agent_loop" in combined:
+        return json.dumps(optimization_chat_response(combined), ensure_ascii=False)
 
     if "content_optimization_agent_loop" in combined:
         return json.dumps(optimization_analysis_response(combined), ensure_ascii=False)
@@ -2798,84 +2741,37 @@ class ProviderHandler(BaseHTTPRequestHandler):
             self._json(404, {"error": {"message": "not found"}})
             return
 
-        agent_fixture = agent_chat_fixture(body)
+        try:
+            agent_fixture = agent_chat_fixture(body)
+        except (ValueError, KeyError, TypeError) as error:
+            self._json(422, {"error": {"message": str(error), "type": "invalid_agent_fixture"}})
+            return
         if agent_fixture is None:
             try:
                 content = response_for(body)
             except (UnhandledPromptError, ValueError) as error:
                 self._json(422, {"error": {"message": str(error), "type": "unhandled_prompt"}})
                 return
-            tool_call = None
+            tool_calls = []
         else:
             content = str(agent_fixture.get("content", ""))
-            tool_call = agent_fixture.get("tool_call")
+            tool_calls = agent_fixture.get("tool_calls") or ([agent_fixture["tool_call"]] if agent_fixture.get("tool_call") else [])
         if body.get("stream") is True:
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream; charset=utf-8")
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
-            if isinstance(tool_call, dict):
-                arguments = json.dumps(
-                    tool_call["arguments"],
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                )
-                split_at = max(1, len(arguments) // 2)
-                events = [
-                    {
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {
-                                    "tool_calls": [
-                                        {
-                                            "index": 0,
-                                            "id": tool_call["id"],
-                                            "type": "function",
-                                        }
-                                    ]
-                                },
-                                "finish_reason": None,
-                            }
-                        ]
-                    },
-                    {
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {
-                                    "tool_calls": [
-                                        {
-                                            "index": 0,
-                                            "function": {"name": tool_call["name"]},
-                                        }
-                                    ]
-                                },
-                                "finish_reason": None,
-                            }
-                        ]
-                    },
-                ]
-                events.extend(
-                    {
-                        "choices": [
-                            {
-                                "index": 0,
-                                "delta": {
-                                    "tool_calls": [
-                                        {
-                                            "index": 0,
-                                            "function": {"arguments": fragment},
-                                        }
-                                    ]
-                                },
-                                "finish_reason": None,
-                            }
-                        ]
-                    }
-                    for fragment in (arguments[:split_at], arguments[split_at:])
-                    if fragment
-                )
+            if tool_calls:
+                events = []
+                for tool_index, tool_call in enumerate(tool_calls):
+                    arguments = json.dumps(tool_call["arguments"], ensure_ascii=False, separators=(",", ":"))
+                    split_at = max(1, len(arguments) // 2)
+                    deltas = [
+                        {"id": tool_call["id"], "type": "function"},
+                        {"function": {"name": tool_call["name"]}},
+                        *({"function": {"arguments": fragment}} for fragment in (arguments[:split_at], arguments[split_at:]) if fragment),
+                    ]
+                    events.extend({"choices": [{"index": 0, "delta": {"tool_calls": [{"index": tool_index, **delta}]}, "finish_reason": None}]} for delta in deltas)
                 events.append(
                     {
                         "choices": [
@@ -2917,7 +2813,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
             self.wfile.flush()
             return
 
-        if isinstance(tool_call, dict):
+        if tool_calls:
             self._json(
                 200,
                 {
@@ -2941,7 +2837,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
                                                 separators=(",", ":"),
                                             ),
                                         },
-                                    }
+                                    } for tool_call in tool_calls
                                 ],
                             },
                             "finish_reason": "tool_calls",

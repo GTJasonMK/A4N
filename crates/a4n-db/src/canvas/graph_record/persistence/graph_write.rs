@@ -1,4 +1,4 @@
-use a4n_core::models::canvas::canvas_graph;
+use a4n_db_models::models::canvas::canvas_graph;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 

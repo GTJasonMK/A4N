@@ -9,7 +9,7 @@ use a4n_api_contract::{
         OptimizeSessionInput, SendOptimizationMessageInput, StartOptimizeChatGenerationInput,
     },
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -99,6 +99,8 @@ pub(crate) async fn send_message(
     user_id: i64,
     scope: &AgentScope,
     input: SendContentOptimizationMessageInput,
+    start_request_id: String,
+    max_output_tokens: usize,
 ) -> Result<GenerationTaskHandle, AppError> {
     ensure_positive(input.session_id, "sessionId")?;
     let message = input.message.trim();
@@ -108,7 +110,7 @@ pub(crate) async fn send_message(
     let session = scoped_session(state, user_id, scope, input.session_id).await?;
     let request = StartOptimizeChatGenerationInput {
         meta: GenerationStartRequestMeta {
-            start_request_id: uuid::Uuid::new_v4().to_string(),
+            start_request_id,
             retry_of_task_id: None,
         },
         request: SendOptimizationMessageInput {
@@ -117,9 +119,14 @@ pub(crate) async fn send_message(
             permissions: session.agent_permissions,
         },
     };
-    crate::actions::optimize::start_optimize_chat_generation_typed(state, user_id, request)
-        .await
-        .map_err(|error| AppError::InvalidArgument(error.to_string()))
+    crate::actions::optimize::start_optimize_chat_generation_with_output_limit(
+        state,
+        user_id,
+        request,
+        Some(max_output_tokens),
+    )
+    .await
+    .map_err(|error| AppError::InvalidArgument(error.to_string()))
 }
 
 pub(crate) async fn get_session(

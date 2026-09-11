@@ -1,6 +1,6 @@
 use super::super::types::{SettingsAllConfigImportError, settings_all_config_database};
-use a4n_core::config::app_config::LlmMaxTokensConfig;
-use a4n_core::models::ai::llm_config;
+use a4n_db_models::models::ai::llm_config;
+use a4n_domain::LlmMaxTokensConfig;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 use serde_json::Value;
 

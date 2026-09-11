@@ -1,10 +1,10 @@
+use a4n_api_contract::workflow::WorkflowResumeRecord;
 use a4n_api_contract::{
     blueprint::{BlueprintSummary, PreviewBlueprintGenerationInput, StartBlueprintGenerationInput},
     generation_tasks::GenerationTaskHandle,
 };
-use a4n_core::blueprint::BLUEPRINT_GENERATION_KIND;
-use a4n_core::error::AppError;
-use a4n_core::models::generation::workflow_run;
+use a4n_domain::project::BLUEPRINT_GENERATION_KIND;
+use a4n_error::AppError;
 use a4n_orchestrator::GenerationTaskAccessError;
 
 use crate::AppState;
@@ -16,8 +16,8 @@ pub async fn start_blueprint_generation_typed(
     input: StartBlueprintGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .orchestrator()
-        .start_blueprint_generation_task(user_id, &input)
+        .blueprint_generation_application()
+        .start_generation(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -30,8 +30,8 @@ pub async fn start_blueprint_generation_typed(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .orchestrator()
-                .run_blueprint_generation_task(prompt_renderer, input, handle)
+                .blueprint_generation_application()
+                .run_generation(prompt_renderer, input, handle)
                 .await
         },
     );
@@ -41,24 +41,24 @@ pub async fn start_blueprint_generation_typed(
 pub async fn resume_blueprint_generation_workflow(
     state: &AppState,
     user_id: i64,
-    run: &workflow_run::Model,
+    run: &WorkflowResumeRecord,
 ) -> Result<(), String> {
     let input = state
-        .orchestrator()
-        .blueprint_generation_input_from_workflow_run(run)
+        .blueprint_generation_application()
+        .generation_input_from_workflow_run(run)
         .map_err(crate::actions::app_error_message)?;
     let start = state
-        .orchestrator()
-        .start_blueprint_generation_task(user_id, &input)
+        .blueprint_generation_application()
+        .start_generation(user_id, &input)
         .await
         .map_err(|error| error.to_string())?;
     if let Err(error) = state
-        .orchestrator()
-        .resume_workflow_run_with_active_task_validated(run.id, &start.handle.task_id)
+        .workflow_cancellation_application()
+        .resume_with_active_task(run.id, &start.handle.task_id)
         .await
     {
         let cleanup = state
-            .orchestrator()
+            .generation_application()
             .request_generation_cancel(user_id, &start.handle.task_id, start.handle.attempt)
             .await;
         return Err(match cleanup {
@@ -78,8 +78,8 @@ pub async fn resume_blueprint_generation_workflow(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .orchestrator()
-                .run_blueprint_generation_task(prompt_renderer, input, handle)
+                .blueprint_generation_application()
+                .run_generation(prompt_renderer, input, handle)
                 .await
         },
     );
@@ -92,8 +92,8 @@ pub async fn get_blueprint(
     project_id: i64,
 ) -> Result<Option<BlueprintSummary>, AppError> {
     state
-        .orchestrator()
-        .blueprint_summary_for_user_validated(user_id, project_id)
+        .blueprint_read_application()
+        .summary(user_id, project_id)
         .await
 }
 
@@ -102,19 +102,10 @@ pub async fn preview_generate_blueprint_request(
     user_id: i64,
     input: PreviewBlueprintGenerationInput,
 ) -> Result<ModelRequestPreview, AppError> {
-    let variables = input.variables.unwrap_or_default().into_iter().collect();
     let prompt_renderer = state;
     let stage = state
-        .orchestrator()
-        .preview_blueprint_generation_request_for_user_validated(
-            user_id,
-            input.project_id,
-            &input.title,
-            &input.genre,
-            input.target_length,
-            prompt_renderer,
-            &variables,
-        )
+        .blueprint_request_preview_application()
+        .preview_generation(user_id, input, prompt_renderer)
         .await?;
     chat_status_preview_for_state(
         state,

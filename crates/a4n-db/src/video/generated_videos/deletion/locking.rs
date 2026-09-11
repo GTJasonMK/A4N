@@ -1,5 +1,5 @@
 use crate::video::VideoDbError;
-use a4n_core::models::{ai::generated_video, project::novel_project};
+use a4n_db_models::models::{ai::generated_video, project::novel_project};
 use sea_orm::{ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QuerySelect};
 
 #[derive(Debug, FromQueryResult)]

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 
 use super::{
     MAX_AVAILABLE_VIDEO_ASSETS, SELECTION_REASON_PROFILE_FAVORITE, SELECTION_REASON_PROFILE_LATEST,

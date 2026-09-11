@@ -1,7 +1,7 @@
 use crate::video::PromptDependencyRecord;
 use crate::video_prompt::PromptStage;
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::source_spans::metadata_source_content_sha256;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::source_spans::metadata_source_content_sha256;
 use serde_json::Value;
 
 pub(in crate::video_prompt::dependencies) trait PromptDependencyFields {

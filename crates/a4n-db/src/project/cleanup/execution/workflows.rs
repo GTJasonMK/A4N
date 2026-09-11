@@ -1,6 +1,8 @@
 use super::super::ProjectCleanupDbError;
 use crate::project::validate_positive_i64;
-use a4n_core::models::generation::{workflow_checkpoint, workflow_progress_event, workflow_run};
+use a4n_db_models::models::generation::{
+    workflow_checkpoint, workflow_progress_event, workflow_run,
+};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub(crate) async fn delete_project_workflow_runs<C>(

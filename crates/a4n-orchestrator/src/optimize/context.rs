@@ -4,8 +4,9 @@ mod projection;
 #[cfg(test)]
 mod tests;
 
-use a4n_core::{blueprint_context::blueprint_llm_context, error::AppError};
+use a4n_db::blueprint_context::blueprint_llm_context;
 use a4n_db::optimize::OptimizationContextReadInput;
+use a4n_error::AppError;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 

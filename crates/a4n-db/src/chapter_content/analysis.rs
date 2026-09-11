@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,
     QueryOrder, QuerySelect, Set,

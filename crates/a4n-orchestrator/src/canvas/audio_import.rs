@@ -1,4 +1,8 @@
-use a4n_core::{error::AppError, files::remove_existing_data_file, models::media::media_asset};
+use a4n_canvas_contract::CanvasAudioImportHostInput;
+use a4n_db_models::models::media::media_asset;
+use a4n_error::AppError;
+use a4n_media::{MAX_IMPORT_AUDIO_BYTES, decode_uploaded_audio_data};
+use a4n_storage::remove_existing_data_file;
 use chrono::Utc;
 use serde_json::json;
 use std::{
@@ -10,23 +14,13 @@ use std::{
 use crate::{
     OrchestratorContext,
     media::{
-        CreateMediaAssetInput, CreateMediaProvenanceInput, MAX_IMPORT_AUDIO_BYTES,
-        MEDIA_KIND_AUDIO, MEDIA_ORIGIN_IMPORTED, MEDIA_STATUS_COMPLETED, PersistedAudioFile,
-        decode_uploaded_audio_data, persist_audio_file,
+        CreateMediaAssetInput, CreateMediaProvenanceInput, MEDIA_KIND_AUDIO, MEDIA_ORIGIN_IMPORTED,
+        MEDIA_STATUS_COMPLETED, PersistedAudioFile, persist_audio_file,
     },
     project::ProjectSourceMode,
 };
 
 use super::audio_rules::canvas_audio_format;
-
-#[derive(Debug)]
-pub struct CanvasAudioImportHostInput {
-    pub project_id: i64,
-    pub file_path: Option<String>,
-    pub file_name: Option<String>,
-    pub mime_type: Option<String>,
-    pub data_base64: Option<String>,
-}
 
 #[derive(Debug)]
 struct PersistedCanvasAudioFile {

@@ -2,7 +2,7 @@ use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::freeform::remap::remap_freeform_metadata;
 use crate::project::duplicate::freeform::{DeferredFreeformSpecTarget, FreeformCopyMaps};
 use crate::project::duplicate::shared::remap_derived_required_id;
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{Alias, CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
@@ -160,7 +160,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::generation::generation_spec;
+    use a4n_db_models::models::generation::generation_spec;
     use chrono::Utc;
     use sea_orm::{EntityTrait, Set};
     use serde_json::json;

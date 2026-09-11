@@ -2,7 +2,7 @@ mod build;
 mod detail;
 mod records;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use sea_orm::ConnectionTrait;
 
 use self::{build::build_asset_dependency_graph, records::AssetGraphRecords};

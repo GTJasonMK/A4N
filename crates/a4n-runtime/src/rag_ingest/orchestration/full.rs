@@ -19,7 +19,7 @@ pub async fn rag_ingest_all(
             .map_err(|error| error.to_string())?;
         if rebuild {
             state
-                .orchestrator()
+                .rag_ingest()
                 .clear_project_rag(scope.project_id)
                 .await
                 .map_err(|error| error.to_string())?;

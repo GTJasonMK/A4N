@@ -1,6 +1,8 @@
 use crate::OrchestratorContext;
-use a4n_core::error::AppError;
-pub(crate) use a4n_db::scene_profile::{SceneProfileEvidenceRecordInput, SceneSyncRecordResult};
+pub(crate) use a4n_db::scene_profile::SceneSyncRecordResult;
+pub(crate) use a4n_domain::scene_profile::SceneProfileEvidenceRecordInput;
+use a4n_error::AppError;
+use a4n_prompt::rendering::PromptRenderer;
 mod application;
 mod contracts;
 mod mapping;
@@ -10,6 +12,19 @@ mod workflow_rules;
 pub use application::{
     SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncHostPort, SceneProfileSyncProgress,
 };
+
+/// Runtime-facing scene-profile synchronization boundary.
+#[async_trait::async_trait]
+pub trait SceneProfileSyncApplicationPort: Send + Sync {
+    async fn sync(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::profile::SyncSceneProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn SceneProfileSyncHostPort,
+        progress: Option<&SceneProfileSyncProgress<'_>>,
+    ) -> Result<(), AppError>;
+}
 pub(crate) use contracts::{
     SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SCENE_TRANSITION_MOVEMENT_TYPES, SCENE_TYPES,
     SceneEntityStateDraft, SceneOccurrenceDraft, SceneProfileDraft, SceneSyncInput,
@@ -44,9 +59,36 @@ pub(crate) fn scene_profile_db_error(
     }
 }
 
+#[async_trait::async_trait]
+impl SceneProfileSyncApplicationPort for OrchestratorContext {
+    async fn sync(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::profile::SyncSceneProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn SceneProfileSyncHostPort,
+        progress: Option<&SceneProfileSyncProgress<'_>>,
+    ) -> Result<(), AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.sync_scene_profiles_validated(
+            input.project_id,
+            input.chapter_number,
+            prompt_renderer,
+            host_port,
+            progress,
+        )
+        .await
+    }
+}
+
 use crate::workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING};
-use a4n_core::models::chapter::chapter;
-use a4n_core::models::generation::workflow_run;
+use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::generation::workflow_run;
 
 impl OrchestratorContext {
     /// 场景档案同步：校验后创建 workflow_run（RUNNING）。

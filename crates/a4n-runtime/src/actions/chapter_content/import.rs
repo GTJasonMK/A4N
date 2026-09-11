@@ -1,6 +1,6 @@
-use super::{ChapterSummary, ImportChapterInput, projections};
+use super::{ChapterSummary, ImportChapterInput};
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn import_chapter(
     state: &AppState,
@@ -8,16 +8,12 @@ pub async fn import_chapter(
     input: ImportChapterInput,
 ) -> Result<ChapterSummary, AppError> {
     let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(state);
-    let chapter = state
-        .orchestrator()
-        .import_chapter_validated(
-            user_id,
-            &host_port,
-            input.project_id,
-            input.chapter_number,
-            input.content,
-            input.title,
-        )
+    let chapter_id = state
+        .chapter_content_mutation_application()
+        .import(user_id, &host_port, input)
         .await?;
-    projections::chapter_summary_with_sync_state(state, &chapter).await
+    state
+        .chapter_content_read_application()
+        .summary(user_id, chapter_id)
+        .await
 }

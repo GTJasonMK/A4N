@@ -1,16 +1,14 @@
 use super::super::{ImportCanvasMediaInput, ImportedCanvasMedia};
-use super::canvas_media_asset_summary;
 use crate::{
     AppState,
     actions::{
         app_error_message,
-        video_generation::video_to_summary,
         video_records::{delete_video, import_canvas_video},
     },
 };
-use a4n_core::{error::AppError, models::ai::generated_video};
-use a4n_orchestrator::canvas::{CanvasVideoImportHostInput, CanvasVideoImportHostPort};
-use a4n_orchestrator::media::MEDIA_KIND_VIDEO;
+use a4n_canvas_contract::{CanvasVideoImportHostInput, CanvasVideoImportHostPort};
+use a4n_domain::media::MEDIA_KIND_VIDEO;
+use a4n_error::AppError;
 use async_trait::async_trait;
 
 pub(super) async fn import_canvas_video_media(
@@ -20,8 +18,8 @@ pub(super) async fn import_canvas_video_media(
 ) -> Result<ImportedCanvasMedia, String> {
     let host_port = RuntimeCanvasVideoImportHostPort { state, user_id };
     let result = state
-        .orchestrator()
-        .import_canvas_video_validated(
+        .canvas_media_import_application()
+        .import_video(
             &host_port,
             user_id,
             CanvasVideoImportHostInput {
@@ -37,8 +35,8 @@ pub(super) async fn import_canvas_video_media(
     Ok(ImportedCanvasMedia {
         media_kind: MEDIA_KIND_VIDEO.to_string(),
         image: None,
-        video: Some(video_to_summary(&result.video)),
-        asset: canvas_media_asset_summary(result.asset),
+        video: Some(result.video),
+        asset: result.asset,
     })
 }
 
@@ -52,7 +50,7 @@ impl CanvasVideoImportHostPort for RuntimeCanvasVideoImportHostPort<'_> {
     async fn import_canvas_video(
         &self,
         input: CanvasVideoImportHostInput,
-    ) -> Result<generated_video::Model, AppError> {
+    ) -> Result<i64, AppError> {
         import_canvas_video(self.state, input)
             .await
             .map_err(|operation| AppError::InvalidState {

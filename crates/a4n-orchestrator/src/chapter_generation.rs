@@ -7,6 +7,17 @@ pub(crate) mod rag_context;
 #[path = "chapter_generation/service/mod.rs"]
 mod service;
 
+use std::sync::Arc;
+
+use a4n_api_contract::{
+    chapter::{
+        PreparedGenerationRagEmbeddingRequest, PreviewChapterPromptInput,
+        StartChapterGenerationInput,
+    },
+    generation_tasks::GenerationTaskHandle,
+};
+use a4n_embedding::provider::EmbeddingModelIdentity;
+
 pub use application::{ChapterGenerationApplicationContext, ChapterGenerationRequestPreview};
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;
 pub use preparation::{
@@ -20,3 +31,38 @@ pub(crate) use rag_context::{
     validate_generation_rag_query_fingerprint,
 };
 pub use service::ChapterGenerationService;
+
+/// Host-facing boundary for chapter generation workers.
+///
+/// Runtime supplies prompt, embedding and cleanup adapters; chapter
+/// preparation, workflow state and persistence stay in this owner.
+#[async_trait::async_trait]
+pub trait ChapterGenerationApplicationPort: Send + Sync {
+    async fn preview_request(
+        &self,
+        user_id: i64,
+        context: ChapterGenerationApplicationContext<'_>,
+        input: PreviewChapterPromptInput,
+    ) -> Result<ChapterGenerationRequestPreview, String>;
+
+    async fn prepare_rag_embedding(
+        &self,
+        user_id: i64,
+        input: PreviewChapterPromptInput,
+        runtime_embedding_identity: Option<EmbeddingModelIdentity>,
+    ) -> Result<PreparedGenerationRagEmbeddingRequest, String>;
+
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &StartChapterGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
+
+    async fn run_task(
+        &self,
+        context: ChapterGenerationApplicationContext<'_>,
+        input: StartChapterGenerationInput,
+        handle: GenerationTaskHandle,
+        host_port: Arc<dyn crate::chapter_content::ChapterDerivedCleanupHostPort>,
+    ) -> Result<(), String>;
+}

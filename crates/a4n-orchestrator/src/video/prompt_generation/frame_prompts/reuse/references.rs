@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::prompt_json::{VideoFramePrompt, VideoSegmentPlan};
 use crate::video::prompt_store::PromptWorkflowMode;

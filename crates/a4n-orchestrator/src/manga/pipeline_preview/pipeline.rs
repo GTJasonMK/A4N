@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_domain::source_spans::source_spans_for_content;
+use a4n_error::AppError;
 
 use crate::shooting_script::ChapterShootingScriptSourceInput;
-use a4n_core::source_spans::source_spans_for_content;
 
 use super::super::reference_assets::manga_reference_assets_json;
 use super::super::{MangaPipelineRequestPreviewInput, OrchestratorContext};

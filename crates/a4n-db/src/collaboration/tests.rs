@@ -1,6 +1,6 @@
 use super::*;
 use crate::project::{CreateProjectRecordInput, create_project_record};
-use a4n_core::models::{
+use a4n_db_models::models::{
     project::{project_invite, project_member},
     user::user,
 };

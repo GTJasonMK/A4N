@@ -1,5 +1,5 @@
-use a4n_core::models::{canvas::canvas_node, generation::workflow_checkpoint};
 use a4n_db::canvas::CanvasGraphRecordDocument;
+use a4n_db_models::models::{canvas::canvas_node, generation::workflow_checkpoint};
 
 use crate::canvas::{
     canvas_config_i64, i64_to_i32, source_text::collect_canvas_text_source_context,

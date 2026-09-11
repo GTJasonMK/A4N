@@ -1,11 +1,11 @@
 use super::FreeformGeneratedResetDbError;
 use crate::project::cleanup::ProjectCleanupDbError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     media::media_asset,
 };
-use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use sea_orm::DbErr;
 use serde_json::json;
 use std::error::Error;
@@ -49,7 +49,7 @@ fn canvas_video_row(
         id: 42,
         project_id: 9,
         chapter_id: None,
-        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
         workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
         file_path: Some("projects/9/videos/canvas.mp4".to_string()),
         thumbnail_path: Some("projects/9/videos/canvas.jpg".to_string()),

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::{
     FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT,

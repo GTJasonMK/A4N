@@ -1,4 +1,4 @@
-use a4n_core::structured_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
+use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
 
 use crate::structured_llm::StructuredLlmProgress;
 

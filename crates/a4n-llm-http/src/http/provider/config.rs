@@ -1,5 +1,5 @@
-use a4n_core::config::app_config::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
-use a4n_core::error::AppError;
+use a4n_domain::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
+use a4n_error::AppError;
 use a4n_llm::provider::{ModelCapabilities, normalize_extra_body};
 use serde_json::Value;
 

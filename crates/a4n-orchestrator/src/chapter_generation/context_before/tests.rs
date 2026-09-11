@@ -3,7 +3,7 @@ use super::{
     character_state::{character_profile_context_line, character_state_context_line},
     summaries::layered_chapter_summary_lines,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter,
     character::{character_state_index, protagonist_profile},
 };

@@ -1,4 +1,5 @@
 use super::super::*;
+use a4n_domain::llm::{LlmCallUsageTraceInput, RecordLlmCallTraceInput};
 
 pub async fn record_llm_call_trace<C>(
     db: &C,

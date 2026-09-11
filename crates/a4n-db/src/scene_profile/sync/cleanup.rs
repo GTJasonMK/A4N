@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_core::models::scene::{scene_occurrence, scene_transition};
+use a4n_db_models::models::scene::{scene_occurrence, scene_transition};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QuerySelect,
 };

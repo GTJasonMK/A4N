@@ -1,4 +1,3 @@
-use a4n_core::config::app_config::LlmMaxTokensConfig;
 use a4n_db::config::{
     LLM_MAX_TOKENS_SETTING_KEY, SettingsAllConfigImportInput, SettingsAllConfigRows,
     SettingsAllEmbeddingConfigRow, SettingsAllImageConfigRow, SettingsAllLlmConfigRow,
@@ -6,7 +5,7 @@ use a4n_db::config::{
     import_settings_all_configs, settings_all_config_rows,
     validate_settings_all_config_import_defaults,
 };
-use a4n_domain::{ImageSize, ThemeDocument, ThemeMode};
+use a4n_domain::{ImageSize, LlmMaxTokensConfig, ThemeDocument, ThemeMode};
 use serde_json::json;
 
 fn settings_rows() -> SettingsAllConfigRows {

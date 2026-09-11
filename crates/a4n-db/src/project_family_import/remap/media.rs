@@ -1,7 +1,7 @@
 use super::super::{ImportIdMaps, ProjectFamilyImportError, map_required};
 use super::generation::remap_manga_reference_bindings_value;
 use super::{json_object, remap_object_id, remap_object_ids};
-use a4n_core::models::media::media_binding;
+use a4n_db_models::models::media::media_binding;
 use a4n_domain::{GeneratedMediaReference, parse_generated_media_reference};
 use serde_json::Value;
 

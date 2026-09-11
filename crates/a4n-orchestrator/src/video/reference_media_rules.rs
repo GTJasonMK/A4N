@@ -1,17 +1,15 @@
 //! 参考媒体请求纯校验（无 DB、无 Host IO）。
 
-use a4n_core::{
-    models::ai::video_gen_config,
-    video_execution::{VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1},
-};
 use a4n_domain::VideoAspectRatio;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoMediaInput};
+use a4n_video_contract::{VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1};
 use base64::Engine as _;
 use sha2::{Digest, Sha256};
 
 use super::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES, SEEDANCE2_VIDEO_BACKEND,
-    validate_video_duration_for_config_secs,
+    validate_video_duration_for_provider_config_secs,
 };
 
 pub(crate) const MAX_SEEDANCE2_IMAGE_FILES: usize = 9;
@@ -68,12 +66,7 @@ pub(crate) struct ResolvedReferenceMediaVideoInput {
     pub(crate) aspect_ratio: String,
 }
 
-/// 请求校验模式：生成硬失败 / 预览软化。
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VideoProviderValidationMode {
-    Generate,
-    Preview,
-}
+pub use a4n_video_contract::VideoProviderValidationMode;
 
 /// 与 provider visual / 参考媒体 prompt 下限一致（单一来源）。
 pub const MIN_PROVIDER_VISUAL_PROMPT_CHARS: usize = 100;
@@ -115,7 +108,7 @@ fn reference_media_dimensions_for_short_edge(
 
 fn reference_media_dimensions_for_config(
     aspect_ratio: &str,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
 ) -> Result<(i32, i32), String> {
     reference_media_dimensions_for_short_edge(
         aspect_ratio,
@@ -307,7 +300,7 @@ pub(crate) fn resolve_reference_media_urls(
 }
 
 pub(crate) fn build_reference_media_video_request(
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     input: ResolvedReferenceMediaVideoInput,
 ) -> Result<VideoGenerationRequest, String> {
     let ResolvedReferenceMediaVideoInput {
@@ -327,7 +320,7 @@ pub(crate) fn build_reference_media_video_request(
             ));
         }
     };
-    validate_video_duration_for_config_secs(config, duration_secs)?;
+    validate_video_duration_for_provider_config_secs(config, duration_secs)?;
     let prompt = reference_media_prompt(&prompt)?;
     let image_files = reference_media_urls(image_files, "image_files", max_image_files)?;
     let video_files = reference_media_urls(video_files, "video_files", MAX_SEEDANCE2_VIDEO_FILES)?;
@@ -359,7 +352,7 @@ pub(crate) fn build_reference_media_video_request(
 
 pub(crate) fn reference_media_provider_request_note(
     source_label: &str,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     request: &VideoGenerationRequest,
 ) -> Result<String, String> {
     let VideoMediaInput::References {
@@ -393,19 +386,18 @@ pub(crate) fn reference_media_provider_request_note(
 mod tests {
     use super::*;
 
-    fn video_config(backend: &str) -> video_gen_config::Model {
-        let now = chrono::Utc::now().naive_utc();
+    fn video_config(backend: &str) -> VideoProviderConfig {
         let (min_duration_secs, max_duration_secs) = match backend {
             SEEDANCE2_VIDEO_BACKEND => (4, 15),
             CLIPROXY_OPENAI_VIDEO_BACKEND => (1, 15),
             _ => (1, 60),
         };
-        video_gen_config::Model {
+        VideoProviderConfig {
             id: 9,
             name: "reference media".to_string(),
             backend: backend.to_string(),
             base_url: Some("https://example.test".to_string()),
-            api_key_encrypted: Some("key".to_string()),
+            api_key: Some("key".to_string()),
             model: "seedance-2-0-pro".to_string(),
             max_concurrent: 1,
             default_width: 1280,
@@ -417,8 +409,6 @@ mod tests {
             supported_durations_json: None,
             default_fps: 24,
             is_default: true,
-            created_at: now,
-            updated_at: now,
         }
     }
 

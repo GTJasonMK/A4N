@@ -5,8 +5,8 @@ use crate::{
         admin_records::{self, AdminPermission},
     },
 };
-use a4n_core::error::AppError;
 use a4n_domain::collaboration::ProjectAccessRole;
+use a4n_error::AppError;
 use std::collections::HashSet;
 
 pub(in crate::actions::task_records) async fn project_ids_visible_to_user(
@@ -23,8 +23,8 @@ pub(in crate::actions::task_records) async fn project_ids_visible_to_user(
         return Ok(HashSet::new());
     }
     match state
-        .orchestrator()
-        .project_ids_with_permission(&project_ids, user_id, ProjectAccessRole::Editor)
+        .project_access_application()
+        .project_ids_with_permission(user_id, &project_ids, ProjectAccessRole::Editor)
         .await
     {
         Ok(project_ids) => Ok(project_ids.into_iter().collect()),

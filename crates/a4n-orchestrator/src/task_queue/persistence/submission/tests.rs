@@ -1,4 +1,4 @@
-use a4n_core::models::task::task_queue;
+use a4n_db_models::models::task::task_queue;
 use a4n_queue::{
     TaskFamilyContext, TaskWorkflowContext,
     priority::{TaskKind, TaskPriority},

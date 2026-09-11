@@ -3,9 +3,9 @@
 //! 持有 `DbHandle`，封装反推上下文读取与蓝图/大纲/分部大纲落库事务。
 //! JSON 合同校验与 apply 结果投影仍在 `import_reverse/application`。
 
-use a4n_core::error::AppError;
 use a4n_db::DbHandle;
 use a4n_db::import_reverse::ReverseContextRows;
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 

@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter;
+use a4n_api_contract::chapter::ChapterAnalysisMutationResult;
+use a4n_error::AppError;
 use a4n_orchestrator::chapter_analysis::ChapterAnalysisApplicationProgress;
 
 use super::{ChapterAnalysisProgress, host_port::RuntimeChapterAnalysisHostPort};
@@ -7,9 +7,10 @@ use crate::state::AppState;
 
 pub(super) async fn run_chapter_analysis_application(
     state: &AppState,
+    user_id: i64,
     chapter_id: i64,
     progress: Option<&ChapterAnalysisProgress<'_>>,
-) -> Result<chapter::Model, String> {
+) -> Result<ChapterAnalysisMutationResult, String> {
     let prompt_renderer = state;
     let host_port = RuntimeChapterAnalysisHostPort::new(state);
     let trace_port = crate::actions::character_ai::RuntimeCharacterProfileSyncStageTracePort::new(
@@ -39,8 +40,9 @@ pub(super) async fn run_chapter_analysis_application(
         active_task_id: progress.and_then(|progress| progress.task_id),
     };
     state
-        .orchestrator()
-        .run_chapter_analysis_validated(
+        .chapter_analysis_application()
+        .generate(
+            user_id,
             chapter_id,
             prompt_renderer,
             &host_port,

@@ -7,6 +7,7 @@ pub(super) struct PreparedAgentDecisionCall {
     pub(super) chat_request: ChatRequest,
     pub(super) call_key: String,
     pub(super) input_fingerprint_json: Value,
+    pub(super) execution: Option<a4n_db_models::models::agent::execution::Model>,
 }
 
 pub(super) struct AgentDecisionCallResult {

@@ -4,7 +4,7 @@ mod character;
 mod generic;
 
 use super::Sha256SnapshotStore;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use character::diff_character_snapshot;
 use generic::diff_generic_json;
 

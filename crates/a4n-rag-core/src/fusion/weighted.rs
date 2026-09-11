@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::rag::RagDataType;
+use a4n_domain::rag::RagDataType;
 
 use crate::vector_store::SearchResult;
 

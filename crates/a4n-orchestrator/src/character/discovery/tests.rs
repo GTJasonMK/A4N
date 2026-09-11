@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::character::DiscoverCharacterProfilesInput;
-use a4n_core::{
-    models::{chapter::chapter, character::protagonist_profile, project::text_anchor},
-    source_spans::source_spans_for_chapters,
+use a4n_db_models::models::{
+    chapter::chapter, character::protagonist_profile, project::text_anchor,
 };
+use a4n_domain::source_spans::source_spans_for_chapters;
 use serde_json::{Value, json};
 
 use crate::character::{

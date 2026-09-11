@@ -1,4 +1,4 @@
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 
 use crate::text_anchor::{PROJECT_KIND_TEXT, TextAnchorDbError, TextAnchorDbResult};

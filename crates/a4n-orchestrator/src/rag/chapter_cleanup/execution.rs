@@ -1,4 +1,6 @@
-use crate::{OrchestratorContext, project::ChapterDerivedCleanupArtifacts};
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+
+use crate::OrchestratorContext;
 
 use super::plan::ChapterDerivedRagCleanupPlan;
 

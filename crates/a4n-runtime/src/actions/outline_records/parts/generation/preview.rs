@@ -5,7 +5,7 @@ use crate::actions::outline_records::types::{
     GeneratePartsInput, RegenerateLastPartInput, RegeneratePartsInput,
 };
 use crate::actions::request_preview::ModelRequestPreview;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn preview_generate_parts_request(
     state: &AppState,
@@ -14,8 +14,8 @@ pub async fn preview_generate_parts_request(
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let steps = state
-        .orchestrator()
-        .preview_generate_parts_validated(input)
+        .outline_preview_application()
+        .preview_generate_parts(input)
         .await?;
     outline_preview(
         state,
@@ -33,8 +33,8 @@ pub async fn preview_regenerate_parts_request(
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let steps = state
-        .orchestrator()
-        .preview_regenerate_parts_validated(input)
+        .outline_preview_application()
+        .preview_regenerate_parts(input)
         .await?;
     outline_preview(
         state,
@@ -52,8 +52,8 @@ pub async fn preview_regenerate_last_part_request(
 ) -> Result<ModelRequestPreview, AppError> {
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let request = state
-        .orchestrator()
-        .preview_regenerate_last_part_validated(input)
+        .outline_preview_application()
+        .preview_regenerate_last_part(input)
         .await?;
     single_request_preview(
         state,

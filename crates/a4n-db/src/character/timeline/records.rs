@@ -1,5 +1,5 @@
 use super::contracts::CharacterStateIndexUpsertInput;
-use a4n_core::models::character::{character_state_index, protagonist_behavior_record};
+use a4n_db_models::models::character::{character_state_index, protagonist_behavior_record};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect, Set,

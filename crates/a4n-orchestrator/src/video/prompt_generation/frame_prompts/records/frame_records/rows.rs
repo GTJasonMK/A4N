@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::chapter::chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 
 use crate::video::{prompt_json::VideoFramePrompt, prompt_records::reusable_rows_are_complete};
 

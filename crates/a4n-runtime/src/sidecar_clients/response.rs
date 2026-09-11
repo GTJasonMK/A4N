@@ -1,5 +1,5 @@
 use a4n_capabilities::{JsonResponse, sidecar_response_payload};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode, ServiceResponse,
 };

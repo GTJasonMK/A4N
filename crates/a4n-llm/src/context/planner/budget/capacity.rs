@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::rules::{checked_context_token_add, context_token_overflow};
 

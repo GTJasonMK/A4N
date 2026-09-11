@@ -1,4 +1,3 @@
-use super::super::status::get_galgame_pipeline_status;
 use crate::{AppState, actions::galgame_records::GalgameProjectInput};
 use a4n_api_contract::galgame::GalgamePipelineStatusSummary;
 
@@ -8,9 +7,8 @@ pub async fn cancel_galgame_pipeline(
     input: GalgameProjectInput,
 ) -> Result<GalgamePipelineStatusSummary, String> {
     state
-        .orchestrator()
-        .cancel_galgame_pipeline_for_user_validated(user_id, input.project_id)
+        .galgame_pipeline_application()
+        .cancel(user_id, input.project_id)
         .await
-        .map_err(|error| error.to_string())?;
-    get_galgame_pipeline_status(state, user_id, input).await
+        .map_err(|error| error.to_string())
 }

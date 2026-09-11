@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingProvider;
+use a4n_error::AppError;
 use a4n_rag_core::{
     errors::{embedding_provider_error, vector_store_error},
     validation::validate_embedding_batch,
@@ -40,4 +40,5 @@ pub(crate) async fn hybrid_rag_search_with_validated_embedding_in_store(
         )
         .await
         .map_err(vector_store_error)
+        .map_err(AppError::from)
 }

@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::GalgamePipelineLineStaged;
 use super::contracts::*;

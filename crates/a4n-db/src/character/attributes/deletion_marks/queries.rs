@@ -1,4 +1,4 @@
-use a4n_core::models::character::protagonist_deletion_mark;
+use a4n_db_models::models::character::protagonist_deletion_mark;
 use a4n_domain::character::{CHARACTER_DELETION_THRESHOLD, DeletionMarkStatus};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 

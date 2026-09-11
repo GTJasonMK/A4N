@@ -2,8 +2,8 @@ use super::super::prompt_json::{
     VideoFramePrompt, VideoFramePromptDefaults, parse_storyboard_frame_prompts_with_defaults,
     parse_video_frame_prompts_with_defaults,
 };
-use a4n_core::error::AppError;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_error::AppError;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 fn parse_video_frame_prompts(raw: &str) -> Result<Vec<VideoFramePrompt>, AppError> {
     let value: serde_json::Value = serde_json::from_str(raw)?;

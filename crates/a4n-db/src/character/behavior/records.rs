@@ -1,6 +1,7 @@
-use super::{contracts::InsertBehaviorRecordInput, validation::validate_behavior_record_input};
+use super::validation::validate_behavior_record_input;
 use crate::character::CharacterDbError;
-use a4n_core::models::character::protagonist_behavior_record;
+use a4n_db_models::models::character::protagonist_behavior_record;
+use a4n_domain::character::InsertBehaviorRecordInput;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
 
 async fn insert_behavior_record<C>(

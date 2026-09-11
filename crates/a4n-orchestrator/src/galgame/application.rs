@@ -1,6 +1,13 @@
-use a4n_api_contract::galgame::GalgamePipelineStatusSummary;
-use a4n_core::{error::AppError, models::generation::workflow_run};
+use a4n_api_contract::galgame::{
+    BindGalgameMediaInput, DeleteGalgameLineInput, GalgameChoice, GalgameLine,
+    GalgameMediaBindingSummary, GalgamePipelineStatusSummary, GalgameProgressReporter,
+    GalgameScene, ImportGalgameAudioInput, InsertGalgameLineInput, PreviewGalgamePipelineInput,
+    ReorderGalgameLinesInput, StartGalgamePipelineInput, UnbindGalgameMediaInput,
+    UpdateGalgameChoicesInput, UpdateGalgameLineInput, UpdateGalgameSceneInput,
+};
+use a4n_db_models::models::generation::workflow_run;
 use a4n_domain::project::ProjectKind;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::{
@@ -11,8 +18,7 @@ use crate::{
 
 use super::{
     GALGAME_PIPELINE_WORKFLOW_KIND, GalgameAssetPlan, GalgamePipelineRunOptions,
-    GalgamePipelineStartStage, GalgameProgressReporter, GalgameScriptDetail,
-    galgame_pipeline_workflow_run_input,
+    GalgamePipelineStartStage, GalgameScriptDetail, galgame_pipeline_workflow_run_input,
 };
 
 pub struct GalgamePipelineApplicationInput {
@@ -21,6 +27,104 @@ pub struct GalgamePipelineApplicationInput {
     pub start_from_stage: Option<GalgamePipelineStartStage>,
     pub resume_from_checkpoint: bool,
     pub progress_reporter: Option<GalgameProgressReporter>,
+}
+
+/// Host-facing Galgame pipeline boundary. Runtime supplies only prompt
+/// rendering and progress reporting adapters; authorization and workflow
+/// state remain owned by the Galgame application.
+#[async_trait::async_trait]
+pub trait GalgamePipelineApplicationPort: Send + Sync {
+    async fn start(
+        &self,
+        user_id: i64,
+        input: StartGalgamePipelineInput,
+        progress_reporter: Option<GalgameProgressReporter>,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<GalgameScriptDetail, AppError>;
+
+    async fn preview(
+        &self,
+        user_id: i64,
+        input: PreviewGalgamePipelineInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Vec<super::GalgamePipelinePreviewRequest>, AppError>;
+
+    async fn status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgamePipelineStatusSummary, AppError>;
+
+    async fn cancel(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgamePipelineStatusSummary, AppError>;
+}
+
+/// Host-facing Galgame record boundary. Record authorization, persistence and
+/// DTO projection stay in the Galgame owner.
+#[async_trait::async_trait]
+pub trait GalgameRecordApplicationPort: Send + Sync {
+    async fn update_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameLineInput,
+    ) -> Result<GalgameLine, AppError>;
+
+    async fn insert_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: InsertGalgameLineInput,
+    ) -> Result<GalgameLine, AppError>;
+
+    async fn update_scene(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameSceneInput,
+    ) -> Result<GalgameScene, AppError>;
+
+    async fn delete_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: DeleteGalgameLineInput,
+    ) -> Result<(), AppError>;
+
+    async fn reorder_lines(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: ReorderGalgameLinesInput,
+    ) -> Result<Vec<GalgameLine>, AppError>;
+
+    async fn update_choices(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameChoicesInput,
+    ) -> Result<Vec<GalgameChoice>, AppError>;
+
+    async fn bind_media(
+        &self,
+        user_id: i64,
+        input: BindGalgameMediaInput,
+    ) -> Result<GalgameMediaBindingSummary, AppError>;
+
+    async fn unbind_media(
+        &self,
+        user_id: i64,
+        input: UnbindGalgameMediaInput,
+    ) -> Result<u64, AppError>;
+
+    async fn import_audio(
+        &self,
+        user_id: i64,
+        input: ImportGalgameAudioInput,
+    ) -> Result<GalgameMediaBindingSummary, AppError>;
 }
 
 impl OrchestratorContext {
@@ -361,6 +465,164 @@ impl OrchestratorContext {
                 operation: "取消 Galgame 管线".to_string(),
             })?;
         self.cancel_workflow_run_status_validated(run.id, "用户请求取消 Galgame 管线")
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl GalgamePipelineApplicationPort for OrchestratorContext {
+    async fn start(
+        &self,
+        user_id: i64,
+        input: StartGalgamePipelineInput,
+        progress_reporter: Option<GalgameProgressReporter>,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<GalgameScriptDetail, AppError> {
+        self.run_galgame_pipeline_for_user_validated(
+            user_id,
+            GalgamePipelineApplicationInput {
+                project_id: input.project_id,
+                task_id: input.task_id,
+                start_from_stage: input.start_from_stage,
+                resume_from_checkpoint: input.resume_from_checkpoint,
+                progress_reporter,
+            },
+            prompt_renderer,
+        )
+        .await
+    }
+
+    async fn preview(
+        &self,
+        user_id: i64,
+        input: PreviewGalgamePipelineInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Vec<super::GalgamePipelinePreviewRequest>, AppError> {
+        self.prepare_galgame_pipeline_preview_for_user_validated(
+            user_id,
+            input.project_id,
+            input.start_from_stage,
+            input.resume_from_checkpoint,
+            prompt_renderer,
+        )
+        .await
+    }
+
+    async fn status(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgamePipelineStatusSummary, AppError> {
+        self.get_galgame_pipeline_status_for_user_validated(user_id, project_id)
+            .await
+    }
+
+    async fn cancel(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<GalgamePipelineStatusSummary, AppError> {
+        self.cancel_galgame_pipeline_for_user_validated(user_id, project_id)
+            .await?;
+        self.get_galgame_pipeline_status_for_user_validated(user_id, project_id)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl GalgameRecordApplicationPort for OrchestratorContext {
+    async fn update_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameLineInput,
+    ) -> Result<GalgameLine, AppError> {
+        self.update_galgame_line_for_user_validated(user_id, project_id, input)
+            .await
+    }
+
+    async fn insert_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: InsertGalgameLineInput,
+    ) -> Result<GalgameLine, AppError> {
+        self.insert_galgame_line_for_user_validated(user_id, project_id, input)
+            .await
+    }
+
+    async fn update_scene(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameSceneInput,
+    ) -> Result<GalgameScene, AppError> {
+        self.update_galgame_scene_for_user_validated(user_id, project_id, input)
+            .await
+    }
+
+    async fn delete_line(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: DeleteGalgameLineInput,
+    ) -> Result<(), AppError> {
+        self.delete_galgame_line_for_user_validated(user_id, project_id, input.line_id)
+            .await
+    }
+
+    async fn reorder_lines(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: ReorderGalgameLinesInput,
+    ) -> Result<Vec<GalgameLine>, AppError> {
+        self.reorder_galgame_lines_for_user_validated(user_id, project_id, input)
+            .await
+    }
+
+    async fn update_choices(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: UpdateGalgameChoicesInput,
+    ) -> Result<Vec<GalgameChoice>, AppError> {
+        self.update_galgame_choices_for_user_validated(user_id, project_id, input)
+            .await
+    }
+
+    async fn bind_media(
+        &self,
+        user_id: i64,
+        input: BindGalgameMediaInput,
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
+        self.bind_galgame_media_for_user_validated(user_id, input)
+            .await
+    }
+
+    async fn unbind_media(
+        &self,
+        user_id: i64,
+        input: UnbindGalgameMediaInput,
+    ) -> Result<u64, AppError> {
+        self.unbind_galgame_media_for_user_validated(user_id, input)
+            .await
+    }
+
+    async fn import_audio(
+        &self,
+        user_id: i64,
+        input: ImportGalgameAudioInput,
+    ) -> Result<GalgameMediaBindingSummary, AppError> {
+        self.import_galgame_audio_for_user_validated(user_id, input)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::galgame::GalgameReadApplicationPort for OrchestratorContext {
+    async fn script(&self, user_id: i64, project_id: i64) -> Result<GalgameScriptDetail, AppError> {
+        self.get_galgame_script_for_user_validated(user_id, project_id)
             .await
     }
 }

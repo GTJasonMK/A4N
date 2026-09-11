@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::generation_spec_media_ref,
     media::{media_asset, media_binding, media_provenance},
 };
@@ -19,7 +19,7 @@ pub(crate) use bindings::{
 pub use creation::create_media_asset_with_provenance_record;
 pub(crate) use paths::media_path_has_persisted_reference;
 pub use paths::{filter_unreferenced_media_paths, media_path_prefix_has_persisted_reference};
-pub use types::{CreateMediaAssetRecordInput, MediaDbError, MediaProvenanceRecordInput};
+pub use types::MediaDbError;
 
 pub(crate) async fn schedule_unreferenced_media_cleanup<C>(
     db: &C,

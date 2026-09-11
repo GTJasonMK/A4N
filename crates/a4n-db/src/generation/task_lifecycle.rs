@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{
         generation_run, generation_start_request, generation_task_checkpoint, workflow_run,
     },
@@ -1576,7 +1576,13 @@ where
                         provider_kind.clone(),
                         provider_job_id.clone(),
                         idempotency_hash.clone(),
-                    )?,
+                    )
+                    .map_err(|error| {
+                        GenerationTaskLifecycleError::Corrupt(format!(
+                            "generation task {} provider cleanup payload 无效: {error}",
+                            checkpoint.task_id
+                        ))
+                    })?,
                 });
             }
         } else if checkpoint.provider_job_id.is_some() {
@@ -1596,14 +1602,34 @@ where
                 "generation:{}:{}:artifact-unbind:{}:{}",
                 checkpoint.task_id, snapshot.attempt, artifact.artifact_id, artifact.revision
             ),
-            payload: GenerationArtifactUnbindPayload::from_artifact(artifact)?,
+            payload: GenerationArtifactUnbindPayload::from_artifact_parts(
+                artifact.artifact_id.clone(),
+                artifact.revision.clone(),
+            )
+            .map_err(|error| {
+                GenerationTaskLifecycleError::Corrupt(format!(
+                    "generation task {} artifact unbind payload 无效: {error}",
+                    checkpoint.task_id
+                ))
+            })?,
         });
         intents.push(PreparedCleanupIntent::StagingDelete {
             dedupe_key: format!(
                 "generation:{}:{}:staging-delete:{}:{}",
                 checkpoint.task_id, snapshot.attempt, artifact.artifact_id, artifact.revision
             ),
-            payload: GenerationStagingArtifactDeletePayload::from_artifact(artifact)?,
+            payload: GenerationStagingArtifactDeletePayload::from_artifact_parts(
+                artifact.temporary,
+                artifact.artifact_id.clone(),
+                artifact.sha256.clone(),
+                artifact.revision.clone(),
+            )
+            .map_err(|error| {
+                GenerationTaskLifecycleError::Corrupt(format!(
+                    "generation task {} staging artifact payload 无效: {error}",
+                    checkpoint.task_id
+                ))
+            })?,
         });
     }
     for artifact in checkpoint_staging_artifacts(checkpoint)? {
@@ -1612,7 +1638,18 @@ where
                 "generation:{}:{}:staging-delete:{}:{}",
                 checkpoint.task_id, snapshot.attempt, artifact.artifact_id, artifact.revision
             ),
-            payload: GenerationStagingArtifactDeletePayload::from_artifact(&artifact)?,
+            payload: GenerationStagingArtifactDeletePayload::from_artifact_parts(
+                artifact.temporary,
+                artifact.artifact_id.clone(),
+                artifact.sha256.clone(),
+                artifact.revision.clone(),
+            )
+            .map_err(|error| {
+                GenerationTaskLifecycleError::Corrupt(format!(
+                    "generation task {} staging artifact payload 无效: {error}",
+                    checkpoint.task_id
+                ))
+            })?,
         });
     }
     intents.sort_by(|left, right| left.dedupe_key().cmp(right.dedupe_key()));

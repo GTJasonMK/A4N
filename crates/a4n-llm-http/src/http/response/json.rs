@@ -1,5 +1,5 @@
 use super::super::errors::{internal_error, response_preview};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(super) fn json_response_preview(value: &Value, max_chars: usize) -> String {

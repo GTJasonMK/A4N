@@ -1,6 +1,6 @@
 //! 首帧链提示词与尾帧图片匹配规则（无 DB、无 Host）。
 
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 
 use super::{PromptChainFields, prompt_chain_matches, prompt_source_type_matches};
 

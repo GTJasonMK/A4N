@@ -1,6 +1,7 @@
-use super::super::{ChapterContentImportError, ImportChapterContentInput, assign_chapter_content};
+use super::super::{ChapterContentImportError, assign_chapter_content};
 use super::ImportChapterContentTarget;
-use a4n_core::models::chapter::chapter::{self, STATUS_IMPORTED};
+use a4n_db_models::models::chapter::chapter::{self, STATUS_IMPORTED};
+use a4n_domain::chapter::ImportChapterContentInput;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 

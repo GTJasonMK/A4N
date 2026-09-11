@@ -1,6 +1,6 @@
 use std::pin::Pin;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use async_trait::async_trait;
 use futures::stream::Stream;
 

@@ -4,7 +4,7 @@ use super::persistence::{
     insert_or_update_profile_seed_with_existing, merge_profile_seed_model,
     update_profile_seed_models_batch,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::protagonist_profile,
     project::{blueprint_character, blueprint_relationship},
 };

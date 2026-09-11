@@ -2,7 +2,7 @@ use crate::galgame::{
     GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE, GalgameMediaRecordError, GalgameTargetContext,
     require_galgame_media_text, validate_galgame_media_target_ids,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
     project::source_snapshot_chapter,
 };

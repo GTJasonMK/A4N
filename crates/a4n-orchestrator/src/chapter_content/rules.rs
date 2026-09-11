@@ -1,7 +1,7 @@
 //! 章节正文 Host 输入与状态门禁的纯规则（无 DB）。
 
-use a4n_core::error::AppError;
 use a4n_db::chapter_content::ChapterContentImportError;
+use a4n_error::AppError;
 
 use crate::project::PROJECT_KIND_TEXT;
 

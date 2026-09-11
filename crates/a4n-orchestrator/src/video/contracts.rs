@@ -1,17 +1,16 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    models::chapter::chapter, prompt_language::PromptOutputLanguage,
-    video_execution::VideoSegmentExecutionRecipeV1,
-};
+use a4n_db_models::models::chapter::chapter;
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_prompt::rendering::PromptRenderer;
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
 use crate::generation::step_progress_state;
 
-use super::duration::VideoDurationCapability;
+use a4n_video::VideoDurationCapability;
 
 pub(super) const FRAME_SEGMENT_PLAN_CONTRACT_VERSION: &str = "video_execution_contract_v5";
 pub(super) const BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION: &str = "boundary_frame_segment_local_v4";
@@ -107,7 +106,7 @@ impl VideoPromptProgressUpdate {
 }
 
 pub(super) type VideoPromptProgress<'a> =
-    &'a mut (dyn FnMut(VideoPromptProgressUpdate) -> Result<(), a4n_core::error::AppError> + Send);
+    &'a mut (dyn FnMut(VideoPromptProgressUpdate) -> Result<(), a4n_error::AppError> + Send);
 pub(super) type VideoPromptChunk<'a> = &'a mut (dyn FnMut(&str, u32) + Send);
 
 #[derive(Debug, Clone, PartialEq)]

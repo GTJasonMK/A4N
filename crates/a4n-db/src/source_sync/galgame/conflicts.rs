@@ -1,5 +1,5 @@
 use crate::source_sync::{CONFLICT_STATUS_PENDING, CONFLICT_STATUS_RESOLVED, SourceSyncDbError};
-use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_db_models::models::source_sync::source_sync_conflict;
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, sea_query::Expr};

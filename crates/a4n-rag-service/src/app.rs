@@ -7,8 +7,7 @@ use crate::handlers::{
     },
     search::{query, search, search_text},
 };
-use a4n_core::config::env::optional_non_empty_env_path;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_rag_index::QdrantVectorStore;
 use a4n_service_protocol::{
@@ -121,8 +120,14 @@ fn init_tracing() -> anyhow::Result<()> {
 }
 
 fn data_dir() -> Result<PathBuf, AppError> {
-    optional_non_empty_env_path("A4N_RAG_SERVICE_DATA_DIR")?
-        .ok_or_else(|| AppError::ConfigError("A4N_RAG_SERVICE_DATA_DIR 未设置".to_string()))
+    let value = std::env::var_os("A4N_RAG_SERVICE_DATA_DIR")
+        .ok_or_else(|| AppError::Configuration("A4N_RAG_SERVICE_DATA_DIR 未设置".to_string()))?;
+    if value.to_string_lossy().trim().is_empty() {
+        return Err(AppError::Configuration(
+            "A4N_RAG_SERVICE_DATA_DIR 不能为空".to_string(),
+        ));
+    }
+    Ok(PathBuf::from(value))
 }
 
 fn router(state: RagServiceState) -> Router {
@@ -155,7 +160,7 @@ fn router(state: RagServiceState) -> Router {
 #[cfg(test)]
 mod mutation_marker_tests {
     use super::{RagMutationMarker, RagServiceState};
-    use a4n_core::error::AppError;
+    use a4n_domain::ProviderError as AppError;
     use a4n_rag_core::memory_store::MemoryVectorStore;
     use a4n_test_support::process::SidecarProcessTestDir;
     use std::sync::Arc;
@@ -178,11 +183,11 @@ mod mutation_marker_tests {
         };
 
         let error = state
-            .persist_mutation(async { Err::<(), _>(AppError::ConfigError("expected".into())) })
+            .persist_mutation(async { Err::<(), _>(AppError::Configuration("expected".into())) })
             .await
             .expect_err("mutation should fail");
 
-        assert!(matches!(error, AppError::ConfigError(message) if message == "expected"));
+        assert!(matches!(error, AppError::Configuration(message) if message == "expected"));
         assert!(RagMutationMarker::require_clean(data_dir.path()).is_ok());
     }
 }

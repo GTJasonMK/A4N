@@ -3,7 +3,7 @@ use super::contracts::{
 };
 use super::queries::project_by_id_record;
 use super::rules::required_project_title;
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::sea_query::Expr;
 use sea_orm::{

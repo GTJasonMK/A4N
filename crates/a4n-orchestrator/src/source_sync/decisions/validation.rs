@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::galgame::{
     GalgameSceneRegenerationPlan, LINE_TYPE_CHOICE, SCENE_ENTRY_MAIN, normalize_line_type,

@@ -1,6 +1,6 @@
 use super::super::json::parse_blueprint_optimization_json;
-use a4n_core::blueprint::ParsedBlueprintOptimization;
-use a4n_core::error::AppError;
+use a4n_domain::project::ParsedBlueprintOptimization;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::structured_llm::ensure_checkpoint_parsed_output_matches;

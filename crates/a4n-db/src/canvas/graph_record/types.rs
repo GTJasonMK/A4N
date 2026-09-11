@@ -1,4 +1,4 @@
-use a4n_core::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
+use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -40,12 +40,4 @@ pub struct CanvasEdgeRecordInput {
     pub target_port: String,
     pub role: String,
     pub config_json: Option<Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CanvasTextAssetRecordInput {
-    pub id: Option<i64>,
-    pub title: String,
-    pub text_kind: String,
-    pub content: String,
 }

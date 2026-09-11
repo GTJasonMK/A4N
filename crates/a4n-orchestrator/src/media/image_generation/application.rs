@@ -1,26 +1,24 @@
 use std::collections::{BTreeSet, HashMap};
 
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
-use a4n_core::{
-    config::{ensure_image_size_supported, image_sizes_from_json},
-    error::AppError,
-    models::{
-        asset::object_profile,
-        chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE, Model as MangaPagePrompt},
-        project::novel_project,
-        scene::scene_profile,
-    },
-    source_spans::{
-        ChapterSourceContext, source_metadata, source_text_hash as source_content_sha256,
-    },
+use a4n_canvas_contract::GenerateCanvasImageInput;
+use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
+use a4n_db_models::models::{
+    asset::object_profile,
+    chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE, Model as MangaPagePrompt},
+    project::novel_project,
+    scene::scene_profile,
 };
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_domain::{
     image::{
         IMAGE_TYPE_CANVAS, IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL,
-        video_frame_image_generation_context,
+        batch_item_reference_image_ids, video_frame_image_generation_context,
     },
     profile_material::ProfileMaterialKind,
+    source_spans::{ChapterSourceContext, source_metadata},
 };
+use a4n_error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageReference};
 use serde_json::{Value, json};
 
@@ -33,7 +31,6 @@ use crate::{
         profile_material_metadata, scene_profile_content, scene_profile_image_prompt,
     },
     project::ChapterMangaSourceSummary,
-    video::batch_item_reference_image_ids,
 };
 
 use super::{
@@ -46,11 +43,11 @@ use super::{
         },
     },
     contracts::{
-        GenerateBatchImagesInput, GenerateCanvasImageInput, GenerateGalgameImageInput,
-        GeneratePageImageInput, GenerateSceneImageInput, ImageGenerationExecutionInput,
-        ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
-        ImageGenerationWorkflowBinding, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-        PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
+        GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
+        GenerateSceneImageInput, ImageGenerationExecutionInput, ImageGenerationHostPort,
+        ImageGenerationPostCommitAction, ImageGenerationProgress, ImageGenerationWorkflowBinding,
+        ObjectProfileImageInput, ObjectProfileImagePromptOutput, PreparedImageGenerationRequest,
+        SceneProfileImageInput, SceneProfileImagePromptOutput,
     },
 };
 
@@ -154,7 +151,7 @@ impl OrchestratorContext {
     ) -> Result<super::GeneratedImageSummary, AppError> {
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
-        self.generate_direct_image(host, scene_image_plan(input), progress)
+        self.generate_direct_image(host, user_id, scene_image_plan(input), progress)
             .await
     }
 
@@ -189,7 +186,7 @@ impl OrchestratorContext {
         }
         self.require_image_project_editor(user_id, input.project_id)
             .await?;
-        self.generate_direct_image(host, galgame_image_plan(input), progress)
+        self.generate_direct_image(host, user_id, galgame_image_plan(input), progress)
             .await
     }
 
@@ -245,7 +242,7 @@ impl OrchestratorContext {
         let (width, height) = required_image_size(input.width, input.height)?;
         let material = self.object_profile_image_material(user_id, &input).await?;
         self.generate_profile_image(
-            host, material, config_id, chapter_id, width, height, progress,
+            host, user_id, material, config_id, chapter_id, width, height, progress,
         )
         .await
     }
@@ -262,7 +259,7 @@ impl OrchestratorContext {
         let (width, height) = required_image_size(input.width, input.height)?;
         let material = self.scene_profile_image_material(user_id, &input).await?;
         self.generate_profile_image(
-            host, material, config_id, chapter_id, width, height, progress,
+            host, user_id, material, config_id, chapter_id, width, height, progress,
         )
         .await
     }
@@ -296,6 +293,7 @@ impl OrchestratorContext {
             .run_image_generation_validated(
                 host,
                 ImageGenerationExecutionInput {
+                    requested_by_user_id: user_id,
                     project_id,
                     chapter_id: Some(prepared.chapter.chapter_id),
                     image_type: "manga_page".to_string(),
@@ -385,6 +383,7 @@ impl OrchestratorContext {
         self.run_batch_image_generation_validated(
             host,
             BatchImageGenerationApplicationInput {
+                requested_by_user_id: user_id,
                 project_id: input.project_id,
                 requests: input.requests,
                 items,
@@ -421,6 +420,7 @@ impl OrchestratorContext {
     async fn generate_profile_image(
         &self,
         host: &dyn ImageGenerationHostPort,
+        user_id: i64,
         material: ProfileImageMaterial,
         config_id: Option<i64>,
         chapter_id: Option<i64>,
@@ -430,6 +430,7 @@ impl OrchestratorContext {
     ) -> Result<super::GeneratedImageSummary, AppError> {
         self.generate_direct_image(
             host,
+            user_id,
             profile_image_plan(material, config_id, chapter_id, width, height),
             progress,
         )
@@ -439,6 +440,7 @@ impl OrchestratorContext {
     async fn generate_direct_image(
         &self,
         host: &dyn ImageGenerationHostPort,
+        user_id: i64,
         plan: DirectImagePlan,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<super::GeneratedImageSummary, AppError> {
@@ -449,7 +451,7 @@ impl OrchestratorContext {
             .await?;
         progress.progress(1, 3, "正在调用图片模型");
         let outcome = self
-            .execute_prepared_direct_image(host, prepared, progress)
+            .execute_prepared_direct_image(host, user_id, prepared, progress)
             .await?;
         progress.progress(
             3,
@@ -510,6 +512,7 @@ impl OrchestratorContext {
     async fn execute_prepared_direct_image(
         &self,
         host: &dyn ImageGenerationHostPort,
+        user_id: i64,
         prepared: PreparedDirectImage,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<super::ImageGenerationExecutionOutcome, AppError> {
@@ -522,6 +525,7 @@ impl OrchestratorContext {
         self.run_image_generation_validated(
             host,
             ImageGenerationExecutionInput {
+                requested_by_user_id: user_id,
                 project_id: prepared.plan.project_id,
                 chapter_id: prepared.chapter_id,
                 image_type: prepared.plan.image_type,
@@ -585,7 +589,7 @@ impl OrchestratorContext {
         ensure_image_size_supported(&supported_sizes, input.width, input.height)?;
         let reference_image_mode = if reference_images.is_empty() {
             "none".to_string()
-        } else if a4n_core::config::image_backend_supports_reference_images(&config.backend) {
+        } else if a4n_domain::image::image_backend_supports_reference_images(&config.backend) {
             "image_input".to_string()
         } else {
             return Err(AppError::InvalidArgument(format!(

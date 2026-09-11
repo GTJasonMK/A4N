@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::optimization_session_message;
+use a4n_db_models::models::ai::optimization_session_message;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::{OptimizationSessionMessageInsertInput, OrchestratorContext};

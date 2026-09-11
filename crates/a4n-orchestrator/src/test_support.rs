@@ -2,14 +2,14 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
-use a4n_core::config::app_config::AppConfig;
-use a4n_core::event::bridge::BroadcastEventBus;
-use a4n_core::event::channel::TaskManager;
+use a4n_config::app_config::AppConfig;
 use a4n_db::{DbHandle, SharedDatabaseConnection, character::Sha256SnapshotStore};
 use a4n_embedding::provider::EmbeddingProvider;
+use a4n_event::BroadcastEventBus;
 use a4n_llm::provider::LlmProvider;
 use a4n_rag_core::{memory_store::MemoryVectorStore, vector_store::VectorStore};
 use a4n_service_manager::ServiceManager;
+use a4n_task_runtime::channel::TaskManager;
 use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use a4n_test_support::llm::UnavailableLlmProvider;
 

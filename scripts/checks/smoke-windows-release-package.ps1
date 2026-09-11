@@ -91,6 +91,27 @@ try {
     if (-not (Test-Path -LiteralPath $StartScript -PathType Leaf)) {
         throw "release package is missing start.ps1"
     }
+    $SelectedService = $Services | Select-Object -First 1
+    if ($null -eq $SelectedService) {
+        throw "sidecar service catalog is empty"
+    }
+    $SelectedSidecar = Join-Path $PackageRoot "bin\services\$($SelectedService.binary).exe"
+    if (-not (Test-Path -LiteralPath $SelectedSidecar -PathType Leaf)) {
+        throw "release package is missing selected sidecar: $($SelectedService.binary).exe"
+    }
+    $MissingSidecar = "$SelectedSidecar.missing"
+    if (Test-Path -LiteralPath $MissingSidecar) {
+        throw "release package contains unexpected sidecar test path: $MissingSidecar"
+    }
+    Move-Item -LiteralPath $SelectedSidecar -Destination $MissingSidecar
+    try {
+        & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $StartScript *> $null
+        if ($LASTEXITCODE -eq 0) {
+            throw "release package accepted a missing selected sidecar"
+        }
+    } finally {
+        Move-Item -LiteralPath $MissingSidecar -Destination $SelectedSidecar
+    }
     foreach ($entry in $ReleaseTools) {
         $tool = "$($entry.binary).exe"
         $toolPath = Join-Path $PackageRoot "bin\$tool"

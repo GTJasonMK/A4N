@@ -1,11 +1,12 @@
 use super::contracts::{
     CLEANUP_LEASE_SECONDS, CLEANUP_STATUS_COMPLETED, CLEANUP_STATUS_FAILED, CLEANUP_STATUS_PENDING,
     CLEANUP_STATUS_RUNNING, GENERATION_ARTIFACT_UNBIND_KIND, GENERATION_PROVIDER_JOB_CLEANUP_KIND,
-    GENERATION_STAGING_ARTIFACT_DELETE_KIND, GenerationCleanupOutcome, GenerationCleanupPayload,
+    GENERATION_STAGING_ARTIFACT_DELETE_KIND, GenerationCleanupObservationOutcome,
+    GenerationCleanupOutcome, GenerationCleanupPayload, GenerationCleanupRetryOutcome,
     GenerationCleanupScope, GenerationProviderJobCleanupOperation,
     GenerationProviderJobCleanupPayload, parse_generation_cleanup_payload,
 };
-use a4n_core::models::task::cleanup_outbox;
+use a4n_db_models::models::task::cleanup_outbox;
 use a4n_service_protocol::redact_sensitive_message;
 use chrono::{Duration, Utc};
 use sea_orm::{
@@ -21,18 +22,6 @@ const GENERATION_CLEANUP_RETRY_DELAYS: [Duration; 5] = [
     Duration::hours(12),
 ];
 const GENERATION_CLEANUP_DEADLINE: Duration = Duration::days(30);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GenerationCleanupRetryOutcome {
-    Scheduled,
-    Exhausted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum GenerationCleanupObservationOutcome {
-    Rescheduled,
-    DeadlineExceeded,
-}
 
 pub async fn renew_claimed_cleanup<C>(db: &C, id: i64, lease_token: &str) -> Result<(), DbErr>
 where
@@ -284,7 +273,8 @@ pub async fn schedule_provider_delete_from_reconcile(
         payload.provider_kind,
         payload.provider_job_id,
         payload.provider_idempotency_key_sha256,
-    )?;
+    )
+    .map_err(|error| DbErr::Custom(error.to_string()))?;
     let delete_intent = super::intent::insert_generation_provider_job_cleanup_intent(
         &tx,
         format!("{}:delete", record.dedupe_key),

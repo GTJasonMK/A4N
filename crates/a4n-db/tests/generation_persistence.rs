@@ -1,25 +1,28 @@
-use a4n_core::models::{
-    chapter::chapter,
-    generation::generation_start_request,
-    project::project_member,
-    task::{task_dependency, task_queue},
-};
 use a4n_db::cleanup_outbox::{
     GenerationArtifactUnbindPayload, GenerationCleanupScope,
     insert_generation_artifact_unbind_intent,
 };
 use a4n_db::generation::{
-    GenerationTaskListCursor, GenerationTaskPersistenceError, PersistGenerationCheckpointInput,
-    ProjectLifecycleOperation, ReserveGenerationTaskInput, begin_project_lifecycle_gate,
-    canonical_json_sha256, expire_generation_snapshot_bodies, extend_generation_sequence_lease,
-    list_active_generation_task_checkpoints, list_generation_task_history_checkpoints,
-    load_generation_task, persist_generation_cancel_requested_batch, persist_generation_checkpoint,
+    GenerationTaskPersistenceError, PersistGenerationCheckpointInput, ReserveGenerationTaskInput,
+    begin_project_lifecycle_gate, canonical_json_sha256, expire_generation_snapshot_bodies,
+    extend_generation_sequence_lease, list_active_generation_task_checkpoints,
+    list_generation_task_history_checkpoints, load_generation_task,
+    persist_generation_cancel_requested_batch, persist_generation_checkpoint,
     persist_generation_status_changed, persist_generation_terminal,
     purge_expired_generation_task_trees, reserve_generation_task, restore_project_lifecycle_gate,
 };
 use a4n_db::workflow::{
     ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
     WORKFLOW_STATUS_FAILED, claim_exclusive_workflow_run, mark_workflow_status,
+};
+use a4n_db_models::models::{
+    chapter::chapter,
+    generation::generation_start_request,
+    project::project_member,
+    task::{task_dependency, task_queue},
+};
+use a4n_domain::generation::{
+    GenerationTaskListCursor, LifecycleGateClaimState, ProjectLifecycleOperation,
 };
 use a4n_migration::test_support::connect_test_database;
 use a4n_queue::priority::{TaskKind, TaskPriority};
@@ -457,10 +460,7 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
         begin_project_lifecycle_gate(&db, project.id, user.id, ProjectLifecycleOperation::Reset)
             .await
             .unwrap();
-    assert!(matches!(
-        claim.state,
-        a4n_db::generation::LifecycleGateClaimState::Started
-    ));
+    assert!(matches!(claim.state, LifecycleGateClaimState::Started));
     let blocked = reserve_generation_task(
         &db,
         reservation_input(user.id, project.id, Uuid::new_v4().to_string()),
@@ -558,7 +558,7 @@ async fn generation_persistence_reservation_lease_checkpoint_and_gate_use_postgr
             == 2
     );
     assert!(
-        a4n_core::models::task::task_queue::Entity::find_by_id(first.task.checkpoint.task_id)
+        a4n_db_models::models::task::task_queue::Entity::find_by_id(first.task.checkpoint.task_id)
             .one(&db)
             .await
             .unwrap()
@@ -832,7 +832,7 @@ WHERE id = $1
     assert!(load_generation_task(&db, &root_task_id).await.is_err());
     assert!(load_generation_task(&db, &child_task_id).await.is_err());
     assert!(
-        a4n_core::models::task::cleanup_outbox::Entity::find_by_id(audit.id)
+        a4n_db_models::models::task::cleanup_outbox::Entity::find_by_id(audit.id)
             .one(&db)
             .await
             .unwrap()

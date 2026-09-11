@@ -1,13 +1,11 @@
-use a4n_core::{
-    blueprint::{increment_blueprint_version, project_status_after_blueprint_generation},
-    models::{
-        chapter::part_outline,
-        project::{blueprint_version, novel_blueprint},
-    },
+use a4n_db_models::models::{
+    chapter::part_outline,
+    project::{blueprint_version, novel_blueprint},
 };
 use a4n_domain::project::{
     BLUEPRINT_MAX_TOTAL_CHAPTERS, BLUEPRINT_MIN_TOTAL_CHAPTERS, CHAPTERS_PER_PART, ProjectStatus,
-    is_valid_blueprint_total_chapters, needs_part_outlines_for_chapters,
+    ProjectStatusHistoryInput, increment_blueprint_version, is_valid_blueprint_total_chapters,
+    needs_part_outlines_for_chapters, project_status_after_blueprint_generation,
 };
 use chrono::Utc;
 use sea_orm::{
@@ -27,10 +25,7 @@ use super::{
 use crate::{
     generation::PROJECT_GATE_ACTIVE,
     outline::{OutlineGenerationSourceRows, load_outline_generation_source_rows_for_update},
-    project::{
-        PROJECT_KIND_TEXT, ProjectStatusHistoryInput, ProjectStatusWriteError,
-        insert_project_status_history,
-    },
+    project::{PROJECT_KIND_TEXT, ProjectStatusWriteError, insert_project_status_history},
 };
 
 pub async fn save_manual_blueprint_records_transaction<T>(
@@ -288,8 +283,9 @@ where
     C: ConnectionTrait,
 {
     let mut candidate = match current_version {
-        Some(version) => increment_blueprint_version(version)
-            .map_err(|error| BlueprintDbError::InvalidArgument(error.to_string()))?,
+        Some(version) => {
+            increment_blueprint_version(version).map_err(BlueprintDbError::InvalidArgument)?
+        }
         None => "1.0".to_string(),
     };
     let candidate_is_free = blueprint_version::Entity::find()
@@ -315,8 +311,8 @@ where
         .into_iter()
         .collect::<HashSet<_>>();
     while used_versions.contains(&candidate) {
-        candidate = increment_blueprint_version(&candidate)
-            .map_err(|error| BlueprintDbError::InvalidArgument(error.to_string()))?;
+        candidate =
+            increment_blueprint_version(&candidate).map_err(BlueprintDbError::InvalidArgument)?;
     }
     Ok(candidate)
 }
@@ -465,7 +461,7 @@ fn map_status_write_error(error: ProjectStatusWriteError) -> BlueprintDbError {
 mod tests {
     use super::{max_part_end_chapter, normalize_manual_input};
     use crate::blueprint::{SaveManualBlueprintInput, next_blueprint_version_record};
-    use a4n_core::models::project::blueprint_version;
+    use a4n_db_models::models::project::blueprint_version;
     use chrono::Utc;
     use sea_orm::{ActiveModelTrait, Set};
 

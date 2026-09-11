@@ -11,14 +11,8 @@ pub async fn preview_galgame_pipeline_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let prepared = state
-        .orchestrator()
-        .prepare_galgame_pipeline_preview_for_user_validated(
-            user_id,
-            input.project_id,
-            input.start_from_stage,
-            input.resume_from_checkpoint,
-            prompt_renderer,
-        )
+        .galgame_pipeline_application()
+        .preview(user_id, input, prompt_renderer)
         .await
         .map_err(crate::actions::app_error_message)?;
     let mut steps = Vec::with_capacity(prepared.len());

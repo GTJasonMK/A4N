@@ -1,6 +1,6 @@
-use a4n_core::config::app_config::{AppConfig, resolve_path_in_portable_home};
-use a4n_core::config::env::optional_non_empty_env_path;
-use a4n_core::error::AppError;
+use a4n_config::app_config::{AppConfig, resolve_path_in_portable_home};
+use a4n_config::optional_non_empty_env_path;
+use a4n_error::AppError;
 use std::path::{Path, PathBuf};
 
 pub(super) fn load_config_from_file(

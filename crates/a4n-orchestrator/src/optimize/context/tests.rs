@@ -1,5 +1,5 @@
-use a4n_core::models::chapter::chapter;
 use a4n_db::optimize::OptimizationChapterSummaryRecord;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::json;
 
 use super::manifest::optimization_context_manifest;

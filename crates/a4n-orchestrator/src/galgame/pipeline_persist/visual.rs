@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::{GalgamePipelineBackgroundPlan, GalgamePipelineEventCgPlan, GalgameVisualPlan};
 use super::contracts::*;

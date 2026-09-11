@@ -1,4 +1,4 @@
-use a4n_core::source_spans::{ChapterSourceContext, source_metadata_with_flags};
+use a4n_domain::source_spans::{ChapterSourceContext, source_metadata_with_flags};
 use serde_json::Value;
 
 use super::ChapterVideoSourceContext;

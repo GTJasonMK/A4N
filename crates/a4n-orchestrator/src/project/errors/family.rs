@@ -1,9 +1,9 @@
-use a4n_core::error::AppError;
 use a4n_db::project::{
     ProjectBasicRecordError, ProjectFamilyDbError, ProjectFamilyExportError,
     ProjectFamilyMetadataReadError, ProjectProgressReadError, ProjectRollbackImpactReadError,
 };
 use a4n_db::project_family_import::ProjectFamilyImportError;
+use a4n_error::AppError;
 
 pub(crate) fn project_family_error_to_app_error(error: ProjectFamilyDbError) -> AppError {
     match error {

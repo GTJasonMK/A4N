@@ -10,6 +10,9 @@ pub struct ReleaseManifest {
     pub version: String,
     pub target: String,
     pub protocol_version: u32,
+    /// 本次发布实际携带的 capability service 子集；空值兼容旧的全量 manifest。
+    #[serde(default)]
+    pub services: Vec<String>,
     pub binaries: Vec<ReleaseBinaryManifest>,
     pub tools: Vec<ReleaseToolManifest>,
     pub runtime_files: Vec<ReleaseRuntimeFileManifest>,

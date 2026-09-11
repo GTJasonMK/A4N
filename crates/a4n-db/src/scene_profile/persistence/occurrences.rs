@@ -1,6 +1,7 @@
 use super::refs::resolve_ref;
-use crate::scene_profile::{SceneOccurrenceRecordInput, SceneProfileDbError, SceneProfileDbResult};
-use a4n_core::models::scene::scene_occurrence;
+use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
+use a4n_db_models::models::scene::scene_occurrence;
+use a4n_domain::scene_profile::SceneOccurrenceRecordInput;
 use chrono::Utc;
 use sea_orm::{ConnectionTrait, EntityTrait, Set};
 use std::collections::{BTreeMap, BTreeSet};
@@ -73,15 +74,16 @@ where
 #[cfg(test)]
 mod tests {
     use super::insert_scene_occurrence_records;
-    use crate::scene_profile::{
-        SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneProfileRecordInput,
-        SceneTransitionRecordInput, create_scene_profile_record,
-    };
-    use a4n_core::models::{
+    use crate::scene_profile::create_scene_profile_record;
+    use a4n_db_models::models::{
         chapter::chapter,
         scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
     };
-    use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
+    use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
+    use a4n_domain::scene_profile::{
+        SceneEntityStateRecordInput, SceneOccurrenceRecordInput, SceneProfileRecordInput,
+        SceneTransitionRecordInput,
+    };
     use chrono::Utc;
     use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
     use serde_json::json;

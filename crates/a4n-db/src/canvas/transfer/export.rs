@@ -1,6 +1,6 @@
 use super::types::VideoStudioProjectExportRows;
 use crate::canvas::CanvasDbError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     generation::{generation_spec, prompt_artifact},

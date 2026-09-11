@@ -1,6 +1,6 @@
 use super::contracts::CharacterTimelineDeletionSummary;
 use crate::character::{CharacterDbError, validate_chapter_number};
-use a4n_core::models::character::{
+use a4n_db_models::models::character::{
     attribute_event::{self, SOURCE_KIND_AI_SYNC},
     character_state_index, protagonist_behavior_record, snapshot_reference,
 };

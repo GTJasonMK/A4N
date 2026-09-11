@@ -1,6 +1,6 @@
 use super::{CheckImportDedupInput, DedupResult};
 use crate::AppState;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn check_import_dedup(
     state: &AppState,
@@ -8,7 +8,7 @@ pub async fn check_import_dedup(
     input: CheckImportDedupInput,
 ) -> Result<DedupResult, AppError> {
     state
-        .orchestrator()
-        .check_import_dedup_for_user_validated(user_id, input.project_id, &input.content)
+        .import_review_application()
+        .dedup(user_id, input)
         .await
 }

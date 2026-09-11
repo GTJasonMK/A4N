@@ -1,25 +1,18 @@
 use super::*;
 use a4n_capabilities::JsonResponse;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::{ServiceResponse, ServiceStatus};
 use a4n_test_support::capability::RecordingVideoClient;
 use serde_json::json;
 use std::sync::Arc;
 
-fn fixed_time() -> chrono::NaiveDateTime {
-    chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
-        .unwrap()
-        .and_hms_opt(0, 0, 0)
-        .unwrap()
-}
-
-fn video_config() -> video_gen_config::Model {
-    let now = fixed_time();
-    video_gen_config::Model {
+fn video_config() -> VideoProviderConfig {
+    VideoProviderConfig {
         id: 1,
         name: "test-video".to_string(),
         backend: "openai-compatible-video".to_string(),
         base_url: Some("https://example.invalid/v1".to_string()),
-        api_key_encrypted: Some("test-key".to_string()),
+        api_key: Some("test-key".to_string()),
         model: "video-model".to_string(),
         max_concurrent: 1,
         default_width: 1280,
@@ -31,8 +24,6 @@ fn video_config() -> video_gen_config::Model {
         supported_durations_json: None,
         default_fps: 24,
         is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 

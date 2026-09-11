@@ -1,11 +1,11 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use a4n_embedding::provider::EmbeddingProvider;
 use a4n_rag_core::{
     chunk_strategy::{CHAPTER_RAG_MAX_CHUNK_CHARS, CHAPTER_RAG_MIN_CHUNK_CHARS},
     semantic_chunker::{split_novel_sentences, split_semantic_dp_text},
 };
 
-use super::contracts::ChapterRagChunkingMode;
+use a4n_rag_core::ChapterRagChunkingMode;
 
 pub(super) async fn chapter_rag_chunks_with_provider(
     chapter: &chapter::Model,

@@ -1,5 +1,5 @@
 use super::errors::internal_error;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use base64::Engine as _;
 pub(crate) fn decode_base64_image(raw: &str) -> Result<Vec<u8>, AppError> {
     let b64 = raw

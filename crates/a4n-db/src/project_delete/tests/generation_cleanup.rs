@@ -3,7 +3,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,
 };
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     media::{media_asset, media_binding, media_provenance},
 };
@@ -139,7 +139,7 @@ async fn freeform_reset_rediscovers_targets_and_preserves_imported_media() {
     set_project_gate(
         &db,
         &project,
-        crate::generation::ProjectLifecycleOperation::Reset,
+        a4n_domain::generation::ProjectLifecycleOperation::Reset,
     )
     .await;
     let reset = crate::project::reset_freeform_video_generated_data_records(&db, project.id)

@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use a4n_core::models::{generation::generation_spec, project::source_snapshot_profile};
+use a4n_db_models::models::{generation::generation_spec, project::source_snapshot_profile};
 use serde_json::{Map, Value};
 
 use crate::galgame::GalgameCgImportance;

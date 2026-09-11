@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::{Value, json};
 
@@ -23,7 +23,7 @@ pub(super) fn chapter_outline_call_fingerprint_json(
         "max_tokens": request.max_tokens,
         "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
-        "source_snapshot_sha256": a4n_core::source_spans::source_text_hash(
+        "source_snapshot_sha256": a4n_domain::source_text_hash(
             &serde_json::to_string(source_snapshot)?
         ),
         "target": {

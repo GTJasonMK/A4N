@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_error::AppError;
 use a4n_llm::provider::{
     ChatMessage, ChatRequest, ChatResponse, LlmProvider, UsageInfo, is_truncated_finish_reason,
 };
@@ -203,7 +203,7 @@ pub(crate) async fn execute_llm_generation(
                 );
                 let message = format!(
                     "模型流建立失败：{}",
-                    a4n_core::config::app_error_plain_message(error)
+                    a4n_config::app_error_plain_message(error)
                 );
                 return Err(public_error("provider_job_failed", &message, true, "provider_connect"));
             }
@@ -292,7 +292,7 @@ pub(crate) async fn execute_llm_generation(
                 );
                 let message = format!(
                     "模型流读取失败：{}",
-                    a4n_core::config::app_error_plain_message(error)
+                    a4n_config::app_error_plain_message(error)
                 );
                 return Err(public_error(
                     "provider_job_failed",
@@ -603,7 +603,7 @@ fn public_error(code: &str, message: &str, retryable: bool, stage_code: &str) ->
 mod tests {
     use std::{pin::Pin, sync::Mutex};
 
-    use a4n_core::error::AppError;
+    use a4n_error::AppError;
     use a4n_llm::provider::{ChatChunk, ChatMessage, ModelCapabilities, UsageInfo};
     use async_trait::async_trait;
     use futures::{Stream, stream};

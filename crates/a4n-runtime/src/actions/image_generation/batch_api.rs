@@ -1,4 +1,4 @@
-use a4n_orchestrator::media::GenerateBatchImagesInput;
+use a4n_api_contract::image_generation::GenerateBatchImagesInput;
 
 use super::{
     AppState, ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,
@@ -13,8 +13,8 @@ pub async fn preview_batch_images_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let requests = state
-        .orchestrator()
-        .prepare_batch_images_request_validated(&host, user_id, input)
+        .image_generation_application()
+        .prepare_batch_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     let total = requests.len();

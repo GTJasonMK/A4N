@@ -1,4 +1,4 @@
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
 use crate::project_family_import::{

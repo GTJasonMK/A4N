@@ -1,14 +1,11 @@
+use a4n_error::AppError;
 use std::collections::HashSet;
 
-use a4n_core::{
-    error::AppError,
-    video_execution::{
-        VIDEO_EXECUTION_UNIT_V2, VIDEO_SEGMENT_PLAN_V2, VideoActionBridgeUnitV1,
-        VideoContentUnitV2, VideoEmotionActionGoalV1, VideoEmotionalArcV1,
-        VideoExecutionUnitKindV2, VideoExecutionUnitV2, VideoIntentV1, VideoMaterialCoverageV1,
-        VideoPerformanceActionV1, VideoPerformancePlanV2, VideoPerformanceTimeBlockV1,
-        VideoSegmentPlanV2, VideoSpatialAnchorV1,
-    },
+use a4n_video_contract::{
+    VIDEO_EXECUTION_UNIT_V2, VIDEO_SEGMENT_PLAN_V2, VideoActionBridgeUnitV1, VideoContentUnitV2,
+    VideoEmotionActionGoalV1, VideoEmotionalArcV1, VideoExecutionUnitKindV2, VideoExecutionUnitV2,
+    VideoIntentV1, VideoMaterialCoverageV1, VideoPerformanceActionV1, VideoPerformancePlanV2,
+    VideoPerformanceTimeBlockV1, VideoSegmentPlanV2, VideoSpatialAnchorV1,
 };
 
 use super::VideoSegmentPlan;

@@ -1,13 +1,13 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::profile::ObjectProfileInput;
-use a4n_core::{
+use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::source_spans::anchor_quotes_with_chapter_numbers;
+use a4n_domain::{
     json_contract::{
         optional_string, positive_i64_array, reject_unknown_fields, required_string, string_array,
     },
-    models::{chapter::chapter, project::text_anchor},
     profile_text::normalize_importance_value,
-    source_spans::anchor_quotes_with_chapter_numbers,
 };
 use serde_json::Value;
 

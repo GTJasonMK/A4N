@@ -1,5 +1,5 @@
 use super::types::SceneProfileStageProgressSpec;
-use a4n_core::structured_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
+use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
 use tokio_util::sync::CancellationToken;
 
 pub const SCENE_PROFILE_SYNC_PROGRESS_TOTAL: u32 = 100;

@@ -1,9 +1,10 @@
-use a4n_core::{models::ai::image_gen_config, source_spans::source_text_hash};
+use a4n_domain::source_text_hash;
 use a4n_image::ImageGenerationRequest;
+use a4n_provider_contract::ImageProviderConfig;
 use serde_json::{Value, json};
 
 pub fn image_generation_request_trace_json(
-    config: &image_gen_config::Model,
+    config: &ImageProviderConfig,
     request: &ImageGenerationRequest,
 ) -> Value {
     let reference_images = request

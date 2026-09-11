@@ -1,23 +1,25 @@
 use crate::dynamic_llm::config::{estimate_llm_tokens, model_capabilities, validated_timeout_secs};
-use a4n_core::{error::AppError, models::ai::llm_config};
+use a4n_error::AppError;
 use a4n_llm::gateway::{
     LlmGatewayPayload as LlmChatPayload, LlmGatewayProviderConfig, LlmProbePayload,
 };
 use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, ModelCapabilities};
+use a4n_llm_config::LlmConfigSnapshot;
+use a4n_provider_contract::LlmProviderConfig;
 use async_trait::async_trait;
 use futures::Stream;
 use std::pin::Pin;
 
 #[derive(Debug, Clone)]
 pub(in crate::dynamic_llm) struct ResolvedLlmModel {
-    pub(in crate::dynamic_llm) model: llm_config::Model,
+    pub(in crate::dynamic_llm) model: LlmProviderConfig,
     pub(in crate::dynamic_llm) timeout_secs: u64,
     pub(in crate::dynamic_llm) capabilities: ModelCapabilities,
 }
 
 impl ResolvedLlmModel {
-    pub(in crate::dynamic_llm) fn new(model: llm_config::Model) -> Result<Self, AppError> {
-        a4n_llm::config::validate_llm_config_model(&model)?;
+    pub(in crate::dynamic_llm) fn new(model: LlmProviderConfig) -> Result<Self, AppError> {
+        a4n_llm_config::validate_llm_config(&llm_config_snapshot(&model))?;
         let timeout_secs = validated_timeout_secs(&model)?;
         let capabilities = model_capabilities(&model)?;
         Ok(Self {
@@ -57,10 +59,25 @@ impl ResolvedLlmModel {
             provider: self.model.provider,
             base_url: self.model.base_url,
             model: self.model.model,
-            api_key: self.model.api_key_encrypted,
+            api_key: self.model.api_key,
             timeout_secs: self.timeout_secs,
             extra_body_json: self.model.extra_body_json,
         }
+    }
+}
+
+fn llm_config_snapshot(model: &LlmProviderConfig) -> LlmConfigSnapshot {
+    LlmConfigSnapshot {
+        name: model.name.clone(),
+        provider: model.provider.clone(),
+        base_url: model.base_url.clone(),
+        api_key_encrypted: model.api_key.clone(),
+        model: model.model.clone(),
+        max_concurrent: model.max_concurrent,
+        timeout_secs: model.timeout_secs,
+        max_context_tokens: model.max_context_tokens,
+        max_output_tokens: model.max_output_tokens,
+        extra_body_json: model.extra_body_json.clone(),
     }
 }
 

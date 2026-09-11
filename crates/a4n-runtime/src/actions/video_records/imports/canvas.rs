@@ -8,8 +8,7 @@ use super::source::{
 };
 use crate::AppState;
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
-use a4n_core::models::ai::generated_video;
-use a4n_orchestrator::canvas::CanvasVideoImportHostInput;
+use a4n_canvas_contract::CanvasVideoImportHostInput;
 use chrono::Utc;
 
 pub(crate) use assembly::assemble_canvas_videos;
@@ -18,7 +17,7 @@ pub(crate) use frame::extract_canvas_video_frame;
 pub(crate) async fn import_canvas_video(
     state: &AppState,
     input: CanvasVideoImportHostInput,
-) -> Result<generated_video::Model, String> {
+) -> Result<i64, String> {
     let project_id = input.project_id;
     let source = match (input.file_path.as_deref(), input.data_base64.as_deref()) {
         (Some(_), Some(_)) => {
@@ -54,12 +53,12 @@ async fn create_imported_canvas_video(
     state: &AppState,
     project_id: i64,
     source: ImportedVideoSource,
-) -> Result<generated_video::Model, String> {
+) -> Result<i64, String> {
     let properties = probe_imported_video_properties(&source, "画布导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .orchestrator()
-        .create_imported_canvas_video_record_validated(
+        .video_record_application()
+        .create_imported_canvas_video_record(
             project_id,
             properties,
             &source.file_name,
@@ -70,7 +69,7 @@ async fn create_imported_canvas_video(
         .map_err(crate::actions::app_error_message)?;
 
     let (_output, output_path_str) = persist_imported_video_file(
-        state.orchestrator(),
+        state,
         state.data_dir(),
         record.id,
         &source.path,
@@ -100,5 +99,5 @@ async fn create_imported_canvas_video(
         "更新画布导入视频记录失败",
     )
     .await?;
-    Ok(updated)
+    Ok(updated.id)
 }

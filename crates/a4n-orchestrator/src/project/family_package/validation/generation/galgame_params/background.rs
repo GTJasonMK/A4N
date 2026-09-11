@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     galgame::{galgame_scene, galgame_script},
     generation::generation_spec,
     project::source_snapshot_chapter,

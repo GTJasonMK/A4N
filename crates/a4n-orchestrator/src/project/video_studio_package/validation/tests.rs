@@ -5,8 +5,8 @@ mod provenance;
 
 use std::collections::HashMap;
 
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_core::models::{
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::{
     ai::generated_video,
     canvas::{canvas_edge, canvas_graph, canvas_node},
     generation::generation_spec,
@@ -14,8 +14,8 @@ use a4n_core::models::{
     project::novel_project,
     video_project::assembly_timeline,
 };
-use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
 
 use crate::media::MEDIA_STATUS_COMPLETED;
 use crate::project::video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
@@ -86,7 +86,7 @@ fn video_with_file() -> generated_video::Model {
         id: 10,
         project_id: 1,
         chapter_id: None,
-        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
         workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
         file_path: Some("projects/1/videos/video.mp4".to_string()),
         thumbnail_path: Some("projects/1/videos/video.jpg".to_string()),

@@ -2,7 +2,7 @@ mod evidence;
 mod fields;
 mod validation;
 
-use a4n_core::json_contract::reject_unknown_fields;
+use a4n_domain::json_contract::reject_unknown_fields;
 use serde_json::{Value, json};
 
 use crate::character::{required_array, required_i32_at, required_string, required_string_array};

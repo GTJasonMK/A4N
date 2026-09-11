@@ -1,7 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION};
+use a4n_domain::rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION};
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_rag_core::contracts::sync::{
+    classify_rag_record, ensure_project_embedding_identity_matches,
+};
 use a4n_rag_core::{
     memory_store::MemoryVectorStore,
     metadata::content_hash,
@@ -11,12 +14,11 @@ use a4n_test_support::rag::embedding_record;
 use serde_json::json;
 
 use super::context::RagSyncContext;
-use super::identity::{classify_rag_record, ensure_project_embedding_identity_matches};
-use super::{RagRecord, RagRecordSyncOutcome};
 use crate::rag::{
     chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id, character_state_rag_chunk_id,
     foreshadowing_rag_chunk_id, protagonist_rag_chunk_id, protagonist_rag_chunk_prefix,
 };
+use a4n_rag_core::{RagRecord, RagRecordSyncOutcome};
 
 fn identity(model: &str) -> EmbeddingModelIdentity {
     EmbeddingModelIdentity {

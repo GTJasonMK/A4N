@@ -1,4 +1,4 @@
-use a4n_core::models::project::{
+use a4n_db_models::models::project::{
     novel_project, project_invite, project_member, project_source_snapshot,
     source_snapshot_chapter, source_snapshot_outline, source_snapshot_profile,
 };

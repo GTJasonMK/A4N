@@ -2,7 +2,7 @@ use a4n_capabilities::{
     CapabilityClient, EmbeddingClient, EmbeddingModelOperation, ExportClient, ImageClient,
     LlmClient, RagClient, VideoClient,
 };
-use a4n_export_core::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
     EXPORT_RENDER_CAPABILITY_VERSION, IMAGE_PROVIDER_CAPABILITY_VERSION,

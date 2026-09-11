@@ -1,6 +1,6 @@
 use serde_json::{Value, json};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::{
     FramePromptContext, chapter_analysis_context, frame_prompt_context,

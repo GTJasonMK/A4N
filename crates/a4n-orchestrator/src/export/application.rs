@@ -1,18 +1,19 @@
 use a4n_api_contract::export::{BatchExportFormat, BatchExportInput, ExportFileData};
-use a4n_core::error::AppError;
 use a4n_db::export::{
     ExportChapter, ExportDocument, chapter_heading, render_markdown_document, render_txt_document,
 };
-use a4n_export_core::{
+use a4n_document_export_core::{
     epub::{EpubBuilder, EpubChapter, EpubMetadata, builtin_epub_stylesheet},
     pdf::render_text_pdf,
 };
+use a4n_domain::project::required_text;
+use a4n_error::AppError;
 use base64::Engine as _;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    OrchestratorContext,
-    project::{ensure_positive_project_id, required_text},
+    OrchestratorContext, collaboration::ProjectAccessRole, export::ExportApplicationPort,
+    project::ensure_positive_project_id,
 };
 
 pub struct ExportProgress<'a> {
@@ -230,6 +231,93 @@ impl OrchestratorContext {
             a4n_db::export::export_document(self.database.connection(), project_id).await?;
         progress.check_cancelled()?;
         Ok(document)
+    }
+}
+
+#[async_trait::async_trait]
+impl ExportApplicationPort for OrchestratorContext {
+    async fn export_txt(&self, user_id: i64, project_id: i64) -> Result<ExportFileData, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.run_export_txt_validated(project_id).await
+    }
+
+    async fn export_markdown(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        title: &str,
+        author: &str,
+    ) -> Result<ExportFileData, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.run_export_markdown_validated(project_id, title, author)
+            .await
+    }
+
+    async fn export_outline_json(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.run_export_outline_json_validated(project_id).await
+    }
+
+    async fn export_characters_json(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.run_export_characters_json_validated(project_id).await
+    }
+
+    async fn export_epub(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        title: &str,
+        author: &str,
+        progress: &ExportProgress<'_>,
+    ) -> Result<ExportFileData, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.run_export_epub_validated(project_id, title, author, progress)
+            .await
+    }
+
+    async fn export_pdf(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        progress: &ExportProgress<'_>,
+    ) -> Result<ExportFileData, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.run_export_pdf_validated(project_id, progress).await
+    }
+
+    async fn export_batch(
+        &self,
+        user_id: i64,
+        input: BatchExportInput,
+        progress: &ExportProgress<'_>,
+    ) -> Result<Vec<ExportFileData>, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.run_batch_export_validated(input, progress).await
+    }
+
+    async fn export_galgame_webgal(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<ExportFileData, AppError> {
+        self.run_export_galgame_webgal_for_user_validated(user_id, project_id)
+            .await
     }
 }
 

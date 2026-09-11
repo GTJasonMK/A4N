@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, ChatRequest, LlmProvider, MessageRole, ModelCapabilities};
 use async_trait::async_trait;
 use futures::{Stream, stream};

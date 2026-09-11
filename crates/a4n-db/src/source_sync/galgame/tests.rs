@@ -1,6 +1,6 @@
 use super::conflicts::is_same_galgame_scene_conflict_record;
 use crate::source_sync::CONFLICT_STATUS_PENDING;
-use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_db_models::models::source_sync::source_sync_conflict;
 use chrono::Utc;
 use serde_json::{Value, json};
 use std::collections::HashSet;

@@ -1,7 +1,6 @@
-use a4n_core::{
-    blueprint::BLUEPRINT_REFINEMENT_FIELDS, error::AppError,
-    source_spans::source_text_hash as source_content_sha256,
-};
+use a4n_domain::project::BLUEPRINT_REFINEMENT_FIELDS;
+use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_error::AppError;
 use a4n_llm::context::{
     COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger, LlmContextLedgerPackDraft,
     LlmContextLedgerPackInput, LlmContextManifest,

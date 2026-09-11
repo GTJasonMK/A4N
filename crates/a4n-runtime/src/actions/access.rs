@@ -1,6 +1,6 @@
 use crate::AppState;
-use a4n_core::error::AppError;
-use a4n_orchestrator::collaboration::ProjectAccessRole;
+use a4n_api_contract::collaboration::ProjectAccessRole;
+use a4n_error::AppError;
 
 pub(crate) async fn verify_project_access(
     state: &AppState,
@@ -8,20 +8,10 @@ pub(crate) async fn verify_project_access(
     project_id: i64,
 ) -> Result<(), AppError> {
     state
-        .orchestrator()
-        .verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+        .project_access_application()
+        .verify_permission(user_id, project_id, ProjectAccessRole::Viewer)
         .await
         .map(|_| ())
-}
-
-pub(crate) async fn verify_project_access_string(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-) -> Result<(), String> {
-    verify_project_access(state, user_id, project_id)
-        .await
-        .map_err(|err| err.to_string())
 }
 
 pub(crate) async fn verify_project_editor(
@@ -30,8 +20,8 @@ pub(crate) async fn verify_project_editor(
     project_id: i64,
 ) -> Result<(), AppError> {
     state
-        .orchestrator()
-        .verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
+        .project_access_application()
+        .verify_permission(user_id, project_id, ProjectAccessRole::Editor)
         .await
         .map(|_| ())
 }
@@ -52,8 +42,8 @@ pub(crate) async fn verify_project_owner(
     project_id: i64,
 ) -> Result<(), AppError> {
     state
-        .orchestrator()
-        .verify_project_permission(project_id, user_id, ProjectAccessRole::Owner)
+        .project_access_application()
+        .verify_permission(user_id, project_id, ProjectAccessRole::Owner)
         .await
         .map(|_| ())
 }
@@ -66,15 +56,4 @@ pub(crate) async fn verify_project_owner_string(
     verify_project_owner(state, user_id, project_id)
         .await
         .map_err(|err| err.to_string())
-}
-
-pub(crate) async fn verify_project_or_derived_family_editor(
-    state: &AppState,
-    user_id: i64,
-    project_id: i64,
-) -> Result<(), AppError> {
-    state
-        .orchestrator()
-        .verify_project_or_derived_family_editor_validated(user_id, project_id)
-        .await
 }

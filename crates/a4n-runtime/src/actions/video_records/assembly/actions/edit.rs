@@ -6,13 +6,13 @@ use super::persistence::persist_assembly_record_output;
 use crate::AppState;
 use crate::actions::access;
 use crate::actions::app_error_message;
+use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
-use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
 use crate::actions::video_records::{
     complete_video_record, probe_video_properties, video_record_output_path,
 };
-use crate::file_utils::canonicalize_data_file_path;
-use a4n_orchestrator::video::AssemblyPostprocessEditRecordInput;
+use a4n_api_contract::video::AssemblyPostprocessEditRecordInput;
+use a4n_storage::canonicalize_data_file_path;
 
 pub async fn apply_assembly_postprocess_edit(
     state: &AppState,
@@ -21,8 +21,8 @@ pub async fn apply_assembly_postprocess_edit(
     input: ApplyAssemblyPostprocessEditInput,
 ) -> Result<GeneratedVideoSummary, String> {
     let plan = state
-        .orchestrator()
-        .prepare_assembly_postprocess_edit_validated(push_video_id, input.operation)
+        .video_record_application()
+        .prepare_assembly_postprocess_edit(push_video_id, input.operation)
         .await
         .map_err(app_error_message)?;
     access::verify_project_editor_string(state, user_id, plan.push.project_id).await?;
@@ -51,8 +51,8 @@ pub async fn apply_assembly_postprocess_edit(
         .map(|properties| properties.duration_secs);
     let source_video_id = source.as_ref().and_then(|source| source.source_video_id);
     let prepared = state
-        .orchestrator()
-        .create_assembly_postprocess_edit_record_validated(
+        .video_record_application()
+        .create_assembly_postprocess_edit_record(
             plan,
             AssemblyPostprocessEditRecordInput {
                 at_secs: input.at_secs,
@@ -121,5 +121,5 @@ pub async fn apply_assembly_postprocess_edit(
         "后处理编辑视频记录完成失败",
     )
     .await?;
-    Ok(video_to_summary(&updated))
+    Ok(updated)
 }

@@ -1,7 +1,7 @@
 mod finalization;
 mod request;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use self::finalization::finalize_planning;
 use self::request::generate_planning_trace;

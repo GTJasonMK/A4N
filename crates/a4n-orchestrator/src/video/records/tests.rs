@@ -1,4 +1,4 @@
-use a4n_core::video_workflow::WORKFLOW_MODE_MIXED;
+use a4n_domain::video_workflow::WORKFLOW_MODE_MIXED;
 use sea_orm::ActiveModelTrait;
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -12,7 +12,7 @@ fn assembly_video(id: i64, shot_number: i32, file_path: Option<&str>) -> generat
         id,
         project_id: 1,
         chapter_id: Some(2),
-        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("first_frame_chain".to_string()),
         file_path: file_path.map(str::to_string),
         thumbnail_path: None,
@@ -124,7 +124,7 @@ fn mixed_assembly_combines_timeline_videos_with_external_assembly_insert() {
     inserted.metadata_json = Some(json!({}));
 
     let mut external_insert = assembly_video(3, 1, Some("external-insert.mp4"));
-    external_insert.video_type = generated_video::VIDEO_TYPE_ASSEMBLY_INSERT.to_string();
+    external_insert.video_type = a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT.to_string();
     external_insert.workflow_mode = Some(WORKFLOW_MODE_MIXED.to_string());
     external_insert.metadata_json = Some(json!({
         "assembly_insert": {
@@ -191,8 +191,8 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
         "混合成片派生视频",
     )
     .await;
-    let source_hash = a4n_core::source_spans::source_text_hash(&chapter.content);
-    let segment = serde_json::from_value::<a4n_core::video_execution::VideoSegmentPlanV2>(json!({
+    let source_hash = a4n_domain::source_text_hash(&chapter.content);
+    let segment = serde_json::from_value::<a4n_video_contract::VideoSegmentPlanV2>(json!({
         "schema_version": "video_segment_plan_v2",
         "segment_number": 1,
         "source_shot_id": "shot-1",
@@ -215,10 +215,10 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
         "reference_image_ids": []
     }))
     .unwrap();
-    let recipe = a4n_core::video_execution::VideoSegmentExecutionRecipeV1 {
-        schema_version: a4n_core::video_execution::VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
+    let recipe = a4n_video_contract::VideoSegmentExecutionRecipeV1 {
+        schema_version: a4n_video_contract::VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
         segment_number: 1,
-        workflow_mode: a4n_core::video_execution::VideoSegmentWorkflowModeV1::ChatVideo,
+        workflow_mode: a4n_video_contract::VideoSegmentWorkflowModeV1::ChatVideo,
         style: "cinematic".to_string(),
         prompt_output_language: "zh_cn".to_string(),
         duration_secs: 6,
@@ -226,14 +226,14 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
         aspect_ratio: "16:9".to_string(),
         reference_image_ids: Vec::new(),
         video_library_image_ids: Vec::new(),
-        guidance_mode: a4n_core::video_execution::VideoSegmentGuidanceModeV1::None,
+        guidance_mode: a4n_video_contract::VideoSegmentGuidanceModeV1::None,
         guidance_reference_image_ids: Vec::new(),
         continuity_source_video_id: None,
         reference_media: None,
         adopted_video_id: None,
     };
     let now = chrono::Utc::now().naive_utc();
-    a4n_core::models::chapter::chapter_video_prompt::ActiveModel {
+    a4n_db_models::models::chapter::chapter_video_prompt::ActiveModel {
         project_id: sea_orm::Set(project.id),
         chapter_id: sea_orm::Set(chapter.id),
         style: sea_orm::Set(Some("cinematic".to_string())),
@@ -268,7 +268,7 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
             &db,
             project.id,
             chapter.id,
-            a4n_core::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+            a4n_db_models::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
         )
         .await
         .unwrap()
@@ -291,7 +291,7 @@ async fn mixed_assembly_initializes_timeline_without_opening_the_video_page() {
         &db,
         project.id,
         chapter.id,
-        a4n_core::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
+        a4n_db_models::models::chapter::chapter_video_prompt::WORKFLOW_MODE_SHARED_SEGMENT_PLAN,
     )
     .await
     .unwrap()

@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_shooting_script;
+use a4n_db_models::models::chapter::chapter_shooting_script;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };

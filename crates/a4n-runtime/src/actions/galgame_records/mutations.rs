@@ -12,8 +12,8 @@ pub async fn update_galgame_line(
     input: UpdateGalgameLineInput,
 ) -> Result<GalgameLine, String> {
     state
-        .orchestrator()
-        .update_galgame_line_for_user_validated(user_id, project_id, input)
+        .galgame_record_application()
+        .update_line(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -25,8 +25,8 @@ pub async fn insert_galgame_line(
     input: InsertGalgameLineInput,
 ) -> Result<GalgameLine, String> {
     state
-        .orchestrator()
-        .insert_galgame_line_for_user_validated(user_id, project_id, input)
+        .galgame_record_application()
+        .insert_line(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -38,8 +38,8 @@ pub async fn update_galgame_scene(
     input: UpdateGalgameSceneInput,
 ) -> Result<GalgameScene, String> {
     state
-        .orchestrator()
-        .update_galgame_scene_for_user_validated(user_id, project_id, input)
+        .galgame_record_application()
+        .update_scene(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -51,8 +51,8 @@ pub async fn delete_galgame_line(
     input: DeleteGalgameLineInput,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .delete_galgame_line_for_user_validated(user_id, project_id, input.line_id)
+        .galgame_record_application()
+        .delete_line(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -64,8 +64,8 @@ pub async fn reorder_galgame_lines(
     input: ReorderGalgameLinesInput,
 ) -> Result<Vec<GalgameLine>, String> {
     state
-        .orchestrator()
-        .reorder_galgame_lines_for_user_validated(user_id, project_id, input)
+        .galgame_record_application()
+        .reorder_lines(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -77,8 +77,8 @@ pub async fn update_galgame_choices(
     input: UpdateGalgameChoicesInput,
 ) -> Result<Vec<GalgameChoice>, String> {
     state
-        .orchestrator()
-        .update_galgame_choices_for_user_validated(user_id, project_id, input)
+        .galgame_record_application()
+        .update_choices(user_id, project_id, input)
         .await
         .map_err(|err| err.to_string())
 }

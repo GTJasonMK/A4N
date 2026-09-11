@@ -1,5 +1,5 @@
-use a4n_core::models::project::novel_project;
-use a4n_core::models::task::task_queue;
+use a4n_db_models::models::project::novel_project;
+use a4n_db_models::models::task::task_queue;
 use a4n_domain::project::{ProjectKind, ProjectStatus};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,

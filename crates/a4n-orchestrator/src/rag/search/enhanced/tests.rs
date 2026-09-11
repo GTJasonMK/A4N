@@ -3,12 +3,17 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::error::AppError;
-use a4n_core::rag::RagDataType;
 use a4n_db::rag::PendingForeshadowingSearchRow;
+use a4n_domain::{ProviderError, rag::RagDataType};
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
 use a4n_rag_core::{
+    EnhancedRagQuery, PreparedEnhancedRagSearch,
     memory_store::MemoryVectorStore,
+    search::{
+        MAX_RAG_TOP_K, enhanced_rag_pull_k, normalize_search_data_types, required_nonblank,
+        required_top_k,
+    },
+    validation::{validate_embedding_identity_match, validate_query_vectors},
     vector_store::{EmbeddingRecord, SearchFilter, SearchResult, VectorStore},
 };
 use a4n_test_support::{embedding::MatchingEmbeddingProvider, rag::test_embedding_identity};
@@ -20,7 +25,7 @@ struct CountingEmbeddingProvider {
 
 #[async_trait::async_trait]
 impl EmbeddingProvider for CountingEmbeddingProvider {
-    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
+    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
         self.calls.fetch_add(1, Ordering::Relaxed);
         Ok(texts.into_iter().map(|_| vec![1.0, 0.0]).collect())
     }
@@ -39,17 +44,12 @@ impl EmbeddingProvider for CountingEmbeddingProvider {
 }
 
 use super::{
-    contracts::{EnhancedRagQuery, PreparedEnhancedRagSearch},
     execution::{
         execute_prepared_enhanced_rag_search_in_store,
         execute_prepared_enhanced_rag_search_with_vectors_in_store,
     },
     expansion::{build_enhanced_rag_queries, filter_relevant_foreshadowing},
     fusion::fuse_enhanced_rag_results,
-    rules::{
-        MAX_RAG_TOP_K, enhanced_rag_pull_k, normalize_search_data_types, required_nonblank,
-        required_top_k, validate_embedding_identity_match, validate_query_vectors,
-    },
 };
 
 fn prepared_search(queries: Vec<EnhancedRagQuery>) -> PreparedEnhancedRagSearch {

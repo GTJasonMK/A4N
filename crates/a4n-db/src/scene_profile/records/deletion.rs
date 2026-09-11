@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::profile_primary_material,
     scene::{scene_entity_state, scene_occurrence, scene_profile, scene_transition},
 };

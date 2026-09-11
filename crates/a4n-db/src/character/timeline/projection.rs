@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::{
         attribute_event::{self, SOURCE_KIND_AI_SYNC},
         protagonist_deletion_mark, protagonist_profile,
@@ -275,7 +275,9 @@ fn attribute_entries(state: &Value) -> Vec<(String, String, Value)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::character::attribute_event::{SOURCE_KIND_AI_SYNC, SOURCE_KIND_USER};
+    use a4n_db_models::models::character::attribute_event::{
+        SOURCE_KIND_AI_SYNC, SOURCE_KIND_USER,
+    };
     use chrono::Utc;
     use serde_json::json;
 

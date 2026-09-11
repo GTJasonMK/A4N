@@ -110,7 +110,7 @@ fn image_lookup_context_ignores_generation_asset_fingerprint() {
         "prompt_output_language": "zh_cn"
     }));
     let segment = segment(1);
-    let recipe = a4n_core::video_execution::default_video_segment_recipes(
+    let recipe = a4n_video_contract::default_video_segment_recipes(
         std::slice::from_ref(&segment),
         "测试风格",
         "zh_cn",

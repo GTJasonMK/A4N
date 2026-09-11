@@ -1,7 +1,7 @@
 mod helpers;
 pub(super) mod urlencoding;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 

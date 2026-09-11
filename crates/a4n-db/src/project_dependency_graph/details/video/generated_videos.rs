@@ -3,11 +3,9 @@ use crate::project_dependency_graph::details::records::{
     db_record_result_with_related, db_related_record, lineage_ref, optional_prompt_sources,
     prompt_source, video_prompt_sources,
 };
-use a4n_core::{
-    error::AppError,
-    models::{ai::generated_video, chapter::chapter_video_prompt},
-};
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use a4n_domain::GeneratedMediaReference;
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 use std::collections::HashMap;
 

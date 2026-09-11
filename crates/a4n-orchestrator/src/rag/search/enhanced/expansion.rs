@@ -1,8 +1,9 @@
-use a4n_core::{error::AppError, text_location::extract_scene_location};
 use a4n_db::rag::PendingForeshadowingSearchRow;
+use a4n_domain::text_location::extract_scene_location;
+use a4n_error::AppError;
 
-use super::contracts::EnhancedRagQuery;
 use crate::OrchestratorContext;
+use a4n_rag_core::EnhancedRagQuery;
 
 pub(super) async fn matched_blueprint_character_names(
     context: &OrchestratorContext,

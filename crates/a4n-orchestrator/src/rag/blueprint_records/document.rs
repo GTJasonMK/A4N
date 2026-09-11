@@ -1,7 +1,9 @@
-use a4n_core::{models::project::novel_blueprint, rag::RagDataType};
+use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use super::super::{RagRecord, rag_chunk_id};
+use super::super::rag_chunk_id;
 
 fn blueprint_rag_text(blueprint: &novel_blueprint::Model) -> Result<String, String> {
     let title = required_rag_text(

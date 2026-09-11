@@ -4,12 +4,12 @@
 //! 片段规划只通过 `reconcile_native_timeline` 同步 native 项；插入项不会
 //! 写回共享 `segments` JSON。
 
-use a4n_core::{
-    models::chapter::{chapter_video_prompt, chapter_video_timeline, chapter_video_timeline_item},
-    video_execution::{
-        NativeVideoTimelineKey, VideoTimelineGap, move_inserted_timeline_item,
-        remove_inserted_timeline_item,
-    },
+use a4n_db_models::models::chapter::{
+    chapter_video_prompt, chapter_video_timeline, chapter_video_timeline_item,
+};
+use a4n_domain::video_timeline::{
+    NativeVideoTimelineKey, VideoTimelineGap, move_inserted_timeline_item,
+    remove_inserted_timeline_item, timeline_gap_index,
 };
 use chrono::Utc;
 use sea_orm::{
@@ -98,7 +98,7 @@ pub async fn commit_inserted_timeline_item(
     }
 
     let order = positioned_order(&existing)?;
-    let insertion_index = a4n_core::video_execution::timeline_gap_index(&order, input.gap)
+    let insertion_index = timeline_gap_index(&order, input.gap)
         .map_err(|error| VideoDbError::InvalidArgument(error.to_string()))?;
     let temporary_position = i32::try_from(order.len() + 1)
         .map_err(|_| VideoDbError::InvalidArgument("时间线片段数量超出范围".to_string()))?;
@@ -1189,8 +1189,6 @@ async fn rewrite_positions<C: ConnectionTrait>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::ai::generated_video;
-
     fn timeline_item(
         id: i64,
         position: Option<i32>,
@@ -1372,14 +1370,14 @@ mod tests {
         .unwrap();
         let project_id = project.id;
         let now = Utc::now().naive_utc();
-        let chapter = a4n_core::models::chapter::chapter::ActiveModel {
+        let chapter = a4n_db_models::models::chapter::chapter::ActiveModel {
             project_id: Set(project.id),
             outline_id: Set(None),
             chapter_number: Set(1),
             title: Set(Some("第一章".to_string())),
             content: Set("正文".to_string()),
             word_count: Set(2),
-            status: Set(a4n_core::models::chapter::chapter::STATUS_IMPORTED.to_string()),
+            status: Set(a4n_db_models::models::chapter::chapter::STATUS_IMPORTED.to_string()),
             summary: Set(None),
             style_tags: Set(None),
             analysis_data: Set(None),
@@ -1395,7 +1393,7 @@ mod tests {
                 .await
                 .unwrap();
 
-        let mut active: a4n_core::models::project::novel_project::ActiveModel = project.into();
+        let mut active: a4n_db_models::models::project::novel_project::ActiveModel = project.into();
         active.lifecycle_gate = Set(crate::generation::PROJECT_GATE_RESETTING.to_string());
         active.update(&db).await.unwrap();
 
@@ -1434,14 +1432,14 @@ mod tests {
         .await
         .unwrap();
         let now = Utc::now().naive_utc();
-        let chapter = a4n_core::models::chapter::chapter::ActiveModel {
+        let chapter = a4n_db_models::models::chapter::chapter::ActiveModel {
             project_id: Set(project.id),
             outline_id: Set(None),
             chapter_number: Set(1),
             title: Set(Some("第一章".to_string())),
             content: Set("正文".to_string()),
             word_count: Set(2),
-            status: Set(a4n_core::models::chapter::chapter::STATUS_IMPORTED.to_string()),
+            status: Set(a4n_db_models::models::chapter::chapter::STATUS_IMPORTED.to_string()),
             summary: Set(None),
             style_tags: Set(None),
             analysis_data: Set(None),
@@ -1485,7 +1483,7 @@ mod tests {
                         "source_prompt_type": "inserted_segment",
                         "segment_recipe": {},
                         "video_execution_identity": {
-                            "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+                            "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
                             "source_content_sha256": SOURCE_CONTENT_SHA256,
                             "segment_sha256": SEGMENT_SHA256
                         }
@@ -1507,7 +1505,7 @@ mod tests {
             crate::video::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: Some(chapter.id),
-                video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+                video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
                 workflow_mode: Some("boundary_frames".to_string()),
                 prompt: "external import".to_string(),
                 negative_prompt: None,
@@ -1522,7 +1520,7 @@ mod tests {
                 metadata_json: Some(json!({
                     "source_prompt_type": "inserted_segment",
                     "video_execution_identity": {
-                        "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+                        "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
                         "source_content_sha256": SOURCE_CONTENT_SHA256,
                         "segment_sha256": SEGMENT_SHA256
                     }

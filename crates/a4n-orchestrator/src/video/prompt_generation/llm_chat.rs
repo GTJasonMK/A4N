@@ -2,7 +2,7 @@ mod contracts;
 mod request;
 mod streaming;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use self::request::{
     chat_with_video_cancel, ensure_video_output_not_truncated, log_video_prompt_usage,

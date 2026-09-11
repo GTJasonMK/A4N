@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::user::user;
-use a4n_orchestrator::auth::{oauth2_state, required_authorization_code};
+use a4n_api_contract::auth::{UserSummary, required_authorization_code};
+use a4n_error::AppError;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::AppState;
 
@@ -15,14 +15,14 @@ pub fn oauth2_authorize_url(input: OAuth2AuthorizeInput) -> Result<String, AppEr
 pub(crate) async fn oauth2_login_user(
     state: &AppState,
     input: OAuth2CallbackInput,
-) -> Result<user::Model, AppError> {
+) -> Result<UserSummary, AppError> {
     let code = required_authorization_code(&input.code)?;
     let provider = oauth2_provider_from_env(input.provider.trim(), DEFAULT_OAUTH2_REDIRECT_URI)?;
     let token = provider.exchange_token(code).await?;
     let user_info = provider.get_user_info(&token).await?;
 
     state
-        .orchestrator()
+        .auth_application()
         .login_with_oauth2(
             &user_info.provider,
             &user_info.provider_id,
@@ -31,4 +31,11 @@ pub(crate) async fn oauth2_login_user(
             user_info.avatar_url.as_deref(),
         )
         .await
+}
+
+fn oauth2_state() -> Result<String, AppError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis().to_string())
+        .map_err(|error| AppError::Internal(anyhow::anyhow!("生成 OAuth2 state 失败：{error}")))
 }

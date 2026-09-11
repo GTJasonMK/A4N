@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
-use a4n_core::event::channel::TaskHandle;
+use a4n_error::AppError;
+use a4n_task_runtime::channel::TaskHandle;
 
 pub(in crate::routes::commands) fn web_progress_reporter(
     task: Option<Arc<TaskHandle>>,

@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use serde_json::Value;
 
 use super::super::{

@@ -1,12 +1,11 @@
 use std::collections::BTreeSet;
 
-use a4n_core::models::scene::scene_profile;
-use a4n_core::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
-use a4n_core::profile_text::merge_profile_evidence_json;
+use a4n_db_models::models::scene::scene_profile;
+use a4n_domain::profile_ownership::{PROFILE_OWNERSHIP_AI_SYNC, PROFILE_OWNERSHIP_USER};
+use a4n_domain::profile_text::merge_profile_evidence_json;
+use a4n_domain::scene_profile::SceneProfileRecordInput;
 
-use crate::scene_profile::{
-    SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordDraft, SceneProfileRecordInput,
-};
+use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordDraft};
 
 #[derive(Default)]
 pub(super) struct SceneProfileDraftTracker {

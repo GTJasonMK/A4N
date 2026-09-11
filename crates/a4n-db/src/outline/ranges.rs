@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashSet};
 
-use a4n_core::models::chapter::{chapter_outline, part_outline};
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
 
 use super::OutlineDbError;
 

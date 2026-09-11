@@ -9,8 +9,8 @@ pub async fn get_manga_pipeline_status(
     input: MangaChapterInput,
 ) -> Result<MangaPipelineStatusSummary, String> {
     state
-        .orchestrator()
-        .get_manga_pipeline_status_validated(user_id, input.project_id, input.chapter_id)
+        .manga_pipeline_application()
+        .status(user_id, input.project_id, input.chapter_id)
         .await
         .map_err(app_error_message)
 }
@@ -21,8 +21,8 @@ pub async fn list_manga_pipeline_statuses(
     input: MangaPipelineStatusesInput,
 ) -> Result<Vec<MangaPipelineStatusSummary>, String> {
     state
-        .orchestrator()
-        .list_manga_pipeline_statuses_validated(user_id, input.project_id, &input.chapter_ids)
+        .manga_pipeline_application()
+        .statuses(user_id, input.project_id, input.chapter_ids)
         .await
         .map_err(app_error_message)
 }
@@ -33,8 +33,8 @@ pub async fn cancel_manga_pipeline(
     input: MangaChapterInput,
 ) -> Result<i64, String> {
     state
-        .orchestrator()
-        .cancel_manga_pipeline_validated(user_id, input.project_id, input.chapter_id)
+        .manga_pipeline_application()
+        .cancel(user_id, input.project_id, input.chapter_id)
         .await
         .map_err(app_error_message)
 }

@@ -1,21 +1,21 @@
-use a4n_core::{
-    config::embedding_provider_capabilities, error::AppError, models::ai::embedding_config,
-};
+use a4n_domain::embedding::embedding_provider_capabilities;
 use a4n_embedding::provider::{
     EMBEDDING_CONNECTIVITY_TEST_TEXT, validate_embedding_connectivity_vectors,
 };
+use a4n_error::AppError;
+use a4n_provider_contract::EmbeddingProviderConfig;
 pub(super) use a4n_service_protocol::{EmbedTextsOutput, EmbedTextsPayload, EmbeddingModelPayload};
 
 pub(super) use crate::dynamic_embedding::{positive_usize, required_text};
 
 pub(super) fn embedding_connectivity_test_payload(
-    model: &embedding_config::Model,
+    model: &EmbeddingProviderConfig,
 ) -> Result<EmbedTextsPayload, AppError> {
     embedding_texts_payload(model, vec![EMBEDDING_CONNECTIVITY_TEST_TEXT.to_string()])
 }
 
 pub(super) fn embedding_texts_payload(
-    model: &embedding_config::Model,
+    model: &EmbeddingProviderConfig,
     texts: Vec<String>,
 ) -> Result<EmbedTextsPayload, AppError> {
     let backend = embedding_provider_capabilities(&model.backend).ok_or_else(|| {
@@ -36,7 +36,7 @@ pub(super) fn embedding_texts_payload(
             None
         },
         api_key: if backend.accepts_api_key {
-            model.api_key_encrypted.clone()
+            model.api_key.clone()
         } else {
             None
         },
@@ -58,6 +58,7 @@ pub(super) fn validate_embedding_connectivity_output(
         )));
     }
     validate_embedding_connectivity_vectors(&output.embeddings, expected_dimension)
+        .map_err(AppError::from)
 }
 
 pub(super) fn embedding_model_payload(model: &str) -> EmbeddingModelPayload {

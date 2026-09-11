@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::{GALGAME_EXPRESSIONS, LINE_TYPE_DIALOGUE, LINE_TYPE_MONOLOGUE};
 use super::contracts::*;

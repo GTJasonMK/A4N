@@ -1,7 +1,9 @@
-use a4n_core::{models::character::attribute_event, rag::RagDataType};
+use a4n_db_models::models::character::attribute_event;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use crate::rag::{RagRecord, character_attribute_event_rag_chunk_id};
+use crate::rag::character_attribute_event_rag_chunk_id;
 
 pub(super) fn character_attribute_event_rag_text(
     event: &attribute_event::Model,

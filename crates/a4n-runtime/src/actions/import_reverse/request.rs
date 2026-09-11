@@ -3,7 +3,7 @@ use crate::AppState;
 use crate::actions::request_preview::{
     ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state, model_request_preview,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 
 async fn build_reverse_request_for_user(
@@ -17,8 +17,8 @@ async fn build_reverse_request_for_user(
     let target = input.target;
     let prompt_renderer = state;
     let request = state
-        .orchestrator()
-        .prepare_reverse_engineer_request_validated(input, prompt_renderer)
+        .import_reverse_application()
+        .prepare_request(input, prompt_renderer)
         .await?;
     Ok((target, request))
 }

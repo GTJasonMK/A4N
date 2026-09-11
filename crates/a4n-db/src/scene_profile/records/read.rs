@@ -1,4 +1,4 @@
-use a4n_core::models::{project::novel_project, scene::scene_profile};
+use a4n_db_models::models::{project::novel_project, scene::scene_profile};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder,
     QuerySelect,

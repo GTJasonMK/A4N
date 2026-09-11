@@ -1,4 +1,4 @@
-use a4n_core::models::project::novel_blueprint;
+use a4n_db_models::models::project::novel_blueprint;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 
 use crate::import_reverse::{ImportReverseDbError, ReverseBlueprintApplyRecord};

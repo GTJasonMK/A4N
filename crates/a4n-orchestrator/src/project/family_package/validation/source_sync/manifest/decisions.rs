@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_db_models::models::source_sync::source_sync_conflict;
 use a4n_domain::source_sync::{SourceSyncDecisionActor, SourceSyncResolutionStrategy};
 
 use super::super::super::ProjectFamilyPackage;

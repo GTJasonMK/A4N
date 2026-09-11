@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use a4n_api_contract::export::ExportFileData;
-use a4n_core::{error::AppError, models::character::character_portrait};
-use a4n_export_core::{ExportZipEntryBytes, ExportZipPackageInput, render_zip_package};
+use a4n_archive_core::{ArchiveEntry, write_zip};
+use a4n_db_models::models::character::character_portrait;
+use a4n_error::AppError;
 use base64::Engine as _;
 
 use crate::OrchestratorContext;
@@ -106,7 +107,7 @@ fn build_webgal_package(
         .get(&detail.scenes[0].scene.id)
         .ok_or_else(|| invalid_webgal("Galgame 首场导出文件名缺失"))?;
 
-    let mut entries = vec![ExportZipEntryBytes {
+    let mut entries = vec![ArchiveEntry {
         path: "game/scene/start.txt".to_string(),
         bytes: format!("changeScene:{first_scene};\n").into_bytes(),
         label: "WebGAL 启动场景".to_string(),
@@ -123,7 +124,7 @@ fn build_webgal_package(
             &choices_by_line,
             &assets,
         )?;
-        entries.push(ExportZipEntryBytes {
+        entries.push(ArchiveEntry {
             path: format!("game/scene/{file_name}"),
             bytes: script.into_bytes(),
             label: format!("WebGAL 场景 {}", scene.scene.id),
@@ -140,7 +141,7 @@ fn build_webgal_package(
         .chain(assets.figures.values())
     {
         if written_assets.insert(asset.zip_path.clone()) {
-            entries.push(ExportZipEntryBytes {
+            entries.push(ArchiveEntry {
                 path: asset.zip_path.clone(),
                 bytes: read_webgal_data_file(data_dir, &asset.data_path)?,
                 label: format!("WebGAL 媒体 {}", asset.zip_path),
@@ -148,13 +149,15 @@ fn build_webgal_package(
         }
     }
 
-    render_zip_package(ExportZipPackageInput {
-        manifest_path: "game/config.txt".to_string(),
-        manifest_bytes: webgal_config_text(detail).into_bytes(),
-        manifest_label: "WebGAL 配置".to_string(),
-        entries,
-        package_label: "WebGAL zip 包".to_string(),
-    })
+    write_zip(
+        std::iter::once(ArchiveEntry {
+            path: "game/config.txt".to_string(),
+            bytes: webgal_config_text(detail).into_bytes(),
+            label: "WebGAL 配置".to_string(),
+        })
+        .chain(entries),
+        "WebGAL zip 包",
+    )
     .map_err(|error| invalid_webgal(error.to_string()))
 }
 

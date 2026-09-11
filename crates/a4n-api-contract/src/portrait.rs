@@ -64,6 +64,45 @@ pub struct PortraitSummary {
     pub created_at: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortraitGenerationSeed {
+    pub profile_name: String,
+    pub prompt: String,
+}
+
+/// Host-facing portrait record boundary.
+///
+/// Authorization, persistence and ORM-to-summary projection stay in the
+/// character/portrait owner; hosts consume only stable summaries.
+#[async_trait::async_trait]
+pub trait PortraitRecordApplicationPort: Send + Sync {
+    async fn list_by_project(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<PortraitSummary>, a4n_error::AppError>;
+
+    async fn primary_by_profile(
+        &self,
+        user_id: i64,
+        profile_id: i64,
+    ) -> Result<Option<PortraitSummary>, a4n_error::AppError>;
+
+    async fn by_id(
+        &self,
+        user_id: i64,
+        portrait_id: i64,
+    ) -> Result<Option<PortraitSummary>, a4n_error::AppError>;
+
+    async fn set_primary(&self, user_id: i64, portrait_id: i64) -> Result<(), a4n_error::AppError>;
+
+    async fn missing_generation_seeds(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<PortraitGenerationSeed>, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct ListPortraitsByProjectInput {

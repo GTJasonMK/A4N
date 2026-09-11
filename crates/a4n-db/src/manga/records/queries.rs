@@ -2,7 +2,7 @@ use crate::manga::{
     MangaPromptRecordError, manga_record_database, require_positive_manga_id,
     validate_manga_page_number,
 };
-use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 pub async fn manga_page_prompts_by_chapter(

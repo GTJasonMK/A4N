@@ -12,14 +12,8 @@ pub async fn preview_send_optimization_message_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let request = state
-        .orchestrator()
-        .build_send_user_message_preview_request_for_user_validated(
-            user_id,
-            input.session_id,
-            &input.message,
-            &input.permissions,
-            prompt_renderer,
-        )
+        .optimize_application()
+        .preview_send_message(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     chat_status_preview_for_state(

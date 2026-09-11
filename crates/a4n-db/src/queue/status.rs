@@ -1,6 +1,6 @@
 use super::QueueDbError;
 use crate::workflow::is_terminal_workflow_status;
-use a4n_core::models::{generation::workflow_run, task::task_queue};
+use a4n_db_models::models::{generation::workflow_run, task::task_queue};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, DbBackend, EntityTrait, FromQueryResult,

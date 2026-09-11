@@ -3,7 +3,7 @@ use crate::manga::{
     MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt, manga_record_database,
     require_manga_text, require_positive_manga_id, validate_manga_page_prompt_layout,
 };
-use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect, Set,

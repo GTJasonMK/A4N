@@ -1,5 +1,5 @@
-use a4n_core::{source_spans::source_text_hash, video_execution::VideoSegmentExecutionRecipeV1};
-use a4n_domain::clear_canvas_transfer_runtime_identity;
+use a4n_domain::{clear_canvas_transfer_runtime_identity, source_text_hash};
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use serde_json::Value;
 
 use super::{json_object, remap_object_id, remap_profile_source_id};

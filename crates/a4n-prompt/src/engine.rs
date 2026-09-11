@@ -1,25 +1,6 @@
-use serde::{Deserialize, Serialize};
+pub use a4n_prompt_contract::{PromptCategory, PromptEntry};
 
-/// 提示词条目
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PromptEntry {
-    pub name: String,
-    pub title: String,
-    pub content: String,
-    pub description: String,
-    pub tags: Vec<String>,
-    pub category: String,
-    pub dependencies: Vec<String>,
-    pub is_modified: bool,
-    /// Git commit-ish
-    pub version: String,
-    pub modified_at: chrono::NaiveDateTime,
-    /// 谁调用此提示词（registry 提供，如 "BlueprintPipeline.execute"）
-    pub used_by: Vec<String>,
-    /// 相对 prompts/ 根目录的路径（registry 提供）
-    pub path: String,
-}
+/// Prompt version record kept by the implementation and version store.
 
 /// 提示词版本记录
 #[derive(Debug, Clone)]
@@ -32,13 +13,15 @@ pub struct PromptVersion {
     pub content_snapshot: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct PromptCategory {
-    pub key: String,
-    pub label: String,
-    pub order: i32,
-    pub description: String,
+impl From<PromptVersion> for a4n_prompt_contract::PromptVersionSummary {
+    fn from(version: PromptVersion) -> Self {
+        Self {
+            version: version.version,
+            timestamp: version.timestamp,
+            author: version.author,
+            message: version.message,
+        }
+    }
 }
 
 #[cfg(test)]

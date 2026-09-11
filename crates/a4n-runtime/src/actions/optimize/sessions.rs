@@ -3,7 +3,6 @@ use crate::AppState;
 use super::{
     ListOptimizeSessionsInput, OptimizationPatchSetSummary, OptimizationSessionSummary,
     OptimizationTurnSummary, OptimizeSessionInput, RecordOptimizeAgentEventInput,
-    projections::{to_patch_set_summary, to_session_summary, to_turn_summary},
 };
 
 pub async fn list_optimize_sessions(
@@ -11,12 +10,11 @@ pub async fn list_optimize_sessions(
     user_id: i64,
     input: ListOptimizeSessionsInput,
 ) -> Result<Vec<OptimizationSessionSummary>, String> {
-    let sessions = state
-        .orchestrator()
-        .optimize_sessions_for_user(user_id, input.project_id, input.chapter_id)
+    state
+        .optimize_application()
+        .list_sessions(user_id, input)
         .await
-        .map_err(|err| err.to_string())?;
-    sessions.iter().map(to_session_summary).collect()
+        .map_err(|err| err.to_string())
 }
 
 pub async fn get_optimize_session(
@@ -24,12 +22,11 @@ pub async fn get_optimize_session(
     user_id: i64,
     input: OptimizeSessionInput,
 ) -> Result<OptimizationSessionSummary, String> {
-    let session = state
-        .orchestrator()
-        .optimize_session_for_user(user_id, input.session_id)
+    state
+        .optimize_application()
+        .get_session(user_id, input)
         .await
-        .map_err(|error| error.to_string())?;
-    to_session_summary(&session)
+        .map_err(|error| error.to_string())
 }
 
 pub async fn list_optimize_turns(
@@ -37,15 +34,11 @@ pub async fn list_optimize_turns(
     user_id: i64,
     input: OptimizeSessionInput,
 ) -> Result<Vec<OptimizationTurnSummary>, String> {
-    let turns = state
-        .orchestrator()
-        .optimize_turns_for_user(user_id, input.session_id)
+    state
+        .optimize_application()
+        .list_turns(user_id, input)
         .await
-        .map_err(|err| err.to_string())?;
-    turns
-        .into_iter()
-        .map(|(turn, events)| to_turn_summary(&turn, events))
-        .collect()
+        .map_err(|err| err.to_string())
 }
 
 pub async fn list_optimize_patch_sets(
@@ -53,15 +46,11 @@ pub async fn list_optimize_patch_sets(
     user_id: i64,
     input: OptimizeSessionInput,
 ) -> Result<Vec<OptimizationPatchSetSummary>, String> {
-    let patch_sets = state
-        .orchestrator()
-        .optimize_patch_sets_for_user(user_id, input.session_id)
+    state
+        .optimize_application()
+        .list_patch_sets(user_id, input)
         .await
-        .map_err(|err| err.to_string())?;
-    patch_sets
-        .into_iter()
-        .map(|(patch_set, patches)| to_patch_set_summary(&patch_set, patches))
-        .collect()
+        .map_err(|err| err.to_string())
 }
 
 pub async fn delete_optimize_session(
@@ -70,8 +59,8 @@ pub async fn delete_optimize_session(
     input: OptimizeSessionInput,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .delete_optimize_session_for_user_validated(user_id, input.session_id)
+        .optimize_application()
+        .delete_session(user_id, input)
         .await
         .map_err(|err| err.to_string())
 }
@@ -82,8 +71,8 @@ pub async fn record_optimize_agent_event(
     input: RecordOptimizeAgentEventInput,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .record_optimize_agent_event_for_user_validated(user_id, input.session_id, &input.content)
+        .optimize_application()
+        .record_agent_event(user_id, input)
         .await
         .map_err(|err| err.to_string())
 }

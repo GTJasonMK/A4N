@@ -4,7 +4,7 @@ use crate::auth::{
     rotate_session_refresh_token, update_profile, update_user_role, user_by_id,
     verify_session_refresh_token,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::support::{
     deactivate_user, find_user_by_email, find_user_by_username, session_count, set_user_active,

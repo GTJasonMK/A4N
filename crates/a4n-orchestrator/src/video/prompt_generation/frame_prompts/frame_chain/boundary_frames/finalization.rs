@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::prompt_generation::frame_prompts::{
     FramePromptDraftsInput, NewChapterVideoPrompt, frame_prompt_drafts,

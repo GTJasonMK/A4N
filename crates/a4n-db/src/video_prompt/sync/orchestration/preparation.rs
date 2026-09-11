@@ -11,7 +11,7 @@ use super::super::{
     validate_prompt_sync_draft,
     validation::{validate_prompt_output_language_metadata, validate_prompt_workflow_mode},
 };
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use sea_orm::ConnectionTrait;
 use std::collections::{BTreeSet, HashMap};
 

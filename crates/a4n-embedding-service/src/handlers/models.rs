@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
-use a4n_core::config::env::optional_non_empty_env_path;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_domain::embedding::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
 use a4n_embedding_fastembed::{
     delete_fastembed_model, fastembed_model_download_info, list_fastembed_local_models,
@@ -78,6 +77,14 @@ pub(crate) fn required_model(payload: EmbeddingModelPayload) -> Result<String, A
 }
 
 pub(crate) fn resolve_cache_dir() -> Result<PathBuf, AppError> {
-    optional_non_empty_env_path(EMBEDDING_CACHE_DIR_ENV)?
-        .ok_or_else(|| AppError::ConfigError(format!("{EMBEDDING_CACHE_DIR_ENV} 未设置")))
+    let configured = match std::env::var_os(EMBEDDING_CACHE_DIR_ENV) {
+        Some(value) if !value.to_string_lossy().trim().is_empty() => Some(PathBuf::from(value)),
+        Some(_) => {
+            return Err(AppError::Configuration(format!(
+                "{EMBEDDING_CACHE_DIR_ENV} 不能为空"
+            )));
+        }
+        None => None,
+    };
+    configured.ok_or_else(|| AppError::Configuration(format!("{EMBEDDING_CACHE_DIR_ENV} 未设置")))
 }

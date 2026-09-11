@@ -1,6 +1,6 @@
 use super::contracts::{
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
-    GenerateChapterShootingScriptInput, contract_view, progress_contract_view,
+    GenerateChapterShootingScriptInput,
 };
 use crate::AppState;
 
@@ -8,14 +8,14 @@ pub async fn generate_chapter_shooting_script(
     state: &AppState,
     user_id: i64,
     input: GenerateChapterShootingScriptInput,
-    progress: &(dyn Fn(u32, u32, &str) -> Result<(), a4n_core::error::AppError> + Send + Sync),
+    progress: &(dyn Fn(u32, u32, &str) -> Result<(), a4n_error::AppError> + Send + Sync),
     stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
     cancel_token: Option<&tokio_util::sync::CancellationToken>,
     active_task_id: Option<&str>,
 ) -> Result<ChapterShootingScriptView, String> {
-    let resolved = state
-        .orchestrator()
-        .generate_chapter_shooting_script_for_user_validated(
+    state
+        .shooting_script_application()
+        .generate(
             user_id,
             input,
             progress,
@@ -24,25 +24,21 @@ pub async fn generate_chapter_shooting_script(
             active_task_id,
         )
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(contract_view(
-        resolved.shooting_script.record,
-        resolved.shooting_script.script,
-    ))
+        .map_err(|error| error.to_string())
 }
 
 pub async fn generate_next_chapter_shooting_script_unit(
     state: &AppState,
     user_id: i64,
     input: GenerateChapterShootingScriptInput,
-    progress: &(dyn Fn(u32, u32, &str) -> Result<(), a4n_core::error::AppError> + Send + Sync),
+    progress: &(dyn Fn(u32, u32, &str) -> Result<(), a4n_error::AppError> + Send + Sync),
     stream_reporter: Option<&(dyn Fn(&str) + Send + Sync)>,
     cancel_token: Option<&tokio_util::sync::CancellationToken>,
     active_task_id: Option<&str>,
 ) -> Result<ChapterShootingScriptUnitProgressView, String> {
-    let generated = state
-        .orchestrator()
-        .generate_next_chapter_shooting_script_unit_for_user_validated(
+    state
+        .shooting_script_application()
+        .generate_next(
             user_id,
             input,
             progress,
@@ -51,6 +47,5 @@ pub async fn generate_next_chapter_shooting_script_unit(
             active_task_id,
         )
         .await
-        .map_err(|error| error.to_string())?;
-    Ok(progress_contract_view(generated))
+        .map_err(|error| error.to_string())
 }

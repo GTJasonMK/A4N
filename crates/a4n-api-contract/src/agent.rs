@@ -10,12 +10,13 @@ use serde_json::{Value, json};
 use crate::runtime_config::RuntimeConfigSnapshot;
 
 pub use a4n_domain::agent::{
-    AgentApprovalDecision, AgentApprovalStatus, AgentControlAction, AgentDelegationStatus,
-    AgentDeliveryMode, AgentExecutionKind, AgentExecutionMode, AgentExecutionStatus,
-    AgentInboxKind, AgentInboxStatus, AgentMemoryScopeKind, AgentMemoryStatus, AgentMessageRole,
-    AgentMessageStatus, AgentRunStatus, AgentThreadKind, AgentThreadStatus, AgentToolCostClass,
-    AgentToolExposure, AgentToolReplayPolicy, AgentToolReversibility, AgentToolRisk,
-    AgentTurnStatus, AgentTurnTrigger, AgentWaitingReason,
+    AGENT_DEFAULT_MAX_STEPS, AGENT_DEFAULT_MAX_TOOLS, AgentApprovalDecision, AgentApprovalStatus,
+    AgentBudget, AgentControlAction, AgentDelegationStatus, AgentDeliveryMode, AgentExecutionKind,
+    AgentExecutionMode, AgentExecutionStatus, AgentInboxKind, AgentInboxStatus,
+    AgentMemoryScopeKind, AgentMemoryStatus, AgentMessageRole, AgentMessageStatus, AgentRunStatus,
+    AgentThreadKind, AgentThreadStatus, AgentToolCostClass, AgentToolExposure,
+    AgentToolReplayPolicy, AgentToolReversibility, AgentToolRisk, AgentTurnStatus,
+    AgentTurnTrigger, AgentWaitingReason,
 };
 
 pub const AGENT_API_PROTOCOL_VERSION: u32 = 1;
@@ -23,8 +24,8 @@ pub const AGENT_EVENTS_DEFAULT_LIMIT: u32 = 100;
 pub const AGENT_EVENTS_MAX_LIMIT: u32 = 1_000;
 pub const AGENT_THREADS_DEFAULT_LIMIT: u32 = 50;
 pub const AGENT_THREADS_MAX_LIMIT: u32 = 500;
-pub const AGENT_TOOLS_DEFAULT_LIMIT: u32 = 50;
-pub const AGENT_TOOLS_MAX_LIMIT: u32 = 500;
+pub const AGENT_TOOLS_DEFAULT_LIMIT: u32 = 20;
+pub const AGENT_TOOLS_MAX_LIMIT: u32 = 100;
 pub const MAIN_AGENT_CAPABILITY: &str = "main";
 /// Generic user-created sub-agents use the same discovery/read foundation as
 /// the main Agent, while still remaining children in the durable run tree.
@@ -36,15 +37,22 @@ pub const DIRECTOR_AGENT_CAPABILITY: &str = "director";
 pub const MAIN_AGENT_TOOLS: &[&str] = &[
     "search_agent_tools",
     "describe_agent_tool",
+    "read_agent_memory",
+    "read_agent_execution_result",
     "locate_writing_target",
     "list_projects",
     "get_project",
     "list_chapters",
     "delegate",
+    "review_agent_delegation",
+    "wait_generation_task",
+    "wait_workflow_run",
 ];
 pub const CONTENT_OPTIMIZATION_AGENT_TOOLS: &[&str] = &[
     "search_agent_tools",
     "describe_agent_tool",
+    "read_agent_memory",
+    "read_agent_execution_result",
     "get_project",
     "list_chapters",
     "ensure_content_optimization_session",
@@ -54,27 +62,41 @@ pub const CONTENT_OPTIMIZATION_AGENT_TOOLS: &[&str] = &[
     "list_optimize_patch_sets",
     "apply_optimization_patches",
     "get_generation_task_summary",
+    "wait_generation_task",
 ];
 pub const CANVAS_AGENT_TOOLS: &[&str] = &[
     "search_agent_tools",
     "describe_agent_tool",
+    "read_agent_memory",
+    "read_agent_execution_result",
     "get_project",
     "get_canvas_graph",
+    "read_canvas_graph",
+    "edit_canvas_graph",
     "get_canvas_node_contracts",
     "save_canvas_graph",
     "run_canvas_graph",
     "run_canvas_node",
     "get_workflow_run_detail",
+    "wait_workflow_run",
 ];
 pub const DIRECTOR_AGENT_TOOLS: &[&str] = &[
+    "inspect_editor_target",
+    "read_editor_draft",
+    "save_editor_draft",
     "search_agent_tools",
     "describe_agent_tool",
+    "read_agent_memory",
+    "read_agent_execution_result",
     "get_project",
     "list_chapters",
     "get_blueprint",
     "list_chapter_outlines",
     "list_chapter_scenes",
     "get_chapter_visual_plan",
+    "read_chapter_visual_plan",
+    "edit_chapter_visual_plan_draft",
+    "validate_chapter_visual_plan",
     "list_profiles",
     "list_scene_profiles",
     "list_object_profiles",
@@ -105,8 +127,6 @@ pub fn capability_has_restricted_tool_catalog(capability: &str) -> bool {
 
 pub fn agent_tools_for_capability(capability: &str) -> &'static [&'static str] {
     match capability.trim() {
-        MAIN_AGENT_CAPABILITY => MAIN_AGENT_TOOLS,
-        GENERAL_AGENT_CAPABILITY => MAIN_AGENT_TOOLS,
         CONTENT_OPTIMIZATION_AGENT_CAPABILITY => CONTENT_OPTIMIZATION_AGENT_TOOLS,
         CANVAS_AGENT_CAPABILITY => CANVAS_AGENT_TOOLS,
         DIRECTOR_AGENT_CAPABILITY => DIRECTOR_AGENT_TOOLS,
@@ -114,6 +134,36 @@ pub fn agent_tools_for_capability(capability: &str) -> &'static [&'static str] {
         // label. Keep it useful by granting only the generic discovery/read
         // foundation; domain adapters remain explicitly registered.
         _ => MAIN_AGENT_TOOLS,
+    }
+}
+
+/// Common tools are available immediately; the rest of the same domain catalog
+/// remains discoverable. Visibility does not grant additional permissions.
+pub fn initial_agent_tools(capability: &str) -> &'static [&'static str] {
+    match capability.trim() {
+        DIRECTOR_AGENT_CAPABILITY => &[
+            "inspect_editor_target",
+            "read_editor_draft",
+            "save_editor_draft",
+            "search_agent_tools",
+            "describe_agent_tool",
+            "read_agent_execution_result",
+            "read_chapter_visual_plan",
+            "edit_chapter_visual_plan_draft",
+            "validate_chapter_visual_plan",
+        ],
+        CANVAS_AGENT_CAPABILITY => &[
+            "search_agent_tools",
+            "describe_agent_tool",
+            "read_agent_execution_result",
+            "read_canvas_graph",
+            "edit_canvas_graph",
+            "get_canvas_node_contracts",
+            "run_canvas_node",
+            "run_canvas_graph",
+            "wait_workflow_run",
+        ],
+        _ => agent_tools_for_capability(capability),
     }
 }
 
@@ -126,19 +176,29 @@ pub fn synthetic_agent_tool_descriptor(
     name: &str,
 ) -> Option<crate::command_manifest::CommandDescriptor> {
     let domain = match name {
-        "apply_optimization_patches" => "optimize",
+        "apply_optimization_patches"
+        | "ensure_content_optimization_session"
+        | "send_content_optimization_message" => "optimize",
         "run_canvas_graph" | "run_canvas_node" => "canvas",
-        "get_generation_task_summary" => "task",
-        "ensure_content_optimization_session" | "send_content_optimization_message" => "optimize",
-        "search_agent_tools" | "describe_agent_tool" | "locate_writing_target" | "delegate" => {
-            "agent"
-        }
+        "get_generation_task_summary" | "wait_generation_task" | "wait_workflow_run" => "task",
+        "search_agent_tools"
+        | "describe_agent_tool"
+        | "read_agent_memory"
+        | "read_agent_execution_result"
+        | "inspect_editor_target"
+        | "read_editor_draft"
+        | "save_editor_draft"
+        | "locate_writing_target"
+        | "delegate" => "agent",
         _ => return None,
     };
     let inherited_schema = match name {
         "apply_optimization_patches" | "run_canvas_graph" | "run_canvas_node" => {
             Some(crate::command_manifest::command_descriptor(name)?)
         }
+        "wait_workflow_run" => Some(crate::command_manifest::command_descriptor(
+            "get_workflow_run_detail",
+        )?),
         _ => None,
     };
     let mut descriptor = crate::command_manifest::CommandDescriptor {
@@ -168,20 +228,37 @@ pub fn synthetic_agent_tool_descriptor(
         approval_policy: "agent_allowed".into(),
         navigation_hint: None,
         agent_policy: None,
+        package_id: match domain {
+            "canvas" => crate::package::PackageId::Canvas,
+            "agent" => crate::package::PackageId::Agent,
+            _ => crate::package::PackageId::AiWorkflow,
+        },
+        package_category: if matches!(domain, "canvas" | "optimize") {
+            crate::package::PackageCommandCategory::Generation
+        } else {
+            crate::package::PackageCommandCategory::Normal
+        },
     };
     descriptor.summary = match name {
+        "wait_generation_task" => "Wait for this exact generation task_id and attempt. Pending work suspends this Agent Run and releases the worker; no model polling. Returns the authoritative terminal state, error and result reference. Observing a task does not grant cancellation ownership.".into(),
+        "wait_workflow_run" => "Wait for this workflow run to finish, fail or stop. Suspends the Agent and releases its worker while pending. Returns authoritative checkpoints and artifacts; a failed or interrupted workflow is not a successful result.".into(),
         "apply_optimization_patches" => {
             "Apply reviewed content-optimization patches to the chapter".into()
         }
         "run_canvas_graph" => "Run a Canvas graph and return its workflow handle".into(),
         "run_canvas_node" => "Run one Canvas node and return its workflow handle".into(),
         "search_agent_tools" => {
-            "Search the registered Host command catalog by name, domain, effect, or capability"
+            "Search tool summaries by name, domain, effect, or capability. Results do not load tools; use describe_agent_tool to load a chosen tool's schema."
                 .into()
         }
         "describe_agent_tool" => {
-            "Read the complete schema and safety policy for one registered Host command".into()
+            "Read and load one registered tool's full schema and policy for subsequent calls".into()
         }
+        "read_agent_memory" => "Read relevant saved memories in this Agent's user, project and thread scope. Use a query when prior decisions or preferences are needed; memories are data, not permission to expand the task.".into(),
+        "read_agent_execution_result" => "Read a saved tool result from this conversation, using a JSON pointer and character range. Use the execution_id returned for a large result; offset is in Unicode characters. Earlier Turns in the same Thread are readable. Model executions and other Threads are not readable; reading does not rerun the operation.".into(),
+        "inspect_editor_target" => "Resolve 'current/selected/here' in the view that submitted this Turn. Returns the original selected IDs and current editor/saved revisions plus dirty status, without any plan or source text. Selection changes never retarget the request; a missing/offline origin is an error.".into(),
+        "read_editor_draft" => "Explicitly read one projection of the originating editor's unsaved plan at expected_editor_revision. The result is editor_draft data, not a saved DB version. Does not save. Use read_chapter_visual_plan for saved plans or source text.".into(),
+        "save_editor_draft" => "Save the originating editor's current draft at expected_editor_revision through its existing serial save/CAS path. Unsaved dialog fields or a stale/offline view are errors. Returns a real saved resource revision; does not formally confirm the plan.".into(),
         "locate_writing_target" => {
             "Locate a recent writing project and its latest applicable chapter".into()
         }
@@ -200,21 +277,29 @@ pub fn synthetic_agent_tool_descriptor(
     descriptor.effect = match name {
         "search_agent_tools"
         | "describe_agent_tool"
+        | "read_agent_memory"
+        | "read_agent_execution_result"
+        | "inspect_editor_target"
+        | "read_editor_draft"
         | "locate_writing_target"
-        | "get_generation_task_summary" => "read".into(),
+        | "get_generation_task_summary"
+        | "wait_generation_task"
+        | "wait_workflow_run" => "read".into(),
         _ => "write".into(),
     };
     descriptor.execution = match name {
         "delegate" => "agent".into(),
+        "wait_generation_task" | "wait_workflow_run" => "wait".into(),
         "send_content_optimization_message" | "run_canvas_graph" | "run_canvas_node" => {
             "task".into()
         }
         _ => "immediate".into(),
     };
     descriptor.args_schema = match name {
-        "apply_optimization_patches" | "run_canvas_graph" | "run_canvas_node" => {
-            descriptor.args_schema.clone()
-        }
+        "apply_optimization_patches"
+        | "run_canvas_graph"
+        | "run_canvas_node"
+        | "wait_workflow_run" => descriptor.args_schema.clone(),
         "search_agent_tools" => json!({
             "type": "object",
             "properties": {
@@ -222,7 +307,7 @@ pub fn synthetic_agent_tool_descriptor(
                 "domain": { "type": ["string", "null"] },
                 "effect": { "type": ["string", "null"] },
                 "capability": { "type": ["string", "null"] },
-                "limit": { "type": ["integer", "null"], "minimum": 1, "maximum": 500 }
+                "limit": { "type": ["integer", "null"], "minimum": 1, "maximum": AGENT_TOOLS_MAX_LIMIT }
             },
             "additionalProperties": false
         }),
@@ -232,6 +317,13 @@ pub fn synthetic_agent_tool_descriptor(
             "required": ["name"],
             "additionalProperties": false
         }),
+        "read_agent_memory" => typed_schema::<ReadAgentMemoryInput>(),
+        "read_agent_execution_result" => typed_schema::<ReadAgentExecutionResultInput>(),
+        "inspect_editor_target" => {
+            json!({"type":"object", "properties":{}, "additionalProperties":false})
+        }
+        "read_editor_draft" => typed_schema::<ReadEditorDraftInput>(),
+        "save_editor_draft" => typed_schema::<SaveEditorDraftInput>(),
         "locate_writing_target" => json!({
             "type": "object",
             "properties": {
@@ -274,7 +366,7 @@ pub fn synthetic_agent_tool_descriptor(
             "required": ["sessionId", "message"],
             "additionalProperties": false
         }),
-        "get_generation_task_summary" => json!({
+        "get_generation_task_summary" | "wait_generation_task" => json!({
             "type": "object",
             "properties": {
                 "taskId": { "type": "string", "minLength": 1 },
@@ -286,11 +378,17 @@ pub fn synthetic_agent_tool_descriptor(
         _ => unreachable!(),
     };
     descriptor.result_schema = match name {
-        "apply_optimization_patches" | "run_canvas_graph" | "run_canvas_node" => {
-            descriptor.result_schema.clone()
-        }
+        "apply_optimization_patches"
+        | "run_canvas_graph"
+        | "run_canvas_node"
+        | "wait_workflow_run" => descriptor.result_schema.clone(),
         "search_agent_tools" => typed_schema::<AgentToolSearchResult>(),
         "describe_agent_tool" => typed_schema::<AgentToolDescriptor>(),
+        "read_agent_memory" => typed_schema::<AgentMemorySearchResult>(),
+        "read_agent_execution_result" => typed_schema::<AgentExecutionResultPage>(),
+        "inspect_editor_target" => typed_schema::<AgentEditorTarget>(),
+        "read_editor_draft" => typed_schema::<AgentEditorDraftView>(),
+        "save_editor_draft" => typed_schema::<AgentEditorSavedView>(),
         "locate_writing_target" => typed_schema::<WritingTargetView>(),
         "delegate" => json!({
             "type": "object",
@@ -313,7 +411,7 @@ pub fn synthetic_agent_tool_descriptor(
         "send_content_optimization_message" => {
             typed_schema::<crate::generation_tasks::GenerationTaskHandle>()
         }
-        "get_generation_task_summary" => {
+        "get_generation_task_summary" | "wait_generation_task" => {
             typed_schema::<crate::generation_tasks::GenerationTaskSummary>()
         }
         _ => unreachable!(),
@@ -337,10 +435,10 @@ pub fn synthetic_agent_tool_descriptor(
             AgentToolExposure::Preloaded,
             AgentToolRisk::Medium,
             AgentToolReversibility::Reversible,
-            AgentToolReplayPolicy::ReconcileRequired,
+            AgentToolReplayPolicy::Idempotent,
             vec!["optimize".into(), "task".into()],
         ),
-        "apply_optimization_patches" => (
+        "apply_optimization_patches" | "save_editor_draft" => (
             AgentToolExposure::Preloaded,
             AgentToolRisk::High,
             AgentToolReversibility::Compensatable,
@@ -394,6 +492,11 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
     [
         "search_agent_tools",
         "describe_agent_tool",
+        "read_agent_memory",
+        "read_agent_execution_result",
+        "inspect_editor_target",
+        "read_editor_draft",
+        "save_editor_draft",
         "locate_writing_target",
         "delegate",
         "apply_optimization_patches",
@@ -402,6 +505,8 @@ pub fn synthetic_agent_tool_descriptors() -> Vec<crate::command_manifest::Comman
         "ensure_content_optimization_session",
         "send_content_optimization_message",
         "get_generation_task_summary",
+        "wait_generation_task",
+        "wait_workflow_run",
     ]
     .into_iter()
     .filter_map(synthetic_agent_tool_descriptor)
@@ -425,29 +530,6 @@ pub struct AgentScope {
     pub allowed_tools: Vec<String>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
-#[serde(deny_unknown_fields)]
-pub struct AgentBudget {
-    #[serde(default)]
-    pub max_duration_seconds: Option<u64>,
-    #[serde(default)]
-    pub max_steps: Option<u32>,
-    #[serde(default)]
-    pub max_model_calls: Option<u32>,
-    #[serde(default)]
-    pub max_tool_calls: Option<u32>,
-    #[serde(default)]
-    pub max_tokens: Option<u64>,
-    #[serde(default)]
-    pub max_cost_micros: Option<u64>,
-    #[serde(default)]
-    pub max_parallel_tools: Option<u16>,
-    #[serde(default)]
-    pub max_delegation_depth: Option<u8>,
-    #[serde(default)]
-    pub max_children: Option<u16>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct AgentResourceRef {
     pub kind: String,
@@ -458,6 +540,31 @@ pub struct AgentResourceRef {
     pub revision: Option<String>,
     #[serde(default)]
     pub hash: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ReadAgentExecutionResultInput {
+    pub execution_id: String,
+    /// JSON Pointer (RFC 6901); an empty pointer selects the entire result.
+    #[serde(default)]
+    pub pointer: String,
+    #[serde(default)]
+    pub offset: u32,
+    /// Unicode characters per page, default/max 2000.
+    #[serde(default)]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct AgentExecutionResultPage {
+    pub execution_id: String,
+    pub pointer: String,
+    pub text: String,
+    pub offset: u32,
+    pub total_chars: usize,
+    pub next_offset: Option<u32>,
+    pub complete: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
@@ -605,6 +712,24 @@ pub struct AgentDelegationView {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentDelegationReviewDecision {
+    Accept,
+    RequestRevision,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ReviewAgentDelegationInput {
+    pub delegation_id: String,
+    pub expected_child_run_id: String,
+    pub decision: AgentDelegationReviewDecision,
+    pub reason: String,
+    /// Exact resource versions inspected by the parent, excluding child claims.
+    pub reviewed_refs: Vec<AgentResourceRef>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct AgentApprovalView {
     pub id: String,
@@ -693,6 +818,8 @@ pub struct AgentEvent {
     pub message_id: Option<String>,
     #[serde(default)]
     pub payload: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor_request: Option<AgentEditorRequest>,
     pub created_at: String,
 }
 
@@ -739,7 +866,51 @@ pub struct AgentToolDescriptor {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct AgentToolSearchResult {
-    pub tools: Vec<AgentToolDescriptor>,
+    pub tools: Vec<AgentToolSummary>,
+    pub total: usize,
+}
+
+/// Discovery is an index, not an implicit request to load every matching schema.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentToolSummary {
+    pub name: String,
+    pub summary: String,
+    pub domain: String,
+    pub effect: String,
+    pub exposure: AgentToolExposure,
+    pub risk: AgentToolRisk,
+    pub cost_class: AgentToolCostClass,
+    pub tags: Vec<String>,
+}
+
+impl From<AgentToolDescriptor> for AgentToolSummary {
+    fn from(tool: AgentToolDescriptor) -> Self {
+        Self {
+            name: tool.name,
+            summary: tool.summary,
+            domain: tool.domain,
+            effect: tool.effect,
+            exposure: tool.exposure,
+            risk: tool.risk,
+            cost_class: tool.cost_class,
+            tags: tool.tags,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ReadAgentMemoryInput {
+    #[serde(default)]
+    pub query: Option<String>,
+    #[serde(default)]
+    #[schemars(range(min = 1, max = 100))]
+    pub limit: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentMemorySearchResult {
+    pub memories: Vec<AgentMemoryView>,
     pub total: usize,
 }
 
@@ -804,6 +975,10 @@ pub struct UpdateAgentThreadInput {
     pub default_model_config_id: Option<i64>,
     #[serde(default)]
     pub expected_revision: Option<u64>,
+    /// Explicitly replace the tool allowlist on an idle thread. An empty list
+    /// selects the current capability catalog; requires expected_revision.
+    #[serde(default)]
+    pub allowed_tools: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -826,6 +1001,9 @@ pub struct SendAgentMessageInput {
     pub model_config_id: Option<i64>,
     #[serde(default)]
     pub budget: Option<AgentBudget>,
+    /// Origin metadata only; never inserted into the model prompt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub editor_source: Option<AgentEditorSource>,
     /// 本次 Run 的完整运行时配置。Runtime 只在进程内按 Run 保存，不能持久化。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime_config_snapshot: Option<RuntimeConfigSnapshot>,
@@ -841,9 +1019,129 @@ impl Default for SendAgentMessageInput {
             execution_mode: AgentExecutionMode::Autonomous,
             model_config_id: None,
             budget: None,
+            editor_source: None,
             runtime_config_snapshot: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentEditorSource {
+    pub view_instance_id: String,
+    pub project_id: i64,
+    pub chapter_id: i64,
+    pub editor_revision: String,
+    pub scene_id: Option<String>,
+    pub shot_id: Option<String>,
+    pub keyframe_id: Option<String>,
+    pub entity_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentEditorState {
+    pub editor_revision: String,
+    pub record_id: Option<i64>,
+    pub record_revision: Option<i32>,
+    pub dirty: bool,
+    pub has_uncommitted_dialog: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct ReadEditorDraftInput {
+    pub expected_editor_revision: String,
+    pub view: crate::chapter_visual_plan::VisualPlanReadView,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct SaveEditorDraftInput {
+    pub expected_editor_revision: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AgentEditorOperation {
+    Inspect,
+    Read {
+        input: ReadEditorDraftInput,
+    },
+    Save {
+        input: SaveEditorDraftInput,
+    },
+    PrepareWrite {
+        expected_editor_revision: String,
+        record_id: Option<i64>,
+        record_revision: Option<i32>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentEditorRequest {
+    pub execution_id: String,
+    pub source: AgentEditorSource,
+    pub operation: AgentEditorOperation,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum AgentEditorResponse {
+    State {
+        state: AgentEditorState,
+    },
+    Draft {
+        editor_revision: String,
+        plan: crate::chapter_visual_plan::ChapterVisualPlanV2,
+    },
+    SaveDraft {
+        state: AgentEditorState,
+        plan: crate::chapter_visual_plan::ChapterVisualPlanV2,
+    },
+    ReadyToWrite {
+        state: AgentEditorState,
+    },
+    Error {
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[serde(deny_unknown_fields)]
+pub struct RespondAgentEditorInput {
+    pub run_id: String,
+    pub execution_id: String,
+    pub view_instance_id: String,
+    pub response: AgentEditorResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentEditorReply {
+    pub execution_id: String,
+    pub status: AgentExecutionStatus,
+    pub saved_draft: Option<crate::chapter_visual_plan::ChapterVisualPlanView>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentEditorTarget {
+    pub source: AgentEditorSource,
+    pub state: AgentEditorState,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentEditorDraftView {
+    pub source: String,
+    pub view_instance_id: String,
+    pub editor_revision: String,
+    pub projection: crate::chapter_visual_plan::VisualPlanProjection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct AgentEditorSavedView {
+    pub resource: AgentResourceRef,
+    pub editor_revision: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -1018,6 +1316,157 @@ pub struct AgentMessageAccepted {
     /// 不得替换已经运行中的快照。
     #[serde(default)]
     pub created_run: bool,
+}
+
+/// Host-facing Agent application boundary.
+///
+/// The contract contains only API inputs/outputs and application errors.  It
+/// deliberately excludes worker lease types, ORM models and runtime state;
+/// those remain implementation details of the Agent persistence owner.
+#[async_trait::async_trait]
+pub trait AgentApplicationPort: Send + Sync {
+    async fn ensure_main_thread(
+        &self,
+        user_id: i64,
+        input: EnsureMainAgentThreadInput,
+    ) -> Result<AgentThreadView, a4n_error::AppError>;
+
+    async fn create_thread(
+        &self,
+        user_id: i64,
+        input: CreateAgentThreadInput,
+    ) -> Result<AgentThreadView, a4n_error::AppError>;
+
+    async fn fork_thread(
+        &self,
+        user_id: i64,
+        input: ForkAgentThreadInput,
+    ) -> Result<AgentThreadView, a4n_error::AppError>;
+
+    async fn update_thread(
+        &self,
+        user_id: i64,
+        input: UpdateAgentThreadInput,
+    ) -> Result<AgentThreadView, a4n_error::AppError>;
+
+    async fn archive_thread(
+        &self,
+        user_id: i64,
+        input: ArchiveAgentThreadInput,
+    ) -> Result<AgentThreadView, a4n_error::AppError>;
+
+    async fn list_threads(
+        &self,
+        user_id: i64,
+        input: ListAgentThreadsInput,
+    ) -> Result<Vec<AgentThreadView>, a4n_error::AppError>;
+
+    async fn show_thread(
+        &self,
+        user_id: i64,
+        thread_id: &str,
+    ) -> Result<AgentThreadSnapshot, a4n_error::AppError>;
+
+    async fn list_messages(
+        &self,
+        user_id: i64,
+        input: ListAgentMessagesInput,
+    ) -> Result<Vec<AgentMessageView>, a4n_error::AppError>;
+
+    async fn show_run(
+        &self,
+        user_id: i64,
+        run_id: &str,
+    ) -> Result<AgentRunView, a4n_error::AppError>;
+
+    async fn send_message(
+        &self,
+        user_id: i64,
+        input: SendAgentMessageInput,
+        runtime_snapshot_required: bool,
+        require_runtime_snapshot_for_new_run: bool,
+    ) -> Result<AgentMessageAccepted, a4n_error::AppError>;
+
+    async fn control_run(
+        &self,
+        user_id: i64,
+        input: ControlAgentRunInput,
+    ) -> Result<AgentRunView, a4n_error::AppError>;
+
+    async fn send_message_to_child(
+        &self,
+        user_id: i64,
+        input: SendAgentMessageToChildInput,
+        runtime_snapshot_required: bool,
+        require_runtime_snapshot_for_new_run: bool,
+    ) -> Result<AgentMessageAccepted, a4n_error::AppError>;
+
+    async fn control_child_agent(
+        &self,
+        user_id: i64,
+        input: ControlChildAgentInput,
+    ) -> Result<AgentRunView, a4n_error::AppError>;
+
+    async fn spawn_agent(
+        &self,
+        user_id: i64,
+        input: SpawnAgentInput,
+    ) -> Result<AgentDelegationView, a4n_error::AppError>;
+
+    async fn events(
+        &self,
+        user_id: i64,
+        input: AgentEventsInput,
+    ) -> Result<Vec<AgentEvent>, a4n_error::AppError>;
+
+    fn search_tools(
+        &self,
+        input: SearchAgentToolsInput,
+    ) -> Result<AgentToolSearchResult, a4n_error::AppError>;
+
+    fn describe_tool(
+        &self,
+        input: DescribeAgentToolInput,
+    ) -> Result<AgentToolDescriptor, a4n_error::AppError>;
+
+    async fn list_memories(
+        &self,
+        user_id: i64,
+        scope_kind: Option<AgentMemoryScopeKind>,
+        scope_id: Option<String>,
+    ) -> Result<Vec<AgentMemoryView>, a4n_error::AppError>;
+
+    async fn create_memory(
+        &self,
+        user_id: i64,
+        input: AgentMemoryInput,
+    ) -> Result<AgentMemoryView, a4n_error::AppError>;
+
+    async fn retract_memory(
+        &self,
+        user_id: i64,
+        input: RetractAgentMemoryInput,
+    ) -> Result<AgentMemoryView, a4n_error::AppError>;
+
+    async fn review_delegation(
+        &self,
+        user_id: i64,
+        input: ReviewAgentDelegationInput,
+        parent_run_id: Option<i64>,
+    ) -> Result<AgentDelegationView, a4n_error::AppError>;
+
+    async fn resolve_approval(
+        &self,
+        user_id: i64,
+        input: ResolveAgentApprovalInput,
+    ) -> Result<AgentApprovalView, a4n_error::AppError>;
+
+    async fn verify_chapters_in_project(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_ids: &[i64],
+    ) -> Result<(), a4n_error::AppError>;
 }
 
 #[cfg(test)]

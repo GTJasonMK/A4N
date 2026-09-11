@@ -73,14 +73,12 @@ fn copy_json_field(source: &Value, target: &mut Map<String, Value>, key: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::ai::generated_video;
     use a4n_db::video::CreateGeneratedVideoRecordDraftInput;
-
     fn draft() -> CreateGeneratedVideoRecordDraftInput {
         CreateGeneratedVideoRecordDraftInput {
             project_id: 7,
             chapter_id: Some(1),
-            video_type: generated_video::VIDEO_TYPE_CHAPTER.into(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.into(),
             workflow_mode: Some("boundary_frames".into()),
             prompt: "p".into(),
             negative_prompt: None,

@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
 use a4n_domain::manga::{
     MangaPageGenerationSchemaVersion, MangaPageV3, MangaPanelV2, MangaTextLayerKindV2,
 };
+use a4n_error::AppError;
 use serde_json::json;
 use std::collections::HashMap;
 

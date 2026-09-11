@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::project::{blueprint_relationship, novel_blueprint},
-    rag::RagDataType,
-};
+use a4n_db_models::models::project::{blueprint_relationship, novel_blueprint};
+use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{
     blueprint_metadata_rag_record, blueprint_rag_record, blueprint_world_setting_rag_records,
     relationship_rag_record,

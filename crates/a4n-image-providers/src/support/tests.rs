@@ -1,6 +1,6 @@
 use super::reference::{MAX_REFERENCE_IMAGE_BYTES, decode_data_uri_image};
 use super::*;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_image::ImageReference;
 use base64::Engine as _;
 use reqwest::StatusCode;
@@ -99,7 +99,7 @@ fn non_client_provider_http_error_stays_internal() {
 
     assert!(matches!(
         err,
-        AppError::Internal(error) if error.to_string().contains("502 Bad Gateway")
+        AppError::Internal(error) if error.contains("502 Bad Gateway")
     ));
 }
 

@@ -1,30 +1,43 @@
-use a4n_core::{
-    error::AppError,
-    models::character::{character_portrait, protagonist_profile},
+use a4n_api_contract::portrait::{
+    GeneratePortraitInput, PortraitSummary, PortraitType, UploadPortraitInput,
 };
 use a4n_db::generation::{
     GenerationRunCheckpointContext, GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
     RecordCompletedGenerationRunWithCheckpointInput, generation_checkpoint_fingerprint_sha256,
 };
+use a4n_db::video::{
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    ImagePublicationFileFacts,
+};
+use a4n_db_models::models::{
+    character::{character_portrait, protagonist_profile},
+    media::image_publication,
+};
+use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
+use a4n_domain::{character::CharacterPortraitCreateInput, image::validate_reference_image_ids};
+use a4n_error::AppError;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use crate::{
-    OrchestratorContext, character::CharacterPortraitCreateInput,
-    portrait::validate_reference_image_ids, video::CreateGeneratedImageRecordDraftInput,
+    OrchestratorContext,
+    collaboration::ProjectAccessRole,
+    media::{PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput},
 };
 
 use super::{
     contracts::{
-        GeneratedPortraitImage, PersistPortraitFileInput, PortraitGenerationHostPort,
-        PortraitImageProviderInput, PortraitReferenceImageSource, PortraitSummary, PortraitType,
-        UploadPortraitInput,
+        GeneratedPortraitImage, PortraitGenerationHostPort, PortraitImageProviderInput,
+        PortraitReferenceImageSource,
     },
     workflow::InitialPortraitPrompt,
 };
 
 pub(super) struct PersistGeneratedPortraitInput<'a> {
     pub(super) workflow_run_id: Option<i64>,
+    pub(super) requested_by_user_id: i64,
     pub(super) profile_id: i64,
     pub(super) project_id: i64,
     pub(super) portrait_type: PortraitType,
@@ -38,24 +51,24 @@ pub(super) struct PersistGeneratedPortraitInput<'a> {
     pub(super) reference_image_ids: &'a [i64],
 }
 
-struct PortraitMirrorInput<'a> {
+struct PortraitPublicationInput<'a> {
     workflow_run_id: Option<i64>,
+    requested_by_user_id: i64,
     project_id: i64,
     profile_id: i64,
-    portrait_id: i64,
     character_name: &'a str,
     portrait_type: &'a str,
-    image_path: &'a str,
     prompt: &'a str,
-    model: &'a str,
-    width: i32,
-    height: i32,
-    file_size: i64,
     expression: Option<&'a str>,
     pose: Option<&'a str>,
     variant_kind: Option<&'a str>,
     auto_generated: bool,
     reference_image_ids: &'a [i64],
+    bytes: &'a [u8],
+    format: &'a str,
+    model: &'a str,
+    width: i32,
+    height: i32,
     provider_trace: Option<PortraitProviderTrace<'a>>,
 }
 
@@ -110,80 +123,42 @@ pub(super) async fn persist_generated_portrait(
     generated: &GeneratedPortraitImage,
     input: PersistGeneratedPortraitInput<'_>,
 ) -> Result<character_portrait::Model, AppError> {
-    let persisted = host_port.persist_portrait_file(PersistPortraitFileInput {
-        project_id: input.project_id,
-        profile_id: input.profile_id,
-        bytes: &generated.bytes,
-        format: &generated.format,
-        path_context: input.path_context,
-    })?;
-    let portrait = match context
-        .create_character_portrait_for_profile(CharacterPortraitCreateInput {
-            profile_id: input.profile_id,
-            project_id: input.project_id,
-            portrait_type: input.portrait_type.to_string(),
-            image_path: persisted.relative_path.clone(),
-            prompt: input.prompt.to_string(),
-            expression: input.expression.map(str::to_string),
-            pose: input.pose.map(str::to_string),
-        })
-        .await
-    {
-        Ok(portrait) => portrait,
-        Err(error) => {
-            return Err(cleanup_created_file_after_error(
-                host_port,
-                &persisted.relative_path,
-                "立绘图片",
-                error,
-            )
-            .await);
-        }
-    };
-    let mirror_result = mirror_portrait(
+    publish_portrait_image(
         context,
-        PortraitMirrorInput {
+        host_port,
+        PortraitPublicationInput {
             workflow_run_id: input.workflow_run_id,
+            requested_by_user_id: input.requested_by_user_id,
             project_id: input.project_id,
             profile_id: input.profile_id,
-            portrait_id: portrait.id,
             character_name: input.character_name,
             portrait_type: input.portrait_type.as_str(),
-            image_path: &persisted.relative_path,
             prompt: input.prompt,
-            model: &generated.model,
-            width: generated.width,
-            height: generated.height,
-            file_size: persisted.file_size,
             expression: input.expression,
             pose: input.pose,
             variant_kind: input.variant_kind,
             auto_generated: input.auto_generated,
             reference_image_ids: input.reference_image_ids,
+            bytes: &generated.bytes,
+            format: &generated.format,
+            model: &generated.model,
+            width: generated.width,
+            height: generated.height,
             provider_trace: Some(PortraitProviderTrace {
                 provider: &generated.provider,
                 request_json: &generated.request_json,
                 output_format: &generated.format,
             }),
         },
+        input.path_context,
     )
-    .await;
-    if let Err(error) = mirror_result {
-        return Err(rollback_portrait_creation(
-            context,
-            host_port,
-            portrait.id,
-            &persisted.relative_path,
-            error,
-        )
-        .await);
-    }
-    Ok(portrait)
+    .await
 }
 
 pub(super) async fn upload_portrait(
     context: &OrchestratorContext,
     host_port: &dyn PortraitGenerationHostPort,
+    requested_by_user_id: i64,
     input: UploadPortraitInput,
 ) -> Result<PortraitSummary, AppError> {
     let profile = context
@@ -193,70 +168,32 @@ pub(super) async fn upload_portrait(
     let prompt = required_text(&input.prompt, "立绘描述")?;
     let decoded =
         host_port.decode_uploaded_image(&input.file_name, &input.mime_type, &input.data_base64)?;
-    let persisted = host_port.persist_portrait_file(PersistPortraitFileInput {
-        project_id: input.project_id,
-        profile_id: input.profile_id,
-        bytes: &decoded.bytes,
-        format: &decoded.format,
-        path_context: "上传立绘图片",
-    })?;
-    let portrait = match context
-        .create_character_portrait_for_profile(CharacterPortraitCreateInput {
-            profile_id: input.profile_id,
-            project_id: input.project_id,
-            portrait_type: input.portrait_type.to_string(),
-            image_path: persisted.relative_path.clone(),
-            prompt: prompt.clone(),
-            expression: input.expression,
-            pose: input.pose,
-        })
-        .await
-    {
-        Ok(portrait) => portrait,
-        Err(error) => {
-            return Err(cleanup_created_file_after_error(
-                host_port,
-                &persisted.relative_path,
-                "上传立绘图片",
-                error,
-            )
-            .await);
-        }
-    };
-    if let Err(error) = mirror_portrait(
+    let portrait = publish_portrait_image(
         context,
-        PortraitMirrorInput {
+        host_port,
+        PortraitPublicationInput {
             workflow_run_id: None,
+            requested_by_user_id,
             project_id: input.project_id,
             profile_id: input.profile_id,
-            portrait_id: portrait.id,
             character_name: &profile.name,
-            portrait_type: &portrait.portrait_type,
-            image_path: &persisted.relative_path,
+            portrait_type: input.portrait_type.as_str(),
             prompt: &prompt,
-            model: &decoded.model,
-            width: decoded.width,
-            height: decoded.height,
-            file_size: persisted.file_size,
-            expression: portrait.expression.as_deref(),
-            pose: portrait.pose.as_deref(),
+            expression: input.expression.as_deref(),
+            pose: input.pose.as_deref(),
             variant_kind: Some("manual_upload"),
             auto_generated: false,
             reference_image_ids: &[],
+            bytes: &decoded.bytes,
+            format: &decoded.format,
+            model: &decoded.model,
+            width: decoded.width,
+            height: decoded.height,
             provider_trace: None,
         },
+        "上传立绘图片",
     )
-    .await
-    {
-        return Err(rollback_portrait_creation(
-            context,
-            host_port,
-            portrait.id,
-            &persisted.relative_path,
-            error,
-        )
-        .await);
-    }
+    .await?;
     if input.set_primary && !portrait.is_primary {
         context
             .set_primary_character_portrait_record(portrait.id)
@@ -271,11 +208,262 @@ pub(super) async fn upload_portrait(
     portrait_summary(&portrait)
 }
 
-pub(super) async fn record_initial_prompt_generation(
+async fn publish_portrait_image(
     context: &OrchestratorContext,
     host_port: &dyn PortraitGenerationHostPort,
+    input: PortraitPublicationInput<'_>,
+    file_context: &str,
+) -> Result<character_portrait::Model, AppError> {
+    let file_size = i64::try_from(input.bytes.len())
+        .map_err(|_| AppError::InvalidArgument("立绘图片过大，无法记录文件大小".to_string()))?;
+    let expected_sha256 = format!("{:x}", Sha256::digest(input.bytes));
+    let publication_id = portrait_publication_id(&input);
+    let file_extra = format!("profile_{}", input.profile_id);
+    let prepared = host_port.prepare_portrait_file(PrepareGeneratedImageFileInput {
+        project_id: input.project_id,
+        chapter_id: None,
+        image_type: "portrait",
+        file_extra: Some(&file_extra),
+        format: input.format,
+        publication_id: &publication_id,
+        file_context,
+    })?;
+    let (publication, _publication_guard) = context
+        .create_image_publication_intent_for_user_validated(
+            input.requested_by_user_id,
+            CreateImagePublicationIntentInput {
+                publication_id: publication_id.clone(),
+                project_id: input.project_id,
+                requested_by_user_id: input.requested_by_user_id,
+                staging_path: prepared.staging_path.clone(),
+                final_path: prepared.final_path.clone(),
+                image: CreateGeneratedImageRecordDraftInput {
+                    project_id: input.project_id,
+                    image_type: "portrait".to_string(),
+                    file_path: prepared.final_path.clone(),
+                    prompt: input.prompt.to_string(),
+                    model: input.model.to_string(),
+                    width: input.width,
+                    height: input.height,
+                    file_size: Some(file_size),
+                    chapter_id: None,
+                    panel_id: None,
+                    metadata_json: Some(portrait_publication_metadata(&input)),
+                    created_at: Some(chrono::Utc::now().naive_utc()),
+                },
+                expected_file_size: file_size,
+                expected_sha256: expected_sha256.clone(),
+            },
+        )
+        .await?;
+
+    if publication.status == IMAGE_PUBLICATION_STATUS_PUBLISHED {
+        host_port.validate_portrait_file(&publication.final_path, "已发布立绘图片")?;
+        return context
+            .ensure_portrait_publication_identity_for_user_validated(
+                input.requested_by_user_id,
+                &publication,
+            )
+            .await;
+    }
+    if publication.status != IMAGE_PUBLICATION_STATUS_PENDING {
+        return Err(AppError::InvalidState {
+            current: publication.status,
+            operation: "写入立绘图片".to_string(),
+        });
+    }
+
+    let persisted = match host_port.persist_portrait_file(
+        PersistGeneratedImageFileInput {
+            project_id: input.project_id,
+            chapter_id: None,
+            image_type: "portrait",
+            file_extra: Some(&file_extra),
+            bytes: input.bytes,
+            format: input.format,
+            file_context,
+        },
+        &prepared,
+    ) {
+        Ok(persisted) => persisted,
+        Err(error) => {
+            return Err(cleanup_staging_after_error(
+                host_port,
+                &prepared.staging_path,
+                file_context,
+                error,
+            )
+            .await);
+        }
+    };
+    let portrait = context
+        .ensure_portrait_publication_identity_for_user_validated(
+            input.requested_by_user_id,
+            &publication,
+        )
+        .await?;
+    let facts = ImagePublicationFileFacts {
+        file_size: persisted.file_size,
+        sha256: expected_sha256,
+    };
+    let generation_run = portrait_generation_run(
+        &input,
+        &portrait,
+        &publication.final_path,
+        persisted.file_size,
+    )?;
+    let publish_result = match generation_run {
+        Some(generation_run) => {
+            context
+                .publish_image_publication_for_user_validated(
+                    input.requested_by_user_id,
+                    input.project_id,
+                    &publication_id,
+                    facts,
+                    Some(generation_run),
+                )
+                .await
+        }
+        None => {
+            context
+                .publish_image_publication_for_user_validated(
+                    input.requested_by_user_id,
+                    input.project_id,
+                    &publication_id,
+                    facts,
+                    None,
+                )
+                .await
+        }
+    };
+    if let Err(error) = publish_result {
+        return Err(cleanup_staging_after_error(
+            host_port,
+            &prepared.staging_path,
+            file_context,
+            error,
+        )
+        .await);
+    }
+    if let Err(error) = host_port
+        .remove_portrait_file(&prepared.staging_path, "立绘暂存文件")
+        .await
+    {
+        tracing::warn!(
+            error = %error,
+            publication_id = %publication_id,
+            "立绘发布成功但暂存文件清理意图登记失败"
+        );
+    }
+    Ok(portrait)
+}
+
+impl OrchestratorContext {
+    pub async fn ensure_portrait_publication_identity_for_user_validated(
+        &self,
+        user_id: i64,
+        publication: &image_publication::Model,
+    ) -> Result<character_portrait::Model, AppError> {
+        self.verify_project_permission(publication.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        if publication.image_type != "portrait" {
+            return Err(AppError::InvalidState {
+                current: publication.image_type.clone(),
+                operation: "恢复立绘 publication".to_string(),
+            });
+        }
+        let metadata = publication
+            .metadata_json
+            .as_ref()
+            .and_then(Value::as_object)
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("publication_id={}", publication.publication_id),
+                operation: "读取立绘 publication 元数据".to_string(),
+            })?;
+        let profile_id = metadata
+            .get("profile_id")
+            .and_then(Value::as_i64)
+            .filter(|id| *id > 0)
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("publication_id={}", publication.publication_id),
+                operation: "读取立绘 publication profile_id".to_string(),
+            })?;
+        let portrait_type = metadata
+            .get("portrait_type")
+            .and_then(Value::as_str)
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("publication_id={}", publication.publication_id),
+                operation: "读取立绘 publication portrait_type".to_string(),
+            })?;
+        PortraitType::try_from(portrait_type).map_err(|error| AppError::InvalidState {
+            current: portrait_type.to_string(),
+            operation: format!("读取立绘 publication portrait_type：{error}"),
+        })?;
+        let expression = metadata
+            .get("expression")
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+        let pose = metadata
+            .get("pose")
+            .and_then(Value::as_str)
+            .map(ToString::to_string);
+        let portraits = self
+            .character_portrait_records_by_project(publication.project_id)
+            .await?;
+        let portrait_id = metadata.get("portrait_id").and_then(Value::as_i64);
+        let existing = match portrait_id {
+            Some(portrait_id) => portraits
+                .into_iter()
+                .find(|portrait| portrait.id == portrait_id),
+            None => portraits.into_iter().find(|portrait| {
+                portrait.profile_id == profile_id && portrait.image_path == publication.final_path
+            }),
+        };
+        let portrait = match existing {
+            Some(portrait) => portrait,
+            None => {
+                self.create_character_portrait_for_profile(CharacterPortraitCreateInput {
+                    profile_id,
+                    project_id: publication.project_id,
+                    portrait_type: portrait_type.to_string(),
+                    image_path: publication.final_path.clone(),
+                    prompt: publication.prompt.clone(),
+                    expression,
+                    pose,
+                })
+                .await?
+            }
+        };
+        if portrait.project_id != publication.project_id
+            || portrait.profile_id != profile_id
+            || portrait.image_path != publication.final_path
+            || portrait.portrait_type != portrait_type
+        {
+            return Err(AppError::InvalidState {
+                current: format!("portrait_id={}", portrait.id),
+                operation: "立绘 publication 身份与主记录不一致".to_string(),
+            });
+        }
+        if publication.status == IMAGE_PUBLICATION_STATUS_PENDING
+            && portrait_id != Some(portrait.id)
+        {
+            let mut next_metadata = Value::Object(metadata.clone());
+            next_metadata["portrait_id"] = json!(portrait.id);
+            self.update_image_publication_metadata(
+                &publication.publication_id,
+                publication.version,
+                next_metadata,
+            )
+            .await?;
+        }
+        Ok(portrait)
+    }
+}
+
+pub(super) async fn record_initial_prompt_generation(
+    context: &OrchestratorContext,
     portrait: &character_portrait::Model,
-    input: &super::contracts::GeneratePortraitInput,
+    input: &GeneratePortraitInput,
     profile: &protagonist_profile::Model,
     expression: &str,
     workflow_run_id: i64,
@@ -310,7 +498,7 @@ pub(super) async fn record_initial_prompt_generation(
         "source_refs": source_refs_json,
         "media_refs": media_refs_json,
     });
-    let record_result = context
+    context
         .record_completed_generation_run_with_checkpoint(
             RecordCompletedGenerationRunWithCheckpointInput {
                 run: RecordCompletedGenerationRunInput {
@@ -371,17 +559,7 @@ pub(super) async fn record_initial_prompt_generation(
                 },
             },
         )
-        .await;
-    if let Err(error) = record_result {
-        return Err(rollback_portrait_creation(
-            context,
-            host_port,
-            portrait.id,
-            &portrait.image_path,
-            error,
-        )
-        .await);
-    }
+        .await?;
     let summary = portrait_summary(portrait)?;
     super::workflow::save_completed_portrait_checkpoint(
         context,
@@ -440,14 +618,22 @@ pub(super) fn portrait_type_from_record(
     })
 }
 
-async fn mirror_portrait(
-    context: &OrchestratorContext,
-    input: PortraitMirrorInput<'_>,
-) -> Result<(), AppError> {
-    let now = chrono::Utc::now().naive_utc();
-    let metadata_json = Some(json!({
-        "metadata_schema_version": 1,
-        "portrait_id": input.portrait_id,
+fn portrait_publication_id(input: &PortraitPublicationInput<'_>) -> String {
+    match input.workflow_run_id {
+        Some(workflow_run_id) => {
+            format!(
+                "portrait-publication-{workflow_run_id}-{}",
+                input.profile_id
+            )
+        }
+        None => format!("portrait-publication-upload-{}", Uuid::new_v4().simple()),
+    }
+}
+
+fn portrait_publication_metadata(input: &PortraitPublicationInput<'_>) -> Value {
+    let provider = input.provider_trace.as_ref().map(|trace| trace.provider);
+    json!({
+        "metadata_schema_version": 2,
         "profile_id": input.profile_id,
         "character_name": input.character_name,
         "portrait_type": input.portrait_type,
@@ -458,39 +644,38 @@ async fn mirror_portrait(
         "reference_image_ids": input.reference_image_ids,
         "image_type": "portrait",
         "generation": {
-            "command": "mirror_portrait_to_generated_image",
+            "command": "portrait_image_publication",
             "image_type": "portrait",
+            "provider": provider,
             "provider_model": input.model,
             "width": input.width,
             "height": input.height,
             "prompt": input.prompt,
             "reference_image_ids": input.reference_image_ids,
-            "generated_at": now.to_string(),
         },
-    }));
-    let image_record = CreateGeneratedImageRecordDraftInput {
-        project_id: input.project_id,
-        image_type: "portrait".to_string(),
-        file_path: input.image_path.to_string(),
-        prompt: input.prompt.to_string(),
-        model: input.model.to_string(),
-        width: input.width,
-        height: input.height,
-        file_size: Some(input.file_size),
-        chapter_id: None,
-        panel_id: None,
-        metadata_json,
-        created_at: Some(now),
+    })
+}
+
+fn portrait_generation_run(
+    input: &PortraitPublicationInput<'_>,
+    portrait: &character_portrait::Model,
+    image_path: &str,
+    file_size: i64,
+) -> Result<Option<RecordCompletedGenerationRunWithCheckpointInput>, AppError> {
+    let Some(trace) = input.provider_trace.as_ref() else {
+        return Ok(None);
     };
-    let Some(trace) = input.provider_trace else {
-        context.create_generated_image_record(image_record).await?;
-        return Ok(());
-    };
+    let workflow_run_id = input
+        .workflow_run_id
+        .ok_or_else(|| AppError::InvalidState {
+            current: "portrait_generation_run_without_workflow".to_string(),
+            operation: "记录立绘图片生成追踪".to_string(),
+        })?;
     let media_refs_json = (!input.reference_image_ids.is_empty())
         .then(|| json!({"reference_image_ids": input.reference_image_ids}));
     let input_variables_json = json!({
         "profile_id": input.profile_id,
-        "character_portrait_id": input.portrait_id,
+        "character_portrait_id": portrait.id,
         "portrait_type": input.portrait_type,
         "expression": input.expression,
         "pose": input.pose,
@@ -498,7 +683,7 @@ async fn mirror_portrait(
         "auto_generated": input.auto_generated,
     });
     let source_refs_json = json!({
-        "character_portrait_id": input.portrait_id,
+        "character_portrait_id": portrait.id,
         "profile_id": input.profile_id,
     });
     let input_fingerprint_json = json!({
@@ -518,121 +703,87 @@ async fn mirror_portrait(
         "request": trace.request_json,
         "media_refs": media_refs_json,
     });
-    context
-        .create_generated_image_record_with_generation_run_checkpoint(
-            image_record,
-            RecordCompletedGenerationRunWithCheckpointInput {
-                run: RecordCompletedGenerationRunInput {
-                    project_id: input.project_id,
-                    workflow: "portrait_generation".to_string(),
-                    step_key: "generate_portrait_image".to_string(),
-                    title: "人物立绘图片生成".to_string(),
-                    model_kind: "image".to_string(),
-                    provider: Some(trace.provider.to_string()),
-                    model: Some(input.model.to_string()),
-                    prompt_template_names_json: None,
-                    prompt_template_hashes_json: None,
-                    rendered_messages_json: None,
-                    rendered_prompts_json: Some(json!({"prompt": input.prompt})),
-                    input_variables_json: Some(input_variables_json),
-                    source_refs_json: Some(source_refs_json),
-                    media_refs_json,
-                    request_json: Some(trace.request_json.clone()),
-                    response_summary_json: Some(json!({
-                        "character_portrait_id": input.portrait_id,
-                        "format": trace.output_format,
-                        "file_size": input.file_size,
-                    })),
-                    targets: vec![GenerationRunTraceTarget {
-                        target_kind: "character_portrait".to_string(),
-                        target_table: "character_portrait".to_string(),
-                        target_id: input.portrait_id,
-                    }],
-                },
-                checkpoint: GenerationRunCheckpointContext {
-                    workflow_run_id: input.workflow_run_id,
-                    call_key: Some(format!(
-                        "generate_portrait_image:profile:{}:{}:{}:{}",
-                        input.profile_id,
-                        input.portrait_type,
-                        input.expression.unwrap_or("none"),
-                        input.pose.unwrap_or("none")
-                    )),
-                    input_fingerprint_sha256: Some(
-                        generation_checkpoint_fingerprint_sha256(&input_fingerprint_json)
-                            .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
-                    ),
-                    input_fingerprint_json: Some(input_fingerprint_json),
-                    raw_response_json: Some(json!({
-                        "format": trace.output_format,
-                        "model": input.model,
-                        "file_size": input.file_size,
-                    })),
-                    parsed_output_json: Some(json!({
-                        "character_portrait_id": input.portrait_id,
-                        "profile_id": input.profile_id,
-                        "portrait_type": input.portrait_type,
-                        "image_path": input.image_path,
-                        "width": input.width,
-                        "height": input.height,
-                    })),
-                    validation_json: None,
-                    artifact_refs_json: Some(json!({
-                        "targets": [{
-                            "target_kind": "character_portrait",
-                            "target_table": "character_portrait",
-                            "target_id": input.portrait_id,
-                        }],
-                    })),
-                    attempt: None,
-                },
-            },
-        )
-        .await?;
-    Ok(())
+    Ok(Some(RecordCompletedGenerationRunWithCheckpointInput {
+        run: RecordCompletedGenerationRunInput {
+            project_id: input.project_id,
+            workflow: "portrait_generation".to_string(),
+            step_key: "generate_portrait_image".to_string(),
+            title: "人物立绘图片生成".to_string(),
+            model_kind: "image".to_string(),
+            provider: Some(trace.provider.to_string()),
+            model: Some(input.model.to_string()),
+            prompt_template_names_json: None,
+            prompt_template_hashes_json: None,
+            rendered_messages_json: None,
+            rendered_prompts_json: Some(json!({"prompt": input.prompt})),
+            input_variables_json: Some(input_variables_json),
+            source_refs_json: Some(source_refs_json),
+            media_refs_json,
+            request_json: Some(trace.request_json.clone()),
+            response_summary_json: Some(json!({
+                "character_portrait_id": portrait.id,
+                "format": trace.output_format,
+                "file_size": file_size,
+            })),
+            targets: vec![GenerationRunTraceTarget {
+                target_kind: "character_portrait".to_string(),
+                target_table: "character_portrait".to_string(),
+                target_id: portrait.id,
+            }],
+        },
+        checkpoint: GenerationRunCheckpointContext {
+            workflow_run_id: Some(workflow_run_id),
+            call_key: Some(format!(
+                "generate_portrait_image:profile:{}:{}:{}:{}",
+                input.profile_id,
+                input.portrait_type,
+                input.expression.unwrap_or("none"),
+                input.pose.unwrap_or("none")
+            )),
+            input_fingerprint_sha256: Some(
+                generation_checkpoint_fingerprint_sha256(&input_fingerprint_json)
+                    .map_err(|error| AppError::InvalidArgument(error.to_string()))?,
+            ),
+            input_fingerprint_json: Some(input_fingerprint_json),
+            raw_response_json: Some(json!({
+                "format": trace.output_format,
+                "model": input.model,
+                "file_size": file_size,
+            })),
+            parsed_output_json: Some(json!({
+                "character_portrait_id": portrait.id,
+                "profile_id": input.profile_id,
+                "portrait_type": input.portrait_type,
+                "image_path": image_path,
+                "width": input.width,
+                "height": input.height,
+            })),
+            validation_json: None,
+            artifact_refs_json: Some(json!({
+                "targets": [{
+                    "target_kind": "character_portrait",
+                    "target_table": "character_portrait",
+                    "target_id": portrait.id,
+                }],
+            })),
+            attempt: None,
+        },
+    }))
 }
 
-async fn rollback_portrait_creation(
-    context: &OrchestratorContext,
+async fn cleanup_staging_after_error(
     host_port: &dyn PortraitGenerationHostPort,
-    portrait_id: i64,
-    image_path: &str,
-    original_error: AppError,
-) -> AppError {
-    let rollback = context
-        .rollback_failed_portrait_creation_records(portrait_id, image_path)
-        .await;
-    match rollback {
-        Ok(rollback) => {
-            if rollback.delete_file
-                && let Err(cleanup_error) =
-                    host_port.remove_portrait_file(image_path, "立绘图片").await
-            {
-                return combined_error(original_error, cleanup_error);
-            }
-            original_error
-        }
-        Err(cleanup_error) => combined_error(original_error, cleanup_error),
-    }
-}
-
-async fn cleanup_created_file_after_error(
-    host_port: &dyn PortraitGenerationHostPort,
-    image_path: &str,
+    staging_path: &str,
     label: &str,
     original_error: AppError,
 ) -> AppError {
-    match host_port.remove_portrait_file(image_path, label).await {
+    match host_port.remove_portrait_file(staging_path, label).await {
         Ok(()) => original_error,
-        Err(cleanup_error) => combined_error(original_error, cleanup_error),
+        Err(cleanup_error) => crate::errors::app_error_with_secondary(
+            original_error,
+            format!("失败后的立绘暂存文件清理也失败: {cleanup_error}"),
+        ),
     }
-}
-
-fn combined_error(original: AppError, cleanup: AppError) -> AppError {
-    crate::errors::app_error_with_secondary(
-        original,
-        format!("失败后的回滚/文件清理也失败: {cleanup}"),
-    )
 }
 
 fn required_text(value: &str, field_name: &str) -> Result<String, AppError> {

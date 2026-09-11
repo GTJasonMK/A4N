@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_db::queue::PersistTaskQueueRecordInput;
+use a4n_domain::task_queue::PersistTaskQueueRecordInput;
+use a4n_error::AppError;
 use a4n_queue::{
     TaskFamilyContext, TaskWorkflowContext,
     priority::{TaskInfo, TaskKind, TaskPriority, TaskStatus},
@@ -38,7 +38,7 @@ impl PersistentTaskQueue {
             workflow_run_id: workflow.map(|context| context.workflow_run_id),
         };
         let now = Utc::now().naive_utc();
-        self.inner.submit_persisted(TaskInfo {
+        let task = TaskInfo {
             id: task_id.clone(),
             task_type,
             priority,
@@ -51,12 +51,23 @@ impl PersistentTaskQueue {
             created_at: now,
             started_at: None,
             completed_at: None,
-        })?;
-        if let Err(error) = a4n_db::queue::insert_task_queue_record(self.db.as_ref(), record)
+        };
+        // Persist first. A crash between these two operations is recoverable
+        // by the existing startup scan; submitting to memory first could let a
+        // worker execute a task whose package admission transaction later lost
+        // the race with a disable operation.
+        a4n_db::queue::insert_task_queue_record(self.db.as_ref(), record)
             .await
-            .map_err(queue_db_error)
-        {
-            self.inner.cancel_task_now(&task_id)?;
+            .map_err(queue_db_error)?;
+        if let Err(error) = self.inner.submit_persisted(task) {
+            a4n_db::queue::update_task_status(
+                self.db.as_ref(),
+                &task_id,
+                "cancelled",
+                Some("内存队列登记失败，避免遗留未执行任务"),
+            )
+            .await
+            .map_err(queue_db_error)?;
             return Err(error);
         }
         Ok(task_id)

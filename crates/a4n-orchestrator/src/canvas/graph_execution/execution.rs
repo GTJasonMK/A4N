@@ -1,4 +1,8 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
+use a4n_canvas_contract::{
+    CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphNodeExecutionKind,
+    PreparedCanvasGraphRun,
+};
 use a4n_db::canvas::validate_canvas_record_document_edge_contract;
 
 use crate::{
@@ -8,11 +12,6 @@ use crate::{
         WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
         WORKFLOW_STATUS_RUNNING,
     },
-};
-
-use super::contracts::{
-    CanvasGraphExecutionHostPort, CanvasGraphNodeExecutionInput, CanvasGraphNodeExecutionKind,
-    PreparedCanvasGraphRun,
 };
 
 impl OrchestratorContext {
@@ -96,10 +95,12 @@ impl OrchestratorContext {
                     user_id: prepared.user_id,
                     project_id: prepared.project_id,
                     graph_id: prepared.graph_id,
-                    node,
-                    document: &current_document,
-                    shared_run,
-                    mode: &prepared.mode,
+                    node_id: node.id,
+                    shared_run: a4n_canvas_contract::CanvasNodeRun {
+                        workflow_run_id: shared_run.workflow_run_id,
+                        finalize_on_success: shared_run.finalize_on_success,
+                    },
+                    mode: prepared.mode.clone(),
                 })
                 .await?;
             let should_stop = matches!(

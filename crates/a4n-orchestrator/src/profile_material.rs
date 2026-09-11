@@ -4,60 +4,50 @@ use a4n_api_contract::profile::{
 };
 pub(crate) use a4n_db::profile_material::{
     generated_image_profile_material_identity, is_project_reusable_video_material_image,
-    profile_material_identity,
+    profile_material_identity, profile_material_identity_from_fields,
 };
 
-use std::collections::{BTreeMap, HashMap, HashSet};
-use std::io::Write;
-use std::path::Path;
-
-use a4n_core::{
-    error::{AppError, append_secondary_message},
-    files::{
-        create_unique_timestamped_file, paths::ProjectPaths, persist_created_media_file,
-        remove_existing_data_file,
-    },
-    models::{
-        ai::generated_image,
-        asset::{object_profile, profile_primary_material},
-        scene::scene_profile,
-    },
-    source_spans::source_text_hash as source_content_sha256,
+use a4n_db::video::{
+    CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
+    ImagePublicationFileFacts,
 };
-use a4n_db::video::CreateGeneratedImageRecordDraftInput;
+use a4n_db_models::models::{
+    ai::generated_image,
+    asset::{object_profile, profile_primary_material},
+    media::image_publication,
+    scene::scene_profile,
+};
 use a4n_domain::{
     image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL},
+    media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED},
     profile_material::{
         ProfileMaterialFilter, ProfileMaterialImageStaleness, ProfileMaterialKind,
         ProfileMaterialKindFilter, ProfileMaterialSort, ProfileMaterialState,
     },
+    source_text_hash as source_content_sha256,
 };
+use a4n_error::AppError;
+use a4n_media::decode_uploaded_image_data;
+use async_trait::async_trait;
 use chrono::{NaiveDateTime, Utc};
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use uuid::Uuid;
 
 use crate::{
     OrchestratorContext,
     asset::asset_error,
     collaboration::ProjectAccessRole,
-    media::{decode_uploaded_image_data, generated_image_summary},
+    media::{
+        ImageGenerationHostPort, PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput,
+        generated_image_summary,
+    },
     scene_profile::scene_profile_db_error,
 };
 
 const MANUAL_UPLOAD_MODEL: &str = "manual_upload";
 const MAX_UPLOAD_IMAGE_BYTES: usize = 20 * 1024 * 1024;
-
-struct PersistProfileMaterialImageInput<'a> {
-    project_id: i64,
-    profile_kind: &'a str,
-    profile_id: i64,
-    extension: &'a str,
-    bytes: &'a [u8],
-}
-
-struct PersistedProfileMaterialImage {
-    relative_path: String,
-    file_size: i64,
-}
 
 struct ProfileMaterialSource {
     kind: ProfileMaterialKind,
@@ -69,6 +59,28 @@ struct ProfileMaterialGroupProjection {
     group: ProfileMaterialGroup,
     newest_image_sort_key: Option<(NaiveDateTime, i64)>,
     has_favorite_image: bool,
+}
+
+#[async_trait]
+pub trait ProfileMaterialApplicationPort: Send + Sync {
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ListProfileMaterialsInput,
+    ) -> Result<Vec<ProfileMaterialGroup>, AppError>;
+
+    async fn set_primary(
+        &self,
+        user_id: i64,
+        input: SetProfilePrimaryMaterialInput,
+    ) -> Result<ProfileMaterialGroup, AppError>;
+
+    async fn upload(
+        &self,
+        user_id: i64,
+        host: &dyn ImageGenerationHostPort,
+        input: UploadProfileMaterialImageInput,
+    ) -> Result<ProfileMaterialGroup, AppError>;
 }
 
 #[derive(Debug, Clone)]
@@ -262,6 +274,7 @@ impl OrchestratorContext {
     pub async fn upload_profile_material_image_validated(
         &self,
         user_id: i64,
+        host: &dyn ImageGenerationHostPort,
         input: UploadProfileMaterialImageInput,
     ) -> Result<ProfileMaterialGroup, AppError> {
         self.require_profile_material_editor(user_id, input.project_id)
@@ -280,16 +293,6 @@ impl OrchestratorContext {
         let prompt = non_empty(&input.prompt_snapshot)
             .ok_or_else(|| AppError::InvalidArgument("prompt_snapshot 不能为空".to_string()))?
             .to_string();
-        let persisted = persist_profile_material_image(
-            self.data_dir(),
-            PersistProfileMaterialImageInput {
-                project_id: input.project_id,
-                profile_kind: kind.as_str(),
-                profile_id: input.profile_id,
-                extension: uploaded.extension,
-                bytes: &uploaded.bytes,
-            },
-        )?;
         let style = ProfileMaterialStyleMetadata {
             style_template_id: input.style_template_id,
             style_template_name: input.style_template_name,
@@ -307,50 +310,133 @@ impl OrchestratorContext {
             map.insert("source".to_string(), json!("manual_upload"));
             map.insert("manual_upload".to_string(), json!(true));
             map.insert("chapter_video_material".to_string(), json!(true));
+            map.insert("set_primary".to_string(), json!(input.set_primary));
             map.insert("prompt_snapshot".to_string(), json!(prompt));
             map.insert(
                 "upload".to_string(),
                 json!({
                     "original_file_name": uploaded.source_file_name,
                     "mime_type": uploaded.mime_type,
-                    "file_size": persisted.file_size,
+                    "file_size": uploaded.bytes.len(),
                 }),
             );
         }
 
-        let image = match self
-            .create_generated_image_record(CreateGeneratedImageRecordDraftInput {
-                project_id: input.project_id,
-                image_type: image_type_for_profile_material_kind(kind).to_string(),
-                file_path: persisted.relative_path.clone(),
-                prompt,
-                model: MANUAL_UPLOAD_MODEL.to_string(),
-                width: uploaded.width,
-                height: uploaded.height,
-                file_size: Some(persisted.file_size),
-                chapter_id: None,
-                panel_id: Some(format!("{}_profile_{}", kind.as_str(), input.profile_id)),
-                metadata_json: Some(metadata),
-                created_at: Some(Utc::now().naive_utc()),
-            })
-            .await
-        {
-            Ok(image) => image,
-            Err(error) => {
-                let cleanup_error = remove_existing_data_file(
-                    self.data_dir(),
-                    &persisted.relative_path,
-                    "未提交素材图",
+        let file_size = i64::try_from(uploaded.bytes.len())
+            .map_err(|_| AppError::InvalidArgument("素材图过大，无法记录文件大小".to_string()))?;
+        let expected_sha256 = format!("{:x}", Sha256::digest(&uploaded.bytes));
+        let publication_id = format!(
+            "image-publication-profile-material-{}",
+            Uuid::new_v4().simple()
+        );
+        let file_extra = format!("profile_{}", input.profile_id);
+        let prepared = host.prepare_generated_image_file(PrepareGeneratedImageFileInput {
+            project_id: input.project_id,
+            chapter_id: None,
+            image_type: image_type_for_profile_material_kind(kind),
+            file_extra: Some(&file_extra),
+            format: uploaded.extension,
+            publication_id: &publication_id,
+            file_context: "档案素材图",
+        })?;
+        let (publication, _publication_guard) = self
+            .create_image_publication_intent_for_user_validated(
+                user_id,
+                CreateImagePublicationIntentInput {
+                    publication_id: publication_id.clone(),
+                    project_id: input.project_id,
+                    requested_by_user_id: user_id,
+                    staging_path: prepared.staging_path.clone(),
+                    final_path: prepared.final_path.clone(),
+                    image: CreateGeneratedImageRecordDraftInput {
+                        project_id: input.project_id,
+                        image_type: image_type_for_profile_material_kind(kind).to_string(),
+                        file_path: prepared.final_path.clone(),
+                        prompt,
+                        model: MANUAL_UPLOAD_MODEL.to_string(),
+                        width: uploaded.width,
+                        height: uploaded.height,
+                        file_size: Some(file_size),
+                        chapter_id: None,
+                        panel_id: Some(file_extra.clone()),
+                        metadata_json: Some(metadata),
+                        created_at: Some(Utc::now().naive_utc()),
+                    },
+                    expected_file_size: file_size,
+                    expected_sha256: expected_sha256.clone(),
+                },
+            )
+            .await?;
+        let image = if publication.status == IMAGE_PUBLICATION_STATUS_PUBLISHED {
+            let image_id = publication.image_id.ok_or_else(|| AppError::InvalidState {
+                current: publication.status.clone(),
+                operation: "读取已发布档案素材图".to_string(),
+            })?;
+            self.generated_image_by_id(image_id)
+                .await?
+                .ok_or_else(|| AppError::NotFound(format!("已发布档案素材图不存在: {image_id}")))?
+        } else if publication.status == IMAGE_PUBLICATION_STATUS_PENDING {
+            let persisted = match host.persist_generated_image_file(
+                PersistGeneratedImageFileInput {
+                    project_id: input.project_id,
+                    chapter_id: None,
+                    image_type: image_type_for_profile_material_kind(kind),
+                    file_extra: Some(&file_extra),
+                    bytes: &uploaded.bytes,
+                    format: uploaded.extension,
+                    file_context: "档案素材图",
+                },
+                &prepared,
+            ) {
+                Ok(persisted) => persisted,
+                Err(error) => {
+                    return Err(cleanup_profile_staging_after_error(
+                        host,
+                        &prepared.staging_path,
+                        error,
+                    )
+                    .await);
+                }
+            };
+            let image = match self
+                .publish_image_publication_for_user_validated(
+                    user_id,
+                    input.project_id,
+                    &publication_id,
+                    ImagePublicationFileFacts {
+                        file_size: persisted.file_size,
+                        sha256: expected_sha256,
+                    },
+                    None,
                 )
-                .err();
-                return Err(AppError::InvalidState {
-                    current: "profile_material_upload".to_string(),
-                    operation: append_secondary_message(
-                        format!("素材图记录创建失败：{error}"),
-                        cleanup_error.map(|cleanup| format!("后续清理也失败：{cleanup}")),
-                    ),
-                });
+                .await
+            {
+                Ok(image) => image,
+                Err(error) => {
+                    return Err(cleanup_profile_staging_after_error(
+                        host,
+                        &prepared.staging_path,
+                        error,
+                    )
+                    .await);
+                }
+            };
+            if let Err(error) = host
+                .remove_generated_image_file(&prepared.staging_path, "档案素材图暂存文件")
+                .await
+            {
+                tracing::warn!(
+                    error = %error,
+                    publication_id = %publication_id,
+                    "档案素材图发布成功但暂存文件清理意图登记失败"
+                );
             }
+            image
+        } else {
+            return Err(AppError::InvalidState {
+                current: publication.status,
+                operation: "写入档案素材图".to_string(),
+            });
         };
 
         if input.set_primary
@@ -363,17 +449,9 @@ impl OrchestratorContext {
                 )
                 .await
         {
-            let cleanup_error = self
-                .delete_generated_image_record_with_cleanup(image.id)
-                .await
-                .err()
-                .map(|error| format!("素材图记录回滚失败：{error}"));
             return Err(AppError::InvalidState {
                 current: "profile_material_upload".to_string(),
-                operation: append_secondary_message(
-                    error.to_string(),
-                    cleanup_error.map(|cleanup| format!("后续清理也失败：{cleanup}")),
-                ),
+                operation: format!("设置主素材失败，已发布素材图已保留：{error}"),
             });
         }
 
@@ -383,6 +461,76 @@ impl OrchestratorContext {
                 current: "profile_material_uploaded".to_string(),
                 operation: "素材图已上传，但无法重新读取档案素材".to_string(),
             })
+    }
+
+    pub async fn ensure_profile_material_publication_identity_for_user_validated(
+        &self,
+        user_id: i64,
+        publication: &image_publication::Model,
+    ) -> Result<(), AppError> {
+        self.verify_project_permission(publication.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        if !matches!(
+            publication.image_type.as_str(),
+            IMAGE_TYPE_SCENE_MATERIAL | IMAGE_TYPE_OBJECT_MATERIAL
+        ) {
+            return Err(AppError::InvalidState {
+                current: publication.image_type.clone(),
+                operation: "恢复档案素材 publication".to_string(),
+            });
+        }
+        if !matches!(
+            publication.status.as_str(),
+            IMAGE_PUBLICATION_STATUS_PENDING | IMAGE_PUBLICATION_STATUS_PUBLISHED
+        ) {
+            return Err(AppError::InvalidState {
+                current: publication.status.clone(),
+                operation: "恢复档案素材 publication".to_string(),
+            });
+        }
+        let (kind, profile_id, set_primary) = profile_material_publication_details(
+            &publication.image_type,
+            publication.metadata_json.as_ref(),
+        )?;
+        self.ensure_profile_material_profile(publication.project_id, kind, profile_id)
+            .await?;
+        if publication.status == IMAGE_PUBLICATION_STATUS_PENDING {
+            if publication.image_id.is_some() {
+                return Err(AppError::InvalidState {
+                    current: publication.publication_id.clone(),
+                    operation: "待发布档案素材图片不应已有 image_id".to_string(),
+                });
+            }
+            return Ok(());
+        }
+        let image_id = publication.image_id.ok_or_else(|| AppError::InvalidState {
+            current: publication.publication_id.clone(),
+            operation: "读取已发布档案素材图片身份".to_string(),
+        })?;
+        let image = self
+            .generated_image_by_id(image_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("已发布档案素材图不存在: {image_id}")))?;
+        if image.project_id != publication.project_id
+            || image.file_path != publication.final_path
+            || generated_image_profile_material_identity(&image)
+                != Some((kind.as_str(), profile_id))
+        {
+            return Err(AppError::InvalidState {
+                current: format!("publication_id={}", publication.publication_id),
+                operation: "档案素材 publication 身份与图片记录不一致".to_string(),
+            });
+        }
+        if set_primary {
+            self.upsert_profile_primary_material(
+                publication.project_id,
+                kind.as_str(),
+                profile_id,
+                image_id,
+            )
+            .await?;
+        }
+        Ok(())
     }
 
     pub async fn count_profile_material_images(
@@ -606,6 +754,35 @@ impl OrchestratorContext {
     }
 }
 
+#[async_trait]
+impl ProfileMaterialApplicationPort for OrchestratorContext {
+    async fn list(
+        &self,
+        user_id: i64,
+        input: ListProfileMaterialsInput,
+    ) -> Result<Vec<ProfileMaterialGroup>, AppError> {
+        OrchestratorContext::list_profile_materials_validated(self, user_id, input).await
+    }
+
+    async fn set_primary(
+        &self,
+        user_id: i64,
+        input: SetProfilePrimaryMaterialInput,
+    ) -> Result<ProfileMaterialGroup, AppError> {
+        OrchestratorContext::set_profile_primary_material_validated(self, user_id, input).await
+    }
+
+    async fn upload(
+        &self,
+        user_id: i64,
+        host: &dyn ImageGenerationHostPort,
+        input: UploadProfileMaterialImageInput,
+    ) -> Result<ProfileMaterialGroup, AppError> {
+        OrchestratorContext::upload_profile_material_image_validated(self, user_id, host, input)
+            .await
+    }
+}
+
 fn requested_profile_material_kinds(kind: ProfileMaterialKindFilter) -> Vec<ProfileMaterialKind> {
     match kind {
         ProfileMaterialKindFilter::Scene => vec![ProfileMaterialKind::Scene],
@@ -621,6 +798,40 @@ fn image_type_for_profile_material_kind(kind: ProfileMaterialKind) -> &'static s
         ProfileMaterialKind::Scene => IMAGE_TYPE_SCENE_MATERIAL,
         ProfileMaterialKind::Object => IMAGE_TYPE_OBJECT_MATERIAL,
     }
+}
+
+fn profile_material_publication_details(
+    image_type: &str,
+    metadata: Option<&Value>,
+) -> Result<(ProfileMaterialKind, i64, bool), AppError> {
+    let metadata = metadata
+        .and_then(Value::as_object)
+        .ok_or_else(|| AppError::InvalidState {
+            current: image_type.to_string(),
+            operation: "读取档案素材 publication 元数据".to_string(),
+        })?;
+    let (profile_kind, profile_id) = profile_material_identity_from_fields(
+        image_type,
+        metadata.get("profile_kind").and_then(Value::as_str),
+        metadata.get("profile_id").and_then(Value::as_i64),
+    )
+    .ok_or_else(|| AppError::InvalidState {
+        current: image_type.to_string(),
+        operation: "读取档案素材 publication 档案身份".to_string(),
+    })?;
+    let kind = match profile_kind {
+        a4n_db::profile_material::PROFILE_KIND_SCENE => ProfileMaterialKind::Scene,
+        a4n_db::profile_material::PROFILE_KIND_OBJECT => ProfileMaterialKind::Object,
+        _ => unreachable!("profile_material_identity only returns known profile kinds"),
+    };
+    let set_primary = metadata
+        .get("set_primary")
+        .and_then(Value::as_bool)
+        .ok_or_else(|| AppError::InvalidState {
+            current: image_type.to_string(),
+            operation: "读取档案素材 publication set_primary".to_string(),
+        })?;
+    Ok((kind, profile_id, set_primary))
 }
 
 fn scene_source_from_model(profile: scene_profile::Model) -> ProfileMaterialSource {
@@ -945,46 +1156,21 @@ fn non_empty(value: &str) -> Option<&str> {
     if value.is_empty() { None } else { Some(value) }
 }
 
-fn persist_profile_material_image(
-    data_dir: &Path,
-    input: PersistProfileMaterialImageInput<'_>,
-) -> Result<PersistedProfileMaterialImage, AppError> {
-    let dir = ProjectPaths::new(data_dir, input.project_id)
-        .images_dir()
-        .join("profile_materials");
-    std::fs::create_dir_all(&dir).map_err(|err| AppError::InvalidState {
-        current: "profile_material_upload".to_string(),
-        operation: format!("无法创建素材图目录：{err}"),
-    })?;
-    let (path, mut output_file) = create_unique_timestamped_file(
-        &dir,
-        &format!("{}_{}", input.profile_kind, input.profile_id),
-        input.extension,
-    )
-    .map_err(|error| AppError::InvalidState {
-        current: "profile_material_upload".to_string(),
-        operation: format!("创建上传素材图失败：{error}"),
-    })?;
-    let (relative_path, file_size) = persist_created_media_file(
-        data_dir,
-        &path,
-        move |_| {
-            output_file
-                .write_all(input.bytes)
-                .map_err(|err| format!("写入上传素材图失败：{err}"))
-        },
-        "上传素材图",
-        "上传素材图",
-        "上传素材图",
-    )
-    .map_err(|operation| AppError::InvalidState {
-        current: "profile_material_upload".to_string(),
-        operation,
-    })?;
-    Ok(PersistedProfileMaterialImage {
-        relative_path,
-        file_size,
-    })
+async fn cleanup_profile_staging_after_error(
+    host: &dyn ImageGenerationHostPort,
+    staging_path: &str,
+    error: AppError,
+) -> AppError {
+    match host
+        .remove_generated_image_file(staging_path, "档案素材图暂存文件")
+        .await
+    {
+        Ok(()) => error,
+        Err(cleanup_error) => crate::errors::app_error_with_secondary(
+            error,
+            format!("清理档案素材图暂存文件失败：{cleanup_error}"),
+        ),
+    }
 }
 
 fn compact_json_hint(value: &Value, empty_text: &str) -> String {
@@ -1001,41 +1187,6 @@ mod tests {
     use super::*;
     use a4n_db::profile_material::PROFILE_KIND_SCENE;
     use chrono::NaiveDate;
-    use std::time::{SystemTime, UNIX_EPOCH};
-
-    #[test]
-    fn persists_profile_material_under_project_directory() {
-        let stamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("system clock after epoch")
-            .as_nanos();
-        let data_dir = std::env::temp_dir().join(format!(
-            "a4n_profile_material_{}_{}",
-            std::process::id(),
-            stamp
-        ));
-        let persisted = persist_profile_material_image(
-            &data_dir,
-            PersistProfileMaterialImageInput {
-                project_id: 7,
-                profile_kind: "scene",
-                profile_id: 42,
-                extension: "png",
-                bytes: b"profile-material",
-            },
-        )
-        .expect("persist profile material");
-        assert!(
-            persisted
-                .relative_path
-                .starts_with("projects/7/images/profile_materials/scene_42_")
-        );
-        assert_eq!(persisted.file_size, 16);
-        let absolute = data_dir.join(&persisted.relative_path);
-        assert!(absolute.is_file());
-        let _ = std::fs::remove_dir_all(data_dir);
-    }
-
     #[test]
     fn profile_material_metadata_uses_canonical_fields() {
         let metadata = profile_material_metadata(
@@ -1058,6 +1209,42 @@ mod tests {
         assert_eq!(
             metadata["style_template_id"],
             json!("kyoani-everyday-anime")
+        );
+    }
+
+    #[test]
+    fn profile_material_publication_details_validate_identity_and_primary_intent() {
+        let details = profile_material_publication_details(
+            IMAGE_TYPE_SCENE_MATERIAL,
+            Some(&json!({
+                "profile_kind": "scene",
+                "profile_id": 9,
+                "set_primary": true,
+            })),
+        )
+        .expect("有效档案素材 publication 元数据必须可解析");
+        assert_eq!(details, (ProfileMaterialKind::Scene, 9, true));
+
+        assert!(
+            profile_material_publication_details(
+                IMAGE_TYPE_OBJECT_MATERIAL,
+                Some(&json!({
+                    "profile_kind": "object",
+                    "profile_id": 10,
+                })),
+            )
+            .is_err()
+        );
+
+        assert!(
+            profile_material_publication_details(
+                IMAGE_TYPE_SCENE_MATERIAL,
+                Some(&json!({
+                    "profile_kind": "object",
+                    "profile_id": 9,
+                })),
+            )
+            .is_err()
         );
     }
 

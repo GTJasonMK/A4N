@@ -4,15 +4,6 @@ use std::sync::{
 };
 
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_image, image_gen_config},
-        chapter::{chapter, chapter_manga_prompt},
-        generation::{generation_run, workflow_checkpoint, workflow_run},
-        project::novel_project,
-    },
-};
 use a4n_db::{
     DatabaseConnection,
     project::{
@@ -20,13 +11,22 @@ use a4n_db::{
         create_derived_project_record, create_freeform_video_project_record,
     },
 };
-use a4n_domain::project::ProjectKind;
+use a4n_db_models::models::{
+    ai::generated_image,
+    chapter::{chapter, chapter_manga_prompt},
+    generation::{generation_run, workflow_checkpoint, workflow_run},
+    project::novel_project,
+};
+use a4n_domain::{media::GeneratedMediaArtifactFile, project::ProjectKind};
+use a4n_error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
 use base64::Engine as _;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use crate::{
     OrchestratorContext,
@@ -38,6 +38,7 @@ use super::{
     ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
     ImageGenerationProgress, ImageGenerationProviderInput, ImageGenerationProviderOutput,
     ImageGenerationWorkflowBinding, PersistGeneratedImageFileInput, PersistedGeneratedImageFile,
+    PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
     application::{check_progress_cancelled, collect_bound_reference_images},
     image_generation_request_trace_json,
     trace::test_image_request_aspect_ratio,
@@ -154,8 +155,8 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
     async fn resolve_image_config(
         &self,
         _config_id: Option<i64>,
-    ) -> Result<image_gen_config::Model, AppError> {
-        Ok(image_config())
+    ) -> Result<ImageProviderConfig, AppError> {
+        Ok(image_provider_config())
     }
 
     fn runtime_config_snapshot(&self) -> Option<Value> {
@@ -197,9 +198,28 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
         })
     }
 
+    fn prepare_generated_image_file(
+        &self,
+        input: PrepareGeneratedImageFileInput<'_>,
+    ) -> Result<PreparedGeneratedImageFile, AppError> {
+        let final_path = format!(
+            "projects/{}/images/{}_{}_{}.{}",
+            input.project_id,
+            input.image_type,
+            input.file_extra.unwrap_or("main"),
+            input.publication_id,
+            input.format
+        );
+        Ok(PreparedGeneratedImageFile {
+            staging_path: format!("{final_path}.part"),
+            final_path,
+        })
+    }
+
     fn persist_generated_image_file(
         &self,
         input: PersistGeneratedImageFileInput<'_>,
+        prepared: &PreparedGeneratedImageFile,
     ) -> Result<PersistedGeneratedImageFile, AppError> {
         self.persist_calls.fetch_add(1, Ordering::SeqCst);
         if self.fail_persist {
@@ -209,13 +229,7 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
             });
         }
         Ok(PersistedGeneratedImageFile {
-            relative_path: format!(
-                "generated/project-{}/{}-{}.{}",
-                input.project_id,
-                input.image_type,
-                input.file_extra.unwrap_or("main"),
-                input.format
-            ),
+            relative_path: prepared.final_path.clone(),
             file_size: i64::try_from(input.bytes.len())
                 .map_err(|_| AppError::InvalidArgument("测试图片过大".to_string()))?,
         })
@@ -240,8 +254,8 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
         &self,
         _relative_path: &str,
         _label: &str,
-    ) -> Result<crate::generation::GeneratedMediaArtifactFile, AppError> {
-        Ok(crate::generation::GeneratedMediaArtifactFile {
+    ) -> Result<GeneratedMediaArtifactFile, AppError> {
+        Ok(GeneratedMediaArtifactFile {
             content_type: "image/png".to_string(),
             sha256: "test-sha256".to_string(),
             byte_size: png_1x1_bytes().len() as u64,
@@ -268,18 +282,28 @@ impl ImageGenerationHostPort for TestImageGenerationHost {
     }
 }
 
-async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext) {
+async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext, i64) {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+    let suffix = Uuid::new_v4().simple().to_string();
+    let user = a4n_db::auth::create_user(
+        database.as_ref(),
+        &format!("image-test-{suffix}"),
+        &format!("image-test-{suffix}@example.test"),
+        "test-password-123",
+        "user",
+    )
+    .await
+    .expect("图片测试用户应创建成功");
     let context = TestOrchestratorBuilder::new(Arc::clone(&database))
         .build()
         .await;
-    (database, context)
+    (database, context, user.id)
 }
 
-async fn insert_project(database: &DatabaseConnection) -> i64 {
+async fn insert_project(database: &DatabaseConnection, user_id: i64) -> i64 {
     create_freeform_video_project_record(
         database,
-        1,
+        user_id,
         CreateFreeformVideoProjectParams {
             title: "Image Generation application 测试项目".to_string(),
             description: String::new(),
@@ -326,23 +350,19 @@ fn bind_existing_item(
     };
 }
 
-fn image_config() -> image_gen_config::Model {
-    let now = chrono::Utc::now().naive_utc();
-    image_gen_config::Model {
+fn image_provider_config() -> ImageProviderConfig {
+    ImageProviderConfig {
         id: 7,
         name: "测试图片配置".to_string(),
         backend: "test-image-provider".to_string(),
         base_url: Some("http://127.0.0.1:47645".to_string()),
-        api_key_encrypted: None,
+        api_key: None,
         model: "configured-image-model".to_string(),
         max_concurrent: 1,
         supported_sizes_json: json!([
             {"width": 1024, "height": 576},
             {"width": 1024, "height": 1536}
         ]),
-        is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 
@@ -359,15 +379,16 @@ fn image_request() -> ImageGenerationRequest {
     }
 }
 
-fn execution_input(project_id: i64) -> ImageGenerationExecutionInput {
+fn execution_input(project_id: i64, requested_by_user_id: i64) -> ImageGenerationExecutionInput {
     ImageGenerationExecutionInput {
+        requested_by_user_id,
         project_id,
         chapter_id: None,
         image_type: "scene".to_string(),
         command: "image_scene".to_string(),
         file_extra: Some("scene-1".to_string()),
         file_context: "场景图片".to_string(),
-        config: image_config(),
+        config: image_provider_config(),
         request: image_request(),
         width: 1024,
         height: 576,
@@ -388,7 +409,7 @@ fn execution_input(project_id: i64) -> ImageGenerationExecutionInput {
 #[test]
 fn image_request_trace_records_aspect_ratio_and_redacts_reference_payload() {
     let request = image_request();
-    let trace = image_generation_request_trace_json(&image_config(), &request);
+    let trace = image_generation_request_trace_json(&image_provider_config(), &request);
     let serialized = serde_json::to_string(&trace).expect("trace 应可序列化");
 
     assert_eq!(test_image_request_aspect_ratio(1024, 576), "16:9");
@@ -412,14 +433,14 @@ fn image_request_trace_records_aspect_ratio_and_redacts_reference_payload() {
 
 #[tokio::test]
 async fn image_generation_application_persists_complete_trace() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost::default();
 
     let outcome = context
         .run_image_generation_validated(
             &host,
-            execution_input(project_id),
+            execution_input(project_id, user_id),
             &ImageGenerationProgress::none(),
         )
         .await
@@ -431,7 +452,7 @@ async fn image_generation_application_persists_complete_trace() {
     assert_eq!((outcome.summary.width, outcome.summary.height), (1, 1));
     assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 1);
 
     let image = generated_image::Entity::find_by_id(outcome.summary.id)
         .one(database.as_ref())
@@ -483,8 +504,8 @@ async fn image_generation_application_persists_complete_trace() {
 
 #[tokio::test]
 async fn batch_image_generation_keeps_successes_after_item_failure() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost {
         fail_generate_call: Some(1),
         ..Default::default()
@@ -497,7 +518,7 @@ async fn batch_image_generation_keeps_successes_after_item_failure() {
             chapter_id: None,
             panel_id: Some(format!("scene-{index}")),
             metadata_json: None,
-            config: image_config(),
+            config: image_provider_config(),
         })
         .collect();
 
@@ -505,6 +526,7 @@ async fn batch_image_generation_keeps_successes_after_item_failure() {
         .run_batch_image_generation_validated(
             &host,
             BatchImageGenerationApplicationInput {
+                requested_by_user_id: user_id,
                 project_id,
                 requests: vec![json!({"prompt": "first"}), json!({"prompt": "second"})],
                 items,
@@ -516,15 +538,22 @@ async fn batch_image_generation_keeps_successes_after_item_failure() {
         .expect("best-effort batch 应保留后续成功项");
 
     assert_eq!(host.generate_calls.load(Ordering::SeqCst), 2);
-    assert_eq!(outcome.succeeded(), 1);
+    assert_eq!(
+        outcome.succeeded(),
+        1,
+        "批量项失败: first_error={:?}, failed={:?}, items={}",
+        outcome.first_error,
+        outcome.failed_item_keys,
+        outcome.items.len()
+    );
     assert_eq!(outcome.failed_item_keys, ["image-request-1"]);
     assert_eq!(outcome.items[0].item_key, "image-request-2");
 }
 
 #[tokio::test]
 async fn batch_cancellation_records_the_real_first_error() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost::default();
     let cancel_token = CancellationToken::new();
     cancel_token.cancel();
@@ -533,6 +562,7 @@ async fn batch_cancellation_records_the_real_first_error() {
         .run_batch_image_generation_validated(
             &host,
             BatchImageGenerationApplicationInput {
+                requested_by_user_id: user_id,
                 project_id,
                 requests: vec![json!({"prompt": "cancelled"})],
                 items: vec![BatchImageExecutionItem {
@@ -542,7 +572,7 @@ async fn batch_cancellation_records_the_real_first_error() {
                     chapter_id: None,
                     panel_id: None,
                     metadata_json: None,
-                    config: image_config(),
+                    config: image_provider_config(),
                 }],
                 runtime_config_snapshot: None,
             },
@@ -559,9 +589,9 @@ async fn batch_cancellation_records_the_real_first_error() {
 
 #[tokio::test]
 async fn image_generation_application_restores_without_provider_or_persist() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
-    let input = execution_input(project_id);
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let input = execution_input(project_id, user_id);
     let first_host = TestImageGenerationHost::default();
 
     let first = context
@@ -602,22 +632,22 @@ async fn image_generation_application_restores_without_provider_or_persist() {
 
 #[tokio::test]
 async fn restored_checkpoint_rejects_image_from_another_project() {
-    let (database, context) = setup_context().await;
-    let source_project_id = insert_project(database.as_ref()).await;
-    let target_project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let source_project_id = insert_project(database.as_ref(), user_id).await;
+    let target_project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost::default();
 
     context
         .run_image_generation_validated(
             &host,
-            execution_input(source_project_id),
+            execution_input(source_project_id, user_id),
             &ImageGenerationProgress::none(),
         )
         .await
         .expect("首次生成应成功");
     let (workflow, checkpoint) =
         image_workflow_and_checkpoint(database.as_ref(), source_project_id).await;
-    let mut restore_input = execution_input(target_project_id);
+    let mut restore_input = execution_input(target_project_id, user_id);
     bind_existing_item(&mut restore_input, &workflow, &checkpoint);
     let restore_host = TestImageGenerationHost::default();
 
@@ -637,14 +667,14 @@ async fn restored_checkpoint_rejects_image_from_another_project() {
 
 #[tokio::test]
 async fn restored_checkpoint_rejects_file_path_mismatch() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost::default();
 
     context
         .run_image_generation_validated(
             &host,
-            execution_input(project_id),
+            execution_input(project_id, user_id),
             &ImageGenerationProgress::none(),
         )
         .await
@@ -661,7 +691,7 @@ async fn restored_checkpoint_rejects_file_path_mismatch() {
         .update(database.as_ref())
         .await
         .expect("测试 checkpoint 应可更新");
-    let mut restore_input = execution_input(project_id);
+    let mut restore_input = execution_input(project_id, user_id);
     bind_existing_item(&mut restore_input, &workflow, &checkpoint);
     let restore_host = TestImageGenerationHost::default();
 
@@ -681,20 +711,20 @@ async fn restored_checkpoint_rejects_file_path_mismatch() {
 
 #[tokio::test]
 async fn restored_checkpoint_requires_host_file_validation() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost::default();
 
     context
         .run_image_generation_validated(
             &host,
-            execution_input(project_id),
+            execution_input(project_id, user_id),
             &ImageGenerationProgress::none(),
         )
         .await
         .expect("首次生成应成功");
     let (workflow, checkpoint) = image_workflow_and_checkpoint(database.as_ref(), project_id).await;
-    let mut restore_input = execution_input(project_id);
+    let mut restore_input = execution_input(project_id, user_id);
     bind_existing_item(&mut restore_input, &workflow, &checkpoint);
     let restore_host = TestImageGenerationHost {
         fail_validate: true,
@@ -717,10 +747,10 @@ async fn restored_checkpoint_requires_host_file_validation() {
 
 #[tokio::test]
 async fn image_generation_application_rejects_non_object_metadata() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost::default();
-    let mut input = execution_input(project_id);
+    let mut input = execution_input(project_id, user_id);
     input.metadata_json = Some(json!(["invalid"]));
 
     let error = context
@@ -743,8 +773,8 @@ async fn image_generation_application_rejects_non_object_metadata() {
 
 #[tokio::test]
 async fn provider_failure_marks_owned_workflow_failed() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost {
         fail_generate: true,
         ..Default::default()
@@ -753,7 +783,7 @@ async fn provider_failure_marks_owned_workflow_failed() {
     let error = context
         .run_image_generation_validated(
             &host,
-            execution_input(project_id),
+            execution_input(project_id, user_id),
             &ImageGenerationProgress::none(),
         )
         .await
@@ -779,15 +809,15 @@ async fn provider_failure_marks_owned_workflow_failed() {
 
 #[tokio::test]
 async fn cancellation_before_provider_marks_owned_workflow_cancelled() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost::default();
     let cancel_token = CancellationToken::new();
     cancel_token.cancel();
     let progress = ImageGenerationProgress::new(None, Some(&cancel_token));
 
     let error = context
-        .run_image_generation_validated(&host, execution_input(project_id), &progress)
+        .run_image_generation_validated(&host, execution_input(project_id, user_id), &progress)
         .await
         .expect_err("provider 前取消必须显式失败");
 
@@ -806,8 +836,8 @@ async fn cancellation_before_provider_marks_owned_workflow_cancelled() {
 
 #[tokio::test]
 async fn primary_and_finalize_failures_are_both_returned() {
-    let (database, context) = setup_context().await;
-    let project_id = insert_project(database.as_ref()).await;
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost {
         delete_workflow_on_generate: Some(Arc::clone(&database)),
         ..Default::default()
@@ -816,7 +846,7 @@ async fn primary_and_finalize_failures_are_both_returned() {
     let error = context
         .run_image_generation_validated(
             &host,
-            execution_input(project_id),
+            execution_input(project_id, user_id),
             &ImageGenerationProgress::none(),
         )
         .await
@@ -826,7 +856,7 @@ async fn primary_and_finalize_failures_are_both_returned() {
     assert!(message.contains("工作流终态写入失败"));
     assert!(message.contains("未找到") || message.contains("数据库"));
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 1);
     assert_eq!(
         generated_image::Entity::find()
             .filter(generated_image::Column::ProjectId.eq(project_id))
@@ -838,50 +868,54 @@ async fn primary_and_finalize_failures_are_both_returned() {
 }
 
 #[tokio::test]
-async fn database_failure_after_file_persist_removes_created_file() {
-    let (_database, context) = setup_context().await;
-    let host = TestImageGenerationHost::default();
-    let mut input = execution_input(9_999_999);
-    input.workflow = ImageGenerationWorkflowBinding::Attached { workflow_run_id: 7 };
+async fn persist_failure_removes_staging_via_cleanup_outbox() {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
+    let host = TestImageGenerationHost {
+        fail_persist: true,
+        ..Default::default()
+    };
+    let input = execution_input(project_id, user_id);
 
     context
         .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
         .await
-        .expect_err("数据库失败必须显式返回");
+        .expect_err("图片写入失败必须显式返回");
 
     assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.remove_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(
+    assert!(
         host.removed_paths
             .lock()
             .expect("removed paths lock")
-            .as_slice(),
-        ["generated/project-9999999/scene-scene-1.png"]
+            .first()
+            .is_some_and(|path| path.ends_with(".part"))
     );
 }
 
 #[tokio::test]
-async fn database_and_file_cleanup_failures_are_both_returned() {
-    let (_database, context) = setup_context().await;
+async fn persist_and_file_cleanup_failures_are_both_returned() {
+    let (database, context, user_id) = setup_context().await;
+    let project_id = insert_project(database.as_ref(), user_id).await;
     let host = TestImageGenerationHost {
+        fail_persist: true,
         fail_remove: true,
         ..Default::default()
     };
-    let mut input = execution_input(9_999_998);
-    input.workflow = ImageGenerationWorkflowBinding::Attached { workflow_run_id: 8 };
+    let input = execution_input(project_id, user_id);
 
     let error = context
         .run_image_generation_validated(&host, input, &ImageGenerationProgress::none())
         .await
-        .expect_err("数据库和文件清理双失败必须显式返回");
+        .expect_err("图片写入和暂存清理双失败必须显式返回");
     let AppError::InvalidState { current, operation } = error else {
         panic!("双失败必须合并为 InvalidState");
     };
 
     assert!(!current.trim().is_empty());
-    assert!(current.contains("项目") || current.contains("生成运行"));
-    assert!(operation.contains("清理已写出的图片文件失败"));
+    assert!(current.contains("测试图片写入失败"));
+    assert!(operation.contains("清理图片暂存文件失败"));
     assert!(operation.contains("测试图片清理失败"));
     assert_eq!(host.remove_calls.load(Ordering::SeqCst), 1);
 }
@@ -997,10 +1031,11 @@ async fn insert_manga_page_fixture(
 
 fn manga_page_execution_input(
     project_id: i64,
+    requested_by_user_id: i64,
     chapter_id: i64,
     page_prompt_id: i64,
 ) -> ImageGenerationExecutionInput {
-    let mut input = execution_input(project_id);
+    let mut input = execution_input(project_id, requested_by_user_id);
     input.chapter_id = Some(chapter_id);
     input.image_type = "manga_page".to_string();
     input.command = "generate_manga_page".to_string();
@@ -1020,7 +1055,7 @@ fn manga_page_execution_input(
 
 #[tokio::test]
 async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
-    let (database, context) = setup_context().await;
+    let (database, context, user_id) = setup_context().await;
     let (project_id, chapter, page_prompt, old_image) =
         insert_manga_page_fixture(database.as_ref()).await;
     let host = TestImageGenerationHost::default();
@@ -1028,7 +1063,7 @@ async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
     let outcome = context
         .run_image_generation_validated(
             &host,
-            manga_page_execution_input(project_id, chapter.id, page_prompt.id),
+            manga_page_execution_input(project_id, user_id, chapter.id, page_prompt.id),
             &ImageGenerationProgress::none(),
         )
         .await
@@ -1052,13 +1087,14 @@ async fn manga_page_post_commit_binds_new_image_and_removes_old_image() {
     assert_eq!(updated_prompt.status, "completed");
     assert!(old_image_row.is_none());
     assert!(new_image_row.is_some());
-    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 1);
+    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 2);
     assert_eq!(
         host.removed_paths
             .lock()
             .expect("removed paths lock")
-            .as_slice(),
-        ["generated/old-page1.png"]
+            .last()
+            .map(String::as_str),
+        Some("generated/old-page1.png")
     );
 }
 

@@ -7,8 +7,8 @@ pub async fn discard_pending_optimize_patch_sets(
     input: OptimizeSessionInput,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .discard_pending_optimize_patch_sets_for_user_validated(user_id, input.session_id)
+        .optimize_application()
+        .discard_pending_patch_sets(user_id, input)
         .await
         .map_err(|error| error.to_string())
 }

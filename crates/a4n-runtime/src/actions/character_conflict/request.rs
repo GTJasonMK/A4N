@@ -20,8 +20,8 @@ pub async fn preview_character_conflict_request(
         .map_err(|error| error.to_string())?;
     let prompt_renderer = state;
     let request = state
-        .orchestrator()
-        .prepare_character_conflict_request_preview_validated(input, prompt_renderer)
+        .character_conflict_application()
+        .preview(input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     let step = traced_chat_request_step_for_state(

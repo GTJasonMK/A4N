@@ -1,6 +1,6 @@
 use crate::video::VideoDbError;
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
-use a4n_core::video_execution::{
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_video_contract::{
     VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1,
     propagate_adopted_video_change, video_segment_recipes_from_metadata,
 };
@@ -178,7 +178,10 @@ where
                 .column(generated_video::Column::MetadataJson)
                 .column(generated_video::Column::UpdatedAt)
                 .filter(chapter_scope)
-                .filter(generated_video::Column::Status.eq(generated_video::STATUS_COMPLETED))
+                .filter(
+                    generated_video::Column::Status
+                        .eq(a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED),
+                )
                 .filter(generated_video::Column::Id.is_not_in(video_ids.iter().copied()))
                 .into_tuple::<(i64, i64, Option<i64>, Option<Value>, chrono::NaiveDateTime)>()
                 .all(db)

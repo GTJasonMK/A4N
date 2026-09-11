@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::{chapter_outline, chapter_outline_provenance, part_outline},
     project::{
         blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,

@@ -2,7 +2,7 @@ mod characters;
 mod events;
 mod speech;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use self::characters::run_character_binding_stage;
 use self::events::project_shooting_script_events;

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::SharedDatabaseConnection;
-use a4n_core::models::user::{invite_code, user, user_session};
+use a4n_db_models::models::user::{invite_code, user, user_session};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 
 pub(super) async fn setup() -> SharedDatabaseConnection {

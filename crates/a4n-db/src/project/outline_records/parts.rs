@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 use super::contracts::ProjectOutlineRecordError;

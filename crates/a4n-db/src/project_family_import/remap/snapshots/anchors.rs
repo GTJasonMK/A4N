@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::project::text_anchor;
+use a4n_db_models::models::project::text_anchor;
 
 use crate::project_family_import::{ImportIdMaps, ProjectFamilyImportError, map_required};
 

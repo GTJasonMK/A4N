@@ -1,11 +1,8 @@
 use crate::app::PromptServiceState;
 use crate::protocol::{result_response, validate_service_request};
-use a4n_prompt::{
-    contracts::{
-        CountOutput, PromptEmptyPayload, PromptHydrateOverridesPayload, PromptNamePayload,
-        PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
-    },
-    engine::PromptEntry,
+use a4n_prompt_contract::{
+    CountOutput, PromptEmptyPayload, PromptEntry, PromptHydrateOverridesPayload, PromptNamePayload,
+    PromptSetProjectOverridePayload, PromptUpdateManyPayload, PromptUpdatePayload,
 };
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use axum::{Json, extract::State};
@@ -67,10 +64,10 @@ pub(crate) async fn remove_project_override(
 fn required_project_id<T>(
     request: &ServiceRequest<T>,
     operation: &str,
-) -> Result<i64, a4n_core::error::AppError> {
-    request.project_id.ok_or_else(|| {
-        a4n_core::error::AppError::InvalidArgument(format!("{operation} 缺少 project_id"))
-    })
+) -> Result<i64, a4n_error::AppError> {
+    request
+        .project_id
+        .ok_or_else(|| a4n_error::AppError::InvalidArgument(format!("{operation} 缺少 project_id")))
 }
 
 pub(crate) async fn load_defaults(

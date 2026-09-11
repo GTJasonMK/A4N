@@ -10,15 +10,19 @@ mod baseline_configs;
 mod cleanup_outbox;
 pub(crate) mod dynamic_embedding;
 pub(crate) mod dynamic_llm;
-pub mod file_utils;
+pub(crate) mod file_utils;
 pub(crate) mod jwt;
-pub mod media_file;
 pub(crate) mod oauth_provider;
 mod prompt_resources;
-pub mod rag_ingest;
-pub mod runtime_config;
+pub(crate) mod provider_error;
+pub(crate) mod provider_runtime;
+pub(crate) mod rag_ingest;
+pub(crate) mod runtime_config;
 pub(crate) mod sidecar_clients;
-pub mod state;
-pub mod workflow;
+pub(crate) mod state;
+pub(crate) mod workflow;
 
-pub use state::AppState;
+pub use state::{AppState, RuntimeProfile};
+
+#[cfg(test)]
+mod media_lifecycle_tests;

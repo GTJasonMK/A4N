@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use a4n_core::config::app_config::llm_token_profiles;
-use a4n_core::error::AppError;
+use a4n_domain::llm::llm_token_profiles;
+use a4n_error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::provider::{
     ChatRequest, ChatResponse, LlmProvider, LlmTraceContext, UsageInfo, is_truncated_finish_reason,

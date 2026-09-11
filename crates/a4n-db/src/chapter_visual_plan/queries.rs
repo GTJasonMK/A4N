@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_visual_plan;
+use a4n_db_models::models::chapter::chapter_visual_plan;
 use a4n_domain::chapter_visual_plan::ChapterVisualPlanStatus;
 use sea_orm::{ColumnTrait, Condition, ConnectionTrait, EntityTrait, QueryFilter};
 use std::collections::HashMap;
@@ -152,7 +152,7 @@ fn source_identity(source: &ResolvedChapterSource) -> SourceIdentity {
 }
 
 fn source_identity_from_record(
-    record: &a4n_core::models::chapter::chapter_visual_plan::Model,
+    record: &a4n_db_models::models::chapter::chapter_visual_plan::Model,
 ) -> SourceIdentity {
     (
         record.root_project_id,

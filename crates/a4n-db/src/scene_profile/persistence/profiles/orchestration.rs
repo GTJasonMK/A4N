@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 
-use a4n_core::models::scene::scene_profile;
-use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
+use a4n_db_models::models::scene::scene_profile;
+use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};

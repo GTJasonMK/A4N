@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::system_settings, chapter::chapter, project::novel_project};
+use a4n_db_models::models::{ai::system_settings, chapter::chapter, project::novel_project};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, Set,
@@ -62,7 +62,7 @@ async fn project_delete_removes_only_target_prompt_override_settings() {
     set_project_gate(
         &db,
         &project,
-        crate::generation::ProjectLifecycleOperation::Delete,
+        a4n_domain::generation::ProjectLifecycleOperation::Delete,
     )
     .await;
     delete_project_cascade_record(&db, project.id)
@@ -94,7 +94,7 @@ async fn project_delete_gate_rejects_text_root_with_derivatives_without_pending_
         &db,
         root.id,
         root.user_id,
-        crate::generation::ProjectLifecycleOperation::Delete,
+        a4n_domain::generation::ProjectLifecycleOperation::Delete,
     )
     .await
     .expect_err("root delete gate should reject projects with derivatives");
@@ -129,7 +129,7 @@ async fn project_delete_rejects_text_root_with_derivatives() {
     set_project_gate(
         &db,
         &root,
-        crate::generation::ProjectLifecycleOperation::Delete,
+        a4n_domain::generation::ProjectLifecycleOperation::Delete,
     )
     .await;
     let error = delete_project_cascade_record(&db, root.id)
@@ -167,7 +167,7 @@ async fn deleting_derived_project_preserves_root_text_data() {
     set_project_gate(
         &db,
         &derived,
-        crate::generation::ProjectLifecycleOperation::Delete,
+        a4n_domain::generation::ProjectLifecycleOperation::Delete,
     )
     .await;
     delete_project_cascade_record(&db, derived.id)

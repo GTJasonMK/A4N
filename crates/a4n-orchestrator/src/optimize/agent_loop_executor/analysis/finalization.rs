@@ -11,17 +11,7 @@ impl OrchestratorContext {
         turn_id: i64,
         final_arguments: Value,
         analysis_context: &Value,
-        has_read_current_chapter: bool,
     ) -> Result<OptimizeAnalysisTurnExecution, AppError> {
-        if !has_read_current_chapter {
-            let err = AppError::InvalidArgument(
-                "Agent Loop 在读取 current_chapter 前不能返回 final".to_string(),
-            );
-            self.save_agent_event(session.id, &format!("Agent Loop final 前置条件失败：{err}"))
-                .await?;
-            return Err(err);
-        }
-
         let issues = match final_issues(&final_arguments) {
             Ok(issues) => issues,
             Err(err) => {

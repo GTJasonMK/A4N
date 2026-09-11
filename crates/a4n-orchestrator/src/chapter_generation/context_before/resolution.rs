@@ -5,7 +5,7 @@ use super::{
     summaries::layered_chapter_summary_lines,
 };
 use crate::OrchestratorContext;
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 
 const RECENT_ANALYSIS_CHAPTERS: usize = 12;
 const CHAPTER_CONTEXT_CHAR_LIMIT: usize = 16_000;

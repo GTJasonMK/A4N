@@ -1,5 +1,5 @@
 use crate::video::VideoDbError;
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait,

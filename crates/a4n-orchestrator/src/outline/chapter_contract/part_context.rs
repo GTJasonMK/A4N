@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
+use a4n_error::AppError;
 
 pub(in crate::outline) fn validate_requested_part_context(
     parts: &[part_outline::Model],

@@ -11,7 +11,7 @@ use crate::media::{
 #[cfg(test)]
 use crate::text_anchor::{EVIDENCE_ROLE_FIRST_SEEN, SOURCE_KIND_CHAPTER_CONTENT};
 #[cfg(test)]
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter, part_outline},
     character::protagonist_profile,
@@ -23,7 +23,7 @@ use a4n_core::models::{
     scene::scene_profile,
     video_project::{assembly_timeline, video_segment},
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter_outline,
     galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script},
     generation::{generation_spec, prompt_artifact},

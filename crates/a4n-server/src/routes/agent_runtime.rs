@@ -356,7 +356,6 @@ pub(super) async fn search_tools(
         )?),
     };
     agent_actions::search_tools(state.runtime(), input)
-        .await
         .map(Json)
         .map_err(Into::into)
 }
@@ -629,6 +628,7 @@ mod tests {
             delegation_id: None,
             message_id: Some("13".to_string()),
             payload: Some(json!({"public": true})),
+            editor_request: None,
             created_at: "2026-08-27T12:00:00Z".to_string(),
         }
     }

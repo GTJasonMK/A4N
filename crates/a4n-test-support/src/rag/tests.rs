@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_rag_core::vector_store::VectorStore;
 
 use super::{ShortWriteVectorStore, embedding_record, test_embedding_identity};
@@ -27,7 +27,7 @@ async fn short_write_store_rejects_non_write_operations() {
 
     assert!(matches!(
         error,
-        AppError::VectorStoreError(message)
+        AppError::VectorStore(message)
             if message == "unexpected ShortWriteVectorStore method call"
     ));
 }

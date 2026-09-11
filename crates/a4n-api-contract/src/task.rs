@@ -41,6 +41,38 @@ pub struct TaskInfoSummary {
     pub completed_at: Option<String>,
 }
 
+/// Host-facing task history read boundary.
+///
+/// Runtime performs the existing task access check before calling this port;
+/// persistence reads and the API projection stay with the task owner.
+#[async_trait::async_trait]
+pub trait TaskReadApplicationPort: Send + Sync {
+    async fn history(
+        &self,
+        project_id: Option<i64>,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<TaskInfoSummary>, a4n_error::AppError>;
+}
+
+/// Host-facing queue statistics boundary.
+///
+/// The queue owner projects its in-memory scheduler facts to the API summary;
+/// Runtime only performs the surrounding command routing and authorization.
+#[async_trait::async_trait]
+pub trait TaskQueueStatsApplicationPort: Send + Sync {
+    async fn stats(&self) -> Result<QueueStatsSummary, a4n_error::AppError>;
+}
+
+/// Narrow task-cancellation boundary used by Runtime actions.
+///
+/// Queue state and persistence remain owned by the task queue application;
+/// callers submit only the durable task identity.
+#[async_trait::async_trait]
+pub trait TaskCancellationPort: Send + Sync {
+    async fn cancel(&self, task_id: &str) -> Result<(), a4n_error::AppError>;
+}
+
 #[derive(Serialize, JsonSchema)]
 pub struct QueueSlotStatsSummary {
     pub running: usize,

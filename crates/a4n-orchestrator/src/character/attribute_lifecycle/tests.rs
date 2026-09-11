@@ -1,10 +1,8 @@
-use a4n_core::{
-    error::AppError,
-    models::character::{attribute_event, protagonist_profile},
-};
 use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
 };
+use a4n_db_models::models::character::{attribute_event, protagonist_profile};
+use a4n_error::AppError;
 
 use super::{CharacterAttributeLifecycleError, implicit_review_attribute_event};
 

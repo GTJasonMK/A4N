@@ -1,5 +1,5 @@
 use super::{CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult};
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use async_trait::async_trait;
 use std::collections::HashMap;
 

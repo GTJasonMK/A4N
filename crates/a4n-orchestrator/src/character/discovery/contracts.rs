@@ -1,11 +1,9 @@
 use std::collections::{BTreeSet, HashMap};
 
-use a4n_core::{
-    error::AppError,
-    models::{chapter::chapter, project::text_anchor},
-    structured_progress::{FieldMilestone, ProgressSpan},
-};
+use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
+use a4n_progress::{FieldMilestone, ProgressSpan};
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 

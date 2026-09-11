@@ -1,4 +1,4 @@
-use a4n_core::config::env::{env_flag_enabled, optional_non_empty_env_string};
+use a4n_config::{env_flag_enabled, optional_non_empty_env_string};
 use a4n_service_manager::normalize_remote_service_url;
 use a4n_service_protocol::ServiceCatalogEntry;
 

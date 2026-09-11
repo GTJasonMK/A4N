@@ -1,23 +1,26 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::generated_video,
-        canvas::canvas_node,
-        generation::{generation_spec, workflow_checkpoint},
-    },
-    video_workflow::WORKFLOW_MODE_CANVAS_VIDEO,
-};
+use a4n_canvas_contract::{CanvasVideoNodeApplicationInput, GenerateCanvasVideoInput};
 use a4n_db::{
     canvas::{CanvasGraphRecordDocument, FreeformCanvasGenerationSpecUpsertInput},
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
     },
 };
+use a4n_db_models::models::{
+    ai::generated_video,
+    canvas::canvas_node,
+    generation::{generation_spec, workflow_checkpoint},
+};
 use a4n_domain::CanvasNodeRefKind;
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_error::AppError;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
+use a4n_video_contract::{
+    CanvasVideoImageInput, CanvasVideoPreviewHostPort, CanvasVideoRequestPreview,
+    CanvasVideoResolvedImages, VideoProviderValidationMode,
+};
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::time::{Duration, Instant};
 
@@ -34,47 +37,6 @@ use crate::{
 const CANVAS_VIDEO_JOB_POLL_INTERVAL_SECS: u64 = 8;
 const CANVAS_VIDEO_JOB_MAX_WAIT_SECS: u64 = 30 * 60;
 const CANVAS_VIDEO_JOB_MAX_CONSECUTIVE_POLL_ERRORS: u32 = 3;
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenerateCanvasVideoInput {
-    pub user_id: i64,
-    pub project_id: i64,
-    pub graph_id: i64,
-    pub node_id: i64,
-    #[serde(default)]
-    pub workflow_run_id: Option<i64>,
-    pub prompt: String,
-    #[serde(default)]
-    pub negative_prompt: Option<String>,
-    #[serde(default)]
-    pub config_id: Option<i64>,
-    #[serde(default)]
-    pub width: Option<i32>,
-    #[serde(default)]
-    pub height: Option<i32>,
-    #[serde(default)]
-    pub duration_secs: Option<i32>,
-    #[serde(default)]
-    pub fps: Option<i32>,
-    #[serde(default)]
-    pub first_frame_image_id: Option<i64>,
-    #[serde(default)]
-    pub last_frame_image_id: Option<i64>,
-    #[serde(default)]
-    pub reference_image_ids: Vec<i64>,
-    #[serde(default)]
-    pub source_node_ids: Vec<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasVideoRequestPreview {
-    pub config_id: i64,
-    pub provider_backend: String,
-    pub model: String,
-    pub graph_id: i64,
-    pub node_id: i64,
-    pub request: VideoGenerationRequest,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CanvasVideoNodeInput {
@@ -103,27 +65,10 @@ pub struct CanvasVideoNodeExecutionInput<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub struct CanvasVideoImageInput {
-    pub user_id: i64,
-    pub project_id: i64,
-    pub mode: crate::video::VideoProviderValidationMode,
-    pub first_frame_image_id: Option<i64>,
-    pub last_frame_image_id: Option<i64>,
-    pub reference_image_ids: Vec<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasVideoResolvedImages {
-    pub first_frame_image_url: Option<String>,
-    pub last_frame_image_url: Option<String>,
-    pub reference_image_urls: Vec<String>,
-}
-
-#[derive(Debug, Clone)]
 pub struct CanvasVideoProviderInput {
     pub project_id: i64,
     pub workflow_run_id: i64,
-    pub config: a4n_core::models::ai::video_gen_config::Model,
+    pub config: VideoProviderConfig,
     pub request: VideoGenerationRequest,
 }
 
@@ -141,11 +86,11 @@ pub struct CanvasVideoPersistedFile {
 }
 
 #[async_trait]
-pub trait CanvasVideoGenerationHostPort: Send + Sync {
+pub trait CanvasVideoGenerationHostPort: CanvasVideoPreviewHostPort + Send + Sync {
     async fn resolve_video_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<a4n_core::models::ai::video_gen_config::Model, AppError>;
+    ) -> Result<VideoProviderConfig, AppError>;
 
     async fn resolve_canvas_video_images(
         &self,
@@ -161,7 +106,7 @@ pub trait CanvasVideoGenerationHostPort: Send + Sync {
         &self,
         project_id: i64,
         workflow_run_id: i64,
-        config: &a4n_core::models::ai::video_gen_config::Model,
+        config: &VideoProviderConfig,
         job_id: &str,
     ) -> Result<VideoJobState, AppError>;
 
@@ -175,11 +120,20 @@ pub trait CanvasVideoGenerationHostPort: Send + Sync {
     fn runtime_config_snapshot(&self) -> Option<Value>;
 }
 
+#[async_trait]
+pub trait CanvasVideoNodeApplicationPort: Send + Sync {
+    async fn run_video(
+        &self,
+        input: CanvasVideoNodeApplicationInput,
+        host_port: &dyn CanvasVideoGenerationHostPort,
+    ) -> Result<CanvasRunSummary, AppError>;
+}
+
 impl OrchestratorContext {
     pub async fn preview_canvas_video_request_validated(
         &self,
         input: GenerateCanvasVideoInput,
-        host_port: &dyn CanvasVideoGenerationHostPort,
+        host_port: &dyn CanvasVideoPreviewHostPort,
     ) -> Result<CanvasVideoRequestPreview, AppError> {
         self.verify_project_permission(
             input.project_id,
@@ -208,7 +162,7 @@ impl OrchestratorContext {
             input.user_id,
             input.project_id,
             &video_input,
-            crate::video::VideoProviderValidationMode::Preview,
+            VideoProviderValidationMode::Preview,
         )
         .await?;
         Ok(CanvasVideoRequestPreview {
@@ -253,7 +207,7 @@ impl OrchestratorContext {
             input.user_id,
             input.project_id,
             &video_input,
-            crate::video::VideoProviderValidationMode::Generate,
+            VideoProviderValidationMode::Generate,
         )
         .await?;
         let step_key = crate::canvas::canvas_node_step_key(input.node.id)
@@ -304,7 +258,7 @@ impl OrchestratorContext {
                     crate::video::VideoGenerationRecordInput {
                         project_id: input.project_id,
                         chapter_id: None,
-                        video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+                        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
                         workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
                         prompt: prompt.clone(),
                         negative_prompt: request.negative_prompt.clone(),
@@ -383,7 +337,7 @@ impl OrchestratorContext {
     async fn apply_canvas_video_provider_result(
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
-        config: &a4n_core::models::ai::video_gen_config::Model,
+        config: &VideoProviderConfig,
         video: generated_video::Model,
         result: Result<VideoGenerationResult, AppError>,
     ) -> Result<generated_video::Model, AppError> {
@@ -485,7 +439,7 @@ impl OrchestratorContext {
                 let can_adopt = crate::video::can_adopt_authoritative_video_completion(&error);
                 let authoritative = self.generated_video_by_id(video.id).await?;
                 if let Some(authoritative) = authoritative {
-                    if authoritative.status == generated_video::STATUS_COMPLETED {
+                    if authoritative.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
                         if authoritative.file_path.as_deref()
                             != Some(persisted.relative_path.as_str())
                             && let Err(cleanup_error) = host_port
@@ -515,7 +469,8 @@ impl OrchestratorContext {
                         }
                         if matches!(
                             authoritative.status.as_str(),
-                            generated_video::STATUS_CANCELLED | generated_video::STATUS_INTERRUPTED
+                            a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
+                                | a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED
                         ) {
                             return Err(AppError::Cancelled);
                         }
@@ -544,7 +499,7 @@ impl OrchestratorContext {
     async fn wait_for_canvas_video_job_completion(
         &self,
         host_port: &dyn CanvasVideoGenerationHostPort,
-        config: &a4n_core::models::ai::video_gen_config::Model,
+        config: &VideoProviderConfig,
         mut video: generated_video::Model,
         job_id: &str,
     ) -> Result<generated_video::Model, AppError> {
@@ -640,7 +595,7 @@ impl OrchestratorContext {
                         .update_generated_video_waiting_status_validated(
                             video.id,
                             None,
-                            generated_video::STATUS_PENDING,
+                            a4n_domain::video_workflow::VIDEO_STATUS_PENDING,
                         )
                         .await?;
                     self.mark_video_provider_workflow_validated(
@@ -657,7 +612,7 @@ impl OrchestratorContext {
                         .update_generated_video_waiting_status_validated(
                             video.id,
                             None,
-                            generated_video::STATUS_RUNNING,
+                            a4n_domain::video_workflow::VIDEO_STATUS_RUNNING,
                         )
                         .await?;
                     self.mark_video_provider_workflow_validated(
@@ -1081,7 +1036,7 @@ fn set_single_image_input(
 }
 
 struct PreparedCanvasVideoRequest {
-    config: a4n_core::models::ai::video_gen_config::Model,
+    config: VideoProviderConfig,
     prompt: String,
     request: VideoGenerationRequest,
     first_frame_image_id: Option<i64>,
@@ -1090,15 +1045,17 @@ struct PreparedCanvasVideoRequest {
 }
 
 async fn prepare_canvas_video_request(
-    host_port: &dyn CanvasVideoGenerationHostPort,
+    host_port: &dyn CanvasVideoPreviewHostPort,
     user_id: i64,
     project_id: i64,
     input: &CanvasVideoNodeInput,
-    mode: crate::video::VideoProviderValidationMode,
+    mode: VideoProviderValidationMode,
 ) -> Result<PreparedCanvasVideoRequest, AppError> {
-    let config = host_port.resolve_video_config(input.config_id).await?;
+    let config = host_port
+        .resolve_video_config_for_preview(input.config_id)
+        .await?;
     let duration_secs = input.duration_secs.unwrap_or(config.default_duration_secs);
-    crate::video::validate_video_duration_for_config_secs(&config, duration_secs)
+    crate::video::validate_video_duration_for_provider_config_secs(&config, duration_secs)
         .map_err(AppError::InvalidArgument)?;
     let width = input.width.unwrap_or(config.default_width);
     let height = input.height.unwrap_or(config.default_height);
@@ -1123,7 +1080,7 @@ async fn prepare_canvas_video_request(
     let last_frame_image_id = input.last_frame_image_id;
     let reference_image_ids = input.reference_image_ids.clone();
     let images = host_port
-        .resolve_canvas_video_images(CanvasVideoImageInput {
+        .resolve_canvas_video_images_for_preview(CanvasVideoImageInput {
             user_id,
             project_id,
             mode,

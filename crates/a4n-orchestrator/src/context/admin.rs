@@ -1,6 +1,10 @@
-use a4n_core::error::AppError;
-use a4n_core::models::user::role::{UserRole, parse_user_role};
 use a4n_db::DbHandle;
+use a4n_db_models::models::user::{
+    invite_code,
+    role::{UserRole, parse_user_role},
+};
+use a4n_domain::admin::InviteCodeSummary;
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::admin::{
@@ -135,6 +139,115 @@ impl OrchestratorContext {
         input: GenerationCallAnalyticsInput,
     ) -> Result<GenerationCallAnalytics, AppError> {
         self.admin.generation_call_analytics(input).await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::admin::AdminApplicationPort for OrchestratorContext {
+    async fn require_permission(
+        &self,
+        caller_user_id: i64,
+        permission: AdminPermission,
+    ) -> Result<(), AppError> {
+        self.require_admin_permission(caller_user_id, permission)
+            .await
+    }
+
+    async fn is_active_admin_user(&self, user_id: i64) -> Result<bool, AppError> {
+        OrchestratorContext::is_active_admin_user(self, user_id).await
+    }
+
+    async fn user_usage(&self, user_id: i64, limit: u64) -> Result<Vec<UsageLogSummary>, AppError> {
+        OrchestratorContext::user_usage(self, user_id, limit).await
+    }
+
+    async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, AppError> {
+        OrchestratorContext::token_summary(self, user_id).await
+    }
+
+    async fn usage_trends(
+        &self,
+        input: UsageTrendsInput,
+    ) -> Result<Vec<DailyUsagePoint>, AppError> {
+        OrchestratorContext::admin_usage_trends(self, input).await
+    }
+
+    async fn overview(&self) -> Result<AdminOverviewSummary, AppError> {
+        OrchestratorContext::admin_overview(self).await
+    }
+
+    async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, AppError> {
+        OrchestratorContext::all_project_summaries(self).await
+    }
+
+    async fn pending_tasks(&self) -> Result<Vec<TaskQueueSummary>, AppError> {
+        OrchestratorContext::pending_tasks(self).await
+    }
+
+    async fn generation_call_analytics(
+        &self,
+        input: GenerationCallAnalyticsInput,
+    ) -> Result<GenerationCallAnalytics, AppError> {
+        OrchestratorContext::generation_call_analytics(self, input).await
+    }
+
+    async fn check_database_health(&self) -> Result<(), AppError> {
+        OrchestratorContext::check_database_health(self).await
+    }
+
+    async fn list_users(&self) -> Result<Vec<a4n_api_contract::auth::UserSummary>, AppError> {
+        OrchestratorContext::list_auth_users(self).await
+    }
+
+    async fn create_user(
+        &self,
+        input: a4n_api_contract::admin::CreateUserInput,
+    ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        let user = OrchestratorContext::create_auth_user(
+            self,
+            &input.username,
+            &input.email,
+            &input.password,
+            &input.role,
+        )
+        .await?;
+        Ok(super::auth::auth_user_summary(&user))
+    }
+
+    async fn list_invite_codes(&self) -> Result<Vec<InviteCodeSummary>, AppError> {
+        let codes = OrchestratorContext::list_invite_code_records(self).await?;
+        Ok(codes.iter().map(invite_code_summary).collect())
+    }
+
+    async fn create_invite_code(
+        &self,
+        caller_user_id: i64,
+        input: a4n_api_contract::admin::CreateInviteCodeInput,
+    ) -> Result<InviteCodeSummary, AppError> {
+        let code =
+            OrchestratorContext::create_invite_code_record(self, &input.code, Some(caller_user_id))
+                .await?;
+        Ok(invite_code_summary(&code))
+    }
+
+    async fn update_user_role(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::admin::UpdateUserRoleInput,
+    ) -> Result<a4n_api_contract::auth::UserSummary, AppError> {
+        let user = OrchestratorContext::update_auth_user_role(self, user_id, &input.role).await?;
+        Ok(super::auth::auth_user_summary(&user))
+    }
+}
+
+fn invite_code_summary(code: &invite_code::Model) -> InviteCodeSummary {
+    InviteCodeSummary {
+        id: code.id,
+        code: code.code.clone(),
+        created_by_user_id: code.created_by_user_id,
+        used_by_user_id: code.used_by_user_id,
+        created_at: Some(code.created_at.to_string()),
+        used_at: code.used_at.map(|value| value.to_string()),
     }
 }
 

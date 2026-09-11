@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::generation::prompt_artifact;
+use a4n_db_models::models::generation::prompt_artifact;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 

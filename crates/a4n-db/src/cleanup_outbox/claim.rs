@@ -3,12 +3,13 @@ use super::contracts::{
     ClaimedFileArtifactCleanup, ClaimedGenerationCleanup, ClaimedMediaWorkflowV2Reset,
     ClaimedProjectCleanup, FILE_ARTIFACT_CLEANUP_KIND, GENERATION_ARTIFACT_UNBIND_KIND,
     GENERATION_PROVIDER_JOB_CLEANUP_KIND, GENERATION_STAGING_ARTIFACT_DELETE_KIND,
-    MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND, PROJECT_DELETE_CLEANUP_KIND,
-    parse_file_artifact_cleanup_payload, parse_generation_cleanup_payload,
-    parse_media_workflow_v2_reset_payload, parse_project_deletion_payload,
+    GenerationCleanupPayload, MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND, PROJECT_DELETE_CLEANUP_KIND,
+    PendingGenerationProviderJobCleanup, parse_file_artifact_cleanup_payload,
+    parse_generation_cleanup_payload, parse_media_workflow_v2_reset_payload,
+    parse_project_deletion_payload,
 };
 use super::transitions::fail_claimed_cleanup;
-use a4n_core::models::task::cleanup_outbox;
+use a4n_db_models::models::task::cleanup_outbox;
 use chrono::{Duration, Utc};
 use sea_orm::sea_query::{LockBehavior, LockType};
 use sea_orm::{
@@ -128,6 +129,52 @@ pub async fn claim_generation_cleanup(
             }
         }
     }
+}
+
+/// 返回仍可能占用远端 provider 资源的 generation cleanup intent。
+///
+/// 终态 generation 仍可能有未完成的 cancel/reconcile/delete；生命周期停用
+/// 必须先看到这些 intent 收敛，不能只扫描活动 checkpoint。
+pub async fn pending_generation_provider_job_cleanups<C>(
+    db: &C,
+) -> Result<Vec<PendingGenerationProviderJobCleanup>, DbErr>
+where
+    C: ConnectionTrait,
+{
+    let records = cleanup_outbox::Entity::find()
+        .filter(cleanup_outbox::Column::CleanupKind.eq(GENERATION_PROVIDER_JOB_CLEANUP_KIND))
+        .filter(cleanup_outbox::Column::Status.is_in([
+            CLEANUP_STATUS_PENDING,
+            CLEANUP_STATUS_RUNNING,
+            CLEANUP_STATUS_FAILED,
+        ]))
+        .order_by_asc(cleanup_outbox::Column::Id)
+        .all(db)
+        .await?;
+
+    records
+        .into_iter()
+        .map(|record| {
+            let task_id = record.task_id.clone().ok_or_else(|| {
+                DbErr::Custom(format!(
+                    "provider job cleanup 缺少 task_id: id={}",
+                    record.id
+                ))
+            })?;
+            let GenerationCleanupPayload::ProviderJob(payload) =
+                parse_generation_cleanup_payload(&record)?
+            else {
+                return Err(DbErr::Custom(format!(
+                    "provider job cleanup payload 类型错误: id={}",
+                    record.id
+                )));
+            };
+            Ok(PendingGenerationProviderJobCleanup {
+                task_id,
+                provider_job_id: payload.provider_job_id,
+            })
+        })
+        .collect()
 }
 
 async fn claim_cleanup_by_kind(

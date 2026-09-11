@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_outline;
 use a4n_db::workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
+use a4n_db_models::models::chapter::chapter_outline;
+use a4n_error::AppError;
 use chrono::Utc;
 use serde_json::Value;
 

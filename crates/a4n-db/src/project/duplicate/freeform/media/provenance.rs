@@ -4,7 +4,7 @@ use crate::project::duplicate::freeform::remap::{
     remap_freeform_metadata, remap_freeform_source_external_path,
 };
 use crate::project::duplicate::shared::{remap_derived_optional_id, remap_derived_required_id};
-use a4n_core::models::media::media_provenance;
+use a4n_db_models::models::media::media_provenance;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 use std::collections::HashMap;

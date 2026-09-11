@@ -1,8 +1,9 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use a4n_core::event::channel::{TaskHandle, TaskKind, TaskProgress};
+use a4n_domain::task_queue::TaskKind;
 use a4n_runtime::host_api::task_records as task_records_actions;
+use a4n_task_runtime::channel::{TaskHandle, TaskProgress};
 
 use super::super::{ApiError, ServerState};
 

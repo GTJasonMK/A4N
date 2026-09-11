@@ -3,7 +3,7 @@ use super::contracts::{
     InspirationRecentChapterRow,
 };
 use super::project::ensure_inspiration_project_exists;
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter,
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };

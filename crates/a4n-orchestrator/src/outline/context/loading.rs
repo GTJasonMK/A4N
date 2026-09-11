@@ -6,11 +6,11 @@ use super::projections::{
 use crate::outline::part_contract::{
     infer_chapters_per_part_from_existing, resolve_part_generation_plan,
 };
-use a4n_core::error::AppError;
 use a4n_db::outline::{
     OutlineGenerationSourceRows, load_outline_generation_source_rows,
     outline_generation_source_snapshot,
 };
+use a4n_error::AppError;
 use sea_orm::{ConnectionTrait, DatabaseConnection, DatabaseTransaction};
 use serde_json::{Value, json};
 

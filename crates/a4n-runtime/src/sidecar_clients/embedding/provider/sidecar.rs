@@ -1,12 +1,15 @@
 use std::sync::Arc;
 
 use a4n_capabilities::EmbeddingClient;
-use a4n_core::{error::AppError, models::ai::embedding_config};
+use a4n_domain::ProviderError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
-use a4n_orchestrator::DynamicProviderFacade;
+use a4n_error::AppError;
+use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use async_trait::async_trait;
 
+use crate::provider_error::from_app_error;
+use crate::provider_runtime::DynamicProviderFacade;
 use crate::{dynamic_embedding, runtime_config};
 
 use super::super::super::{
@@ -36,8 +39,8 @@ impl SidecarEmbeddingProvider {
         }
     }
 
-    async fn resolve_default_model(&self) -> Result<embedding_config::Model, AppError> {
-        if let Some(model) = runtime_config::current_embedding_model() {
+    async fn resolve_default_model(&self) -> Result<EmbeddingProviderConfig, AppError> {
+        if let Some(model) = runtime_config::current_embedding_provider_config() {
             return Ok(model);
         }
 
@@ -46,7 +49,7 @@ impl SidecarEmbeddingProvider {
 
     async fn embed_via_sidecar(
         &self,
-        model: embedding_config::Model,
+        model: EmbeddingProviderConfig,
         texts: Vec<String>,
     ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
         let payload = embedding_texts_payload(&model, texts)?;
@@ -82,7 +85,7 @@ impl SidecarEmbeddingProvider {
 
 #[async_trait]
 impl EmbeddingProvider for SidecarEmbeddingProvider {
-    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
+    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
         self.embed_with_identity(texts)
             .await
             .map(|(embeddings, _)| embeddings)
@@ -104,16 +107,18 @@ impl EmbeddingProvider for SidecarEmbeddingProvider {
         self.metadata_batch_size
     }
 
-    async fn model_identity(&self) -> Result<EmbeddingModelIdentity, AppError> {
-        let model = self.resolve_default_model().await?;
-        dynamic_embedding::model_identity_from_config(&model)
+    async fn model_identity(&self) -> Result<EmbeddingModelIdentity, ProviderError> {
+        let model = self.resolve_default_model().await.map_err(from_app_error)?;
+        dynamic_embedding::model_identity_from_config(&model).map_err(from_app_error)
     }
 
     async fn embed_with_identity(
         &self,
         texts: Vec<String>,
-    ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
-        let model = self.resolve_default_model().await?;
-        self.embed_via_sidecar(model, texts).await
+    ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), ProviderError> {
+        let model = self.resolve_default_model().await.map_err(from_app_error)?;
+        self.embed_via_sidecar(model, texts)
+            .await
+            .map_err(from_app_error)
     }
 }

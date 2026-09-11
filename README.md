@@ -17,16 +17,20 @@ A4N 是一个面向小说创作与多模态派生内容生产的本地应用。�
 
 ```text
 crates/
-  a4n-core                     SeaORM entity、配置、事件和基础共享类型
-  a4n-domain / a4n-db          领域值对象与数据库边界
-  a4n-queue                    任务队列合同与实现
+  a4n-db-models               SeaORM 实体；纯领域值位于 a4n-domain
+  a4n-config / a4n-storage     配置解析与文件生命周期边界
+  a4n-domain                  纯领域值、蓝图合同与业务算法
+  a4n-db                      SQL、Repository 与数据库一致性边界
+  a4n-task-runtime            活跃任务句柄与进度运行态
+  a4n-error / a4n-progress     共享错误与纯结构化进度算法
+  a4n-queue                   内存队列实现；纯任务合同位于 a4n-domain
   a4n-prompt* / a4n-llm*      Prompt 与 LLM 核心、provider 和 sidecar
   a4n-embedding* / a4n-rag*   Embedding 与 RAG 核心、索引和 sidecar
   a4n-image* / a4n-video*     图片/视频合同、provider 和 sidecar
   a4n-api-contract            Server/Tauri 共享 Host API 合同与 TS 生成
   a4n-service-protocol        生产 sidecar 的协议、catalog 和发布合同
-  a4n-db / a4n-domain         数据库边界与纯领域值对象
-  a4n-orchestrator            业务规则、事务、工作流和能力编排唯一 owner
+  a4n-*-contract              能力专用 wire / 执行合同
+  a4n-orchestrator            业务用例、工作流和能力编排
   a4n-runtime                 provider、文件、进程和 Host API 适配
   a4n-tauri / a4n-server      桌面与 Web host 入口
   a4n-cli                     无前端 CLI、Agent 合同、Shell 和 local 生命周期
@@ -39,14 +43,14 @@ docs/            功能文档与架构设计
 scripts/         开发、构建、测试脚本
 ```
 
-前端 API 封装集中在 `frontend/src/api/`，后端命令入口集中在 `crates/a4n-tauri/src/commands/`。业务规则由 `a4n-orchestrator` 拥有；`a4n-runtime` 只实现数据库、provider、文件、进程与 Host transport 适配。Host API DTO 位于 `a4n-api-contract`，sidecar 合同位于 `a4n-service-protocol`，`a4n-core` 只保留实体、基础配置、基础事件和少量无依赖共享值。
+前端 API 封装集中在 `frontend/src/api/`；Server 维护共享命令分派，Native Tauri 复用该入口。业务编排属于 `a4n-orchestrator`，SQL/Repository 属于 `a4n-db`，运行适配属于 `a4n-runtime`。Host API、通用 sidecar 协议和能力专用合同分别维护，详见[当前代码架构](docs/ARCHITECTURE.md)。完整资料从[文档导航](docs/README.md)进入。
 
 ## 本地开发
 
 前置依赖：
 
-- Rust toolchain
-- Node.js 和 npm
+- Rust toolchain（当前 CI 固定 Rust 1.95.0）
+- Node.js 22 和 npm
 - PostgreSQL 16+，或 Docker Compose
 - Linux 桌面构建需要 WebKitGTK、GTK 和 Ayatana AppIndicator 开发库
 
@@ -61,8 +65,7 @@ scripts/         开发、构建、测试脚本
 安装前端依赖：
 
 ```bash
-cd frontend
-npm ci
+npm --prefix frontend ci
 ```
 
 安装本地 embedding 使用的共享 ONNX Runtime（版本由 `tools/onnxruntime/VERSION` 固定）：
@@ -113,7 +116,7 @@ Web 空库首次启动必须提供 `A4N_BOOTSTRAP_ADMIN_USERNAME`、`A4N_BOOTSTR
 只做 Rust 编译检查：
 
 ```bash
-./scripts/build.sh --check
+./scripts/build.sh --backend --check
 ```
 
 构建前端和后端调试产物：
@@ -125,8 +128,7 @@ Web 空库首次启动必须提供 `A4N_BOOTSTRAP_ADMIN_USERNAME`、`A4N_BOOTSTR
 构建前端：
 
 ```bash
-cd frontend
-npm run build
+npm --prefix frontend run build
 ```
 
 运行 Rust 测试：
@@ -138,7 +140,7 @@ npm run build
 运行指定 crate 测试：
 
 ```bash
-./scripts/test.sh --crate a4n-core --nocapture
+timeout 60s ./scripts/test.sh --crate a4n-domain --nocapture
 ```
 
 ## 无前端 CLI
@@ -214,15 +216,15 @@ Web 运行常用变量：
 
 ## Desktop / Web / CLI 一致性
 
-前端在 Tauri 内调用 Tauri command，在浏览器中调用 `a4n-server` 的显式 REST
-路由或 `/api/commands/:cmd`。CLI 对 Web 专用 REST 路由使用相同映射，其余命令走
+桌面默认 `local-server` 模式与浏览器都通过 HTTP 调用 `a4n-server`；桌面 `native`
+模式才使用 Tauri command。Server 提供显式 REST 路由和 `/api/commands/:cmd`。CLI 对 Web 专用 REST 路由使用相同映射，其余命令走
 统一 command endpoint。共享 Host API manifest 位于 `a4n-api-contract`，是 CLI
 能力发现和三端 parity 的单一命令目录。
 
 一致性检查：
 
 ```bash
-cd frontend && npm run check:web-api-parity
+npm --prefix frontend run check:web-api-parity
 ```
 
 该检查会对齐前端 `apiInvoke` 命令、桌面 Tauri 注册命令、Web 路由、CLI
@@ -234,12 +236,12 @@ cd frontend && npm run check:web-api-parity
 
 ```bash
 git diff --check
-cd frontend && npm run check:web-api-parity
-cd frontend && npm run build
-./scripts/build.sh --check
+npm --prefix frontend run check:web-api-parity
+npm --prefix frontend run build
+./scripts/build.sh --backend --check
 ```
 
-源码推送、GitHub 仓库设置、正式签名 Release 所需的 secrets/variables 和打 tag 顺序见 [GitHub 发布说明](GITHUB_RELEASE.md)。参与开发前请阅读 [贡献指南](CONTRIBUTING.md)；安全问题按 [安全策略](SECURITY.md) 私下报告。
+源码检查、现有打包入口与正式发布的边界见 [发布说明](GITHUB_RELEASE.md)；当前没有自动签名 GitHub Release 流水线。参与开发前请阅读 [贡献指南](CONTRIBUTING.md)，构建空间管理见 [Rust 缓存说明](docs/rust-artifacts.md)；安全问题按 [安全策略](SECURITY.md) 私下报告。
 
 ## 许可证
 

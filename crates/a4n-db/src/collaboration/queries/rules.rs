@@ -2,7 +2,7 @@ use super::lookups::find_user;
 use crate::collaboration::{
     CollaborationDbError, CollaborationRootProject, ProjectAccessRole, ProjectMemberRole,
 };
-use a4n_core::models::{project::project_member, user::role::ROLE_READ_ONLY};
+use a4n_db_models::models::{project::project_member, user::role::ROLE_READ_ONLY};
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 

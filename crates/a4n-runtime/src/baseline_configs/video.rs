@@ -1,6 +1,7 @@
 use super::env::{any_env_present, env_i32_or, env_string_or, optional_env_json};
-use a4n_core::{config::env::required_non_empty_env_string, error::AppError};
-use a4n_orchestrator::OrchestratorContext;
+use a4n_api_contract::config::{ConfigApplicationPort, VideoConfigInput, VideoDurationMode};
+use a4n_config::required_non_empty_env_string;
+use a4n_error::AppError;
 
 const PUBLIC_VIDEO_ENV_KEYS: &[&str] = &[
     "A4N_PUBLIC_VIDEO_NAME",
@@ -20,27 +21,28 @@ const PUBLIC_VIDEO_ENV_KEYS: &[&str] = &[
 ];
 
 pub(super) async fn ensure_public_video_config(
-    orchestrator: &OrchestratorContext,
+    config_application: &dyn ConfigApplicationPort,
 ) -> Result<(), AppError> {
-    if orchestrator.video_configs_exist().await? {
+    if config_application.video_configs_exist().await? {
         return Ok(());
     }
     let Some(seed) = public_video_seed()? else {
         return Ok(());
     };
-    let params = a4n_orchestrator::video::validate_video_config_params(seed)
-        .map_err(AppError::InvalidArgument)?;
-    orchestrator
-        .insert_baseline_video_config_if_empty(params)
+    config_application
+        .insert_baseline_video_if_empty(seed)
         .await?;
     Ok(())
 }
 
-fn public_video_seed() -> Result<Option<a4n_orchestrator::video::VideoConfigParams>, AppError> {
+fn public_video_seed() -> Result<Option<VideoConfigInput>, AppError> {
     if !any_env_present(PUBLIC_VIDEO_ENV_KEYS)? {
         return Ok(None);
     }
-    Ok(Some(a4n_orchestrator::video::VideoConfigParams {
+    let duration_mode = env_string_or("A4N_PUBLIC_VIDEO_DURATION_MODE", "range")?
+        .parse::<VideoDurationMode>()
+        .map_err(|error| AppError::ConfigError(error.to_string()))?;
+    Ok(Some(VideoConfigInput {
         name: env_string_or("A4N_PUBLIC_VIDEO_NAME", "公共基础视频")?,
         backend: env_string_or("A4N_PUBLIC_VIDEO_BACKEND", "openai-compatible-video")?,
         base_url: required_non_empty_env_string("A4N_PUBLIC_VIDEO_BASE_URL")?,
@@ -52,7 +54,7 @@ fn public_video_seed() -> Result<Option<a4n_orchestrator::video::VideoConfigPara
         default_duration_secs: env_i32_or("A4N_PUBLIC_VIDEO_DEFAULT_DURATION_SECS", 5)?,
         min_duration_secs: env_i32_or("A4N_PUBLIC_VIDEO_MIN_DURATION_SECS", 1)?,
         max_duration_secs: env_i32_or("A4N_PUBLIC_VIDEO_MAX_DURATION_SECS", 60)?,
-        duration_mode: env_string_or("A4N_PUBLIC_VIDEO_DURATION_MODE", "range")?,
+        duration_mode,
         supported_durations_json: optional_env_json("A4N_PUBLIC_VIDEO_SUPPORTED_DURATIONS_JSON")?,
         default_fps: env_i32_or("A4N_PUBLIC_VIDEO_DEFAULT_FPS", 24)?,
     }))

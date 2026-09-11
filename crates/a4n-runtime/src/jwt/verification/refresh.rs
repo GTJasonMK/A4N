@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::{
     ACCESS_TOKEN_EXP_MINUTES, ACCESS_TOKEN_EXPIRES_IN_SECS, REFRESH_TOKEN_EXP_DAYS, TokenPair,

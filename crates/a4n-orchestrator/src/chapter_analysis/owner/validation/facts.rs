@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
-use a4n_core::source_spans::{SourceSpan, SourceSpanIndex};
+use a4n_domain::source_spans::{SourceSpan, SourceSpanIndex};
 
 mod entities;
 mod events;

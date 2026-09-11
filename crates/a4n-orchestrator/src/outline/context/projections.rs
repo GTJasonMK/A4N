@@ -1,8 +1,8 @@
-use a4n_core::blueprint_context::{
+use a4n_db::blueprint_context::{
     blueprint_character_llm_context, blueprint_model_llm_context,
     blueprint_relationship_llm_context,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter_outline, part_outline},
     character::{foreshadowing_index, protagonist_profile},

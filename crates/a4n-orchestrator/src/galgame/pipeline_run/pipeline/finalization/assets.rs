@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED};
+use a4n_error::AppError;
 use serde_json::json;
 
 use crate::galgame::{GalgamePipelineStartStage, GalgameScriptDetail};

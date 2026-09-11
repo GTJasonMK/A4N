@@ -1,5 +1,5 @@
 use crate::video::VideoDbError;
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use serde_json::Value;

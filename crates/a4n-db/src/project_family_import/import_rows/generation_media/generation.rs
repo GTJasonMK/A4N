@@ -1,4 +1,4 @@
-use a4n_core::models::generation::{
+use a4n_db_models::models::generation::{
     generation_spec, generation_spec_entity_ref, generation_spec_text_anchor, prompt_artifact,
 };
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, EntityTrait, Set};

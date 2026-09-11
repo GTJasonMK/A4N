@@ -1,12 +1,9 @@
 use super::env::{any_env_present, env_i32_or, env_string_or, usize_to_i32};
-use a4n_core::{
-    config::{
-        app_config::ImageGenConfig, env::optional_non_empty_env_string,
-        normalize_optional_config_value,
-    },
-    error::AppError,
+use a4n_api_contract::config::{ConfigApplicationPort, ImageConfigInput};
+use a4n_config::{
+    app_config::ImageGenConfig, normalize_optional_config_value, optional_non_empty_env_string,
 };
-use a4n_orchestrator::OrchestratorContext;
+use a4n_error::AppError;
 
 const PUBLIC_IMAGE_ENV_KEYS: &[&str] = &[
     "A4N_PUBLIC_IMAGE_NAME",
@@ -18,25 +15,22 @@ const PUBLIC_IMAGE_ENV_KEYS: &[&str] = &[
 ];
 
 pub(super) async fn ensure_public_image_config(
-    orchestrator: &OrchestratorContext,
+    config_application: &dyn ConfigApplicationPort,
     fallback: &ImageGenConfig,
 ) -> Result<(), AppError> {
-    if orchestrator.image_configs_exist().await? {
+    if config_application.image_configs_exist().await? {
         return Ok(());
     }
     let Some(seed) = public_image_seed(fallback)? else {
         return Ok(());
     };
-    let params = a4n_core::config::validate_image_config_params(seed)?;
-    orchestrator
-        .insert_baseline_image_config_if_empty(params)
+    config_application
+        .insert_baseline_image_if_empty(seed)
         .await?;
     Ok(())
 }
 
-fn public_image_seed(
-    fallback: &ImageGenConfig,
-) -> Result<Option<a4n_core::config::CreateImageConfigParams>, AppError> {
+fn public_image_seed(fallback: &ImageGenConfig) -> Result<Option<ImageConfigInput>, AppError> {
     let api_key = match optional_non_empty_env_string("A4N_PUBLIC_IMAGE_API_KEY")?
         .or_else(|| normalize_optional_config_value(fallback.api_key.clone()))
     {
@@ -68,7 +62,7 @@ fn public_image_seed(
         .ok_or_else(|| {
             AppError::ConfigError("公共图片配置缺少 A4N_PUBLIC_IMAGE_BASE_URL".into())
         })?;
-    Ok(Some(a4n_core::config::CreateImageConfigParams {
+    Ok(Some(ImageConfigInput {
         name: env_string_or("A4N_PUBLIC_IMAGE_NAME", "公共基础图片")?,
         backend,
         base_url,

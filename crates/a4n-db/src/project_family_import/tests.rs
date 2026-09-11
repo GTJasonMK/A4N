@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_video,
     chapter::{chapter, chapter_video_prompt},
     media::media_asset,
@@ -111,7 +111,7 @@ async fn project_family_import_activates_deserialized_project_lifecycle_gate() {
         "project_family_lifecycle_gate",
         "project-family-lifecycle-gate@example.invalid",
         "project-family-lifecycle-gate-password",
-        a4n_core::models::user::role::ROLE_USER,
+        a4n_db_models::models::user::role::ROLE_USER,
     )
     .await
     .unwrap();
@@ -164,7 +164,7 @@ async fn project_family_import_rebuilds_raw_blueprint_from_formal_rows() {
         "project_family_blueprint",
         "project-family-blueprint@example.invalid",
         "project-family-blueprint-password",
-        a4n_core::models::user::role::ROLE_USER,
+        a4n_db_models::models::user::role::ROLE_USER,
     )
     .await
     .unwrap();
@@ -279,7 +279,7 @@ async fn project_family_media_write_failure_rolls_back_database_rows() {
         "project_family_media_failure",
         "project-family-media-failure@example.invalid",
         "project-family-media-failure-password",
-        a4n_core::models::user::role::ROLE_USER,
+        a4n_db_models::models::user::role::ROLE_USER,
     )
     .await
     .unwrap();
@@ -375,7 +375,7 @@ async fn project_family_import_batches_video_reference_fixups() {
         "project_family_video_fixups",
         "project-family-video-fixups@example.invalid",
         "project-family-video-fixups-password",
-        a4n_core::models::user::role::ROLE_USER,
+        a4n_db_models::models::user::role::ROLE_USER,
     )
     .await
     .unwrap();
@@ -424,7 +424,7 @@ async fn project_family_import_batches_video_reference_fixups() {
     let scene = |id: i64, name: &str, parent_scene_id| scene_profile::Model {
         id,
         project_id,
-        ownership_kind: a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC.to_string(),
+        ownership_kind: a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC.to_string(),
         name: name.to_string(),
         normalized_name: name.to_string(),
         aliases_json: serde_json::json!([]),
@@ -474,7 +474,7 @@ async fn project_family_import_batches_video_reference_fixups() {
         id,
         project_id,
         chapter_id: Some(chapter_id),
-        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some("storyboard".to_string()),
         file_path: None,
         thumbnail_path: None,
@@ -488,7 +488,7 @@ async fn project_family_import_batches_video_reference_fixups() {
         file_size: None,
         source_video_id,
         source_image_id: None,
-        status: generated_video::STATUS_COMPLETED.to_string(),
+        status: a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string(),
         provider_job_id: Some(format!("old-job-{id}")),
         error_message: None,
         timeline_item_id: Some(800 + id),

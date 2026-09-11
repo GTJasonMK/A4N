@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_error::AppError;
 use std::collections::{HashMap, HashSet};
 
 use crate::video::prompt_json::contracts::VideoSegmentPlan;

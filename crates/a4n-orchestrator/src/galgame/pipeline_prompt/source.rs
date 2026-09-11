@@ -1,8 +1,8 @@
-use a4n_core::error::AppError;
 use a4n_db::galgame::{
     GalgamePipelinePromptChapterSourceRecord, GalgamePipelinePromptSpeakerProfileRecord,
     GalgamePipelinePromptTextAnchorRecord,
 };
+use a4n_error::AppError;
 
 use super::{
     super::{GalgamePipelineSourceSpan, GalgameSpeakerProfile},

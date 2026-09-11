@@ -2,11 +2,208 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
+
 use crate::serde_update::{deserialize_nullable_update_field, deserialize_required_nullable_field};
 
 pub use a4n_domain::{
     DiscoveredModel, ImageSize, LlmMaxTokensConfig, ModelDiscoveryResult, VideoDurationMode,
 };
+
+/// AI provider configuration application boundary.
+///
+/// Persistence, validation, admin authorization and API projection stay in
+/// the configuration owner. Hosts only route typed requests through this
+/// port and never handle configuration ORM models.
+#[async_trait::async_trait]
+pub trait ConfigApplicationPort: Send + Sync {
+    async fn llm_configs_exist(&self) -> Result<bool, a4n_error::AppError>;
+
+    async fn image_configs_exist(&self) -> Result<bool, a4n_error::AppError>;
+
+    async fn video_configs_exist(&self) -> Result<bool, a4n_error::AppError>;
+
+    async fn insert_baseline_embedding_if_empty(&self) -> Result<bool, a4n_error::AppError>;
+
+    async fn insert_baseline_llm_if_empty(
+        &self,
+        input: CreateLlmInput,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn insert_baseline_image_if_empty(
+        &self,
+        input: ImageConfigInput,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn insert_baseline_video_if_empty(
+        &self,
+        input: VideoConfigInput,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn llm_max_tokens(&self) -> Result<LlmMaxTokensConfig, a4n_error::AppError>;
+
+    async fn update_llm_max_tokens(
+        &self,
+        caller_user_id: i64,
+        config: LlmMaxTokensConfig,
+    ) -> Result<LlmMaxTokensConfig, a4n_error::AppError>;
+
+    async fn saved_api_key(
+        &self,
+        caller_user_id: i64,
+        kind: ConfigProviderKind,
+        config_id: i64,
+    ) -> Result<Option<String>, a4n_error::AppError>;
+
+    async fn llm_config_for_connectivity_test(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<LlmProviderConfig, a4n_error::AppError>;
+
+    async fn embedding_config_for_connectivity_test(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<EmbeddingProviderConfig, a4n_error::AppError>;
+
+    async fn image_config_for_connectivity_test(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<ImageConfigForConnectivityTest, a4n_error::AppError>;
+
+    async fn list_llm(&self) -> Result<Vec<LlmConfigSummary>, a4n_error::AppError>;
+
+    async fn create_llm(
+        &self,
+        caller_user_id: i64,
+        input: CreateLlmInput,
+    ) -> Result<LlmConfigSummary, a4n_error::AppError>;
+
+    async fn update_llm(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+        input: UpdateLlmInput,
+    ) -> Result<LlmConfigSummary, a4n_error::AppError>;
+
+    async fn set_default_llm(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn delete_llm(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn list_image(&self) -> Result<Vec<ImageConfigSummary>, a4n_error::AppError>;
+
+    async fn create_image(
+        &self,
+        caller_user_id: i64,
+        input: ImageConfigInput,
+    ) -> Result<ImageConfigSummary, a4n_error::AppError>;
+
+    async fn update_image(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+        input: UpdateImageConfigInput,
+    ) -> Result<ImageConfigSummary, a4n_error::AppError>;
+
+    async fn set_default_image(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn delete_image(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn list_video(&self) -> Result<Vec<VideoConfigSummary>, a4n_error::AppError>;
+
+    async fn create_video(
+        &self,
+        caller_user_id: i64,
+        input: VideoConfigInput,
+    ) -> Result<VideoConfigSummary, a4n_error::AppError>;
+
+    async fn update_video(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+        input: UpdateVideoConfigInput,
+    ) -> Result<VideoConfigSummary, a4n_error::AppError>;
+
+    async fn set_default_video(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn delete_video(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn list_embedding(&self) -> Result<Vec<EmbeddingConfigSummary>, a4n_error::AppError>;
+
+    async fn create_embedding(
+        &self,
+        caller_user_id: i64,
+        input: CreateEmbeddingInput,
+    ) -> Result<EmbeddingConfigSummary, a4n_error::AppError>;
+
+    async fn update_embedding(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+        input: UpdateEmbeddingInput,
+    ) -> Result<EmbeddingConfigSummary, a4n_error::AppError>;
+
+    async fn set_default_embedding(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn delete_embedding(
+        &self,
+        caller_user_id: i64,
+        config_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigProviderKind {
+    Llm,
+    Image,
+    Video,
+}
+
+/// Image configuration needed by the connectivity-test provider path.
+///
+/// This is intentionally not serializable: the API port may return the
+/// provider secret to Runtime, but it must not become a wire/API DTO.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImageConfigForConnectivityTest {
+    pub id: i64,
+    pub name: String,
+    pub backend: String,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub model: String,
+    pub max_concurrent: i32,
+    pub supported_sizes_json: Value,
+}
 
 #[derive(Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

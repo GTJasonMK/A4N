@@ -7,7 +7,7 @@ use super::{
     creation::{create_source_snapshot_in_record, normalize_chapter_scope},
     types::CreateDerivedProjectParams,
 };
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectStatus;
 use chrono::Utc;
 use sea_orm::{

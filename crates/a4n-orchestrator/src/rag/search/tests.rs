@@ -7,7 +7,7 @@ use a4n_test_support::{
 use super::execution::{
     embed_queries_in_batch, hybrid_rag_search_with_validated_embedding_in_store,
 };
-use super::filter::identity_scoped_search_filter;
+use a4n_rag_core::search::identity_scoped_search_filter;
 
 #[test]
 fn identity_filter_scopes_embedding_and_data_types() {

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use tera::{Context, Tera};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::engine::{PromptCategory, PromptEntry, PromptVersion};
 

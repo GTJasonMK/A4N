@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::optimization_patch_set;
 use a4n_db::optimize::{OptimizationPatchCreateInput, OptimizationPatchSetCreateInput};
+use a4n_db_models::models::ai::optimization_patch_set;
+use a4n_error::AppError;
 
 use serde_json::Value;
 

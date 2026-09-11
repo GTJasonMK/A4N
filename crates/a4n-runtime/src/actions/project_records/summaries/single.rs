@@ -1,44 +1,15 @@
-use a4n_core::models::project::novel_project;
-use a4n_orchestrator::collaboration::ProjectAccessInfoQuery;
-use a4n_orchestrator::project::ProjectFamilyMetadataQuery;
-
 use crate::AppState;
 use crate::actions::app_error_message;
-
-use super::{project_progress_query, projection::to_summary};
 use a4n_api_contract::project::ProjectSummary;
 
 pub async fn project_summary_with_family_for_user(
     state: &AppState,
     user_id: i64,
-    project: &novel_project::Model,
+    project_id: i64,
 ) -> Result<ProjectSummary, String> {
-    let progress_query = project_progress_query(project)?;
-    let project_kind = progress_query.project_kind;
-    let source_mode = progress_query.source_mode;
-    let status = progress_query.status;
-    let progress = state
-        .orchestrator()
-        .project_progress_summary(progress_query)
+    state
+        .project_read_application()
+        .summary(user_id, project_id)
         .await
-        .map_err(app_error_message)?;
-    let metadata = state
-        .orchestrator()
-        .project_family_metadata(ProjectFamilyMetadataQuery::from_project(project))
-        .await
-        .map_err(app_error_message)?;
-    let info = state
-        .orchestrator()
-        .project_access_info(ProjectAccessInfoQuery::from_project(project), user_id)
-        .await
-        .map_err(app_error_message)?;
-    Ok(to_summary(
-        project,
-        &metadata,
-        &info,
-        project_kind,
-        source_mode,
-        status,
-        progress,
-    ))
+        .map_err(app_error_message)
 }

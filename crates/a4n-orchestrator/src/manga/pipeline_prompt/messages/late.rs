@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
-use a4n_core::source_spans::SourceSpan;
+use a4n_domain::source_spans::SourceSpan;
 
 use super::common::build_manga_step_user_message;
 use super::inputs::manga_item_extraction_input;

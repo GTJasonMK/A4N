@@ -96,3 +96,41 @@ runner 输出一个 JSON 报告和 Provider 请求 JSONL。不要把小型 ledge
 核心 runner 的 `success` 只表示该 ledger 声明的场景全部通过；`classified_complete` 和
 `tested_complete` 会继续明确报告它是否覆盖当前 manifest。核心账本是部分业务 fixture 时，
 `success=true` 且 `complete=false` 是正常结果，不应把它误读为所有 descriptor 都已测试。
+
+## 工具驱动的导演 Agent 试点
+
+`run_specialized_agent_cli_e2e.py` 会新建项目、章节、草稿和 Agent Thread，只在专用测试数据库与目录中运行。沿用上面的 Server/CLI 构建及账号配置：
+
+```bash
+python3 scripts/tests/run_specialized_agent_cli_e2e.py \
+  --server "$A4N_TEST_SERVER_URL" \
+  --username "$A4N_USERNAME" \
+  --password-env A4N_PASSWORD \
+  --report "$A4N_E2E_ARTIFACT_DIR/cli/report.json"
+```
+
+它验证原调用恢复、审批、局部修改、noop、版本冲突、按需工具发现、大结果读取、Thread 隔离、预算和编辑器离线；首模型请求检查未请求正文/方案/Memory 的哨兵内容。可选的 `--fault-database-url-env A4N_FAULT_TEST_DATABASE_URL --postgres-container a4n-postgres` 只接受名为 `a4n_agent_<hex>` 的隔离库，并仅修改本次新建 Run 的持久化记录，模拟消息或回执缺口。它不模拟真实进程终止。
+
+UI E2E 复用成功报告中的资源。Provider 必须在整个 UI 测试期间运行；可以先单独启动 `mock_openai_provider.py --host 127.0.0.1 --port 18765 --log "$A4N_E2E_PROVIDER_LOG"`，并向 CLI runner 传入 `--provider-url http://127.0.0.1:18765/v1 --provider-log "$A4N_E2E_PROVIDER_LOG"`。测试 Host 的公共 LLM 模板也应指向这个隔离 Provider。
+
+设置以下环境后，在 `frontend/` 运行已有 Chromium 配置：
+
+```bash
+export A4N_SPECIALIZED_FIXTURE="$A4N_E2E_ARTIFACT_DIR/cli/report.json"
+export A4N_SPECIALIZED_SERVER="$A4N_TEST_SERVER_URL"
+export A4N_BROWSER_E2E_BASE_URL="$A4N_TEST_WEB_URL"
+export A4N_BROWSER_E2E_USERNAME="$A4N_USERNAME"
+export A4N_BROWSER_E2E_PASSWORD="$A4N_PASSWORD"
+export A4N_BROWSER_E2E_ARTIFACT_DIR="$A4N_E2E_ARTIFACT_DIR/browser"
+node node_modules/@wdio/cli/bin/wdio.js run \
+  ./e2e/full-project/wdio.conf.mjs \
+  --spec ./e2e/specialized-agent/specialized-agent.e2e.mjs
+```
+
+原生 Tauri 验证复用同一 spec 的首个实际编辑器流程，观察状态通过原 typed API 的 native invoke 取得。先停止使用该隔离库的测试 Server，避免两个 Host 抢占同一 Run；为 Tauri 配置独立 data/cache/temp/log/portable 目录，并让 Vite 与 Tauri 的 devUrl 一致、二者均使用 `VITE_A4N_API_TRANSPORT=tauri`。编译 `a4n-tauri --features embedded-capabilities` 后，在同一隔离 Host 环境启动 tauri-driver：
+
+```bash
+tauri-driver --port 4444 --native-port 4445 --native-driver /usr/bin/WebKitWebDriver
+```
+
+另一个终端保留上述浏览器测试变量，再设置 `A4N_SPECIALIZED_NATIVE=1`、`A4N_WDIO_APP_BINARY` 为实际 Tauri 二进制绝对路径，以及 `A4N_TAURI_DRIVER_PORT=4444`，运行 `node node_modules/@wdio/cli/bin/wdio.js run ./e2e/specialized-agent/wdio.native.conf.mjs`。这里直接使用标准 WebDriver，不要求安装 WDIO Tauri 插件。Web 与 native 报告分别写入 `specialized-agent-report.json` 和 `specialized-agent-native-report.json`；运行失败不能当作通过。

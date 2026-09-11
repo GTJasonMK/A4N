@@ -129,7 +129,7 @@ where
 }
 
 fn ensure_character_sync_profile_source_matches(
-    profile: &a4n_core::models::character::protagonist_profile::Model,
+    profile: &a4n_db_models::models::character::protagonist_profile::Model,
     input: &CharacterSyncPersistenceInput,
 ) -> Result<(), CharacterDbError> {
     if profile.name == input.profile_name

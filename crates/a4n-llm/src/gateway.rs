@@ -1,7 +1,7 @@
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::provider::{ChatRequest, ChatResponse, UsageInfo};
 

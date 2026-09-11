@@ -4,10 +4,10 @@ use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::path::Path;
 
-use a4n_core::models::media::media_asset::{self, FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_core::models::project::novel_project;
+use a4n_api_contract::project_transfer::MediaFileEntry;
+use a4n_db_models::models::media::media_asset::{self, FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectSourceMode;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
@@ -193,16 +193,6 @@ pub fn required_path_extension<'a>(path: &'a str, label: &str) -> Result<&'a str
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| format!("{label}缺少扩展名: {path}"))
-}
-
-/// 项目包内媒体文件索引项。
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct MediaFileEntry {
-    pub owner_kind: String,
-    pub owner_id: i64,
-    pub field: String,
-    pub original_path: String,
-    pub package_path: String,
 }
 
 /// 导入时已解出的媒体字节与清单索引。

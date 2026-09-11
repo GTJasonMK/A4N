@@ -1,8 +1,8 @@
-use a4n_core::error::AppError;
 use a4n_db::workflow::{
     CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, UpsertWorkflowCheckpointInput,
     WORKFLOW_STATUS_COMPLETED,
 };
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::OrchestratorContext;

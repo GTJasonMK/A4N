@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::manga::{MangaPipelineDbError, MangaPromptRecordError};
+use a4n_error::AppError;
 
 pub(crate) fn manga_prompt_record_error(error: MangaPromptRecordError) -> AppError {
     match error {

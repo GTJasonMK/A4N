@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use a4n_core::config::env::optional_non_empty_env_path;
+use a4n_config::optional_non_empty_env_path;
 use a4n_service_protocol::PROMPT_SERVICE_PROMPTS_DIR_ENV;
 
 pub(crate) fn bundled_prompts_dir(data_dir: &Path) -> Result<PathBuf, String> {

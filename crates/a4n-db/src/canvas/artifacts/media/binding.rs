@@ -1,5 +1,5 @@
 use crate::canvas::CanvasDbError;
-use a4n_core::models::media::media_binding;
+use a4n_db_models::models::media::media_binding;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, QueryFilter,

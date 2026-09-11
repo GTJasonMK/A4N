@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use super::contracts::BLUEPRINT_GENERATION_STAGES;
-use a4n_core::blueprint::{
+use a4n_domain::project::{
     BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATION_PROMPTS, build_blueprint_generation_payload,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::blueprint_generation::{
     BlueprintGenerationPreviewStep, BlueprintStageRequestInput, build_blueprint_stage_request,
 };
@@ -23,7 +23,8 @@ pub(in crate::blueprint) async fn preview_generate_request(
         .render_prompt(BLUEPRINT_BASE_PROMPT, variables, Some(project_id))
         .await?;
     let user_payload =
-        build_blueprint_generation_payload(novel_title, genre, target_length, variables)?;
+        build_blueprint_generation_payload(novel_title, genre, target_length, variables)
+            .map_err(AppError::InvalidArgument)?;
     let user_payload_json = serde_json::to_string_pretty(&user_payload)?;
 
     let spec = &BLUEPRINT_GENERATION_STAGES[0];

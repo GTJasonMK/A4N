@@ -1,5 +1,5 @@
-use a4n_core::blueprint::ParsedBlueprintOptimization;
-use a4n_core::error::AppError;
+use a4n_domain::project::ParsedBlueprintOptimization;
+use a4n_error::AppError;
 
 mod scalars;
 mod sections;

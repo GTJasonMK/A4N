@@ -1,8 +1,9 @@
-use a4n_core::blueprint::{BLUEPRINT_GENERATION_KIND, BLUEPRINT_STAGE_SYSTEM_PROMPT};
-
 use crate::blueprint_generation::stage_response::parse_blueprint_stage_output_schema;
-use a4n_core::config::app_config::llm_token_profiles;
-use a4n_core::error::AppError;
+use a4n_domain::{
+    llm::llm_token_profiles,
+    project::{BLUEPRINT_GENERATION_KIND, BLUEPRINT_STAGE_SYSTEM_PROMPT},
+};
+use a4n_error::AppError;
 use a4n_llm::context::context_aware_system_user_request;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::json;

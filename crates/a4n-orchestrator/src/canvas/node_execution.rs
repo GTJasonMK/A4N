@@ -1,5 +1,5 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::{
@@ -14,6 +14,16 @@ use crate::{
 pub struct CanvasNodeRunHandle {
     pub(crate) workflow_run_id: i64,
     pub(crate) finalize_on_success: bool,
+}
+
+impl CanvasNodeRunHandle {
+    pub fn workflow_run_id(self) -> i64 {
+        self.workflow_run_id
+    }
+
+    pub fn finalize_on_success(self) -> bool {
+        self.finalize_on_success
+    }
 }
 
 pub(crate) struct CanvasNodeLifecycle {
@@ -94,6 +104,16 @@ impl OrchestratorContext {
                 )));
             }
         };
+        self.agent()
+            .record_workflow_node_execution(
+                workflow_run_id,
+                &step_key,
+                status,
+                &input_json,
+                artifacts_json.as_ref(),
+                error_message.as_deref(),
+            )
+            .await?;
         if status != WORKFLOW_STATUS_COMPLETED {
             self.mark_workflow_current_step(workflow_run_id, &step_key)
                 .await?;

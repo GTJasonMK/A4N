@@ -1,8 +1,9 @@
-use a4n_core::models::media::{media_asset, media_provenance};
+use a4n_db_models::models::media::{media_asset, media_provenance};
 use chrono::{NaiveDateTime, Utc};
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
-use crate::media::{CreateMediaAssetRecordInput, MediaDbError, MediaProvenanceRecordInput};
+use crate::media::MediaDbError;
+use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput};
 
 use super::references::validate_media_provenance_refs;
 

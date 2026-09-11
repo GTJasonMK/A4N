@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -16,7 +16,7 @@ pub use self::contracts::{
 };
 pub use self::ledger::LlmContextLedger;
 pub use self::manifest::{render_context_manifest_user_content, validate_context_manifest};
-pub use self::planner::{ContextBudgetPlanner, context_pack_model_ref};
+pub use self::planner::ContextBudgetPlanner;
 pub use self::request::{
     ContextAwareJsonLlmRequestInput, chat_request_with_workflow_run_id,
     context_aware_system_user_json_llm_request, context_aware_system_user_llm_request,

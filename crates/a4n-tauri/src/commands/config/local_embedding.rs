@@ -1,10 +1,11 @@
-use a4n_core::{config::app_config::AppConfig, event::channel::normalize_task_id};
+use a4n_config::app_config::AppConfig;
 use a4n_runtime::host_api::embedding_model::{
     CancelEmbeddingModelDownloadInput, DownloadEmbeddingModelInput,
     EmbeddingModelDownloadInfoSummary, EmbeddingModelInput, LocalEmbedTextsInput,
     LocalEmbedTextsOutput, LocalEmbeddingConfigInput, LocalEmbeddingModelSummary,
     LocalEmbeddingProviderRuntime,
 };
+use a4n_task_runtime::channel::normalize_task_id;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::State;
@@ -82,7 +83,7 @@ pub async fn local_download_embedding_model(
     match result {
         Ok(summary) => Ok(summary),
         Err(err) => {
-            let is_cancelled = matches!(&err, a4n_core::error::AppError::Cancelled);
+            let is_cancelled = matches!(&err, a4n_error::AppError::Cancelled);
             let message = if is_cancelled {
                 "模型下载已停止".to_string()
             } else {

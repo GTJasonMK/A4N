@@ -1,6 +1,6 @@
 //! 用章节拍摄剧本硬切旧共享导演计划和视频镜头分析链。
 
-use a4n_core::models::chapter::chapter_shooting_script;
+use a4n_db_models::models::chapter::chapter_shooting_script;
 use sea_orm::{DbBackend, EntityName, Schema};
 use sea_orm_migration::prelude::*;
 

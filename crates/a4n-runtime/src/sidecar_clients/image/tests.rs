@@ -1,8 +1,8 @@
 use super::operations::{generate_image, preview_image_provider_request};
 use crate::state::RuntimeProfile;
 use a4n_capabilities::{A4nCapabilities, JsonResponse};
-use a4n_core::models::ai::image_gen_config;
 use a4n_image::ImageGenerationRequest;
+use a4n_provider_contract::ImageProviderConfig;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, ServiceResponse, ServiceStatus,
 };
@@ -10,27 +10,16 @@ use a4n_test_support::capability::RecordingImageClient;
 use serde_json::json;
 use std::sync::Arc;
 
-fn fixed_time() -> chrono::NaiveDateTime {
-    chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
-        .unwrap()
-        .and_hms_opt(0, 0, 0)
-        .unwrap()
-}
-
-fn image_config() -> image_gen_config::Model {
-    let now = fixed_time();
-    image_gen_config::Model {
+fn image_config() -> ImageProviderConfig {
+    ImageProviderConfig {
         id: 1,
         name: "test-image".to_string(),
         backend: "openai-compatible-image".to_string(),
         base_url: Some("https://example.invalid/v1".to_string()),
-        api_key_encrypted: Some("test-key".to_string()),
+        api_key: Some("test-key".to_string()),
         model: "image-model".to_string(),
         max_concurrent: 1,
         supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
-        is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 

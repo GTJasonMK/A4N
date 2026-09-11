@@ -3,19 +3,18 @@ use serde_json::Value;
 
 use super::payload::ChatVideoPayload;
 use crate::format::{normalize_video_format_str, video_format_from_url};
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 pub(super) fn extract_chat_video_payload(body: &str) -> Result<ChatVideoPayload, AppError> {
-    let value: Value = serde_json::from_str(body).map_err(|e| {
-        AppError::Internal(anyhow::anyhow!("chat-completions 视频响应解析失败：{e}"))
-    })?;
+    let value: Value = serde_json::from_str(body)
+        .map_err(|e| AppError::Internal(format!("chat-completions 视频响应解析失败：{e}")))?;
     let message = value
         .get("choices")
         .and_then(|v| v.as_array())
         .and_then(|arr| arr.first())
         .and_then(|c| c.get("message"))
         .ok_or_else(|| {
-            AppError::Internal(anyhow::anyhow!(
+            AppError::Internal(format!(
                 "chat-completions 视频响应缺少 choices[0].message；响应预览：{}",
                 preview_video(body)
             ))
@@ -28,7 +27,7 @@ pub(super) fn extract_chat_video_payload(body: &str) -> Result<ChatVideoPayload,
         return Ok(payload);
     }
 
-    Err(AppError::Internal(anyhow::anyhow!(
+    Err(AppError::Internal(format!(
         "chat-completions 视频响应未发现视频：扫描了 message.video / message.videos[]、\
          message.content[].video_url、message.content 字符串。响应预览：{}",
         preview_video(body)
@@ -115,7 +114,7 @@ fn read_video_object(item: &Value) -> Result<Option<ChatVideoPayload>, AppError>
     {
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(raw)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("视频 base64 解码失败：{e}")))?;
+            .map_err(|e| AppError::Internal(format!("视频 base64 解码失败：{e}")))?;
         return Ok(Some(ChatVideoPayload::Base64 {
             format: hint_format,
             bytes,
@@ -140,7 +139,7 @@ fn video_format_hint(item: &Value) -> Result<Option<String>, AppError> {
         .filter(|s| !s.is_empty())
     {
         let ext = mime.strip_prefix("video/").ok_or_else(|| {
-            AppError::Internal(anyhow::anyhow!(
+            AppError::Internal(format!(
                 "chat-completions 视频 content_type 非 video/* ：{mime}"
             ))
         })?;
@@ -209,19 +208,17 @@ fn classify_video_string(
     let raw = raw.trim();
     if let Some(rest) = raw.strip_prefix("data:") {
         let (header, payload) = rest.split_once(',').ok_or_else(|| {
-            AppError::Internal(anyhow::anyhow!("chat-completions video data URI 缺少 ','"))
+            AppError::Internal(format!("chat-completions video data URI 缺少 ','"))
         })?;
         let payload = payload.trim();
         let mime = header.split(';').next().unwrap_or("").trim();
         let ext = mime.strip_prefix("video/").ok_or_else(|| {
-            AppError::Internal(anyhow::anyhow!(
-                "chat-completions 不支持的 data URI mime：{mime}"
-            ))
+            AppError::Internal(format!("chat-completions 不支持的 data URI mime：{mime}"))
         })?;
         let format = normalize_video_format_str(ext)?;
         let bytes = base64::engine::general_purpose::STANDARD
             .decode(payload)
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("视频 base64 解码失败：{e}")))?;
+            .map_err(|e| AppError::Internal(format!("视频 base64 解码失败：{e}")))?;
         return Ok(ChatVideoPayload::DataUri { format, bytes });
     }
     if raw.starts_with("http://") || raw.starts_with("https://") {
@@ -232,7 +229,7 @@ fn classify_video_string(
     }
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(raw)
-        .map_err(|e| AppError::Internal(anyhow::anyhow!("视频 base64 解码失败：{e}")))?;
+        .map_err(|e| AppError::Internal(format!("视频 base64 解码失败：{e}")))?;
     Ok(ChatVideoPayload::Base64 {
         format: hint_format,
         bytes,

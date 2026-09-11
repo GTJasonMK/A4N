@@ -1,7 +1,7 @@
-use super::super::types::CharacterImplicitReviewDecisionRecordInput;
 use super::validation::validate_implicit_review_decision_record;
 use crate::character::CharacterDbError;
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_domain::character::CharacterImplicitReviewDecisionRecordInput;
 use serde_json::{Value, json};
 
 fn profile_with_implicit_state(state: Value) -> protagonist_profile::Model {

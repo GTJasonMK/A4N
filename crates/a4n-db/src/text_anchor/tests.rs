@@ -1,13 +1,11 @@
 use super::*;
-use a4n_core::profile_ownership::PROFILE_OWNERSHIP_USER;
-use a4n_core::{
-    models::{
-        asset::object_profile,
-        chapter::chapter,
-        project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
-    },
-    source_spans::source_text_hash,
+use a4n_db_models::models::{
+    asset::object_profile,
+    chapter::chapter,
+    project::{novel_project, profile_evidence, source_snapshot_chapter, text_anchor},
 };
+use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
+use a4n_domain::{profile_ownership::PROFILE_OWNERSHIP_USER, source_text_hash};
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, NotSet, PaginatorTrait,

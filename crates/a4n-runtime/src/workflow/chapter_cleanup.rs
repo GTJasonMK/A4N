@@ -1,6 +1,6 @@
-use crate::file_utils::remove_data_file_in_data_dir;
 use crate::state::AppState;
-use a4n_orchestrator::project::ChapterDerivedCleanupArtifacts;
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_storage::remove_data_file_in_data_dir;
 
 pub(in crate::workflow) async fn finish_chapter_derived_cleanup(
     state: &AppState,
@@ -31,9 +31,10 @@ async fn finish_chapter_derived_cleanup_inner(
     artifacts: ChapterDerivedCleanupArtifacts,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .cleanup_chapter_derived_rag(project_id, chapter_id, chapter_number, &artifacts)
-        .await?;
+        .chapter_content_mutation_application()
+        .cleanup_derived_rag(project_id, chapter_id, chapter_number, &artifacts)
+        .await
+        .map_err(|error| error.to_string())?;
     if artifacts.scene_records_changed {
         crate::rag_ingest::sync_scene_rag_records(
             state,

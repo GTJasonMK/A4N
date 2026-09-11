@@ -2,7 +2,7 @@ use super::{
     rules::{anchor_change_conflict, classify_anchor_change, severity_for_impacted_local_state},
     types::AnchorChange,
 };
-use a4n_core::models::project::text_anchor;
+use a4n_db_models::models::project::text_anchor;
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
 };

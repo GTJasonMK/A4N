@@ -1,54 +1,21 @@
 pub use a4n_api_contract::{
     image::GeneratedImageSummary,
     image_generation::{
-        GenerateBatchImagesInput, GeneratePageImageInput, GenerateSceneImageInput,
-        ObjectProfileImageInput, ObjectProfileImagePromptOutput, SceneProfileImageInput,
-        SceneProfileImagePromptOutput,
+        GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
+        GenerateSceneImageInput, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
+        SceneProfileImageInput, SceneProfileImagePromptOutput,
     },
 };
-use a4n_core::{error::AppError, models::ai::image_gen_config};
+use a4n_canvas_contract::GenerateCanvasImageInput;
+use a4n_domain::media::GeneratedMediaArtifactFile;
+use a4n_error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageReference};
+use a4n_provider_contract::ImageProviderConfig;
 use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use crate::generation::GeneratedMediaArtifactFile;
-
 const IMAGE_CANCELLED_MESSAGE: &str = "图片生成已停止";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GenerateCanvasImageInput {
-    pub project_id: i64,
-    pub graph_id: i64,
-    pub node_id: i64,
-    #[serde(default)]
-    pub workflow_run_id: Option<i64>,
-    pub prompt: String,
-    pub config_id: Option<i64>,
-    pub width: i32,
-    pub height: i32,
-    #[serde(default)]
-    pub source_node_ids: Vec<i64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GenerateGalgameImageInput {
-    pub project_id: i64,
-    pub prompt: String,
-    pub image_type: String,
-    pub config_id: Option<i64>,
-    pub width: i32,
-    pub height: i32,
-    pub chapter_id: Option<i64>,
-    pub generation_spec_id: i64,
-    pub target_kind: String,
-    pub target_entity_kind: String,
-    pub target_entity_id: i64,
-    pub workflow_run_id: Option<i64>,
-}
 
 #[derive(Debug, Clone)]
 pub struct PreparedImageGenerationRequest {
@@ -57,7 +24,7 @@ pub struct PreparedImageGenerationRequest {
     pub prompt_name: Option<String>,
     pub subject_name: Option<String>,
     pub preview_notes: Vec<String>,
-    pub config: image_gen_config::Model,
+    pub config: ImageProviderConfig,
     pub request: ImageGenerationRequest,
 }
 
@@ -77,13 +44,14 @@ pub enum ImageGenerationWorkflowBinding {
 
 #[derive(Debug, Clone)]
 pub struct ImageGenerationExecutionInput {
+    pub requested_by_user_id: i64,
     pub project_id: i64,
     pub chapter_id: Option<i64>,
     pub image_type: String,
     pub command: String,
     pub file_extra: Option<String>,
     pub file_context: String,
-    pub config: image_gen_config::Model,
+    pub config: ImageProviderConfig,
     pub request: ImageGenerationRequest,
     pub width: i32,
     pub height: i32,
@@ -159,7 +127,7 @@ impl<'a> ImageGenerationProgress<'a> {
 pub struct ImageGenerationProviderInput {
     pub project_id: i64,
     pub workflow_run_id: i64,
-    pub config: image_gen_config::Model,
+    pub config: ImageProviderConfig,
     pub request: ImageGenerationRequest,
 }
 
@@ -168,6 +136,22 @@ pub struct ImageGenerationProviderOutput {
     pub bytes: Vec<u8>,
     pub format: String,
     pub model: String,
+}
+
+pub struct PrepareGeneratedImageFileInput<'a> {
+    pub project_id: i64,
+    pub chapter_id: Option<i64>,
+    pub image_type: &'a str,
+    pub file_extra: Option<&'a str>,
+    pub format: &'a str,
+    pub publication_id: &'a str,
+    pub file_context: &'a str,
+}
+
+#[derive(Debug, Clone)]
+pub struct PreparedGeneratedImageFile {
+    pub staging_path: String,
+    pub final_path: String,
 }
 
 pub struct PersistGeneratedImageFileInput<'a> {
@@ -186,12 +170,88 @@ pub struct PersistedGeneratedImageFile {
     pub file_size: i64,
 }
 
+/// Host-facing boundary for image generation task ownership.
+///
+/// Runtime supplies provider and file adapters; queue execution, validation,
+/// workflow state and image persistence remain in the media owner.
+#[async_trait]
+pub trait ImageGenerationApplicationPort: Send + Sync {
+    async fn prepare_scene_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateSceneImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+
+    async fn prepare_canvas_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateCanvasImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+
+    async fn prepare_page_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GeneratePageImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+
+    async fn prepare_batch_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateBatchImagesInput,
+    ) -> Result<Vec<PreparedImageGenerationRequest>, AppError>;
+
+    async fn prepare_object_profile_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: ObjectProfileImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
+
+    async fn generate_galgame_image(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: GenerateGalgameImageInput,
+        progress: &ImageGenerationProgress<'_>,
+    ) -> Result<GeneratedImageSummary, AppError>;
+
+    async fn object_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &ObjectProfileImageInput,
+    ) -> Result<ObjectProfileImagePromptOutput, AppError>;
+
+    async fn scene_profile_prompt(
+        &self,
+        user_id: i64,
+        input: &SceneProfileImageInput,
+    ) -> Result<SceneProfileImagePromptOutput, AppError>;
+
+    async fn start_task(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::image_generation::StartImageGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
+
+    async fn run_task(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::image_generation::StartImageGenerationInput,
+        handle: a4n_api_contract::generation_tasks::GenerationTaskHandle,
+        host_port: &dyn ImageGenerationHostPort,
+    ) -> Result<(), String>;
+}
+
 #[async_trait]
 pub trait ImageGenerationHostPort: Send + Sync {
     async fn resolve_image_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<image_gen_config::Model, AppError>;
+    ) -> Result<ImageProviderConfig, AppError>;
 
     fn runtime_config_snapshot(&self) -> Option<Value>;
 
@@ -207,9 +267,15 @@ pub trait ImageGenerationHostPort: Send + Sync {
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<ImageGenerationProviderOutput, AppError>;
 
+    fn prepare_generated_image_file(
+        &self,
+        input: PrepareGeneratedImageFileInput<'_>,
+    ) -> Result<PreparedGeneratedImageFile, AppError>;
+
     fn persist_generated_image_file(
         &self,
         input: PersistGeneratedImageFileInput<'_>,
+        prepared: &PreparedGeneratedImageFile,
     ) -> Result<PersistedGeneratedImageFile, AppError>;
 
     fn validate_generated_image_file(

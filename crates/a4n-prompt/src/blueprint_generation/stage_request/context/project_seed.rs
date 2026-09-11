@@ -3,7 +3,7 @@ use a4n_llm::context::{
     LlmContextLedgerPackInput,
 };
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::{BLUEPRINT_CONTEXT_LEDGER_VERSION, blueprint_generation_source_hash};

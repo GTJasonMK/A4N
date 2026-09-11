@@ -1,4 +1,5 @@
-use a4n_core::error::AppError;
+use crate::provider_runtime::DynamicProviderFacade;
+use a4n_error::AppError;
 use a4n_llm::{
     context::{
         ContextBudgetPlanner, LlmContextManifest, LlmContextPackRequirement,
@@ -7,7 +8,6 @@ use a4n_llm::{
     },
     provider::{ChatRequest, LlmProvider, LlmTraceContext},
 };
-use a4n_orchestrator::DynamicProviderFacade;
 use sha2::{Digest, Sha256};
 
 use super::super::context::{

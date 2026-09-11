@@ -10,9 +10,9 @@ use super::download::{
 use crate::state::RuntimeProfile;
 use a4n_capabilities::A4nCapabilities;
 use a4n_capabilities::JsonResponse;
-use a4n_core::error::AppError;
-use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_error::AppError;
+use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode, ServiceResponse, ServiceStatus,
 };
@@ -21,24 +21,17 @@ use serde_json::Value;
 use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
-fn embedding_model(backend: &str) -> embedding_config::Model {
-    let now = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
-        .unwrap()
-        .and_hms_opt(0, 0, 0)
-        .unwrap();
-    embedding_config::Model {
+fn embedding_model(backend: &str) -> EmbeddingProviderConfig {
+    EmbeddingProviderConfig {
         id: 1,
         name: format!("{backend}-model"),
         backend: backend.to_string(),
         base_url: None,
-        api_key_encrypted: None,
+        api_key: None,
         model: "test-model".to_string(),
         dimension: 384,
         batch_size: 8,
         local_model_path: None,
-        is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 
@@ -117,7 +110,7 @@ fn embedding_model_sidecar_payload_never_forwards_host_cache_path() {
 fn embedding_connectivity_payload_omits_host_cache_path_and_keeps_explicit_model() {
     let mut model = embedding_model("fastembed");
     model.base_url = Some("https://unused.example/v1".to_string());
-    model.api_key_encrypted = Some("unused-secret".to_string());
+    model.api_key = Some("unused-secret".to_string());
     model.local_model_path = Some("/host/private/cache".to_string());
     model.batch_size = 16;
 
@@ -196,7 +189,7 @@ async fn api_embedding_connectivity_forwards_secret_only_with_local_user_policy(
     let capabilities = A4nCapabilities::default().with_embedding(client.clone());
     let mut model = embedding_model("api");
     model.base_url = Some("https://provider.example/v1".to_string());
-    model.api_key_encrypted = Some("secret-key".to_string());
+    model.api_key = Some("secret-key".to_string());
 
     test_embedding_config_via_sidecar(&capabilities, &model)
         .await

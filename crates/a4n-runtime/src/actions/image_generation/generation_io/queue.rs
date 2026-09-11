@@ -45,10 +45,40 @@ where
         .map(TaskWorkflowContext::new)
         .transpose()
         .map_err(|error| error.to_string())?;
-    let running = state
-        .orchestrator()
-        .queue_start_task_with_cancel(task_type, priority, project_id, workflow, cancel_token)
-        .await
-        .map_err(|error| error.to_string())?;
-    running.finish_message(operation().await).await
+    let result = match workflow {
+        Some(workflow) => {
+            state
+                .provider_runtime()
+                .queue_run_tracked_with_workflow_context_and_cancel(
+                    task_type,
+                    priority,
+                    project_id,
+                    Some(workflow),
+                    cancel_token,
+                    || async {
+                        operation()
+                            .await
+                            .map_err(|error| a4n_error::AppError::Internal(anyhow::anyhow!(error)))
+                    },
+                )
+                .await
+        }
+        None => {
+            state
+                .provider_runtime()
+                .queue_run_tracked_with_cancel(
+                    task_type,
+                    priority,
+                    project_id,
+                    cancel_token,
+                    || async {
+                        operation()
+                            .await
+                            .map_err(|error| a4n_error::AppError::Internal(anyhow::anyhow!(error)))
+                    },
+                )
+                .await
+        }
+    };
+    result.map_err(|error| error.to_string())
 }

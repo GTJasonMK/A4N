@@ -1,8 +1,9 @@
-use a4n_core::rag::RagDataType;
 use a4n_db::rag::RagSceneProfileRow;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, required_rag_text};
 
-use super::super::{RagRecord, rag_chunk_id};
+use super::super::rag_chunk_id;
 
 fn scene_profile_rag_text(profile: &RagSceneProfileRow) -> Result<String, String> {
     let name = required_rag_text(

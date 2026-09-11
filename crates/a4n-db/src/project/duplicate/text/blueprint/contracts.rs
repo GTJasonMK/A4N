@@ -1,4 +1,4 @@
-use a4n_core::models::project::{
+use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
 

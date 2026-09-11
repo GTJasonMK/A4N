@@ -1,5 +1,7 @@
-use a4n_core::{error::AppError, models::project::novel_project};
+use a4n_api_contract::project::ProjectSummary;
 use a4n_db::canvas::{VideoStudioProjectImportMediaError, VideoStudioProjectImportMediaFileWriter};
+use a4n_db_models::models::project::novel_project;
+use a4n_error::AppError;
 use chrono::Utc;
 
 use super::OrchestratorContext;
@@ -7,19 +9,20 @@ use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     ExportVideoStudioProjectApplicationInput, ExportedProjectPackage, ImportMediaPayload,
     ImportProjectPackageApplicationInput, ProjectPackageTransferError,
-    VideoStudioProjectTransferHostPort, assemble_video_studio_export_package,
-    import_result_with_file_rollback, media_file_key, required_package_extension,
-    validate_package_manifest, video_studio_export_media_files,
+    ProjectPackageTransferHostPort, VideoStudioProjectTransferApplicationPort,
+    assemble_video_studio_export_package, import_result_with_file_rollback,
+    index_import_media_payload, media_file_key, project_package_export_input,
+    required_package_extension, validate_package_manifest, video_studio_export_media_files,
 };
 
 impl OrchestratorContext {
-    pub async fn export_video_studio_project_validated<Host>(
+    pub async fn export_video_studio_project_validated<Host: ?Sized>(
         &self,
         input: ExportVideoStudioProjectApplicationInput,
         host_port: &Host,
     ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
-        Host: VideoStudioProjectTransferHostPort,
+        Host: ProjectPackageTransferHostPort,
     {
         self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Owner)
             .await?;
@@ -36,23 +39,32 @@ impl OrchestratorContext {
             .await?;
         let media_files = video_studio_export_media_files(&rows)?;
         let package = assemble_video_studio_export_package(project.clone(), rows, media_files)?;
+        let host_input = project_package_export_input(
+            &package,
+            &package.media_files,
+            crate::project::MANIFEST_PATH,
+            "视频画布项目清单",
+            "视频画布项目导出包",
+            Some(package.project.id),
+            Some(package.project.id),
+        )?;
         let package_bytes = host_port
-            .render_export_package(&package)
+            .render_export_package(host_input)
             .await
             .map_err(ProjectPackageTransferError::Message)?;
         Ok(ExportedProjectPackage {
-            project,
+            project_title: project.title,
             package_bytes,
         })
     }
 
-    pub async fn import_video_studio_project_validated<Host>(
+    pub async fn import_video_studio_project_validated<Host: ?Sized>(
         &self,
         input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
     ) -> Result<novel_project::Model, ProjectPackageTransferError>
     where
-        Host: VideoStudioProjectTransferHostPort,
+        Host: ProjectPackageTransferHostPort,
     {
         if input.package_bytes.is_empty() {
             return Err(ProjectPackageTransferError::Message(
@@ -60,20 +72,30 @@ impl OrchestratorContext {
             ));
         }
         let read_package = host_port
-            .read_import_package(input.package_bytes)
+            .read_import_package(
+                input.package_bytes,
+                crate::project::MANIFEST_PATH,
+                "视频画布项目包",
+                "视频画布项目清单",
+            )
             .await
             .map_err(ProjectPackageTransferError::Message)?;
-        validate_package_manifest(&read_package.package, &read_package.media_payload)
-            .map_err(AppError::InvalidArgument)?;
+        let package: crate::project::VideoStudioProjectPackage =
+            a4n_import_core::parse_json_manifest_value(read_package.manifest, "视频画布项目清单")
+                .map_err(|error| ProjectPackageTransferError::Message(error.to_string()))?;
+        let media_payload =
+            index_import_media_payload(&package.media_files, read_package.media_bytes)
+                .map_err(ProjectPackageTransferError::Message)?;
+        validate_package_manifest(&package, &media_payload).map_err(AppError::InvalidArgument)?;
         let import_result = {
             let mut writer = VideoStudioImportMediaWriter {
                 host_port,
-                media_payload: &read_package.media_payload,
+                media_payload: &media_payload,
             };
             self.canvas
                 .import_video_studio_package(
                     input.user_id,
-                    read_package.package,
+                    package,
                     Utc::now().naive_utc(),
                     &mut writer,
                 )
@@ -83,14 +105,46 @@ impl OrchestratorContext {
     }
 }
 
-struct VideoStudioImportMediaWriter<'a, Host> {
+#[async_trait::async_trait]
+impl VideoStudioProjectTransferApplicationPort for OrchestratorContext {
+    async fn export_project(
+        &self,
+        input: ExportVideoStudioProjectApplicationInput,
+        host_port: &dyn ProjectPackageTransferHostPort,
+    ) -> Result<ExportedProjectPackage, ProjectPackageTransferError> {
+        self.export_video_studio_project_validated(input, host_port)
+            .await
+    }
+
+    async fn import_project(
+        &self,
+        input: ImportProjectPackageApplicationInput,
+        host_port: &mut dyn ProjectPackageTransferHostPort,
+    ) -> Result<ProjectSummary, ProjectPackageTransferError> {
+        let user_id = input.user_id;
+        let project = self
+            .import_video_studio_project_validated(input, host_port)
+            .await?;
+        self.project_summary_for_user(user_id, project.id)
+            .await?
+            .ok_or_else(|| {
+                ProjectPackageTransferError::Application(a4n_error::AppError::NotFound(format!(
+                    "导入后的项目不存在: {}",
+                    project.id
+                )))
+            })
+    }
+}
+
+struct VideoStudioImportMediaWriter<'a, Host: ?Sized> {
     host_port: &'a mut Host,
     media_payload: &'a ImportMediaPayload,
 }
 
-impl<Host> VideoStudioProjectImportMediaFileWriter for VideoStudioImportMediaWriter<'_, Host>
+impl<Host: ?Sized> VideoStudioProjectImportMediaFileWriter
+    for VideoStudioImportMediaWriter<'_, Host>
 where
-    Host: VideoStudioProjectTransferHostPort,
+    Host: ProjectPackageTransferHostPort,
 {
     fn write_imported_media_file(
         &mut self,

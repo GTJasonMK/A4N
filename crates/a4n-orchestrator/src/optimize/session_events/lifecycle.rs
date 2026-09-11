@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::optimize::OptimizationSessionUpdateInput;
+use a4n_error::AppError;
 
 use super::super::{OrchestratorContext, optimize_db_error};
 
@@ -71,7 +71,7 @@ impl OrchestratorContext {
 
     async fn update_cancelled_session(
         &self,
-        session: a4n_core::models::ai::optimization_session::Model,
+        session: a4n_db_models::models::ai::optimization_session::Model,
     ) -> Result<(), AppError> {
         a4n_db::optimize::update_optimization_session(
             self.database.connection(),

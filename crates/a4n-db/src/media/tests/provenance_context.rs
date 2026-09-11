@@ -1,16 +1,14 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter,
     generation::{generation_spec, prompt_artifact},
     project::{novel_project, project_source_snapshot},
 };
+use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, EntityTrait, Set};
 use serde_json::json;
 
-use crate::media::{
-    CreateMediaAssetRecordInput, MediaDbError, MediaProvenanceRecordInput,
-    create_media_asset_with_provenance_record,
-};
+use crate::media::{MediaDbError, create_media_asset_with_provenance_record};
 
 async fn setup_db() -> DatabaseConnection {
     a4n_migration::test_support::connect_test_database().await

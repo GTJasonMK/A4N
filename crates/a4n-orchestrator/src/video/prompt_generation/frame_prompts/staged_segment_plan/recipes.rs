@@ -1,13 +1,13 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::video_execution::{
+use a4n_db::{video::VideoSegmentPlanDraftCheckpoint, workflow::WorkflowWriteError};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_video_contract::{
     VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
     carry_forward_video_segment_recipes, default_video_segment_recipes,
     validate_video_segment_recipes_for_plan, video_segment_recipes_for_plan_from_metadata,
     video_segments_share_recipe_anchor,
 };
-use a4n_db::{video::VideoSegmentPlanDraftCheckpoint, workflow::WorkflowWriteError};
 use serde_json::{Value, json};
 
 use super::super::{
@@ -438,7 +438,7 @@ fn draft_recipe_mutation_error(error: AppError) -> WorkflowWriteError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::video_execution::{VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1};
+    use a4n_video_contract::{VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1};
 
     fn segment(source_shot_id: &str, segment_number: i32) -> VideoSegmentPlan {
         serde_json::from_value(json!({

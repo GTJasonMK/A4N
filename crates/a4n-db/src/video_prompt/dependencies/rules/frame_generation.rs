@@ -1,6 +1,6 @@
 use super::chain::prompt_stage_label;
 use crate::video::VideoDbError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_FIRST_FRAME_PROMPT,

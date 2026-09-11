@@ -1,4 +1,7 @@
-use super::files::{persist_generated_image_file, required_filename_segment};
+use super::files::{
+    persist_reserved_generated_image_file, prepare_generated_image_file, required_filename_segment,
+};
+use a4n_orchestrator::media::{PersistGeneratedImageFileInput, PrepareGeneratedImageFileInput};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -14,22 +17,41 @@ fn unique_temp_dir(prefix: &str) -> PathBuf {
 fn generated_image_file_persistence_keeps_output_and_reports_actual_size() {
     let data_dir = unique_temp_dir("a4n_generated_image_persist");
 
-    let (path, relative_path, file_size) = persist_generated_image_file(
+    let prepared = prepare_generated_image_file(
         &data_dir,
-        7,
-        Some(3),
-        "scene",
-        Some("panel-1"),
-        b"generated-image",
-        "png",
-        "Provider 图片文件",
+        PrepareGeneratedImageFileInput {
+            project_id: 7,
+            chapter_id: Some(3),
+            image_type: "scene",
+            file_extra: Some("panel-1"),
+            format: "png",
+            publication_id: "publication-test",
+            file_context: "Provider 图片文件",
+        },
+    )
+    .expect("prepare generated image file");
+    let persisted = persist_reserved_generated_image_file(
+        &data_dir,
+        PersistGeneratedImageFileInput {
+            project_id: 7,
+            chapter_id: Some(3),
+            image_type: "scene",
+            file_extra: Some("panel-1"),
+            bytes: b"generated-image",
+            format: "png",
+            file_context: "Provider 图片文件",
+        },
+        &prepared,
     )
     .expect("persist generated image file");
+    let path = data_dir.join(&persisted.relative_path);
 
     assert!(path.is_file());
-    assert!(relative_path.starts_with("projects/7/images/chapter_3/scene_panel-1_"));
-    assert!(relative_path.ends_with(".png"));
-    assert_eq!(file_size, 15);
+    assert_eq!(
+        persisted.relative_path,
+        "projects/7/images/chapter_3/scene_panel-1_publication-test.png"
+    );
+    assert_eq!(persisted.file_size, 15);
     let _ = std::fs::remove_dir_all(&data_dir);
 }
 

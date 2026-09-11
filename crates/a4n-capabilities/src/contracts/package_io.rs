@@ -1,5 +1,5 @@
-use a4n_export_core::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
-use a4n_import_core::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
+use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_import_contract::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use a4n_service_protocol::{ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 

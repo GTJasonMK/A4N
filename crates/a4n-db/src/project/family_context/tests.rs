@@ -3,7 +3,7 @@ use super::{
     contracts::ProjectFamilyDbError, derived_project_family_access_ids,
     project_or_derived_family_access_ids,
 };
-use a4n_core::models::{chapter::chapter, project::source_snapshot_chapter};
+use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, Set};
 use uuid::Uuid;

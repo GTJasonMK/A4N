@@ -121,17 +121,19 @@ pub(super) fn validate_prompt_output_language_metadata(
     metadata: Option<&Value>,
     prompt_id: i64,
 ) -> Result<(), VideoDbError> {
-    if !a4n_core::prompt_language::prompt_type_uses_prompt_output_language(prompt_type) {
+    if !a4n_domain::prompt_language::prompt_type_uses_prompt_output_language(prompt_type) {
         return Ok(());
     }
-    a4n_core::prompt_language::PromptOutputLanguage::from_metadata(metadata).map_err(|error| {
-        let subject = if prompt_id > 0 {
-            format!("章节视频提示词 #{prompt_id}")
-        } else {
-            format!("视频提示词草稿类型 {prompt_type}")
-        };
-        VideoDbError::InvalidArgument(format!("{subject} {error}"))
-    })?;
+    a4n_domain::prompt_language::PromptOutputLanguage::from_metadata(metadata).map_err(
+        |error| {
+            let subject = if prompt_id > 0 {
+                format!("章节视频提示词 #{prompt_id}")
+            } else {
+                format!("视频提示词草稿类型 {prompt_type}")
+            };
+            VideoDbError::InvalidArgument(format!("{subject} {error}"))
+        },
+    )?;
     Ok(())
 }
 

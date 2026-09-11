@@ -1,8 +1,8 @@
 use serde_json::{Value, json};
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
-use a4n_core::source_spans::{SourceSpan, source_span_prompt_values};
+use a4n_domain::source_spans::{SourceSpan, source_span_prompt_values};
 
 use super::{
     VideoPlanningPromptContext, chapter_analysis_context, render_strict_json_user_prompt,

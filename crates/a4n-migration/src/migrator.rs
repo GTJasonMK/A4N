@@ -111,6 +111,8 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::agent_runtime_dead_fields_cleanup::Migration),
             Box::new(crate::migrations::chapter_visual_plan_lineage_identity::Migration),
             Box::new(crate::migrations::chapter_visual_plan_authoring_mode_cleanup::Migration),
+            Box::new(crate::migrations::image_publication::Migration),
+            Box::new(crate::migrations::package_lifecycle::Migration),
         ]
     }
 }
@@ -122,7 +124,7 @@ pub async fn run_migrations(db: &sea_orm::DatabaseConnection) -> Result<(), sea_
 #[cfg(test)]
 mod tests {
     use super::Migrator;
-    use a4n_core::schema::REQUIRED_SCHEMA_MIGRATION;
+    use a4n_db_models::REQUIRED_SCHEMA_MIGRATION;
     use sea_orm_migration::prelude::MigratorTrait;
 
     #[test]
@@ -165,8 +167,6 @@ mod tests {
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "unified_model_provider_requests",
-                "system_settings_key_unique",
                 "chapter_outline_provenance",
                 "character_timeline_provenance",
                 "chapter_video_timeline",
@@ -215,6 +215,8 @@ mod tests {
                 "agent_runtime_dead_fields_cleanup",
                 "chapter_visual_plan_lineage_identity",
                 "chapter_visual_plan_authoring_mode_cleanup",
+                "image_publication",
+                "package_lifecycle",
             ],
             "deployed migration history must remain registered in execution order"
         );

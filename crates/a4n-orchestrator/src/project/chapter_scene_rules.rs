@@ -1,6 +1,7 @@
 use a4n_api_contract::chapter::UpdateChapterSceneInput;
-use a4n_core::{error::AppError, models::chapter::chapter_scene};
 use a4n_db::project::ProjectChapterSceneUpdateInput;
+use a4n_db_models::models::chapter::chapter_scene;
+use a4n_error::AppError;
 use chrono::NaiveDateTime;
 
 pub(crate) fn chapter_scene_update_record_input(

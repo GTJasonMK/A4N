@@ -1,13 +1,13 @@
 use super::contracts::ProjectChapterContextError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile,
     chapter::chapter,
     character::{character_state_index, protagonist_profile, snapshot_reference},
     project::{profile_evidence, text_anchor},
     scene::{scene_occurrence, scene_profile},
 };
-use a4n_core::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
-use a4n_core::source_spans::source_text_hash;
+use a4n_domain::profile_ownership::PROFILE_OWNERSHIP_AI_SYNC;
+use a4n_domain::source_text_hash;
 use sea_orm::{
     ColumnTrait, Condition, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult,
     QueryFilter, QueryOrder, QuerySelect,

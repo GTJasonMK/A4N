@@ -1,4 +1,4 @@
-use a4n_core::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
+use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set,
 };

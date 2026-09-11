@@ -1,10 +1,8 @@
-use a4n_core::{
-    error::AppError,
-    models::{
-        generation::{generation_spec, prompt_artifact},
-        media::{media_asset, media_provenance},
-    },
+use a4n_db_models::models::{
+    generation::{generation_spec, prompt_artifact},
+    media::{media_asset, media_provenance},
 };
+use a4n_error::AppError;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect,
 };

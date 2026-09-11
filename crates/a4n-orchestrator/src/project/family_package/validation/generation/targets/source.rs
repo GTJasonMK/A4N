@@ -1,4 +1,4 @@
-use a4n_core::models::{generation::generation_spec, project::source_snapshot_chapter};
+use a4n_db_models::models::{generation::generation_spec, project::source_snapshot_chapter};
 use std::collections::HashMap;
 
 pub(in super::super) fn required_generation_spec_source_snapshot_id(

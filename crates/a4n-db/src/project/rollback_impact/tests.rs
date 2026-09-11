@@ -1,9 +1,9 @@
 use super::{ProjectRollbackImpactReadError, project_rollback_impacts};
-use a4n_core::models::chapter::{chapter, chapter_outline};
-use a4n_core::models::project::{
+use a4n_db_models::models::chapter::{chapter, chapter_outline};
+use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
 };
-use a4n_core::state::rollback::CleanupAction;
+use a4n_domain::project::CleanupAction;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, DbErr, Set};
 use serde_json::json;

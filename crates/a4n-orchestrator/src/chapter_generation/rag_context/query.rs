@@ -1,8 +1,8 @@
 use super::super::{
     compact_json_text, is_meaningful_json_value, outline_character_names, truncate_text_chars,
 };
-use a4n_core::models::{chapter::chapter_outline, character::foreshadowing_index};
-use a4n_core::text_location::extract_scene_location;
+use a4n_db_models::models::{chapter::chapter_outline, character::foreshadowing_index};
+use a4n_domain::text_location::extract_scene_location;
 
 const GENERATION_RAG_MAX_QUERIES: usize = 7;
 const GENERATION_RAG_QUERY_CHAR_LIMIT: usize = 1_800;

@@ -4,13 +4,12 @@ use std::sync::{Arc, Mutex};
 use a4n_api_contract::{
     blueprint::StartBlueprintGenerationInput, generation_tasks::GenerationTaskHandle,
 };
-use a4n_core::blueprint::{
-    BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_RAW_JSON_STREAM_ID,
-    build_blueprint_generation_payload,
-};
-use a4n_core::error::AppError;
 use a4n_domain::progress::{ProgressPhaseKind, ProgressSeverity};
-use a4n_domain::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
+use a4n_domain::project::{
+    BLUEPRINT_BASE_PROMPT, BLUEPRINT_GENERATE_PROGRESS_TOTAL, BLUEPRINT_RAW_JSON_STREAM_ID,
+    CHAPTERS_PER_PART, build_blueprint_generation_payload, needs_part_outlines_for_chapters,
+};
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{
     GenerationError, GenerationFinishReason, GenerationResultRef, ProgressEvent, StreamTextHash,
@@ -168,7 +167,9 @@ impl OrchestratorContext {
             }
         };
         let user_payload =
-            match build_blueprint_generation_payload(&title, &genre, target_length, &variables) {
+            match build_blueprint_generation_payload(&title, &genre, target_length, &variables)
+                .map_err(AppError::InvalidArgument)
+            {
                 Ok(payload) => payload,
                 Err(error) => {
                     return fail_generation_workflow_execution(
@@ -470,17 +471,15 @@ impl OrchestratorContext {
             .take()
             .ok_or_else(|| "generation completed 但缺少蓝图结果".to_string())?;
         if let Some((from, to, timestamp)) = outcome.status_change {
-            self.publish_internal_event(
-                a4n_core::event::bridge::InternalEvent::ProjectStatusChanged {
-                    project_id,
-                    from,
-                    to,
-                    timestamp,
-                },
-            )
+            self.publish_internal_event(a4n_event::InternalEvent::ProjectStatusChanged {
+                project_id,
+                from,
+                to,
+                timestamp,
+            })
             .map_err(|error| format!("蓝图已保存，但项目状态事件发布失败: {error}"))?;
         }
-        self.publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
+        self.publish_internal_event(a4n_event::InternalEvent::BlueprintUpdated {
             project_id,
             version: outcome.blueprint.current_version.clone(),
         })

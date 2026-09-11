@@ -4,6 +4,7 @@ import { Dropdown } from "../../../components/ui/Dropdown";
 import { PageCliPanel, PasswordChanger, ProfileEditor, SessionManager } from "./AccountPanels";
 import { Row } from "./aboutUtils";
 import { StoragePathsPanel } from "./StoragePathsPanel";
+import { PackageSection } from "../admin/PackageSection";
 import { useI18n } from "../../../i18n";
 
 interface AboutUser {
@@ -49,6 +50,7 @@ export const AboutTab: React.FC<{ user: AboutUser | null; onLogout: () => Promis
             </div>
           </section>
           <ProfileEditor userId={user.id} />
+          {user.role !== "admin" ? <PackageSection canManageLifecycle={false} /> : null}
           <PageCliPanel />
           <PasswordChanger />
           <SessionManager />

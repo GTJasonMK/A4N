@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_core::models::{ai::generated_image, ai::generated_video, media::media_asset};
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::{ai::generated_image, ai::generated_video, media::media_asset};
 use a4n_domain::CanvasNodeRefKind;
 
 use crate::project::{MediaFileEntry, VideoStudioProjectPackage};

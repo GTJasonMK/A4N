@@ -1,5 +1,5 @@
 use super::validate_positive_i64;
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{

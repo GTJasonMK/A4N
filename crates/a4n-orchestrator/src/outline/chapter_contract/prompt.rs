@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
+use a4n_error::AppError;
 use a4n_prompt::request::build_json_task_user_message;
 use serde_json::{Value, json};
 

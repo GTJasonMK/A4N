@@ -1,7 +1,7 @@
 use super::{LogReadResult, ReadLogsInput};
 use crate::AppState;
 use crate::actions::admin_records::{AdminPermission, require_admin_permission};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use std::path::Path;
 
 pub async fn ensure_log_diagnostics_admin(

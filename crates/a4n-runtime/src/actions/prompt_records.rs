@@ -5,7 +5,7 @@ use a4n_api_contract::prompt::{
     PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
     ValidateVarsInput, VersionDiffInput,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::prompt_records::PromptExecutionContext;
 use a4n_prompt::{engine::PromptEntry, rendering::PromptRenderer};
 use async_trait::async_trait;
@@ -16,8 +16,8 @@ use crate::AppState;
 pub async fn prompt_list(state: &AppState) -> Result<Vec<PromptEntrySummary>, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .list_prompt_records_validated(&context)
+        .prompt_application()
+        .list_records(&context)
         .await
         .map_err(prompt_error)
 }
@@ -25,8 +25,8 @@ pub async fn prompt_list(state: &AppState) -> Result<Vec<PromptEntrySummary>, St
 pub async fn prompt_load_defaults(state: &AppState) -> Result<usize, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .load_default_prompt_records_validated(&context)
+        .prompt_application()
+        .load_defaults(&context)
         .await
         .map_err(prompt_error)
 }
@@ -38,8 +38,8 @@ pub async fn prompt_update(
 ) -> Result<PromptEntrySummary, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .update_prompt_record_validated(&context, user_id, input)
+        .prompt_application()
+        .update_record(&context, user_id, input)
         .await
         .map_err(prompt_error)
 }
@@ -47,8 +47,8 @@ pub async fn prompt_update(
 pub async fn prompt_reset(state: &AppState, name: &str) -> Result<(), String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .reset_prompt_record_validated(&context, name)
+        .prompt_application()
+        .reset_record(&context, name)
         .await
         .map_err(prompt_error)
 }
@@ -59,8 +59,8 @@ pub async fn prompt_version_history(
 ) -> Result<Vec<PromptVersionSummary>, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .prompt_version_history_validated(&context, name)
+        .prompt_application()
+        .version_history(&context, name)
         .await
         .map_err(prompt_error)
 }
@@ -72,8 +72,8 @@ pub async fn prompt_render(
 ) -> Result<String, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .render_prompt_record_validated(&context, user_id, input)
+        .prompt_application()
+        .render_record(&context, user_id, input)
         .await
         .map_err(prompt_error)
 }
@@ -86,8 +86,8 @@ pub(crate) async fn render_prompt_template(
 ) -> Result<String, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .render_prompt_record_template_validated(&context, template_name, variables, project_id)
+        .prompt_application()
+        .render_template(&context, template_name, variables, project_id)
         .await
         .map_err(prompt_error)
 }
@@ -99,8 +99,8 @@ pub async fn prompt_render_ab(
 ) -> Result<AbRenderResult, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .render_prompt_record_ab_validated(&context, user_id, input)
+        .prompt_application()
+        .render_ab(&context, user_id, input)
         .await
         .map_err(prompt_error)
 }
@@ -112,8 +112,8 @@ pub async fn prompt_set_project_override(
 ) -> Result<(), String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .set_prompt_project_override_validated(&context, user_id, input)
+        .prompt_application()
+        .set_project_override(&context, user_id, input)
         .await
         .map_err(prompt_error)
 }
@@ -125,8 +125,8 @@ pub async fn prompt_remove_project_override(
 ) -> Result<(), String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .remove_prompt_project_override_validated(&context, user_id, input)
+        .prompt_application()
+        .remove_project_override(&context, user_id, input)
         .await
         .map_err(prompt_error)
 }
@@ -138,8 +138,8 @@ pub async fn prompt_list_project_overrides(
 ) -> Result<Vec<ProjectPromptOverrideSummary>, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .list_prompt_project_overrides_validated(&context, user_id, project_id)
+        .prompt_application()
+        .list_project_overrides(&context, user_id, project_id)
         .await
         .map_err(prompt_error)
 }
@@ -150,8 +150,8 @@ pub async fn prompt_version_diff(
 ) -> Result<String, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .prompt_version_diff_validated(&context, input)
+        .prompt_application()
+        .version_diff(&context, input)
         .await
         .map_err(prompt_error)
 }
@@ -162,8 +162,8 @@ pub async fn prompt_validate_variables(
 ) -> Result<Vec<String>, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .validate_prompt_variables_validated(&context, input)
+        .prompt_application()
+        .validate_variables(&context, input)
         .await
         .map_err(prompt_error)
 }
@@ -171,8 +171,8 @@ pub async fn prompt_validate_variables(
 pub async fn prompt_list_categories(state: &AppState) -> Result<Vec<CategoryInfo>, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .list_prompt_categories_validated(&context)
+        .prompt_application()
+        .list_categories(&context)
         .await
         .map_err(prompt_error)
 }
@@ -183,8 +183,8 @@ pub(crate) async fn prompt_get_runtime_entry(
 ) -> Result<PromptEntry, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .prompt_runtime_entry_validated(&context, name)
+        .prompt_application()
+        .runtime_entry(&context, name)
         .await
         .map_err(prompt_error)
 }
@@ -194,8 +194,8 @@ pub(crate) async fn prompt_list_runtime_entries(
 ) -> Result<Vec<PromptEntry>, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .prompt_runtime_entries_validated(&context)
+        .prompt_application()
+        .runtime_entries(&context)
         .await
         .map_err(prompt_error)
 }
@@ -207,8 +207,8 @@ pub(crate) async fn prompt_update_many_runtime(
 ) -> Result<Vec<PromptEntry>, String> {
     let context = prompt_context(state);
     state
-        .orchestrator()
-        .update_many_prompt_records_validated(&context, updates, author)
+        .prompt_application()
+        .update_many_runtime(&context, updates, author)
         .await
         .map_err(prompt_error)
 }

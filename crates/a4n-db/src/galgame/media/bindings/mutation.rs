@@ -3,7 +3,7 @@ use super::rules::{validate_galgame_media_asset_id, validate_galgame_media_targe
 use crate::galgame::{
     GalgameMediaBindingResult, GalgameMediaRecordError, require_galgame_media_text,
 };
-use a4n_core::models::media::media_binding;
+use a4n_db_models::models::media::media_binding;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TransactionTrait,

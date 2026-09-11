@@ -1,8 +1,10 @@
-use a4n_core::{models::project::novel_blueprint, rag::RagDataType};
+use a4n_db_models::models::project::novel_blueprint;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::format_json_for_rag;
 use serde_json::Value;
 
-use super::super::{RagRecord, rag_chunk_id};
+use super::super::rag_chunk_id;
 
 fn blueprint_world_setting_sections(
     blueprint: &novel_blueprint::Model,

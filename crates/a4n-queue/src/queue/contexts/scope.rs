@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(super) fn validate_task_scope(value: String) -> Result<String, AppError> {
     if matches!(

@@ -1,0 +1,8 @@
+[package]
+name = "a4n-provider-contract"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+serde_json = { workspace = true }

@@ -3,7 +3,9 @@ use super::contracts::{
     ProjectFamilyAccessRow, ProjectFamilyContext, ProjectFamilyDbError,
     ProjectFamilySnapshotAccessRow,
 };
-use a4n_core::models::project::{novel_project, project_source_snapshot, source_snapshot_chapter};
+use a4n_db_models::models::project::{
+    novel_project, project_source_snapshot, source_snapshot_chapter,
+};
 use sea_orm::sea_query::{Alias, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, Linked, QueryFilter, QuerySelect};
 

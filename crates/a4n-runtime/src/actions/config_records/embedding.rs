@@ -1,5 +1,4 @@
 mod connectivity;
-mod mapping;
 mod records;
 
 pub use connectivity::{preview_test_embedding_config_request, test_embedding_config};

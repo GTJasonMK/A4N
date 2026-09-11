@@ -1,5 +1,6 @@
 use super::contracts::DefaultLlmOutputCapRow;
-use a4n_core::{error::AppError, models::ai::llm_config};
+use a4n_db_models::models::ai::llm_config;
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 
 pub async fn default_llm_output_cap_rows<C>(db: &C) -> Result<Vec<DefaultLlmOutputCapRow>, AppError>

@@ -1,6 +1,7 @@
 mod claim;
 mod lease;
 mod media;
+mod publication;
 mod worker;
 
 use std::collections::BTreeMap;
@@ -43,7 +44,7 @@ pub(crate) async fn enqueue_file_artifact_cleanup_by_project(
     }
     for (project_id, paths) in by_project {
         state
-            .orchestrator()
+            .cleanup_outbox_application()
             .insert_file_artifact_cleanup_intent(
                 project_id,
                 format!("file-artifact:{cleanup_token}:{project_id}"),

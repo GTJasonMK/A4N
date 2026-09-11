@@ -1,5 +1,5 @@
 use crate::request::json_user_message_payload;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::build_chapter_generation_user_message;

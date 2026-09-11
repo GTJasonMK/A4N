@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     media::{media_asset, media_binding},
     video_project::{assembly_clip, video_segment},
 };

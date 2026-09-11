@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_outline;
+use a4n_db_models::models::chapter::chapter_outline;
 use chrono::NaiveDateTime;
 
 use super::super::types::OutlineDbError;

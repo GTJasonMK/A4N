@@ -16,8 +16,8 @@ pub async fn get_implicit_review(
     input: GetImplicitReviewInput,
 ) -> Result<ImplicitReviewSummary, String> {
     state
-        .orchestrator()
-        .implicit_review_summary_validated(user_id, input)
+        .character_implicit_review_application()
+        .summary(user_id, input)
         .await
         .map_err(|error| error.to_string())
 }
@@ -29,8 +29,8 @@ pub async fn check_implicit_update(
 ) -> Result<ImplicitUpdateDecisionSummary, String> {
     let prompt_renderer = state;
     state
-        .orchestrator()
-        .check_implicit_update_validated(user_id, input, prompt_renderer)
+        .character_implicit_review_application()
+        .check(user_id, input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())
 }
@@ -42,12 +42,8 @@ pub async fn preview_check_implicit_update_request(
 ) -> Result<ModelRequestPreview, String> {
     let prompt_renderer = state;
     let preview = state
-        .orchestrator()
-        .prepare_implicit_update_review_request_preview_validated(
-            user_id,
-            input.clone(),
-            prompt_renderer,
-        )
+        .character_implicit_review_application()
+        .preview(user_id, input.clone(), prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     let step = traced_chat_request_step_for_state(

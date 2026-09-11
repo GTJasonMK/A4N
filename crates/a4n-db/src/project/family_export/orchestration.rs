@@ -5,7 +5,7 @@ use super::{
     text_core::project_family_export_text_core_rows,
     types::{ProjectFamilyExportError, ProjectFamilyExportRows},
 };
-use a4n_core::source_spans::source_text_hash;
+use a4n_domain::source_text_hash;
 use sea_orm::ConnectionTrait;
 use std::collections::{HashMap, HashSet};
 

@@ -1,34 +1,26 @@
 use super::records::validated_reference_images_for_ids;
-use a4n_core::{media::image_mime_from_path, models::ai::generated_image};
-use a4n_orchestrator::video::ensure_reference_image_ids_valid;
+use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_domain::image::validate_reference_image_id_list;
+use a4n_domain::media::image_mime_from_path;
+use a4n_orchestrator::video::VideoRecordApplicationPort;
 use std::path::Path;
 
 pub(crate) async fn reference_image_request_preview_urls_by_ids(
-    video: &a4n_orchestrator::OrchestratorContext,
-    collaboration: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
     ids: Vec<i64>,
 ) -> Result<Vec<String>, String> {
-    ensure_reference_image_ids_valid(&ids)?;
+    validate_reference_image_id_list(&ids)?;
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    reference_image_request_preview_urls_for_ids(
-        video,
-        collaboration,
-        user_id,
-        project_id,
-        chapter_id,
-        ids,
-    )
-    .await
+    reference_image_request_preview_urls_for_ids(video, user_id, project_id, chapter_id, ids).await
 }
 
 pub(crate) async fn reference_image_request_preview_url_by_id(
-    video: &a4n_orchestrator::OrchestratorContext,
-    collaboration: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
@@ -39,7 +31,6 @@ pub(crate) async fn reference_image_request_preview_url_by_id(
     };
     let mut urls = reference_image_request_preview_urls_for_ids(
         video,
-        collaboration,
         user_id,
         project_id,
         chapter_id,
@@ -50,29 +41,21 @@ pub(crate) async fn reference_image_request_preview_url_by_id(
 }
 
 async fn reference_image_request_preview_urls_for_ids(
-    video: &a4n_orchestrator::OrchestratorContext,
-    collaboration: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     user_id: i64,
     project_id: i64,
     chapter_id: i64,
     ids: Vec<i64>,
 ) -> Result<Vec<String>, String> {
-    let images = validated_reference_images_for_ids(
-        video,
-        collaboration,
-        user_id,
-        project_id,
-        chapter_id,
-        ids,
-    )
-    .await?;
+    let images =
+        validated_reference_images_for_ids(video, user_id, project_id, chapter_id, ids).await?;
     images
         .iter()
         .map(reference_image_request_preview_url)
         .collect()
 }
 
-fn reference_image_request_preview_url(image: &generated_image::Model) -> Result<String, String> {
+fn reference_image_request_preview_url(image: &GeneratedImageSummary) -> Result<String, String> {
     let file_path = image.file_path.trim();
     if file_path.is_empty() {
         return Err(format!("参考图片 #{} 文件路径为空", image.id));

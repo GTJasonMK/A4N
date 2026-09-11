@@ -1,5 +1,5 @@
 use super::super::types::CharacterDeletionMarkExecutedUpdateInput;
-use a4n_core::models::character::protagonist_deletion_mark;
+use a4n_db_models::models::character::protagonist_deletion_mark;
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter};

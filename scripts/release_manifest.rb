@@ -16,6 +16,7 @@ def options_for(argv)
     opts.on("--package-root PATH", String) { |value| options[:package_root] = value }
     opts.on("--target TARGET", String) { |value| options[:target] = value }
     opts.on("--package NAME", String) { |value| options[:package] = value }
+    opts.on("--services NAMES", String) { |value| options[:services] = value }
     opts.on("--tauri-app PATH", String) { |value| options[:tauri_app] = value }
     opts.on("--manifest PATH", String) { |value| options[:manifest] = value }
     opts.on("--output PATH", String) { |value| options[:output] = value }
@@ -24,6 +25,27 @@ def options_for(argv)
   options
 rescue OptionParser::ParseError => error
   fail_with(error.message)
+end
+
+def selected_service_catalog(catalog, raw)
+  return catalog if raw.nil?
+
+  names = raw.split(",").map(&:strip)
+  fail_with("--services must contain at least one service") if names.empty? || names.any?(&:empty?)
+  fail_with("--services contains duplicate service") unless names.uniq.length == names.length
+  unknown = names - catalog.map { |entry| entry.fetch("name") }
+  fail_with("--services contains unknown service: #{unknown.join(", ")}") unless unknown.empty?
+  names.map do |name|
+    catalog.find { |entry| entry.fetch("name") == name }
+  end
+end
+
+def selected_manifest_service_catalog(catalog, manifest)
+  raw = manifest["services"]
+  return catalog if raw.nil? || (raw.is_a?(Array) && raw.empty?)
+  fail_with("manifest services must be an array") unless raw.is_a?(Array)
+  fail_with("manifest services contain duplicate service") unless raw.uniq.length == raw.length
+  selected_service_catalog(catalog, raw.join(","))
 end
 
 def sha256(path)
@@ -161,15 +183,27 @@ def safe_package_path(root, relative)
   path = root.join(relative).cleanpath
   root_path = root.cleanpath
   fail_with("manifest path escapes package root") unless path.to_s.start_with?(root_path.to_s + File::SEPARATOR)
+  if path.exist? || File.symlink?(path.to_s)
+    begin
+      resolved_root = root.realpath
+      resolved_path = path.realpath
+      fail_with("manifest path resolves outside package root") unless resolved_path.to_s.start_with?(resolved_root.to_s + File::SEPARATOR)
+    rescue SystemCallError
+      fail_with("manifest path cannot be resolved")
+    end
+  end
   path
 end
 
 def validate_relative_manifest_path(relative)
-  value = relative.to_s
+  fail_with("manifest path must be a string") unless relative.is_a?(String)
+  value = relative
   fail_with("manifest path is empty") if value.empty?
   fail_with("manifest path contains NUL") if value.include?("\0")
   fail_with("manifest path must be relative") if Pathname.new(value).absolute? || value.match?(/\A[A-Za-z]:[\\\/]/)
-  fail_with("manifest path contains traversal") if value.split(/[\\\/]+/).include?("..")
+  fail_with("manifest path must use forward slashes") if value.include?("\\")
+  fail_with("manifest path contains an empty or current component") if value.split("/").any? { |part| part.empty? || part == "." }
+  fail_with("manifest path contains traversal") if value.split("/").include?("..")
   value
 end
 
@@ -179,6 +213,12 @@ end
 
 def manifest_file_name(path)
   path.to_s.split(/[\\\/]/).last
+end
+
+def manifest_checksum_path(package_root, output)
+  relative = output.relative_path_from(package_root).to_s
+  relative = output.basename.to_s if relative.split(/[\\\/]/).include?("..")
+  validate_relative_manifest_path(relative)
 end
 
 def tauri_app_layout(options, package_root, target)
@@ -215,6 +255,7 @@ def generate(options)
   package = required_identifier_option(options, :package)
   output = Pathname(required_option(options, :output)).expand_path
   catalog, tool_catalog = load_release_inventories(root)
+  selected_catalog = selected_service_catalog(catalog, options[:services])
   extension = binary_extension(target)
   protocol = protocol_version(root)
   schema_version = release_manifest_schema_version(root)
@@ -240,7 +281,7 @@ def generate(options)
     "capability_version" => nil
   }
 
-  catalog.each do |entry|
+  selected_catalog.each do |entry|
     binary = "#{entry.fetch("binary")}#{extension}"
     relative = if tauri_app
                  "#{tauri_app.fetch(:root)}/Contents/MacOS/#{binary}"
@@ -301,14 +342,18 @@ def generate(options)
     "version" => binaries.first.fetch("version"),
     "target" => target,
     "protocol_version" => protocol,
+    "services" => selected_catalog.map { |entry| entry.fetch("name") },
     "binaries" => binaries,
     "tools" => tools,
     "runtime_files" => runtime_files
   }
+  manifest_relative = manifest_checksum_path(package_root, output)
   File.write(output, JSON.pretty_generate(manifest) + "\n")
   checksum = output.sub_ext(".sha256")
   files = binaries + tools + runtime_files
-  File.write(checksum, files.map { |entry| "#{entry.fetch("sha256")}  #{entry.fetch("path")}" }.join("\n") + "\n")
+  checksum_entries = files.map { |entry| "#{entry.fetch("sha256")}  #{entry.fetch("path")}" }
+  checksum_entries << "#{sha256(output)}  #{manifest_relative}"
+  File.write(checksum, checksum_entries.join("\n") + "\n")
   puts "generated #{output} (#{binaries.length} binaries, #{tools.length} tools, #{runtime_files.length} runtime file)"
 end
 
@@ -328,10 +373,12 @@ def verify(options)
   fail_with("manifest version is empty") unless version.is_a?(String) && !version.strip.empty?
   fail_with("manifest target is empty") unless target.is_a?(String) && !target.strip.empty?
   fail_with("manifest protocol version is invalid") unless protocol.is_a?(Integer)
+  fail_with("manifest protocol version does not match release") unless protocol == protocol_version(root)
   binaries = manifest.fetch("binaries")
   fail_with("manifest binaries must be an array") unless binaries.is_a?(Array)
+  selected_catalog = selected_manifest_service_catalog(catalog, manifest)
   services = binaries.map { |entry| entry.fetch("service") }
-  expected_services = ["host"] + catalog.map { |entry| entry.fetch("name") }
+  expected_services = ["host"] + selected_catalog.map { |entry| entry.fetch("name") }
   services_match = services.length == expected_services.length &&
                    (services - expected_services).empty? &&
                    (expected_services - services).empty?
@@ -408,9 +455,10 @@ def verify(options)
     actual = sha256(actual_path)
     fail_with("SHA-256 mismatch for #{entry.fetch("name")}") unless actual.casecmp?(entry.fetch("sha256"))
   end
-  catalog.each do |catalog_entry|
+  selected_catalog.each do |catalog_entry|
     manifest_entry = binaries.find { |entry| entry.fetch("service") == catalog_entry.fetch("name") }
     fail_with("manifest capability version does not match service catalog") unless manifest_entry.fetch("capability_version") == catalog_entry.fetch("capability_version")
+    fail_with("manifest service version does not match package") unless manifest_entry.fetch("version") == cargo_version(root, catalog_entry.fetch("binary"))
     binary_name = "#{catalog_entry.fetch("binary")}#{binary_extension(target)}"
     expected_path = if layout.fetch(:type) == :tauri_macos
                       "#{layout.fetch(:root)}/Contents/MacOS/#{binary_name}"

@@ -1,33 +1,28 @@
-//! 动态 LLM / Embedding provider 的窄依赖 facade。
+//! 动态 LLM / Embedding provider 的运行时端口适配。
 //!
-//! 只克隆队列与相关领域 owner，不暴露完整 `OrchestratorContext`。
+//! 这里仅把 application owner 接到 `a4n-provider-contract`；Runtime 不需要
+//! 看到 `OrchestratorContext`、ORM model 或持久队列实现。
 
-use std::future::Future;
 use std::sync::Arc;
 
-use a4n_core::{
-    config::app_config::LlmMaxTokensConfig,
-    error::AppError,
-    models::{
-        ai::{embedding_config, llm_config},
-        generation::{llm_call_trace, llm_context_pack},
-        project::novel_project,
-    },
+use a4n_db_models::models::ai::{embedding_config, llm_config};
+use a4n_domain::llm::{ContextPackReference, LlmMaxTokensConfig};
+use a4n_error::AppError;
+use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
+use a4n_provider_runtime_contract::{ProviderRuntimePort, ProviderTaskPriority, TaskLease};
+use a4n_queue::{
+    TaskWorkflowContext,
+    priority::{TaskKind, TaskPriority as QueueTaskPriority},
 };
-use a4n_db::generation::RecordLlmCallTraceInput;
-use a4n_db::llm_context::{ContextPackReference, RecordOrReuseContextPackInput};
-use a4n_queue::priority::{TaskKind, TaskPriority};
 use tokio_util::sync::CancellationToken;
 
 use super::{
-    ConfigApplication, GenerationApplication, LlmContextApplication, OrchestratorContext,
-    ProjectReadApplication,
+    ConfigApplication, GenerationApplication, LlmContextApplication, ProjectReadApplication,
 };
 use crate::task_queue::{PersistentTaskQueue, RunningTask};
 
-/// 动态 provider 运行期依赖：队列 + settings/generation/llm_context/project_read owner。
-#[derive(Clone)]
-pub struct DynamicProviderFacade {
+/// Orchestrator 侧的 provider port 实现。
+pub(super) struct ProviderRuntimeAdapter {
     task_queue: Arc<PersistentTaskQueue>,
     settings: ConfigApplication,
     generation: GenerationApplication,
@@ -35,20 +30,7 @@ pub struct DynamicProviderFacade {
     project_read: ProjectReadApplication,
 }
 
-impl OrchestratorContext {
-    /// 构造动态 provider 窄 facade；不克隆完整上下文。
-    pub fn dynamic_provider_facade(&self) -> DynamicProviderFacade {
-        DynamicProviderFacade::from_applications(
-            Arc::clone(&self.task_queue),
-            self.settings.clone(),
-            self.generation.clone(),
-            self.llm_context.clone(),
-            self.project_read.clone(),
-        )
-    }
-}
-
-impl DynamicProviderFacade {
+impl ProviderRuntimeAdapter {
     pub(super) fn from_applications(
         task_queue: Arc<PersistentTaskQueue>,
         settings: ConfigApplication,
@@ -64,104 +46,146 @@ impl DynamicProviderFacade {
             project_read,
         }
     }
+}
 
-    pub async fn resolve_llm_config(
+#[async_trait::async_trait]
+impl ProviderRuntimePort for ProviderRuntimeAdapter {
+    async fn resolve_llm_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<llm_config::Model, AppError> {
-        self.settings.resolve_llm_config(config_id).await
+    ) -> Result<LlmProviderConfig, AppError> {
+        self.settings
+            .resolve_llm_config(config_id)
+            .await
+            .map(llm_provider_config)
     }
 
-    pub async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {
+    async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {
         self.settings.llm_max_tokens_config().await
     }
 
-    pub async fn default_embedding_config_optional(
+    async fn default_embedding_config_optional(
         &self,
-    ) -> Result<Option<embedding_config::Model>, AppError> {
-        self.settings.default_embedding_config_optional().await
+    ) -> Result<Option<EmbeddingProviderConfig>, AppError> {
+        self.settings
+            .default_embedding_config_optional()
+            .await
+            .map(|model| model.map(embedding_provider_config))
     }
 
-    pub async fn default_embedding_config(&self) -> Result<embedding_config::Model, AppError> {
-        self.settings.default_embedding_config().await
+    async fn default_embedding_config(&self) -> Result<EmbeddingProviderConfig, AppError> {
+        self.settings
+            .default_embedding_config()
+            .await
+            .map(embedding_provider_config)
     }
 
-    pub async fn project_by_id(
-        &self,
-        project_id: i64,
-    ) -> Result<Option<novel_project::Model>, AppError> {
-        self.project_read.by_id(project_id).await
+    async fn project_root_id(&self, project_id: i64) -> Result<Option<i64>, AppError> {
+        self.project_read
+            .by_id(project_id)
+            .await
+            .map(|model| model.map(|model| model.root_project_id.unwrap_or(project_id)))
     }
 
-    pub async fn record_llm_call_trace(
+    async fn record_llm_call_trace(
         &self,
-        input: RecordLlmCallTraceInput,
-    ) -> Result<llm_call_trace::Model, AppError> {
-        self.generation.record_llm_call_trace(input).await
+        input: a4n_domain::llm::RecordLlmCallTraceInput,
+    ) -> Result<(), AppError> {
+        self.generation
+            .record_llm_call_trace(input)
+            .await
+            .map(|_| ())
     }
 
-    pub async fn record_or_reuse_context_pack(
+    async fn record_or_reuse_context_pack_reference(
         &self,
-        input: RecordOrReuseContextPackInput,
-    ) -> Result<llm_context_pack::Model, AppError> {
-        self.llm_context.record_or_reuse_context_pack(input).await
-    }
-
-    pub async fn record_or_reuse_context_packs(
-        &self,
-        inputs: Vec<RecordOrReuseContextPackInput>,
-    ) -> Result<Vec<llm_context_pack::Model>, AppError> {
-        self.llm_context.record_or_reuse_context_packs(inputs).await
-    }
-
-    pub async fn record_or_reuse_context_pack_reference(
-        &self,
-        input: RecordOrReuseContextPackInput,
+        input: a4n_domain::llm::RecordOrReuseContextPackInput,
     ) -> Result<ContextPackReference, AppError> {
         self.llm_context
             .record_or_reuse_context_pack_reference(input)
             .await
     }
 
-    pub async fn record_or_reuse_context_pack_references(
+    async fn record_or_reuse_context_pack_references(
         &self,
-        inputs: Vec<RecordOrReuseContextPackInput>,
+        inputs: Vec<a4n_domain::llm::RecordOrReuseContextPackInput>,
     ) -> Result<Vec<ContextPackReference>, AppError> {
         self.llm_context
             .record_or_reuse_context_pack_references(inputs)
             .await
     }
 
-    pub async fn queue_run_tracked<F, Fut, T>(
+    async fn start_task(
         &self,
         task_type: TaskKind,
-        priority: TaskPriority,
+        priority: ProviderTaskPriority,
         project_id: Option<i64>,
-        operation: F,
-    ) -> Result<T, AppError>
-    where
-        F: FnOnce() -> Fut,
-        Fut: Future<Output = Result<T, AppError>>,
-    {
-        self.task_queue
-            .run_tracked(task_type, priority, project_id, operation)
-            .await
-    }
-
-    pub async fn queue_start_task(
-        &self,
-        task_type: TaskKind,
-        priority: TaskPriority,
-        project_id: Option<i64>,
-    ) -> Result<RunningTask, AppError> {
+        workflow_run_id: Option<i64>,
+        cancel_token: CancellationToken,
+    ) -> Result<Box<dyn TaskLease>, AppError> {
+        let workflow = workflow_run_id
+            .map(|workflow_run_id| TaskWorkflowContext::new(workflow_run_id))
+            .transpose()?;
         self.task_queue
             .start_task_with_cancel(
                 task_type,
-                priority,
+                queue_task_priority(priority),
                 project_id,
-                None,
-                CancellationToken::new(),
+                workflow,
+                cancel_token,
             )
             .await
+            .map(|task| Box::new(DurableTaskLease(task)) as Box<dyn TaskLease>)
+    }
+}
+
+fn queue_task_priority(priority: ProviderTaskPriority) -> QueueTaskPriority {
+    match priority {
+        ProviderTaskPriority::High => QueueTaskPriority::High,
+        ProviderTaskPriority::Medium => QueueTaskPriority::Medium,
+        ProviderTaskPriority::Low => QueueTaskPriority::Low,
+    }
+}
+
+struct DurableTaskLease(RunningTask);
+
+#[async_trait::async_trait]
+impl TaskLease for DurableTaskLease {
+    async fn complete(self: Box<Self>) -> Result<(), AppError> {
+        self.0.complete().await
+    }
+
+    async fn fail(self: Box<Self>, error: String) -> Result<(), AppError> {
+        self.0.fail(&error).await
+    }
+}
+
+fn llm_provider_config(model: llm_config::Model) -> LlmProviderConfig {
+    LlmProviderConfig {
+        id: model.id,
+        name: model.name,
+        provider: model.provider,
+        base_url: model.base_url,
+        api_key: model.api_key_encrypted,
+        model: model.model,
+        max_concurrent: model.max_concurrent,
+        timeout_secs: model.timeout_secs,
+        max_context_tokens: model.max_context_tokens,
+        max_output_tokens: model.max_output_tokens,
+        extra_body_json: model.extra_body_json,
+    }
+}
+
+fn embedding_provider_config(model: embedding_config::Model) -> EmbeddingProviderConfig {
+    EmbeddingProviderConfig {
+        id: model.id,
+        name: model.name,
+        backend: model.backend,
+        base_url: model.base_url,
+        api_key: model.api_key_encrypted,
+        model: model.model,
+        dimension: model.dimension,
+        batch_size: model.batch_size,
+        local_model_path: model.local_model_path,
     }
 }

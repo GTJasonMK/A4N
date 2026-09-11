@@ -24,6 +24,8 @@ interface ModalProps {
   closeOnBackdrop?: boolean;
   closeOnEscape?: boolean;
   showCloseButton?: boolean;
+  /** Keep an opened background workflow mounted while the dialog is hidden. */
+  keepMounted?: boolean;
 }
 
 const FOCUSABLE_SELECTOR = [
@@ -129,6 +131,7 @@ export const Modal: React.FC<ModalProps> = ({
   closeOnBackdrop = true,
   closeOnEscape = true,
   showCloseButton = true,
+  keepMounted = false,
 }) => {
   const { t } = useI18n();
   const titleId = useId();
@@ -137,12 +140,14 @@ export const Modal: React.FC<ModalProps> = ({
   const previousActiveElementRef = useRef<HTMLElement | null>(null);
   const modalIdRef = useRef(Symbol('modal'));
   const [rendered, setRendered] = useState(isOpen);
+  const openedRef = useRef(isOpen);
   const renderedRef = useRef(isOpen);
   const exitingRef = useRef(false);
   const closeTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      openedRef.current = true;
       if (closeTimerRef.current != null) {
         window.clearTimeout(closeTimerRef.current);
         closeTimerRef.current = null;
@@ -233,7 +238,7 @@ export const Modal: React.FC<ModalProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [closeOnEscape, isOpen, onClose, rendered]);
 
-  if (!rendered) return null;
+  if (!rendered && !(keepMounted && openedRef.current)) return null;
 
   const portalContainer = getPortalRoot();
 
@@ -268,6 +273,8 @@ export const Modal: React.FC<ModalProps> = ({
   return createPortal(
     <div
       ref={layerRef}
+      style={{ display: rendered ? undefined : 'none' }}
+      aria-hidden={!rendered || undefined}
       className={`a4n-modal-layer fixed inset-0 ${zIndexClassName} flex items-end justify-center p-0 sm:items-center sm:p-4`}
       data-modal-state={isOpen ? 'entering' : 'exiting'}
     >

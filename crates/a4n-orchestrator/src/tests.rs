@@ -13,7 +13,7 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         missing,
-        a4n_core::error::AppError::NotFound(message)
+        a4n_error::AppError::NotFound(message)
             if message == "项目不存在: project_id=9"
     ));
 
@@ -23,7 +23,7 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
         });
     assert!(matches!(
         database,
-        a4n_core::error::AppError::Database(sea_orm::DbErr::Custom(message))
+        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
             if message == "delete failed"
     ));
 
@@ -36,7 +36,7 @@ fn project_delete_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         cleanup_database,
-        a4n_core::error::AppError::Database(sea_orm::DbErr::Custom(message))
+        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
             if message == "cleanup failed"
     ));
 }
@@ -48,7 +48,7 @@ fn freeform_generated_reset_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         missing,
-        a4n_core::error::AppError::NotFound(message) if message == "项目不存在: 11"
+        a4n_error::AppError::NotFound(message) if message == "项目不存在: 11"
     ));
 
     let unsupported = freeform_generated_reset_error_to_app_error(
@@ -56,7 +56,7 @@ fn freeform_generated_reset_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         unsupported,
-        a4n_core::error::AppError::InvalidArgument(message)
+        a4n_error::AppError::InvalidArgument(message)
             if message == "仅自由画布视频项目支持该生成数据重置入口"
     ));
 
@@ -67,7 +67,7 @@ fn freeform_generated_reset_error_keeps_typed_app_error_mapping() {
     );
     assert!(matches!(
         database,
-        a4n_core::error::AppError::Database(sea_orm::DbErr::Custom(message))
+        a4n_error::AppError::Database(sea_orm::DbErr::Custom(message))
             if message == "reset failed"
     ));
 }

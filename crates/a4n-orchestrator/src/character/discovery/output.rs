@@ -2,12 +2,9 @@ mod fields;
 
 use std::collections::BTreeSet;
 
-use a4n_core::{
-    json_contract::reject_unknown_fields,
-    models::{chapter::chapter, project::text_anchor},
-    profile_text::normalize_importance_value,
-    source_spans::AnchorQuoteIndex,
-};
+use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::source_spans::AnchorQuoteIndex;
+use a4n_domain::{json_contract::reject_unknown_fields, profile_text::normalize_importance_value};
 use serde_json::{Value, json};
 
 use crate::character::json_field_rules::{required_array, required_string, required_value};
@@ -53,7 +50,7 @@ pub(super) fn parse_character_discovery_output(
 fn normalize_discovered_character(
     index: usize,
     character: &Value,
-    anchor_index: &AnchorQuoteIndex<'_>,
+    anchor_index: &AnchorQuoteIndex,
 ) -> Result<Value, String> {
     if !character.is_object() {
         return Err(format!("characters[{index}] 必须是 JSON 对象"));

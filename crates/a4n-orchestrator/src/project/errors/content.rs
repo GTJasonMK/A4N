@@ -1,10 +1,10 @@
 use super::lifecycle::project_status_write_error_to_app_error;
-use a4n_core::error::AppError;
 use a4n_db::project::{
     BlueprintRestoreError, BlueprintSyncError, ForeshadowingDbError, ProjectChapterContextError,
     ProjectChapterOutlineUpdateError, ProjectChapterSceneRecordError,
     ProjectChapterSceneWriteError, ProjectOutlineRecordError,
 };
+use a4n_error::AppError;
 
 pub(crate) fn blueprint_restore_error_to_app(error: BlueprintRestoreError) -> AppError {
     match error {

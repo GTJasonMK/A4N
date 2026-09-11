@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use reqwest::header::CONTENT_TYPE;
 use serde_json::Value;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_video::{
     VideoGenerationRequest, VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState,
     VideoProvider,
@@ -115,13 +115,13 @@ impl CliProxyOpenAiVideoProvider {
         let resp = request
             .send()
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("CLIProxy 视频下载请求失败：{e}")))?;
+            .map_err(|e| AppError::Internal(format!("CLIProxy 视频下载请求失败：{e}")))?;
         let status = resp.status();
         if !status.is_success() {
             let text = resp.text().await.map_err(|e| {
-                AppError::Internal(anyhow::anyhow!("读取 CLIProxy 视频下载错误响应失败：{e}"))
+                AppError::Internal(format!("读取 CLIProxy 视频下载错误响应失败：{e}"))
             })?;
-            return Err(AppError::Internal(anyhow::anyhow!(
+            return Err(AppError::Internal(format!(
                 "CLIProxy 视频下载返回 {status}：{}",
                 error_body_preview(&text)
             )));
@@ -134,11 +134,11 @@ impl CliProxyOpenAiVideoProvider {
         let bytes = resp
             .bytes()
             .await
-            .map_err(|e| AppError::Internal(anyhow::anyhow!("读取 CLIProxy 视频字节失败：{e}")))?
+            .map_err(|e| AppError::Internal(format!("读取 CLIProxy 视频字节失败：{e}")))?
             .to_vec();
         let format = video_format_from_content_type_or_bytes(content_type.as_deref(), &bytes)
             .ok_or_else(|| {
-                AppError::Internal(anyhow::anyhow!(
+                AppError::Internal(format!(
                     "CLIProxy 视频响应缺少可识别的 Content-Type，且视频字节格式无法识别"
                 ))
             })?;
@@ -159,7 +159,7 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         provider_idempotency_key_sha256: Option<&str>,
     ) -> Result<VideoGenerationResult, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let url = self.create_url();
         let body = self.request_body_for_config(&req)?;
@@ -180,7 +180,7 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
             return self.download_completed_video(&video_id, v).await;
         }
         if let Some(message) = failure_message(&v) {
-            return Err(AppError::Internal(anyhow::anyhow!(
+            return Err(AppError::Internal(format!(
                 "CLIProxy 视频生成失败：{message}"
             )));
         }
@@ -195,13 +195,11 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
 
     async fn poll(&self, job_id: &str) -> Result<VideoJobState, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let video_id = job_id.trim();
         if video_id.is_empty() {
-            return Err(AppError::Internal(anyhow::anyhow!(
-                "CLIProxy 视频任务 ID 不能为空"
-            )));
+            return Err(AppError::Internal(format!("CLIProxy 视频任务 ID 不能为空")));
         }
         let url = self.video_url(video_id);
         let v = transport::get_json(
@@ -223,7 +221,7 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
                 let result = self.download_completed_video(video_id, v).await?;
                 Ok(VideoJobState::Completed(result))
             }
-            other => Err(AppError::Internal(anyhow::anyhow!(
+            other => Err(AppError::Internal(format!(
                 "未知 CLIProxy 视频任务 status={other}"
             ))),
         }
@@ -231,7 +229,7 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
 
     async fn status(&self, job_id: &str) -> Result<a4n_video::VideoJobStatus, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let video_id = job_id.trim();
         if video_id.is_empty() {
@@ -271,14 +269,14 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         if is_completed_status(Some(status.as_str())) {
             return Ok(a4n_video::VideoJobStatus::Completed);
         }
-        Err(AppError::Internal(anyhow::anyhow!(
+        Err(AppError::Internal(format!(
             "未知 CLIProxy 视频任务 status={status}"
         )))
     }
 
     async fn delete(&self, job_id: &str) -> Result<VideoJobDeleteOutcome, AppError> {
         if self.base_url.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 API Base URL".into()));
+            return Err(AppError::Configuration("视频配置缺少 API Base URL".into()));
         }
         let video_id = job_id.trim();
         if video_id.is_empty() {
@@ -291,9 +289,10 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
             &self.api_key,
             ApiKeyAuth::TrimmedBearer,
         );
-        let response = request.send().await.map_err(|error| {
-            AppError::Internal(anyhow::anyhow!("CLIProxy 视频删除失败：{error}"))
-        })?;
+        let response = request
+            .send()
+            .await
+            .map_err(|error| AppError::Internal(format!("CLIProxy 视频删除失败：{error}")))?;
         if response.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(VideoJobDeleteOutcome::NotFound);
         }
@@ -302,11 +301,9 @@ impl VideoProvider for CliProxyOpenAiVideoProvider {
         }
         let status = response.status();
         let body = response.text().await.map_err(|error| {
-            AppError::Internal(anyhow::anyhow!(
-                "读取 CLIProxy 视频删除错误响应失败：{error}"
-            ))
+            AppError::Internal(format!("读取 CLIProxy 视频删除错误响应失败：{error}"))
         })?;
-        Err(AppError::Internal(anyhow::anyhow!(
+        Err(AppError::Internal(format!(
             "CLIProxy 视频删除返回 {status}：{}",
             error_body_preview(&body)
         )))

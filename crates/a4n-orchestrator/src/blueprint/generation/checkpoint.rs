@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::blueprint_generation::parse_blueprint_stage_json_object;
 use serde_json::Value;
 

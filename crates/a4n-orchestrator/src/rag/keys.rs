@@ -1,4 +1,4 @@
-use a4n_core::rag::RagDataType;
+use a4n_domain::rag::RagDataType;
 
 pub(crate) fn rag_project_prefix(project_id: i64, data_type: RagDataType) -> String {
     rag_chunk_id(project_id, data_type, "")

@@ -1,6 +1,6 @@
 use super::super::errors::{internal_error, response_preview};
 use super::json::{json_response_preview, non_empty_string};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use reqwest::StatusCode;
 use serde_json::Value;
 

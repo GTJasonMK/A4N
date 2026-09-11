@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 
 use super::super::super::super::super::prompt_json::ChatVideoPromptShot;
 use super::metadata::{

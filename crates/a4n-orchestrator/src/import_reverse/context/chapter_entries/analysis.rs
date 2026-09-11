@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::{Map, Value};
 
 pub(super) fn analysis_metadata_array(analysis: Option<&Value>, key: &str) -> Option<Value> {

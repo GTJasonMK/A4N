@@ -1,6 +1,6 @@
 use super::{ProjectChapterSceneRecordError, ProjectChapterSceneUpdateInput};
 use crate::project::validate_positive_i64;
-use a4n_core::models::chapter::{chapter, chapter_scene};
+use a4n_db_models::models::chapter::{chapter, chapter_scene};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, Set,
 };

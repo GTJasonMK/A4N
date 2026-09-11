@@ -4,8 +4,12 @@
 //! owns the durable inbox, lease, event-sequence and idempotency boundaries;
 //! the orchestrator decides what each record means.
 
-use a4n_core::models::agent::{
+use a4n_db_models::models::agent::{
     approval, delegation, event, execution, inbox, memory, message, run, thread, turn,
+};
+use a4n_domain::agent::{
+    AgentApprovalInput, AgentDelegationInput, AgentEventInput, AgentExecutionInput,
+    AgentInboxInput, AgentMemoryInput, AgentMessageInput, AgentThreadCreateInput, AgentTurnInput,
 };
 use chrono::{Duration, NaiveDateTime, Utc};
 use sea_orm::sea_query::{LockBehavior, LockType, OnConflict};
@@ -18,11 +22,28 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 
+mod review;
+pub use review::review_delegation;
+mod task_wait;
+pub use task_wait::{list_external_task_waits, wake_external_task_wait};
+mod budget;
+pub use budget::{AgentBudgetSnapshot, run_budget_snapshot};
+mod generation;
+pub use generation::{
+    AgentOwnedTask, AgentTaskExecutionInput, active_owned_generation_tasks, create_task_execution,
+    generation_owner, generation_owner_stopped, update_task_execution,
+};
+mod workflow;
+pub use workflow::{active_owned_workflows, bind_owned_workflow, workflow_owner};
+
 pub const RUN_LEASE_SECONDS: i64 = 30;
 pub const INBOX_LEASE_SECONDS: i64 = 30;
+pub const EDITOR_RESPONSE_TTL_SECONDS: i64 = 30;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AgentDbError {
+    #[error("Agent 共享预算已耗尽: {0}")]
+    BudgetExhausted(String),
     #[error("{0}")]
     InvalidArgument(String),
     #[error("{0}")]
@@ -31,142 +52,6 @@ pub enum AgentDbError {
     Conflict(String),
     #[error(transparent)]
     Database(#[from] DbErr),
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentThreadCreateInput {
-    pub owner_user_id: i64,
-    pub thread_kind: String,
-    pub profile_id: String,
-    pub title: Option<String>,
-    pub project_id: Option<i64>,
-    pub resource_type: Option<String>,
-    pub resource_id: Option<String>,
-    pub canonical_binding_key: Option<String>,
-    pub scope_json: Value,
-    pub default_model_config_id: Option<i64>,
-    pub is_default: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentMessageInput {
-    pub thread_id: i64,
-    pub turn_id: Option<i64>,
-    pub run_id: Option<i64>,
-    pub role: String,
-    pub sender_kind: String,
-    pub sender_thread_id: Option<i64>,
-    pub client_message_id: Option<String>,
-    pub content: String,
-    pub status: String,
-    pub payload_json: Option<Value>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentTurnInput {
-    pub thread_id: i64,
-    pub client_message_id: String,
-    pub message: AgentMessageInput,
-    pub execution_mode: String,
-    pub model_override_json: Option<Value>,
-    pub budget_json: Value,
-    /// Whether this Run was admitted with a process-local runtime config
-    /// snapshot. The snapshot itself may contain secrets and must never be
-    /// persisted; this marker lets a restarted worker fail explicitly instead
-    /// of silently changing provider/config semantics.
-    pub runtime_snapshot_required: bool,
-    pub trigger: String,
-    pub goal: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentEventInput {
-    pub thread_id: i64,
-    pub turn_id: Option<i64>,
-    pub run_id: Option<i64>,
-    pub execution_id: Option<i64>,
-    pub delegation_id: Option<i64>,
-    pub message_id: Option<i64>,
-    pub actor_kind: String,
-    pub actor_id: Option<String>,
-    pub kind: String,
-    pub status: String,
-    pub public_text: String,
-    pub payload_json: Option<Value>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentInboxInput {
-    pub thread_id: i64,
-    pub turn_id: Option<i64>,
-    pub run_id: Option<i64>,
-    pub source_kind: String,
-    pub source_thread_id: Option<i64>,
-    pub inbox_kind: String,
-    pub delivery_mode: String,
-    pub priority: i32,
-    pub dedupe_key: String,
-    pub content: String,
-    pub payload_json: Option<Value>,
-    pub available_at: Option<NaiveDateTime>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentExecutionInput {
-    pub run_id: i64,
-    pub execution_key: String,
-    pub execution_kind: String,
-    pub status: String,
-    pub tool_name: Option<String>,
-    pub effect: Option<String>,
-    pub replay_policy: Option<String>,
-    pub arguments_json: Option<Value>,
-    pub resource_preconditions_json: Option<Value>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentDelegationInput {
-    pub parent_thread_id: i64,
-    pub parent_run_id: i64,
-    pub parent_execution_id: Option<i64>,
-    pub child_thread_id: i64,
-    pub child_turn_id: Option<i64>,
-    pub child_run_id: Option<i64>,
-    pub delegation_key: String,
-    pub capability: String,
-    pub objective: String,
-    pub success_criteria_json: Value,
-    pub scope_json: Value,
-    pub budget_json: Value,
-    pub status: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentMemoryInput {
-    pub owner_user_id: i64,
-    pub project_id: Option<i64>,
-    pub thread_id: Option<i64>,
-    pub scope_kind: String,
-    pub scope_key: String,
-    pub memory_key: String,
-    pub revision: i64,
-    pub status: String,
-    pub content: String,
-    pub content_json: Option<Value>,
-    pub source_message_id: Option<i64>,
-    pub source_execution_id: Option<i64>,
-    pub supersedes_memory_id: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AgentApprovalInput {
-    pub thread_id: i64,
-    pub run_id: i64,
-    pub execution_id: i64,
-    pub operation_digest: String,
-    pub operation_json: Value,
-    pub resource_preconditions_json: Option<Value>,
-    pub expires_at: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Clone)]
@@ -193,6 +78,7 @@ pub struct AgentChildCompletionInput {
     pub final_message: AgentMessageInput,
     pub result_refs_json: Option<Value>,
     pub result_summary: String,
+    pub observed_input_message_id: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -559,6 +445,18 @@ where
 {
     message::Entity::find_by_id(id)
         .one(db)
+        .await
+        .map_err(AgentDbError::Database)
+}
+
+pub async fn messages_by_run<C>(db: &C, run_id: i64) -> Result<Vec<message::Model>, AgentDbError>
+where
+    C: ConnectionTrait,
+{
+    message::Entity::find()
+        .filter(message::Column::RunId.eq(run_id))
+        .order_by_asc(message::Column::Id)
+        .all(db)
         .await
         .map_err(AgentDbError::Database)
 }
@@ -1748,6 +1646,174 @@ where
     Ok(())
 }
 
+/// The original editor may resolve only this waiting execution. It temporarily
+/// owns the same Run lease; the normal worker cannot dispatch it concurrently.
+pub async fn claim_editor_execution(
+    db: &DatabaseConnection,
+    user_id: i64,
+    run_id: i64,
+    execution_id: i64,
+) -> Result<run::Model, AgentDbError> {
+    resolve_editor_wait(db, user_id, run_id, execution_id, false).await
+}
+
+/// Reconcile durable editor waits after disconnect or restart. Expiry and a
+/// live response contend on the same locks; only one can resolve the request.
+pub async fn expire_editor_requests(
+    db: &DatabaseConnection,
+    limit: u64,
+) -> Result<usize, AgentDbError> {
+    let rows = run::Entity::find()
+        .filter(run::Column::IsActive.eq(true))
+        .filter(run::Column::Status.eq("waiting"))
+        .filter(run::Column::WaitingReason.eq("external"))
+        .filter(run::Column::UpdatedAt.lte(now() - Duration::seconds(EDITOR_RESPONSE_TTL_SECONDS)))
+        .filter(sea_orm::sea_query::Expr::cust("jsonb_typeof((SELECT payload_json->'editor_request' FROM agent_event WHERE run_id = agent_run.id AND kind = 'run_waiting' ORDER BY sequence DESC LIMIT 1)) = 'object'"))
+        .order_by_asc(run::Column::UpdatedAt).limit(limit).all(db).await?;
+    let mut expired = 0;
+    for row in rows {
+        let request = latest_editor_wait(db, row.id).await?;
+        let execution_id = request
+            .payload_json
+            .as_ref()
+            .and_then(|value| value.pointer("/editor_request/execution_id"))
+            .and_then(Value::as_str)
+            .and_then(|id| id.parse::<i64>().ok())
+            .ok_or_else(|| AgentDbError::InvalidArgument("编辑器等待缺少 execution_id".into()))?;
+        let owner = thread::Entity::find_by_id(row.thread_id)
+            .one(db)
+            .await?
+            .ok_or_else(|| AgentDbError::NotFound("Agent Thread 不存在".into()))?;
+        match resolve_editor_wait(db, owner.owner_user_id, row.id, execution_id, true).await {
+            Ok(_) => expired += 1,
+            Err(AgentDbError::Conflict(_)) => {} // A response or cancellation won.
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(expired)
+}
+
+async fn latest_editor_wait<C: ConnectionTrait>(
+    db: &C,
+    run_id: i64,
+) -> Result<event::Model, AgentDbError> {
+    event::Entity::find()
+        .filter(event::Column::RunId.eq(run_id))
+        .filter(event::Column::Kind.eq("run_waiting"))
+        .order_by_desc(event::Column::Sequence)
+        .one(db)
+        .await?
+        .ok_or_else(|| AgentDbError::Conflict("Run 没有待响应的编辑器请求".into()))
+}
+
+async fn resolve_editor_wait(
+    db: &DatabaseConnection,
+    user_id: i64,
+    run_id: i64,
+    execution_id: i64,
+    expire: bool,
+) -> Result<run::Model, AgentDbError> {
+    let identity = run_by_id(db, run_id)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound("Agent Run 不存在".into()))?;
+    let tx = db.begin().await?;
+    let thread = thread::Entity::find_by_id(identity.thread_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound("Agent Thread 不存在".into()))?;
+    if thread.owner_user_id != user_id {
+        return Err(AgentDbError::Conflict(
+            "编辑器不能响应其他用户的执行".into(),
+        ));
+    }
+    let run = run::Entity::find_by_id(run_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound("Agent Run 不存在".into()))?;
+    if !run.is_active
+        || run.status != "waiting"
+        || run.waiting_reason.as_deref() != Some("external")
+    {
+        return Err(AgentDbError::Conflict("编辑器请求已失效或正在处理".into()));
+    }
+    let wait = latest_editor_wait(&tx, run_id).await?;
+    let timestamp = now();
+    if expire != (timestamp >= wait.created_at + Duration::seconds(EDITOR_RESPONSE_TTL_SECONDS)) {
+        return Err(AgentDbError::Conflict(
+            if expire {
+                "编辑器请求尚未过期"
+            } else {
+                "原编辑器响应已过期"
+            }
+            .into(),
+        ));
+    }
+    let request = wait
+        .payload_json
+        .and_then(|payload| payload.get("editor_request").cloned());
+    if request
+        .as_ref()
+        .and_then(|request| request.get("execution_id"))
+        .and_then(Value::as_str)
+        != Some(execution_id.to_string().as_str())
+    {
+        return Err(AgentDbError::Conflict("不是当前等待的编辑器执行".into()));
+    }
+    let execution = execution::Entity::find_by_id(execution_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound("Agent Execution 不存在".into()))?;
+    if execution.run_id != run_id
+        || !matches!(
+            execution.status.as_str(),
+            "prepared" | "awaiting_user" | "dispatching"
+        )
+    {
+        return Err(AgentDbError::Conflict(
+            "编辑器执行已结束或不属于当前任务".into(),
+        ));
+    }
+    if expire {
+        let mut active: execution::ActiveModel = execution.into();
+        active.status = Set("failed".into());
+        active.error_message = Set(Some(
+            "原编辑器离线或未及时响应，请回到发起请求的视图后重试；未执行写入".into(),
+        ));
+        active.updated_at = Set(timestamp);
+        active.completed_at = Set(Some(timestamp));
+        active.update(&tx).await?;
+        let row = update_run_state_on(&tx, run_id, None, "queued", None, None).await?;
+        append_run_event_on(
+            &tx,
+            &row,
+            "editor_request_expired",
+            "failed",
+            "原编辑器未及时响应，工具未执行",
+            Some(execution_id),
+            None,
+            None,
+            None,
+        )
+        .await?;
+        refresh_thread_status_on(&tx, row.thread_id).await?;
+        tx.commit().await?;
+        return Ok(row);
+    }
+    let mut active: run::ActiveModel = run.into();
+    active.status = Set("running".into());
+    active.waiting_reason = Set(None);
+    active.worker_id = Set(Some("editor-response".into()));
+    active.lease_token = Set(Some(uuid::Uuid::new_v4().to_string()));
+    active.lease_expires_at = Set(Some(timestamp + Duration::seconds(RUN_LEASE_SECONDS)));
+    active.updated_at = Set(timestamp);
+    let run = active.update(&tx).await?;
+    tx.commit().await?;
+    Ok(run)
+}
+
 async fn refresh_thread_status_on<C>(db: &C, thread_id: i64) -> Result<thread::Model, AgentDbError>
 where
     C: ConnectionTrait,
@@ -2007,6 +2073,18 @@ pub async fn wait_run_for_lease(
     lease_token: &str,
     waiting_reason: &str,
 ) -> Result<run::Model, AgentDbError> {
+    wait_run_for_lease_with_request(db, run_id, lease_token, waiting_reason, None).await
+}
+
+/// Publishes the external request in the same transaction that releases the
+/// Run, so a fast UI response cannot arrive before the wait is durable.
+pub async fn wait_run_for_lease_with_request(
+    db: &DatabaseConnection,
+    run_id: i64,
+    lease_token: &str,
+    waiting_reason: &str,
+    editor_request: Option<Value>,
+) -> Result<run::Model, AgentDbError> {
     if waiting_reason.trim().is_empty() {
         return Err(AgentDbError::InvalidArgument(
             "Agent waiting_reason 不能为空".into(),
@@ -2048,7 +2126,7 @@ pub async fn wait_run_for_lease(
         None,
         None,
         None,
-        Some(json!({ "waiting_reason": waiting_reason })),
+        Some(json!({ "waiting_reason": waiting_reason, "editor_request": editor_request })),
     )
     .await?;
     let _ = refresh_thread_status_on(&tx, row.thread_id).await?;
@@ -2931,7 +3009,8 @@ pub async fn finish_run_with_message(
     lease_token: &str,
     message: AgentMessageInput,
     result_refs_json: Option<Value>,
-) -> Result<(run::Model, message::Model), AgentDbError> {
+    observed_input_message_id: i64,
+) -> Result<Option<(run::Model, message::Model)>, AgentDbError> {
     let identity = run::Entity::find_by_id(run_id)
         .one(db)
         .await?
@@ -2959,20 +3038,15 @@ pub async fn finish_run_with_message(
             "Agent final message 与 run 不一致: {run_id}"
         )));
     }
+    if requeue_for_new_input_on(&tx, &run_row, observed_input_message_id).await? {
+        tx.commit().await?;
+        return Ok(None);
+    }
     turn::Entity::find_by_id(run_row.turn_id)
         .lock_exclusive()
         .one(&tx)
         .await?
         .ok_or_else(|| AgentDbError::NotFound(format!("Agent turn 不存在: {}", run_row.turn_id)))?;
-    let awaiting_delegation_ids = delegation::Entity::find()
-        .select_only()
-        .column(delegation::Column::Id)
-        .filter(delegation::Column::ParentRunId.eq(run_id))
-        .filter(delegation::Column::Status.eq("awaiting_acceptance"))
-        .into_tuple::<i64>()
-        .all(&tx)
-        .await?;
-    let awaiting_delegations = lock_delegations_on(&tx, awaiting_delegation_ids).await?;
     let final_message = append_message_on(&tx, message).await?;
     let _turn = complete_turn(
         &tx,
@@ -2993,30 +3067,6 @@ pub async fn finish_run_with_message(
     active.lease_token = Set(None);
     active.lease_expires_at = Set(None);
     let completed_run = active.update(&tx).await?;
-    for row in awaiting_delegations {
-        let mut active: delegation::ActiveModel = row.into();
-        active.status = Set("accepted".to_string());
-        active.updated_at = Set(timestamp);
-        active.completed_at = Set(Some(timestamp));
-        let delegation = active.update(&tx).await?;
-        append_run_event_on(
-            &tx,
-            &completed_run,
-            "delegation_accepted",
-            "accepted",
-            "Child Agent 结果已被主 Agent 接受",
-            delegation.parent_execution_id,
-            Some(delegation.id),
-            None,
-            delegation.result_summary.clone().map(|summary| {
-                json!({
-                    "summary": summary,
-                    "child_run_id": delegation.child_run_id.map(|id| id.to_string()),
-                })
-            }),
-        )
-        .await?;
-    }
     append_run_event_on(
         &tx,
         &completed_run,
@@ -3031,7 +3081,61 @@ pub async fn finish_run_with_message(
     .await?;
     let _ = refresh_thread_status_on(&tx, completed_run.thread_id).await?;
     tx.commit().await?;
-    Ok((completed_run, final_message))
+    Ok(Some((completed_run, final_message)))
+}
+
+// The sender and finalizer both hold the Thread lock. An accepted follow-up
+// either belongs to this still-active Run or starts a new Turn after it closes.
+async fn requeue_for_new_input_on<C: ConnectionTrait>(
+    db: &C,
+    row: &run::Model,
+    observed_input_message_id: i64,
+) -> Result<bool, AgentDbError> {
+    if message::Entity::find()
+        .filter(message::Column::RunId.eq(row.id))
+        .filter(message::Column::Role.eq("user"))
+        .filter(message::Column::Id.gt(observed_input_message_id))
+        .one(db)
+        .await?
+        .is_none()
+    {
+        return Ok(false);
+    }
+    update_run_state_on(db, row.id, row.lease_token.as_deref(), "queued", None, None).await?;
+    refresh_thread_status_on(db, row.thread_id).await?;
+    Ok(true)
+}
+
+async fn consume_observed_user_inbox_on<C: ConnectionTrait>(
+    db: &C,
+    owner: &run::Model,
+    message_id: i64,
+) -> Result<(), AgentDbError> {
+    let rows = inbox::Entity::find()
+        .filter(inbox::Column::RunId.eq(owner.id))
+        .filter(inbox::Column::SourceKind.eq("user"))
+        .filter(inbox::Column::Status.is_in(["pending", "claimed"]))
+        .lock_exclusive()
+        .all(db)
+        .await?;
+    for row in rows {
+        let id = row
+            .payload_json
+            .as_ref()
+            .and_then(|v| v.get("message_id"))
+            .and_then(Value::as_str)
+            .and_then(|v| v.parse::<i64>().ok())
+            .ok_or_else(|| AgentDbError::InvalidArgument("用户 inbox 缺少 message_id".into()))?;
+        if id <= message_id {
+            let mut active: inbox::ActiveModel = row.into();
+            active.status = Set("consumed".into());
+            active.claim_token = Set(None);
+            active.claim_expires_at = Set(None);
+            active.consumed_at = Set(Some(now()));
+            active.update(db).await?;
+        }
+    }
+    Ok(())
 }
 
 pub async fn update_run_usage(
@@ -3084,7 +3188,7 @@ pub async fn update_run_usage(
 async fn create_execution_on<C>(
     db: &C,
     input: AgentExecutionInput,
-    lease_token: &str,
+    run_row: run::Model,
 ) -> Result<execution::Model, AgentDbError>
 where
     C: ConnectionTrait,
@@ -3095,12 +3199,6 @@ where
             "execution_key 不能为空".into(),
         ));
     }
-    let run_row = run::Entity::find_by_id(input.run_id)
-        .lock_exclusive()
-        .one(db)
-        .await?
-        .ok_or_else(|| AgentDbError::NotFound(format!("Agent run 不存在: {}", input.run_id)))?;
-    validate_live_run_lease(&run_row, lease_token, now())?;
     let args_digest = input.arguments_json.as_ref().map(json_sha256).transpose()?;
     if let Some(existing) = execution::Entity::find()
         .filter(execution::Column::RunId.eq(input.run_id))
@@ -3108,9 +3206,15 @@ where
         .one(db)
         .await?
     {
-        if existing.arguments_sha256 != args_digest {
+        if existing.arguments_sha256 != args_digest
+            || existing.execution_kind != input.execution_kind
+            || existing.tool_name != input.tool_name
+            || existing.effect != input.effect
+            || existing.replay_policy != input.replay_policy
+            || existing.resource_preconditions_json != input.resource_preconditions_json
+        {
             return Err(AgentDbError::Conflict(format!(
-                "execution_key 已用于不同参数: {}",
+                "execution_key 已用于不同操作、参数或执行策略: {}",
                 input.execution_key
             )));
         }
@@ -3168,7 +3272,14 @@ pub async fn create_execution_for_run_lease(
         ));
     }
     let tx = db.begin().await?;
-    let row = create_execution_on(&tx, input, lease_token).await?;
+    budget::reserve_budget_on(&tx, &input).await?;
+    let run_row = run::Entity::find_by_id(input.run_id)
+        .lock_exclusive()
+        .one(&tx)
+        .await?
+        .ok_or_else(|| AgentDbError::NotFound("Agent run 不存在".into()))?;
+    validate_live_run_lease(&run_row, lease_token, now())?;
+    let row = create_execution_on(&tx, input, run_row).await?;
     tx.commit().await?;
     Ok(row)
 }
@@ -4183,7 +4294,7 @@ async fn create_child_delegation_inner(
 pub async fn complete_child_delegation(
     db: &DatabaseConnection,
     input: AgentChildCompletionInput,
-) -> Result<(run::Model, delegation::Model, inbox::Model, run::Model), AgentDbError> {
+) -> Result<Option<(run::Model, delegation::Model, inbox::Model, run::Model)>, AgentDbError> {
     let result_summary = input.result_summary.trim().to_string();
     if result_summary.is_empty() {
         return Err(AgentDbError::InvalidArgument(
@@ -4242,6 +4353,10 @@ pub async fn complete_child_delegation(
         })?;
     let timestamp = now();
     validate_live_run_lease(&child_run, &input.child_lease_token, timestamp)?;
+    if requeue_for_new_input_on(&tx, &child_run, input.observed_input_message_id).await? {
+        tx.commit().await?;
+        return Ok(None);
+    }
     let child_turn = turn::Entity::find_by_id(child_run.turn_id)
         .lock_exclusive()
         .one(&tx)
@@ -4434,7 +4549,7 @@ pub async fn complete_child_delegation(
     let _ = refresh_thread_status_on(&tx, child_run.thread_id).await?;
     let _ = refresh_thread_status_on(&tx, parent_run.thread_id).await?;
     tx.commit().await?;
-    Ok((child_run, delegation, inbox_row, parent_run))
+    Ok(Some((child_run, delegation, inbox_row, parent_run)))
 }
 
 /// Fails a child Run and its delegation, then delivers the failure to and

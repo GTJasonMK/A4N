@@ -4,9 +4,10 @@ use super::remote_upload::image_file_to_remote_temp_media_url;
 use crate::actions::video_generation::media::types::{
     MAX_REFERENCE_IMAGE_BYTES, MAX_REFERENCE_IMAGE_TOTAL_BYTES, ProviderImageInputTransport,
 };
-use crate::file_utils::canonicalize_data_file_path;
-use a4n_core::{media::image_mime_from_path, models::ai::generated_image};
+use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_domain::media::image_mime_from_path;
 use a4n_service_protocol::GenerationArtifactRef;
+use a4n_storage::canonicalize_data_file_path;
 use base64::Engine as _;
 use std::path::Path;
 
@@ -15,7 +16,7 @@ pub(in crate::actions::video_generation::media) async fn image_file_to_provider_
     jwt_secret: Option<&str>,
     user_id: i64,
     media_base_url: Option<&str>,
-    image: &generated_image::Model,
+    image: &GeneratedImageSummary,
     inline_total_bytes: &mut u64,
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,

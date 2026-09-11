@@ -1,5 +1,5 @@
 use super::super::contracts::ImportedVideoSource;
-use a4n_orchestrator::video::import_video_extension;
+use a4n_video::import_video_extension;
 use std::path::PathBuf;
 
 pub(in crate::actions::video_records::imports) fn import_video_source(

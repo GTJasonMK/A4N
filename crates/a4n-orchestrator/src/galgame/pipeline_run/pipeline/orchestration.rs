@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::galgame::{GalgamePipelineRunOptions, GalgameScriptDetail, OrchestratorContext};
 use a4n_prompt::rendering::PromptRenderer;

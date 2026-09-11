@@ -7,7 +7,7 @@ use crate::source_sync::{
     galgame_scene_conflict_candidates_for_chapter_changes, generation_specs_for_profile_refs,
     generation_specs_for_source_chapters, local_states_for_generation_specs,
 };
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_run};
+use a4n_db_models::models::source_sync::{source_sync_conflict, source_sync_run};
 use a4n_domain::source_sync::{
     SourceSyncChangeKind, SourceSyncConflictSeverity, SourceSyncLocalStateKind,
 };
@@ -15,7 +15,7 @@ use sea_orm::ConnectionTrait;
 use serde_json::json;
 use std::collections::HashMap;
 
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 
 async fn insert_grouped_conflicts<'a, C>(
     db: &C,

@@ -6,12 +6,14 @@ mod factory;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingModelIdentity, EmbeddingProvider};
-use a4n_orchestrator::DynamicProviderFacade;
+use a4n_error::AppError;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use async_trait::async_trait;
 
+use crate::provider_error::from_app_error;
+use crate::provider_runtime::DynamicProviderFacade;
 use crate::runtime_config;
 
 pub(crate) use contracts::model_identity_from_config;
@@ -44,7 +46,7 @@ impl DynamicEmbeddingProvider {
     }
 
     async fn resolve_default(&self) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
-        if let Some(model) = runtime_config::current_embedding_model() {
+        if let Some(model) = runtime_config::current_embedding_provider_config() {
             return make_provider_from_model(&model, self.fastembed_cache_dir.clone());
         }
 
@@ -56,7 +58,7 @@ impl DynamicEmbeddingProvider {
 
 #[async_trait]
 impl EmbeddingProvider for DynamicEmbeddingProvider {
-    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
+    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
         self.embed_with_identity(texts)
             .await
             .map(|(embeddings, _)| embeddings)
@@ -78,23 +80,33 @@ impl EmbeddingProvider for DynamicEmbeddingProvider {
         self.metadata_batch_size
     }
 
-    async fn model_identity(&self) -> Result<EmbeddingModelIdentity, AppError> {
-        self.resolve_default().await?.model_identity().await
+    async fn model_identity(&self) -> Result<EmbeddingModelIdentity, ProviderError> {
+        self.resolve_default()
+            .await
+            .map_err(from_app_error)?
+            .model_identity()
+            .await
     }
 
     async fn embed_with_identity(
         &self,
         texts: Vec<String>,
-    ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), AppError> {
-        let provider = self.resolve_default().await?;
+    ) -> Result<(Vec<Vec<f32>>, EmbeddingModelIdentity), ProviderError> {
+        let provider = self.resolve_default().await.map_err(from_app_error)?;
         self.facade
             .queue_run_tracked(
                 TaskKind::EmbeddingCall,
                 TaskPriority::Low,
                 None,
-                || async move { provider.embed_with_identity(texts).await },
+                || async move {
+                    provider
+                        .embed_with_identity(texts)
+                        .await
+                        .map_err(AppError::from)
+                },
             )
             .await
+            .map_err(from_app_error)
     }
 }
 

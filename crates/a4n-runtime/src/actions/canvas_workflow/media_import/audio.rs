@@ -1,8 +1,7 @@
 use super::super::{ImportCanvasMediaInput, ImportedCanvasMedia};
-use super::canvas_media_asset_summary;
 use crate::AppState;
-use a4n_orchestrator::canvas::CanvasAudioImportHostInput;
-use a4n_orchestrator::media::MEDIA_KIND_AUDIO;
+use a4n_canvas_contract::CanvasAudioImportHostInput;
+use a4n_domain::media::MEDIA_KIND_AUDIO;
 
 pub(super) async fn import_canvas_audio(
     state: &AppState,
@@ -10,8 +9,8 @@ pub(super) async fn import_canvas_audio(
     input: ImportCanvasMediaInput,
 ) -> Result<ImportedCanvasMedia, String> {
     let asset = state
-        .orchestrator()
-        .import_canvas_audio_validated(
+        .canvas_media_import_application()
+        .import_audio(
             user_id,
             CanvasAudioImportHostInput {
                 project_id: input.project_id,
@@ -27,6 +26,6 @@ pub(super) async fn import_canvas_audio(
         media_kind: MEDIA_KIND_AUDIO.to_string(),
         image: None,
         video: None,
-        asset: canvas_media_asset_summary(asset),
+        asset,
     })
 }

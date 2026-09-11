@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use a4n_core::video_execution::{
+use a4n_video_contract::{
     VideoEmotionActionGoalV1, VideoEmotionalArcV1, VideoIntentV1, VideoMaterialCoverageV1,
     VideoPerformancePlanV2, VideoSpatialAnchorV1,
 };
-pub(in crate::video) use a4n_core::video_execution::{
+pub(in crate::video) use a4n_video_contract::{
     VideoExecutionProjectionV2 as VideoShootingScriptProjection,
     VideoExecutionShotV2 as VideoCinematicShot, VideoSegmentPlanV2 as VideoSegmentPlan,
 };
@@ -85,18 +85,18 @@ pub(in crate::video) struct InsertedSegmentDraft {
 impl InsertedSegmentDraft {
     pub(in crate::video) fn parse_and_validate(
         raw: &str,
-        prompt_output_language: a4n_core::prompt_language::PromptOutputLanguage,
-    ) -> Result<Self, a4n_core::error::AppError> {
+        prompt_output_language: a4n_domain::prompt_language::PromptOutputLanguage,
+    ) -> Result<Self, a4n_error::AppError> {
         let draft: Self = serde_json::from_str(raw.trim()).map_err(|error| {
-            a4n_core::error::AppError::InvalidArgument(format!("插入片段草稿 JSON 无效: {error}"))
+            a4n_error::AppError::InvalidArgument(format!("插入片段草稿 JSON 无效: {error}"))
         })?;
         draft.validate(prompt_output_language)
     }
 
     pub(in crate::video) fn validate(
         self,
-        prompt_output_language: a4n_core::prompt_language::PromptOutputLanguage,
-    ) -> Result<Self, a4n_core::error::AppError> {
+        prompt_output_language: a4n_domain::prompt_language::PromptOutputLanguage,
+    ) -> Result<Self, a4n_error::AppError> {
         super::validation::validate_inserted_segment_draft(self, prompt_output_language)
     }
 }

@@ -1,7 +1,7 @@
 //! 视频尾帧归属与元数据纯规则（无 DB、无 Host）。
 
-use a4n_core::models::ai::{generated_image, generated_video};
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::ai::{generated_image, generated_video};
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_VIDEO_TAIL_FRAME,
     image_generation_source,
@@ -52,13 +52,24 @@ pub fn video_shot_number(video: &generated_video::Model) -> Result<i32, String> 
 }
 
 pub fn is_first_frame_chain_video(video: &generated_video::Model) -> bool {
-    video.workflow_mode.as_deref() == Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
+    is_first_frame_chain_workflow(video.workflow_mode.as_deref())
 }
 
 pub fn should_capture_video_tail_frame(video: &generated_video::Model) -> bool {
-    video.video_type == generated_video::VIDEO_TYPE_CHAPTER
+    should_capture_video_tail_frame_fields(&video.video_type, video.workflow_mode.as_deref())
+}
+
+pub fn is_first_frame_chain_workflow(workflow_mode: Option<&str>) -> bool {
+    workflow_mode == Some(chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
+}
+
+pub fn should_capture_video_tail_frame_fields(
+    video_type: &str,
+    workflow_mode: Option<&str>,
+) -> bool {
+    video_type == a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER
         && matches!(
-            video.workflow_mode.as_deref(),
+            workflow_mode,
             Some(
                 chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES
                     | chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN
@@ -160,16 +171,16 @@ mod tests {
         assert!(required_video_chapter_id(None, 42).is_err());
         for workflow in ["boundary_frames", "first_frame_chain", "chat_video"] {
             assert!(should_capture_video_tail_frame(&video(
-                generated_video::VIDEO_TYPE_CHAPTER,
+                a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER,
                 Some(workflow),
             )));
         }
         assert!(!should_capture_video_tail_frame(&video(
-            generated_video::VIDEO_TYPE_REFERENCE_MEDIA,
+            a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA,
             Some("reference_media"),
         )));
         assert!(is_first_frame_chain_video(&video(
-            generated_video::VIDEO_TYPE_CHAPTER,
+            a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER,
             Some("first_frame_chain"),
         )));
     }

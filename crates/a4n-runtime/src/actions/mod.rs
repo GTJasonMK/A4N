@@ -35,6 +35,7 @@ pub mod oauth;
 pub mod object_profile_records;
 pub mod optimize;
 pub mod outline_records;
+pub mod package;
 pub mod portrait_generation;
 pub mod portrait_records;
 pub mod profile_materials;
@@ -58,7 +59,7 @@ pub mod video_generation;
 pub mod video_prompts;
 pub mod video_records;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(crate) fn app_error_message(error: AppError) -> String {
     error.to_string()
@@ -72,8 +73,8 @@ pub(crate) async fn sidecar_root_project_id(
         return Ok(None);
     }
     state
-        .orchestrator()
-        .collaboration_root_project(project_id)
+        .project_access_application()
+        .collaboration_root(project_id)
         .await
         .map(|root| Some(root.id))
         .map_err(app_error_message)

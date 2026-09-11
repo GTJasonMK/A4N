@@ -1,5 +1,6 @@
-use a4n_core::video_execution::{VideoSegmentExecutionRecipeV1, video_segment_content_fingerprint};
-use a4n_core::{error::AppError, source_spans::source_text_hash as source_content_sha256};
+use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_error::AppError;
+use a4n_video_contract::{VideoSegmentExecutionRecipeV1, video_segment_content_fingerprint};
 use serde_json::{Value, json};
 
 use a4n_llm::context::LlmContextManifest;
@@ -75,7 +76,7 @@ pub(crate) fn video_execution_chain_identity(
         })
         .collect::<Result<Vec<_>, AppError>>()?;
     Ok(json!({
-        "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+        "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
         "shooting_script_identity": projection.shooting_script_identity,
         "projection_sha256": source_content_sha256(&projection_json),
         "segment_plan_sha256": source_content_sha256(&segment_plan_json),

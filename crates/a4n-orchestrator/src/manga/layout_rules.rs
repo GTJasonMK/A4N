@@ -1,6 +1,6 @@
 //! 漫画页面 layout JSON 纯字段规则。
 
-use a4n_core::models::chapter::chapter_manga_prompt;
+use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{
     DownstreamConflictStrategy,
     manga::{MangaBoundReferenceAsset, MangaPageGenerationLayoutV2},

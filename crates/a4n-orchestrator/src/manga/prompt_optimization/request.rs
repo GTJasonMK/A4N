@@ -1,9 +1,8 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    config::app_config::llm_token_profiles, error::AppError, models::chapter::chapter_manga_prompt,
-    source_spans::source_text_hash,
-};
+use a4n_db_models::models::chapter::chapter_manga_prompt;
+use a4n_domain::{llm::llm_token_profiles, source_text_hash};
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::json;

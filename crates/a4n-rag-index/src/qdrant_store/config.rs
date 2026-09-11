@@ -1,6 +1,25 @@
-use a4n_core::config::env::{optional_non_empty_env_string, required_non_empty_env_string};
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_rag_core::DEFAULT_QDRANT_COLLECTION;
+
+fn optional_non_empty_env_string(key: &str) -> Result<Option<String>, AppError> {
+    match std::env::var(key) {
+        Ok(value) => {
+            let value = value.trim().to_string();
+            if value.is_empty() {
+                Err(AppError::Configuration(format!("{key} 不能为空")))
+            } else {
+                Ok(Some(value))
+            }
+        }
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(error) => Err(AppError::Configuration(format!("{key} 无法读取: {error}"))),
+    }
+}
+
+fn required_non_empty_env_string(key: &str) -> Result<String, AppError> {
+    optional_non_empty_env_string(key)?
+        .ok_or_else(|| AppError::Configuration(format!("{key} 未设置")))
+}
 
 /// Qdrant 连接与 collection 配置。
 pub struct QdrantStoreConfig {

@@ -1,7 +1,7 @@
 use crate::profile_material::{
     generated_image_profile_material_identity, is_project_reusable_video_material_image,
 };
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use a4n_domain::image::{
     IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL, IMAGE_TYPE_VIDEO_START_FRAME,
     IMAGE_TYPE_VIDEO_TAIL_FRAME,

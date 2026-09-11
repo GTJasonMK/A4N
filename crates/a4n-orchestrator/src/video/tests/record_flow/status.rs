@@ -444,6 +444,90 @@ async fn mark_completed_updates_video_and_matching_prompt_together() {
 }
 
 #[tokio::test]
+async fn video_record_application_completion_projects_duration_and_adopts_duplicate() {
+    let db = Arc::new(setup_db().await);
+    let project = insert_video_project(db.as_ref(), "视频项目").await;
+    let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
+    let prompt = insert_video_prompt(db.as_ref(), project.id, chapter.id, None).await;
+    let service = crate::video::test_video_orchestrator(db.clone()).await;
+    let mut input = video_record_input(project.id);
+    input.chapter_id = Some(chapter.id);
+    let video = service.create_video_record(input).await.unwrap();
+    let output_path = format!("projects/{}/videos/chapter_1/video.mp4", project.id);
+    let thumbnail_path = format!("projects/{}/videos/chapter_1/thumb.jpg", project.id);
+
+    let completed =
+        <crate::OrchestratorContext as crate::video::VideoRecordApplicationPort>::complete(
+            &service,
+            a4n_api_contract::video::CompleteVideoRecordInput {
+                record_id: video.id,
+                output_path: output_path.clone(),
+                thumbnail_path: Some(thumbnail_path),
+                file_size: 2048,
+                prompt_id: Some(prompt.id),
+                metadata_json: Some(json!({"job": "done"})),
+                duration_secs: 4.5,
+            },
+        )
+        .await
+        .expect("application port should complete the video record");
+
+    assert!(!completed.adopted_authoritative);
+    assert_eq!(completed.summary.duration_secs, 4.5);
+    assert_eq!(completed.summary.id, video.id);
+    assert_eq!(completed.summary.status, "completed");
+    assert_eq!(completed.summary.file_size, Some(2048));
+
+    let duplicate =
+        <crate::OrchestratorContext as crate::video::VideoRecordApplicationPort>::complete(
+            &service,
+            a4n_api_contract::video::CompleteVideoRecordInput {
+                record_id: video.id,
+                output_path: format!("projects/{}/videos/chapter_1/other.mp4", project.id),
+                thumbnail_path: None,
+                file_size: 4096,
+                prompt_id: None,
+                metadata_json: None,
+                duration_secs: 9.0,
+            },
+        )
+        .await
+        .expect("completed record should adopt a repeated completion");
+
+    assert!(duplicate.adopted_authoritative);
+    assert_eq!(
+        duplicate.summary.file_path.as_deref(),
+        Some(output_path.as_str())
+    );
+    assert_eq!(duplicate.summary.duration_secs, 4.5);
+}
+
+#[tokio::test]
+async fn video_record_application_returns_validated_reference_images() {
+    let db = Arc::new(setup_db().await);
+    let project = insert_video_project(db.as_ref(), "视频项目").await;
+    let chapter = insert_video_chapter(db.as_ref(), project.id, 1).await;
+    let image = insert_generated_image(db.as_ref(), project.id).await;
+    let service = crate::video::test_video_orchestrator(db).await;
+
+    let images =
+        <crate::OrchestratorContext as crate::video::VideoRecordApplicationPort>::validated_reference_images(
+            &service,
+            1,
+            project.id,
+            chapter.id,
+            Some(&json!([image.id])),
+        )
+        .await
+        .expect("video record application should return validated reference images");
+
+    assert_eq!(
+        images.iter().map(|image| image.id).collect::<Vec<_>>(),
+        [image.id]
+    );
+}
+
+#[tokio::test]
 async fn mark_completed_accepts_video_project_prompt_for_root_chapter() {
     let db = Arc::new(setup_db().await);
     let root_project = insert_video_project(db.as_ref(), "根文本项目").await;

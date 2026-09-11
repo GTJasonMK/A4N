@@ -1,4 +1,4 @@
-use a4n_orchestrator::media::GeneratePageImageInput;
+use a4n_api_contract::image_generation::GeneratePageImageInput;
 
 use super::{
     AppState, ModelRequestPreview, RuntimeImageGenerationHostPort, model_request_preview,
@@ -15,8 +15,8 @@ pub async fn preview_page_image_request(
     let page_number = input.page_number;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .orchestrator()
-        .prepare_page_image_request_validated(&host, user_id, input)
+        .image_generation_application()
+        .prepare_page_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     Ok(model_request_preview(

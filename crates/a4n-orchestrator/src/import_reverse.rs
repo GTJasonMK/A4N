@@ -12,15 +12,59 @@ mod workflow_rules;
 pub(crate) use target::ReverseEngineeringTarget;
 pub(crate) use workflow_rules::{IMPORT_REVERSE_WORKFLOW_KIND, IMPORT_REVERSE_WORKFLOW_MODE};
 
-pub(crate) fn import_reverse_db_error(error: ImportReverseDbError) -> a4n_core::error::AppError {
+/// Runtime-facing reverse-engineering boundary.
+#[async_trait::async_trait]
+pub trait ImportReverseApplicationPort: Send + Sync {
+    async fn prepare_request(
+        &self,
+        input: a4n_api_contract::import_reverse::ReverseEngineerInput,
+        prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, a4n_error::AppError>;
+
+    fn run<'a>(
+        &'a self,
+        input: a4n_api_contract::import_reverse::ReverseEngineerInput,
+        prompt_renderer: &'a dyn a4n_prompt::rendering::PromptRenderer,
+        progress: &'a (
+                dyn for<'b> Fn(u32, u32, &'b str) -> Result<(), a4n_error::AppError> + Send + Sync
+            ),
+        active_task_id: Option<&'a str>,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<
+                    Output = Result<
+                        a4n_api_contract::import_reverse::ReverseEngineeringCandidate,
+                        a4n_error::AppError,
+                    >,
+                > + Send
+                + 'a,
+        >,
+    >;
+
+    async fn latest(
+        &self,
+        project_id: i64,
+        target: a4n_api_contract::import_reverse::ReverseEngineeringTarget,
+    ) -> Result<
+        Option<a4n_api_contract::import_reverse::ReverseEngineeringCandidate>,
+        a4n_error::AppError,
+    >;
+
+    async fn confirm(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<a4n_api_contract::import_reverse::ReverseEngineeringCandidate, a4n_error::AppError>;
+}
+
+pub(crate) fn import_reverse_db_error(error: ImportReverseDbError) -> a4n_error::AppError {
     match error {
-        ImportReverseDbError::Database(error) => a4n_core::error::AppError::Database(error),
-        ImportReverseDbError::NotFound(message) => a4n_core::error::AppError::NotFound(message),
+        ImportReverseDbError::Database(error) => a4n_error::AppError::Database(error),
+        ImportReverseDbError::NotFound(message) => a4n_error::AppError::NotFound(message),
         ImportReverseDbError::InvalidArgument(message) => {
-            a4n_core::error::AppError::InvalidArgument(message)
+            a4n_error::AppError::InvalidArgument(message)
         }
         ImportReverseDbError::Internal(message) => {
-            a4n_core::error::AppError::Internal(anyhow::anyhow!(message))
+            a4n_error::AppError::Internal(anyhow::anyhow!(message))
         }
     }
 }

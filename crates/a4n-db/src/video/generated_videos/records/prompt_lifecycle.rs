@@ -1,4 +1,4 @@
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 

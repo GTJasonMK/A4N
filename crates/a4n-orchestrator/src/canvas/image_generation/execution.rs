@@ -1,4 +1,3 @@
-use a4n_core::error::AppError;
 use a4n_db::{
     canvas::{CanvasImageMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput},
     generation::{
@@ -6,6 +5,7 @@ use a4n_db::{
     },
 };
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
+use a4n_error::AppError;
 use a4n_image::ImageGenerationRequest;
 use serde_json::json;
 
@@ -83,6 +83,7 @@ impl OrchestratorContext {
                 .run_image_generation_validated(
                     host_port,
                     ImageGenerationExecutionInput {
+                        requested_by_user_id: input.requested_by_user_id,
                         project_id: input.project_id,
                         chapter_id: None,
                         image_type: IMAGE_TYPE_CANVAS.to_string(),
@@ -145,7 +146,7 @@ impl OrchestratorContext {
         &self,
         input: &CanvasImageNodeExecutionInput<'_>,
         image_input: &super::contracts::CanvasImageNodeInput,
-    ) -> Result<Option<a4n_core::models::generation::generation_spec::Model>, AppError> {
+    ) -> Result<Option<a4n_db_models::models::generation::generation_spec::Model>, AppError> {
         let project = self.project_by_id(input.project_id).await?.ok_or_else(|| {
             AppError::InvalidArgument(format!("项目不存在: {}", input.project_id))
         })?;

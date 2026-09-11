@@ -3,13 +3,13 @@ use crate::actions::video_generation::media::provider_images::{
     image_file_to_provider_input, public_media_base_url,
 };
 use crate::actions::video_generation::media::types::ProviderImageInputTransport;
-use a4n_orchestrator::video::ensure_reference_image_ids_valid;
+use a4n_domain::image::validate_reference_image_id_list;
+use a4n_orchestrator::video::VideoRecordApplicationPort;
 use a4n_service_protocol::GenerationArtifactRef;
 use std::path::Path;
 
 pub(crate) async fn reference_image_provider_inputs_by_ids(
-    video: &a4n_orchestrator::OrchestratorContext,
-    collaboration: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     data_dir: &Path,
     jwt_secret: Option<&str>,
     user_id: i64,
@@ -19,13 +19,12 @@ pub(crate) async fn reference_image_provider_inputs_by_ids(
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,
 ) -> Result<Vec<String>, String> {
-    ensure_reference_image_ids_valid(&ids)?;
+    validate_reference_image_id_list(&ids)?;
     if ids.is_empty() {
         return Ok(Vec::new());
     }
     reference_image_provider_inputs_for_ids(
         video,
-        collaboration,
         data_dir,
         jwt_secret,
         user_id,
@@ -39,8 +38,7 @@ pub(crate) async fn reference_image_provider_inputs_by_ids(
 }
 
 pub(crate) async fn reference_image_provider_input_by_id(
-    video: &a4n_orchestrator::OrchestratorContext,
-    collaboration: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     data_dir: &Path,
     jwt_secret: Option<&str>,
     user_id: i64,
@@ -55,7 +53,6 @@ pub(crate) async fn reference_image_provider_input_by_id(
     };
     let mut urls = reference_image_provider_inputs_for_ids(
         video,
-        collaboration,
         data_dir,
         jwt_secret,
         user_id,
@@ -70,8 +67,7 @@ pub(crate) async fn reference_image_provider_input_by_id(
 }
 
 async fn reference_image_provider_inputs_for_ids(
-    video: &a4n_orchestrator::OrchestratorContext,
-    collaboration: &a4n_orchestrator::OrchestratorContext,
+    video: &dyn VideoRecordApplicationPort,
     data_dir: &Path,
     jwt_secret: Option<&str>,
     user_id: i64,
@@ -81,15 +77,8 @@ async fn reference_image_provider_inputs_for_ids(
     staging_artifacts: &mut Vec<GenerationArtifactRef>,
     transport: ProviderImageInputTransport,
 ) -> Result<Vec<String>, String> {
-    let images = validated_reference_images_for_ids(
-        video,
-        collaboration,
-        user_id,
-        project_id,
-        chapter_id,
-        ids,
-    )
-    .await?;
+    let images =
+        validated_reference_images_for_ids(video, user_id, project_id, chapter_id, ids).await?;
     let mut urls = Vec::with_capacity(images.len());
     let media_base_url = match transport {
         ProviderImageInputTransport::PublicUrl => Some(public_media_base_url()?),

@@ -1,12 +1,12 @@
 use super::probe::validate_provider_public_image_url;
 use crate::actions::video_generation::media::reference_images::remote_temp_upload_config;
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_api_contract::temp_media::{
     TEMP_MEDIA_MAX_TTL_SECONDS, TempMediaDeleteRequest, TempMediaUploadRequest,
     TempMediaUploadResponse,
 };
-use a4n_core::models::ai::generated_image;
-use a4n_orchestrator::video::truncate_error_body;
 use a4n_service_protocol::GenerationArtifactRef;
+use a4n_video::truncate_error_body;
 use base64::Engine as _;
 use chrono::{DateTime, Duration, Utc};
 use sha2::{Digest, Sha256};
@@ -83,7 +83,7 @@ fn remote_temp_media_delete_url(
 pub(super) async fn image_file_to_remote_temp_media_url(
     canonical_path: &Path,
     owner_user_id: i64,
-    image: &generated_image::Model,
+    image: &GeneratedImageSummary,
     mime: &str,
 ) -> Result<RemoteTempMediaUpload, String> {
     let bytes = std::fs::read(canonical_path)

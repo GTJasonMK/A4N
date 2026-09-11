@@ -2,7 +2,7 @@ use a4n_api_contract::import::{
     ImportAnalysisStageKey, ImportAnalysisStageProgress, ImportAnalysisStageStatus,
     ImportAnalysisStages, ImportAnalysisStatus, ProjectImportAnalysisProgress,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use chrono::Utc;
 
 use crate::OrchestratorContext;

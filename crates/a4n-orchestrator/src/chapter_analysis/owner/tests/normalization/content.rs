@@ -1,4 +1,4 @@
-use a4n_core::chapter_analysis::ensure_chapter_has_analysis_content;
+use a4n_chapter_analysis::ensure_chapter_has_analysis_content;
 
 #[test]
 fn chapter_analysis_requires_available_content() {

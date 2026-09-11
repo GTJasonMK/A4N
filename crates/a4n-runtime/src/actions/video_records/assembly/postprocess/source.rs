@@ -2,8 +2,8 @@ use super::super::contracts::{ApplyAssemblyPostprocessEditInput, PostprocessEdit
 use crate::AppState;
 use crate::actions::app_error_message;
 use crate::actions::video_records::imports::uploaded_video_source;
-use crate::file_utils::canonicalize_data_file_path;
-use a4n_orchestrator::video::{AssemblyPostprocessPlan, AssemblyPostprocessSourcePlan};
+use a4n_api_contract::video::{AssemblyPostprocessPlan, AssemblyPostprocessSourcePlan};
+use a4n_storage::canonicalize_data_file_path;
 use std::path::Path;
 
 pub(in crate::actions::video_records::assembly) async fn postprocess_edit_source(
@@ -15,12 +15,8 @@ pub(in crate::actions::video_records::assembly) async fn postprocess_edit_source
         || input.source_mime_type.is_some()
         || input.source_data_base64.is_some();
     match state
-        .orchestrator()
-        .prepare_assembly_postprocess_source_validated(
-            plan,
-            input.source_video_id,
-            has_uploaded_source,
-        )
+        .video_record_application()
+        .prepare_assembly_postprocess_source(plan, input.source_video_id, has_uploaded_source)
         .await
         .map_err(app_error_message)?
     {

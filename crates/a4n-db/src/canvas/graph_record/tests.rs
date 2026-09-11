@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::canvas::{canvas_edge, canvas_node};
+use a4n_db_models::models::canvas::{canvas_edge, canvas_node};
 use chrono::Utc;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QueryOrder};
 use serde_json::{Value, json};
@@ -135,6 +135,52 @@ async fn canvas_graph_save_batches_nodes_and_edges_preserving_chain_order() {
         .unwrap();
     assert_eq!(stored_nodes.len(), 20);
     assert_eq!(stored_edges.len(), 19);
+
+    let mut edit = graph_input(
+        document
+            .nodes
+            .iter()
+            .map(|node| CanvasNodeRecordInput {
+                client_id: node.id.to_string(),
+                node_kind: node.node_kind.clone(),
+                ref_type: node.ref_type.clone(),
+                ref_id: node.ref_id,
+                config_json: Some(node.config_json.clone()),
+                position_json: node.position_json.clone(),
+                state: Some(node.state.clone()),
+            })
+            .collect(),
+        document
+            .edges
+            .iter()
+            .map(|edge| CanvasEdgeRecordInput {
+                source_client_id: edge.source_node_id.to_string(),
+                target_client_id: edge.target_node_id.to_string(),
+                source_port: edge.source_port.clone(),
+                target_port: edge.target_port.clone(),
+                role: edge.role.clone(),
+                config_json: Some(edge.config_json.clone()),
+            })
+            .collect(),
+    );
+    edit.id = Some(document.graph.id);
+    edit.expected_version = Some(document.graph.version);
+    edit.nodes[7].config_json = Some(json!({"prompt": "只修改这个节点"}));
+    let changed = save_canvas_graph_record(&db, project.id, edit, Utc::now().naive_utc())
+        .await
+        .unwrap();
+    assert_eq!(
+        changed.nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
+        document.nodes.iter().map(|n| n.id).collect::<Vec<_>>()
+    );
+    assert_eq!(changed.edges, document.edges);
+    for (index, node) in changed.nodes.iter().enumerate() {
+        if index == 7 {
+            assert_eq!(node.config_json["prompt"], "只修改这个节点");
+        } else {
+            assert_eq!(node, &document.nodes[index]);
+        }
+    }
 }
 
 #[tokio::test]

@@ -1,13 +1,13 @@
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
 use crate::project::duplicate::{
     ProjectDuplicateError, freeform::FreeformGeneratedImageCopyRecords,
-    shared::ProjectMediaFileCopier,
 };
 
-pub(super) async fn copy_freeform_generated_images_record<C, Copier>(
+pub(super) async fn copy_freeform_generated_images_record<C, Copier: ?Sized>(
     db: &C,
     source_project_id: i64,
     new_project_id: i64,

@@ -2,7 +2,7 @@ use super::indexes::{
     projects_by_id, unique_invite_project_ids, unique_invite_user_ids, users_by_id,
 };
 use crate::collaboration::{CollaborationDbError, ProjectInviteSummary, parse_stored_member_role};
-use a4n_core::models::project::project_invite;
+use a4n_db_models::models::project::project_invite;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 

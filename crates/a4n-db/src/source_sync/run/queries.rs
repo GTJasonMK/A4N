@@ -1,4 +1,4 @@
-use a4n_core::models::source_sync::source_sync_run;
+use a4n_db_models::models::source_sync::source_sync_run;
 use sea_orm::{ConnectionTrait, DbErr, EntityTrait};
 
 pub async fn source_sync_run_by_id<C>(

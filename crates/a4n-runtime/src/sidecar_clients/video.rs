@@ -11,8 +11,6 @@ use crate::state::RuntimeProfile;
 #[cfg(test)]
 use a4n_capabilities::A4nCapabilities;
 #[cfg(test)]
-use a4n_core::models::ai::video_gen_config;
-#[cfg(test)]
 use a4n_service_protocol::{CapabilityTaskEvent, CapabilityTaskEventKind};
 #[cfg(test)]
 use a4n_video::{VideoGenerationRequest, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus};

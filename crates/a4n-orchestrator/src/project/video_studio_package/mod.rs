@@ -2,7 +2,8 @@
 //!
 //! Orchestrator 负责包合同与导入导出编排；Host 只执行 zip 和物理文件 IO。
 
-use a4n_core::models::{
+use a4n_db::canvas::VideoStudioProjectImportRows;
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     canvas::{canvas_edge, canvas_graph, canvas_node, canvas_text_asset},
     generation::{generation_spec, prompt_artifact},
@@ -10,7 +11,6 @@ use a4n_core::models::{
     project::novel_project,
     video_project::{assembly_clip, assembly_timeline, video_segment},
 };
-use a4n_db::canvas::VideoStudioProjectImportRows;
 use serde::{Deserialize, Serialize};
 
 use crate::project::{ImportMediaPayload, MediaFileEntry};

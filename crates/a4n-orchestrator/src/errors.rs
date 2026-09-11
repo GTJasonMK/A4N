@@ -1,8 +1,8 @@
 pub(crate) fn app_error_with_secondary(
-    error: a4n_core::error::AppError,
+    error: a4n_error::AppError,
     secondary: impl Into<String>,
-) -> a4n_core::error::AppError {
-    a4n_core::error::AppError::InvalidState {
+) -> a4n_error::AppError {
+    a4n_error::AppError::InvalidState {
         current: error.to_string(),
         operation: secondary.into(),
     }
@@ -10,9 +10,9 @@ pub(crate) fn app_error_with_secondary(
 
 pub(crate) fn project_delete_error_to_app_error(
     error: a4n_db::project_delete::ProjectDeleteDbError,
-) -> a4n_core::error::AppError {
-    use a4n_core::error::AppError;
+) -> a4n_error::AppError {
     use a4n_db::project_delete::ProjectDeleteDbError;
+    use a4n_error::AppError;
 
     match error {
         ProjectDeleteDbError::ProjectNotFound { .. } => AppError::NotFound(error.to_string()),
@@ -46,8 +46,8 @@ pub(crate) fn project_delete_error_to_app_error(
 
 pub(crate) fn project_cleanup_error_to_app_error(
     error: a4n_db::project::ProjectCleanupDbError,
-) -> a4n_core::error::AppError {
-    use a4n_core::error::AppError;
+) -> a4n_error::AppError {
+    use a4n_error::AppError;
 
     match error {
         a4n_db::project::ProjectCleanupDbError::InvalidArgument(message) => {
@@ -70,9 +70,9 @@ pub(crate) fn project_cleanup_error_to_app_error(
 
 pub(crate) fn chapter_content_edit_error_to_app_error(
     error: a4n_db::chapter_content::ChapterContentEditError,
-) -> a4n_core::error::AppError {
-    use a4n_core::error::AppError;
+) -> a4n_error::AppError {
     use a4n_db::chapter_content::ChapterContentEditError;
+    use a4n_error::AppError;
 
     match error {
         ChapterContentEditError::InvalidArgument(message) => AppError::InvalidArgument(message),
@@ -86,8 +86,8 @@ pub(crate) fn chapter_content_edit_error_to_app_error(
 
 pub(crate) fn freeform_generated_reset_error_to_app_error(
     error: a4n_db::project::FreeformGeneratedResetDbError,
-) -> a4n_core::error::AppError {
-    use a4n_core::error::AppError;
+) -> a4n_error::AppError {
+    use a4n_error::AppError;
 
     match error {
         a4n_db::project::FreeformGeneratedResetDbError::InvalidArgument(message) => {

@@ -3,8 +3,8 @@
 //! 使用 DashMap 管理任务状态，三个优先级通道（高/中/低）实现简单优先级调度。
 
 use dashmap::DashMap;
-use parking_lot::RwLock;
-use std::collections::BinaryHeap;
+use parking_lot::{Mutex, RwLock};
+use std::collections::{BinaryHeap, VecDeque};
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
@@ -21,9 +21,12 @@ use super::priority::{QueueSlotStats, QueueStats, TaskInfo, TaskProgress, TaskSt
 use kind::QueueKind;
 use waiting::WaitingTask;
 
+const MAX_TERMINAL_TASKS: usize = 1024;
+
 /// 内存任务队列
 ///
 /// 支持高/中/低三级优先级调度、并发信号量控制和取消令牌。
+#[derive(Clone)]
 pub struct MemoryTaskQueue {
     /// 所有任务信息
     tasks: Arc<DashMap<String, TaskInfo>>,
@@ -42,6 +45,8 @@ pub struct MemoryTaskQueue {
     max_background_concurrent: usize,
     /// 取消令牌（task_id → token）
     cancel_tokens: Arc<DashMap<String, CancellationToken>>,
+    /// The database owns history; retain only recent terminal identities for idempotency.
+    terminal_tasks: Arc<Mutex<VecDeque<String>>>,
 }
 
 impl MemoryTaskQueue {
@@ -67,6 +72,7 @@ impl MemoryTaskQueue {
             max_embedding_concurrent,
             max_background_concurrent,
             cancel_tokens: Arc::new(DashMap::new()),
+            terminal_tasks: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
@@ -81,9 +87,9 @@ impl MemoryTaskQueue {
     }
 
     /// 将数据库已经分配 id 的 pending task 登记到同一内存队列。
-    pub fn submit_persisted(&self, task: TaskInfo) -> Result<(), a4n_core::error::AppError> {
+    pub fn submit_persisted(&self, task: TaskInfo) -> Result<(), a4n_error::AppError> {
         if !matches!(&task.status, TaskStatus::Pending) {
-            return Err(a4n_core::error::AppError::InvalidState {
+            return Err(a4n_error::AppError::InvalidState {
                 current: task.status.as_str().to_string(),
                 operation: "登记持久化任务到内存队列".to_string(),
             });
@@ -100,7 +106,7 @@ impl MemoryTaskQueue {
             return if same_identity {
                 Ok(())
             } else {
-                Err(a4n_core::error::AppError::InvalidState {
+                Err(a4n_error::AppError::InvalidState {
                     current: format!("task {} 已以其他队列元数据登记", task.id),
                     operation: "重复登记持久化任务".to_string(),
                 })
@@ -155,6 +161,7 @@ impl MemoryTaskQueue {
     /// 更新任务状态
     fn update_status(&self, task_id: &str, status: TaskStatus, progress: Option<TaskProgress>) {
         if let Some(mut task) = self.tasks.get_mut(task_id) {
+            let became_terminal = is_terminal_status(&status) && !is_terminal_status(&task.status);
             let now = chrono::Utc::now().naive_utc();
             if matches!(status, TaskStatus::Running) && task.started_at.is_none() {
                 task.started_at = Some(now);
@@ -163,6 +170,21 @@ impl MemoryTaskQueue {
             }
             task.status = status;
             task.progress = progress;
+            drop(task);
+            if became_terminal {
+                self.retain_terminal_task(task_id);
+            }
+        }
+    }
+
+    fn retain_terminal_task(&self, task_id: &str) {
+        let mut terminal_tasks = self.terminal_tasks.lock();
+        terminal_tasks.push_back(task_id.to_string());
+        while terminal_tasks.len() > MAX_TERMINAL_TASKS {
+            if let Some(expired_id) = terminal_tasks.pop_front() {
+                self.tasks.remove(&expired_id);
+                self.cancel_tokens.remove(&expired_id);
+            }
         }
     }
 }

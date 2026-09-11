@@ -16,6 +16,7 @@ use crate::generation::{
         provider_usage, publish_generation_usage,
     },
 };
+use crate::optimize::runtime_tools::accounting::record_model_execution;
 
 pub(super) async fn execute_agent_loop_decision_call(
     context: &OrchestratorContext,
@@ -25,7 +26,9 @@ pub(super) async fn execute_agent_loop_decision_call(
     chat_request: ChatRequest,
     call_key: &str,
     input_fingerprint_json: &Value,
+    execution: Option<a4n_db_models::models::agent::execution::Model>,
 ) -> Result<AgentDecisionCallResult, AgentLoopExecutionError> {
+    let generation = request.generation;
     if let Some(checkpoint) = context
         .load_completed_llm_call_checkpoint(
             request.workflow_run_id,
@@ -41,7 +44,16 @@ pub(super) async fn execute_agent_loop_decision_call(
             checkpoint.finish_reason,
             call_key,
         )?;
-        let generation = request.generation;
+        if let Some(execution) = &execution
+            && (execution.status != "succeeded"
+                || execution.result_json.as_ref()
+                    != Some(&serde_json::to_value(&response).map_err(AppError::from)?))
+        {
+            return Err(AppError::InvalidArgument(
+                "内容优化 checkpoint 与 Agent 模型计费回执不一致".into(),
+            )
+            .into());
+        }
         let usage_base = generation.session.snapshot().usage.clone();
         generation
             .publisher
@@ -74,9 +86,58 @@ pub(super) async fn execute_agent_loop_decision_call(
         });
     }
 
-    let generation = request.generation;
+    if let Some(execution) = &execution {
+        if execution.status == "succeeded" {
+            let response: ChatResponse = serde_json::from_value(
+                execution
+                    .result_json
+                    .clone()
+                    .ok_or_else(|| AppError::InvalidArgument("内容优化模型缺少持久回执".into()))?,
+            )
+            .map_err(AppError::from)?;
+            let decision = parse_agent_loop_decision(
+                context,
+                turn_id,
+                session_id,
+                request,
+                &response.message.content,
+            )
+            .await?;
+            generation
+                .publisher
+                .text_delta("raw_json", &response.message.content)
+                .await
+                .map_err(|error| {
+                    AgentLoopExecutionError::Generation(generation_public_error(
+                        error.code(),
+                        "checkpoint",
+                        error,
+                    ))
+                })?;
+            if let Some(usage) = response.usage.clone() {
+                publish_generation_usage(
+                    generation.publisher,
+                    &generation_usage(usage)?,
+                    generation.session.snapshot().usage.as_ref(),
+                )
+                .await?;
+            }
+            return Ok(AgentDecisionCallResult {
+                response,
+                decision,
+                restored: false,
+            });
+        }
+        if execution.status != "prepared" {
+            return Err(AppError::InvalidArgument(
+                "上次内容优化模型调用结果不明，禁止重复消耗预算".into(),
+            )
+            .into());
+        }
+    }
+    record_model_execution(context, generation, execution.as_ref(), None, None).await?;
     let usage_base = generation.session.snapshot().usage.clone();
-    let output = execute_llm_generation(
+    let output = match execute_llm_generation(
         context.llm_backend(),
         generation.publisher,
         LlmGenerationRequest {
@@ -96,12 +157,51 @@ pub(super) async fn execute_agent_loop_decision_call(
             usage_base,
         },
     )
-    .await?;
+    .await
+    {
+        Ok(output) => output,
+        Err(error) => {
+            record_model_execution(
+                context,
+                generation,
+                execution.as_ref(),
+                None,
+                Some(format!("{}: {}", error.code, error.message)),
+            )
+            .await?;
+            return Err(error.into());
+        }
+    };
     let response = ChatResponse {
         message: ChatMessage::assistant(output.content),
         usage: output.usage.as_ref().map(provider_usage).transpose()?,
         finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
     };
+    let missing_usage = if let Some(execution) = &execution {
+        response.usage.is_none()
+            && context
+                .agent()
+                .run_budget_snapshot(execution.run_id)
+                .await?
+                .remaining
+                .max_tokens
+                .is_some()
+    } else {
+        false
+    };
+    record_model_execution(
+        context,
+        generation,
+        execution.as_ref(),
+        Some(serde_json::to_value(&response).map_err(AppError::from)?),
+        missing_usage.then(|| "模型缺少 usage，无法核实 Agent token 预算".into()),
+    )
+    .await?;
+    if missing_usage {
+        return Err(
+            AppError::InvalidArgument("模型缺少 usage，无法核实 Agent token 预算".into()).into(),
+        );
+    }
     let decision = parse_agent_loop_decision(
         context,
         turn_id,

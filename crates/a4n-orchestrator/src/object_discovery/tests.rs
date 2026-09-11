@@ -1,9 +1,7 @@
 use std::collections::BTreeSet;
 
-use a4n_core::{
-    models::{chapter::chapter, project::text_anchor},
-    source_spans::source_spans_for_chapters,
-};
+use a4n_db_models::models::{chapter::chapter, project::text_anchor};
+use a4n_domain::source_spans::source_spans_for_chapters;
 use serde_json::{Value, json};
 
 use super::{

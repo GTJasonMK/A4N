@@ -1,5 +1,9 @@
-use a4n_api_contract::{error::ApiErrorResponse, generation_tasks::HostErrorResponse};
-use a4n_core::error::AppError;
+use a4n_api_contract::{
+    error::ApiErrorResponse,
+    generation_tasks::HostErrorResponse,
+    package::{PackageCommandAvailability, PackageReasonCode},
+};
+use a4n_error::AppError;
 use a4n_service_protocol::GenerationErrorCode;
 use axum::Json;
 use axum::http::StatusCode;
@@ -23,10 +27,48 @@ pub struct GenerationApiError {
     body: HostErrorResponse,
 }
 
+fn package_unavailable_parts(
+    availability: &PackageCommandAvailability,
+) -> (String, bool, Map<String, Value>) {
+    let retryable = matches!(
+        availability.reason_code,
+        PackageReasonCode::Disabling
+            | PackageReasonCode::OperationInProgress
+            | PackageReasonCode::CapabilityUnavailable
+    );
+    let message = format!(
+        "功能包 {} 当前不可用: {}",
+        availability.package_id.as_str(),
+        availability.reason_code.as_str()
+    );
+    let mut details = Map::new();
+    details.insert(
+        "command".to_string(),
+        Value::String(availability.command.clone()),
+    );
+    details.insert(
+        "package_id".to_string(),
+        Value::String(availability.package_id.as_str().to_string()),
+    );
+    details.insert(
+        "category".to_string(),
+        Value::String(availability.category.as_str().to_string()),
+    );
+    details.insert(
+        "reason_code".to_string(),
+        Value::String(availability.reason_code.as_str().to_string()),
+    );
+    details.insert(
+        "status_version".to_string(),
+        Value::from(availability.status_version),
+    );
+    (message, retryable, details)
+}
+
 impl GenerationApiError {
     pub fn new(
         status: StatusCode,
-        code: &'static str,
+        code: impl AsRef<str>,
         message: impl Into<String>,
         retryable: bool,
     ) -> Self {
@@ -43,36 +85,48 @@ impl GenerationApiError {
         }
     }
 
-    pub fn bad_request(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn bad_request(code: impl AsRef<str>, message: impl Into<String>) -> Self {
         Self::new(StatusCode::BAD_REQUEST, code, message, false)
     }
 
-    pub fn unauthorized(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn unauthorized(code: impl AsRef<str>, message: impl Into<String>) -> Self {
         Self::new(StatusCode::UNAUTHORIZED, code, message, false)
     }
 
-    pub fn forbidden(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn forbidden(code: impl AsRef<str>, message: impl Into<String>) -> Self {
         Self::new(StatusCode::FORBIDDEN, code, message, false)
     }
 
-    pub fn not_found(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn not_found(code: impl AsRef<str>, message: impl Into<String>) -> Self {
         Self::new(StatusCode::NOT_FOUND, code, message, false)
     }
 
-    pub fn conflict(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn conflict(code: impl AsRef<str>, message: impl Into<String>) -> Self {
         Self::new(StatusCode::CONFLICT, code, message, false)
     }
 
-    pub fn gone(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn gone(code: impl AsRef<str>, message: impl Into<String>) -> Self {
         Self::new(StatusCode::GONE, code, message, false)
     }
 
-    pub fn payload_too_large(code: &'static str, message: impl Into<String>) -> Self {
+    pub fn payload_too_large(code: impl AsRef<str>, message: impl Into<String>) -> Self {
         Self::new(StatusCode::PAYLOAD_TOO_LARGE, code, message, false)
     }
 
-    pub fn internal(code: &'static str, message: impl Into<String>, retryable: bool) -> Self {
+    pub fn internal(code: impl AsRef<str>, message: impl Into<String>, retryable: bool) -> Self {
         Self::new(StatusCode::INTERNAL_SERVER_ERROR, code, message, retryable)
+    }
+
+    pub fn package_unavailable(availability: PackageCommandAvailability) -> Self {
+        let (message, retryable, details) = package_unavailable_parts(&availability);
+        let mut body = Self::new(
+            StatusCode::CONFLICT,
+            "package_unavailable",
+            message,
+            retryable,
+        );
+        body.body.details = details;
+        body
     }
 
     pub(crate) fn into_body(self) -> HostErrorResponse {
@@ -129,6 +183,28 @@ impl ApiError {
             retryable: false,
             details: Map::new(),
         }
+    }
+
+    pub fn package_unavailable(availability: PackageCommandAvailability) -> Self {
+        let (message, retryable, details) = package_unavailable_parts(&availability);
+        Self {
+            status: StatusCode::CONFLICT,
+            code: "package_unavailable",
+            message,
+            retryable,
+            details,
+        }
+    }
+
+    pub fn into_value(self) -> Value {
+        serde_json::to_value(ApiErrorResponse {
+            code: self.code.to_string(),
+            message: self.message,
+            retryable: self.retryable,
+            trace_id: None,
+            details: self.details,
+        })
+        .expect("API error response must serialize")
     }
 }
 

@@ -2,8 +2,7 @@ use axum::http::HeaderMap;
 use serde_json::{Value, json};
 
 use super::super::{
-    ApiError, ServerState, auth_records_actions, command_input, issue_auth_response, oauth_actions,
-    to_value, user_agent,
+    ApiError, ServerState, auth_records_actions, command_input, oauth_actions, to_value, user_agent,
 };
 
 pub(in crate::routes::commands) async fn login_user(
@@ -52,9 +51,14 @@ pub(in crate::routes::commands) async fn oauth2_callback(
     args: &Value,
 ) -> Result<Value, ApiError> {
     let input: oauth_actions::OAuth2CallbackInput = command_input(args, "oauth2_callback")?;
-    let user = auth_records_actions::oauth2_callback_user(state.runtime(), input).await?;
-    let response = issue_auth_response(state, headers, user).await?;
-    to_value(response)
+    to_value(
+        auth_records_actions::oauth2_callback_login(
+            state.runtime(),
+            input,
+            user_agent(headers).as_deref(),
+        )
+        .await?,
+    )
 }
 
 pub(in crate::routes::commands) async fn get_current_user(

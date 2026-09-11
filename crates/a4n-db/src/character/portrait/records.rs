@@ -1,5 +1,6 @@
-use super::{CharacterPortraitCreateInput, CharacterPortraitRecordError};
-use a4n_core::models::character::{character_portrait, protagonist_profile};
+use super::CharacterPortraitRecordError;
+use a4n_db_models::models::character::{character_portrait, protagonist_profile};
+use a4n_domain::character::CharacterPortraitCreateInput;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, PaginatorTrait, QueryFilter,
     QuerySelect, Set, TransactionTrait,

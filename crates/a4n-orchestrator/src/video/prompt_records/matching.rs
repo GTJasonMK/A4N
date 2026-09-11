@@ -2,7 +2,7 @@ mod assets;
 mod context;
 
 #[cfg(test)]
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 #[cfg(test)]
 use serde_json::Value;
 
@@ -12,7 +12,7 @@ use crate::video::{
     FIRST_FRAME_CHAIN_CONTRACT_VERSION, FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
 };
 #[cfg(test)]
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 #[cfg(test)]
 use super::contracts::{PromptGenerationContext, PromptGenerationContextForWorkflow};

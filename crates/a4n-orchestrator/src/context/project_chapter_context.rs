@@ -1,10 +1,6 @@
-use a4n_core::{
-    error::AppError,
-    models::{
-        asset::object_profile,
-        character::{character_state_index, foreshadowing_index, protagonist_profile},
-        scene::scene_profile,
-    },
+use a4n_api_contract::profile::{
+    CreateForeshadowingInput, DeleteForeshadowingInput, ForeshadowingSummary,
+    ForeshadowingWriteResult, UpdateForeshadowingInput,
 };
 use a4n_db::{
     DbHandle,
@@ -13,8 +9,16 @@ use a4n_db::{
         ForeshadowingAnalysisSyncResult,
     },
 };
+use a4n_db_models::models::{
+    asset::object_profile,
+    character::{character_state_index, foreshadowing_index, protagonist_profile},
+    scene::scene_profile,
+};
+use a4n_domain::character::ForeshadowingStatus;
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
+use crate::collaboration::ProjectAccessRole;
 use crate::project::{
     foreshadowing_db_error_to_app_error, project_chapter_context_error_to_app_error,
 };
@@ -289,5 +293,139 @@ impl OrchestratorContext {
         self.project_chapter_context
             .snapshot_profile_ids_for_chapter(profile_ids, chapter_number)
             .await
+    }
+}
+
+fn foreshadowing_summary(
+    record: &foreshadowing_index::Model,
+) -> Result<ForeshadowingSummary, AppError> {
+    Ok(ForeshadowingSummary {
+        id: record.id,
+        project_id: record.project_id,
+        description: record.description.clone(),
+        setup_chapter: record.setup_chapter,
+        payoff_chapter: record.payoff_chapter,
+        status: ForeshadowingStatus::parse(&record.status).ok_or_else(|| {
+            AppError::InvalidArgument(format!("伏笔 #{} 状态非法：{}", record.id, record.status))
+        })?,
+        related_characters: record
+            .related_characters
+            .as_ref()
+            .map_or_else(
+                || Ok(Vec::new()),
+                |value| serde_json::from_value::<Vec<String>>(value.clone()),
+            )
+            .map_err(|error| {
+                AppError::InvalidArgument(format!("伏笔 #{} 关联角色格式非法：{error}", record.id))
+            })?,
+        importance: record.importance,
+        created_at: record.created_at.to_string(),
+        updated_at: record.updated_at.to_string(),
+    })
+}
+
+async fn foreshadowing_rag_warning(
+    context: &OrchestratorContext,
+    record: &foreshadowing_index::Model,
+) -> Vec<String> {
+    match context
+        .sync_foreshadowing_rag(record.project_id, record)
+        .await
+    {
+        Ok(()) => Vec::new(),
+        Err(error) => {
+            tracing::warn!(
+                project_id = record.project_id,
+                foreshadowing_id = record.id,
+                error = %error,
+                "伏笔已保存，但 RAG 索引失败"
+            );
+            vec!["伏笔已保存，但检索索引更新失败，可稍后重试".to_string()]
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::profile::ForeshadowingApplicationPort for OrchestratorContext {
+    async fn list(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ForeshadowingSummary>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        self.foreshadowing_records_by_project(project_id)
+            .await?
+            .iter()
+            .map(foreshadowing_summary)
+            .collect()
+    }
+
+    async fn create(
+        &self,
+        user_id: i64,
+        input: CreateForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let record = self
+            .create_foreshadowing_record(input.project_id, input.record)
+            .await?;
+        Ok(ForeshadowingWriteResult {
+            warnings: foreshadowing_rag_warning(self, &record).await,
+        })
+    }
+
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let record = self
+            .update_foreshadowing_record(
+                input.project_id,
+                input.foreshadowing_id,
+                &input.expected_updated_at,
+                input.record,
+            )
+            .await?;
+        Ok(ForeshadowingWriteResult {
+            warnings: foreshadowing_rag_warning(self, &record).await,
+        })
+    }
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteForeshadowingInput,
+    ) -> Result<ForeshadowingWriteResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        let project_id = input.project_id;
+        let deleted = self
+            .delete_foreshadowing_record(
+                project_id,
+                input.foreshadowing_id,
+                &input.expected_updated_at,
+            )
+            .await?;
+        let warnings = match self
+            .delete_foreshadowing_rag_by_ids(project_id, &[deleted.id])
+            .await
+        {
+            Ok(_) => Vec::new(),
+            Err(error) => {
+                tracing::warn!(
+                    project_id,
+                    foreshadowing_id = deleted.id,
+                    error = %error,
+                    "伏笔已删除，但 RAG 清理失败"
+                );
+                vec!["伏笔已删除，但检索索引清理失败，可稍后重试".to_string()]
+            }
+        };
+        Ok(ForeshadowingWriteResult { warnings })
     }
 }

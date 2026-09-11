@@ -1,11 +1,11 @@
 use crate::provider::ChatMessage;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::super::super::contracts::{
     COMPRESSION_FULL_RAW, LlmContextPackRef, LlmContextPackRequirement,
 };
 use super::super::super::super::planner::estimate_context_tokens;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 
 pub(super) fn system_prompt_requirement(
     system_messages: &[ChatMessage],

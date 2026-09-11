@@ -1,7 +1,7 @@
 use a4n_prompt::rendering::PromptRenderer;
 
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
-use a4n_core::source_spans::{SourceSpan, source_span_prompt_values};
+use a4n_domain::source_spans::{SourceSpan, source_span_prompt_values};
+use a4n_domain::source_text_hash as source_content_sha256;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::context::{
     COMPRESSION_COMPRESSED_SCENE, COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW,

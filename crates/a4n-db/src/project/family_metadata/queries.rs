@@ -4,7 +4,7 @@ use super::contracts::{
     ProjectFamilyRootRow, ProjectFamilySnapshotRow,
 };
 use super::projection::build_project_family_metadata;
-use a4n_core::models::project::{novel_project, project_source_snapshot};
+use a4n_db_models::models::project::{novel_project, project_source_snapshot};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 

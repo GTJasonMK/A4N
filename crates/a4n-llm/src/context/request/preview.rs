@@ -6,7 +6,7 @@ use super::super::manifest::{render_context_manifest_user_content, validate_cont
 use super::super::planner::{ContextBudgetPlanner, estimate_context_tokens};
 use super::replace_request_user_content_from_manifest;
 use crate::provider::{ChatRequest, MessageRole};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use hydration::hydrate_selected_pack_content;
 use requirements::preview_requirement_inputs;
 

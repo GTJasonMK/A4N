@@ -1,7 +1,5 @@
-use a4n_core::{
-    models::chapter::{chapter_outline, part_outline},
-    rag::RagDataType,
-};
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_domain::rag::RagDataType;
 use a4n_orchestrator::rag::{outline_rag_record, part_outline_rag_record};
 use chrono::{NaiveDate, NaiveDateTime};
 use serde_json::json;

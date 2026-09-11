@@ -1,16 +1,15 @@
 use super::steps::{chat_preview_step, portrait_preview, provider_preview_step};
 use crate::{
     actions::{
-        access, image_generation::resolve_image_config,
-        portrait_records::portrait_project_id_for_user, request_preview::ModelRequestPreview,
+        access, image_generation::resolve_image_config, request_preview::ModelRequestPreview,
     },
     state::AppState,
 };
-use a4n_orchestrator::portrait::{
+use a4n_api_contract::portrait::{
     GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
-    GeneratePortraitPromptInput, RegeneratePortraitInput, profile_portrait_seed_prompt,
-    validate_reference_image_ids,
+    GeneratePortraitPromptInput, PortraitSummary, RegeneratePortraitInput,
 };
+use a4n_domain::image::validate_reference_image_ids;
 use a4n_prompt::variables::parse_template_variables;
 
 use super::super::host_port::{
@@ -26,12 +25,8 @@ pub async fn preview_generate_portrait_prompt_request(
     let variables = parse_template_variables(input.variables.as_ref())?;
     let prompt_renderer = state;
     let request = state
-        .orchestrator()
-        .prepare_generate_portrait_prompt_request_preview_validated(
-            &input,
-            prompt_renderer,
-            &variables,
-        )
+        .portrait_generation_application()
+        .prepare_portrait_prompt_request(&input, prompt_renderer, &variables)
         .await
         .map_err(|error| error.to_string())?;
     portrait_preview(
@@ -59,8 +54,8 @@ pub async fn preview_generate_portrait_request(
     validate_reference_image_ids(&input.reference_image_ids)?;
     let prompt_renderer = state;
     let request = state
-        .orchestrator()
-        .prepare_generate_portrait_request_preview_validated(&input, prompt_renderer)
+        .portrait_generation_application()
+        .prepare_portrait_request(&input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;
     portrait_preview(
@@ -84,10 +79,10 @@ pub async fn preview_regenerate_portrait_request(
     user_id: i64,
     input: RegeneratePortraitInput,
 ) -> Result<ModelRequestPreview, String> {
-    portrait_project_id_for_user(state, user_id, input.portrait_id).await?;
-    let existing = required_portrait(state, input.portrait_id).await?;
+    let existing = required_portrait(state, user_id, input.portrait_id).await?;
     let context = build_portrait_image_request_preview(
         state,
+        user_id,
         existing.project_id,
         &existing.prompt,
         input.width,
@@ -117,11 +112,11 @@ pub async fn preview_generate_age_variant_request(
     user_id: i64,
     input: GenerateAgeVariantInput,
 ) -> Result<ModelRequestPreview, String> {
-    portrait_project_id_for_user(state, user_id, input.portrait_id).await?;
-    let existing = required_portrait(state, input.portrait_id).await?;
+    let existing = required_portrait(state, user_id, input.portrait_id).await?;
     let prompt = format!("{}，age: {}", existing.prompt, input.age);
     let context = build_portrait_image_request_preview(
         state,
+        user_id,
         existing.project_id,
         &prompt,
         input.width,
@@ -153,16 +148,17 @@ pub async fn preview_generate_missing_portraits_request(
 ) -> Result<ModelRequestPreview, String> {
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let missing_profiles = state
-        .orchestrator()
-        .missing_portrait_profiles(input.project_id)
+        .portrait_record_application()
+        .missing_generation_seeds(user_id, input.project_id)
         .await
         .map_err(|error| error.to_string())?;
     let config = resolve_image_config(state, None).await?;
     let mut steps = Vec::with_capacity(missing_profiles.len());
     for (index, profile) in missing_profiles.iter().enumerate() {
-        let prompt = profile_portrait_seed_prompt(profile)?;
+        let prompt = &profile.prompt;
         let context = build_portrait_image_request_preview_with_config(
             state,
+            user_id,
             input.project_id,
             &prompt,
             input.width,
@@ -176,7 +172,10 @@ pub async fn preview_generate_missing_portraits_request(
                 state,
                 input.project_id,
                 &format!("missing_portrait_{}", index + 1),
-                &format!("补齐角色「{}」人物三视图拆解 provider 请求", profile.name),
+                &format!(
+                    "补齐角色「{}」人物三视图拆解 provider 请求",
+                    profile.profile_name
+                ),
                 &context.config,
                 context.request,
             )
@@ -192,11 +191,12 @@ pub async fn preview_generate_missing_portraits_request(
 
 async fn required_portrait(
     state: &AppState,
+    user_id: i64,
     portrait_id: i64,
-) -> Result<a4n_core::models::character::character_portrait::Model, String> {
+) -> Result<PortraitSummary, String> {
     state
-        .orchestrator()
-        .character_portrait_by_id(portrait_id)
+        .portrait_record_application()
+        .by_id(user_id, portrait_id)
         .await
         .map_err(|error| error.to_string())?
         .ok_or_else(|| "立绘不存在".to_string())

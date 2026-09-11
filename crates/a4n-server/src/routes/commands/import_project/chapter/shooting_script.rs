@@ -4,7 +4,7 @@ use crate::routes::commands::{
     web_progress_reporter, web_stream_reporter,
 };
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskKind;
+use a4n_domain::task_queue::TaskKind;
 use a4n_runtime::host_api::shooting_script_records as shooting_script_records_actions;
 use serde_json::{Value, json};
 

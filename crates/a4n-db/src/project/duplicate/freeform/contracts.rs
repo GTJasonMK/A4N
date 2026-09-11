@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 
 #[derive(Debug, Clone, Default)]
 pub(in crate::project::duplicate::freeform) struct FreeformGeneratedImageCopyRecords {

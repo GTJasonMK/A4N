@@ -1,4 +1,4 @@
-use a4n_core::models::galgame::{galgame_choice, galgame_line};
+use a4n_db_models::models::galgame::{galgame_choice, galgame_line};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::source_sync::galgame::{

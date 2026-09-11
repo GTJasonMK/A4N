@@ -1,5 +1,5 @@
 use crate::galgame::{GalgameGenerationRecordError, validate_galgame_generation_id};
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use sea_orm::{DatabaseConnection, EntityTrait};
 
 pub async fn galgame_generated_image_by_id(

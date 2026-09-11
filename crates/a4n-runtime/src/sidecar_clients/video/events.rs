@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use a4n_core::models::ai::video_gen_config;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult};
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -13,7 +13,7 @@ use super::contracts::{VideoGenerationOutput, video_generation_result, video_pro
 
 pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
     client: Arc<dyn a4n_capabilities::VideoClient>,
-    config: &video_gen_config::Model,
+    config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,
     project_id: Option<i64>,

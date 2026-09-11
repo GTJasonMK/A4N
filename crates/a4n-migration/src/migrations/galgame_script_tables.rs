@@ -1,6 +1,6 @@
 //! Galgame script tables.
 
-use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script};
+use a4n_db_models::models::galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script};
 use sea_orm::{DbBackend, EntityName, Schema};
 use sea_orm_migration::prelude::*;
 

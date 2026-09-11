@@ -1,4 +1,4 @@
-use a4n_core::models::character::{character_state_index, protagonist_profile};
+use a4n_db_models::models::character::{character_state_index, protagonist_profile};
 
 use super::super::shared::truncate_chars;
 use crate::chapter_generation::non_empty_trimmed;

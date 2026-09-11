@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::{GeneratedChapterMetadata, normalize_generated_chapter_response};
 

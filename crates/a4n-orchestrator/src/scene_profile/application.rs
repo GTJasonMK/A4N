@@ -8,7 +8,7 @@ mod stages;
 mod types;
 mod workflow;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use async_trait::async_trait;
 
 pub use progress::{SCENE_PROFILE_SYNC_PROGRESS_TOTAL, SceneProfileSyncProgress};

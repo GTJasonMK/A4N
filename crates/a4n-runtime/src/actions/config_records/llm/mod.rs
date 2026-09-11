@@ -16,8 +16,6 @@ pub use records::{
 #[cfg(test)]
 use super::shared::validate_runtime_snapshot_config_id;
 #[cfg(test)]
-use a4n_core::models::ai::llm_config;
-#[cfg(test)]
 use connectivity::{
     validate_llm_connection_test_max_tokens, validate_llm_runtime_snapshot_config_id,
 };

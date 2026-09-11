@@ -1,12 +1,12 @@
-use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingProvider;
+use a4n_error::AppError;
 use a4n_rag_core::{
     errors::embedding_provider_error,
     validation::{required_chunk_id, required_content, validate_embedding_batch},
     vector_store::VectorStore,
 };
 
-use super::contracts::RagEmbeddingInput;
+use super::RagEmbeddingInput;
 use super::records::{embedding_record, store_rag_embedding_records};
 
 pub(crate) async fn embed_and_store_rag_record_in_store(

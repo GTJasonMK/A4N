@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub fn oauth_token_error(provider: &str, body: &serde_json::Value) -> AppError {
     if let Some(error) = body["error_description"]

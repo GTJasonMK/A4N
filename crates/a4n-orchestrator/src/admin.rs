@@ -1,11 +1,7 @@
-use a4n_core::error::AppError;
-use a4n_core::models::user::role::{UserRole, parse_user_role};
+use a4n_db_models::models::user::role::{UserRole, parse_user_role};
+use a4n_error::AppError;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AdminPermission {
-    ManageUsers,
-    ManageSettings,
-}
+pub use a4n_api_contract::admin::AdminPermission;
 
 pub(crate) fn require_admin_role(role: &str, permission: AdminPermission) -> Result<(), AppError> {
     let role = parse_user_role(role)?;

@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 
 fn select_sample_indices(total: usize, limit: usize) -> BTreeSet<usize> {
     let mut indices = BTreeSet::new();

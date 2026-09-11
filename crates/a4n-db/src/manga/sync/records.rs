@@ -1,5 +1,5 @@
-use crate::manga::MangaPagePromptSyncDraft;
-use a4n_core::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_db_models::models::chapter::chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE};
+use a4n_domain::manga::MangaPagePromptSyncDraft;
 use sea_orm::Set;
 
 pub(super) fn manga_prompt_active_model(

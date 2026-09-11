@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::{MemoryTaskQueue, waiting};
 use crate::queue::priority::TaskStatus;

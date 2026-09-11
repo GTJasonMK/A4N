@@ -3,7 +3,7 @@ use super::merge::merge_missing_seed_attributes;
 use crate::character::{
     apply_profile_current_state, profile_by_project_name, profile_current_state_fields,
 };
-use a4n_core::models::{character::protagonist_profile, project::blueprint_character};
+use a4n_db_models::models::{character::protagonist_profile, project::blueprint_character};
 use chrono::NaiveDateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set, TryInsertResult,

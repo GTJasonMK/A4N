@@ -1,19 +1,17 @@
-use a4n_core::{
-    error::AppError,
-    models::{
-        chapter::chapter,
-        generation::{workflow_checkpoint, workflow_run},
-    },
-    source_spans::source_text_hash,
-};
 use a4n_db::workflow::{
     UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
     WORKFLOW_STATUS_RUNNING,
 };
+use a4n_db_models::models::{
+    chapter::chapter,
+    generation::{workflow_checkpoint, workflow_run},
+};
+use a4n_domain::{project::ChapterDerivedCleanupArtifacts, source_text_hash};
+use a4n_error::AppError;
 use serde_json::{Value, json};
 use uuid::Uuid;
 
-use crate::{OrchestratorContext, project::ChapterDerivedCleanupArtifacts};
+use crate::OrchestratorContext;
 
 use super::ChapterDerivedCleanupHostPort;
 
@@ -293,7 +291,9 @@ impl OrchestratorContext {
         if !content_sync_phase_completed(run, &checkpoints, CHAPTER_CONTENT_SYNC_RAG_STEP)? {
             self.mark_workflow_current_step(run.id, CHAPTER_CONTENT_SYNC_RAG_STEP)
                 .await?;
-            host_port.sync_chapter_rag_records(&chapter, run.id).await?;
+            host_port
+                .sync_chapter_rag_records(chapter.project_id, chapter.id, run.id)
+                .await?;
             self.require_current_chapter_content_sync_run(run).await?;
             self.upsert_workflow_checkpoint(chapter_content_sync_completed_checkpoint_input(
                 run,

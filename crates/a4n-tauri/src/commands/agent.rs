@@ -152,7 +152,6 @@ pub async fn invoke_agent_command(
         "search_agent_tools" => {
             let input = decode::<SearchAgentToolsInput>(args)?;
             agent_actions::search_tools(&state, input)
-                .await
                 .map_err(|error| error.to_string())
                 .and_then(encode)
         }

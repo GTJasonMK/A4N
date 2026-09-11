@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::optimization_session;
 use a4n_db::workflow;
+use a4n_db_models::models::ai::optimization_session;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatMessage, ChatResponse};
 use serde_json::{Value, json};
 
@@ -16,7 +16,6 @@ use super::messages::{
     materialize_optimization_issue_evidence, parse_content_optimization_issues,
     parse_optimization_issues,
 };
-use super::runtime_tools::{execute_optimization_runtime_tool, runtime_tool_reads_current_chapter};
 use super::turns::{
     EVENT_KIND_ASSISTANT_UPDATE, EVENT_KIND_ERROR, EVENT_KIND_TOOL_CALL, EVENT_KIND_TOOL_RESULT,
     EVENT_STATUS_COMPLETED, EVENT_STATUS_FAILED, EVENT_STATUS_RUNNING,

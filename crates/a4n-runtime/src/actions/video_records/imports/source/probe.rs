@@ -1,6 +1,6 @@
 use super::super::contracts::ImportedVideoSource;
 use crate::actions::video_records::probe_video_properties;
-use a4n_orchestrator::video::ImportedVideoProperties;
+use a4n_video_contract::ImportedVideoProperties;
 
 pub(in crate::actions::video_records) fn probe_imported_video_properties(
     source: &ImportedVideoSource,

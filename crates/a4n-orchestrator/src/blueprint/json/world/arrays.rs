@@ -1,5 +1,5 @@
 use super::super::fields::{reject_unknown_keys, required_array, required_non_empty_value};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(super) fn validate_object_array(

@@ -6,7 +6,10 @@
 //! permissions, projects, providers, or sidecar transport. Import/export cores
 //! compose these invariants into their direction-specific workflows.
 
+use std::collections::HashSet;
+use std::io::{Cursor, Write};
 use std::path::{Component, Path};
+use zip::ZipWriter;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ArchivePathError {
@@ -61,6 +64,76 @@ pub fn validate_zip_entry_path(path: &str) -> Result<(), ArchivePathError> {
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ArchiveEntry {
+    pub path: String,
+    pub bytes: Vec<u8>,
+    pub label: String,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum ArchiveWriteError {
+    #[error("{0}")]
+    InvalidEntryPath(#[from] ArchivePathError),
+    #[error("写入 zip 条目失败：{path}: {source}")]
+    StartEntry {
+        path: String,
+        #[source]
+        source: zip::result::ZipError,
+    },
+    #[error("导出 zip 条目重复：{path}")]
+    DuplicateEntry { path: String },
+    #[error("写入{label}失败：{source}")]
+    EntryWrite {
+        label: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("完成{label}失败：{source}")]
+    Finish {
+        label: String,
+        #[source]
+        source: zip::result::ZipError,
+    },
+}
+
+pub fn write_zip(
+    entries: impl IntoIterator<Item = ArchiveEntry>,
+    package_label: impl Into<String>,
+) -> Result<Vec<u8>, ArchiveWriteError> {
+    let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
+    let options = zip::write::SimpleFileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated);
+    let mut paths = HashSet::new();
+
+    for entry in entries {
+        validate_zip_entry_path(&entry.path)?;
+        if !paths.insert(entry.path.clone()) {
+            return Err(ArchiveWriteError::DuplicateEntry { path: entry.path });
+        }
+        writer.start_file(&entry.path, options).map_err(|source| {
+            ArchiveWriteError::StartEntry {
+                path: entry.path,
+                source,
+            }
+        })?;
+        writer
+            .write_all(&entry.bytes)
+            .map_err(|source| ArchiveWriteError::EntryWrite {
+                label: entry.label,
+                source,
+            })?;
+    }
+
+    writer
+        .finish()
+        .map(|cursor| cursor.into_inner())
+        .map_err(|source| ArchiveWriteError::Finish {
+            label: package_label.into(),
+            source,
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,5 +176,50 @@ mod tests {
     fn validate_zip_entry_path_rejects_blank_path() {
         let err = validate_zip_entry_path(" \n\t ").unwrap_err();
         assert!(err.to_string().contains("不能为空"));
+    }
+
+    #[test]
+    fn write_zip_rejects_duplicate_paths() {
+        let error = write_zip(
+            [
+                ArchiveEntry {
+                    path: "manifest.json".into(),
+                    bytes: b"{}".to_vec(),
+                    label: "manifest".into(),
+                },
+                ArchiveEntry {
+                    path: "manifest.json".into(),
+                    bytes: b"{}".to_vec(),
+                    label: "duplicate".into(),
+                },
+            ],
+            "package",
+        )
+        .expect_err("duplicate paths must fail");
+        assert!(matches!(
+            error,
+            ArchiveWriteError::DuplicateEntry { path } if path == "manifest.json"
+        ));
+    }
+
+    #[test]
+    fn write_zip_returns_a_valid_archive() {
+        let bytes = write_zip(
+            [ArchiveEntry {
+                path: "manifest.json".into(),
+                bytes: b"{}".to_vec(),
+                label: "manifest".into(),
+            }],
+            "package",
+        )
+        .expect("archive should render");
+        let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("zip should open");
+        let mut manifest = String::new();
+        std::io::Read::read_to_string(
+            &mut archive.by_name("manifest.json").unwrap(),
+            &mut manifest,
+        )
+        .expect("manifest should be readable");
+        assert_eq!(manifest, "{}");
     }
 }

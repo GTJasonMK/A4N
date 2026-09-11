@@ -1,7 +1,7 @@
-use super::{ProjectStatusHistoryInput, ProjectStatusReadError, ProjectStatusWriteError};
+use super::{ProjectStatusReadError, ProjectStatusWriteError};
 use crate::project::{ProjectCleanupDbError, validate_positive_i64};
-use a4n_core::models::project::project_status_history;
-use a4n_domain::project::{ProjectStatus, ProjectStatusHistorySummary};
+use a4n_db_models::models::project::project_status_history;
+use a4n_domain::project::{ProjectStatus, ProjectStatusHistoryInput, ProjectStatusHistorySummary};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter,
     QueryOrder, QuerySelect, Set,

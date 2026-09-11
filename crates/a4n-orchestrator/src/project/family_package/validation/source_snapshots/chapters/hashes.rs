@@ -1,4 +1,4 @@
-use a4n_core::models::project::{project_source_snapshot, source_snapshot_chapter};
+use a4n_db_models::models::project::{project_source_snapshot, source_snapshot_chapter};
 use std::collections::{HashMap, HashSet};
 
 use crate::project::{

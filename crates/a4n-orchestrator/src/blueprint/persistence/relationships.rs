@@ -1,5 +1,5 @@
-use a4n_core::blueprint::ParsedBlueprintRelationship;
 use a4n_db::project::BlueprintRelationshipDraft;
+use a4n_domain::project::ParsedBlueprintRelationship;
 
 pub(in crate::blueprint) fn blueprint_relationship_drafts(
     relationships: &[ParsedBlueprintRelationship],

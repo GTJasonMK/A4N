@@ -10,7 +10,7 @@ use crate::source_sync::{
     SourceSyncAnchorMappingRecord, SourceSyncDbError, SourceSyncGalgameSceneWriteRecordInput,
     SourceSyncReplacementSegmentRecordInput, SourceSyncReplacementSpecRecordInput,
 };
-use a4n_core::models::source_sync::source_sync_conflict;
+use a4n_db_models::models::source_sync::source_sync_conflict;
 use a4n_domain::source_sync::{SourceSyncConflictStatus, SourceSyncResolutionStrategy};
 use chrono::Utc;
 use sea_orm::DatabaseConnection;

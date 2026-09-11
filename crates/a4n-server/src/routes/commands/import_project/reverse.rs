@@ -4,7 +4,7 @@ use super::super::{
     strict_runtime_command_input, to_value, web_progress_reporter,
 };
 use crate::state::ServerState;
-use a4n_core::event::channel::TaskKind;
+use a4n_domain::task_queue::TaskKind;
 use serde_json::Value;
 
 pub(in crate::routes::commands) fn is_reverse_engineer_web_command(command: &str) -> bool {

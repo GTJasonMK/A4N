@@ -1,12 +1,13 @@
 use std::path::PathBuf;
 
-use a4n_core::config::{app_config, embedding_provider_capabilities};
-use a4n_core::error::AppError;
-use a4n_core::models::ai::embedding_config;
+use a4n_config::app_config;
+use a4n_domain::embedding::embedding_provider_capabilities;
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_error::AppError;
+use a4n_provider_contract::EmbeddingProviderConfig;
 
 pub(crate) fn model_identity_from_config(
-    model: &embedding_config::Model,
+    model: &EmbeddingProviderConfig,
 ) -> Result<EmbeddingModelIdentity, AppError> {
     let backend = embedding_provider_capabilities(&model.backend).ok_or_else(|| {
         AppError::ConfigError(format!(

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 use crate::optimize::turns::{EVENT_KIND_ASSISTANT_UPDATE, EVENT_STATUS_COMPLETED};

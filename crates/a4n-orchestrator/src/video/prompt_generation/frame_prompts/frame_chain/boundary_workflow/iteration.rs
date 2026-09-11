@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::prompt_generation::frame_prompts::{
     ProgressSpan, ensure_boundary_frame_checkpoint_can_sync, report_video_prompt_progress,

@@ -8,9 +8,9 @@ use crate::{
     video::{self, VideoDbError},
     video_prompt::PromptStage,
 };
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::source_spans::metadata_source_content_sha256;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::image_generation_prompt_id;
+use a4n_domain::source_spans::metadata_source_content_sha256;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
@@ -428,7 +428,7 @@ where
 pub(super) fn ensure_no_generated_frame_image(
     prompt: &chapter_video_prompt::Model,
     operation: &str,
-    image: Option<&a4n_core::models::ai::generated_image::Reference>,
+    image: Option<&a4n_db_models::models::ai::generated_image::Reference>,
 ) -> Result<(), VideoDbError> {
     let Some(image) = image else {
         return Ok(());

@@ -2,7 +2,7 @@ use super::facts::video_progress_facts_from_rows;
 use super::identity::{GeneratedVideoProgressRow, VideoPromptProgressRow};
 use super::status::video_project_progress_from_counts;
 use crate::project::progress::{ProjectProgressReadError, ProjectProgressSummary};
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 use std::collections::HashMap;
 
@@ -42,7 +42,10 @@ pub(in crate::project::progress) async fn video_project_progress_by_project(
                 .column(generated_video::Column::MetadataJson)
                 .column(generated_video::Column::UpdatedAt)
                 .filter(generated_video::Column::ProjectId.is_in(project_ids.iter().copied()))
-                .filter(generated_video::Column::VideoType.eq(generated_video::VIDEO_TYPE_CHAPTER))
+                .filter(
+                    generated_video::Column::VideoType
+                        .eq(a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER),
+                )
                 .into_model::<GeneratedVideoProgressRow>()
                 .all(db)
                 .await

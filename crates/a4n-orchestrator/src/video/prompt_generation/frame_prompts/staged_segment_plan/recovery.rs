@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::{
     VideoSegmentPlan, checkpoint_field, load_completed_video_workflow_checkpoint,

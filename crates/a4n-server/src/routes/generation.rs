@@ -59,12 +59,12 @@ fn split_generation_start_body(
 ) -> Result<
     (
         Value,
-        Option<a4n_runtime::runtime_config::RuntimeConfigSnapshot>,
+        Option<a4n_runtime::host_api::runtime_config::RuntimeConfigSnapshot>,
     ),
     GenerationApiError,
 > {
-    let runtime_config_snapshot =
-        a4n_runtime::runtime_config::snapshot_from_args(&body).map_err(|message| {
+    let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::snapshot_from_args(&body)
+        .map_err(|message| {
             GenerationApiError::bad_request("generation_request_invalid", message)
         })?;
     let fields = body.as_object_mut().ok_or_else(|| {
@@ -83,7 +83,7 @@ fn split_generation_start_command_args(
 ) -> Result<
     (
         Value,
-        Option<a4n_runtime::runtime_config::RuntimeConfigSnapshot>,
+        Option<a4n_runtime::host_api::runtime_config::RuntimeConfigSnapshot>,
     ),
     GenerationApiError,
 > {
@@ -105,10 +105,10 @@ fn split_generation_start_command_args(
     let input = fields.get("input").cloned().ok_or_else(|| {
         GenerationApiError::bad_request("generation_request_invalid", "generation 请求缺少 input")
     })?;
-    let runtime_config_snapshot =
-        a4n_runtime::runtime_config::snapshot_from_args(args).map_err(|message| {
-            GenerationApiError::bad_request("generation_request_invalid", message)
-        })?;
+    let runtime_config_snapshot = a4n_runtime::host_api::runtime_config::snapshot_from_args(args)
+        .map_err(|message| {
+        GenerationApiError::bad_request("generation_request_invalid", message)
+    })?;
     Ok((input, runtime_config_snapshot))
 }
 
@@ -143,13 +143,29 @@ async fn start_generation(
     runtime: &a4n_runtime::AppState,
     user_id: i64,
     input: Value,
-    runtime_config_snapshot: Option<a4n_runtime::runtime_config::RuntimeConfigSnapshot>,
+    runtime_config_snapshot: Option<a4n_runtime::host_api::runtime_config::RuntimeConfigSnapshot>,
     command: &str,
 ) -> Option<Result<GenerationTaskHandle, GenerationApiError>> {
+    let availability =
+        match a4n_runtime::host_api::package::command_availability(runtime, user_id, command).await
+        {
+            Ok(availability) => availability,
+            Err(error) => {
+                return Some(Err(GenerationApiError::internal(
+                    "generation_validation_failed",
+                    format!("功能包准入检查失败: {error}"),
+                    true,
+                )));
+            }
+        };
+    if !availability.available {
+        return Some(Err(GenerationApiError::package_unavailable(availability)));
+    }
+
     macro_rules! start {
         ($input:ty, $action:path) => {{
             match decode_generation_start_input::<$input>(input) {
-                Ok(input) => a4n_runtime::runtime_config::request_scope(
+                Ok(input) => a4n_runtime::host_api::runtime_config::request_scope(
                     user_id,
                     runtime_config_snapshot,
                     ($action)(runtime, user_id, input),
@@ -190,10 +206,20 @@ async fn start_generation(
             StartImageGenerationInput,
             a4n_runtime::host_api::image_generation::start_image_generation_typed
         ),
-        "start_video_generation" => start!(
-            StartVideoGenerationInput,
-            a4n_runtime::host_api::video_generation::start_video_generation_typed
-        ),
+        "start_video_generation" => {
+            match decode_generation_start_input::<StartVideoGenerationInput>(input) {
+                Ok(input) => a4n_runtime::host_api::runtime_config::request_scope(
+                    user_id,
+                    runtime_config_snapshot,
+                    a4n_runtime::host_api::video_generation::start_video_generation_typed(
+                        runtime, user_id, input,
+                    ),
+                )
+                .await
+                .map_err(map_video_start_error),
+                Err(error) => Err(error),
+            }
+        }
         "start_optimize_chat_generation" => start!(
             StartOptimizeChatGenerationInput,
             a4n_runtime::host_api::optimize::start_optimize_chat_generation_typed
@@ -346,12 +372,8 @@ pub(super) async fn snapshot(
         generation_actions::authorize_generation_task(state.runtime(), user_id, &task_id, attempt)
             .await
             .map_err(map_access_error)?;
-    let snapshot = task.public_snapshot.ok_or_else(|| {
-        if task
-            .checkpoint
-            .expires_at
-            .is_some_and(|expires_at| expires_at <= chrono::Utc::now().naive_utc())
-        {
+    let snapshot = task.public_snapshot().cloned().ok_or_else(|| {
+        if task.snapshot_expired() {
             GenerationApiError::gone("generation_snapshot_expired", "generation snapshot 已过期")
         } else {
             GenerationApiError::internal(
@@ -407,8 +429,7 @@ pub(super) async fn events(
             ..
         } => {
             let terminal = task
-                .public_snapshot
-                .as_ref()
+                .public_snapshot()
                 .is_some_and(|snapshot| snapshot.status.is_terminal());
             (events, latest_sequence, terminal)
         }
@@ -662,6 +683,21 @@ fn map_access_error(error: generation_actions::GenerationTaskAccessError) -> Gen
             true,
         ),
         _ => GenerationApiError::internal(code, error.to_string(), true),
+    }
+}
+
+fn map_video_start_error(
+    error: a4n_api_contract::generation_tasks::GenerationTaskStartError,
+) -> GenerationApiError {
+    let code = error.code().to_owned();
+    match code.as_str() {
+        "generation_task_not_found" => GenerationApiError::not_found(&code, error.to_string()),
+        "generation_task_forbidden" => GenerationApiError::forbidden(&code, error.to_string()),
+        "generation_task_unauthenticated" => {
+            GenerationApiError::unauthorized(&code, error.to_string())
+        }
+        "generation_request_invalid" => GenerationApiError::bad_request(&code, error.to_string()),
+        _ => GenerationApiError::internal(&code, error.to_string(), error.retryable),
     }
 }
 

@@ -1,11 +1,11 @@
-use a4n_core::chapter_analysis::ensure_chapter_has_analysis_content;
-use a4n_core::error::AppError;
-use a4n_core::models::{chapter::chapter, generation::workflow_run};
+use a4n_chapter_analysis::ensure_chapter_has_analysis_content;
 use a4n_db::chapter_content::{
     StoreChapterAnalysisRecordInput, lock_chapter_analysis_source, store_chapter_analysis_record,
 };
 use a4n_db::project::ChapterSourceSnapshot;
 use a4n_db::workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED};
+use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use serde_json::json;
 

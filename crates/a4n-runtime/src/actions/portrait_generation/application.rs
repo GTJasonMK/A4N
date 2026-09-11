@@ -1,10 +1,10 @@
 use crate::{AppState, actions::access};
 use a4n_api_contract::{
     generation_tasks::GenerationStartRequestMeta,
-    portrait::{PortraitGenerationOperation, StartPortraitGenerationInput},
-};
-use a4n_orchestrator::portrait::{
-    GeneratePortraitInput, GeneratePortraitPromptInput, PortraitSummary, UploadPortraitInput,
+    portrait::{
+        GeneratePortraitInput, GeneratePortraitPromptInput, PortraitGenerationOperation,
+        PortraitSummary, StartPortraitGenerationInput, UploadPortraitInput,
+    },
 };
 use a4n_service_protocol::GenerationTaskStatus;
 
@@ -19,8 +19,8 @@ pub async fn generate_portrait_prompt(
     let variables = a4n_prompt::variables::parse_template_variables(input.variables.as_ref())?;
     let prompt_renderer = state;
     state
-        .orchestrator()
-        .generate_portrait_prompt_validated(input, prompt_renderer, &variables)
+        .portrait_generation_application()
+        .generate_portrait_prompt(input, prompt_renderer, &variables)
         .await
         .map_err(|error| error.to_string())
 }
@@ -48,20 +48,26 @@ pub(crate) async fn generate_portrait_inline(
         },
     };
     let start = state
-        .orchestrator()
-        .start_portrait_generation_task(user_id, &input)
+        .portrait_generation_application()
+        .start_task(user_id, &input)
         .await
         .map_err(|error| error.to_string())?;
     let prompt_renderer = state;
     let host_port = RuntimePortraitGenerationHostPort::new(state);
     if start.should_run {
         state
-            .orchestrator()
-            .run_portrait_generation_task(input, start.handle.clone(), prompt_renderer, &host_port)
+            .portrait_generation_application()
+            .run_task(
+                user_id,
+                input,
+                start.handle.clone(),
+                prompt_renderer,
+                &host_port,
+            )
             .await?;
     }
     let task = state
-        .orchestrator()
+        .generation_application()
         .generation_task_summary_for_user(user_id, &start.handle.task_id, start.handle.attempt)
         .await
         .map_err(|error| error.to_string())?;
@@ -82,13 +88,13 @@ pub(crate) async fn generate_portrait_inline(
         )
     })?;
     let portrait = state
-        .orchestrator()
-        .character_portrait_by_id(portrait_id)
+        .portrait_record_application()
+        .by_id(user_id, portrait_id)
         .await
         .map_err(|error| error.to_string())?
         .filter(|portrait| portrait.project_id == project_id)
         .ok_or_else(|| format!("项目 #{project_id} 不存在生成的立绘 #{portrait_id}"))?;
-    super::to_summary(&portrait).map_err(|error| error.to_string())
+    Ok(portrait)
 }
 
 pub async fn upload_portrait(
@@ -99,8 +105,8 @@ pub async fn upload_portrait(
     access::verify_project_editor_string(state, user_id, input.project_id).await?;
     let host_port = RuntimePortraitGenerationHostPort::new(state);
     state
-        .orchestrator()
-        .upload_portrait_validated(input, &host_port)
+        .portrait_generation_application()
+        .upload_portrait(user_id, input, &host_port)
         .await
         .map_err(|error| error.to_string())
 }

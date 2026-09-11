@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use serde_json::Value;
 
 pub(super) fn required_operation_name(v: &Value) -> Result<&str, AppError> {
@@ -6,11 +6,7 @@ pub(super) fn required_operation_name(v: &Value) -> Result<&str, AppError> {
         .and_then(Value::as_str)
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .ok_or_else(|| {
-            AppError::Internal(anyhow::anyhow!(
-                "Gemini Veo 视频生成响应缺少 operation name"
-            ))
-        })
+        .ok_or_else(|| AppError::Internal(format!("Gemini Veo 视频生成响应缺少 operation name")))
 }
 
 pub(super) fn operation_error_message(v: &Value) -> Option<String> {
@@ -79,9 +75,7 @@ pub(super) fn find_video_b64(v: &Value) -> Result<Option<&str>, AppError> {
                 .filter(|value| !value.is_empty())
                 .map(Some)
                 .ok_or_else(|| {
-                    AppError::Internal(anyhow::anyhow!(
-                        "Gemini Veo 响应字段 {pointer} 必须是非空字符串"
-                    ))
+                    AppError::Internal(format!("Gemini Veo 响应字段 {pointer} 必须是非空字符串"))
                 });
         }
     }

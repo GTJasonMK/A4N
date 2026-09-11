@@ -1,15 +1,13 @@
+use a4n_api_contract::workflow::WorkflowResumeRecord;
 use a4n_api_contract::{
     blueprint::{PreviewBlueprintRefinementInput, StartBlueprintRefinementInput},
     generation_tasks::GenerationTaskHandle,
 };
-use a4n_core::{
-    blueprint::{
-        BLUEPRINT_REFINEMENT_PROMPTS, BLUEPRINT_REFINEMENT_TASK_KIND,
-        BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
-    },
-    error::AppError,
-    models::generation::workflow_run,
+use a4n_domain::project::{
+    BLUEPRINT_REFINEMENT_PROMPTS, BLUEPRINT_REFINEMENT_TASK_KIND,
+    BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
 };
+use a4n_error::AppError;
 use a4n_orchestrator::GenerationTaskAccessError;
 
 use crate::AppState;
@@ -23,8 +21,8 @@ pub async fn start_blueprint_refinement_typed(
     input: StartBlueprintRefinementInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .orchestrator()
-        .start_blueprint_refinement_task(user_id, &input)
+        .blueprint_generation_application()
+        .start_refinement(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -37,8 +35,8 @@ pub async fn start_blueprint_refinement_typed(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .orchestrator()
-                .run_blueprint_refinement_task(prompt_renderer, input, handle)
+                .blueprint_generation_application()
+                .run_refinement(prompt_renderer, input, handle)
                 .await
         },
     );
@@ -48,24 +46,24 @@ pub async fn start_blueprint_refinement_typed(
 pub async fn resume_blueprint_refinement_workflow(
     state: &AppState,
     user_id: i64,
-    run: &workflow_run::Model,
+    run: &WorkflowResumeRecord,
 ) -> Result<(), String> {
     let input = state
-        .orchestrator()
-        .blueprint_refinement_input_from_workflow_run(run)
+        .blueprint_generation_application()
+        .refinement_input_from_workflow_run(run)
         .map_err(crate::actions::app_error_message)?;
     let start = state
-        .orchestrator()
-        .start_blueprint_refinement_task(user_id, &input)
+        .blueprint_generation_application()
+        .start_refinement(user_id, &input)
         .await
         .map_err(|error| error.to_string())?;
     if let Err(error) = state
-        .orchestrator()
-        .resume_workflow_run_with_active_task_validated(run.id, &start.handle.task_id)
+        .workflow_cancellation_application()
+        .resume_with_active_task(run.id, &start.handle.task_id)
         .await
     {
         let cleanup = state
-            .orchestrator()
+            .generation_application()
             .request_generation_cancel(user_id, &start.handle.task_id, start.handle.attempt)
             .await;
         return Err(match cleanup {
@@ -85,8 +83,8 @@ pub async fn resume_blueprint_refinement_workflow(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .orchestrator()
-                .run_blueprint_refinement_task(prompt_renderer, input, handle)
+                .blueprint_generation_application()
+                .run_refinement(prompt_renderer, input, handle)
                 .await
         },
     );
@@ -98,17 +96,10 @@ pub async fn preview_refine_blueprint_request(
     user_id: i64,
     input: PreviewBlueprintRefinementInput,
 ) -> Result<ModelRequestPreview, AppError> {
-    let variables = input.variables.unwrap_or_default().into_iter().collect();
     let prompt_renderer = state;
     let request = state
-        .orchestrator()
-        .preview_blueprint_refine_request_for_user_validated(
-            user_id,
-            input.project_id,
-            input.focus.as_deref(),
-            prompt_renderer,
-            &variables,
-        )
+        .blueprint_request_preview_application()
+        .preview_refinement(user_id, input, prompt_renderer)
         .await?;
     chat_status_preview_for_state(
         state,

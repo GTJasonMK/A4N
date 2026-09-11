@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
-use a4n_core::error::AppError;
-use a4n_core::event::bridge::InternalEvent;
 use a4n_db::DbHandle;
+use a4n_error::AppError;
+use a4n_event::InternalEvent;
+use a4n_provider_runtime_contract::ProviderRuntimePort;
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
 
@@ -22,7 +23,7 @@ use super::{
 };
 use crate::agent::AgentApplication;
 use crate::chapter_generation::ChapterGenerationService;
-use crate::context::dynamic_provider::DynamicProviderFacade;
+use crate::context::dynamic_provider::ProviderRuntimeAdapter;
 use crate::task_queue::PersistentTaskQueue;
 
 impl OrchestratorContext {
@@ -39,16 +40,16 @@ impl OrchestratorContext {
         db: DbHandle,
         capabilities: A4nCapabilities,
         service_manager: Arc<ServiceManager>,
-        config: a4n_core::config::app_config::AppConfig,
-        event_bus: Arc<a4n_core::event::bridge::BroadcastEventBus>,
-        task_manager: Arc<a4n_core::event::channel::TaskManager>,
+        config: a4n_config::app_config::AppConfig,
+        event_bus: Arc<a4n_event::BroadcastEventBus>,
+        task_manager: Arc<a4n_task_runtime::channel::TaskManager>,
         chapter: ChapterGenerationService,
         rag_store: Arc<dyn VectorStore>,
         task_queue: Arc<PersistentTaskQueue>,
         engine: Arc<a4n_prompt::tera_engine::TeraPromptEngine>,
         snapshot_store: Arc<a4n_db::character::Sha256SnapshotStore>,
         provider_factory: impl FnOnce(
-            DynamicProviderFacade,
+            Arc<dyn ProviderRuntimePort>,
         ) -> Result<
             (
                 Arc<dyn a4n_llm::provider::LlmProvider>,
@@ -94,13 +95,15 @@ impl OrchestratorContext {
         let text_anchor = TextAnchorApplication::new(db.clone());
         let video = VideoApplication::new(db.clone());
         let workflow = WorkflowApplication::new(db.clone());
-        let (llm, embedding) = provider_factory(DynamicProviderFacade::from_applications(
-            Arc::clone(&task_queue),
-            settings.clone(),
-            generation.clone(),
-            llm_context.clone(),
-            project_read.clone(),
-        ))?;
+        let provider_port: Arc<dyn ProviderRuntimePort> =
+            Arc::new(ProviderRuntimeAdapter::from_applications(
+                Arc::clone(&task_queue),
+                settings.clone(),
+                generation.clone(),
+                llm_context.clone(),
+                project_read.clone(),
+            ));
+        let (llm, embedding) = provider_factory(provider_port)?;
         Ok(Self {
             database: db,
             admin,
@@ -180,7 +183,10 @@ impl OrchestratorContext {
     pub async fn embedding_model_identity(
         &self,
     ) -> Result<a4n_embedding::provider::EmbeddingModelIdentity, AppError> {
-        self.embedding.model_identity().await
+        self.embedding
+            .model_identity()
+            .await
+            .map_err(AppError::from)
     }
 
     /// 要求配置中已设置非空 JWT secret。
@@ -200,7 +206,7 @@ impl OrchestratorContext {
     }
 
     /// Host 窗口/路径初始化用配置视图（不暴露字段）。
-    pub fn host_app_config(&self) -> &a4n_core::config::app_config::AppConfig {
+    pub fn host_app_config(&self) -> &a4n_config::app_config::AppConfig {
         &self.config
     }
 
@@ -220,8 +226,13 @@ impl OrchestratorContext {
     }
 
     /// 应用路径聚合。
-    pub fn app_paths(&self) -> a4n_core::files::paths::AppPaths {
-        a4n_core::files::paths::AppPaths::from_config(&self.config)
+    pub fn app_paths(&self) -> a4n_storage::paths::AppPaths {
+        a4n_storage::paths::AppPaths::new(
+            self.config.data_dir.clone(),
+            self.config.cache_dir.clone(),
+            self.config.temp_dir.clone(),
+            self.config.log_dir.clone(),
+        )
     }
 
     /// 配置中的数据库 URL。
@@ -237,15 +248,15 @@ impl OrchestratorContext {
     /// 注册任务句柄。
     pub fn register_task_handle(
         &self,
-        handle: a4n_core::event::channel::TaskHandle,
-    ) -> Result<std::sync::Arc<a4n_core::event::channel::TaskHandle>, AppError> {
+        handle: a4n_task_runtime::channel::TaskHandle,
+    ) -> Result<std::sync::Arc<a4n_task_runtime::channel::TaskHandle>, AppError> {
         self.task_manager.register(handle)
     }
 
     /// 移除任务句柄。
     pub fn remove_task_handle(
         &self,
-        handle: &std::sync::Arc<a4n_core::event::channel::TaskHandle>,
+        handle: &std::sync::Arc<a4n_task_runtime::channel::TaskHandle>,
     ) -> Result<(), AppError> {
         self.task_manager.remove(handle)
     }
@@ -253,7 +264,7 @@ impl OrchestratorContext {
     pub fn task_handle(
         &self,
         task_id: &str,
-    ) -> Option<std::sync::Arc<a4n_core::event::channel::TaskHandle>> {
+    ) -> Option<std::sync::Arc<a4n_task_runtime::channel::TaskHandle>> {
         self.task_manager.get(task_id)
     }
 
@@ -272,7 +283,7 @@ impl OrchestratorContext {
     }
 
     /// 当前活跃任务快照。
-    pub fn active_task_snapshots(&self) -> Vec<a4n_core::event::channel::TaskSnapshot> {
+    pub fn active_task_snapshots(&self) -> Vec<a4n_task_runtime::channel::TaskSnapshot> {
         self.task_manager.list_active_snapshots()
     }
 
@@ -280,7 +291,7 @@ impl OrchestratorContext {
     pub(crate) async fn character_snapshot_by_hash(
         &self,
         content_hash: &str,
-    ) -> Result<Option<a4n_core::event::snapshot::Snapshot>, AppError> {
+    ) -> Result<Option<a4n_domain::snapshot::Snapshot>, AppError> {
         self.snapshot_store.load_snapshot(content_hash).await
     }
 }

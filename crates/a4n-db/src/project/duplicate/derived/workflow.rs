@@ -12,7 +12,7 @@ use super::media::{
 };
 use super::*;
 
-pub(super) async fn copy_derived_workflow_records<C, Copier>(
+pub(super) async fn copy_derived_workflow_records<C, Copier: ?Sized>(
     db: &C,
     source_project_id: i64,
     new_project: &novel_project::Model,

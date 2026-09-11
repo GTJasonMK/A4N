@@ -6,7 +6,7 @@ use crate::{
         request_preview::ModelRequestPreview,
     },
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn preview_continue_part_outlines_request(
     state: &AppState,
@@ -16,8 +16,8 @@ pub async fn preview_continue_part_outlines_request(
     project_access::verify_project_editor(state, user_id, input.project_id).await?;
     let part_number = input.part_number;
     let request = state
-        .orchestrator()
-        .preview_continue_part_outlines_validated(input)
+        .outline_preview_application()
+        .preview_continue_part_outlines(input)
         .await?;
     single_request_preview(
         state,

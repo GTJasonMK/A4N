@@ -1,8 +1,9 @@
-use a4n_core::rag::RagDataType;
 use a4n_db::rag::RagSceneTransitionRow;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{optional_json_text, optional_rag_text, required_rag_text};
 
-use super::super::{RagRecord, rag_chunk_id};
+use super::super::rag_chunk_id;
 
 fn scene_transition_rag_text(
     transition: &RagSceneTransitionRow,

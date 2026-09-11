@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_video,
     chapter::{chapter, chapter_video_prompt},
     project::novel_project,
@@ -109,9 +109,9 @@ pub async fn mark_generated_videos_error_status_and_prompt_records(
     for input in inputs {
         if !matches!(
             input.status.as_str(),
-            generated_video::STATUS_FAILED
-                | generated_video::STATUS_INTERRUPTED
-                | generated_video::STATUS_CANCELLED
+            a4n_domain::video_workflow::VIDEO_STATUS_FAILED
+                | a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED
+                | a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
         ) {
             return Err(VideoDbError::InvalidArgument(format!(
                 "视频终止状态无效: {}",
@@ -259,9 +259,15 @@ pub async fn mark_generated_videos_error_status_and_prompt_records(
                 chapter_video_prompt::STATUS_COMPLETED
             } else {
                 match input.status.as_str() {
-                    generated_video::STATUS_FAILED => chapter_video_prompt::STATUS_FAILED,
-                    generated_video::STATUS_INTERRUPTED => chapter_video_prompt::STATUS_INTERRUPTED,
-                    generated_video::STATUS_CANCELLED => chapter_video_prompt::STATUS_CANCELLED,
+                    a4n_domain::video_workflow::VIDEO_STATUS_FAILED => {
+                        chapter_video_prompt::STATUS_FAILED
+                    }
+                    a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED => {
+                        chapter_video_prompt::STATUS_INTERRUPTED
+                    }
+                    a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED => {
+                        chapter_video_prompt::STATUS_CANCELLED
+                    }
                     _ => unreachable!("终止状态已在入口校验"),
                 }
             };
@@ -336,9 +342,13 @@ where
     C: ConnectionTrait + TransactionTrait,
 {
     let prompt_status = match status {
-        generated_video::STATUS_FAILED => chapter_video_prompt::STATUS_FAILED,
-        generated_video::STATUS_INTERRUPTED => chapter_video_prompt::STATUS_INTERRUPTED,
-        generated_video::STATUS_CANCELLED => chapter_video_prompt::STATUS_CANCELLED,
+        a4n_domain::video_workflow::VIDEO_STATUS_FAILED => chapter_video_prompt::STATUS_FAILED,
+        a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED => {
+            chapter_video_prompt::STATUS_INTERRUPTED
+        }
+        a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED => {
+            chapter_video_prompt::STATUS_CANCELLED
+        }
         _ => {
             return Err(VideoDbError::InvalidArgument(format!(
                 "视频终止状态无效: {status}"
@@ -369,8 +379,8 @@ pub async fn recover_stale_generated_videos_without_provider_job(
         .column(generated_video::Column::ProviderJobId)
         .column(generated_video::Column::MetadataJson)
         .filter(generated_video::Column::Status.is_in([
-            generated_video::STATUS_PENDING,
-            generated_video::STATUS_RUNNING,
+            a4n_domain::video_workflow::VIDEO_STATUS_PENDING,
+            a4n_domain::video_workflow::VIDEO_STATUS_RUNNING,
         ]))
         .into_model::<StaleGeneratedVideoRow>()
         .all(db)
@@ -406,7 +416,7 @@ pub async fn recover_stale_generated_videos_without_provider_job(
         .map(|video| GeneratedVideoErrorStatusBatchInput {
             video_id: video.id,
             prompt_id: a4n_domain::video::generated_video_prompt_id(video.metadata_json.as_ref()),
-            status: generated_video::STATUS_INTERRUPTED.to_string(),
+            status: a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED.to_string(),
         })
         .collect::<Vec<_>>();
     let missing =

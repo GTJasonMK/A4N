@@ -4,8 +4,9 @@
 #
 # 用法:
 #   ./scripts/deploy.sh                 # 构建并打包（生成 tar.gz）
-#   ./scripts/deploy.sh --target linux  # 指定目标平台
+#   ./scripts/deploy.sh --target linux-x86_64  # 指定目标平台
 #   ./scripts/deploy.sh --no-build      # 跳过构建（使用已有二进制）
+#   ./scripts/deploy.sh --services export,video # 只分发选定 sidecar
 #   ./scripts/deploy.sh --dry-run       # 预演（仅显示将打包的文件）
 #   ./scripts/deploy.sh --help          # 显示帮助
 #
@@ -29,6 +30,7 @@ TOOL_SPECS=()
 SKIP_BUILD=false
 DRY_RUN=false
 TARGET_PLATFORM=""
+SERVICES_FILTER=""
 
 load_release_inventory() {
     local lines package binary
@@ -40,6 +42,29 @@ load_release_inventory() {
     while IFS=$'\t' read -r package binary; do
         TOOL_SPECS+=("$package:$binary")
     done <<<"$lines"
+}
+
+select_sidecar_inventory() {
+    [[ -z "$SERVICES_FILTER" ]] && return
+    local requested service binary rows selected
+    rows="$(sidecar_catalog_rows)"
+    selected=()
+    IFS=',' read -ra requested <<<"$SERVICES_FILTER"
+    for service in "${requested[@]}"; do
+        service="$(echo "$service" | tr -d '[:space:]')"
+        [[ -n "$service" ]] || die "--services 不能包含空 service"
+        binary=""
+        while IFS=$'\t' read -r catalog_service catalog_binary _; do
+            if [[ "$catalog_service" == "$service" ]]; then
+                binary="$catalog_binary"
+                break
+            fi
+        done <<<"$rows"
+        [[ -n "$binary" ]] || die "--services 包含未知 service: $service"
+        [[ " ${selected[*]} " != *" $binary "* ]] || die "--services 包含重复 service: $service"
+        selected+=("$binary")
+    done
+    SIDECAR_PACKAGES=("${selected[@]}")
 }
 
 # —— 检测平台 ——
@@ -68,12 +93,18 @@ detect_platform() {
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --target)
+            [[ $# -ge 2 ]] || die "--target 缺少值"
             TARGET_PLATFORM="$2"
             shift 2
             ;;
         --no-build)
             SKIP_BUILD=true
             shift
+            ;;
+        --services)
+            [[ $# -ge 2 ]] || die "--services 缺少值"
+            SERVICES_FILTER="$2"
+            shift 2
             ;;
         --dry-run)
             DRY_RUN=true
@@ -93,6 +124,7 @@ done
 if [[ -z "$TARGET_PLATFORM" ]]; then
     TARGET_PLATFORM=$(detect_platform)
 fi
+[[ "$TARGET_PLATFORM" =~ ^[a-z0-9][a-z0-9._-]*$ ]] || die "--target 只能包含小写字母、数字、点、下划线和连字符"
 
 BINARY_EXT=""
 if [[ "$TARGET_PLATFORM" == *windows* ]]; then
@@ -222,7 +254,7 @@ do_build() {
 
 # —— 准备打包目录 ——
 prepare_package() {
-    local release_manifest_schema
+    local release_manifest_schema expected_checksum_entries
     release_manifest_schema="$(release_manifest_schema_version)"
     echo -e "${CYAN}━━━ 准备打包 ━━━${NC}"
 
@@ -265,11 +297,21 @@ prepare_package() {
     cp -L "$runtime_source" "$PACKAGE_DIR/bin/services/$runtime_name"
     echo -e "  ${GREEN}✓${NC} runtime: bin/services/${runtime_name}"
 
-    ruby "$PROJECT_ROOT/scripts/release_manifest.rb" generate \
-        --package-root "$PACKAGE_DIR" \
-        --target "$TARGET_PLATFORM" \
-        --package "$PACKAGE_NAME" \
+    local manifest_args=(
+        generate
+        --package-root "$PACKAGE_DIR"
+        --target "$TARGET_PLATFORM"
+        --package "$PACKAGE_NAME"
         --output "$PACKAGE_DIR/release-manifest.json"
+    )
+    if [[ -n "$SERVICES_FILTER" ]]; then
+        manifest_args+=(--services "$SERVICES_FILTER")
+    fi
+    ruby "$PROJECT_ROOT/scripts/release_manifest.rb" "${manifest_args[@]}"
+    ruby "$PROJECT_ROOT/scripts/release_manifest.rb" verify \
+        --package-root "$PACKAGE_DIR" \
+        --manifest "$PACKAGE_DIR/release-manifest.json"
+    expected_checksum_entries="$(wc -l < "$PACKAGE_DIR/release-manifest.sha256")"
     echo -e "  ${GREEN}✓${NC} release-manifest.json（host + ${#SIDECAR_PACKAGES[@]} 个 sidecar + ${#TOOL_SPECS[@]} 个工具）"
 
     # 复制前端产物
@@ -321,40 +363,85 @@ Set-Location $ScriptDir
 
 function Assert-ReleaseManifest {
     $manifestPath = Join-Path $ScriptDir "release-manifest.json"
-    if (-not (Test-Path $manifestPath)) {
+    $checksumPath = Join-Path $ScriptDir "release-manifest.sha256"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         throw "缺少 release-manifest.json"
     }
-    $manifest = Get-Content -Raw -Path $manifestPath | ConvertFrom-Json
+    if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
+        throw "缺少 release-manifest.sha256"
+    }
+    $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
     if ($manifest.schema_version -ne $ReleaseManifestSchemaVersion) {
         throw "release manifest schema 不兼容"
     }
     $seen = @{}
-    foreach ($entry in @($manifest.binaries) + @($manifest.tools) + @($manifest.runtime_files)) {
-        if ($seen.ContainsKey($entry.path)) {
-            throw "release manifest 存在重复路径: $($entry.path)"
+    $manifestEntries = @($manifest.binaries) + @($manifest.tools) + @($manifest.runtime_files)
+    if ($manifestEntries.Count -eq 0) {
+        throw "release manifest 没有文件条目"
+    }
+    foreach ($entry in $manifestEntries) {
+        $relative = [string]$entry.path
+        $expectedHash = [string]$entry.sha256
+        if ([string]::IsNullOrWhiteSpace($relative) -or
+            $expectedHash -notmatch '^[0-9a-fA-F]{64}$' -or
+            [IO.Path]::IsPathRooted($relative) -or
+            $relative -match '^[A-Za-z]:[\\/]' -or
+            ($relative -split "[/\\]") -contains "..") {
+            throw "release manifest 文件条目无效: $relative"
         }
-        $seen[$entry.path] = $true
-        if ([IO.Path]::IsPathRooted($entry.path) -or $entry.path -match '(^|[\\/])\.\.([\\/]|$)') {
-            throw "release manifest 路径越界: $($entry.path)"
+        if ($seen.ContainsKey($relative)) {
+            throw "release manifest 存在重复路径: $relative"
         }
-        $relative = $entry.path -replace '/', [IO.Path]::DirectorySeparatorChar
-        $binary = Join-Path $ScriptDir $relative
-        if (-not (Test-Path $binary)) {
+        $seen[$relative] = $expectedHash.ToLowerInvariant()
+        $binary = Join-Path $ScriptDir ($relative -replace '/', [IO.Path]::DirectorySeparatorChar)
+        if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) {
             throw "release manifest 缺少二进制: $relative"
         }
-        $stream = [IO.File]::OpenRead($binary)
-        try {
-            $sha256 = [Security.Cryptography.SHA256]::Create()
-            try {
-                $actual = [BitConverter]::ToString($sha256.ComputeHash($stream)).Replace("-", "").ToLowerInvariant()
-            } finally {
-                $sha256.Dispose()
-            }
-        } finally {
-            $stream.Dispose()
+        $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $binary).Hash.ToLowerInvariant()
+        if ($actual -ne $seen[$relative]) {
+            throw "release manifest SHA-256 不匹配: $relative"
         }
-        if ($actual -ne $entry.sha256.ToLowerInvariant()) {
-            throw "release manifest SHA-256 不匹配: $($entry.path)"
+    }
+    $checksumEntries = @{}
+    $checksumLines = @(Get-Content -LiteralPath $checksumPath)
+    if ($checksumLines.Count -eq 0) {
+        throw "release manifest checksum 为空"
+    }
+    foreach ($line in $checksumLines) {
+        if ([string]::IsNullOrWhiteSpace($line) -or $line -notmatch '^(?<hash>[0-9a-fA-F]{64})  (?<path>\S+)$') {
+            throw "release manifest checksum 格式无效"
+        }
+        $hash = $Matches.hash.ToLowerInvariant()
+        $relative = $Matches.path
+        if ([IO.Path]::IsPathRooted($relative) -or
+            $relative -match '^[A-Za-z]:[\\/]' -or
+            ($relative -split "[/\\]") -contains ".." -or
+            $relative -match '\\') {
+            throw "release manifest checksum 路径越界: $relative"
+        }
+        if ($checksumEntries.ContainsKey($relative)) {
+            throw "release manifest checksum 存在重复路径: $relative"
+        }
+        $checksumEntries[$relative] = $hash
+        $binary = Join-Path $ScriptDir ($relative -replace '/', [IO.Path]::DirectorySeparatorChar)
+        if (-not (Test-Path -LiteralPath $binary -PathType Leaf)) {
+            throw "release manifest checksum 缺少文件: $relative"
+        }
+        $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $binary).Hash.ToLowerInvariant()
+        if ($actual -ne $hash) {
+            throw "release manifest checksum 不匹配: $relative"
+        }
+    }
+    $seen["release-manifest.json"] = $null
+    if ($checksumEntries.Count -ne $seen.Count) {
+        throw "release manifest checksum 条目数量不匹配"
+    }
+    foreach ($relative in $seen.Keys) {
+        if (-not $checksumEntries.ContainsKey($relative)) {
+            throw "release manifest checksum 缺少条目: $relative"
+        }
+        if ($null -ne $seen[$relative] -and $checksumEntries[$relative] -ne $seen[$relative]) {
+            throw "release manifest checksum 与 manifest 不一致: $relative"
         }
     }
 }
@@ -387,8 +474,8 @@ exit $LASTEXITCODE
 PSEOF
         echo -e "  ${GREEN}✓${NC} 启动脚本: start.bat / start.ps1"
     else
-        cat > "$PACKAGE_DIR/start.sh" << 'SHEOF'
-#!/usr/bin/env bash
+        printf '%s\n' '#!/usr/bin/env bash' "EXPECTED_RELEASE_CHECKSUM_ENTRIES=$expected_checksum_entries" > "$PACKAGE_DIR/start.sh"
+        cat >> "$PACKAGE_DIR/start.sh" << 'SHEOF'
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -396,6 +483,8 @@ cd "$SCRIPT_DIR"
 
 verify_release_manifest() {
     local checksum_file="$SCRIPT_DIR/release-manifest.sha256"
+    local line expected relative count=0
+    declare -A seen=()
     [[ -r "$SCRIPT_DIR/release-manifest.json" ]] || {
         echo "缺少 release-manifest.json" >&2
         return 1
@@ -404,14 +493,24 @@ verify_release_manifest() {
         echo "缺少 release-manifest.sha256" >&2
         return 1
     }
-    while read -r expected relative; do
-        [[ -n "$expected" && -n "$relative" ]] || continue
-        case "$relative" in
-            /*|../*|*/../*|\\..\\*|..\\*)
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ "$line" =~ ^([[:xdigit:]]{64})[[:space:]][[:space:]]([^[:space:]]+)$ ]] || {
+            echo "release manifest checksum 格式无效" >&2
+            return 1
+        }
+        expected="${BASH_REMATCH[1],,}"
+        relative="${BASH_REMATCH[2]}"
+        case "/$relative/" in
+            *"/../"*|//*|*\\*)
                 echo "release manifest 路径越界: $relative" >&2
                 return 1
                 ;;
         esac
+        [[ -z "${seen[$relative]+x}" ]] || {
+            echo "release manifest checksum 存在重复路径: $relative" >&2
+            return 1
+        }
+        seen["$relative"]=1
         [[ -f "$SCRIPT_DIR/$relative" ]] || {
             echo "release manifest 缺少二进制: $relative" >&2
             return 1
@@ -420,12 +519,21 @@ verify_release_manifest() {
             printf '%s  %s\n' "$expected" "$relative" | (cd "$SCRIPT_DIR" && sha256sum -c -) >/dev/null || return 1
         elif command -v shasum >/dev/null 2>&1; then
             actual="$(shasum -a 256 "$SCRIPT_DIR/$relative" | awk '{print $1}')"
-            [[ "$actual" == "$expected" ]] || return 1
+            [[ "${actual,,}" == "$expected" ]] || return 1
         else
             echo "缺少 sha256sum 或 shasum，拒绝启动" >&2
             return 1
         fi
+        count=$((count + 1))
     done <"$checksum_file"
+    [[ "$count" -eq "$EXPECTED_RELEASE_CHECKSUM_ENTRIES" ]] || {
+        echo "release manifest checksum 条目数量不匹配" >&2
+        return 1
+    }
+    [[ -n "${seen[release-manifest.json]+x}" ]] || {
+        echo "release manifest checksum 缺少 release-manifest.json" >&2
+        return 1
+    }
 }
 
 verify_release_manifest
@@ -519,6 +627,7 @@ create_archive() {
 
 # —— 主流程 ——
 load_release_inventory
+select_sidecar_inventory
 check_prerequisites
 
 if $DRY_RUN; then

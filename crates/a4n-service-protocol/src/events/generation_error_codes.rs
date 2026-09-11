@@ -39,6 +39,7 @@ const REGISTERED_GENERATION_ERROR_CODES: &[&str] = &[
     "llm_stream_idle_timeout",
     "llm_stream_missing_finish_reason",
     "llm_stream_total_timeout",
+    "package_unavailable",
     "provider_cancel_unsupported",
     "provider_job_failed",
 ];

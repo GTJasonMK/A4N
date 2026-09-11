@@ -1,6 +1,6 @@
 use super::super::{SOURCE_SYNC_CURRENT, types::VideoStudioProjectImportError};
 use crate::canvas::PROJECT_KIND_VIDEO;
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 
 pub(in crate::canvas::transfer) async fn insert_video_studio_project_record<C>(

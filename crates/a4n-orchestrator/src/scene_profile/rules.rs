@@ -1,8 +1,8 @@
 use super::contracts::{
     SCENE_ENTITY_STATE_KEYS, SCENE_ENTITY_TYPES, SCENE_TRANSITION_MOVEMENT_TYPES, SCENE_TYPES,
 };
-use a4n_core::error::AppError;
-use a4n_core::profile_text::required_text;
+use a4n_domain::profile_text::required_text;
+use a4n_error::AppError;
 
 pub fn normalize_scene_type_value(value: &str) -> Result<String, AppError> {
     let value = required_text(value, "场景类型")?;

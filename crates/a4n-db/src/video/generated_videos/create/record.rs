@@ -1,5 +1,5 @@
 use super::super::CreateGeneratedVideoRecordInput;
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, DbErr, Set};
 
@@ -28,7 +28,7 @@ where
         file_size: Set(None),
         source_video_id: Set(input.source_video_id),
         source_image_id: Set(input.source_image_id),
-        status: Set(generated_video::STATUS_RUNNING.to_string()),
+        status: Set(a4n_domain::video_workflow::VIDEO_STATUS_RUNNING.to_string()),
         provider_job_id: Set(input.provider_job_id),
         error_message: Set(None),
         metadata_json: Set(input.metadata_json),

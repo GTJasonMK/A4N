@@ -1,4 +1,4 @@
-use a4n_core::models::{asset::object_profile, project::novel_project};
+use a4n_db_models::models::{asset::object_profile, project::novel_project};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 use crate::asset::AssetDbError;

@@ -1,5 +1,7 @@
 use super::contracts::{ProjectChapterContextError, ProtagonistProfileCurrentStateUpdate};
-use a4n_core::models::{chapter::chapter, character::protagonist_profile, project::novel_project};
+use a4n_db_models::models::{
+    chapter::chapter, character::protagonist_profile, project::novel_project,
+};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{

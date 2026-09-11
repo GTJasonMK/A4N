@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::source_sync::source_sync_run;
+use a4n_db_models::models::source_sync::source_sync_run;
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
+use a4n_error::AppError;
 
 use super::context::PreparedSourceSyncDecisionContext;
 use super::plan::build_prepared_galgame_scene_regeneration_plan;
@@ -61,7 +61,7 @@ pub(in crate::source_sync) async fn prepare_decision_execution_context(
         let plan = build_prepared_galgame_scene_regeneration_plan(
             service,
             run,
-            &conflict,
+            conflict,
             &payload,
             galgame_execution,
             &speaker_profiles,

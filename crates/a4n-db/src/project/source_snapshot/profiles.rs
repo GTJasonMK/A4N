@@ -2,7 +2,7 @@ use super::{
     super::ProjectMutationError,
     hashing::{hash_json, to_json},
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile, character::protagonist_profile, project::source_snapshot_profile,
     scene::scene_profile,
 };

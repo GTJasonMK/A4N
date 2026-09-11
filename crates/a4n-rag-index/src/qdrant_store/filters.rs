@@ -1,6 +1,6 @@
 //! SearchFilter / ID selector → Qdrant Filter。
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_rag_core::vector_store::SearchFilter;
 use qdrant_client::qdrant::{Condition, Filter, Range, r#match::MatchValue};
 use serde_json::Value;

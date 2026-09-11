@@ -1,7 +1,7 @@
 mod chapters;
 mod persistence;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 
 use crate::OrchestratorContext;

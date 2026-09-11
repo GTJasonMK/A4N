@@ -1,4 +1,4 @@
-use a4n_core::models::project::novel_blueprint;
+use a4n_db_models::models::project::novel_blueprint;
 use a4n_domain::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
 use chrono::NaiveDateTime;
 use sea_orm::Set;

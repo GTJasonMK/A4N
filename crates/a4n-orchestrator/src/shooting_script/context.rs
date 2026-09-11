@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, source_spans::source_span_prompt_values};
+use a4n_domain::source_spans::source_span_prompt_values;
+use a4n_error::AppError;
 use a4n_llm::context::{
     COMPRESSION_FULL_RAW, LlmContextLedger, LlmContextLedgerPackDraft, LlmContextLedgerPackInput,
     LlmContextManifest, context_aware_system_user_request,
@@ -127,8 +128,8 @@ pub(super) fn shooting_context_manifest<T: Serialize>(
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::source_spans::source_spans_for_content;
     use a4n_db::project::ResolvedChapterSource;
+    use a4n_domain::source_spans::source_spans_for_content;
 
     use super::*;
 

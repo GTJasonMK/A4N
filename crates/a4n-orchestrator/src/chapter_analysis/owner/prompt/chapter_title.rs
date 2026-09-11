@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 
 pub fn chapter_display_title(ch: &chapter::Model) -> String {
     ch.title

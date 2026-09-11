@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::chapter_content::ChapterGenerationLifecycleError;
+use a4n_error::AppError;
 
 mod completion;
 mod session;

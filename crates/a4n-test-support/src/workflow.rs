@@ -1,4 +1,4 @@
-use a4n_core::models::generation::workflow_run;
+use a4n_db_models::models::generation::workflow_run;
 use chrono::NaiveDateTime;
 
 pub struct WorkflowRunModelBuilder {

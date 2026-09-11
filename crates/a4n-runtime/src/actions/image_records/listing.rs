@@ -1,9 +1,6 @@
 use crate::{
     AppState,
-    actions::{
-        app_error_message,
-        image_generation::{GeneratedImageSummary, to_summary},
-    },
+    actions::{app_error_message, image_generation::GeneratedImageSummary},
 };
 
 use super::{
@@ -16,12 +13,11 @@ pub async fn list_images_by_project(
     user_id: i64,
     input: ListImagesByProjectInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
-    let rows = state
-        .orchestrator()
-        .list_generated_images_for_user_validated(user_id, input.project_id)
+    state
+        .image_record_application()
+        .list_by_project(user_id, input)
         .await
-        .map_err(app_error_message)?;
-    Ok(rows.iter().map(to_summary).collect())
+        .map_err(app_error_message)
 }
 
 pub async fn list_images_by_projects(
@@ -29,12 +25,11 @@ pub async fn list_images_by_projects(
     user_id: i64,
     input: ListImagesByProjectsInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
-    let rows = state
-        .orchestrator()
-        .list_generated_images_for_projects_for_user_validated(user_id, input.project_ids)
+    state
+        .image_record_application()
+        .list_by_projects(user_id, input)
         .await
-        .map_err(app_error_message)?;
-    Ok(rows.iter().map(to_summary).collect())
+        .map_err(app_error_message)
 }
 
 pub async fn list_images_by_chapter(
@@ -42,12 +37,11 @@ pub async fn list_images_by_chapter(
     user_id: i64,
     input: ListImagesByChapterInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
-    let rows = state
-        .orchestrator()
-        .list_chapter_images_for_user_validated(user_id, input.project_id, input.chapter_id)
+    state
+        .image_record_application()
+        .list_by_chapter(user_id, input)
         .await
-        .map_err(app_error_message)?;
-    Ok(rows.iter().map(to_summary).collect())
+        .map_err(app_error_message)
 }
 
 pub async fn list_video_reference_images(
@@ -55,15 +49,9 @@ pub async fn list_video_reference_images(
     user_id: i64,
     input: ListVideoReferenceImagesInput,
 ) -> Result<Vec<GeneratedImageSummary>, String> {
-    let rows = state
-        .orchestrator()
-        .list_video_reference_images_for_user_validated(
-            user_id,
-            input.project_id,
-            input.chapter_id,
-            input.image_project_ids,
-        )
+    state
+        .image_record_application()
+        .list_video_reference_images(user_id, input)
         .await
-        .map_err(app_error_message)?;
-    Ok(rows.iter().map(to_summary).collect())
+        .map_err(app_error_message)
 }

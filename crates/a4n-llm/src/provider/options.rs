@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_domain::LLM_RESERVED_REQUEST_OPTION_KEYS;
+use a4n_error::AppError;
 use serde_json::{Map, Value};
 
 pub fn normalize_extra_body_json(value: Option<Value>) -> Result<Option<Value>, AppError> {

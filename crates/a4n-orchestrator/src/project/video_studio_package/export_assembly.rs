@@ -1,7 +1,7 @@
 //! 视频画布导出：freeform 校验后组装 manifest（不含磁盘媒体读取）。
 
-use a4n_core::models::{generation::generation_spec, project::novel_project};
 use a4n_db::canvas::VideoStudioProjectExportRows;
+use a4n_db_models::models::{generation::generation_spec, project::novel_project};
 use a4n_domain::clear_canvas_transfer_runtime_identity;
 use chrono::Utc;
 
@@ -21,7 +21,7 @@ pub(crate) fn assemble_video_studio_export_package(
         }
     }
     for video in &mut rows.generated_videos {
-        if !a4n_core::models::ai::generated_video::is_terminal_status(&video.status) {
+        if !a4n_domain::video_workflow::is_terminal_video_status(&video.status) {
             return Err(format!(
                 "视频画布项目不能导出非终态生成视频: generated_video_id={}, status={}",
                 video.id, video.status
@@ -74,7 +74,6 @@ pub(crate) fn assemble_video_studio_export_package(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::generation::generation_spec;
     use a4n_db::{
         canvas::VideoStudioProjectExportRows,
         generation::{
@@ -82,6 +81,7 @@ mod tests {
             GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
         },
     };
+    use a4n_db_models::models::generation::generation_spec;
     use serde_json::json;
 
     fn now() -> chrono::NaiveDateTime {

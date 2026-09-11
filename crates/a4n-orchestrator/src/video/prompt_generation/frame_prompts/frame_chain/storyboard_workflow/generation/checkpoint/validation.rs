@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_error::AppError;
 
 use crate::video::prompt_generation::frame_prompts::{
     apply_boundary_frame_style_template, ensure_video_reference_ids_known,

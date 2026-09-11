@@ -6,7 +6,7 @@ mod validation;
 
 use super::types::{ParsedSceneProfileSync, SceneProfileSyncRequestContext};
 use crate::scene_profile::SceneSyncInput;
-use a4n_core::json_contract::reject_unknown_fields;
+use a4n_domain::json_contract::reject_unknown_fields;
 use serde_json::Value;
 
 use entity_states::parse_scene_entity_states;

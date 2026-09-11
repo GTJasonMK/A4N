@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Map, Value, json};
 
 use a4n_prompt::rendering::PromptRenderer;

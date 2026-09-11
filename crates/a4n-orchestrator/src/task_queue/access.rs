@@ -1,17 +1,35 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_queue::priority::QueueStats;
 
-use super::PersistentTaskQueue;
+use super::{PersistentTaskQueue, queue_db_error};
 
 #[cfg(test)]
 mod tests;
 
 impl PersistentTaskQueue {
     pub async fn cancel(&self, task_id: &str) -> Result<(), AppError> {
-        for cancelled_id in self.inner.cancel_task_now(task_id)? {
-            self.update_status(&cancelled_id, "cancelled", None).await?;
+        self.cancel_persisted_task(task_id).await
+    }
+
+    /// 内存终态可能已淘汰或随重启释放；数据库仍是持久任务终态的唯一来源。
+    pub async fn cancel_persisted_task(&self, task_id: &str) -> Result<(), AppError> {
+        match self.inner.cancel_task_now(task_id) {
+            Ok(cancelled_ids) => {
+                for cancelled_id in cancelled_ids {
+                    self.update_status(&cancelled_id, "cancelled", None).await?;
+                }
+                Ok(())
+            }
+            Err(AppError::NotFound(_)) => a4n_db::queue::update_task_status(
+                self.db.as_ref(),
+                task_id,
+                "cancelled",
+                Some("取消未绑定执行器的持久化队列任务"),
+            )
+            .await
+            .map_err(queue_db_error),
+            Err(error) => Err(error),
         }
-        Ok(())
     }
 
     pub fn queue_stats(&self) -> QueueStats {

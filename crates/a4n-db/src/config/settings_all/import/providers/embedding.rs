@@ -2,7 +2,7 @@ use super::super::super::types::{
     SettingsAllConfigImportError, SettingsAllEmbeddingConfigRow, settings_all_config_database,
 };
 use crate::config::{ProviderConfigKind, clear_provider_config_defaults};
-use a4n_core::models::ai::embedding_config;
+use a4n_db_models::models::ai::embedding_config;
 use chrono::NaiveDateTime;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 

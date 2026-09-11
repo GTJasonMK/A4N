@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    error::AppError,
-    models::{chapter::chapter, character::protagonist_profile, project::text_anchor},
-    source_spans::text_anchor_prompt_values,
-};
 use a4n_db::project::ChapterSourceSnapshot;
-use a4n_db::text_anchor::TextAnchorProfileKind;
+use a4n_db_models::models::{
+    chapter::chapter, character::protagonist_profile, project::text_anchor,
+};
+use a4n_domain::source_spans::text_anchor_prompt_values;
+use a4n_domain::text_anchor::TextAnchorProfileKind;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::OrchestratorContext;

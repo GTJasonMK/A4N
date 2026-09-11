@@ -5,7 +5,7 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-core = { path = "../a4n-core" }
+a4n-domain = { path = "../a4n-domain" }
 a4n-image = { path = "../a4n-image" }
 a4n-image-providers = { path = "../a4n-image-providers" }
 a4n-model-discovery = { path = "../a4n-model-discovery" }

@@ -1,12 +1,13 @@
-use a4n_api_contract::chapter::CHAPTER_ANALYSIS_PROGRESS_TOTAL;
-use a4n_core::{
-    chapter_analysis::validate_saved_chapter_analysis,
-    error::AppError,
-    models::{
-        chapter::chapter,
-        generation::{workflow_checkpoint, workflow_run},
-    },
+use a4n_api_contract::chapter::{
+    CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisMutationResult, ChapterSummary,
 };
+use a4n_chapter_analysis::validate_saved_chapter_analysis;
+use a4n_db_models::models::{
+    chapter::chapter,
+    generation::{workflow_checkpoint, workflow_run},
+};
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_error::AppError;
 use a4n_prompt::{chapter_analysis::ChapterAnalysisRequestStep, rendering::PromptRenderer};
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -23,7 +24,6 @@ use crate::{
         OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND, ObjectDiscoveryInput,
         ObjectDiscoveryProgress,
     },
-    project::ChapterDerivedCleanupArtifacts,
     scene_profile::{SceneProfileSyncHostPort, SceneProfileSyncProgress},
     workflow::{
         CompletedWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED, required_checkpoint_field,
@@ -112,6 +112,75 @@ impl ChapterAnalysisApplicationProgress<'_> {
 #[async_trait]
 pub trait ChapterAnalysisHostPort: ChapterDerivedCleanupHostPort + Send + Sync {
     fn scene_profile_sync_host_port(&self) -> &dyn SceneProfileSyncHostPort;
+}
+
+#[derive(Debug)]
+pub struct ChapterAnalysisRequestPreview {
+    pub title: String,
+    pub steps: Vec<ChapterAnalysisRequestStep>,
+}
+
+/// Runtime-facing chapter-analysis boundary.
+///
+/// Analysis validation, authorization, workflow state and API projections stay
+/// in the chapter-analysis owner. Runtime supplies only prompt, cleanup and
+/// progress adapters.
+#[async_trait]
+pub trait ChapterAnalysisApplicationPort: Send + Sync {
+    async fn preflight_generate(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, AppError>;
+
+    async fn preflight_resume(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, AppError>;
+
+    async fn generate(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn ChapterAnalysisHostPort,
+        progress: ChapterAnalysisApplicationProgress<'_>,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<ChapterAnalysisMutationResult, AppError>;
+
+    async fn resume_sync(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn ChapterAnalysisHostPort,
+        progress: ChapterAnalysisApplicationProgress<'_>,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<ChapterSummary, AppError>;
+
+    async fn resume_workflow_run(
+        &self,
+        user_id: i64,
+        workflow_run_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn ChapterAnalysisHostPort,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<(), AppError>;
+
+    async fn preview(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChapterAnalysisRequestPreview, AppError>;
+
+    async fn preview_resume(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChapterAnalysisRequestPreview, AppError>;
 }
 
 impl OrchestratorContext {
@@ -609,7 +678,7 @@ impl OrchestratorContext {
                 operation: error.to_string(),
             })?;
         host_port
-            .sync_chapter_rag_records(chapter, workflow_run_id)
+            .sync_chapter_rag_records(chapter.project_id, chapter.id, workflow_run_id)
             .await?;
         self.save_chapter_analysis_phase(
             workflow_run_id,
@@ -1131,6 +1200,196 @@ impl OrchestratorContext {
             });
         }
         Ok(())
+    }
+}
+
+#[async_trait]
+impl ChapterAnalysisApplicationPort for OrchestratorContext {
+    async fn preflight_generate(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, AppError> {
+        let chapter = self
+            .preflight_chapter_analysis_validated(chapter_id, false)
+            .await?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.chapter_summary_for_user(user_id, chapter.id).await
+    }
+
+    async fn preflight_resume(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, AppError> {
+        let chapter = self
+            .preflight_resume_chapter_analysis_validated(chapter_id)
+            .await?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.chapter_summary_for_user(user_id, chapter.id).await
+    }
+
+    async fn generate(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn ChapterAnalysisHostPort,
+        progress: ChapterAnalysisApplicationProgress<'_>,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<ChapterAnalysisMutationResult, AppError> {
+        let chapter = self
+            .preflight_chapter_analysis_validated(chapter_id, false)
+            .await?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        match self
+            .run_chapter_analysis_validated(
+                chapter_id,
+                prompt_renderer,
+                host_port,
+                progress,
+                character_trace_port,
+            )
+            .await
+        {
+            Ok(chapter) => Ok(ChapterAnalysisMutationResult {
+                chapter: self.chapter_summary_for_user(user_id, chapter.id).await?,
+                warnings: Vec::new(),
+            }),
+            Err(sync_error) => {
+                let summary = self.chapter_summary_for_user(user_id, chapter_id).await?;
+                if !summary.analysis_sync_has_saved_analysis || !summary.analysis_sync_can_resume {
+                    return Err(sync_error);
+                }
+                Ok(ChapterAnalysisMutationResult {
+                    chapter: summary,
+                    warnings: vec![format!(
+                        "结构化分析已保存，但后续资料同步未完成：{sync_error}"
+                    )],
+                })
+            }
+        }
+    }
+
+    async fn resume_sync(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn ChapterAnalysisHostPort,
+        progress: ChapterAnalysisApplicationProgress<'_>,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<ChapterSummary, AppError> {
+        let chapter = self
+            .preflight_resume_chapter_analysis_validated(chapter_id)
+            .await?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        let chapter = self
+            .resume_chapter_analysis_sync_validated(
+                chapter_id,
+                prompt_renderer,
+                host_port,
+                progress,
+                character_trace_port,
+            )
+            .await?;
+        self.chapter_summary_for_user(user_id, chapter.id).await
+    }
+
+    async fn resume_workflow_run(
+        &self,
+        user_id: i64,
+        workflow_run_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+        host_port: &dyn ChapterAnalysisHostPort,
+        character_trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<(), AppError> {
+        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        let chapter_id = run.chapter_id.ok_or_else(|| {
+            AppError::InvalidArgument("章节结构化分析工作流缺少 chapter_id".to_string())
+        })?;
+        let chapter = self
+            .chapter_by_id(chapter_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("章节不存在: chapter_id={chapter_id}")))?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.resume_chapter_analysis_workflow_run_validated(
+            &run,
+            prompt_renderer,
+            host_port,
+            character_trace_port,
+        )
+        .await
+    }
+
+    async fn preview(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChapterAnalysisRequestPreview, AppError> {
+        let chapter = self
+            .preflight_chapter_analysis_validated(chapter_id, false)
+            .await?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        let step = build_chapter_analysis_initial_request(&chapter, prompt_renderer).await?;
+        Ok(ChapterAnalysisRequestPreview {
+            title: format!("第 {} 章结构化分析请求预览", chapter.chapter_number),
+            steps: vec![step],
+        })
+    }
+
+    async fn preview_resume(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChapterAnalysisRequestPreview, AppError> {
+        let chapter = self
+            .preflight_resume_chapter_analysis_validated(chapter_id)
+            .await?;
+        self.verify_project_permission(
+            chapter.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        Ok(ChapterAnalysisRequestPreview {
+            title: format!("第 {} 章分析继续同步请求预览", chapter.chapter_number),
+            steps: self
+                .prepare_resume_chapter_analysis_preview_validated(&chapter, prompt_renderer)
+                .await?,
+        })
     }
 }
 

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use serde_json::Value;
 
 pub(super) fn error_body_preview(value: &str) -> String {
@@ -30,9 +30,7 @@ pub(super) fn video_id(v: &Value) -> Result<String, AppError> {
             return Ok(value.to_string());
         }
     }
-    Err(AppError::Internal(anyhow::anyhow!(
-        "CLIProxy 视频生成响应缺少 id"
-    )))
+    Err(AppError::Internal(format!("CLIProxy 视频生成响应缺少 id")))
 }
 
 pub(super) fn status(v: &Value) -> Option<String> {
@@ -45,7 +43,7 @@ pub(super) fn status(v: &Value) -> Option<String> {
 }
 
 pub(super) fn required_status(v: &Value) -> Result<String, AppError> {
-    status(v).ok_or_else(|| AppError::Internal(anyhow::anyhow!("CLIProxy 视频任务响应缺少 status")))
+    status(v).ok_or_else(|| AppError::Internal(format!("CLIProxy 视频任务响应缺少 status")))
 }
 
 pub(super) fn is_completed_status(status: Option<&str>) -> bool {

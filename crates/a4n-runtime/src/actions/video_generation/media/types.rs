@@ -5,4 +5,4 @@ pub(super) const REMOTE_TEMP_UPLOAD_URL_ENV: &str = "A4N_VIDEO_REMOTE_TEMP_UPLOA
 pub(super) const REMOTE_TEMP_UPLOAD_TOKEN_ENV: &str = "A4N_VIDEO_REMOTE_TEMP_UPLOAD_TOKEN";
 pub(super) const PROVIDER_IMAGE_URL_PROBE_TIMEOUT_SECS: u64 = 20;
 
-pub(crate) use a4n_orchestrator::video::ProviderImageInputTransport;
+pub(crate) use a4n_video::ProviderImageInputTransport;

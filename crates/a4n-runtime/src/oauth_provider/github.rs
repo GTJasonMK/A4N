@@ -2,7 +2,7 @@ mod parsing;
 mod requests;
 
 use super::contracts::{OAuth2Provider, OAuth2UserInfo};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use async_trait::async_trait;
 
 pub struct GitHubOAuth2 {

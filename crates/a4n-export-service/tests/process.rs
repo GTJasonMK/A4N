@@ -23,6 +23,7 @@ async fn export_service_process_serves_typed_render_and_stops() {
     assert_process_concurrency_saturation(addr, EXPORT_SERVICE_NAME, "/export/render_json").await;
     let base_url = sidecar_base_url(addr);
     assert_protected_route_rejects_invalid_auth(&base_url, "/export/render_json").await;
+    assert_protected_route_rejects_invalid_auth(&base_url, "/export/metrics").await;
     assert_route_rejects_malformed_json(&base_url, "/export/render_json").await;
     assert_route_rejects_oversized_json(&base_url, "/export/render_json", 8 * 1024 * 1024).await;
     assert_route_rejects_oversized_json(&base_url, "/export/render_zip", 64 * 1024 * 1024).await;

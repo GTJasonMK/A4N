@@ -4,8 +4,8 @@ mod recipes;
 mod recovery;
 mod shots;
 
-use a4n_core::error::AppError;
 use a4n_db::workflow;
+use a4n_error::AppError;
 use std::collections::HashSet;
 
 use crate::workflow::workflow_checkpoint_contract_app_error;

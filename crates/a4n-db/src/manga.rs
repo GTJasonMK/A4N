@@ -12,9 +12,7 @@ pub use records::{
     update_manga_page_prompt_image_prompt, update_manga_page_prompt_layout,
 };
 pub use sync::sync_manga_page_prompts_by_chapter;
-pub use types::{
-    MangaPagePromptSyncDraft, MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt,
-};
+pub use types::{MangaPipelineDbError, MangaPromptRecordError, MangaPromptUpdatedAt};
 pub(in crate::manga) use types::{
     manga_record_database, require_manga_text, require_positive_manga_id,
     validate_manga_page_number, validate_manga_page_prompt_layout,

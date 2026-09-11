@@ -1,15 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    config::app_config::llm_token_profiles,
-    error::AppError,
-    models::chapter::chapter_video_prompt,
-    prompt_language::{
-        PromptOutputLanguage, prompt_output_language_from_instruction,
-        with_prompt_output_language_metadata,
-    },
-    source_spans::source_text_hash as source_content_sha256,
-};
+use a4n_api_contract::video::VideoPromptDownstreamCleanupPort;
+
 use a4n_db::{
     generation::{
         GenerationRunCheckpointContext, RecordCompletedGenerationRunInput,
@@ -17,6 +9,16 @@ use a4n_db::{
     },
     video_prompt::ChapterVideoPromptPatch,
 };
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::{
+    llm::llm_token_profiles,
+    prompt_language::{
+        PromptOutputLanguage, prompt_output_language_from_instruction,
+        with_prompt_output_language_metadata,
+    },
+    source_text_hash as source_content_sha256,
+};
+use a4n_error::AppError;
 use a4n_llm::{
     context::{
         COMPRESSION_FOCUSED_RAW, COMPRESSION_FULL_RAW, COMPRESSION_MINIMAL, LlmContextLedger,
@@ -34,6 +36,7 @@ use crate::{
     workflow::{self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput},
 };
 
+use super::VideoPromptDownstreamDependencies;
 use super::prompt_json::{validate_chat_video_prompt_text, validate_direct_prompt_text};
 use super::prompt_optimization_checkpoint::{
     OptimizedVideoPromptFields, video_prompt_optimization_checkpoint_output,
@@ -45,7 +48,6 @@ use super::provider_prompt_text_rules::{
     MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, validate_provider_model_text,
 };
 use super::reference_media_rules::MIN_PROVIDER_VISUAL_PROMPT_CHARS;
-use super::{VideoPromptDownstreamCleanupPort, VideoPromptDownstreamDependencies};
 
 const OPTIMIZATION_PROMPT_NAME: &str = "chapter_video_prompt_optimization";
 const OPTIMIZATION_USER_PROMPT_NAME: &str = "chapter_video_prompt_optimization_user";

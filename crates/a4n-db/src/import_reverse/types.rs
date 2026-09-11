@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter, chapter_outline, part_outline},
     character::{foreshadowing_index, protagonist_profile},

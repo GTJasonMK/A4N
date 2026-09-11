@@ -1,11 +1,9 @@
 //! Restore adopted segment videos only when their current execution identity is exact.
 
-use a4n_core::{
-    models::{ai::generated_video, chapter::chapter_video_prompt},
-    video_execution::{
-        VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1,
-        video_segment_recipes_from_metadata,
-    },
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_video_contract::{
+    VIDEO_SEGMENT_RECIPES_METADATA_KEY, VideoSegmentExecutionRecipeV1,
+    video_segment_recipes_from_metadata,
 };
 #[cfg(test)]
 use sea_orm::prelude::DateTime;
@@ -229,7 +227,7 @@ impl MigrationTrait for Migration {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::models::{chapter::chapter, project::novel_project};
+    use a4n_db_models::models::{chapter::chapter, project::novel_project};
     use sea_orm::{ActiveModelTrait, EntityTrait};
     use serde_json::json;
 

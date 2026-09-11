@@ -4,8 +4,8 @@ use super::super::source::{
 };
 use crate::AppState;
 use crate::actions::access;
+use crate::actions::video_generation::GeneratedVideoSummary;
 use crate::actions::video_generation::media::best_effort_video_thumbnail_path;
-use crate::actions::video_generation::{GeneratedVideoSummary, video_to_summary};
 use crate::actions::video_records::{complete_video_record, video_record_output_path};
 use chrono::Utc;
 
@@ -48,8 +48,8 @@ async fn create_imported_reference_media_video(
     let properties = probe_imported_video_properties(&source, "导入参考媒体视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .orchestrator()
-        .create_imported_reference_media_video_record_validated(
+        .video_record_application()
+        .create_imported_reference_media_video_record(
             project_id,
             chapter_id,
             properties,
@@ -57,16 +57,14 @@ async fn create_imported_reference_media_video(
             source.extension,
             &imported_at,
             segment_prompt_id,
-            (
-                &target_segment.source_shot_id,
-                target_segment.segment_index_in_shot,
-            ),
+            &target_segment.source_shot_id,
+            target_segment.segment_index_in_shot,
         )
         .await
         .map_err(crate::actions::app_error_message)?;
 
     let (output, output_path_str) = persist_imported_video_file(
-        state.orchestrator(),
+        state,
         state.data_dir(),
         record.id,
         &source.path,
@@ -103,5 +101,5 @@ async fn create_imported_reference_media_video(
         "导入参考媒体视频记录完成失败",
     )
     .await?;
-    Ok(video_to_summary(&updated))
+    Ok(updated)
 }

@@ -3,7 +3,7 @@ use super::super::types::{
     SCENE_TRANSITION_PROMPT, SceneProfileSyncRequestContext,
 };
 use crate::{OrchestratorContext, workflow::CompletedWorkflowCheckpointInput};
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 use serde_json::{Value, json};
 
 fn scene_final_step_key(context: &SceneProfileSyncRequestContext) -> String {

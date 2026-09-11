@@ -1,7 +1,8 @@
 use crate::{
     command_registry, commands, environment, logging, media_protocol, server_process, window,
 };
-use a4n_core::{config::app_config::AppConfig, files::paths::AppPaths};
+use a4n_config::app_config::AppConfig;
+use a4n_storage::paths::AppPaths;
 use tauri::Manager;
 
 pub(crate) fn run() {
@@ -68,7 +69,7 @@ fn setup_http_mode(
     remote_only: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let config = AppConfig::default();
-    AppPaths::from_config(&config).ensure_dirs()?;
+    app_paths(&config).ensure_dirs()?;
     if !remote_only {
         let server = tauri::async_runtime::block_on(server_process::LocalServerProcess::start(
             app.handle(),
@@ -77,7 +78,7 @@ fn setup_http_mode(
         app.manage(server);
     }
     app.manage(commands::frontend_state::FrontendStatePath(
-        AppPaths::from_config(&config).frontend_state_file(),
+        app_paths(&config).frontend_state_file(),
     ));
     window::create_main_window(app, &config)?;
     app.manage(commands::config::local_embedding::LocalEmbeddingRuntimeState::new(&config));
@@ -95,7 +96,7 @@ fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::E
     crate::setup::install_agent_host_dispatcher(&app_state)?;
     tauri::async_runtime::block_on(app_state.spawn_agent_worker());
     app.manage(commands::frontend_state::FrontendStatePath(
-        AppPaths::from_config(app_state.host_app_config()).frontend_state_file(),
+        app_paths(app_state.host_app_config()).frontend_state_file(),
     ));
     window::create_main_window(app, app_state.host_app_config())?;
     // Keep an Arc alive so the dispatcher can upgrade its weak reference, and
@@ -104,6 +105,15 @@ fn setup_local_runtime(app: &mut tauri::App) -> Result<(), Box<dyn std::error::E
     app.manage((*app_state).clone());
     tracing::info!("A4N 原生 Tauri API 兼容模式启动完成");
     Ok(())
+}
+
+fn app_paths(config: &AppConfig) -> AppPaths {
+    AppPaths::new(
+        config.data_dir.clone(),
+        config.cache_dir.clone(),
+        config.temp_dir.clone(),
+        config.log_dir.clone(),
+    )
 }
 
 #[cfg(unix)]

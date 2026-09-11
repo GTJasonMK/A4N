@@ -1,16 +1,14 @@
 use std::{
     io::Read,
     net::SocketAddr,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     time::{Duration, Instant, SystemTime},
 };
 
 #[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
-use std::{
-    sync::{Arc, Mutex},
-    time::UNIX_EPOCH,
-};
+use std::sync::Arc;
 
 #[cfg(any(
     feature = "embedded-capabilities",
@@ -20,23 +18,31 @@ use std::{
 use std::convert::Infallible;
 
 use a4n_api_contract::temp_media::TempMediaDeleteRequest;
-#[cfg(any(
-    feature = "embedded-capabilities",
-    feature = "embedded-media-providers"
-))]
-use a4n_core::models::ai::generated_video;
-use a4n_core::models::{
-    ai::generated_image,
-    chapter::{chapter, chapter_outline, part_outline},
-    generation::generation_task_checkpoint,
-    project::novel_blueprint,
-    task::cleanup_outbox,
-    user::role::{ROLE_ADMIN, ROLE_USER},
-};
 use a4n_db::generation::{
     PersistGenerationCheckpointInput, ReserveGenerationTaskInput, persist_generation_checkpoint,
     reserve_generation_task,
 };
+#[cfg(any(
+    feature = "embedded-capabilities",
+    feature = "embedded-media-providers"
+))]
+use a4n_db_models::models::ai::generated_video;
+use a4n_db_models::models::{
+    ai::generated_image,
+    asset::profile_primary_material,
+    chapter::chapter,
+    media::image_publication,
+    task::cleanup_outbox,
+    user::role::{ROLE_ADMIN, ROLE_USER},
+};
+#[cfg(feature = "embedded-capabilities")]
+use a4n_db_models::models::{
+    chapter::{chapter_outline, part_outline},
+    generation::generation_task_checkpoint,
+    project::novel_blueprint,
+};
+use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
+use a4n_domain::scene_profile::SceneProfileRecordInput;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use a4n_service_protocol::GenerationDeliveryMode;
 #[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
@@ -56,8 +62,6 @@ use base64::Engine as _;
 use chrono::{Duration as ChronoDuration, Utc};
 #[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 use futures::{StreamExt as _, stream};
-#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
-use sea_orm::QueryOrder;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseBackend, DatabaseConnection,
     EntityTrait, QueryFilter, Set, Statement, TransactionTrait,
@@ -68,17 +72,12 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 const PROCESS_TIMEOUT: Duration = Duration::from_secs(30);
-#[cfg(any(
-    feature = "embedded-capabilities",
-    feature = "embedded-media-providers"
-))]
 const PNG_1X1_BASE64: &str =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 
 #[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 struct FakeOpenAiSseProvider {
     addr: SocketAddr,
-    first_frame_unix_ms: Arc<Mutex<Vec<u64>>>,
     shutdown: oneshot::Sender<()>,
     task: tokio::task::JoinHandle<Result<(), std::io::Error>>,
 }
@@ -101,8 +100,6 @@ impl FakeOpenAiSseProvider {
             .into_iter()
             .map(|(needle, frames, delay)| (needle, Arc::new(frames), delay))
             .collect::<Vec<_>>();
-        let first_frame_unix_ms = Arc::new(Mutex::new(Vec::new()));
-        let recorded_first_frames = Arc::clone(&first_frame_unix_ms);
         let router = Router::new().fallback(any(move |body: String| {
             let route_body = if routed.is_empty() {
                 String::new()
@@ -143,23 +140,11 @@ impl FakeOpenAiSseProvider {
                 .max_by_key(|(index, _, _)| *index)
                 .map(|(_, frames, delay)| (Arc::clone(frames), *delay))
                 .unwrap_or_else(|| (Arc::clone(&frames), frame_delay));
-            let recorded_first_frames = Arc::clone(&recorded_first_frames);
             async move {
                 let body = stream::iter(frames.as_ref().clone().into_iter().enumerate()).then(
-                    move |(index, frame)| {
-                        let recorded_first_frames = Arc::clone(&recorded_first_frames);
-                        async move {
-                            tokio::time::sleep(frame_delay).await;
-                            if index == 0 {
-                                recorded_first_frames.lock().unwrap().push(
-                                    SystemTime::now()
-                                        .duration_since(UNIX_EPOCH)
-                                        .unwrap()
-                                        .as_millis() as u64,
-                                );
-                            }
-                            Ok::<String, Infallible>(frame)
-                        }
+                    move |(_, frame)| async move {
+                        tokio::time::sleep(frame_delay).await;
+                        Ok::<String, Infallible>(frame)
                     },
                 );
                 (
@@ -181,7 +166,6 @@ impl FakeOpenAiSseProvider {
         });
         Self {
             addr,
-            first_frame_unix_ms,
             shutdown,
             task,
         }
@@ -189,10 +173,6 @@ impl FakeOpenAiSseProvider {
 
     fn base_url(&self) -> String {
         format!("http://{}/v1", self.addr)
-    }
-
-    fn first_frame_unix_ms(&self) -> Vec<u64> {
-        self.first_frame_unix_ms.lock().unwrap().clone()
     }
 
     async fn stop(self) {
@@ -352,7 +332,7 @@ async fn server_startup_restores_rejected_project_delete_gate() {
     assert_eq!(gate, "active");
     for project_id in [root.id, derived.id] {
         assert!(
-            a4n_core::models::project::novel_project::Entity::find_by_id(project_id)
+            a4n_db_models::models::project::novel_project::Entity::find_by_id(project_id)
                 .one(&db)
                 .await
                 .unwrap()
@@ -520,7 +500,97 @@ async fn server_process_recovers_only_registered_or_expired_cleanup() {
 }
 
 #[tokio::test]
-async fn server_process_reports_image_record_and_cleanup_intent_failures() {
+async fn server_process_keeps_referenced_file_artifact_during_cleanup() {
+    let (db, database_url) = isolated_test_database().await;
+    let user = a4n_db::auth::create_user(
+        &db,
+        "cleanup_reference_admin",
+        "cleanup-reference-admin@example.invalid",
+        "cleanup-reference-password",
+        ROLE_ADMIN,
+    )
+    .await
+    .unwrap();
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id: user.id,
+            title: "referenced cleanup file".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+
+    let temp = tempfile::tempdir().unwrap();
+    let data_dir = temp.path().join("data");
+    let frontend_dir = temp.path().join("frontend");
+    std::fs::create_dir_all(&frontend_dir).unwrap();
+    std::fs::write(frontend_dir.join("index.html"), "test").unwrap();
+
+    let referenced_path = format!("projects/{}/images/referenced.png", project.id);
+    let absolute_path = data_dir.join(&referenced_path);
+    std::fs::create_dir_all(absolute_path.parent().unwrap()).unwrap();
+    std::fs::write(&absolute_path, b"referenced").unwrap();
+    let image = a4n_db::video::create_generated_image_record(
+        &db,
+        a4n_db::video::CreateGeneratedImageRecordDraftInput {
+            project_id: project.id,
+            image_type: "imported".to_string(),
+            file_path: referenced_path.clone(),
+            prompt: "referenced cleanup file".to_string(),
+            model: "test".to_string(),
+            width: 1,
+            height: 1,
+            file_size: Some(10),
+            chapter_id: None,
+            panel_id: None,
+            metadata_json: None,
+            created_at: None,
+        },
+    )
+    .await
+    .unwrap();
+    let cleanup = a4n_db::cleanup_outbox::insert_file_artifact_cleanup_intent(
+        &db,
+        format!("test-referenced-file-{}", project.id),
+        a4n_db::cleanup_outbox::FileArtifactCleanupPayload::new(
+            project.id,
+            vec![referenced_path.clone()],
+        ),
+    )
+    .await
+    .unwrap();
+
+    let first_addr = unused_local_addr();
+    let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, first_addr);
+    wait_for_listener(&mut server, first_addr).await;
+    stop_server(server);
+
+    let completed = cleanup_outbox::Entity::find_by_id(cleanup.id)
+        .one(&db)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        completed.status,
+        a4n_db::cleanup_outbox::CLEANUP_STATUS_COMPLETED
+    );
+    assert!(data_dir.join(&referenced_path).is_file());
+    assert_eq!(
+        generated_image::Entity::find_by_id(image.id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .file_path,
+        referenced_path
+    );
+}
+
+#[tokio::test]
+async fn server_process_preserves_pending_image_publication_after_record_failure() {
     let (db, database_url) = isolated_test_database().await;
     let temp = tempfile::tempdir().unwrap();
     let data_dir = temp.path().join("data");
@@ -594,8 +664,10 @@ async fn server_process_reports_image_record_and_cleanup_intent_failures() {
     stop_server(first);
 
     assert_eq!(status, reqwest::StatusCode::BAD_REQUEST);
-    assert!(message.contains("导入图片记录创建失败"), "{message}");
-    assert!(message.contains("后续清理也失败"), "{message}");
+    assert!(
+        message.contains("test generated image db failure"),
+        "{message}"
+    );
     let images_dir = data_dir
         .join("projects")
         .join(project.id.to_string())
@@ -612,6 +684,15 @@ async fn server_process_reports_image_record_and_cleanup_intent_failures() {
     assert_eq!(orphan_files.len(), 1);
     let orphan_path = orphan_files.pop().unwrap();
     assert!(orphan_path.is_file());
+    let publication = image_publication::Entity::find()
+        .filter(image_publication::Column::ProjectId.eq(project.id))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("record failure must leave a recoverable publication intent");
+    assert_eq!(publication.status, IMAGE_PUBLICATION_STATUS_PENDING);
+    assert!(data_dir.join(&publication.final_path).is_file());
+    assert!(!data_dir.join(&publication.staging_path).exists());
     assert!(
         generated_image::Entity::find()
             .filter(generated_image::Column::ProjectId.eq(project.id))
@@ -637,7 +718,7 @@ async fn server_process_reports_image_record_and_cleanup_intent_failures() {
 }
 
 #[tokio::test]
-async fn server_process_kill_before_image_record_commit_leaves_no_database_state() {
+async fn server_process_kill_before_image_record_commit_preserves_publication_intent() {
     const INSERT_LOCK_KEY: i64 = 4_205_150_915;
 
     let (db, database_url) = isolated_test_database().await;
@@ -746,6 +827,14 @@ async fn server_process_kill_before_image_record_commit_leaves_no_database_state
     remove_upload_blocking_trigger(&db).await;
 
     assert!(orphan_path.is_file());
+    let publication = image_publication::Entity::find()
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("killed upload must leave a recoverable publication intent");
+    assert_eq!(publication.status, IMAGE_PUBLICATION_STATUS_PENDING);
+    assert!(data_dir.join(&publication.final_path).is_file());
     assert!(
         generated_image::Entity::find()
             .filter(generated_image::Column::ProjectId.eq(project_id))
@@ -762,6 +851,361 @@ async fn server_process_kill_before_image_record_commit_leaves_no_database_state
             .unwrap()
             .is_none()
     );
+
+    let second_addr = unused_local_addr();
+    let mut second = spawn_server(&database_url, &data_dir, &frontend_dir, second_addr);
+    wait_for_listener(&mut second, second_addr).await;
+    let recovered = image_publication::Entity::find()
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("recovery must retain the publication row");
+    assert_eq!(recovered.status, IMAGE_PUBLICATION_STATUS_PUBLISHED);
+    assert!(recovered.image_id.is_some());
+    assert!(
+        generated_image::Entity::find()
+            .filter(generated_image::Column::ProjectId.eq(project_id))
+            .one(&db)
+            .await
+            .unwrap()
+            .is_some()
+    );
+    stop_server(second);
+}
+
+#[tokio::test]
+async fn server_process_recovers_profile_material_publication_and_primary_binding() {
+    const INSERT_LOCK_KEY: i64 = 4_205_150_916;
+
+    let (db, database_url) = isolated_test_database().await;
+    let temp = tempfile::tempdir().unwrap();
+    let data_dir = temp.path().join("data");
+    let frontend_dir = temp.path().join("frontend");
+    std::fs::create_dir_all(&frontend_dir).unwrap();
+    std::fs::write(frontend_dir.join("index.html"), "test").unwrap();
+
+    let first_addr = unused_local_addr();
+    let mut first = spawn_server(&database_url, &data_dir, &frontend_dir, first_addr);
+    wait_for_listener(&mut first, first_addr).await;
+
+    let client = reqwest::Client::builder()
+        .timeout(PROCESS_TIMEOUT)
+        .build()
+        .unwrap();
+    let auth = client
+        .post(format!("http://{first_addr}/api/commands/login_user"))
+        .json(&json!({
+            "input": {
+                "username": "cleanup_process_admin",
+                "password": "cleanup-process-password",
+            },
+        }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    let user_id = auth["user"]["id"].as_i64().unwrap();
+    let access_token = auth["tokens"]["access_token"].as_str().unwrap();
+    let project = a4n_db::project::create_project_record(
+        &db,
+        a4n_db::project::CreateProjectRecordInput {
+            user_id,
+            title: "profile material recovery".to_string(),
+            description: String::new(),
+            project_type: "novel_long".to_string(),
+        },
+    )
+    .await
+    .unwrap();
+    let profile = a4n_db::scene_profile::create_scene_profile_record(
+        &db,
+        project.id,
+        SceneProfileRecordInput {
+            name: "旧书房".to_string(),
+            normalized_name: "旧书房".to_string(),
+            aliases_json: json!([]),
+            scene_type: "room".to_string(),
+            importance: "primary".to_string(),
+            parent_scene_id: None,
+            base_description: "一间旧书房".to_string(),
+            visual_description: "木质书架和尘埃".to_string(),
+            spatial_layout: "书架环绕中央桌面".to_string(),
+            atmosphere: "安静".to_string(),
+            entry_points_json: json!([]),
+            rules_json: json!([]),
+            first_seen_chapter: 1,
+            last_seen_chapter: 1,
+            evidence_json: json!([]),
+            image_prompt_seed: "旧书房设定图".to_string(),
+        },
+        a4n_domain::profile_ownership::PROFILE_OWNERSHIP_USER,
+    )
+    .await
+    .unwrap();
+
+    install_upload_blocking_trigger(&db, INSERT_LOCK_KEY).await;
+    let blocker = db.begin().await.unwrap();
+    blocker
+        .execute(Statement::from_string(
+            DatabaseBackend::Postgres,
+            format!("SELECT pg_advisory_xact_lock({INSERT_LOCK_KEY})"),
+        ))
+        .await
+        .unwrap();
+
+    let project_id = project.id;
+    let profile_id = profile.id;
+    let request = tokio::spawn({
+        let client = client.clone();
+        let access_token = access_token.to_string();
+        async move {
+            client
+                .post(format!(
+                    "http://{first_addr}/api/commands/upload_profile_material_image"
+                ))
+                .bearer_auth(access_token)
+                .json(&json!({
+                    "input": {
+                        "project_id": project_id,
+                        "profile_kind": "scene",
+                        "profile_id": profile_id,
+                        "file_name": "profile-material.png",
+                        "mime_type": "image/png",
+                        "data_base64": PNG_1X1_BASE64,
+                        "set_primary": true,
+                        "prompt_snapshot": "旧书房场景素材",
+                        "style_template_id": null,
+                        "style_template_name": null,
+                        "style_template_version": null,
+                        "custom_style": null
+                    }
+                }))
+                .send()
+                .await
+        }
+    });
+    tokio::time::sleep(Duration::from_millis(250)).await;
+    if request.is_finished() {
+        let response = request
+            .await
+            .expect("profile upload request task should join")
+            .expect("profile upload request should return a response");
+        let status = response.status();
+        let body = response
+            .text()
+            .await
+            .expect("profile upload error response should have a body");
+        panic!("profile upload ended before writing its file: {status} {body}");
+    }
+    let images_dir = data_dir
+        .join("projects")
+        .join(project_id.to_string())
+        .join("images");
+    let final_path =
+        wait_for_file_with_prefix(&mut first, &images_dir, "scene_material_profile_").await;
+
+    stop_server(first);
+    assert!(
+        tokio::time::timeout(Duration::from_secs(5), request)
+            .await
+            .expect("killed profile upload request should end")
+            .expect("profile upload request task should join")
+            .is_err(),
+        "killed profile upload must not report success"
+    );
+    blocker.rollback().await.unwrap();
+    remove_upload_blocking_trigger(&db).await;
+
+    let publication = image_publication::Entity::find()
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("profile upload must leave a publication intent");
+    assert_eq!(publication.status, IMAGE_PUBLICATION_STATUS_PENDING);
+    assert_eq!(
+        publication
+            .metadata_json
+            .as_ref()
+            .expect("profile publication metadata must be present")["set_primary"],
+        json!(true)
+    );
+    assert!(final_path.is_file());
+    assert!(
+        generated_image::Entity::find()
+            .filter(generated_image::Column::ProjectId.eq(project_id))
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        profile_primary_material::Entity::find()
+            .filter(profile_primary_material::Column::ProjectId.eq(project_id))
+            .one(&db)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    let second_addr = unused_local_addr();
+    let mut second = spawn_server(&database_url, &data_dir, &frontend_dir, second_addr);
+    wait_for_listener(&mut second, second_addr).await;
+    let recovered = image_publication::Entity::find()
+        .filter(image_publication::Column::ProjectId.eq(project_id))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("recovery must retain profile publication");
+    assert_eq!(recovered.status, IMAGE_PUBLICATION_STATUS_PUBLISHED);
+    let image_id = recovered.image_id.expect("recovery must assign image id");
+    let primary = profile_primary_material::Entity::find()
+        .filter(profile_primary_material::Column::ProjectId.eq(project_id))
+        .one(&db)
+        .await
+        .unwrap()
+        .expect("recovery must restore the requested primary binding");
+    assert_eq!(primary.primary_image_id, image_id);
+    assert_eq!(
+        generated_image::Entity::find_by_id(image_id)
+            .one(&db)
+            .await
+            .unwrap()
+            .unwrap()
+            .file_path,
+        recovered.final_path
+    );
+    stop_server(second);
+}
+
+#[tokio::test]
+async fn server_process_returns_structured_package_unavailable_error() {
+    let (db, database_url) = isolated_test_database().await;
+    let temp = tempfile::tempdir().unwrap();
+    let data_dir = temp.path().join("data");
+    let frontend_dir = temp.path().join("frontend");
+    std::fs::create_dir_all(&frontend_dir).unwrap();
+    std::fs::write(frontend_dir.join("index.html"), "test").unwrap();
+
+    let addr = unused_local_addr();
+    let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
+    wait_for_listener(&mut server, addr).await;
+    a4n_db::package::reconcile_package_installation_state(
+        &db,
+        "vector-rag",
+        a4n_db::package::INSTALLATION_MISSING,
+    )
+    .await
+    .unwrap();
+    let client = reqwest::Client::builder()
+        .timeout(PROCESS_TIMEOUT)
+        .build()
+        .unwrap();
+    let auth = client
+        .post(format!("http://{addr}/api/commands/login_user"))
+        .json(&json!({
+            "input": {
+                "username": "cleanup_process_admin",
+                "password": "cleanup-process-password",
+            },
+        }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    let access_token = auth["tokens"]["access_token"].as_str().unwrap();
+
+    let overview = client
+        .post(format!("http://{addr}/api/commands/get_package_overview"))
+        .bearer_auth(access_token)
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    let status_version = overview
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|package| package["package_id"] == "vector-rag")
+        .and_then(|package| package["status_version"].as_u64())
+        .expect("package overview must contain vector-rag");
+
+    let lifecycle_response = client
+        .post(format!(
+            "http://{addr}/api/commands/start_package_lifecycle"
+        ))
+        .bearer_auth(access_token)
+        .json(&json!({
+            "input": {
+                "package_id": "vector-rag",
+                "action": "disable",
+                "operation_id": "package-process-disable",
+                "expected_status_version": status_version,
+            },
+        }))
+        .send()
+        .await
+        .unwrap();
+    let lifecycle_status = lifecycle_response.status();
+    let lifecycle_body = lifecycle_response.text().await.unwrap();
+    assert!(
+        lifecycle_status.is_success(),
+        "package lifecycle failed with {lifecycle_status}: {lifecycle_body}"
+    );
+    let lifecycle: serde_json::Value = serde_json::from_str(&lifecycle_body).unwrap();
+    assert_eq!(lifecycle["state"], "completed");
+
+    let retry = client
+        .post(format!(
+            "http://{addr}/api/commands/start_package_lifecycle"
+        ))
+        .bearer_auth(access_token)
+        .json(&json!({
+            "input": {
+                "package_id": "vector-rag",
+                "action": "disable",
+                "operation_id": "package-process-disable",
+                "expected_status_version": status_version,
+            },
+        }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap()
+        .json::<serde_json::Value>()
+        .await
+        .unwrap();
+    assert_eq!(retry["operation_id"], "package-process-disable");
+    assert_eq!(retry["state"], "completed");
+
+    let response = client
+        .post(format!("http://{addr}/api/commands/rag_ingest_all"))
+        .bearer_auth(access_token)
+        .json(&json!({}))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), reqwest::StatusCode::CONFLICT);
+    let error = response.json::<serde_json::Value>().await.unwrap();
+    assert_eq!(error["code"], "package_unavailable");
+    assert_eq!(error["details"]["package_id"], "vector-rag");
+    assert_eq!(error["details"]["reason_code"], "not_installed");
+    stop_server(server);
 }
 
 #[tokio::test]
@@ -963,6 +1407,7 @@ async fn server_destructive_drain_releases_database_locks_before_waiting() {
             project.id,
             Uuid::new_v4().to_string(),
             "destructive-lock-wait",
+            TaskKind::ExportGeneration,
         ),
     )
     .await
@@ -1178,7 +1623,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
                 default_duration_secs: 5,
                 min_duration_secs: 1,
                 max_duration_secs: 15,
-                duration_mode: a4n_db::config::VideoDurationMode::Range,
+                duration_mode: "range".to_string(),
                 supported_durations_json: None,
                 default_fps: 24,
             },
@@ -1190,7 +1635,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
             a4n_db::video::CreateGeneratedVideoRecordDraftInput {
                 project_id: project.id,
                 chapter_id: None,
-                video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+                video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
                 workflow_mode: Some("reference_media".to_string()),
                 prompt: "provider cleanup".to_string(),
                 negative_prompt: None,
@@ -1221,6 +1666,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
     )))]
     let checkpoint_provider_kind = "openai-compatible-video";
 
+    mark_package_installed(&db, "export").await;
     let startup_recovery = reserve_generation_task(
         &db,
         generation_reservation_input(
@@ -1228,6 +1674,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
             project.id,
             Uuid::new_v4().to_string(),
             "server-process-startup-recovery",
+            TaskKind::ExportGeneration,
         ),
     )
     .await
@@ -1323,6 +1770,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
             "temp-media-process-token",
         )
         .spawn()
+        .map(TestServer::new)
         .expect("start a4n-server generation recovery process test");
     wait_for_listener(&mut server, addr).await;
     let (deleted_artifact_id, deleted_sha256, authorization) =
@@ -1362,6 +1810,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
             project.id,
             Uuid::new_v4().to_string(),
             "server-process-active",
+            TaskKind::ExportGeneration,
         ),
     )
     .await
@@ -1374,6 +1823,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
         project.id,
         Uuid::new_v4().to_string(),
         "server-process-active-child",
+        TaskKind::ExportGeneration,
     );
     child_input.business_key_json = json!({
         "version": 1,
@@ -1647,6 +2097,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
             "temp-media-process-token",
         )
         .spawn()
+        .map(TestServer::new)
         .expect("restart a4n-server generation recovery process test");
     wait_for_listener(&mut restarted, restarted_addr).await;
     stop_server(restarted);
@@ -1697,6 +2148,7 @@ async fn server_process_recovers_snapshot_only_generation_subscription() {
 }
 
 #[tokio::test]
+#[cfg(feature = "embedded-capabilities")]
 async fn server_process_streams_chapter_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
@@ -1799,6 +2251,7 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
     let addr = unused_local_addr();
     let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
     wait_for_listener(&mut server, addr).await;
+    mark_package_installed(&db, "ai-workflow").await;
 
     let client = reqwest::Client::builder()
         .timeout(PROCESS_TIMEOUT)
@@ -1923,6 +2376,7 @@ async fn server_process_streams_chapter_generation_failure_terminal() {
 }
 
 #[tokio::test]
+#[cfg(feature = "embedded-capabilities")]
 async fn server_process_streams_outline_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
@@ -2004,6 +2458,7 @@ async fn server_process_streams_outline_generation_failure_terminal() {
     let addr = unused_local_addr();
     let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
     wait_for_listener(&mut server, addr).await;
+    mark_package_installed(&db, "ai-workflow").await;
 
     let client = reqwest::Client::builder()
         .timeout(PROCESS_TIMEOUT)
@@ -2124,7 +2579,7 @@ async fn server_process_streams_outline_generation_failure_terminal() {
     stop_server(server);
 }
 
-#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
+#[cfg(feature = "embedded-capabilities")]
 #[tokio::test]
 async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_mib() {
     const REPLY_BYTES: usize = 1024 * 1024;
@@ -2237,6 +2692,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
     let addr = unused_local_addr();
     let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
     wait_for_listener(&mut server, addr).await;
+    mark_package_installed(&db, "ai-workflow").await;
 
     let client = reqwest::Client::builder()
         .timeout(PROCESS_TIMEOUT)
@@ -2425,10 +2881,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
     provider.stop().await;
 }
 
-#[cfg(any(
-    feature = "embedded-capabilities",
-    feature = "embedded-media-providers"
-))]
+#[cfg(feature = "embedded-capabilities")]
 #[tokio::test]
 async fn server_process_streams_image_generation_success_terminal() {
     let provider = FakeOpenAiImageProvider::start().await;
@@ -2461,14 +2914,14 @@ async fn server_process_streams_image_generation_success_terminal() {
     .unwrap();
     let image_config = a4n_db::config::create_image_config_record(
         &db,
-        a4n_core::config::CreateImageConfigParams {
+        a4n_db::config::ImageConfigRecordInput {
             name: format!("image-process-success-{suffix}"),
             backend: "openai-compatible-image".to_string(),
             base_url: provider.base_url(),
             api_key_encrypted: Some("process-test-key".to_string()),
             model: "process-test-image-model".to_string(),
             max_concurrent: 1,
-            supported_sizes: vec![a4n_domain::ImageSize::new(1024, 1024)],
+            supported_sizes_json: json!([{"width": 1024, "height": 1024}]),
         },
     )
     .await
@@ -2490,6 +2943,7 @@ async fn server_process_streams_image_generation_success_terminal() {
     let addr = unused_local_addr();
     let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
     wait_for_listener(&mut server, addr).await;
+    mark_package_installed(&db, "ai-workflow").await;
 
     let client = reqwest::Client::builder()
         .timeout(PROCESS_TIMEOUT)
@@ -2509,7 +2963,23 @@ async fn server_process_streams_image_generation_success_terminal() {
                 "kind": "scene",
                 "prompt": "雨夜中的仓库入口，电影感构图",
                 "config_id": image_config_id,
-                "chapter_id": null
+                "chapter_id": null,
+                "width": 1024,
+                "height": 1024,
+            },
+            "runtime_config_snapshot": {
+                "schema_version": 1,
+                "image": {
+                    "id": image_config_id,
+                    "name": image_config.name,
+                    "backend": image_config.backend,
+                    "base_url": image_config.base_url,
+                    "api_key_encrypted": "process-test-key",
+                    "model": image_config.model,
+                    "max_concurrent": image_config.max_concurrent,
+                    "supported_sizes": [{"width": 1024, "height": 1024}],
+                    "is_default": true
+                }
             }
         }))
         .send()
@@ -2540,7 +3010,7 @@ async fn server_process_streams_image_generation_success_terminal() {
         .iter()
         .filter(|event| event["event"]["kind"] == "artifact")
         .collect::<Vec<_>>();
-    assert_eq!(artifacts.len(), 1);
+    assert_eq!(artifacts.len(), 1, "image generation events: {events:?}");
     let artifact = &artifacts[0]["event"]["data"]["artifact"];
     assert_eq!(artifact["artifact_kind"], "generated_image");
     assert_eq!(artifact["content_type"], "image/png");
@@ -2609,6 +3079,7 @@ async fn server_process_streams_image_generation_success_terminal() {
 }
 
 #[tokio::test]
+#[cfg(feature = "embedded-capabilities")]
 async fn server_process_streams_inspiration_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
@@ -2666,6 +3137,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
     let addr = unused_local_addr();
     let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
     wait_for_listener(&mut server, addr).await;
+    mark_package_installed(&db, "ai-workflow").await;
 
     let client = reqwest::Client::builder()
         .timeout(PROCESS_TIMEOUT)
@@ -2759,6 +3231,7 @@ async fn server_process_streams_inspiration_generation_failure_terminal() {
 }
 
 #[tokio::test]
+#[cfg(feature = "embedded-capabilities")]
 async fn server_process_streams_optimize_chat_generation_failure_terminal() {
     let (db, database_url) = isolated_test_database().await;
     let suffix = Uuid::new_v4().simple().to_string();
@@ -2859,6 +3332,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
     let addr = unused_local_addr();
     let mut server = spawn_server(&database_url, &data_dir, &frontend_dir, addr);
     wait_for_listener(&mut server, addr).await;
+    mark_package_installed(&db, "ai-workflow").await;
 
     let client = reqwest::Client::builder()
         .timeout(PROCESS_TIMEOUT)
@@ -2978,6 +3452,7 @@ async fn server_process_streams_optimize_chat_generation_failure_terminal() {
     stop_server(server);
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn read_generation_sse_until_terminal(
     response: &mut reqwest::Response,
 ) -> Vec<serde_json::Value> {
@@ -2998,6 +3473,7 @@ async fn read_generation_sse_events(
     read_generation_sse(response, Some(max_events)).await
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 async fn read_generation_sse(
     response: &mut reqwest::Response,
     max_events: Option<usize>,
@@ -3031,6 +3507,7 @@ async fn read_generation_sse(
     .expect("generation SSE read timed out")
 }
 
+#[cfg(any(feature = "embedded-capabilities", feature = "embedded-llm-provider"))]
 fn generation_event_is_terminal(event: &serde_json::Value) -> bool {
     matches!(
         event["event"]["kind"].as_str(),
@@ -3043,6 +3520,7 @@ fn generation_reservation_input(
     project_id: i64,
     start_request_id: String,
     operation: &str,
+    task_kind: TaskKind,
 ) -> ReserveGenerationTaskInput {
     ReserveGenerationTaskInput {
         requested_by_user_id: user_id,
@@ -3053,7 +3531,7 @@ fn generation_reservation_input(
             "operation": operation,
         }),
         input_fingerprint_json: json!({"prompt": operation}),
-        task_kind: TaskKind::TextGeneration,
+        task_kind,
         priority: TaskPriority::High,
         delivery_mode: GenerationDeliveryMode::Stream,
         batch_policy: None,
@@ -3069,6 +3547,19 @@ fn generation_reservation_input(
         item_key: None,
         retry_of_task_id: None,
     }
+}
+
+async fn mark_package_installed(db: &DatabaseConnection, package_id: &str) {
+    a4n_db::package::ensure_host_package_states(db, &[package_id.to_string()])
+        .await
+        .unwrap();
+    db.execute(Statement::from_sql_and_values(
+        DatabaseBackend::Postgres,
+        "UPDATE host_package_state SET installation_state = 'installed', host_state = 'enabled', status_version = status_version + 1, updated_at = NOW() WHERE host_scope = 'a4n-server' AND package_id = $1",
+        [package_id.into()],
+    ))
+    .await
+    .unwrap();
 }
 
 async fn login_access_token(client: &reqwest::Client, addr: SocketAddr, username: &str) -> String {
@@ -3216,10 +3707,55 @@ fn spawn_server(
     data_dir: &Path,
     frontend_dir: &Path,
     addr: SocketAddr,
-) -> Child {
+) -> TestServer {
     server_command(database_url, data_dir, frontend_dir, addr)
         .spawn()
+        .map(TestServer::new)
         .expect("start a4n-server cleanup process test")
+}
+
+struct TestServer {
+    child: Option<Child>,
+}
+
+impl TestServer {
+    fn new(child: Child) -> Self {
+        Self { child: Some(child) }
+    }
+
+    fn stop(&mut self) {
+        let Some(mut child) = self.child.take() else {
+            return;
+        };
+        if child.try_wait().unwrap().is_none() {
+            child.kill().unwrap();
+        }
+        child.wait().unwrap();
+    }
+}
+
+impl Deref for TestServer {
+    type Target = Child;
+
+    fn deref(&self) -> &Self::Target {
+        self.child
+            .as_ref()
+            .expect("test server child already stopped")
+    }
+}
+
+impl DerefMut for TestServer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.child
+            .as_mut()
+            .expect("test server child already stopped")
+    }
+}
+
+impl Drop for TestServer {
+    fn drop(&mut self) {
+        self.stop();
+    }
 }
 
 fn server_command(
@@ -3233,7 +3769,14 @@ fn server_command(
         .current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
         .env("A4N_DATABASE_URL", database_url)
         .env("A4N_JWT_SECRET", "cleanup-process-test-secret")
-        .env("A4N_RUNTIME_PROFILE", "minimal")
+        .env(
+            "A4N_RUNTIME_PROFILE",
+            if cfg!(feature = "embedded-capabilities") {
+                "full"
+            } else {
+                "minimal"
+            },
+        )
         .env("A4N_DATA_DIR", data_dir)
         .env("A4N_CACHE_DIR", data_dir.join("cache"))
         .env("A4N_TEMP_DIR", data_dir.join("tmp"))
@@ -3263,10 +3806,14 @@ fn unused_local_addr() -> SocketAddr {
         .unwrap()
 }
 
-async fn wait_for_listener(child: &mut Child, addr: SocketAddr) {
+async fn wait_for_listener(child: &mut TestServer, addr: SocketAddr) {
     let started = Instant::now();
+    let client = reqwest::Client::new();
     loop {
-        if tokio::net::TcpStream::connect(addr).await.is_ok() {
+        if tokio::net::TcpStream::connect(addr).await.is_ok()
+            && let Ok(response) = client.get(format!("http://{addr}/api/health")).send().await
+            && response.status().is_success()
+        {
             return;
         }
         if let Some(status) = child.try_wait().unwrap() {
@@ -3281,7 +3828,7 @@ async fn wait_for_listener(child: &mut Child, addr: SocketAddr) {
     }
 }
 
-async fn wait_for_file_with_prefix(child: &mut Child, dir: &Path, prefix: &str) -> PathBuf {
+async fn wait_for_file_with_prefix(child: &mut TestServer, dir: &Path, prefix: &str) -> PathBuf {
     let started = Instant::now();
     loop {
         if let Ok(entries) = std::fs::read_dir(dir)
@@ -3301,13 +3848,14 @@ async fn wait_for_file_with_prefix(child: &mut Child, dir: &Path, prefix: &str) 
         }
         if started.elapsed() >= PROCESS_TIMEOUT {
             stop_server_for_timeout(child);
-            panic!("a4n-server did not create upload file before timeout");
+            let stderr = child_stderr(child);
+            panic!("a4n-server did not create upload file before timeout\n{stderr}");
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
     }
 }
 
-async fn wait_for_failure(mut child: Child) -> String {
+async fn wait_for_failure(mut child: TestServer) -> String {
     let started = Instant::now();
     loop {
         if let Some(status) = child.try_wait().unwrap() {
@@ -3326,7 +3874,7 @@ async fn wait_for_failure(mut child: Child) -> String {
     }
 }
 
-fn child_stderr(child: &mut Child) -> String {
+fn child_stderr(child: &mut TestServer) -> String {
     let mut stderr = String::new();
     if let Some(mut pipe) = child.stderr.take() {
         pipe.read_to_string(&mut stderr).unwrap();
@@ -3334,16 +3882,10 @@ fn child_stderr(child: &mut Child) -> String {
     stderr
 }
 
-fn stop_server(mut child: Child) {
-    if child.try_wait().unwrap().is_none() {
-        child.kill().unwrap();
-    }
-    child.wait().unwrap();
+fn stop_server(mut server: TestServer) {
+    server.stop();
 }
 
-fn stop_server_for_timeout(child: &mut Child) {
-    if child.try_wait().ok().flatten().is_none() {
-        let _ = child.kill();
-    }
-    let _ = child.wait();
+fn stop_server_for_timeout(child: &mut TestServer) {
+    child.stop();
 }

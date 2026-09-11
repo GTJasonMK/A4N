@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::{
     FinalVideoPromptContext, VideoPromptCommonConstraintInput, VideoPromptContractMode,

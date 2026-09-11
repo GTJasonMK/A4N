@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::canvas::{CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort};
 use a4n_queue::{
     TaskWorkflowContext,
@@ -20,13 +20,22 @@ impl<'a> RuntimeCanvasTextGenerationLlmPort<'a> {
 
 #[async_trait]
 impl CanvasTextGenerationLlmPort for RuntimeCanvasTextGenerationLlmPort<'_> {
+    async fn max_output_tokens(&self, config_id: Option<i64>) -> Result<usize, AppError> {
+        Ok(self
+            .state
+            .dynamic_llm_provider_for_profile()?
+            .capabilities_for_config_id(config_id)
+            .await?
+            .max_output_tokens)
+    }
+
     async fn stream_complete(
         &self,
         input: CanvasTextGenerationLlmCall,
     ) -> Result<a4n_llm::provider::ChatResponse, AppError> {
         let workflow = TaskWorkflowContext::new(input.workflow_run_id)?;
         self.state
-            .orchestrator()
+            .provider_runtime()
             .queue_run_tracked_with_workflow_context(
                 QueueTaskKind::LlmCall,
                 TaskPriority::Medium,

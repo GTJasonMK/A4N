@@ -12,8 +12,8 @@ pub(crate) async fn preview_canvas_video_request(
 ) -> Result<ModelRequestPreview, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
-        .orchestrator()
-        .preview_canvas_video_request_validated(input, &host_port)
+        .video_request_preview_application()
+        .preview_canvas(input, &host_port)
         .await
         .map_err(|error| error.to_string())?;
     let payload = json!({

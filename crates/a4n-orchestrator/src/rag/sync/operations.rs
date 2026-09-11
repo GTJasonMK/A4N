@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use a4n_rag_core::vector_store::DeleteFilter;
 use serde_json::Value;
 
-use super::contracts::{
-    DeleteRagRecordsInput, PreparedRagRecordSync, RagRecordSyncOutcome, RagSyncError,
-};
 use crate::{
     OrchestratorContext,
     rag::{
         chapter_rag_chunk_prefix, character_attribute_event_rag_chunk_id,
         character_state_rag_chunk_id, foreshadowing_rag_chunk_id, protagonist_rag_chunk_prefix,
     },
+};
+use a4n_rag_core::{
+    DeleteRagRecordsInput, PreparedRagRecordSync, RagRecordSyncOutcome, RagSyncError,
 };
 
 impl OrchestratorContext {
@@ -148,8 +148,15 @@ impl OrchestratorContext {
     {
         let inputs = records
             .into_iter()
-            .filter(|prepared| prepared.outcome != RagRecordSyncOutcome::Skipped)
-            .map(PreparedRagRecordSync::into_embedding_input)
+            .filter(|prepared| prepared.outcome() != RagRecordSyncOutcome::Skipped)
+            .map(|prepared| {
+                let (record, _) = prepared.into_parts();
+                super::super::write::RagEmbeddingInput {
+                    chunk_id: record.chunk_id,
+                    text: record.text,
+                    metadata: record.metadata,
+                }
+            })
             .collect::<Vec<_>>();
         if inputs.is_empty() {
             return Ok(());

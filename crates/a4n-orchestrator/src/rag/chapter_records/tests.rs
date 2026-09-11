@@ -1,18 +1,17 @@
-use a4n_core::{error::AppError, models::chapter::chapter};
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::ProviderError;
 use a4n_embedding::provider::{EmbeddingBackend, EmbeddingProvider};
+use a4n_rag_core::ChapterRagChunkingMode;
 use a4n_test_support::embedding::UnavailableEmbeddingProvider;
 use async_trait::async_trait;
 
-use super::{
-    chunks::chapter_rag_chunks_with_provider, contracts::ChapterRagChunkingMode,
-    records::chapter_rag_records_with_provider,
-};
+use super::{chunks::chapter_rag_chunks_with_provider, records::chapter_rag_records_with_provider};
 
 struct TopicEmbeddingProvider;
 
 #[async_trait]
 impl EmbeddingProvider for TopicEmbeddingProvider {
-    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, AppError> {
+    async fn embed(&self, texts: Vec<String>) -> Result<Vec<Vec<f32>>, ProviderError> {
         Ok(texts
             .into_iter()
             .map(|text| {

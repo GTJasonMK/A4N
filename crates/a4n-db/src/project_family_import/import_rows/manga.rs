@@ -1,4 +1,4 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_image,
     chapter::{chapter_manga_prompt, chapter_shooting_script},
     character::character_portrait,

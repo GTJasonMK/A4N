@@ -3,7 +3,7 @@ mod pipeline;
 mod records;
 
 use crate::{AppState, actions::dependency_conflict::delete_downstream_images_if_requested};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::manga::MangaPromptDownstreamCleanupPort;
 use async_trait::async_trait;
 

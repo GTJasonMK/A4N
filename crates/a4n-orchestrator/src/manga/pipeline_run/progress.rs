@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
 use a4n_db::workflow::WorkflowProgressEventInput;
+use a4n_error::AppError;
 use a4n_llm::trace::llm_usage_summary_text;
 
 use super::super::pipeline_prompt::MangaPromptGenerationTrace;

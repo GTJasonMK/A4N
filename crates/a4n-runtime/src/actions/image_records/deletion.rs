@@ -8,8 +8,8 @@ pub async fn delete_image(
     input: DeleteImageInput,
 ) -> Result<(), String> {
     state
-        .orchestrator()
-        .delete_generated_image_for_user_validated(user_id, input.image_id)
+        .image_record_application()
+        .delete(user_id, input)
         .await
         .map_err(app_error_message)
 }

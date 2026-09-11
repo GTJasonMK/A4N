@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use crate::video::{
     library::ensure_video_reference_ids_known,
@@ -59,7 +59,7 @@ pub(in crate::video) fn validate_frame_prompts(
             .as_ref()
             .expect("boundary frame segment index initialized");
         let expected_segment_numbers =
-            boundary_frame_expected_segment_numbers_from_units(&units, frame.frame_number)?;
+            boundary_frame_expected_segment_numbers_from_units(units, frame.frame_number)?;
         if frame.segment_numbers != expected_segment_numbers {
             return Err(AppError::InvalidArgument(format!(
                 "视频首尾帧提示词 frame_number {} segment_numbers 必须为 {:?}，实际为 {:?}",

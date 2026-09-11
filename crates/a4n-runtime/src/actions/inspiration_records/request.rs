@@ -1,20 +1,18 @@
 use super::PreviewInspirationRequestInput;
 use crate::AppState;
-use crate::actions::access;
 use crate::actions::request_preview::{
     ChatRequestStepInput, ModelRequestPreview, chat_request_step_for_state, model_request_preview,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub async fn preview_inspiration_request(
     state: &AppState,
     user_id: i64,
     input: PreviewInspirationRequestInput,
 ) -> Result<ModelRequestPreview, AppError> {
-    access::verify_project_editor(state, user_id, input.project_id).await?;
     let request = state
-        .orchestrator()
-        .prepare_inspiration_request_validated(input.project_id, &input.message, state)
+        .inspiration_request_application()
+        .prepare_request(user_id, input, state)
         .await?;
     Ok(model_request_preview(
         "inspiration_conversation",

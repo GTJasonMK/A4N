@@ -1,9 +1,9 @@
 use std::collections::BTreeMap;
 
 use crate::video::OrchestratorContext;
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::prompt_language::PromptOutputLanguage;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_error::AppError;
 
 use super::super::contracts::{
     PromptGenerationContextForWorkflow, PromptWorkflowRowsContext, PromptWorkflowRowsQuery,

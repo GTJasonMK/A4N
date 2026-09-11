@@ -142,8 +142,7 @@ pub async fn subscribe_generation_task<R: Runtime>(
         } => {
             if events.is_empty()
                 && task
-                    .public_snapshot
-                    .as_ref()
+                    .public_snapshot()
                     .is_some_and(|snapshot| snapshot.status.is_terminal())
             {
                 return Err(host_error(
@@ -222,12 +221,8 @@ pub async fn get_generation_task_snapshot(
     let task = generation_actions::authorize_generation_task(&state, user_id, &task_id, attempt)
         .await
         .map_err(map_access_error)?;
-    task.public_snapshot.ok_or_else(|| {
-        if task
-            .checkpoint
-            .expires_at
-            .is_some_and(|expires_at| expires_at <= chrono::Utc::now().naive_utc())
-        {
+    task.public_snapshot().cloned().ok_or_else(|| {
+        if task.snapshot_expired() {
             host_error(
                 "generation_snapshot_expired",
                 "generation snapshot 已过期",

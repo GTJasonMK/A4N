@@ -5,8 +5,8 @@ use super::{
     generation_specs_for_source_chapters,
 };
 use crate::source_sync::SourceSyncDbError;
-use a4n_core::models::source_sync::source_sync_run;
-use a4n_core::models::{
+use a4n_db_models::models::source_sync::source_sync_run;
+use a4n_db_models::models::{
     generation::{generation_spec, generation_spec_entity_ref},
     project::{project_source_snapshot, source_snapshot_profile},
 };

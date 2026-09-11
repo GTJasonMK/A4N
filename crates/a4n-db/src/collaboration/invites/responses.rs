@@ -4,7 +4,7 @@ use crate::collaboration::{
     parse_stored_member_role, resolve_root_project, update_pending_invite_status,
     verify_project_permission,
 };
-use a4n_core::models::project::{project_invite, project_member};
+use a4n_db_models::models::project::{project_invite, project_member};
 use chrono::Utc;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, Set, TransactionTrait};

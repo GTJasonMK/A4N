@@ -1,7 +1,7 @@
 use super::super::UpdateChapterVideoPromptRecordInput;
 use super::rules::validate_chapter_video_prompt_duration;
 use crate::video::VideoDbError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use serde_json::Value;

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::config::app_config::llm_token_profiles;
+use a4n_domain::llm::llm_token_profiles;
 use a4n_llm::provider::{ChatRequest, UsageInfo};
 use serde::Serialize;
 use serde_json::Value;

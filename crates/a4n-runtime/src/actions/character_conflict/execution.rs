@@ -1,5 +1,5 @@
 use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_orchestrator::character::{
     CHARACTER_CONFLICT_PROGRESS_TOTAL, validate_character_conflict_input,
 };
@@ -50,8 +50,8 @@ pub async fn check_character_conflict(
     };
     let prompt_renderer = state;
     state
-        .orchestrator()
-        .check_character_conflict_validated(
+        .character_conflict_application()
+        .check(
             input,
             prompt_renderer,
             &reporter,

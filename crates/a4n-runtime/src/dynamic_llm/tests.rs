@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use a4n_core::config::app_config::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
-use a4n_core::error::AppError;
-use a4n_core::models::ai::llm_config;
+use a4n_domain::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
+use a4n_error::AppError;
 use a4n_llm::provider::{
     ChatChunk, ChatMessage, ChatRequest, LlmTraceContext, MessageRole, ToolCall, UsageInfo,
 };
+use a4n_provider_contract::LlmProviderConfig;
 use a4n_test_support::capability::RecordingLlmClient;
 
 use crate::dynamic_llm::trace::validated_authoritative_trace_root_project_id;
@@ -256,26 +256,19 @@ fn authoritative_trace_root_rejects_invalid_stored_scope() {
     assert!(matches!(error, AppError::InvalidState { .. }));
 }
 
-fn test_llm_model() -> llm_config::Model {
-    let now = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
-        .unwrap()
-        .and_hms_opt(0, 0, 0)
-        .unwrap();
-    llm_config::Model {
+fn test_llm_model() -> LlmProviderConfig {
+    LlmProviderConfig {
         id: 1,
         name: "test-llm".to_string(),
         provider: "openai".to_string(),
         base_url: "https://example.invalid/v1".to_string(),
-        api_key_encrypted: Some("test-key".to_string()),
+        api_key: Some("test-key".to_string()),
         model: "test-model".to_string(),
         max_concurrent: 1,
         timeout_secs: 30,
         max_context_tokens: 16_384,
         max_output_tokens: 2_048,
         extra_body_json: None,
-        is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 

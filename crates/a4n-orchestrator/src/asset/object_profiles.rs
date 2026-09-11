@@ -1,12 +1,12 @@
 //! 物体档案应用合同。
 
 use a4n_api_contract::profile::ObjectProfileInput;
-use a4n_core::error::AppError;
-use a4n_core::profile_text::{
+use a4n_domain::object_profile::ObjectProfileRecordInput;
+use a4n_domain::profile_text::{
     normalize_aliases, normalize_required_text_set, normalize_text_set, required_text,
     validate_importance,
 };
-use a4n_db::asset::ObjectProfileRecordInput;
+use a4n_error::AppError;
 use serde_json::json;
 use std::collections::HashSet;
 
@@ -160,7 +160,7 @@ fn normalize_optional_importance(value: &str, field_name: &str) -> Result<String
     if value.is_empty() {
         Ok(String::new())
     } else {
-        validate_importance(value, field_name)
+        Ok(validate_importance(value, field_name)?)
     }
 }
 

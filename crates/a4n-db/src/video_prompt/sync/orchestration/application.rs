@@ -3,7 +3,7 @@ use super::super::persistence::{
     prompt_active_model, record_chapter_video_prompt_generation_run, replace_prompt_from_sync_draft,
 };
 use super::preparation::{PlannedPromptSyncRow, PreparedPromptSync};
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use sea_orm::{ConnectionTrait, EntityTrait};
 use std::collections::{HashMap, HashSet, VecDeque};
 

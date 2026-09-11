@@ -7,34 +7,62 @@ pub mod admin;
 pub mod agent;
 pub mod auth;
 pub mod canvas;
+pub mod chapter;
 pub mod chapter_visual_plan;
 pub mod character;
 pub mod collaboration;
+pub mod config;
 pub mod embedding;
 pub mod galgame;
+pub mod generation;
+pub mod hash;
 pub mod image;
 pub mod import_review;
+pub mod inspiration;
+pub mod json_contract;
 pub mod llm;
 pub mod manga;
+pub mod media;
 pub mod model_discovery;
+pub mod object_profile;
 pub mod profile_material;
+pub mod profile_ownership;
+pub mod profile_text;
 pub mod progress;
 pub mod project;
+pub mod prompt_language;
+pub mod provider;
+pub mod rag;
+pub mod scene_profile;
 pub mod shooting_script;
+pub mod snapshot;
+pub mod source_spans;
 pub mod source_sync;
+pub mod task_queue;
+pub mod text_anchor;
+pub mod text_location;
 pub mod video;
+pub mod video_timeline;
+pub mod video_workflow;
+pub mod workflow;
 
 pub use canvas::{
     CanvasFrameKind, CanvasNodeRefKind, GeneratedMediaReference, GeneratedMediaReferenceParseError,
     canvas_cache_key, canvas_transfer_runtime_identity_key, clear_canvas_transfer_runtime_identity,
     parse_canvas_cache_key, parse_generated_media_reference,
 };
+pub use hash::source_text_hash;
 pub use image::{DEFAULT_IMAGE_SIZES, ImageSize, default_image_sizes, validate_image_sizes};
 pub use llm::{
     DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LLM_MAX_TOKEN_LIMIT,
     LLM_RESERVED_REQUEST_OPTION_KEYS, LlmMaxTokensConfig, llm_token_profiles,
 };
+pub use media::{
+    canonical_audio_mime, image_mime_from_path, media_mime_from_path, video_mime_from_path,
+};
 pub use model_discovery::{DiscoveredModel, ModelDiscoveryResult};
+pub use provider::ProviderError;
+pub use rag::{RAG_INDEX_FORMAT_VERSION, RAG_TEXT_INDEX_VERSION, RagDataType};
 
 pub const EXTERNAL_IMPORT_MODEL: &str = "external-import";
 pub const VIDEO_TAIL_FRAME_OFFSET_SECS: f32 = 0.08;

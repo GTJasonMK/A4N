@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
 #[cfg(test)]
-use a4n_core::models::chapter::chapter_outline;
+use a4n_db_models::models::chapter::chapter_outline;
+use a4n_error::AppError;
 
 mod access;
 mod batch;
@@ -42,7 +42,6 @@ use access::{ensure_chapter_outline_access, ensure_part_access};
 #[cfg(test)]
 use chapters::build_chapter_outlines_pacing;
 use preview::{outline_preview, single_request_preview};
-use types::chapter_outline_summary;
 
 #[cfg(test)]
 mod tests;

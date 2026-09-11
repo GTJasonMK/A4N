@@ -3,9 +3,7 @@ use crate::workflow::{
     WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
     WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,
 };
-use a4n_core::models::{
-    ai::generated_video, chapter::chapter_video_prompt, generation::workflow_run,
-};
+use a4n_db_models::models::{chapter::chapter_video_prompt, generation::workflow_run};
 use sea_orm::{
     ColumnTrait, DatabaseConnection, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
     QuerySelect,
@@ -45,12 +43,12 @@ impl ProgressCounts {
             ),
             "generated_video" => matches!(
                 status,
-                generated_video::STATUS_PENDING
-                    | generated_video::STATUS_RUNNING
-                    | generated_video::STATUS_COMPLETED
-                    | generated_video::STATUS_FAILED
-                    | generated_video::STATUS_INTERRUPTED
-                    | generated_video::STATUS_CANCELLED
+                a4n_domain::video_workflow::VIDEO_STATUS_PENDING
+                    | a4n_domain::video_workflow::VIDEO_STATUS_RUNNING
+                    | a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+                    | a4n_domain::video_workflow::VIDEO_STATUS_FAILED
+                    | a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED
+                    | a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
             ),
             _ => false,
         };

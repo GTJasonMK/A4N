@@ -1,14 +1,13 @@
-use a4n_core::error::AppError;
+use a4n_api_contract::portrait::PortraitSummary;
+use a4n_domain::media::GeneratedMediaArtifactFile;
+use a4n_error::AppError;
 use async_trait::async_trait;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use crate::generation::GeneratedMediaArtifactFile;
-
-pub use a4n_api_contract::portrait::{
-    GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
-    GeneratePortraitPromptInput, PortraitSummary, PortraitType, RegeneratePortraitInput,
-    UploadPortraitInput,
+use crate::media::{
+    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
+    PreparedGeneratedImageFile,
 };
 
 pub type PortraitProgress<'a> = &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), AppError> + Send);
@@ -47,20 +46,6 @@ pub struct DecodedPortraitImage {
     pub model: String,
     pub width: i32,
     pub height: i32,
-}
-
-pub struct PersistPortraitFileInput<'a> {
-    pub project_id: i64,
-    pub profile_id: i64,
-    pub bytes: &'a [u8],
-    pub format: &'a str,
-    pub path_context: &'a str,
-}
-
-#[derive(Debug)]
-pub struct PersistedPortraitFile {
-    pub relative_path: String,
-    pub file_size: i64,
 }
 
 #[derive(Debug, Clone)]
@@ -106,10 +91,16 @@ pub trait PortraitGenerationHostPort: Send + Sync {
         data_base64: &str,
     ) -> Result<DecodedPortraitImage, AppError>;
 
+    fn prepare_portrait_file(
+        &self,
+        input: PrepareGeneratedImageFileInput<'_>,
+    ) -> Result<PreparedGeneratedImageFile, AppError>;
+
     fn persist_portrait_file(
         &self,
-        input: PersistPortraitFileInput<'_>,
-    ) -> Result<PersistedPortraitFile, AppError>;
+        input: PersistGeneratedImageFileInput<'_>,
+        prepared: &PreparedGeneratedImageFile,
+    ) -> Result<PersistedGeneratedImageFile, AppError>;
 
     fn inspect_portrait_file(
         &self,

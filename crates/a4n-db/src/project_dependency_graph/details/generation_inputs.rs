@@ -2,7 +2,7 @@ mod loading;
 mod projection;
 mod rules;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use sea_orm::ConnectionTrait;
 
 use self::{loading::load_generation_runs_for_records, projection::apply_generation_runs};

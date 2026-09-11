@@ -72,8 +72,7 @@ pub(crate) use cleanup::{
     delete_project_task_queue_records, delete_project_workflow_runs, project_generated_media_paths,
 };
 pub use duplicate::{
-    ProjectDuplicateError, ProjectMediaCopyError, ProjectMediaFileCopier,
-    duplicate_derived_project_record, duplicate_freeform_project_record,
+    ProjectDuplicateError, duplicate_derived_project_record, duplicate_freeform_project_record,
     duplicate_text_project_record,
 };
 pub use family_context::{
@@ -155,9 +154,9 @@ pub use source_snapshot::{
 };
 pub(crate) use status::delete_project_status_history;
 pub use status::{
-    ProjectStatusHistoryInput, ProjectStatusReadError, ProjectStatusWriteError,
-    insert_project_status_history, project_status_artifacts, project_status_history,
-    update_project_status_record, update_project_status_record_in,
+    ProjectStatusReadError, ProjectStatusWriteError, insert_project_status_history,
+    project_status_artifacts, project_status_history, update_project_status_record,
+    update_project_status_record_in,
 };
 
 use shared::{required_text, validate_positive_i64};

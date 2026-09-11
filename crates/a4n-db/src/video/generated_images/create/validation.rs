@@ -7,7 +7,7 @@ use super::super::{
 use chrono::Utc;
 use sea_orm::ConnectionTrait;
 
-pub(super) async fn validate_create_generated_image_record_input<C>(
+pub(in crate::video::generated_images) async fn validate_create_generated_image_record_input<C>(
     db: &C,
     input: CreateGeneratedImageRecordDraftInput,
 ) -> Result<CreateGeneratedImageRecordInput, VideoDbError>

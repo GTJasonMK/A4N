@@ -3,12 +3,17 @@
 //! 持有 `DbHandle`，封装 workflow run / checkpoint / progress / task 历史的读写。
 //! 编排侧只通过 `OrchestratorContext` 行为方法或 runtime 窄 facade 访问。
 
-use a4n_core::error::AppError;
-use a4n_core::models::{
-    ai::generated_video,
-    generation::{workflow_checkpoint, workflow_progress_event, workflow_run},
+use std::collections::HashSet;
+
+use a4n_api_contract::workflow::{
+    ActiveTaskLookupRecord, TaskLookupRecord, WorkflowCancellationPort, WorkflowResumeRecord,
+    WorkflowTaskAccessRecord, WorkflowTaskLookupApplicationPort,
 };
 use a4n_db::DbHandle;
+use a4n_db_models::models::generation::{
+    workflow_checkpoint, workflow_progress_event, workflow_run,
+};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::workflow::{
@@ -17,7 +22,8 @@ use crate::workflow::{
     TaskProgressEventSummary, UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput,
     WorkflowProgressEventInput, WorkflowRunAccessRecord, WorkflowRunDetailSummary,
     WorkflowRunRecoveryRecord, WorkflowRunStatusRecord, WorkflowRunSummary,
-    is_video_status_final_for_cancel_interrupt, workflow_read_app_error, workflow_write_app_error,
+    is_video_status_final_for_cancel_interrupt, workflow_read_app_error,
+    workflow_run_summary_to_api, workflow_write_app_error,
 };
 
 /// Workflow 领域 application owner。
@@ -88,6 +94,20 @@ impl WorkflowApplication {
         .map_err(workflow_read_app_error)
     }
 
+    async fn task_history(
+        &self,
+        project_id: Option<i64>,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<a4n_api_contract::task::TaskInfoSummary>, AppError> {
+        Ok(self
+            .persisted_task_history(project_id, offset, limit)
+            .await?
+            .into_iter()
+            .map(|item| task_info_summary(&item.task))
+            .collect())
+    }
+
     async fn persisted_task_by_id(
         &self,
         task_id: &str,
@@ -95,6 +115,14 @@ impl WorkflowApplication {
         a4n_db::workflow::persisted_task_by_id(self.database.connection(), task_id)
             .await
             .map_err(workflow_read_app_error)
+    }
+
+    async fn active_tasks(&self) -> Result<Vec<ActiveTaskLookupRecord>, AppError> {
+        self.persisted_task_history(None, 0, 100)
+            .await?
+            .into_iter()
+            .map(active_task_lookup_record)
+            .collect()
     }
 
     async fn workflow_run_model_by_active_task_id(
@@ -136,6 +164,26 @@ impl WorkflowApplication {
         a4n_db::workflow::workflow_run_model_by_id(self.database.connection(), workflow_run_id)
             .await
             .map_err(workflow_read_app_error)
+    }
+
+    async fn workflow_run_resume_record(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowResumeRecord, AppError> {
+        let run = self.workflow_run_model_by_id(workflow_run_id).await?;
+        Ok(WorkflowResumeRecord {
+            id: run.id,
+            workflow_kind: run.workflow_kind,
+            project_id: run.project_id,
+            root_project_id: run.root_project_id,
+            chapter_id: run.chapter_id,
+            scope_table: run.scope_table,
+            scope_id: run.scope_id,
+            input_fingerprint_json: run.input_fingerprint_json,
+            status: run.status,
+            can_resume: run.can_resume,
+            resume_block_reason: run.resume_block_reason,
+        })
     }
 
     async fn workflow_run_model_optional_by_id(
@@ -709,9 +757,9 @@ impl OrchestratorContext {
                 )
                 .is_some()
                 {
-                    generated_video::STATUS_INTERRUPTED.to_string()
+                    a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED.to_string()
                 } else {
-                    generated_video::STATUS_CANCELLED.to_string()
+                    a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED.to_string()
                 },
             });
         }
@@ -724,7 +772,7 @@ impl OrchestratorContext {
         }
         let cancelled_video_ids = inputs
             .iter()
-            .filter(|input| input.status == generated_video::STATUS_CANCELLED)
+            .filter(|input| input.status == a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED)
             .map(|input| input.video_id)
             .collect::<Vec<_>>();
         if cancelled_video_ids.is_empty() {
@@ -742,7 +790,7 @@ impl OrchestratorContext {
             .collect::<std::collections::HashMap<_, _>>();
         for input in inputs
             .iter()
-            .filter(|input| input.status == generated_video::STATUS_CANCELLED)
+            .filter(|input| input.status == a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED)
         {
             crate::video::ensure_provider_generation_run_updated(
                 input.video_id,
@@ -971,5 +1019,416 @@ impl OrchestratorContext {
         self.workflow
             .delete_workflow_checkpoints_by_keys(workflow_run_id, step_keys)
             .await
+    }
+}
+
+fn task_info_summary(
+    info: &a4n_queue::priority::TaskInfo,
+) -> a4n_api_contract::task::TaskInfoSummary {
+    a4n_api_contract::task::TaskInfoSummary {
+        id: info.id.clone(),
+        task_type: info.task_type.as_str().to_string(),
+        priority: info.priority.as_str().to_string(),
+        status: info.status.as_str().to_string(),
+        root_project_id: info.root_project_id,
+        source_snapshot_id: info.source_snapshot_id,
+        task_scope: info.task_scope.clone(),
+        progress: info.progress.as_ref().map(|progress| {
+            a4n_api_contract::task::TaskProgressSummary {
+                current: progress.current,
+                total: progress.total,
+                message: progress.message.clone(),
+                meta: progress.meta.clone(),
+            }
+        }),
+        created_at: info.created_at.to_string(),
+        started_at: info.started_at.map(|value| value.to_string()),
+        completed_at: info.completed_at.map(|value| value.to_string()),
+    }
+}
+
+fn workflow_run_detail_to_api(
+    detail: crate::workflow::WorkflowRunDetailSummary,
+) -> a4n_api_contract::workflow::WorkflowRunDetailSummary {
+    a4n_api_contract::workflow::WorkflowRunDetailSummary {
+        run: workflow_run_summary_to_api(detail.run),
+        checkpoints: detail
+            .checkpoints
+            .into_iter()
+            .map(
+                |checkpoint| a4n_api_contract::workflow::WorkflowCheckpointSummary {
+                    id: checkpoint.id,
+                    workflow_run_id: checkpoint.workflow_run_id,
+                    step_key: checkpoint.step_key,
+                    step_order: checkpoint.step_order,
+                    status: checkpoint.status,
+                    input_fingerprint_sha256: checkpoint.input_fingerprint_sha256,
+                    input_fingerprint_json: checkpoint.input_fingerprint_json,
+                    checkpoint_json: checkpoint.checkpoint_json,
+                    artifacts_json: checkpoint.artifacts_json,
+                    generation_run_ids_json: checkpoint.generation_run_ids_json,
+                    error_message: checkpoint.error_message,
+                    created_at: checkpoint.created_at,
+                    updated_at: checkpoint.updated_at,
+                    completed_at: checkpoint.completed_at,
+                },
+            )
+            .collect(),
+        generation_runs: detail
+            .generation_runs
+            .into_iter()
+            .map(|run| a4n_api_contract::workflow::GenerationRunSummary {
+                id: run.id,
+                workflow_run_id: run.workflow_run_id,
+                workflow: run.workflow,
+                step_key: run.step_key,
+                call_key: run.call_key,
+                title: run.title,
+                model_kind: run.model_kind,
+                provider: run.provider,
+                model: run.model,
+                status: run.status,
+                input_fingerprint_sha256: run.input_fingerprint_sha256,
+                input_fingerprint_json: run.input_fingerprint_json,
+                raw_response_json: run.raw_response_json,
+                parsed_output_json: run.parsed_output_json,
+                validation_json: run.validation_json,
+                artifact_refs_json: run.artifact_refs_json,
+                attempt: run.attempt,
+                response_summary_json: run.response_summary_json,
+                error_message: run.error_message,
+                created_at: run.created_at,
+                completed_at: run.completed_at,
+            })
+            .collect(),
+    }
+}
+
+fn active_task_lookup_record(
+    persisted: PersistedTaskInfo,
+) -> Result<ActiveTaskLookupRecord, AppError> {
+    let task = persisted.task;
+    let progress =
+        task.progress
+            .as_ref()
+            .map(|progress| a4n_api_contract::task::TaskProgressSummary {
+                current: progress.current,
+                total: progress.total,
+                message: progress.message.clone(),
+                meta: progress.meta.clone(),
+            });
+    let progress_events = task
+        .progress
+        .as_ref()
+        .map(
+            |progress| a4n_api_contract::workflow::WorkflowProgressEvent {
+                id: format!("{}-snapshot", task.id),
+                current: progress.current,
+                total: progress.total,
+                message: progress.message.clone(),
+                meta: progress.meta.clone(),
+                timestamp: progress
+                    .updated_at
+                    .clone()
+                    .unwrap_or_else(|| task.started_at.unwrap_or(task.created_at).to_string()),
+            },
+        )
+        .into_iter()
+        .collect();
+    Ok(ActiveTaskLookupRecord {
+        task_id: task.id.clone(),
+        project_id: task.project_id,
+        root_project_id: task.root_project_id,
+        status: task.status.as_str().to_string(),
+        workflow: a4n_api_contract::workflow::WorkflowStateSummary {
+            task_id: task.id,
+            root_project_id: task.root_project_id,
+            source_snapshot_id: task.source_snapshot_id,
+            task_scope: task.task_scope,
+            progress,
+            progress_events,
+        },
+    })
+}
+
+#[async_trait::async_trait]
+impl WorkflowTaskLookupApplicationPort for OrchestratorContext {
+    async fn task_by_id(&self, task_id: &str) -> Result<Option<TaskLookupRecord>, AppError> {
+        Ok(self
+            .workflow
+            .persisted_task_by_id(task_id)
+            .await?
+            .map(|persisted| TaskLookupRecord {
+                task_id: persisted.task.id.clone(),
+                project_id: persisted.task.project_id,
+                root_project_id: persisted.task.root_project_id,
+                workflow_run_id: persisted.workflow_run_id,
+                status: persisted.task.status.as_str().to_string(),
+            }))
+    }
+
+    async fn active_tasks(&self) -> Result<Vec<ActiveTaskLookupRecord>, AppError> {
+        self.workflow.active_tasks().await
+    }
+
+    async fn workflow_access_by_active_task_id(
+        &self,
+        task_id: &str,
+    ) -> Result<Option<WorkflowTaskAccessRecord>, AppError> {
+        Ok(self
+            .workflow
+            .workflow_run_access_record_by_active_task_id(task_id)
+            .await?
+            .map(|record| WorkflowTaskAccessRecord {
+                workflow_run_id: record.id,
+                project_id: record.project_id,
+                root_project_id: record.root_project_id,
+            }))
+    }
+
+    async fn workflow_run_for_resume(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<WorkflowResumeRecord, AppError> {
+        self.workflow
+            .workflow_run_resume_record(workflow_run_id)
+            .await
+    }
+
+    async fn workflow_run_summary(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<a4n_api_contract::workflow::WorkflowRunSummary, AppError> {
+        self.workflow
+            .workflow_run_summary(workflow_run_id)
+            .await
+            .map(workflow_run_summary_to_api)
+    }
+
+    async fn workflow_progress_events(
+        &self,
+        workflow_run_id: i64,
+        limit: usize,
+    ) -> Result<Vec<a4n_api_contract::workflow::WorkflowProgressEvent>, AppError> {
+        self.workflow
+            .workflow_progress_events(workflow_run_id, limit)
+            .await
+            .map(|events| {
+                events
+                    .into_iter()
+                    .map(|event| a4n_api_contract::workflow::WorkflowProgressEvent {
+                        id: event.id,
+                        current: event.current,
+                        total: event.total,
+                        message: event.message,
+                        meta: event.meta,
+                        timestamp: event.timestamp,
+                    })
+                    .collect()
+            })
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::workflow::WorkflowReadApplicationPort for OrchestratorContext {
+    async fn list_for_user(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::workflow::ListWorkflowRunsInput,
+    ) -> Result<Vec<a4n_api_contract::workflow::WorkflowRunSummary>, AppError> {
+        crate::workflow::validate_optional_project_id(input.project_id)
+            .map_err(AppError::InvalidArgument)?;
+        if !(1..=200).contains(&input.limit) {
+            return Err(AppError::InvalidArgument(
+                "limit 必须在 1 到 200 之间".to_string(),
+            ));
+        }
+        let project_scoped = input.project_id.is_some();
+        if let Some(project_id) = input.project_id {
+            self.verify_project_permission(
+                project_id,
+                user_id,
+                crate::collaboration::ProjectAccessRole::Editor,
+            )
+            .await?;
+        }
+        let runs = self
+            .workflow_runs(crate::workflow::ListWorkflowRunsInput {
+                project_id: input.project_id,
+                chapter_id: input.chapter_id,
+                chapter_ids: None,
+                workflow_kind: input.workflow_kind,
+                status: input.status,
+                resumable_only: Some(input.resumable_only),
+                limit: Some(input.limit),
+            })
+            .await?;
+        if project_scoped {
+            return Ok(runs.into_iter().map(workflow_run_summary_to_api).collect());
+        }
+
+        let project_ids = runs
+            .iter()
+            .filter_map(|run| run.project_id.or(run.root_project_id))
+            .collect::<Vec<_>>();
+        let visible_project_ids = if project_ids.is_empty() {
+            HashSet::new()
+        } else {
+            self.project_ids_with_permission(
+                &project_ids,
+                user_id,
+                crate::collaboration::ProjectAccessRole::Editor,
+            )
+            .await?
+            .into_iter()
+            .collect()
+        };
+        let unscoped_visible = runs
+            .iter()
+            .any(|run| run.project_id.is_none() && run.root_project_id.is_none())
+            && self.is_active_admin_user(user_id).await?;
+        Ok(runs
+            .into_iter()
+            .filter(|run| match run.project_id.or(run.root_project_id) {
+                Some(project_id) => visible_project_ids.contains(&project_id),
+                None => unscoped_visible,
+            })
+            .map(workflow_run_summary_to_api)
+            .collect())
+    }
+
+    async fn detail_for_user(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::workflow::GetWorkflowRunInput,
+    ) -> Result<a4n_api_contract::workflow::WorkflowRunDetailSummary, AppError> {
+        crate::workflow::require_positive_workflow_run_id(input.workflow_run_id)
+            .map_err(AppError::InvalidArgument)?;
+        let detail = self
+            .workflow_run_detail(crate::workflow::GetWorkflowRunInput {
+                workflow_run_id: input.workflow_run_id,
+                include_generation_runs: input.include_generation_runs,
+            })
+            .await?;
+        match detail.run.project_id.or(detail.run.root_project_id) {
+            Some(project_id) => {
+                self.verify_project_permission(
+                    project_id,
+                    user_id,
+                    crate::collaboration::ProjectAccessRole::Editor,
+                )
+                .await?;
+            }
+            None if !self.is_active_admin_user(user_id).await? => {
+                return Err(AppError::Forbidden(
+                    "无权查看未绑定项目的 workflow".to_string(),
+                ));
+            }
+            None => {}
+        }
+        Ok(workflow_run_detail_to_api(detail))
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::task::TaskReadApplicationPort for OrchestratorContext {
+    async fn history(
+        &self,
+        project_id: Option<i64>,
+        offset: u64,
+        limit: u64,
+    ) -> Result<Vec<a4n_api_contract::task::TaskInfoSummary>, AppError> {
+        self.workflow.task_history(project_id, offset, limit).await
+    }
+}
+
+#[async_trait::async_trait]
+impl WorkflowCancellationPort for OrchestratorContext {
+    async fn mark_running(&self, workflow_run_id: i64) -> Result<(), AppError> {
+        self.mark_workflow_running_validated(workflow_run_id)
+            .await
+            .map(|_| ())
+    }
+
+    async fn cancel(&self, workflow_run_id: i64, reason: &str) -> Result<(), AppError> {
+        self.cancel_workflow_run_and_interrupt_videos(workflow_run_id, reason)
+            .await
+            .map(|_| ())
+    }
+
+    async fn resume_with_active_task(
+        &self,
+        workflow_run_id: i64,
+        active_task_id: &str,
+    ) -> Result<(), AppError> {
+        self.resume_workflow_run_with_active_task_validated(workflow_run_id, active_task_id)
+            .await
+            .map(|_| ())
+    }
+}
+
+#[cfg(test)]
+mod task_read_tests {
+    use super::task_info_summary;
+    use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind};
+    use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskStatus};
+    use chrono::NaiveDate;
+
+    #[test]
+    fn task_history_projection_stays_in_the_workflow_owner() {
+        let created_at = NaiveDate::from_ymd_opt(2026, 9, 10)
+            .unwrap()
+            .and_hms_opt(1, 2, 3)
+            .unwrap();
+        let started_at = NaiveDate::from_ymd_opt(2026, 9, 10)
+            .unwrap()
+            .and_hms_opt(1, 2, 4)
+            .unwrap();
+        let task = TaskInfo {
+            id: "task-1".to_string(),
+            task_type: TaskKind::MangaGeneration,
+            priority: TaskPriority::Medium,
+            status: TaskStatus::Running,
+            project_id: Some(11),
+            root_project_id: Some(7),
+            source_snapshot_id: Some(13),
+            task_scope: Some("chapter".to_string()),
+            progress: Some(TaskProgress {
+                current: 2,
+                total: 4,
+                message: "drawing".to_string(),
+                meta: Some(ProgressMeta::new(
+                    "manga_generation",
+                    "draw",
+                    "draw",
+                    ProgressPhaseKind::AssetGeneration,
+                )),
+                updated_at: None,
+            }),
+            created_at,
+            started_at: Some(started_at),
+            completed_at: None,
+        };
+
+        let summary = task_info_summary(&task);
+
+        assert_eq!(summary.id, "task-1");
+        assert_eq!(summary.task_type, "manga_generation");
+        assert_eq!(summary.priority, "medium");
+        assert_eq!(summary.status, "running");
+        assert_eq!(summary.root_project_id, Some(7));
+        assert_eq!(summary.source_snapshot_id, Some(13));
+        assert_eq!(summary.task_scope.as_deref(), Some("chapter"));
+        assert_eq!(summary.created_at, created_at.to_string());
+        let started_at_text = started_at.to_string();
+        assert_eq!(
+            summary.started_at.as_deref(),
+            Some(started_at_text.as_str())
+        );
+        let progress = summary.progress.expect("progress should be projected");
+        assert_eq!(progress.current, 2);
+        assert_eq!(progress.total, 4);
+        assert_eq!(progress.message, "drawing");
+        assert_eq!(progress.meta.unwrap().stage_code, "draw");
     }
 }

@@ -31,8 +31,8 @@ pub async fn start_chapter_generation_typed(
         None
     };
     let start = state
-        .orchestrator()
-        .start_chapter_generation_task(user_id, &input)
+        .chapter_generation_application()
+        .start_task(user_id, &input)
         .await?;
     if !start.should_run {
         return Ok(start.handle);
@@ -47,8 +47,8 @@ pub async fn start_chapter_generation_typed(
             let prompt_renderer = &worker_state;
             let host_port = crate::workflow::RuntimeChapterAnalysisHostPort::new(&worker_state);
             worker_state
-                .orchestrator()
-                .run_chapter_generation_task(
+                .chapter_generation_application()
+                .run_task(
                     ChapterGenerationApplicationContext {
                         prompt_renderer,
                         runtime_embedding_identity,
@@ -75,8 +75,8 @@ pub async fn preview_chapter_prompt(
     };
     let prompt_renderer = state;
     let preview = state
-        .orchestrator()
-        .preview_chapter_generation_request_validated(
+        .chapter_generation_application()
+        .preview_request(
             user_id,
             ChapterGenerationApplicationContext {
                 prompt_renderer,
@@ -111,17 +111,13 @@ pub async fn prepare_chapter_generation_rag_embedding(
     input: PreviewChapterPromptInput,
 ) -> Result<PreparedGenerationRagEmbeddingRequest, String> {
     state
-        .orchestrator()
-        .prepare_chapter_generation_rag_embedding_validated(
-            user_id,
-            input,
-            runtime_embedding_identity()?,
-        )
+        .chapter_generation_application()
+        .prepare_rag_embedding(user_id, input, runtime_embedding_identity()?)
         .await
 }
 
 fn runtime_embedding_identity() -> Result<Option<EmbeddingModelIdentity>, String> {
-    crate::runtime_config::current_embedding_model()
+    crate::runtime_config::current_embedding_provider_config()
         .as_ref()
         .map(crate::dynamic_embedding::model_identity_from_config)
         .transpose()

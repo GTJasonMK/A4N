@@ -1,7 +1,8 @@
-use a4n_core::error::AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
-use a4n_orchestrator::rag::{
-    PreparedEnhancedRagSearch, normalize_search_data_types, required_nonblank, required_top_k,
+use a4n_error::AppError;
+use a4n_rag_core::{
+    PreparedEnhancedRagSearch,
+    search::{normalize_search_data_types, required_nonblank, required_top_k},
 };
 
 use super::EnhancedSearchInput;
@@ -14,7 +15,7 @@ pub(super) async fn prepare_enhanced_rag_search(
     input: EnhancedSearchInput,
 ) -> Result<PreparedEnhancedRagSearch, AppError> {
     access::verify_project_editor(state, user_id, project_id).await?;
-    let rag = state.orchestrator();
+    let rag = state.rag_search();
     let query = required_nonblank(&input.query)?;
     let top_k = required_top_k(input.top_k)?;
     let data_types = normalize_search_data_types(input.data_types)?;
@@ -29,7 +30,7 @@ pub(super) async fn prepare_enhanced_rag_search(
     let queries = rag
         .prepare_enhanced_rag_queries(project_id, &query, chapter_number)
         .await?;
-    let embedding_identity = current_embedding_identity(rag).await?;
+    let embedding_identity = current_embedding_identity(state).await?;
     let filter = rag
         .enhanced_rag_search_filter(project_id, &embedding_identity, data_types)
         .await?;
@@ -44,10 +45,10 @@ pub(super) async fn prepare_enhanced_rag_search(
 }
 
 pub(crate) async fn current_embedding_identity(
-    rag: &a4n_orchestrator::OrchestratorContext,
+    state: &crate::AppState,
 ) -> Result<EmbeddingModelIdentity, AppError> {
-    if let Some(model) = crate::runtime_config::current_embedding_model() {
+    if let Some(model) = crate::runtime_config::current_embedding_provider_config() {
         return crate::dynamic_embedding::model_identity_from_config(&model);
     }
-    rag.embedding_model_identity().await
+    state.rag_search().embedding_model_identity().await
 }

@@ -9,7 +9,33 @@ mod output;
 mod request;
 mod workflow;
 
-pub use contracts::{ChapterSceneProgressReporter, ChapterSceneRequestPreview};
+pub use contracts::ChapterSceneRequestPreview;
+
+/// Runtime-facing chapter-scene generation boundary.
+#[async_trait::async_trait]
+pub trait ChapterSceneGenerationApplicationPort: Send + Sync {
+    async fn project_id_for_user(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::chapter::GenerateChapterSceneInput,
+    ) -> Result<i64, a4n_error::AppError>;
+
+    async fn preview_for_user(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::chapter::GenerateChapterSceneInput,
+        prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
+    ) -> Result<ChapterSceneRequestPreview, a4n_error::AppError>;
+
+    async fn generate_for_user(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::chapter::GenerateChapterSceneInput,
+        prompt_renderer: &dyn a4n_prompt::rendering::PromptRenderer,
+        progress: a4n_api_contract::chapter::ChapterSceneProgressReporter<'_>,
+        active_task_id: Option<&str>,
+    ) -> Result<a4n_api_contract::chapter::ChapterSceneSummary, a4n_error::AppError>;
+}
 
 #[cfg(test)]
 mod tests;

@@ -1,4 +1,4 @@
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 
 #[derive(Debug, Clone, Default)]
 pub(in crate::project_reset) struct ResetCharacterProfilesResult {

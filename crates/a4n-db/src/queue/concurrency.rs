@@ -1,5 +1,5 @@
 use super::{DefaultProviderConcurrencyLimits, QueueDbError};
-use a4n_core::models::ai::{image_gen_config, llm_config, video_gen_config};
+use a4n_db_models::models::ai::{image_gen_config, llm_config, video_gen_config};
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QuerySelect};
 
 pub async fn load_default_provider_concurrency_limits(

@@ -18,7 +18,7 @@ impl OrchestratorContext {
     ) -> Result<OptimizeAnalysisTurnExecution, AgentLoopExecutionError> {
         let session = self.get_session(session_id).await?;
         if session.status != "analyzing" {
-            return Err(a4n_core::error::AppError::InvalidState {
+            return Err(a4n_error::AppError::InvalidState {
                 current: session.status,
                 operation: "执行内容优化分析".to_string(),
             }
@@ -32,7 +32,7 @@ impl OrchestratorContext {
             .find(|message| message.role == "system")
             .map(|message| message.content.clone())
             .ok_or_else(|| {
-                a4n_core::error::AppError::InvalidArgument("优化分析会话缺少 system 提示词".into())
+                a4n_error::AppError::InvalidArgument("优化分析会话缺少 system 提示词".into())
             })?;
         let user_message = session_messages
             .iter()
@@ -42,7 +42,7 @@ impl OrchestratorContext {
             })
             .map(|message| message.content.clone())
             .ok_or_else(|| {
-                a4n_core::error::AppError::InvalidArgument("优化分析会话缺少分析 user 输入".into())
+                a4n_error::AppError::InvalidArgument("优化分析会话缺少分析 user 输入".into())
             })?;
 
         let chapter = self

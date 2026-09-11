@@ -2,15 +2,21 @@ use super::bindings::normalized_generated_target_ids;
 use super::creation::validate_media_asset_source_context_shape;
 use super::paths::{media_path_is_blank, normalized_media_paths};
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     character::character_portrait,
     media::{media_asset, media_provenance},
 };
-use a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::character::CharacterPortraitCreateInput;
 use a4n_domain::image::IMAGE_TYPE_CANVAS;
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter};
+use a4n_domain::media::{CreateMediaAssetRecordInput, MediaProvenanceRecordInput};
+use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use sea_orm::{
+    ColumnTrait, ConnectOptions, Database, DatabaseConnection, EntityTrait, PaginatorTrait,
+    QueryFilter,
+};
 use serde_json::json;
+use std::time::Duration;
 
 mod provenance_context;
 
@@ -63,6 +69,27 @@ fn media_paths_are_non_blank_sorted_and_deduplicated() {
 }
 
 #[tokio::test]
+async fn media_cleanup_does_not_fall_back_when_reference_query_fails() {
+    let mut options = ConnectOptions::new("postgres://a4n@127.0.0.1:1/a4n");
+    options
+        .connect_lazy(true)
+        .connect_timeout(Duration::from_millis(100));
+    let db = Database::connect(options)
+        .await
+        .expect("lazy database connection should be constructible");
+    let error = super::schedule_unreferenced_media_cleanup(
+        &db,
+        1,
+        &["projects/1/unresolved.png".to_string()],
+        "media-reference-query-failure".to_string(),
+    )
+    .await
+    .expect_err("引用复核失败时不得继续写入 cleanup intent");
+
+    assert!(error.to_string().contains("Connection"));
+}
+
+#[tokio::test]
 async fn media_path_filter_covers_all_persisted_path_columns() {
     let db = setup_db().await;
     let project = crate::project::create_freeform_video_project_record(
@@ -100,7 +127,7 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
         crate::video::CreateGeneratedVideoRecordDraftInput {
             project_id: project.id,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
             workflow_mode: Some(WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             prompt: "path reference".to_string(),
             negative_prompt: None,
@@ -145,7 +172,7 @@ async fn media_path_filter_covers_all_persisted_path_columns() {
     let portrait_path = format!("projects/{}/portraits/ref.png", project.id);
     let portrait = crate::character::create_character_portrait_for_profile(
         &db,
-        crate::character::CharacterPortraitCreateInput {
+        CharacterPortraitCreateInput {
             profile_id: profile.id,
             project_id: project.id,
             portrait_type: "full_body".to_string(),

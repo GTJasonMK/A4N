@@ -1,7 +1,7 @@
 use super::super::super::json_ids::remap_object_id;
 use super::common::{remap_object_array_ids, required_mapped_target_entity_id};
 use crate::project_family_import::{ImportIdMaps, ProjectFamilyImportError, map_required};
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use serde_json::Value;
 
 pub(in crate::project_family_import::remap::generation) fn remap_galgame_portrait_params(

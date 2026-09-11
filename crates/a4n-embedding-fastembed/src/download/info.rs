@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_domain::embedding::EmbeddingModelDownloadInfoSummary;
 
 use super::contracts::download_byte_totals;
@@ -14,11 +14,11 @@ pub async fn fastembed_model_download_info(
     let resolved = resolve_model_info(model_name)?;
     let files = collect_required_download_files(&resolved.info, cache_dir)
         .await
-        .map_err(AppError::ConfigError)?;
+        .map_err(AppError::Configuration)?;
     let (total_size_bytes, downloaded_size_bytes) =
-        download_byte_totals(&files).map_err(AppError::ConfigError)?;
+        download_byte_totals(&files).map_err(AppError::Configuration)?;
     if total_size_bytes == 0 {
-        return Err(AppError::ConfigError(format!(
+        return Err(AppError::Configuration(format!(
             "fastembed 模型下载信息未包含有效文件大小：{}（{}）",
             resolved.name, resolved.info.model_code
         )));

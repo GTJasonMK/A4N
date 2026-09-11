@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_rag_core::vector_store::VectorStore;
 
 mod trait_impl;

@@ -1,4 +1,4 @@
-use a4n_core::models::project::text_anchor;
+use a4n_db_models::models::project::text_anchor;
 use chrono::NaiveDateTime;
 
 use super::rules::{normalize_anchor_ids, validate_loaded_anchor_records};

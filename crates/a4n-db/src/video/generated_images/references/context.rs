@@ -1,5 +1,5 @@
 use crate::video::{VideoDbError, validate_positive_video_i64};
-use a4n_core::models::{chapter::chapter, project::novel_project};
+use a4n_db_models::models::{chapter::chapter, project::novel_project};
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ConnectionTrait, EntityTrait, FromQueryResult, QuerySelect};
 

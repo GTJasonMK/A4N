@@ -1,7 +1,8 @@
 use super::context::video_asset_project_ids_record;
 use crate::profile_material::is_project_reusable_video_material_image;
 use crate::video::VideoDbError;
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
+use a4n_domain::image::reference_image_ids;
 use sea_orm::ConnectionTrait;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -29,7 +30,8 @@ pub async fn validated_video_reference_image_records<C>(
 where
     C: ConnectionTrait,
 {
-    let ids = prompt_reference_image_ids(reference_image_ids_json)?;
+    let ids =
+        reference_image_ids(reference_image_ids_json).map_err(VideoDbError::InvalidArgument)?;
     if ids.is_empty() {
         return Ok(Vec::new());
     }
@@ -50,7 +52,7 @@ where
 {
     let ids_by_prompt = reference_image_ids_json
         .iter()
-        .map(|value| prompt_reference_image_ids(*value))
+        .map(|value| reference_image_ids(*value).map_err(VideoDbError::InvalidArgument))
         .collect::<Result<Vec<_>, _>>()?;
     validated_video_reference_image_records_for_ids(db, project_id, chapter_id, ids_by_prompt)
         .await
@@ -117,27 +119,4 @@ where
                 .collect()
         })
         .collect()
-}
-
-fn prompt_reference_image_ids(value: Option<&Value>) -> Result<Vec<i64>, VideoDbError> {
-    let Some(value) = value else {
-        return Ok(Vec::new());
-    };
-    let values = value.as_array().ok_or_else(|| {
-        VideoDbError::InvalidArgument("reference_image_ids 必须是数组".to_string())
-    })?;
-    let mut ids = Vec::with_capacity(values.len());
-    let mut seen = HashSet::with_capacity(values.len());
-    for (index, value) in values.iter().enumerate() {
-        let id = value.as_i64().filter(|id| *id > 0).ok_or_else(|| {
-            VideoDbError::InvalidArgument(format!("reference_image_ids[{index}] 必须是正整数"))
-        })?;
-        if !seen.insert(id) {
-            return Err(VideoDbError::InvalidArgument(format!(
-                "reference_image_ids 包含重复 ID：{id}"
-            )));
-        }
-        ids.push(id);
-    }
-    Ok(ids)
 }

@@ -1,9 +1,9 @@
-use super::shared::require_config_admin;
 use crate::{
     AppState,
     actions::app_error_message,
     sidecar_clients::{ModelDiscoveryKind, discover_models},
 };
+use a4n_api_contract::config::ConfigProviderKind;
 use a4n_api_contract::config::ModelDiscoveryInput;
 use a4n_model_discovery::ModelDiscoveryResult;
 
@@ -59,50 +59,30 @@ async fn resolve_model_discovery_api_key(
     if !input.use_saved_api_key {
         return Ok(explicit_api_key);
     }
-    require_config_admin(state, user_id)
-        .await
-        .map_err(app_error_message)?;
     let config_id = input
         .config_id
         .filter(|value| *value > 0)
         .ok_or_else(|| format!("{}模型探测需要有效的已保存配置 ID", kind.label()))?;
-    let saved_api_key = match kind {
-        ModelDiscoveryKind::Llm => {
-            state
-                .orchestrator()
-                .llm_config_by_id(config_id)
-                .await
-                .map_err(app_error_message)?
-                .api_key_encrypted
-        }
-        ModelDiscoveryKind::Image => {
-            state
-                .orchestrator()
-                .image_config_by_id(config_id)
-                .await
-                .map_err(app_error_message)?
-                .api_key_encrypted
-        }
-        ModelDiscoveryKind::Video => {
-            state
-                .orchestrator()
-                .video_config_by_id(config_id)
-                .await
-                .map_err(app_error_message)?
-                .api_key_encrypted
-        }
-    };
-    let saved_api_key = saved_api_key
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
+    let saved_api_key = state
+        .config_application()
+        .saved_api_key(user_id, config_provider_kind(kind), config_id)
+        .await
+        .map_err(app_error_message)?
         .ok_or_else(|| {
             format!(
                 "{}模型探测请求使用已保存密钥，但配置 {config_id} 没有可用 API Key",
                 kind.label()
             )
         })?;
-    Ok(Some(saved_api_key.to_string()))
+    Ok(Some(saved_api_key))
+}
+
+fn config_provider_kind(kind: ModelDiscoveryKind) -> ConfigProviderKind {
+    match kind {
+        ModelDiscoveryKind::Llm => ConfigProviderKind::Llm,
+        ModelDiscoveryKind::Image => ConfigProviderKind::Image,
+        ModelDiscoveryKind::Video => ConfigProviderKind::Video,
+    }
 }
 
 fn normalized_explicit_api_key(input: &ModelDiscoveryInput) -> Result<Option<String>, String> {

@@ -5,9 +5,10 @@ use crate::{
         admin_records::{AdminPermission, require_admin_permission},
         app_error_message,
     },
-    file_utils::remove_data_dir_in_data_dir,
 };
-use a4n_core::files::paths::ProjectPaths;
+use a4n_api_contract::project::ProjectReadApplicationPort;
+use a4n_storage::paths::ProjectPaths;
+use a4n_storage::remove_data_dir_in_data_dir;
 use std::collections::HashSet;
 
 pub async fn list_orphan_project_data_dirs(
@@ -17,7 +18,7 @@ pub async fn list_orphan_project_data_dirs(
     require_admin_permission(state, caller_user_id, AdminPermission::ManageSettings)
         .await
         .map_err(|error| error.to_string())?;
-    let existing_project_ids = existing_project_ids(state.orchestrator()).await?;
+    let existing_project_ids = existing_project_ids(state.project_read_application()).await?;
     scanning::orphan_project_data_dirs(state.data_dir(), &existing_project_ids)
 }
 
@@ -34,10 +35,10 @@ pub async fn cleanup_orphan_project_data_dirs(
 async fn remove_unowned_project_data_dirs(
     state: &AppState,
 ) -> Result<OrphanProjectDataDirsSummary, String> {
-    let mut protected_project_ids = existing_project_ids(state.orchestrator()).await?;
+    let mut protected_project_ids = existing_project_ids(state.project_read_application()).await?;
     protected_project_ids.extend(
         state
-            .orchestrator()
+            .cleanup_outbox_application()
             .project_ids_with_incomplete_cleanup()
             .await
             .map_err(app_error_message)?,
@@ -45,11 +46,10 @@ async fn remove_unowned_project_data_dirs(
     let summary = scanning::orphan_project_data_dirs(state.data_dir(), &protected_project_ids)?;
     for item in &summary.items {
         if state
-            .orchestrator()
-            .project_by_id(item.project_id)
+            .project_read_application()
+            .exists(item.project_id)
             .await
             .map_err(app_error_message)?
-            .is_some()
         {
             return Err(format!(
                 "孤儿目录清理期间项目已重新出现，拒绝删除: project_id={}",
@@ -58,7 +58,7 @@ async fn remove_unowned_project_data_dirs(
         }
         let prefix = crate::cleanup_outbox::project_media_path_prefix(item.project_id);
         if state
-            .orchestrator()
+            .image_record_application()
             .media_path_prefix_has_persisted_reference(&prefix)
             .await
             .map_err(app_error_message)?
@@ -76,10 +76,10 @@ async fn remove_unowned_project_data_dirs(
 }
 
 async fn existing_project_ids(
-    project_read: &a4n_orchestrator::OrchestratorContext,
+    project_read: &dyn ProjectReadApplicationPort,
 ) -> Result<HashSet<i64>, String> {
     let ids = project_read
-        .project_ids()
+        .all_project_ids()
         .await
         .map_err(app_error_message)?;
     Ok(ids.into_iter().collect())

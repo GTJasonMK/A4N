@@ -4,15 +4,15 @@ use std::{
     time::Instant,
 };
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatChunk, LlmTraceContext};
-use a4n_orchestrator::DynamicProviderFacade;
-use a4n_orchestrator::task_queue::RunningTask;
+use a4n_provider_runtime_contract::TaskLease;
 use a4n_service_protocol::CapabilityTaskEvent;
 use futures::Stream;
 
 use super::events::{SidecarLlmEvent, parse_sidecar_llm_event};
 use super::terminal::{QueueTrackedStreamTerminal, StreamKind};
+use crate::provider_runtime::DynamicProviderFacade;
 
 pub(in crate::dynamic_llm) struct QueueTrackedSidecarLlmStream {
     events: tokio::sync::mpsc::Receiver<CapabilityTaskEvent>,
@@ -23,7 +23,7 @@ impl QueueTrackedSidecarLlmStream {
     pub(in crate::dynamic_llm) fn new(
         events: tokio::sync::mpsc::Receiver<CapabilityTaskEvent>,
         facade: DynamicProviderFacade,
-        running_task: RunningTask,
+        running_task: Box<dyn TaskLease>,
         trace_context: Option<LlmTraceContext>,
         model_name: String,
         started: Instant,

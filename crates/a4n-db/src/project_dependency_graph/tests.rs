@@ -1,11 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::{
-    models::chapter::{chapter, chapter_video_prompt},
-    prompt_language::{
-        PromptOutputLanguage, prompt_type_uses_prompt_output_language,
-        with_prompt_output_language_metadata,
-    },
+use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};
+use a4n_domain::prompt_language::{
+    PromptOutputLanguage, prompt_type_uses_prompt_output_language,
+    with_prompt_output_language_metadata,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};

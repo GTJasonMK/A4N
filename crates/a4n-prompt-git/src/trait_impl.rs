@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_prompt::version_store::{CommitInfo, PromptVersionStore};
 
 use crate::store::GitPromptStore;

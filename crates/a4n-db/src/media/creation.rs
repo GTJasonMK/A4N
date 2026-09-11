@@ -1,15 +1,16 @@
-use a4n_core::models::{
+use a4n_db_models::models::{
     media::media_asset,
     project::{novel_project, project_source_snapshot, source_snapshot_chapter},
 };
+use a4n_domain::media::CreateMediaAssetRecordInput;
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbBackend, EntityTrait, FromQueryResult, QueryFilter, QueryOrder,
     QuerySelect, TransactionTrait,
 };
 
+use super::MediaDbError;
 use super::provenance::insert_media_asset_with_provenance_record;
-use super::{CreateMediaAssetRecordInput, MediaDbError};
 
 #[derive(Debug, FromQueryResult)]
 struct MediaProjectIdentity {

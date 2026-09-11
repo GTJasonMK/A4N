@@ -1,4 +1,3 @@
-use a4n_core::models::chapter::chapter;
 use a4n_db::{
     chapter_content::{
         ChapterContentEditError, StoreChapterAnalysisRecordInput, lock_chapter_analysis_source,
@@ -6,6 +5,7 @@ use a4n_db::{
     },
     project::{ChapterSourceSnapshot, CreateProjectRecordInput, create_project_record},
 };
+use a4n_db_models::models::chapter::chapter;
 use chrono::{Duration, NaiveDate, NaiveDateTime};
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 use serde_json::json;

@@ -1,4 +1,4 @@
-use a4n_core::event::channel::normalize_task_id;
+use a4n_task_runtime::channel::normalize_task_id;
 use serde_json::{Value, json};
 
 use super::super::{
@@ -87,11 +87,15 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
     )?;
     let project_id = i64_arg(args, "projectId")?;
     let task_id = sanitize_optional_task_id(optional_string_field(args, "taskId")?)?;
-    let input: a4n_runtime::rag_ingest::RagIngestOptions = command_input(args, "rag_ingest_all")?;
-    let scope =
-        a4n_runtime::rag_ingest::rag_ingest_task_scope(state.runtime(), user_id, project_id)
-            .await
-            .map_err(ApiError::bad_request)?;
+    let input: a4n_runtime::host_api::rag_ingest::RagIngestOptions =
+        command_input(args, "rag_ingest_all")?;
+    let scope = a4n_runtime::host_api::rag_ingest::rag_ingest_task_scope(
+        state.runtime(),
+        user_id,
+        project_id,
+    )
+    .await
+    .map_err(ApiError::bad_request)?;
     let task = register_web_task(
         state,
         user_id,
@@ -106,12 +110,12 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
     let reporter = task_id
         .as_ref()
         .map(|_| &report_progress as &(dyn Fn(u32, u32, &str) + Send + Sync));
-    let mut progress = a4n_runtime::rag_ingest::RagIngestProgress::new(
+    let mut progress = a4n_runtime::host_api::rag_ingest::RagIngestProgress::new(
         scope.total,
         reporter,
         cancel_token.as_ref(),
     );
-    let result = a4n_runtime::rag_ingest::rag_ingest_all(
+    let result = a4n_runtime::host_api::rag_ingest::rag_ingest_all(
         state.runtime(),
         user_id,
         scope,
@@ -122,9 +126,9 @@ pub(in crate::routes::commands) async fn rag_ingest_all(
     .await
     .map_err(|err| {
         if task.as_ref().is_some_and(|handle| handle.is_cancelled()) {
-            a4n_core::error::AppError::Cancelled
+            a4n_error::AppError::Cancelled
         } else {
-            a4n_core::error::AppError::Internal(anyhow::anyhow!(err))
+            a4n_error::AppError::Internal(anyhow::anyhow!(err))
         }
     });
     let value = finish_web_task(state, task.as_ref(), result)?;
@@ -142,10 +146,10 @@ pub(in crate::routes::commands) async fn rag_prepare_ingest_all(
         &["projectId", "input", "runtime_config_snapshot"],
     )?;
     let project_id = i64_arg(args, "projectId")?;
-    let input: a4n_runtime::rag_ingest::RagIngestOptions =
+    let input: a4n_runtime::host_api::rag_ingest::RagIngestOptions =
         command_input(args, "rag_prepare_ingest_all")?;
     Ok(json!(
-        a4n_runtime::rag_ingest::rag_prepare_ingest_all(
+        a4n_runtime::host_api::rag_ingest::rag_prepare_ingest_all(
             state.runtime(),
             user_id,
             project_id,
@@ -167,10 +171,10 @@ pub(in crate::routes::commands) async fn rag_upload_ingest_embeddings(
         &["projectId", "input", "runtime_config_snapshot"],
     )?;
     let project_id = i64_arg(args, "projectId")?;
-    let input: a4n_runtime::rag_ingest::ClientRagIngestUploadInput =
+    let input: a4n_runtime::host_api::rag_ingest::ClientRagIngestUploadInput =
         command_input(args, "rag_upload_ingest_embeddings")?;
     Ok(json!(
-        a4n_runtime::rag_ingest::rag_upload_ingest_embeddings(
+        a4n_runtime::host_api::rag_ingest::rag_upload_ingest_embeddings(
             state.runtime(),
             user_id,
             project_id,
@@ -244,7 +248,7 @@ pub(in crate::routes::commands) async fn download_embedding_model(
     .await;
     if let Err(join_error) = progress_worker.await {
         let bridge_error = format!("模型下载进度事件任务异常退出: {join_error}");
-        result = Err(a4n_core::error::AppError::Internal(anyhow::anyhow!(
+        result = Err(a4n_error::AppError::Internal(anyhow::anyhow!(
             "{}",
             match result {
                 Ok(_) => bridge_error,

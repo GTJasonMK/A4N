@@ -1,0 +1,11 @@
+[package]
+name = "a4n-chapter-analysis"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-domain = { path = "../a4n-domain" }
+a4n-error = { path = "../a4n-error", default-features = false }
+a4n-progress = { path = "../a4n-progress" }
+serde_json = { workspace = true }

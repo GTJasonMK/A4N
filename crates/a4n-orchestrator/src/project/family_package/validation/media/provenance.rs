@@ -4,7 +4,7 @@ mod prompt;
 mod request;
 mod source_asset;
 
-use a4n_core::models::media::{media_asset, media_provenance};
+use a4n_db_models::models::media::{media_asset, media_provenance};
 use a4n_domain::canvas_transfer_runtime_identity_key;
 
 use super::contracts::MediaProvenanceRefContext;

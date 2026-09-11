@@ -3,10 +3,8 @@ mod contracts;
 mod preparation;
 mod transport;
 
-use a4n_core::{
-    error::AppError,
-    models::{ai::optimization_session, chapter::chapter},
-};
+use a4n_db_models::models::{ai::optimization_session, chapter::chapter};
+use a4n_error::AppError;
 
 use crate::generation::generation_public_error;
 use crate::generation::stream::{generation_usage, publish_generation_usage};

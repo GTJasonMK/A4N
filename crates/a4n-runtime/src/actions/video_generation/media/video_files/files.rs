@@ -1,6 +1,5 @@
 use super::paths::{ensure_chapter_videos_dir, ensure_project_videos_dir};
-use crate::file_utils::{persist_created_media_file, remove_created_file_on_error_sync};
-use a4n_core::models::ai::generated_video;
+use a4n_storage::{persist_created_media_file, remove_created_file_on_error_sync};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
@@ -66,7 +65,7 @@ pub(crate) fn remove_partial_video_file(path: &Path, label: &str) -> Result<(), 
     }
 }
 
-pub(crate) use a4n_core::error::append_secondary_message as append_secondary_error;
+pub(crate) use a4n_error::append_secondary_message as append_secondary_error;
 
 pub(crate) fn combine_optional_errors(
     primary: Option<String>,
@@ -76,8 +75,4 @@ pub(crate) fn combine_optional_errors(
         Some(primary) => Some(append_secondary_error(primary, secondary)),
         None => secondary,
     }
-}
-
-pub(crate) fn prompt_id_from_video(video: &generated_video::Model) -> Option<i64> {
-    a4n_domain::video::generated_video_prompt_id(video.metadata_json.as_ref())
 }

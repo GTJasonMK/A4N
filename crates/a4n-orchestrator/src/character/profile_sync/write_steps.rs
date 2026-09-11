@@ -1,13 +1,15 @@
-use a4n_core::error::AppError;
-use a4n_core::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
+use a4n_db_models::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
+use a4n_domain::character::{
+    CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
+    CharacterImplicitReviewDecisionRecordInput, InsertBehaviorRecordInput,
+};
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::{
-    CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
-    CharacterImplicitReviewDecisionRecordInput, CharacterSyncAttributeEventDraft,
-    CharacterSyncAttributeEventRecordInput, CharacterSyncWriteStepRecordInput,
-    ImplicitUpdateDecisionSummary, InsertBehaviorRecordInput, optional_string, required_category,
-    required_i32, required_string, required_value,
+    CharacterSyncAttributeEventDraft, CharacterSyncAttributeEventRecordInput,
+    CharacterSyncWriteStepRecordInput, ImplicitUpdateDecisionSummary, optional_string,
+    required_category, required_i32, required_string, required_value,
 };
 
 pub(super) struct BuildCharacterSyncWriteStepsInput<'a> {

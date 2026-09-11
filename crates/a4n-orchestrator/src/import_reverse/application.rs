@@ -1,7 +1,7 @@
 use a4n_api_contract::import_reverse::{
     REVERSE_ENGINEERING_PROGRESS_TOTAL, ReverseEngineerInput, ReverseEngineeringCandidate,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 pub(in crate::import_reverse) use apply::{
     reverse_blueprint_apply_draft, reverse_blueprint_apply_result, reverse_outline_apply_result,
     reverse_outline_rows, reverse_part_outline_apply_result, reverse_part_outline_rows,
@@ -74,7 +74,7 @@ impl OrchestratorContext {
         &self,
         input: ReverseEngineerInput,
         prompt_renderer: &dyn PromptRenderer,
-        progress: &(dyn Fn(u32, u32, &str) -> Result<(), AppError> + Send + Sync),
+        progress: &(dyn for<'a> Fn(u32, u32, &'a str) -> Result<(), AppError> + Send + Sync),
         active_task_id: Option<&str>,
     ) -> Result<ReverseEngineeringCandidate, AppError> {
         let ReverseEngineerInput {
@@ -170,5 +170,52 @@ impl OrchestratorContext {
             rows.as_ref(),
         )
         .map_err(AppError::InvalidArgument)
+    }
+}
+
+#[async_trait::async_trait]
+impl super::ImportReverseApplicationPort for OrchestratorContext {
+    async fn prepare_request(
+        &self,
+        input: ReverseEngineerInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+        self.prepare_reverse_engineer_request_validated(input, prompt_renderer)
+            .await
+    }
+
+    fn run<'a>(
+        &'a self,
+        input: ReverseEngineerInput,
+        prompt_renderer: &'a dyn PromptRenderer,
+        progress: &'a (dyn for<'b> Fn(u32, u32, &'b str) -> Result<(), AppError> + Send + Sync),
+        active_task_id: Option<&'a str>,
+    ) -> std::pin::Pin<
+        Box<
+            dyn std::future::Future<Output = Result<ReverseEngineeringCandidate, AppError>>
+                + Send
+                + 'a,
+        >,
+    > {
+        Box::pin(self.run_reverse_engineering_validated(
+            input,
+            prompt_renderer,
+            progress,
+            active_task_id,
+        ))
+    }
+
+    async fn latest(
+        &self,
+        project_id: i64,
+        target: ReverseEngineeringTarget,
+    ) -> Result<Option<ReverseEngineeringCandidate>, AppError> {
+        self.latest_reverse_engineering_candidate_validated(project_id, target)
+            .await
+    }
+
+    async fn confirm(&self, workflow_run_id: i64) -> Result<ReverseEngineeringCandidate, AppError> {
+        self.confirm_reverse_engineering_candidate_validated(workflow_run_id)
+            .await
     }
 }

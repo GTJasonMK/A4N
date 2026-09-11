@@ -1,4 +1,4 @@
-use a4n_core::models::character::protagonist_behavior_record;
+use a4n_db_models::models::character::protagonist_behavior_record;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder, QuerySelect,
 };

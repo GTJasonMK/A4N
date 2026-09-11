@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use super::super::outline::push_optional_text;
 use super::json::{compact_json_text, is_meaningful_json_value, truncate_text_chars};
-use a4n_core::models::{
+use a4n_db_models::models::{
     character::{foreshadowing_index, protagonist_profile},
     project::{blueprint_character, blueprint_relationship, novel_blueprint},
 };

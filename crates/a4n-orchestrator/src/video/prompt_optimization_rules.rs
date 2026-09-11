@@ -1,9 +1,8 @@
 //! 章节视频提示词优化类型合同（无 DB、无 Host）。
 
-use a4n_core::{
-    error::AppError, models::chapter::chapter_video_prompt,
-    prompt_language::prompt_type_uses_prompt_output_language,
-};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::prompt_language::prompt_type_uses_prompt_output_language;
+use a4n_error::AppError;
 
 use super::{prompt_records::expected_contract_version, prompt_store::PromptWorkflowMode};
 

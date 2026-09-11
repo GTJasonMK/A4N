@@ -1,8 +1,11 @@
 use a4n_api_contract::{
-    generation_tasks::GenerationTaskHandle, inspiration::StartInspirationGenerationInput,
+    generation_tasks::GenerationTaskHandle,
+    inspiration::{
+        InspirationMessageSummary, PreviewInspirationRequestInput, StartInspirationGenerationInput,
+    },
 };
-use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationFinishReason, GenerationResultRef, StreamTextHash};
@@ -28,6 +31,115 @@ use crate::{
 use super::{
     request::build_inspiration_request_from_context, validation::validate_inspiration_response_json,
 };
+
+const INSPIRATION_HISTORY_LIMIT: u64 = 80;
+
+/// Host-facing request-preview boundary.
+///
+/// Project authorization and request construction stay with the inspiration
+/// owner; Runtime only supplies its prompt renderer and preview-specific
+/// provider budgeting.
+#[async_trait::async_trait]
+pub trait InspirationRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_request(
+        &self,
+        user_id: i64,
+        input: PreviewInspirationRequestInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError>;
+}
+
+/// Host-facing boundary for the inspiration generation worker.
+///
+/// Runtime owns task scheduling and supplies the prompt renderer; inspiration
+/// validation, persistence, checkpointing, and terminal state remain here.
+#[async_trait::async_trait]
+pub trait InspirationGenerationApplicationPort: Send + Sync {
+    async fn start_generation(
+        &self,
+        user_id: i64,
+        input: &StartInspirationGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
+
+    async fn run_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        input: StartInspirationGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::inspiration::InspirationApplicationPort for OrchestratorContext {
+    async fn history(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::inspiration::InspirationHistoryInput,
+    ) -> Result<Vec<InspirationMessageSummary>, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+
+        Ok(self
+            .inspiration_messages(input.project_id, INSPIRATION_HISTORY_LIMIT)
+            .await?
+            .into_iter()
+            .map(|message| InspirationMessageSummary {
+                id: message.id,
+                role: message.role,
+                content: message.content,
+                created_at: message.created_at.to_string(),
+            })
+            .collect())
+    }
+}
+
+#[async_trait::async_trait]
+impl InspirationRequestPreviewApplicationPort for OrchestratorContext {
+    async fn prepare_request(
+        &self,
+        user_id: i64,
+        input: PreviewInspirationRequestInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.prepare_inspiration_request_validated(
+            input.project_id,
+            &input.message,
+            prompt_renderer,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl InspirationGenerationApplicationPort for OrchestratorContext {
+    async fn start_generation(
+        &self,
+        user_id: i64,
+        input: &StartInspirationGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_inspiration_generation_task(self, user_id, input).await
+    }
+
+    async fn run_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        input: StartInspirationGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_inspiration_generation_task(self, prompt_renderer, input, handle)
+            .await
+    }
+}
 
 impl OrchestratorContext {
     pub async fn prepare_inspiration_request_validated(

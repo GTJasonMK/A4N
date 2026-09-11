@@ -1,5 +1,5 @@
 use crate::workflow::{PersistedTaskInfo, WorkflowReadError, is_terminal_workflow_status};
-use a4n_core::models::task::task_queue;
+use a4n_db_models::models::task::task_queue;
 use a4n_queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskProgress, TaskStatus};
 use sea_orm::FromQueryResult;
 use serde_json::Value;

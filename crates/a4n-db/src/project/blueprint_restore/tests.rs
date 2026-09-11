@@ -2,7 +2,7 @@ use super::fields::RestoredBlueprintFields;
 use super::snapshots::parse_blueprint_relationship_drafts;
 use super::*;
 use crate::project::PROJECT_KIND_TEXT;
-use a4n_core::models::project::{
+use a4n_db_models::models::project::{
     blueprint_character, blueprint_relationship, project_status_history,
 };
 use a4n_domain::project::ProjectStatus;

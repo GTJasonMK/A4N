@@ -1,6 +1,7 @@
 use crate::project_dependency_graph::AssetLineageRecord;
 use crate::project_dependency_graph::details::records::video_prompt_record;
-use a4n_core::{error::AppError, models::chapter::chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder};
 
 pub(in crate::project_dependency_graph) async fn video_prompt_detail_records<C>(

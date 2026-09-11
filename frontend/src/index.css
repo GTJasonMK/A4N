@@ -1837,6 +1837,9 @@ body {
 
 /* 导演编排：观众画框与时间条使用同一播放头。 */
 .a4n-visual-plan__context {
+  position: sticky;
+  top: 0;
+  z-index: 5;
   background: rgb(var(--color-bg-secondary) / 0.96);
   box-shadow: 0 5px 14px rgb(44 24 16 / 0.08);
   border-color: rgb(var(--color-primary) / 0.2);

@@ -1,4 +1,4 @@
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use a4n_domain::image::{IMAGE_TYPE_OBJECT_MATERIAL, IMAGE_TYPE_SCENE_MATERIAL};
 use serde_json::Value;
 
@@ -9,21 +9,29 @@ pub fn profile_material_identity(
     image_type: &str,
     metadata: Option<&Value>,
 ) -> Option<(&'static str, i64)> {
-    match image_type {
-        IMAGE_TYPE_SCENE_MATERIAL => {
-            if metadata_profile_kind(metadata) != Some(PROFILE_KIND_SCENE) {
-                return None;
-            }
-            metadata_number(metadata, "profile_id").map(|id| (PROFILE_KIND_SCENE, id))
-        }
-        IMAGE_TYPE_OBJECT_MATERIAL => {
-            if metadata_profile_kind(metadata) != Some(PROFILE_KIND_OBJECT) {
-                return None;
-            }
-            metadata_number(metadata, "profile_id").map(|id| (PROFILE_KIND_OBJECT, id))
-        }
-        _ => None,
+    profile_material_identity_from_fields(
+        image_type,
+        metadata_profile_kind(metadata),
+        metadata_number(metadata, "profile_id"),
+    )
+}
+
+pub fn profile_material_identity_from_fields(
+    image_type: &str,
+    profile_kind: Option<&str>,
+    profile_id: Option<i64>,
+) -> Option<(&'static str, i64)> {
+    let expected_kind = match image_type {
+        IMAGE_TYPE_SCENE_MATERIAL => PROFILE_KIND_SCENE,
+        IMAGE_TYPE_OBJECT_MATERIAL => PROFILE_KIND_OBJECT,
+        _ => return None,
+    };
+    if profile_kind != Some(expected_kind) {
+        return None;
     }
+    profile_id
+        .filter(|id| *id > 0)
+        .map(|id| (expected_kind, id))
 }
 
 pub fn generated_image_profile_material_identity(

@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QueryOrder};
 
 pub(crate) async fn chapter_video_prompt_sync_candidates<C>(

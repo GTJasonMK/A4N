@@ -1,6 +1,6 @@
 use super::super::ProjectCleanupDbError;
 use crate::project::validate_positive_i64;
-use a4n_core::models::generation::{generation_run, generation_run_target};
+use a4n_db_models::models::generation::{generation_run, generation_run_target};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub(crate) async fn delete_project_generation_runs<C>(

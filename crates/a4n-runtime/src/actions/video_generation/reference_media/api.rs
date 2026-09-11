@@ -9,7 +9,6 @@ use super::super::{
 use crate::{
     AppState,
     actions::{
-        access,
         request_preview::{model_request_preview, provider_request_step},
         video_prompts::resolve_project_chapter_video_source,
     },
@@ -23,11 +22,10 @@ pub async fn preview_video_provider_request_by_video_id(
     video_id: i64,
 ) -> Result<ModelRequestPreview, String> {
     let video = state
-        .orchestrator()
-        .required_video_record(video_id)
+        .video_record_application()
+        .playback_source(user_id, video_id)
         .await
         .map_err(crate::actions::app_error_message)?;
-    access::verify_project_editor_string(state, user_id, video.project_id).await?;
     resolve_project_chapter_video_source(
         state,
         project_id,
@@ -53,8 +51,8 @@ pub async fn preview_reference_media_video_request(
 ) -> Result<ModelRequestPreview, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
-        .orchestrator()
-        .preview_reference_media_video_request_validated(&host_port, input)
+        .video_request_preview_application()
+        .preview_reference_media(&host_port, input)
         .await
         .map_err(crate::actions::app_error_message)?;
     Ok(model_request_preview(

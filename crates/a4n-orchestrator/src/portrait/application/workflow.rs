@@ -1,4 +1,5 @@
-use a4n_core::error::AppError;
+use a4n_api_contract::portrait::PortraitSummary;
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, is_truncated_finish_reason};
 use serde_json::{Value, json};
 use tokio_util::sync::CancellationToken;
@@ -14,7 +15,7 @@ use crate::{
 };
 
 use super::{
-    contracts::{PortraitGenerationHostPort, PortraitProgress, PortraitSummary},
+    contracts::{PortraitGenerationHostPort, PortraitProgress},
     image::portrait_summary,
 };
 

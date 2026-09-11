@@ -1,6 +1,6 @@
 use super::disabled::DisabledVectorStore;
 use crate::state::profile::RuntimeProfile;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_rag_core::vector_store::VectorStore;
 #[cfg(feature = "embedded-rag-index")]
 use a4n_rag_index::QdrantVectorStore;
@@ -25,14 +25,14 @@ pub(in crate::state) async fn create_rag_store(
     create_embedded_rag_store().await
 }
 
-#[cfg(feature = "embedded-rag-index")]
 async fn create_embedded_rag_store() -> Result<Arc<dyn VectorStore>, AppError> {
-    let store = QdrantVectorStore::connect_from_env().await?;
-    Ok(store as Arc<dyn VectorStore>)
-}
+    #[cfg(feature = "embedded-rag-index")]
+    {
+        let store = QdrantVectorStore::connect_from_env().await?;
+        return Ok(store as Arc<dyn VectorStore>);
+    }
 
-#[cfg(not(feature = "embedded-rag-index"))]
-async fn create_embedded_rag_store() -> Result<Arc<dyn VectorStore>, AppError> {
+    #[cfg(not(feature = "embedded-rag-index"))]
     Err(AppError::ConfigError(
         "full runtime profile 需要编译 `embedded-rag-index` feature，不能回退到 disabled RAG"
             .to_string(),

@@ -1,8 +1,8 @@
 use a4n_api_contract::embedding::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
 use a4n_capabilities::{A4nCapabilities, EmbeddingClient, EmbeddingModelOperation, JsonResponse};
-use a4n_core::error::AppError;
-use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::DownloadProgress;
+use a4n_error::AppError;
+use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
 };
@@ -69,7 +69,7 @@ pub(crate) async fn delete_embedding_model(
 
 pub(crate) async fn test_embedding_config_via_sidecar(
     capabilities: &A4nCapabilities,
-    model: &embedding_config::Model,
+    model: &EmbeddingProviderConfig,
 ) -> Result<(), AppError> {
     let client = required_embedding_client(capabilities)?;
     let payload = embedding_connectivity_test_payload(model)?;

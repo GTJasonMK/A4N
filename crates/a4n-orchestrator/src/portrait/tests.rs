@@ -1,5 +1,6 @@
 use super::prompt_generation::portrait_prompt_request;
 use super::*;
+use a4n_api_contract::portrait::PortraitType;
 use a4n_prompt::tera_engine::TeraPromptEngine;
 use serde_json::json;
 use std::path::PathBuf;

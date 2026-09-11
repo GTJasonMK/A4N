@@ -1,18 +1,28 @@
 use std::collections::HashMap;
 
 use a4n_api_contract::{
-    blueprint::{StartBlueprintGenerationInput, StartBlueprintRefinementInput},
-    generation_tasks::GenerationStartRequestMeta,
+    blueprint::{
+        PreviewBlueprintGenerationInput, PreviewBlueprintRefinementInput,
+        StartBlueprintGenerationInput, StartBlueprintRefinementInput,
+    },
+    generation_tasks::{GenerationStartRequestMeta, GenerationTaskHandle},
 };
-use a4n_core::blueprint::{BLUEPRINT_GENERATION_KIND, blueprint_stage_call_key};
-use a4n_core::error::AppError;
-use a4n_core::models::generation::workflow_run;
+use a4n_db_models::models::generation::workflow_run;
+use a4n_domain::project::{
+    BLUEPRINT_GENERATION_KIND, BLUEPRINT_REFINEMENT_WORKFLOW_KIND,
+    blueprint_generation_input_fingerprint, blueprint_refinement_input_fingerprint,
+    blueprint_stage_call_key, normalized_blueprint_refinement_focus,
+    validate_blueprint_chapter_count,
+};
+use a4n_error::AppError;
+use a4n_llm::provider::ChatRequest;
 use a4n_prompt::blueprint_generation::BlueprintGenerationPreviewStep;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
 use uuid::Uuid;
 
 use crate::OrchestratorContext;
+use a4n_api_contract::workflow::WorkflowResumeRecord;
 use generation::{BLUEPRINT_GENERATION_STAGES, preview_generate_request};
 
 mod generation;
@@ -20,12 +30,76 @@ mod json;
 mod persistence;
 mod refine;
 
+/// Host-facing blueprint request-preview boundary.
+///
+/// Permission checks and request construction stay with the blueprint owner;
+/// Runtime supplies only the prompt renderer and provider-preview formatting.
+#[async_trait::async_trait]
+pub trait BlueprintRequestPreviewApplicationPort: Send + Sync {
+    async fn preview_generation(
+        &self,
+        user_id: i64,
+        input: PreviewBlueprintGenerationInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<BlueprintGenerationPreviewStep, AppError>;
+
+    async fn preview_refinement(
+        &self,
+        user_id: i64,
+        input: PreviewBlueprintRefinementInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError>;
+}
+
+/// Host-facing boundary for blueprint generation workers.
+///
+/// Runtime owns worker scheduling and supplies the prompt renderer; blueprint
+/// validation, persistence and terminal workflow state remain here.
+#[async_trait::async_trait]
+pub trait BlueprintGenerationApplicationPort: Send + Sync {
+    fn generation_input_from_workflow_run(
+        &self,
+        run: &WorkflowResumeRecord,
+    ) -> Result<StartBlueprintGenerationInput, AppError>;
+
+    fn refinement_input_from_workflow_run(
+        &self,
+        run: &WorkflowResumeRecord,
+    ) -> Result<StartBlueprintRefinementInput, AppError>;
+
+    async fn start_generation(
+        &self,
+        user_id: i64,
+        input: &StartBlueprintGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
+
+    async fn start_refinement(
+        &self,
+        user_id: i64,
+        input: &StartBlueprintRefinementInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError>;
+
+    async fn run_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        input: StartBlueprintGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
+
+    async fn run_refinement(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        input: StartBlueprintRefinementInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
+}
+
 pub(crate) use json::validate_sparse_blueprint_sections;
 
 impl OrchestratorContext {
     pub fn blueprint_generation_input_from_workflow_run(
         &self,
-        run: &workflow_run::Model,
+        run: &WorkflowResumeRecord,
     ) -> Result<StartBlueprintGenerationInput, AppError> {
         if run.workflow_kind != BLUEPRINT_GENERATION_KIND {
             return Err(AppError::InvalidArgument(format!(
@@ -51,9 +125,10 @@ impl OrchestratorContext {
         let genre = required_fingerprint_string(fingerprint, "genre")?;
         let target_length = i32::try_from(required_fingerprint_i64(fingerprint, "target_length")?)
             .map_err(|_| AppError::InvalidArgument("蓝图目标章节数超出范围".to_string()))?;
-        a4n_core::blueprint::validate_blueprint_chapter_count(target_length, "target_length")?;
+        validate_blueprint_chapter_count(target_length, "target_length")
+            .map_err(AppError::InvalidArgument)?;
         let variables = required_fingerprint_variables(fingerprint)?;
-        let expected = a4n_core::blueprint::blueprint_generation_input_fingerprint(
+        let expected = blueprint_generation_input_fingerprint(
             project_id,
             &title,
             &genre,
@@ -83,9 +158,9 @@ impl OrchestratorContext {
 
     pub fn blueprint_refinement_input_from_workflow_run(
         &self,
-        run: &workflow_run::Model,
+        run: &WorkflowResumeRecord,
     ) -> Result<StartBlueprintRefinementInput, AppError> {
-        if run.workflow_kind != a4n_core::blueprint::BLUEPRINT_REFINEMENT_WORKFLOW_KIND {
+        if run.workflow_kind != BLUEPRINT_REFINEMENT_WORKFLOW_KIND {
             return Err(AppError::InvalidArgument(format!(
                 "工作流类型 {} 不是蓝图优化",
                 run.workflow_kind
@@ -107,11 +182,8 @@ impl OrchestratorContext {
         }
         let focus = optional_fingerprint_string(fingerprint, "focus")?;
         let variables = required_fingerprint_variables(fingerprint)?;
-        let expected = a4n_core::blueprint::blueprint_refinement_input_fingerprint(
-            project_id,
-            focus.as_deref(),
-            &variables,
-        );
+        let expected =
+            blueprint_refinement_input_fingerprint(project_id, focus.as_deref(), &variables);
         if fingerprint != &expected {
             return Err(AppError::InvalidState {
                 current: "blueprint_refinement_workflow_fingerprint_invalid".to_string(),
@@ -159,6 +231,98 @@ impl OrchestratorContext {
     }
 }
 
+#[async_trait::async_trait]
+impl BlueprintRequestPreviewApplicationPort for OrchestratorContext {
+    async fn preview_generation(
+        &self,
+        user_id: i64,
+        input: PreviewBlueprintGenerationInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<BlueprintGenerationPreviewStep, AppError> {
+        let variables = input.variables.unwrap_or_default().into_iter().collect();
+        self.preview_blueprint_generation_request_for_user_validated(
+            user_id,
+            input.project_id,
+            &input.title,
+            &input.genre,
+            input.target_length,
+            prompt_renderer,
+            &variables,
+        )
+        .await
+    }
+
+    async fn preview_refinement(
+        &self,
+        user_id: i64,
+        input: PreviewBlueprintRefinementInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError> {
+        let variables = input.variables.unwrap_or_default().into_iter().collect();
+        self.preview_blueprint_refine_request_for_user_validated(
+            user_id,
+            input.project_id,
+            input.focus.as_deref(),
+            prompt_renderer,
+            &variables,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl BlueprintGenerationApplicationPort for OrchestratorContext {
+    fn generation_input_from_workflow_run(
+        &self,
+        run: &WorkflowResumeRecord,
+    ) -> Result<StartBlueprintGenerationInput, AppError> {
+        OrchestratorContext::blueprint_generation_input_from_workflow_run(self, run)
+    }
+
+    fn refinement_input_from_workflow_run(
+        &self,
+        run: &WorkflowResumeRecord,
+    ) -> Result<StartBlueprintRefinementInput, AppError> {
+        OrchestratorContext::blueprint_refinement_input_from_workflow_run(self, run)
+    }
+
+    async fn start_generation(
+        &self,
+        user_id: i64,
+        input: &StartBlueprintGenerationInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_blueprint_generation_task(self, user_id, input).await
+    }
+
+    async fn start_refinement(
+        &self,
+        user_id: i64,
+        input: &StartBlueprintRefinementInput,
+    ) -> Result<crate::GenerationTaskStart, crate::GenerationTaskAccessError> {
+        OrchestratorContext::start_blueprint_refinement_task(self, user_id, input).await
+    }
+
+    async fn run_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        input: StartBlueprintGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_blueprint_generation_task(self, prompt_renderer, input, handle)
+            .await
+    }
+
+    async fn run_refinement(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        input: StartBlueprintRefinementInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_blueprint_refinement_task(self, prompt_renderer, input, handle)
+            .await
+    }
+}
+
 pub(crate) fn blueprint_db_error(error: a4n_db::blueprint::BlueprintDbError) -> AppError {
     match error {
         a4n_db::blueprint::BlueprintDbError::InvalidArgument(message) => {
@@ -203,7 +367,7 @@ impl OrchestratorContext {
         if project_id <= 0 {
             return Err(AppError::InvalidArgument("项目 ID 必须大于 0".to_string()));
         }
-        let fingerprint = a4n_core::blueprint::blueprint_generation_input_fingerprint(
+        let fingerprint = blueprint_generation_input_fingerprint(
             project_id,
             title,
             genre,
@@ -287,10 +451,9 @@ fn required_fingerprint_string(value: &Value, key: &str) -> Result<String, AppEr
 fn optional_fingerprint_string(value: &Value, key: &str) -> Result<Option<String>, AppError> {
     match value.get(key) {
         Some(Value::Null) => Ok(None),
-        Some(Value::String(value)) => Ok(
-            a4n_core::blueprint::normalized_blueprint_refinement_focus(Some(value))
-                .map(ToString::to_string),
-        ),
+        Some(Value::String(value)) => {
+            Ok(normalized_blueprint_refinement_focus(Some(value)).map(ToString::to_string))
+        }
         _ => Err(AppError::InvalidState {
             current: format!("blueprint_workflow_fingerprint_invalid_{key}"),
             operation: "恢复蓝图工作流".to_string(),
@@ -316,13 +479,8 @@ mod tests {
 
     #[test]
     fn required_fingerprint_string_preserves_request_value() {
-        let fingerprint = a4n_core::blueprint::blueprint_generation_input_fingerprint(
-            7,
-            "  雾城  ",
-            "  悬疑  ",
-            20,
-            &json!({}),
-        );
+        let fingerprint =
+            blueprint_generation_input_fingerprint(7, "  雾城  ", "  悬疑  ", 20, &json!({}));
 
         assert_eq!(
             required_fingerprint_string(&fingerprint, "title").unwrap(),

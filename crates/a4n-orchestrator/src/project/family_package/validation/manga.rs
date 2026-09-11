@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_image,
     chapter::{
         chapter_manga_prompt::{self, MANGA_PAGE_PROMPT_TYPE},
@@ -31,7 +31,7 @@ pub(super) fn validate_manga_manifest(package: &ProjectFamilyPackage) -> Result<
 
 struct MangaManifestContext<'a> {
     projects: HashMap<i64, &'a novel_project::Model>,
-    chapters: HashMap<i64, &'a a4n_core::models::chapter::chapter::Model>,
+    chapters: HashMap<i64, &'a a4n_db_models::models::chapter::chapter::Model>,
     snapshot_chapters: HashMap<i64, &'a source_snapshot_chapter::Model>,
     scripts: HashMap<i64, &'a chapter_shooting_script::Model>,
     visual_plans: HashMap<i64, &'a chapter_visual_plan::Model>,

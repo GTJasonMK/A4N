@@ -1,5 +1,5 @@
 use super::merge::merge_missing_seed_attributes;
-use a4n_core::json_contract::is_empty_json_value;
+use a4n_domain::json_contract::is_empty_json_value;
 use serde_json::{Value, json};
 
 #[test]

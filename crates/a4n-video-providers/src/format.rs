@@ -1,11 +1,11 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 pub(crate) fn normalize_video_format_str(raw: &str) -> Result<String, AppError> {
     let f = raw.trim().trim_start_matches('.').to_ascii_lowercase();
     if matches!(f.as_str(), "mp4" | "webm" | "mov" | "m4v") {
         Ok(f)
     } else {
-        Err(AppError::Internal(anyhow::anyhow!("不支持的视频格式：{f}")))
+        Err(AppError::Internal(format!("不支持的视频格式：{f}")))
     }
 }
 
@@ -55,7 +55,7 @@ pub(crate) fn detect_video_format_from_bytes(bytes: &[u8]) -> Result<String, App
     if bytes.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
         return Ok("webm".into());
     }
-    Err(AppError::Internal(anyhow::anyhow!(
+    Err(AppError::Internal(format!(
         "无法识别视频字节格式（仅支持 mp4 / webm 魔数嗅探，请在响应中显式给出 format 或 content_type）"
     )))
 }

@@ -5,8 +5,10 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-core = { path = "../a4n-core" }
+a4n-config = { path = "../a4n-config" }
+a4n-db-models = { path = "../a4n-db-models" }
 a4n-domain = { path = "../a4n-domain" }
+a4n-video-contract = { path = "../a4n-video-contract" }
 
 sea-orm = { workspace = true }
 sea-orm-migration = { version = "1", default-features = false, features = ["runtime-tokio", "sqlx-postgres"] }

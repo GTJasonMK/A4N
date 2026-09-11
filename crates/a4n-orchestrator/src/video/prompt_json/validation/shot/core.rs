@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
-use a4n_core::prompt_language::PromptOutputLanguage;
 use a4n_domain::VideoAspectRatio;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 
 use super::super::super::VideoPromptShot;
 use super::super::prompt_text::{

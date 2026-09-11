@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::models::media::media_binding;
+use a4n_db_models::models::media::media_binding;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 

@@ -1,4 +1,6 @@
-use a4n_core::{error::AppError, models::chapter::chapter_video_prompt, source_spans::SourceSpan};
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::source_spans::SourceSpan;
+use a4n_error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use serde_json::{Value, json};
 use std::collections::{BTreeSet, HashSet};
@@ -439,7 +441,7 @@ fn reuse_published_segment_plan_shot(
     previous_segment_plan: Option<&[super::super::VideoSegmentPlan]>,
     shooting_script_projection: &super::super::VideoShootingScriptProjection,
     source_shot_id: &str,
-    source_spans: &[a4n_core::source_spans::SourceSpan],
+    source_spans: &[a4n_domain::source_spans::SourceSpan],
     duration_secs: i32,
     default_aspect_ratio: &str,
 ) -> Result<Option<ValidatedSegmentPlanShot>, AppError> {
@@ -487,7 +489,7 @@ fn reuse_published_segment_plan_shot(
 fn restore_segment_plan_shot_checkpoint(
     checkpoint: &a4n_db::workflow::CompletedLlmCallCheckpoint,
     context: &str,
-    source_spans: &[a4n_core::source_spans::SourceSpan],
+    source_spans: &[a4n_domain::source_spans::SourceSpan],
     shooting_script_projection: &super::super::VideoShootingScriptProjection,
     source_shot_id: &str,
     duration_secs: i32,
@@ -510,7 +512,7 @@ fn restore_segment_plan_shot_checkpoint(
 fn parse_and_validate_segment_plan_shot(
     raw: &str,
     context: &str,
-    source_spans: &[a4n_core::source_spans::SourceSpan],
+    source_spans: &[a4n_domain::source_spans::SourceSpan],
     shooting_script_projection: &super::super::VideoShootingScriptProjection,
     source_shot_id: &str,
     duration_secs: i32,
@@ -607,7 +609,7 @@ fn shooting_script_projection_for_shot(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::video_execution::{VideoExecutionProjectionV2, VideoShootingScriptIdentityV1};
+    use a4n_video_contract::{VideoExecutionProjectionV2, VideoShootingScriptIdentityV1};
 
     fn single_shot_projection(
         source_span_id: &str,
@@ -654,7 +656,7 @@ mod tests {
 
     #[test]
     fn per_shot_validation_rejects_output_below_minimum_readable_count() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 2, 2, None);
         assert_eq!(
             projection
@@ -685,7 +687,7 @@ mod tests {
 
     #[test]
     fn per_shot_checkpoint_contains_backend_derived_card_fields() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
         let segment_shot = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(1, 6, &["beat-1"]),
@@ -708,7 +710,7 @@ mod tests {
 
     #[test]
     fn checkpoint_output_requires_current_canonical_segment_contract() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
         let segment_shot = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(1, 6, &["beat-1"]),
@@ -743,7 +745,7 @@ mod tests {
 
     #[test]
     fn published_shot_is_reused_as_validated_input_without_derived_fields() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 6, 1, None);
         let generated = parse_and_validate_segment_plan_shot(
             &repeated_segment_plan_json(1, 6, &["beat-1"]),
@@ -778,7 +780,7 @@ mod tests {
 
     #[test]
     fn incomplete_published_shot_is_rejected_instead_of_silently_skipped() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 2, 2, None);
         let mut raw: Value =
             serde_json::from_str(&repeated_segment_plan_json(2, 2, &["beat-1"])).unwrap();
@@ -812,7 +814,7 @@ mod tests {
 
     #[test]
     fn per_shot_validation_allows_one_long_beat_to_span_multiple_segments() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 2, 1, Some(4.0));
         assert_eq!(
             projection
@@ -843,7 +845,7 @@ mod tests {
 
     #[test]
     fn per_shot_validation_rejects_unnecessary_duplicate_beat_coverage() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 2, 2, None);
         let raw = repeated_segment_plan_json(2, 2, &["beat-1"]);
         let (_, segments) = parse_generated_segment_plan_with_current_config(
@@ -866,7 +868,7 @@ mod tests {
 
     #[test]
     fn per_shot_validation_still_requires_every_required_beat_when_splitting() {
-        let source_spans = a4n_core::source_spans::source_spans_for_content(1, 1, "章节正文");
+        let source_spans = a4n_domain::source_spans::source_spans_for_content(1, 1, "章节正文");
         let projection = single_shot_projection(&source_spans[0].id, 1, 2, None);
         let raw = repeated_segment_plan_json(4, 1, &["beat-1"]);
         let (_, segments) = parse_generated_segment_plan_with_current_config(

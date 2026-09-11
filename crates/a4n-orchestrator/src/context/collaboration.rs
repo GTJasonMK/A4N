@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
 use a4n_db::{DbHandle, collaboration::CollaborationDbError};
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::collaboration::{
@@ -415,5 +415,137 @@ impl OrchestratorContext {
 
     pub async fn leave_project(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
         self.collaboration.leave_project(user_id, project_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::collaboration::ProjectAccessApplicationPort for OrchestratorContext {
+    async fn verify_permission(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        required: ProjectAccessRole,
+    ) -> Result<ProjectAccessRole, AppError> {
+        OrchestratorContext::verify_project_permission(self, project_id, user_id, required).await
+    }
+
+    async fn verify_permissions(
+        &self,
+        user_id: i64,
+        project_ids: &[i64],
+        required: ProjectAccessRole,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::verify_project_permissions(self, project_ids, user_id, required).await
+    }
+
+    async fn project_ids_with_permission(
+        &self,
+        user_id: i64,
+        project_ids: &[i64],
+        required: ProjectAccessRole,
+    ) -> Result<Vec<i64>, AppError> {
+        OrchestratorContext::project_ids_with_permission(self, project_ids, user_id, required).await
+    }
+
+    async fn collaboration_root(
+        &self,
+        project_id: i64,
+    ) -> Result<a4n_api_contract::collaboration::ProjectCollaborationRootSummary, AppError> {
+        let root = OrchestratorContext::collaboration_root_project(self, project_id).await?;
+        Ok(
+            a4n_api_contract::collaboration::ProjectCollaborationRootSummary {
+                id: root.id,
+                user_id: root.user_id,
+            },
+        )
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::collaboration::ProjectCollaborationApplicationPort for OrchestratorContext {
+    async fn list_project_members(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ProjectMemberSummary>, AppError> {
+        OrchestratorContext::list_project_members(self, user_id, project_id).await
+    }
+
+    async fn invite_project_member(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        input: a4n_api_contract::collaboration::InviteProjectMemberInput,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::invite_project_member(
+            self,
+            user_id,
+            project_id,
+            &input.username_or_email,
+            input.role,
+        )
+        .await
+    }
+
+    async fn list_project_invites(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ProjectInviteSummary>, AppError> {
+        OrchestratorContext::list_project_invites(self, user_id, project_id).await
+    }
+
+    async fn list_my_project_invites(
+        &self,
+        user_id: i64,
+    ) -> Result<Vec<ProjectInviteSummary>, AppError> {
+        OrchestratorContext::list_my_project_invites(self, user_id).await
+    }
+
+    async fn accept_project_invite(&self, user_id: i64, invite_id: i64) -> Result<(), AppError> {
+        OrchestratorContext::accept_project_invite(self, user_id, invite_id).await
+    }
+
+    async fn decline_project_invite(&self, user_id: i64, invite_id: i64) -> Result<(), AppError> {
+        OrchestratorContext::decline_project_invite(self, user_id, invite_id).await
+    }
+
+    async fn revoke_project_invite(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        invite_id: i64,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::revoke_project_invite(self, user_id, project_id, invite_id).await
+    }
+
+    async fn update_project_member_role(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        member_user_id: i64,
+        input: a4n_api_contract::collaboration::UpdateProjectMemberRoleInput,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::update_project_member_role(
+            self,
+            user_id,
+            project_id,
+            member_user_id,
+            input.role,
+        )
+        .await
+    }
+
+    async fn remove_project_member(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        member_user_id: i64,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::remove_project_member(self, user_id, project_id, member_user_id).await
+    }
+
+    async fn leave_project(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
+        OrchestratorContext::leave_project(self, user_id, project_id).await
     }
 }

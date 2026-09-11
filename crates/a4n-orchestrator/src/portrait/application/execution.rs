@@ -1,6 +1,11 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_api_contract::portrait::{
+    GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
+    GeneratePortraitPromptInput, PortraitSummary, PortraitType, RegeneratePortraitInput,
+    UploadPortraitInput,
+};
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::{Value, json};
@@ -17,10 +22,7 @@ use crate::{
 
 use super::{
     contracts::{
-        GenerateAgeVariantInput, GenerateMissingPortraitsInput, GeneratePortraitInput,
-        GeneratePortraitPromptInput, PortraitBatchItem, PortraitBatchOutcome,
-        PortraitGenerationHostPort, PortraitProgress, PortraitSummary, PortraitType,
-        RegeneratePortraitInput, UploadPortraitInput,
+        PortraitBatchItem, PortraitBatchOutcome, PortraitGenerationHostPort, PortraitProgress,
     },
     image::{
         PersistGeneratedPortraitInput, generate_portrait_image, persist_generated_portrait,
@@ -44,7 +46,8 @@ struct PortraitVariantRun<'a> {
     save_progress_message: &'a str,
     record_progress_message: &'a str,
     completed_message: &'a str,
-    existing: &'a a4n_core::models::character::character_portrait::Model,
+    requested_by_user_id: i64,
+    existing: &'a a4n_db_models::models::character::character_portrait::Model,
     character_name: &'a str,
     prompt: &'a str,
     width: i32,
@@ -133,6 +136,7 @@ impl OrchestratorContext {
 
     pub async fn generate_portrait_validated(
         &self,
+        requested_by_user_id: i64,
         input: GeneratePortraitInput,
         prompt_renderer: &dyn PromptRenderer,
         host_port: &dyn PortraitGenerationHostPort,
@@ -208,6 +212,7 @@ impl OrchestratorContext {
                 &generated,
                 PersistGeneratedPortraitInput {
                     workflow_run_id: Some(workflow_run_id),
+                    requested_by_user_id,
                     profile_id: prepared.profile.id,
                     project_id: input.project_id,
                     portrait_type: PortraitType::FullBody,
@@ -224,7 +229,6 @@ impl OrchestratorContext {
             .await?;
             record_initial_prompt_generation(
                 self,
-                host_port,
                 &portrait,
                 &input,
                 &prepared.profile,
@@ -244,6 +248,7 @@ impl OrchestratorContext {
 
     pub async fn generate_missing_portraits_validated(
         &self,
+        requested_by_user_id: i64,
         input: GenerateMissingPortraitsInput,
         host_port: &dyn PortraitGenerationHostPort,
         mut progress: Option<PortraitProgress<'_>>,
@@ -351,6 +356,7 @@ impl OrchestratorContext {
                         &generated,
                         PersistGeneratedPortraitInput {
                             workflow_run_id: Some(workflow_run_id),
+                            requested_by_user_id,
                             profile_id: profile.id,
                             project_id: input.project_id,
                             portrait_type: PortraitType::HalfBody,
@@ -471,6 +477,7 @@ impl OrchestratorContext {
 
     pub async fn regenerate_portrait_validated(
         &self,
+        requested_by_user_id: i64,
         input: RegeneratePortraitInput,
         host_port: &dyn PortraitGenerationHostPort,
         mut progress: Option<PortraitProgress<'_>>,
@@ -503,6 +510,7 @@ impl OrchestratorContext {
                 save_progress_message: "正在保存重绘图片",
                 record_progress_message: "正在写入重绘记录",
                 completed_message: "立绘重绘完成",
+                requested_by_user_id,
                 existing: &existing,
                 character_name: &profile.name,
                 prompt: &existing.prompt,
@@ -520,6 +528,7 @@ impl OrchestratorContext {
 
     pub async fn generate_age_variant_validated(
         &self,
+        requested_by_user_id: i64,
         input: GenerateAgeVariantInput,
         host_port: &dyn PortraitGenerationHostPort,
         mut progress: Option<PortraitProgress<'_>>,
@@ -554,6 +563,7 @@ impl OrchestratorContext {
                 save_progress_message: "正在保存年龄变体图片",
                 record_progress_message: "正在写入年龄变体记录",
                 completed_message: "年龄变体生成完成",
+                requested_by_user_id,
                 existing: &existing,
                 character_name: &profile.name,
                 prompt: &new_prompt,
@@ -571,10 +581,11 @@ impl OrchestratorContext {
 
     pub async fn upload_portrait_validated(
         &self,
+        requested_by_user_id: i64,
         input: UploadPortraitInput,
         host_port: &dyn PortraitGenerationHostPort,
     ) -> Result<PortraitSummary, AppError> {
-        upload_portrait(self, host_port, input).await
+        upload_portrait(self, host_port, requested_by_user_id, input).await
     }
 
     async fn generate_portrait_image_variant(
@@ -594,6 +605,7 @@ impl OrchestratorContext {
             save_progress_message,
             record_progress_message,
             completed_message,
+            requested_by_user_id,
             existing,
             character_name,
             prompt,
@@ -649,6 +661,7 @@ impl OrchestratorContext {
                 &generated,
                 PersistGeneratedPortraitInput {
                     workflow_run_id: Some(workflow_run.id),
+                    requested_by_user_id,
                     profile_id: existing.profile_id,
                     project_id: existing.project_id,
                     portrait_type,

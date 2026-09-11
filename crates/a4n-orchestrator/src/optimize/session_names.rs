@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use sea_orm::ConnectionTrait;
 
 use super::optimize_db_error;

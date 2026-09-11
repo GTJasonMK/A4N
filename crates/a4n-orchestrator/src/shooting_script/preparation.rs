@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    config::app_config::llm_token_profiles,
-    error::AppError,
+use a4n_domain::{
+    llm::llm_token_profiles,
     source_spans::{source_span_prompt_values, source_spans_for_content},
 };
+use a4n_error::AppError;
 use serde_json::json;
 
 use crate::OrchestratorContext;

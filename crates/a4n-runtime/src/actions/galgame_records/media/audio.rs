@@ -8,8 +8,8 @@ pub async fn import_galgame_audio(
     input: ImportGalgameAudioInput,
 ) -> Result<GalgameMediaBindingSummary, String> {
     state
-        .orchestrator()
-        .import_galgame_audio_for_user_validated(user_id, input)
+        .galgame_record_application()
+        .import_audio(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
 }

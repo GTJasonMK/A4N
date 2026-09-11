@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use a4n_api_contract::optimize::OptimizationPatchOperation;
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::{
     OPTIMIZATION_PATCH_MAX_COUNT, OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS,

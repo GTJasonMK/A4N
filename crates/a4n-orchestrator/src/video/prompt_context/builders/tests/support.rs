@@ -5,8 +5,8 @@ use a4n_prompt::tera_engine::TeraPromptEngine;
 use serde_json::{Value, json};
 
 use crate::video::prompt_json::VIDEO_PROMPT_DIALOGUE_BEAT_FIELDS;
-use a4n_core::prompt_language::PromptOutputLanguage;
-use a4n_core::source_spans::source_spans_for_content;
+use a4n_domain::prompt_language::PromptOutputLanguage;
+use a4n_domain::source_spans::source_spans_for_content;
 use a4n_prompt::rendering::PromptRenderer;
 
 use super::{

@@ -1,6 +1,6 @@
 fn valid_segments() -> Vec<VideoSegmentPlan> {
     vec![serde_json::from_value(json!({
-        "schema_version": a4n_core::video_execution::VIDEO_SEGMENT_PLAN_V2,
+        "schema_version": a4n_video_contract::VIDEO_SEGMENT_PLAN_V2,
         "segment_number": 1,
         "source_shot_id": "scene-1-shot-1",
         "segment_index_in_shot": 1,

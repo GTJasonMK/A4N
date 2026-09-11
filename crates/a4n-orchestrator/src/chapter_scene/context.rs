@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::{chapter, chapter_outline, chapter_scene};
+use a4n_db_models::models::chapter::{chapter, chapter_outline, chapter_scene};
 use serde_json::{Value, json};
 
 fn scene_context_value(scene: &chapter_scene::Model) -> Value {

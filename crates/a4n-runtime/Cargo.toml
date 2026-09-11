@@ -26,28 +26,42 @@ embedded-media-providers = [
 [dependencies]
 a4n-api-contract = { path = "../a4n-api-contract" }
 a4n-capabilities = { path = "../a4n-capabilities" }
-a4n-core = { path = "../a4n-core" }
+a4n-cleanup-contract = { path = "../a4n-cleanup-contract" }
+a4n-canvas-contract = { path = "../a4n-canvas-contract" }
+a4n-config = { path = "../a4n-config" }
+a4n-db-models = { path = "../a4n-db-models" }
 a4n-db = { path = "../a4n-db" }
 a4n-domain = { path = "../a4n-domain" }
+a4n-error = { path = "../a4n-error", features = ["database"] }
+a4n-event = { path = "../a4n-event" }
 a4n-service-protocol = { path = "../a4n-service-protocol" }
+a4n-task-runtime = { path = "../a4n-task-runtime" }
+a4n-provider-contract = { path = "../a4n-provider-contract" }
+a4n-provider-runtime-contract = { path = "../a4n-provider-runtime-contract" }
 a4n-orchestrator = { path = "../a4n-orchestrator" }
 a4n-queue = { path = "../a4n-queue" }
 a4n-prompt = { path = "../a4n-prompt" }
 a4n-prompt-git = { path = "../a4n-prompt-git", optional = true }
 a4n-llm = { path = "../a4n-llm" }
+a4n-llm-config = { path = "../a4n-llm-config" }
 a4n-llm-http = { path = "../a4n-llm-http", optional = true }
 a4n-media = { path = "../a4n-media" }
 a4n-embedding = { path = "../a4n-embedding" }
 a4n-embedding-fastembed = { path = "../a4n-embedding-fastembed", optional = true }
-a4n-export-core = { path = "../a4n-export-core" }
+a4n-archive-core = { path = "../a4n-archive-core" }
+a4n-export-contract = { path = "../a4n-export-contract" }
+a4n-import-contract = { path = "../a4n-import-contract" }
 a4n-rag-core = { path = "../a4n-rag-core" }
+a4n-rag-contract = { path = "../a4n-rag-contract" }
 a4n-rag-index = { path = "../a4n-rag-index", optional = true }
 a4n-image = { path = "../a4n-image" }
 a4n-import-core = { path = "../a4n-import-core" }
 a4n-image-providers = { path = "../a4n-image-providers", optional = true }
 a4n-model-discovery = { path = "../a4n-model-discovery" }
 a4n-service-manager = { path = "../a4n-service-manager" }
+a4n-storage = { path = "../a4n-storage" }
 a4n-video = { path = "../a4n-video" }
+a4n-video-contract = { path = "../a4n-video-contract" }
 a4n-video-providers = { path = "../a4n-video-providers", optional = true }
 a4n-migration = { path = "../a4n-migration", optional = true }
 

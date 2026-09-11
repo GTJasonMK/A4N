@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex};
 use a4n_api_contract::{
     blueprint::StartBlueprintRefinementInput, generation_tasks::GenerationTaskHandle,
 };
-use a4n_core::blueprint::{BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WORKFLOW_KIND};
-use a4n_core::error::AppError;
 use a4n_domain::progress::ProgressPhaseKind;
+use a4n_domain::project::{BLUEPRINT_RAW_JSON_STREAM_ID, BLUEPRINT_REFINEMENT_WORKFLOW_KIND};
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_service_protocol::{GenerationError, GenerationResultRef, StreamTextHash};
 use futures::future::BoxFuture;
@@ -171,8 +171,9 @@ impl OrchestratorContext {
             .await;
         }
 
-        let completion_slot: Arc<Mutex<Option<a4n_core::models::project::novel_blueprint::Model>>> =
-            Arc::new(Mutex::new(None));
+        let completion_slot: Arc<
+            Mutex<Option<a4n_db_models::models::project::novel_blueprint::Model>>,
+        > = Arc::new(Mutex::new(None));
         let completion_slot_for_tx = Arc::clone(&completion_slot);
         let expected_source_snapshot = prepared.expected_source_snapshot.clone();
         let parsed = output.parsed;
@@ -238,7 +239,7 @@ impl OrchestratorContext {
             .map_err(|_| "蓝图优化结果槽位损坏".to_string())?
             .take()
             .ok_or_else(|| "generation completed 但缺少蓝图优化结果".to_string())?;
-        self.publish_internal_event(a4n_core::event::bridge::InternalEvent::BlueprintUpdated {
+        self.publish_internal_event(a4n_event::InternalEvent::BlueprintUpdated {
             project_id,
             version: blueprint.current_version.clone(),
         })

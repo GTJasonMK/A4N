@@ -1,26 +1,17 @@
-use a4n_core::models::{
-    asset::object_profile,
-    chapter::{chapter, chapter_outline, chapter_outline_provenance},
-    character::protagonist_profile,
-    generation::generation_run,
-    project::{novel_project, profile_evidence, text_anchor},
-    scene::scene_profile,
-};
 use a4n_db::{
     asset::{
-        AssetDbError, ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput,
-        create_object_profile_record, upsert_object_profiles_with_generation_run_record,
+        AssetDbError, create_object_profile_record,
+        upsert_object_profiles_with_generation_run_record,
     },
     chapter_content::{
-        GeneratedChapterContentRecordInput, ImportChapterContentInput,
-        finish_generated_chapter_content_record_in_transaction, import_chapter_content_record,
+        GeneratedChapterContentRecordInput, finish_generated_chapter_content_record_in_transaction,
+        import_chapter_content_record,
     },
     character::{create_profile, create_profile_with_generation_run_in},
-    generation::ProjectLifecycleOperation,
     outline::{
-        ChapterOutlineSyncDraft, OUTLINE_GENERATION_SOURCE_CHANGED, OutlineDbError,
-        load_outline_generation_source_rows, lock_outline_generation_sources,
-        outline_generation_source_snapshot, sync_chapter_outline_records_by_number,
+        OUTLINE_GENERATION_SOURCE_CHANGED, OutlineDbError, load_outline_generation_source_rows,
+        lock_outline_generation_sources, outline_generation_source_snapshot,
+        sync_chapter_outline_records_by_number,
     },
     project::{
         ChapterSourceSnapshot, CreateProjectRecordInput, ProjectChapterOutlineUpdateInput,
@@ -31,16 +22,28 @@ use a4n_db::{
         upsert_retrospective_chapter_outline_checked,
     },
     scene_profile::{
-        SceneProfileDbError, SceneProfileEvidenceRecordInput, SceneProfileRecordDraft,
-        SceneProfileRecordInput, SceneSyncRecordInput,
+        SceneProfileDbError, SceneProfileRecordDraft, SceneSyncRecordInput,
         replace_chapter_scene_sync_with_generation_run_records,
     },
     text_anchor::{
-        EVIDENCE_ROLE_FIRST_SEEN, TextAnchorEvidenceInput, TextAnchorProfileKind,
-        delete_chapter_content_profile_evidence_records, merge_profile_evidence_records_batch,
-        rebuild_chapter_content_anchor_records,
+        EVIDENCE_ROLE_FIRST_SEEN, delete_chapter_content_profile_evidence_records,
+        merge_profile_evidence_records_batch, rebuild_chapter_content_anchor_records,
     },
 };
+use a4n_db_models::models::{
+    asset::object_profile,
+    chapter::{chapter, chapter_outline, chapter_outline_provenance},
+    character::protagonist_profile,
+    generation::generation_run,
+    project::{novel_project, profile_evidence, text_anchor},
+    scene::scene_profile,
+};
+use a4n_domain::chapter::ChapterOutlineSyncDraft;
+use a4n_domain::chapter::ImportChapterContentInput;
+use a4n_domain::generation::ProjectLifecycleOperation;
+use a4n_domain::object_profile::{ObjectProfileEvidenceRecordInput, ObjectProfileRecordInput};
+use a4n_domain::scene_profile::{SceneProfileEvidenceRecordInput, SceneProfileRecordInput};
+use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set, TransactionTrait,

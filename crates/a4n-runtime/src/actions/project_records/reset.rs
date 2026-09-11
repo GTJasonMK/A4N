@@ -22,19 +22,19 @@ pub(super) async fn reset_generated_data(
             to_generated_data_reset_summary(
                 state,
                 user_id,
+                project_id,
                 &outcome.result,
                 outcome.media_paths.len(),
             )
             .await
         }
         a4n_orchestrator::project::ProjectGeneratedDataResetApplicationResult::Freeform {
-            project: freeform_project,
             result,
         } => {
             to_freeform_generated_data_reset_summary(
                 state,
                 user_id,
-                &freeform_project,
+                project_id,
                 &result,
                 result.media_paths.len(),
             )

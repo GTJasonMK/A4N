@@ -1,7 +1,6 @@
-use a4n_orchestrator::media::{
-    GenerateCanvasImageInput, GenerateGalgameImageInput, GenerateSceneImageInput,
-    ImageGenerationProgress,
-};
+use a4n_api_contract::image_generation::{GenerateGalgameImageInput, GenerateSceneImageInput};
+use a4n_canvas_contract::GenerateCanvasImageInput;
+use a4n_orchestrator::media::ImageGenerationProgress;
 
 use super::{
     AppState, GeneratedImageSummary, ModelRequestPreview, RuntimeImageGenerationHostPort,
@@ -16,8 +15,8 @@ pub async fn preview_scene_image_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .orchestrator()
-        .prepare_scene_image_request_validated(&host, user_id, input)
+        .image_generation_application()
+        .prepare_scene_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     Ok(model_request_preview(
@@ -45,8 +44,8 @@ pub(crate) async fn preview_canvas_image_request(
     let project_id = input.project_id;
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .orchestrator()
-        .prepare_canvas_image_request_validated(&host, user_id, input)
+        .image_generation_application()
+        .prepare_canvas_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
     Ok(model_request_preview(
@@ -74,8 +73,8 @@ pub(crate) async fn generate_galgame_image(
     let progress = ImageGenerationProgress::none();
     let host = RuntimeImageGenerationHostPort::new(state);
     state
-        .orchestrator()
-        .generate_galgame_image_validated(&host, user_id, input, &progress)
+        .image_generation_application()
+        .generate_galgame_image(&host, user_id, input, &progress)
         .await
         .map_err(|error| error.to_string())
 }

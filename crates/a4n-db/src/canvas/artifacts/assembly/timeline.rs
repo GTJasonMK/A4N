@@ -1,4 +1,4 @@
-use a4n_core::models::video_project::assembly_timeline;
+use a4n_db_models::models::video_project::assembly_timeline;
 use a4n_domain::canvas_cache_key;
 use chrono::Utc;
 use sea_orm::{

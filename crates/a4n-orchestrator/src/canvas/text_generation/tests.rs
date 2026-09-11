@@ -3,9 +3,9 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::{
-    error::AppError,
-    models::generation::{generation_spec, prompt_artifact, workflow_checkpoint, workflow_run},
+use a4n_canvas_contract::{
+    CanvasLlmTextNodeApplicationInput, CanvasRenderTextNodeApplicationInput,
+    CanvasRenderTextNodeApplicationPort,
 };
 use a4n_db::{
     DatabaseConnection,
@@ -16,6 +16,10 @@ use a4n_db::{
     generation::{GENERATION_PROMPT_KIND_CANVAS_SHOT_SCRIPT, GENERATION_PROMPT_KIND_VIDEO_PROMPT},
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
+use a4n_db_models::models::generation::{
+    generation_spec, prompt_artifact, workflow_checkpoint, workflow_run,
+};
+use a4n_error::AppError;
 use a4n_llm::provider::{ChatMessage, ChatResponse, UsageInfo};
 use async_trait::async_trait;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -24,7 +28,7 @@ use serde_json::{Value, json};
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
 use super::{
-    CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort, CanvasTextNodeExecutionInput,
+    CanvasLlmTextNodeApplicationPort, CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort,
     build_canvas_llm_text_request_for_preview,
     execution::{map_canvas_llm_error, validate_restored_checkpoint_for_test},
     input::{build_canvas_llm_text_input, build_canvas_rendered_prompt},
@@ -63,6 +67,10 @@ impl TestLlmPort {
 
 #[async_trait]
 impl CanvasTextGenerationLlmPort for TestLlmPort {
+    async fn max_output_tokens(&self, _config_id: Option<i64>) -> Result<usize, AppError> {
+        Ok(4096)
+    }
+
     async fn stream_complete(
         &self,
         _input: CanvasTextGenerationLlmCall,
@@ -143,7 +151,7 @@ fn node_input(client_id: &str, node_kind: &str, config_json: Value) -> CanvasNod
 
 fn target_node(
     document: &CanvasGraphRecordDocument,
-) -> &a4n_core::models::canvas::canvas_node::Model {
+) -> &a4n_db_models::models::canvas::canvas_node::Model {
     document
         .nodes
         .iter()
@@ -154,7 +162,7 @@ fn target_node(
 #[test]
 fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_core::models::canvas::canvas_graph::Model {
+    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
         id: 1,
         project_id: 2,
         name: "测试".to_string(),
@@ -164,7 +172,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let source = a4n_core::models::canvas::canvas_node::Model {
+    let source = a4n_db_models::models::canvas::canvas_node::Model {
         id: 10,
         graph_id: 1,
         node_kind: "TextInputNode".to_string(),
@@ -176,7 +184,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let llm = a4n_core::models::canvas::canvas_node::Model {
+    let llm = a4n_db_models::models::canvas::canvas_node::Model {
         id: 11,
         graph_id: 1,
         node_kind: "LlmTextNode".to_string(),
@@ -194,7 +202,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         created_at: now,
         updated_at: now,
     };
-    let render = a4n_core::models::canvas::canvas_node::Model {
+    let render = a4n_db_models::models::canvas::canvas_node::Model {
         id: 12,
         node_kind: "RenderTextNode".to_string(),
         config_json: json!({
@@ -204,7 +212,7 @@ fn canvas_text_input_and_render_rules_are_owned_by_orchestrator() {
         ..llm.clone()
     };
     let source_id = source.id;
-    let edge = |target_node_id| a4n_core::models::canvas::canvas_edge::Model {
+    let edge = |target_node_id| a4n_db_models::models::canvas::canvas_edge::Model {
         id: target_node_id,
         graph_id: 1,
         source_node_id: source_id,
@@ -287,14 +295,14 @@ async fn llm_text_application_persists_complete_trace() {
     let port = TestLlmPort::success("第一镜：仓库门被推开。", Some("stop"));
 
     let summary = context
-        .run_canvas_llm_text_node_validated(
-            CanvasTextNodeExecutionInput {
+        .run_llm_text(
+            CanvasLlmTextNodeApplicationInput {
+                user_id: 1,
                 project_id,
                 graph_id: document.graph.id,
-                node,
-                document: &document,
+                node_id: node.id,
                 shared_run: None,
-                mode: "single_node",
+                mode: "single_node".to_string(),
             },
             &port,
         )
@@ -364,14 +372,14 @@ async fn llm_port_failure_marks_spec_and_workflow_failed() {
     let port = TestLlmPort::failure("provider unavailable");
 
     let summary = context
-        .run_canvas_llm_text_node_validated(
-            CanvasTextNodeExecutionInput {
+        .run_llm_text(
+            CanvasLlmTextNodeApplicationInput {
+                user_id: 1,
                 project_id,
                 graph_id: document.graph.id,
-                node,
-                document: &document,
+                node_id: node.id,
                 shared_run: None,
-                mode: "single_node",
+                mode: "single_node".to_string(),
             },
             &port,
         )
@@ -420,14 +428,14 @@ async fn fresh_truncated_llm_response_marks_failed_without_artifact() {
     let port = TestLlmPort::success("尚未完成的输出", Some("length"));
 
     let summary = context
-        .run_canvas_llm_text_node_validated(
-            CanvasTextNodeExecutionInput {
+        .run_llm_text(
+            CanvasLlmTextNodeApplicationInput {
+                user_id: 1,
                 project_id,
                 graph_id: document.graph.id,
-                node,
-                document: &document,
+                node_id: node.id,
                 shared_run: None,
-                mode: "single_node",
+                mode: "single_node".to_string(),
             },
             &port,
         )
@@ -475,13 +483,13 @@ async fn render_text_application_persists_prompt_artifact() {
     let node = target_node(&document);
 
     let summary = context
-        .run_canvas_render_text_node_validated(CanvasTextNodeExecutionInput {
+        .run_render_text(CanvasRenderTextNodeApplicationInput {
+            user_id: 1,
             project_id,
             graph_id: document.graph.id,
-            node,
-            document: &document,
+            node_id: node.id,
             shared_run: None,
-            mode: "single_node",
+            mode: "single_node".to_string(),
         })
         .await
         .expect("Render 文本 application 应成功");

@@ -7,8 +7,6 @@ use crate::optimize::agent_loop_executor::{
     AgentLoopDecisionRequest, AgentLoopExecutionError, AgentLoopThinkObservationInput,
     FailedAgentLoopToolInput,
 };
-use crate::optimize::runtime_tools::execute_optimization_runtime_tool;
-use serde_json::json;
 
 impl OrchestratorContext {
     pub(in crate::optimize) async fn run_chat_agent_loop(
@@ -87,14 +85,18 @@ impl OrchestratorContext {
                             "普通对话",
                         )
                         .await?;
-                    let result = match execute_optimization_runtime_tool(
-                        &tool_name,
-                        tool_arguments.clone(),
-                        &chat_context,
-                        session.id,
-                        session.project_id,
-                        session.chapter_id,
-                    ) {
+                    let result = match self
+                        .execute_accounted_optimization_tool(
+                            generation,
+                            session,
+                            turn_id,
+                            step,
+                            &tool_name,
+                            tool_arguments.clone(),
+                            &chat_context,
+                        )
+                        .await
+                    {
                         Ok(result) => result,
                         Err(err) => {
                             observations.push(
@@ -112,15 +114,7 @@ impl OrchestratorContext {
                             continue;
                         }
                     };
-                    let patch_set = self
-                        .persist_patch_tool_result(
-                            turn_id,
-                            session.id,
-                            session.project_id,
-                            session.chapter_id,
-                            &result,
-                        )
-                        .await?;
+                    let patch_set_id = result.get("patch_set_id").cloned();
                     let mut observation = tool_observation(
                         step,
                         &AgentLoopAction::RunTool,
@@ -128,8 +122,8 @@ impl OrchestratorContext {
                         tool_arguments,
                         result,
                     );
-                    if let Some(patch_set) = patch_set {
-                        observation["patch_set_id"] = json!(patch_set.id);
+                    if let Some(patch_set_id) = patch_set_id {
+                        observation["patch_set_id"] = patch_set_id;
                     }
                     self.record_successful_agent_loop_tool(
                         turn_id,
@@ -143,6 +137,13 @@ impl OrchestratorContext {
                     observations.push(observation);
                 }
                 AgentLoopAction::Final => {
+                    if crate::optimize::runtime_tools::accounting::has_new_user_input(
+                        self, generation,
+                    )
+                    .await?
+                    {
+                        continue;
+                    }
                     return self
                         .finish_chat_agent_loop(session, turn_id, step, &decision)
                         .await

@@ -1,6 +1,7 @@
-use super::contracts::{InspirationDbError, InspirationExchangeInsertInput};
+use super::contracts::InspirationDbError;
 use super::project::ensure_inspiration_project_exists;
-use a4n_core::models::user::{conversation, message};
+use a4n_db_models::models::user::{conversation, message};
+use a4n_domain::inspiration::InspirationExchangeInsertInput;
 use chrono::{Duration, Utc};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, DatabaseConnection, DatabaseTransaction, EntityTrait,

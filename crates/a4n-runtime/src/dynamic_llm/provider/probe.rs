@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::llm_config;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
+use a4n_provider_contract::LlmProviderConfig;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 
 use super::super::budget::ensure_max_tokens_within_model_cap;
@@ -10,7 +10,7 @@ use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 impl DynamicLlmProvider {
     pub(crate) async fn probe_with_config(
         &self,
-        config: llm_config::Model,
+        config: LlmProviderConfig,
         mut request: ChatRequest,
     ) -> Result<(), AppError> {
         let config_id = config.id;

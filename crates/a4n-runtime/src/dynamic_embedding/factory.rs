@@ -1,23 +1,21 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use a4n_core::models::ai::embedding_config;
-use a4n_core::{
-    config::{EmbeddingBackendKind, embedding_provider_capabilities},
-    error::AppError,
-};
+use a4n_domain::embedding::{EmbeddingBackendKind, embedding_provider_capabilities};
 use a4n_embedding::http::HttpEmbeddingProvider;
 use a4n_embedding::local::LocalEmbeddingProvider;
 use a4n_embedding::provider::EmbeddingProvider;
 #[cfg(feature = "local-embedding")]
 use a4n_embedding_fastembed::FastEmbedProvider;
+use a4n_error::AppError;
+use a4n_provider_contract::EmbeddingProviderConfig;
 
 use super::contracts::{
     ResolvedEmbeddingConfig, positive_usize, required_text, resolve_fastembed_cache_dir,
 };
 
 pub(crate) fn make_provider_from_model(
-    model: &embedding_config::Model,
+    model: &EmbeddingProviderConfig,
     embedding_models_dir: PathBuf,
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
     let dimension = positive_usize(model.dimension, "向量维度", &model.name)?;
@@ -28,7 +26,7 @@ pub(crate) fn make_provider_from_model(
         name: model.name.clone(),
         backend: model.backend.clone(),
         base_url: model.base_url.clone(),
-        api_key: model.api_key_encrypted.clone(),
+        api_key: model.api_key.clone(),
         model: model.model.clone(),
         dimension,
         batch_size,
@@ -37,7 +35,7 @@ pub(crate) fn make_provider_from_model(
 }
 
 pub(super) fn make_provider_from_default_model(
-    model: Option<embedding_config::Model>,
+    model: Option<EmbeddingProviderConfig>,
     embedding_models_dir: PathBuf,
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
     let model = model.ok_or_else(missing_default_embedding_config_error)?;

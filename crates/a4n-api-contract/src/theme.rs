@@ -52,6 +52,20 @@ pub struct ThemeResourceSummary {
     pub byte_size: i64,
 }
 
+/// Internal application projection used by resource persistence and package
+/// assembly. It deliberately keeps the checksum while avoiding ORM models.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ThemeResourceRecord {
+    pub id: i64,
+    pub theme_id: i64,
+    pub resource_key: String,
+    pub file_name: String,
+    pub mime_type: String,
+    pub file_path: String,
+    pub sha256: String,
+    pub byte_size: i64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct ThemeResourceUploadInput {
@@ -108,6 +122,89 @@ pub struct ThemeSummary {
     pub resources: Vec<ThemeResourceSummary>,
     pub is_system_default: bool,
     pub is_active: bool,
+}
+
+/// Theme/settings application boundary.
+///
+/// Theme ownership, validation and persistence stay in the implementing
+/// application. Runtime owns only file I/O and package byte handling.
+#[async_trait::async_trait]
+pub trait ThemeApplicationPort: Send + Sync {
+    async fn list_themes(&self, user_id: i64) -> Result<Vec<ThemeSummary>, a4n_error::AppError>;
+
+    async fn create_theme(
+        &self,
+        user_id: i64,
+        input: CreateThemeInput,
+    ) -> Result<ThemeSummary, a4n_error::AppError>;
+
+    async fn update_theme(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+        input: UpdateThemeInput,
+    ) -> Result<ThemeSummary, a4n_error::AppError>;
+
+    async fn delete_theme(&self, user_id: i64, theme_id: i64) -> Result<(), a4n_error::AppError>;
+
+    async fn activate_theme(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+    ) -> Result<ThemeSummary, a4n_error::AppError>;
+
+    async fn export_theme(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+    ) -> Result<ThemeSummary, a4n_error::AppError>;
+
+    async fn import_theme(
+        &self,
+        user_id: i64,
+        input: CreateThemeInput,
+    ) -> Result<ThemeSummary, a4n_error::AppError>;
+
+    async fn list_resources(
+        &self,
+        user_id: i64,
+        theme_id: i64,
+    ) -> Result<Vec<ThemeResourceRecord>, a4n_error::AppError>;
+
+    async fn upsert_resource(
+        &self,
+        user_id: i64,
+        input: PersistThemeResourceInput,
+    ) -> Result<ThemeResourceRecord, a4n_error::AppError>;
+
+    async fn delete_resource(
+        &self,
+        user_id: i64,
+        resource_id: i64,
+    ) -> Result<ThemeResourceRecord, a4n_error::AppError>;
+
+    async fn get_preference(
+        &self,
+        user_id: i64,
+    ) -> Result<ThemePreferenceSummary, a4n_error::AppError>;
+
+    async fn update_preference(
+        &self,
+        user_id: i64,
+        input: UpdateThemePreferenceInput,
+    ) -> Result<ThemePreferenceSummary, a4n_error::AppError>;
+}
+
+/// Persisted resource metadata supplied after Runtime has written the file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PersistThemeResourceInput {
+    pub theme_id: i64,
+    pub resource_key: String,
+    pub file_name: String,
+    pub mime_type: String,
+    pub file_path: String,
+    pub sha256: String,
+    pub byte_size: i64,
 }
 
 #[cfg(test)]

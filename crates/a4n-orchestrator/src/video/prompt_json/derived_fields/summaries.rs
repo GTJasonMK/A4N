@@ -76,16 +76,14 @@ pub(super) fn compact_reference_ids(ids: &[i64]) -> String {
         .join(", ")
 }
 
-pub(super) fn structured_arc_summary(
-    value: &a4n_core::video_execution::VideoEmotionalArcV1,
-) -> String {
+pub(super) fn structured_arc_summary(value: &a4n_video_contract::VideoEmotionalArcV1) -> String {
     format!(
         "{} -> {} -> {} -> {}",
         value.start, value.turn, value.end, value.function
     )
 }
 
-pub(super) fn video_intent_summary(value: &a4n_core::video_execution::VideoIntentV1) -> String {
+pub(super) fn video_intent_summary(value: &a4n_video_contract::VideoIntentV1) -> String {
     format!(
         "{}；{}；{}；{}",
         value.hook, value.audience_effect, value.rhythm, value.visual_priority
@@ -93,7 +91,7 @@ pub(super) fn video_intent_summary(value: &a4n_core::video_execution::VideoInten
 }
 
 pub(super) fn material_coverage_summary(
-    value: &a4n_core::video_execution::VideoMaterialCoverageV1,
+    value: &a4n_video_contract::VideoMaterialCoverageV1,
 ) -> String {
     let required = value.required_entities.join("、");
     let missing = value.missing_or_weak_references.join("、");

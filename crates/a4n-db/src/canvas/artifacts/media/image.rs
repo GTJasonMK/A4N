@@ -6,7 +6,7 @@ use super::{
     provenance::upsert_canvas_image_media_provenance, upsert_canvas_media_asset_record,
 };
 use crate::canvas::CanvasDbError;
-use a4n_core::models::media::media_asset;
+use a4n_db_models::models::media::media_asset;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn ensure_canvas_image_media_asset_record<C>(

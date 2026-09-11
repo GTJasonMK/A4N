@@ -1,6 +1,6 @@
 use super::super::{SourceSyncDbError, validate_positive_id};
 use crate::project::DerivedChapterScope;
-use a4n_core::models::project::{novel_project, project_source_snapshot};
+use a4n_db_models::models::project::{novel_project, project_source_snapshot};
 use sea_orm::{ConnectionTrait, EntityTrait, QuerySelect};
 use serde_json::Value;
 

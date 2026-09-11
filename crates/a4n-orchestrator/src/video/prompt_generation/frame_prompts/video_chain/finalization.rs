@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use serde_json::Value;
 
-use a4n_core::prompt_language::metadata_matches_prompt_output_language;
+use a4n_domain::prompt_language::metadata_matches_prompt_output_language;
 
 use super::super::{
     AppError, FramePromptGenerationSpec, GeneratedVideoPromptShot, NewChapterVideoPrompt,

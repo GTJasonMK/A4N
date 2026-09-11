@@ -3,7 +3,7 @@ pub use a4n_api_contract::character::{
     ImplicitAttributeReviewSummary, ImplicitEvidenceSummary, ImplicitReviewSummary,
     ImplicitUpdateDecisionSummary,
 };
-use a4n_core::models::character::{protagonist_behavior_record, protagonist_profile};
+use a4n_db_models::models::character::{protagonist_behavior_record, protagonist_profile};
 use a4n_domain::character::ImplicitUpdateDecision;
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;

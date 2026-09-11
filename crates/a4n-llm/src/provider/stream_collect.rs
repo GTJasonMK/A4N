@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use futures::{Stream, StreamExt};
 use serde_json::Value;
 

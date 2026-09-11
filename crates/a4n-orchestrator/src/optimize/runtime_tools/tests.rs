@@ -7,6 +7,7 @@ use super::execution::{execute_edit_article, execute_get_project_information};
 fn information_tool_reads_context_section() {
     let context = json!({
         "current_chapter": {
+            "chapter_number": 1,
             "content": "第一段正文。第二段出现动机断裂。"
         }
     });
@@ -25,6 +26,70 @@ fn information_tool_reads_context_section() {
             .as_str()
             .unwrap()
             .contains("第二段")
+    );
+}
+
+#[test]
+fn paged_reads_preserve_text_and_only_expose_read_evidence() {
+    let context =
+        json!({"current_chapter": {"chapter_number": 1, "content": "第一句。第二句。第三句。"}});
+    let first = execute_get_project_information(
+        json!({"mode": "read", "source": "current_chapter", "limit": 4}),
+        &context,
+    )
+    .unwrap();
+    assert_eq!(first["content"]["content"], "第一句。");
+    assert_eq!(first["next_offset"], 4);
+    assert_eq!(
+        first["content"]["source_spans"].as_array().unwrap().len(),
+        1
+    );
+    let second = execute_get_project_information(json!({"mode": "read", "source": "current_chapter", "offset": 4, "limit": 4, "expected_hash": first["resource"]["hash"]}), &context).unwrap();
+    assert_eq!(second["content"]["content"], "第二句。");
+    let observed =
+        observed_evidence_context(&context, &[json!({"success": true, "result": first})]).unwrap();
+    assert_eq!(
+        observed["current_chapter"]["source_spans"][0]["id"],
+        "ch1:s1:f1"
+    );
+    assert_eq!(
+        observed["current_chapter"]["source_spans"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(
+        execute_get_project_information(
+            json!({"mode": "read", "source": "current_chapter", "expected_hash": "stale"}),
+            &context
+        )
+        .is_err()
+    );
+    assert!(
+        execute_get_project_information(
+            json!({"mode": "read", "source": "current_chapter", "offset": 100}),
+            &context
+        )
+        .is_err()
+    );
+    assert!(
+        execute_get_project_information(
+            json!({"mode": "read", "source": "current_chapter", "limit": 4097}),
+            &context
+        )
+        .is_err()
+    );
+    let stale = observed_evidence_context(
+        &json!({"current_chapter": {"chapter_number": 1, "content": "新正文"}}),
+        &[json!({"success": true, "result": second})],
+    )
+    .unwrap();
+    assert!(
+        stale["current_chapter"]["source_spans"]
+            .as_array()
+            .unwrap()
+            .is_empty()
     );
 }
 

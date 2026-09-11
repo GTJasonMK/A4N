@@ -4,7 +4,7 @@ use super::contracts::{
 };
 use super::projection::build_project_family_metadata;
 use super::queries::{project_family_metadata, project_family_metadata_batch};
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use chrono::{NaiveDate, NaiveDateTime};
 use sea_orm::{DatabaseConnection, DbErr};
 use serde_json::json;

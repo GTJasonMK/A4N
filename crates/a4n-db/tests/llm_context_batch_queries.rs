@@ -1,9 +1,7 @@
-use a4n_core::models::generation::llm_context_pack;
-use a4n_db::llm_context::{
-    RecordOrReuseContextPackInput, record_or_reuse_context_pack_references,
-    record_or_reuse_context_packs,
-};
+use a4n_db::llm_context::{record_or_reuse_context_pack_references, record_or_reuse_context_packs};
 use a4n_db::project::{CreateProjectRecordInput, create_project_record};
+use a4n_db_models::models::generation::llm_context_pack;
+use a4n_domain::llm::RecordOrReuseContextPackInput;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter};
 use serde_json::json;
 

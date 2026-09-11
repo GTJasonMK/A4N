@@ -5,7 +5,7 @@ use super::super::reset::canvas_node_references_generated_image_fields;
 use super::scope::canvas_nodes_for_projects;
 use super::{MissingCanvasNodeUpdate, batch_update_missing_canvas_nodes};
 use crate::canvas::CanvasDbError;
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use a4n_domain::CanvasNodeRefKind;
 use chrono::Utc;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};

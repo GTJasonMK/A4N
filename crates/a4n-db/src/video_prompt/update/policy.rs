@@ -1,10 +1,8 @@
-use a4n_core::{
-    models::{ai::generated_video, chapter::chapter_video_prompt},
-    source_spans::source_text_hash,
-    video_execution::{
-        VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
-        update_video_segment_recipe_metadata, video_segment_content_fingerprint,
-    },
+use a4n_db_models::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_domain::source_text_hash;
+use a4n_video_contract::{
+    VIDEO_EXECUTION_CONTRACT_EPOCH, VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2,
+    update_video_segment_recipe_metadata, video_segment_content_fingerprint,
 };
 use chrono::Utc;
 use sea_orm::{
@@ -287,7 +285,7 @@ where
         .ok_or_else(|| VideoDbError::NotFound(format!("视频 #{video_id} 不存在")))?;
     let valid = video.project_id == plan.project_id
         && video.chapter_id == Some(plan.chapter_id)
-        && video.status == generated_video::STATUS_COMPLETED
+        && video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
         && video
             .file_path
             .as_deref()
@@ -404,7 +402,7 @@ fn validate_prompt_duration_update(duration_secs: Option<i32>) -> Result<(), Vid
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_core::video_execution::default_video_segment_recipes;
+    use a4n_video_contract::default_video_segment_recipes;
     use serde_json::json;
 
     #[test]

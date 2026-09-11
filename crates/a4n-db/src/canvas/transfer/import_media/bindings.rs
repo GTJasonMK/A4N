@@ -1,6 +1,6 @@
 use super::super::remap::remap_video_studio_required_id;
 use super::super::types::{VideoStudioProjectImportError, VideoStudioProjectImportIdMaps};
-use a4n_core::models::media::media_binding;
+use a4n_db_models::models::media::media_binding;
 use sea_orm::{ConnectionTrait, EntityTrait, Set};
 
 pub(in crate::canvas::transfer) async fn import_video_studio_media_bindings<C>(

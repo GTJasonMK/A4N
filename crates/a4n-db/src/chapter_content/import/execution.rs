@@ -1,7 +1,8 @@
-use super::super::{ChapterContentImportError, ImportChapterContentInput};
+use super::super::ChapterContentImportError;
 use super::persistence::upsert_import_chapter_content;
 use super::preparation::prepare_import_chapter_content;
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::chapter::ImportChapterContentInput;
 use chrono::Utc;
 use sea_orm::ConnectionTrait;
 

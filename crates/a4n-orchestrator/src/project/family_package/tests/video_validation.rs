@@ -1,6 +1,6 @@
 use super::*;
 use crate::project::{ImportMediaPayload, MediaFileEntry, media_file_key};
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     chapter::chapter_video_prompt,
 };
@@ -38,7 +38,8 @@ fn validate_video_manifest_rejects_prompt_runtime_identity() {
 #[test]
 fn validate_video_manifest_rejects_non_terminal_or_timeline_video() {
     let mut package = package_with_video_rows();
-    package.generated_videos[0].status = generated_video::STATUS_INTERRUPTED.to_string();
+    package.generated_videos[0].status =
+        a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED.to_string();
     let error = validate_package_manifest(&package).expect_err("non-terminal video must fail");
     assert!(error.contains("终态生成视频"), "{error}");
 
@@ -168,7 +169,7 @@ pub(in crate::project::family_package::tests) fn package_with_video_rows() -> Pr
         id: 51,
         project_id: 2,
         chapter_id: Some(11),
-        video_type: generated_video::VIDEO_TYPE_CHAPTER.to_string(),
+        video_type: a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER.to_string(),
         workflow_mode: Some(chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES.to_string()),
         file_path: Some("videos/51.mp4".to_string()),
         thumbnail_path: None,
@@ -182,7 +183,7 @@ pub(in crate::project::family_package::tests) fn package_with_video_rows() -> Pr
         file_size: Some(3),
         source_video_id: None,
         source_image_id: Some(31),
-        status: generated_video::STATUS_COMPLETED.to_string(),
+        status: a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED.to_string(),
         provider_job_id: None,
         error_message: None,
         timeline_item_id: None,

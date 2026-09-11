@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-pub use a4n_core::event::channel::TaskKind;
+pub use a4n_domain::task_queue::TaskKind;
+use a4n_error::AppError;
 use serde::{Deserialize, Serialize};
 
 /// 任务优先级

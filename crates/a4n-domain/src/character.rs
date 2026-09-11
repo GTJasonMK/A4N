@@ -1,7 +1,99 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub const CHARACTER_DELETION_THRESHOLD: i32 = 5;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CharacterProfileCreateInput {
+    pub project_id: i64,
+    pub name: String,
+    pub base_attributes: Value,
+    pub current_state: Value,
+    pub gender: Option<String>,
+    pub age: Option<String>,
+    pub appearance: Option<String>,
+    pub background: Option<String>,
+    pub personality: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CharacterPortraitCreateInput {
+    pub profile_id: i64,
+    pub project_id: i64,
+    pub portrait_type: String,
+    pub image_path: String,
+    pub prompt: String,
+    pub expression: Option<String>,
+    pub pose: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CharacterSyncChapterStateRecordInput {
+    pub chapter_number: i32,
+    pub state_summary: String,
+    pub current_location: Option<String>,
+    pub current_goal: Option<String>,
+    pub emotional_state: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CharacterAttributeValueChangeInput {
+    pub profile_id: i64,
+    pub chapter_number: i32,
+    pub category: String,
+    pub key: String,
+    pub value: Value,
+    pub change_description: Option<String>,
+    pub cause: String,
+    pub evidence: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CharacterAttributeDeletionRequestInput {
+    pub profile_id: i64,
+    pub category: String,
+    pub key: String,
+    pub chapter_number: i32,
+    pub reason: String,
+    pub evidence: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct CharacterAttributeDeletionExecutionInput {
+    pub profile_id: i64,
+    pub category: String,
+    pub key: String,
+    pub event_cause: String,
+    pub evidence: String,
+    pub chapter_number: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct CharacterImplicitReviewDecisionRecordInput {
+    pub profile_id: i64,
+    pub chapter_number: i32,
+    pub attribute_key: String,
+    pub current_value: Value,
+    pub decision: String,
+    pub suggested_new_value: Option<Value>,
+    pub reasoning: String,
+    pub evidence_summary: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct InsertBehaviorRecordInput {
+    pub profile_id: i64,
+    pub chapter_number: i32,
+    pub source_kind: String,
+    pub behavior_type: String,
+    pub behavior_description: String,
+    pub original_text: String,
+    pub behavior_tags: Value,
+    pub classification_results: Value,
+    pub related_characters: Option<Value>,
+    pub impact_analysis: Option<String>,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]

@@ -6,7 +6,7 @@ use super::contracts::{
     GenerationStagingArtifactDeletePayload, MEDIA_WORKFLOW_CONTRACT_V2_RESET_KIND,
     MediaWorkflowV2ResetPayload, PROJECT_DELETE_CLEANUP_KIND, ProjectDeletionCleanupPayload,
 };
-use a4n_core::models::task::cleanup_outbox;
+use a4n_db_models::models::task::cleanup_outbox;
 use chrono::Utc;
 use sea_orm::sea_query::OnConflict;
 use sea_orm::{
@@ -277,7 +277,9 @@ async fn insert_generation_cleanup_intent<C>(
 where
     C: ConnectionTrait,
 {
-    scope.validate()?;
+    scope
+        .validate()
+        .map_err(|error| DbErr::Custom(error.to_string()))?;
     let attempt = i32::try_from(scope.attempt)
         .map_err(|_| DbErr::Custom("generation cleanup attempt 超出 i32 范围".to_string()))?;
     insert_cleanup_intent(

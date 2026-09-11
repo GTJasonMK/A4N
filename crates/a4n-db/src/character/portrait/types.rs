@@ -1,4 +1,4 @@
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 use sea_orm::DbErr;
 use serde_json::Value;
 
@@ -18,17 +18,6 @@ pub struct PortraitNamedPromptProfileRows {
     pub profile: protagonist_profile::Model,
     pub existing_portrait_count: u64,
     pub project_context: Option<Value>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CharacterPortraitCreateInput {
-    pub profile_id: i64,
-    pub project_id: i64,
-    pub portrait_type: String,
-    pub image_path: String,
-    pub prompt: String,
-    pub expression: Option<String>,
-    pub pose: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]

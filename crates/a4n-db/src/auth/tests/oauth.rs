@@ -1,5 +1,5 @@
 use crate::auth::{login_with_oauth2, register_user};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::support::{find_user_by_email, find_user_by_username, setup, user_count};
 

@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::user::user;
+use a4n_db_models::models::user::user;
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseConnection, Set};
 

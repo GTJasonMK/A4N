@@ -1,6 +1,8 @@
-use a4n_core::error::AppError;
-use a4n_core::models::{chapter::chapter, generation::workflow_run};
+use a4n_api_contract::{chapter::ChapterSummary, collaboration::ProjectAccessRole};
 use a4n_db::DbHandle;
+use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_error::AppError;
 use dashmap::DashMap;
 use regex::Regex;
 use sea_orm::{DatabaseTransaction, TransactionTrait};
@@ -15,9 +17,9 @@ use crate::chapter_content::{
     chapter_content_sync_workflow_run_input,
 };
 use crate::chapter_content_edit_error_to_app_error;
-use crate::project::{ChapterDerivedCleanupArtifacts, cleanup_chapter_derived_data_in};
+use crate::project::cleanup_chapter_derived_data_in;
 use crate::workflow::{workflow_read_app_error, workflow_write_app_error};
-use a4n_db::chapter_content::{EditChapterContentInput, ImportChapterContentInput};
+use a4n_domain::chapter::{EditChapterContentInput, ImportChapterContentInput};
 
 /// 章节内容领域私有 owner；生成服务可持有克隆以执行生命周期写路径。
 #[derive(Clone)]
@@ -56,7 +58,7 @@ impl ChapterContentApplication {
     async fn chapters_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<a4n_core::models::chapter::chapter::Model>, AppError> {
+    ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, AppError> {
         a4n_db::chapter_content::chapters_for_project(self.database.connection(), project_id)
             .await
             .map_err(AppError::Database)
@@ -309,6 +311,31 @@ fn analyze_style_tags(content: &str) -> Vec<String> {
 }
 
 impl OrchestratorContext {
+    pub async fn list_chapter_summaries_for_user(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ChapterSummary>, AppError> {
+        self.verify_project_permission(project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        let chapters = self.chapters_for_project(project_id).await?;
+        super::chapter_content_projection::chapter_summaries_with_sync_state(self, &chapters).await
+    }
+
+    pub async fn chapter_summary_for_user(
+        &self,
+        user_id: i64,
+        chapter_id: i64,
+    ) -> Result<ChapterSummary, AppError> {
+        let chapter = self
+            .chapter_by_id(chapter_id)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("章节不存在: chapter_id={chapter_id}")))?;
+        self.verify_project_permission(chapter.project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        super::chapter_content_projection::chapter_summary_with_sync_state(self, &chapter).await
+    }
+
     pub(crate) async fn process_chapter(&self, chapter: chapter::Model) -> Result<(), AppError> {
         self.chapter_content.process_chapter(chapter).await
     }
@@ -316,7 +343,7 @@ impl OrchestratorContext {
     pub async fn chapters_for_project(
         &self,
         project_id: i64,
-    ) -> Result<Vec<a4n_core::models::chapter::chapter::Model>, AppError> {
+    ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, AppError> {
         self.chapter_content.chapters_for_project(project_id).await
     }
 
@@ -406,6 +433,18 @@ impl OrchestratorContext {
         self.chapter_content
             .chapter_by_id_for_analysis(chapter_id)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::chapter::ChapterContentReadApplicationPort for OrchestratorContext {
+    async fn list(&self, user_id: i64, project_id: i64) -> Result<Vec<ChapterSummary>, AppError> {
+        self.list_chapter_summaries_for_user(user_id, project_id)
+            .await
+    }
+
+    async fn summary(&self, user_id: i64, chapter_id: i64) -> Result<ChapterSummary, AppError> {
+        self.chapter_summary_for_user(user_id, chapter_id).await
     }
 }
 

@@ -1,6 +1,7 @@
-use a4n_core::blueprint::validate_blueprint_chapter_count;
-use a4n_core::error::AppError;
-use a4n_domain::project::{CHAPTERS_PER_PART, needs_part_outlines_for_chapters};
+use a4n_domain::project::{
+    CHAPTERS_PER_PART, needs_part_outlines_for_chapters, validate_blueprint_chapter_count,
+};
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::super::fields::{required_array, required_bool, required_i32};
@@ -10,7 +11,8 @@ pub(super) fn parse_blueprint_derived_fields(
     requested_chapters: i32,
 ) -> Result<(i32, bool, i32), AppError> {
     let total_chapters = required_i32(raw, "total_chapters", "blueprint")?;
-    validate_blueprint_chapter_count(total_chapters, "blueprint.total_chapters")?;
+    validate_blueprint_chapter_count(total_chapters, "blueprint.total_chapters")
+        .map_err(AppError::InvalidArgument)?;
     if total_chapters != requested_chapters {
         return Err(AppError::InvalidArgument(format!(
             "blueprint.total_chapters 必须等于 requested_chapter_count {requested_chapters}，实际为 {total_chapters}"

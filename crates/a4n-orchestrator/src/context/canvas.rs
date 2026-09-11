@@ -6,27 +6,45 @@ use a4n_api_contract::canvas::{
     CanvasEdgeSummary, CanvasGraphDocument, CanvasGraphInput, CanvasGraphSummary, CanvasJsonObject,
     CanvasNodeSummary, CanvasTextAssetInput, CanvasTextAssetSummary,
 };
-use a4n_core::error::AppError;
-use a4n_core::models::{
-    canvas::canvas_text_asset,
-    generation::{generation_spec, prompt_artifact},
-    media::media_asset,
-    project::novel_project,
+use a4n_canvas_contract::{
+    CanvasEditingNodeApplicationPort, CanvasEditingNodeHostPort,
+    CanvasGraphExecutionApplicationPort, CanvasGraphExecutionHostPort,
+    CanvasGraphResumePreparationInput, CanvasGraphRunPreparationInput,
+    CanvasImageNodeApplicationInput, CanvasLlmTextNodeApplicationInput,
+    CanvasOutputNodeApplicationInput, CanvasOutputNodeApplicationPort,
+    CanvasPreviewNodeApplicationInput, CanvasProbeNodeApplicationInput,
+    CanvasProbeNodeApplicationPort, CanvasRenderTextNodeApplicationInput,
+    CanvasRenderTextNodeApplicationPort, CanvasSingleNodeRunPreparationInput,
+    CanvasVideoNodeApplicationInput, GenerateCanvasImageInput, GenerateCanvasVideoInput,
+    PreparedCanvasGraphRun,
 };
 use a4n_db::DbHandle;
 use a4n_db::canvas::{
     CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary, CanvasEdgeRecordInput,
     CanvasGraphRecordDocument, CanvasGraphRecordInput, CanvasImageMediaAssetEnsureInput,
     CanvasMediaAssetProbeRecord, CanvasNodeArtifactUpdateInput, CanvasNodeObservationUpdateInput,
-    CanvasNodeRecordInput, CanvasPromptArtifactUpsertInput, CanvasTextAssetRecordInput,
-    CanvasVideoMediaAssetEnsureInput, FreeformCanvasGenerationSpecUpsertInput,
-    VideoStudioProjectExportRows, VideoStudioProjectImportMediaFileWriter,
+    CanvasNodeRecordInput, CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
+    FreeformCanvasGenerationSpecUpsertInput, VideoStudioProjectExportRows,
+    VideoStudioProjectImportMediaFileWriter, validate_canvas_record_document_edge_contract,
 };
-use chrono::NaiveDateTime;
+use a4n_db_models::models::{
+    canvas::canvas_text_asset,
+    generation::{generation_spec, prompt_artifact},
+    media::media_asset,
+    project::novel_project,
+};
+use a4n_domain::canvas::CanvasTextAssetRecordInput;
+use a4n_error::AppError;
+use chrono::{NaiveDateTime, Utc};
 use serde_json::Value;
 
 use super::OrchestratorContext;
-use crate::canvas::{canvas_db_error, video_studio_project_import_error};
+use crate::canvas::{
+    CanvasImageNodeApplicationPort, CanvasLlmTextNodeApplicationPort, CanvasNodeRequestPreview,
+    CanvasNodeRunHandle, CanvasPreviewApplicationPort, CanvasVideoNodeApplicationPort,
+    canvas_db_error, video_studio_project_import_error,
+};
+use crate::collaboration::ProjectAccessRole;
 use crate::project::VideoStudioProjectPackage;
 
 /// Canvas 领域 application owner。
@@ -371,7 +389,7 @@ impl OrchestratorContext {
     pub(crate) async fn complete_canvas_graph_workflow_validated(
         &self,
         workflow_run_id: i64,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         self.complete_workflow_run_validated(workflow_run_id).await
     }
 
@@ -384,7 +402,7 @@ impl OrchestratorContext {
         unique_suffix: i64,
         input_fingerprint_json: serde_json::Value,
         first_step_key: Option<String>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let input = crate::canvas::canvas_graph_workflow_run_input(
             project_id,
             graph_id,
@@ -406,7 +424,7 @@ impl OrchestratorContext {
         unique_suffix: i64,
         input_fingerprint_json: serde_json::Value,
         step_key: String,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let input = crate::canvas::canvas_single_node_workflow_run_input(
             project_id,
             graph_id,
@@ -427,7 +445,7 @@ impl OrchestratorContext {
         mode: &str,
         step_key: &str,
         input_fingerprint_json: serde_json::Value,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let input = crate::canvas::canvas_node_step_workflow_run_input(
             project_id,
             graph_id,
@@ -437,6 +455,471 @@ impl OrchestratorContext {
         )
         .map_err(AppError::InvalidArgument)?;
         self.begin_workflow_run_validated(input).await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::canvas::CanvasApplicationPort for OrchestratorContext {
+    async fn get_graph(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::canvas::GetCanvasGraphInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasGraphDocument, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        self.get_or_create_canvas_graph(input.project_id, input.graph_id, Utc::now().naive_utc())
+            .await
+    }
+
+    async fn read_graph(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::canvas::ReadCanvasGraphInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasGraphReadResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Viewer)
+            .await?;
+        self.read_canvas_graph(input).await
+    }
+
+    async fn save_graph(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::canvas::SaveCanvasGraphInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasGraphDocument, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.save_canvas_graph(
+            input.project_id,
+            input.expected_version,
+            input.graph,
+            Utc::now().naive_utc(),
+        )
+        .await
+    }
+
+    async fn edit_graph(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::canvas::EditCanvasGraphInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasGraphEditResult, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.edit_canvas_graph(input).await
+    }
+
+    async fn save_text_asset(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::canvas::SaveCanvasTextAssetInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasTextAssetSummary, AppError> {
+        self.verify_project_permission(input.project_id, user_id, ProjectAccessRole::Editor)
+            .await?;
+        self.upsert_canvas_text_asset(input.project_id, input.text_asset, Utc::now().naive_utc())
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasEditingNodeApplicationPort for OrchestratorContext {
+    async fn run_editing(
+        &self,
+        input: a4n_canvas_contract::CanvasEditingNodeApplicationInput,
+        host_port: &dyn CanvasEditingNodeHostPort,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        self.run_canvas_editing_node_validated(
+            crate::canvas::CanvasEditingNodeExecutionInput {
+                user_id: input.user_id,
+                project_id: input.project_id,
+                graph_id: input.graph_id,
+                node,
+                document: &document,
+                shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
+                    workflow_run_id: run.workflow_run_id,
+                    finalize_on_success: run.finalize_on_success,
+                }),
+                mode: &input.mode,
+            },
+            host_port,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasProbeNodeApplicationPort for OrchestratorContext {
+    async fn run_probe(
+        &self,
+        input: CanvasProbeNodeApplicationInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        self.run_canvas_probe_node_validated(crate::canvas::CanvasProbeNodeExecutionInput {
+            project_id: input.project_id,
+            graph_id: input.graph_id,
+            node,
+            document: &document,
+            shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
+                workflow_run_id: run.workflow_run_id,
+                finalize_on_success: run.finalize_on_success,
+            }),
+            mode: &input.mode,
+        })
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasOutputNodeApplicationPort for OrchestratorContext {
+    async fn run_output(
+        &self,
+        input: CanvasOutputNodeApplicationInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        self.run_canvas_output_node_validated(crate::canvas::CanvasOutputNodeExecutionInput {
+            project_id: input.project_id,
+            graph_id: input.graph_id,
+            node,
+            document: &document,
+            shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
+                workflow_run_id: run.workflow_run_id,
+                finalize_on_success: run.finalize_on_success,
+            }),
+            mode: &input.mode,
+        })
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasRenderTextNodeApplicationPort for OrchestratorContext {
+    async fn run_render_text(
+        &self,
+        input: CanvasRenderTextNodeApplicationInput,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        self.run_canvas_render_text_node_validated(crate::canvas::CanvasTextNodeExecutionInput {
+            project_id: input.project_id,
+            graph_id: input.graph_id,
+            node,
+            document: &document,
+            shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
+                workflow_run_id: run.workflow_run_id,
+                finalize_on_success: run.finalize_on_success,
+            }),
+            mode: &input.mode,
+        })
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasPreviewApplicationPort for OrchestratorContext {
+    async fn prepare_node(
+        &self,
+        input: CanvasPreviewNodeApplicationInput,
+    ) -> Result<CanvasNodeRequestPreview, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Viewer)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        match node.node_kind.as_str() {
+            "GenerateImageNode" => {
+                let image =
+                    crate::canvas::build_canvas_image_node_input_for_preview(node, &document)
+                        .map_err(AppError::InvalidArgument)?;
+                Ok(CanvasNodeRequestPreview::Image(GenerateCanvasImageInput {
+                    project_id: input.project_id,
+                    graph_id: input.graph_id,
+                    node_id: input.node_id,
+                    workflow_run_id: None,
+                    prompt: image.prompt,
+                    config_id: image.config_id,
+                    width: image.width,
+                    height: image.height,
+                    source_node_ids: image.source_node_ids,
+                }))
+            }
+            "GenerateVideoNode" => {
+                let video =
+                    crate::canvas::build_canvas_video_node_input_for_preview(node, &document)
+                        .map_err(AppError::InvalidArgument)?;
+                Ok(CanvasNodeRequestPreview::Video(GenerateCanvasVideoInput {
+                    user_id: input.user_id,
+                    project_id: input.project_id,
+                    graph_id: input.graph_id,
+                    node_id: input.node_id,
+                    workflow_run_id: None,
+                    prompt: video.prompt,
+                    negative_prompt: video.negative_prompt,
+                    config_id: video.config_id,
+                    width: video.width,
+                    height: video.height,
+                    duration_secs: video.duration_secs,
+                    fps: video.fps,
+                    first_frame_image_id: video.first_frame_image_id,
+                    last_frame_image_id: video.last_frame_image_id,
+                    reference_image_ids: video.reference_image_ids,
+                    source_node_ids: video.source_node_ids,
+                }))
+            }
+            "LlmTextNode" => Ok(CanvasNodeRequestPreview::Llm(
+                crate::canvas::build_canvas_llm_text_request_for_preview(
+                    input.project_id,
+                    input.graph_id,
+                    node,
+                    &document,
+                )
+                .map_err(AppError::InvalidArgument)?,
+            )),
+            other => Err(AppError::InvalidArgument(format!(
+                "画布节点不支持模型请求预览: {other}"
+            ))),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasImageNodeApplicationPort for OrchestratorContext {
+    async fn run_image(
+        &self,
+        input: CanvasImageNodeApplicationInput,
+        host_port: &dyn crate::media::ImageGenerationHostPort,
+        progress: &crate::media::ImageGenerationProgress<'_>,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        self.run_canvas_image_node_validated(
+            crate::canvas::CanvasImageNodeExecutionInput {
+                requested_by_user_id: input.user_id,
+                project_id: input.project_id,
+                graph_id: input.graph_id,
+                node,
+                document: &document,
+                shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
+                    workflow_run_id: run.workflow_run_id,
+                    finalize_on_success: run.finalize_on_success,
+                }),
+                mode: &input.mode,
+            },
+            host_port,
+            progress,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasLlmTextNodeApplicationPort for OrchestratorContext {
+    async fn run_llm_text(
+        &self,
+        input: CanvasLlmTextNodeApplicationInput,
+        llm_port: &dyn crate::canvas::CanvasTextGenerationLlmPort,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        self.run_canvas_llm_text_node_validated(
+            crate::canvas::CanvasTextNodeExecutionInput {
+                project_id: input.project_id,
+                graph_id: input.graph_id,
+                node,
+                document: &document,
+                shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
+                    workflow_run_id: run.workflow_run_id,
+                    finalize_on_success: run.finalize_on_success,
+                }),
+                mode: &input.mode,
+            },
+            llm_port,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasVideoNodeApplicationPort for OrchestratorContext {
+    async fn run_video(
+        &self,
+        input: CanvasVideoNodeApplicationInput,
+        host_port: &dyn crate::canvas::CanvasVideoGenerationHostPort,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, AppError> {
+        self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Editor)
+            .await?;
+        let document = self
+            .get_or_create_canvas_graph_record(
+                input.project_id,
+                Some(input.graph_id),
+                Utc::now().naive_utc(),
+            )
+            .await?;
+        validate_canvas_record_document_edge_contract(&document)
+            .map_err(crate::canvas::canvas_db_error)?;
+        let node = document
+            .nodes
+            .iter()
+            .find(|node| node.id == input.node_id)
+            .ok_or_else(|| AppError::NotFound(format!("画布节点不存在: {}", input.node_id)))?;
+        self.run_canvas_video_node_validated(
+            crate::canvas::CanvasVideoNodeExecutionInput {
+                user_id: input.user_id,
+                project_id: input.project_id,
+                graph_id: input.graph_id,
+                node,
+                document: &document,
+                shared_run: input.shared_run.map(|run| CanvasNodeRunHandle {
+                    workflow_run_id: run.workflow_run_id,
+                    finalize_on_success: run.finalize_on_success,
+                }),
+                mode: &input.mode,
+            },
+            host_port,
+        )
+        .await
+    }
+}
+
+#[async_trait::async_trait]
+impl CanvasGraphExecutionApplicationPort for OrchestratorContext {
+    async fn prepare_graph(
+        &self,
+        input: CanvasGraphRunPreparationInput,
+        host_port: &dyn CanvasGraphExecutionHostPort,
+    ) -> Result<PreparedCanvasGraphRun, String> {
+        self.prepare_canvas_graph_run_validated(input, host_port)
+            .await
+    }
+
+    async fn prepare_single_node(
+        &self,
+        input: CanvasSingleNodeRunPreparationInput,
+        host_port: &dyn CanvasGraphExecutionHostPort,
+    ) -> Result<PreparedCanvasGraphRun, String> {
+        self.prepare_canvas_single_node_run_validated(input, host_port)
+            .await
+    }
+
+    async fn prepare_resume(
+        &self,
+        input: CanvasGraphResumePreparationInput,
+        host_port: &dyn CanvasGraphExecutionHostPort,
+    ) -> Result<PreparedCanvasGraphRun, String> {
+        self.prepare_canvas_graph_resume_validated(input, host_port)
+            .await
+    }
+
+    async fn run_prepared(
+        &self,
+        prepared: PreparedCanvasGraphRun,
+        host_port: &dyn CanvasGraphExecutionHostPort,
+    ) -> Result<a4n_api_contract::canvas::CanvasRunSummary, String> {
+        self.run_prepared_canvas_graph_validated(prepared, host_port)
+            .await
+    }
+
+    async fn fail_unsubmitted(&self, workflow_run_id: i64, error: &str) -> Result<(), String> {
+        self.fail_workflow_run_validated(workflow_run_id, error)
+            .await
+            .map(|_| ())
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -556,7 +1039,7 @@ fn canvas_json_value(input: CanvasJsonObject) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::models::canvas::{canvas_graph, canvas_text_asset};
+    use a4n_db_models::models::canvas::{canvas_graph, canvas_text_asset};
     use chrono::DateTime;
     use serde_json::json;
 

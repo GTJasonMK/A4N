@@ -1,5 +1,6 @@
+use a4n_media::{MediaFileResponseError, read_media_file_response, relative_media_uri_path};
 use a4n_runtime::AppState;
-use a4n_runtime::{file_utils::canonicalize_path_in_data_dir, media_file};
+use a4n_storage::canonicalize_path_in_data_dir;
 use std::path::Path;
 use tauri::http::{Request, Response, StatusCode, header};
 use tauri::{Manager, Runtime, UriSchemeContext};
@@ -17,7 +18,7 @@ pub fn handle_request<R: Runtime>(
         );
     };
 
-    let path = match media_file::relative_media_uri_path(request.uri().path()) {
+    let path = match relative_media_uri_path(request.uri().path()) {
         Ok(path) => path,
         Err(err) => return text_response(StatusCode::BAD_REQUEST, &err),
     };
@@ -41,15 +42,15 @@ fn file_response(
     path: &Path,
     range_header: Option<&header::HeaderValue>,
 ) -> Result<Response<Vec<u8>>, (StatusCode, String)> {
-    let media = media_file::read_media_file_response(
+    let media = read_media_file_response(
         path,
         range_header.map(header::HeaderValue::to_str),
         MEDIA_LABEL,
     )
     .map_err(|error| {
         let status = match &error {
-            media_file::MediaFileResponseError::UnsupportedMediaType(_) => StatusCode::BAD_REQUEST,
-            media_file::MediaFileResponseError::Read(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            MediaFileResponseError::UnsupportedMediaType(_) => StatusCode::BAD_REQUEST,
+            MediaFileResponseError::Read(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
         (status, error.to_string())
     })?;

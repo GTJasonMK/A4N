@@ -1,26 +1,32 @@
 use a4n_capabilities::A4nCapabilities;
 #[cfg(feature = "embedded-media-providers")]
-use a4n_core::config::{image_backend_api_key, validate_image_config_model};
-use a4n_core::error::AppError;
-use a4n_core::models::ai::image_gen_config;
+use a4n_config::image_backend_api_key;
+use a4n_error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
 #[cfg(feature = "embedded-media-providers")]
 use a4n_image_providers::pick_image_provider;
+use a4n_provider_contract::ImageProviderConfig;
 
 use crate::state::RuntimeProfile;
 
 use super::super::super::missing_sidecar_capability_message;
 use super::super::contracts::image_provider_error_with_config;
+#[cfg(feature = "embedded-media-providers")]
+use super::super::contracts::validated_image_provider_config;
 use super::sidecar::generate_image_via_sidecar;
 
 fn configured_image_provider(
-    config: &image_gen_config::Model,
+    config: &ImageProviderConfig,
 ) -> Result<Box<dyn ImageProvider>, AppError> {
     #[cfg(feature = "embedded-media-providers")]
     {
-        let params = validate_image_config_model(config)?;
+        let params = validated_image_provider_config(config).map_err(AppError::InvalidArgument)?;
         let api_key = image_backend_api_key(&params.backend, params.api_key_encrypted.as_deref())?;
-        pick_image_provider(&params.backend, &params.base_url, api_key)
+        Ok(pick_image_provider(
+            &params.backend,
+            &params.base_url,
+            api_key,
+        )?)
     }
     #[cfg(not(feature = "embedded-media-providers"))]
     {
@@ -35,7 +41,7 @@ fn configured_image_provider(
 pub(crate) async fn generate_image(
     profile: RuntimeProfile,
     capabilities: &A4nCapabilities,
-    config: &image_gen_config::Model,
+    config: &ImageProviderConfig,
     request: ImageGenerationRequest,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
@@ -70,20 +76,16 @@ pub(crate) async fn generate_image(
 mod tests {
     use super::*;
 
-    fn image_config(backend: &str, api_key: Option<&str>) -> image_gen_config::Model {
-        let now = chrono::Utc::now().naive_utc();
-        image_gen_config::Model {
+    fn image_config(backend: &str, api_key: Option<&str>) -> ImageProviderConfig {
+        ImageProviderConfig {
             id: 1,
             name: "primary".to_string(),
             backend: backend.to_string(),
             base_url: Some("http://localhost:3000".to_string()),
-            api_key_encrypted: api_key.map(str::to_string),
+            api_key: api_key.map(str::to_string),
             model: "image-model".to_string(),
             max_concurrent: 1,
             supported_sizes_json: serde_json::json!([{"width": 1024, "height": 1024}]),
-            is_default: true,
-            created_at: now,
-            updated_at: now,
         }
     }
 

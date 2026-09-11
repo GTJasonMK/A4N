@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use super::super::super::super::FIRST_FRAME_CHAIN_CONTRACT_VERSION;
@@ -9,7 +9,7 @@ use super::super::super::super::prompt_json::{
 };
 use super::super::super::super::prompt_store::{NewChapterVideoPrompt, PromptWorkflowMode};
 use super::super::VideoUnitPlan;
-use a4n_core::prompt_language::with_prompt_output_language_metadata;
+use a4n_domain::prompt_language::with_prompt_output_language_metadata;
 
 use super::frame_drafts::{VideoPromptDraftCommonInput, video_prompt_shot_draft};
 use super::rules::compact_shot_metadata;

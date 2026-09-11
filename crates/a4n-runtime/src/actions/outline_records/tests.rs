@@ -1,5 +1,5 @@
 use super::*;
-use a4n_orchestrator::outline::required_outline_pacing_score;
+use a4n_domain::chapter::required_outline_pacing_score;
 use chrono::NaiveDate;
 use serde_json::json;
 
@@ -25,6 +25,28 @@ fn sample_outline(project_id: i64, pacing_score: Option<f32>) -> chapter_outline
         status: "draft".to_string(),
         created_at: now,
         updated_at: now,
+    }
+}
+
+fn sample_outline_summary(project_id: i64, pacing_score: Option<f32>) -> ChapterOutlineSummary {
+    ChapterOutlineSummary {
+        id: 42,
+        project_id,
+        part_id: None,
+        chapter_number: 3,
+        title: Some("旧标题".to_string()),
+        summary: Some("旧概要".to_string()),
+        beats: None,
+        key_scenes: None,
+        pacing_score,
+        foreshadowing_setup: None,
+        foreshadowing_payoff: None,
+        characters_involved: None,
+        word_count_target: None,
+        status: "draft".to_string(),
+        source_kind: None,
+        created_at: None,
+        updated_at: None,
     }
 }
 
@@ -138,18 +160,6 @@ fn ensure_chapter_outline_belongs_to_project_rejects_mismatch() {
 }
 
 #[test]
-fn chapter_outline_summary_exposes_derived_source() {
-    let outline = sample_outline(1, None);
-
-    let summary = chapter_outline_summary(&outline, Some("retrospective_analysis"));
-
-    assert_eq!(
-        summary.source_kind.as_deref(),
-        Some("retrospective_analysis")
-    );
-}
-
-#[test]
 fn required_outline_pacing_score_rejects_missing_or_non_finite_score() {
     let missing = required_outline_pacing_score(None, 3)
         .expect_err("missing pacing score should be rejected");
@@ -167,8 +177,8 @@ fn required_outline_pacing_score_rejects_missing_or_non_finite_score() {
 #[test]
 fn build_chapter_outlines_pacing_accepts_finite_scores() {
     let pacing = build_chapter_outlines_pacing(&[
-        sample_outline(1, Some(0.5)),
-        sample_outline(1, Some(0.7)),
+        sample_outline_summary(1, Some(0.5)),
+        sample_outline_summary(1, Some(0.7)),
     ])
     .expect("finite pacing scores should be accepted");
 

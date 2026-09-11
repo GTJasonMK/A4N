@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use a4n_capabilities::LlmClient;
-use a4n_core::error::AppError;
-use a4n_core::models::ai::llm_config;
+use a4n_error::AppError;
 #[cfg(feature = "embedded-llm-provider")]
 use a4n_llm::provider::LlmProvider;
 use a4n_llm::provider::{ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities};
+use a4n_provider_contract::LlmProviderConfig;
 use futures::stream;
 
 use super::contracts::{LlmProbeOutput, ResolvedLlmModel};
 
-pub(super) fn validated_timeout_secs(m: &llm_config::Model) -> Result<u64, AppError> {
+pub(super) fn validated_timeout_secs(m: &LlmProviderConfig) -> Result<u64, AppError> {
     let timeout_secs = u64::try_from(m.timeout_secs).map_err(|_| {
         AppError::ConfigError(format!("LLM 配置 {} 的 timeout_secs 必须大于 0", m.name))
     })?;
@@ -23,7 +23,7 @@ pub(super) fn validated_timeout_secs(m: &llm_config::Model) -> Result<u64, AppEr
     Ok(timeout_secs)
 }
 
-pub(super) fn model_capabilities(m: &llm_config::Model) -> Result<ModelCapabilities, AppError> {
+pub(super) fn model_capabilities(m: &LlmProviderConfig) -> Result<ModelCapabilities, AppError> {
     let max_context_tokens = usize::try_from(m.max_context_tokens).map_err(|_| {
         AppError::ConfigError(format!(
             "LLM 配置 {} 的 max_context_tokens 必须大于 0",
@@ -51,14 +51,14 @@ pub(super) fn model_capabilities(m: &llm_config::Model) -> Result<ModelCapabilit
 }
 
 #[cfg(feature = "embedded-llm-provider")]
-pub(super) fn make_provider(m: &llm_config::Model) -> Result<Box<dyn LlmProvider>, AppError> {
+pub(super) fn make_provider(m: &LlmProviderConfig) -> Result<Box<dyn LlmProvider>, AppError> {
     let timeout_secs = validated_timeout_secs(m)?;
     let capabilities = model_capabilities(m)?;
     a4n_llm_http::pick_llm_provider(
         &m.provider,
         m.base_url.clone(),
         m.model.clone(),
-        m.api_key_encrypted.clone(),
+        m.api_key.clone(),
         timeout_secs,
         m.extra_body_json.clone(),
         capabilities,

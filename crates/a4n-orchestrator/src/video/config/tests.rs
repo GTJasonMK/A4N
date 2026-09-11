@@ -1,5 +1,7 @@
 use super::contracts::*;
-use super::*;
+use a4n_video::{
+    VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, validate_video_config_params,
+};
 use serde_json::json;
 
 fn valid_params() -> VideoConfigParams {

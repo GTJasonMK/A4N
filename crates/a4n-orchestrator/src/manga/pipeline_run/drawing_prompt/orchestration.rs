@@ -2,7 +2,7 @@ use super::super::super::OrchestratorContext;
 use super::super::super::pipeline_persist::PageMangaPromptGenerationTrace;
 use super::contracts::SinglePageDrawingPromptInput;
 use super::{DrawingPromptStepInput, DrawingPromptStepOutput};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 impl OrchestratorContext {
     pub(in crate::manga::pipeline_run) async fn run_page_drawing_prompt_step(

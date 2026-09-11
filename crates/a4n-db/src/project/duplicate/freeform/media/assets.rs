@@ -1,11 +1,12 @@
-use crate::project::duplicate::ProjectDuplicateError;
-use crate::project::duplicate::shared::ProjectMediaFileCopier;
-use a4n_core::models::media::media_asset;
+use a4n_db_models::models::media::media_asset;
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use std::collections::HashMap;
 
-pub(super) async fn copy_freeform_media_assets_record<C, Copier>(
+use crate::project::duplicate::ProjectDuplicateError;
+
+pub(super) async fn copy_freeform_media_assets_record<C, Copier: ?Sized>(
     db: &C,
     source_project_id: i64,
     new_project_id: i64,

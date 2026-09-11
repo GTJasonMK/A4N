@@ -3,10 +3,10 @@
 //! 持有 `DbHandle`，封装源文本同步预览、冲突决策落库、运行查询与派生项目脱离的数据库行为。
 //! Galgame 场景再生成等跨域编排仍在 `source_sync/` 模块，但 DB 只经本 owner。
 
-use a4n_core::error::AppError;
-use a4n_core::models::source_sync::source_sync_run;
 use a4n_db::DbHandle;
 use a4n_db::source_sync::SourceSyncPlanRecord;
+use a4n_db_models::models::source_sync::source_sync_run;
+use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::source_sync::source_sync_db_error;
@@ -128,7 +128,7 @@ impl OrchestratorContext {
         from_snapshot_id: i64,
         to_snapshot_id: i64,
         decisions: &serde_json::Value,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let input = crate::source_sync::source_sync_apply_workflow_run_input(
             sync_run_id,
             derived_project_id,

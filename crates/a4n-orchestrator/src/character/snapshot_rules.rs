@@ -1,6 +1,6 @@
 //! 角色快照查询输入门禁（无 DB）。
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 pub const CHARACTER_SNAPSHOT_ENTITY_TYPE: &str = "character_profile";

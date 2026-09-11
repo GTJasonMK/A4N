@@ -1,6 +1,6 @@
 use super::errors::stream_read_error;
 use super::sse::{SseDrainOutcome, drain_sse_lines, drain_sse_tail};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatChunk;
 use futures::{Stream, StreamExt};
 use std::collections::VecDeque;

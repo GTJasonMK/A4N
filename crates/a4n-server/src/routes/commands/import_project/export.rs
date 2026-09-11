@@ -5,7 +5,7 @@ use super::super::{
 };
 use crate::state::ServerState;
 use a4n_api_contract::export::{BatchExportInput, ExportProjectInput, ExportPublicationInput};
-use a4n_core::event::channel::TaskKind;
+use a4n_domain::task_queue::TaskKind;
 use serde_json::{Value, json};
 
 macro_rules! export_web_read_command {

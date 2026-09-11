@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use serde_json::Value;
 
 use crate::video::{
@@ -6,7 +6,7 @@ use crate::video::{
     FIRST_FRAME_CHAIN_CONTRACT_VERSION, FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
     STORYBOARD_PROMPT_CONTRACT_VERSION, STORYBOARD_VIDEO_PROMPT_CONTRACT_VERSION,
 };
-use a4n_core::prompt_language::metadata_matches_prompt_output_language;
+use a4n_domain::prompt_language::metadata_matches_prompt_output_language;
 
 #[cfg(test)]
 use super::super::contracts::PromptGenerationContext;
@@ -169,7 +169,7 @@ pub(in crate::video::prompt_records) fn prompt_matches_generation_context_for_wo
     if metadata.get("contract_version").and_then(Value::as_str) != Some(expected_contract) {
         return false;
     }
-    if a4n_core::prompt_language::prompt_type_uses_prompt_output_language(context.prompt_type)
+    if a4n_domain::prompt_language::prompt_type_uses_prompt_output_language(context.prompt_type)
         && !metadata_matches_prompt_output_language(
             row.metadata_json.as_ref(),
             context.prompt_output_language,

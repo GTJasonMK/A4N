@@ -2,7 +2,7 @@ use crate::AppState;
 use crate::actions::request_preview::{
     ChatStatusPreviewStep, ModelRequestPreview, chat_status_preview_for_state,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_orchestrator::outline::OutlineRequestPreviewStep;
 

@@ -1,6 +1,6 @@
 use crate::workflow::workflow_checkpoint_contract_app_error;
-use a4n_core::error::AppError;
 use a4n_db::workflow;
+use a4n_error::AppError;
 
 use super::super::super::pipeline_prompt::{
     MangaLlmCallInput, load_manga_restored_llm_checkpoint, prepare_manga_llm_call,

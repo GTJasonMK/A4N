@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use a4n_rag_core::vector_store::EmbeddingRecord;
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::json;

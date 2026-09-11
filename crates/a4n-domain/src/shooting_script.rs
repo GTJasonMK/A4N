@@ -8,12 +8,12 @@ mod validation;
 
 pub use contracts::{
     CHAPTER_SHOOTING_SCRIPT_V1, ChapterShootingScriptSchemaVersion, ChapterShootingScriptV1,
-    ShootingBlockingV1, ShootingCameraAngleV1, ShootingCameraHeightV1, ShootingCameraMovementV1,
-    ShootingContinuityIntentV1, ShootingCoverageV1, ShootingDialogueCueV1,
-    ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingPerformanceBeatV1,
-    ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1, ShootingSoundDesignV1,
-    ShootingSpatialContinuityV1, ShootingTransitionContractV1, ShootingTransitionTypeV1,
-    ShootingViewpointModeV1, ShootingViewpointV1, ShootingVisualConstraintsV1,
-    ShootingVisualPlanSourceV1,
+    EditStoredChapterShootingScriptInput, ShootingBlockingV1, ShootingCameraAngleV1,
+    ShootingCameraHeightV1, ShootingCameraMovementV1, ShootingContinuityIntentV1,
+    ShootingCoverageV1, ShootingDialogueCueV1, ShootingDirectingStatementV1, ShootingEditingModeV1,
+    ShootingPerformanceBeatV1, ShootingSceneV1, ShootingShotSizeV1, ShootingShotV1,
+    ShootingSoundDesignV1, ShootingSpatialContinuityV1, ShootingTransitionContractV1,
+    ShootingTransitionTypeV1, ShootingViewpointModeV1, ShootingViewpointV1,
+    ShootingVisualConstraintsV1, ShootingVisualPlanSourceV1,
 };
 pub use validation::ShootingScriptValidationError;

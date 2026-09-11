@@ -4,7 +4,7 @@ mod snapshot;
 #[cfg(test)]
 mod tests;
 
-use a4n_core::models::project::{novel_project, source_snapshot_chapter};
+use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
@@ -75,7 +75,7 @@ where
                     chapter.id
                 )));
             }
-            let actual_hash = a4n_core::source_spans::source_text_hash(&chapter.content);
+            let actual_hash = a4n_domain::source_text_hash(&chapter.content);
             if actual_hash != chapter.content_hash {
                 return Err(ResolveChapterSourceError::InvalidState(format!(
                     "源快照章节 {} 内容哈希不一致",

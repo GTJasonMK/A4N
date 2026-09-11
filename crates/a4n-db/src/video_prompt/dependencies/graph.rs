@@ -6,7 +6,7 @@ use crate::{
     video::{self, VideoDbError},
     video_prompt::{PromptStage, VideoPromptDownstreamDependencies},
 };
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use sea_orm::ConnectionTrait;
 use std::collections::BTreeSet;
 

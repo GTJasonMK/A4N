@@ -1,9 +1,7 @@
 use std::pin::Pin;
 
-use a4n_core::error::AppError;
-use a4n_core::structured_progress::{
-    ProgressSpan, StructuredJsonProgressSpec, StructuredJsonProgressTracker,
-};
+use a4n_error::AppError;
+use a4n_progress::{ProgressSpan, StructuredJsonProgressSpec, StructuredJsonProgressTracker};
 use futures::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 

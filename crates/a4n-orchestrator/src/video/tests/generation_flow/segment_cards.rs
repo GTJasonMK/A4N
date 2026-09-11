@@ -14,8 +14,8 @@ async fn frame_card_generation_cancels_without_writing_partial_prompts() {
         project.id,
         chapter.id,
         1,
-        a4n_core::video_execution::VideoSegmentWorkflowModeV1::BoundaryFrames,
-        a4n_core::video_execution::VideoSegmentGuidanceModeV1::SystemFrames,
+        a4n_video_contract::VideoSegmentWorkflowModeV1::BoundaryFrames,
+        a4n_video_contract::VideoSegmentGuidanceModeV1::SystemFrames,
     )
     .await;
     let cancel_token = CancellationToken::new();
@@ -70,8 +70,8 @@ async fn boundary_frame_card_and_final_prompt_share_one_explicit_segment_identit
         project.id,
         chapter.id,
         1,
-        a4n_core::video_execution::VideoSegmentWorkflowModeV1::BoundaryFrames,
-        a4n_core::video_execution::VideoSegmentGuidanceModeV1::SystemFrames,
+        a4n_video_contract::VideoSegmentWorkflowModeV1::BoundaryFrames,
+        a4n_video_contract::VideoSegmentGuidanceModeV1::SystemFrames,
     )
     .await;
     let options = target_generation_options(&service, project.id, chapter.id, 1).await;

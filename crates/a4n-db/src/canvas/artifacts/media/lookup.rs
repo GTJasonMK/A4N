@@ -1,6 +1,6 @@
 use super::super::types::CanvasMediaAssetProbeRecord;
 use crate::canvas::CanvasDbError;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     media::media_asset,
 };

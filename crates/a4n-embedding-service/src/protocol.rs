@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_service_protocol::{
     EMBEDDING_SERVICE_NAME, EmbedTextsPayload, ServiceError, ServiceErrorCode, ServiceRequest,
     redact_sensitive_message,
@@ -13,11 +13,11 @@ pub(crate) fn validate_embedding_request(
 
 fn service_error_code(error: &AppError) -> ServiceErrorCode {
     match error {
-        AppError::ConfigError(_) | AppError::InvalidArgument(_) | AppError::NotFound(_) => {
+        AppError::Configuration(_) | AppError::InvalidArgument(_) | AppError::NotFound(_) => {
             ServiceErrorCode::ConfigurationError
         }
         AppError::Cancelled => ServiceErrorCode::Cancelled,
-        AppError::EmbeddingError(_) => ServiceErrorCode::ProviderError,
+        AppError::Embedding(_) => ServiceErrorCode::ProviderError,
         _ => ServiceErrorCode::Internal,
     }
 }

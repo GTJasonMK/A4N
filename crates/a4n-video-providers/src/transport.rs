@@ -1,6 +1,6 @@
 use serde_json::Value;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use crate::idempotency::with_provider_idempotency_key;
 use crate::response::{parse_json_response, parse_json_response_allow_not_found};
@@ -76,7 +76,7 @@ async fn send(
     request
         .send()
         .await
-        .map_err(|error| AppError::Internal(anyhow::anyhow!("{label}请求失败：{error}")))
+        .map_err(|error| AppError::Internal(format!("{label}请求失败：{error}")))
 }
 
 #[cfg(test)]

@@ -18,28 +18,28 @@ mod record_lifecycle;
 mod snapshot_rules;
 mod sync_projection;
 mod sync_rules;
-use a4n_core::error::AppError;
+use a4n_api_contract::character::ApplyImplicitUpdateDecisionResultSummary;
+use a4n_error::AppError;
+use a4n_llm::provider::ChatRequest;
+use a4n_prompt::rendering::PromptRenderer;
 
 pub const CHARACTER_PROFILE_SYNC_STEPS: u32 = 10;
 
 pub use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
-    AppliedCharacterSyncPersistenceRecord, CharacterAttributeDeletionExecutionInput,
-    CharacterAttributeDeletionExecutionResult, CharacterAttributeDeletionRequestInput,
+    AppliedCharacterSyncPersistenceRecord, CharacterAttributeDeletionExecutionResult,
     CharacterAttributeEventHistoryFilter, CharacterAttributeMutationResult,
-    CharacterAttributeValueChangeInput, CharacterConflictContextRows,
-    CharacterDeletionMarkRewindSummary, CharacterImplicitReviewDecisionRecordInput,
-    CharacterPortraitCreateInput, CharacterPortraitRecordError, CharacterPortraitRollbackError,
-    CharacterPortraitRollbackResult, CharacterProfileCreateError, CharacterProfileCreateInput,
+    CharacterConflictContextRows, CharacterDeletionMarkRewindSummary, CharacterPortraitRecordError,
+    CharacterPortraitRollbackError, CharacterPortraitRollbackResult, CharacterProfileCreateError,
     CharacterProfileDeleteError, CharacterProfileDeletionSummary, CharacterProfileRollbackResult,
-    CharacterSyncAttributeEventRecordInput, CharacterSyncChapterStateRecordInput,
-    CharacterSyncPersistenceInput, CharacterSyncWriteStepRecordInput,
-    CharacterTimelineDeletionSummary, InsertBehaviorRecordInput, PortraitNamedPromptProfileRows,
-    PortraitPromptProfileRows, apply_attribute_to_state,
+    CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
+    CharacterSyncWriteStepRecordInput, CharacterTimelineDeletionSummary,
+    PortraitNamedPromptProfileRows, PortraitPromptProfileRows, apply_attribute_to_state,
     character_sync_attribute_events_at_chapter, snapshot_attributes_from_data,
 };
 pub use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
 pub use attribute_lifecycle::CharacterAttributeLifecycleError;
+pub use conflict::CharacterConflictApplicationPort;
 pub use record_lifecycle::{
     CharacterProfileRecordDeletionResult, CharacterRecordLifecycleError,
     CharacterTimelineRollbackLifecycleResult,
@@ -128,6 +128,187 @@ pub use conflict::{
     CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL, CharacterConflictCheckInput,
     CharacterConflictProgressReporter, CharacterConflictSummary, validate_character_conflict_input,
 };
+
+/// Runtime-facing character discovery and timeline-sync boundary.
+#[async_trait::async_trait]
+pub trait CharacterAiApplicationPort: Send + Sync {
+    async fn preview_discovery(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::DiscoverCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<CharacterDiscoveryRequestPreview, AppError>;
+
+    async fn discover(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::DiscoverCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: Option<CharacterDiscoveryProgress<'_>>,
+    ) -> Result<a4n_api_contract::character::DiscoverCharacterProfilesResult, AppError>;
+
+    async fn preview_profile_sync(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncCharacterProfileInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Option<CharacterProfileSyncPreviewStep>, AppError>;
+
+    async fn sync_profile(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncCharacterProfileInput,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: Option<CharacterProfileSyncProgress<'_>>,
+        trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<a4n_api_contract::character::SyncCharacterProfileResult, AppError>;
+
+    async fn preview_all_profiles_sync(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncAllCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError>;
+
+    async fn sync_all_profiles(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncAllCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: CharacterProfileSyncProgress<'_>,
+        trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<a4n_api_contract::character::SyncAllCharacterProfilesResult, AppError>;
+}
+
+#[async_trait::async_trait]
+impl CharacterAiApplicationPort for crate::OrchestratorContext {
+    async fn preview_discovery(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::DiscoverCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<CharacterDiscoveryRequestPreview, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.prepare_character_discovery_request_preview_validated(input, prompt_renderer)
+            .await
+    }
+
+    async fn discover(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::DiscoverCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: Option<CharacterDiscoveryProgress<'_>>,
+    ) -> Result<a4n_api_contract::character::DiscoverCharacterProfilesResult, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.discover_character_profiles_validated(input, prompt_renderer, progress)
+            .await
+    }
+
+    async fn preview_profile_sync(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncCharacterProfileInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Option<CharacterProfileSyncPreviewStep>, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.prepare_character_profile_sync_preview_validated(
+            CharacterProfileSyncApplicationInput::preview_by_name(
+                input.project_id,
+                input.name,
+                input.chapter_number,
+            ),
+            prompt_renderer,
+        )
+        .await
+    }
+
+    async fn sync_profile(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncCharacterProfileInput,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: Option<CharacterProfileSyncProgress<'_>>,
+        trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<a4n_api_contract::character::SyncCharacterProfileResult, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.run_character_profile_sync_validated(
+            CharacterProfileSyncApplicationInput::incremental_by_name(
+                input.project_id,
+                input.name,
+                input.chapter_number,
+            ),
+            prompt_renderer,
+            progress,
+            trace_port,
+        )
+        .await
+    }
+
+    async fn preview_all_profiles_sync(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncAllCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<Vec<CharacterProfileSyncPreviewStep>, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.prepare_all_character_profile_sync_preview_validated(
+            input.project_id,
+            input.chapter_number,
+            prompt_renderer,
+        )
+        .await
+    }
+
+    async fn sync_all_profiles(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::character::SyncAllCharacterProfilesInput,
+        prompt_renderer: &dyn PromptRenderer,
+        progress: CharacterProfileSyncProgress<'_>,
+        trace_port: Option<&dyn CharacterProfileSyncStageTracePort>,
+    ) -> Result<a4n_api_contract::character::SyncAllCharacterProfilesResult, AppError> {
+        self.verify_project_permission(
+            input.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.run_all_character_profile_sync_validated(
+            input.project_id,
+            input.chapter_number,
+            prompt_renderer,
+            progress,
+            trace_port,
+        )
+        .await
+    }
+}
 pub use discovery::{
     CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
     CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview, DiscoverCharacterProfilesInput,
@@ -141,6 +322,39 @@ pub use implicit_review::{
     IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND, ImplicitAttributeReviewSummary,
     ImplicitEvidenceSummary, ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
 };
+
+/// Host-facing boundary for implicit character review.
+///
+/// Review preparation, workflow execution and deletion-mark projection remain
+/// owned by the character application; Runtime only supplies prompt rendering.
+#[async_trait::async_trait]
+pub trait CharacterImplicitReviewApplicationPort: Send + Sync {
+    async fn summary(
+        &self,
+        user_id: i64,
+        input: GetImplicitReviewInput,
+    ) -> Result<ImplicitReviewSummary, AppError>;
+
+    async fn check(
+        &self,
+        user_id: i64,
+        input: CheckImplicitUpdateInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ImplicitUpdateDecisionSummary, AppError>;
+
+    async fn preview(
+        &self,
+        user_id: i64,
+        input: CheckImplicitUpdateInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<ChatRequest, AppError>;
+
+    async fn apply(
+        &self,
+        user_id: i64,
+        input: ApplyImplicitUpdateDecisionInput,
+    ) -> Result<ApplyImplicitUpdateDecisionResultSummary, AppError>;
+}
 pub use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
     CharacterProfileSyncProgress, CharacterProfileSyncSubject,
@@ -173,15 +387,6 @@ pub use snapshot_rules::{
     CHARACTER_SNAPSHOT_ENTITY_TYPE, ensure_positive_snapshot_chapter, initial_snapshot_data,
     validate_snapshot_diff_chapters, validate_snapshot_range,
 };
-
-#[derive(Debug, Clone)]
-pub struct CharacterSyncConflictReadModel {
-    pub profile_id: i64,
-    pub has_conflict: bool,
-    pub last_synced_chapter: i32,
-    pub max_available_chapter: i32,
-    pub available_snapshot_chapters: Vec<i32>,
-}
 
 pub use json_field_rules::{
     attribute_counts, category_attributes, category_storage_key, optional_string,

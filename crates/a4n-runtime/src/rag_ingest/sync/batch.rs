@@ -1,5 +1,10 @@
-use a4n_core::rag::RagDataType;
-use a4n_orchestrator::rag::{RagRecord, RagRecordSyncOutcome, RagSyncContext};
+use std::collections::HashSet;
+
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::{
+    PreparedRagRecordSync, RagRecord, RagRecordSyncOutcome, contracts::sync::classify_rag_record,
+    metadata::content_hash,
+};
 
 use super::progress::{ExpectedSyncStats, RagIngestProgress};
 use crate::state::AppState;
@@ -10,10 +15,12 @@ pub(in crate::rag_ingest) async fn sync_project_records(
     records: Vec<RagRecord>,
     progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<ExpectedSyncStats, String> {
-    let sync = RagSyncContext::for_project(state.orchestrator(), project_id)
+    let preparation = state
+        .rag_ingest()
+        .prepare_rag_sync(project_id, None)
         .await
         .map_err(|error| error.to_string())?;
-    sync_records(state, sync, records, progress).await
+    sync_records(state, project_id, preparation, records, progress).await
 }
 
 pub(in crate::rag_ingest) async fn sync_data_type_records(
@@ -22,41 +29,48 @@ pub(in crate::rag_ingest) async fn sync_data_type_records(
     data_types: &[RagDataType],
     records: Vec<RagRecord>,
 ) -> Result<ExpectedSyncStats, String> {
-    let sync = RagSyncContext::for_data_types(state.orchestrator(), project_id, data_types)
+    let preparation = state
+        .rag_ingest()
+        .prepare_rag_sync(project_id, Some(data_types.to_vec()))
         .await
         .map_err(|error| error.to_string())?;
-    sync_records(state, sync, records, None).await
+    sync_records(state, project_id, preparation, records, None).await
 }
 
 async fn sync_records(
     state: &AppState,
-    mut sync: RagSyncContext,
+    project_id: i64,
+    preparation: a4n_rag_contract::RagIngestPreparation,
     records: Vec<RagRecord>,
     mut progress: Option<&mut RagIngestProgress<'_>>,
 ) -> Result<ExpectedSyncStats, String> {
     let mut stats = ExpectedSyncStats::default();
     let mut pending = Vec::new();
+    let mut stale_ids = preparation.stale_ids.into_iter().collect::<HashSet<_>>();
 
     for record in records {
         let chunk_id = record.chunk_id.clone();
         if let Some(progress) = progress.as_deref_mut() {
             progress.stage(format!("正在比对 RAG 记录：{chunk_id}"))?;
         }
-        let prepared = sync
-            .prepare_record(record)
-            .map_err(|error| format!("RAG 记录 {chunk_id} 无效：{error}"))?;
-        let outcome = prepared.outcome();
+        let content_hash = content_hash(&record.text).map_err(|error| error.to_string())?;
+        let outcome = classify_rag_record(
+            preparation.stored_metadata.get(&record.chunk_id),
+            &content_hash,
+            &preparation.embedding_identity,
+        );
+        stale_ids.remove(&record.chunk_id);
         if outcome == RagRecordSyncOutcome::Skipped {
             stats.record_outcome(outcome)?;
             if let Some(progress) = progress.as_deref_mut() {
                 progress.advance(sync_progress_message(outcome, chunk_id))?;
             }
         } else {
-            pending.push(prepared);
+            pending.push(PreparedRagRecordSync::new(record, outcome));
         }
     }
 
-    let batch_size = state.orchestrator().embedding_batch_size();
+    let batch_size = state.rag_ingest().embedding_batch_size();
     if batch_size == 0 {
         return Err("RAG embedding provider batch_size 必须大于 0".to_string());
     }
@@ -71,8 +85,8 @@ async fn sync_records(
             .map(|prepared| (prepared.outcome(), prepared.chunk_id().to_string()))
             .collect::<Vec<_>>();
         state
-            .orchestrator()
-            .store_prepared_rag_records(sync.project_id(), batch)
+            .rag_ingest()
+            .store_prepared_rag_records(project_id, batch)
             .await
             .map_err(|error| batch_store_error(&batch_status, &error.to_string()))?;
         for (outcome, chunk_id) in batch_status {
@@ -83,8 +97,11 @@ async fn sync_records(
         }
     }
 
-    let deleted = sync
-        .cleanup_stale(state.orchestrator())
+    let mut stale_ids = stale_ids.into_iter().collect::<Vec<_>>();
+    stale_ids.sort();
+    let deleted = state
+        .rag_ingest()
+        .cleanup_stale_rag_records(project_id, stale_ids)
         .await
         .map_err(|error| error.to_string())?;
     stats.add_deleted(deleted)?;

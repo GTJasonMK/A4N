@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use serde_json::{Value, json};
 
 pub(super) fn image_inline_data(raw: &str, label: &str) -> Result<Value, AppError> {

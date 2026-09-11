@@ -2,7 +2,9 @@ use super::super::{
     CONFLICT_STATUS_PENDING, SourceSyncDbError, required_owned_text, validate_positive_id,
 };
 use super::types::{SourceSyncConflictRecordInput, SourceSyncDecisionRecordInput};
-use a4n_core::models::source_sync::{source_sync_conflict, source_sync_decision, source_sync_run};
+use a4n_db_models::models::source_sync::{
+    source_sync_conflict, source_sync_decision, source_sync_run,
+};
 use a4n_domain::source_sync::{SourceSyncConflictStatus, SourceSyncResolutionStrategy};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};

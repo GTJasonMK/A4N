@@ -6,7 +6,7 @@ use super::super::{
     },
 };
 #[cfg(test)]
-use a4n_core::models::canvas::canvas_node;
+use a4n_db_models::models::canvas::canvas_node;
 use a4n_domain::CanvasNodeRefKind;
 use std::collections::HashSet;
 

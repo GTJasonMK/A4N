@@ -1,9 +1,9 @@
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 
-use a4n_core::error::AppError;
-use a4n_core::models::project::novel_blueprint;
 use a4n_db::video::{VideoPromptBlueprintCharacterRecord, VideoPromptProtagonistProfileRecord};
+use a4n_db_models::models::project::novel_blueprint;
+use a4n_error::AppError;
 
 use super::super::OrchestratorContext;
 

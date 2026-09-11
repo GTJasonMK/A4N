@@ -1,6 +1,7 @@
+use a4n_api_contract::admin::AdminPermission;
 use a4n_api_contract::config::ImportAllConfigsInput;
-use a4n_core::error::AppError;
 use a4n_db::config::{SettingsAllConfigImportInput, SettingsAllConfigRows};
+use a4n_error::AppError;
 use async_trait::async_trait;
 use chrono::Utc;
 
@@ -23,6 +24,22 @@ pub trait SettingsAllHostPort: Send + Sync {
     async fn import_prompts(&self, rows: Vec<PromptRow>) -> Result<usize, AppError>;
 
     async fn rollback_prompts(&self, snapshots: Vec<(String, String)>) -> Result<(), AppError>;
+}
+
+#[async_trait]
+pub trait SettingsAllApplicationPort: Send + Sync {
+    async fn export_all_configs_to_json(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+    ) -> Result<String, AppError>;
+
+    async fn import_all_configs(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+        input: ImportAllConfigsInput,
+    ) -> Result<Vec<String>, AppError>;
 }
 
 impl OrchestratorContext {
@@ -100,5 +117,29 @@ impl OrchestratorContext {
                 }
             }
         }
+    }
+}
+
+#[async_trait]
+impl SettingsAllApplicationPort for OrchestratorContext {
+    async fn export_all_configs_to_json(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+    ) -> Result<String, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+            .await?;
+        self.export_all_configs_to_json_validated(host).await
+    }
+
+    async fn import_all_configs(
+        &self,
+        caller_user_id: i64,
+        host: &dyn SettingsAllHostPort,
+        input: ImportAllConfigsInput,
+    ) -> Result<Vec<String>, AppError> {
+        self.require_admin_permission(caller_user_id, AdminPermission::ManageSettings)
+            .await?;
+        self.import_all_configs_validated(host, input).await
     }
 }

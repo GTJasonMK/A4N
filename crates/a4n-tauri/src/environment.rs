@@ -1,5 +1,5 @@
-use a4n_core::config::app_config::{AppConfig, resolve_portable_path};
-use a4n_core::config::env::{env_flag_enabled, optional_non_empty_env_path};
+use a4n_config::app_config::{AppConfig, resolve_portable_path};
+use a4n_config::{env_flag_enabled, optional_non_empty_env_path};
 use std::{env::VarError, path::PathBuf};
 
 pub(crate) fn early_log_dir() -> Result<PathBuf, String> {

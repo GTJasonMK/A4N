@@ -6,13 +6,11 @@ use a4n_api_contract::{
     },
     image_generation::{ImageGenerationOperation, StartImageGenerationInput},
 };
-use a4n_core::{
-    config::app_config::AppConfig,
-    files::paths::AppPaths,
-    models::{ai::generated_image, user::role::ROLE_USER},
-};
-use a4n_runtime::state::RuntimeProfile;
+use a4n_config::app_config::AppConfig;
+use a4n_db_models::models::{ai::generated_image, user::role::ROLE_USER};
+use a4n_runtime::RuntimeProfile;
 use a4n_service_protocol::{GenerationEvent, GenerationTaskStatus};
+use a4n_storage::paths::AppPaths;
 use a4n_test_support::process::FakeJsonProvider;
 use base64::Engine as _;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
@@ -109,7 +107,14 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     config.temp_dir = config.data_dir.join("tmp");
     config.log_dir = config.data_dir.join("logs");
     config.security.jwt_secret = Some("tauri-generation-test-secret".to_string());
-    AppPaths::from_config(&config).ensure_dirs().unwrap();
+    AppPaths::new(
+        config.data_dir.clone(),
+        config.cache_dir.clone(),
+        config.temp_dir.clone(),
+        config.log_dir.clone(),
+    )
+    .ensure_dirs()
+    .unwrap();
     let data_dir = config.data_dir.clone();
     let state = AppState::new_with_profile(config, RuntimeProfile::Minimal)
         .await
@@ -186,10 +191,9 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
             )
             .await
             .unwrap();
-            if task.checkpoint.covers_through_sequence >= 2
+            if task.covers_through_sequence() >= 2
                 && task
-                    .public_snapshot
-                    .as_ref()
+                    .public_snapshot()
                     .is_some_and(|snapshot| !snapshot.status.is_terminal())
             {
                 break;

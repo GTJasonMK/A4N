@@ -1,6 +1,6 @@
 //! Adds the confirmed director-authored visual plan between source text and shooting script.
 
-use a4n_core::models::chapter::chapter_visual_plan;
+use a4n_db_models::models::chapter::chapter_visual_plan;
 use sea_orm::{ConnectionTrait, DbBackend, Schema, Statement};
 use sea_orm_migration::prelude::*;
 

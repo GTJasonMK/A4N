@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use chrono::Utc;
 
 use super::super::chapter_generation_lifecycle_error_to_app_error;

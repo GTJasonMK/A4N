@@ -1,5 +1,5 @@
 use crate::scene_profile::SceneProfileDbResult;
-use a4n_core::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
+use a4n_db_models::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};
 
 pub(in crate::scene_profile) async fn delete_chapter_scene_records<C>(

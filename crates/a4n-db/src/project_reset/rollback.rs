@@ -8,7 +8,7 @@ pub async fn rollback_project_status_record(
     to: ProjectStatus,
     changed_at: NaiveDateTime,
 ) -> Result<ProjectStatusRollbackOutcome, ProjectResetDbError> {
-    use a4n_core::models::chapter::{chapter, chapter_outline, part_outline};
+    use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
 
     let tx = db.begin().await?;
     let project = project_db::project_by_id_for_update(&tx, project_id)
@@ -19,11 +19,12 @@ pub async fn rollback_project_status_record(
             project_kind: project.project_kind,
         });
     }
-    let actual_from =
-        parse_project_status(&project.status).map_err(|_| ProjectResetDbError::InvalidState {
+    let actual_from = ProjectStatus::parse_storage(&project.status).map_err(|_| {
+        ProjectResetDbError::InvalidState {
             current: project.status.clone(),
             operation: "回退项目状态".to_string(),
-        })?;
+        }
+    })?;
     if actual_from != expected_from {
         return Err(ProjectResetDbError::StatusChanged {
             expected: expected_from.as_str().to_string(),

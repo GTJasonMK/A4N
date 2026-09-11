@@ -4,7 +4,7 @@ use super::contracts::{
     required_checkpoint_field, required_checkpoint_json,
 };
 use super::persistence::completed_workflow_checkpoint_upsert_input;
-use a4n_core::models::generation::workflow_checkpoint;
+use a4n_db_models::models::generation::workflow_checkpoint;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use chrono::Utc;
 use serde_json::{Value, json};

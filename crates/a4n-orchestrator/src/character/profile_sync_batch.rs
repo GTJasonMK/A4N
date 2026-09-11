@@ -4,10 +4,8 @@ use a4n_api_contract::character::{
     CharacterProfileSkippedResult, CharacterProfileSyncBatchStatus, CharacterProfileSyncFailure,
     CharacterProfileSyncedResult, SyncAllCharacterProfilesResult, SyncCharacterProfileResult,
 };
-use a4n_core::{
-    error::AppError,
-    models::{chapter::chapter, character::protagonist_profile},
-};
+use a4n_db_models::models::{chapter::chapter, character::protagonist_profile};
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use serde::Serialize;
 use serde_json::Value;

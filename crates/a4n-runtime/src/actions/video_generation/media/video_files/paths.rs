@@ -1,5 +1,4 @@
-use a4n_core::files::{create_unique_timestamped_file, paths::ProjectPaths};
-use a4n_core::models::ai::generated_video;
+use a4n_storage::{create_unique_timestamped_file, paths::ProjectPaths};
 use std::path::{Path, PathBuf};
 
 pub(crate) fn ensure_chapter_videos_dir(
@@ -35,13 +34,15 @@ pub(in crate::actions::video_generation::media) fn video_tail_frame_path(
 
 pub(crate) fn trimmed_video_path(
     data_dir: &Path,
-    source: &generated_video::Model,
+    project_id: i64,
+    chapter_id: Option<i64>,
+    source_id: i64,
 ) -> Result<PathBuf, String> {
-    let dir = match source.chapter_id {
-        Some(chapter_id) => ensure_chapter_videos_dir(data_dir, source.project_id, chapter_id)?,
-        None => ensure_project_videos_dir(data_dir, source.project_id)?,
+    let dir = match chapter_id {
+        Some(chapter_id) => ensure_chapter_videos_dir(data_dir, project_id, chapter_id)?,
+        None => ensure_project_videos_dir(data_dir, project_id)?,
     };
-    let (path, file) = create_unique_timestamped_file(&dir, &format!("trim_{}", source.id), "mp4")
+    let (path, file) = create_unique_timestamped_file(&dir, &format!("trim_{source_id}"), "mp4")
         .map_err(|error| format!("创建裁剪视频文件失败：{error}"))?;
     drop(file);
     Ok(path)

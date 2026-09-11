@@ -1,7 +1,7 @@
 use super::super::types::{SettingsAllConfigImportError, SettingsAllConfigImportInput};
 use super::contracts::{DefaultImportPolicy, DefaultStateRow};
 use super::policy::ensure_single_default_after_import;
-use a4n_core::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
+use a4n_db_models::models::ai::{embedding_config, image_gen_config, llm_config, video_gen_config};
 use sea_orm::{DatabaseConnection, EntityTrait, QuerySelect};
 
 pub async fn validate_settings_all_config_import_defaults(

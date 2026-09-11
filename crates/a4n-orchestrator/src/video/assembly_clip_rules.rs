@@ -1,6 +1,5 @@
 //! 成片片段（chapter_video / assembly_insert）metadata 与排序纯规则。
 
-use a4n_core::models::ai::generated_video;
 use serde_json::{Map, Value, json};
 
 /// 成片排序步长（章节镜头 sort_order = shot_number * step）。
@@ -26,9 +25,9 @@ pub struct AssemblyClipOrderAnchor {
 pub fn is_assembly_clip_video_type(video_type: &str) -> bool {
     matches!(
         video_type,
-        generated_video::VIDEO_TYPE_CHAPTER
-            | generated_video::VIDEO_TYPE_REFERENCE_MEDIA
-            | generated_video::VIDEO_TYPE_ASSEMBLY_INSERT
+        a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER
+            | a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA
+            | a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT
     )
 }
 
@@ -167,10 +166,11 @@ pub fn assembly_clip_display_shot_number(
     metadata_json: Option<&Value>,
 ) -> Result<i32, String> {
     match video_type {
-        generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => {
+        a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER
+        | a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA => {
             assembly_clip_shot_number(video_id, metadata_json)
         }
-        generated_video::VIDEO_TYPE_ASSEMBLY_INSERT => {
+        a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT => {
             Ok(parse_assembly_insert_metadata(video_id, metadata_json)?
                 .insert_after_shot_number
                 .unwrap_or(0))
@@ -186,10 +186,11 @@ pub fn assembly_clip_sort_order(
     metadata_json: Option<&Value>,
 ) -> Result<f64, String> {
     match video_type {
-        generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => Ok(
-            f64::from(assembly_clip_shot_number(video_id, metadata_json)?) * ASSEMBLY_ORDER_STEP,
-        ),
-        generated_video::VIDEO_TYPE_ASSEMBLY_INSERT => {
+        a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER
+        | a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA => Ok(f64::from(
+            assembly_clip_shot_number(video_id, metadata_json)?,
+        ) * ASSEMBLY_ORDER_STEP),
+        a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT => {
             Ok(parse_assembly_insert_metadata(video_id, metadata_json)?.sort_order)
         }
         _ => Err(format!("视频 #{video_id} 不是成片片段")),
@@ -203,10 +204,9 @@ pub fn assembly_clip_insert_after_video_id(
     metadata_json: Option<&Value>,
 ) -> Result<Option<i64>, String> {
     match video_type {
-        generated_video::VIDEO_TYPE_CHAPTER | generated_video::VIDEO_TYPE_REFERENCE_MEDIA => {
-            Ok(None)
-        }
-        generated_video::VIDEO_TYPE_ASSEMBLY_INSERT => {
+        a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER
+        | a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA => Ok(None),
+        a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT => {
             Ok(parse_assembly_insert_metadata(video_id, metadata_json)?.insert_after_video_id)
         }
         _ => Err(format!("视频 #{video_id} 不是成片片段")),
@@ -307,19 +307,19 @@ mod tests {
     fn assembly_clip_sort_order_supports_insert_clips_between_shots() {
         let first_order = assembly_clip_sort_order(
             1,
-            generated_video::VIDEO_TYPE_CHAPTER,
+            a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER,
             Some(&json!({ "shot_number": 1 })),
         )
         .expect("first");
         let second_order = assembly_clip_sort_order(
             2,
-            generated_video::VIDEO_TYPE_CHAPTER,
+            a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER,
             Some(&json!({ "shot_number": 2 })),
         )
         .expect("second");
         let insert_order = assembly_clip_sort_order(
             3,
-            generated_video::VIDEO_TYPE_ASSEMBLY_INSERT,
+            a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT,
             Some(&json!({
                 "shot_number": 1,
                 "assembly_insert": {
@@ -341,7 +341,7 @@ mod tests {
     fn assembly_clip_sort_order_rejects_malformed_insert_metadata() {
         let err = assembly_clip_sort_order(
             3,
-            generated_video::VIDEO_TYPE_ASSEMBLY_INSERT,
+            a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT,
             Some(&json!({
                 "shot_number": 1,
                 "assembly_insert": {
@@ -357,7 +357,7 @@ mod tests {
 
         let err = assembly_clip_sort_order(
             4,
-            generated_video::VIDEO_TYPE_ASSEMBLY_INSERT,
+            a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT,
             Some(&json!({
                 "shot_number": 1,
                 "assembly_insert": {
@@ -448,13 +448,13 @@ mod tests {
     #[test]
     fn is_assembly_clip_video_type_accepts_known_types() {
         assert!(is_assembly_clip_video_type(
-            generated_video::VIDEO_TYPE_CHAPTER
+            a4n_domain::video_workflow::VIDEO_TYPE_CHAPTER
         ));
         assert!(is_assembly_clip_video_type(
-            generated_video::VIDEO_TYPE_ASSEMBLY_INSERT
+            a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_INSERT
         ));
         assert!(!is_assembly_clip_video_type(
-            generated_video::VIDEO_TYPE_ASSEMBLY_PUSH
+            a4n_domain::video_workflow::VIDEO_TYPE_ASSEMBLY_PUSH
         ));
     }
 

@@ -1,4 +1,5 @@
-use a4n_core::error::AppError;
+use a4n_domain::character::CharacterImplicitReviewDecisionRecordInput;
+use a4n_error::AppError;
 use a4n_llm::provider::is_truncated_finish_reason;
 use a4n_prompt::rendering::PromptRenderer;
 use serde_json::Value;
@@ -7,7 +8,7 @@ use crate::{
     OrchestratorContext,
     character::{
         AppliedCharacterImplicitDecisionRecord, CharacterAttributeLifecycleError,
-        CharacterImplicitReviewDecisionRecordInput, category_attributes,
+        category_attributes,
         implicit_review_rules::{
             AUTO_IMPLICIT_REVIEW_EVIDENCE_LIMIT, AUTO_IMPLICIT_REVIEW_THRESHOLD,
             AUTO_IMPLICIT_REVIEW_WINDOW_CHAPTERS, validate_implicit_review_params,
@@ -289,7 +290,7 @@ impl OrchestratorContext {
         profile_id: i64,
     ) -> Result<
         (
-            a4n_core::models::character::protagonist_profile::Model,
+            a4n_db_models::models::character::protagonist_profile::Model,
             Vec<BehaviorForReview>,
         ),
         AppError,

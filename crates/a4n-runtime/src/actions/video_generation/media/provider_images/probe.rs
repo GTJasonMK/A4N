@@ -1,5 +1,5 @@
 use crate::actions::video_generation::media::types::PROVIDER_IMAGE_URL_PROBE_TIMEOUT_SECS;
-use a4n_orchestrator::video::{is_provider_supported_image_content_type, truncate_url_for_error};
+use a4n_video::{is_provider_supported_image_content_type, truncate_url_for_error};
 use reqwest::header::{CONTENT_TYPE, RANGE};
 use std::sync::OnceLock;
 use std::time::Duration;

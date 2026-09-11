@@ -1,11 +1,11 @@
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::shooting_script::EditStoredChapterShootingScriptInput;
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect, TransactionTrait};
 
 use super::{
     codec::stored_visual_plan_identity,
     contracts::{
-        EditChapterShootingScriptOutcome, EditStoredChapterShootingScriptInput,
-        ShootingScriptDbError, UpdateChapterShootingScriptInput,
+        EditChapterShootingScriptOutcome, ShootingScriptDbError, UpdateChapterShootingScriptInput,
     },
     mutations::update_chapter_shooting_script,
     queries::chapter_shooting_script_by_id,

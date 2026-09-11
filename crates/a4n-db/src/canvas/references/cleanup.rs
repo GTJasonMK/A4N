@@ -3,7 +3,7 @@ mod image;
 mod scope;
 mod video;
 
-use a4n_core::models::canvas::canvas_node;
+use a4n_db_models::models::canvas::canvas_node;
 use sea_orm::sea_query::{Alias, CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
 use serde_json::Value;

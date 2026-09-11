@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::{chapter, chapter_outline, part_outline};
-use a4n_core::models::character::protagonist_profile;
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::chapter::{chapter, chapter_outline, part_outline};
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_db_models::models::project::novel_project;
+use a4n_error::AppError;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
 #[cfg(test)]

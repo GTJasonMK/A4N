@@ -1,6 +1,3 @@
-use a4n_core::models::chapter::{
-    chapter, chapter_outline, chapter_outline_provenance, part_outline,
-};
 use a4n_db::{
     import_reverse::{ReverseOutlineApplyRow, apply_reverse_outline_records_transaction},
     outline::{PartOutlineSyncDraft, update_part_outline_and_rebind_chapters_transaction},
@@ -10,6 +7,9 @@ use a4n_db::{
         create_project_record, delete_latest_chapter_outline_records,
         delete_latest_part_outline_records, save_manual_chapter_outline, save_manual_part_outline,
     },
+};
+use a4n_db_models::models::chapter::{
+    chapter, chapter_outline, chapter_outline_provenance, part_outline,
 };
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};

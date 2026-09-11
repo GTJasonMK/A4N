@@ -11,8 +11,8 @@ pub async fn preview_chapter_video_request(
 ) -> Result<ModelRequestPreview, String> {
     let host_port = RuntimeVideoProviderHostPort::new(state);
     let preview = state
-        .orchestrator()
-        .preview_chapter_video_request_validated(&host_port, input, prompt_override)
+        .video_request_preview_application()
+        .preview_chapter(&host_port, input, prompt_override)
         .await
         .map_err(crate::actions::app_error_message)?;
     Ok(model_request_preview(

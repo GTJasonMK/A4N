@@ -1,6 +1,6 @@
 use super::persist_galgame_script_record;
 use crate::galgame::{GalgameScriptRecordError, PersistGalgameScriptRecordInput};
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter,
     galgame::{galgame_choice, galgame_line, galgame_scene},
     project::source_snapshot_chapter,

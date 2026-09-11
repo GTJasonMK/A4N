@@ -2,7 +2,7 @@ use crate::galgame::{
     GALGAME_SCENE_ENTRY_BRANCH, GALGAME_SCENE_ENTRY_MAIN, GalgameScriptRecordError,
     PersistGalgameScriptRecordInput,
 };
-use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script};
+use a4n_db_models::models::galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script};
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};

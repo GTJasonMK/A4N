@@ -1,4 +1,4 @@
-use a4n_core::models::character::foreshadowing_index;
+use a4n_db_models::models::character::foreshadowing_index;
 use a4n_domain::character::ForeshadowingStatus;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};

@@ -1,18 +1,12 @@
 use a4n_api_contract::agent::{AgentResourceRef, AgentScope};
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub(crate) mod canvas;
 pub(crate) mod content_optimization;
 
-pub(crate) use a4n_api_contract::agent::{
-    CANVAS_AGENT_CAPABILITY as CANVAS_CAPABILITY,
-    CONTENT_OPTIMIZATION_AGENT_CAPABILITY as CONTENT_OPTIMIZATION_CAPABILITY,
-    DIRECTOR_AGENT_CAPABILITY as DIRECTOR_CAPABILITY,
+use a4n_api_contract::agent::{
+    CANVAS_AGENT_CAPABILITY, CONTENT_OPTIMIZATION_AGENT_CAPABILITY, DIRECTOR_AGENT_CAPABILITY,
 };
-
-pub(crate) fn tools_for_capability(capability: &str) -> &'static [&'static str] {
-    a4n_api_contract::agent::agent_tools_for_capability(capability)
-}
 
 /// These actions mutate user-owned source or start a billable workflow and
 /// must remain behind the durable approval boundary.
@@ -21,9 +15,12 @@ pub(crate) fn requires_user_approval(tool: &str) -> bool {
         tool,
         "apply_optimization_patches"
             | "save_canvas_graph"
+            | "edit_canvas_graph"
             | "run_canvas_graph"
             | "run_canvas_node"
             | "save_chapter_visual_plan_draft"
+            | "edit_chapter_visual_plan_draft"
+            | "save_editor_draft"
     )
 }
 
@@ -37,7 +34,6 @@ pub(crate) struct CanonicalSubagentBinding {
     pub project_id: Option<i64>,
     pub chapter_id: Option<i64>,
     pub bound_resource: Option<AgentResourceRef>,
-    pub allowed_tools: Vec<String>,
 }
 
 impl CanonicalSubagentBinding {
@@ -61,7 +57,7 @@ impl CanonicalSubagentBinding {
             project_id: self.project_id,
             chapter_id: self.chapter_id,
             allowed_capabilities,
-            allowed_tools: self.allowed_tools.clone(),
+            allowed_tools: Vec::new(),
         }
     }
 }
@@ -83,7 +79,7 @@ pub(crate) fn canonical_subagent_binding(
         ));
     }
     match capability.as_str() {
-        CONTENT_OPTIMIZATION_CAPABILITY => {
+        CONTENT_OPTIMIZATION_AGENT_CAPABILITY => {
             let project_id = positive_id(project_id, "content_optimization projectId")?;
             let chapter_id = positive_id(chapter_id, "content_optimization chapterId")?;
             let key = a4n_api_contract::agent::canonical_subagent_binding_key(
@@ -103,13 +99,9 @@ pub(crate) fn canonical_subagent_binding(
                     revision: None,
                     hash: None,
                 }),
-                allowed_tools: a4n_api_contract::agent::CONTENT_OPTIMIZATION_AGENT_TOOLS
-                    .iter()
-                    .map(|tool| (*tool).to_string())
-                    .collect(),
             })
         }
-        CANVAS_CAPABILITY => {
+        CANVAS_AGENT_CAPABILITY => {
             let project_id = positive_id(project_id, "canvas projectId")?;
             if chapter_id.is_some() {
                 return Err(AppError::InvalidArgument(
@@ -133,13 +125,9 @@ pub(crate) fn canonical_subagent_binding(
                     revision: None,
                     hash: None,
                 }),
-                allowed_tools: a4n_api_contract::agent::CANVAS_AGENT_TOOLS
-                    .iter()
-                    .map(|tool| (*tool).to_string())
-                    .collect(),
             })
         }
-        DIRECTOR_CAPABILITY => {
+        DIRECTOR_AGENT_CAPABILITY => {
             let project_id = positive_id(project_id, "director projectId")?;
             let chapter_id = positive_id(chapter_id, "director chapterId")?;
             let key = a4n_api_contract::agent::canonical_subagent_binding_key(
@@ -159,10 +147,6 @@ pub(crate) fn canonical_subagent_binding(
                     revision: None,
                     hash: None,
                 }),
-                allowed_tools: a4n_api_contract::agent::DIRECTOR_AGENT_TOOLS
-                    .iter()
-                    .map(|tool| (*tool).to_string())
-                    .collect(),
             })
         }
         _ => {
@@ -214,18 +198,12 @@ pub(crate) fn canonical_subagent_binding(
                 }
                 (None, None) => (None, None, None, format!("subagent:{capability}:global")),
             };
-            // Generic/user-defined profiles deliberately keep an empty
-            // allowlist: an empty list means "use manifest-discoverable
-            // tools" in the shared Agent scope contract.  Only registered
-            // domain adapters receive a fixed catalog.
-            let allowed_tools = Vec::new();
             Ok(CanonicalSubagentBinding {
                 capability,
                 key,
                 project_id,
                 chapter_id,
                 bound_resource,
-                allowed_tools,
             })
         }
     }
@@ -240,31 +218,28 @@ fn positive_id(value: Option<i64>, field: &str) -> Result<i64, AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_api_contract::agent::agent_tools_for_capability as tools_for_capability;
 
     #[test]
     fn canonical_bindings_are_stable_and_domain_scoped() {
         let optimize =
-            canonical_subagent_binding(CONTENT_OPTIMIZATION_CAPABILITY, Some(7), Some(11)).unwrap();
+            canonical_subagent_binding(CONTENT_OPTIMIZATION_AGENT_CAPABILITY, Some(7), Some(11))
+                .unwrap();
         assert_eq!(optimize.key, "subagent:content_optimization:chapter:11");
         assert_eq!(optimize.bound_resource.as_ref().unwrap().kind, "chapter");
-        assert!(
-            optimize
-                .allowed_tools
-                .contains(&"apply_optimization_patches".into())
-        );
 
-        let canvas = canonical_subagent_binding(CANVAS_CAPABILITY, Some(7), None).unwrap();
+        let canvas = canonical_subagent_binding(CANVAS_AGENT_CAPABILITY, Some(7), None).unwrap();
         assert_eq!(canvas.key, "subagent:canvas:project:7");
         assert_eq!(canvas.bound_resource.as_ref().unwrap().kind, "project");
-        assert!(canvas.allowed_tools.contains(&"run_canvas_graph".into()));
     }
 
     #[test]
     fn canonical_bindings_reject_missing_or_cross_domain_scope() {
         assert!(
-            canonical_subagent_binding(CONTENT_OPTIMIZATION_CAPABILITY, Some(7), None).is_err()
+            canonical_subagent_binding(CONTENT_OPTIMIZATION_AGENT_CAPABILITY, Some(7), None)
+                .is_err()
         );
-        assert!(canonical_subagent_binding(CANVAS_CAPABILITY, Some(7), Some(11)).is_err());
+        assert!(canonical_subagent_binding(CANVAS_AGENT_CAPABILITY, Some(7), Some(11)).is_err());
         let generic = canonical_subagent_binding("research", Some(7), None).unwrap();
         assert_eq!(generic.key, "subagent:research:project:7");
         assert!(
@@ -281,13 +256,14 @@ mod tests {
     #[test]
     fn domain_tool_catalogs_are_isolated() {
         assert!(tools_for_capability("main").contains(&"delegate"));
-        assert!(!tools_for_capability(CANVAS_CAPABILITY).contains(&"delegate"));
+        assert!(!tools_for_capability(CANVAS_AGENT_CAPABILITY).contains(&"delegate"));
         assert!(
-            tools_for_capability(CONTENT_OPTIMIZATION_CAPABILITY)
+            tools_for_capability(CONTENT_OPTIMIZATION_AGENT_CAPABILITY)
                 .contains(&"list_optimize_patch_sets")
         );
         assert!(
-            !tools_for_capability(CONTENT_OPTIMIZATION_CAPABILITY).contains(&"save_canvas_graph")
+            !tools_for_capability(CONTENT_OPTIMIZATION_AGENT_CAPABILITY)
+                .contains(&"save_canvas_graph")
         );
         assert!(requires_user_approval("run_canvas_graph"));
         assert!(requires_user_approval("save_chapter_visual_plan_draft"));
@@ -296,16 +272,11 @@ mod tests {
 
     #[test]
     fn director_binding_is_chapter_scoped() {
-        let director = canonical_subagent_binding(DIRECTOR_CAPABILITY, Some(7), Some(11))
+        let director = canonical_subagent_binding(DIRECTOR_AGENT_CAPABILITY, Some(7), Some(11))
             .expect("director binding should be valid");
         assert_eq!(director.key, "subagent:director:chapter:11");
         assert_eq!(director.bound_resource.as_ref().unwrap().kind, "chapter");
-        assert!(
-            director
-                .allowed_tools
-                .contains(&"save_chapter_visual_plan_draft".into())
-        );
-        assert!(canonical_subagent_binding(DIRECTOR_CAPABILITY, Some(7), None).is_err());
-        assert!(canonical_subagent_binding(DIRECTOR_CAPABILITY, None, Some(11)).is_err());
+        assert!(canonical_subagent_binding(DIRECTOR_AGENT_CAPABILITY, Some(7), None).is_err());
+        assert!(canonical_subagent_binding(DIRECTOR_AGENT_CAPABILITY, None, Some(11)).is_err());
     }
 }

@@ -1,6 +1,6 @@
-use a4n_core::{
-    config::app_config::LlmMaxTokensConfig, error::AppError, models::ai::system_settings,
-};
+use a4n_db_models::models::ai::system_settings;
+use a4n_domain::LlmMaxTokensConfig;
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, Set};
 

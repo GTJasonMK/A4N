@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use a4n_runtime::file_utils::write_new_data_file;
+use a4n_storage::write_new_data_file;
 
 use super::super::error::ApiError;
 use super::config::{temp_media_max_bytes, temp_media_public_base_url, temp_media_ttl_seconds};

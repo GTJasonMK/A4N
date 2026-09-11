@@ -1,6 +1,6 @@
 //! Project collaboration members and invitations.
 
-use a4n_core::models::project::{project_invite, project_member};
+use a4n_db_models::models::project::{project_invite, project_member};
 use sea_orm::{ConnectionTrait, DbBackend, EntityName, Schema, Statement};
 use sea_orm_migration::prelude::*;
 

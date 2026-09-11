@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, source_spans::SourceSpanIndex};
+use a4n_domain::source_spans::SourceSpanIndex;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use super::super::super::super::values::{

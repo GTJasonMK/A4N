@@ -32,7 +32,7 @@ async fn target_generation_options(
         .metadata_json
         .as_ref()
         .expect("test segment plan should include metadata");
-    let segment = serde_json::from_value::<Vec<a4n_core::video_execution::VideoSegmentPlanV2>>(
+    let segment = serde_json::from_value::<Vec<a4n_video_contract::VideoSegmentPlanV2>>(
         metadata
             .get("segments")
             .cloned()
@@ -42,7 +42,7 @@ async fn target_generation_options(
     .into_iter()
     .find(|segment| segment.segment_number == segment_number)
     .expect("test segment should exist");
-    let recipe = a4n_core::video_execution::video_segment_recipes_for_plan_from_metadata(
+    let recipe = a4n_video_contract::video_segment_recipes_for_plan_from_metadata(
         Some(metadata),
         plan.style.as_deref().expect("test segment plan style"),
     )

@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use serde_json::Value;
 
 pub(crate) use a4n_domain::project::SourceSnapshotChapterSummary;

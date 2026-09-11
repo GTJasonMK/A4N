@@ -18,7 +18,7 @@ mod validation;
 mod video_chain;
 mod video_units;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 #[cfg(test)]
@@ -60,7 +60,7 @@ use super::{
     report_video_prompt_checkpoint, report_video_prompt_item_committed,
     report_video_prompt_progress,
 };
-use a4n_core::source_spans::SourceSpan;
+use a4n_domain::source_spans::SourceSpan;
 
 use self::boundary_context::apply_boundary_frame_style_template;
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use serde::Serialize;
 
-use crate::contracts::ExportRenderJsonInput;
 use crate::errors::ExportRenderError;
+use a4n_export_contract::ExportRenderJsonInput;
 
 pub fn render_json(input: ExportRenderJsonInput) -> Result<String, ExportRenderError> {
     if input.pretty {

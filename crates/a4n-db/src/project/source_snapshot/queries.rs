@@ -2,7 +2,7 @@ use super::{
     super::{ProjectMutationError, validate_positive_i64},
     types::SourceSnapshotChapterSummary,
 };
-use a4n_core::models::project::{novel_project, source_snapshot_chapter};
+use a4n_db_models::models::project::{novel_project, source_snapshot_chapter};
 use a4n_domain::project::ProjectSourceMode;
 use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 

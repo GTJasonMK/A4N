@@ -1,4 +1,4 @@
-use a4n_core::models::ai::video_gen_config;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use a4n_video::VideoJobState;
 use tokio_util::sync::CancellationToken;
@@ -8,7 +8,7 @@ use crate::actions::image_generation::run_queued_request_with_cancel_and_workflo
 
 pub(in crate::actions) async fn poll_provider_job(
     state: &AppState,
-    cfg: &video_gen_config::Model,
+    cfg: &VideoProviderConfig,
     project_id: i64,
     root_project_id: Option<i64>,
     job_id: &str,

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::part_outline;
+use a4n_db_models::models::chapter::part_outline;
+use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
 
@@ -168,7 +168,7 @@ impl OrchestratorContext {
 
             let request = build_chapter_outline_request(ChapterOutlineRequestInput {
                 project_id,
-                context: &context,
+                context,
                 focus_part,
                 start_chapter: chapter_number,
                 count: 1,

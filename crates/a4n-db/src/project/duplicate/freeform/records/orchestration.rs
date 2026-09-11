@@ -1,4 +1,5 @@
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
+use a4n_domain::project::ProjectMediaFileCopier;
 use chrono::NaiveDateTime;
 use sea_orm::ConnectionTrait;
 
@@ -10,12 +11,12 @@ use super::{
 use crate::project::duplicate::{
     ProjectDuplicateError,
     freeform::FreeformProjectMediaCopyResult,
-    shared::{ProjectCopyInsert, ProjectMediaFileCopier, insert_project_copy_record},
+    shared::{ProjectCopyInsert, insert_project_copy_record},
 };
 
 pub(in crate::project::duplicate::freeform) async fn duplicate_freeform_project_media_record<
     C,
-    Copier,
+    Copier: ?Sized,
 >(
     db: &C,
     original: &novel_project::Model,

@@ -16,6 +16,6 @@ fn normalize_analysis_keeps_valid_payload_and_adds_meta() {
 fn validate_saved_analysis_accepts_normalized_payload_with_meta() {
     let normalized = normalize_analysis(sample_analysis(), &sample_chapter()).unwrap();
 
-    a4n_core::chapter_analysis::validate_saved_chapter_analysis(&normalized)
+    a4n_chapter_analysis::validate_saved_chapter_analysis(&normalized)
         .expect("normalized saved analysis should be valid");
 }

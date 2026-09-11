@@ -4,12 +4,13 @@ mod upload;
 use parsing::parse_import_file_bytes;
 use upload::decode_import_upload;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
-use crate::{AppState, actions::import_review};
+use crate::AppState;
 
 use a4n_api_contract::import::ImportProjectTextUploadInput;
 use a4n_api_contract::import_review::ImportReviewSummary;
+use a4n_domain::import_review::ImportChapterDraft;
 
 pub async fn import_project_text_upload(
     state: &AppState,
@@ -20,17 +21,18 @@ pub async fn import_project_text_upload(
     let chapters =
         parse_import_file_bytes(&upload.file_type, &upload.file_bytes, &upload.file_name)
             .map_err(AppError::InvalidArgument)?;
-    a4n_orchestrator::import_analysis::create_import_analysis_reviews_for_user_validated(
-        state.orchestrator(),
-        user_id,
-        upload.project_id,
-        &upload.file_name,
-        &chapters,
-    )
-    .await?
-    .iter()
-    .map(import_review::import_review_summary)
-    .collect()
+    let chapters = chapters
+        .into_iter()
+        .map(|chapter| ImportChapterDraft {
+            number: chapter.number,
+            title: chapter.title,
+            content: chapter.content,
+        })
+        .collect::<Vec<_>>();
+    state
+        .import_review_application()
+        .create_from_parsed(user_id, upload.project_id, &upload.file_name, &chapters)
+        .await
 }
 
 #[cfg(test)]

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_image_providers::image_provider_request_body_preview;
 use a4n_model_discovery::{
     ModelDiscoveryRequest, ModelDiscoveryResult, discover_models_from_request,
@@ -33,7 +33,7 @@ pub(crate) async fn discover_models(
     let trace_id = request.trace_context.trace_id;
     let result = discover_models_from_request(request.payload)
         .await
-        .map_err(AppError::ConfigError);
+        .map_err(AppError::Configuration);
     Json(ServiceResponse::from_result(
         trace_id,
         result,

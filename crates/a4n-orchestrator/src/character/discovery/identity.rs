@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
 use a4n_api_contract::character::DiscoveredCharacterProfileSummary;
-use a4n_core::models::character::protagonist_profile;
+use a4n_db_models::models::character::protagonist_profile;
 use serde_json::{Value, json};
 
 use crate::character::json_field_rules::{

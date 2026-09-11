@@ -1,7 +1,7 @@
-use a4n_core::error::AppError;
+use a4n_domain::project::ChapterDerivedCleanupArtifacts;
+use a4n_error::AppError;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
-use super::super::ChapterDerivedCleanupArtifacts;
 use super::cleanup_character_profile_timeline_for_chapter_in;
 
 pub(crate) async fn cleanup_chapter_derived_data_in<C>(

@@ -1,40 +1,3 @@
-use crate::routes::commands::{ApiError, project_records_actions, to_value};
-use crate::state::ServerState;
-use a4n_core::models::project::novel_project;
-use serde_json::Value;
-
-pub(super) async fn project_summary_value(
-    state: &ServerState,
-    user_id: i64,
-    project: &novel_project::Model,
-) -> Result<Value, ApiError> {
-    to_value(
-        project_records_actions::project_summary_with_family_for_user(
-            state.runtime(),
-            user_id,
-            project,
-        )
-        .await
-        .map_err(ApiError::bad_request)?,
-    )
-}
-
-pub(super) async fn project_summaries_value(
-    state: &ServerState,
-    user_id: i64,
-    projects: Vec<novel_project::Model>,
-) -> Result<Value, ApiError> {
-    to_value(
-        project_records_actions::project_summaries_with_family_for_user(
-            state.runtime(),
-            user_id,
-            &projects,
-        )
-        .await
-        .map_err(ApiError::bad_request)?,
-    )
-}
-
 macro_rules! project_web_input_summary_command {
     ($name:ident, $input:ty, $action:path) => {
         pub(in crate::routes::commands) async fn $name(
@@ -43,10 +6,11 @@ macro_rules! project_web_input_summary_command {
             args: &serde_json::Value,
         ) -> Result<serde_json::Value, $crate::routes::commands::ApiError> {
             let input: $input = $crate::routes::commands::command_input(args, stringify!($name))?;
-            let project = $action(state.runtime(), user_id, input)
-                .await
-                .map_err($crate::routes::commands::ApiError::bad_request)?;
-            super::macros::project_summary_value(state, user_id, &project).await
+            $crate::routes::commands::to_value(
+                $action(state.runtime(), user_id, input)
+                    .await
+                    .map_err($crate::routes::commands::ApiError::bad_request)?,
+            )
         }
     };
 }
@@ -154,10 +118,11 @@ macro_rules! project_web_status_command {
                     stringify!($name)
                 ))
             })?;
-            let project = $action(state.runtime(), user_id, project_id, target)
-                .await
-                .map_err($crate::routes::commands::ApiError::bad_request)?;
-            super::macros::project_summary_value(state, user_id, &project).await
+            $crate::routes::commands::to_value(
+                $action(state.runtime(), user_id, project_id, target)
+                    .await
+                    .map_err($crate::routes::commands::ApiError::bad_request)?,
+            )
         }
     };
 }

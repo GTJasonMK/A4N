@@ -21,7 +21,5 @@ pub async fn invoke_host_command(
         };
     }
 
-    a4n_server::dispatch_runtime_command(&state, user_id, args, command)
-        .await
-        .map_err(Value::String)
+    a4n_server::dispatch_runtime_command_value(&state, user_id, args, command).await
 }

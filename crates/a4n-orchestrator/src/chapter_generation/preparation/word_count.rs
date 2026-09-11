@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_outline;
+use a4n_db_models::models::chapter::chapter_outline;
 use serde::Serialize;
 
 const DEFAULT_CHAPTER_WORD_COUNT_MIN: i32 = 4_500;

@@ -1,5 +1,5 @@
 use super::contracts::ProjectChapterContextError;
-use a4n_core::models::chapter::chapter;
+use a4n_db_models::models::chapter::chapter;
 use sea_orm::{ColumnTrait, DatabaseConnection, DbErr, EntityTrait, QueryFilter, QueryOrder};
 
 pub async fn chapter_by_id(

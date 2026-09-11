@@ -1,6 +1,6 @@
 use crate::collaboration::CollaborationDbError;
 use crate::collaboration::types::UserAccessRow;
-use a4n_core::models::{
+use a4n_db_models::models::{
     project::{novel_project, project_invite, project_member},
     user::user,
 };

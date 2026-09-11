@@ -1,6 +1,6 @@
 //! Persistent LLM context packs and cache/cost traces.
 
-use a4n_core::models::generation::{llm_call_trace, llm_context_pack};
+use a4n_db_models::models::generation::{llm_call_trace, llm_context_pack};
 use sea_orm::{DbBackend, EntityName, Schema};
 use sea_orm_migration::prelude::*;
 

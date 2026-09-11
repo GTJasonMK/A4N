@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 use crate::structured_llm::{ensure_checkpoint_parsed_output_matches, parse_strict_json_response};
@@ -64,7 +64,7 @@ mod tests {
         .expect_err("mismatched checkpoint should fail");
 
         match error {
-            a4n_core::error::AppError::InvalidState { current, operation } => {
+            a4n_error::AppError::InvalidState { current, operation } => {
                 assert_eq!(current, "checkpoint_parsed_output_mismatch");
                 assert_eq!(operation, "校验章节分析 事实抽取阶段 checkpoint");
             }

@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Map;
 
 use super::super::super::values::{normalize_optional_string, normalize_string_array};

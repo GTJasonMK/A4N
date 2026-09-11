@@ -4,7 +4,7 @@ use super::identity::{
 };
 use crate::project::progress::ProjectProgressReadError;
 use crate::project::progress::shared::ProgressCounts;
-use a4n_core::models::{ai::generated_video, chapter::chapter_video_prompt};
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::video::generated_video_prompt_id;
 use std::collections::HashMap;
 
@@ -64,7 +64,7 @@ fn should_count_video_for_progress(
     prompt_slot_statuses: &HashMap<VideoSlotKey, String>,
     prompt_id_statuses: &HashMap<i64, String>,
 ) -> bool {
-    if video.status != generated_video::STATUS_FAILED {
+    if video.status != a4n_domain::video_workflow::VIDEO_STATUS_FAILED {
         return true;
     }
     if let Some(slot) = video_slot_key_from_video(video)

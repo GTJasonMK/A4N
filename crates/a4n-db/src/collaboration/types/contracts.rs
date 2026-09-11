@@ -1,5 +1,5 @@
 use super::{ProjectAccessRole, ProjectAccessScope};
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::ProjectKind;
 use chrono::NaiveDateTime;
 use sea_orm::FromQueryResult;

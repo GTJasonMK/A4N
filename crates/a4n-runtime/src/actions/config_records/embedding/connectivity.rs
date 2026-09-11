@@ -1,10 +1,10 @@
-use super::super::shared::{require_config_admin, validate_runtime_snapshot_config_id};
+use super::super::shared::validate_runtime_snapshot_config_id;
 use crate::actions::request_preview::{
     ModelRequestPreview, model_request_preview, provider_request_step,
 };
 use crate::{AppState, actions::app_error_message};
-use a4n_core::models::ai::embedding_config;
 use a4n_embedding::provider::EMBEDDING_CONNECTIVITY_TEST_TEXT;
+use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 use serde::Serialize;
 
@@ -25,7 +25,7 @@ pub async fn test_embedding_config(
     if state.runtime_profile().uses_sidecars() {
         let capabilities = state.capabilities().clone();
         state
-            .orchestrator()
+            .provider_runtime()
             .queue_run_tracked(
                 QueueTaskKind::EmbeddingCall,
                 TaskPriority::High,
@@ -36,6 +36,7 @@ pub async fn test_embedding_config(
                         &config,
                     )
                     .await
+                    .map_err(a4n_error::AppError::from)
                 },
             )
             .await
@@ -46,12 +47,17 @@ pub async fn test_embedding_config(
         crate::dynamic_embedding::make_provider_from_model(&config, state.embedding_models_dir())
             .map_err(|e| e.to_string())?;
     state
-        .orchestrator()
+        .provider_runtime()
         .queue_run_tracked(
             QueueTaskKind::EmbeddingCall,
             TaskPriority::High,
             None,
-            || async move { provider.test_connection().await },
+            || async move {
+                provider
+                    .test_connection()
+                    .await
+                    .map_err(a4n_error::AppError::from)
+            },
         )
         .await
         .map_err(|e| e.to_string())
@@ -83,23 +89,20 @@ async fn resolve_embedding_config_for_connectivity_test(
     state: &AppState,
     user_id: i64,
     config_id: i64,
-) -> Result<embedding_config::Model, String> {
-    if let Some(config) = crate::runtime_config::current_embedding_model() {
+) -> Result<EmbeddingProviderConfig, String> {
+    if let Some(config) = crate::runtime_config::current_embedding_provider_config() {
         validate_runtime_snapshot_config_id("embedding", config.id, config_id)?;
         return Ok(config);
     }
-    require_config_admin(state, user_id)
-        .await
-        .map_err(app_error_message)?;
     state
-        .orchestrator()
-        .embedding_config_by_id(config_id)
+        .config_application()
+        .embedding_config_for_connectivity_test(user_id, config_id)
         .await
         .map_err(app_error_message)
 }
 
 fn build_embedding_connectivity_test_request(
-    config: &embedding_config::Model,
+    config: &a4n_provider_contract::EmbeddingProviderConfig,
 ) -> EmbeddingConnectivityPreviewRequest {
     EmbeddingConnectivityPreviewRequest {
         backend: config.backend.clone(),

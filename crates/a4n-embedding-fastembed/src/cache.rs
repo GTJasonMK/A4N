@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use fastembed::{EmbeddingModel, ModelInfo};
 
 const TOKENIZER_FILES: [&str; 4] = [

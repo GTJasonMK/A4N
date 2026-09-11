@@ -1,9 +1,11 @@
-use a4n_core::{models::project::blueprint_character, rag::RagDataType};
+use a4n_db_models::models::project::blueprint_character;
+use a4n_domain::rag::RagDataType;
+use a4n_rag_core::RagRecord;
 use a4n_rag_core::record_text::{
     DimensionRagSection, dimension_fields_section, optional_json_text, required_rag_text,
 };
 
-use super::super::{RagRecord, rag_chunk_id};
+use super::super::rag_chunk_id;
 
 fn blueprint_character_rag_sections(
     character: &blueprint_character::Model,

@@ -2,7 +2,7 @@ use crate::project::duplicate::ProjectDuplicateError;
 use crate::project::duplicate::freeform::FreeformCopyMaps;
 use crate::project::duplicate::freeform::remap::remap_freeform_metadata;
 use crate::project::duplicate::shared::remap_derived_required_id;
-use a4n_core::models::ai::{generated_image, generated_video};
+use a4n_db_models::models::ai::{generated_image, generated_video};
 use chrono::NaiveDateTime;
 use sea_orm::sea_query::{Alias, CaseStatement, Expr};
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect};

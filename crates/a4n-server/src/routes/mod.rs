@@ -9,7 +9,7 @@ mod meta;
 pub(crate) mod page_sessions;
 mod temp_media;
 
-pub use commands::dispatch_runtime_command;
+pub use commands::{dispatch_runtime_command, dispatch_runtime_command_value};
 pub use generation::dispatch_generation_start;
 
 use crate::state::ServerState;
@@ -27,6 +27,7 @@ pub fn api_router(state: ServerState) -> Router {
         .route("/meta", get(meta::get))
         .route("/meta/commands", get(meta::commands))
         .route("/meta/commands/{command}", get(meta::command))
+        .route("/meta/packages", get(meta::packages))
         .route("/agents", get(agents::list).post(agents::register))
         .route(
             "/agents/{agent_id}",

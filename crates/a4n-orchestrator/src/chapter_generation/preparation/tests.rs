@@ -6,7 +6,7 @@ use super::{
     },
     resolve_generation_word_count_range,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::chapter_outline, character::foreshadowing_index, project::blueprint_character,
 };
 use serde_json::json;

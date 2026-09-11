@@ -16,7 +16,7 @@ use super::{
     upsert_canvas_media_asset_record, upsert_canvas_media_asset_records,
 };
 use crate::canvas::CanvasDbError;
-use a4n_core::models::media::media_asset;
+use a4n_db_models::models::media::media_asset;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn ensure_canvas_video_media_asset_record<C>(

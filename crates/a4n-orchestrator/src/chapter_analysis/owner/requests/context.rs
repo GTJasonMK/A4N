@@ -1,9 +1,9 @@
 use std::collections::HashMap;
 
-use a4n_core::{
-    config::app_config::llm_token_profiles, error::AppError, models::chapter::chapter,
-    source_spans::source_spans_for_chapters,
-};
+use a4n_db_models::models::chapter::chapter;
+use a4n_domain::llm::llm_token_profiles;
+use a4n_domain::source_spans::source_spans_for_chapters;
+use a4n_error::AppError;
 use a4n_llm::{
     context::{LlmContextLedger, context_aware_system_user_request},
     provider::ChatRequest,

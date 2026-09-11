@@ -1,4 +1,4 @@
-use a4n_core::models::galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script};
+use a4n_db_models::models::galgame::{galgame_choice, galgame_line, galgame_scene, galgame_script};
 use sea_orm::{ColumnTrait, ConnectionTrait, DbErr, EntityTrait, QueryFilter, QuerySelect};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

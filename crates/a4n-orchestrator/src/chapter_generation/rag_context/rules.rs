@@ -1,4 +1,4 @@
-use a4n_core::rag::RagDataType;
+use a4n_domain::rag::RagDataType;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use serde_json::{Value, json};
 

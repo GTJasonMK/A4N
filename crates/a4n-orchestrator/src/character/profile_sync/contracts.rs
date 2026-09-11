@@ -1,4 +1,5 @@
-use a4n_core::{error::AppError, models::character::protagonist_profile};
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_error::AppError;
 
 use super::super::{CHARACTER_PROFILE_SYNC_STEPS, CharacterSyncRangeMode};
 

@@ -2,7 +2,7 @@ use super::generation_spec_for_source_sync_run;
 use crate::source_sync::{
     SourceSyncDbError, required_text, source_sync_generation_db_error, validate_positive_id,
 };
-use a4n_core::models::{
+use a4n_db_models::models::{
     generation::{generation_spec, prompt_artifact},
     source_sync::source_sync_run,
 };

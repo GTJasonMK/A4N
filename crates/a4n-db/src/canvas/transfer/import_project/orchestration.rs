@@ -19,7 +19,7 @@ use super::generated_media::{
     update_imported_video_source_refs,
 };
 use super::project::insert_video_studio_project_record;
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::{ConnectionTrait, DatabaseConnection, TransactionTrait};
 
 pub async fn import_video_studio_project_record<Writer>(

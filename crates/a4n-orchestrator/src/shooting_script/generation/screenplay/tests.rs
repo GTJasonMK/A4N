@@ -1,9 +1,9 @@
-use a4n_core::source_spans::source_spans_for_content;
 use a4n_db::project::ResolvedChapterSource;
 use a4n_domain::shooting_script::{
     ShootingDirectingStatementV1, ShootingEditingModeV1, ShootingTransitionContractV1,
     ShootingTransitionTypeV1,
 };
+use a4n_domain::source_spans::source_spans_for_content;
 
 use crate::{
     shooting_script::contracts::{

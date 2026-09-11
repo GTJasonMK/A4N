@@ -1,18 +1,19 @@
 #[cfg(test)]
 use super::PROJECT_FAMILY_PACKAGE_SUFFIX;
 use super::{ExportProjectPackageData, ImportProjectPackageUploadInput};
-use a4n_core::models::project::novel_project;
-use a4n_orchestrator::project::ImportProjectPackageApplicationInput;
+use a4n_api_contract::project_transfer::ImportProjectPackageApplicationInput;
+use a4n_export_contract::ExportZipEntryBytes;
+use a4n_storage::canonicalize_data_file_path;
 use base64::Engine as _;
 use std::path::Path;
 
 pub(super) fn export_package_data(
-    project: &novel_project::Model,
+    project_title: &str,
     bytes: Vec<u8>,
     file_suffix: &str,
 ) -> Result<ExportProjectPackageData, String> {
     Ok(ExportProjectPackageData {
-        file_name: project_package_file_name(&project.title, file_suffix)?,
+        file_name: project_package_file_name(project_title, file_suffix)?,
         data_base64: base64::engine::general_purpose::STANDARD.encode(bytes),
     })
 }
@@ -34,14 +35,13 @@ pub(super) fn project_package_media_zip_entries<'a>(
     data_dir: &Path,
     media_files: impl IntoIterator<Item = (&'a str, &'a str)>,
     source_label: &str,
-) -> Result<Vec<a4n_export_core::ExportZipEntryBytes>, String> {
+) -> Result<Vec<ExportZipEntryBytes>, String> {
     let mut entries = Vec::new();
     for (original_path, package_path) in media_files {
-        let source =
-            crate::file_utils::canonicalize_data_file_path(data_dir, original_path, source_label)?;
+        let source = canonicalize_data_file_path(data_dir, original_path, source_label)?;
         let bytes = std::fs::read(&source)
             .map_err(|err| format!("读取媒体文件失败: {}: {err}", source.display()))?;
-        entries.push(a4n_export_core::ExportZipEntryBytes {
+        entries.push(ExportZipEntryBytes {
             path: package_path.to_string(),
             bytes,
             label: format!("媒体文件 {package_path}"),

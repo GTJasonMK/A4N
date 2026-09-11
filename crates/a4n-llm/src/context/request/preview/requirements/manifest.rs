@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 use super::super::super::super::contracts::{
     LlmContextManifest, LlmContextPackRef, LlmContextPackRequirement,
 };
 use super::super::super::super::planner::{canonical_json_text, estimate_context_tokens};
 use super::PreviewPackContentKey;
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
+use a4n_domain::source_text_hash as source_content_sha256;
 
 pub(super) struct ManifestRequirementInputs {
     pub(super) requirements: Vec<LlmContextPackRequirement>,

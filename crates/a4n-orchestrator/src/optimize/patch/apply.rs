@@ -1,6 +1,6 @@
 use a4n_api_contract::optimize::OptimizationPatchOperation;
-use a4n_core::error::AppError;
-use a4n_core::source_spans::source_text_hash;
+use a4n_domain::source_text_hash;
+use a4n_error::AppError;
 
 use super::contracts::OptimizationPatch;
 use super::validation::{normalize_optimization_patch, validate_optimization_patches};

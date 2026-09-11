@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::models::{
+use a4n_db_models::models::{
     chapter::{chapter, chapter_visual_plan},
     project::source_snapshot_chapter,
 };

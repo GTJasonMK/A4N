@@ -1,5 +1,5 @@
-use a4n_core::blueprint::ParsedBlueprintRelationship;
-use a4n_core::error::AppError;
+use a4n_domain::project::ParsedBlueprintRelationship;
+use a4n_error::AppError;
 use serde_json::Value;
 
 mod entry;

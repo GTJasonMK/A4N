@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
 
 use crate::video::prompt_json::{ChatVideoPromptShot, VideoSegmentPlan};
 
@@ -89,7 +89,7 @@ pub(in crate::video::prompt_generation::frame_prompts) fn ensure_chat_video_prom
 mod tests {
     use super::*;
     use crate::video::prompt_json::ChatVideoPromptShot;
-    use a4n_core::models::chapter::chapter_video_prompt;
+    use a4n_db_models::models::chapter::chapter_video_prompt;
     use chrono::Utc;
     use serde_json::json;
 
@@ -136,7 +136,7 @@ mod tests {
 
     fn segment(shot_number: i32) -> VideoSegmentPlan {
         serde_json::from_value(json!({
-            "schema_version": a4n_core::video_execution::VIDEO_SEGMENT_PLAN_V2,
+            "schema_version": a4n_video_contract::VIDEO_SEGMENT_PLAN_V2,
             "segment_number": shot_number,
             "source_shot_id": format!("shot-{shot_number}"),
             "segment_index_in_shot": 1,

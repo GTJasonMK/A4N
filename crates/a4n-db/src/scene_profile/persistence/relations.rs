@@ -1,9 +1,7 @@
 use super::refs::resolve_ref;
-use crate::scene_profile::{
-    SceneEntityStateRecordInput, SceneProfileDbError, SceneProfileDbResult,
-    SceneTransitionRecordInput,
-};
-use a4n_core::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
+use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
+use a4n_db_models::models::scene::{scene_entity_state, scene_occurrence, scene_transition};
+use a4n_domain::scene_profile::{SceneEntityStateRecordInput, SceneTransitionRecordInput};
 use chrono::Utc;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QuerySelect, Set};
 use std::collections::{BTreeMap, HashMap};

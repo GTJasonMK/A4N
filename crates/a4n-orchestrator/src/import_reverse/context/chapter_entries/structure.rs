@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::{chapter, part_outline};
+use a4n_db_models::models::chapter::{chapter, part_outline};
 use serde_json::{Map, Value, json};
 
 use super::formatting::{add_optional_chapter_title, add_summary_or_preview};

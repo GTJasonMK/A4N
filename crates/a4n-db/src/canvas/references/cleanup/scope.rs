@@ -1,5 +1,5 @@
 use crate::canvas::CanvasDbError;
-use a4n_core::models::canvas::{canvas_graph, canvas_node};
+use a4n_db_models::models::canvas::{canvas_graph, canvas_node};
 use sea_orm::{
     ColumnTrait, ConnectionTrait, EntityTrait, FromQueryResult, QueryFilter, QuerySelect,
 };

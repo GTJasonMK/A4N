@@ -1,11 +1,11 @@
 use crate::scene_profile::SceneSyncInput;
-use a4n_core::models::asset::object_profile;
-use a4n_core::models::chapter::chapter;
-use a4n_core::models::character::protagonist_profile;
-use a4n_core::models::project::text_anchor;
-use a4n_core::models::scene::scene_profile;
-use a4n_core::structured_progress::{ProgressSpan, StructuredJsonProgressSpec};
+use a4n_db_models::models::asset::object_profile;
+use a4n_db_models::models::chapter::chapter;
+use a4n_db_models::models::character::protagonist_profile;
+use a4n_db_models::models::project::text_anchor;
+use a4n_db_models::models::scene::scene_profile;
 use a4n_llm::provider::ChatRequest;
+use a4n_progress::{ProgressSpan, StructuredJsonProgressSpec};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;

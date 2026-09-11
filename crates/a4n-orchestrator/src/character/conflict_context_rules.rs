@@ -1,13 +1,11 @@
 //! 角色冲突检查上下文构建纯规则。
 
-use a4n_core::{
-    chapter_analysis::summary_text,
-    error::AppError,
-    models::{
-        chapter::chapter,
-        character::{attribute_event, character_state_index},
-    },
+use a4n_chapter_analysis::summary_text;
+use a4n_db_models::models::{
+    chapter::chapter,
+    character::{attribute_event, character_state_index},
 };
+use a4n_error::AppError;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 

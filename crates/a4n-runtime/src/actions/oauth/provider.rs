@@ -1,5 +1,5 @@
-use a4n_core::config::env::required_non_empty_env_string;
-use a4n_core::error::AppError;
+use a4n_config::required_non_empty_env_string;
+use a4n_error::AppError;
 
 use crate::oauth_provider::{GitHubOAuth2, GoogleOAuth2, OAuth2Provider};
 

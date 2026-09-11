@@ -1,7 +1,7 @@
 //! 边界帧编号、提示词链和生成图片匹配规则（无 DB、无 Host）。
 
-use a4n_core::models::ai::generated_image;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::ai::generated_image;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT, image_generation_prompt_id,
     image_generation_source,

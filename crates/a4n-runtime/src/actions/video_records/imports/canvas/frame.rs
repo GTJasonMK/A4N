@@ -1,11 +1,11 @@
 use super::super::processing::{canvas_frame_output_path, run_ffmpeg_extract_frame};
 use crate::AppState;
 use crate::actions::access;
-use crate::actions::image_generation::{GeneratedImageSummary, to_summary};
+use crate::actions::image_generation::GeneratedImageSummary;
 use crate::actions::video_generation::media::append_secondary_error;
 use crate::cleanup_outbox::enqueue_file_artifact_cleanup_by_project;
-use crate::file_utils::{canonicalize_data_file_path, persist_created_media_file};
 use a4n_domain::CanvasFrameKind;
+use a4n_storage::{canonicalize_data_file_path, persist_created_media_file};
 
 pub(crate) async fn extract_canvas_video_frame(
     state: &AppState,
@@ -17,8 +17,8 @@ pub(crate) async fn extract_canvas_video_frame(
 ) -> Result<GeneratedImageSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let plan = state
-        .orchestrator()
-        .prepare_canvas_frame_validated(project_id, video_id, frame_kind, at_secs)
+        .video_record_application()
+        .prepare_canvas_frame(project_id, video_id, frame_kind, at_secs)
         .await
         .map_err(crate::actions::app_error_message)?;
     let source_path = plan
@@ -46,8 +46,8 @@ pub(crate) async fn extract_canvas_video_frame(
         "画布抽帧图片",
     )?;
     let image = match state
-        .orchestrator()
-        .create_canvas_frame_record_validated(plan, output_path_str.clone(), file_size)
+        .video_record_application()
+        .create_canvas_frame_record(plan, output_path_str.clone(), file_size)
         .await
     {
         Ok(image) => image,
@@ -65,5 +65,5 @@ pub(crate) async fn extract_canvas_video_frame(
             ));
         }
     };
-    Ok(to_summary(&image))
+    Ok(image)
 }

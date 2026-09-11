@@ -1,5 +1,5 @@
 use super::trace::{image_generation_parsed_output, image_generation_response_summary};
-use a4n_core::models::ai::generated_image;
+use a4n_db_models::models::ai::generated_image;
 use serde_json::json;
 
 fn image_model() -> generated_image::Model {

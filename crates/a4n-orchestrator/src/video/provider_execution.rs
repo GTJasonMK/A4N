@@ -1,18 +1,19 @@
-use a4n_core::{
-    error::AppError,
-    models::ai::{generated_video, video_gen_config},
-};
 use a4n_db::{SharedDatabaseConnection, generation::canonical_json_sha256};
+use a4n_db_models::models::ai::generated_video;
+use a4n_error::AppError;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::{VideoGenerationResult, VideoJobState};
-use async_trait::async_trait;
+use a4n_video_contract::{
+    VideoCancellationHandle, VideoGenerationProgressPort, VideoProviderHostPort,
+    VideoProviderResultTarget,
+};
 use serde_json::{Value, json};
 use std::sync::Arc;
 use tokio::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
 use crate::generation::{
-    GeneratedMediaArtifactFile,
     checkpoint::{GenerationCheckpointMetadata, GenerationCheckpointWriter},
     events::GenerationTaskSession,
 };
@@ -20,7 +21,15 @@ use crate::generation::{
 const VIDEO_JOB_POLL_INTERVAL_SECS: u64 = 8;
 const VIDEO_JOB_MAX_WAIT_SECS: u64 = 30 * 60;
 const VIDEO_JOB_MAX_CONSECUTIVE_POLL_ERRORS: u32 = 3;
-pub const VIDEO_GENERATION_PROGRESS_TOTAL: u32 = 7;
+pub use a4n_domain::video_workflow::VIDEO_GENERATION_PROGRESS_TOTAL;
+
+fn video_cancellation_handle(token: &CancellationToken) -> VideoCancellationHandle {
+    let cancelled = token.clone();
+    VideoCancellationHandle::new(move || {
+        let token = cancelled.clone();
+        Box::pin(async move { token.cancelled().await })
+    })
+}
 
 type VideoGenerationProgressCallback<'a> =
     &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), AppError> + Send);
@@ -81,10 +90,14 @@ impl<'a> VideoGenerationProgress<'a> {
         self.cancel_token.clone()
     }
 
+    pub(crate) fn cancellation_handle(&self) -> VideoCancellationHandle {
+        video_cancellation_handle(&self.cancel_token)
+    }
+
     pub(crate) async fn checkpoint_provider_request(
         &mut self,
         video_id: i64,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         request: &a4n_video::VideoGenerationRequest,
         staging_artifacts: &[GenerationArtifactRef],
     ) -> Result<Option<String>, AppError> {
@@ -100,7 +113,7 @@ impl<'a> VideoGenerationProgress<'a> {
     pub(crate) async fn checkpoint_provider_job(
         &mut self,
         video_id: i64,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         job_id: &str,
     ) -> Result<(), AppError> {
         let Some(checkpoint) = self.checkpoint.clone() else {
@@ -113,6 +126,20 @@ impl<'a> VideoGenerationProgress<'a> {
 
     pub(crate) fn checkpoint_context(&self) -> Option<VideoGenerationCheckpointContext> {
         self.checkpoint.clone()
+    }
+}
+
+impl VideoGenerationProgressPort for VideoGenerationProgress<'_> {
+    fn progress(&mut self, current: u32, total: u32, message: &str) -> Result<(), AppError> {
+        VideoGenerationProgress::progress(self, current, total, message)
+    }
+
+    fn cancellation_handle(&self) -> VideoCancellationHandle {
+        self.cancellation_handle()
+    }
+
+    fn cancel(&self) {
+        self.cancel_token.cancel();
     }
 }
 
@@ -146,7 +173,7 @@ impl VideoGenerationCheckpointContext {
     async fn record_provider_request(
         &self,
         video_id: i64,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         request: &a4n_video::VideoGenerationRequest,
         staging_artifacts: &[GenerationArtifactRef],
     ) -> Result<String, AppError> {
@@ -195,7 +222,7 @@ impl VideoGenerationCheckpointContext {
     async fn record_provider_job(
         &self,
         video_id: i64,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         job_id: &str,
     ) -> Result<(), AppError> {
         let identity = self.identity.lock().await.clone().ok_or_else(|| {
@@ -245,60 +272,19 @@ fn checkpoint_error(message: String) -> AppError {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct VideoProviderRequestInput {
-    pub project_id: i64,
-    pub config: video_gen_config::Model,
-    pub request: a4n_video::VideoGenerationRequest,
-    pub provider_idempotency_key_sha256: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-pub struct VideoProviderRequestBody {
-    pub request: Value,
-    pub source_label: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct PersistedVideoResult {
-    pub video_id: i64,
-    pub project_id: i64,
-    pub file_path: String,
-    pub thumbnail_path: Option<String>,
-    pub file_size: i64,
-    pub metadata_json: Option<Value>,
-}
-
-#[async_trait]
-pub trait VideoProviderHostPort: Send + Sync {
-    fn inspect_video_file(
-        &self,
-        relative_path: &str,
-        label: &str,
-    ) -> Result<GeneratedMediaArtifactFile, AppError>;
-
-    async fn poll_video_job(
-        &self,
-        project_id: i64,
-        workflow_run_id: i64,
-        config: &video_gen_config::Model,
-        job_id: &str,
-        cancel_token: CancellationToken,
-    ) -> Result<VideoJobState, AppError>;
-
-    async fn persist_video_result(
-        &self,
-        video: &generated_video::Model,
-        prompt_id: Option<i64>,
-        result: VideoGenerationResult,
-    ) -> Result<PersistedVideoResult, AppError>;
-
-    async fn remove_video_result(&self, persisted: &PersistedVideoResult) -> Result<(), AppError>;
+fn video_provider_result_target(video: &generated_video::Model) -> VideoProviderResultTarget {
+    VideoProviderResultTarget {
+        video_id: video.id,
+        project_id: video.project_id,
+        chapter_id: video.chapter_id,
+        video_type: video.video_type.clone(),
+        workflow_mode: video.workflow_mode.clone(),
+    }
 }
 
 pub struct VideoProviderExecutionInput {
     pub video: generated_video::Model,
-    pub config: video_gen_config::Model,
+    pub config: VideoProviderConfig,
     pub prompt_id: Option<i64>,
     pub missing_result_message: String,
     pub cancel_token: CancellationToken,
@@ -387,7 +373,7 @@ impl crate::OrchestratorContext {
     pub async fn poll_video_provider_once_validated(
         &self,
         video: generated_video::Model,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         prompt_id: Option<i64>,
         cancel_token: CancellationToken,
         host_port: &dyn VideoProviderHostPort,
@@ -410,13 +396,14 @@ impl crate::OrchestratorContext {
         let workflow_run_id = self
             .record_video_provider_progress_validated(&video, 1, 2, "正在恢复视频 provider 轮询")
             .await?;
+        let cancellation = video_cancellation_handle(&cancel_token);
         let state = host_port
             .poll_video_job(
                 video.project_id,
                 workflow_run_id,
                 config,
                 &job_id,
-                cancel_token.clone(),
+                &cancellation,
             )
             .await?;
         match state {
@@ -436,7 +423,7 @@ impl crate::OrchestratorContext {
                     .update_generated_video_waiting_status_validated(
                         video.id,
                         prompt_id,
-                        generated_video::STATUS_RUNNING,
+                        a4n_domain::video_workflow::VIDEO_STATUS_RUNNING,
                     )
                     .await?;
                 let updated = self
@@ -448,15 +435,15 @@ impl crate::OrchestratorContext {
                         &cancel_token,
                     )
                     .await?;
-                let (status, error_message) = if updated.status == generated_video::STATUS_COMPLETED
-                {
-                    (crate::workflow::WORKFLOW_STATUS_COMPLETED, None)
-                } else {
-                    (
-                        crate::workflow::WORKFLOW_STATUS_FAILED,
-                        updated.error_message.as_deref(),
-                    )
-                };
+                let (status, error_message) =
+                    if updated.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
+                        (crate::workflow::WORKFLOW_STATUS_COMPLETED, None)
+                    } else {
+                        (
+                            crate::workflow::WORKFLOW_STATUS_FAILED,
+                            updated.error_message.as_deref(),
+                        )
+                    };
                 self.mark_video_provider_workflow_validated(&updated, status, false, error_message)
                     .await?;
                 self.sync_canvas_video_workflow(&updated, error_message)
@@ -476,7 +463,7 @@ impl crate::OrchestratorContext {
                     .update_generated_video_waiting_status_validated(
                         video.id,
                         prompt_id,
-                        generated_video::STATUS_PENDING,
+                        a4n_domain::video_workflow::VIDEO_STATUS_PENDING,
                     )
                     .await?;
                 self.mark_video_provider_workflow_validated(
@@ -493,7 +480,7 @@ impl crate::OrchestratorContext {
                     .update_generated_video_waiting_status_validated(
                         video.id,
                         prompt_id,
-                        generated_video::STATUS_RUNNING,
+                        a4n_domain::video_workflow::VIDEO_STATUS_RUNNING,
                     )
                     .await?;
                 self.mark_video_provider_workflow_validated(
@@ -512,7 +499,7 @@ impl crate::OrchestratorContext {
         &self,
         host_port: &dyn VideoProviderHostPort,
         mut video: generated_video::Model,
-        config: &video_gen_config::Model,
+        config: &VideoProviderConfig,
         prompt_id: Option<i64>,
         job_id: &str,
         cancel_token: CancellationToken,
@@ -524,6 +511,7 @@ impl crate::OrchestratorContext {
         let timeout = Duration::from_secs(VIDEO_JOB_MAX_WAIT_SECS);
         let interval = Duration::from_secs(VIDEO_JOB_POLL_INTERVAL_SECS);
         let mut consecutive_errors = 0_u32;
+        let cancellation = video_cancellation_handle(&cancel_token);
 
         loop {
             if cancel_token.is_cancelled() {
@@ -548,13 +536,7 @@ impl crate::OrchestratorContext {
             }
 
             match host_port
-                .poll_video_job(
-                    video.project_id,
-                    workflow.id,
-                    config,
-                    job_id,
-                    cancel_token.clone(),
-                )
+                .poll_video_job(video.project_id, workflow.id, config, job_id, &cancellation)
                 .await
             {
                 Ok(VideoJobState::Completed(result)) => {
@@ -577,7 +559,7 @@ impl crate::OrchestratorContext {
                         )
                         .await?;
                     let (status, can_resume, error_message) =
-                        if updated.status == generated_video::STATUS_COMPLETED {
+                        if updated.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
                             (crate::workflow::WORKFLOW_STATUS_COMPLETED, false, None)
                         } else {
                             (
@@ -606,7 +588,7 @@ impl crate::OrchestratorContext {
                         .update_generated_video_waiting_status_validated(
                             video.id,
                             prompt_id,
-                            generated_video::STATUS_PENDING,
+                            a4n_domain::video_workflow::VIDEO_STATUS_PENDING,
                         )
                         .await?;
                     self.mark_video_provider_workflow_validated(
@@ -623,7 +605,7 @@ impl crate::OrchestratorContext {
                         .update_generated_video_waiting_status_validated(
                             video.id,
                             prompt_id,
-                            generated_video::STATUS_RUNNING,
+                            a4n_domain::video_workflow::VIDEO_STATUS_RUNNING,
                         )
                         .await?;
                     self.mark_video_provider_workflow_validated(
@@ -676,7 +658,7 @@ impl crate::OrchestratorContext {
         cancel_token: &CancellationToken,
     ) -> Result<generated_video::Model, AppError> {
         let persisted = match host_port
-            .persist_video_result(&video, prompt_id, result)
+            .persist_video_result(&video_provider_result_target(&video), prompt_id, result)
             .await
         {
             Ok(persisted) => persisted,
@@ -707,10 +689,9 @@ impl crate::OrchestratorContext {
                 };
             if let Err(error) = cancelled {
                 let authoritative = self.generated_video_by_id(video.id).await?;
-                if authoritative
-                    .as_ref()
-                    .is_some_and(|video| video.status == generated_video::STATUS_COMPLETED)
-                {
+                if authoritative.as_ref().is_some_and(|video| {
+                    video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+                }) {
                     return Err(error);
                 }
                 if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await {
@@ -723,7 +704,8 @@ impl crate::OrchestratorContext {
                 if authoritative.as_ref().is_some_and(|video| {
                     matches!(
                         video.status.as_str(),
-                        generated_video::STATUS_CANCELLED | generated_video::STATUS_INTERRUPTED
+                        a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
+                            | a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED
                     )
                 }) {
                     return Err(AppError::Cancelled);
@@ -757,7 +739,7 @@ impl crate::OrchestratorContext {
                 let can_adopt = crate::video::can_adopt_authoritative_video_completion(&error);
                 let authoritative = self.generated_video_by_id(video.id).await?;
                 if let Some(authoritative) = authoritative {
-                    if authoritative.status == generated_video::STATUS_COMPLETED {
+                    if authoritative.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
                         if authoritative.file_path.as_deref() != Some(persisted.file_path.as_str())
                             && let Err(cleanup_error) =
                                 host_port.remove_video_result(&persisted).await
@@ -774,7 +756,8 @@ impl crate::OrchestratorContext {
                         authoritative
                     } else if matches!(
                         authoritative.status.as_str(),
-                        generated_video::STATUS_CANCELLED | generated_video::STATUS_INTERRUPTED
+                        a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
+                            | a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED
                     ) {
                         if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await
                         {
@@ -785,7 +768,9 @@ impl crate::OrchestratorContext {
                             );
                         }
                         return Err(AppError::Cancelled);
-                    } else if authoritative.status == generated_video::STATUS_FAILED {
+                    } else if authoritative.status
+                        == a4n_domain::video_workflow::VIDEO_STATUS_FAILED
+                    {
                         if let Err(cleanup_error) = host_port.remove_video_result(&persisted).await
                         {
                             tracing::error!(
@@ -876,8 +861,9 @@ impl crate::OrchestratorContext {
             return Ok(());
         };
         let checkpoint_completed = match video.status.as_str() {
-            generated_video::STATUS_COMPLETED | generated_video::STATUS_FAILED => true,
-            generated_video::STATUS_INTERRUPTED => false,
+            a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+            | a4n_domain::video_workflow::VIDEO_STATUS_FAILED => true,
+            a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED => false,
             other => {
                 return Err(AppError::InvalidState {
                     current: format!("generated_video_status={other}"),
@@ -912,10 +898,10 @@ impl crate::OrchestratorContext {
             completed: checkpoint_completed,
         })
         .await?;
-        if video.status == generated_video::STATUS_COMPLETED {
+        if video.status == a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED {
             self.complete_workflow_run_validated(canvas.workflow_run_id)
                 .await?;
-        } else if video.status == generated_video::STATUS_FAILED {
+        } else if video.status == a4n_domain::video_workflow::VIDEO_STATUS_FAILED {
             let error_message = error_message.ok_or_else(|| AppError::InvalidState {
                 current: "failed_video_without_error".to_string(),
                 operation: "同步画布视频失败终态".to_string(),
@@ -943,11 +929,11 @@ impl crate::OrchestratorContext {
 mod tests {
     use std::sync::Arc;
 
-    use a4n_core::models::ai::generated_video;
     use a4n_db::workflow::{
         UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
         WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
     };
+    use a4n_db_models::models::ai::generated_video;
     use serde_json::json;
 
     use super::AppError;
@@ -1037,8 +1023,8 @@ mod tests {
             id: workflow_run_id,
             project_id: 1,
             chapter_id: None,
-            video_type: generated_video::VIDEO_TYPE_CANVAS.to_string(),
-            workflow_mode: Some(a4n_core::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_CANVAS.to_string(),
+            workflow_mode: Some(a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO.to_string()),
             file_path: None,
             thumbnail_path: None,
             prompt: "test prompt".to_string(),

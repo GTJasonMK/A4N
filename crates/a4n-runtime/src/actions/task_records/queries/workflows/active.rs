@@ -1,14 +1,10 @@
-use crate::{
-    AppState,
-    actions::{admin_records, app_error_message},
-};
+use crate::{AppState, actions::admin_records};
 use a4n_api_contract::workflow::WorkflowStateSummary;
 use a4n_queue::priority::TaskStatus;
 use std::collections::HashSet;
 
 use super::super::super::{
-    access::project_ids_visible_to_user,
-    projections::{task_info_to_workflow, task_manager_snapshot_to_workflow},
+    access::project_ids_visible_to_user, projections::task_manager_snapshot_to_workflow,
 };
 
 pub async fn list_active_workflows_for_user(
@@ -16,15 +12,15 @@ pub async fn list_active_workflows_for_user(
     user_id: i64,
 ) -> Result<Vec<WorkflowStateSummary>, String> {
     let tasks = state
-        .orchestrator()
-        .persisted_task_history(None, 0, 100)
+        .workflow_task_lookup_application()
+        .active_tasks()
         .await
-        .map_err(app_error_message)?;
-    let snapshots = state.orchestrator().active_task_snapshots();
+        .map_err(|error| error.to_string())?;
+    let snapshots = state.task_manager().list_active_snapshots();
     let project_ids = tasks
         .iter()
-        .filter(|persisted| matches!(persisted.task.status, TaskStatus::Running))
-        .filter_map(|persisted| persisted.task.project_id.or(persisted.task.root_project_id))
+        .filter(|task| task.status == TaskStatus::Running.as_str())
+        .filter_map(|task| task.project_id.or(task.root_project_id))
         .chain(
             snapshots
                 .iter()
@@ -33,9 +29,9 @@ pub async fn list_active_workflows_for_user(
         .collect::<Vec<_>>();
     let visible_project_ids = project_ids_visible_to_user(state, user_id, &project_ids).await?;
     let has_unscoped_task = tasks.iter().any(|persisted| {
-        matches!(persisted.task.status, TaskStatus::Running)
-            && persisted.task.project_id.is_none()
-            && persisted.task.root_project_id.is_none()
+        persisted.status == TaskStatus::Running.as_str()
+            && persisted.project_id.is_none()
+            && persisted.root_project_id.is_none()
     }) || snapshots
         .iter()
         .any(|task| task.project_id.is_none() && task.root_project_id.is_none());
@@ -55,15 +51,14 @@ pub async fn list_active_workflows_for_user(
     };
     let mut active = Vec::new();
     let mut seen = HashSet::new();
-    for persisted in tasks {
-        let task = persisted.task;
-        if !matches!(task.status, TaskStatus::Running)
+    for task in tasks {
+        if task.status != TaskStatus::Running.as_str()
             || !scope_visible(task.project_id, task.root_project_id)
         {
             continue;
         }
-        seen.insert(task.id.clone());
-        active.push(task_info_to_workflow(&task));
+        seen.insert(task.task_id.clone());
+        active.push(task.workflow);
     }
     for snapshot in snapshots {
         if seen.contains(&snapshot.task_id)

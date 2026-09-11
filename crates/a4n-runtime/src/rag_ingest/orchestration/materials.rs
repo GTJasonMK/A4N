@@ -4,7 +4,7 @@ use super::super::expected_records::{
 };
 use super::super::sync::sync_data_type_records;
 use crate::state::AppState;
-use a4n_core::rag::RagDataType;
+use a4n_domain::rag::RagDataType;
 
 const OUTLINE_RAG_DATA_TYPES: &[RagDataType] = &[RagDataType::Outline, RagDataType::PartOutline];
 const BLUEPRINT_RAG_DATA_TYPES: &[RagDataType] = &[

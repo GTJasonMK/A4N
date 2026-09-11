@@ -3,17 +3,9 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_image, generated_video},
-        generation::{generation_spec, workflow_checkpoint, workflow_run},
-        media::media_asset,
-        video_project::{assembly_clip, assembly_timeline},
-    },
-    video_workflow::{
-        WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM, WORKFLOW_MODE_CANVAS_VIDEO,
-    },
+use a4n_canvas_contract::{
+    CanvasAssembleVideosHostInput, CanvasEditingNodeHostPort, CanvasExtractFrameHostInput,
+    CanvasGeneratedImageArtifact, CanvasGeneratedVideoArtifact, CanvasTrimVideoHostInput,
 };
 use a4n_db::{
     DatabaseConnection,
@@ -27,7 +19,17 @@ use a4n_db::{
     },
     project::{CreateFreeformVideoProjectParams, create_freeform_video_project_record},
 };
+use a4n_db_models::models::{
+    ai::{generated_image, generated_video},
+    generation::{generation_spec, workflow_checkpoint, workflow_run},
+    media::media_asset,
+    video_project::{assembly_clip, assembly_timeline},
+};
 use a4n_domain::image::IMAGE_TYPE_CANVAS_FRAME;
+use a4n_domain::video_workflow::{
+    WORKFLOW_MODE_CANVAS_ASSEMBLY, WORKFLOW_MODE_CANVAS_TRIM, WORKFLOW_MODE_CANVAS_VIDEO,
+};
+use a4n_error::AppError;
 use async_trait::async_trait;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 use serde_json::{Value, json};
@@ -37,9 +39,7 @@ use crate::{
 };
 
 use super::{
-    CanvasAssembleVideosHostInput, CanvasEditingNodeExecutionInput, CanvasEditingNodeHostPort,
-    CanvasEditingNodeInput, CanvasExtractFrameHostInput, CanvasGeneratedImageArtifact,
-    CanvasGeneratedVideoArtifact, CanvasTrimVideoHostInput,
+    CanvasEditingNodeExecutionInput, CanvasEditingNodeInput,
     build_canvas_editing_node_input_for_preview,
 };
 
@@ -126,7 +126,7 @@ impl CanvasEditingNodeHostPort for TestEditingHost {
         let video = insert_generated_video(
             self.database.as_ref(),
             input.project_id,
-            generated_video::VIDEO_TYPE_TRIMMED_CLIP,
+            a4n_domain::video_workflow::VIDEO_TYPE_TRIMMED_CLIP,
             WORKFLOW_MODE_CANVAS_TRIM,
             "projects/output/trimmed-video.mp4",
         )
@@ -144,7 +144,7 @@ impl CanvasEditingNodeHostPort for TestEditingHost {
         let video = insert_generated_video(
             self.database.as_ref(),
             input.project_id,
-            generated_video::VIDEO_TYPE_CANVAS_ASSEMBLY,
+            a4n_domain::video_workflow::VIDEO_TYPE_CANVAS_ASSEMBLY,
             WORKFLOW_MODE_CANVAS_ASSEMBLY,
             "projects/output/assembled-video.mp4",
         )
@@ -406,7 +406,7 @@ struct CanvasSetup {
     context: OrchestratorContext,
     project_id: i64,
     document: CanvasGraphRecordDocument,
-    node: a4n_core::models::canvas::canvas_node::Model,
+    node: a4n_db_models::models::canvas::canvas_node::Model,
 }
 
 async fn setup_canvas(node_kind: &str, config: Value, source_count: usize) -> CanvasSetup {
@@ -632,7 +632,7 @@ async fn insert_generated_video(
 
 fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
     let now = chrono::Utc::now().naive_utc();
-    let graph = a4n_core::models::canvas::canvas_graph::Model {
+    let graph = a4n_db_models::models::canvas::canvas_graph::Model {
         id: 10,
         project_id: 20,
         name: "测试画布".to_string(),
@@ -643,7 +643,7 @@ fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
         updated_at: now,
     };
     let graph_id = graph.id;
-    let source = |id, video_id| a4n_core::models::canvas::canvas_node::Model {
+    let source = |id, video_id| a4n_db_models::models::canvas::canvas_node::Model {
         id,
         graph_id,
         node_kind: "VideoInputNode".to_string(),
@@ -655,7 +655,7 @@ fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
         created_at: now,
         updated_at: now,
     };
-    let assemble = a4n_core::models::canvas::canvas_node::Model {
+    let assemble = a4n_db_models::models::canvas::canvas_node::Model {
         id: 2,
         graph_id,
         node_kind: "AssembleVideoNode".to_string(),
@@ -668,16 +668,17 @@ fn test_document_for_input_rules() -> CanvasGraphRecordDocument {
         updated_at: now,
     };
     let assemble_id = assemble.id;
-    let edge = |id, source_node_id, order_index| a4n_core::models::canvas::canvas_edge::Model {
-        id,
-        graph_id,
-        source_node_id,
-        target_node_id: assemble_id,
-        source_port: "video".to_string(),
-        target_port: "clip".to_string(),
-        role: "assembly_clip".to_string(),
-        config_json: json!({"order_index": order_index}),
-    };
+    let edge =
+        |id, source_node_id, order_index| a4n_db_models::models::canvas::canvas_edge::Model {
+            id,
+            graph_id,
+            source_node_id,
+            target_node_id: assemble_id,
+            source_port: "video".to_string(),
+            target_port: "clip".to_string(),
+            role: "assembly_clip".to_string(),
+            config_json: json!({"order_index": order_index}),
+        };
     CanvasGraphRecordDocument {
         graph,
         nodes: vec![source(1, 91), assemble, source(3, 92)],

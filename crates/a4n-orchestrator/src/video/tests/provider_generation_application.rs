@@ -2,26 +2,28 @@
 //!
 //! 不经过 Server/Tauri process；使用本地 HostPort 假实现与 PostgreSQL 测试库。
 
+use a4n_error::AppError;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_core::{
-    error::AppError,
-    models::{
-        ai::{generated_video, video_gen_config},
-        generation::generation_run,
-        user::user,
-    },
-    source_spans::source_text_hash,
-    video_execution::{
-        VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoReferenceMediaBindingV1,
-        VideoReferenceMediaRecipeV1, VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1,
-        VideoSegmentWorkflowModeV1,
-    },
+use a4n_api_contract::video::{GenerateChapterVideoInput, GenerateReferenceMediaVideoInput};
+use a4n_db_models::models::{ai::generated_video, generation::generation_run, user::user};
+use a4n_domain::{media::GeneratedMediaArtifactFile, source_text_hash};
+use a4n_provider_contract::VideoProviderConfig;
+use a4n_video::{
+    ProviderImageInputTransport, VideoGenerationRequest, VideoGenerationResult, VideoJobState,
 };
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult, VideoJobState};
+use a4n_video_contract::{
+    ChapterVideoImageInput, ChapterVideoPreviewHostPort, PersistedVideoResult,
+    ReferenceMediaVideoPreviewHostPort, ResolvedChapterVideoImageInputs,
+    VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoCancellationHandle, VideoGenerationProgressPort,
+    VideoProviderRequestBody, VideoProviderRequestInput, VideoProviderResultTarget,
+    VideoReferenceMediaBindingV1, VideoReferenceMediaRecipeV1, VideoSegmentExecutionRecipeV1,
+    VideoSegmentGuidanceModeV1, VideoSegmentWorkflowModeV1,
+};
 use async_trait::async_trait;
 use base64::Engine as _;
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, Set};
@@ -29,15 +31,12 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
 
-use crate::generation::GeneratedMediaArtifactFile;
 use crate::test_support::TestOrchestratorBuilder;
 use crate::video::{
-    ChapterVideoGenerationHostPort, ChapterVideoImageInput, GenerateChapterVideoInput,
-    GenerateChapterVideosBatchInput, GenerateReferenceMediaVideoInput, PersistedVideoResult,
-    ProviderImageInputTransport, ReferenceMediaVideoGenerationHostPort, ReferenceMediaVideoInput,
-    ResolvedChapterVideoImageInputs, SEEDANCE2_VIDEO_BACKEND, VideoGenerationProgress,
-    VideoProviderHostPort, VideoProviderRequestBody, VideoProviderRequestInput,
+    ChapterVideoGenerationHostPort, GenerateChapterVideosBatchInput, ReferenceMediaVideoInput,
+    SEEDANCE2_VIDEO_BACKEND, VideoGenerationProgress,
 };
+use a4n_video_contract::VideoProviderHostPort;
 
 use super::*;
 
@@ -68,9 +67,9 @@ impl VideoProviderHostPort for TestVideoProviderHost {
         &self,
         _project_id: i64,
         _workflow_run_id: i64,
-        _config: &video_gen_config::Model,
+        _config: &VideoProviderConfig,
         _job_id: &str,
-        _cancel_token: CancellationToken,
+        _cancel_token: &VideoCancellationHandle,
     ) -> Result<VideoJobState, AppError> {
         Err(AppError::InvalidState {
             current: "poll".to_string(),
@@ -80,7 +79,7 @@ impl VideoProviderHostPort for TestVideoProviderHost {
 
     async fn persist_video_result(
         &self,
-        video: &generated_video::Model,
+        target: &VideoProviderResultTarget,
         prompt_id: Option<i64>,
         result: VideoGenerationResult,
     ) -> Result<PersistedVideoResult, AppError> {
@@ -97,19 +96,19 @@ impl VideoProviderHostPort for TestVideoProviderHost {
         if let Some(database) = &self.interrupt_on_persist {
             a4n_db::video::mark_generated_video_error_status_and_prompt_record(
                 database.as_ref(),
-                video.id,
+                target.video_id,
                 prompt_id,
-                generated_video::STATUS_INTERRUPTED,
+                a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED,
                 "测试模拟外部取消",
             )
             .await
             .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))?;
         }
         Ok(PersistedVideoResult {
-            video_id: video.id,
-            project_id: video.project_id,
-            file_path: format!("generated/videos/{}.{}", video.id, result.format),
-            thumbnail_path: Some(format!("generated/videos/{}.jpg", video.id)),
+            video_id: target.video_id,
+            project_id: target.project_id,
+            file_path: format!("generated/videos/{}.{}", target.video_id, result.format),
+            thumbnail_path: Some(format!("generated/videos/{}.jpg", target.video_id)),
             file_size: i64::try_from(result.bytes.len())
                 .map_err(|_| AppError::InvalidArgument("测试视频过大".to_string()))?,
             metadata_json: Some(json!({
@@ -141,7 +140,7 @@ impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
     async fn resolve_video_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError> {
+    ) -> Result<VideoProviderConfig, AppError> {
         Ok(seedance_config(config_id.unwrap_or(42)))
     }
 
@@ -163,7 +162,7 @@ impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
     async fn submit_reference_media_video(
         &self,
         input: VideoProviderRequestInput,
-        progress: &mut VideoGenerationProgress<'_>,
+        progress: &mut dyn VideoGenerationProgressPort,
     ) -> Result<VideoGenerationResult, AppError> {
         self.submit_calls.fetch_add(1, Ordering::SeqCst);
         *self.last_request.lock().expect("last_request lock") = Some(input.request.clone());
@@ -174,7 +173,7 @@ impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
             });
         }
         if self.cancel_during_submit {
-            progress.cancel_token().cancel();
+            progress.cancel();
         }
         let bytes = if self.return_empty_bytes {
             Vec::new()
@@ -202,6 +201,49 @@ impl ReferenceMediaVideoGenerationHostPort for TestReferenceMediaHost {
     }
 }
 
+#[async_trait]
+impl ReferenceMediaVideoPreviewHostPort for TestReferenceMediaHost {
+    async fn resolve_video_config_for_preview(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<VideoProviderConfig, AppError> {
+        <Self as ReferenceMediaVideoGenerationHostPort>::resolve_video_config(self, config_id).await
+    }
+
+    async fn reference_media_provider_request_body_for_preview(
+        &self,
+        input: VideoProviderRequestInput,
+    ) -> Result<VideoProviderRequestBody, AppError> {
+        <Self as ReferenceMediaVideoGenerationHostPort>::reference_media_provider_request_body(
+            self, input,
+        )
+        .await
+    }
+
+    async fn upload_reference_media_input_for_preview(
+        &self,
+        owner_user_id: i64,
+        project_id: i64,
+        source_media_id: i64,
+        source_media_kind: &str,
+        file_name: &str,
+        mime_type: &str,
+        bytes: &[u8],
+    ) -> Result<(String, a4n_service_protocol::GenerationArtifactRef), AppError> {
+        <Self as ReferenceMediaVideoGenerationHostPort>::upload_reference_media_input(
+            self,
+            owner_user_id,
+            project_id,
+            source_media_id,
+            source_media_kind,
+            file_name,
+            mime_type,
+            bytes,
+        )
+        .await
+    }
+}
+
 /// 章节路径只用于校验 gate；不进入真实 provider 请求渲染。
 #[derive(Default)]
 struct RejectingChapterHost {
@@ -213,7 +255,7 @@ impl ChapterVideoGenerationHostPort for RejectingChapterHost {
     async fn resolve_video_config(
         &self,
         config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError> {
+    ) -> Result<VideoProviderConfig, AppError> {
         Ok(seedance_config(config_id.unwrap_or(7)))
     }
 
@@ -238,7 +280,7 @@ impl ChapterVideoGenerationHostPort for RejectingChapterHost {
     async fn submit_chapter_video(
         &self,
         _input: VideoProviderRequestInput,
-        _progress: &mut VideoGenerationProgress<'_>,
+        _progress: &mut dyn VideoGenerationProgressPort,
     ) -> Result<VideoGenerationResult, AppError> {
         unreachable!("gate 测试不应到达 submit")
     }
@@ -252,14 +294,43 @@ impl ChapterVideoGenerationHostPort for RejectingChapterHost {
     }
 }
 
-fn seedance_config(id: i64) -> video_gen_config::Model {
-    let now = chrono::Utc::now().naive_utc();
-    video_gen_config::Model {
+#[async_trait]
+impl ChapterVideoPreviewHostPort for RejectingChapterHost {
+    async fn resolve_video_config_for_preview(
+        &self,
+        config_id: Option<i64>,
+    ) -> Result<VideoProviderConfig, AppError> {
+        <Self as ChapterVideoGenerationHostPort>::resolve_video_config(self, config_id).await
+    }
+
+    fn resolve_image_transport_for_preview(&self) -> Result<ProviderImageInputTransport, AppError> {
+        <Self as ChapterVideoGenerationHostPort>::resolve_image_transport(self)
+    }
+
+    async fn resolve_chapter_video_image_inputs_for_preview(
+        &self,
+        input: ChapterVideoImageInput,
+    ) -> Result<ResolvedChapterVideoImageInputs, AppError> {
+        <Self as ChapterVideoGenerationHostPort>::resolve_chapter_video_image_inputs(self, input)
+            .await
+    }
+
+    async fn chapter_video_provider_request_body_for_preview(
+        &self,
+        input: VideoProviderRequestInput,
+    ) -> Result<VideoProviderRequestBody, AppError> {
+        <Self as ChapterVideoGenerationHostPort>::chapter_video_provider_request_body(self, input)
+            .await
+    }
+}
+
+fn seedance_config(id: i64) -> VideoProviderConfig {
+    VideoProviderConfig {
         id,
         name: "Seedance 测试配置".to_string(),
         backend: SEEDANCE2_VIDEO_BACKEND.to_string(),
         base_url: Some("http://127.0.0.1:47645".to_string()),
-        api_key_encrypted: None,
+        api_key: None,
         model: "seedance-2-0-pro".to_string(),
         max_concurrent: 4,
         default_width: 1280,
@@ -271,8 +342,6 @@ fn seedance_config(id: i64) -> video_gen_config::Model {
         supported_durations_json: None,
         default_fps: 24,
         is_default: true,
-        created_at: now,
-        updated_at: now,
     }
 }
 
@@ -283,7 +352,7 @@ fn long_reference_prompt() -> String {
     )
 }
 
-fn reference_media_segment() -> a4n_core::video_execution::VideoSegmentPlanV2 {
+fn reference_media_segment() -> a4n_video_contract::VideoSegmentPlanV2 {
     serde_json::from_value(json!({
         "schema_version": "video_segment_plan_v2",
         "segment_number": 1,
@@ -321,9 +390,9 @@ async fn insert_reference_media_segment_plan(
         .expect("查询参考媒体测试章节")
         .expect("参考媒体测试章节应存在")
         .content;
-    let source_content_sha256 = a4n_core::source_spans::source_text_hash(&source_content);
+    let source_content_sha256 = a4n_domain::source_text_hash(&source_content);
     let segment = reference_media_segment();
-    let segment_sha256 = a4n_core::video_execution::video_segment_content_fingerprint(&segment)
+    let segment_sha256 = a4n_video_contract::video_segment_content_fingerprint(&segment)
         .expect("参考媒体测试片段应可计算指纹");
     let recipe = VideoSegmentExecutionRecipeV1 {
         schema_version: VIDEO_SEGMENT_EXECUTION_RECIPE_V1.to_string(),
@@ -372,7 +441,7 @@ async fn insert_reference_media_segment_plan(
         generated_video_id: Set(None),
         metadata_json: Set(Some(json!({
             "video_execution_identity": {
-                "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+                "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
                 "shooting_script_identity": {},
                 "projection_sha256": "projection",
                 "segment_plan_sha256": "segment-plan",
@@ -497,7 +566,7 @@ async fn insert_ready_segment_plan(
         metadata_json: Set(Some(json!({
             "contract_version": FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
             "video_execution_identity": {
-                "contract_epoch": a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH,
+                "contract_epoch": a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH,
                 "shooting_script_identity": {},
                 "projection_sha256": "projection",
                 "segment_plan_sha256": "segment-plan",
@@ -741,12 +810,15 @@ async fn reference_media_generate_persists_completed_video() {
 
     assert_eq!(host.submit_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(video.status, generated_video::STATUS_COMPLETED);
+    assert_eq!(
+        video.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+    );
     assert_eq!(video.project_id, project_id);
     assert_eq!(video.chapter_id, Some(chapter_id));
     assert_eq!(
         video.video_type,
-        generated_video::VIDEO_TYPE_REFERENCE_MEDIA
+        a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA
     );
     assert!(
         video
@@ -759,7 +831,10 @@ async fn reference_media_generate_persists_completed_video() {
         .await
         .expect("查询正式视频")
         .expect("正式视频应落库");
-    assert_eq!(stored.status, generated_video::STATUS_COMPLETED);
+    assert_eq!(
+        stored.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_COMPLETED
+    );
 }
 
 #[tokio::test]
@@ -769,7 +844,7 @@ async fn video_provider_terminal_status_updates_existing_workflow() {
         .create_video_generation_record_validated(VideoGenerationRecordInput {
             project_id,
             chapter_id: Some(chapter_id),
-            video_type: generated_video::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
+            video_type: a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA.to_string(),
             workflow_mode: Some("reference_media".to_string()),
             prompt: long_reference_prompt(),
             negative_prompt: None,
@@ -854,7 +929,10 @@ async fn reference_media_generate_provider_failure_marks_failed() {
 
     assert_eq!(host.submit_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.provider.persist_calls.load(Ordering::SeqCst), 0);
-    assert_eq!(video.status, generated_video::STATUS_FAILED);
+    assert_eq!(
+        video.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_FAILED
+    );
     assert!(
         video
             .error_message
@@ -866,7 +944,10 @@ async fn reference_media_generate_provider_failure_marks_failed() {
         .await
         .expect("查询失败视频")
         .expect("失败视频应落库");
-    assert_eq!(stored.status, generated_video::STATUS_FAILED);
+    assert_eq!(
+        stored.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_FAILED
+    );
 }
 
 #[tokio::test]
@@ -907,7 +988,10 @@ async fn reference_media_cancel_before_provider_marks_records_cancelled() {
         .await
         .expect("查询取消视频")
         .expect("取消视频记录应保留");
-    assert_eq!(video.status, generated_video::STATUS_CANCELLED);
+    assert_eq!(
+        video.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
+    );
     let run = generation_run::Entity::find()
         .filter(generation_run::Column::ProjectId.eq(project_id))
         .one(database.as_ref())
@@ -950,7 +1034,10 @@ async fn reference_media_cancel_during_provider_discards_late_result() {
         .await
         .expect("查询取消视频")
         .expect("取消视频记录应保留");
-    assert_eq!(video.status, generated_video::STATUS_CANCELLED);
+    assert_eq!(
+        video.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
+    );
 }
 
 #[tokio::test]
@@ -990,7 +1077,10 @@ async fn reference_media_cancel_during_persist_cleans_file_and_stays_cancelled()
         .await
         .expect("查询取消视频")
         .expect("取消视频记录应保留");
-    assert_eq!(video.status, generated_video::STATUS_CANCELLED);
+    assert_eq!(
+        video.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED
+    );
 }
 
 #[tokio::test]
@@ -1028,7 +1118,10 @@ async fn reference_media_external_interrupt_during_persist_is_not_downgraded_to_
         .await
         .expect("查询中断视频")
         .expect("中断视频记录应保留");
-    assert_eq!(video.status, generated_video::STATUS_INTERRUPTED);
+    assert_eq!(
+        video.status,
+        a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED
+    );
 }
 
 #[tokio::test]

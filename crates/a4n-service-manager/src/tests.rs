@@ -989,6 +989,62 @@ async fn supervisor_restarts_once_and_does_not_replay_in_flight_request() {
 }
 
 #[tokio::test]
+async fn supervisor_retries_transient_stop_failure_without_losing_child() {
+    let Some(binary) = demo_sidecar_binary_from_env() else {
+        return;
+    };
+    let addr = unused_local_addr();
+    let token_env = format!("A4N_TEST_STOP_TOKEN_{}", std::process::id());
+    unsafe {
+        std::env::remove_var(&token_env);
+    }
+    let mut config = ManagedServiceConfig::sidecar("demo", binary, format!("http://{addr}"));
+    config.env.insert("A4N_DEMO_SIDECAR_ADDR".to_string(), addr);
+    config.remote_security.auth_token_env = Some(token_env.clone());
+
+    let manager = ServiceManager::new(vec![config]).unwrap();
+    let mut process = manager.start_sidecar("demo").await.unwrap();
+    let first_error = process
+        .stop_in_place()
+        .await
+        .expect_err("missing stop credential should leave the supervisor retryable");
+    assert!(
+        first_error
+            .to_string()
+            .contains("credential environment is unavailable")
+    );
+    assert_eq!(
+        manager
+            .process_status("demo")
+            .await
+            .unwrap()
+            .expect("failed stop should retain process status")
+            .state,
+        ManagedSidecarState::Stopping
+    );
+
+    unsafe {
+        std::env::set_var(&token_env, "retry-stop-token");
+    }
+    process
+        .stop_in_place()
+        .await
+        .expect("the second stop must retry the retained supervisor");
+    assert_eq!(
+        manager
+            .process_status("demo")
+            .await
+            .unwrap()
+            .expect("stopped process status should remain observable")
+            .state,
+        ManagedSidecarState::Stopped
+    );
+    unsafe {
+        std::env::remove_var(token_env);
+    }
+}
+
+#[tokio::test]
 async fn supervisor_opens_circuit_after_restart_budget_is_exhausted() {
     let Some(binary) = demo_sidecar_binary_from_env() else {
         return;
@@ -1059,11 +1115,17 @@ async fn supervisor_opens_circuit_after_restart_budget_is_exhausted() {
     .await
     .expect("restart budget should open the circuit");
 
+    let mut process = process;
     let error = process
-        .stop()
+        .stop_in_place()
         .await
         .expect_err("stopping a circuit-open supervisor must expose its failure");
     assert!(error.to_string().contains("restart circuit opened"));
+    let retry = process
+        .stop_in_place()
+        .await
+        .expect_err("failed stop must remain an explicit retry failure");
+    assert!(retry.to_string().contains("previous stop attempt failed"));
 }
 
 #[tokio::test]

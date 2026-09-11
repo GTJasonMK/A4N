@@ -1,6 +1,6 @@
 use super::super::{ProjectCleanupDbError, ProjectGeneratedArtifactRowCleanupResult};
 use crate::project::validate_positive_i64;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::{generated_image, generated_video},
     asset::profile_primary_material,
     generation::generation_spec,

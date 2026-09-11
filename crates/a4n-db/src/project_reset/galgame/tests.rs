@@ -1,6 +1,4 @@
-use a4n_core::models::project::novel_project;
 use a4n_domain::project::ProjectStatus;
-use chrono::NaiveDateTime;
 
 use super::result::{GalgameResetOutcomeInput, galgame_reset_outcome};
 use crate::galgame::GalgameScriptCleanupResult;
@@ -10,36 +8,8 @@ use crate::project::{
 };
 use crate::project_delete::ChapterGenerationCleanupResult;
 
-fn project() -> novel_project::Model {
-    novel_project::Model {
-        id: 7,
-        user_id: 1,
-        title: "Galgame".to_string(),
-        description: String::new(),
-        project_type: "script".to_string(),
-        project_kind: "galgame".to_string(),
-        root_project_id: Some(3),
-        source_snapshot_id: Some(5),
-        source_sync_status: "current".to_string(),
-        status: "draft".to_string(),
-        lifecycle_gate: "active".to_string(),
-        target_chapters: 0,
-        current_chapter: 0,
-        total_chapters: None,
-        chapters_per_part: None,
-        avatar_svg: None,
-        avatar_animal: None,
-        raw_blueprint: None,
-        import_analysis_progress: None,
-        export_config: None,
-        created_at: NaiveDateTime::MIN,
-        updated_at: NaiveDateTime::MIN,
-    }
-}
-
 fn input(previous_status: ProjectStatus) -> GalgameResetOutcomeInput {
     GalgameResetOutcomeInput {
-        project: project(),
         previous_status,
         optimization_cleanup: ProjectOptimizationCleanupResult {
             deleted_sessions: 11,

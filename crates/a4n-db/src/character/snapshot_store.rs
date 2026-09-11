@@ -3,8 +3,8 @@
 mod diff;
 
 use crate::SharedDatabaseConnection;
-use a4n_core::error::AppError;
-use a4n_core::event::snapshot::Snapshot;
+use a4n_domain::snapshot::Snapshot;
+use a4n_error::AppError;
 
 /// SHA256 快照存储
 pub struct Sha256SnapshotStore {

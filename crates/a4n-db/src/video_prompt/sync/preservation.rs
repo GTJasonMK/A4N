@@ -1,7 +1,7 @@
 use super::identity::should_keep_unmatched_prompt;
 use super::*;
-use a4n_core::models::{ai::generated_image, chapter::chapter_video_prompt};
-use a4n_core::video_execution::{VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2};
+use a4n_db_models::models::{ai::generated_image, chapter::chapter_video_prompt};
+use a4n_video_contract::{VideoSegmentExecutionRecipeV1, VideoSegmentPlanV2};
 use std::collections::BTreeSet;
 
 pub(super) fn preserved_unmatched_prompt_ids_by_policy(

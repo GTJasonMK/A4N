@@ -1,5 +1,5 @@
 use super::*;
-use a4n_core::models::{
+use a4n_db_models::models::{
     ai::generated_video,
     chapter::chapter_video_prompt,
     media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD},
@@ -89,7 +89,7 @@ where
         .generated_videos
         .iter()
         .map(|video| {
-            if !generated_video::is_terminal_status(&video.status) {
+            if !a4n_domain::video_workflow::is_terminal_video_status(&video.status) {
                 return Err(ProjectFamilyImportError::invalid_package(format!(
                     "只能导入终态生成视频: generated_video_id={}, status={}",
                     video.id, video.status

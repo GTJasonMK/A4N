@@ -1,16 +1,14 @@
-use a4n_core::{
-    error::AppError,
-    models::{
-        asset::object_profile,
-        chapter::{
-            chapter, chapter_outline, chapter_shooting_script, chapter_visual_plan, part_outline,
-        },
-        character::protagonist_profile,
-        project::{blueprint_version, novel_blueprint},
-        scene::scene_profile,
-        user::conversation,
+use a4n_db_models::models::{
+    asset::object_profile,
+    chapter::{
+        chapter, chapter_outline, chapter_shooting_script, chapter_visual_plan, part_outline,
     },
+    character::protagonist_profile,
+    project::{blueprint_version, novel_blueprint},
+    scene::scene_profile,
+    user::conversation,
 };
+use a4n_error::AppError;
 use sea_orm::sea_query::Expr;
 use sea_orm::{ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect};
 
@@ -172,12 +170,7 @@ pub(super) async fn load_root_asset_graph_records(
     let chapters = chapters_result.map_err(AppError::Database)?;
     let content_hashes = chapters
         .iter()
-        .map(|chapter| {
-            (
-                chapter.id,
-                a4n_core::source_spans::source_text_hash(&chapter.content),
-            )
-        })
+        .map(|chapter| (chapter.id, a4n_domain::source_text_hash(&chapter.content)))
         .collect::<std::collections::HashMap<_, _>>();
     let visual_plans = visual_plans_result
         .map_err(AppError::Database)?

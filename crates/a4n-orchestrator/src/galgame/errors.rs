@@ -1,9 +1,9 @@
-use a4n_core::error::AppError;
 use a4n_db::galgame::{
     GalgameAssetPlanSpecRecordError, GalgameContextRecordError, GalgameGenerationRecordError,
     GalgameLineRecordError, GalgameLineReorderRecordError, GalgameMediaRecordError,
     GalgameProjectRecordError, GalgameSceneRecordError, GalgameScriptRecordError,
 };
+use a4n_error::AppError;
 
 pub(crate) fn galgame_project_record_error(err: GalgameProjectRecordError) -> AppError {
     match err {

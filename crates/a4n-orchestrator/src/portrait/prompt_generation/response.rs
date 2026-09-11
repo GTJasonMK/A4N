@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 
 pub fn normalize_portrait_prompt_response(raw: &str) -> Result<String, AppError> {
     let trimmed = raw.trim();

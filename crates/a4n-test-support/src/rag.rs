@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_embedding::provider::EmbeddingModelIdentity;
 use a4n_rag_core::vector_store::{
     CompletenessReport, DeleteFilter, EmbeddingRecord, SearchFilter, SearchResult, VectorStore,
@@ -17,7 +17,7 @@ impl ShortWriteVectorStore {
     }
 
     fn unexpected_call() -> AppError {
-        AppError::VectorStoreError("unexpected ShortWriteVectorStore method call".to_string())
+        AppError::VectorStore("unexpected ShortWriteVectorStore method call".to_string())
     }
 }
 

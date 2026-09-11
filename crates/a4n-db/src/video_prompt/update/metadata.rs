@@ -1,7 +1,7 @@
 use serde_json::{Value, json};
 
 use crate::video::VideoDbError;
-use a4n_core::models::chapter::chapter_video_prompt;
+use a4n_db_models::models::chapter::chapter_video_prompt;
 
 pub fn sync_chapter_video_prompt_metadata_after_update(
     prompt_type: &str,
@@ -19,7 +19,7 @@ pub fn sync_chapter_video_prompt_metadata_after_update(
         })?;
         if metadata.get("source_prompt_type").and_then(Value::as_str) == Some("inserted_segment") {
             let recipe =
-                serde_json::from_value::<a4n_core::video_execution::VideoSegmentExecutionRecipeV1>(
+                serde_json::from_value::<a4n_video_contract::VideoSegmentExecutionRecipeV1>(
                     metadata.get("segment_recipe").cloned().ok_or_else(|| {
                         VideoDbError::InvalidArgument(
                             "插入片段提示词缺少 segment_recipe，不能编辑".to_string(),

@@ -1,9 +1,10 @@
-use a4n_core::models::scene::scene_profile;
+use a4n_db_models::models::scene::scene_profile;
+use a4n_domain::scene_profile::SceneProfileRecordInput;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use serde_json::json;
 
-use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult, SceneProfileRecordInput};
+use crate::scene_profile::{SceneProfileDbError, SceneProfileDbResult};
 
 pub async fn create_scene_profile_record<C>(
     db: &C,

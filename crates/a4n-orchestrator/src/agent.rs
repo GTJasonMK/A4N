@@ -13,26 +13,30 @@ use a4n_api_contract::agent::{
     AgentInboxItemView, AgentInboxKind, AgentInboxStatus, AgentMemoryInput, AgentMemoryScopeKind,
     AgentMemoryStatus, AgentMemoryView, AgentMessageAccepted, AgentMessageRole, AgentMessageStatus,
     AgentMessageView, AgentResourceRef, AgentRunStatus, AgentRunView, AgentScope, AgentThreadKind,
-    AgentThreadSnapshot, AgentThreadStatus, AgentThreadView, AgentToolDescriptor,
-    AgentToolExposure, AgentToolReplayPolicy, AgentToolSearchResult, AgentTurnStatus,
-    AgentTurnTrigger, AgentTurnView, AgentWaitingReason, ArchiveAgentThreadInput,
+    AgentThreadSnapshot as AgentThreadHistorySnapshot, AgentThreadStatus, AgentThreadView,
+    AgentToolDescriptor, AgentToolExposure, AgentToolReplayPolicy, AgentToolSearchResult,
+    AgentTurnStatus, AgentTurnTrigger, AgentTurnView, AgentWaitingReason, ArchiveAgentThreadInput,
     ControlAgentRunInput, ControlChildAgentInput, CreateAgentThreadInput,
-    EnsureMainAgentThreadInput, ForkAgentThreadInput, ListAgentMessagesInput,
-    ListAgentThreadsInput, ResolveAgentApprovalInput, RetractAgentMemoryInput,
-    SearchAgentToolsInput, SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput,
-    UpdateAgentThreadInput,
-};
-use a4n_core::error::AppError;
-use a4n_core::models::agent::{
-    approval, delegation, event, execution, inbox, memory, message, run, thread, turn,
+    EnsureMainAgentThreadInput, ForkAgentThreadInput, GENERAL_AGENT_CAPABILITY,
+    ListAgentMessagesInput, ListAgentThreadsInput, MAIN_AGENT_CAPABILITY,
+    ResolveAgentApprovalInput, RetractAgentMemoryInput, SearchAgentToolsInput,
+    SendAgentMessageInput, SendAgentMessageToChildInput, SpawnAgentInput, UpdateAgentThreadInput,
 };
 use a4n_db::DbHandle;
-use a4n_db::agent::{
-    self, AgentDbError, AgentEventInput, AgentInboxInput, AgentMessageInput,
-    AgentThreadCreateInput, AgentTurnInput, AgentUserDelegationInput,
-};
+use a4n_db::agent::{self, AgentDbError, AgentUserDelegationInput};
 use a4n_db::collaboration::CollaborationDbError;
-use sea_orm::{ActiveModelTrait, EntityTrait, Set, TransactionTrait};
+use a4n_db_models::models::agent::{
+    approval, delegation, event, execution, inbox, memory, message, run, thread, turn,
+};
+use a4n_domain::agent::{
+    AgentDelegationInput, AgentEventInput, AgentExecutionInput, AgentInboxInput, AgentMessageInput,
+    AgentThreadCreateInput, AgentTurnInput,
+};
+use a4n_error::AppError;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
+    TransactionTrait,
+};
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use std::collections::HashSet;
@@ -40,6 +44,62 @@ use std::collections::HashSet;
 use crate::collaboration::ProjectAccessRole;
 
 const SNAPSHOT_LIMIT: u64 = 1_000;
+mod approval_expiry;
+mod budget;
+mod editor_claim;
+mod editor_response;
+mod editor_wait;
+mod external_task_wait;
+mod generation;
+mod generation_cancel;
+mod lease_recovery;
+mod worker_activation;
+mod worker_approval;
+mod worker_claim;
+mod worker_completion;
+mod worker_context;
+mod worker_delegation;
+mod worker_execution;
+mod worker_failure;
+mod worker_history;
+mod worker_inbox;
+mod worker_lease;
+mod worker_message;
+mod worker_read;
+mod worker_recovery;
+mod worker_usage;
+mod worker_wait;
+mod workflow_binding;
+mod workflow_cancel;
+pub use approval_expiry::AgentApprovalExpiryApplicationPort;
+pub use budget::{AgentWorkerBudgetApplicationPort, AgentWorkerBudgetSnapshot};
+pub use editor_claim::AgentEditorClaimApplicationPort;
+pub use editor_response::AgentEditorResponseApplicationPort;
+pub use editor_wait::AgentEditorWaitApplicationPort;
+pub use external_task_wait::{AgentExternalTaskWaitApplicationPort, AgentExternalTaskWaitSnapshot};
+pub use generation::{
+    AgentOwnedTask, AgentTaskExecutionInput, model_request_snapshot, restore_model_request_snapshot,
+};
+pub use generation_cancel::{AgentGenerationCancelApplicationPort, AgentGenerationCancelSnapshot};
+pub use lease_recovery::AgentRunLeaseRecoveryApplicationPort;
+pub use worker_activation::AgentWorkerActivationApplicationPort;
+pub use worker_approval::AgentWorkerApprovalApplicationPort;
+pub use worker_claim::AgentWorkerClaimApplicationPort;
+pub use worker_completion::AgentWorkerCompletionApplicationPort;
+pub use worker_context::AgentWorkerContextApplicationPort;
+pub use worker_delegation::AgentWorkerDelegationApplicationPort;
+pub use worker_execution::AgentWorkerExecutionApplicationPort;
+pub use worker_failure::AgentWorkerFailureApplicationPort;
+pub use worker_history::AgentWorkerHistoryApplicationPort;
+pub use worker_inbox::AgentWorkerInboxApplicationPort;
+pub use worker_lease::AgentWorkerLeaseApplicationPort;
+pub use worker_message::AgentWorkerMessageApplicationPort;
+pub use worker_read::AgentWorkerReadApplicationPort;
+pub use worker_recovery::AgentWorkerRecoveryApplicationPort;
+pub use worker_usage::AgentWorkerUsageApplicationPort;
+pub use worker_wait::AgentWorkerWaitApplicationPort;
+pub use workflow_binding::AgentWorkflowBindingApplicationPort;
+pub use workflow_cancel::{AgentWorkflowCancelApplicationPort, AgentWorkflowCancelSnapshot};
 
 #[derive(Clone)]
 pub struct AgentApplication {
@@ -47,6 +107,19 @@ pub struct AgentApplication {
 }
 
 impl AgentApplication {
+    /// Lifecycle shutdown uses the same durable run-tree cancellation owner as
+    /// the user-facing control path, but does not impersonate a user.
+    pub async fn cancel_run_for_package_shutdown(&self, run_id: i64) -> Result<(), AppError> {
+        agent::cancel_run_tree(
+            self.connection(),
+            run_id,
+            Some("功能包停用，取消 Agent run"),
+        )
+        .await
+        .map(|_| ())
+        .map_err(agent_db_error_to_app)
+    }
+
     pub fn new(database: DbHandle) -> Self {
         Self { database }
     }
@@ -55,7 +128,7 @@ impl AgentApplication {
         self.database.connection()
     }
 
-    async fn reconcile_canonical_thread(
+    fn reconcile_canonical_thread(
         &self,
         existing: thread::Model,
         capability: &str,
@@ -69,21 +142,16 @@ impl AgentApplication {
                 operation: operation.into(),
             });
         }
-        if &existing.scope_json == requested_scope {
+        let existing_scope: AgentScope =
+            from_json(existing.scope_json.clone(), "agent_thread.scope_json")?;
+        let mut requested: AgentScope = from_json(requested_scope.clone(), "requested_scope")?;
+        inherit_subagent_allowlists(&existing_scope, &mut requested)?;
+        if existing_scope == requested {
             return Ok(existing);
         }
-        let revision = existing
-            .revision
-            .checked_add(1)
-            .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?;
-        let mut active: thread::ActiveModel = existing.into();
-        active.scope_json = Set(requested_scope.clone());
-        active.revision = Set(revision);
-        active.updated_at = Set(chrono::Utc::now().naive_utc());
-        active
-            .update(self.connection())
-            .await
-            .map_err(AppError::Database)
+        Err(AppError::InvalidArgument(
+            "canonical Agent thread 已有不同 scope；请通过 update_agent_thread 显式修改，不能在重用时覆盖权限".into(),
+        ))
     }
 
     pub async fn ensure_main_thread(
@@ -160,16 +228,13 @@ impl AgentApplication {
                     .await
                     .map_err(agent_db_error_to_app)?
         {
-            return thread_view(
-                self.reconcile_canonical_thread(
-                    existing,
-                    &capability,
-                    &enum_value(input.kind),
-                    &requested_scope,
-                    "创建 Agent thread",
-                )
-                .await?,
-            );
+            return thread_view(self.reconcile_canonical_thread(
+                existing,
+                &capability,
+                &enum_value(input.kind),
+                &requested_scope,
+                "创建 Agent thread",
+            )?);
         }
         let row = agent::create_thread(
             self.connection(),
@@ -204,8 +269,7 @@ impl AgentApplication {
                     &enum_value(input.kind),
                     &requested_scope,
                     "创建 Agent thread",
-                )
-                .await?
+                )?
             }
             Err(error) => return Err(agent_db_error_to_app(error)),
         };
@@ -262,7 +326,18 @@ impl AgentApplication {
         input: UpdateAgentThreadInput,
     ) -> Result<AgentThreadView, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
-        let row = self.owned_thread(user_id, thread_id).await?;
+        validate_user_id(user_id)?;
+        let tx = self.connection().begin().await?;
+        let row = thread::Entity::find_by_id(thread_id)
+            .lock_exclusive()
+            .one(&tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Agent thread 不存在".into()))?;
+        if row.owner_user_id != user_id {
+            return Err(AppError::Forbidden(
+                "不能修改其他用户的 Agent thread".into(),
+            ));
+        }
         if let Some(expected) = input.expected_revision {
             let current = u64::try_from(row.revision).map_err(|_| AppError::InvalidState {
                 current: format!("Agent thread {} revision 无效", row.id),
@@ -277,8 +352,37 @@ impl AgentApplication {
                 });
             }
         }
+        let scope = if let Some(allowed_tools) = input.allowed_tools {
+            if input.expected_revision.is_none() {
+                return Err(AppError::InvalidArgument(
+                    "修改工具权限必须提供 expected_revision".into(),
+                ));
+            }
+            if run::Entity::find()
+                .filter(run::Column::ThreadId.eq(thread_id))
+                .filter(run::Column::IsActive.eq(true))
+                .one(&tx)
+                .await?
+                .is_some()
+            {
+                return Err(AppError::InvalidArgument(
+                    "Agent thread 存在活动 Run，不能修改工具权限".into(),
+                ));
+            }
+            let mut scope: AgentScope =
+                from_json(row.scope_json.clone(), "agent_thread.scope_json")?;
+            scope.allowed_tools = allowed_tools;
+            validate_scope(&scope)?;
+            apply_subagent_tool_policy(&row.profile_id, &mut scope)?;
+            Some(serde_json::to_value(scope)?)
+        } else {
+            None
+        };
         let current_revision = row.revision;
         let mut active: thread::ActiveModel = row.into();
+        if let Some(scope) = scope {
+            active.scope_json = Set(scope);
+        }
         if let Some(title) = input.title {
             active.title = Set(optional_text(Some(title), "title")?);
         }
@@ -290,10 +394,8 @@ impl AgentApplication {
             .checked_add(1)
             .ok_or_else(|| AppError::InvalidArgument("Agent thread revision 溢出".into()))?);
         active.updated_at = Set(chrono::Utc::now().naive_utc());
-        let updated = active
-            .update(self.connection())
-            .await
-            .map_err(AppError::Database)?;
+        let updated = active.update(&tx).await.map_err(AppError::Database)?;
+        tx.commit().await?;
         thread_view(updated)
     }
 
@@ -364,17 +466,14 @@ impl AgentApplication {
             .await
             .map_err(agent_db_error_to_app)?
         {
-            // The current binding is authoritative. This also repairs old
-            // canonical rows that persisted a fixed generic allowlist.
-            return self
-                .reconcile_canonical_thread(
-                    existing,
-                    &capability,
-                    "subagent",
-                    &requested_scope,
-                    "获取 canonical Agent thread",
-                )
-                .await;
+            // Reusing a canonical thread must not change its explicit permissions.
+            return self.reconcile_canonical_thread(
+                existing,
+                &capability,
+                "subagent",
+                &requested_scope,
+                "获取 canonical Agent thread",
+            );
         }
         let create = AgentThreadCreateInput {
             owner_user_id: user_id,
@@ -405,7 +504,6 @@ impl AgentApplication {
                     &requested_scope,
                     "获取 canonical Agent thread",
                 )
-                .await
             }
             Err(error) => Err(agent_db_error_to_app(error)),
         }
@@ -443,7 +541,7 @@ impl AgentApplication {
         &self,
         user_id: i64,
         thread_id: &str,
-    ) -> Result<AgentThreadSnapshot, AppError> {
+    ) -> Result<AgentThreadHistorySnapshot, AppError> {
         let thread_id = parse_id(thread_id, "thread_id")?;
         let thread_row = self.owned_thread(user_id, thread_id).await?;
         let messages = agent::messages_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
@@ -452,7 +550,7 @@ impl AgentApplication {
         let turns = agent::turns_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
-        let runs = agent::runs_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let mut runs = agent::runs_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
         let executions =
@@ -479,8 +577,11 @@ impl AgentApplication {
         let events = agent::events_after(self.connection(), thread_id, 0, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
+        for run in &mut runs {
+            run.usage_json = self.run_budget_snapshot(run.id).await?.usage;
+        }
 
-        Ok(AgentThreadSnapshot {
+        Ok(AgentThreadHistorySnapshot {
             protocol_version: AGENT_API_PROTOCOL_VERSION,
             thread: thread_view(thread_row)?,
             messages: messages
@@ -550,7 +651,7 @@ impl AgentApplication {
         &self,
         thread_id: i64,
         message_id: i64,
-    ) -> Result<message::Model, AppError> {
+    ) -> Result<AgentMessageSnapshot, AppError> {
         let row = agent::message_by_id(self.connection(), message_id)
             .await
             .map_err(agent_db_error_to_app)?
@@ -564,16 +665,17 @@ impl AgentApplication {
                 operation: "加载 Agent inbox message".into(),
             });
         }
-        Ok(row)
+        Ok(row.into())
     }
 
     pub async fn show_run(&self, user_id: i64, run_id: &str) -> Result<AgentRunView, AppError> {
         let run_id = parse_id(run_id, "run_id")?;
-        let run = agent::run_by_id(self.connection(), run_id)
+        let mut run = agent::run_by_id(self.connection(), run_id)
             .await
             .map_err(agent_db_error_to_app)?
             .ok_or_else(|| AppError::NotFound(format!("Agent run 不存在: {run_id}")))?;
         self.owned_thread(user_id, run.thread_id).await?;
+        run.usage_json = self.run_budget_snapshot(run.id).await?.usage;
         run_view(run)
     }
 
@@ -582,15 +684,14 @@ impl AgentApplication {
         input: a4n_api_contract::agent::DescribeAgentToolInput,
     ) -> Result<AgentToolDescriptor, AppError> {
         let name = required_text(input.name, "name")?;
-        let result = self.search_tools(SearchAgentToolsInput {
+        let (tools, _) = self.search_tool_descriptors(SearchAgentToolsInput {
             query: Some(name.clone()),
             domain: None,
             effect: None,
             capability: None,
             limit: Some(AGENT_TOOLS_MAX_LIMIT),
         })?;
-        result
-            .tools
+        tools
             .into_iter()
             .find(|tool| tool.name == name)
             .ok_or_else(|| AppError::NotFound(format!("Agent tool 不存在或未公开: {name}")))
@@ -604,14 +705,49 @@ impl AgentApplication {
         require_runtime_snapshot_for_new_run: bool,
     ) -> Result<AgentMessageAccepted, AppError> {
         let thread_id = parse_id(&input.thread_id, "thread_id")?;
-        self.owned_thread(user_id, thread_id).await?;
+        let thread = self.owned_thread(user_id, thread_id).await?;
+        if let Some(source) = &input.editor_source {
+            validate_editor_source(source, &thread)?;
+        }
         let client_message_id = required_text(input.client_message_id, "client_message_id")?;
         let content = required_text(input.content, "content")?;
         validate_optional_positive_id(input.model_config_id, "model_config_id")?;
-        let runs = agent::runs_by_thread(self.connection(), thread_id, SNAPSHOT_LIMIT)
+        let tx = self.connection().begin().await?;
+        thread::Entity::find_by_id(thread_id)
+            .lock_exclusive()
+            .one(&tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Agent Thread 不存在".into()))?;
+        let runs = agent::runs_by_thread(&tx, thread_id, SNAPSHOT_LIMIT)
             .await
             .map_err(agent_db_error_to_app)?;
         if let Some(active) = runs.iter().rev().find(|row| row.is_active) {
+            if let Some(source) = &input.editor_source {
+                let turn = turn::Entity::find_by_id(active.turn_id)
+                    .one(self.connection())
+                    .await?
+                    .ok_or_else(|| AppError::NotFound("Agent Turn 不存在".into()))?;
+                let original = agent::message_by_id(self.connection(), turn.input_message_id)
+                    .await
+                    .map_err(agent_db_error_to_app)?
+                    .and_then(|message| message.payload_json)
+                    .and_then(|payload| payload.get("editor_source").cloned())
+                    .map(|value| {
+                        from_json::<a4n_api_contract::agent::AgentEditorSource>(
+                            value,
+                            "editor_source",
+                        )
+                    })
+                    .transpose()?;
+                if original
+                    .as_ref()
+                    .is_none_or(|original| original.view_instance_id != source.view_instance_id)
+                {
+                    return Err(AppError::InvalidArgument(
+                        "当前任务来自其他视图；请等待或结束原任务后再从此视图发送".into(),
+                    ));
+                }
+            }
             if active.status == "waiting"
                 && matches!(
                     active.waiting_reason.as_deref(),
@@ -630,10 +766,9 @@ impl AgentApplication {
                 .waiting_reason
                 .as_deref()
                 .filter(|reason| {
-                    active.status == "waiting" && matches!(*reason, "user" | "external" | "backoff")
+                    active.status == "waiting" && matches!(*reason, "user" | "backoff")
                 })
                 .map(str::to_string);
-            let tx = self.connection().begin().await?;
             let message = agent::append_message(
                 &tx,
                 AgentMessageInput {
@@ -702,6 +837,8 @@ impl AgentApplication {
             );
         }
 
+        tx.commit().await?;
+
         admit_new_run_runtime_snapshot(
             runtime_snapshot_required,
             require_runtime_snapshot_for_new_run,
@@ -729,7 +866,9 @@ impl AgentApplication {
                     client_message_id: Some(client_message_id),
                     content: content.clone(),
                     status: "complete".into(),
-                    payload_json: None,
+                    payload_json: input
+                        .editor_source
+                        .map(|source| json!({"editor_source": source})),
                 },
                 execution_mode: enum_value(input.execution_mode),
                 model_override_json,
@@ -904,11 +1043,16 @@ impl AgentApplication {
         let delegations = agent::delegations_by_thread(self.connection(), parent_thread.id)
             .await
             .map_err(agent_db_error_to_app)?;
+        let delegation_snapshots = delegations
+            .iter()
+            .cloned()
+            .map(Into::into)
+            .collect::<Vec<AgentDelegationSnapshot>>();
         let delegation_depth = self
             .delegation_depth_for_run(parent_run.id, parent_run.parent_run_id)
             .await?;
         enforce_delegation_limits(
-            &delegations,
+            &delegation_snapshots,
             parent_run.id,
             delegation_depth,
             &parent_budget,
@@ -1007,7 +1151,7 @@ impl AgentApplication {
         let budget = child_budget_within_parent(
             input.budget.unwrap_or_default(),
             &parent_budget,
-            &parent_run.usage_json,
+            &self.run_budget_snapshot(parent_run.id).await?.usage,
         )?;
         let delegation_key = format!(
             "user-spawn:{}:{}",
@@ -1022,7 +1166,7 @@ impl AgentApplication {
         let (delegation, _child_turn, _child_run, _child_message) = agent::create_user_delegation(
             self.connection(),
             AgentUserDelegationInput {
-                delegation: a4n_db::agent::AgentDelegationInput {
+                delegation: AgentDelegationInput {
                     parent_thread_id: parent_thread.id,
                     parent_run_id,
                     parent_execution_id: None,
@@ -1151,7 +1295,7 @@ impl AgentApplication {
         let resource_refs = serde_json::to_value(input.resource_refs)?;
         let row = agent::insert_memory(
             self.connection(),
-            a4n_db::agent::AgentMemoryInput {
+            a4n_domain::agent::AgentMemoryInput {
                 owner_user_id: user_id,
                 project_id,
                 thread_id,
@@ -1298,6 +1442,17 @@ impl AgentApplication {
         &self,
         input: SearchAgentToolsInput,
     ) -> Result<AgentToolSearchResult, AppError> {
+        let (tools, total) = self.search_tool_descriptors(input)?;
+        Ok(AgentToolSearchResult {
+            tools: tools.into_iter().map(Into::into).collect(),
+            total,
+        })
+    }
+
+    fn search_tool_descriptors(
+        &self,
+        input: SearchAgentToolsInput,
+    ) -> Result<(Vec<AgentToolDescriptor>, usize), AppError> {
         let query = input
             .query
             .as_deref()
@@ -1378,7 +1533,55 @@ impl AgentApplication {
         tools.retain(|tool| seen.insert(tool.name.clone()));
         let total = tools.len();
         tools.truncate(limit);
-        Ok(AgentToolSearchResult { tools, total })
+        Ok((tools, total))
+    }
+
+    pub async fn review_delegation(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ReviewAgentDelegationInput,
+        parent_run_id: Option<i64>,
+    ) -> Result<AgentDelegationView, AppError> {
+        use a4n_api_contract::agent::AgentDelegationReviewDecision;
+        let id = parse_id(&input.delegation_id, "delegation_id")?;
+        let row = delegation::Entity::find_by_id(id)
+            .one(self.connection())
+            .await?
+            .ok_or_else(|| AppError::NotFound("Agent delegation 不存在".into()))?;
+        self.owned_thread(user_id, row.parent_thread_id).await?;
+        if parent_run_id.is_some_and(|run_id| row.parent_run_id != run_id) {
+            return Err(AppError::Forbidden(
+                "Agent 只能审阅当前 Run 发起的委派".into(),
+            ));
+        }
+        for resource in &input.reviewed_refs {
+            validate_resource_ref(resource)?;
+        }
+        let row = agent::review_delegation(
+            self.connection(),
+            a4n_domain::agent::AgentDelegationReviewInput {
+                user_id,
+                delegation_id: id,
+                expected_child_run_id: parse_id(
+                    &input.expected_child_run_id,
+                    "expected_child_run_id",
+                )?,
+                status: match input.decision {
+                    AgentDelegationReviewDecision::Accept => "accepted",
+                    AgentDelegationReviewDecision::RequestRevision => "revision_requested",
+                }
+                .into(),
+                reason: required_text(input.reason, "reason")?,
+                reviewed_refs: input
+                    .reviewed_refs
+                    .into_iter()
+                    .map(serde_json::to_value)
+                    .collect::<Result<_, _>>()?,
+            },
+        )
+        .await
+        .map_err(agent_db_error_to_app)?;
+        delegation_view(row)
     }
 
     pub async fn resolve_approval(
@@ -1537,6 +1740,212 @@ impl AgentApplication {
     }
 }
 
+#[async_trait::async_trait]
+impl a4n_api_contract::agent::AgentApplicationPort for AgentApplication {
+    async fn ensure_main_thread(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::EnsureMainAgentThreadInput,
+    ) -> Result<a4n_api_contract::agent::AgentThreadView, AppError> {
+        AgentApplication::ensure_main_thread(self, user_id, input).await
+    }
+
+    async fn create_thread(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::CreateAgentThreadInput,
+    ) -> Result<a4n_api_contract::agent::AgentThreadView, AppError> {
+        AgentApplication::create_thread(self, user_id, input).await
+    }
+
+    async fn fork_thread(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ForkAgentThreadInput,
+    ) -> Result<a4n_api_contract::agent::AgentThreadView, AppError> {
+        AgentApplication::fork_thread(self, user_id, input).await
+    }
+
+    async fn update_thread(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::UpdateAgentThreadInput,
+    ) -> Result<a4n_api_contract::agent::AgentThreadView, AppError> {
+        AgentApplication::update_thread(self, user_id, input).await
+    }
+
+    async fn archive_thread(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ArchiveAgentThreadInput,
+    ) -> Result<a4n_api_contract::agent::AgentThreadView, AppError> {
+        AgentApplication::archive_thread(self, user_id, input).await
+    }
+
+    async fn list_threads(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ListAgentThreadsInput,
+    ) -> Result<Vec<a4n_api_contract::agent::AgentThreadView>, AppError> {
+        AgentApplication::list_threads(self, user_id, input).await
+    }
+
+    async fn show_thread(
+        &self,
+        user_id: i64,
+        thread_id: &str,
+    ) -> Result<a4n_api_contract::agent::AgentThreadSnapshot, AppError> {
+        AgentApplication::show_thread(self, user_id, thread_id).await
+    }
+
+    async fn list_messages(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ListAgentMessagesInput,
+    ) -> Result<Vec<a4n_api_contract::agent::AgentMessageView>, AppError> {
+        AgentApplication::list_messages(self, user_id, input).await
+    }
+
+    async fn show_run(
+        &self,
+        user_id: i64,
+        run_id: &str,
+    ) -> Result<a4n_api_contract::agent::AgentRunView, AppError> {
+        AgentApplication::show_run(self, user_id, run_id).await
+    }
+
+    async fn send_message(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::SendAgentMessageInput,
+        runtime_snapshot_required: bool,
+        require_runtime_snapshot_for_new_run: bool,
+    ) -> Result<a4n_api_contract::agent::AgentMessageAccepted, AppError> {
+        AgentApplication::send_message(
+            self,
+            user_id,
+            input,
+            runtime_snapshot_required,
+            require_runtime_snapshot_for_new_run,
+        )
+        .await
+    }
+
+    async fn control_run(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ControlAgentRunInput,
+    ) -> Result<a4n_api_contract::agent::AgentRunView, AppError> {
+        AgentApplication::control_run(self, user_id, input).await
+    }
+
+    async fn send_message_to_child(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::SendAgentMessageToChildInput,
+        runtime_snapshot_required: bool,
+        require_runtime_snapshot_for_new_run: bool,
+    ) -> Result<a4n_api_contract::agent::AgentMessageAccepted, AppError> {
+        AgentApplication::send_message_to_child(
+            self,
+            user_id,
+            input,
+            runtime_snapshot_required,
+            require_runtime_snapshot_for_new_run,
+        )
+        .await
+    }
+
+    async fn control_child_agent(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ControlChildAgentInput,
+    ) -> Result<a4n_api_contract::agent::AgentRunView, AppError> {
+        AgentApplication::control_child_agent(self, user_id, input).await
+    }
+
+    async fn spawn_agent(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::SpawnAgentInput,
+    ) -> Result<a4n_api_contract::agent::AgentDelegationView, AppError> {
+        AgentApplication::spawn_agent(self, user_id, input).await
+    }
+
+    async fn events(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::AgentEventsInput,
+    ) -> Result<Vec<a4n_api_contract::agent::AgentEvent>, AppError> {
+        AgentApplication::events(self, user_id, input).await
+    }
+
+    fn search_tools(
+        &self,
+        input: a4n_api_contract::agent::SearchAgentToolsInput,
+    ) -> Result<a4n_api_contract::agent::AgentToolSearchResult, AppError> {
+        AgentApplication::search_tools(self, input)
+    }
+
+    fn describe_tool(
+        &self,
+        input: a4n_api_contract::agent::DescribeAgentToolInput,
+    ) -> Result<a4n_api_contract::agent::AgentToolDescriptor, AppError> {
+        AgentApplication::describe_tool(self, input)
+    }
+
+    async fn list_memories(
+        &self,
+        user_id: i64,
+        scope_kind: Option<a4n_api_contract::agent::AgentMemoryScopeKind>,
+        scope_id: Option<String>,
+    ) -> Result<Vec<a4n_api_contract::agent::AgentMemoryView>, AppError> {
+        AgentApplication::list_memories(self, user_id, scope_kind, scope_id).await
+    }
+
+    async fn create_memory(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::AgentMemoryInput,
+    ) -> Result<a4n_api_contract::agent::AgentMemoryView, AppError> {
+        AgentApplication::create_memory(self, user_id, input).await
+    }
+
+    async fn retract_memory(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::RetractAgentMemoryInput,
+    ) -> Result<a4n_api_contract::agent::AgentMemoryView, AppError> {
+        AgentApplication::retract_memory(self, user_id, input).await
+    }
+
+    async fn review_delegation(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ReviewAgentDelegationInput,
+        parent_run_id: Option<i64>,
+    ) -> Result<a4n_api_contract::agent::AgentDelegationView, AppError> {
+        AgentApplication::review_delegation(self, user_id, input, parent_run_id).await
+    }
+
+    async fn resolve_approval(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::agent::ResolveAgentApprovalInput,
+    ) -> Result<a4n_api_contract::agent::AgentApprovalView, AppError> {
+        AgentApplication::resolve_approval(self, user_id, input).await
+    }
+
+    async fn verify_chapters_in_project(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_ids: &[i64],
+    ) -> Result<(), AppError> {
+        AgentApplication::verify_chapters_in_project(self, user_id, project_id, chapter_ids).await
+    }
+}
+
 // -------------------------------------------------------------------------
 // Durable worker façade
 // -------------------------------------------------------------------------
@@ -1547,21 +1956,258 @@ impl AgentApplication {
 // supports it, and all public output is persisted as an event/message before
 // the worker can report progress.
 
+/// Stable worker-facing projection of a durable Agent run.
+///
+/// Runtime actions consume this projection instead of the SeaORM row. The
+/// database owner remains free to change persistence columns without leaking
+/// them into the worker crate.
+#[derive(Debug, Clone)]
+pub struct AgentRunSnapshot {
+    pub id: i64,
+    pub thread_id: i64,
+    pub turn_id: i64,
+    pub parent_run_id: Option<i64>,
+    pub status: String,
+    pub budget_json: Value,
+    pub usage_json: Value,
+    pub lease_token: Option<String>,
+    pub created_at: chrono::NaiveDateTime,
+    pub started_at: Option<chrono::NaiveDateTime>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentThreadSnapshot {
+    pub id: i64,
+    pub owner_user_id: i64,
+    pub thread_kind: String,
+    pub profile_id: String,
+    pub title: Option<String>,
+    pub project_id: Option<i64>,
+    pub resource_type: Option<String>,
+    pub resource_id: Option<String>,
+    pub scope_json: Value,
+    pub default_model_config_id: Option<i64>,
+    pub status: String,
+    pub revision: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentTurnSnapshot {
+    pub id: i64,
+    pub thread_id: i64,
+    pub input_message_id: i64,
+    pub execution_mode: String,
+    pub goal: Option<String>,
+    pub model_override_json: Option<Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentMessageSnapshot {
+    pub id: i64,
+    pub thread_id: i64,
+    pub turn_id: Option<i64>,
+    pub run_id: Option<i64>,
+    pub role: String,
+    pub content: String,
+    pub payload_json: Option<Value>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentExecutionSnapshot {
+    pub id: i64,
+    pub run_id: i64,
+    pub execution_key: String,
+    pub execution_kind: String,
+    pub status: String,
+    pub tool_name: Option<String>,
+    pub effect: Option<String>,
+    pub replay_policy: Option<String>,
+    pub arguments_json: Option<Value>,
+    pub resource_preconditions_json: Option<Value>,
+    pub result_json: Option<Value>,
+    pub result_summary: Option<String>,
+    pub result_refs_json: Option<Value>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentDelegationSnapshot {
+    pub id: i64,
+    pub parent_run_id: i64,
+    pub parent_execution_id: Option<i64>,
+    pub child_thread_id: i64,
+    pub child_turn_id: Option<i64>,
+    pub child_run_id: Option<i64>,
+    pub delegation_key: String,
+    pub capability: String,
+    pub objective: String,
+    pub success_criteria_json: Value,
+    pub scope_json: Value,
+    pub budget_json: Value,
+    pub status: String,
+    pub result_refs_json: Option<Value>,
+    pub result_summary: Option<String>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AgentInboxSnapshot {
+    pub id: i64,
+    pub thread_id: i64,
+    pub turn_id: Option<i64>,
+    pub run_id: Option<i64>,
+    pub source_kind: String,
+    pub source_thread_id: Option<i64>,
+    pub inbox_kind: String,
+    pub delivery_mode: String,
+    pub content: String,
+    pub payload_json: Option<Value>,
+    pub status: String,
+    pub claim_token: Option<String>,
+}
+
+impl From<run::Model> for AgentRunSnapshot {
+    fn from(row: run::Model) -> Self {
+        Self {
+            id: row.id,
+            thread_id: row.thread_id,
+            turn_id: row.turn_id,
+            parent_run_id: row.parent_run_id,
+            status: row.status,
+            budget_json: row.budget_json,
+            usage_json: row.usage_json,
+            lease_token: row.lease_token,
+            created_at: row.created_at,
+            started_at: row.started_at,
+        }
+    }
+}
+
+impl From<thread::Model> for AgentThreadSnapshot {
+    fn from(row: thread::Model) -> Self {
+        Self {
+            id: row.id,
+            owner_user_id: row.owner_user_id,
+            thread_kind: row.thread_kind,
+            profile_id: row.profile_id,
+            title: row.title,
+            project_id: row.project_id,
+            resource_type: row.resource_type,
+            resource_id: row.resource_id,
+            scope_json: row.scope_json,
+            default_model_config_id: row.default_model_config_id,
+            status: row.status,
+            revision: row.revision,
+        }
+    }
+}
+
+impl From<turn::Model> for AgentTurnSnapshot {
+    fn from(row: turn::Model) -> Self {
+        Self {
+            id: row.id,
+            thread_id: row.thread_id,
+            input_message_id: row.input_message_id,
+            execution_mode: row.execution_mode,
+            goal: row.goal,
+            model_override_json: row.model_override_json,
+        }
+    }
+}
+
+impl From<message::Model> for AgentMessageSnapshot {
+    fn from(row: message::Model) -> Self {
+        Self {
+            id: row.id,
+            thread_id: row.thread_id,
+            turn_id: row.turn_id,
+            run_id: row.run_id,
+            role: row.role,
+            content: row.content,
+            payload_json: row.payload_json,
+        }
+    }
+}
+
+impl From<execution::Model> for AgentExecutionSnapshot {
+    fn from(row: execution::Model) -> Self {
+        Self {
+            id: row.id,
+            run_id: row.run_id,
+            execution_key: row.execution_key,
+            execution_kind: row.execution_kind,
+            status: row.status,
+            tool_name: row.tool_name,
+            effect: row.effect,
+            replay_policy: row.replay_policy,
+            arguments_json: row.arguments_json,
+            resource_preconditions_json: row.resource_preconditions_json,
+            result_json: row.result_json,
+            result_summary: row.result_summary,
+            result_refs_json: row.result_refs_json,
+            error_message: row.error_message,
+        }
+    }
+}
+
+impl From<delegation::Model> for AgentDelegationSnapshot {
+    fn from(row: delegation::Model) -> Self {
+        Self {
+            id: row.id,
+            parent_run_id: row.parent_run_id,
+            parent_execution_id: row.parent_execution_id,
+            child_thread_id: row.child_thread_id,
+            child_turn_id: row.child_turn_id,
+            child_run_id: row.child_run_id,
+            delegation_key: row.delegation_key,
+            capability: row.capability,
+            objective: row.objective,
+            success_criteria_json: row.success_criteria_json,
+            scope_json: row.scope_json,
+            budget_json: row.budget_json,
+            status: row.status,
+            result_refs_json: row.result_refs_json,
+            result_summary: row.result_summary,
+            error_message: row.error_message,
+        }
+    }
+}
+
+impl From<inbox::Model> for AgentInboxSnapshot {
+    fn from(row: inbox::Model) -> Self {
+        Self {
+            id: row.id,
+            thread_id: row.thread_id,
+            turn_id: row.turn_id,
+            run_id: row.run_id,
+            source_kind: row.source_kind,
+            source_thread_id: row.source_thread_id,
+            inbox_kind: row.inbox_kind,
+            delivery_mode: row.delivery_mode,
+            content: row.content,
+            payload_json: row.payload_json,
+            status: row.status,
+            claim_token: row.claim_token,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentWorkerRun {
-    pub run: run::Model,
-    pub thread: thread::Model,
+    pub run: AgentRunSnapshot,
+    pub thread: AgentThreadSnapshot,
     pub lease_token: String,
 }
 
 #[derive(Debug, Clone)]
 pub struct AgentRunContext {
-    pub run: run::Model,
-    pub thread: thread::Model,
-    pub turn: turn::Model,
-    pub messages: Vec<message::Model>,
-    pub delegations: Vec<delegation::Model>,
-    pub memories: Vec<memory::Model>,
+    pub run: AgentRunSnapshot,
+    pub thread: AgentThreadSnapshot,
+    pub turn: AgentTurnSnapshot,
+    pub messages: Vec<AgentMessageSnapshot>,
+    pub delegations: Vec<AgentDelegationSnapshot>,
+    pub executions: Vec<AgentExecutionSnapshot>,
+    pub editor_source: Option<a4n_api_contract::agent::AgentEditorSource>,
     pub owner_user_id: i64,
     pub scope: AgentScope,
     pub profile_id: String,
@@ -1625,7 +2271,7 @@ pub fn validate_agent_budget(budget: &AgentBudget) -> Result<(), AppError> {
 /// supplies the already loaded delegation snapshot so the same policy is used
 /// by model-issued and user-issued child creation paths.
 pub fn enforce_delegation_limits(
-    delegations: &[delegation::Model],
+    delegations: &[AgentDelegationSnapshot],
     run_id: i64,
     depth: u8,
     budget: &AgentBudget,
@@ -1808,10 +2454,10 @@ pub struct WorkerDelegationInput {
 
 #[derive(Debug, Clone)]
 pub struct WorkerDelegationResult {
-    pub delegation: delegation::Model,
-    pub child_turn: turn::Model,
-    pub child_run: run::Model,
-    pub child_message: message::Model,
+    pub delegation: AgentDelegationSnapshot,
+    pub child_turn: AgentTurnSnapshot,
+    pub child_run: AgentRunSnapshot,
+    pub child_message: AgentMessageSnapshot,
 }
 
 #[derive(Debug, Clone)]
@@ -1851,8 +2497,8 @@ impl AgentApplication {
                 operation: "领取 Agent run".into(),
             })?;
         Ok(Some(AgentWorkerRun {
-            run: run_row,
-            thread: thread_row,
+            run: run_row.into(),
+            thread: thread_row.into(),
             lease_token,
         }))
     }
@@ -1945,14 +2591,84 @@ impl AgentApplication {
             .map_err(AppError::Database)?
             .ok_or_else(|| AppError::NotFound(format!("Agent turn 不存在: {}", run_row.turn_id)))?;
         validate_model_override_json(turn_row.model_override_json.as_ref())?;
-        let messages =
+        let mut messages =
             agent::messages_by_thread(self.connection(), run_row.thread_id, SNAPSHOT_LIMIT)
                 .await
                 .map_err(agent_db_error_to_app)?;
+        // The UI history limit must never drop a pending call from an active Run.
+        messages.extend(
+            agent::messages_by_run(self.connection(), run_row.id)
+                .await
+                .map_err(agent_db_error_to_app)?,
+        );
+        messages.sort_by_key(|message| message.id);
+        messages.dedup_by_key(|message| message.id);
+        let editor_source = messages
+            .iter()
+            .find(|message| message.id == turn_row.input_message_id)
+            .and_then(|message| message.payload_json.as_ref())
+            .and_then(|payload| payload.get("editor_source"))
+            .cloned()
+            .map(|value| from_json(value, "agent_message.editor_source"))
+            .transpose()?;
         let delegations = agent::delegations_by_thread(self.connection(), run_row.thread_id)
             .await
             .map_err(agent_db_error_to_app)?;
-        let scope = from_json(thread_row.scope_json.clone(), "agent_thread.scope_json")?;
+        let mut scope: AgentScope =
+            from_json(thread_row.scope_json.clone(), "agent_thread.scope_json")?;
+        apply_subagent_tool_policy(&thread_row.profile_id, &mut scope)?;
+        if scope.allowed_tools.is_empty()
+            && a4n_api_contract::agent::capability_has_restricted_tool_catalog(
+                &thread_row.profile_id,
+            )
+        {
+            scope.allowed_tools =
+                a4n_api_contract::agent::agent_tools_for_capability(&thread_row.profile_id)
+                    .iter()
+                    .map(|tool| (*tool).to_string())
+                    .collect();
+        }
+        let executions = agent::executions_by_runs(self.connection(), vec![run_row.id])
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let runtime_snapshot_required = runtime_snapshot_required(&run_row.usage_json, run_row.id)?;
+        let delegation_depth = self
+            .delegation_depth_for_run(run_row.id, run_row.parent_run_id)
+            .await?;
+        Ok(AgentRunContext {
+            owner_user_id: thread_row.owner_user_id,
+            profile_id: thread_row.profile_id.clone(),
+            default_model_config_id: thread_row.default_model_config_id,
+            execution_mode: turn_row.execution_mode.clone(),
+            goal: turn_row.goal.clone(),
+            budget: run_row.budget_json.clone(),
+            usage: run_row.usage_json.clone(),
+            runtime_snapshot_required,
+            delegation_depth,
+            run: run_row.into(),
+            thread: thread_row.into(),
+            turn: turn_row.into(),
+            messages: messages.into_iter().map(Into::into).collect(),
+            delegations: delegations.into_iter().map(Into::into).collect(),
+            executions: executions.into_iter().map(Into::into).collect(),
+            editor_source,
+            scope,
+        })
+    }
+
+    pub async fn read_memory_for_run(
+        &self,
+        context: &AgentRunContext,
+        input: a4n_api_contract::agent::ReadAgentMemoryInput,
+    ) -> Result<a4n_api_contract::agent::AgentMemorySearchResult, AppError> {
+        let thread_row = &context.thread;
+        let limit = bounded_limit(input.limit, 20, 100, "limit")? as usize;
+        let query = input
+            .query
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or_default()
+            .to_lowercase();
         let mut memories =
             agent::list_memory(self.connection(), thread_row.owner_user_id, None, None)
                 .await
@@ -1978,27 +2694,18 @@ impl AgentApplication {
                 && left.scope_key == right.scope_key
                 && left.memory_key == right.memory_key
         });
-        let runtime_snapshot_required = runtime_snapshot_required(&run_row.usage_json, run_row.id)?;
-        let delegation_depth = self
-            .delegation_depth_for_run(run_row.id, run_row.parent_run_id)
-            .await?;
-        Ok(AgentRunContext {
-            owner_user_id: thread_row.owner_user_id,
-            profile_id: thread_row.profile_id.clone(),
-            default_model_config_id: thread_row.default_model_config_id,
-            execution_mode: turn_row.execution_mode.clone(),
-            goal: turn_row.goal.clone(),
-            budget: run_row.budget_json.clone(),
-            usage: run_row.usage_json.clone(),
-            runtime_snapshot_required,
-            delegation_depth,
-            run: run_row,
-            thread: thread_row,
-            turn: turn_row,
-            messages,
-            delegations,
-            memories,
-            scope,
+        memories.retain(|row| {
+            row.memory_key.to_lowercase().contains(&query)
+                || row.content.to_lowercase().contains(&query)
+        });
+        let total = memories.len();
+        memories.truncate(limit);
+        Ok(a4n_api_contract::agent::AgentMemorySearchResult {
+            memories: memories
+                .into_iter()
+                .map(memory_view)
+                .collect::<Result<_, _>>()?,
+            total,
         })
     }
 
@@ -2008,13 +2715,105 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
     }
 
+    pub async fn read_execution_result_for_run(
+        &self,
+        context: &AgentRunContext,
+        input: a4n_api_contract::agent::ReadAgentExecutionResultInput,
+    ) -> Result<a4n_api_contract::agent::AgentExecutionResultPage, AppError> {
+        let limit = bounded_limit(input.limit, 2_000, 2_000, "limit")? as usize;
+        let execution_id = parse_id(&input.execution_id, "execution_id")?;
+        let execution = execution::Entity::find_by_id(execution_id)
+            .one(self.connection())
+            .await?
+            .filter(|execution| {
+                matches!(
+                    execution.execution_kind.as_str(),
+                    "tool_call" | "delegation"
+                )
+            })
+            .ok_or_else(|| AppError::Forbidden("不能读取此工具结果".into()))?;
+        let source_run = agent::run_by_id(self.connection(), execution.run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .filter(|run| run.thread_id == context.thread.id)
+            .ok_or_else(|| AppError::Forbidden("不能读取其他 Thread 的工具结果".into()))?;
+        self.owned_thread(context.owner_user_id, source_run.thread_id)
+            .await?;
+        let value = execution
+            .result_json
+            .as_ref()
+            .ok_or_else(|| AppError::InvalidState {
+                current: format!("工具结果尚不可用，状态为 {}", execution.status),
+                operation: "读取 Agent 工具结果".into(),
+            })?;
+        let selected = value.pointer(&input.pointer).ok_or_else(|| {
+            AppError::InvalidArgument(format!("结果中不存在 JSON pointer: {}", input.pointer))
+        })?;
+        let text = selected
+            .as_str()
+            .map(str::to_string)
+            .unwrap_or(serde_json::to_string(selected)?);
+        let total_chars = text.chars().count();
+        let offset = input.offset as usize;
+        if offset > total_chars {
+            return Err(AppError::InvalidArgument("offset 超出结果长度".into()));
+        }
+        let page = text.chars().skip(offset).take(limit).collect::<String>();
+        let end = offset + page.chars().count();
+        Ok(a4n_api_contract::agent::AgentExecutionResultPage {
+            execution_id: input.execution_id,
+            pointer: input.pointer,
+            text: page,
+            offset: input.offset,
+            total_chars,
+            next_offset: (end < total_chars)
+                .then(|| u32::try_from(end))
+                .transpose()
+                .map_err(|_| AppError::InvalidArgument("结果长度超出读取范围".into()))?,
+            complete: end == total_chars,
+        })
+    }
+
+    pub async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError> {
+        let executions = agent::executions_by_runs(self.connection(), vec![claimed.run.id])
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let mut refs = Vec::<AgentResourceRef>::new();
+        for execution in executions
+            .into_iter()
+            .filter(|execution| execution.status == "succeeded")
+        {
+            if let Some(value) = execution.result_refs_json {
+                let items: Vec<AgentResourceRef> =
+                    from_json(value, "agent_execution.result_refs_json")?;
+                for item in items {
+                    if item.kind == "optimization_source" {
+                        continue;
+                    }
+                    refs.retain(|previous| previous.kind != item.kind || previous.id != item.id);
+                    refs.push(item);
+                }
+            }
+        }
+        serde_json::to_value(refs).map_err(AppError::from)
+    }
+
+    pub async fn run_budget_snapshot(
+        &self,
+        run_id: i64,
+    ) -> Result<agent::AgentBudgetSnapshot, AppError> {
+        agent::run_budget_snapshot(self.connection(), run_id)
+            .await
+            .map_err(agent_db_error_to_app)
+    }
+
     pub async fn create_prepared_execution(
         &self,
         input: WorkerExecutionInput,
-    ) -> Result<execution::Model, AppError> {
-        agent::create_execution_for_run_lease(
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        match agent::create_execution_for_run_lease(
             self.connection(),
-            a4n_db::agent::AgentExecutionInput {
+            AgentExecutionInput {
                 run_id: input.run_id,
                 execution_key: input.execution_key,
                 execution_kind: input.execution_kind,
@@ -2028,7 +2827,11 @@ impl AgentApplication {
             &input.lease_token,
         )
         .await
-        .map_err(agent_db_error_to_app)
+        {
+            Ok(execution) => Ok(Some(execution.into())),
+            Err(AgentDbError::BudgetExhausted(_)) => Ok(None),
+            Err(error) => Err(agent_db_error_to_app(error)),
+        }
     }
 
     /// Starts a child Run on an existing canonical sub-agent thread and binds
@@ -2140,7 +2943,7 @@ impl AgentApplication {
             self.connection(),
             a4n_db::agent::AgentChildDelegationInput {
                 parent_lease_token: Some(claimed.lease_token.clone()),
-                delegation: a4n_db::agent::AgentDelegationInput {
+                delegation: AgentDelegationInput {
                     parent_thread_id: claimed.run.thread_id,
                     parent_run_id: claimed.run.id,
                     parent_execution_id: input.parent_execution_id,
@@ -2185,10 +2988,10 @@ impl AgentApplication {
         .await
         .map_err(agent_db_error_to_app)?;
         Ok(WorkerDelegationResult {
-            delegation,
-            child_turn,
-            child_run,
-            child_message,
+            delegation: delegation.into(),
+            child_turn: child_turn.into(),
+            child_run: child_run.into(),
+            child_message: child_message.into(),
         })
     }
 
@@ -2198,7 +3001,8 @@ impl AgentApplication {
         content: impl Into<String>,
         result_summary: impl Into<String>,
         result_refs_json: Option<Value>,
-    ) -> Result<(run::Model, delegation::Model, inbox::Model, run::Model), AppError> {
+        observed_input_message_id: i64,
+    ) -> Result<bool, AppError> {
         if claimed.run.parent_run_id.is_none() {
             return Err(AppError::InvalidArgument(
                 "只有 child Agent run 可以回传 delegation result".into(),
@@ -2223,16 +3027,18 @@ impl AgentApplication {
                 },
                 result_refs_json,
                 result_summary: result_summary.into(),
+                observed_input_message_id,
             },
         )
         .await
+        .map(|result| result.is_some())
         .map_err(agent_db_error_to_app)
     }
 
     pub async fn update_worker_execution(
         &self,
         input: WorkerExecutionUpdate,
-    ) -> Result<execution::Model, AppError> {
+    ) -> Result<AgentExecutionSnapshot, AppError> {
         agent::update_execution_for_run_lease(
             self.connection(),
             input.run_id,
@@ -2245,6 +3051,7 @@ impl AgentApplication {
             input.error_message,
         )
         .await
+        .map(Into::into)
         .map_err(agent_db_error_to_app)
     }
 
@@ -2259,24 +3066,18 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn mark_turn_active(
-        &self,
-        claimed: &AgentWorkerRun,
-    ) -> Result<turn::Model, AppError> {
+    pub async fn mark_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
         agent::mark_turn_active_for_run_lease(
             self.connection(),
             claimed.run.id,
             &claimed.lease_token,
         )
         .await
+        .map(|_| ())
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn wait_run(
-        &self,
-        claimed: &AgentWorkerRun,
-        reason: &str,
-    ) -> Result<run::Model, AppError> {
+    pub async fn wait_run(&self, claimed: &AgentWorkerRun, reason: &str) -> Result<(), AppError> {
         validate_waiting_reason(reason)?;
         agent::wait_run_for_lease(
             self.connection(),
@@ -2285,7 +3086,91 @@ impl AgentApplication {
             reason,
         )
         .await
+        .map(|_| ())
         .map_err(agent_db_error_to_app)
+    }
+
+    pub async fn wait_for_editor(
+        &self,
+        claimed: &AgentWorkerRun,
+        request: &a4n_api_contract::agent::AgentEditorRequest,
+    ) -> Result<(), AppError> {
+        agent::wait_run_for_lease_with_request(
+            self.connection(),
+            claimed.run.id,
+            &claimed.lease_token,
+            "external",
+            Some(serde_json::to_value(request)?),
+        )
+        .await
+        .map_err(agent_db_error_to_app)?;
+        Ok(())
+    }
+
+    pub async fn claim_editor_request(
+        &self,
+        user_id: i64,
+        input: &a4n_api_contract::agent::RespondAgentEditorInput,
+    ) -> Result<(AgentWorkerRun, a4n_api_contract::agent::AgentEditorRequest), AppError> {
+        let run_id = parse_id(&input.run_id, "run_id")?;
+        let execution_id = parse_id(&input.execution_id, "execution_id")?;
+        let run = agent::run_by_id(self.connection(), run_id)
+            .await
+            .map_err(agent_db_error_to_app)?
+            .ok_or_else(|| AppError::NotFound("Agent Run 不存在".into()))?;
+        let thread = self.owned_thread(user_id, run.thread_id).await?;
+        let payload = event::Entity::find()
+            .filter(event::Column::RunId.eq(run_id))
+            .filter(event::Column::Kind.eq("run_waiting"))
+            .order_by_desc(event::Column::Sequence)
+            .one(self.connection())
+            .await?
+            .and_then(|event| event.payload_json)
+            .and_then(|payload| payload.get("editor_request").cloned())
+            .ok_or_else(|| AppError::InvalidArgument("Run 没有待响应的编辑器请求".into()))?;
+        let request: a4n_api_contract::agent::AgentEditorRequest =
+            from_json(payload, "editor_request")?;
+        if request.execution_id != input.execution_id
+            || request.source.view_instance_id != input.view_instance_id
+        {
+            return Err(AppError::Forbidden("响应与原始视图或执行不匹配".into()));
+        }
+        validate_editor_source(&request.source, &thread)?;
+        let run = agent::claim_editor_execution(self.connection(), user_id, run_id, execution_id)
+            .await
+            .map_err(agent_db_error_to_app)?;
+        let lease_token = run
+            .lease_token
+            .clone()
+            .ok_or_else(|| AppError::InvalidState {
+                current: "编辑器响应缺少执行租约".into(),
+                operation: "领取编辑器请求".into(),
+            })?;
+        Ok((
+            AgentWorkerRun {
+                run: run.into(),
+                thread: thread.into(),
+                lease_token,
+            },
+            request,
+        ))
+    }
+
+    pub async fn requeue_after_external_response(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<(), AppError> {
+        agent::update_run_state(
+            self.connection(),
+            claimed.run.id,
+            Some(&claimed.lease_token),
+            "queued",
+            None,
+            None,
+        )
+        .await
+        .map_err(agent_db_error_to_app)?;
+        Ok(())
     }
 
     pub async fn append_worker_update(
@@ -2326,7 +3211,7 @@ impl AgentApplication {
         tool_name: &str,
         tool_call_id: Option<&str>,
         result: Value,
-    ) -> Result<message::Model, AppError> {
+    ) -> Result<AgentMessageSnapshot, AppError> {
         let content = serde_json::to_string(&result)?;
         agent::append_message_for_run_lease(
             self.connection(),
@@ -2351,6 +3236,7 @@ impl AgentApplication {
             },
         )
         .await
+        .map(Into::into)
         .map_err(agent_db_error_to_app)
     }
 
@@ -2359,7 +3245,7 @@ impl AgentApplication {
         claimed: &AgentWorkerRun,
         content: impl Into<String>,
         tool_calls: Value,
-    ) -> Result<message::Model, AppError> {
+    ) -> Result<AgentMessageSnapshot, AppError> {
         agent::append_message_for_run_lease(
             self.connection(),
             claimed.run.id,
@@ -2381,6 +3267,7 @@ impl AgentApplication {
             },
         )
         .await
+        .map(Into::into)
         .map_err(agent_db_error_to_app)
     }
 
@@ -2389,8 +3276,9 @@ impl AgentApplication {
         claimed: &AgentWorkerRun,
         content: impl Into<String>,
         result_refs_json: Option<Value>,
-    ) -> Result<run::Model, AppError> {
-        let (completed, _) = agent::finish_run_with_message(
+        observed_input_message_id: i64,
+    ) -> Result<bool, AppError> {
+        let completed = agent::finish_run_with_message(
             self.connection(),
             claimed.run.id,
             &claimed.lease_token,
@@ -2407,10 +3295,11 @@ impl AgentApplication {
                 payload_json: None,
             },
             result_refs_json,
+            observed_input_message_id,
         )
         .await
         .map_err(agent_db_error_to_app)?;
-        Ok(completed)
+        Ok(completed.is_some())
     }
 
     async fn fail_claimed_run(
@@ -2454,16 +3343,17 @@ impl AgentApplication {
     pub async fn claim_inbox_for_thread(
         &self,
         thread_id: i64,
-    ) -> Result<Option<inbox::Model>, AppError> {
+    ) -> Result<Option<AgentInboxSnapshot>, AppError> {
         agent::claim_inbox(self.connection(), Some(thread_id))
             .await
+            .map(|row| row.map(Into::into))
             .map_err(agent_db_error_to_app)
     }
 
     pub async fn consume_claimed_inbox(
         &self,
-        row: &inbox::Model,
-    ) -> Result<inbox::Model, AppError> {
+        row: &AgentInboxSnapshot,
+    ) -> Result<AgentInboxSnapshot, AppError> {
         let token = row
             .claim_token
             .as_deref()
@@ -2473,14 +3363,15 @@ impl AgentApplication {
             })?;
         agent::consume_inbox(self.connection(), row.id, token)
             .await
+            .map(Into::into)
             .map_err(agent_db_error_to_app)
     }
 
     pub async fn persist_claimed_inbox(
         &self,
         claimed: &AgentWorkerRun,
-        row: &inbox::Model,
-    ) -> Result<(inbox::Model, message::Model), AppError> {
+        row: &AgentInboxSnapshot,
+    ) -> Result<(AgentInboxSnapshot, AgentMessageSnapshot), AppError> {
         if row.thread_id != claimed.run.thread_id
             || row.turn_id != Some(claimed.run.turn_id)
             || row.run_id != Some(claimed.run.id)
@@ -2520,6 +3411,7 @@ impl AgentApplication {
             },
         )
         .await
+        .map(|(inbox, message)| (inbox.into(), message.into()))
         .map_err(agent_db_error_to_app)
     }
 
@@ -2555,7 +3447,7 @@ impl AgentApplication {
         let (approval, _, _) = agent::request_approval_for_run_lease(
             self.connection(),
             &claimed.lease_token,
-            a4n_db::agent::AgentApprovalInput {
+            a4n_domain::agent::AgentApprovalInput {
                 thread_id: claimed.run.thread_id,
                 run_id: claimed.run.id,
                 execution_id,
@@ -2637,7 +3529,7 @@ fn validate_model_override_json(value: Option<&Value>) -> Result<(), AppError> {
             operation: "加载 Agent 模型配置".into(),
         });
     }
-    let model_config_id = object
+    object
         .get("model_config_id")
         .and_then(Value::as_i64)
         .filter(|id| *id > 0)
@@ -2645,7 +3537,38 @@ fn validate_model_override_json(value: Option<&Value>) -> Result<(), AppError> {
             current: "Agent turn model_override_json.model_config_id 无效".into(),
             operation: "加载 Agent 模型配置".into(),
         })?;
-    validate_optional_positive_id(Some(model_config_id), "model_config_id")
+    Ok(())
+}
+
+fn validate_editor_source(
+    source: &a4n_api_contract::agent::AgentEditorSource,
+    thread: &thread::Model,
+) -> Result<(), AppError> {
+    let scope: AgentScope = from_json(thread.scope_json.clone(), "agent_thread.scope_json")?;
+    if thread.profile_id != a4n_api_contract::agent::DIRECTOR_AGENT_CAPABILITY
+        || scope.project_id != Some(source.project_id)
+        || scope.chapter_id != Some(source.chapter_id)
+    {
+        return Err(AppError::Forbidden(
+            "编辑器来源必须属于当前导演 Agent 绑定的项目和章节".into(),
+        ));
+    }
+    for value in [
+        Some(&source.view_instance_id),
+        Some(&source.editor_revision),
+        source.scene_id.as_ref(),
+        source.shot_id.as_ref(),
+        source.keyframe_id.as_ref(),
+        source.entity_id.as_ref(),
+    ]
+    .into_iter()
+    .flatten()
+    {
+        if value.trim().is_empty() || value.len() > 128 || value.chars().any(char::is_control) {
+            return Err(AppError::InvalidArgument("编辑器来源标识无效".into()));
+        }
+    }
+    Ok(())
 }
 
 fn parse_id(value: &str, field: &str) -> Result<i64, AppError> {
@@ -2815,25 +3738,17 @@ fn validate_subagent_resource(
 }
 
 /// Apply the one tool-scope rule shared by direct thread creation and
-/// parent-driven delegation. Registered domain agents get their fixed
-/// catalog; generic profiles retain an empty allowlist so the worker can
-/// execute any manifest-exposed tool discovered by the model. An explicitly
-/// supplied generic allowlist is still validated at admission.
+/// parent-driven delegation. Empty means the capability's current catalog;
+/// only the worker materializes that catalog, so stored defaults do not go
+/// stale. Existing nonempty lists remain explicit restrictions.
 fn apply_subagent_tool_policy(capability: &str, scope: &mut AgentScope) -> Result<(), AppError> {
     if a4n_api_contract::agent::capability_has_restricted_tool_catalog(capability) {
         let allowed_catalog = a4n_api_contract::agent::agent_tools_for_capability(capability);
-        if scope.allowed_tools.is_empty() {
-            scope.allowed_tools = allowed_catalog
-                .iter()
-                .map(|tool| (*tool).to_string())
-                .collect();
-        } else {
-            for tool in &scope.allowed_tools {
-                if !allowed_catalog.contains(&tool.as_str()) {
-                    return Err(AppError::Forbidden(format!(
-                        "capability {capability} 不允许使用工具: {tool}"
-                    )));
-                }
+        for tool in &scope.allowed_tools {
+            if !allowed_catalog.contains(&tool.as_str()) {
+                return Err(AppError::Forbidden(format!(
+                    "capability {capability} 不允许使用工具: {tool}"
+                )));
             }
         }
         return Ok(());
@@ -2979,17 +3894,17 @@ fn normalized_capability(
 ) -> Result<String, AppError> {
     match kind {
         AgentThreadKind::Main => match capability {
-            Some(value) if value.trim() != "main" => Err(AppError::InvalidArgument(
+            Some(value) if value.trim() != MAIN_AGENT_CAPABILITY => Err(AppError::InvalidArgument(
                 "主 Agent capability 必须为 main".into(),
             )),
-            _ => Ok("main".into()),
+            _ => Ok(MAIN_AGENT_CAPABILITY.into()),
         },
         AgentThreadKind::Subagent => required_capability(
             capability
                 .as_deref()
                 .map(str::trim)
                 .filter(|value| !value.is_empty())
-                .unwrap_or("general")
+                .unwrap_or(GENERAL_AGENT_CAPABILITY)
                 .to_string(),
         ),
     }
@@ -3340,6 +4255,14 @@ fn memory_view(row: memory::Model) -> Result<AgentMemoryView, AppError> {
 }
 
 fn event_view(row: event::Model) -> Result<AgentEvent, AppError> {
+    let editor_request = row
+        .payload_json
+        .as_ref()
+        .and_then(|payload| payload.get("editor_request"))
+        .filter(|value| !value.is_null())
+        .cloned()
+        .map(|value| from_json(value, "agent_event.editor_request"))
+        .transpose()?;
     Ok(AgentEvent {
         protocol_version: AGENT_API_PROTOCOL_VERSION,
         thread_id: row.thread_id.to_string(),
@@ -3353,6 +4276,7 @@ fn event_view(row: event::Model) -> Result<AgentEvent, AppError> {
         delegation_id: row.delegation_id.map(|id| id.to_string()),
         message_id: row.message_id.map(|id| id.to_string()),
         payload: event_payload(row.payload_json, row.public_text, row.status),
+        editor_request,
         created_at: row.created_at.to_string(),
     })
 }
@@ -3493,6 +4417,10 @@ parse_enum!(parse_memory_status, AgentMemoryStatus, {"proposed" => AgentMemorySt
 
 fn agent_db_error_to_app(error: AgentDbError) -> AppError {
     match error {
+        AgentDbError::BudgetExhausted(message) => AppError::InvalidState {
+            current: format!("Agent 共享预算已耗尽: {message}"),
+            operation: "预留执行额度".into(),
+        },
         AgentDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         AgentDbError::NotFound(message) => AppError::NotFound(message),
         AgentDbError::Conflict(message) => AppError::InvalidState {
@@ -3615,7 +4543,7 @@ mod tests {
                 .iter()
                 .map(|tool| tool.name.as_str())
                 .collect::<Vec<_>>(),
-            ["delegate"]
+            ["delegate", "review_agent_delegation"]
         );
 
         let generic = application

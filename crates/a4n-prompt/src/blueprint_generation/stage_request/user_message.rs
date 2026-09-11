@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use a4n_core::error::AppError;
+use a4n_domain::project::BLUEPRINT_STAGE_USER_PROMPT;
+use a4n_error::AppError;
 use serde_json::{Value, json};
 
 use crate::rendering::PromptRenderer;
@@ -29,10 +30,6 @@ pub(super) async fn build_blueprint_stage_manifest_user_message(
         ("payload".to_string(), json!(payload)),
     ]);
     prompt_renderer
-        .render_prompt(
-            a4n_core::blueprint::BLUEPRINT_STAGE_USER_PROMPT,
-            &variables,
-            project_id,
-        )
+        .render_prompt(BLUEPRINT_STAGE_USER_PROMPT, &variables, project_id)
         .await
 }

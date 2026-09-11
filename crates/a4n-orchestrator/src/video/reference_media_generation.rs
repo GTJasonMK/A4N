@@ -1,13 +1,15 @@
-use a4n_core::{
-    error::AppError,
-    models::ai::{generated_video, video_gen_config},
-    video_execution::VideoSegmentWorkflowModeV1,
-};
+use a4n_api_contract::video::GenerateReferenceMediaVideoInput;
 use a4n_db::collaboration::ProjectAccessRole;
+use a4n_db_models::models::ai::generated_video;
+use a4n_error::AppError;
+use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::GenerationArtifactRef;
-use a4n_video::{VideoGenerationRequest, VideoGenerationResult};
-use async_trait::async_trait;
-use serde::Deserialize;
+use a4n_video::VideoGenerationRequest;
+use a4n_video_contract::{
+    ReferenceMediaVideoGenerationHostPort, ReferenceMediaVideoPreviewHostPort,
+    ReferenceMediaVideoRequestPreview, VideoProviderRequestInput, VideoProviderValidationMode,
+    VideoSegmentWorkflowModeV1,
+};
 use serde_json::{Value, json};
 
 use crate::OrchestratorContext;
@@ -15,76 +17,14 @@ use crate::OrchestratorContext;
 use super::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND, VIDEO_GENERATION_PROGRESS_TOTAL,
     VideoGenerationProgress, VideoGenerationRecordInput, VideoProviderExecutionInput,
-    VideoProviderHostPort, VideoProviderRequestBody, VideoProviderRequestInput,
-    VideoProviderValidationMode, provider_request_snapshot_value,
+    provider_request_snapshot_value,
     reference_media_rules::{
-        ReferenceMediaVideoInput, ResolvedReferenceMediaVideoInput, ValidatedReferenceMediaUpload,
+        ResolvedReferenceMediaVideoInput, ValidatedReferenceMediaUpload,
         build_reference_media_video_request, reference_media_prompt_from_recipe,
         reference_media_provider_request_note, resolve_reference_media_urls,
         validate_reference_media_start_input, validated_reference_media_uploads,
     },
 };
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct GenerateReferenceMediaVideoInput {
-    pub user_id: i64,
-    pub project_id: i64,
-    pub chapter_id: i64,
-    pub input: ReferenceMediaVideoInput,
-}
-
-#[derive(Debug, Clone)]
-pub struct ReferenceMediaVideoRequestPreview {
-    pub request: Value,
-    pub note: String,
-}
-
-#[async_trait]
-pub trait ReferenceMediaVideoGenerationHostPort: Send + Sync {
-    async fn resolve_video_config(
-        &self,
-        config_id: Option<i64>,
-    ) -> Result<video_gen_config::Model, AppError>;
-
-    async fn reference_media_provider_request_body(
-        &self,
-        input: VideoProviderRequestInput,
-    ) -> Result<VideoProviderRequestBody, AppError>;
-
-    async fn submit_reference_media_video(
-        &self,
-        input: VideoProviderRequestInput,
-        progress: &mut VideoGenerationProgress<'_>,
-    ) -> Result<VideoGenerationResult, AppError>;
-
-    async fn upload_reference_media_input(
-        &self,
-        owner_user_id: i64,
-        project_id: i64,
-        source_media_id: i64,
-        source_media_kind: &str,
-        file_name: &str,
-        mime_type: &str,
-        bytes: &[u8],
-    ) -> Result<(String, GenerationArtifactRef), AppError> {
-        let _ = (
-            owner_user_id,
-            project_id,
-            source_media_id,
-            source_media_kind,
-            file_name,
-            mime_type,
-            bytes,
-        );
-        Err(AppError::InvalidArgument(
-            "当前运行环境不支持本地参考媒体临时上传".to_string(),
-        ))
-    }
-
-    fn runtime_config_snapshot(&self) -> Option<Value>;
-
-    fn video_provider_host_port(&self) -> &dyn VideoProviderHostPort;
-}
 
 struct PreparedReferenceMediaVideoGeneration {
     project_id: i64,
@@ -92,7 +32,7 @@ struct PreparedReferenceMediaVideoGeneration {
     segment_plan_prompt_id: i64,
     shot_number: i32,
     video_execution_identity: Value,
-    config: video_gen_config::Model,
+    config: VideoProviderConfig,
     request: VideoGenerationRequest,
     redacted_local_uploads: usize,
     staging_artifacts: Vec<GenerationArtifactRef>,
@@ -101,7 +41,7 @@ struct PreparedReferenceMediaVideoGeneration {
 impl OrchestratorContext {
     pub async fn preview_reference_media_video_request_validated(
         &self,
-        host_port: &dyn ReferenceMediaVideoGenerationHostPort,
+        host_port: &dyn ReferenceMediaVideoPreviewHostPort,
         input: GenerateReferenceMediaVideoInput,
     ) -> Result<ReferenceMediaVideoRequestPreview, AppError> {
         let prepared = self
@@ -112,7 +52,7 @@ impl OrchestratorContext {
             )
             .await?;
         let body = host_port
-            .reference_media_provider_request_body(VideoProviderRequestInput {
+            .reference_media_provider_request_body_for_preview(VideoProviderRequestInput {
                 project_id: prepared.project_id,
                 config: prepared.config.clone(),
                 request: prepared.request.clone(),
@@ -220,7 +160,7 @@ impl OrchestratorContext {
             .create_video_generation_record_validated(VideoGenerationRecordInput {
                 project_id: prepared.project_id,
                 chapter_id: Some(prepared.chapter_id),
-                video_type: generated_video::VIDEO_TYPE_REFERENCE_MEDIA.into(),
+                video_type: a4n_domain::video_workflow::VIDEO_TYPE_REFERENCE_MEDIA.into(),
                 workflow_mode: Some(
                     VideoSegmentWorkflowModeV1::ReferenceMedia
                         .as_str()
@@ -328,7 +268,7 @@ impl OrchestratorContext {
 
     async fn prepare_reference_media_video_generation(
         &self,
-        host_port: &dyn ReferenceMediaVideoGenerationHostPort,
+        host_port: &dyn ReferenceMediaVideoPreviewHostPort,
         input: GenerateReferenceMediaVideoInput,
         mode: VideoProviderValidationMode,
     ) -> Result<PreparedReferenceMediaVideoGeneration, AppError> {
@@ -351,13 +291,13 @@ impl OrchestratorContext {
         let plan = self
             .require_current_shared_segment_plan(project_id, chapter_id, segment_plan_prompt_id)
             .await?;
-        let shot_number = a4n_core::video_execution::resolve_video_segment_number(
+        let shot_number = a4n_video_contract::resolve_video_segment_number(
             plan.metadata_json.as_ref(),
             &input.target_segment.source_shot_id,
             input.target_segment.segment_index_in_shot,
         )
         .map_err(AppError::InvalidArgument)?;
-        let recipe = a4n_core::video_execution::video_segment_recipe_from_metadata(
+        let recipe = a4n_video_contract::video_segment_recipe_from_metadata(
             plan.metadata_json.as_ref(),
             shot_number,
         )
@@ -388,7 +328,9 @@ impl OrchestratorContext {
                 input.target_segment.segment_index_in_shot,
             ),
         )?;
-        let config = host_port.resolve_video_config(input.config_id).await?;
+        let config = host_port
+            .resolve_video_config_for_preview(input.config_id)
+            .await?;
         let source_media_id = segment_plan_prompt_id;
         let image_uploads = validated_reference_media_uploads(
             &reference_media.image_rows,
@@ -470,7 +412,7 @@ impl OrchestratorContext {
                 let source_media_kind = format!("reference_media_{kind}");
                 for upload in uploads {
                     let (url, artifact) = host_port
-                        .upload_reference_media_input(
+                        .upload_reference_media_input_for_preview(
                             user_id,
                             project_id,
                             source_media_id,

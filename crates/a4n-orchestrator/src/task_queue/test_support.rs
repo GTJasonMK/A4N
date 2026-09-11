@@ -1,11 +1,20 @@
 use std::sync::Arc;
 
-use a4n_core::models::task::task_queue;
+use a4n_db_models::models::task::task_queue;
 use chrono::Utc;
 use sea_orm::{DatabaseConnection, EntityTrait, Set};
 
 pub(super) async fn setup_db() -> Arc<DatabaseConnection> {
-    Arc::new(a4n_migration::test_support::connect_test_database().await)
+    let db = a4n_migration::test_support::connect_test_database().await;
+    let packages = a4n_api_contract::package::package_catalog()
+        .packages
+        .into_iter()
+        .map(|package| package.id.as_str().to_string())
+        .collect::<Vec<_>>();
+    a4n_db::package::ensure_host_package_states(&db, &packages)
+        .await
+        .expect("queue tests require installed, enabled packages");
+    Arc::new(db)
 }
 
 pub(super) async fn insert_task_row(

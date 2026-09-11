@@ -1,5 +1,6 @@
 use super::{reject_unknown_keys, required_field};
-use a4n_core::{error::AppError, json_contract::is_empty_json_value};
+use a4n_domain::json_contract::is_empty_json_value;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub(in crate::blueprint::json) fn required_object_with_keys(

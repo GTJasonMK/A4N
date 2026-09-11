@@ -1,6 +1,8 @@
 #[derive(Debug, thiserror::Error)]
 pub enum ImportTransformError {
     #[error("{0}")]
+    Contract(#[from] a4n_import_contract::ImportContractError),
+    #[error("{0}")]
     InvalidDocument(String),
     #[error("导入 JSON 解析失败：{0}")]
     InvalidJson(#[from] serde_json::Error),

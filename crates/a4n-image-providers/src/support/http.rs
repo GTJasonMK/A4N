@@ -1,6 +1,6 @@
 use super::errors::{error_chain, internal_error, request_error};
 use super::format::image_format_hint;
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use reqwest::header::CONTENT_TYPE;
 use std::time::Duration;
 

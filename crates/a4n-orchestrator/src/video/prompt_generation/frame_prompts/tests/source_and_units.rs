@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn video_units_only_add_action_bridge_for_preserved_action() {
     let mut first = segment(1);
-    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+    first.transition_to_next = Some(a4n_video_contract::VideoSegmentTransitionV1 {
         transition_type: a4n_domain::shooting_script::ShootingTransitionTypeV1::MatchCut,
         editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("角色推门动作连续完成".to_string()),
@@ -21,7 +21,7 @@ fn video_units_only_add_action_bridge_for_preserved_action() {
     );
     assert!(matches!(
         &units[1].kind,
-        a4n_core::video_execution::VideoExecutionUnitKindV2::ActionBridge(_)
+        a4n_video_contract::VideoExecutionUnitKindV2::ActionBridge(_)
     ));
     assert_eq!(
         units[1].prompt_segment.video_intent.hook,
@@ -38,7 +38,7 @@ fn environment_action_bridge_does_not_require_fake_actor() {
     let mut first = segment(1);
     first.emotion_action_goals.clear();
     first.performance_plan.action_script.clear();
-    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+    first.transition_to_next = Some(a4n_video_contract::VideoSegmentTransitionV1 {
         transition_type: a4n_domain::shooting_script::ShootingTransitionTypeV1::MatchCut,
         editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("霓虹反光从街面滑入后巷水洼".to_string()),
@@ -56,7 +56,7 @@ fn environment_action_bridge_does_not_require_fake_actor() {
 #[test]
 fn target_segment_selects_content_unit_even_when_a_bridge_precedes_it() {
     let mut first = segment(1);
-    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+    first.transition_to_next = Some(a4n_video_contract::VideoSegmentTransitionV1 {
         transition_type: a4n_domain::shooting_script::ShootingTransitionTypeV1::MatchCut,
         editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: Some("角色推门动作连续完成".to_string()),
@@ -72,7 +72,7 @@ fn target_segment_selects_content_unit_even_when_a_bridge_precedes_it() {
     assert_eq!(unit.source_segment_numbers(), [2]);
     assert!(matches!(
         &unit.kind,
-        a4n_core::video_execution::VideoExecutionUnitKindV2::Content(_)
+        a4n_video_contract::VideoExecutionUnitKindV2::Content(_)
     ));
     assert_eq!(unit.storyboard_number, Some(2));
 }
@@ -80,7 +80,7 @@ fn target_segment_selects_content_unit_even_when_a_bridge_precedes_it() {
 #[test]
 fn sound_only_or_cut_metadata_does_not_create_action_bridge() {
     let mut first = segment(1);
-    first.transition_to_next = Some(a4n_core::video_execution::VideoSegmentTransitionV1 {
+    first.transition_to_next = Some(a4n_video_contract::VideoSegmentTransitionV1 {
         transition_type: a4n_domain::shooting_script::ShootingTransitionTypeV1::HardCut,
         editing_mode: a4n_domain::shooting_script::ShootingEditingModeV1::Continuity,
         preserved_action: None,
@@ -91,7 +91,7 @@ fn sound_only_or_cut_metadata_does_not_create_action_bridge() {
     assert_eq!(units.len(), 2);
     assert!(units.iter().all(|unit| matches!(
         &unit.kind,
-        a4n_core::video_execution::VideoExecutionUnitKindV2::Content(_)
+        a4n_video_contract::VideoExecutionUnitKindV2::Content(_)
     )));
     assert_eq!(expected_boundary_frame_count(&[segment(1), segment(2)]), 3);
 }

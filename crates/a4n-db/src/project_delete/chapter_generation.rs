@@ -8,9 +8,9 @@ pub(crate) async fn delete_chapter_generation_outputs<C>(
 where
     C: ConnectionTrait,
 {
-    use a4n_core::models::ai::{generated_image, generated_video};
-    use a4n_core::models::asset::profile_primary_material;
-    use a4n_core::models::chapter::{
+    use a4n_db_models::models::ai::{generated_image, generated_video};
+    use a4n_db_models::models::asset::profile_primary_material;
+    use a4n_db_models::models::chapter::{
         chapter, chapter_manga_prompt, chapter_scene, chapter_video_prompt,
     };
 

@@ -1,25 +1,16 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 /// Parses an LLM response as a strict JSON object without accepting fences or
 /// other non-JSON wrappers.
 pub fn parse_llm_json_object(content: &str, context: &str) -> Result<Value, AppError> {
-    let value: Value = serde_json::from_str(content.trim()).map_err(|error| {
-        AppError::InvalidArgument(format!("{context} 必须返回 JSON 对象: {error}"))
-    })?;
-
-    if !value.is_object() {
-        return Err(AppError::InvalidArgument(format!(
-            "{context} 必须返回 JSON 对象"
-        )));
-    }
-
-    Ok(value)
+    a4n_domain::json_contract::parse_llm_json_object(content, context)
+        .map_err(AppError::InvalidArgument)
 }
 
 #[cfg(test)]
 mod tests {
-    use a4n_core::error::AppError;
+    use a4n_error::AppError;
     use serde_json::json;
 
     use super::parse_llm_json_object;

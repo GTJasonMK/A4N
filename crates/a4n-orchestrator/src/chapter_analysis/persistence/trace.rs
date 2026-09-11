@@ -1,10 +1,10 @@
-use a4n_core::chapter_analysis::{
+use a4n_chapter_analysis::{
     CHAPTER_ANALYSIS_STAGE_CHARACTER_STATE, CHAPTER_ANALYSIS_STAGE_FACTS,
     CHAPTER_ANALYSIS_STAGE_FORESHADOWING_EVENTS, CHAPTER_ANALYSIS_STAGE_SUMMARY,
 };
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter;
 use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
+use a4n_db_models::models::chapter::chapter;
+use a4n_error::AppError;
 use a4n_llm::trace::{chat_request_messages_json, context_aware_chat_request_trace_json};
 use serde_json::{Value, json};
 

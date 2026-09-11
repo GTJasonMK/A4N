@@ -1,7 +1,7 @@
 mod drawing;
 mod page_plan;
 
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::json;
 
 use super::super::pipeline_json::required_array_field;

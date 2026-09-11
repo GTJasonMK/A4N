@@ -10,7 +10,7 @@ use crate::galgame::{
     GalgameGenerationSpecTextAnchorRefRecordInput, GalgameGenerationSpecUpsert,
     GalgameGenerationSpecUpsertOutcome,
 };
-use a4n_core::models::generation::generation_spec;
+use a4n_db_models::models::generation::generation_spec;
 use chrono::Utc;
 use sea_orm::sea_query::{CaseStatement, Expr};
 use sea_orm::{

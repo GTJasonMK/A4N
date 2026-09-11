@@ -1,6 +1,6 @@
 use super::super::{SourceSyncDbError, generation_specs, validate_positive_id};
 use super::types::{SourceSyncGalgameAnchorRecord, SourceSyncGalgameSceneRegenerationSourceRecord};
-use a4n_core::models::{
+use a4n_db_models::models::{
     galgame::{galgame_line, galgame_scene, galgame_script},
     project::{source_snapshot_chapter, text_anchor},
     source_sync::{source_sync_conflict, source_sync_run},
@@ -36,18 +36,15 @@ where
 
     let scene_id = match conflict.target_kind.as_str() {
         "galgame_scene" => conflict.target_id,
-        "galgame_line" => {
-            let line_scene_id = galgame_line::Entity::find_by_id(conflict.target_id)
-                .select_only()
-                .column(galgame_line::Column::SceneId)
-                .into_tuple::<i64>()
-                .one(db)
-                .await?
-                .ok_or_else(|| {
-                    SourceSyncDbError::NotFound(format!("Galgame 行不存在: {}", conflict.target_id))
-                })?;
-            line_scene_id
-        }
+        "galgame_line" => galgame_line::Entity::find_by_id(conflict.target_id)
+            .select_only()
+            .column(galgame_line::Column::SceneId)
+            .into_tuple::<i64>()
+            .one(db)
+            .await?
+            .ok_or_else(|| {
+                SourceSyncDbError::NotFound(format!("Galgame 行不存在: {}", conflict.target_id))
+            })?,
         other => {
             return Err(SourceSyncDbError::InvalidArgument(format!(
                 "regenerate_scene 冲突目标类型不受支持: {other}"

@@ -15,4 +15,4 @@ use self::llm_chat::{
     render_and_chat_trace_with_context, report_video_prompt_checkpoint,
     report_video_prompt_item_committed, report_video_prompt_progress,
 };
-use a4n_core::structured_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};
+use a4n_progress::{FieldMilestone, ProgressSpan, StructuredJsonProgressSpec};

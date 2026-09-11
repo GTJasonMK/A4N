@@ -1,5 +1,5 @@
-use a4n_core::structured_progress::StructuredJsonProgressSpec;
 use a4n_llm::provider::{ChatRequest, UsageInfo};
+use a4n_progress::StructuredJsonProgressSpec;
 use tokio_util::sync::CancellationToken;
 
 use super::super::super::super::{VideoPromptChunk, VideoPromptProgress};

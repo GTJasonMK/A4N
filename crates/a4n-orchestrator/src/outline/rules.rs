@@ -1,5 +1,5 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::{chapter_outline, part_outline};
+use a4n_db_models::models::chapter::{chapter_outline, part_outline};
+use a4n_error::AppError;
 use a4n_llm::provider::is_truncated_finish_reason;
 
 use super::ProgressReporter;
@@ -45,24 +45,6 @@ pub fn batch_parts_progress_total(parts: &[part_outline::Model]) -> Result<u32, 
 
 pub fn order_parts_for_batch_generation(parts: &mut [part_outline::Model]) {
     parts.sort_by_key(|part| (part.part_number, part.id));
-}
-
-pub fn required_outline_pacing_score(
-    pacing_score: Option<f32>,
-    chapter_number: i32,
-) -> Result<f32, AppError> {
-    let score = pacing_score.ok_or_else(|| {
-        AppError::InvalidArgument(format!(
-            "第 {chapter_number} 章缺少 pacing_score，无法分析节奏"
-        ))
-    })?;
-    if score.is_finite() {
-        Ok(score)
-    } else {
-        Err(AppError::InvalidArgument(format!(
-            "第 {chapter_number} 章 pacing_score 不是有限数字，无法分析节奏"
-        )))
-    }
 }
 
 pub fn report_progress(

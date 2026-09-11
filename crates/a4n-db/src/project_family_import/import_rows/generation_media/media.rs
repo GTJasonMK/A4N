@@ -1,5 +1,5 @@
-use a4n_core::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
-use a4n_core::models::{
+use a4n_db_models::models::media::media_asset::{FILE_PATH_FIELD, THUMBNAIL_PATH_FIELD};
+use a4n_db_models::models::{
     generation::generation_spec_media_ref,
     media::{media_asset, media_provenance},
 };

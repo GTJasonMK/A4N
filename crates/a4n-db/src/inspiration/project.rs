@@ -1,6 +1,6 @@
 use super::contracts::InspirationDbError;
 use crate::project::{ProjectMutationError, project_summary_by_id_record};
-use a4n_core::models::project::novel_project;
+use a4n_db_models::models::project::novel_project;
 use sea_orm::DatabaseConnection;
 
 async fn inspiration_project_by_id(

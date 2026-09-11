@@ -1,12 +1,9 @@
 use std::collections::BTreeMap;
 
 use crate::{AppState, actions::app_error_message};
-use a4n_api_contract::workflow::CancelWorkflowInput;
-use a4n_core::event::channel::normalize_task_id;
-use a4n_db::workflow::WorkflowRunSummary;
-use a4n_orchestrator::workflow::{
-    cancel_workflow_requires_target, require_positive_workflow_run_id,
-};
+use a4n_api_contract::workflow::{CancelWorkflowInput, WorkflowRunSummary};
+use a4n_domain::workflow::{cancel_workflow_requires_target, require_positive_workflow_run_id};
+use a4n_task_runtime::channel::normalize_task_id;
 
 use super::super::access::{
     verify_task_access, verify_task_handle_access, verify_workflow_run_summary_access,
@@ -42,11 +39,11 @@ pub async fn cancel_workflow(
     let mut task_has_linked_workflow = false;
     if let Some(task_id) = task_id {
         persisted_task = state
-            .orchestrator()
-            .persisted_task_by_id(task_id)
+            .workflow_task_lookup_application()
+            .task_by_id(task_id)
             .await
             .map_err(app_error_message)?;
-        task_handle = state.orchestrator().task_handle(task_id);
+        task_handle = state.task_manager().get(task_id);
 
         if let Some(task) = persisted_task.as_ref() {
             verify_task_access(state, user_id, task_id).await?;
@@ -60,27 +57,25 @@ pub async fn cancel_workflow(
             verify_task_handle_access(state, user_id, handle).await?;
         }
         if let Some(run) = state
-            .orchestrator()
-            .workflow_run_access_record_by_active_task_id(task_id)
+            .workflow_task_lookup_application()
+            .workflow_access_by_active_task_id(task_id)
             .await
             .map_err(app_error_message)?
         {
-            let run = authorized_workflow_run(state, user_id, run.id).await?;
+            let run = authorized_workflow_run(state, user_id, run.workflow_run_id).await?;
             task_has_linked_workflow = true;
             workflows.insert(run.id, run);
         }
 
         if persisted_task.is_none() && task_handle.is_none() && !task_has_linked_workflow {
-            state
-                .orchestrator()
-                .cancel_or_remember_task_handle(task_id, user_id);
+            state.task_manager().cancel_or_remember(task_id, user_id);
         }
     }
 
     for run in workflows.values() {
         state
-            .orchestrator()
-            .cancel_workflow_run_and_interrupt_videos(run.id, USER_CANCELLED_WORKFLOW_REASON)
+            .workflow_cancellation_application()
+            .cancel(run.id, USER_CANCELLED_WORKFLOW_REASON)
             .await
             .map_err(app_error_message)?;
     }
@@ -89,18 +84,18 @@ pub async fn cancel_workflow(
         && !task_has_linked_workflow
         && !persisted_task.as_ref().is_some_and(|task| {
             matches!(
-                task.task.status.as_str(),
+                task.status.as_str(),
                 "completed" | "failed" | "cancelled" | "interrupted"
             )
         })
     {
         if task_handle.is_some() {
-            state.orchestrator().cancel_task_handle(task_id);
+            state.task_manager().cancel(task_id);
         }
         if persisted_task.is_some() {
             state
-                .orchestrator()
-                .queue_cancel(task_id)
+                .task_cancellation_application()
+                .cancel(task_id)
                 .await
                 .map_err(app_error_message)?;
         }
@@ -114,7 +109,7 @@ async fn authorized_workflow_run(
     workflow_run_id: i64,
 ) -> Result<WorkflowRunSummary, String> {
     let run = state
-        .orchestrator()
+        .workflow_task_lookup_application()
         .workflow_run_summary(workflow_run_id)
         .await
         .map_err(app_error_message)?;

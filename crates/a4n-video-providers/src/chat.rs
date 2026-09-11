@@ -7,7 +7,7 @@ mod tests;
 
 use async_trait::async_trait;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 
 use payload::ChatVideoPayload;
 use request::chat_request_body;
@@ -39,11 +39,11 @@ impl ChatCompletionsVideoProvider {
     pub(super) fn new(base_url: &str, api_key: &str) -> Result<Self, AppError> {
         let base = base_url.trim();
         if base.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 base_url".into()));
+            return Err(AppError::Configuration("视频配置缺少 base_url".into()));
         }
         let key = api_key.trim();
         if key.is_empty() {
-            return Err(AppError::ConfigError("视频配置缺少 api_key".into()));
+            return Err(AppError::Configuration("视频配置缺少 api_key".into()));
         }
         Ok(Self {
             base_url: base.trim_end_matches('/').to_string(),
@@ -94,9 +94,7 @@ impl VideoProvider for ChatCompletionsVideoProvider {
         )
         .await?;
         let raw_text = serde_json::to_string(&raw_value).map_err(|e| {
-            AppError::Internal(anyhow::anyhow!(
-                "chat-completions 视频响应重新序列化失败：{e}"
-            ))
+            AppError::Internal(format!("chat-completions 视频响应重新序列化失败：{e}"))
         })?;
         let payload = extract_chat_video_payload(&raw_text)?;
 
@@ -127,7 +125,7 @@ impl VideoProvider for ChatCompletionsVideoProvider {
     }
 
     async fn poll(&self, _job_id: &str) -> Result<VideoJobState, AppError> {
-        Err(AppError::Internal(anyhow::anyhow!(
+        Err(AppError::Internal(format!(
             "chat-completions 视频 backend 仅支持同步返回，不支持轮询（若需异步任务请改用 openai-compatible-video）"
         )))
     }

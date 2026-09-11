@@ -1,4 +1,4 @@
-use a4n_core::models::canvas::{canvas_edge, canvas_graph, canvas_node};
+use a4n_db_models::models::canvas::{canvas_edge, canvas_graph, canvas_node};
 use chrono::Utc;
 use serde_json::json;
 

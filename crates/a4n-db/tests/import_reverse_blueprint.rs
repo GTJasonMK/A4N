@@ -1,11 +1,3 @@
-use a4n_core::models::{
-    chapter::{chapter, chapter_outline, part_outline},
-    character::protagonist_profile,
-    project::{
-        blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-        novel_project,
-    },
-};
 use a4n_db::{
     blueprint::{
         SaveManualBlueprintInput, UpdateBlueprintWorldSettingInput,
@@ -21,6 +13,14 @@ use a4n_db::{
     project::{
         BlueprintCharacterDraft, BlueprintRelationshipDraft, CreateProjectRecordInput,
         blueprint_sources_need_review, create_project_record,
+    },
+};
+use a4n_db_models::models::{
+    chapter::{chapter, chapter_outline, part_outline},
+    character::protagonist_profile,
+    project::{
+        blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
+        novel_project,
     },
 };
 use chrono::Utc;

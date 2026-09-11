@@ -6,7 +6,7 @@ use crate::generation::RecordStartedGenerationRunInput;
 use crate::video::{
     CreateGeneratedVideoRecordDraftInput, VideoDbError, lock_generated_media_project,
 };
-use a4n_core::models::ai::generated_video;
+use a4n_db_models::models::ai::generated_video;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 /// 校验项目、章节和源媒体归属后写入 generated_video。

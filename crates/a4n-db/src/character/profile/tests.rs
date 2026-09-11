@@ -1,12 +1,11 @@
 use super::*;
-use crate::character::{
-    CharacterDbError, CharacterPortraitCreateInput, create_character_portrait_for_profile,
-};
-use a4n_core::models::{
+use crate::character::{CharacterDbError, create_character_portrait_for_profile};
+use a4n_db_models::models::{
     ai::generated_image,
     character::{character_portrait, protagonist_profile},
     media::{media_asset, media_binding},
 };
+use a4n_domain::character::CharacterPortraitCreateInput;
 use sea_orm::{ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, Set};
 use serde_json::json;
 

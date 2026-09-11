@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde::Serialize;
 
 /// 单条 prompt version commit 摘要。

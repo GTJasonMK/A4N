@@ -1,6 +1,6 @@
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_video_prompt;
-use a4n_core::video_execution::VideoShootingScriptIdentityV1;
+use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_error::AppError;
+use a4n_video_contract::VideoShootingScriptIdentityV1;
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -68,11 +68,11 @@ fn validate_segment_plan_execution_identity(
     segment_plan: &[crate::video::prompt_json::VideoSegmentPlan],
 ) -> Result<(), AppError> {
     if identity.get("contract_epoch").and_then(Value::as_u64)
-        != Some(a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH.into())
+        != Some(a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH.into())
     {
         return Err(AppError::InvalidArgument(format!(
             "共享片段规划执行身份已过期，当前需要合同 {}；请重新生成该片段规划",
-            a4n_core::video_execution::VIDEO_EXECUTION_CONTRACT_EPOCH
+            a4n_video_contract::VIDEO_EXECUTION_CONTRACT_EPOCH
         )));
     }
     let segment_identities = identity

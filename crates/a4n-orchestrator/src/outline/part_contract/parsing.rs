@@ -2,7 +2,7 @@ use crate::outline::chapter_contract::{
     parse_outline_json_object, reject_keys, reject_unknown_keys, required_array, required_object,
     required_string,
 };
-use a4n_core::error::AppError;
+use a4n_error::AppError;
 use serde_json::Value;
 
 pub fn parse_part_outline_single_response(

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_domain::embedding::LocalEmbeddingModelSummary;
 use fastembed::{EmbeddingModel, ModelInfo, TextEmbedding};
 
@@ -99,7 +99,7 @@ pub(super) fn resolve_model_info(model_name: &str) -> Result<ResolvedModel, AppE
 
     if let Ok(model) = EmbeddingModel::from_str(model_name) {
         let info = TextEmbedding::get_model_info(&model)
-            .map_err(|err| AppError::ConfigError(err.to_string()))?
+            .map_err(|err| AppError::Configuration(err.to_string()))?
             .clone();
         return Ok(ResolvedModel {
             name: model.to_string(),

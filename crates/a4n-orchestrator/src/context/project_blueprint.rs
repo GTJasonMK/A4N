@@ -1,19 +1,20 @@
-use a4n_api_contract::blueprint::{BlueprintSummary, BlueprintVersionSummary, SaveBlueprintInput};
-use a4n_core::event::bridge::InternalEvent;
-use a4n_core::{
-    error::AppError,
-    models::project::{
-        blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
-    },
+use a4n_api_contract::blueprint::{
+    BlueprintDiffSummary, BlueprintSummary, BlueprintVersionSummary, DiffBlueprintVersionsInput,
+    ListBlueprintVersionsInput, RestoreBlueprintVersionInput, SaveBlueprintInput,
+    UpdateWorldSettingInput,
 };
 use a4n_db::DbHandle;
+use a4n_db_models::models::project::{
+    blueprint_character, blueprint_relationship, blueprint_version, novel_blueprint,
+};
+use a4n_domain::project::required_text;
+use a4n_error::AppError;
+use a4n_event::InternalEvent;
 use serde_json::{Map, Value};
 
 use super::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
-use crate::project::{
-    blueprint_restore_error_to_app, project_mutation_error_to_app_error, required_text,
-};
+use crate::project::{blueprint_restore_error_to_app, project_mutation_error_to_app_error};
 
 /// 项目蓝图读模型与生成/精炼写路径 owner。
 #[derive(Clone)]
@@ -103,6 +104,40 @@ impl ProjectBlueprintApplication {
 }
 
 impl OrchestratorContext {
+    pub async fn blueprint_summary_for_user(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Option<BlueprintSummary>, AppError> {
+        self.blueprint_summary_for_user_validated(user_id, project_id)
+            .await
+    }
+
+    pub async fn blueprint_versions_for_user(
+        &self,
+        user_id: i64,
+        input: ListBlueprintVersionsInput,
+    ) -> Result<Vec<BlueprintVersionSummary>, AppError> {
+        self.blueprint_version_summaries_for_user_validated(user_id, input.project_id)
+            .await
+    }
+
+    pub async fn blueprint_diff_for_user(
+        &self,
+        user_id: i64,
+        input: DiffBlueprintVersionsInput,
+    ) -> Result<BlueprintDiffSummary, AppError> {
+        let diff = self
+            .diff_blueprint_versions_for_user_validated(
+                user_id,
+                input.project_id,
+                &input.version_a,
+                &input.version_b,
+            )
+            .await?;
+        Ok(BlueprintDiffSummary { diff })
+    }
+
     pub async fn blueprint_summary_for_user_validated(
         &self,
         user_id: i64,
@@ -313,6 +348,70 @@ impl OrchestratorContext {
     }
 }
 
+#[async_trait::async_trait]
+impl a4n_api_contract::blueprint::BlueprintReadApplicationPort for OrchestratorContext {
+    async fn summary(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Option<BlueprintSummary>, AppError> {
+        self.blueprint_summary_for_user(user_id, project_id).await
+    }
+
+    async fn versions(
+        &self,
+        user_id: i64,
+        input: ListBlueprintVersionsInput,
+    ) -> Result<Vec<BlueprintVersionSummary>, AppError> {
+        self.blueprint_versions_for_user(user_id, input).await
+    }
+
+    async fn diff(
+        &self,
+        user_id: i64,
+        input: DiffBlueprintVersionsInput,
+    ) -> Result<BlueprintDiffSummary, AppError> {
+        self.blueprint_diff_for_user(user_id, input).await
+    }
+}
+
+#[async_trait::async_trait]
+impl a4n_api_contract::blueprint::BlueprintMutationApplicationPort for OrchestratorContext {
+    async fn save(&self, user_id: i64, input: SaveBlueprintInput) -> Result<(), AppError> {
+        self.save_blueprint_for_user_validated(user_id, input)
+            .await?;
+        Ok(())
+    }
+
+    async fn update_world_setting(
+        &self,
+        user_id: i64,
+        input: UpdateWorldSettingInput,
+    ) -> Result<(), AppError> {
+        self.update_blueprint_world_setting_for_user_validated(
+            user_id,
+            input.project_id,
+            input.world_setting,
+        )
+        .await?;
+        Ok(())
+    }
+
+    async fn restore(
+        &self,
+        user_id: i64,
+        input: RestoreBlueprintVersionInput,
+    ) -> Result<(), AppError> {
+        self.restore_blueprint_version_for_user_validated(
+            user_id,
+            input.project_id,
+            &input.version,
+        )
+        .await?;
+        Ok(())
+    }
+}
+
 fn blueprint_summary(
     blueprint: novel_blueprint::Model,
     sources_need_review: bool,
@@ -407,7 +506,7 @@ fn blueprint_json_diff(left: &Value, right: &Value) -> Value {
 
 #[cfg(test)]
 mod version_diff_tests {
-    use a4n_core::models::project::blueprint_version;
+    use a4n_db_models::models::project::blueprint_version;
     use chrono::NaiveDate;
 
     use super::{blueprint_json_diff, blueprint_version_summary};

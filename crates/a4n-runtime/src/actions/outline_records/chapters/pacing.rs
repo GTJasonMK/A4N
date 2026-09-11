@@ -1,10 +1,9 @@
 use crate::AppState;
 use crate::actions::access as project_access;
 use crate::actions::outline_records::ChapterOutlinePacing;
-use a4n_api_contract::outline::ChapterOutlinePacingAnalysis;
-use a4n_core::error::AppError;
-use a4n_core::models::chapter::chapter_outline;
-use a4n_orchestrator::outline::required_outline_pacing_score;
+use a4n_api_contract::outline::{ChapterOutlinePacingAnalysis, ChapterOutlineSummary};
+use a4n_domain::chapter::required_outline_pacing_score;
+use a4n_error::AppError;
 
 pub async fn get_chapter_outlines_pacing(
     state: &AppState,
@@ -13,14 +12,14 @@ pub async fn get_chapter_outlines_pacing(
 ) -> Result<ChapterOutlinePacing, AppError> {
     project_access::verify_project_editor(state, user_id, project_id).await?;
     let outlines = state
-        .orchestrator()
-        .chapter_outlines_for_project(project_id)
+        .outline_read_application()
+        .list_chapters(user_id, project_id)
         .await?;
     build_chapter_outlines_pacing(&outlines)
 }
 
 pub(in crate::actions::outline_records) fn build_chapter_outlines_pacing(
-    outlines: &[chapter_outline::Model],
+    outlines: &[ChapterOutlineSummary],
 ) -> Result<ChapterOutlinePacing, AppError> {
     if outlines.is_empty() {
         return Ok(ChapterOutlinePacing {
@@ -35,8 +34,8 @@ pub(in crate::actions::outline_records) fn build_chapter_outlines_pacing(
     let mut analysis = Vec::new();
 
     for outline in outlines {
-        let pacing =
-            required_outline_pacing_score(outline.pacing_score, outline.chapter_number)? as f64;
+        let pacing = required_outline_pacing_score(outline.pacing_score, outline.chapter_number)
+            .map_err(AppError::InvalidArgument)? as f64;
         scores.push(pacing);
         analysis.push(ChapterOutlinePacingAnalysis {
             chapter_number: outline.chapter_number,

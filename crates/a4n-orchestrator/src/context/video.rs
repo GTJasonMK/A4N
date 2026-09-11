@@ -3,27 +3,31 @@
 //! 持有 `DbHandle`，封装视频提示词、生成图/视频记录与素材库相关数据库行为。
 //! LLM/预览/流水线编排仍在 `video/` 模块，但 DB 只经本 owner。
 
-use a4n_core::error::AppError;
-use a4n_core::models::{
-    ai::{generated_image, generated_video},
-    chapter::{chapter_video_prompt, chapter_video_timeline},
-};
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
-use a4n_core::video_execution::VideoSegmentExecutionRecipeV1;
-use a4n_core::video_execution::VideoTimelineGap;
 use a4n_db::DbHandle;
 use a4n_db::generation::{
     RecordCompletedGenerationRunWithCheckpointInput, RecordStartedGenerationRunInput,
 };
 use a4n_db::video::{
     ChapterVideoPromptTimelineRecord, CreateGeneratedImageRecordDraftInput,
-    CreateGeneratedVideoRecordDraftInput, UpdateGeneratedImageRecordInput,
-    UpdateGeneratedVideoRecordInput,
+    CreateGeneratedVideoRecordDraftInput, CreateImagePublicationIntentInput,
+    ImagePublicationFileFacts, UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
 };
 use a4n_db::video_prompt::{ChapterVideoPromptPatch, VideoPromptDownstreamDependencies};
+use a4n_db_models::models::{
+    ai::{generated_image, generated_video},
+    chapter::{chapter_video_prompt, chapter_video_timeline},
+    media::image_publication,
+};
+use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_domain::video_timeline::{NativeVideoTimelineKey, VideoTimelineGap};
+use a4n_error::AppError;
+use a4n_video::validate_video_max_concurrent;
+use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 use sea_orm::DatabaseConnection;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
+use std::sync::Arc;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 
 use super::OrchestratorContext;
 use crate::video::video_db_error;
@@ -46,11 +50,16 @@ fn terminal_workflow_status_label(status: &str) -> &'static str {
 #[derive(Clone)]
 pub(super) struct VideoApplication {
     database: DbHandle,
+    // ponytail: serialize publication file/DB commits within the sole Host; shard if throughput requires it.
+    image_publication_gate: Arc<Mutex<()>>,
 }
 
 impl VideoApplication {
     pub(super) fn new(database: DbHandle) -> Self {
-        Self { database }
+        Self {
+            database,
+            image_publication_gate: Arc::new(Mutex::new(())),
+        }
     }
 
     fn connection(&self) -> &DatabaseConnection {
@@ -247,6 +256,110 @@ impl VideoApplication {
         a4n_db::video::create_generated_image_record(self.connection(), input)
             .await
             .map_err(video_db_error)
+    }
+
+    pub(super) async fn create_image_publication_intent(
+        &self,
+        input: CreateImagePublicationIntentInput,
+    ) -> Result<(image_publication::Model, OwnedMutexGuard<()>), AppError> {
+        let guard = self.image_publication_gate.clone().lock_owned().await;
+        let publication = a4n_db::video::create_image_publication_intent(self.connection(), input)
+            .await
+            .map_err(video_db_error)?;
+        Ok((publication, guard))
+    }
+
+    pub(super) async fn image_publication_by_id(
+        &self,
+        publication_id: &str,
+    ) -> Result<Option<image_publication::Model>, AppError> {
+        a4n_db::video::image_publication_by_id(self.connection(), publication_id)
+            .await
+            .map_err(video_db_error)
+    }
+
+    pub(super) async fn publish_image_publication(
+        &self,
+        publication_id: &str,
+        facts: ImagePublicationFileFacts,
+    ) -> Result<generated_image::Model, AppError> {
+        a4n_db::video::publish_image_publication(self.connection(), publication_id, facts)
+            .await
+            .map_err(video_db_error)
+    }
+
+    pub(super) async fn publish_image_publication_with_generation_run_checkpoint(
+        &self,
+        publication_id: &str,
+        facts: ImagePublicationFileFacts,
+        generation_run: RecordCompletedGenerationRunWithCheckpointInput,
+    ) -> Result<generated_image::Model, AppError> {
+        a4n_db::video::publish_image_publication_with_generation_run_checkpoint(
+            self.connection(),
+            publication_id,
+            facts,
+            generation_run,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn update_image_publication_metadata(
+        &self,
+        publication_id: &str,
+        expected_version: i64,
+        metadata_json: Value,
+    ) -> Result<image_publication::Model, AppError> {
+        a4n_db::video::update_image_publication_metadata(
+            self.connection(),
+            publication_id,
+            expected_version,
+            metadata_json,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn image_publications_for_recovery(
+        &self,
+        limit: usize,
+        published_after: Option<&str>,
+    ) -> Result<Vec<image_publication::Model>, AppError> {
+        a4n_db::video::image_publications_for_recovery(self.connection(), limit, published_after)
+            .await
+            .map_err(video_db_error)
+    }
+
+    pub(super) async fn mark_image_publication_reclaiming(
+        &self,
+        publication_id: &str,
+        version: i64,
+        reason: String,
+    ) -> Result<image_publication::Model, AppError> {
+        a4n_db::video::mark_image_publication_reclaiming(
+            self.connection(),
+            publication_id,
+            version,
+            reason,
+        )
+        .await
+        .map_err(video_db_error)
+    }
+
+    pub(super) async fn mark_image_publication_reclaimed(
+        &self,
+        publication_id: &str,
+        version: i64,
+        reason: Option<String>,
+    ) -> Result<image_publication::Model, AppError> {
+        a4n_db::video::mark_image_publication_reclaimed(
+            self.connection(),
+            publication_id,
+            version,
+            reason,
+        )
+        .await
+        .map_err(video_db_error)
     }
 
     pub(super) async fn create_generated_image_record_with_generation_run_checkpoint(
@@ -760,7 +873,7 @@ impl VideoApplication {
     pub(super) async fn reconcile_native_video_timeline(
         &self,
         timeline_id: i64,
-        keys: &[a4n_core::video_execution::NativeVideoTimelineKey],
+        keys: &[NativeVideoTimelineKey],
     ) -> Result<a4n_db::video::VideoTimelineSnapshot, AppError> {
         a4n_db::video::reconcile_native_timeline(self.connection(), timeline_id, keys)
             .await
@@ -847,7 +960,7 @@ impl OrchestratorContext {
     pub(crate) async fn reconcile_native_video_timeline(
         &self,
         timeline_id: i64,
-        keys: &[a4n_core::video_execution::NativeVideoTimelineKey],
+        keys: &[NativeVideoTimelineKey],
     ) -> Result<a4n_db::video::VideoTimelineSnapshot, AppError> {
         self.video
             .reconcile_native_video_timeline(timeline_id, keys)
@@ -889,8 +1002,7 @@ impl OrchestratorContext {
         config_id: i64,
         max_concurrent: i32,
     ) -> Result<(), AppError> {
-        crate::video::validate_video_max_concurrent(max_concurrent)
-            .map_err(AppError::InvalidArgument)?;
+        validate_video_max_concurrent(max_concurrent).map_err(AppError::InvalidArgument)?;
         let limit = max_concurrent as usize;
         let used = self
             .active_video_ids_for_config_reconciled(config_id)
@@ -910,8 +1022,7 @@ impl OrchestratorContext {
         max_concurrent: i32,
         video_id: i64,
     ) -> Result<(), AppError> {
-        crate::video::validate_video_max_concurrent(max_concurrent)
-            .map_err(AppError::InvalidArgument)?;
+        validate_video_max_concurrent(max_concurrent).map_err(AppError::InvalidArgument)?;
         let limit = max_concurrent as usize;
         let active = self
             .active_video_ids_for_config_reconciled(config_id)
@@ -1019,7 +1130,7 @@ impl OrchestratorContext {
             return Ok(false);
         }
         if self
-            .reconcile_terminal_canvas_workflow_video(&video, canvas_workflow_run)
+            .reconcile_terminal_canvas_workflow_video(video, canvas_workflow_run)
             .await?
         {
             return Ok(true);
@@ -1220,6 +1331,94 @@ impl OrchestratorContext {
         self.video.create_generated_image_record(input).await
     }
 
+    pub async fn create_image_publication_intent(
+        &self,
+        input: CreateImagePublicationIntentInput,
+    ) -> Result<(image_publication::Model, OwnedMutexGuard<()>), AppError> {
+        self.video.create_image_publication_intent(input).await
+    }
+
+    /// The Host already owns its data directory/database exclusively. Keep this
+    /// guard through file inspection and publication so recovery cannot race a writer.
+    pub async fn lock_image_publications(&self) -> OwnedMutexGuard<()> {
+        self.video.image_publication_gate.clone().lock_owned().await
+    }
+
+    pub async fn image_publication_by_id(
+        &self,
+        publication_id: &str,
+    ) -> Result<Option<image_publication::Model>, AppError> {
+        self.video.image_publication_by_id(publication_id).await
+    }
+
+    pub async fn publish_image_publication(
+        &self,
+        publication_id: &str,
+        facts: ImagePublicationFileFacts,
+    ) -> Result<generated_image::Model, AppError> {
+        self.video
+            .publish_image_publication(publication_id, facts)
+            .await
+    }
+
+    pub async fn publish_image_publication_with_generation_run_checkpoint(
+        &self,
+        publication_id: &str,
+        facts: ImagePublicationFileFacts,
+        generation_run: RecordCompletedGenerationRunWithCheckpointInput,
+    ) -> Result<generated_image::Model, AppError> {
+        self.video
+            .publish_image_publication_with_generation_run_checkpoint(
+                publication_id,
+                facts,
+                generation_run,
+            )
+            .await
+    }
+
+    pub async fn update_image_publication_metadata(
+        &self,
+        publication_id: &str,
+        expected_version: i64,
+        metadata_json: Value,
+    ) -> Result<image_publication::Model, AppError> {
+        self.video
+            .update_image_publication_metadata(publication_id, expected_version, metadata_json)
+            .await
+    }
+
+    pub async fn image_publications_for_recovery(
+        &self,
+        limit: usize,
+        published_after: Option<&str>,
+    ) -> Result<Vec<image_publication::Model>, AppError> {
+        self.video
+            .image_publications_for_recovery(limit, published_after)
+            .await
+    }
+
+    pub async fn mark_image_publication_reclaiming(
+        &self,
+        publication_id: &str,
+        version: i64,
+        reason: String,
+    ) -> Result<image_publication::Model, AppError> {
+        self.video
+            .mark_image_publication_reclaiming(publication_id, version, reason)
+            .await
+    }
+
+    pub async fn mark_image_publication_reclaimed(
+        &self,
+        publication_id: &str,
+        version: i64,
+        reason: Option<String>,
+    ) -> Result<image_publication::Model, AppError> {
+        self.video
+            .mark_image_publication_reclaimed(publication_id, version, reason)
+            .await
+    }
+
     pub async fn create_generated_image_record_with_generation_run_checkpoint(
         &self,
         input: CreateGeneratedImageRecordDraftInput,
@@ -1320,7 +1519,7 @@ impl OrchestratorContext {
         project_id: Option<i64>,
         provider_kind: &str,
         provider_job_id: &str,
-    ) -> Result<a4n_core::models::ai::video_gen_config::Model, AppError> {
+    ) -> Result<a4n_provider_contract::VideoProviderConfig, AppError> {
         let provider_job_id = provider_job_id.trim();
         if provider_job_id.is_empty() {
             return Err(AppError::InvalidArgument(
@@ -1378,7 +1577,7 @@ impl OrchestratorContext {
                 operation: format!("恢复 backend={}", config.backend),
             });
         }
-        Ok(config)
+        Ok(crate::video::video_provider_config_from_model(&config))
     }
 
     pub async fn update_generated_video_record(
@@ -1545,7 +1744,7 @@ impl OrchestratorContext {
             .mark_generated_video_error_status_and_prompt(
                 video_id,
                 prompt_id,
-                generated_video::STATUS_FAILED,
+                a4n_domain::video_workflow::VIDEO_STATUS_FAILED,
                 message,
             )
             .await?;
@@ -1577,7 +1776,7 @@ impl OrchestratorContext {
             .mark_generated_video_error_status_and_prompt(
                 video_id,
                 prompt_id,
-                generated_video::STATUS_CANCELLED,
+                a4n_domain::video_workflow::VIDEO_STATUS_CANCELLED,
                 message,
             )
             .await?;
@@ -1625,7 +1824,7 @@ impl OrchestratorContext {
         self.mark_generated_video_error_status_and_prompt(
             video_id,
             prompt_id,
-            generated_video::STATUS_INTERRUPTED,
+            a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED,
             message,
         )
         .await
@@ -1869,7 +2068,7 @@ impl OrchestratorContext {
         active_task_id: &str,
         root_project_id: i64,
         retry_of_task_id: Option<&str>,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let (input, _fingerprint) = crate::video::video_prompt_workflow_run_input(
             workflow_kind,
             project_id,
@@ -1898,7 +2097,7 @@ impl OrchestratorContext {
         workflow_mode: &str,
         current_step_key: &str,
         input_fingerprint_json: serde_json::Value,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let input = crate::video::video_prompt_optimization_workflow_run_input(
             project_id,
             prompt_id,
@@ -1914,9 +2113,9 @@ impl OrchestratorContext {
     /// 视频 provider 进度：校验后创建/恢复 RUNNING workflow_run。
     pub(crate) async fn begin_video_provider_progress_workflow_validated(
         &self,
-        video: &a4n_core::models::ai::generated_video::Model,
+        video: &a4n_db_models::models::ai::generated_video::Model,
         job_id: &str,
-    ) -> Result<a4n_core::models::generation::workflow_run::Model, AppError> {
+    ) -> Result<a4n_db_models::models::generation::workflow_run::Model, AppError> {
         let business_key = crate::video::video_provider_workflow_business_key(video.id)
             .map_err(AppError::InvalidArgument)?;
         if let Some(run) = self
@@ -1940,7 +2139,7 @@ impl OrchestratorContext {
         total: u32,
         message: &str,
     ) -> Result<i64, AppError> {
-        if generated_video::is_terminal_status(&video.status) {
+        if a4n_domain::video_workflow::is_terminal_video_status(&video.status) {
             return Err(AppError::InvalidState {
                 current: video.status.clone(),
                 operation: "记录已终态视频 provider 进度".to_string(),

@@ -4,8 +4,8 @@ mod frames;
 
 use std::collections::{HashMap, HashSet};
 
-use a4n_core::source_spans::source_text_hash as source_content_sha256;
-use a4n_core::video_execution::{VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1};
+use a4n_domain::source_text_hash as source_content_sha256;
+use a4n_video_contract::{VideoSegmentExecutionRecipeV1, VideoSegmentGuidanceModeV1};
 use serde_json::Value;
 
 use self::assets::finalize_video_chain_assets;

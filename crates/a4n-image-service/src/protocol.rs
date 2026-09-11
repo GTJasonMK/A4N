@@ -1,4 +1,4 @@
-use a4n_core::error::AppError;
+use a4n_domain::ProviderError as AppError;
 use a4n_service_protocol::{
     IMAGE_SERVICE_NAME, ServiceError, ServiceErrorCode, ServiceRequest, ServiceResponse,
     redact_sensitive_message,
@@ -21,7 +21,7 @@ pub(crate) fn validate_image_request(
 
 fn service_error_code(error: &AppError) -> ServiceErrorCode {
     match error {
-        AppError::InvalidArgument(_) | AppError::ConfigError(_) => {
+        AppError::InvalidArgument(_) | AppError::Configuration(_) => {
             ServiceErrorCode::ConfigurationError
         }
         AppError::Cancelled => ServiceErrorCode::Cancelled,

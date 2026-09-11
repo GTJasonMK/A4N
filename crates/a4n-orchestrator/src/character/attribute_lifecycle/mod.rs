@@ -2,9 +2,9 @@
 //!
 //! 数据库写入与 RAG 同步编排已迁入 `context/character.rs`。
 
-use a4n_core::error::AppError;
-use a4n_core::models::character::attribute_event;
 use a4n_db::character::AppliedCharacterImplicitDecisionRecord;
+use a4n_db_models::models::character::attribute_event;
+use a4n_error::AppError;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CharacterAttributeLifecycleError {

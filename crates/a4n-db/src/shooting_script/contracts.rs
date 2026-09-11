@@ -1,4 +1,4 @@
-use a4n_core::models::chapter::chapter_shooting_script;
+use a4n_db_models::models::chapter::chapter_shooting_script;
 use a4n_domain::shooting_script::ChapterShootingScriptV1;
 use sea_orm::DbErr;
 
@@ -34,13 +34,6 @@ pub struct UpdateChapterShootingScriptInput {
     pub visual_plan: ChapterVisualPlanIdentity,
     pub script: ChapterShootingScriptV1,
     pub workflow_run_id: Option<i64>,
-}
-
-#[derive(Debug, Clone)]
-pub struct EditStoredChapterShootingScriptInput {
-    pub record_id: i64,
-    pub expected_revision: i32,
-    pub script: ChapterShootingScriptV1,
 }
 
 #[derive(Debug, Clone)]

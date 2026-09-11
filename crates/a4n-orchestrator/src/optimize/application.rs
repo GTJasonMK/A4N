@@ -1,15 +1,32 @@
-use a4n_core::error::AppError;
-use a4n_core::models::ai::optimization_session;
+use a4n_api_contract::{
+    generation_tasks::GenerationTaskHandle,
+    optimize::{
+        AnalyzeChapterInput, ApplyOptimizationPatchesInput, ApplyOptimizationPatchesResponse,
+        CreateOptimizationChatSessionInput, ListOptimizeSessionsInput, OptimizationPatchSetSummary,
+        OptimizationSessionSummary, OptimizationTurnSummary, OptimizeSessionInput,
+        PrepareOptimizationAnalysisSessionInput, RecordOptimizeAgentEventInput,
+        SendOptimizationMessageInput, StartOptimizeAnalysisGenerationInput,
+        StartOptimizeChatGenerationInput, StartOptimizePatchGenerationInput,
+    },
+};
+use a4n_db_models::models::ai::{
+    optimization_patch, optimization_patch_set, optimization_session, optimization_turn,
+    optimization_turn_event,
+};
+use a4n_error::AppError;
 use a4n_prompt::rendering::PromptRenderer;
 use async_trait::async_trait;
 use std::collections::HashMap;
 
 use crate::OrchestratorContext;
 use crate::collaboration::ProjectAccessRole;
+use crate::{GenerationTaskAccessError, GenerationTaskStart};
 
 use super::{
     OptimizationChapterPatchWriteInput, OptimizationPatch, OptimizeAgentPermissions,
-    apply_optimization_patches_to_content, optimization_content_hash,
+    OptimizeChatGenerationApplicationContext, OptimizePatchGenerationApplicationContext,
+    apply_optimization_patches_to_content, optimization_agent_variables,
+    optimization_analysis_variables, optimization_content_hash,
 };
 
 const PATCH_SET_STATUS_PENDING: &str = "pending";
@@ -49,13 +66,160 @@ pub struct ApplyOptimizePatchesApplicationResult {
     pub word_count: i32,
 }
 
+/// Runtime-facing content-optimization boundary.
+///
+/// Session persistence, API projections, validation, request construction and
+/// generation execution remain owned by the optimize application. Runtime
+/// only schedules these operations and supplies prompt/host adapters.
+#[async_trait]
+pub trait OptimizeApplicationPort: Send + Sync {
+    async fn list_sessions(
+        &self,
+        user_id: i64,
+        input: ListOptimizeSessionsInput,
+    ) -> Result<Vec<OptimizationSessionSummary>, AppError>;
+
+    async fn get_session(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<OptimizationSessionSummary, AppError>;
+
+    async fn list_turns(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<Vec<OptimizationTurnSummary>, AppError>;
+
+    async fn list_patch_sets(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<Vec<OptimizationPatchSetSummary>, AppError>;
+
+    async fn create_analysis_session(
+        &self,
+        user_id: i64,
+        input: AnalyzeChapterInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<OptimizationSessionSummary, AppError>;
+
+    async fn prepare_analysis_session(
+        &self,
+        user_id: i64,
+        input: PrepareOptimizationAnalysisSessionInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<OptimizationSessionSummary, AppError>;
+
+    async fn create_chat_session(
+        &self,
+        user_id: i64,
+        input: CreateOptimizationChatSessionInput,
+    ) -> Result<OptimizationSessionSummary, AppError>;
+
+    async fn delete_session(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<(), AppError>;
+
+    async fn record_agent_event(
+        &self,
+        user_id: i64,
+        input: RecordOptimizeAgentEventInput,
+    ) -> Result<(), AppError>;
+
+    async fn discard_pending_patch_sets(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<(), AppError>;
+
+    async fn apply_patches(
+        &self,
+        user_id: i64,
+        input: ApplyOptimizationPatchesInput,
+        host_port: &dyn OptimizePatchApplyHostPort,
+    ) -> Result<ApplyOptimizationPatchesResponse, AppError>;
+
+    async fn preview_create_analysis(
+        &self,
+        user_id: i64,
+        input: AnalyzeChapterInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+
+    async fn preview_prepare_analysis(
+        &self,
+        user_id: i64,
+        input: PrepareOptimizationAnalysisSessionInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+
+    async fn preview_send_message(
+        &self,
+        user_id: i64,
+        input: SendOptimizationMessageInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+
+    async fn preview_propose_patches(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError>;
+
+    async fn start_chat_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizeChatGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
+
+    async fn start_analysis_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizeAnalysisGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
+
+    async fn start_patch_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizePatchGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError>;
+
+    async fn run_chat_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        agent_max_output_tokens: Option<usize>,
+        user_id: i64,
+        input: StartOptimizeChatGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
+
+    async fn run_analysis_generation(
+        &self,
+        user_id: i64,
+        input: StartOptimizeAnalysisGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
+
+    async fn run_patch_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        user_id: i64,
+        input: StartOptimizePatchGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String>;
+}
+
 impl OrchestratorContext {
     async fn optimize_chapter_for_user(
         &self,
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
-    ) -> Result<a4n_core::models::chapter::chapter::Model, AppError> {
+    ) -> Result<a4n_db_models::models::chapter::chapter::Model, AppError> {
         self.verify_project_permission(project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         self.chapter_by_project_number(project_id, chapter_number)
@@ -376,5 +540,464 @@ impl OrchestratorContext {
                 }),
             },
         }
+    }
+}
+
+#[async_trait]
+impl OptimizeApplicationPort for OrchestratorContext {
+    async fn list_sessions(
+        &self,
+        user_id: i64,
+        input: ListOptimizeSessionsInput,
+    ) -> Result<Vec<OptimizationSessionSummary>, AppError> {
+        OrchestratorContext::optimize_sessions_for_user(
+            self,
+            user_id,
+            input.project_id,
+            input.chapter_id,
+        )
+        .await?
+        .iter()
+        .map(optimization_session_summary)
+        .collect()
+    }
+
+    async fn get_session(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<OptimizationSessionSummary, AppError> {
+        optimization_session_summary(
+            &OrchestratorContext::optimize_session_for_user(self, user_id, input.session_id)
+                .await?,
+        )
+    }
+
+    async fn list_turns(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<Vec<OptimizationTurnSummary>, AppError> {
+        OrchestratorContext::optimize_turns_for_user(self, user_id, input.session_id)
+            .await?
+            .into_iter()
+            .map(|(turn, events)| optimization_turn_summary(&turn, events))
+            .collect()
+    }
+
+    async fn list_patch_sets(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<Vec<OptimizationPatchSetSummary>, AppError> {
+        OrchestratorContext::optimize_patch_sets_for_user(self, user_id, input.session_id)
+            .await?
+            .into_iter()
+            .map(|(patch_set, patches)| optimization_patch_set_summary(&patch_set, patches))
+            .collect()
+    }
+
+    async fn create_analysis_session(
+        &self,
+        user_id: i64,
+        input: AnalyzeChapterInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<OptimizationSessionSummary, AppError> {
+        let variables = optimization_analysis_variables(
+            &input.mode,
+            input.scope.as_deref(),
+            &input.permissions,
+            input.agent_instruction.as_deref(),
+        );
+        let session = OrchestratorContext::create_optimize_analysis_session_for_user_validated(
+            self,
+            user_id,
+            input.project_id,
+            input.chapter_number,
+            &input.name,
+            prompt_renderer,
+            &variables,
+        )
+        .await?;
+        optimization_session_summary(&session)
+    }
+
+    async fn prepare_analysis_session(
+        &self,
+        user_id: i64,
+        input: PrepareOptimizationAnalysisSessionInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<OptimizationSessionSummary, AppError> {
+        let variables = optimization_analysis_variables(
+            &input.mode,
+            input.scope.as_deref(),
+            &input.permissions,
+            input.agent_instruction.as_deref(),
+        );
+        let session = OrchestratorContext::prepare_optimize_analysis_session_validated(
+            self,
+            PrepareOptimizeAnalysisApplicationInput {
+                user_id,
+                session_id: input.session_id,
+                prompt_renderer,
+                variables: &variables,
+            },
+        )
+        .await?;
+        optimization_session_summary(&session)
+    }
+
+    async fn create_chat_session(
+        &self,
+        user_id: i64,
+        input: CreateOptimizationChatSessionInput,
+    ) -> Result<OptimizationSessionSummary, AppError> {
+        let variables = optimization_agent_variables(&input.permissions);
+        let session = OrchestratorContext::create_optimize_chat_session_for_user_validated(
+            self,
+            user_id,
+            input.project_id,
+            input.chapter_number,
+            &input.name,
+            &variables,
+        )
+        .await?;
+        optimization_session_summary(&session)
+    }
+
+    async fn delete_session(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::delete_optimize_session_for_user_validated(
+            self,
+            user_id,
+            input.session_id,
+        )
+        .await
+    }
+
+    async fn record_agent_event(
+        &self,
+        user_id: i64,
+        input: RecordOptimizeAgentEventInput,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::record_optimize_agent_event_for_user_validated(
+            self,
+            user_id,
+            input.session_id,
+            &input.content,
+        )
+        .await
+    }
+
+    async fn discard_pending_patch_sets(
+        &self,
+        user_id: i64,
+        input: OptimizeSessionInput,
+    ) -> Result<(), AppError> {
+        OrchestratorContext::discard_pending_optimize_patch_sets_for_user_validated(
+            self,
+            user_id,
+            input.session_id,
+        )
+        .await
+    }
+
+    async fn apply_patches(
+        &self,
+        user_id: i64,
+        input: ApplyOptimizationPatchesInput,
+        host_port: &dyn OptimizePatchApplyHostPort,
+    ) -> Result<ApplyOptimizationPatchesResponse, AppError> {
+        let result = OrchestratorContext::apply_optimize_patches_validated(
+            self,
+            ApplyOptimizePatchesApplicationInput {
+                user_id,
+                session_id: input.session_id,
+                base_content_hash: &input.base_content_hash,
+                patches: &input.patches,
+                host_port,
+            },
+        )
+        .await?;
+        Ok(ApplyOptimizationPatchesResponse {
+            chapter_id: result.chapter_id,
+            applied_count: result.applied_count,
+            word_count: result.word_count,
+        })
+    }
+
+    async fn preview_create_analysis(
+        &self,
+        user_id: i64,
+        input: AnalyzeChapterInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+        let variables = optimization_analysis_variables(
+            &input.mode,
+            input.scope.as_deref(),
+            &input.permissions,
+            input.agent_instruction.as_deref(),
+        );
+        OrchestratorContext::build_create_optimize_analysis_preview_request_for_user_validated(
+            self,
+            user_id,
+            input.project_id,
+            input.chapter_number,
+            prompt_renderer,
+            &variables,
+        )
+        .await
+    }
+
+    async fn preview_prepare_analysis(
+        &self,
+        user_id: i64,
+        input: PrepareOptimizationAnalysisSessionInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+        let variables = optimization_analysis_variables(
+            &input.mode,
+            input.scope.as_deref(),
+            &input.permissions,
+            input.agent_instruction.as_deref(),
+        );
+        OrchestratorContext::build_prepare_optimize_analysis_preview_request_for_user_validated(
+            self,
+            user_id,
+            input.session_id,
+            prompt_renderer,
+            &variables,
+        )
+        .await
+    }
+
+    async fn preview_send_message(
+        &self,
+        user_id: i64,
+        input: SendOptimizationMessageInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+        OrchestratorContext::build_send_user_message_preview_request_for_user_validated(
+            self,
+            user_id,
+            input.session_id,
+            &input.message,
+            &input.permissions,
+            prompt_renderer,
+        )
+        .await
+    }
+
+    async fn preview_propose_patches(
+        &self,
+        user_id: i64,
+        input: a4n_api_contract::optimize::ProposeOptimizationPatchesInput,
+        prompt_renderer: &dyn PromptRenderer,
+    ) -> Result<a4n_llm::provider::ChatRequest, AppError> {
+        OrchestratorContext::build_propose_patches_preview_request_for_user_validated(
+            self,
+            user_id,
+            input.session_id,
+            input.issue_ids,
+            prompt_renderer,
+            input.agent_instruction.as_deref(),
+        )
+        .await
+    }
+
+    async fn start_chat_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizeChatGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        OrchestratorContext::start_optimize_chat_generation_task(self, user_id, input).await
+    }
+
+    async fn start_analysis_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizeAnalysisGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        OrchestratorContext::start_optimize_analysis_generation_task(self, user_id, input).await
+    }
+
+    async fn start_patch_generation(
+        &self,
+        user_id: i64,
+        input: &StartOptimizePatchGenerationInput,
+    ) -> Result<GenerationTaskStart, GenerationTaskAccessError> {
+        OrchestratorContext::start_optimize_patch_generation_task(self, user_id, input).await
+    }
+
+    async fn run_chat_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        agent_max_output_tokens: Option<usize>,
+        user_id: i64,
+        input: StartOptimizeChatGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_optimize_chat_generation_task(
+            self,
+            OptimizeChatGenerationApplicationContext {
+                prompt_renderer,
+                agent_max_output_tokens,
+            },
+            user_id,
+            input,
+            handle,
+        )
+        .await
+    }
+
+    async fn run_analysis_generation(
+        &self,
+        user_id: i64,
+        input: StartOptimizeAnalysisGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_optimize_analysis_generation_task(self, user_id, input, handle)
+            .await
+    }
+
+    async fn run_patch_generation(
+        &self,
+        prompt_renderer: &dyn PromptRenderer,
+        user_id: i64,
+        input: StartOptimizePatchGenerationInput,
+        handle: GenerationTaskHandle,
+    ) -> Result<(), String> {
+        OrchestratorContext::run_optimize_patch_generation_task(
+            self,
+            OptimizePatchGenerationApplicationContext { prompt_renderer },
+            user_id,
+            input,
+            handle,
+        )
+        .await
+    }
+}
+
+fn optimization_session_summary(
+    model: &optimization_session::Model,
+) -> Result<OptimizationSessionSummary, AppError> {
+    Ok(OptimizationSessionSummary {
+        id: model.id,
+        project_id: model.project_id,
+        chapter_id: model.chapter_id,
+        name: model.name.clone(),
+        status: model.status.clone(),
+        issues: model.issues.clone(),
+        agent_permissions: required_permissions(
+            model.agent_permissions.as_ref(),
+            "optimization_session.agent_permissions",
+        )?,
+        agent_instruction: model.agent_instruction.clone(),
+        fixes_applied: model.fixes_applied,
+        summary: model.summary.clone(),
+        created_at: format_utc_timestamp(model.created_at),
+        updated_at: format_utc_timestamp(model.updated_at),
+    })
+}
+
+fn optimization_turn_summary(
+    turn: &optimization_turn::Model,
+    events: Vec<optimization_turn_event::Model>,
+) -> Result<OptimizationTurnSummary, AppError> {
+    Ok(OptimizationTurnSummary {
+        id: turn.id,
+        session_id: turn.session_id,
+        user_text: turn.user_text.clone(),
+        status: turn.status.clone(),
+        permissions_snapshot: required_permissions(
+            turn.permissions_snapshot.as_ref(),
+            "optimization_turn.permissions_snapshot",
+        )?,
+        final_reply: turn.final_reply.clone(),
+        error: turn.error.clone(),
+        events: events
+            .into_iter()
+            .map(
+                |event| a4n_api_contract::optimize::OptimizationTurnEventSummary {
+                    id: event.id,
+                    turn_id: event.turn_id,
+                    seq: event.seq,
+                    kind: event.kind,
+                    status: event.status,
+                    public_text: event.public_text,
+                    payload: event.payload,
+                    created_at: format_utc_timestamp(event.created_at),
+                },
+            )
+            .collect(),
+        created_at: format_utc_timestamp(turn.created_at),
+        updated_at: format_utc_timestamp(turn.updated_at),
+    })
+}
+
+fn optimization_patch_set_summary(
+    patch_set: &optimization_patch_set::Model,
+    patches: Vec<optimization_patch::Model>,
+) -> Result<OptimizationPatchSetSummary, AppError> {
+    Ok(OptimizationPatchSetSummary {
+        id: patch_set.id,
+        turn_id: patch_set.turn_id,
+        session_id: patch_set.session_id,
+        chapter_id: patch_set.chapter_id,
+        base_content_hash: patch_set.base_content_hash.clone(),
+        status: patch_set.status.clone(),
+        summary: patch_set.summary.clone(),
+        patches: patches
+            .into_iter()
+            .map(|patch| {
+                Ok(OptimizationPatch {
+                    patch_id: patch.patch_id,
+                    issue_id: patch.issue_id,
+                    operation: parse_patch_operation(&patch.operation)?,
+                    old_text: patch.old_text,
+                    new_text: patch.new_text,
+                    reason: patch.reason,
+                    risk: patch.risk,
+                })
+            })
+            .collect::<Result<Vec<_>, AppError>>()?,
+        created_at: format_utc_timestamp(patch_set.created_at),
+        updated_at: format_utc_timestamp(patch_set.updated_at),
+    })
+}
+
+fn format_utc_timestamp(value: chrono::NaiveDateTime) -> String {
+    value.and_utc().to_rfc3339()
+}
+
+fn required_permissions(
+    value: Option<&serde_json::Value>,
+    field: &str,
+) -> Result<OptimizeAgentPermissions, AppError> {
+    serde_json::from_value(value.cloned().ok_or_else(|| AppError::InvalidState {
+        current: format!("{field}_missing"),
+        operation: format!("读取 {field}"),
+    })?)
+    .map_err(|error| AppError::InvalidState {
+        current: error.to_string(),
+        operation: format!("读取 {field}"),
+    })
+}
+
+fn parse_patch_operation(
+    value: &str,
+) -> Result<a4n_api_contract::optimize::OptimizationPatchOperation, AppError> {
+    match value {
+        "replace" => Ok(a4n_api_contract::optimize::OptimizationPatchOperation::Replace),
+        "delete" => Ok(a4n_api_contract::optimize::OptimizationPatchOperation::Delete),
+        "insert_before" => Ok(a4n_api_contract::optimize::OptimizationPatchOperation::InsertBefore),
+        "insert_after" => Ok(a4n_api_contract::optimize::OptimizationPatchOperation::InsertAfter),
+        _ => Err(AppError::InvalidState {
+            current: value.to_string(),
+            operation: "读取 optimization_patch.operation".to_string(),
+        }),
     }
 }

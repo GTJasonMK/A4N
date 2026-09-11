@@ -1,4 +1,6 @@
-use a4n_core::{error::AppError, models::ai::embedding_config};
+use a4n_db_models::models::ai::embedding_config;
+use a4n_domain::embedding::{CreateEmbeddingConfigParams, validate_embedding_config_params};
+use a4n_error::AppError;
 use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, ConnectionTrait, DatabaseConnection, EntityTrait,
@@ -14,6 +16,22 @@ pub struct EmbeddingConfigRecordInput {
     pub dimension: i32,
     pub batch_size: i32,
     pub local_model_path: Option<String>,
+}
+
+pub fn validate_embedding_config_model(
+    model: &embedding_config::Model,
+) -> Result<CreateEmbeddingConfigParams, AppError> {
+    validate_embedding_config_params(CreateEmbeddingConfigParams {
+        name: model.name.clone(),
+        backend: model.backend.clone(),
+        base_url: model.base_url.clone(),
+        api_key_encrypted: model.api_key_encrypted.clone(),
+        model: model.model.clone(),
+        dimension: model.dimension,
+        batch_size: model.batch_size,
+        local_model_path: model.local_model_path.clone(),
+    })
+    .map_err(AppError::InvalidArgument)
 }
 
 pub async fn default_embedding_config_optional(
@@ -151,4 +169,91 @@ where
         )));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use a4n_domain::embedding::{EMBEDDING_PROVIDER_CAPABILITIES, EmbeddingBackendKind};
+
+    fn backend(kind: EmbeddingBackendKind) -> &'static str {
+        EMBEDDING_PROVIDER_CAPABILITIES
+            .iter()
+            .find(|capabilities| capabilities.kind == kind)
+            .expect("embedding backend capability")
+            .backend
+    }
+
+    fn model(backend: &str) -> embedding_config::Model {
+        embedding_config::Model {
+            id: 1,
+            name: "  默认嵌入  ".to_string(),
+            backend: backend.to_string(),
+            base_url: None,
+            api_key_encrypted: Some("  secret  ".to_string()),
+            model: "  embedding-model  ".to_string(),
+            dimension: 384,
+            batch_size: 32,
+            local_model_path: Some("  /models/embedding  ".to_string()),
+            is_default: true,
+            created_at: chrono::NaiveDateTime::MIN,
+            updated_at: chrono::NaiveDateTime::MIN,
+        }
+    }
+
+    fn assert_invalid_argument(error: AppError, message: &str) {
+        assert_eq!(error.to_string(), format!("参数无效：{message}"));
+        assert!(std::error::Error::source(&error).is_none());
+        assert!(matches!(
+            error,
+            AppError::InvalidArgument(actual) if actual == message
+        ));
+    }
+
+    #[test]
+    fn orm_model_conversion_maps_fields_and_reuses_validation() {
+        let mut model = model(backend(EmbeddingBackendKind::LocalHash));
+        let params = validate_embedding_config_model(&model).expect("valid embedding model");
+        assert_eq!(params.name, "默认嵌入");
+        assert_eq!(params.backend, backend(EmbeddingBackendKind::LocalHash));
+        assert_eq!(params.base_url, None);
+        assert_eq!(params.api_key_encrypted, None);
+        assert_eq!(params.model, "embedding-model");
+        assert_eq!(params.dimension, 384);
+        assert_eq!(params.batch_size, 32);
+        assert_eq!(
+            params.local_model_path.as_deref(),
+            Some("/models/embedding")
+        );
+
+        model.backend = "unsupported-embedding-backend".to_string();
+        assert_invalid_argument(
+            validate_embedding_config_model(&model).expect_err("unknown embedding backend"),
+            "不支持的嵌入后端: unsupported-embedding-backend",
+        );
+
+        model.backend = backend(EmbeddingBackendKind::Api).to_string();
+        assert_invalid_argument(
+            validate_embedding_config_model(&model).expect_err("missing embedding base url"),
+            "api 嵌入后端必须填写 base_url",
+        );
+
+        model.backend = backend(EmbeddingBackendKind::FastEmbed).to_string();
+        model.dimension = 0;
+        assert_invalid_argument(
+            validate_embedding_config_model(&model).expect_err("invalid embedding dimension"),
+            "嵌入配置 dimension 必须大于 0",
+        );
+    }
+
+    #[test]
+    fn orm_model_conversion_rejects_missing_model_with_domain_error() {
+        let mut model = model(backend(EmbeddingBackendKind::LocalHash));
+        model.model = "  ".to_string();
+
+        assert_invalid_argument(
+            validate_embedding_config_model(&model).expect_err("missing embedding model"),
+            "嵌入配置缺少 model",
+        );
+    }
 }

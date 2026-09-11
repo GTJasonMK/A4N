@@ -5,9 +5,11 @@
 
 mod assembly;
 mod ffmpeg;
+mod media_file;
 mod playback;
 mod postprocess;
 mod probe;
+mod upload;
 
 pub use assembly::{
     VideoAssemblyClip, VideoAssemblyError, VideoAssemblyRequest, assemble_videos,
@@ -16,6 +18,11 @@ pub use assembly::{
 pub use ffmpeg::{
     FfmpegCommandError, FfmpegFrameError, FfmpegTrimError, extract_video_frame,
     extract_video_tail_frame, generate_video_thumbnail, trim_video_segment,
+};
+pub use media_file::{
+    MediaFileResponse, MediaFileResponseError, MediaResponseStatus, read_media_file_response,
+    relative_media_path, relative_media_uri_path, requested_byte_range,
+    requested_byte_range_header,
 };
 pub use playback::{
     VIDEO_SCRUB_FRAMES_PER_SECOND, VideoScrubProxyError, generate_video_scrub_frames,
@@ -29,6 +36,11 @@ pub use probe::{
     AudioProbeError, FfprobeCommandError, VideoProbeError, VideoProbeProperties,
     parse_audio_duration_secs, parse_frame_rate, parse_video_probe_properties,
     probe_audio_duration_secs, probe_video_has_audio, probe_video_properties,
+};
+pub use upload::{
+    DecodedUploadedAudio, DecodedUploadedImage, ImageDimensionsError, MAX_IMPORT_AUDIO_BYTES,
+    decode_uploaded_audio_data, decode_uploaded_bytes, decode_uploaded_image_data,
+    image_dimensions_from_bytes, required_upload_file_name,
 };
 
 #[cfg(test)]

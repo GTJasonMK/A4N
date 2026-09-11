@@ -1,20 +1,11 @@
 use super::{
     SYNC_RUN_MODE_DRY_RUN, SYNC_RUN_STATUS_PLANNED, SourceSyncDbError, validate_positive_id,
 };
-use a4n_core::models::source_sync::source_sync_run;
+use a4n_db_models::models::source_sync::source_sync_run;
+use a4n_domain::source_sync::CreateSourceSyncDryRunRecordInput;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ConnectionTrait, Set};
 use serde_json::{Map, Value, json};
-
-#[derive(Debug, Clone, Copy)]
-pub struct CreateSourceSyncDryRunRecordInput {
-    pub derived_project_id: i64,
-    pub root_project_id: i64,
-    pub from_snapshot_id: i64,
-    pub to_snapshot_id: i64,
-    pub chapter_change_count: usize,
-    pub profile_change_count: usize,
-}
 
 #[derive(Debug, Clone)]
 pub struct UpdateSourceSyncDryRunSummaryInput {
