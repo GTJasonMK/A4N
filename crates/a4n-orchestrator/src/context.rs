@@ -52,7 +52,6 @@ mod rag_ingest;
 mod rag_search;
 mod rag_store;
 mod scene_profile;
-mod service_health;
 mod settings;
 mod shooting_script;
 mod source_sync;

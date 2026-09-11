@@ -55,7 +55,6 @@ pub mod workflow;
 mod context;
 mod discovery_workflow;
 mod errors;
-mod service_health;
 
 #[cfg(test)]
 pub(crate) mod test_support;

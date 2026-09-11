@@ -2056,7 +2056,9 @@ impl AppState {
             chapter_scene_generation_application: Arc::new(orchestrator.clone()),
             optimize_application: Arc::new(orchestrator.clone()),
             scene_profile_sync_application: Arc::new(orchestrator.clone()),
-            service_health_application: Arc::new(orchestrator.clone()),
+            service_health_application: Arc::new(crate::service_health::ServiceHealthApplication::new(
+                service_manager.clone(),
+            )),
             cleanup_outbox_application: Arc::new(orchestrator.clone()),
             character_ai_application: Arc::new(orchestrator.clone()),
             workflow_read_application: Arc::new(orchestrator.clone()),

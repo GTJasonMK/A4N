@@ -18,6 +18,7 @@ pub(crate) mod provider_error;
 pub(crate) mod provider_runtime;
 pub(crate) mod rag_ingest;
 pub(crate) mod runtime_config;
+mod service_health;
 pub(crate) mod sidecar_clients;
 pub(crate) mod state;
 pub(crate) mod workflow;
