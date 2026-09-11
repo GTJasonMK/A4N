@@ -60,6 +60,7 @@ pub(crate) use a4n_error::AppError;
 
 pub use a4n_api_contract::video::VideoGenerationApplicationPort;
 pub use a4n_video::VideoDurationCapability;
+pub(crate) use a4n_video::ensure_provider_generation_run_updated;
 pub use a4n_video_contract::{
     ChapterVideoGenerationHostPort, ReferenceMediaVideoGenerationHostPort, VideoGenerationHostPort,
 };
@@ -106,11 +107,10 @@ pub use generation_run_rules::started_video_generation_run_input;
 pub use job_status_rules::{
     CanvasVideoWorkflowContext, active_provider_job_id, can_adopt_authoritative_video_completion,
     canvas_video_workflow_context, ensure_positive_generated_video_id,
-    ensure_positive_project_id_for_video, ensure_positive_video_prompt_id,
-    ensure_provider_generation_run_updated, has_active_provider_job, is_canvas_video_record,
-    normalized_provider_job_id, provider_poll_config_id, required_generated_video_failure_message,
-    required_provider_job_id, validate_generated_video_interrupted_status,
-    validate_generated_video_waiting_status,
+    ensure_positive_project_id_for_video, ensure_positive_video_prompt_id, has_active_provider_job,
+    is_canvas_video_record, normalized_provider_job_id, provider_poll_config_id,
+    required_generated_video_failure_message, required_provider_job_id,
+    validate_generated_video_interrupted_status, validate_generated_video_waiting_status,
 };
 pub use library::{
     image_type_rank, is_video_reference_image_candidate, resolve_video_reference_image_project_ids,

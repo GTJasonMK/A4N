@@ -146,20 +146,6 @@ fn required_canvas_video_context_id(
         .ok_or_else(|| format!("画布视频 #{video_id} 的 metadata_json.canvas.{field} 必须是正整数"))
 }
 
-/// provider 关联 generation_run 必须至少更新一条。
-pub fn ensure_provider_generation_run_updated(
-    video_id: i64,
-    updated_run_count: usize,
-    action: &str,
-) -> Result<(), String> {
-    if updated_run_count == 0 {
-        return Err(format!(
-            "{action}失败：视频 #{video_id} 缺少可更新的 generation_run"
-        ));
-    }
-    Ok(())
-}
-
 /// 失败原因非空。
 pub fn required_generated_video_failure_message(message: &str) -> Result<&str, String> {
     let trimmed = message.trim();
@@ -252,15 +238,6 @@ mod tests {
     fn interrupted_status_literal_only() {
         assert!(validate_generated_video_interrupted_status("interrupted").is_ok());
         assert!(validate_generated_video_interrupted_status("failed").is_err());
-    }
-
-    #[test]
-    fn ensure_provider_run_requires_at_least_one() {
-        assert!(ensure_provider_generation_run_updated(1, 1, "完成").is_ok());
-        let err =
-            ensure_provider_generation_run_updated(9, 0, "标记 provider 视频生成失败").unwrap_err();
-        assert!(err.contains("#9"));
-        assert!(err.contains("generation_run"));
     }
 
     #[test]
