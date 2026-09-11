@@ -2020,6 +2020,9 @@ impl AppState {
                 current: "provider runtime port 未初始化".to_string(),
                 operation: "构造 Runtime provider".to_string(),
             })?;
+        let task_queue_application = Arc::new(crate::task_queue::TaskQueueApplication::new(
+            task_queue.clone(),
+        ));
         let rag_search: Arc<dyn a4n_rag_contract::RagSearchPort> = Arc::new(orchestrator.clone());
         let rag_ingest: Arc<dyn a4n_rag_contract::RagIngestPort> = Arc::new(orchestrator.clone());
         let config_application: Arc<dyn a4n_api_contract::config::ConfigApplicationPort> =
@@ -2064,8 +2067,8 @@ impl AppState {
             workflow_read_application: Arc::new(orchestrator.clone()),
             workflow_task_lookup_application: Arc::new(orchestrator.clone()),
             task_read_application: Arc::new(orchestrator.clone()),
-            task_cancellation_application: Arc::new(orchestrator.clone()),
-            task_queue_stats_application: Arc::new(orchestrator.clone()),
+            task_cancellation_application: task_queue_application.clone(),
+            task_queue_stats_application: task_queue_application,
             workflow_cancellation_application: Arc::new(orchestrator.clone()),
             object_profile_read_application: Arc::new(orchestrator.clone()),
             object_profile_mutation_application: Arc::new(orchestrator.clone()),

@@ -21,6 +21,7 @@ pub(crate) mod runtime_config;
 mod service_health;
 pub(crate) mod sidecar_clients;
 pub(crate) mod state;
+mod task_queue;
 pub(crate) mod workflow;
 
 pub use state::{AppState, RuntimeProfile};
