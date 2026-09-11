@@ -1,7 +1,9 @@
 import React from "react";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { usePacedStreamText } from "../../hooks/usePacedStreamText";
 import type { Message, MessageOption } from "./shared";
+import { getStreamingResponsePreview } from "./responseParser";
 import { useI18n } from "../../i18n";
 
 interface ChatBubbleProps {
@@ -70,6 +72,19 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   const { t } = useI18n();
   const isUser = message.role === "user";
   const isSystem = message.role === "system";
+  const streamSource = message.rawContent ?? message.content;
+  const pacedStream = usePacedStreamText(
+    streamSource,
+    Boolean(message.streaming),
+    message.rawContent != null,
+  );
+  const streamingPreview = message.rawContent != null && pacedStream.displayedText
+    ? getStreamingResponsePreview(pacedStream.displayedText)
+    : null;
+  const displayedContent = message.rawContent != null
+    ? streamingPreview?.content ?? ""
+    : message.content;
+  const streamDisplaying = Boolean(message.streaming || pacedStream.hasPendingText);
 
   if (isSystem) {
     return (
@@ -80,10 +95,10 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
   }
 
   // 流式期间用 streamingOptions；完成后用 options
-  const displayOptions = message.streaming
-    ? message.streamingOptions
+  const displayOptions = streamDisplaying
+    ? streamingPreview?.options
     : message.options;
-  const showPendingSkeleton = Boolean(message.streaming && message.optionsPending);
+  const showPendingSkeleton = Boolean(message.streaming && streamingPreview?.optionsPending);
 
   return (
     <div className={`flex min-w-0 flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
@@ -110,22 +125,17 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
               <span>{message.consistencyWarning}</span>
             </div>
           ) : null}
-          {message.content}
-          {message.streaming && (
-            <span
-              className={
-                message.content
-                  ? "inline-block w-[7px] h-[14px] ml-[1px] bg-book-accent animate-pulse align-text-bottom"
-                  : "inline-flex items-center gap-1 text-book-text-muted ml-1"
-              }
-            >
-              {!message.content && (
-                <>
-                  <LoadingSpinner size="sm" />
-                  <span>{t("inspiration.organizingInspiration")}</span>
-                </>
-              )}
-            </span>
+          {displayedContent}
+          {streamDisplaying && (
+            pacedStream.isThinking ? (
+              <LoadingSpinner
+                size="sm"
+                text={!displayedContent ? t("inspiration.organizingInspiration") : undefined}
+                className="ml-1 align-middle"
+              />
+            ) : (
+              <span className="ml-[1px] inline-block h-[14px] w-[7px] animate-pulse bg-book-accent align-text-bottom" />
+            )
           )}
         </div>
       </div>

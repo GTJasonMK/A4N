@@ -27,6 +27,7 @@ interface WritingAssistantPanelProps {
   streamTaskId: string | null;
   streamBusy: boolean;
   streamMessage: string | null;
+  streamThinking: boolean;
   resetBusy: boolean;
   canResetGeneratedData: boolean;
   previewing: boolean;
@@ -64,6 +65,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
   streamTaskId,
   streamBusy,
   streamMessage,
+  streamThinking,
   resetBusy,
   canResetGeneratedData,
   previewing,
@@ -179,6 +181,7 @@ export const WritingAssistantPanel: React.FC<WritingAssistantPanelProps> = ({
                   streamTaskId={streamTaskId}
                   streamBusy={streamBusy}
                   streamMessage={streamMessage}
+                  streamThinking={streamThinking}
                   canStart={canGenerateChapter}
                   startDisabledReason={generationBlockReason ?? wordCountRangeError}
                   resetBusy={resetBusy}

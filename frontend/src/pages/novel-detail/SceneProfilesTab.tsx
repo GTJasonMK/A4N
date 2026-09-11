@@ -169,6 +169,7 @@ export const SceneProfilesTab: React.FC<{
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
+          streaming: true,
           title: t("novel.profile.syncScene"),
           startMessage: t("common.loading"),
           successMessage: t("novel.profile.syncScene"),

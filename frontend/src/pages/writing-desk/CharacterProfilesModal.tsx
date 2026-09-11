@@ -323,6 +323,7 @@ export const CharacterProfilesModal: React.FC<CharacterProfilesModalProps> = ({
           cancelTaskId: taskId,
           cancelTask: cancelWorkflowTask,
           pollTaskProgress: true,
+          streaming: true,
           title: t("characterDetail.discoverProfiles"),
           startMessage: t("characterDetail.preparingDiscovery"),
           successMessage: t("characterDetail.discoveryComplete"),

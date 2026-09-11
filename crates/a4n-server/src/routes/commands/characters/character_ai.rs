@@ -4,7 +4,7 @@ use super::super::{
     ApiError, ServerState, TaskKind, character_ai_actions, character_conflict_actions,
     command_input, finish_web_task, register_web_task, reject_unknown_command_args,
     sanitize_task_id, string_action_result, string_arg, to_value,
-    web_fire_and_forget_progress_reporter,
+    web_fire_and_forget_progress_reporter, web_stream_reporter,
 };
 
 macro_rules! character_ai_web_task_command {
@@ -42,11 +42,13 @@ macro_rules! character_ai_web_task_command {
             )?;
             let cancel_token = task.as_ref().map(|handle| handle.cancel_token.clone());
             let reporter = web_fire_and_forget_progress_reporter(task.clone());
+            let stream_reporter = web_stream_reporter(task.clone());
             let runtime_progress = character_ai_actions::CharacterAiProgress::new(
                 Some(&reporter),
                 cancel_token.as_ref(),
                 Some(task_id.as_str()),
-            );
+            )
+            .with_stream_reporter(Some(&stream_reporter));
             let $progress = &runtime_progress;
             let result = $run.await;
             let value = finish_web_task(

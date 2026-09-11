@@ -9,6 +9,7 @@ interface StreamControlBarProps {
   streamTaskId: string | null;
   streamBusy: boolean;
   streamMessage?: string | null;
+  streamThinking?: boolean;
   canStart: boolean;
   startDisabledReason?: string | null;
   resetBusy: boolean;
@@ -24,6 +25,7 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
   streamTaskId,
   streamBusy,
   streamMessage,
+  streamThinking = false,
   canStart,
   startDisabledReason,
   resetBusy,
@@ -45,7 +47,11 @@ export const StreamControlBar: React.FC<StreamControlBarProps> = ({
       </div>
     ) : streamTaskId ? (
       <div className="a4n-stream-state flex min-w-0 items-center gap-2 text-small" role="status" aria-live="polite">
-        <LoadingSpinner size="sm" className="shrink-0" />
+        <LoadingSpinner
+          size="sm"
+          text={streamThinking ? t("feedback.progressThinking") : undefined}
+          className="shrink-0"
+        />
         <span className="truncate">
           {activeNumber != null
             ? `${t("writing.generatingChapter")} ${t("writing.chapterLabel", { number: activeNumber })}`
