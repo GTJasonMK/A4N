@@ -2,11 +2,10 @@ use std::collections::HashMap;
 
 use a4n_api_contract::prompt::{
     AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
-    PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
-    ValidateVarsInput, VersionDiffInput,
+    PromptExecutionContext, PromptVersionSummary, RemoveOverrideInput, RenderInput,
+    SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
 };
 use a4n_error::AppError;
-use a4n_orchestrator::prompt_records::PromptExecutionContext;
 use a4n_prompt::{engine::PromptEntry, rendering::PromptRenderer};
 use async_trait::async_trait;
 use serde_json::Value;

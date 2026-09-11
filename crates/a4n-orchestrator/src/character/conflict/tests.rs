@@ -1,9 +1,10 @@
 use serde_json::json;
 
+use a4n_api_contract::character::CharacterConflictCheckInput;
+
 use crate::character::conflict_context_rules::CharacterConflictChapterScope;
 
 use super::{
-    contracts::CharacterConflictCheckInput,
     execution::validated_character_conflict_input,
     request::{
         BuildCharacterConflictRequestInput, PACK_KIND_CHARACTER_CONFLICT_SOURCE_CONTEXT,

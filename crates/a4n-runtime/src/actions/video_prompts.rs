@@ -9,13 +9,10 @@ use crate::{
 };
 
 pub use a4n_api_contract::video::{
-    CommitInsertedSegmentDraftInput, DeleteChapterVideoPromptInput, DeleteInsertedSegmentInput,
-    GetVideoTimelineInput, MoveInsertedSegmentInput, VideoSegmentPlanDraftSummary,
-    VideoTimelineSummary,
-};
-pub use a4n_orchestrator::video::{
-    ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
-    UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
+    ChapterVideoPromptSummary, CommitInsertedSegmentDraftInput, DeleteChapterVideoPromptInput,
+    DeleteInsertedSegmentInput, GetVideoTimelineInput, LoadVideoSegmentPlanDraftInput,
+    MoveInsertedSegmentInput, OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
+    UpdateVideoSegmentPlanDraftRecipeInput, VideoSegmentPlanDraftSummary, VideoTimelineSummary,
 };
 pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 

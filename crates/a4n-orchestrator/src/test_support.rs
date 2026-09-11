@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use a4n_capabilities::A4nCapabilities;
 use a4n_config::app_config::AppConfig;
-use a4n_db::{DbHandle, SharedDatabaseConnection, character::Sha256SnapshotStore};
+use a4n_db::{
+    DatabaseConnection, DbHandle, SharedDatabaseConnection, character::Sha256SnapshotStore,
+};
 use a4n_embedding::provider::EmbeddingProvider;
 use a4n_event::BroadcastEventBus;
 use a4n_llm::provider::LlmProvider;
@@ -19,6 +21,19 @@ use crate::task_queue::PersistentTaskQueue;
 
 const DEFAULT_LLM_STREAM_ERROR: &str = "测试 OrchestratorContext 未配置 LLM 流响应";
 const DEFAULT_EMBEDDING_ERROR: &str = "测试 OrchestratorContext 未配置 embedding 响应";
+
+pub(crate) async fn create_test_user(db: &DatabaseConnection) -> i64 {
+    a4n_db::auth::create_user(
+        db,
+        "orchestrator-test-user",
+        "orchestrator-test-user@example.invalid",
+        "test-password-123",
+        a4n_db_models::models::user::role::ROLE_USER,
+    )
+    .await
+    .expect("test user should be created")
+    .id
+}
 
 pub(crate) struct TestOrchestratorBuilder {
     db: SharedDatabaseConnection,

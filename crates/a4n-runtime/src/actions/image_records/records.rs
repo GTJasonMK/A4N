@@ -1,7 +1,5 @@
-use crate::{
-    AppState,
-    actions::{app_error_message, image_generation::GeneratedImageSummary},
-};
+use crate::{AppState, actions::app_error_message};
+use a4n_api_contract::image::GeneratedImageSummary;
 
 use super::UpdateGeneratedImageInput;
 

@@ -1,3 +1,4 @@
+use a4n_api_contract::portrait::PortraitReferenceImageSource;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
 use a4n_domain::EXTERNAL_IMPORT_MODEL;
 use a4n_domain::image::validate_reference_image_ids;
@@ -92,12 +93,10 @@ pub(super) async fn build_portrait_image_request_preview_with_config(
     let sources = records
         .into_iter()
         .enumerate()
-        .map(
-            |(index, image)| a4n_orchestrator::portrait::PortraitReferenceImageSource {
-                label: format!("参考图 {}", index + 1),
-                file_path: image.file_path,
-            },
-        )
+        .map(|(index, image)| PortraitReferenceImageSource {
+            label: format!("参考图 {}", index + 1),
+            file_path: image.file_path,
+        })
         .collect::<Vec<_>>();
     let reference_images = sources
         .iter()

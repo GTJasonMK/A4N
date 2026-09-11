@@ -125,8 +125,8 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
 pub use attribute_lifecycle::implicit_review_attribute_event;
 
 pub use conflict::{
-    CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL, CharacterConflictCheckInput,
-    CharacterConflictProgressReporter, CharacterConflictSummary, validate_character_conflict_input,
+    CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL, CharacterConflictProgressReporter,
+    validate_character_conflict_input,
 };
 
 /// Runtime-facing character discovery and timeline-sync boundary.
@@ -311,9 +311,8 @@ impl CharacterAiApplicationPort for crate::OrchestratorContext {
 }
 pub use discovery::{
     CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
-    CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview, DiscoverCharacterProfilesInput,
-    character_identity_key, character_llm_chapter_context, profile_character_keys,
-    validate_character_discovery_input,
+    CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview, character_identity_key,
+    character_llm_chapter_context, profile_character_keys, validate_character_discovery_input,
 };
 pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;

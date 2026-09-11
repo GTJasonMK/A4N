@@ -18,6 +18,7 @@ mod validation;
 mod video_chain;
 mod video_units;
 
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
@@ -51,7 +52,7 @@ use super::super::prompt_store::{
 use super::super::{
     ChapterVideoPromptOptions, ChapterVideoPromptStageInput, ChapterVideoSourceContext,
     FIRST_FRAME_CHAIN_INITIAL_FRAME_COUNT, FRAME_SEGMENT_PLAN_CONTRACT_VERSION,
-    OrchestratorContext, PromptOutputLanguage, VideoPromptChunk, VideoPromptProgress,
+    OrchestratorContext, VideoPromptChunk, VideoPromptProgress,
 };
 use super::{
     FieldMilestone, ProgressSpan, RenderedVideoPromptTrace, StructuredJsonProgressSpec,

@@ -1,10 +1,8 @@
-pub use a4n_api_contract::{
-    image::GeneratedImageSummary,
-    image_generation::{
-        GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
-        GenerateSceneImageInput, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-        SceneProfileImageInput, SceneProfileImagePromptOutput,
-    },
+use a4n_api_contract::image::GeneratedImageSummary;
+use a4n_api_contract::image_generation::{
+    GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
+    GenerateSceneImageInput, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
+    SceneProfileImageInput, SceneProfileImagePromptOutput,
 };
 use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_domain::media::GeneratedMediaArtifactFile;

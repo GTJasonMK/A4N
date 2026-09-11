@@ -7,12 +7,12 @@ mod execution;
 mod request;
 mod workflow;
 
+use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
+
 pub const CHARACTER_CONFLICT_KIND: &str = "character_conflict_check";
 pub const CHARACTER_CONFLICT_PROGRESS_TOTAL: u32 = 4;
 
-pub use contracts::{
-    CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictSummary,
-};
+pub use contracts::CharacterConflictProgressReporter;
 pub use execution::validate_character_conflict_input;
 
 /// Runtime-facing character-consistency boundary.

@@ -4,6 +4,40 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Runtime-supplied execution context for the prompt owner.
+#[derive(Debug, Clone)]
+pub struct PromptExecutionContext {
+    use_sidecar: bool,
+    user_id: Option<i64>,
+    runtime_config_snapshot: Option<Value>,
+}
+
+impl PromptExecutionContext {
+    pub fn new(
+        use_sidecar: bool,
+        user_id: Option<i64>,
+        runtime_config_snapshot: Option<Value>,
+    ) -> Self {
+        Self {
+            use_sidecar,
+            user_id,
+            runtime_config_snapshot,
+        }
+    }
+
+    pub fn use_sidecar(&self) -> bool {
+        self.use_sidecar
+    }
+
+    pub fn user_id(&self) -> Option<i64> {
+        self.user_id
+    }
+
+    pub fn runtime_config_snapshot(&self) -> Option<&Value> {
+        self.runtime_config_snapshot.as_ref()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PromptEntrySummary {

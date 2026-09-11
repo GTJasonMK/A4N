@@ -1,5 +1,7 @@
 use serde_json::Value;
 
+use a4n_api_contract::image_generation::SceneProfileImageInput;
+
 use super::super::super::{
     ApiError, ServerState, image_generation_actions, strict_command_input, to_value,
 };
@@ -9,7 +11,7 @@ pub(in crate::routes::commands) async fn generate_scene_profile_image_prompt(
     user_id: i64,
     args: &Value,
 ) -> Result<Value, ApiError> {
-    let input: image_generation_actions::SceneProfileImageInput =
+    let input: SceneProfileImageInput =
         strict_command_input(args, "generate_scene_profile_image_prompt")?;
     let output = image_generation_actions::generate_scene_profile_image_prompt(
         state.runtime(),

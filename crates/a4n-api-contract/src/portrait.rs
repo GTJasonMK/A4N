@@ -70,6 +70,12 @@ pub struct PortraitGenerationSeed {
     pub prompt: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PortraitReferenceImageSource {
+    pub label: String,
+    pub file_path: String,
+}
+
 /// Host-facing portrait record boundary.
 ///
 /// Authorization, persistence and ORM-to-summary projection stay in the

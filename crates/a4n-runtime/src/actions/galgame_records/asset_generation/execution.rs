@@ -4,11 +4,12 @@ use super::{
 };
 use crate::actions::{image_generation, portrait_generation};
 use a4n_api_contract::{
+    image::GeneratedImageSummary,
     image_generation::GenerateGalgameImageInput,
     portrait::{GeneratePortraitInput, PortraitSummary},
 };
 use a4n_error::AppError;
-use a4n_orchestrator::{galgame::GalgameAssetGenerationHostPort, media::GeneratedImageSummary};
+use a4n_orchestrator::galgame::GalgameAssetGenerationHostPort;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_storage::canonicalize_data_file_path;
 use async_trait::async_trait;

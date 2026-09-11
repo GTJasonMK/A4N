@@ -9,7 +9,9 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
-use a4n_api_contract::video::{GenerateChapterVideoInput, GenerateReferenceMediaVideoInput};
+use a4n_api_contract::video::{
+    GenerateChapterVideoInput, GenerateReferenceMediaVideoInput, ReferenceMediaVideoInput,
+};
 use a4n_db_models::models::{ai::generated_video, generation::generation_run, user::user};
 use a4n_domain::{media::GeneratedMediaArtifactFile, source_text_hash};
 use a4n_provider_contract::VideoProviderConfig;
@@ -33,8 +35,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::test_support::TestOrchestratorBuilder;
 use crate::video::{
-    ChapterVideoGenerationHostPort, GenerateChapterVideosBatchInput, ReferenceMediaVideoInput,
-    SEEDANCE2_VIDEO_BACKEND, VideoGenerationProgress,
+    ChapterVideoGenerationHostPort, GenerateChapterVideosBatchInput, SEEDANCE2_VIDEO_BACKEND,
+    VideoGenerationProgress,
 };
 use a4n_video_contract::VideoProviderHostPort;
 

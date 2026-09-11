@@ -5,9 +5,12 @@ use std::sync::{
 
 use a4n_api_contract::{
     generation_tasks::GenerationTaskHandle,
+    image::GeneratedImageSummary,
     image_generation::{
         GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
-        GenerateSceneImageInput, ImageGenerationOperation, StartImageGenerationInput,
+        GenerateSceneImageInput, ImageGenerationOperation, ObjectProfileImageInput,
+        ObjectProfileImagePromptOutput, SceneProfileImageInput, SceneProfileImagePromptOutput,
+        StartImageGenerationInput,
     },
 };
 use a4n_canvas_contract::GenerateCanvasImageInput;
@@ -26,9 +29,8 @@ use crate::{
         generation_result_ref, publish_step_progress,
     },
     media::{
-        BatchImageGenerationOutcome, GeneratedImageSummary, ImageGenerationApplicationPort,
-        ImageGenerationHostPort, ImageGenerationProgress, ObjectProfileImageInput,
-        PreparedImageGenerationRequest, SceneProfileImageInput,
+        BatchImageGenerationOutcome, ImageGenerationApplicationPort, ImageGenerationHostPort,
+        ImageGenerationProgress, PreparedImageGenerationRequest,
     },
 };
 
@@ -465,7 +467,7 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &ObjectProfileImageInput,
-    ) -> Result<crate::media::ObjectProfileImagePromptOutput, AppError> {
+    ) -> Result<ObjectProfileImagePromptOutput, AppError> {
         self.generate_object_profile_image_prompt_validated(user_id, input)
             .await
     }
@@ -474,7 +476,7 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &SceneProfileImageInput,
-    ) -> Result<crate::media::SceneProfileImagePromptOutput, AppError> {
+    ) -> Result<SceneProfileImagePromptOutput, AppError> {
         self.generate_scene_profile_image_prompt_validated(user_id, input)
             .await
     }

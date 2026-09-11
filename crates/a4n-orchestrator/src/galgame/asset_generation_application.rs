@@ -1,4 +1,5 @@
 use a4n_api_contract::{
+    image::GeneratedImageSummary,
     image_generation::GenerateGalgameImageInput,
     portrait::{GeneratePortraitInput, PortraitSummary},
 };
@@ -17,8 +18,8 @@ use super::{
     GalgamePromptArtifactUpsertInput, GalgameTargetContext, GalgameTargetEntityKind,
     RunGalgameAssetGenerationInput,
 };
+use crate::OrchestratorContext;
 use crate::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING};
-use crate::{OrchestratorContext, media::GeneratedImageSummary};
 
 const GALGAME_PORTRAIT_VARIANT_STYLE: &str =
     "Galgame 视觉小说角色立绘表情差分；必须保持参考图中的角色身份、服装、体型比例和美术风格一致。";

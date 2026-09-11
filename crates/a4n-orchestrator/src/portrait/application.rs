@@ -10,6 +10,5 @@ mod tests;
 pub use contracts::{
     DecodedPortraitImage, GeneratedPortraitImage, PortraitBatchItem, PortraitBatchOutcome,
     PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
-    PortraitReferenceImageSource,
 };
 pub use image::portrait_summary;

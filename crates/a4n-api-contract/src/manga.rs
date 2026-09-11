@@ -13,6 +13,13 @@ pub use a4n_domain::manga::{
     MangaTextPlacementV2,
 };
 
+/// Host-provided cleanup for media that becomes unreachable after a Manga
+/// prompt mutation. The Manga owner decides which image IDs are safe to remove.
+#[async_trait::async_trait]
+pub trait MangaPromptDownstreamCleanupPort: Send + Sync {
+    async fn delete_downstream_images(&self, image_ids: &[i64]) -> Result<(), a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct MangaPipelineStartInput {

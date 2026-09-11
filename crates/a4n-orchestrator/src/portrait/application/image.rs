@@ -1,5 +1,6 @@
 use a4n_api_contract::portrait::{
-    GeneratePortraitInput, PortraitSummary, PortraitType, UploadPortraitInput,
+    GeneratePortraitInput, PortraitReferenceImageSource, PortraitSummary, PortraitType,
+    UploadPortraitInput,
 };
 use a4n_db::generation::{
     GenerationRunCheckpointContext, GenerationRunTraceTarget, RecordCompletedGenerationRunInput,
@@ -28,10 +29,7 @@ use crate::{
 };
 
 use super::{
-    contracts::{
-        GeneratedPortraitImage, PortraitGenerationHostPort, PortraitImageProviderInput,
-        PortraitReferenceImageSource,
-    },
+    contracts::{GeneratedPortraitImage, PortraitGenerationHostPort, PortraitImageProviderInput},
     workflow::InitialPortraitPrompt,
 };
 

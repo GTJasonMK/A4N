@@ -5,8 +5,8 @@ use std::{
 
 use a4n_api_contract::prompt::{
     AbRenderResult, CategoryInfo, ProjectPromptOverrideSummary, PromptEntrySummary,
-    PromptVersionSummary, RemoveOverrideInput, RenderInput, SetOverrideInput, UpdatePromptInput,
-    ValidateVarsInput, VersionDiffInput,
+    PromptExecutionContext, PromptVersionSummary, RemoveOverrideInput, RenderInput,
+    SetOverrideInput, UpdatePromptInput, ValidateVarsInput, VersionDiffInput,
 };
 use a4n_capabilities::{PromptClient, sidecar_response_payload};
 use a4n_error::AppError;
@@ -30,27 +30,6 @@ use crate::{OrchestratorContext, collaboration::ProjectAccessRole};
 use a4n_db::prompt_override::{
     ProjectOverrideIdentity, normalize_project_override_identity, validate_project_override_content,
 };
-
-#[derive(Debug, Clone)]
-pub struct PromptExecutionContext {
-    use_sidecar: bool,
-    user_id: Option<i64>,
-    runtime_config_snapshot: Option<Value>,
-}
-
-impl PromptExecutionContext {
-    pub fn new(
-        use_sidecar: bool,
-        user_id: Option<i64>,
-        runtime_config_snapshot: Option<Value>,
-    ) -> Self {
-        Self {
-            use_sidecar,
-            user_id,
-            runtime_config_snapshot,
-        }
-    }
-}
 
 /// Prompt record application boundary. The owner chooses embedded versus
 /// prompt-service execution and owns project override persistence; Runtime
@@ -603,7 +582,7 @@ impl OrchestratorContext {
         &self,
         context: &PromptExecutionContext,
     ) -> Result<Option<Arc<dyn PromptClient>>, AppError> {
-        if !context.use_sidecar {
+        if !context.use_sidecar() {
             return Ok(None);
         }
         self.capabilities().prompt.clone().map(Some).ok_or_else(|| {
@@ -966,10 +945,10 @@ fn prompt_service_request<T>(
             parent_span_id: None,
         },
     );
-    request.user_id = context.user_id;
+    request.user_id = context.user_id();
     request.project_id = project_id;
     request.root_project_id = root_project_id;
-    request.runtime_config_snapshot = context.runtime_config_snapshot.clone();
+    request.runtime_config_snapshot = context.runtime_config_snapshot().cloned();
     request
         .with_payload(PROMPT_RENDER_CAPABILITY_VERSION, payload)
         .map_err(prompt_sidecar_error)

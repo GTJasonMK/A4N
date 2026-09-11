@@ -42,7 +42,9 @@ mod runtime_contract;
 mod shooting_script_source;
 
 async fn setup_db() -> DatabaseConnection {
-    a4n_migration::test_support::connect_test_database().await
+    let db = a4n_migration::test_support::connect_test_database().await;
+    crate::test_support::create_test_user(&db).await;
+    db
 }
 
 fn prompts_dir() -> std::path::PathBuf {

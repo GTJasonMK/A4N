@@ -16,7 +16,7 @@ pub(crate) const MAX_SEEDANCE2_IMAGE_FILES: usize = 9;
 pub(crate) const MAX_SEEDANCE2_VIDEO_FILES: usize = 3;
 pub(crate) const MAX_SEEDANCE2_AUDIO_FILES: usize = 3;
 
-pub use a4n_api_contract::video::ReferenceMediaVideoInput;
+use a4n_api_contract::video::ReferenceMediaVideoInput;
 
 /// 生成 reservation 边界的纯输入校验；不触碰 DB、provider 或文件系统。
 pub fn validate_reference_media_start_input(

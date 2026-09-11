@@ -27,10 +27,6 @@ pub use self::{
     },
 };
 pub(crate) use a4n_canvas_contract::GenerateCanvasImageInput;
-pub use a4n_orchestrator::media::{
-    GeneratedImageSummary, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-    SceneProfileImageInput, SceneProfileImagePromptOutput,
-};
 pub(crate) use direct::generate_galgame_image;
 pub(crate) use direct::preview_canvas_image_request;
 pub use generation_task::start_image_generation_typed;

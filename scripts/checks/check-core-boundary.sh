@@ -848,6 +848,22 @@ if ! rg -n 'pub trait MangaRecordApplicationPort' \
     exit 1
 fi
 
+if rg -n 'a4n_orchestrator::manga::MangaPromptDownstreamCleanupPort|pub trait MangaPromptDownstreamCleanupPort' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src; then
+    printf 'Manga prompt cleanup must use the API contract directly, without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub trait MangaPromptDownstreamCleanupPort' \
+    crates/a4n-api-contract/src/manga.rs || \
+   ! rg -n 'a4n_api_contract::manga::MangaPromptDownstreamCleanupPort' \
+    crates/a4n-runtime/src/actions/manga_records.rs \
+    crates/a4n-orchestrator/src/manga/application.rs \
+    crates/a4n-orchestrator/src/manga/prompt_optimization/execution.rs; then
+    printf 'Manga prompt cleanup consumers must use the narrow API contract directly\n' >&2
+    exit 1
+fi
+
 if rg -n 'state\.orchestrator\(\)|OrchestratorContext|actions::config_records::shared::require_config_admin' \
     crates/a4n-runtime/src/actions/config_records/llm/records \
     crates/a4n-runtime/src/actions/config_records/image/records.rs \
@@ -998,6 +1014,20 @@ fi
 
 if ! rg -n 'prompt_application\(\)' crates/a4n-runtime/src/actions/prompt_records.rs; then
     printf 'Runtime prompt actions must route through PromptApplicationPort\n' >&2
+    exit 1
+fi
+
+if rg -n 'a4n_orchestrator::prompt_records::PromptExecutionContext|pub struct PromptExecutionContext' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src; then
+    printf 'PromptExecutionContext must not be owned or re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub struct PromptExecutionContext' crates/a4n-api-contract/src/prompt.rs || \
+   ! rg -n 'PromptExecutionContext' \
+    crates/a4n-runtime/src/actions/prompt_records.rs \
+    crates/a4n-orchestrator/src/prompt_records.rs; then
+    printf 'Prompt consumers must use PromptExecutionContext from the API contract\n' >&2
     exit 1
 fi
 
@@ -1949,6 +1979,47 @@ if rg -n 'GenerateGalgameImageInput' crates/a4n-orchestrator/src/media.rs \
     exit 1
 fi
 
+if rg -U -n 'pub use a4n_orchestrator::video::\{[^}]*\b(ChapterVideoPromptSummary|LoadVideoSegmentPlanDraftInput|OptimizeChapterVideoPromptInput|UpdateChapterVideoPromptInput|UpdateVideoSegmentPlanDraftRecipeInput)\b' \
+    crates/a4n-runtime/src; then
+    printf 'Video prompt DTOs must be consumed from the API contract without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub use a4n_api_contract::video::\{' \
+    crates/a4n-runtime/src/actions/video_prompts.rs; then
+    printf 'Video prompt actions must consume the API video contract directly\n' >&2
+    exit 1
+fi
+
+if rg -U -n 'pub use a4n_orchestrator::character::\{[^}]*\b(ApplyImplicitUpdateDecisionInput|CheckImplicitUpdateInput|GetImplicitReviewInput|ImplicitReviewSummary|ImplicitUpdateDecisionSummary)\b' \
+    crates/a4n-runtime/src; then
+    printf 'Implicit character-review DTOs must be consumed from the API contract without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub use a4n_api_contract::character::\{' \
+    crates/a4n-runtime/src/actions/character_implicit_review/mod.rs; then
+    printf 'Implicit character-review actions must consume the API character contract directly\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub use .*GeneratedImageSummary' \
+    crates/a4n-orchestrator/src/media.rs \
+    crates/a4n-runtime/src/actions/image_generation/mod.rs \
+    || rg -n 'actions::image_generation::GeneratedImageSummary' crates/a4n-runtime/src; then
+    printf 'GeneratedImageSummary must be consumed from the image API contract without runtime or orchestrator facades\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'a4n_api_contract::image::GeneratedImageSummary|image::GeneratedImageSummary' \
+    crates/a4n-orchestrator/src/media/image_generation \
+    crates/a4n-orchestrator/src/media/image_record_lifecycle.rs \
+    crates/a4n-runtime/src/actions/image_records \
+    crates/a4n-runtime/src/actions/video_records/imports/canvas/frame.rs; then
+    printf 'GeneratedImageSummary consumers must use the image API contract directly\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'pub struct GeneratePortraitInput' \
     crates/a4n-api-contract/src/portrait.rs; then
     printf 'GeneratePortraitInput contract is missing\n' >&2
@@ -2058,6 +2129,21 @@ if rg -n 'pub use .*PortraitSummary' \
     || rg -U -n 'a4n_orchestrator::(?:\{[^;]*)?portrait::\{[^}]*PortraitSummary' \
     crates/a4n-runtime/src crates/a4n-orchestrator/src; then
     printf 'PortraitSummary must be consumed directly from the API contract\n' >&2
+    exit 1
+fi
+
+if ! rg -n 'pub enum PortraitType' crates/a4n-api-contract/src/portrait.rs; then
+    printf 'PortraitType contract is missing\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub use .*PortraitType' \
+    crates/a4n-orchestrator/src/portrait.rs \
+    crates/a4n-orchestrator/src/portrait/application.rs \
+    crates/a4n-orchestrator/src/portrait/application/contracts.rs \
+    || rg -U -n 'a4n_orchestrator::(?:\{[^;]*)?portrait::\{[^}]*PortraitType' \
+    crates/a4n-runtime/src crates/a4n-orchestrator/src; then
+    printf 'PortraitType must be consumed directly from the API contract\n' >&2
     exit 1
 fi
 

@@ -1,3 +1,5 @@
+use a4n_api_contract::video::UpdateGeneratedVideoInput;
+
 #[tokio::test]
 async fn list_videos_by_missing_chapter_returns_not_found() {
     let db = Arc::new(setup_db().await);

@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use serde_json::Value;
 
 use super::{
-    FRAME_SEGMENT_PLAN_CONTRACT_VERSION, NewChapterVideoPrompt, PromptOutputLanguage, SourceSpan,
+    FRAME_SEGMENT_PLAN_CONTRACT_VERSION, NewChapterVideoPrompt, SourceSpan,
     VideoPromptGenerationTrace, VideoSegmentPlan, VideoShootingScriptProjection,
 };
 use a4n_video_contract::VideoSegmentExecutionRecipeV1;

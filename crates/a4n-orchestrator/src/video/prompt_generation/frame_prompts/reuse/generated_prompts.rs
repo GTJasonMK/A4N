@@ -1,10 +1,10 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use a4n_db_models::models::chapter::chapter_video_prompt;
+use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_error::AppError;
 use serde_json::Value;
 
-use crate::video::PromptOutputLanguage;
 use crate::video::library::ensure_video_reference_ids_known;
 use crate::video::prompt_json::{ChatVideoPromptShot, VideoPromptShot, VideoSegmentPlan};
 use crate::video::prompt_store::PromptWorkflowMode;

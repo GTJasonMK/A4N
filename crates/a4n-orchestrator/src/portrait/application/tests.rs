@@ -150,6 +150,7 @@ impl PortraitGenerationHostPort for TestPortraitHost {
 
 async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext) {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+    crate::test_support::create_test_user(database.as_ref()).await;
     let context = TestOrchestratorBuilder::new(Arc::clone(&database))
         .build()
         .await;
@@ -319,7 +320,7 @@ async fn portrait_application_persists_complete_missing_portrait_trace() {
     assert!(portraits.items[0].summary.is_primary);
     assert_eq!(host.generate_calls.load(Ordering::SeqCst), 1);
     assert_eq!(host.persist_calls.load(Ordering::SeqCst), 1);
-    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 0);
+    assert_eq!(host.remove_calls.load(Ordering::SeqCst), 1);
 
     let portrait_count = character_portrait::Entity::find()
         .filter(character_portrait::Column::ProjectId.eq(project.id))

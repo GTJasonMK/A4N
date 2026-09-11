@@ -1,6 +1,7 @@
 use a4n_api_contract::chapter::{
     CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisMutationResult, ChapterSummary,
 };
+use a4n_api_contract::character::DiscoverCharacterProfilesInput;
 use a4n_chapter_analysis::validate_saved_chapter_analysis;
 use a4n_db_models::models::{
     chapter::chapter,
@@ -18,7 +19,7 @@ use crate::{
     chapter_content::ChapterDerivedCleanupHostPort,
     character::{
         CharacterDiscoveryProgress, CharacterProfileSyncProgress,
-        CharacterProfileSyncStageTracePort, DiscoverCharacterProfilesInput,
+        CharacterProfileSyncStageTracePort,
     },
     object_discovery::{
         OBJECT_DISCOVERY_CALL_KEY, OBJECT_DISCOVERY_KIND, ObjectDiscoveryInput,

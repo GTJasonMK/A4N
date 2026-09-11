@@ -407,6 +407,7 @@ async fn canvas_output_application_marks_workflow_failed_when_artifact_is_missin
 
 async fn setup_context() -> (Arc<DatabaseConnection>, OrchestratorContext) {
     let database = Arc::new(a4n_migration::test_support::connect_test_database().await);
+    crate::test_support::create_test_user(database.as_ref()).await;
     let context = TestOrchestratorBuilder::new(Arc::clone(&database))
         .build()
         .await;

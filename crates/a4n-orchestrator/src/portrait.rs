@@ -30,7 +30,6 @@ pub(crate) use application::portrait_summary;
 pub use application::{
     DecodedPortraitImage, GeneratedPortraitImage, PortraitBatchItem, PortraitBatchOutcome,
     PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
-    PortraitReferenceImageSource,
 };
 pub use prompt_generation::{
     PortraitPromptGenerationInput, PortraitPromptRequestInput, PortraitPromptSpec,

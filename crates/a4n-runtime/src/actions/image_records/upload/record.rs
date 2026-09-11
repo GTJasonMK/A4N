@@ -1,10 +1,10 @@
 use super::file::{create_imported_image_output, data_path_to_db_string};
 use crate::{
     AppState,
-    actions::image_generation::GeneratedImageSummary,
     cleanup_outbox::enqueue_file_artifact_cleanup_by_project,
     file_utils::{inspect_data_file_facts, promote_data_file},
 };
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_domain::media::{IMAGE_PUBLICATION_STATUS_PENDING, IMAGE_PUBLICATION_STATUS_PUBLISHED};
 use a4n_orchestrator::media::PreparedImportedImageUpload;
 use sha2::{Digest, Sha256};

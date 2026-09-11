@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::character::{CharacterConflictCheckInput, CharacterConflictSummary};
 use a4n_domain::project::required_text;
 use a4n_error::AppError;
 use a4n_llm::provider::is_truncated_finish_reason;
@@ -26,8 +27,8 @@ use crate::{
 use super::{
     CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL,
     contracts::{
-        CharacterConflictCheckInput, CharacterConflictProgressReporter, CharacterConflictSummary,
-        PreparedCharacterConflictCheck, ValidatedCharacterConflictInput,
+        CharacterConflictProgressReporter, PreparedCharacterConflictCheck,
+        ValidatedCharacterConflictInput,
     },
     request::{BuildCharacterConflictRequestInput, build_character_conflict_request},
     workflow::character_conflict_workflow_run_input,

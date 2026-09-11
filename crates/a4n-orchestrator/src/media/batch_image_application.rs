@@ -3,6 +3,7 @@ use std::sync::{
     atomic::{AtomicU32, Ordering},
 };
 
+use a4n_api_contract::image::GeneratedImageSummary;
 use a4n_error::AppError;
 use a4n_image::ImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
@@ -12,9 +13,9 @@ use serde_json::{Value, json};
 use crate::OrchestratorContext;
 
 use super::{
-    GeneratedImageSummary, ImageGenerationExecutionInput, ImageGenerationHostPort,
-    ImageGenerationPostCommitAction, ImageGenerationProgress, ImageGenerationWorkflowBinding,
-    batch_image_item_step_key, batch_image_workflow_run_input, image_generation_request_trace_json,
+    ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
+    ImageGenerationProgress, ImageGenerationWorkflowBinding, batch_image_item_step_key,
+    batch_image_workflow_run_input, image_generation_request_trace_json,
 };
 
 #[derive(Debug)]

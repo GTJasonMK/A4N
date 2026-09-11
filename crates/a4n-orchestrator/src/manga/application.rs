@@ -1,6 +1,7 @@
 use a4n_api_contract::manga::{
     BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaPagePromptSummary,
-    MangaPipelineStatusSummary, OptimizeMangaPromptInput, UpdateMangaPromptInput,
+    MangaPipelineStatusSummary, MangaPromptDownstreamCleanupPort, OptimizeMangaPromptInput,
+    UpdateMangaPromptInput,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{DownstreamConflictStrategy, project::required_text};
@@ -15,9 +16,8 @@ use super::layout_rules::{
 use super::record_errors::manga_pipeline_db_error;
 use super::{
     MangaGeneratePagePromptsInput, MangaPipelineRequestPreviewInput,
-    MangaPipelineRequestPreviewStep, MangaPromptDownstreamCleanupPort,
-    MangaPromptOptimizationInput, ensure_manga_source_can_write, manga_page_prompt_summary,
-    manga_pipeline_fingerprint,
+    MangaPipelineRequestPreviewStep, MangaPromptOptimizationInput, ensure_manga_source_can_write,
+    manga_page_prompt_summary, manga_pipeline_fingerprint,
 };
 use crate::workflow::{
     ListWorkflowRunsInput, WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED,

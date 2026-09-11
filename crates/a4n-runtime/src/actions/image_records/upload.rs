@@ -1,7 +1,8 @@
 mod file;
 mod record;
 
-use crate::{AppState, actions::image_generation::GeneratedImageSummary};
+use crate::AppState;
+use a4n_api_contract::image::GeneratedImageSummary;
 
 use super::UploadImageInput;
 
