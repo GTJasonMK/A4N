@@ -2,6 +2,33 @@
 
 use serde_json::Value;
 
+pub fn tail_frame_metadata_belongs_to_video(
+    image_type: &str,
+    metadata_json: Option<&Value>,
+    video_id: i64,
+) -> bool {
+    if image_type != a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME
+        || a4n_domain::image::image_generation_source(metadata_json)
+            != Some(a4n_domain::image::IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
+    {
+        return false;
+    }
+    metadata_json
+        .and_then(|metadata| metadata.get("generation_context"))
+        .and_then(|context| context.get("video_id"))
+        .and_then(Value::as_i64)
+        == Some(video_id)
+}
+
+pub fn video_shot_number(metadata_json: Option<&Value>, video_id: i64) -> Result<i32, String> {
+    metadata_json
+        .and_then(|metadata| metadata.get("shot_number"))
+        .and_then(Value::as_i64)
+        .and_then(|value| i32::try_from(value).ok())
+        .filter(|value| *value > 0)
+        .ok_or_else(|| format!("视频 #{video_id} 缺少有效 shot_number，无法采集真实尾帧"))
+}
+
 pub fn is_first_frame_chain_workflow(workflow_mode: Option<&str>) -> bool {
     workflow_mode == Some(a4n_domain::video_workflow::WORKFLOW_MODE_FIRST_FRAME_CHAIN)
 }
@@ -51,6 +78,41 @@ pub fn completed_provider_metadata(
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn tail_frame_metadata_requires_capture_source_and_video_id() {
+        let metadata = json!({
+            "generation_context": {
+                "source": a4n_domain::image::IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE,
+                "video_id": 42,
+            }
+        });
+        assert!(tail_frame_metadata_belongs_to_video(
+            a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME,
+            Some(&metadata),
+            42,
+        ));
+        assert!(!tail_frame_metadata_belongs_to_video(
+            a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME,
+            Some(&metadata),
+            41,
+        ));
+        assert!(!tail_frame_metadata_belongs_to_video(
+            "illustration",
+            Some(&metadata),
+            42,
+        ));
+    }
+
+    #[test]
+    fn video_shot_number_requires_positive_integer_metadata() {
+        assert_eq!(
+            video_shot_number(Some(&json!({"shot_number": 3})), 42),
+            Ok(3)
+        );
+        assert!(video_shot_number(Some(&json!({"shot_number": 0})), 42).is_err());
+        assert!(video_shot_number(Some(&json!({"shot_number": "3"})), 42).is_err());
+    }
 
     #[test]
     fn provider_completion_rules_keep_chapter_and_tail_frame_contracts() {

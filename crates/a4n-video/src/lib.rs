@@ -23,7 +23,8 @@ pub use provider_image::{
 };
 pub use tail_frame::{
     completed_provider_metadata, is_first_frame_chain_workflow, required_video_chapter_id,
-    should_capture_video_tail_frame_fields,
+    should_capture_video_tail_frame_fields, tail_frame_metadata_belongs_to_video,
+    video_shot_number,
 };
 
 pub const OPENAI_COMPATIBLE_VIDEO_BACKEND: &str = "openai-compatible-video";
