@@ -66,6 +66,14 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   const effectiveCloseLabel = closeLabel ?? t("feedback.progressClose");
   const effectiveCancelLabel = cancelLabel ?? t("feedback.progressCancel");
   const effectiveRunningHint = runningHint ?? t("feedback.progressRunningHint");
+  const pacedStream = usePacedStreamText(
+    streamText ?? "",
+    streaming && status === "running",
+    streaming,
+  );
+  const displayStatus = streaming && status !== "running" && !pacedStream.isDrained
+    ? "running"
+    : status;
   const [timing, setTiming] = useState<{ startedAt: number | null; now: number }>({
     startedAt: null,
     now: Date.now(),
@@ -73,23 +81,26 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   const boundedTotal = Math.max(1, total || 1);
   const boundedCurrent = Math.max(0, Math.min(current || 0, boundedTotal));
   const percent =
-    status === "success" ? 100 : Math.round((boundedCurrent / boundedTotal) * 100);
+    displayStatus === "success" ? 100 : Math.round((boundedCurrent / boundedTotal) * 100);
   const canClose =
-    status === "success" || status === "error" || status === "idle" || status === "cancelled";
+    displayStatus === "success"
+    || displayStatus === "error"
+    || displayStatus === "idle"
+    || displayStatus === "cancelled";
   const tone =
-    status === "error"
+    displayStatus === "error"
       ? "danger"
-      : status === "success"
+      : displayStatus === "success"
         ? "success"
-        : status === "cancelled"
+        : displayStatus === "cancelled"
           ? "warning"
           : "default";
   const icon =
-    status === "error" ? (
+    displayStatus === "error" ? (
       <AlertCircle size={15} />
-    ) : status === "success" ? (
+    ) : displayStatus === "success" ? (
       <CheckCircle2 size={15} />
-    ) : status === "cancelled" ? (
+    ) : displayStatus === "cancelled" ? (
       <XCircle size={15} />
     ) : (
       <LoadingSpinner size="sm" />
@@ -102,26 +113,21 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
     total: boundedTotal,
     message,
     meta,
-    status,
+    status: displayStatus,
     locale,
     t,
-    fallbackStage: statusStageLabel(status, t),
+    fallbackStage: statusStageLabel(displayStatus, t),
   });
   const timingLabel = progressTimingLabel(
     timing.startedAt,
     timing.now,
-    status,
+    displayStatus,
     percent,
     display.etaMode,
     locale,
     t,
   );
-  const barDetail = display.detail ?? statusDetailLabel(status, t);
-  const pacedStream = usePacedStreamText(
-    streamText ?? "",
-    streaming && status === "running",
-    streaming,
-  );
+  const barDetail = display.detail ?? statusDetailLabel(displayStatus, t);
   const displayedStreamText = streamLineFromBuffer(pacedStream.displayedText);
   const hasStreamText = displayedStreamText.length > 0;
   const showStreamPreview = hasStreamText || (streaming && pacedStream.isThinking);
@@ -138,7 +144,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
   }, [open, title]);
 
   useEffect(() => {
-    if (!open || status !== "running") {
+    if (!open || displayStatus !== "running") {
       setTiming((prev) => ({ ...prev, now: Date.now() }));
       return undefined;
     }
@@ -146,7 +152,7 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
       setTiming((prev) => ({ ...prev, now: Date.now() }));
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [open, status]);
+  }, [displayStatus, open]);
 
   return (
     <Modal
@@ -212,11 +218,11 @@ export const ProgressDialog: React.FC<ProgressDialogProps> = ({
           >
             <div
               className={`absolute inset-y-0 left-0 transition-all duration-300 ${
-                status === "error"
+                displayStatus === "error"
                   ? "bg-error"
-                  : status === "success"
+                  : displayStatus === "success"
                     ? "bg-success"
-                    : status === "cancelled"
+                    : displayStatus === "cancelled"
                       ? "bg-warning"
                       : "bg-book-primary/30"
               }`}

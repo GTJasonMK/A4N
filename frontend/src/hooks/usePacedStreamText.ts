@@ -2,16 +2,23 @@ import { useEffect, useRef, useState } from "react";
 import { usePersistedState } from "./usePersistedState";
 import {
   DEFAULT_STREAM_DISPLAY_RATE,
+  DEFAULT_STREAM_DISPLAY_MODE,
+  estimateAdaptiveStreamRate,
   normalizeStreamDisplayRate,
+  parseStreamDisplayMode,
   parseStreamDisplayRate,
+  serializeStreamDisplayMode,
   serializeStreamDisplayRate,
+  STREAM_DISPLAY_MODE_KEY,
   STREAM_DISPLAY_RATE_KEY,
+  type StreamDisplayMode,
 } from "../utils/streamDisplaySettings";
 
 export interface PacedStreamText {
   displayedText: string;
   hasPendingText: boolean;
   isThinking: boolean;
+  isDrained: boolean;
 }
 
 export const useStreamDisplayRate = () => usePersistedState<number>(
@@ -20,6 +27,15 @@ export const useStreamDisplayRate = () => usePersistedState<number>(
   {
     parse: parseStreamDisplayRate,
     serialize: serializeStreamDisplayRate,
+  },
+);
+
+export const useStreamDisplayMode = () => usePersistedState<StreamDisplayMode>(
+  STREAM_DISPLAY_MODE_KEY,
+  DEFAULT_STREAM_DISPLAY_MODE,
+  {
+    parse: parseStreamDisplayMode,
+    serialize: serializeStreamDisplayMode,
   },
 );
 
@@ -47,52 +63,125 @@ export const usePacedStreamText = (
   drainWhenInactive = false,
 ): PacedStreamText => {
   const [rate] = useStreamDisplayRate();
+  const [mode] = useStreamDisplayMode();
   const [displayedText, setDisplayedText] = useState(() => (active ? "" : sourceText));
   const [drainRequested, setDrainRequested] = useState(0);
+  const initialSourceChars = Array.from(sourceText);
   const displayedTextRef = useRef(active ? "" : sourceText);
+  const displayedCharCountRef = useRef(active ? 0 : initialSourceChars.length);
   const targetTextRef = useRef(sourceText);
+  const targetCharsRef = useRef(initialSourceChars);
+  const sampleRef = useRef({
+    sourceText,
+    sourceLength: initialSourceChars.length,
+    sampledAt: Date.now(),
+    estimatedRate: null as number | null,
+    active,
+    mode,
+    rate,
+  });
+  const adaptiveRateRef = useRef(rate);
 
   useEffect(() => {
+    const now = Date.now();
+    const targetChars = Array.from(sourceText);
+    const previousSample = sampleRef.current;
+    const settingsChanged = previousSample.mode !== mode || previousSample.rate !== rate;
+    const taskStarted = active && !previousSample.active;
+    const sourceReplaced = sourceText !== previousSample.sourceText
+      && !sourceText.startsWith(previousSample.sourceText);
+
+    targetCharsRef.current = targetChars;
     targetTextRef.current = sourceText;
-    const reconciled = commonPrefix(displayedTextRef.current, sourceText);
-    if (reconciled !== displayedTextRef.current) {
-      displayedTextRef.current = reconciled;
-      setDisplayedText(reconciled);
+    if (
+      targetChars.length < displayedCharCountRef.current
+      || !sourceText.startsWith(displayedTextRef.current)
+    ) {
+      const reconciled = commonPrefix(displayedTextRef.current, sourceText);
+      if (reconciled !== displayedTextRef.current) {
+        displayedTextRef.current = reconciled;
+        displayedCharCountRef.current = Array.from(reconciled).length;
+        setDisplayedText(reconciled);
+      }
     }
+
+    if (settingsChanged || taskStarted || sourceReplaced) {
+      sampleRef.current = {
+        sourceText,
+        sourceLength: targetChars.length,
+        sampledAt: now,
+        estimatedRate: null,
+        active,
+        mode,
+        rate,
+      };
+      adaptiveRateRef.current = rate;
+    } else if (mode === "adaptive" && targetChars.length > previousSample.sourceLength) {
+      const nextRate = estimateAdaptiveStreamRate(
+        previousSample.estimatedRate,
+        targetChars.length - previousSample.sourceLength,
+        now - previousSample.sampledAt,
+        rate,
+      );
+      sampleRef.current = {
+        sourceText,
+        sourceLength: targetChars.length,
+        sampledAt: now,
+        estimatedRate: nextRate,
+        active,
+        mode,
+        rate,
+      };
+      adaptiveRateRef.current = nextRate;
+    } else {
+      sampleRef.current = { ...previousSample, sourceText, active, mode, rate };
+    }
+
     if (!active) {
       if (!drainWhenInactive && displayedTextRef.current !== sourceText) {
         displayedTextRef.current = sourceText;
+        displayedCharCountRef.current = targetChars.length;
         setDisplayedText(sourceText);
       } else if (drainWhenInactive && displayedTextRef.current !== sourceText) {
         setDrainRequested((value) => value + 1);
       }
     }
-  }, [active, drainWhenInactive, sourceText]);
+  }, [active, drainWhenInactive, mode, rate, sourceText]);
 
   useEffect(() => {
     if (!active && !drainWhenInactive) return undefined;
     if (!active && displayedTextRef.current === targetTextRef.current) return undefined;
-    const interval = globalThis.setInterval(() => {
+    let timeout: ReturnType<typeof globalThis.setTimeout> | null = null;
+    const nextDelay = () => 1000 / normalizeStreamDisplayRate(
+      mode === "adaptive" ? adaptiveRateRef.current : rate,
+    );
+    const tick = () => {
       if (!active && drainWhenInactive && displayedTextRef.current === targetTextRef.current) {
-        globalThis.clearInterval(interval);
         return;
       }
-      const next = advancePacedStreamText(displayedTextRef.current, targetTextRef.current);
-      if (next === displayedTextRef.current) return;
-      displayedTextRef.current = next;
-      setDisplayedText(next);
-    }, 1000 / normalizeStreamDisplayRate(rate));
-    return () => globalThis.clearInterval(interval);
-  }, [active, drainRequested, drainWhenInactive, rate]);
+      const nextChar = targetCharsRef.current[displayedCharCountRef.current];
+      if (nextChar != null) {
+        const next = `${displayedTextRef.current}${nextChar}`;
+        displayedTextRef.current = next;
+        displayedCharCountRef.current += 1;
+        setDisplayedText(next);
+      }
+      timeout = globalThis.setTimeout(tick, nextDelay());
+    };
+    timeout = globalThis.setTimeout(tick, nextDelay());
+    return () => {
+      if (timeout != null) globalThis.clearTimeout(timeout);
+    };
+  }, [active, drainRequested, drainWhenInactive, mode, rate]);
 
-  const displayedChars = Array.from(displayedText);
-  const sourceChars = Array.from(sourceText);
-  const hasPendingText = sourceChars.length > displayedChars.length
+  const hasPendingText = displayedText !== sourceText
     && sourceText.startsWith(displayedText);
+  const isDrained = displayedText === sourceText;
 
   return {
     displayedText,
     hasPendingText,
     isThinking: active && !hasPendingText,
+    isDrained,
   };
 };

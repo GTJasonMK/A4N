@@ -267,6 +267,7 @@ export const OptimizeTab: React.FC<OptimizeTabProps> = ({
               onStickToBottomChange={(value) => {
                 shouldStickToBottomRef.current = value;
               }}
+              onStreamDrained={activityStream.clearLlmStreamPreview}
             />
 
             <OptimizeComposer

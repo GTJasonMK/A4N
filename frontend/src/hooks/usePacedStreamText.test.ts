@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { advancePacedStreamText } from "./usePacedStreamText";
-import { normalizeStreamDisplayRate } from "../utils/streamDisplaySettings";
+import {
+  estimateAdaptiveStreamRate,
+  normalizeStreamDisplayMode,
+  normalizeStreamDisplayRate,
+} from "../utils/streamDisplaySettings";
 
 describe("advancePacedStreamText", () => {
   it("reveals one Unicode character at a time", () => {
@@ -17,5 +21,17 @@ describe("advancePacedStreamText", () => {
     expect(normalizeStreamDisplayRate(0)).toBe(1);
     expect(normalizeStreamDisplayRate(999)).toBe(120);
     expect(normalizeStreamDisplayRate("invalid")).toBe(30);
+  });
+
+  it("smooths adaptive samples without exceeding the supported range", () => {
+    expect(estimateAdaptiveStreamRate(null, 20, 1000)).toBe(20);
+    expect(estimateAdaptiveStreamRate(20, 40, 1000)).toBe(25);
+    expect(estimateAdaptiveStreamRate(20, 0, 1000, 40)).toBe(20);
+    expect(estimateAdaptiveStreamRate(null, 999, 1)).toBe(120);
+  });
+
+  it("falls back to fixed mode for invalid mode values", () => {
+    expect(normalizeStreamDisplayMode("adaptive")).toBe("adaptive");
+    expect(normalizeStreamDisplayMode("unknown")).toBe("fixed");
   });
 });

@@ -115,7 +115,10 @@ export const InspirationChat: React.FC = () => {
         message={chat.blueprintProgress.message}
         error={chat.blueprintProgress.error}
         streamText={chat.blueprintStreamText}
-        streaming={chat.blueprintOperation != null}
+        streaming={
+          chat.blueprintProgressOpen
+          && (chat.blueprintOperation != null || chat.blueprintStreamText.length > 0)
+        }
         onClose={chat.closeBlueprintProgress}
         closeLabel={chat.blueprintProgress.status === "success" ? t("inspiration.viewBlueprint") : t("inspiration.close")}
         onCancel={

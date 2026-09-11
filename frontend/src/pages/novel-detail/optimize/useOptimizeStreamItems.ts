@@ -39,7 +39,14 @@ export const useOptimizeStreamItems = ({
   return useMemo(() => {
     const items: StreamItem[] = [];
     const activityItems: StreamItem[] = [];
-    const conversationItems = turnsToConversationItems(turns, t);
+    const replacedTurnIds = new Set(
+      localItems
+        .map((item) => item.replacesTurnId)
+        .filter((turnId): turnId is number => turnId != null),
+    );
+    const conversationItems = turnsToConversationItems(turns, t).filter(
+      (item) => item.turnId == null || !replacedTurnIds.has(item.turnId),
+    );
     if (loading) {
       items.push({
         id: "loading",

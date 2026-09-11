@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AlertCircle, Bot, CheckCircle2, User, Wrench } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { usePacedStreamText } from "../../../hooks/usePacedStreamText";
@@ -15,27 +16,59 @@ import {
 import { previewModelStream } from "./modelStreamPreview";
 import type { ProgressDialogStatus } from "../../../components/feedback/ProgressDialog";
 
-export function StreamMessage({ item }: { item: StreamItem }) {
+export function StreamMessage({
+  item,
+  onStreamDrained,
+}: {
+  item: StreamItem;
+  onStreamDrained?: (taskId: string) => void;
+}) {
   const { locale, t } = useI18n();
-  const live = isLiveModelItem(item);
+  const hasStreamSource = item.streamSource != null;
+  const live = hasStreamSource && item.status === "running";
   const pacedStream = usePacedStreamText(
     item.streamSource ?? item.content,
     live,
-    live,
+    hasStreamSource,
   );
-  const pacedPreview = live && item.streamSource != null && pacedStream.displayedText
+  const pacedPreview = hasStreamSource && pacedStream.displayedText
     ? previewModelStream(pacedStream.displayedText, t)
     : null;
-  const displayItem = live && item.streamSource != null
+  const displayStatus = hasStreamSource && !pacedStream.isDrained
+    ? "running"
+    : item.status;
+  const displayItem = hasStreamSource
     ? pacedPreview
       ? {
           ...item,
           kind: pacedPreview.kind,
           title: pacedPreview.title,
           content: pacedPreview.content,
+          status: displayStatus,
         }
-      : { ...item, kind: "agent" as const, title: t("optimize.thinking"), content: "" }
+      : {
+          ...item,
+          kind: "agent" as const,
+          title: t("optimize.thinking"),
+          content: "",
+          status: displayStatus,
+        }
     : item;
+  useEffect(() => {
+    if (
+      !hasStreamSource
+      || live
+      || !pacedStream.isDrained
+      || !item.taskId
+    ) return;
+    onStreamDrained?.(item.taskId);
+  }, [
+    hasStreamSource,
+    item.taskId,
+    live,
+    onStreamDrained,
+    pacedStream.isDrained,
+  ]);
   const meta = formatItemMeta(item, locale);
   const currentStep = currentProcessStep(displayItem.steps);
   const currentBehavior = currentStep ? processStepBehavior(currentStep, t) : null;
@@ -46,7 +79,8 @@ export function StreamMessage({ item }: { item: StreamItem }) {
   const content = isProcessItem ? currentBehavior.detail : displayItem.content;
   const contentClassName = "whitespace-pre-wrap break-words";
   const processSteps = visibleProcessSteps(displayItem.steps, isProcessItem, currentStep, t);
-  const showTimeline = displayItem.kind !== "user" && (processSteps.length > 0 || live);
+  const showTimeline = displayItem.kind !== "user"
+    && (processSteps.length > 0 || hasStreamSource);
   const showHeader = !showTimeline;
   return (
     <article
@@ -77,7 +111,7 @@ export function StreamMessage({ item }: { item: StreamItem }) {
         {showTimeline ? (
           <AgentTurnTimeline
             steps={processSteps}
-            currentItem={live ? displayItem : null}
+            currentItem={hasStreamSource ? displayItem : null}
             finalReply={isAssistantReplyItem(displayItem) ? content : null}
             showThinking={pacedStream.isThinking && live}
             t={t}
@@ -389,10 +423,6 @@ function isActiveThinkingRow(row: TimelineRow, t: MessageTranslator): boolean {
     row.source?.activity === "llm_response" &&
     row.source.status === "running"
   );
-}
-
-function isLiveModelItem(item: StreamItem): boolean {
-  return item.activity === "llm_response" && item.status === "running";
 }
 
 function isAssistantReplyItem(item: StreamItem): boolean {

@@ -35,6 +35,8 @@ export interface StreamItem {
   detailLabel?: string;
   timestamp?: number | string | null;
   taskId?: string | null;
+  turnId?: number | null;
+  replacesTurnId?: number | null;
   status?: ProgressDialogStatus;
   chapterId?: number | null;
   sessionId?: number | null;
@@ -189,6 +191,7 @@ export function turnsToConversationItems(
       timestamp: turn.updated_at,
       status: turnStatusToProgressStatus(turn.status),
       steps,
+      turnId: turn.id,
       sessionId: turn.session_id,
     });
   }

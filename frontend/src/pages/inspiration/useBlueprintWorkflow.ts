@@ -131,6 +131,7 @@ export const useBlueprintWorkflow = ({
   const [blueprintProgress, setBlueprintProgress] = useState<BlueprintProgressState>(() =>
     createBlueprintProgressState(t("inspiration.progressPreparing")),
   );
+  const [blueprintStreamText, setBlueprintStreamText] = useState("");
   const [blueprintCancelling, setBlueprintCancelling] = useState(false);
   const [requestPreviewOpen, setRequestPreviewOpen] = useState(false);
   const [requestPreviewLoading, setRequestPreviewLoading] = useState(false);
@@ -157,6 +158,10 @@ export const useBlueprintWorkflow = ({
     generationTask.text("raw_json"),
   ].filter(Boolean).join("\n");
 
+  useEffect(() => {
+    if (generationHandle && streamText) setBlueprintStreamText(streamText);
+  }, [generationHandle, streamText]);
+
   const isCurrentProject = useCallback((requestProjectId: number) => {
     return mountedRef.current && activeProjectIdRef.current === requestProjectId;
   }, []);
@@ -180,6 +185,7 @@ export const useBlueprintWorkflow = ({
     setOperation(null);
     setBlueprintProgressOpen(false);
     setBlueprintProgress(createBlueprintProgressState(t("inspiration.progressPreparing")));
+    setBlueprintStreamText("");
     setBlueprintCancelling(false);
     setRequestPreviewOpen(false);
     setRequestPreviewLoading(false);
@@ -404,6 +410,7 @@ export const useBlueprintWorkflow = ({
     setGenerating(true);
     setBlueprintConsistencyWarning(null);
     setOperation("generation");
+    setBlueprintStreamText("");
     setBlueprintCancelling(false);
     setBlueprintProgress({ ...createBlueprintProgressState(t("inspiration.progressPreparing")), status: "running", message: t("inspiration.startBlueprint") });
     setBlueprintProgressOpen(true);
@@ -474,6 +481,7 @@ export const useBlueprintWorkflow = ({
     setRefining(true);
     setBlueprintConsistencyWarning(null);
     setOperation("refinement");
+    setBlueprintStreamText("");
     setBlueprintCancelling(false);
     setBlueprintProgress({
       ...createBlueprintProgressState(t("inspiration.refining")),
@@ -551,7 +559,7 @@ export const useBlueprintWorkflow = ({
     closeBlueprintProgress,
     blueprintProgress,
     blueprintCancelling,
-    blueprintStreamText: streamText,
+    blueprintStreamText,
     requestPreviewOpen,
     requestPreviewLoading,
     requestPreviewData,

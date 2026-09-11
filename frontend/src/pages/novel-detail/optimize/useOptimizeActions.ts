@@ -120,6 +120,7 @@ export function useOptimizeActions({
   const {
     appendLlmStreamChunk,
     appendLocalItem,
+    completeLlmStreamPreview,
     clearLlmStreamPreview,
   } = activityStream;
   const {
@@ -272,6 +273,19 @@ export function useOptimizeActions({
     );
     const current = generationHandleRef.current;
     if (!current || generationTaskKey(current.task_id, current.attempt) !== key) return;
+    const previewStatus = generationTask.taskStatus === "completed"
+      ? "success"
+      : generationTask.taskStatus === "cancelled"
+        ? "cancelled"
+        : "error";
+    const resultId = generationTask.resultRef?.kind === "optimization_turn"
+      ? Number(generationTask.resultRef.id)
+      : NaN;
+    completeLlmStreamPreview(
+      optimizeGenerationHandle.task_id,
+      previewStatus,
+      Number.isSafeInteger(resultId) && resultId > 0 ? resultId : null,
+    );
     if (handledGenerationTerminalRef.current === key) return;
     handledGenerationTerminalRef.current = key;
 
@@ -282,7 +296,6 @@ export function useOptimizeActions({
       return latest != null && generationTaskKey(latest.task_id, latest.attempt) === key;
     };
     const clearGeneration = () => {
-      clearLlmStreamPreview(optimizeGenerationHandle.task_id);
       rawPreviewRef.current = null;
       generationHandleRef.current = null;
       generationSessionIdRef.current = null;
@@ -459,7 +472,7 @@ export function useOptimizeActions({
     addToast,
     appendLocalItem,
     chapterContentById,
-    clearLlmStreamPreview,
+    completeLlmStreamPreview,
     generationTask.error,
     generationTask.clientState,
     generationTask.recoveryState,

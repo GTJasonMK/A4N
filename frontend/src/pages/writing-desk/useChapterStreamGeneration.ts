@@ -259,6 +259,7 @@ export const useChapterStreamGeneration = ({
       || (!generationTask.terminalReceived
         && !recoveryIssue)
     ) return;
+    if (!pacedStream.isDrained) return;
     const key = generationTaskKey(generationHandle.task_id, generationHandle.attempt);
     const currentHandle = generationHandleRef.current;
     if (
@@ -397,6 +398,7 @@ export const useChapterStreamGeneration = ({
     generationTask.taskStatus,
     generationTask.terminalReceived,
     onDraftRemoved,
+    pacedStream.isDrained,
     projectId,
     projectIdKey,
     reloadChapters,

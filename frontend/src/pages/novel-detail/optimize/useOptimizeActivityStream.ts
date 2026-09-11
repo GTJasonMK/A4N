@@ -66,6 +66,7 @@ export const useOptimizeActivityStream = ({
         title: preview.title,
         content: preview.content,
         streamSource: state.raw,
+        taskId,
         status: "running",
         steps: [],
         timestamp: Date.now(),
@@ -83,14 +84,27 @@ export const useOptimizeActivityStream = ({
 
   const clearLlmStreamPreview = useCallback((taskId: string) => {
     const state = llmStreamPreviewRef.current;
+    if (state?.taskId === taskId) llmStreamPreviewRef.current = null;
+    const itemId = "llm-stream-" + taskId;
+    setLocalItems((prev) => prev.filter((item) => item.id !== itemId));
+  }, []);
+
+  const completeLlmStreamPreview = useCallback((
+    taskId: string,
+    status: NonNullable<StreamItem["status"]>,
+    replacesTurnId: number | null = null,
+  ) => {
+    const state = llmStreamPreviewRef.current;
     if (!state || state.taskId !== taskId) return;
-    llmStreamPreviewRef.current = null;
-    setLocalItems((prev) => prev.filter((item) => item.id !== state.itemId));
+    setLocalItems((prev) => prev.map((item) => item.id === state.itemId
+      ? { ...item, status, replacesTurnId }
+      : item));
   }, []);
 
   return {
     appendLlmStreamChunk,
     appendLocalItem,
+    completeLlmStreamPreview,
     clearLlmStreamPreview,
     localItems,
   };

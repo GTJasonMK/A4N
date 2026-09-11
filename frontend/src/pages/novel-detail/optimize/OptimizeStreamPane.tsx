@@ -6,12 +6,14 @@ interface OptimizeStreamPaneProps {
   streamItems: StreamItem[];
   streamRef: { current: HTMLDivElement | null };
   onStickToBottomChange: (value: boolean) => void;
+  onStreamDrained: (taskId: string) => void;
 }
 
 export function OptimizeStreamPane({
   streamItems,
   streamRef,
   onStickToBottomChange,
+  onStreamDrained,
 }: OptimizeStreamPaneProps) {
   const { t } = useI18n();
   return (
@@ -29,7 +31,13 @@ export function OptimizeStreamPane({
           {t("optimize.streamEmpty")}
         </div>
       ) : (
-        streamItems.map((item) => <StreamMessage key={item.id} item={item} />)
+        streamItems.map((item) => (
+          <StreamMessage
+            key={item.id}
+            item={item}
+            onStreamDrained={onStreamDrained}
+          />
+        ))
       )}
     </div>
   );
