@@ -70,7 +70,7 @@ pub(crate) use assembly_clip_rules::{
     assembly_insert_metadata_with_position, is_assembly_clip_video_type,
     next_assembly_insert_sort_order,
 };
-pub(crate) use assembly_postprocess_rules::{
+pub(in crate::video) use assembly_postprocess_rules::{
     parse_postprocess_edit_metadata, postprocess_edit_timing,
 };
 pub(in crate::video) use assembly_push_rules::ASSEMBLY_PUSH_STATUS_PENDING;
