@@ -17,4 +17,4 @@ pub use contracts::{
 pub use interface::LlmProvider;
 pub use options::{normalize_extra_body, normalize_extra_body_json};
 pub use request::{ChatRequest, ResponseFormat};
-pub use stream_collect::{collect_chat_chunks, collect_chat_stream};
+pub use stream_collect::{ChatStreamAccumulator, collect_chat_chunks, collect_chat_stream};

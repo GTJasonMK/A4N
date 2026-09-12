@@ -6,8 +6,10 @@ import {
   type ThemeAppearance,
   type ThemeMode,
   type ThemePreferenceSummary,
+  type ThemeStreamDisplaySettings,
 } from "../api/theme";
 import { toMediaSrc } from "../utils/mediaSrc";
+import { normalizeStreamDisplaySettings } from "../utils/streamDisplaySettings";
 import {
   THEME_DOCUMENT_VERSION,
   THEME_GLOBAL_ROUTE_FAMILY,
@@ -24,6 +26,7 @@ let runtimeUserId: number | null = null;
 let runtimeThemes: Theme[] = [];
 let runtimeAppearance: ThemeAppearance = "system";
 let runtimeActiveTheme: Theme | null = null;
+let runtimeAppliedTheme: Theme | null = null;
 let runtimeRouteFamily: ThemeRouteFamily = THEME_GLOBAL_ROUTE_FAMILY;
 let syncChannel: BroadcastChannel | null = null;
 let systemMediaQuery: MediaQueryList | null = null;
@@ -131,7 +134,12 @@ function ensureSyncListeners(): void {
 function applyBackground(theme: Theme | null): void {
   const root = document.documentElement;
   const documentValue: Theme["document"] =
-    theme?.document ?? { version: THEME_DOCUMENT_VERSION, tokens: {}, backgrounds: {} };
+    theme?.document ?? {
+      version: THEME_DOCUMENT_VERSION,
+      tokens: {},
+      backgrounds: {},
+      stream_display: normalizeStreamDisplaySettings(undefined),
+    };
   const background =
     documentValue.backgrounds[runtimeRouteFamily] ??
     documentValue.backgrounds[THEME_GLOBAL_ROUTE_FAMILY];
@@ -153,6 +161,7 @@ function applyBackground(theme: Theme | null): void {
 }
 
 function applyThemeState(theme: Theme | null, mode: ThemeMode): void {
+  runtimeAppliedTheme = theme;
   const root = document.documentElement;
   const vars = theme?.document.tokens ?? {};
   const nextKeys = new Set<string>(Object.keys(vars).filter((key) => themeTokenSet.has(key)));
@@ -207,8 +216,12 @@ export function themeRouteFamilyForPath(pathname: string): ThemeRouteFamily {
 
 export function setThemeRouteFamily(routeFamily: ThemeRouteFamily): void {
   runtimeRouteFamily = routeFamily;
-  applyBackground(runtimeActiveTheme);
+  applyBackground(runtimeAppliedTheme);
   dispatchThemeApplied();
+}
+
+export function getActiveThemeStreamDisplaySettings(): ThemeStreamDisplaySettings {
+  return normalizeStreamDisplaySettings(runtimeAppliedTheme?.document.stream_display);
 }
 
 export function applyActiveTheme(theme: Theme): void {

@@ -20,6 +20,29 @@ pub trait AgentWorkerMessageApplicationPort: Send + Sync {
         content: String,
         tool_calls: Value,
     ) -> Result<AgentMessageSnapshot, AppError>;
+
+    async fn upsert_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        reasoning_content: Option<String>,
+    ) -> Result<AgentMessageSnapshot, AppError>;
+
+    async fn interrupt_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        reason: Option<String>,
+    ) -> Result<(), AppError>;
+
+    async fn complete_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        tool_calls: Value,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError>;
 }
 
 #[async_trait::async_trait]
@@ -50,5 +73,54 @@ impl AgentWorkerMessageApplicationPort for AgentApplication {
         tool_calls: Value,
     ) -> Result<AgentMessageSnapshot, AppError> {
         AgentApplication::append_assistant_tool_message(self, claimed, content, tool_calls).await
+    }
+
+    async fn upsert_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        reasoning_content: Option<String>,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        AgentApplication::upsert_assistant_streaming_message(
+            self,
+            claimed,
+            client_message_id,
+            content,
+            reasoning_content,
+        )
+        .await
+    }
+
+    async fn interrupt_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        reason: Option<String>,
+    ) -> Result<(), AppError> {
+        AgentApplication::interrupt_assistant_streaming_message(
+            self,
+            claimed,
+            client_message_id,
+            reason,
+        )
+        .await
+    }
+
+    async fn complete_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        tool_calls: Value,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
+        AgentApplication::complete_assistant_streaming_message(
+            self,
+            claimed,
+            client_message_id,
+            content,
+            tool_calls,
+        )
+        .await
     }
 }

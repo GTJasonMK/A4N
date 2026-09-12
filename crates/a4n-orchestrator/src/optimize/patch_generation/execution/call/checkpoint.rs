@@ -80,6 +80,7 @@ pub(super) async fn restore_patch_generation_checkpoint(
                     operation: format!("恢复内容优化 LLM 调用断点 {call_key}: {err}"),
                 })?,
             finish_reason,
+            reasoning_content: None,
         },
         proposal,
     }))

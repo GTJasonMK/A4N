@@ -25,6 +25,7 @@ import { BookButton, BookIconButton } from "../components/ui/BookButton";
 import { LoadingSpinner } from "../components/ui/LoadingSpinner";
 import { useToast } from "../components/feedback/Toast";
 import { extractErrorMessage } from "../api";
+import { AgentMessageList } from "../components/agent/AgentMessageList";
 import {
   controlAgentRun,
   createAgentThread,
@@ -45,10 +46,10 @@ import {
   type AgentThreadSnapshot,
   type AgentThreadView,
 } from "../api/agent";
-import { formatDateTime } from "../i18n/format";
 import { useI18n, type Locale } from "../i18n";
 import { useNavigate } from "react-router-dom";
 import { extractWritingTarget } from "./agentMonitorUtils";
+import { reduceAgentEvent, snapshotCursor } from "../utils/agentEventReducer";
 
 const ACTIVE_RUN_STATUSES = new Set<AgentRunView["status"]>([
   "queued", "running", "waiting", "pausing", "paused", "cancelling",
@@ -142,17 +143,19 @@ export const AgentMonitor: React.FC = () => {
     }
   }, [t]);
 
-  const loadSnapshot = useCallback(async (threadId: string, quiet = false) => {
+  const loadSnapshot = useCallback(async (threadId: string, quiet = false): Promise<AgentThreadSnapshot | null> => {
     const requestId = snapshotRequestRef.current + 1;
     snapshotRequestRef.current = requestId;
     if (!quiet) setSnapshotLoading(true);
     try {
       const next = await getAgentThread(threadId);
-      if (snapshotRequestRef.current !== requestId) return;
+      if (snapshotRequestRef.current !== requestId) return null;
       setSnapshot(next);
       setError(null);
+      return next;
     } catch (err) {
       if (snapshotRequestRef.current === requestId) setError(extractErrorMessage(err, t("agent.loadFailed")));
+      return null;
     } finally {
       if (snapshotRequestRef.current === requestId) setSnapshotLoading(false);
     }
@@ -170,25 +173,34 @@ export const AgentMonitor: React.FC = () => {
       setConnected(false);
       return undefined;
     }
-    void loadSnapshot(selectedThreadId);
     const refreshTimer = window.setInterval(() => void loadSnapshot(selectedThreadId, true), 7000);
     const controller = new AbortController();
     let stopped = false;
     let cursor = 0;
     const connect = async () => {
+      const initial = await loadSnapshot(selectedThreadId);
+      if (!initial || stopped) return;
+      cursor = snapshotCursor(initial);
       while (!stopped) {
         try {
           setConnected(true);
           await subscribeAgentThreadEvents(
             { thread_id: selectedThreadId, after_sequence: cursor, limit: 200 },
             (event) => {
-              cursor = event.sequence;
+              let needsReload = false;
               setSnapshot((current) => {
                 if (!current || current.thread.id !== selectedThreadId) return current;
-                if (current.events.some((item) => item.sequence === event.sequence)) return current;
-                return { ...current, events: [...current.events, event] };
+                const reduction = reduceAgentEvent(current, event, cursor);
+                needsReload = reduction.needsReload;
+                if (reduction.needsReload) return current;
+                cursor = reduction.cursor;
+                return reduction.snapshot;
               });
-              void loadSnapshot(selectedThreadId, true);
+              if (needsReload) {
+                void loadSnapshot(selectedThreadId, true).then((next) => {
+                  if (next) cursor = snapshotCursor(next);
+                });
+              }
             },
             controller.signal,
           );
@@ -330,7 +342,7 @@ function ThreadHeader({ thread, locale, loading }: { thread: AgentThreadView | n
 }
 
 function MessageSection({ messages, locale }: { messages: AgentMessageView[]; locale: Locale }) {
-  return <div className="space-y-2.5">{messages.map((message) => { const user = message.role === "user"; const tool = message.role === "tool"; return <article key={message.id} className={`flex min-w-0 ${user ? "justify-end" : "justify-start"}`}><div className={`min-w-0 max-w-[min(92%,48rem)] rounded-2xl border px-3 py-2.5 ${user ? "border-book-primary/25 bg-book-primary/8" : tool ? "border-book-border/45 bg-book-bg-tertiary/40" : "border-book-border/45 bg-book-bg-paper"}`}><div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-book-text-muted"><span className="font-medium text-book-text-sub">{user ? (locale === "zh-CN" ? "你" : "You") : tool ? "Tool" : "Agent"}</span><span>{formatDateTime(message.created_at, locale)}</span>{message.status !== "complete" ? <span className="rounded-full bg-warning-bg px-1.5 py-0.5 text-[10px]">{message.status}</span> : null}</div><p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-book-text-main">{message.content || (locale === "zh-CN" ? "（空消息）" : "(empty message)")}</p></div></article>; })}</div>;
+  return <AgentMessageList messages={messages} locale={locale} />;
 }
 
 function ActivityPanel({ snapshot, currentRun, pendingApprovals, locale, controlBusy, approvalBusy, onControl, onResolve, onSelectThread }: { snapshot: AgentThreadSnapshot | null; currentRun: AgentRunView | null; pendingApprovals: AgentApprovalView[]; locale: Locale; controlBusy: AgentControlAction | null; approvalBusy: string | null; onControl: (action: AgentControlAction) => void; onResolve: (approval: AgentApprovalView, decision: "approve" | "reject") => void; onSelectThread: (threadId: string) => void }) {

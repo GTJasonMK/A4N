@@ -19,6 +19,7 @@ function makeTheme(
       version: 1,
       tokens: { "--color-bg-primary": background, ...tokens },
       backgrounds: {},
+      stream_display: { enabled: false, mode: "fixed", rate: 30 },
     },
   };
 }

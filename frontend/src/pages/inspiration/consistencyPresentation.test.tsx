@@ -109,6 +109,28 @@ describe("generation consistency presentation", () => {
     expect(html).toContain('role="status"');
   });
 
+  it("renders completed assistant Markdown as formatted content", () => {
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale="zh-CN">
+        <ChatBubble
+          message={{
+            id: "message-markdown",
+            role: "assistant",
+            content: "## 结论\n\n- 第一项\n- **第二项**",
+            createdAt: 1,
+          }}
+          canSelectOptions={false}
+          onSendOption={vi.fn()}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain("<h4");
+    expect(html).toContain("<ul");
+    expect(html).toContain("<strong>第二项</strong>");
+    expect(html).not.toContain("## 结论");
+  });
+
   it("renders non-interactive option cards as disabled", () => {
     const html = renderToStaticMarkup(
       <I18nProvider initialLocale="zh-CN">

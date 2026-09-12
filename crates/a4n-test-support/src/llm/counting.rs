@@ -42,6 +42,7 @@ impl Default for CountingLlmProvider {
                 prompt_cache_miss_tokens: None,
             }),
             finish_reason: Some("stop".to_string()),
+            reasoning_content: None,
         })
     }
 }

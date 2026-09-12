@@ -8,7 +8,7 @@ use crate::agent::{
 };
 use crate::package::{PackageCommandCategory, PackageId};
 
-pub const COMMAND_MANIFEST_VERSION: u32 = 17;
+pub const COMMAND_MANIFEST_VERSION: u32 = 18;
 pub const HOST_IDENTITY: &str = "a4n-server";
 pub const RUNTIME_EQUIVALENTS: &[(&str, &str)] = &[
     ("get_generation_task_snapshot", "task snapshot"),
@@ -479,6 +479,7 @@ command_specs! {
     "get_token_summary" => args_user_id, result_json_value, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_usage_trends" => args_get_usage_trends, result_get_usage_trends, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_user_usage" => args_user_usage, result_get_user_usage, "auth", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
+    "get_web_search_config" => empty_args_schema, result_get_web_search_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), effect(READ_EFFECT);
     "get_workflow_progress_events" => args_get_workflow_progress_events, result_get_workflow_progress_events, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
     "get_workflow_run_detail" => args_get_workflow_run_detail, result_get_workflow_run_detail, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
     "health_check" => empty_args_schema, result_json_value, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
@@ -722,6 +723,7 @@ command_specs! {
     "update_video" => args_update_video, result_generated_video, "video", context(NO_CONTEXT);
     "update_video_config" => args_update_video_config, result_add_video_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_VIDEO);
     "update_video_segment_plan_draft_recipe" => args_update_video_segment_plan_draft_recipe, result_unit, "video", capabilities(CAPABILITIES_VIDEO);
+    "update_web_search_config" => args_update_web_search_config, result_get_web_search_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
     "update_world_setting" => args_update_world_setting, result_blueprint_mutation, "blueprint", context(NO_CONTEXT), secrets(RUNTIME_SECRET_POINTERS), runtime(RuntimeConfigPolicy::Full);
     "upload_assembly_insert_video" => args_upload_assembly_insert_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_chapter_video" => args_upload_chapter_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
@@ -731,6 +733,7 @@ command_specs! {
     "upload_reference_media_video" => args_upload_reference_media_video, result_generated_video, "video", context(PROJECT_CHAPTER_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "upload_theme_resource" => args_theme_resource_upload, result_theme_resource, "settings", context(NO_CONTEXT), file_inputs(FILE_INPUTS_SET_BASE64_SET_TEXT);
     "validate_chapter_visual_plan" => args_validate_chapter_visual_plan, result_validate_chapter_visual_plan, "chapter", effect(READ_EFFECT);
+    "web_search" => args_web_search, result_web_search, "web-search", context(NO_CONTEXT), effect(READ_EFFECT);
 }
 
 pub fn list(filter: Option<&str>) -> Value {
@@ -2406,6 +2409,14 @@ fn args_update_llm_max_tokens_config() -> Value {
     strict_typed_input_schema::<crate::config::LlmMaxTokensConfig>()
 }
 
+fn args_update_web_search_config() -> Value {
+    strict_typed_input_schema::<crate::web_search::UpdateWebSearchConfigInput>()
+}
+
+fn args_web_search() -> Value {
+    typed_schema::<crate::web_search::WebSearchInput>()
+}
+
 fn args_update_manga_prompt() -> Value {
     strict_typed_input_schema::<crate::manga::UpdateMangaPromptInput>()
 }
@@ -2932,6 +2943,14 @@ fn result_get_snapshot() -> Value {
 
 fn result_get_llm_max_tokens_config() -> Value {
     typed_schema::<crate::config::LlmMaxTokensConfig>()
+}
+
+fn result_get_web_search_config() -> Value {
+    typed_schema::<crate::web_search::WebSearchConfigSummary>()
+}
+
+fn result_web_search() -> Value {
+    typed_schema::<crate::web_search::WebSearchResult>()
 }
 
 fn result_get_manga_pipeline_status() -> Value {

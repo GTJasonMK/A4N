@@ -5,6 +5,7 @@ use serde_json::Value;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 
 use crate::serde_update::{deserialize_nullable_update_field, deserialize_required_nullable_field};
+use crate::web_search::{WebSearchConfigSummary, WebSearchRuntimeConfig};
 
 pub use a4n_domain::{
     DiscoveredModel, ImageSize, LlmMaxTokensConfig, ModelDiscoveryResult, VideoDurationMode,
@@ -47,6 +48,21 @@ pub trait ConfigApplicationPort: Send + Sync {
         caller_user_id: i64,
         config: LlmMaxTokensConfig,
     ) -> Result<LlmMaxTokensConfig, a4n_error::AppError>;
+
+    async fn web_search_runtime_config(
+        &self,
+    ) -> Result<WebSearchRuntimeConfig, a4n_error::AppError>;
+
+    async fn web_search_config_summary(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<WebSearchConfigSummary, a4n_error::AppError>;
+
+    async fn update_web_search_config(
+        &self,
+        caller_user_id: i64,
+        input: crate::web_search::UpdateWebSearchConfigInput,
+    ) -> Result<WebSearchConfigSummary, a4n_error::AppError>;
 
     async fn saved_api_key(
         &self,

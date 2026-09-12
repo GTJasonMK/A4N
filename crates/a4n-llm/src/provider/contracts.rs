@@ -168,6 +168,8 @@ pub struct ChatResponse {
     pub message: ChatMessage,
     pub usage: Option<UsageInfo>,
     pub finish_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<String>,
 }
 
 /// Token 用量统计

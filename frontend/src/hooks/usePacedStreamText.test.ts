@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { advancePacedStreamText } from "./usePacedStreamText";
 import {
   estimateAdaptiveStreamRate,
+  normalizeStreamDisplayEnabled,
   normalizeStreamDisplayMode,
   normalizeStreamDisplayRate,
+  normalizeStreamDisplaySettings,
 } from "../utils/streamDisplaySettings";
 
 describe("advancePacedStreamText", () => {
@@ -17,7 +19,7 @@ describe("advancePacedStreamText", () => {
     expect(advancePacedStreamText("共同旧", "共同新")).toBe("共同");
   });
 
-  it("keeps the persisted rate inside the supported range", () => {
+  it("keeps the theme rate inside the supported range", () => {
     expect(normalizeStreamDisplayRate(0)).toBe(1);
     expect(normalizeStreamDisplayRate(999)).toBe(120);
     expect(normalizeStreamDisplayRate("invalid")).toBe(30);
@@ -33,5 +35,24 @@ describe("advancePacedStreamText", () => {
   it("falls back to fixed mode for invalid mode values", () => {
     expect(normalizeStreamDisplayMode("adaptive")).toBe("adaptive");
     expect(normalizeStreamDisplayMode("unknown")).toBe("fixed");
+  });
+
+  it("normalizes a theme stream display document", () => {
+    expect(normalizeStreamDisplaySettings(undefined)).toEqual({
+      enabled: false,
+      mode: "fixed",
+      rate: 30,
+    });
+    expect(normalizeStreamDisplaySettings({ enabled: true, mode: "adaptive", rate: 45 })).toEqual({
+      enabled: true,
+      mode: "adaptive",
+      rate: 45,
+    });
+  });
+
+  it("keeps stream styling opt-in", () => {
+    expect(normalizeStreamDisplayEnabled(false)).toBe(false);
+    expect(normalizeStreamDisplayEnabled(true)).toBe(true);
+    expect(normalizeStreamDisplayEnabled("true")).toBe(false);
   });
 });

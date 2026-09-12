@@ -5,6 +5,15 @@ use serde_json::{Value, json};
 use std::collections::HashSet;
 
 pub(super) const MAX_OBSERVATION_BYTES: usize = 16 * 1024;
+pub(super) const CONTEXT_SUMMARY_SOURCE_TOKENS: usize = 12_000;
+
+#[derive(Debug)]
+pub(super) struct ContextFit {
+    pub messages: Vec<ChatMessage>,
+    pub omitted: Vec<ChatMessage>,
+    pub input_tokens: usize,
+    pub capacity: usize,
+}
 
 pub(super) fn bounded_observation(execution_id: i64, value: Value) -> Result<Value, AppError> {
     let size = serde_json::to_vec(&value)?.len();
@@ -29,6 +38,23 @@ pub(super) fn fit_context(
     output_tokens: usize,
     pinned_user_contents: &[&str],
 ) -> Result<Vec<ChatMessage>, AppError> {
+    Ok(fit_context_projection(
+        messages,
+        tools,
+        context_tokens,
+        output_tokens,
+        pinned_user_contents,
+    )?
+    .messages)
+}
+
+pub(super) fn fit_context_projection(
+    messages: Vec<ChatMessage>,
+    tools: &[Value],
+    context_tokens: usize,
+    output_tokens: usize,
+    pinned_user_contents: &[&str],
+) -> Result<ContextFit, AppError> {
     let capacity = ContextBudgetPlanner::default()
         .plan_requirements(context_tokens, output_tokens, Vec::new(), 0)?
         .available_input_tokens;
@@ -79,6 +105,12 @@ pub(super) fn fit_context(
         }
     }
     let dropped = keep.contains(&false);
+    let omitted = units
+        .iter()
+        .zip(&keep)
+        .filter(|(_, keep)| !**keep)
+        .flat_map(|(unit, _)| unit.iter().cloned())
+        .collect::<Vec<_>>();
     let mut selected = units
         .into_iter()
         .zip(keep)
@@ -93,7 +125,61 @@ pub(super) fn fit_context(
         }
         selected.insert(1.min(selected.len()), omission_note);
     }
-    Ok(selected)
+    Ok(ContextFit {
+        messages: selected,
+        omitted,
+        input_tokens: used,
+        capacity,
+    })
+}
+
+pub(super) fn summary_source(
+    omitted: &[ChatMessage],
+    existing_summary: Option<&Value>,
+    max_tokens: usize,
+) -> Result<String, AppError> {
+    let mut sections = Vec::new();
+    if let Some(summary) = existing_summary {
+        sections.push(format!(
+            "已有摘要（只作为事实参考）：{}",
+            serde_json::to_string(summary)?
+        ));
+    }
+    let mut used = estimate_context_tokens(&sections.join("\n"));
+    for message in omitted {
+        let mut bounded = message.clone();
+        bounded.content = bounded_text(&bounded.content, 3_000);
+        let line = serde_json::to_string(&bounded)?;
+        let cost = estimate_context_tokens(&line);
+        if !sections.is_empty() && used.saturating_add(cost) > max_tokens {
+            break;
+        }
+        used = used.saturating_add(cost);
+        sections.push(line);
+    }
+    if sections.is_empty() {
+        return Err(AppError::InvalidArgument(
+            "没有可用于生成 Agent context_summary 的历史".into(),
+        ));
+    }
+    Ok(sections.join("\n"))
+}
+
+fn bounded_text(value: &str, max_chars: usize) -> String {
+    if value.chars().count() <= max_chars {
+        return value.to_string();
+    }
+    let edge = max_chars / 2;
+    let start = value.chars().take(edge).collect::<String>();
+    let end = value
+        .chars()
+        .rev()
+        .take(edge)
+        .collect::<String>()
+        .chars()
+        .rev()
+        .collect::<String>();
+    format!("{start}\n…[summary source truncated]…\n{end}")
 }
 
 /// Only pass messages belonging to the active Run: an old cancelled Turn

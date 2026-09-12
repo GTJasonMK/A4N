@@ -2,6 +2,7 @@ import React from "react";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { usePacedStreamText } from "../../hooks/usePacedStreamText";
+import { MarkdownText } from "../../components/ui/MarkdownText";
 import type { Message, MessageOption } from "./shared";
 import { getStreamingResponsePreview } from "./responseParser";
 import { useI18n } from "../../i18n";
@@ -125,7 +126,14 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
               <span>{message.consistencyWarning}</span>
             </div>
           ) : null}
-          {displayedContent}
+          {isUser || streamDisplaying ? (
+            displayedContent
+          ) : (
+            <MarkdownText
+              className="text-body-lg leading-relaxed tracking-tight"
+              text={displayedContent}
+            />
+          )}
           {streamDisplaying && (
             pacedStream.isThinking ? (
               <LoadingSpinner

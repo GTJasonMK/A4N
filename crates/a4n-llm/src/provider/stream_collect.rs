@@ -9,7 +9,7 @@ use a4n_error::AppError;
 use futures::{Stream, StreamExt};
 use serde_json::Value;
 
-use super::{ChatRequest, ChatResponse, LlmProvider, ToolCall, UsageInfo};
+use super::{ChatChunk, ChatRequest, ChatResponse, LlmProvider, ToolCall, UsageInfo};
 
 /// 通过真实 `chat_stream` 收集一次完整响应，不调用 provider `chat()`。
 pub async fn collect_chat_stream(
@@ -26,49 +26,93 @@ pub async fn collect_chat_stream(
 /// transport 路径在把增量转换成完整响应时丢失 tool call。
 pub async fn collect_chat_chunks<S>(stream: S) -> Result<ChatResponse, AppError>
 where
-    S: Stream<Item = Result<super::ChatChunk, AppError>>,
+    S: Stream<Item = Result<ChatChunk, AppError>>,
 {
     let mut stream = Box::pin(stream);
-    let mut content = String::new();
-    let mut usage: Option<UsageInfo> = None;
-    let mut finish_reason: Option<String> = None;
-    let mut tool_calls = ToolCallCollection::default();
+    let mut accumulator = ChatStreamAccumulator::default();
 
     while let Some(item) = stream.next().await {
-        let chunk = item?;
-        if let Some(delta) = chunk.content.as_deref().filter(|text| !text.is_empty()) {
-            content.push_str(delta);
+        accumulator.push(item?)?;
+    }
+    accumulator.finish()
+}
+
+/// Accumulates one provider stream without losing reasoning or tool-call
+/// deltas. The worker can inspect `content()` between chunks and call
+/// `finish()` only after the transport has reached its terminal event.
+#[derive(Debug, Clone, Default)]
+pub struct ChatStreamAccumulator {
+    content: String,
+    reasoning_content: String,
+    usage: Option<UsageInfo>,
+    finish_reason: Option<String>,
+    tool_calls: ToolCallCollection,
+}
+
+impl ChatStreamAccumulator {
+    pub fn push(&mut self, chunk: ChatChunk) -> Result<(), AppError> {
+        if let Some(delta) = chunk.content.filter(|text| !text.is_empty()) {
+            self.content.push_str(&delta);
+        }
+        if let Some(delta) = chunk.reasoning_content.filter(|text| !text.is_empty()) {
+            self.reasoning_content.push_str(&delta);
         }
         if let Some(calls) = chunk.tool_calls {
             for call in calls {
-                tool_calls.append(call)?;
+                self.tool_calls.append(call)?;
             }
         }
         if chunk.usage.is_some() {
-            usage = chunk.usage;
+            self.usage = chunk.usage;
         }
         if let Some(reason) = chunk.finish_reason {
-            finish_reason = Some(reason);
+            self.finish_reason = Some(reason);
         }
+        Ok(())
     }
 
-    if finish_reason.is_none() {
-        return Err(AppError::LlmError(
-            "模型流结束但缺少 finish_reason".to_string(),
-        ));
+    pub fn content(&self) -> &str {
+        &self.content
     }
 
-    let tool_calls = tool_calls.finish()?;
-    let mut message = super::ChatMessage::assistant(content);
-    message.tool_calls = tool_calls;
-    Ok(ChatResponse {
-        message,
-        usage,
-        finish_reason,
-    })
+    pub fn reasoning_content(&self) -> Option<&str> {
+        (!self.reasoning_content.is_empty()).then_some(self.reasoning_content.as_str())
+    }
+
+    pub fn finish_reason(&self) -> Option<&str> {
+        self.finish_reason.as_deref()
+    }
+
+    pub fn snapshot(&self) -> Result<ChatResponse, AppError> {
+        let mut message = super::ChatMessage::assistant(self.content.clone());
+        message.tool_calls = self.tool_calls.clone().finish()?;
+        Ok(ChatResponse {
+            message,
+            usage: self.usage.clone(),
+            finish_reason: self.finish_reason.clone(),
+            reasoning_content: self.reasoning_content().map(str::to_string),
+        })
+    }
+
+    pub fn finish(self) -> Result<ChatResponse, AppError> {
+        if self.finish_reason.is_none() {
+            return Err(AppError::LlmError(
+                "模型流结束但缺少 finish_reason".to_string(),
+            ));
+        }
+        let mut message = super::ChatMessage::assistant(self.content);
+        message.tool_calls = self.tool_calls.finish()?;
+        Ok(ChatResponse {
+            message,
+            usage: self.usage,
+            finish_reason: self.finish_reason,
+            reasoning_content: (!self.reasoning_content.is_empty())
+                .then_some(self.reasoning_content),
+        })
+    }
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 struct ToolCallCollection {
     calls: BTreeMap<ToolCallKey, ToolCallAccumulator>,
 }
@@ -101,13 +145,13 @@ impl ToolCallCollection {
     }
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum ToolCallKey {
     Index(u32),
     Id(String),
 }
 
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 struct ToolCallAccumulator {
     id: String,
     name: String,

@@ -53,6 +53,7 @@ impl TestLlmPort {
                     prompt_cache_miss_tokens: None,
                 }),
                 finish_reason: finish_reason.map(str::to_string),
+                reasoning_content: None,
             }),
         }
     }

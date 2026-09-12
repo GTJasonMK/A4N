@@ -87,6 +87,43 @@ pub enum ThemeAppearance {
     Dark,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeStreamDisplayMode {
+    Fixed,
+    Adaptive,
+}
+
+impl Default for ThemeStreamDisplayMode {
+    fn default() -> Self {
+        Self::Fixed
+    }
+}
+
+pub const THEME_STREAM_DISPLAY_MIN_RATE: u16 = 1;
+pub const THEME_STREAM_DISPLAY_MAX_RATE: u16 = 120;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ThemeStreamDisplaySettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_stream_display_rate")]
+    pub rate: u16,
+    #[serde(default)]
+    pub mode: ThemeStreamDisplayMode,
+}
+
+impl Default for ThemeStreamDisplaySettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            rate: default_stream_display_rate(),
+            mode: ThemeStreamDisplayMode::default(),
+        }
+    }
+}
+
 pub const THEME_DOCUMENT_VERSION: u16 = 1;
 pub const THEME_GLOBAL_ROUTE_FAMILY: &str = "global";
 pub const THEME_ROUTE_FAMILIES: &[&str] = &[
@@ -209,6 +246,8 @@ pub struct ThemeDocument {
     pub tokens: BTreeMap<String, String>,
     #[serde(default)]
     pub backgrounds: BTreeMap<String, ThemeBackgroundSettings>,
+    #[serde(default)]
+    pub stream_display: ThemeStreamDisplaySettings,
 }
 
 impl Default for ThemeDocument {
@@ -217,6 +256,7 @@ impl Default for ThemeDocument {
             version: THEME_DOCUMENT_VERSION,
             tokens: BTreeMap::new(),
             backgrounds: BTreeMap::new(),
+            stream_display: ThemeStreamDisplaySettings::default(),
         }
     }
 }
@@ -238,6 +278,14 @@ pub fn validate_theme_document(document: &ThemeDocument) -> Result<(), String> {
         return Err(format!(
             "主题文档版本不受支持：{}，当前只支持 {}",
             document.version, THEME_DOCUMENT_VERSION
+        ));
+    }
+    if !(THEME_STREAM_DISPLAY_MIN_RATE..=THEME_STREAM_DISPLAY_MAX_RATE)
+        .contains(&document.stream_display.rate)
+    {
+        return Err(format!(
+            "流式显示速率必须在 {} 到 {} 字符/秒之间",
+            THEME_STREAM_DISPLAY_MIN_RATE, THEME_STREAM_DISPLAY_MAX_RATE
         ));
     }
     if document.tokens.len() > 80 {
@@ -342,6 +390,10 @@ fn default_background_position() -> String {
 
 fn default_background_size() -> String {
     "cover".to_string()
+}
+
+fn default_stream_display_rate() -> u16 {
+    30
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -678,6 +730,23 @@ mod tests {
 
         let definition = document.without_resource_references();
         assert_eq!(definition.backgrounds["home"].resource_key, None);
+    }
+
+    #[test]
+    fn theme_document_defaults_stream_display_and_validates_rate() {
+        let mut document: ThemeDocument = serde_json::from_value(serde_json::json!({
+            "version": 1,
+            "tokens": {},
+            "backgrounds": {}
+        }))
+        .expect("legacy theme document");
+        assert_eq!(
+            document.stream_display,
+            ThemeStreamDisplaySettings::default()
+        );
+
+        document.stream_display.rate = 0;
+        assert!(validate_theme_document(&document).is_err());
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use super::{
     AgentApplication, AgentThreadSnapshot, AgentWorkerRun, EnsureCanonicalSubagentThreadInput,
-    WorkerDelegationInput, WorkerDelegationResult,
+    WorkerDelegationInput, WorkerDelegationResult, thread_snapshot,
 };
 use a4n_error::AppError;
 use serde_json::Value;
@@ -39,7 +39,7 @@ impl AgentWorkerDelegationApplicationPort for AgentApplication {
     ) -> Result<AgentThreadSnapshot, AppError> {
         AgentApplication::ensure_canonical_subagent_thread(self, user_id, input)
             .await
-            .map(Into::into)
+            .and_then(thread_snapshot)
     }
 
     async fn append_worker_update(

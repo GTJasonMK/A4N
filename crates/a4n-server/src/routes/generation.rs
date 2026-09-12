@@ -735,7 +735,9 @@ mod tests {
                 "kind": "scene",
                 "prompt": "雨夜车站",
                 "config_id": null,
-                "chapter_id": 9
+                "chapter_id": 9,
+                "width": 512,
+                "height": 512
             },
             "runtime_config_snapshot": {
                 "schema_version": 1,

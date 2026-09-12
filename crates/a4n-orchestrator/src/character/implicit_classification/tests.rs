@@ -122,6 +122,7 @@ fn counting_provider(response: String, finish_reason: &str) -> Arc<CountingLlmPr
         message: ChatMessage::assistant(response),
         usage: None,
         finish_reason: Some(finish_reason.to_string()),
+        reasoning_content: None,
     }))
 }
 

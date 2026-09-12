@@ -5,6 +5,8 @@ export type ThemeMode = "light" | "dark";
 
 export type ThemeAppearance = "system" | "light" | "dark";
 
+export type ThemeStreamDisplayMode = "fixed" | "adaptive";
+
 export const THEME_DOCUMENT_VERSION = 1;
 export const THEME_GLOBAL_ROUTE_FAMILY = "global";
 export const THEME_ROUTE_FAMILIES = ["global", "home", "inspiration", "novel_detail", "writing_desk", "video_workspace", "video_studio", "comic_workspace", "galgame_workspace", "settings", "agents"] as const;
@@ -21,8 +23,15 @@ export interface ThemeBackgroundSettings {
   size: string;
 }
 
+export interface ThemeStreamDisplaySettings {
+  enabled: boolean;
+  mode: ThemeStreamDisplayMode;
+  rate: number;
+}
+
 export interface ThemeDocument {
   backgrounds: Record<string, ThemeBackgroundSettings>;
+  stream_display: ThemeStreamDisplaySettings;
   tokens: Record<string, string>;
   version: number;
 }

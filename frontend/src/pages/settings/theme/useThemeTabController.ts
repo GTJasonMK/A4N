@@ -35,6 +35,7 @@ import { readThemePreset } from "./presets";
 import { isDeletableTheme, type ThemeScope } from "./types";
 import { THEME_DOCUMENT_VERSION } from "../../../theme/themeTokens";
 import { useI18n } from "../../../i18n";
+import { DEFAULT_STREAM_DISPLAY_SETTINGS } from "../../../utils/streamDisplaySettings";
 
 export type ThemeDeleteOutcome =
   | { id: number; ok: true }
@@ -341,6 +342,7 @@ export const useThemeTabController = () => {
           version: THEME_DOCUMENT_VERSION,
           tokens: readThemePreset(mode),
           backgrounds: {},
+          stream_display: { ...DEFAULT_STREAM_DISPLAY_SETTINGS },
         },
       });
       if (!isCurrentUser(requestUserKey)) return;

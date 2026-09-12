@@ -115,6 +115,7 @@ pub(crate) async fn execute_llm_chat_response(
             None => None,
         },
         finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
+        reasoning_content: None,
     })
 }
 
@@ -159,6 +160,7 @@ pub(crate) async fn execute_task_llm_chat_response(
             None => None,
         },
         finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
+        reasoning_content: None,
     })
 }
 

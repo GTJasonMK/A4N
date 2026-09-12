@@ -238,6 +238,48 @@ export interface ImportAllConfigsInput {
   settings_json: string;
 }
 
+export interface WebSearchConfigSummary {
+  base_url: string;
+  has_api_key: boolean;
+  max_results: number;
+  max_tokens: number;
+  max_uses: number;
+  model: string;
+  protocol: string;
+  provider: string;
+  timeout_secs: number;
+}
+
+export interface UpdateWebSearchConfigInput {
+  api_key_encrypted?: string | null;
+  base_url: string;
+  max_results: number;
+  max_tokens: number;
+  max_uses: number;
+  model: string;
+  protocol?: string;
+  provider: string;
+  timeout_secs: number;
+}
+
+export interface WebSearchInput {
+  maxResults?: number | null;
+  query: string;
+}
+
+export interface WebSearchResult {
+  query: string;
+  sources: WebSearchSource[];
+  truncated: boolean;
+}
+
+export interface WebSearchSource {
+  published_at: string | null;
+  snippet: string | null;
+  title: string;
+  url: string;
+}
+
 export interface LlmProviderDescriptor {
   default_base_url: string;
   display_name: string;

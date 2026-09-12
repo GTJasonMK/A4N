@@ -1,4 +1,7 @@
-pub use a4n_domain::{ThemeAppearance, ThemeBackgroundSettings, ThemeDocument, ThemeMode};
+pub use a4n_domain::{
+    ThemeAppearance, ThemeBackgroundSettings, ThemeDocument, ThemeMode, ThemeStreamDisplayMode,
+    ThemeStreamDisplaySettings,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

@@ -12,19 +12,21 @@ use futures::stream::Stream;
 use super::config::estimate_llm_tokens;
 use super::contracts::DynamicLlmProvider;
 
-#[async_trait]
-impl LlmProvider for DynamicLlmProvider {
-    async fn chat_stream(
+impl DynamicLlmProvider {
+    pub(crate) async fn chat_stream_with_config_id(
         &self,
+        config_id: Option<i64>,
         request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
         if let Some(client) = self.sidecar_client.clone() {
-            return self.chat_stream_via_sidecar(client, request).await;
+            return self
+                .chat_stream_via_sidecar(client, config_id, request)
+                .await;
         }
 
         #[cfg(not(feature = "embedded-llm-provider"))]
         {
-            let _ = request;
+            let _ = (config_id, request);
             return Err(AppError::ConfigError(
                 "当前 runtime 未编译 embedded LLM provider，无法执行 LLM stream；请启用 sidecar stream endpoint 或以 --features embedded-capabilities 显式构建 full profile"
                     .to_string(),
@@ -33,8 +35,18 @@ impl LlmProvider for DynamicLlmProvider {
 
         #[cfg(feature = "embedded-llm-provider")]
         {
-            self.chat_stream_via_embedded(request).await
+            self.chat_stream_via_embedded(config_id, request).await
         }
+    }
+}
+
+#[async_trait]
+impl LlmProvider for DynamicLlmProvider {
+    async fn chat_stream(
+        &self,
+        request: ChatRequest,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
+        self.chat_stream_with_config_id(None, request).await
     }
 
     fn model_name(&self) -> &str {

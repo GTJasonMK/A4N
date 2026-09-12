@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from "react";
-import { usePersistedState } from "./usePersistedState";
 import {
-  DEFAULT_STREAM_DISPLAY_RATE,
-  DEFAULT_STREAM_DISPLAY_MODE,
   estimateAdaptiveStreamRate,
   normalizeStreamDisplayRate,
-  parseStreamDisplayMode,
-  parseStreamDisplayRate,
-  serializeStreamDisplayMode,
-  serializeStreamDisplayRate,
-  STREAM_DISPLAY_MODE_KEY,
-  STREAM_DISPLAY_RATE_KEY,
-  type StreamDisplayMode,
 } from "../utils/streamDisplaySettings";
+import {
+  getActiveThemeStreamDisplaySettings,
+  THEME_APPLIED_EVENT,
+} from "../theme/activeTheme";
+
+const useThemeStreamDisplaySettings = () => {
+  const [settings, setSettings] = useState(getActiveThemeStreamDisplaySettings);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const syncSettings = () => setSettings(getActiveThemeStreamDisplaySettings());
+    window.addEventListener(THEME_APPLIED_EVENT, syncSettings);
+    syncSettings();
+    return () => window.removeEventListener(THEME_APPLIED_EVENT, syncSettings);
+  }, []);
+
+  return settings;
+};
 
 export interface PacedStreamText {
   displayedText: string;
@@ -20,24 +28,6 @@ export interface PacedStreamText {
   isThinking: boolean;
   isDrained: boolean;
 }
-
-export const useStreamDisplayRate = () => usePersistedState<number>(
-  STREAM_DISPLAY_RATE_KEY,
-  DEFAULT_STREAM_DISPLAY_RATE,
-  {
-    parse: parseStreamDisplayRate,
-    serialize: serializeStreamDisplayRate,
-  },
-);
-
-export const useStreamDisplayMode = () => usePersistedState<StreamDisplayMode>(
-  STREAM_DISPLAY_MODE_KEY,
-  DEFAULT_STREAM_DISPLAY_MODE,
-  {
-    parse: parseStreamDisplayMode,
-    serialize: serializeStreamDisplayMode,
-  },
-);
 
 const commonPrefix = (left: string, right: string): string => {
   const leftChars = Array.from(left);
@@ -62,8 +52,7 @@ export const usePacedStreamText = (
   active: boolean,
   drainWhenInactive = false,
 ): PacedStreamText => {
-  const [rate] = useStreamDisplayRate();
-  const [mode] = useStreamDisplayMode();
+  const { enabled, rate, mode } = useThemeStreamDisplaySettings();
   const [displayedText, setDisplayedText] = useState(() => (active ? "" : sourceText));
   const [drainRequested, setDrainRequested] = useState(0);
   const initialSourceChars = Array.from(sourceText);
@@ -77,6 +66,7 @@ export const usePacedStreamText = (
     sampledAt: Date.now(),
     estimatedRate: null as number | null,
     active,
+    enabled,
     mode,
     rate,
   });
@@ -86,13 +76,35 @@ export const usePacedStreamText = (
     const now = Date.now();
     const targetChars = Array.from(sourceText);
     const previousSample = sampleRef.current;
-    const settingsChanged = previousSample.mode !== mode || previousSample.rate !== rate;
+    const settingsChanged = previousSample.enabled !== enabled
+      || previousSample.mode !== mode
+      || previousSample.rate !== rate;
     const taskStarted = active && !previousSample.active;
     const sourceReplaced = sourceText !== previousSample.sourceText
       && !sourceText.startsWith(previousSample.sourceText);
 
     targetCharsRef.current = targetChars;
     targetTextRef.current = sourceText;
+
+    if (!enabled) {
+      if (displayedTextRef.current !== sourceText) {
+        displayedTextRef.current = sourceText;
+        displayedCharCountRef.current = targetChars.length;
+        setDisplayedText(sourceText);
+      }
+      sampleRef.current = {
+        sourceText,
+        sourceLength: targetChars.length,
+        sampledAt: now,
+        estimatedRate: null,
+        active,
+        enabled,
+        mode,
+        rate,
+      };
+      return;
+    }
+
     if (
       targetChars.length < displayedCharCountRef.current
       || !sourceText.startsWith(displayedTextRef.current)
@@ -112,6 +124,7 @@ export const usePacedStreamText = (
         sampledAt: now,
         estimatedRate: null,
         active,
+        enabled,
         mode,
         rate,
       };
@@ -129,6 +142,7 @@ export const usePacedStreamText = (
         sampledAt: now,
         estimatedRate: nextRate,
         active,
+        enabled,
         mode,
         rate,
       };
@@ -146,9 +160,10 @@ export const usePacedStreamText = (
         setDrainRequested((value) => value + 1);
       }
     }
-  }, [active, drainWhenInactive, mode, rate, sourceText]);
+  }, [active, drainWhenInactive, enabled, mode, rate, sourceText]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     if (!active && !drainWhenInactive) return undefined;
     if (!active && displayedTextRef.current === targetTextRef.current) return undefined;
     let timeout: ReturnType<typeof globalThis.setTimeout> | null = null;
@@ -172,16 +187,18 @@ export const usePacedStreamText = (
     return () => {
       if (timeout != null) globalThis.clearTimeout(timeout);
     };
-  }, [active, drainRequested, drainWhenInactive, mode, rate]);
+  }, [active, drainRequested, drainWhenInactive, enabled, mode, rate]);
 
-  const hasPendingText = displayedText !== sourceText
-    && sourceText.startsWith(displayedText);
-  const isDrained = displayedText === sourceText;
+  const effectiveDisplayedText = enabled ? displayedText : sourceText;
+  const hasPendingText = enabled
+    && effectiveDisplayedText !== sourceText
+    && sourceText.startsWith(effectiveDisplayedText);
+  const isDrained = !enabled || effectiveDisplayedText === sourceText;
 
   return {
-    displayedText,
+    displayedText: effectiveDisplayedText,
     hasPendingText,
-    isThinking: active && !hasPendingText,
+    isThinking: active && (enabled ? !hasPendingText : sourceText.length === 0),
     isDrained,
   };
 };

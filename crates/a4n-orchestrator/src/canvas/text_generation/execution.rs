@@ -379,6 +379,7 @@ impl OrchestratorContext {
                         .map(serde_json::from_value)
                         .transpose()?,
                     finish_reason: checkpoint.finish_reason.clone(),
+                    reasoning_content: None,
                 };
                 if execution.status != "succeeded"
                     || execution.result_json.as_ref() != Some(&serde_json::to_value(response)?)

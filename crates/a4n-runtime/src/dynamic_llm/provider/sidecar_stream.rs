@@ -18,13 +18,14 @@ impl DynamicLlmProvider {
     pub(in crate::dynamic_llm) async fn chat_stream_via_sidecar(
         &self,
         client: Arc<dyn LlmClient>,
+        config_id: Option<i64>,
         mut request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
         let profile = request.max_tokens_profile.clone();
         let temperature = request.temperature;
         let message_count = request.messages.len();
         let prompt_chars: usize = request.messages.iter().map(|msg| msg.content.len()).sum();
-        let resolved_model = self.resolve_runtime_model_by_id(None).await?;
+        let resolved_model = self.resolve_runtime_model_by_id(config_id).await?;
         let model_name = resolved_model.model_name().to_string();
         let model_max_output_tokens = resolved_model.capabilities.max_output_tokens;
         request.max_tokens = self.resolve_max_tokens(&request).await?;

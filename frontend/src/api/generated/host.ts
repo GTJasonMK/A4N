@@ -154,6 +154,7 @@ export const HOST_API_COMMANDS = [
   "get_token_summary",
   "get_usage_trends",
   "get_user_usage",
+  "get_web_search_config",
   "get_workflow_progress_events",
   "get_workflow_run_detail",
   "health_check",
@@ -397,6 +398,7 @@ export const HOST_API_COMMANDS = [
   "update_video",
   "update_video_config",
   "update_video_segment_plan_draft_recipe",
+  "update_web_search_config",
   "update_world_setting",
   "upload_assembly_insert_video",
   "upload_chapter_video",
@@ -406,6 +408,7 @@ export const HOST_API_COMMANDS = [
   "upload_reference_media_video",
   "upload_theme_resource",
   "validate_chapter_visual_plan",
+  "web_search",
 ] as const;
 
 export type HostApiCommand = (typeof HOST_API_COMMANDS)[number];

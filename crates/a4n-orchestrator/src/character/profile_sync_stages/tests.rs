@@ -460,6 +460,7 @@ async fn application_rejects_truncated_response_without_checkpoint() {
         message: ChatMessage::assistant(canonical_stage_responses()[0].clone()),
         usage: None,
         finish_reason: Some("length".to_string()),
+        reasoning_content: None,
     }));
     let (database, context) = setup_context(provider.clone()).await;
     let workflow_run_id = create_workflow(&database).await;

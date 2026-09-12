@@ -37,7 +37,7 @@ use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
     TransactionTrait,
 };
-use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 
@@ -1975,6 +1975,59 @@ pub struct AgentRunSnapshot {
     pub started_at: Option<chrono::NaiveDateTime>,
 }
 
+/// Durable facts carried between Agent runs.  It is deliberately a data-only
+/// contract: values here are context, never instructions or executable state.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct AgentContextSummary {
+    pub current_goal: String,
+    pub constraints: Vec<String>,
+    pub decisions: Vec<String>,
+    pub facts_resources: Vec<String>,
+    pub completed: Vec<String>,
+    pub pending: Vec<String>,
+    pub tool_state: Vec<String>,
+    pub covered_through_sequence: i64,
+}
+
+const MAX_CONTEXT_SUMMARY_BYTES: usize = 256 * 1024;
+
+impl AgentContextSummary {
+    pub fn validate(&self) -> Result<(), AppError> {
+        if self.covered_through_sequence < 0 || self.current_goal.chars().count() > 4_000 {
+            return Err(AppError::InvalidState {
+                current: "Agent context_summary 的目标或覆盖序列无效".into(),
+                operation: "校验 Agent context_summary".into(),
+            });
+        }
+        for (name, values) in [
+            ("constraints", &self.constraints),
+            ("decisions", &self.decisions),
+            ("facts_resources", &self.facts_resources),
+            ("completed", &self.completed),
+            ("pending", &self.pending),
+            ("tool_state", &self.tool_state),
+        ] {
+            if values.len() > 64 || values.iter().any(|value| value.chars().count() > 4_000) {
+                return Err(AppError::InvalidState {
+                    current: format!("Agent context_summary.{name} 超出大小限制"),
+                    operation: "校验 Agent context_summary".into(),
+                });
+            }
+        }
+        if serde_json::to_vec(self)?.len() > MAX_CONTEXT_SUMMARY_BYTES {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "Agent context_summary 超过 {} KiB 限制",
+                    MAX_CONTEXT_SUMMARY_BYTES / 1024
+                ),
+                operation: "校验 Agent context_summary".into(),
+            });
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentThreadSnapshot {
     pub id: i64,
@@ -1989,6 +2042,7 @@ pub struct AgentThreadSnapshot {
     pub default_model_config_id: Option<i64>,
     pub status: String,
     pub revision: i64,
+    pub context_summary: Option<Value>,
 }
 
 #[derive(Debug, Clone)]
@@ -2083,23 +2137,38 @@ impl From<run::Model> for AgentRunSnapshot {
     }
 }
 
-impl From<thread::Model> for AgentThreadSnapshot {
-    fn from(row: thread::Model) -> Self {
-        Self {
-            id: row.id,
-            owner_user_id: row.owner_user_id,
-            thread_kind: row.thread_kind,
-            profile_id: row.profile_id,
-            title: row.title,
-            project_id: row.project_id,
-            resource_type: row.resource_type,
-            resource_id: row.resource_id,
-            scope_json: row.scope_json,
-            default_model_config_id: row.default_model_config_id,
-            status: row.status,
-            revision: row.revision,
-        }
-    }
+fn thread_snapshot(row: thread::Model) -> Result<AgentThreadSnapshot, AppError> {
+    let context_summary = parse_agent_context_summary(row.context_summary.as_deref())?;
+    Ok(AgentThreadSnapshot {
+        id: row.id,
+        owner_user_id: row.owner_user_id,
+        thread_kind: row.thread_kind,
+        profile_id: row.profile_id,
+        title: row.title,
+        project_id: row.project_id,
+        resource_type: row.resource_type,
+        resource_id: row.resource_id,
+        scope_json: row.scope_json,
+        default_model_config_id: row.default_model_config_id,
+        status: row.status,
+        revision: row.revision,
+        context_summary,
+    })
+}
+
+pub fn parse_agent_context_summary(raw: Option<&str>) -> Result<Option<Value>, AppError> {
+    let Some(raw) = raw else {
+        return Ok(None);
+    };
+    let summary: AgentContextSummary =
+        serde_json::from_str(raw).map_err(|error| AppError::InvalidState {
+            current: format!("Agent thread context_summary 无效: {error}"),
+            operation: "读取 Agent context_summary".into(),
+        })?;
+    summary.validate()?;
+    serde_json::to_value(summary)
+        .map(Some)
+        .map_err(AppError::from)
 }
 
 impl From<turn::Model> for AgentTurnSnapshot {
@@ -2498,7 +2567,7 @@ impl AgentApplication {
             })?;
         Ok(Some(AgentWorkerRun {
             run: run_row.into(),
-            thread: thread_row.into(),
+            thread: thread_snapshot(thread_row)?,
             lease_token,
         }))
     }
@@ -2646,7 +2715,7 @@ impl AgentApplication {
             runtime_snapshot_required,
             delegation_depth,
             run: run_row.into(),
-            thread: thread_row.into(),
+            thread: thread_snapshot(thread_row)?,
             turn: turn_row.into(),
             messages: messages.into_iter().map(Into::into).collect(),
             delegations: delegations.into_iter().map(Into::into).collect(),
@@ -2654,6 +2723,22 @@ impl AgentApplication {
             editor_source,
             scope,
         })
+    }
+
+    pub async fn update_context_summary(
+        &self,
+        claimed: &AgentWorkerRun,
+        context_summary: Value,
+    ) -> Result<(), AppError> {
+        agent::update_context_summary_for_run_lease(
+            self.connection(),
+            claimed.run.id,
+            &claimed.lease_token,
+            context_summary,
+        )
+        .await
+        .map(|_| ())
+        .map_err(agent_db_error_to_app)
     }
 
     pub async fn read_memory_for_run(
@@ -3149,7 +3234,7 @@ impl AgentApplication {
         Ok((
             AgentWorkerRun {
                 run: run.into(),
-                thread: thread.into(),
+                thread: thread_snapshot(thread)?,
                 lease_token,
             },
             request,
@@ -3268,6 +3353,75 @@ impl AgentApplication {
         )
         .await
         .map(Into::into)
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub async fn upsert_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        reasoning_content: Option<String>,
+    ) -> Result<AgentMessageSnapshot, AppError> {
+        agent::upsert_assistant_streaming_message_for_run_lease(
+            self.connection(),
+            claimed.run.id,
+            &claimed.lease_token,
+            AgentMessageInput {
+                thread_id: claimed.run.thread_id,
+                turn_id: Some(claimed.run.turn_id),
+                run_id: Some(claimed.run.id),
+                role: "assistant".into(),
+                sender_kind: "agent".into(),
+                sender_thread_id: None,
+                client_message_id: Some(client_message_id),
+                content,
+                status: "streaming".into(),
+                payload_json: Some(json!({
+                    "streaming": true,
+                    "reasoning_content": reasoning_content,
+                })),
+            },
+        )
+        .await
+        .map(Into::into)
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub async fn interrupt_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        reason: Option<String>,
+    ) -> Result<(), AppError> {
+        agent::interrupt_assistant_streaming_message_for_run_lease(
+            self.connection(),
+            claimed.run.id,
+            &claimed.lease_token,
+            &client_message_id,
+            reason.as_deref(),
+        )
+        .await
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub async fn complete_assistant_streaming_message(
+        &self,
+        claimed: &AgentWorkerRun,
+        client_message_id: String,
+        content: String,
+        tool_calls: Value,
+    ) -> Result<Option<AgentMessageSnapshot>, AppError> {
+        agent::complete_assistant_streaming_message_for_run_lease(
+            self.connection(),
+            claimed.run.id,
+            &claimed.lease_token,
+            &client_message_id,
+            content,
+            json!({ "tool_calls": tool_calls }),
+        )
+        .await
+        .map(|message| message.map(Into::into))
         .map_err(agent_db_error_to_app)
     }
 
@@ -3989,10 +4143,7 @@ fn thread_view(row: thread::Model) -> Result<AgentThreadView, AppError> {
             });
         }
     };
-    let context_summary = row
-        .context_summary
-        .map(|value| serde_json::from_str(&value))
-        .transpose()?;
+    let context_summary = parse_agent_context_summary(row.context_summary.as_deref())?;
     Ok(AgentThreadView {
         protocol_version: AGENT_API_PROTOCOL_VERSION,
         id: row.id.to_string(),
@@ -4448,6 +4599,21 @@ fn collaboration_db_error_to_app(error: CollaborationDbError) -> AppError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn context_summary_validation_rejects_oversized_serialized_payload() {
+        let summary = AgentContextSummary {
+            current_goal: "goal".into(),
+            constraints: vec!["x".repeat(4_000); 64],
+            decisions: vec!["x".repeat(4_000); 64],
+            facts_resources: vec!["x".repeat(4_000); 64],
+            completed: vec!["x".repeat(4_000); 64],
+            pending: vec!["x".repeat(4_000); 64],
+            tool_state: vec!["x".repeat(4_000); 64],
+            covered_through_sequence: 1,
+        };
+        assert!(summary.validate().is_err());
+    }
 
     #[test]
     fn budget_validation_rejects_zero_limits_and_caps_child_budget() {

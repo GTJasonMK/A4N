@@ -29,7 +29,8 @@ pub use settings_all::{
     settings_all_config_rows, validate_settings_all_config_import_defaults,
 };
 pub use system_settings::{
-    LLM_MAX_TOKENS_SETTING_KEY, llm_max_tokens_config, save_llm_max_tokens_config,
+    LLM_MAX_TOKENS_SETTING_KEY, WEB_SEARCH_SETTING_KEY, WebSearchConfigRecord,
+    llm_max_tokens_config, save_llm_max_tokens_config, save_web_search_config, web_search_config,
 };
 pub use theme::{
     activate_theme, create_theme, delete_theme, delete_theme_resource, list_theme_resources,

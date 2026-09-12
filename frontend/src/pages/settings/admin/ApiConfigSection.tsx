@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Bot,
   Brain,
   Film,
+  Globe2,
   Image as ImageIcon,
   RefreshCw,
   ServerCog, } from "lucide-react";
@@ -10,9 +11,11 @@ import { extractErrorMessage } from "../../../api";
 import {
   listEmbeddingConfig,
   getServerLlmMaxTokensConfig,
+  getServerWebSearchConfig,
   listServerLlmConfig,
   type EmbeddingConfig,
   type LlmMaxTokensConfig,
+  type WebSearchConfigSummary,
 } from "../../../api/config";
 import { listServerImageConfigs, type ImageGenConfig } from "../../../api/image";
 import { listServerVideoConfigs, type VideoGenConfig } from "../../../api/video";
@@ -25,15 +28,17 @@ import { EmbeddingTab } from "../EmbeddingTab";
 import { ImageTab } from "../ImageTab";
 import { LlmTab } from "../LlmTab";
 import { VideoTab } from "../VideoTab";
+import { WebSearchConfigPanel } from "./WebSearchConfigPanel";
 import { useI18n, type MessageKey } from "../../../i18n";
 
-type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding";
+type ApiConfigPanel = "overview" | "llm" | "image" | "video" | "embedding" | "web-search";
 
 interface ApiConfigSnapshot {
   llm: LlmConfigSummary[];
   image: ImageGenConfig[];
   video: VideoGenConfig[];
   embedding: EmbeddingConfig[];
+  webSearch: WebSearchConfigSummary;
   maxTokens: LlmMaxTokensConfig;
   providers: ModelProviderCatalog;
 }
@@ -48,6 +53,7 @@ const PANEL_DEFS: Array<{
   { id: "image", labelKey: "settingsAdmin.image", icon: <ImageIcon size={14} /> },
   { id: "video", labelKey: "settingsAdmin.video", icon: <Film size={14} /> },
   { id: "embedding", labelKey: "settingsAdmin.embedding", icon: <Brain size={14} /> },
+  { id: "web-search", labelKey: "settingsAdmin.webSearch", icon: <Globe2 size={14} /> },
 ];
 
 export const ApiConfigSection: React.FC = () => {
@@ -82,6 +88,7 @@ export const ApiConfigSection: React.FC = () => {
           {panel === "image" && <ImageTab scope="server" />}
           {panel === "video" && <VideoTab scope="server" />}
           {panel === "embedding" && <EmbeddingTab scope="server" />}
+          {panel === "web-search" && <WebSearchConfigPanel />}
         </div>
       )}
     </div>
@@ -109,16 +116,17 @@ const ApiConfigOverview: React.FC = () => {
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const [llm, image, video, embedding, maxTokens, providers] = await Promise.all([
+      const [llm, image, video, embedding, webSearch, maxTokens, providers] = await Promise.all([
         listServerLlmConfig(),
         listServerImageConfigs(),
         listServerVideoConfigs(),
         listEmbeddingConfig("server"),
+        getServerWebSearchConfig(),
         getServerLlmMaxTokensConfig(),
         listModelProviderCatalog(),
       ]);
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
-      setSnapshot({ llm, image, video, embedding, maxTokens, providers });
+      setSnapshot({ llm, image, video, embedding, webSearch, maxTokens, providers });
     } catch (err) {
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.loadApiConfigFailed")), "error");
@@ -298,6 +306,24 @@ const ApiConfigOverview: React.FC = () => {
                 : []
             }
           />
+
+          {snapshot?.webSearch ? (
+            <ApiSummaryCard
+              icon={<Globe2 size={16} />}
+              title={t("settingsAdmin.webSearch")}
+              empty={false}
+              primaryRows={[
+                [t("settingsForm.provider"), snapshot.webSearch.provider],
+                [t("settingsForm.model"), snapshot.webSearch.model],
+                [t("settingsForm.apiKey"), snapshot.webSearch.has_api_key ? t("settingsAdmin.configured") : t("settingsAdmin.notConfigured")],
+              ]}
+              diagnosticRows={[
+                [t("settingsForm.endpoint"), snapshot.webSearch.base_url],
+                [t("settingsAdmin.webSearchLimits"), `${snapshot.webSearch.max_results} / ${snapshot.webSearch.max_uses}`],
+                [t("settingsAdmin.webSearchTimeout"), `${snapshot.webSearch.timeout_secs}s`],
+              ]}
+            />
+          ) : null}
         </section>
       )}
     </div>

@@ -37,6 +37,7 @@ pub(super) fn restored_agent_loop_decision(
                     operation: format!("恢复内容优化 Agent Loop 调用断点 {call_key}: {err}"),
                 })?,
             finish_reason,
+            reasoning_content: None,
         },
         decision,
     ))

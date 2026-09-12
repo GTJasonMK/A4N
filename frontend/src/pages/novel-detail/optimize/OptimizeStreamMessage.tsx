@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { AlertCircle, Bot, CheckCircle2, User, Wrench } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { usePacedStreamText } from "../../../hooks/usePacedStreamText";
-import type { ReactNode } from "react";
+import { MarkdownText } from "../../../components/ui/MarkdownText";
 import { useI18n, type MessageTranslator } from "../../../i18n";
 
 import {
@@ -495,128 +495,6 @@ function isFailedToolResult(
     step.status === "error" ||
     behavior?.title.startsWith(failedPrefix) === true
   );
-}
-
-function MarkdownText({ text, className }: { text: string; className?: string }) {
-  const blocks = markdownBlocks(text);
-  if (blocks.length === 0) return null;
-  return (
-    <div className={`min-w-0 ${className ?? ""}`}>
-      {blocks.map((block, index) => {
-        if (block.type === "ul") {
-          return (
-            <ul key={index} className="my-1 min-w-0 list-disc space-y-0.5 pl-4">
-              {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
-              ))}
-            </ul>
-          );
-        }
-        if (block.type === "ol") {
-          return (
-            <ol key={index} className="my-1 min-w-0 list-decimal space-y-0.5 pl-4">
-              {block.items.map((item, itemIndex) => (
-                <li key={itemIndex}>{renderInlineMarkdown(item)}</li>
-              ))}
-            </ol>
-          );
-        }
-        if (block.type === "p") {
-          return (
-            <p key={index} className="my-1 min-w-0 first:mt-0 last:mb-0">
-              {renderInlineMarkdown(block.text)}
-            </p>
-          );
-        }
-        return null;
-      })}
-    </div>
-  );
-}
-
-type MarkdownBlock =
-  | { type: "p"; text: string }
-  | { type: "ul" | "ol"; items: string[] };
-
-function markdownBlocks(text: string): MarkdownBlock[] {
-  const blocks: MarkdownBlock[] = [];
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
-  let paragraph: string[] = [];
-  let list: { type: "ul" | "ol"; items: string[] } | null = null;
-
-  const flushParagraph = () => {
-    if (paragraph.length === 0) return;
-    blocks.push({ type: "p", text: paragraph.join("\n") });
-    paragraph = [];
-  };
-  const flushList = () => {
-    if (!list) return;
-    blocks.push(list);
-    list = null;
-  };
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) {
-      flushParagraph();
-      flushList();
-      continue;
-    }
-    const unordered = /^[-*]\s+(.+)$/.exec(trimmed);
-    if (unordered) {
-      flushParagraph();
-      if (!list || list.type !== "ul") {
-        flushList();
-        list = { type: "ul", items: [] };
-      }
-      list.items.push(unordered[1]);
-      continue;
-    }
-    const ordered = /^\d+[.)]\s+(.+)$/.exec(trimmed);
-    if (ordered) {
-      flushParagraph();
-      if (!list || list.type !== "ol") {
-        flushList();
-        list = { type: "ol", items: [] };
-      }
-      list.items.push(ordered[1]);
-      continue;
-    }
-    flushList();
-    paragraph.push(line);
-  }
-  flushParagraph();
-  flushList();
-  return blocks;
-}
-
-function renderInlineMarkdown(text: string): ReactNode[] {
-  const nodes: ReactNode[] = [];
-  const pattern = /(\*\*[^*]+\*\*|`[^`]+`)/g;
-  let lastIndex = 0;
-  for (const match of text.matchAll(pattern)) {
-    if (match.index > lastIndex) {
-      nodes.push(text.slice(lastIndex, match.index));
-    }
-    const value = match[0];
-    if (value.startsWith("**")) {
-      nodes.push(<strong key={nodes.length}>{value.slice(2, -2)}</strong>);
-    } else {
-      nodes.push(
-        <code
-          key={nodes.length}
-          className="break-all rounded-md bg-book-bg-tertiary px-1 py-0.5 font-mono text-[0.92em]"
-        >
-          {value.slice(1, -1)}
-        </code>,
-      );
-    }
-    lastIndex = match.index + value.length;
-  }
-  if (lastIndex < text.length) {
-    nodes.push(text.slice(lastIndex));
-  }
-  return nodes;
 }
 
 function isProcessBubble(item: StreamItem): boolean {

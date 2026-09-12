@@ -79,6 +79,7 @@ async fn probe_rejects_empty_stream_response() {
         message: ChatMessage::assistant("   "),
         usage: None,
         finish_reason: Some("stop".to_string()),
+        reasoning_content: None,
     });
     let request = ChatRequest::system_user("system", "ping", Some(0.0), Some(16), None);
 

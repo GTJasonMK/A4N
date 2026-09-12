@@ -72,5 +72,6 @@ pub(super) async fn call_patch_generation_llm(
         message: ChatMessage::assistant(output.content),
         usage: output.usage.as_ref().map(provider_usage).transpose()?,
         finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
+        reasoning_content: None,
     })
 }

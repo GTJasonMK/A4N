@@ -12,6 +12,7 @@ import {
   type ThemeBackgroundSettings,
   type ThemeDocument,
   type ThemeMode,
+  type ThemeStreamDisplaySettings,
 } from "../../../api/theme";
 import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
@@ -32,6 +33,11 @@ import { parseCssRgb } from "../../../utils/cssColor";
 import { pickLocalFile } from "../../../utils/fileUpload";
 import { toMediaSrc } from "../../../utils/mediaSrc";
 import { useI18n } from "../../../i18n";
+import { StreamDisplaySettingsPanel } from "../advanced/StreamDisplaySettingsPanel";
+import {
+  DEFAULT_STREAM_DISPLAY_SETTINGS,
+  normalizeStreamDisplaySettings,
+} from "../../../utils/streamDisplaySettings";
 import { readThemePreset } from "./presets";
 
 const DEFAULT_BACKGROUND: ThemeBackgroundSettings = {
@@ -71,6 +77,7 @@ function cloneDocument(theme: Theme): ThemeDocument {
         { ...DEFAULT_BACKGROUND, ...background },
       ]),
     ),
+    stream_display: normalizeStreamDisplaySettings(theme.document.stream_display),
   };
 }
 
@@ -201,6 +208,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     (currentResource && !deleteResourceIds.includes(currentResource.id)
       ? toMediaSrc(currentResource.file_path)
       : "");
+  const streamDisplay = normalizeStreamDisplaySettings(document.stream_display);
 
   const updateToken = (token: string, value: string) => {
     setDocument((current) => {
@@ -231,6 +239,16 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
   const setNumberToken = (token: string, fallback: number, value: string) => {
     const parsed = Number(value);
     updateToken(token, Number.isFinite(parsed) ? String(parsed) : String(fallback));
+  };
+
+  const updateStreamDisplay = (patch: Partial<ThemeStreamDisplaySettings>) => {
+    setDocument((current) => ({
+      ...current,
+      stream_display: {
+        ...normalizeStreamDisplaySettings(current.stream_display),
+        ...patch,
+      },
+    }));
   };
 
   const setOpacityToken = (token: string, value: string) => {
@@ -303,6 +321,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
       version: THEME_DOCUMENT_VERSION,
       tokens: readThemePreset(mode),
       backgrounds: {},
+      stream_display: { ...DEFAULT_STREAM_DISPLAY_SETTINGS },
     });
     setPendingFiles({});
     setPendingUrls({});
@@ -378,6 +397,12 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
             ]}
           />
         </div>
+
+        <StreamDisplaySettingsPanel
+          value={streamDisplay}
+          disabled={saving}
+          onChange={updateStreamDisplay}
+        />
 
         <section aria-labelledby="theme-editor-colors">
           <h3 id="theme-editor-colors" className="mb-2 text-xs font-semibold text-book-text-main">

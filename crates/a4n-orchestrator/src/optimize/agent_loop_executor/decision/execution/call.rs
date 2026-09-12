@@ -176,6 +176,7 @@ pub(super) async fn execute_agent_loop_decision_call(
         message: ChatMessage::assistant(output.content),
         usage: output.usage.as_ref().map(provider_usage).transpose()?,
         finish_reason: Some(generation_finish_reason_text(output.finish_reason)),
+        reasoning_content: None,
     };
     let missing_usage = if let Some(execution) = &execution {
         response.usage.is_none()

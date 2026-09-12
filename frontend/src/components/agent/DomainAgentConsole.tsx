@@ -23,6 +23,8 @@ import {
   X,
 } from "lucide-react";
 import { extractErrorMessage } from "../../api";
+import { compactAgentValue } from "./AgentMessageRow";
+import { AgentMessageList } from "./AgentMessageList";
 import {
   controlAgentRun,
   createAgentThread,
@@ -37,7 +39,6 @@ import {
   type AgentEvent,
   type AgentExecutionMode,
   type AgentExecutionView,
-  type AgentMessageView,
   type AgentRunView,
   type AgentScope,
   type AgentThreadSnapshot,
@@ -47,8 +48,8 @@ import { BookButton, BookIconButton } from "../ui/BookButton";
 import { LoadingSpinner } from "../ui/LoadingSpinner";
 import { useToast } from "../feedback/Toast";
 import { isImeCompositionActive } from "../../utils/ime";
-import { formatDateTime } from "../../i18n/format";
 import { useI18n, type Locale } from "../../i18n";
+import { reduceAgentEvent, snapshotCursor } from "../../utils/agentEventReducer";
 
 export type DomainAgentCapability = "content_optimization" | "canvas" | "director";
 
@@ -236,30 +237,6 @@ function activeRun(snapshot: AgentThreadSnapshot | null): AgentRunView | null {
     : null;
 }
 
-function objectValue(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function compactValue(value: unknown, maxLength = 220): string {
-  if (typeof value === "string") return value.slice(0, maxLength);
-  if (value == null) return "";
-  try {
-    const text = JSON.stringify(value);
-    return text ? text.slice(0, maxLength) : "";
-  } catch {
-    return "";
-  }
-}
-
-function messageLabel(message: AgentMessageView, locale: Locale): string {
-  if (message.role === "user") return locale === "zh-CN" ? "你" : "You";
-  if (message.role === "tool") return locale === "zh-CN" ? "工具结果" : "Tool result";
-  if (message.role === "system") return locale === "zh-CN" ? "系统" : "System";
-  return locale === "zh-CN" ? "领域 Agent" : "Domain Agent";
-}
-
 function executionTone(execution: AgentExecutionView): string {
   if (execution.status === "succeeded") return "text-success";
   if (
@@ -308,6 +285,7 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const [reloadNonce, setReloadNonce] = useState(0);
   const [activityOpen, setActivityOpen] = useState(false);
   const snapshotRequestRef = useRef(0);
+  const eventCursorRef = useRef(0);
   const composingRef = useRef(false);
   const lastCompositionEndRef = useRef(0);
   const mutationBaselineRef = useRef<{
@@ -346,20 +324,23 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   const icon = isOptimization ? <Bot size={15} /> : isDirector ? <Film size={15} /> : <Workflow size={15} />;
 
   const loadSnapshot = useCallback(
-    async (threadId: string, quiet = false) => {
+    async (threadId: string, quiet = false): Promise<AgentThreadSnapshot | null> => {
       const requestId = snapshotRequestRef.current + 1;
       snapshotRequestRef.current = requestId;
       if (!quiet) setLoading(true);
       try {
         const next = await getAgentThread(threadId);
-        if (snapshotRequestRef.current !== requestId) return;
+        if (snapshotRequestRef.current !== requestId) return null;
         setSnapshot(next);
         setThread(next.thread);
+        eventCursorRef.current = snapshotCursor(next);
         setError(null);
+        return next;
       } catch (err) {
         if (snapshotRequestRef.current === requestId) {
           setError(extractErrorMessage(err, t("agent.domain.loadFailed")));
         }
+        return null;
       } finally {
         if (snapshotRequestRef.current === requestId && !quiet) {
           setLoading(false);
@@ -437,12 +418,21 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
     const controller = new AbortController();
     let stopped = false;
     let cursor = 0;
+    const initial = snapshot;
+    cursor = initial ? snapshotCursor(initial) : eventCursorRef.current;
     const refreshTimer = window.setInterval(
-      () => void loadSnapshot(threadId, true),
+      () => void loadSnapshot(threadId, true).then((next) => {
+        if (next) cursor = snapshotCursor(next);
+      }),
       7000,
     );
 
     const connect = async () => {
+      if (!initial) {
+        const loaded = await loadSnapshot(threadId, true);
+        if (!loaded || stopped) return;
+        cursor = snapshotCursor(loaded);
+      }
       while (!stopped) {
         try {
           setConnected(true);
@@ -451,19 +441,20 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
             { thread_id: threadId, after_sequence: cursor, limit: 200 },
             (event) => {
               if (event.thread_id !== threadId) return;
-              cursor = event.sequence;
+              let needsReload = false;
               setSnapshot((current) => {
                 if (!current || current.thread.id !== threadId) return current;
-                if (
-                  current.events.some(
-                    (item) => item.sequence === event.sequence,
-                  )
-                ) {
-                  return current;
-                }
-                return { ...current, events: [...current.events, event] };
+                const reduction = reduceAgentEvent(current, event, cursor);
+                needsReload = reduction.needsReload;
+                if (reduction.needsReload) return current;
+                cursor = reduction.cursor;
+                return reduction.snapshot;
               });
-              void loadSnapshot(threadId, true);
+              if (needsReload) {
+                void loadSnapshot(threadId, true).then((next) => {
+                  if (next) cursor = snapshotCursor(next);
+                });
+              }
             },
             controller.signal,
           );
@@ -785,15 +776,11 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
                 <p>{t("agent.domain.empty")}</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {snapshot.messages.map((message) => (
-                  <MessageRow
-                    key={message.id}
-                    message={message}
-                    locale={locale}
-                  />
-                ))}
-              </div>
+              <AgentMessageList
+                messages={snapshot.messages}
+                locale={locale}
+                agentLabel={t("agent.domain.domainAgent")}
+              />
             )}
           </div>
 
@@ -999,66 +986,6 @@ export const DomainAgentConsole: React.FC<DomainAgentConsoleProps> = ({
   );
 };
 
-function MessageRow({
-  message,
-  locale,
-}: {
-  message: AgentMessageView;
-  locale: Locale;
-}) {
-  const user = message.role === "user";
-  const tool = message.role === "tool";
-  const metadata = objectValue(message.metadata);
-  const toolCalls = Array.isArray(metadata?.tool_calls)
-    ? metadata.tool_calls
-    : [];
-  return (
-    <article className={`flex min-w-0 ${user ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`min-w-0 max-w-[min(94%,48rem)] rounded-2xl border px-2.5 py-2 ${
-          user
-            ? "border-book-primary/25 bg-book-primary/8"
-            : tool
-              ? "border-book-border/45 bg-book-bg-tertiary/40"
-              : "border-book-border/45 bg-book-bg-paper"
-        }`}
-      >
-        <div className="mb-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-book-text-muted">
-          <span className="font-medium text-book-text-sub">
-            {messageLabel(message, locale)}
-          </span>
-          <time dateTime={message.created_at}>
-            {formatDateTime(message.created_at, locale)}
-          </time>
-          {message.status !== "complete" ? (
-            <span className="rounded-full bg-warning-bg px-1.5 py-0.5 text-[10px] text-warning">
-              {message.status}
-            </span>
-          ) : null}
-        </div>
-        {toolCalls.length > 0 ? (
-          <div className="mb-1.5 rounded-lg bg-book-bg/55 px-2 py-1 text-[10px] text-book-text-muted">
-            {toolCalls.map((call, index) => (
-              <div key={`${message.id}-tool-${index}`} className="break-words">
-                {compactValue(call)}
-              </div>
-            ))}
-          </div>
-        ) : null}
-        {tool ? (
-          <pre className="max-h-28 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] leading-relaxed text-book-text-main custom-scrollbar">
-            {message.content || "—"}
-          </pre>
-        ) : (
-          <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-book-text-main">
-            {message.content || "—"}
-          </p>
-        )}
-      </div>
-    </article>
-  );
-}
-
 function ExecutionRow({
   execution,
   locale,
@@ -1079,7 +1006,7 @@ function ExecutionRow({
       </div>
       {execution.result_summary ? (
         <p className="mt-0.5 break-words text-[10px] leading-relaxed text-book-text-muted">
-          {compactValue(execution.result_summary)}
+          {compactAgentValue(execution.result_summary)}
         </p>
       ) : null}
       {execution.error ? (

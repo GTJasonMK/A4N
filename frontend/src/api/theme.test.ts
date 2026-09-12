@@ -22,14 +22,19 @@ beforeEach(() => {
 
 it("uses the authenticated Host identity instead of duplicating userId in theme args", async () => {
   await listThemes();
-  const document = { version: 1, tokens: {}, backgrounds: {} };
+  const document = {
+    version: 1,
+    tokens: {},
+    backgrounds: {},
+    stream_display: { enabled: false, mode: "fixed" as const, rate: 30 },
+  };
   await createTheme({ name: "夜色", mode: "dark", document });
   await updateTheme(3, { name: "夜色 2" });
   await deleteTheme(3);
   await activateTheme(3);
   await exportTheme(3);
   await importTheme(
-    '{"name":"纸张","mode":"light","document":{"version":1,"tokens":{},"backgrounds":{}}}',
+    '{"name":"纸张","mode":"light","document":{"version":1,"tokens":{},"backgrounds":{},"stream_display":{"enabled":false,"mode":"fixed","rate":30}}}',
   );
 
   expect(mocks.apiInvoke.mock.calls).toEqual([

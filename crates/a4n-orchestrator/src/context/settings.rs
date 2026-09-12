@@ -7,6 +7,10 @@ use a4n_api_contract::config::{
     VideoConfigInput, VideoConfigSummary,
 };
 use a4n_api_contract::video::VideoProviderConfigPort;
+use a4n_api_contract::web_search::{
+    UpdateWebSearchConfigInput, WebSearchConfigSummary, WebSearchRuntimeConfig,
+    validate_web_search_config,
+};
 use a4n_config::{
     ensure_default_config_delete_allowed, image_sizes_to_json, validate_embedding_config_params,
     validate_image_config_params,
@@ -585,6 +589,49 @@ impl ConfigApplication {
         Ok(config)
     }
 
+    pub(super) async fn web_search_runtime_config(
+        &self,
+    ) -> Result<WebSearchRuntimeConfig, AppError> {
+        let record = a4n_db::config::web_search_config(self.database.connection()).await?;
+        validate_web_search_record(&record)?;
+        Ok(WebSearchRuntimeConfig {
+            protocol: record.protocol,
+            provider: record.provider,
+            base_url: record.base_url,
+            api_key_encrypted: record.api_key_encrypted,
+            model: record.model,
+            max_results: record.max_results,
+            max_uses: record.max_uses,
+            max_tokens: record.max_tokens,
+            timeout_secs: record.timeout_secs,
+        })
+    }
+
+    async fn update_web_search_config_validated(
+        &self,
+        input: UpdateWebSearchConfigInput,
+    ) -> Result<WebSearchConfigSummary, AppError> {
+        let current = self.web_search_runtime_config().await?;
+        let api_key_encrypted = match input.api_key_encrypted {
+            None => current.api_key_encrypted,
+            Some(value) => value,
+        };
+        let record = a4n_db::config::WebSearchConfigRecord {
+            protocol: input.protocol.trim().to_string(),
+            provider: input.provider.trim().to_string(),
+            base_url: input.base_url.trim().trim_end_matches('/').to_string(),
+            api_key_encrypted: api_key_encrypted.map(|value| value.trim().to_string()),
+            model: input.model.trim().to_string(),
+            max_results: input.max_results,
+            max_uses: input.max_uses,
+            max_tokens: input.max_tokens,
+            timeout_secs: input.timeout_secs,
+        };
+        validate_web_search_record(&record)?;
+        a4n_db::config::save_web_search_config(self.database.connection(), &record).await?;
+        Ok(web_search_summary_from_record(&record))
+    }
+
     async fn validate_settings_all_config_import_defaults(
         &self,
         input: &SettingsAllConfigImportInput,
@@ -1015,6 +1062,30 @@ impl OrchestratorContext {
             .await
     }
 
+    pub async fn web_search_runtime_config(&self) -> Result<WebSearchRuntimeConfig, AppError> {
+        self.settings.web_search_runtime_config().await
+    }
+
+    pub async fn web_search_config_summary(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<WebSearchConfigSummary, AppError> {
+        self.require_settings_admin(caller_user_id).await?;
+        let config = self.settings.web_search_runtime_config().await?;
+        Ok(config.summary())
+    }
+
+    pub async fn update_web_search_config(
+        &self,
+        caller_user_id: i64,
+        input: UpdateWebSearchConfigInput,
+    ) -> Result<WebSearchConfigSummary, AppError> {
+        self.require_settings_admin(caller_user_id).await?;
+        self.settings
+            .update_web_search_config_validated(input)
+            .await
+    }
+
     pub(crate) async fn validate_settings_all_config_import_defaults(
         &self,
         input: &SettingsAllConfigImportInput,
@@ -1091,6 +1162,25 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
     ) -> Result<LlmMaxTokensConfig, AppError> {
         self.require_settings_admin(caller_user_id).await?;
         OrchestratorContext::save_llm_max_tokens_config_validated(self, config).await
+    }
+
+    async fn web_search_runtime_config(&self) -> Result<WebSearchRuntimeConfig, AppError> {
+        OrchestratorContext::web_search_runtime_config(self).await
+    }
+
+    async fn web_search_config_summary(
+        &self,
+        caller_user_id: i64,
+    ) -> Result<WebSearchConfigSummary, AppError> {
+        OrchestratorContext::web_search_config_summary(self, caller_user_id).await
+    }
+
+    async fn update_web_search_config(
+        &self,
+        caller_user_id: i64,
+        input: UpdateWebSearchConfigInput,
+    ) -> Result<WebSearchConfigSummary, AppError> {
+        OrchestratorContext::update_web_search_config(self, caller_user_id, input).await
     }
 
     async fn saved_api_key(
@@ -1333,6 +1423,39 @@ impl OrchestratorContext {
 
 fn has_configured_api_key(value: Option<&str>) -> bool {
     value.is_some_and(|value| !value.trim().is_empty())
+}
+
+fn validate_web_search_record(
+    record: &a4n_db::config::WebSearchConfigRecord,
+) -> Result<(), AppError> {
+    validate_web_search_config(
+        &record.protocol,
+        &record.provider,
+        &record.base_url,
+        record.api_key_encrypted.as_deref(),
+        &record.model,
+        record.max_results,
+        record.max_uses,
+        record.max_tokens,
+        record.timeout_secs,
+    )
+    .map_err(AppError::ConfigError)
+}
+
+fn web_search_summary_from_record(
+    record: &a4n_db::config::WebSearchConfigRecord,
+) -> WebSearchConfigSummary {
+    WebSearchConfigSummary {
+        protocol: record.protocol.clone(),
+        provider: record.provider.clone(),
+        base_url: record.base_url.clone(),
+        has_api_key: has_configured_api_key(record.api_key_encrypted.as_deref()),
+        model: record.model.clone(),
+        max_results: record.max_results,
+        max_uses: record.max_uses,
+        max_tokens: record.max_tokens,
+        timeout_secs: record.timeout_secs,
+    }
 }
 
 fn validate_positive_config_id(config_id: i64) -> Result<(), AppError> {

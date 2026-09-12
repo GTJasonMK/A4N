@@ -26,6 +26,8 @@ export type {
   ThemePreferenceSummary,
   ThemeResourceSummary,
   ThemeResourceUploadInput,
+  ThemeStreamDisplayMode,
+  ThemeStreamDisplaySettings,
   UpdateThemeInput,
   UpdateThemePreferenceInput,
 } from "./generated/theme";
