@@ -131,6 +131,16 @@ mod tests {
     }
 
     #[test]
+    fn optional_profile_text_trims_blank_to_none() {
+        assert_eq!(
+            optional_profile_text(Some("  男  ")),
+            Some("男".to_string())
+        );
+        assert_eq!(optional_profile_text(Some(" \n\t ")), None);
+        assert_eq!(optional_profile_text(None), None);
+    }
+
+    #[test]
     fn style_with_pose_merges() {
         assert_eq!(
             portrait_style_with_pose(Some("anime"), Some("站立")).as_deref(),

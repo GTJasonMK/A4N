@@ -36,8 +36,8 @@ pub use prompt_generation::{
     build_generate_prompt_request, normalize_portrait_prompt_response,
 };
 pub use prompt_rules::{
-    DEFAULT_PORTRAIT_EXPRESSION, expression_or_default, optional_profile_text,
-    portrait_profile_context, portrait_style_with_pose, profile_portrait_seed_prompt,
+    DEFAULT_PORTRAIT_EXPRESSION, expression_or_default, portrait_profile_context,
+    portrait_style_with_pose, profile_portrait_seed_prompt,
 };
 pub use workflow_rules::{
     missing_portrait_item_fingerprint, portrait_generate_business_key,

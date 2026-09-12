@@ -1,7 +1,5 @@
 use a4n_db_models::models::character::protagonist_profile;
-use a4n_orchestrator::portrait::{
-    optional_profile_text, portrait_profile_context, profile_portrait_seed_prompt,
-};
+use a4n_orchestrator::portrait::{portrait_profile_context, profile_portrait_seed_prompt};
 use chrono::NaiveDate;
 use serde_json::json;
 
@@ -27,16 +25,6 @@ fn profile_for_test() -> protagonist_profile::Model {
         created_at: now,
         updated_at: now,
     }
-}
-
-#[test]
-fn optional_profile_text_trims_blank_to_none() {
-    assert_eq!(
-        optional_profile_text(Some("  男  ")),
-        Some("男".to_string())
-    );
-    assert_eq!(optional_profile_text(Some(" \n\t ")), None);
-    assert_eq!(optional_profile_text(None), None);
 }
 
 #[test]
