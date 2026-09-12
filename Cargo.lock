@@ -92,6 +92,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-control"
+version = "0.1.0"
+dependencies = [
+ "a4n-api-contract",
+ "a4n-config",
+ "a4n-domain",
+ "a4n-error",
+ "a4n-media",
+ "a4n-runtime",
+ "a4n-service-protocol",
+ "a4n-storage",
+ "a4n-task-runtime",
+ "anyhow",
+ "axum 0.8.9",
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "parking_lot",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tokio-util",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "a4n-db"
 version = "0.1.0"
 dependencies = [
@@ -833,37 +864,19 @@ dependencies = [
 name = "a4n-server"
 version = "0.1.0"
 dependencies = [
- "a4n-api-contract",
- "a4n-config",
+ "a4n-control",
  "a4n-db",
  "a4n-db-models",
- "a4n-domain",
- "a4n-error",
- "a4n-media",
  "a4n-migration",
  "a4n-queue",
- "a4n-runtime",
- "a4n-service-protocol",
- "a4n-storage",
- "a4n-task-runtime",
  "anyhow",
  "axum 0.8.9",
- "base64 0.22.1",
- "chrono",
- "futures",
- "parking_lot",
  "reqwest 0.12.28",
  "sea-orm",
- "serde",
- "serde_json",
- "sha2",
  "tempfile",
  "tokio",
- "tokio-util",
  "tower-http",
  "tracing",
- "tracing-subscriber",
- "uuid",
 ]
 
 [[package]]
