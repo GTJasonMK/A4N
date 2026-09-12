@@ -46,7 +46,9 @@ mod facade_tests;
 #[cfg(test)]
 mod test_support;
 #[cfg(test)]
-pub(crate) use test_support::{test_video_orchestrator, test_video_orchestrator_with_llm};
+pub(in crate::video) use test_support::{
+    test_video_orchestrator, test_video_orchestrator_with_llm,
+};
 
 // 子模块通过 `use crate::video::{...}` / `super::` 共享的类型与错误映射。
 pub use a4n_db::generation::RecordStartedGenerationRunInput;
