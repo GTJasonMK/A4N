@@ -21,7 +21,7 @@ pub(crate) use contracts::{
 pub(in crate::shooting_script) use contracts::{
     ShootingScriptProgressReporter, ShootingScriptStreamReporter,
 };
-pub(crate) use workflow_rules::chapter_shooting_script_workflow_run_input;
+pub(in crate::shooting_script) use workflow_rules::chapter_shooting_script_workflow_run_input;
 
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
