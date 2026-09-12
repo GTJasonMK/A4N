@@ -1,6 +1,7 @@
-import React, { lazy, Suspense, useEffect } from "react";
+import React, { lazy, Suspense, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BackButton, useSmartBack } from "../../components/ui/BackButton";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 import { useAuthStore } from "../../store/auth";
@@ -55,10 +56,36 @@ export const SettingsPage: React.FC = () => {
   const { t } = useI18n();
   const activeTab = TABS.find((item) => item.id === tab);
   const smartBack = useSmartBack();
+  const navigationGuardRef = useRef(false);
 
-  const selectTab = (nextTab: TabId) => {
+  const confirmSettingsNavigation = async (action: string): Promise<boolean> => {
+    if (!document.querySelector('[data-settings-dirty="true"]')) return true;
+    if (navigationGuardRef.current) return false;
+    navigationGuardRef.current = true;
+    try {
+      return await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("settings.title"),
+          action,
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+    } finally {
+      navigationGuardRef.current = false;
+    }
+  };
+
+  const selectTab = async (nextTab: TabId) => {
     if (nextTab === tab) return;
+    if (!(await confirmSettingsNavigation(t("settings.category")))) return;
     navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
+  };
+
+  const handleBack = async () => {
+    if (!(await confirmSettingsNavigation(t("nav.backToPrevious")))) return;
+    smartBack();
   };
 
   useEffect(() => {
@@ -76,7 +103,7 @@ export const SettingsPage: React.FC = () => {
       </h1>
       <div className="a4n-settings-layout min-h-0 flex-1 max-md:grid-cols-1 max-md:grid-rows-[auto_minmax(0,1fr)]">
         <div className="flex min-w-0 items-center gap-2 border-b border-book-border/80 bg-book-bg-paper/95 px-2 py-1.5 md:hidden">
-          <BackButton iconOnly title={t("nav.backToPrevious")} onClick={smartBack} />
+          <BackButton iconOnly title={t("nav.backToPrevious")} onClick={() => void handleBack()} />
           <span className="shrink-0 font-serif text-sm font-semibold text-book-text-main">
             {t("settings.title")}
           </span>
@@ -100,7 +127,7 @@ export const SettingsPage: React.FC = () => {
               <BackButton
                 iconOnly
                 title={t("nav.backToPrevious")}
-                onClick={smartBack}
+                onClick={() => void handleBack()}
               />
             </li>
             {(["settings.local", "settings.cloud", "settings.diagnostics"] as const).map((group) => (

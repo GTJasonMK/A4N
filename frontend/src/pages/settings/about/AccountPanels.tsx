@@ -178,6 +178,7 @@ export const ProfileEditor: React.FC<{ userId: number; embedded?: boolean }> = (
 
   return (
     <details
+      data-settings-dirty={profileDirty ? "true" : undefined}
       className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} overflow-hidden text-xs`}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">
@@ -259,6 +260,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
     editVersionRef.current += 1;
     setNewPwd(value);
   };
+  const passwordDirty = oldPwd.length > 0 || newPwd.length > 0;
 
   const handleChange = async () => {
     if (busyRef.current) return;
@@ -295,6 +297,7 @@ export const PasswordChanger: React.FC<{ embedded?: boolean }> = ({ embedded = f
 
   return (
     <details
+      data-settings-dirty={passwordDirty ? "true" : undefined}
       className={`${embedded ? "border-t border-book-border/35" : "a4n-flat-surface"} overflow-hidden text-xs`}
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-book-text-sub transition-colors hover:bg-book-bg-tertiary/40 [&::-webkit-details-marker]:hidden">

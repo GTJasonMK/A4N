@@ -346,6 +346,7 @@ export const useThemeTabController = () => {
       if (!isCurrentUser(requestUserKey)) return;
       addToast(t("settingsTheme.createdNamed", { name }), "success");
       setNewName("");
+      setNewMode("light");
       await refresh({ force: true });
     } catch (err) {
       if (isCurrentUser(requestUserKey)) {
@@ -619,12 +620,14 @@ export const useThemeTabController = () => {
       deleting != null ||
       bulkDeleting ||
       creating ||
+      exportingId != null ||
       importing ||
       renamingId != null ||
       renameSaving ||
       appearanceSaving ||
       editingId != null ||
       editorSaving ||
+      packageExportingId != null ||
       packageImporting,
     hasUser: Boolean(user),
     refresh,

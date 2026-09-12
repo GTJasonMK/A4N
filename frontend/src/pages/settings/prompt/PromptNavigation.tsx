@@ -8,7 +8,7 @@ interface PromptCategoryTabsProps {
   categories: CategoryInfo[];
   activeCategory: string;
   filteredCount: number;
-  onCategoryChange: (category: string) => void;
+  onCategoryChange: (category: string) => void | Promise<boolean>;
 }
 
 export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
@@ -30,9 +30,9 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
   const activeCategoryLabel =
     categoryOptions.find((category) => category.key === activeCategory)?.label ??
     activeCategory;
-  const selectCategory = (category: string) => {
-    onCategoryChange(category);
-    setCategoryDialogOpen(false);
+  const selectCategory = async (category: string) => {
+    const changed = await onCategoryChange(category);
+    if (changed !== false) setCategoryDialogOpen(false);
   };
 
   return (
@@ -64,7 +64,7 @@ export const PromptCategoryTabs: React.FC<PromptCategoryTabsProps> = ({
           <button
             key={category.key}
             type="button"
-            onClick={() => onCategoryChange(category.key)}
+            onClick={() => void onCategoryChange(category.key)}
             aria-pressed={activeCategory === category.key}
             data-active={activeCategory === category.key ? "1" : undefined}
             className="pyqt-tab"

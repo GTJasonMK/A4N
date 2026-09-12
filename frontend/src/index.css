@@ -4067,8 +4067,7 @@ body {
   position: relative;
   transition:
     background-color var(--a4n-motion-fast) var(--a4n-ease-out),
-    box-shadow var(--a4n-motion) var(--a4n-ease-out),
-    transform var(--a4n-motion-fast) var(--a4n-ease-out);
+    box-shadow var(--a4n-motion) var(--a4n-ease-out);
 }
 
 .a4n-project-row::before {
@@ -4091,10 +4090,6 @@ body {
   transform: scaleY(1);
 }
 
-.a4n-project-row:active {
-  transform: scale(0.998);
-}
-
 .a4n-project-kind {
   display: inline-flex;
   width: 36px;
@@ -4109,8 +4104,7 @@ body {
   transition:
     background-color var(--a4n-motion-fast) var(--a4n-ease-out),
     border-color var(--a4n-motion-fast) var(--a4n-ease-out),
-    color var(--a4n-motion-fast) var(--a4n-ease-out),
-    transform var(--a4n-motion) var(--a4n-ease-out);
+    color var(--a4n-motion-fast) var(--a4n-ease-out);
 }
 
 .a4n-project-kind[data-project-kind="video"] {
@@ -4134,7 +4128,6 @@ body {
 .a4n-project-row:hover .a4n-project-kind,
 .a4n-project-row:focus-visible .a4n-project-kind {
   border-color: currentColor;
-  transform: translateY(-1px) rotate(-2deg);
 }
 
 .a4n-project-row__disclosure {
@@ -4146,18 +4139,15 @@ body {
   justify-content: center;
   color: rgb(var(--color-text-tertiary));
   opacity: 0.32;
-  transform: translateX(-3px);
   transition:
     color var(--a4n-motion-fast) var(--a4n-ease-out),
-    opacity var(--a4n-motion-fast) var(--a4n-ease-out),
-    transform var(--a4n-motion-fast) var(--a4n-ease-out);
+    opacity var(--a4n-motion-fast) var(--a4n-ease-out);
 }
 
 .a4n-project-row:hover .a4n-project-row__disclosure,
 .a4n-project-row:focus-visible .a4n-project-row__disclosure {
   color: rgb(var(--color-primary));
   opacity: 1;
-  transform: translateX(0);
 }
 
 .a4n-project-skeleton-row {

@@ -17,6 +17,7 @@ import { BookButton } from "../../../components/ui/BookButton";
 import { BookInput } from "../../../components/ui/BookInput";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { SegmentedControl } from "../../../components/ui/SegmentedControl";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import {
   applyThemePreview,
   restoreActiveTheme,
@@ -59,6 +60,7 @@ interface ThemeEditorPanelProps {
     deleteResourceIds: number[],
   ) => Promise<Theme | null>;
   onCancel: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function cloneDocument(theme: Theme): ThemeDocument {
@@ -152,6 +154,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
   saving,
   onSave,
   onCancel,
+  onDirtyChange,
 }) => {
   const { t } = useI18n();
   const [name, setName] = useState(theme.name);
@@ -201,6 +204,16 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     (currentResource && !deleteResourceIds.includes(currentResource.id)
       ? toMediaSrc(currentResource.file_path)
       : "");
+  const isDirty =
+    name !== theme.name ||
+    mode !== theme.mode ||
+    JSON.stringify(document) !== JSON.stringify(cloneDocument(theme)) ||
+    Object.keys(pendingFiles).length > 0 ||
+    deleteResourceIds.length > 0;
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const updateToken = (token: string, value: string) => {
     setDocument((current) => {
@@ -288,7 +301,21 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     updateBackground({ resource_key: null });
   };
 
-  const resetDraft = () => {
+  const confirmDiscardDraft = async (action: string): Promise<boolean> => {
+    if (!isDirty) return true;
+    return confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: theme.name,
+        action,
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    });
+  };
+
+  const resetDraft = async () => {
+    if (!(await confirmDiscardDraft(t("settingsTheme.reset")))) return;
     setName(theme.name);
     setMode(theme.mode);
     setDocument(cloneDocument(theme));
@@ -298,7 +325,8 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     setError(null);
   };
 
-  const restoreDefault = () => {
+  const restoreDefault = async () => {
+    if (!(await confirmDiscardDraft(t("settingsTheme.restoreDefault")))) return;
     setDocument({
       version: THEME_DOCUMENT_VERSION,
       tokens: readThemePreset(mode),
@@ -308,6 +336,11 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
     setPendingUrls({});
     setDeleteResourceIds(theme.resources.map((resource) => resource.id));
     setError(null);
+  };
+
+  const handleCancel = async () => {
+    if (!(await confirmDiscardDraft(t("settingsTheme.cancel")))) return;
+    onCancel();
   };
 
   const handleSave = async () => {
@@ -341,7 +374,11 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
   };
 
   return (
-    <section className="a4n-flat-surface min-w-0 overflow-hidden" aria-labelledby="theme-editor-title">
+    <section
+      className="a4n-flat-surface min-w-0 overflow-hidden"
+      aria-labelledby="theme-editor-title"
+      data-settings-dirty={isDirty ? "true" : undefined}
+    >
       <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-book-border/35 px-3 py-3 sm:px-4">
         <div className="min-w-0 flex-1">
           <h2 id="theme-editor-title" className="truncate text-sm font-semibold text-book-text-main">
@@ -354,7 +391,7 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
             {saving ? <LoadingSpinner size="sm" /> : <Save size={13} />}
             {t("common.save")}
           </BookButton>
-          <BookButton variant="ghost" size="sm" onClick={onCancel} disabled={saving}>
+          <BookButton variant="ghost" size="sm" onClick={() => void handleCancel()} disabled={saving}>
             <X size={13} /> {t("settingsTheme.cancel")}
           </BookButton>
         </div>
@@ -681,12 +718,12 @@ export const ThemeEditorPanel: React.FC<ThemeEditorPanelProps> = ({
         <div className="flex min-w-0 flex-wrap items-center justify-end gap-2 border-t border-book-border/30 pt-3">
           <BookButton
             variant="secondary"
-            onClick={restoreDefault}
+            onClick={() => void restoreDefault()}
             disabled={saving || pickingBackground}
           >
             <RotateCcw size={13} /> {t("settingsTheme.restoreDefault")}
           </BookButton>
-          <BookButton variant="ghost" onClick={resetDraft} disabled={saving}>
+          <BookButton variant="ghost" onClick={() => void resetDraft()} disabled={saving}>
             <RotateCcw size={13} /> {t("settingsTheme.reset")}
           </BookButton>
           <BookButton variant="primary" onClick={handleSave} disabled={saving}>

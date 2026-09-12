@@ -66,6 +66,22 @@ const responses = {
     resources: [],
   }],
   get_theme_preference: { appearance: "light", user_id: 1 },
+  prompt_list: [
+    {
+      name: "story_prompt", title: "写作提示词", description: "写作流程", category: "writing",
+      content: "保留人物行动的因果。", dependencies: [], is_modified: false,
+      path: "prompts/writing/story.md", tags: [], used_by: [], version: "1",
+    },
+    {
+      name: "image_prompt", title: "画面提示词", description: "画面生成", category: "media",
+      content: "保持画面构图稳定。", dependencies: [], is_modified: false,
+      path: "prompts/media/image.md", tags: [], used_by: [], version: "1",
+    },
+  ],
+  prompt_list_categories: [
+    { key: "writing", label: "写作", description: "写作相关提示词", order: 1 },
+    { key: "media", label: "素材", description: "素材相关提示词", order: 2 },
+  ],
   get_blueprint: null,
   list_profiles: [],
   active: [],
@@ -402,6 +418,125 @@ describe("UI presentation and workspace continuity", () => {
     await $('//button[contains(.,"新增 LLM 配置")]').waitForDisplayed();
     assert.equal(new URL(await browser.getUrl()).hash, "#llm");
     assert.equal(await browser.execute(() => window.__settingsStage === document.querySelector(".a4n-route-stage") && window.__settingsDirection === window.__settingsStage.dataset.routeDirection), true);
+  });
+
+  it("protects unsaved settings drafts when switching categories", async () => {
+    await openNewLlmConfig();
+    await $('//nav//button[contains(.,"主题")]').click();
+    await $('[role="dialog"]').waitForDisplayed();
+    assert.equal(new URL(await browser.getUrl()).hash, "#llm");
+    assert.equal(await fieldInput("配置名称").getValue(), "配置 A");
+
+    await browser.keys("Escape");
+    await $('[role="dialog"]').waitForExist({ reverse: true });
+    assert.equal(new URL(await browser.getUrl()).hash, "#llm");
+
+    await $('//nav//button[contains(.,"主题")]').click();
+    await $('//button[normalize-space()="放弃草稿"]').click();
+    await $('[aria-label="外观偏好"]').waitForDisplayed();
+    assert.equal(new URL(await browser.getUrl()).hash, "#theme");
+  });
+
+  it("protects theme editor drafts when closing the editor", async () => {
+    await browser.url("/settings#theme");
+    await $('button[aria-label="编辑主题"]').click();
+    const editor = await $('[role="dialog"]');
+    await editor.waitForDisplayed();
+    const name = await editor.$("input");
+    await replaceInput(name, "书房主题草稿");
+
+    const closeEditor = async () => $('//div[@role="dialog"]//button[@aria-label="关闭"]').click();
+    await closeEditor();
+    await $('[role="dialog"]').waitForDisplayed();
+    assert.equal(new URL(await browser.getUrl()).hash, "#theme");
+    assert.equal(await name.getValue(), "书房主题草稿");
+    await browser.keys("Escape");
+    await $('//button[normalize-space()="放弃草稿"]').waitForExist({ reverse: true });
+
+    await closeEditor();
+    await $('//button[normalize-space()="放弃草稿"]').click();
+    await editor.waitForExist({ reverse: true });
+    assert.equal(new URL(await browser.getUrl()).hash, "#theme");
+  });
+
+  it("protects theme action and rename drafts when closing", async () => {
+    await browser.url("/settings#theme");
+    await browser.setWindowSize(390, 900);
+    await browser.setWindowSize(1440, 900);
+    await $('//button[contains(.,"创建主题")]').click();
+    const createDialog = await $('[role="dialog"]');
+    await createDialog.waitForDisplayed();
+    const name = await createDialog.$("input");
+    await replaceInput(name, "夜读主题草稿");
+
+    await createDialog.$('button[aria-label="关闭"]').click();
+    await $('//button[normalize-space()="放弃草稿"]').waitForDisplayed();
+    await browser.keys("Escape");
+    assert.equal(await name.getValue(), "夜读主题草稿");
+    await createDialog.$('button[aria-label="关闭"]').click();
+    await $('//button[normalize-space()="放弃草稿"]').click();
+    await createDialog.waitForExist({ reverse: true });
+
+    await $('//button[normalize-space()="书房主题"]').click();
+    const renameInput = await $('input[aria-label="重命名"]');
+    await replaceInput(renameInput, "书房主题草稿");
+    await browser.keys("Escape");
+    await $('//button[normalize-space()="放弃草稿"]').waitForDisplayed();
+    await browser.keys("Escape");
+    assert.equal(await renameInput.getValue(), "书房主题草稿");
+    await browser.keys("Escape");
+    await $('//button[normalize-space()="放弃草稿"]').click();
+    await renameInput.waitForExist({ reverse: true });
+  });
+
+  it("protects a theme mode draft even when its name is empty", async () => {
+    await browser.url("/settings#theme");
+    await $('//button[contains(.,"创建主题")]').click();
+    const createDialog = await $('[role="dialog"]');
+    await createDialog.waitForDisplayed();
+    await createDialog.$('//button[normalize-space()="暗色"]').click();
+
+    await createDialog.$('button[aria-label="关闭"]').click();
+    await $('//button[normalize-space()="放弃草稿"]').waitForDisplayed();
+    await browser.keys("Escape");
+    assert.equal(await createDialog.$('//button[normalize-space()="暗色"]').getAttribute("data-active"), "1");
+
+    await createDialog.$('button[aria-label="关闭"]').click();
+    await $('//button[normalize-space()="放弃草稿"]').click();
+    await createDialog.waitForExist({ reverse: true });
+
+    await $('//button[contains(.,"创建主题")]').click();
+    const freshDialog = await $('[role="dialog"]');
+    await freshDialog.waitForDisplayed();
+    assert.equal(await freshDialog.$('//button[normalize-space()="亮色"]').getAttribute("data-active"), "1");
+    await freshDialog.$('button[aria-label="关闭"]').click();
+    await freshDialog.waitForExist({ reverse: true });
+  });
+
+  it("protects prompt drafts when switching categories", async () => {
+    await browser.url("/settings#prompt");
+    await browser.setWindowSize(390, 900);
+    await browser.setWindowSize(1440, 900);
+    await $('//button[contains(.,"写作提示词")]').click();
+    const editor = await $("textarea");
+    await editor.waitForDisplayed();
+    await replaceInput(editor, "写作提示词草稿");
+
+    await $('//button[contains(@class,"pyqt-tab") and normalize-space()="素材"]').click();
+    await $('//button[normalize-space()="放弃草稿"]').waitForDisplayed();
+    assert.deepEqual(
+      await browser.execute(() => [...document.querySelectorAll(".tab-bar button[data-active=\"1\"]")].map((item) => item.textContent?.trim())),
+      ["全部"],
+    );
+    await browser.keys("Escape");
+
+    await $('//button[contains(@class,"pyqt-tab") and normalize-space()="素材"]').click();
+    await $('//button[normalize-space()="放弃草稿"]').click();
+    await browser.waitUntil(async () => {
+      const active = await browser.execute(() => [...document.querySelectorAll(".tab-bar button[data-active=\"1\"]")].map((item) => item.textContent?.trim()));
+      return active.join() === "素材" && (await $("textarea").getValue()) === "保持画面构图稳定。";
+    });
+    assert.equal(await $("textarea").getValue(), "保持画面构图稳定。");
   });
 
   it("keeps unsent Agent drafts with their thread", async () => {

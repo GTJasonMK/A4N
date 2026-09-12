@@ -23,6 +23,7 @@ interface EmbeddingConfigEditorProps {
   providers: EmbeddingProviderDescriptor[];
   localModels: LocalEmbeddingModel[];
   busyModel: string | null;
+  readonly?: boolean;
   setForm: (form: EmbeddingForm) => void;
   pickFastembedModel: () => LocalEmbeddingModel | null;
   resolveLocalModel: (modelName: string) => LocalEmbeddingModel | null;
@@ -37,6 +38,7 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
   providers,
   localModels,
   busyModel,
+  readonly = false,
   setForm,
   pickFastembedModel,
   resolveLocalModel,
@@ -46,181 +48,188 @@ export const EmbeddingConfigEditor: React.FC<EmbeddingConfigEditorProps> = ({
   onDeleteModel,
 }) => {
   const { locale, t } = useI18n();
-  const apiKeyInputDisabled = form.clear_api_key;
+  const apiKeyInputDisabled = form.clear_api_key || readonly;
 
   return (
     <>
-    <FormField label={t("settingsForm.configName")} required>
-      <BookInput
-        value={form.name}
-        onChange={(e) => setForm({ ...form, name: e.target.value })}
-        placeholder={t("settingsForm.configNamePlaceholder")}
-      />
-    </FormField>
-
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <FormField label={t("settingsForm.backend")}>
-        <ThemedSelect
-          value={form.backend}
-          onChange={(e) => {
-            const backend = e.target.value;
-            const fastembedModel = pickFastembedModel();
-            setForm({
-              ...form,
-              backend,
-              model:
-                backend === "local_hash"
-                  ? "local-sha256-hash"
-                  : backend === "fastembed"
-                    ? fastembedModel?.name ?? DEFAULT_FASTEMBED_MODEL
-                    : form.model || "text-embedding-3-small",
-              api_base_url: backend === "api" ? form.api_base_url : "",
-              api_key: backend === "api" ? form.api_key : "",
-              clear_api_key: backend === "api" ? form.clear_api_key : false,
-              dimension:
-                backend === "local_hash"
-                  ? 384
-                  : backend === "fastembed"
-                    ? fastembedModel?.dimension ?? DEFAULT_FASTEMBED_DIMENSION
-                    : form.dimension,
-              batch_size:
-                backend === "fastembed" && form.batch_size === 100 ? 32 : form.batch_size,
-            });
-          }}
-          className="pyqt-input w-full"
-        >
-          {providers.map((provider) => (
-            <option key={provider.id} value={provider.id}>
-              {provider.display_name}
-            </option>
-          ))}
-        </ThemedSelect>
+      <FormField label={t("settingsForm.configName")} required>
+        <BookInput
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+          placeholder={t("settingsForm.configNamePlaceholder")}
+          disabled={readonly}
+        />
       </FormField>
-      {form.backend === "fastembed" ? (
-        <FormField
-          label={t("settingsForm.model")}
-          required
-          hint={formatSelectedModelHint(
-            resolveLocalModel(form.model),
-            resolveDownloadInfo(form.model),
-            locale,
-            t,
-          )}
-        >
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormField label={t("settingsForm.backend")}>
           <ThemedSelect
-            value={form.model}
+            value={form.backend}
             onChange={(e) => {
-              const modelName = e.target.value;
-              const localModel = resolveLocalModel(modelName);
+              const backend = e.target.value;
+              const fastembedModel = pickFastembedModel();
               setForm({
                 ...form,
-                model: modelName,
-                dimension: localModel?.dimension ?? form.dimension,
+                backend,
+                model:
+                  backend === "local_hash"
+                    ? "local-sha256-hash"
+                    : backend === "fastembed"
+                      ? fastembedModel?.name ?? DEFAULT_FASTEMBED_MODEL
+                      : form.model || "text-embedding-3-small",
+                api_base_url: backend === "api" ? form.api_base_url : "",
+                api_key: backend === "api" ? form.api_key : "",
+                clear_api_key: backend === "api" ? form.clear_api_key : false,
+                dimension:
+                  backend === "local_hash"
+                    ? 384
+                    : backend === "fastembed"
+                      ? fastembedModel?.dimension ?? DEFAULT_FASTEMBED_DIMENSION
+                      : form.dimension,
+                batch_size:
+                  backend === "fastembed" && form.batch_size === 100 ? 32 : form.batch_size,
               });
             }}
             className="pyqt-input w-full"
+            disabled={readonly}
           >
-            {localModels.length === 0 ? (
-              <option value={form.model}>{form.model}</option>
-            ) : (
-              localModels.map((model) => (
-                <option key={model.name} value={model.name}>
-                  {formatModelOptionLabel(
-                    model,
-                    locale,
-                    t,
-                  )}
-                </option>
-              ))
-            )}
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.display_name}
+              </option>
+            ))}
           </ThemedSelect>
         </FormField>
-      ) : (
-        <FormField label={t("settingsForm.model")} required>
+        {form.backend === "fastembed" ? (
+          <FormField
+            label={t("settingsForm.model")}
+            required
+            hint={formatSelectedModelHint(
+              resolveLocalModel(form.model),
+              resolveDownloadInfo(form.model),
+              locale,
+              t,
+            )}
+          >
+            <ThemedSelect
+              value={form.model}
+              onChange={(e) => {
+                const modelName = e.target.value;
+                const localModel = resolveLocalModel(modelName);
+                setForm({
+                  ...form,
+                  model: modelName,
+                  dimension: localModel?.dimension ?? form.dimension,
+                });
+              }}
+              className="pyqt-input w-full"
+              disabled={readonly}
+            >
+              {localModels.length === 0 ? (
+                <option value={form.model}>{form.model}</option>
+              ) : (
+                localModels.map((model) => (
+                  <option key={model.name} value={model.name}>
+                    {formatModelOptionLabel(model, locale, t)}
+                  </option>
+                ))
+              )}
+            </ThemedSelect>
+          </FormField>
+        ) : (
+          <FormField label={t("settingsForm.model")} required>
+            <BookInput
+              value={form.model}
+              onChange={(e) => setForm({ ...form, model: e.target.value })}
+              placeholder={
+                form.backend === "api"
+                  ? "text-embedding-3-small"
+                  : "local-sha256-hash"
+              }
+              disabled={readonly}
+            />
+          </FormField>
+        )}
+      </div>
+
+      {form.backend === "fastembed" && (
+        <FastembedModelPanel
+          model={resolveLocalModel(form.model)}
+          downloadInfo={resolveDownloadInfo(form.model)}
+          modelName={form.model}
+          busy={busyModel === form.model}
+          modelHostLabel={modelHostLabel}
+          onDownload={() => void onDownloadModel(form.model)}
+          onDelete={() => void onDeleteModel(form.model)}
+        />
+      )}
+
+      {form.backend === "api" && (
+        <FormField label={t("settingsForm.endpoint")}>
           <BookInput
-            value={form.model}
-            onChange={(e) => setForm({ ...form, model: e.target.value })}
-            placeholder={form.backend === "api" ? "text-embedding-3-small" : "local-sha256-hash"}
+            value={form.api_base_url}
+            onChange={(e) => setForm({ ...form, api_base_url: e.target.value })}
+            placeholder="https://api.openai.com/v1"
+            disabled={readonly}
           />
         </FormField>
       )}
-    </div>
 
-    {form.backend === "fastembed" && (
-      <FastembedModelPanel
-        model={resolveLocalModel(form.model)}
-        downloadInfo={resolveDownloadInfo(form.model)}
-        modelName={form.model}
-        busy={busyModel === form.model}
-        modelHostLabel={modelHostLabel}
-        onDownload={() => void onDownloadModel(form.model)}
-        onDelete={() => void onDeleteModel(form.model)}
-      />
-    )}
+      {form.backend === "api" && (
+        <>
+          <FormField label={t("settingsForm.apiKey")}>
+            <BookInput
+              type="password"
+              value={form.api_key}
+              onChange={(e) =>
+                setForm({ ...form, api_key: e.target.value, clear_api_key: false })
+              }
+              autoComplete="off"
+              disabled={apiKeyInputDisabled}
+            />
+          </FormField>
+          {form.has_api_key ? (
+            <ClearSavedApiKeySwitch
+              checked={form.clear_api_key}
+              disabled={readonly}
+              onChange={(checked) =>
+                setForm({
+                  ...form,
+                  api_key: checked ? "" : form.api_key,
+                  clear_api_key: checked,
+                })
+              }
+            />
+          ) : null}
+        </>
+      )}
 
-    {form.backend === "api" && (
-      <FormField label={t("settingsForm.endpoint")}>
-        <BookInput
-          value={form.api_base_url}
-          onChange={(e) => setForm({ ...form, api_base_url: e.target.value })}
-          placeholder="https://api.openai.com/v1"
-        />
-      </FormField>
-    )}
-
-    {form.backend === "api" && (
-      <>
-        <FormField label={t("settingsForm.apiKey")}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormField
+          label={t("settingsForm.dimension")}
+          required
+          hint={t("settingsForm.dimensionHint")}
+        >
           <BookInput
-            type="password"
-            value={form.api_key}
-            onChange={(e) =>
-              setForm({ ...form, api_key: e.target.value, clear_api_key: false })
-            }
-            autoComplete="off"
-            disabled={apiKeyInputDisabled}
+            type="number"
+            min={32}
+            max={8192}
+            value={String(form.dimension)}
+            disabled={readonly || form.backend === "fastembed"}
+            onChange={(e) => setForm({ ...form, dimension: Number(e.target.value) })}
           />
         </FormField>
-        {form.has_api_key ? (
-          <ClearSavedApiKeySwitch
-            checked={form.clear_api_key}
-            onChange={(checked) =>
-              setForm({
-                ...form,
-                api_key: checked ? "" : form.api_key,
-                clear_api_key: checked,
-              })
-            }
+        <FormField label={t("settingsForm.batchSize")} required>
+          <BookInput
+            type="number"
+            min={1}
+            max={2048}
+            value={String(form.batch_size)}
+            onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })}
+            disabled={readonly}
           />
-        ) : null}
-      </>
-    )}
-
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <FormField
-        label={t("settingsForm.dimension")}
-        required
-        hint={t("settingsForm.dimensionHint")}
-      >
-        <BookInput
-          type="number"
-          min={32}
-          max={8192}
-          value={String(form.dimension)}
-          disabled={form.backend === "fastembed"}
-          onChange={(e) => setForm({ ...form, dimension: Number(e.target.value) })}
-        />
-      </FormField>
-      <FormField label={t("settingsForm.batchSize")} required>
-        <BookInput
-          type="number"
-          min={1}
-          max={2048}
-          value={String(form.batch_size)}
-          onChange={(e) => setForm({ ...form, batch_size: Number(e.target.value) })}
-        />
-      </FormField>
-    </div>
+        </FormField>
+      </div>
     </>
   );
 };

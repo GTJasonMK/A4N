@@ -77,6 +77,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
     {
       label: t("settingsTheme.export"),
       icon: <Download size={12} />,
+      disabled: mutationBusy,
       onClick: onExport,
     },
   ];
@@ -241,7 +242,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
               <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
                 <LoadingSpinner size="sm" />
               </span>
-            ) : (
+            ) : mutationBusy ? null : (
               <Dropdown items={moreItems} />
             )}
           </div>

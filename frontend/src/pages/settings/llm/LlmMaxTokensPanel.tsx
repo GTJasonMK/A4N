@@ -166,7 +166,11 @@ export const LlmMaxTokensPanel: React.FC<LlmMaxTokensPanelProps> = ({
     : null;
 
   return (
-    <section aria-label={t("settingsForm.sceneBudget")} className="a4n-flat-surface flex-none overflow-hidden">
+    <section
+      aria-label={t("settingsForm.sceneBudget")}
+      data-settings-dirty={dirty ? "true" : undefined}
+      className="a4n-flat-surface flex-none overflow-hidden"
+    >
       <div className="flex min-w-0 items-center gap-2 px-3 py-2.5 max-sm:flex-wrap">
         <button
           type="button"

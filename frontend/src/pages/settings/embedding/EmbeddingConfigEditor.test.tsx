@@ -6,6 +6,42 @@ import { I18nProvider } from "../../../i18n";
 import type { LocalEmbeddingModel } from "../../../api/config";
 
 describe("EmbeddingConfigEditor", () => {
+  it("makes read-only configuration fields visibly unavailable", () => {
+    const form: EmbeddingForm = {
+      name: "system",
+      backend: "local_hash",
+      model: "local-sha256-hash",
+      api_base_url: "",
+      api_key: "",
+      has_api_key: false,
+      clear_api_key: false,
+      dimension: 384,
+      batch_size: 100,
+      local_model_path: "",
+    };
+    const html = renderToStaticMarkup(
+      <I18nProvider initialLocale="zh-CN">
+        <EmbeddingConfigEditor
+          form={form}
+          providers={[{ id: "local_hash", display_name: "本地哈希" }]}
+          localModels={[]}
+          busyModel={null}
+          readonly
+          setForm={() => undefined}
+          pickFastembedModel={() => null}
+          resolveLocalModel={() => null}
+          resolveDownloadInfo={() => null}
+          modelHostLabel="本机"
+          onDownloadModel={() => undefined}
+          onDeleteModel={() => undefined}
+        />
+      </I18nProvider>,
+    );
+
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('value="system"');
+  });
+
   it("keeps the saved fastembed model visible when the model catalog is unavailable", () => {
     const form: EmbeddingForm = {
       name: "env15",

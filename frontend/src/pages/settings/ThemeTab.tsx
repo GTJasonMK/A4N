@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import { type ThemeAppearance } from "../../api/theme";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { Modal } from "../../components/ui/Modal";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import {
   CreateThemePanel,
   SingleThemeImportPanel,
@@ -23,7 +24,75 @@ export const ThemeTab: React.FC = () => {
   const themeTab = useThemeTabController();
   const { t } = useI18n();
   const editingTheme = themeTab.themes.find((theme) => theme.id === themeTab.editingId) ?? null;
+  const renamingTheme = themeTab.themes.find((theme) => theme.id === themeTab.renamingId) ?? null;
   const [themeAction, setThemeAction] = useState<ThemeAction>(null);
+  const editorDirtyRef = useRef(false);
+  const hasRenameDraft =
+    renamingTheme != null && themeTab.renameValue.trim() !== renamingTheme.name.trim();
+  const hasThemeDraft =
+    (themeAction === "create" &&
+      (themeTab.newName.trim().length > 0 || themeTab.newMode !== "light")) ||
+    (themeAction === "import" && themeTab.importText.trim().length > 0) ||
+    hasRenameDraft;
+
+  const confirmDiscardThemeDraft = async (action: string): Promise<boolean> => {
+    if (!hasThemeDraft) return true;
+    return confirmDialog({
+      title: t("common.unsavedChangesTitle"),
+      message: t("common.unsavedChangesMessage", {
+        name: t("settings.theme"),
+        action,
+      }),
+      confirmText: t("common.discardDraft"),
+      dialogType: "warning",
+    });
+  };
+
+  const handleThemeActionClose = async () => {
+    if (themeTab.mutationBusy) return;
+    if (!(await confirmDiscardThemeDraft(t("common.close")))) return;
+    setThemeAction(null);
+    themeTab.setNewName("");
+    themeTab.setNewMode("light");
+    themeTab.setImportText("");
+  };
+
+  const handleRenameCancel = async () => {
+    if (!(await confirmDiscardThemeDraft(t("settingsTheme.cancel")))) return;
+    themeTab.setRenamingId(null);
+    themeTab.setRenameValue("");
+  };
+
+  const handleThemeActionStart = (action: Exclude<ThemeAction, null>) => {
+    if (themeTab.mutationBusy) return;
+    setThemeAction(action);
+  };
+
+  const reportEditorDirty = useCallback((dirty: boolean) => {
+    editorDirtyRef.current = dirty;
+  }, []);
+
+  const closeEditor = () => {
+    editorDirtyRef.current = false;
+    themeTab.handleEditorCancel();
+  };
+
+  const handleEditorClose = async () => {
+    if (themeTab.editorSaving) return;
+    if (editorDirtyRef.current) {
+      const confirmed = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: editingTheme?.name ?? t("settingsTheme.editorTitle"),
+          action: t("settingsTheme.cancel"),
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!confirmed) return;
+    }
+    closeEditor();
+  };
   const appearanceOptions: Array<{
     id: ThemeAppearance;
     label: string;
@@ -37,7 +106,8 @@ export const ThemeTab: React.FC = () => {
     <ThemeEditorPanel
       theme={editingTheme}
       saving={themeTab.editorSaving}
-      onCancel={themeTab.handleEditorCancel}
+      onCancel={closeEditor}
+      onDirtyChange={reportEditorDirty}
       onSave={(input, pendingFiles, deleteResourceIds) =>
         themeTab.handleEditorSave(
           editingTheme.id,
@@ -50,7 +120,10 @@ export const ThemeTab: React.FC = () => {
   ) : null;
 
   return (
-    <div className="custom-scrollbar flex h-auto flex-col gap-4 overflow-visible pb-12 md:h-full md:overflow-y-auto md:pr-2">
+    <div
+      data-settings-dirty={hasThemeDraft ? "true" : undefined}
+      className="custom-scrollbar flex h-auto flex-col gap-4 overflow-visible pb-12 md:h-full md:overflow-y-auto md:pr-2"
+    >
       <section className="a4n-flat-surface grid min-w-0 grid-cols-1 gap-2 px-3 py-3 sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:px-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-book-text-main">{t("settingsTheme.appearance")}</h2>
@@ -89,31 +162,34 @@ export const ThemeTab: React.FC = () => {
         onRenameInput={themeTab.setRenameValue}
         onRenameStart={themeTab.handleStartRename}
         onRenameConfirm={themeTab.handleConfirmRename}
-        onRenameCancel={() => themeTab.setRenamingId(null)}
+        onRenameCancel={() => void handleRenameCancel()}
         onActivate={themeTab.handleActivate}
         onEdit={themeTab.handleEdit}
         onDelete={themeTab.handleDelete}
         onDeleteMany={themeTab.handleDeleteMany}
         onExport={themeTab.handleExport}
-        onCreate={() => setThemeAction("create")}
-        onImport={() => setThemeAction("import")}
-        onPackage={() => setThemeAction("package")}
+        onCreate={() => handleThemeActionStart("create")}
+        onImport={() => handleThemeActionStart("import")}
+        onPackage={() => handleThemeActionStart("package")}
       />
 
       <Modal
         isOpen={Boolean(editingTheme)}
-        onClose={themeTab.handleEditorCancel}
+        onClose={() => void handleEditorClose()}
         title={editingTheme?.name ?? t("settingsTheme.editorTitle")}
         subtitle={editingTheme ? t("settingsTheme.editorHint") : undefined}
         maxWidthClassName="max-w-3xl"
         bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
+        closeOnBackdrop={!themeTab.editorSaving}
+        closeOnEscape={!themeTab.editorSaving}
+        showCloseButton={!themeTab.editorSaving}
       >
         {editorPanel}
       </Modal>
 
       <Modal
         isOpen={themeAction != null}
-        onClose={() => setThemeAction(null)}
+        onClose={() => void handleThemeActionClose()}
         title={
           themeAction === "create"
             ? t("settingsTheme.create")
@@ -130,6 +206,9 @@ export const ThemeTab: React.FC = () => {
         }
         maxWidthClassName="max-w-3xl"
         bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-4"
+        closeOnBackdrop={!themeTab.mutationBusy}
+        closeOnEscape={!themeTab.mutationBusy}
+        showCloseButton={!themeTab.mutationBusy}
       >
         {themeAction === "create" ? (
           <CreateThemePanel
