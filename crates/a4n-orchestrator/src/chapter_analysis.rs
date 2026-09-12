@@ -21,11 +21,11 @@ pub use outputs::{
 };
 pub use workflow::{
     CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
-    ChapterAnalysisCheckpointIncomplete, ChapterAnalysisResumeBlockReason,
-    chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
-    chapter_analysis_run_input_matches, chapter_analysis_run_uses_replacement_commit,
-    chapter_analysis_workflow_business_key, chapter_analysis_workflow_fingerprint,
-    chapter_analysis_workflow_run_input, require_completed_chapter_analysis_phase,
+    ChapterAnalysisResumeBlockReason, chapter_analysis_phase_fingerprint,
+    chapter_analysis_resume_block_reason, chapter_analysis_run_input_matches,
+    chapter_analysis_run_uses_replacement_commit, chapter_analysis_workflow_business_key,
+    chapter_analysis_workflow_fingerprint, chapter_analysis_workflow_run_input,
+    require_completed_chapter_analysis_phase,
 };
 
 pub type ChapterAnalysisProgressReporter<'a> =
