@@ -15,10 +15,7 @@ mod persistence;
 mod stages;
 mod workflow;
 
-pub use outputs::{
-    ChapterAnalysisOutputError, chapter_analysis_foreshadowing_drafts,
-    retrospective_chapter_outline_input,
-};
+pub use outputs::{ChapterAnalysisOutputError, chapter_analysis_foreshadowing_drafts};
 pub use workflow::{
     CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
     ChapterAnalysisResumeBlockReason, chapter_analysis_phase_fingerprint,
