@@ -1,7 +1,7 @@
 use a4n_error::AppError;
 use std::collections::{BTreeSet, HashMap};
 
-pub use a4n_api_contract::video::{
+use a4n_api_contract::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
     VideoSegmentPlanDraftSummary,

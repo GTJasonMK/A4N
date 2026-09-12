@@ -116,9 +116,7 @@ pub use library::{
     video_reference_scope_rank,
 };
 pub use prompt_application::{
-    ChapterVideoPromptSummary, GenerateChapterVideoPromptInput, LoadVideoSegmentPlanDraftInput,
-    OptimizeChapterVideoPromptInput, UpdateChapterVideoPromptInput,
-    UpdateVideoSegmentPlanDraftRecipeInput, VideoPromptApplicationContext,
+    GenerateChapterVideoPromptInput, VideoPromptApplicationContext,
 };
 pub(crate) use prompt_application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
