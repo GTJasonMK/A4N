@@ -48,7 +48,7 @@ pub use permissions::{
 };
 pub(crate) use service::optimize_db_error;
 pub(in crate::optimize) use session_names::required_available_session_name;
-pub(in crate::optimize) use workflow_rules::optimize_session_workflow_run_input;
+pub(crate) use workflow_rules::optimize_session_workflow_run_input;
 
 pub use a4n_db::optimize::{
     OptimizationBlueprintRows, OptimizationChapterPatchWriteInput, OptimizationContextReadInput,
