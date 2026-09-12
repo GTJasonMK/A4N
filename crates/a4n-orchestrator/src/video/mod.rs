@@ -85,7 +85,7 @@ pub use boundary_frame_rules::latest_boundary_frame_image_id;
 pub(in crate::video) use boundary_frame_rules::{
     boundary_frame_numbers_for_prompt, frame_prompt_matches_video_prompt,
 };
-pub use chapter_video_generation::GenerateChapterVideosBatchInput;
+pub(in crate::video) use chapter_video_generation::GenerateChapterVideosBatchInput;
 pub use chapter_video_request_rules::{
     BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
     append_provider_input_note, build_video_generation_provider_prompt_with_renderer,
