@@ -4,7 +4,6 @@ use std::sync::{
 };
 
 use a4n_api_contract::image::GeneratedImageSummary;
-use a4n_api_contract::image_generation::{ObjectProfileImageInput, SceneProfileImageInput};
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_db::{
     DatabaseConnection,
@@ -68,7 +67,7 @@ fn cancelled_image_progress_preserves_cancelled_error() {
 
 #[test]
 fn profile_image_inputs_enforce_documented_contract() {
-    let object_error = serde_json::from_value::<ObjectProfileImageInput>(json!({
+    let object_error = serde_json::from_value::<super::ObjectProfileImageInput>(json!({
         "object_profile_id": 1,
         "style": "写实",
         "set_primary": true
@@ -76,7 +75,7 @@ fn profile_image_inputs_enforce_documented_contract() {
     .expect_err("object profile input must reject unknown fields");
     assert!(object_error.to_string().contains("unknown field"));
 
-    let scene_error = serde_json::from_value::<SceneProfileImageInput>(json!({
+    let scene_error = serde_json::from_value::<super::SceneProfileImageInput>(json!({
         "scene_profile_id": 1,
         "style": "写实",
         "legacy_style_id": "old"
@@ -84,7 +83,7 @@ fn profile_image_inputs_enforce_documented_contract() {
     .expect_err("scene profile input must reject unknown fields");
     assert!(scene_error.to_string().contains("unknown field"));
 
-    let object = serde_json::from_value::<ObjectProfileImageInput>(json!({
+    let object = serde_json::from_value::<super::ObjectProfileImageInput>(json!({
         "object_profile_id": 1,
         "chapter_id": 2,
         "style": "写实",
@@ -98,7 +97,7 @@ fn profile_image_inputs_enforce_documented_contract() {
     assert_eq!(object.object_profile_id, 1);
     assert_eq!(object.chapter_id, Some(2));
 
-    let scene = serde_json::from_value::<SceneProfileImageInput>(json!({
+    let scene = serde_json::from_value::<super::SceneProfileImageInput>(json!({
         "scene_profile_id": 4,
         "chapter_id": null,
         "style": null,

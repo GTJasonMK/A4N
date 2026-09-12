@@ -1,5 +1,5 @@
 use a4n_api_contract::image::GeneratedImageSummary;
-use a4n_api_contract::image_generation::{
+pub use a4n_api_contract::image_generation::{
     GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
     GenerateSceneImageInput, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
     SceneProfileImageInput, SceneProfileImagePromptOutput,

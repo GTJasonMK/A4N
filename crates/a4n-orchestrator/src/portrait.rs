@@ -46,12 +46,12 @@ pub use workflow_rules::{
     portrait_prompt_checkpoint_fingerprint, portrait_prompt_workflow_fingerprint,
 };
 
-/// Host-facing boundary for portrait generation workers.
+/// Host-facing boundary for portrait request previews.
 ///
-/// Runtime owns task scheduling and supplies prompt/file/provider adapters;
-/// portrait validation, persistence and workflow state stay here.
+/// Runtime supplies prompt rendering; portrait validation and request
+/// construction stay with the portrait owner.
 #[async_trait::async_trait]
-pub trait PortraitGenerationApplicationPort: Send + Sync {
+pub trait PortraitRequestPreviewApplicationPort: Send + Sync {
     async fn prepare_portrait_prompt_request(
         &self,
         input: &ApiGeneratePortraitPromptInput,
@@ -64,21 +64,36 @@ pub trait PortraitGenerationApplicationPort: Send + Sync {
         input: &ApiGeneratePortraitInput,
         prompt_renderer: &dyn PromptRenderer,
     ) -> Result<ChatRequest, AppError>;
+}
 
+/// Host-facing boundary for generating a portrait prompt.
+#[async_trait::async_trait]
+pub trait PortraitPromptApplicationPort: Send + Sync {
     async fn generate_portrait_prompt(
         &self,
         input: ApiGeneratePortraitPromptInput,
         prompt_renderer: &dyn PromptRenderer,
         variables: &HashMap<String, Value>,
     ) -> Result<String, AppError>;
+}
 
+/// Host-facing boundary for publishing an uploaded portrait.
+#[async_trait::async_trait]
+pub trait PortraitUploadApplicationPort: Send + Sync {
     async fn upload_portrait(
         &self,
         user_id: i64,
         input: UploadPortraitInput,
         host_port: &dyn PortraitGenerationHostPort,
     ) -> Result<PortraitSummary, AppError>;
+}
 
+/// Host-facing boundary for portrait generation workers.
+///
+/// Runtime owns task scheduling and supplies prompt/file/provider adapters;
+/// portrait validation, persistence and workflow state stay here.
+#[async_trait::async_trait]
+pub trait PortraitGenerationApplicationPort: Send + Sync {
     async fn start_task(
         &self,
         user_id: i64,

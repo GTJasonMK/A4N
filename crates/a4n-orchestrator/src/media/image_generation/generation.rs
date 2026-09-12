@@ -8,9 +8,7 @@ use a4n_api_contract::{
     image::GeneratedImageSummary,
     image_generation::{
         GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
-        GenerateSceneImageInput, ImageGenerationOperation, ObjectProfileImageInput,
-        ObjectProfileImagePromptOutput, SceneProfileImageInput, SceneProfileImagePromptOutput,
-        StartImageGenerationInput,
+        GenerateSceneImageInput, ImageGenerationOperation, StartImageGenerationInput,
     },
 };
 use a4n_canvas_contract::GenerateCanvasImageInput;
@@ -30,7 +28,8 @@ use crate::{
     },
     media::{
         BatchImageGenerationOutcome, ImageGenerationApplicationPort, ImageGenerationHostPort,
-        ImageGenerationProgress, PreparedImageGenerationRequest,
+        ImageGenerationProgress, ObjectProfileImageInput, PreparedImageGenerationRequest,
+        SceneProfileImageInput,
     },
 };
 
@@ -467,7 +466,7 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &ObjectProfileImageInput,
-    ) -> Result<ObjectProfileImagePromptOutput, AppError> {
+    ) -> Result<crate::media::ObjectProfileImagePromptOutput, AppError> {
         self.generate_object_profile_image_prompt_validated(user_id, input)
             .await
     }
@@ -476,7 +475,7 @@ impl ImageGenerationApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: &SceneProfileImageInput,
-    ) -> Result<SceneProfileImagePromptOutput, AppError> {
+    ) -> Result<crate::media::SceneProfileImagePromptOutput, AppError> {
         self.generate_scene_profile_image_prompt_validated(user_id, input)
             .await
     }

@@ -13,7 +13,7 @@ pub async fn preview_import_project_analysis_request(
 ) -> Result<ModelRequestPreview, AppError> {
     let prompt_renderer = state;
     let steps = state
-        .import_analysis_application()
+        .import_analysis_preview_application()
         .preview(user_id, project_id, prompt_renderer)
         .await?
         .into_iter()

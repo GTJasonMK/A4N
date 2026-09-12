@@ -20,7 +20,7 @@ pub async fn plan_galgame_assets(
     input: GalgameProjectInput,
 ) -> Result<GalgameAssetPlan, String> {
     state
-        .galgame_asset_generation_application()
+        .galgame_asset_plan_application()
         .plan(user_id, input.project_id)
         .await
         .map_err(|err| err.to_string())

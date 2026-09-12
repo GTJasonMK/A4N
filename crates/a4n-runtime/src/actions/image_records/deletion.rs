@@ -8,7 +8,7 @@ pub async fn delete_image(
     input: DeleteImageInput,
 ) -> Result<(), String> {
     state
-        .image_record_application()
+        .image_record_mutation_application()
         .delete(user_id, input)
         .await
         .map_err(app_error_message)

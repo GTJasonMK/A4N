@@ -15,39 +15,16 @@ pub(crate) use projection::source_sync_plan_summary;
 pub use service::ApplySourceSyncApplicationInput;
 pub(crate) use workflow_rules::source_sync_apply_workflow_run_input;
 
+use crate::prompt_records::PromptRendererAdapter;
 use a4n_api_contract::source_sync::{
     ApplySourceSyncInput, SourceSyncPlanSummary, SourceSyncProjectInput,
 };
 use a4n_error::AppError;
-use a4n_prompt::rendering::PromptRenderer;
 use a4n_queue::TaskFamilyContext;
 use a4n_queue::priority::{TaskKind as QueueTaskKind, TaskPriority};
 
-/// Host-facing source-sync boundary.
-///
-/// Permission checks, queue registration, persistence and API projection stay
-/// in the source-sync owner. Runtime only supplies the prompt renderer needed
-/// by the Galgame regeneration branch.
 #[async_trait::async_trait]
-pub trait SourceSyncApplicationPort: Send + Sync {
-    async fn preview(
-        &self,
-        user_id: i64,
-        input: SourceSyncProjectInput,
-    ) -> Result<SourceSyncPlanSummary, AppError>;
-
-    async fn apply(
-        &self,
-        user_id: i64,
-        input: ApplySourceSyncInput,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<SourceSyncPlanSummary, AppError>;
-
-    async fn detach(&self, user_id: i64, input: SourceSyncProjectInput) -> Result<(), AppError>;
-}
-
-#[async_trait::async_trait]
-impl SourceSyncApplicationPort for crate::OrchestratorContext {
+impl a4n_api_contract::source_sync::SourceSyncReadApplicationPort for crate::OrchestratorContext {
     async fn preview(
         &self,
         user_id: i64,
@@ -72,13 +49,19 @@ impl SourceSyncApplicationPort for crate::OrchestratorContext {
             .await?;
         source_sync_plan_summary(plan)
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::source_sync::SourceSyncMutationApplicationPort
+    for crate::OrchestratorContext
+{
     async fn apply(
         &self,
         user_id: i64,
         input: ApplySourceSyncInput,
-        prompt_renderer: &dyn PromptRenderer,
+        prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
     ) -> Result<SourceSyncPlanSummary, AppError> {
+        let prompt_renderer = PromptRendererAdapter(prompt_renderer);
         let run = self
             .source_sync_run_for_user_validated(user_id, input.sync_run_id)
             .await?;
@@ -97,7 +80,7 @@ impl SourceSyncApplicationPort for crate::OrchestratorContext {
                     self.run_source_sync_apply_validated(ApplySourceSyncApplicationInput {
                         run,
                         decisions: input.decisions,
-                        galgame_prompt_renderer: Some(prompt_renderer),
+                        galgame_prompt_renderer: Some(&prompt_renderer),
                     })
                     .await
                 },

@@ -72,3 +72,33 @@ pub struct SourceSyncPlanSummary {
     pub run: SourceSyncRunSummary,
     pub conflicts: Vec<SourceSyncConflictSummary>,
 }
+
+/// Host-facing source synchronization read boundary.
+#[async_trait::async_trait]
+pub trait SourceSyncReadApplicationPort: Send + Sync {
+    async fn preview(
+        &self,
+        user_id: i64,
+        input: SourceSyncProjectInput,
+    ) -> Result<SourceSyncPlanSummary, a4n_error::AppError>;
+}
+
+/// Host-facing source synchronization mutation boundary.
+///
+/// Conflict persistence stays with the source-sync owner; Runtime only
+/// supplies prompt rendering for the Galgame regeneration branch.
+#[async_trait::async_trait]
+pub trait SourceSyncMutationApplicationPort: Send + Sync {
+    async fn apply(
+        &self,
+        user_id: i64,
+        input: ApplySourceSyncInput,
+        prompt_renderer: &dyn crate::prompt::PromptRenderPort,
+    ) -> Result<SourceSyncPlanSummary, a4n_error::AppError>;
+
+    async fn detach(
+        &self,
+        user_id: i64,
+        input: SourceSyncProjectInput,
+    ) -> Result<(), a4n_error::AppError>;
+}

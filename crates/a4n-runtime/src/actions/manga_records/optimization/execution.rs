@@ -10,7 +10,7 @@ pub async fn optimize_manga_prompt(
     let cleanup = RuntimeMangaDownstreamCleanup { state, user_id };
     let prompt_renderer = state;
     state
-        .manga_record_application()
+        .manga_record_mutation_application()
         .optimize_prompt(user_id, input, prompt_renderer, &cleanup)
         .await
         .map_err(crate::actions::app_error_message)

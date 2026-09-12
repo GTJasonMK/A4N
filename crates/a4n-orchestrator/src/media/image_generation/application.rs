@@ -1,11 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
 use a4n_api_contract::image::GeneratedImageSummary;
-use a4n_api_contract::image_generation::{
-    GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
-    GenerateSceneImageInput, ObjectProfileImageInput, ObjectProfileImagePromptOutput,
-    SceneProfileImageInput, SceneProfileImagePromptOutput,
-};
 use a4n_api_contract::manga::MangaReferenceBindingSummary;
 use a4n_canvas_contract::GenerateCanvasImageInput;
 use a4n_config::{ensure_image_size_supported, image_sizes_from_json};
@@ -49,8 +44,11 @@ use super::{
         },
     },
     contracts::{
-        ImageGenerationExecutionInput, ImageGenerationHostPort, ImageGenerationPostCommitAction,
-        ImageGenerationProgress, ImageGenerationWorkflowBinding, PreparedImageGenerationRequest,
+        GenerateBatchImagesInput, GenerateGalgameImageInput, GeneratePageImageInput,
+        GenerateSceneImageInput, ImageGenerationExecutionInput, ImageGenerationHostPort,
+        ImageGenerationPostCommitAction, ImageGenerationProgress, ImageGenerationWorkflowBinding,
+        ObjectProfileImageInput, ObjectProfileImagePromptOutput, PreparedImageGenerationRequest,
+        SceneProfileImageInput, SceneProfileImagePromptOutput,
     },
 };
 

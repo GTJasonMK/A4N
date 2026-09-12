@@ -5,7 +5,7 @@ use serde_json::Value;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video_contract::{VideoProviderPollTarget, VideoSegmentPlanV2};
 
-pub use a4n_domain::{AssemblyPostprocessOperation, DownstreamConflictStrategy};
+pub use a4n_domain::{AssemblyPostprocessOperation, CanvasFrameKind, DownstreamConflictStrategy};
 pub use a4n_video_contract::VideoSegmentExecutionRecipeV1;
 
 use crate::serde_update::{deserialize_non_null_update_field, deserialize_nullable_update_field};
@@ -504,6 +504,315 @@ pub trait VideoPromptReadApplicationPort: Send + Sync {
     ) -> Result<(), a4n_error::AppError>;
 }
 
+/// Host-facing read/write boundary for the chapter video timeline.
+///
+/// Timeline revision and ordering rules stay in the video owner; Runtime only
+/// routes the stable timeline contract.
+#[async_trait::async_trait]
+pub trait VideoPromptTimelineApplicationPort: Send + Sync {
+    async fn get_video_timeline(
+        &self,
+        user_id: i64,
+        input: GetVideoTimelineInput,
+    ) -> Result<VideoTimelineSummary, a4n_error::AppError>;
+
+    async fn commit_inserted_segment_draft(
+        &self,
+        user_id: i64,
+        input: CommitInsertedSegmentDraftInput,
+    ) -> Result<VideoTimelineSummary, a4n_error::AppError>;
+
+    async fn move_video_timeline_item(
+        &self,
+        user_id: i64,
+        input: MoveInsertedSegmentInput,
+    ) -> Result<VideoTimelineSummary, a4n_error::AppError>;
+
+    async fn delete_video_timeline_item(
+        &self,
+        user_id: i64,
+        input: DeleteInsertedSegmentInput,
+    ) -> Result<VideoTimelineSummary, a4n_error::AppError>;
+}
+
+/// Host-facing boundary for loading and updating a segment-plan draft.
+///
+/// Workflow/checkpoint validation and the summary projection stay in the video
+/// owner; Runtime only routes the contract.
+#[async_trait::async_trait]
+pub trait VideoPromptDraftApplicationPort: Send + Sync {
+    async fn load_video_segment_plan_draft(
+        &self,
+        user_id: i64,
+        input: LoadVideoSegmentPlanDraftInput,
+    ) -> Result<VideoSegmentPlanDraftSummary, a4n_error::AppError>;
+
+    async fn update_video_segment_plan_draft_recipe(
+        &self,
+        user_id: i64,
+        input: UpdateVideoSegmentPlanDraftRecipeInput,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for chapter video prompts and segment recipes.
+///
+/// Video ownership keeps authorization, dependency planning, persistence and
+/// projection. Runtime supplies only cleanup and prompt rendering capabilities.
+#[async_trait::async_trait]
+pub trait VideoPromptMutationApplicationPort: Send + Sync {
+    async fn update_chapter_video_segment_recipe(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        recipe: VideoSegmentExecutionRecipeV1,
+    ) -> Result<Vec<VideoSegmentExecutionRecipeV1>, a4n_error::AppError>;
+
+    async fn update_chapter_video_prompt(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        input: UpdateChapterVideoPromptInput,
+        cleanup: &dyn VideoPromptDownstreamCleanupPort,
+    ) -> Result<ChapterVideoPromptSummary, a4n_error::AppError>;
+
+    async fn delete_chapter_video_prompt(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        downstream_strategy: DownstreamConflictStrategy,
+        cleanup: &dyn VideoPromptDownstreamCleanupPort,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn optimize_chapter_video_prompt(
+        &self,
+        user_id: i64,
+        prompt_id: i64,
+        input: OptimizeChapterVideoPromptInput,
+        prompt_renderer: &dyn crate::prompt::PromptRenderPort,
+        cleanup: &dyn VideoPromptDownstreamCleanupPort,
+    ) -> Result<ChapterVideoPromptSummary, a4n_error::AppError>;
+}
+
+/// Host-facing read boundary for persisted video records and validated media.
+#[async_trait::async_trait]
+pub trait VideoRecordReadApplicationPort: Send + Sync {
+    async fn playback_source(
+        &self,
+        user_id: i64,
+        video_id: i64,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+
+    async fn list_by_chapter(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<GeneratedVideoSummary>, a4n_error::AppError>;
+
+    async fn validated_reference_images(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        reference_image_ids_json: Option<&Value>,
+    ) -> Result<Vec<crate::image::GeneratedImageSummary>, a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for ordinary video-record commands.
+#[async_trait::async_trait]
+pub trait VideoRecordMutationApplicationPort: Send + Sync {
+    async fn update(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        input: UpdateGeneratedVideoInput,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+
+    async fn select_segment(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        video_id: i64,
+        input: SelectSegmentVideoInput,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+
+    async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing video import and trim boundary.
+///
+/// Runtime supplies inspected file facts; the video owner creates records and
+/// enforces project, chapter, and workflow invariants.
+#[async_trait::async_trait]
+pub trait VideoImportApplicationPort: Send + Sync {
+    async fn create_imported_chapter_video_record(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        prompt_id: i64,
+        properties: a4n_video_contract::ImportedVideoProperties,
+        source_file_name: &str,
+        source_extension: &str,
+        imported_at: &str,
+    ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+
+    async fn create_imported_reference_media_video_record(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        properties: a4n_video_contract::ImportedVideoProperties,
+        source_file_name: &str,
+        source_extension: &str,
+        imported_at: &str,
+        segment_plan_prompt_id: i64,
+        target_source_shot_id: &str,
+        target_segment_index: i32,
+    ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+
+    async fn create_imported_assembly_insert_video_record(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        insert_after_video_id: Option<i64>,
+        properties: a4n_video_contract::ImportedVideoProperties,
+        source_file_name: &str,
+        source_extension: &str,
+        imported_at: &str,
+    ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+
+    async fn create_imported_canvas_video_record(
+        &self,
+        project_id: i64,
+        properties: a4n_video_contract::ImportedVideoProperties,
+        source_file_name: &str,
+        source_extension: &str,
+        imported_at: &str,
+    ) -> Result<VideoImportRecordSummary, a4n_error::AppError>;
+
+    async fn prepare_trim(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        start_secs: f32,
+        end_secs: f32,
+    ) -> Result<VideoTrimPlan, a4n_error::AppError>;
+
+    async fn create_trimmed_record(
+        &self,
+        plan: VideoTrimPlan,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+}
+
+/// Host-facing Assembly planning and push boundary.
+#[async_trait::async_trait]
+pub trait VideoAssemblyApplicationPort: Send + Sync {
+    async fn assembly_records(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        operation: &str,
+    ) -> Result<AssemblyVideoRecords, a4n_error::AppError>;
+
+    async fn prepare_assembly_postprocess_edit(
+        &self,
+        push_video_id: i64,
+        operation: AssemblyPostprocessOperation,
+    ) -> Result<AssemblyPostprocessPlan, a4n_error::AppError>;
+
+    async fn prepare_assembly_postprocess_source(
+        &self,
+        plan: &AssemblyPostprocessPlan,
+        source_video_id: Option<i64>,
+        has_uploaded_source: bool,
+    ) -> Result<AssemblyPostprocessSourcePlan, a4n_error::AppError>;
+
+    async fn create_assembly_postprocess_edit_record(
+        &self,
+        plan: AssemblyPostprocessPlan,
+        input: AssemblyPostprocessEditRecordInput,
+    ) -> Result<PreparedAssemblyPostprocessEditRecord, a4n_error::AppError>;
+
+    async fn create_assembly_push_record(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_mode: &str,
+        clips: Vec<AssemblyPushClipInput>,
+        end_video_id: Option<i64>,
+    ) -> Result<PreparedAssemblyPushRecord, a4n_error::AppError>;
+
+    async fn update_assembly_push_status(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        input: UpdateAssemblyPushStatusInput,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+}
+
+/// Host-facing completion and media-cleanup lifecycle boundary.
+#[async_trait::async_trait]
+pub trait VideoRecordLifecycleApplicationPort: Send + Sync {
+    async fn mark_error_status_and_prompt(
+        &self,
+        video_id: i64,
+        prompt_id: Option<i64>,
+        status: &str,
+        message: &str,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+
+    async fn create_video_tail_frame(
+        &self,
+        input: VideoTailFrameInput,
+    ) -> Result<VideoTailFrameSummary, a4n_error::AppError>;
+
+    async fn delete_video_tail_frame_assets(
+        &self,
+        video_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn complete(
+        &self,
+        input: CompleteVideoRecordInput,
+    ) -> Result<VideoRecordCompletion, VideoRecordCompletionError>;
+
+    async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing canvas-media preparation and persistence boundary.
+#[async_trait::async_trait]
+pub trait VideoCanvasMediaApplicationPort: Send + Sync {
+    async fn prepare_canvas_assembly(
+        &self,
+        project_id: i64,
+        video_ids: Vec<i64>,
+        title: Option<&str>,
+    ) -> Result<CanvasAssemblyPlan, a4n_error::AppError>;
+
+    async fn create_canvas_assembly_record(
+        &self,
+        project_id: i64,
+        plan: CanvasAssemblyPlan,
+    ) -> Result<GeneratedVideoSummary, a4n_error::AppError>;
+
+    async fn prepare_canvas_frame(
+        &self,
+        project_id: i64,
+        video_id: i64,
+        frame_kind: CanvasFrameKind,
+        at_secs: Option<f32>,
+    ) -> Result<CanvasFramePlan, a4n_error::AppError>;
+
+    async fn create_canvas_frame_record(
+        &self,
+        plan: CanvasFramePlan,
+        file_path: String,
+        file_size: i64,
+    ) -> Result<crate::image::GeneratedImageSummary, a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct PreviewChapterVideoPromptOverrideInput {
@@ -640,6 +949,77 @@ pub struct GeneratedVideoSummary {
     pub is_favorite: bool,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AssemblyVideoRecords {
+    pub workflow_mode: String,
+    pub clips: Vec<AssemblyClipRecord>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AssemblyClipRecord {
+    pub video_id: i64,
+    pub video_type: String,
+    pub shot_number: i32,
+    pub sort_order: f64,
+    pub insert_after_video_id: Option<i64>,
+    pub file_path: String,
+    pub duration_secs: f32,
+    pub width: i32,
+    pub height: i32,
+    pub fps: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct PreparedAssemblyPushRecord {
+    pub video: GeneratedVideoSummary,
+    pub source_video_ids: Vec<i64>,
+    pub push_index: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoImportRecordSummary {
+    pub id: i64,
+    pub project_id: i64,
+    pub chapter_id: Option<i64>,
+    pub video_type: String,
+    pub workflow_mode: Option<String>,
+    pub prompt_id: Option<i64>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CanvasAssemblyPlan {
+    pub sources: Vec<GeneratedVideoSummary>,
+    pub title: String,
+    pub width: i32,
+    pub height: i32,
+    pub duration_secs: f32,
+    pub fps: i32,
+}
+
+#[derive(Debug, Clone)]
+pub struct CanvasFramePlan {
+    pub video: GeneratedVideoSummary,
+    pub frame_kind: CanvasFrameKind,
+    pub timestamp: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct VideoTrimPlan {
+    pub source: GeneratedVideoSummary,
+    pub start_secs: f32,
+    pub end_secs: f32,
+    pub target_workflow_mode: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct PreparedAssemblyPostprocessEditRecord {
+    pub video: GeneratedVideoSummary,
+    pub base: GeneratedVideoSummary,
+    pub operation: AssemblyPostprocessOperation,
+    pub start_secs: f32,
+    pub end_secs: f32,
 }
 
 /// Runtime supplies persisted file facts; the video owner commits the record.

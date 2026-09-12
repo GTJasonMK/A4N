@@ -66,7 +66,7 @@ pub(super) async fn process_claimed_cleanup(
         id,
         lease_token,
         state
-            .image_record_application()
+            .image_media_reference_application()
             .media_path_prefix_has_persisted_reference(&prefix),
     )
     .await
@@ -78,7 +78,7 @@ pub(super) async fn process_claimed_cleanup(
                 id,
                 lease_token,
                 state
-                    .image_record_application()
+                    .image_media_reference_application()
                     .project_has_active_image_publication(project_id),
             )
             .await
@@ -189,7 +189,7 @@ async fn cleanup_candidate_paths(
         id,
         lease_token,
         state
-            .image_record_application()
+            .image_media_reference_application()
             .unreferenced_media_paths(paths),
     )
     .await?;
@@ -201,7 +201,7 @@ async fn cleanup_candidate_paths(
         id,
         lease_token,
         state
-            .image_record_application()
+            .image_media_reference_application()
             .unreferenced_media_paths(&candidates),
     )
     .await?;
@@ -210,7 +210,7 @@ async fn cleanup_candidate_paths(
         id,
         lease_token,
         state
-            .image_record_application()
+            .image_media_reference_application()
             .protected_image_publication_cleanup_paths(project_id, &candidates),
     )
     .await?;

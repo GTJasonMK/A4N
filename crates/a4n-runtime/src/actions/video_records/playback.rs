@@ -51,7 +51,7 @@ async fn authorized_video_path(
     video_id: i64,
 ) -> Result<PathBuf, String> {
     let video = state
-        .video_record_application()
+        .video_record_read_application()
         .playback_source(user_id, video_id)
         .await
         .map_err(crate::actions::app_error_message)?;

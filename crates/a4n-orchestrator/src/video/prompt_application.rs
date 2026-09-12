@@ -1,9 +1,10 @@
 use a4n_error::AppError;
 use std::collections::{BTreeSet, HashMap};
 
-use a4n_api_contract::video::{
+pub use a4n_api_contract::video::{
     ChapterVideoPromptSummary, LoadVideoSegmentPlanDraftInput, OptimizeChapterVideoPromptInput,
     UpdateChapterVideoPromptInput, UpdateVideoSegmentPlanDraftRecipeInput,
+    VideoSegmentPlanDraftSummary,
 };
 use a4n_api_contract::video::{VideoPromptDownstreamCleanupPort, VideoPromptGenerationOptions};
 use a4n_db::video_prompt::ChapterVideoPromptPatch;
@@ -55,14 +56,6 @@ pub struct GenerateChapterVideoPromptInput {
     #[serde(skip)]
     pub retry_of_task_id: Option<String>,
     pub options: VideoPromptGenerationOptions,
-}
-
-pub struct VideoSegmentPlanDraftState {
-    pub run: a4n_api_contract::workflow::WorkflowRunSummary,
-    pub segments: Vec<a4n_video_contract::VideoSegmentPlanV2>,
-    pub recipes: Vec<VideoSegmentExecutionRecipeV1>,
-    pub completed_shot_count: usize,
-    pub total_shot_count: usize,
 }
 
 pub struct VideoPromptApplicationContext<'a> {
@@ -450,7 +443,7 @@ impl OrchestratorContext {
         &self,
         user_id: i64,
         input: LoadVideoSegmentPlanDraftInput,
-    ) -> Result<VideoSegmentPlanDraftState, AppError> {
+    ) -> Result<VideoSegmentPlanDraftSummary, AppError> {
         let VideoSegmentPlanDraftContext { run, style } = self
             .video_segment_plan_draft_context(
                 user_id,
@@ -467,7 +460,7 @@ impl OrchestratorContext {
         } else {
             load_video_segment_plan_draft_recipe_state(&checkpoints, &style)?
         };
-        Ok(VideoSegmentPlanDraftState {
+        Ok(VideoSegmentPlanDraftSummary {
             run: workflow_run_summary_to_api(run),
             segments,
             recipes,

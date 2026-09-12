@@ -27,7 +27,12 @@ where
         )
         .map(|relative_path| (output, relative_path))
     });
-    append_video_record_cleanup_error(state.video_record_application(), record_id, result).await
+    append_video_record_cleanup_error(
+        state.video_record_lifecycle_application(),
+        record_id,
+        result,
+    )
+    .await
 }
 
 pub(in crate::actions::video_records) fn copy_imported_video_file(

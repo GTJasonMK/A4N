@@ -196,7 +196,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
         &self,
         input: ChapterVideoImageInput,
     ) -> Result<ResolvedChapterVideoImageInputs, AppError> {
-        let video = self.state.video_record_application();
+        let video = self.state.video_record_read_application();
         match input.mode {
             VideoProviderValidationMode::Generate => {
                 let jwt_secret = if input.transport == ProviderImageInputTransport::PublicUrl {

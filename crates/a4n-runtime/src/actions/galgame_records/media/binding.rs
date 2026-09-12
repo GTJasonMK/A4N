@@ -8,7 +8,7 @@ pub async fn bind_galgame_media(
     input: BindGalgameMediaInput,
 ) -> Result<GalgameMediaBindingSummary, String> {
     state
-        .galgame_record_application()
+        .galgame_media_mutation_application()
         .bind_media(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)
@@ -20,7 +20,7 @@ pub async fn unbind_galgame_media(
     input: UnbindGalgameMediaInput,
 ) -> Result<u64, String> {
     state
-        .galgame_record_application()
+        .galgame_media_mutation_application()
         .unbind_media(user_id, input)
         .await
         .map_err(crate::actions::app_error_message)

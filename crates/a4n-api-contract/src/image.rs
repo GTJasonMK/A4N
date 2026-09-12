@@ -14,6 +14,60 @@ pub trait ImageProviderConfigPort: Send + Sync {
     async fn default(&self) -> Result<ImageProviderConfig, a4n_error::AppError>;
 }
 
+/// Host-facing read boundary for persisted generated images.
+///
+/// Authorization and DTO projection stay with the media owner; callers only
+/// depend on the query surface they use.
+#[async_trait::async_trait]
+pub trait ImageRecordReadApplicationPort: Send + Sync {
+    async fn reference_by_ids(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        image_ids: &[i64],
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+
+    async fn list_by_project(
+        &self,
+        user_id: i64,
+        input: ListImagesByProjectInput,
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+
+    async fn list_by_projects(
+        &self,
+        user_id: i64,
+        input: ListImagesByProjectsInput,
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+
+    async fn list_by_chapter(
+        &self,
+        user_id: i64,
+        input: ListImagesByChapterInput,
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+
+    async fn list_video_reference_images(
+        &self,
+        user_id: i64,
+        input: ListVideoReferenceImagesInput,
+    ) -> Result<Vec<GeneratedImageSummary>, a4n_error::AppError>;
+}
+
+/// Host-facing mutation boundary for generated image records.
+#[async_trait::async_trait]
+pub trait ImageRecordMutationApplicationPort: Send + Sync {
+    async fn update(
+        &self,
+        user_id: i64,
+        input: UpdateGeneratedImageInput,
+    ) -> Result<GeneratedImageSummary, a4n_error::AppError>;
+
+    async fn delete(
+        &self,
+        user_id: i64,
+        input: DeleteImageInput,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct GeneratedImageSummary {
     pub id: i64,

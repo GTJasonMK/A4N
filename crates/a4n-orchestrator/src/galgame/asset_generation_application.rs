@@ -1,4 +1,5 @@
 use a4n_api_contract::{
+    galgame::GalgameAssetPlanApplicationPort,
     image::GeneratedImageSummary,
     image_generation::GenerateGalgameImageInput,
     portrait::{GeneratePortraitInput, PortraitSummary},
@@ -54,8 +55,6 @@ pub trait GalgameAssetGenerationHostPort: Send + Sync {
 /// authorization and generation-spec persistence remain in the Galgame owner.
 #[async_trait]
 pub trait GalgameAssetGenerationApplicationPort: Send + Sync {
-    async fn plan(&self, user_id: i64, project_id: i64) -> Result<GalgameAssetPlan, AppError>;
-
     async fn run(
         &self,
         host_port: &dyn GalgameAssetGenerationHostPort,
@@ -117,12 +116,15 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl GalgameAssetGenerationApplicationPort for OrchestratorContext {
+impl GalgameAssetPlanApplicationPort for OrchestratorContext {
     async fn plan(&self, user_id: i64, project_id: i64) -> Result<GalgameAssetPlan, AppError> {
         self.plan_galgame_assets_for_user_validated(user_id, project_id)
             .await
     }
+}
 
+#[async_trait]
+impl GalgameAssetGenerationApplicationPort for OrchestratorContext {
     async fn run(
         &self,
         host_port: &dyn GalgameAssetGenerationHostPort,

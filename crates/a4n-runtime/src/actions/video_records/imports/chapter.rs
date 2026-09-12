@@ -56,7 +56,7 @@ async fn create_imported_chapter_video(
     let properties = probe_imported_video_properties(&source, "导入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .video_record_application()
+        .video_import_application()
         .create_imported_chapter_video_record(
             project_id,
             chapter_id,
@@ -121,7 +121,7 @@ async fn create_imported_chapter_video(
                         )
                         .await;
                     let delete_error = delete_video_record_cleanup_error(
-                        state.video_record_application(),
+                        state.video_record_lifecycle_application(),
                         record.id,
                     )
                     .await;

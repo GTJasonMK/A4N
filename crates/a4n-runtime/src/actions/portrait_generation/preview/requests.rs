@@ -25,7 +25,7 @@ pub async fn preview_generate_portrait_prompt_request(
     let variables = parse_template_variables(input.variables.as_ref())?;
     let prompt_renderer = state;
     let request = state
-        .portrait_generation_application()
+        .portrait_request_preview_application()
         .prepare_portrait_prompt_request(&input, prompt_renderer, &variables)
         .await
         .map_err(|error| error.to_string())?;
@@ -54,7 +54,7 @@ pub async fn preview_generate_portrait_request(
     validate_reference_image_ids(&input.reference_image_ids)?;
     let prompt_renderer = state;
     let request = state
-        .portrait_generation_application()
+        .portrait_request_preview_application()
         .prepare_portrait_request(&input, prompt_renderer)
         .await
         .map_err(|error| error.to_string())?;

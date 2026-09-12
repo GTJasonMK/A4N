@@ -10,7 +10,7 @@ pub async fn get_project_import_analysis_progress(
     project_id: i64,
 ) -> Result<Option<ProjectImportAnalysisProgress>, AppError> {
     state
-        .import_analysis_application()
+        .import_analysis_progress_application()
         .progress(user_id, project_id)
         .await
 }

@@ -27,5 +27,10 @@ where
         )
         .map(|(relative_path, file_size)| (output, relative_path, file_size))
     });
-    append_video_record_cleanup_error(state.video_record_application(), record_id, result).await
+    append_video_record_cleanup_error(
+        state.video_record_lifecycle_application(),
+        record_id,
+        result,
+    )
+    .await
 }

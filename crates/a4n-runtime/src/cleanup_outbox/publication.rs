@@ -17,7 +17,7 @@ pub(super) async fn recover_image_publications(
     published_after: &mut Option<String>,
 ) {
     let publications = match state
-        .image_record_application()
+        .image_publication_recovery_application()
         .image_publications_for_recovery(RECOVERY_LIMIT, published_after.as_deref())
         .await
     {
@@ -46,12 +46,12 @@ async fn recover_image_publication(
     publication: ImagePublicationRecoveryRecord,
 ) -> Result<(), String> {
     let _guard = state
-        .image_record_application()
+        .image_publication_recovery_application()
         .lock_image_publications()
         .await;
     // A writer may have committed while recovery waited for the same guard.
     let Some(publication) = state
-        .image_record_application()
+        .image_publication_recovery_application()
         .image_publication_by_id(&publication.publication_id)
         .await
         .map_err(|error| error.to_string())?
@@ -143,7 +143,7 @@ async fn recover_published_publication(
     }
     ensure_published_generated_image_identity(state, &publication).await?;
     state
-        .image_record_application()
+        .image_publication_recovery_application()
         .ensure_image_publication_identity(
             publication.requested_by_user_id,
             &publication.publication_id,
@@ -173,7 +173,7 @@ async fn ensure_published_generated_image_identity(
         )
     })?;
     let image = state
-        .image_record_application()
+        .image_publication_recovery_application()
         .generated_image_identity(image_id)
         .await
         .map_err(|error| error.to_string())?
@@ -206,7 +206,7 @@ async fn publish_recovered_file(
         IMAGE_TYPE_SCENE_MATERIAL | IMAGE_TYPE_OBJECT_MATERIAL
     );
     state
-        .image_record_application()
+        .image_publication_recovery_application()
         .ensure_image_publication_identity(
             publication.requested_by_user_id,
             &publication.publication_id,
@@ -214,7 +214,7 @@ async fn publish_recovered_file(
         .await
         .map_err(|error| error.to_string())?;
     match state
-        .image_record_application()
+        .image_publication_recovery_application()
         .publish_recovered_image(
             publication.requested_by_user_id,
             publication.project_id,
@@ -225,7 +225,7 @@ async fn publish_recovered_file(
         .await
     {
         Ok(_) if restore_profile_identity => state
-            .image_record_application()
+            .image_publication_recovery_application()
             .ensure_image_publication_identity(
                 publication.requested_by_user_id,
                 &publication.publication_id,
@@ -253,7 +253,7 @@ async fn recover_reclaiming_publication(
     }
     if existing_paths.is_empty() {
         state
-            .image_record_application()
+            .image_publication_recovery_application()
             .mark_image_publication_reclaimed(
                 &publication.publication_id,
                 publication.version,
@@ -264,13 +264,13 @@ async fn recover_reclaiming_publication(
         return Ok(());
     }
     let unreferenced = state
-        .image_record_application()
+        .image_media_reference_application()
         .unreferenced_media_paths(&existing_paths)
         .await
         .map_err(|error| error.to_string())?;
     if unreferenced.len() < existing_paths.len() {
         state
-            .image_record_application()
+            .image_publication_recovery_application()
             .mark_image_publication_reclaimed(
                 &publication.publication_id,
                 publication.version,
@@ -288,7 +288,7 @@ async fn reclaim_publication(
     reason: impl Into<String>,
 ) -> Result<(), String> {
     let publication = state
-        .image_record_application()
+        .image_publication_recovery_application()
         .mark_image_publication_reclaiming(
             &publication.publication_id,
             publication.version,

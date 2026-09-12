@@ -16,12 +16,14 @@ pub use image_generation::{
     ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
     ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
     ImageGenerationProviderInput, ImageGenerationProviderOutput, ImageGenerationWorkflowBinding,
-    PersistGeneratedImageFileInput, PersistedGeneratedImageFile, PrepareGeneratedImageFileInput,
-    PreparedGeneratedImageFile, PreparedImageGenerationRequest, generated_image_summary,
-    image_generation_request_trace_json, normalize_image_metadata,
+    ObjectProfileImageInput, ObjectProfileImagePromptOutput, PersistGeneratedImageFileInput,
+    PersistedGeneratedImageFile, PrepareGeneratedImageFileInput, PreparedGeneratedImageFile,
+    PreparedImageGenerationRequest, SceneProfileImageInput, SceneProfileImagePromptOutput,
+    generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
 };
 pub use image_record_lifecycle::{
-    GeneratedImageIdentity, ImageRecordApplicationPort, PreparedImportedImageUpload,
+    GeneratedImageIdentity, ImageImportApplicationPort, ImageMediaReferencePort,
+    ImagePublicationRecoveryPort, PreparedImportedImageUpload,
 };
 
 pub use image_workflow_rules::{

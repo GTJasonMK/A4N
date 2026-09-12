@@ -20,7 +20,7 @@ pub(crate) async fn import_image_record(
     input: UploadImageInput,
 ) -> Result<GeneratedImageSummary, String> {
     let prepared = state
-        .image_record_application()
+        .image_import_application()
         .prepare_imported_upload(user_id, input)
         .await
         .map_err(|error| error.to_string())?;

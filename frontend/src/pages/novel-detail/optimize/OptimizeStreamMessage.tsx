@@ -363,27 +363,30 @@ function ToolBox({ row }: { row: TimelineRow }) {
   const statusClass = success
     ? "bg-success"
     : "bg-error";
+  const summary = row.toolResult?.detail.trim() || row.detail.trim();
   return (
-    <div className="min-w-0 overflow-hidden rounded-xl border border-book-border/70 bg-book-bg-tertiary/35 px-2.5 py-2">
-      <div className="flex min-w-0 items-start gap-1.5">
-        <span className={`mt-1 h-2 w-2 shrink-0 rounded-[2px] ${statusClass}`} />
-        <div className="min-w-0 flex-1">
-          <div className="break-words font-semibold text-book-text-main/80">
-            {row.title}
-          </div>
-          {row.detail.trim() ? (
-            <MarkdownText
-              className="mt-0.5 whitespace-pre-wrap break-words text-book-text-sub"
-              text={row.detail}
-            />
-          ) : null}
-          {row.toolResult?.detail.trim() ? (
-            <MarkdownText
-              className="mt-1 whitespace-pre-wrap break-words text-book-text-sub"
-              text={row.toolResult.detail}
-            />
-          ) : null}
-        </div>
+    <div className="min-w-0 overflow-hidden rounded-xl border border-book-border/70 bg-book-bg-tertiary/35 px-2.5 py-1.5">
+      <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap">
+        <span className={`h-2 w-2 shrink-0 rounded-[2px] ${statusClass}`} />
+        <span
+          className="min-w-0 truncate font-semibold text-book-text-main/80"
+          title={row.title}
+        >
+          {row.title}
+        </span>
+        {summary ? (
+          <>
+            <span className="shrink-0 text-book-text-muted" aria-hidden="true">
+              ·
+            </span>
+            <span
+              className="min-w-0 truncate text-book-text-sub"
+              title={summary}
+            >
+              {summary}
+            </span>
+          </>
+        ) : null}
       </div>
     </div>
   );

@@ -10,7 +10,7 @@ pub async fn list_videos_by_chapter(
     chapter_id: i64,
 ) -> Result<Vec<GeneratedVideoSummary>, String> {
     state
-        .video_record_application()
+        .video_record_read_application()
         .list_by_chapter(user_id, project_id, chapter_id)
         .await
         .map_err(app_error_message)
@@ -23,7 +23,7 @@ pub async fn update_video(
     input: UpdateGeneratedVideoInput,
 ) -> Result<GeneratedVideoSummary, String> {
     state
-        .video_record_application()
+        .video_record_mutation_application()
         .update(user_id, video_id, input)
         .await
         .map_err(app_error_message)
@@ -38,7 +38,7 @@ pub async fn select_segment_video(
     input: SelectSegmentVideoInput,
 ) -> Result<GeneratedVideoSummary, String> {
     state
-        .video_record_application()
+        .video_record_mutation_application()
         .select_segment(user_id, project_id, chapter_id, video_id, input)
         .await
         .map_err(app_error_message)

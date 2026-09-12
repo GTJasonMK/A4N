@@ -25,7 +25,11 @@ use crate::{
         best_effort_batch_summary, generation_batch_result_ref, generation_public_error,
         generation_result_ref, publish_step_progress,
     },
-    portrait::{PortraitGenerationApplicationPort, PortraitGenerationHostPort, PortraitProgress},
+    portrait::{
+        PortraitGenerationApplicationPort, PortraitGenerationHostPort, PortraitProgress,
+        PortraitPromptApplicationPort, PortraitRequestPreviewApplicationPort,
+        PortraitUploadApplicationPort,
+    },
 };
 use a4n_prompt::rendering::PromptRenderer;
 
@@ -449,7 +453,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl PortraitGenerationApplicationPort for OrchestratorContext {
+impl PortraitRequestPreviewApplicationPort for OrchestratorContext {
     async fn prepare_portrait_prompt_request(
         &self,
         input: &GeneratePortraitPromptInput,
@@ -477,7 +481,10 @@ impl PortraitGenerationApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl PortraitPromptApplicationPort for OrchestratorContext {
     async fn generate_portrait_prompt(
         &self,
         input: GeneratePortraitPromptInput,
@@ -492,7 +499,10 @@ impl PortraitGenerationApplicationPort for OrchestratorContext {
         )
         .await
     }
+}
 
+#[async_trait::async_trait]
+impl PortraitUploadApplicationPort for OrchestratorContext {
     async fn upload_portrait(
         &self,
         user_id: i64,
@@ -501,7 +511,10 @@ impl PortraitGenerationApplicationPort for OrchestratorContext {
     ) -> Result<PortraitSummary, AppError> {
         OrchestratorContext::upload_portrait_validated(self, user_id, input, host_port).await
     }
+}
 
+#[async_trait::async_trait]
+impl PortraitGenerationApplicationPort for OrchestratorContext {
     async fn start_task(
         &self,
         user_id: i64,

@@ -4,12 +4,139 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+pub use a4n_prompt_contract::PromptEntry;
+
+/// Host-provided prompt rendering capability used by application owners.
+#[async_trait::async_trait]
+pub trait PromptRenderPort: Send + Sync {
+    async fn render_prompt(
+        &self,
+        template_name: &str,
+        variables: &HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, a4n_error::AppError>;
+}
+
 /// Runtime-supplied execution context for the prompt owner.
 #[derive(Debug, Clone)]
 pub struct PromptExecutionContext {
     use_sidecar: bool,
     user_id: Option<i64>,
     runtime_config_snapshot: Option<Value>,
+}
+
+/// Host-facing application boundary for prompt records and rendering.
+///
+/// The prompt owner chooses embedded versus sidecar execution and owns prompt
+/// persistence; Runtime only supplies execution context and routes contracts.
+#[async_trait::async_trait]
+pub trait PromptApplicationPort: Send + Sync {
+    async fn list_records(
+        &self,
+        context: &PromptExecutionContext,
+    ) -> Result<Vec<PromptEntrySummary>, a4n_error::AppError>;
+
+    async fn load_defaults(
+        &self,
+        context: &PromptExecutionContext,
+    ) -> Result<usize, a4n_error::AppError>;
+
+    async fn update_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: UpdatePromptInput,
+    ) -> Result<PromptEntrySummary, a4n_error::AppError>;
+
+    async fn reset_record(
+        &self,
+        context: &PromptExecutionContext,
+        name: &str,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn version_history(
+        &self,
+        context: &PromptExecutionContext,
+        name: &str,
+    ) -> Result<Vec<PromptVersionSummary>, a4n_error::AppError>;
+
+    async fn render_record(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: RenderInput,
+    ) -> Result<String, a4n_error::AppError>;
+
+    async fn render_template(
+        &self,
+        context: &PromptExecutionContext,
+        template_name: &str,
+        variables: HashMap<String, Value>,
+        project_id: Option<i64>,
+    ) -> Result<String, a4n_error::AppError>;
+
+    async fn render_ab(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: RenderInput,
+    ) -> Result<AbRenderResult, a4n_error::AppError>;
+
+    async fn set_project_override(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: SetOverrideInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn remove_project_override(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        input: RemoveOverrideInput,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn list_project_overrides(
+        &self,
+        context: &PromptExecutionContext,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<Vec<ProjectPromptOverrideSummary>, a4n_error::AppError>;
+
+    async fn version_diff(
+        &self,
+        context: &PromptExecutionContext,
+        input: VersionDiffInput,
+    ) -> Result<String, a4n_error::AppError>;
+
+    async fn validate_variables(
+        &self,
+        context: &PromptExecutionContext,
+        input: ValidateVarsInput,
+    ) -> Result<Vec<String>, a4n_error::AppError>;
+
+    async fn list_categories(
+        &self,
+        context: &PromptExecutionContext,
+    ) -> Result<Vec<CategoryInfo>, a4n_error::AppError>;
+
+    async fn runtime_entry(
+        &self,
+        context: &PromptExecutionContext,
+        name: &str,
+    ) -> Result<PromptEntry, a4n_error::AppError>;
+
+    async fn runtime_entries(
+        &self,
+        context: &PromptExecutionContext,
+    ) -> Result<Vec<PromptEntry>, a4n_error::AppError>;
+
+    async fn update_many_runtime(
+        &self,
+        context: &PromptExecutionContext,
+        updates: Vec<(String, String)>,
+        author: &str,
+    ) -> Result<Vec<PromptEntry>, a4n_error::AppError>;
 }
 
 impl PromptExecutionContext {

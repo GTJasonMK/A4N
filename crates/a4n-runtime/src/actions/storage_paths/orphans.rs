@@ -58,7 +58,7 @@ async fn remove_unowned_project_data_dirs(
         }
         let prefix = crate::cleanup_outbox::project_media_path_prefix(item.project_id);
         if state
-            .image_record_application()
+            .image_media_reference_application()
             .media_path_prefix_has_persisted_reference(&prefix)
             .await
             .map_err(app_error_message)?

@@ -17,7 +17,7 @@ pub(crate) async fn extract_canvas_video_frame(
 ) -> Result<GeneratedImageSummary, String> {
     access::verify_project_editor_string(state, user_id, project_id).await?;
     let plan = state
-        .video_record_application()
+        .video_canvas_media_application()
         .prepare_canvas_frame(project_id, video_id, frame_kind, at_secs)
         .await
         .map_err(crate::actions::app_error_message)?;
@@ -46,7 +46,7 @@ pub(crate) async fn extract_canvas_video_frame(
         "画布抽帧图片",
     )?;
     let image = match state
-        .video_record_application()
+        .video_canvas_media_application()
         .create_canvas_frame_record(plan, output_path_str.clone(), file_size)
         .await
     {

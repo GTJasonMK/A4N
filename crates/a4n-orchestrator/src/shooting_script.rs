@@ -23,35 +23,18 @@ pub(crate) use workflow_rules::chapter_shooting_script_workflow_run_input;
 
 use a4n_api_contract::shooting_script::{
     ChapterShootingScriptUnitProgressView, ChapterShootingScriptView,
+    ShootingScriptRecordApplicationPort,
 };
 use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
 
-/// Host-facing boundary for chapter shooting-script records and generation.
+/// Host-facing boundary for chapter shooting-script generation.
 ///
-/// Source resolution, visual-plan consistency, workflow state, persistence and
-/// API projection stay in this owner. Runtime only supplies progress, stream
-/// and cancellation callbacks for long-running generation.
+/// Workflow state, persistence and API projection stay in this owner. Runtime
+/// only supplies progress, stream and cancellation callbacks for long-running
+/// generation.
 #[async_trait::async_trait]
-pub trait ShootingScriptApplicationPort: Send + Sync {
-    async fn current(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptView>, AppError>;
-
-    async fn unit_progress(
-        &self,
-        user_id: i64,
-        input: ChapterShootingScriptSourceInput,
-    ) -> Result<Option<ChapterShootingScriptUnitProgressView>, AppError>;
-
-    async fn edit(
-        &self,
-        user_id: i64,
-        input: EditChapterShootingScriptInput,
-    ) -> Result<EditedChapterShootingScriptView, AppError>;
-
+pub trait ShootingScriptGenerationApplicationPort: Send + Sync {
     async fn generate(
         &self,
         user_id: i64,
@@ -74,7 +57,7 @@ pub trait ShootingScriptApplicationPort: Send + Sync {
 }
 
 #[async_trait::async_trait]
-impl ShootingScriptApplicationPort for crate::OrchestratorContext {
+impl ShootingScriptRecordApplicationPort for crate::OrchestratorContext {
     async fn current(
         &self,
         user_id: i64,
@@ -104,7 +87,10 @@ impl ShootingScriptApplicationPort for crate::OrchestratorContext {
             .await
             .map(edited_chapter_shooting_script_view)
     }
+}
 
+#[async_trait::async_trait]
+impl ShootingScriptGenerationApplicationPort for crate::OrchestratorContext {
     async fn generate(
         &self,
         user_id: i64,

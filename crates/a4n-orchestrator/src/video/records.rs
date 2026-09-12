@@ -39,10 +39,15 @@ pub use a4n_api_contract::video::{
 use a4n_api_contract::{
     image::GeneratedImageSummary,
     video::{
-        AssemblyPostprocessEditRecordInput, AssemblyPostprocessPlan, AssemblyPostprocessSourcePlan,
-        AssemblyPushClipInput, CompleteVideoRecordInput, GeneratedVideoSummary,
-        VideoProviderExecutionApplicationPort, VideoRecordCompletion, VideoRecordCompletionError,
-        VideoTailFrameInput, VideoTailFrameSummary,
+        AssemblyClipRecord, AssemblyPostprocessEditRecordInput, AssemblyPostprocessPlan,
+        AssemblyPostprocessSourcePlan, AssemblyPushClipInput, AssemblyVideoRecords,
+        CanvasAssemblyPlan, CanvasFramePlan, CompleteVideoRecordInput, GeneratedVideoSummary,
+        PreparedAssemblyPostprocessEditRecord, PreparedAssemblyPushRecord,
+        VideoAssemblyApplicationPort, VideoCanvasMediaApplicationPort, VideoImportApplicationPort,
+        VideoImportRecordSummary, VideoProviderExecutionApplicationPort, VideoRecordCompletion,
+        VideoRecordCompletionError, VideoRecordLifecycleApplicationPort,
+        VideoRecordMutationApplicationPort, VideoRecordReadApplicationPort, VideoTailFrameInput,
+        VideoTailFrameSummary, VideoTrimPlan,
     },
 };
 
@@ -59,290 +64,10 @@ use super::{
     validate_assembly_workflow_mode, validate_reference_media_import_options, video_shot_number,
 };
 
-/// Host-facing video record boundary. Record authorization, projection and
-/// lifecycle validation stay in the video owner; Runtime supplies only the
-/// tail-frame cleanup adapter required by deletion.
-#[async_trait]
-pub trait VideoRecordApplicationPort: Send + Sync {
-    async fn create_imported_chapter_video_record(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        prompt_id: i64,
-        properties: ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
-    ) -> Result<VideoImportRecordSummary, AppError>;
-
-    async fn create_imported_reference_media_video_record(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        properties: ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
-        segment_plan_prompt_id: i64,
-        target_source_shot_id: &str,
-        target_segment_index: i32,
-    ) -> Result<VideoImportRecordSummary, AppError>;
-
-    async fn create_imported_assembly_insert_video_record(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        workflow_mode: &str,
-        insert_after_video_id: Option<i64>,
-        properties: ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
-    ) -> Result<VideoImportRecordSummary, AppError>;
-
-    async fn create_imported_canvas_video_record(
-        &self,
-        project_id: i64,
-        properties: ImportedVideoProperties,
-        source_file_name: &str,
-        source_extension: &str,
-        imported_at: &str,
-    ) -> Result<VideoImportRecordSummary, AppError>;
-
-    async fn assembly_records(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        workflow_mode: &str,
-        operation: &str,
-    ) -> Result<AssemblyVideoRecords, AppError>;
-
-    async fn prepare_assembly_postprocess_edit(
-        &self,
-        push_video_id: i64,
-        operation: AssemblyPostprocessOperation,
-    ) -> Result<AssemblyPostprocessPlan, AppError>;
-
-    async fn prepare_assembly_postprocess_source(
-        &self,
-        plan: &AssemblyPostprocessPlan,
-        source_video_id: Option<i64>,
-        has_uploaded_source: bool,
-    ) -> Result<AssemblyPostprocessSourcePlan, AppError>;
-
-    async fn create_assembly_postprocess_edit_record(
-        &self,
-        plan: AssemblyPostprocessPlan,
-        input: AssemblyPostprocessEditRecordInput,
-    ) -> Result<PreparedAssemblyPostprocessEditRecord, AppError>;
-
-    async fn create_assembly_push_record(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-        workflow_mode: &str,
-        clips: Vec<AssemblyPushClipInput>,
-        end_video_id: Option<i64>,
-    ) -> Result<PreparedAssemblyPushRecord, AppError>;
-
-    async fn mark_error_status_and_prompt(
-        &self,
-        video_id: i64,
-        prompt_id: Option<i64>,
-        status: &str,
-        message: &str,
-    ) -> Result<GeneratedVideoSummary, AppError>;
-
-    async fn playback_source(
-        &self,
-        user_id: i64,
-        video_id: i64,
-    ) -> Result<GeneratedVideoSummary, AppError>;
-
-    async fn list_by_chapter(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<GeneratedVideoSummary>, AppError>;
-
-    async fn validated_reference_images(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-        reference_image_ids_json: Option<&Value>,
-    ) -> Result<Vec<GeneratedImageSummary>, AppError>;
-
-    async fn create_video_tail_frame(
-        &self,
-        input: VideoTailFrameInput,
-    ) -> Result<VideoTailFrameSummary, AppError>;
-
-    async fn delete_video_tail_frame_assets(&self, video_id: i64) -> Result<(), AppError>;
-
-    async fn prepare_canvas_assembly(
-        &self,
-        project_id: i64,
-        video_ids: Vec<i64>,
-        title: Option<&str>,
-    ) -> Result<CanvasAssemblyPlan, AppError>;
-
-    async fn create_canvas_assembly_record(
-        &self,
-        project_id: i64,
-        plan: CanvasAssemblyPlan,
-    ) -> Result<GeneratedVideoSummary, AppError>;
-
-    async fn prepare_canvas_frame(
-        &self,
-        project_id: i64,
-        video_id: i64,
-        frame_kind: CanvasFrameKind,
-        at_secs: Option<f32>,
-    ) -> Result<CanvasFramePlan, AppError>;
-
-    async fn create_canvas_frame_record(
-        &self,
-        plan: CanvasFramePlan,
-        file_path: String,
-        file_size: i64,
-    ) -> Result<GeneratedImageSummary, AppError>;
-
-    async fn update(
-        &self,
-        user_id: i64,
-        video_id: i64,
-        input: UpdateGeneratedVideoInput,
-    ) -> Result<GeneratedVideoSummary, AppError>;
-
-    async fn prepare_trim(
-        &self,
-        user_id: i64,
-        video_id: i64,
-        start_secs: f32,
-        end_secs: f32,
-    ) -> Result<VideoTrimPlan, AppError>;
-
-    async fn create_trimmed_record(
-        &self,
-        plan: VideoTrimPlan,
-    ) -> Result<GeneratedVideoSummary, AppError>;
-
-    async fn complete(
-        &self,
-        input: CompleteVideoRecordInput,
-    ) -> Result<VideoRecordCompletion, VideoRecordCompletionError>;
-
-    async fn select_segment(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-        video_id: i64,
-        input: SelectSegmentVideoInput,
-    ) -> Result<GeneratedVideoSummary, AppError>;
-
-    async fn update_assembly_push_status(
-        &self,
-        user_id: i64,
-        video_id: i64,
-        input: UpdateAssemblyPushStatusInput,
-    ) -> Result<GeneratedVideoSummary, AppError>;
-
-    async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), AppError>;
-
-    async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), AppError>;
-}
-
-#[derive(Debug, Clone)]
-pub struct AssemblyVideoRecords {
-    pub workflow_mode: String,
-    pub clips: Vec<AssemblyClipRecord>,
-}
-
-#[derive(Debug, Clone)]
-pub struct AssemblyClipRecord {
-    pub video_id: i64,
-    pub video_type: String,
-    pub shot_number: i32,
-    pub sort_order: f64,
-    pub insert_after_video_id: Option<i64>,
-    pub file_path: String,
-    pub duration_secs: f32,
-    pub width: i32,
-    pub height: i32,
-    pub fps: i32,
-}
-
-#[derive(Debug, Clone)]
-pub struct PreparedAssemblyPushRecord {
-    pub video: GeneratedVideoSummary,
-    pub source_video_ids: Vec<i64>,
-    pub push_index: i32,
-}
-
 #[derive(Debug, Clone)]
 pub struct PreparedImportedChapterVideoRecord {
     pub video: generated_video::Model,
     pub prompt: chapter_video_prompt::Model,
-}
-
-#[derive(Debug, Clone)]
-pub struct VideoImportRecordSummary {
-    pub id: i64,
-    pub project_id: i64,
-    pub chapter_id: Option<i64>,
-    pub video_type: String,
-    pub workflow_mode: Option<String>,
-    pub prompt_id: Option<i64>,
-}
-
-impl VideoImportRecordSummary {
-    fn from_record(video: &generated_video::Model, prompt_id: Option<i64>) -> Self {
-        Self {
-            id: video.id,
-            project_id: video.project_id,
-            chapter_id: video.chapter_id,
-            video_type: video.video_type.clone(),
-            workflow_mode: video.workflow_mode.clone(),
-            prompt_id,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasAssemblyPlan {
-    pub sources: Vec<GeneratedVideoSummary>,
-    pub title: String,
-    pub width: i32,
-    pub height: i32,
-    pub duration_secs: f32,
-    pub fps: i32,
-}
-
-#[derive(Debug, Clone)]
-pub struct CanvasFramePlan {
-    pub video: GeneratedVideoSummary,
-    pub frame_kind: CanvasFrameKind,
-    pub timestamp: f32,
-}
-
-#[derive(Debug, Clone)]
-pub struct VideoTrimPlan {
-    pub source: GeneratedVideoSummary,
-    pub start_secs: f32,
-    pub end_secs: f32,
-    pub target_workflow_mode: String,
-}
-
-#[derive(Debug, Clone)]
-pub struct PreparedAssemblyPostprocessEditRecord {
-    pub video: GeneratedVideoSummary,
-    pub base: GeneratedVideoSummary,
-    pub operation: AssemblyPostprocessOperation,
-    pub start_secs: f32,
-    pub end_secs: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -396,6 +121,20 @@ pub fn generated_video_summary(video: &generated_video::Model) -> GeneratedVideo
         is_favorite: video.is_favorite,
         created_at: video.created_at.to_string(),
         updated_at: video.updated_at.to_string(),
+    }
+}
+
+fn video_import_record_summary(
+    video: &generated_video::Model,
+    prompt_id: Option<i64>,
+) -> VideoImportRecordSummary {
+    VideoImportRecordSummary {
+        id: video.id,
+        project_id: video.project_id,
+        chapter_id: video.chapter_id,
+        video_type: video.video_type.clone(),
+        workflow_mode: video.workflow_mode.clone(),
+        prompt_id,
     }
 }
 
@@ -1876,7 +1615,7 @@ impl VideoProviderExecutionApplicationPort for crate::OrchestratorContext {
 }
 
 #[async_trait]
-impl VideoRecordApplicationPort for crate::OrchestratorContext {
+impl VideoImportApplicationPort for crate::OrchestratorContext {
     async fn create_imported_chapter_video_record(
         &self,
         project_id: i64,
@@ -1898,7 +1637,7 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
                 imported_at,
             )
             .await?;
-        Ok(VideoImportRecordSummary::from_record(
+        Ok(video_import_record_summary(
             &prepared.video,
             Some(prepared.prompt.id),
         ))
@@ -1928,7 +1667,7 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
                 (target_source_shot_id, target_segment_index),
             )
             .await?;
-        Ok(VideoImportRecordSummary::from_record(&video, None))
+        Ok(video_import_record_summary(&video, None))
     }
 
     async fn create_imported_assembly_insert_video_record(
@@ -1954,7 +1693,7 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
                 imported_at,
             )
             .await?;
-        Ok(VideoImportRecordSummary::from_record(&video, None))
+        Ok(video_import_record_summary(&video, None))
     }
 
     async fn create_imported_canvas_video_record(
@@ -1974,9 +1713,36 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
                 imported_at,
             )
             .await?;
-        Ok(VideoImportRecordSummary::from_record(&video, None))
+        Ok(video_import_record_summary(&video, None))
     }
 
+    async fn prepare_trim(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        start_secs: f32,
+        end_secs: f32,
+    ) -> Result<VideoTrimPlan, AppError> {
+        let source = self.required_video_record(video_id).await?;
+        self.verify_project_permission(
+            source.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        self.prepare_video_trim_validated(source, start_secs, end_secs)
+    }
+
+    async fn create_trimmed_record(
+        &self,
+        plan: VideoTrimPlan,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        self.create_trimmed_video_record_validated(plan).await
+    }
+}
+
+#[async_trait]
+impl VideoAssemblyApplicationPort for crate::OrchestratorContext {
     async fn assembly_records(
         &self,
         project_id: i64,
@@ -2038,6 +1804,29 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
         .await
     }
 
+    async fn update_assembly_push_status(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        input: UpdateAssemblyPushStatusInput,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        let existing = self.required_video_record(video_id).await?;
+        self.verify_project_permission(
+            existing.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        Ok(generated_video_summary(
+            &self
+                .update_assembly_push_status_validated(existing.id, input)
+                .await?,
+        ))
+    }
+}
+
+#[async_trait]
+impl VideoRecordLifecycleApplicationPort for crate::OrchestratorContext {
     async fn mark_error_status_and_prompt(
         &self,
         video_id: i64,
@@ -2050,67 +1839,6 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
                 .mark_generated_video_error_status_and_prompt(video_id, prompt_id, status, message)
                 .await?,
         ))
-    }
-
-    async fn playback_source(
-        &self,
-        user_id: i64,
-        video_id: i64,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        let video = self.required_video_record(video_id).await?;
-        self.verify_project_permission(
-            video.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        Ok(generated_video_summary(&video))
-    }
-
-    async fn list_by_chapter(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<GeneratedVideoSummary>, AppError> {
-        self.verify_project_permission(
-            project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Viewer,
-        )
-        .await?;
-        Ok(self
-            .list_video_records_by_chapter_validated(project_id, chapter_id)
-            .await?
-            .iter()
-            .map(generated_video_summary)
-            .collect())
-    }
-
-    async fn validated_reference_images(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-        reference_image_ids_json: Option<&Value>,
-    ) -> Result<Vec<GeneratedImageSummary>, AppError> {
-        let images = self
-            .validated_video_reference_images(project_id, chapter_id, reference_image_ids_json)
-            .await?;
-        let project_ids = images
-            .iter()
-            .map(|image| image.project_id)
-            .collect::<HashSet<_>>();
-        self.verify_project_permissions(
-            &project_ids.into_iter().collect::<Vec<_>>(),
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        Ok(images
-            .iter()
-            .map(crate::media::generated_image_summary)
-            .collect())
     }
 
     async fn create_video_tail_frame(
@@ -2163,88 +1891,6 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
         } else {
             Err(AppError::Internal(anyhow::anyhow!(failures.join("；"))))
         }
-    }
-
-    async fn prepare_canvas_assembly(
-        &self,
-        project_id: i64,
-        video_ids: Vec<i64>,
-        title: Option<&str>,
-    ) -> Result<CanvasAssemblyPlan, AppError> {
-        self.prepare_canvas_assembly_validated(project_id, video_ids, title)
-            .await
-    }
-
-    async fn create_canvas_assembly_record(
-        &self,
-        project_id: i64,
-        plan: CanvasAssemblyPlan,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        self.create_canvas_assembly_record_validated(project_id, plan)
-            .await
-    }
-
-    async fn prepare_canvas_frame(
-        &self,
-        project_id: i64,
-        video_id: i64,
-        frame_kind: CanvasFrameKind,
-        at_secs: Option<f32>,
-    ) -> Result<CanvasFramePlan, AppError> {
-        self.prepare_canvas_frame_validated(project_id, video_id, frame_kind, at_secs)
-            .await
-    }
-
-    async fn create_canvas_frame_record(
-        &self,
-        plan: CanvasFramePlan,
-        file_path: String,
-        file_size: i64,
-    ) -> Result<GeneratedImageSummary, AppError> {
-        self.create_canvas_frame_record_validated(plan, file_path, file_size)
-            .await
-    }
-
-    async fn update(
-        &self,
-        user_id: i64,
-        video_id: i64,
-        input: UpdateGeneratedVideoInput,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        let existing = self.required_video_record(video_id).await?;
-        self.verify_project_permission(
-            existing.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        Ok(generated_video_summary(
-            &self.update_video_record_validated(video_id, input).await?,
-        ))
-    }
-
-    async fn prepare_trim(
-        &self,
-        user_id: i64,
-        video_id: i64,
-        start_secs: f32,
-        end_secs: f32,
-    ) -> Result<VideoTrimPlan, AppError> {
-        let source = self.required_video_record(video_id).await?;
-        self.verify_project_permission(
-            source.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        self.prepare_video_trim_validated(source, start_secs, end_secs)
-    }
-
-    async fn create_trimmed_record(
-        &self,
-        plan: VideoTrimPlan,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        self.create_trimmed_video_record_validated(plan).await
     }
 
     async fn complete(
@@ -2318,6 +1964,139 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
         })
     }
 
+    async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), AppError> {
+        self.delete_generated_video_record_with_cleanup(video_id)
+            .await
+    }
+}
+
+#[async_trait]
+impl VideoRecordReadApplicationPort for crate::OrchestratorContext {
+    async fn playback_source(
+        &self,
+        user_id: i64,
+        video_id: i64,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        let video = self.required_video_record(video_id).await?;
+        self.verify_project_permission(
+            video.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        Ok(generated_video_summary(&video))
+    }
+
+    async fn list_by_chapter(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+    ) -> Result<Vec<GeneratedVideoSummary>, AppError> {
+        self.verify_project_permission(
+            project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Viewer,
+        )
+        .await?;
+        Ok(self
+            .list_video_records_by_chapter_validated(project_id, chapter_id)
+            .await?
+            .iter()
+            .map(generated_video_summary)
+            .collect())
+    }
+
+    async fn validated_reference_images(
+        &self,
+        user_id: i64,
+        project_id: i64,
+        chapter_id: i64,
+        reference_image_ids_json: Option<&Value>,
+    ) -> Result<Vec<GeneratedImageSummary>, AppError> {
+        let images = self
+            .validated_video_reference_images(project_id, chapter_id, reference_image_ids_json)
+            .await?;
+        let project_ids = images
+            .iter()
+            .map(|image| image.project_id)
+            .collect::<HashSet<_>>();
+        self.verify_project_permissions(
+            &project_ids.into_iter().collect::<Vec<_>>(),
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        Ok(images
+            .iter()
+            .map(crate::media::generated_image_summary)
+            .collect())
+    }
+}
+
+#[async_trait]
+impl VideoCanvasMediaApplicationPort for crate::OrchestratorContext {
+    async fn prepare_canvas_assembly(
+        &self,
+        project_id: i64,
+        video_ids: Vec<i64>,
+        title: Option<&str>,
+    ) -> Result<CanvasAssemblyPlan, AppError> {
+        self.prepare_canvas_assembly_validated(project_id, video_ids, title)
+            .await
+    }
+
+    async fn create_canvas_assembly_record(
+        &self,
+        project_id: i64,
+        plan: CanvasAssemblyPlan,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        self.create_canvas_assembly_record_validated(project_id, plan)
+            .await
+    }
+
+    async fn prepare_canvas_frame(
+        &self,
+        project_id: i64,
+        video_id: i64,
+        frame_kind: CanvasFrameKind,
+        at_secs: Option<f32>,
+    ) -> Result<CanvasFramePlan, AppError> {
+        self.prepare_canvas_frame_validated(project_id, video_id, frame_kind, at_secs)
+            .await
+    }
+
+    async fn create_canvas_frame_record(
+        &self,
+        plan: CanvasFramePlan,
+        file_path: String,
+        file_size: i64,
+    ) -> Result<GeneratedImageSummary, AppError> {
+        self.create_canvas_frame_record_validated(plan, file_path, file_size)
+            .await
+    }
+}
+
+#[async_trait]
+impl VideoRecordMutationApplicationPort for crate::OrchestratorContext {
+    async fn update(
+        &self,
+        user_id: i64,
+        video_id: i64,
+        input: UpdateGeneratedVideoInput,
+    ) -> Result<GeneratedVideoSummary, AppError> {
+        let existing = self.required_video_record(video_id).await?;
+        self.verify_project_permission(
+            existing.project_id,
+            user_id,
+            crate::collaboration::ProjectAccessRole::Editor,
+        )
+        .await?;
+        Ok(generated_video_summary(
+            &self.update_video_record_validated(video_id, input).await?,
+        ))
+    }
+
     async fn select_segment(
         &self,
         user_id: i64,
@@ -2348,26 +2127,6 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
         ))
     }
 
-    async fn update_assembly_push_status(
-        &self,
-        user_id: i64,
-        video_id: i64,
-        input: UpdateAssemblyPushStatusInput,
-    ) -> Result<GeneratedVideoSummary, AppError> {
-        let existing = self.required_video_record(video_id).await?;
-        self.verify_project_permission(
-            existing.project_id,
-            user_id,
-            crate::collaboration::ProjectAccessRole::Editor,
-        )
-        .await?;
-        Ok(generated_video_summary(
-            &self
-                .update_assembly_push_status_validated(existing.id, input)
-                .await?,
-        ))
-    }
-
     async fn delete(&self, user_id: i64, video_id: i64) -> Result<(), AppError> {
         let project_ids = self.missing_video_reference_project_ids(video_id).await?;
         if project_ids.is_empty() {
@@ -2380,11 +2139,6 @@ impl VideoRecordApplicationPort for crate::OrchestratorContext {
         )
         .await?;
         self.delete_video_record_validated(video_id).await
-    }
-
-    async fn delete_record_with_cleanup(&self, video_id: i64) -> Result<(), AppError> {
-        self.delete_generated_video_record_with_cleanup(video_id)
-            .await
     }
 }
 

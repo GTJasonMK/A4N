@@ -55,7 +55,6 @@ pub mod workflow;
 mod context;
 mod discovery_workflow;
 mod errors;
-mod service_health;
 
 #[cfg(test)]
 pub(crate) mod test_support;
@@ -69,10 +68,8 @@ pub use context::generation::{
     GenerationTaskHistorySummaries, GenerationTaskStart,
 };
 pub use outline::OutlinePreviewApplicationPort;
-pub use profile_material::ProfileMaterialApplicationPort;
-pub use service_health::{ManagedServiceHealthSummary, ServiceHealthApplicationPort};
-pub use shooting_script::ShootingScriptApplicationPort;
-pub use source_sync::SourceSyncApplicationPort;
+pub use profile_material::ProfileMaterialUploadApplicationPort;
+pub use shooting_script::ShootingScriptGenerationApplicationPort;
 
 pub(crate) use errors::{
     chapter_content_edit_error_to_app_error, freeform_generated_reset_error_to_app_error,

@@ -1,7 +1,7 @@
 use a4n_api_contract::manga::{
     BindMangaReferenceImageInput, DeleteMangaPromptInput, MangaPagePromptSummary,
-    MangaPipelineStatusSummary, MangaPromptDownstreamCleanupPort, OptimizeMangaPromptInput,
-    UpdateMangaPromptInput,
+    MangaPipelinePreviewStep, MangaPipelineStatusSummary, MangaPromptDownstreamCleanupPort,
+    OptimizeMangaPromptInput, UpdateMangaPromptInput,
 };
 use a4n_db_models::models::chapter::chapter_manga_prompt;
 use a4n_domain::{DownstreamConflictStrategy, project::required_text};
@@ -25,106 +25,9 @@ use crate::workflow::{
     WorkflowRunSummary,
 };
 use crate::{
-    OrchestratorContext, collaboration::ProjectAccessRole,
+    OrchestratorContext, collaboration::ProjectAccessRole, prompt_records::PromptRendererAdapter,
     shooting_script::ChapterShootingScriptSourceInput,
 };
-
-/// Host-facing Manga pipeline boundary. Runtime receives only preflight
-/// outcomes and preview requests; workflow persistence and ORM rows stay in
-/// the Manga owner.
-#[async_trait::async_trait]
-pub trait MangaPipelineApplicationPort: Send + Sync {
-    async fn preflight(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_number: i32,
-    ) -> Result<(), AppError>;
-
-    async fn run(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_number: i32,
-        task_id: String,
-        resume_from_checkpoint: bool,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<(), AppError>;
-
-    async fn preview(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_number: i32,
-        resume_from_checkpoint: bool,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<MangaPipelineRequestPreviewStep>, AppError>;
-
-    async fn status(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<MangaPipelineStatusSummary, AppError>;
-
-    async fn statuses(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_ids: Vec<i64>,
-    ) -> Result<Vec<MangaPipelineStatusSummary>, AppError>;
-
-    async fn cancel(&self, user_id: i64, project_id: i64, chapter_id: i64)
-    -> Result<i64, AppError>;
-}
-
-/// Host-facing Manga record boundary. Runtime supplies the downstream cleanup
-/// adapter; record validation and API projection remain in the Manga owner.
-#[async_trait::async_trait]
-pub trait MangaRecordApplicationPort: Send + Sync {
-    async fn list_page_prompts(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<MangaPagePromptSummary>, AppError>;
-
-    async fn bind_reference_image(
-        &self,
-        user_id: i64,
-        input: BindMangaReferenceImageInput,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<MangaPagePromptSummary, AppError>;
-
-    async fn update_prompt(
-        &self,
-        user_id: i64,
-        input: UpdateMangaPromptInput,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<MangaPagePromptSummary, AppError>;
-
-    async fn delete_by_chapter(
-        &self,
-        user_id: i64,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<(), AppError>;
-
-    async fn delete_prompt(
-        &self,
-        user_id: i64,
-        input: DeleteMangaPromptInput,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<(), AppError>;
-
-    async fn optimize_prompt(
-        &self,
-        user_id: i64,
-        input: OptimizeMangaPromptInput,
-        prompt_renderer: &dyn PromptRenderer,
-        cleanup: &dyn MangaPromptDownstreamCleanupPort,
-    ) -> Result<MangaPagePromptSummary, AppError>;
-}
 
 pub struct MangaPipelineApplicationInput<'a> {
     pub project_id: i64,
@@ -669,7 +572,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl MangaPipelineApplicationPort for OrchestratorContext {
+impl a4n_api_contract::manga::MangaPipelineExecutionApplicationPort for OrchestratorContext {
     async fn preflight(
         &self,
         user_id: i64,
@@ -689,8 +592,9 @@ impl MangaPipelineApplicationPort for OrchestratorContext {
         chapter_number: i32,
         task_id: String,
         resume_from_checkpoint: bool,
-        prompt_renderer: &dyn PromptRenderer,
+        prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
     ) -> Result<(), AppError> {
+        let prompt_renderer = PromptRendererAdapter(prompt_renderer);
         self.verify_project_or_derived_family_editor_validated(user_id, project_id)
             .await?;
         self.run_manga_pipeline_validated(MangaPipelineApplicationInput {
@@ -698,31 +602,41 @@ impl MangaPipelineApplicationPort for OrchestratorContext {
             chapter_number,
             task_id: &task_id,
             resume_from_checkpoint,
-            prompt_renderer,
+            prompt_renderer: &prompt_renderer,
         })
         .await
         .map(|_| ())
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::manga::MangaPipelinePreviewApplicationPort for OrchestratorContext {
     async fn preview(
         &self,
         user_id: i64,
         project_id: i64,
         chapter_number: i32,
         resume_from_checkpoint: bool,
-        prompt_renderer: &dyn PromptRenderer,
-    ) -> Result<Vec<MangaPipelineRequestPreviewStep>, AppError> {
+        prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
+    ) -> Result<Vec<MangaPipelinePreviewStep>, AppError> {
+        let prompt_renderer = PromptRendererAdapter(prompt_renderer);
         self.verify_project_or_derived_family_editor_validated(user_id, project_id)
             .await?;
         self.prepare_manga_pipeline_preview_validated(MangaPipelinePreviewApplicationInput {
             project_id,
             chapter_number,
             resume_from_checkpoint,
-            prompt_renderer,
+            prompt_renderer: &prompt_renderer,
         })
-        .await
+        .await?
+        .into_iter()
+        .map(manga_pipeline_preview_step)
+        .collect()
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::manga::MangaPipelineReadApplicationPort for OrchestratorContext {
     async fn status(
         &self,
         user_id: i64,
@@ -742,7 +656,10 @@ impl MangaPipelineApplicationPort for OrchestratorContext {
         self.list_manga_pipeline_statuses_validated(user_id, project_id, &chapter_ids)
             .await
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::manga::MangaPipelineCancellationApplicationPort for OrchestratorContext {
     async fn cancel(
         &self,
         user_id: i64,
@@ -755,7 +672,7 @@ impl MangaPipelineApplicationPort for OrchestratorContext {
 }
 
 #[async_trait::async_trait]
-impl MangaRecordApplicationPort for OrchestratorContext {
+impl a4n_api_contract::manga::MangaRecordReadApplicationPort for OrchestratorContext {
     async fn list_page_prompts(
         &self,
         user_id: i64,
@@ -768,7 +685,10 @@ impl MangaRecordApplicationPort for OrchestratorContext {
             .map(|prompt| manga_page_prompt_summary(prompt).map_err(AppError::InvalidArgument))
             .collect()
     }
+}
 
+#[async_trait::async_trait]
+impl a4n_api_contract::manga::MangaRecordMutationApplicationPort for OrchestratorContext {
     async fn bind_reference_image(
         &self,
         user_id: i64,
@@ -822,12 +742,26 @@ impl MangaRecordApplicationPort for OrchestratorContext {
         &self,
         user_id: i64,
         input: OptimizeMangaPromptInput,
-        prompt_renderer: &dyn PromptRenderer,
+        prompt_renderer: &dyn a4n_api_contract::prompt::PromptRenderPort,
         cleanup: &dyn MangaPromptDownstreamCleanupPort,
     ) -> Result<MangaPagePromptSummary, AppError> {
+        let prompt_renderer = PromptRendererAdapter(prompt_renderer);
         let prompt = self
-            .optimize_manga_prompt_record_validated(user_id, input, prompt_renderer, cleanup)
+            .optimize_manga_prompt_record_validated(user_id, input, &prompt_renderer, cleanup)
             .await?;
         manga_page_prompt_summary(&prompt).map_err(AppError::InvalidArgument)
     }
+}
+
+fn manga_pipeline_preview_step(
+    step: MangaPipelineRequestPreviewStep,
+) -> Result<MangaPipelinePreviewStep, AppError> {
+    Ok(MangaPipelinePreviewStep {
+        key: step.key,
+        title: step.title,
+        prompt_name: step.prompt_name,
+        state: step.state,
+        note: step.note,
+        request: step.request.map(serde_json::to_value).transpose()?,
+    })
 }

@@ -9,7 +9,7 @@ pub async fn update_image(
     input: UpdateGeneratedImageInput,
 ) -> Result<GeneratedImageSummary, String> {
     state
-        .image_record_application()
+        .image_record_mutation_application()
         .update(user_id, input)
         .await
         .map_err(app_error_message)

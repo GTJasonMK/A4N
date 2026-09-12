@@ -119,13 +119,7 @@ pub async fn load_video_segment_plan_draft(
         .load_video_segment_plan_draft(user_id, input)
         .await
         .map_err(error_message)?;
-    Ok(VideoSegmentPlanDraftSummary {
-        run: draft.run,
-        segments: draft.segments,
-        recipes: draft.recipes,
-        completed_shot_count: draft.completed_shot_count,
-        total_shot_count: draft.total_shot_count,
-    })
+    Ok(draft)
 }
 
 pub async fn update_video_segment_plan_draft_recipe(

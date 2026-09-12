@@ -50,7 +50,7 @@ async fn create_assembly_insert_video(
     let properties = probe_imported_video_properties(&source, "插入视频")?;
     let imported_at = Utc::now().to_rfc3339();
     let record = state
-        .video_record_application()
+        .video_import_application()
         .create_imported_assembly_insert_video_record(
             project_id,
             chapter_id,
