@@ -1,7 +1,6 @@
 //! 视频生成 job 状态推进纯规则（poll / 失败 / submit 落库门禁）。
 
 use a4n_db_models::models::ai::generated_video;
-use a4n_domain::video_workflow::CANVAS_WORKFLOW_MODES;
 use a4n_error::AppError;
 
 pub fn can_adopt_authoritative_video_completion(error: &AppError) -> bool {
@@ -100,11 +99,7 @@ fn positive_provider_poll_config_id(
 }
 
 pub fn is_canvas_video_record(video: &generated_video::Model) -> bool {
-    is_canvas_video_record_fields(video.chapter_id, video.workflow_mode.as_deref())
-}
-
-pub fn is_canvas_video_record_fields(chapter_id: Option<i64>, workflow_mode: Option<&str>) -> bool {
-    chapter_id.is_none() && workflow_mode.is_some_and(|mode| CANVAS_WORKFLOW_MODES.contains(&mode))
+    a4n_video::is_canvas_video_record_fields(video.chapter_id, video.workflow_mode.as_deref())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
