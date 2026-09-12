@@ -12,7 +12,7 @@ pub use contracts::{
     GalgameSourceSyncExecutionContext, SourceSyncDecisionInput, SourceSyncExecutionContext,
 };
 pub(in crate::source_sync) use projection::source_sync_plan_summary;
-pub use service::ApplySourceSyncApplicationInput;
+pub(in crate::source_sync) use service::ApplySourceSyncApplicationInput;
 pub(crate) use workflow_rules::source_sync_apply_workflow_run_input;
 
 use crate::prompt_records::PromptRendererAdapter;
