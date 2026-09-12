@@ -91,7 +91,7 @@ impl<'a> ChapterAnalysisProgress<'a> {
     }
 }
 
-pub use owner::build_chapter_analysis_initial_request;
+pub(crate) use owner::build_chapter_analysis_initial_request;
 
 pub use application::{
     CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
