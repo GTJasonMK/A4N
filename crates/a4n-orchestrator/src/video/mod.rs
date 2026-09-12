@@ -73,7 +73,7 @@ pub(crate) use assembly_clip_rules::{
 pub(crate) use assembly_postprocess_rules::{
     parse_postprocess_edit_metadata, postprocess_edit_timing,
 };
-pub use assembly_push_rules::ASSEMBLY_PUSH_STATUS_PENDING;
+pub(in crate::video) use assembly_push_rules::ASSEMBLY_PUSH_STATUS_PENDING;
 pub(in crate::video) use assembly_push_rules::{
     ASSEMBLY_PUSH_STATUS_ACCEPTED, ASSEMBLY_PUSH_STATUS_REJECTED, active_assembly_push_source_ids,
     assembly_push_metadata_with_status, assembly_push_records,
