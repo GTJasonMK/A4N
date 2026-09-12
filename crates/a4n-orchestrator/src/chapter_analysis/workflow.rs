@@ -11,9 +11,8 @@ pub const CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP: &str = "chapter_analysis.rep
 pub const CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP: &str = "chapter_analysis.replacement_cleanup";
 
 pub use checkpoint::{
-    ChapterAnalysisCheckpointIncomplete, ChapterAnalysisResumeBlockReason,
-    chapter_analysis_phase_fingerprint, chapter_analysis_resume_block_reason,
-    require_completed_chapter_analysis_phase,
+    ChapterAnalysisResumeBlockReason, chapter_analysis_phase_fingerprint,
+    chapter_analysis_resume_block_reason, require_completed_chapter_analysis_phase,
 };
 
 pub fn chapter_analysis_workflow_run_input(
