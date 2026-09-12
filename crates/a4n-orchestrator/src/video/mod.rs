@@ -101,7 +101,7 @@ pub(in crate::video) use contracts::{
     VideoPromptProgressUpdate,
 };
 pub(crate) use contracts::{ChapterVideoPromptOptions, ChapterVideoSource};
-pub use first_frame_chain_rules::first_frame_prompt_matches_video_prompt;
+pub(in crate::video) use first_frame_chain_rules::first_frame_prompt_matches_video_prompt;
 pub(in crate::video) use generation_run_rules::started_video_generation_run_input;
 pub(in crate::video) use job_status_rules::{
     active_provider_job_id, canvas_video_workflow_context, has_active_provider_job,
