@@ -10,7 +10,9 @@ mod target;
 mod workflow_rules;
 
 pub(crate) use target::ReverseEngineeringTarget;
-pub(crate) use workflow_rules::{IMPORT_REVERSE_WORKFLOW_KIND, IMPORT_REVERSE_WORKFLOW_MODE};
+pub(in crate::import_reverse) use workflow_rules::{
+    IMPORT_REVERSE_WORKFLOW_KIND, IMPORT_REVERSE_WORKFLOW_MODE,
+};
 
 /// Runtime-facing reverse-engineering boundary.
 #[async_trait::async_trait]
