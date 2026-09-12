@@ -12,27 +12,6 @@ pub const MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES: usize = 7;
 /// CLIProxy / Grok 视频 prompt UTF-8 字节上限。
 pub const MAX_CLIPROXY_VIDEO_PROMPT_BYTES: usize = 4096;
 
-pub fn provider_request_snapshot_value(
-    key: &str,
-    title: &str,
-    kind: &str,
-    prompt_name: Option<&str>,
-    note: Option<String>,
-    request: Value,
-) -> Value {
-    json!({
-        "schema_version": 1,
-        "captured_at": chrono::Utc::now().to_rfc3339(),
-        "key": key,
-        "title": title,
-        "kind": kind,
-        "prompt_name": prompt_name,
-        "state": "ready",
-        "note": note,
-        "request": request,
-    })
-}
-
 /// 应用内视频 provider 支持的工作流。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProviderGenerationWorkflow {

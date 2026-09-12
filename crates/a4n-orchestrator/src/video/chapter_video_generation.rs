@@ -16,7 +16,8 @@ use a4n_domain::source_text_hash;
 use a4n_service_protocol::GenerationArtifactRef;
 use a4n_video::{
     ProviderImageInputTransport, VideoGenerationRequest,
-    append_video_request_prompt_length_context, video_request_prompt_length_context,
+    append_video_request_prompt_length_context, provider_request_snapshot_value,
+    video_request_prompt_length_context,
 };
 use a4n_video_contract::{
     ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
@@ -481,7 +482,7 @@ impl OrchestratorContext {
         let descriptor =
             chapter_video_provider_descriptor(context, &format!("生成时{}", body.source_label))
                 .map_err(AppError::InvalidArgument)?;
-        let provider_request_snapshot = super::provider_request_snapshot_value(
+        let provider_request_snapshot = provider_request_snapshot_value(
             "chapter_video",
             descriptor.request_title,
             descriptor.request_kind,

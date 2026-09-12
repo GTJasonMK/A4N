@@ -148,9 +148,8 @@ pub use provider_request_rules::{
     cliproxy_prompt_length_violation_message, ensure_newapi_first_frame_image_supported,
     ensure_provider_generation_workflow, first_frame_chain_missing_start_image_message,
     linked_video_preview_config_id, provider_image_binding_violation_messages,
-    provider_request_snapshot_value, reference_ids_with_storyboard_image,
-    required_prompt_source_prompt_type, required_video_execution_identity,
-    storyboard_missing_image_message,
+    reference_ids_with_storyboard_image, required_prompt_source_prompt_type,
+    required_video_execution_identity, storyboard_missing_image_message,
 };
 pub use provider_workflow_rules::{
     video_provider_progress_workflow_run_input, video_provider_workflow_business_key,

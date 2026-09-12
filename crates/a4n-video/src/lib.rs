@@ -11,6 +11,7 @@ mod prompt;
 mod provider_image;
 mod tail_frame;
 pub use assembly::assembly_media_properties;
+mod snapshot;
 mod workflow;
 pub use config::{
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
@@ -31,6 +32,7 @@ pub use tail_frame::{
     should_capture_video_tail_frame_fields, tail_frame_metadata_belongs_to_video,
     video_shot_number,
 };
+pub use snapshot::provider_request_snapshot_value;
 pub use workflow::is_canvas_video_record_fields;
 
 pub const OPENAI_COMPATIBLE_VIDEO_BACKEND: &str = "openai-compatible-video";
