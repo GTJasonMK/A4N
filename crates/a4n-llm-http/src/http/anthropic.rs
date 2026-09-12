@@ -2,8 +2,7 @@ use std::{collections::HashMap, pin::Pin, time::Instant};
 
 use a4n_error::AppError;
 use a4n_llm::provider::{
-    ChatChunk, ChatMessage, ChatRequest, LlmProvider, MessageRole, ModelCapabilities, ToolCall,
-    UsageInfo,
+    ChatChunk, ChatRequest, LlmProvider, MessageRole, ModelCapabilities, ToolCall, UsageInfo,
 };
 use async_trait::async_trait;
 use futures::{Stream, StreamExt};
@@ -13,7 +12,7 @@ use super::errors::{
     build_http_client, normalized_connect_timeout_secs, normalized_timeout_secs, request_error,
     response_text,
 };
-use super::response::llm_api_status_error;
+use super::response::{llm_api_status_error, optional_usize, required_usize};
 
 pub(in crate::http) struct AnthropicLlmProvider {
     client: reqwest::Client,
@@ -64,28 +63,28 @@ impl AnthropicLlmProvider {
             body.insert("stop_sequences".into(), json!(stop));
         }
 
-        let mut system = request
-            .messages
-            .iter()
-            .filter(|message| matches!(message.role, MessageRole::System))
-            .map(|message| message.content.as_str())
-            .collect::<Vec<_>>()
-            .join("\n\n");
-        if request.response_format.is_some() {
-            if !system.is_empty() {
-                system.push_str("\n\n");
+        let mut system = Vec::new();
+        for (index, message) in request.messages.iter().enumerate() {
+            if !matches!(message.role, MessageRole::System) || message.content.is_empty() {
+                continue;
             }
-            system.push_str("Return only one valid JSON value. Do not wrap it in Markdown fences or add explanatory text.");
+            let mut blocks = anthropic_text_blocks(request, index)?;
+            if !system.is_empty()
+                && let Some(first) = blocks.first_mut()
+            {
+                first["text"] = json!(format!("\n\n{}", first["text"].as_str().unwrap()));
+            }
+            system.extend(blocks);
+        }
+        if request.response_format.is_some() {
+            let separator = if system.is_empty() { "" } else { "\n\n" };
+            system.push(json!({"type": "text", "text": format!("{separator}Return only one valid JSON value. Do not wrap it in Markdown fences or add explanatory text.")}));
         }
         if !system.is_empty() {
-            let mut block = json!({"type": "text", "text": system});
-            if request.cache_system_prefix {
-                block["cache_control"] = json!({"type": "ephemeral"});
-            }
-            body.insert("system".into(), Value::Array(vec![block]));
+            body.insert("system".into(), Value::Array(system));
         }
 
-        body.insert("messages".into(), anthropic_messages(&request.messages)?);
+        body.insert("messages".into(), anthropic_messages(request)?);
         if let Some(tools) = &request.tools {
             body.insert("tools".into(), anthropic_tools(tools)?);
         }
@@ -145,18 +144,33 @@ impl LlmProvider for AnthropicLlmProvider {
     }
 }
 
-fn anthropic_messages(messages: &[ChatMessage]) -> Result<Value, AppError> {
+fn anthropic_text_blocks(request: &ChatRequest, index: usize) -> Result<Vec<Value>, AppError> {
+    Ok(request
+        .cached_text_parts(index)?
+        .into_iter()
+        .map(|(text, cached)| {
+            let mut block = json!({"type": "text", "text": text});
+            if cached {
+                block["cache_control"] = json!({"type": "ephemeral"});
+            }
+            block
+        })
+        .collect())
+}
+
+fn anthropic_messages(request: &ChatRequest) -> Result<Value, AppError> {
     let mut output = Vec::new();
-    for message in messages {
+    for (index, message) in request.messages.iter().enumerate() {
         if matches!(message.role, MessageRole::System) {
             continue;
         }
         match message.role {
-            MessageRole::User => output.push(json!({"role": "user", "content": message.content})),
+            MessageRole::User => output
+                .push(json!({"role": "user", "content": anthropic_text_blocks(request, index)?})),
             MessageRole::Assistant => {
                 let mut blocks = Vec::new();
                 if !message.content.is_empty() {
-                    blocks.push(json!({"type": "text", "text": message.content}));
+                    blocks.extend(anthropic_text_blocks(request, index)?);
                 }
                 if let Some(calls) = &message.tool_calls {
                     blocks.extend(calls.iter().map(|call| json!({
@@ -169,9 +183,18 @@ fn anthropic_messages(messages: &[ChatMessage]) -> Result<Value, AppError> {
                 let id = message.tool_call_id.as_deref().ok_or_else(|| {
                     AppError::InvalidArgument("Anthropic tool消息缺少 tool_call_id".to_string())
                 })?;
-                output.push(json!({"role": "user", "content": [{
-                    "type": "tool_result", "tool_use_id": id, "content": message.content
-                }]}));
+                let parts = request.cached_text_parts(index)?;
+                if parts.len() > 1 {
+                    return Err(AppError::InvalidArgument(
+                        "Anthropic 工具结果只支持完整块缓存断点".into(),
+                    ));
+                }
+                let mut block =
+                    json!({"type": "tool_result", "tool_use_id": id, "content": message.content});
+                if parts[0].1 {
+                    block["cache_control"] = json!({"type": "ephemeral"});
+                }
+                output.push(json!({"role": "user", "content": [block]}));
             }
             MessageRole::System => unreachable!(),
         }
@@ -227,7 +250,7 @@ struct UsageState {
     input: usize,
     output: usize,
     cache_hit: Option<usize>,
-    cache_miss: Option<usize>,
+    cache_write: Option<usize>,
 }
 
 fn anthropic_chunk_stream<S, B>(stream: S) -> impl Stream<Item = Result<ChatChunk, AppError>> + Send
@@ -316,13 +339,15 @@ fn project_anthropic_event(
     match event.get("type").and_then(Value::as_str).unwrap_or("") {
         "message_start" => {
             let usage = &event["message"]["usage"];
-            state.usage.input = usage["input_tokens"].as_u64().unwrap_or(0) as usize;
-            state.usage.cache_hit = usage["cache_read_input_tokens"]
-                .as_u64()
-                .map(|v| v as usize);
-            state.usage.cache_miss = usage["cache_creation_input_tokens"]
-                .as_u64()
-                .map(|v| v as usize);
+            state.usage.input = required_usize(&usage["input_tokens"], "usage.input_tokens")?;
+            state.usage.cache_hit = optional_usize(
+                usage.get("cache_read_input_tokens"),
+                "usage.cache_read_input_tokens",
+            )?;
+            state.usage.cache_write = optional_usize(
+                usage.get("cache_creation_input_tokens"),
+                "usage.cache_creation_input_tokens",
+            )?;
         }
         "content_block_start" => {
             let index = event["index"].as_u64().unwrap_or(0) as u32;
@@ -393,20 +418,31 @@ fn project_anthropic_event(
             }
         }
         "message_delta" => {
-            state.usage.output = event["usage"]["output_tokens"]
-                .as_u64()
-                .unwrap_or(state.usage.output as u64) as usize;
+            state.usage.output =
+                required_usize(&event["usage"]["output_tokens"], "usage.output_tokens")?;
             let finish = event["delta"]["stop_reason"]
                 .as_str()
                 .map(map_stop_reason)
                 .map(str::to_string);
+            // Anthropic input_tokens excludes both cached reads and writes.
+            let prompt_tokens = state
+                .usage
+                .input
+                .checked_add(state.usage.cache_hit.unwrap_or(0))
+                .and_then(|tokens| tokens.checked_add(state.usage.cache_write.unwrap_or(0)))
+                .ok_or_else(|| AppError::LlmError("Anthropic 输入 token 数溢出".into()))?;
             let usage = UsageInfo {
-                prompt_tokens: state.usage.input,
+                prompt_tokens,
                 completion_tokens: state.usage.output,
-                total_tokens: state.usage.input.saturating_add(state.usage.output),
+                total_tokens: prompt_tokens
+                    .checked_add(state.usage.output)
+                    .ok_or_else(|| AppError::LlmError("Anthropic 总 token 数溢出".into()))?,
                 prompt_cache_hit_tokens: state.usage.cache_hit,
-                prompt_cache_miss_tokens: state.usage.cache_miss,
-            };
+                prompt_cache_miss_tokens: None,
+                prompt_cache_write_tokens: state.usage.cache_write,
+            }
+            .normalize_cache_tokens()
+            .map_err(AppError::LlmError)?;
             push_chunk(
                 state,
                 None,
@@ -514,5 +550,53 @@ mod tests {
         let body = provider.request_body(&request).expect("request body");
 
         assert_eq!(body["max_tokens"], json!(393_216));
+        let request = ChatRequest::system_user("", "user", None, None);
+        assert!(
+            provider
+                .request_body(&request)
+                .unwrap()
+                .get("system")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn claude_cache_uses_system_and_user_boundaries_and_normalizes_all_input() {
+        let provider = AnthropicLlmProvider::new(
+            "https://example.test",
+            "claude-test",
+            None,
+            120,
+            None,
+            ModelCapabilities {
+                max_context_tokens: 100_000,
+                max_output_tokens: 8192,
+            },
+        )
+        .unwrap();
+        let mut request = ChatRequest::system_user("rules", "shared\nnew task", None, None);
+        request.add_cache_breakpoint(1, "shared".len()).unwrap();
+        request
+            .configure_prompt_cache("anthropic", "claude-test", None, Some(7))
+            .unwrap();
+        let body = provider.request_body(&request).unwrap();
+        assert_eq!(body["system"][0]["cache_control"]["type"], "ephemeral");
+        assert_eq!(
+            body["messages"][0]["content"][0]["cache_control"]["type"],
+            "ephemeral"
+        );
+        assert_eq!(body["messages"][0]["content"][1]["text"], "\nnew task");
+        let mut state = AnthropicStreamState::default();
+        for event in [
+            json!({"type":"message_start","message":{"usage":{"input_tokens":1000,"cache_read_input_tokens":9000,"cache_creation_input_tokens":500}}}),
+            json!({"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":100}}),
+        ] {
+            project_anthropic_event(&event, &mut state).unwrap();
+        }
+        let usage = state.queued.pop_front().unwrap().unwrap().usage.unwrap();
+        assert_eq!(usage.prompt_tokens, 10500);
+        assert_eq!(usage.total_tokens, 10600);
+        assert_eq!(usage.prompt_cache_miss_tokens, Some(1500));
+        assert_eq!(usage.prompt_cache_write_tokens, Some(500));
     }
 }

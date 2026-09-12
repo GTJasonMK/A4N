@@ -21,6 +21,7 @@ fn formats_usage_with_all_cache_reporting_shapes() {
         total_tokens: 15,
         prompt_cache_hit_tokens: hit,
         prompt_cache_miss_tokens: miss,
+        prompt_cache_write_tokens: None,
     };
     assert_eq!(
         llm_usage_summary_text(Some(&usage(Some(3), Some(1)))),

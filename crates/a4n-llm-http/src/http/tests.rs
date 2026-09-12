@@ -17,7 +17,8 @@ fn parse_data_line(line: &str) -> Result<ChatChunk, AppError> {
     }
 }
 
-fn request_body_json(request: reqwest::RequestBuilder) -> Value {
+fn request_body_json(request: Result<reqwest::RequestBuilder, AppError>) -> Value {
+    let request = request.expect("valid request");
     let request = request.build().expect("request should build");
     let body = request
         .body()
@@ -408,7 +409,11 @@ fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
 
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(body["prompt_cache_key"], json!("a4n:workflow_run:299"));
-    assert_eq!(body["messages"][0]["content"], "stable session");
+    assert_eq!(body["messages"][0]["content"][0]["text"], "stable session");
+    assert_eq!(
+        body["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
     assert_eq!(
         body["messages"][1]["content"][0]["text"],
         "stable shared context"
@@ -448,7 +453,11 @@ fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
         body["messages"][1]["content"][1]["text"],
         "\n\n[当前任务]\npage 2"
     );
-    assert_eq!(body["messages"][0]["content"], "stable session");
+    assert_eq!(body["messages"][0]["content"][0]["text"], "stable session");
+    assert_eq!(
+        body["messages"][0]["content"][0]["prompt_cache_breakpoint"]["mode"],
+        "explicit"
+    );
 }
 
 #[test]

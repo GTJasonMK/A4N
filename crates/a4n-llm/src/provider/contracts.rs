@@ -122,16 +122,7 @@ pub struct ChatResponse {
     pub reasoning_content: Option<String>,
 }
 
-/// Token 用量统计
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct UsageInfo {
-    pub prompt_tokens: usize,
-    pub completion_tokens: usize,
-    pub total_tokens: usize,
-    pub prompt_cache_hit_tokens: Option<usize>,
-    pub prompt_cache_miss_tokens: Option<usize>,
-}
+pub use a4n_domain::llm::LlmCallUsageTraceInput as UsageInfo;
 
 /// 不同 OpenAI-compatible 服务对输出上限的 finish_reason 命名不完全一致。
 pub fn is_truncated_finish_reason(finish_reason: Option<&str>) -> bool {

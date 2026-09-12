@@ -362,6 +362,7 @@ export interface GenerationUsage {
   completion_tokens: number;
   prompt_cache_hit_tokens?: number | null;
   prompt_cache_miss_tokens?: number | null;
+  prompt_cache_write_tokens?: number | null;
   prompt_tokens: number;
   total_tokens: number;
 }

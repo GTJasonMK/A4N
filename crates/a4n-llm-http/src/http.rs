@@ -1,6 +1,7 @@
 //! OpenAI-compatible HTTP LLM provider.
 
 mod anthropic;
+mod cache;
 mod errors;
 mod native;
 mod provider;

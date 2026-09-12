@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use a4n_db::workflow;
 use a4n_error::AppError;
+use a4n_llm::context::{LlmContextManifest, context_aware_system_user_request};
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
 
@@ -15,14 +16,14 @@ async fn build_manga_chat_request(
     prompt_name: &str,
     project_id: i64,
     variables: &HashMap<String, Value>,
-    user_content: String,
+    user_content: LlmContextManifest,
     temperature: f32,
 ) -> Result<ChatRequest, AppError> {
     let sys = prompt_renderer
         .render_prompt(prompt_name, variables, Some(project_id))
         .await?;
     Ok(
-        ChatRequest::system_user(sys, user_content, Some(temperature), None)
+        context_aware_system_user_request(sys, user_content, Some(temperature), None)?
             .with_json_response_format()
             .with_trace_context(LlmTraceContext {
                 project_id: Some(project_id),

@@ -895,9 +895,18 @@ def optimization_patch_response() -> dict[str, Any]:
 
 
 def optimization_chat_response(combined: str) -> dict[str, Any]:
-    states = [value["loop_state"] for value in embedded_json_objects(combined)
+    objects = embedded_json_objects(combined)
+    states = [value["loop_state"] for value in objects
               if isinstance(value.get("loop_state"), dict)]
-    observations = states[-1].get("observations", []) if states else []
+    if states and "observations_ref" in states[-1]:
+        records = [value["loop_observation"] for value in objects if isinstance(value.get("loop_observation"), dict)]
+        if [record["sequence"] for record in records] != list(range(1, len(records) + 1)):
+            raise ValueError("optimization observations are not an intact ordered history")
+        observations = [record["value"] for record in records]
+        if states[-1]["progress"]["observation_count"] != len(observations):
+            raise ValueError("optimization request lost full observations")
+    else:
+        observations = states[-1].get("observations", []) if states else []
     instruction = re.search(r"# 本次用户指令\s*\n([\s\S]*?)\n# 可用工具", combined)
     current = instruction.group(1) if instruction else ""
     if "A4N_OPTIMIZATION_WAIT" in current:
@@ -2286,9 +2295,33 @@ def agent_chat_fixture(body: dict[str, Any]) -> dict[str, Any] | None:
     return main_fixture(body, current_messages)
 
 
+def message_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list) or any(
+        not isinstance(part, dict) or not isinstance(part.get("text"), str)
+        for part in content
+    ):
+        raise ValueError("text fixture requires text content blocks")
+    return "".join(part["text"] for part in content)
+
+
+def cache_fixture_usage(protocol: str) -> dict[str, Any]:
+    """Fixed billing counters test normalization, not a simulated cache engine."""
+    if protocol == "anthropic":
+        return {"input_tokens": 600, "cache_read_input_tokens": 9000, "cache_creation_input_tokens": 400, "output_tokens": 0}
+    if protocol == "gemini":
+        return {"promptTokenCount": 10000, "cachedContentTokenCount": 9000, "candidatesTokenCount": 100, "totalTokenCount": 10100}
+    if protocol == "responses":
+        return {"input_tokens": 10000, "output_tokens": 100, "total_tokens": 10100,
+                "input_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 400}}
+    return {"prompt_tokens": 10000, "completion_tokens": 100, "total_tokens": 10100,
+            "prompt_tokens_details": {"cached_tokens": 9000, "cache_write_tokens": 400}}
+
+
 def response_for(body: dict[str, Any]) -> str:
     messages = body.get("messages") or []
-    combined = "\n".join(str(message.get("content", "")) for message in messages)
+    combined = "\n".join(message_text(message.get("content", "")) for message in messages)
     if combined.strip() == "ping" or (len(messages) == 1 and "ping" in combined.lower()):
         return "pong"
 
@@ -2750,6 +2783,8 @@ class ProviderHandler(BaseHTTPRequestHandler):
             lifecycle_fixture = str(body.get("model", "")).removeprefix("a4n-llm-lifecycle-")
             if lifecycle_fixture in {"ok", "length", "missing", "slow"}:
                 agent_fixture = {"content": "partial answer " * 200 if lifecycle_fixture == "slow" else "LLM lifecycle fixture output"}
+            elif body.get("a4n_test_cache_usage") is True:
+                agent_fixture = {"content": "雨夜里，角色谨慎地推开仓库门。"}
             else:
                 agent_fixture = agent_chat_fixture(body)
         except (ValueError, KeyError, TypeError) as error:
@@ -2825,6 +2860,8 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 "choices": [{"index": 0, "delta": {}, "finish_reason": {"length": "length", "missing": None}.get(lifecycle_fixture, "stop")}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             }
+            if body.get("a4n_test_cache_usage") is True:
+                final["usage"] = cache_fixture_usage("chat")
             self.wfile.write(("data: " + json.dumps(final) + "\n\n").encode("utf-8"))
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush()
@@ -2898,16 +2935,14 @@ class ProviderHandler(BaseHTTPRequestHandler):
             elif path == "/v1/messages":
                 if not self.headers.get("x-api-key") or not self.headers.get("anthropic-version") or body.get("stream") is not True:
                     raise ValueError("Messages requires native auth/version and stream")
-                def text_content(value: Any) -> str:
-                    return value if isinstance(value, str) else "\n".join(part["text"] for part in value)
-                messages = [{"role": "system", "content": text_content(body.get("system", []))}]
-                messages += [{"role": item["role"], "content": text_content(item["content"])} for item in body["messages"]]
+                messages = [{"role": "system", "content": message_text(body.get("system", []))}]
+                messages += [{"role": item["role"], "content": message_text(item["content"])} for item in body["messages"]]
             else:
                 if not self.headers.get("x-goog-api-key") or "alt=sse" not in self.path:
                     raise ValueError("Gemini requires native auth and alt=sse")
                 messages = [{"role": "system", "content": "\n".join(part["text"] for part in body.get("systemInstruction", {}).get("parts", []))}]
                 messages += [{"role": "assistant" if item["role"] == "model" else "user", "content": "\n".join(part["text"] for part in item["parts"])} for item in body["contents"]]
-            content = response_for({"messages": messages})
+            content = "雨夜里，角色谨慎地推开仓库门。" if body.get("a4n_test_cache_usage") is True else response_for({"messages": messages})
         except (KeyError, TypeError, ValueError, UnhandledPromptError) as error:
             self._json(422, {"error": {"message": str(error)}})
             return True
@@ -2930,6 +2965,14 @@ class ProviderHandler(BaseHTTPRequestHandler):
         else:
             events = [{"candidates": [{"content": {"role": "model", "parts": [{"text": content}]}, "finishReason": "STOP"}],
                        "usageMetadata": {"promptTokenCount": 2, "candidatesTokenCount": 1, "totalTokenCount": 3}}]
+        if body.get("a4n_test_cache_usage") is True:
+            if path == "/v1/responses":
+                events[-1]["response"]["usage"] = cache_fixture_usage("responses")
+            elif path == "/v1/messages":
+                events[0]["message"]["usage"] = cache_fixture_usage("anthropic")
+                events[-2]["usage"]["output_tokens"] = 100
+            else:
+                events[0]["usageMetadata"] = cache_fixture_usage("gemini")
         data = "".join(f"data: {json.dumps(event, ensure_ascii=False)}\n\n" for event in events).encode("utf-8")
         self._bytes(200, "text/event-stream", data)
         return True

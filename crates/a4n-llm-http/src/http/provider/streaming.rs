@@ -17,7 +17,7 @@ pub(super) async fn execute_chat_stream(
 ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
     let request_started = Instant::now();
     let builder = if provider.protocol == LlmProtocolKind::OpenAiChatCompletions {
-        provider.build_request(&request, true)
+        provider.build_request(&request, true)?
     } else {
         provider.build_native_request(&request)?
     };

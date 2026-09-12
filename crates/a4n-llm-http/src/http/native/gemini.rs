@@ -5,7 +5,7 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, MessageRole, ToolCall, UsageInfo
 use serde_json::{Map, Value, json};
 
 use super::{empty_chunk, function_definition, required_string};
-use crate::http::response::required_usize;
+use crate::http::response::{optional_usize, required_usize};
 
 pub(in crate::http) fn request_body(
     request: &ChatRequest,
@@ -267,16 +267,21 @@ impl GeminiStream {
                 AppError::LlmError("Gemini totalTokenCount 小于 promptTokenCount".into())
             })?;
             let mut chunk = empty_chunk();
-            chunk.usage = Some(UsageInfo {
-                prompt_tokens: prompt,
-                completion_tokens: completion,
-                total_tokens: total,
-                prompt_cache_hit_tokens: usage
-                    .get("cachedContentTokenCount")
-                    .map(|value| required_usize(value, "usageMetadata.cachedContentTokenCount"))
-                    .transpose()?,
-                prompt_cache_miss_tokens: None,
-            });
+            chunk.usage = Some(
+                UsageInfo {
+                    prompt_tokens: prompt,
+                    completion_tokens: completion,
+                    total_tokens: total,
+                    prompt_cache_hit_tokens: optional_usize(
+                        usage.get("cachedContentTokenCount"),
+                        "usageMetadata.cachedContentTokenCount",
+                    )?,
+                    prompt_cache_miss_tokens: None,
+                    prompt_cache_write_tokens: None,
+                }
+                .normalize_cache_tokens()
+                .map_err(AppError::LlmError)?,
+            );
             chunks.push(chunk);
         }
         Ok(chunks)

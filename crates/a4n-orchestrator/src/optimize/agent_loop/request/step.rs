@@ -14,8 +14,18 @@ pub(in crate::optimize::agent_loop) fn build_agent_loop_step_user_message(
         "loop_state": {
             "step": step,
             "progress": agent_loop_progress(observations),
-            "observations": observations,
+            "observations_ref": "此前 user 消息中的 loop_observation 按 sequence 顺序构成完整观察历史；保留所有成功、失败和工具结果，不能仅依据 progress 摘要决策。",
         },
+    });
+    build_json_task_user_message(
+        "继续执行内容优化 Agent Loop，并根据当前观察选择下一步",
+        "外层只输出严格 JSON 决策对象，不要输出代码块、解释文字或额外字段；可见文本字段可以使用简洁 Markdown",
+        &payload,
+    )
+}
+
+pub(in crate::optimize::agent_loop) fn agent_loop_rules() -> Value {
+    json!({
         "completion_policy": {
             "final_is_success": "final 表示本轮任务已经完成，是正常结束动作，不是失败或放弃。",
             "return_final_when": [
@@ -56,12 +66,7 @@ pub(in crate::optimize::agent_loop) fn build_agent_loop_step_user_message(
             ]
         },
         "response_requirement": "只返回一个严格 JSON 决策对象，不要用 Markdown 代码块包裹 JSON；public_update 和 final.reply 字符串可以使用简洁 Markdown 提高可读性。",
-    });
-    build_json_task_user_message(
-        "继续执行内容优化 Agent Loop，并根据当前观察选择下一步",
-        "外层只输出严格 JSON 决策对象，不要输出代码块、解释文字或额外字段；可见文本字段可以使用简洁 Markdown",
-        &payload,
-    )
+    })
 }
 
 fn agent_loop_progress(observations: &[Value]) -> Value {

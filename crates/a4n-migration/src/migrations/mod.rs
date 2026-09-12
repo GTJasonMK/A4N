@@ -55,6 +55,7 @@ pub mod image_supported_sizes;
 pub mod import_review_contract_cleanup;
 pub mod invite_codes;
 pub mod legacy_asset_lineage_shadow_cleanup;
+pub mod llm_cache_usage;
 pub mod llm_call_trace_join_fields;
 pub mod llm_call_trace_status_fields;
 pub mod llm_context_tracking;

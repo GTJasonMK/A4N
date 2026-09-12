@@ -123,11 +123,12 @@ fn llm_call(id: i64, workflow: &str, total: i32, hit: i32, miss: i32) -> llm_cal
         model: Some("deepseek-chat".to_string()),
         context_plan_json: Some(json!({})),
         context_pack_refs_json: None,
-        prompt_tokens: Some(total - 10),
-        completion_tokens: Some(10),
+        prompt_tokens: Some(hit + miss),
+        completion_tokens: Some(total - hit - miss),
         total_tokens: Some(total),
         prompt_cache_hit_tokens: Some(hit),
         prompt_cache_miss_tokens: Some(miss),
+        prompt_cache_write_tokens: None,
         prompt_cache_hit_ratio: None,
         duration_ms: Some(1000),
         streamed: false,
@@ -149,6 +150,8 @@ fn llm_call_with_context_plan(
     let mut call = llm_call(id, workflow, prompt_tokens + 10, 0, 0);
     call.status = status.to_string();
     call.prompt_tokens = Some(prompt_tokens);
+    call.completion_tokens = Some(10);
+    call.prompt_cache_miss_tokens = Some(prompt_tokens);
     call.context_plan_json = Some(plan);
     call
 }
@@ -177,6 +180,38 @@ fn analytics_aggregates_llm_cache_ratio() {
     assert_eq!(llm.prompt_cache_hit_tokens, 100);
     assert_eq!(llm.prompt_cache_miss_tokens, 50);
     assert_eq!(llm.prompt_cache_hit_ratio, Some(100.0 / 150.0));
+}
+
+#[test]
+fn analytics_uses_input_totals_and_preserves_unknown_cache_data() {
+    let now = Utc::now().naive_utc();
+    let mut call = llm_call(1, "responses", 10_100, 9_000, 1_000);
+    call.prompt_cache_miss_tokens = None;
+    call.prompt_cache_write_tokens = Some(400);
+    let summarize =
+        |calls| build_generation_call_analytics(now, now - Duration::days(1), 1, 10, calls, vec![]);
+    let result = summarize(vec![call.clone()]);
+    let llm = result
+        .overview
+        .iter()
+        .find(|row| row.kind == "llm")
+        .unwrap();
+    assert_eq!(llm.prompt_cache_hit_ratio, Some(0.9));
+    assert_eq!(llm.prompt_cache_write_tokens, Some(400));
+    assert_eq!(
+        result.recent_llm_calls[0].prompt_cache_write_tokens,
+        Some(400)
+    );
+    call.prompt_cache_hit_tokens = None;
+    call.prompt_cache_write_tokens = None;
+    let result = summarize(vec![call]);
+    let llm = result
+        .overview
+        .iter()
+        .find(|row| row.kind == "llm")
+        .unwrap();
+    assert_eq!(llm.prompt_cache_hit_ratio, None);
+    assert_eq!(llm.prompt_cache_write_tokens, None);
 }
 
 #[test]

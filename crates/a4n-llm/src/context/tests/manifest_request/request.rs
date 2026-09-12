@@ -33,12 +33,11 @@ fn context_aware_request_rejects_empty_manifest_packs() {
 }
 
 #[test]
-fn manifest_rewrite_rejects_complex_chat_history() {
+fn manifest_rewrite_rejects_a_non_user_context_message() {
     let manifest = manifest_with_pack("当前任务");
     let mut request = ChatRequest::new(
         vec![
             ChatMessage::system("system"),
-            ChatMessage::user("first"),
             ChatMessage::assistant("assistant"),
         ],
         Some(0.2),
@@ -66,10 +65,33 @@ fn manifest_rewrite_records_the_stable_user_cache_boundary() {
         .expect("manifest rewrite");
 
     let prefix_len = request
-        .cache_user_prefix_len
-        .expect("stable cache boundary");
+        .cache_breakpoints
+        .last()
+        .expect("stable cache boundary")
+        .byte_offset;
     let (prefix, dynamic) = request.messages[1].content.split_at(prefix_len);
     assert!(prefix.contains("冻结章节上下文"));
     assert!(!prefix.contains("当前任务"));
     assert!(dynamic.contains("当前任务"));
+}
+
+#[test]
+fn manifest_rewrite_keeps_history_and_includes_it_in_the_budget() {
+    let manifest = manifest_with_pack("current task");
+    let mut request =
+        context_aware_system_user_request("system", manifest.clone(), None, None).unwrap();
+    request
+        .messages
+        .push(ChatMessage::user("immutable observation"));
+    request
+        .add_cache_breakpoint(2, "immutable observation".len())
+        .unwrap();
+    request.messages.push(ChatMessage::user("latest question"));
+    replace_request_user_content_from_manifest(&mut request, &manifest, &[]).unwrap();
+    assert_eq!(request.messages[2].content, "immutable observation");
+    assert_eq!(request.messages[3].content, "latest question");
+    assert_eq!(request.cache_breakpoints.last().unwrap().message_index, 2);
+    let dynamic = context_manifest_dynamic_messages(&request, &manifest).unwrap();
+    assert_eq!(dynamic.len(), 3);
+    assert_eq!(dynamic[1].content, "immutable observation");
 }

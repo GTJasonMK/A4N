@@ -27,6 +27,7 @@ pub struct Model {
     pub total_tokens: Option<i32>,
     pub prompt_cache_hit_tokens: Option<i32>,
     pub prompt_cache_miss_tokens: Option<i32>,
+    pub prompt_cache_write_tokens: Option<i32>,
     pub prompt_cache_hit_ratio: Option<f64>,
     pub duration_ms: Option<i64>,
     pub streamed: bool,

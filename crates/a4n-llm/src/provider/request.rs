@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::contracts::{ChatMessage, LlmTraceContext};
+use super::{PromptCacheBreakpoint, PromptCacheMode};
 
 /// 聊天请求
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -16,6 +17,12 @@ pub struct ChatRequest {
     pub stream_include_usage: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_scope_key: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cache_breakpoints: Vec<PromptCacheBreakpoint>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_mode: Option<PromptCacheMode>,
+    // Read old durable requests; configure_prompt_cache migrates and clears
+    // these legacy hints before dispatch. New callers declare exact boundaries.
     #[serde(default, skip_serializing_if = "is_false")]
     pub cache_system_prefix: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -42,6 +49,8 @@ impl ChatRequest {
             response_format: None,
             stream_include_usage: false,
             cache_scope_key: None,
+            cache_breakpoints: Vec::new(),
+            cache_mode: None,
             cache_system_prefix: false,
             cache_user_prefix_len: None,
             trace_context: None,

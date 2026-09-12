@@ -62,10 +62,6 @@ pub(in crate::optimize) async fn prepare_model_execution(
     // The first message is the original task already rendered into the domain
     // prompt. Keep subsequent instructions as user messages, never system text.
     if messages.len() > 1 {
-        let mut manifest: LlmContextManifest =
-            serde_json::from_value(request.context_manifest_json.clone().ok_or_else(|| {
-                AppError::InvalidArgument("内容优化请求缺少上下文 manifest".into())
-            })?)?;
         let followups: Vec<_> = messages
             .iter()
             .skip(1)
@@ -76,12 +72,30 @@ pub(in crate::optimize) async fn prepare_model_execution(
                 })
             })
             .collect();
-        manifest.dynamic_user_content.push_str(&format!(
+        let followups = format!(
             "\n后续用户指令（按接收顺序）：\n{}",
             serde_json::to_string(&followups)?
-        ));
-        replace_request_user_content_from_manifest(request, &manifest, &[])?;
-        request.context_manifest_json = Some(serde_json::to_value(manifest)?);
+        );
+        let first_user = request
+            .messages
+            .iter()
+            .position(|message| matches!(message.role, a4n_llm::provider::MessageRole::User));
+        let last_user = request
+            .messages
+            .iter()
+            .rposition(|message| matches!(message.role, a4n_llm::provider::MessageRole::User))
+            .ok_or_else(|| AppError::InvalidArgument("内容优化请求缺少 user 消息".into()))?;
+        if first_user != Some(last_user) {
+            request.messages[last_user].content.push_str(&followups);
+        } else {
+            let mut manifest: LlmContextManifest =
+                serde_json::from_value(request.context_manifest_json.clone().ok_or_else(
+                    || AppError::InvalidArgument("内容优化请求缺少上下文 manifest".into()),
+                )?)?;
+            manifest.dynamic_user_content.push_str(&followups);
+            replace_request_user_content_from_manifest(request, &manifest, &[])?;
+            request.context_manifest_json = Some(serde_json::to_value(manifest)?);
+        }
     }
     let output = generation
         .agent_max_output_tokens

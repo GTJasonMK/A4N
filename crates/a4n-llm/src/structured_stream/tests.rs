@@ -88,6 +88,7 @@ async fn result_preserves_finish_reason_and_prompt_cache_usage() {
         total_tokens: 2_020,
         prompt_cache_hit_tokens: Some(1_800),
         prompt_cache_miss_tokens: Some(200),
+        prompt_cache_write_tokens: Some(100),
     });
     let provider = StreamProvider::new(vec![final_chunk]);
 
