@@ -7,6 +7,7 @@ use a4n_domain::ProviderError as AppError;
 mod assembly;
 mod config;
 mod import;
+mod lifecycle;
 mod prompt;
 mod provider_image;
 mod tail_frame;
@@ -22,6 +23,7 @@ pub use import::{
     canvas_frame_timestamp, import_video_extension, imported_chapter_video_metadata,
     trimmed_video_metadata, validate_upload_video_mime, validate_video_trim_range,
 };
+pub use lifecycle::ensure_provider_generation_run_updated;
 pub use prompt::{append_video_request_prompt_length_context, video_request_prompt_length_context};
 pub use provider_image::{
     ProviderImageInputTransport, encode_query_component, is_provider_supported_image_content_type,
