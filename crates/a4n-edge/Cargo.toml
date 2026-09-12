@@ -5,10 +5,11 @@ edition = "2024"
 license.workspace = true
 
 [dependencies]
-a4n-control = { path = "../a4n-control" }
-
 anyhow = { workspace = true }
 axum = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }
 tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt"] }

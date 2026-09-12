@@ -201,12 +201,14 @@ dependencies = [
 name = "a4n-edge"
 version = "0.1.0"
 dependencies = [
- "a4n-control",
  "anyhow",
  "axum 0.8.9",
+ "futures",
+ "reqwest 0.12.28",
  "tokio",
  "tower-http",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

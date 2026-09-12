@@ -34,10 +34,14 @@ impl ServerConfig {
         validate_postgres_database_url("A4N_DATABASE_URL", &database_url)?;
 
         let jwt_secret = required_non_empty_env_string("A4N_JWT_SECRET")?;
-        let bind_addr = optional_non_empty_env_string("A4N_WEB_ADDR")?
-            .unwrap_or_else(|| "127.0.0.1:8080".to_string())
-            .parse()
-            .map_err(|e| AppError::ConfigError(format!("A4N_WEB_ADDR 无效: {e}")))?;
+        let bind_addr_value = match optional_non_empty_env_string("A4N_CONTROL_ADDR")? {
+            Some(value) => value,
+            None => optional_non_empty_env_string("A4N_WEB_ADDR")?
+                .unwrap_or_else(|| "127.0.0.1:8080".to_string()),
+        };
+        let bind_addr = bind_addr_value.parse().map_err(|e| {
+            AppError::ConfigError(format!("A4N_CONTROL_ADDR/A4N_WEB_ADDR 无效: {e}"))
+        })?;
         let frontend_dist = optional_non_empty_env_path("A4N_FRONTEND_DIST")?
             .unwrap_or_else(|| PathBuf::from("frontend/dist"));
         let bootstrap_admin = bootstrap_admin_from_env()?;

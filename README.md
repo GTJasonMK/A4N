@@ -194,6 +194,8 @@ workspace，会重新构建带 `embedded-capabilities` feature 的 Server。
 Web 运行常用变量：
 
 - `A4N_WEB_ADDR`
+- `A4N_CONTROL_ADDR`（Server 入口启动的内部 Control 地址；通常无需手动设置）
+- `A4N_CONTROL_BINARY`（可选的独立 `a4n-control` 二进制路径）
 - `A4N_FRONTEND_DIST`
 - `A4N_BOOTSTRAP_ADMIN_USERNAME`
 - `A4N_BOOTSTRAP_ADMIN_EMAIL`
@@ -216,7 +218,9 @@ Web 运行常用变量：
 
 ## Desktop / Web / CLI 一致性
 
-桌面默认 `local-server` 模式与浏览器都通过 HTTP 调用 `a4n-server`；桌面 `native`
+桌面默认 `local-server` 模式与浏览器都通过 HTTP 调用 `a4n-server`。入口进程只负责 Edge
+的监听、静态文件和 `/api` 代理，Control 在独立子进程中持有业务路由和 Runtime；设置
+`A4N_CONTROL_BINARY` 后可直接替换为独立编译的 Control 进程。桌面 `native`
 模式才使用 Tauri command。Server 提供显式 REST 路由和 `/api/commands/:cmd`。CLI 对 Web 专用 REST 路由使用相同映射，其余命令走
 统一 command endpoint。共享 Host API manifest 位于 `a4n-api-contract`，是 CLI
 能力发现和三端 parity 的单一命令目录。
