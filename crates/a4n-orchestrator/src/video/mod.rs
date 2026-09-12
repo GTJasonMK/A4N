@@ -170,12 +170,13 @@ pub(crate) use crate::OrchestratorContext;
 #[cfg(test)]
 pub(crate) use tokio_util::sync::CancellationToken;
 
-pub use self::config::{
+pub(in crate::video) use self::config::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
     OPENAI_CHAT_VIDEO_BACKEND, OPENAI_COMPATIBLE_VIDEO_BACKEND, SEEDANCE2_VIDEO_BACKEND,
-    duration_capability_for_config, duration_capability_for_provider_config,
-    validate_video_config_model, validate_video_duration_for_config_secs,
-    validate_video_duration_for_provider_config_secs, validate_video_provider_config,
+    duration_capability_for_provider_config,
+};
+pub(crate) use self::config::{
+    validate_video_config_model, validate_video_duration_for_provider_config_secs,
     video_provider_config_from_model,
 };
 pub use self::prompt_json::{
