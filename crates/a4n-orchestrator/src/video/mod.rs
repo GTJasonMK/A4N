@@ -138,7 +138,7 @@ pub(crate) use provider_execution::VideoGenerationCheckpointContext;
 pub use provider_execution::{
     VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoProviderExecutionInput,
 };
-pub use provider_prompt_text_rules::{
+pub(in crate::video) use provider_prompt_text_rules::{
     MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, ProviderPromptTextViolation,
     provider_prompt_text_violation, validate_provider_model_text,
 };
