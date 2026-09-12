@@ -118,7 +118,9 @@ pub use library::{
     image_type_rank, is_video_reference_image_candidate, resolve_video_reference_image_project_ids,
     video_reference_scope_rank,
 };
-pub use prompt_application::{GenerateChapterVideoPromptInput, VideoPromptApplicationContext};
+pub(in crate::video) use prompt_application::{
+    GenerateChapterVideoPromptInput, VideoPromptApplicationContext,
+};
 pub(crate) use prompt_application::{
     validate_video_final_prompt_generation_options, validate_video_frame_prompt_generation_options,
     validate_video_segment_plan_generation_options,
