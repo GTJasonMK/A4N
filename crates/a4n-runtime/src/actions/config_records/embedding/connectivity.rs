@@ -23,7 +23,7 @@ pub async fn test_embedding_config(
 ) -> Result<(), String> {
     let config = resolve_embedding_config_for_connectivity_test(state, user_id, config_id).await?;
     if state.runtime_profile().uses_sidecars() {
-        let capabilities = state.capabilities().clone();
+        let client = state.capabilities().embedding.clone();
         state
             .provider_runtime()
             .queue_run_tracked(
@@ -31,11 +31,9 @@ pub async fn test_embedding_config(
                 TaskPriority::High,
                 None,
                 || async move {
-                    crate::sidecar_clients::test_embedding_config_via_sidecar(
-                        &capabilities,
-                        &config,
-                    )
-                    .await
+                    crate::sidecar_clients::test_embedding_config_via_sidecar(client, &config)
+                        .await
+                        .map_err(a4n_error::AppError::from)
                 },
             )
             .await

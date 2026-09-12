@@ -8,8 +8,8 @@ use serde_json::Value;
 use super::errors::workflow_checkpoint_contract_app_error;
 
 pub use contracts::{
-    CompletedWorkflowCheckpointContractError, CompletedWorkflowCheckpointInput,
-    required_checkpoint_field, required_checkpoint_json, workflow_checkpoint_fingerprint_sha256,
+    CompletedWorkflowCheckpointInput, required_checkpoint_field, required_checkpoint_json,
+    workflow_checkpoint_fingerprint_sha256,
 };
 
 pub(crate) fn attach_llm_call_checkpoint_trace(

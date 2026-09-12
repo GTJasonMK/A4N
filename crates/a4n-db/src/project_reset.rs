@@ -16,10 +16,7 @@ use crate::project_delete::{
 };
 
 mod types;
-pub use types::{
-    ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult, ProjectResetDbError,
-    ProjectStatusRollbackOutcome,
-};
+pub use types::{ProjectResetDbError, ProjectStatusRollbackOutcome};
 
 mod galgame;
 use galgame::reset_galgame_generated_data_in_tx;

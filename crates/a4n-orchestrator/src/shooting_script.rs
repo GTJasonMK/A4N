@@ -8,7 +8,7 @@ mod progress;
 mod stage;
 mod workflow_rules;
 
-pub use a4n_api_contract::shooting_script::{
+pub(crate) use a4n_api_contract::shooting_script::{
     ChapterShootingScriptSourceInput, EditChapterShootingScriptInput,
     EditedChapterShootingScriptView, GenerateChapterShootingScriptInput,
 };

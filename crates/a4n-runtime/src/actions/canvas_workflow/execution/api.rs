@@ -3,7 +3,7 @@ use a4n_canvas_contract::{
     CanvasSingleNodeRunPreparationInput, PreparedCanvasGraphRun,
 };
 use a4n_domain::agent::AgentWorkflowOrigin;
-use a4n_orchestrator::workflow::{
+use a4n_domain::workflow::{
     WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
     WORKFLOW_STATUS_RUNNING,
 };

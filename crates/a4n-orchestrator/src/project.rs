@@ -5,19 +5,21 @@ pub(crate) use a4n_db::project::{
     is_valid_source_sync_status, normalize_derived_project_kind, normalize_project_kind,
     normalize_project_type,
 };
-pub use a4n_db::project::{
+pub(crate) use a4n_db::project::{
     CreateDerivedProjectParams, CreateFreeformVideoProjectParams, CreateProjectRecordInput,
-    DerivedChapterScope, FreeformVideoGeneratedDataResetResult, PROJECT_KIND_TEXT,
+    DerivedChapterScope, PROJECT_KIND_TEXT,
+};
+pub(crate) use a4n_db::project::{
     ProjectFamilyContext, ProjectFamilyMetadata, ProjectFamilyMetadataQuery, ProjectProgressQuery,
 };
 pub(crate) use a4n_db::project_family_import::{
     ProjectFamilyImportPackage, ProjectFamilyMediaFileImporter, snapshot_profile_key,
 };
-pub use a4n_db::project_reset::{
-    ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult,
-};
 pub(crate) use a4n_domain::project::ProjectSourceMode;
-pub use a4n_domain::project::{ProjectProgressSummary, SourceSnapshotChapterSummary};
+pub(crate) use a4n_domain::project::{ProjectProgressSummary, SourceSnapshotChapterSummary};
+use a4n_domain::project_reset::{
+    FreeformVideoGeneratedDataResetResult, ProjectGeneratedDataResetOutcome,
+};
 
 use a4n_db_models::models::character::protagonist_profile;
 
@@ -73,21 +75,18 @@ mod package_transfer;
 mod video_studio_package;
 mod video_studio_transfer;
 
-pub use a4n_api_contract::project_transfer::{
+pub(crate) use a4n_api_contract::project_transfer::{
     ExportDerivedProjectPackageApplicationInput, ExportProjectFamilyPackageApplicationInput,
     ExportVideoStudioProjectApplicationInput, ExportedProjectPackage,
     ImportProjectPackageApplicationInput, MediaFileEntry, ProjectFamilyTransferApplicationPort,
     ProjectPackageTransferError, ProjectPackageTransferHostPort,
     VideoStudioProjectTransferApplicationPort,
 };
-pub use duplication::{
-    DuplicateProjectApplicationInput, ProjectDuplicationApplicationPort, ProjectDuplicationHostPort,
-};
+pub use duplication::{ProjectDuplicationApplicationPort, ProjectDuplicationHostPort};
 #[cfg(test)]
 pub(crate) use family_package::PROJECT_FAMILY_PACKAGE_VERSION;
-pub use family_package::{
-    MANIFEST_PATH as FAMILY_PACKAGE_MANIFEST_PATH, ProjectFamilyPackage, TextCorePackage,
-    validate_media_bytes as validate_family_media_bytes,
+pub(crate) use family_package::{
+    MANIFEST_PATH as FAMILY_PACKAGE_MANIFEST_PATH, ProjectFamilyPackage,
 };
 pub(crate) use family_package::{
     assemble_project_family_export_package, family_media_package_path,
@@ -108,7 +107,7 @@ pub(crate) use json_field_rules::{
     required_json_i32_field, required_json_i64_field, required_json_string_field,
     required_optional_json_string_field,
 };
-pub use package_rules::{ImportMediaPayload, media_asset_path, media_file_key};
+pub(crate) use package_rules::{ImportMediaPayload, media_asset_path, media_file_key};
 pub(crate) use package_rules::{
     collect_unique_ids, hash_json, hash_text, is_valid_snapshot_outline_kind,
     is_valid_snapshot_profile_kind, parse_chapter_scope_json, required_package_extension,
@@ -120,10 +119,7 @@ pub(crate) use package_transfer::{
     import_result_with_file_rollback, index_import_media_payload, project_package_export_input,
 };
 
-pub use video_studio_package::{
-    MANIFEST_PATH, MediaEntryOwnerIndex, VideoStudioProjectPackage, validate_media_entry_bytes,
-    validate_media_entry_owner,
-};
+pub(crate) use video_studio_package::{MANIFEST_PATH, VideoStudioProjectPackage};
 #[cfg(test)]
 pub(crate) use video_studio_package::{PACKAGE_MODE, VIDEO_STUDIO_PACKAGE_VERSION};
 pub(crate) use video_studio_package::{

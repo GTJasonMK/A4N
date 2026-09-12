@@ -1,8 +1,8 @@
 use super::*;
-use a4n_capabilities::JsonResponse;
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_service_protocol::{ServiceResponse, ServiceStatus};
 use a4n_test_support::capability::RecordingVideoClient;
+use a4n_video_client::JsonResponse;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -44,7 +44,7 @@ fn video_request() -> VideoGenerationRequest {
 async fn video_sidecar_missing_capability_fails_without_embedded_fallback() {
     let error = generate_video(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::default(),
+        None,
         &video_config(),
         video_request(),
         None,
@@ -64,7 +64,7 @@ async fn video_sidecar_missing_capability_fails_without_embedded_fallback() {
 async fn video_poll_sidecar_missing_capability_fails_without_embedded_fallback() {
     let error = poll_video(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::default(),
+        None,
         &video_config(),
         "job-1",
         Some(42),
@@ -83,10 +83,8 @@ async fn video_provider_preview_uses_typed_capability_request() {
     let client = Arc::new(
         RecordingVideoClient::new().with_preview_response(successful_video_preview_response()),
     );
-    let capabilities = A4nCapabilities::default().with_video(client.clone());
-
     let preview = preview_video_provider_request(
-        &capabilities,
+        Some(client.clone()),
         &video_config(),
         video_request(),
         Some(42),
@@ -115,12 +113,10 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
     let client = Arc::new(
         RecordingVideoClient::new().with_generate_events(successful_video_generation_events()),
     );
-    let capabilities = A4nCapabilities::default().with_video(client.clone());
-
     let (progress_tx, mut progress_rx) = tokio::sync::mpsc::unbounded_channel();
     let output = generate_video(
         RuntimeProfile::Sidecar,
-        &capabilities,
+        Some(client.clone()),
         &video_config(),
         video_request(),
         Some("a".repeat(64)),
@@ -157,15 +153,10 @@ async fn video_generation_maps_workflow_run_to_service_trace() {
 
 #[tokio::test]
 async fn video_provider_preview_missing_capability_has_no_embedded_fallback() {
-    let error = preview_video_provider_request(
-        &A4nCapabilities::default(),
-        &video_config(),
-        video_request(),
-        Some(42),
-        Some(3),
-    )
-    .await
-    .expect_err("missing video preview capability must fail");
+    let error =
+        preview_video_provider_request(None, &video_config(), video_request(), Some(42), Some(3))
+            .await
+            .expect_err("missing video preview capability must fail");
 
     assert!(error.contains("video sidecar capability 未配置"));
 }
@@ -174,11 +165,9 @@ async fn video_provider_preview_missing_capability_has_no_embedded_fallback() {
 async fn video_poll_carries_project_scope_in_context_and_payload() {
     let client =
         Arc::new(RecordingVideoClient::new().with_poll_response(successful_video_poll_response()));
-    let capabilities = A4nCapabilities::default().with_video(client.clone());
-
     let state = poll_video(
         RuntimeProfile::Sidecar,
-        &capabilities,
+        Some(client.clone()),
         &video_config(),
         "job-42",
         Some(42),
@@ -210,11 +199,9 @@ async fn video_status_uses_status_only_capability_without_polling() {
             "state": "completed"
         }))),
     );
-    let capabilities = A4nCapabilities::default().with_video(client.clone());
-
     let status = video_job_status(
         RuntimeProfile::Sidecar,
-        &capabilities,
+        Some(client.clone()),
         &video_config(),
         "job-42",
         Some(42),
@@ -241,11 +228,9 @@ async fn video_delete_carries_project_scope_and_maps_outcome() {
             "outcome": "deleted"
         }))),
     );
-    let capabilities = A4nCapabilities::default().with_video(client.clone());
-
     let outcome = delete_video_job(
         RuntimeProfile::Sidecar,
-        &capabilities,
+        Some(client.clone()),
         &video_config(),
         "job-42",
         Some(42),

@@ -26,7 +26,7 @@ pub(in crate::actions) async fn poll_provider_job(
         || async {
             crate::sidecar_clients::poll_video(
                 state.runtime_profile(),
-                state.capabilities(),
+                state.capabilities().video.clone(),
                 cfg,
                 job_id,
                 Some(project_id),

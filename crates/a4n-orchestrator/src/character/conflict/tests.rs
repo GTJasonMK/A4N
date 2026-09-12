@@ -1,6 +1,5 @@
-use serde_json::json;
-
 use a4n_api_contract::character::CharacterConflictCheckInput;
+use serde_json::json;
 
 use crate::character::conflict_context_rules::CharacterConflictChapterScope;
 

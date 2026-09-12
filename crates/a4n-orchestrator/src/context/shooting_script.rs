@@ -252,7 +252,7 @@ impl OrchestratorContext {
         )
     }
 
-    pub async fn current_chapter_shooting_script_for_user_validated(
+    pub(crate) async fn current_chapter_shooting_script_for_user_validated(
         &self,
         user_id: i64,
         input: ChapterShootingScriptSourceInput,
@@ -272,7 +272,7 @@ impl OrchestratorContext {
         require_current_chapter_shooting_script(source, shooting_script)
     }
 
-    pub async fn edit_current_chapter_shooting_script_for_user_validated(
+    pub(crate) async fn edit_current_chapter_shooting_script_for_user_validated(
         &self,
         user_id: i64,
         input: EditChapterShootingScriptInput,

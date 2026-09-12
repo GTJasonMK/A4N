@@ -91,7 +91,7 @@ impl ImageGenerationHostPort for RuntimeImageGenerationHostPort<'_> {
                 };
                 crate::sidecar_clients::generate_image(
                     self.state.runtime_profile(),
-                    self.state.capabilities(),
+                    self.state.capabilities().image.clone(),
                     &input.config,
                     input.request,
                     Some(input.project_id),

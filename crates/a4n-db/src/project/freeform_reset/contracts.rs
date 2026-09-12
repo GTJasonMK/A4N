@@ -11,20 +11,6 @@ pub(crate) struct FreeformGeneratedResetTargets {
     pub media_paths: Vec<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FreeformVideoGeneratedDataResetResult {
-    pub deleted_tasks: u64,
-    pub deleted_task_dependencies: u64,
-    pub deleted_generation_specs: u64,
-    pub deleted_prompt_artifacts: u64,
-    pub deleted_media_assets: u64,
-    pub deleted_media_provenance: u64,
-    pub deleted_media_bindings: u64,
-    pub deleted_generated_images: u64,
-    pub deleted_generated_videos: u64,
-    pub media_paths: Vec<String>,
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum FreeformGeneratedResetDbError {
     #[error("{0}")]

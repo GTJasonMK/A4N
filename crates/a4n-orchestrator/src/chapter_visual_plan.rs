@@ -24,7 +24,6 @@ use a4n_domain::{
     source_spans::SourceSpan,
 };
 use a4n_error::AppError;
-pub use tools::project_editor_visual_plan;
 
 #[derive(Debug, Clone)]
 pub struct ResolvedChapterVisualPlanSet {
@@ -34,7 +33,7 @@ pub struct ResolvedChapterVisualPlanSet {
 }
 
 impl OrchestratorContext {
-    pub async fn current_chapter_visual_plan_for_user_validated(
+    pub(crate) async fn current_chapter_visual_plan_for_user_validated(
         &self,
         user_id: i64,
         input: ChapterVisualPlanSourceInput,
@@ -44,7 +43,7 @@ impl OrchestratorContext {
         self.load_chapter_visual_plan_set(input).await
     }
 
-    pub async fn save_chapter_visual_plan_draft_for_user_validated(
+    pub(crate) async fn save_chapter_visual_plan_draft_for_user_validated(
         &self,
         user_id: i64,
         input: SaveChapterVisualPlanDraftInput,
@@ -70,7 +69,7 @@ impl OrchestratorContext {
         .map_err(visual_plan_db_error)
     }
 
-    pub async fn confirm_chapter_visual_plan_for_user_validated(
+    pub(crate) async fn confirm_chapter_visual_plan_for_user_validated(
         &self,
         user_id: i64,
         input: ChapterVisualPlanRecordInput,
@@ -98,7 +97,7 @@ impl OrchestratorContext {
         .map_err(visual_plan_db_error)
     }
 
-    pub async fn discard_chapter_visual_plan_draft_for_user_validated(
+    pub(crate) async fn discard_chapter_visual_plan_draft_for_user_validated(
         &self,
         user_id: i64,
         input: ChapterVisualPlanRecordInput,
@@ -192,6 +191,14 @@ impl OrchestratorContext {
 impl a4n_api_contract::chapter_visual_plan::ChapterVisualPlanReadApplicationPort
     for OrchestratorContext
 {
+    fn project_editor(
+        &self,
+        plan: &a4n_api_contract::chapter_visual_plan::ChapterVisualPlanV2,
+        view: &a4n_api_contract::chapter_visual_plan::VisualPlanReadView,
+    ) -> Result<a4n_api_contract::chapter_visual_plan::VisualPlanProjection, AppError> {
+        tools::project_editor_visual_plan(plan, view)
+    }
+
     async fn get(
         &self,
         user_id: i64,

@@ -1,4 +1,5 @@
 use super::*;
+use a4n_db::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
 
 #[test]
 fn validate_package_manifest_rejects_unknown_project_type() {

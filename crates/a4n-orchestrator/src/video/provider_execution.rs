@@ -929,11 +929,12 @@ impl crate::OrchestratorContext {
 mod tests {
     use std::sync::Arc;
 
-    use a4n_db::workflow::{
-        UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
-        WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
-    };
+    use a4n_db::workflow::UpsertWorkflowRunInput;
     use a4n_db_models::models::ai::generated_video;
+    use a4n_domain::workflow::{
+        WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_INTERRUPTED,
+        WORKFLOW_STATUS_RUNNING,
+    };
     use serde_json::json;
 
     use super::AppError;

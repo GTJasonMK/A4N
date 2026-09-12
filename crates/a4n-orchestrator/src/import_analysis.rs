@@ -11,4 +11,4 @@ pub use application::{
     ImportAnalysisApplicationPort, ImportAnalysisPreviewApplicationPort,
     ImportAnalysisProgressApplicationPort,
 };
-pub use ingest::create_import_analysis_reviews_for_user_validated;
+pub(crate) use ingest::create_import_analysis_reviews_for_user_validated;

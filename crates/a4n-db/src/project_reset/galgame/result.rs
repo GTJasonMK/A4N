@@ -1,6 +1,8 @@
 use a4n_domain::project::ProjectStatus;
+use a4n_domain::project_reset::{
+    ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult,
+};
 
-use super::super::types::{ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult};
 use crate::galgame::GalgameScriptCleanupResult;
 use crate::project::{
     ProjectConversationCleanupResult, ProjectGenerationMediaGraphCleanupResult,

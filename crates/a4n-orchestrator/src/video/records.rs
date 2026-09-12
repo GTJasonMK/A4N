@@ -64,7 +64,7 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct PreparedImportedChapterVideoRecord {
+pub(crate) struct PreparedImportedChapterVideoRecord {
     pub video: generated_video::Model,
     pub prompt: chapter_video_prompt::Model,
 }
@@ -93,7 +93,7 @@ pub struct VideoGenerationRecordInput {
     pub prompt_id: Option<i64>,
 }
 
-pub fn generated_video_summary(video: &generated_video::Model) -> GeneratedVideoSummary {
+pub(crate) fn generated_video_summary(video: &generated_video::Model) -> GeneratedVideoSummary {
     GeneratedVideoSummary {
         id: video.id,
         project_id: video.project_id,
@@ -969,7 +969,7 @@ impl crate::OrchestratorContext {
         })
     }
 
-    pub async fn create_imported_chapter_video_record_validated(
+    pub(crate) async fn create_imported_chapter_video_record_validated(
         &self,
         project_id: i64,
         chapter_id: i64,

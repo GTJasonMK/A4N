@@ -1,8 +1,9 @@
-use a4n_capabilities::A4nCapabilities;
+use a4n_export_client::ExportClient;
 use a4n_export_contract::{
     ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput, ExportZipPackageInput,
 };
 use serde::Serialize;
+use std::sync::Arc;
 
 use crate::state::RuntimeProfile;
 
@@ -12,15 +13,13 @@ use super::super::{
 
 pub(crate) async fn render_export_json(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn ExportClient>>,
     input: ExportRenderJsonInput,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<String, String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .export
-            .clone()
+        let client = client
             .ok_or_else(|| "export sidecar capability 未配置，无法执行导出渲染".to_string())?;
         let response = client
             .render_json(pure_transform_typed_service_request(
@@ -44,7 +43,7 @@ pub(crate) async fn render_export_json(
 
 pub(crate) async fn render_export_json_manifest_bytes<T>(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn ExportClient>>,
     payload: &T,
     label: &str,
     project_id: Option<i64>,
@@ -58,7 +57,7 @@ where
             serde_json::to_value(payload).map_err(|err| format!("{label}序列化失败：{err}"))?;
         let rendered = render_export_json(
             profile,
-            capabilities,
+            client,
             ExportRenderJsonInput {
                 payload,
                 pretty: true,
@@ -75,15 +74,13 @@ where
 
 pub(crate) async fn render_export_zip_package(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn ExportClient>>,
     input: ExportZipPackageInput,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<Vec<u8>, String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .export
-            .clone()
+        let client = client
             .ok_or_else(|| "export sidecar capability 未配置，无法执行 zip 渲染".to_string())?;
         let response = client
             .render_zip(pure_transform_typed_service_request(

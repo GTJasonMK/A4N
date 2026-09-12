@@ -1,7 +1,7 @@
 use super::operations::{generate_image, preview_image_provider_request};
 use crate::state::RuntimeProfile;
-use a4n_capabilities::{A4nCapabilities, JsonResponse};
 use a4n_image::ImageGenerationRequest;
+use a4n_image_client::JsonResponse;
 use a4n_provider_contract::ImageProviderConfig;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, ServiceResponse, ServiceStatus,
@@ -37,7 +37,7 @@ fn image_request() -> ImageGenerationRequest {
 async fn image_sidecar_missing_capability_fails_without_embedded_fallback() {
     let error = generate_image(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::default(),
+        None,
         &image_config(),
         image_request(),
         None,
@@ -57,8 +57,6 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
     let client = Arc::new(
         RecordingImageClient::new().with_generate_events(successful_image_generation_events()),
     );
-    let capabilities = A4nCapabilities::default().with_image(client.clone());
-
     let progress_messages = Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let progress_record = progress_messages.clone();
     let progress = move |message: &str| {
@@ -69,7 +67,7 @@ async fn image_generation_maps_workflow_run_to_service_trace() {
     };
     let output = generate_image(
         RuntimeProfile::Sidecar,
-        &capabilities,
+        Some(client.clone()),
         &image_config(),
         image_request(),
         Some(42),
@@ -107,10 +105,8 @@ async fn image_provider_preview_uses_typed_capability_request() {
     let client = Arc::new(
         RecordingImageClient::new().with_preview_response(successful_image_preview_response()),
     );
-    let capabilities = A4nCapabilities::default().with_image(client.clone());
-
     let preview = preview_image_provider_request(
-        &capabilities,
+        Some(client.clone()),
         &image_config(),
         image_request(),
         Some(42),
@@ -135,15 +131,10 @@ async fn image_provider_preview_uses_typed_capability_request() {
 
 #[tokio::test]
 async fn image_provider_preview_missing_capability_has_no_embedded_fallback() {
-    let error = preview_image_provider_request(
-        &A4nCapabilities::default(),
-        &image_config(),
-        image_request(),
-        Some(42),
-        Some(3),
-    )
-    .await
-    .expect_err("missing image preview capability must fail");
+    let error =
+        preview_image_provider_request(None, &image_config(), image_request(), Some(42), Some(3))
+            .await
+            .expect_err("missing image preview capability must fail");
 
     assert!(error.contains("image sidecar capability 未配置"));
 }

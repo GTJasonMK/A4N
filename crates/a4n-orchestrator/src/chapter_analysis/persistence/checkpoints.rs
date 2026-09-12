@@ -1,7 +1,7 @@
 use a4n_db::workflow::{
     CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput, UpsertWorkflowCheckpointInput,
-    WORKFLOW_STATUS_COMPLETED,
 };
+use a4n_domain::workflow::WORKFLOW_STATUS_COMPLETED;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 

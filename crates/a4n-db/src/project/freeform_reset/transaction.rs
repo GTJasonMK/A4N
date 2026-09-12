@@ -1,4 +1,4 @@
-use super::contracts::{FreeformGeneratedResetDbError, FreeformVideoGeneratedDataResetResult};
+use super::contracts::FreeformGeneratedResetDbError;
 use super::targets::freeform_generated_reset_targets_in;
 use crate::project::cleanup::{
     delete_project_generated_artifact_links, delete_project_generated_artifact_rows,
@@ -7,6 +7,7 @@ use crate::project::cleanup::{
 };
 use crate::project::{project_by_id_for_update, validate_positive_i64};
 use a4n_domain::project::ProjectSourceMode;
+use a4n_domain::project_reset::FreeformVideoGeneratedDataResetResult;
 use sea_orm::{ConnectionTrait, TransactionTrait};
 
 pub async fn reset_freeform_video_generated_data_records<C>(

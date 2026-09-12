@@ -18,13 +18,13 @@ use crate::project::{
 };
 
 impl OrchestratorContext {
-    pub async fn export_project_family_package_validated<Host>(
+    pub(crate) async fn export_project_family_package_validated<Host: ?Sized>(
         &self,
         input: ExportProjectFamilyPackageApplicationInput,
         host_port: &Host,
     ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
-        Host: ProjectPackageTransferHostPort + ?Sized,
+        Host: ProjectPackageTransferHostPort,
     {
         self.verify_project_permission(
             input.root_project_id,
@@ -59,13 +59,13 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn export_derived_project_package_validated<Host>(
+    pub(crate) async fn export_derived_project_package_validated<Host: ?Sized>(
         &self,
         input: ExportDerivedProjectPackageApplicationInput,
         host_port: &Host,
     ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
-        Host: ProjectPackageTransferHostPort + ?Sized,
+        Host: ProjectPackageTransferHostPort,
     {
         self.verify_project_permission(
             input.derived_project_id,
@@ -102,13 +102,13 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn import_project_family_package_validated<Host>(
+    pub(crate) async fn import_project_family_package_validated<Host: ?Sized>(
         &self,
         input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
     ) -> Result<Vec<novel_project::Model>, ProjectPackageTransferError>
     where
-        Host: ProjectPackageTransferHostPort + ?Sized,
+        Host: ProjectPackageTransferHostPort,
     {
         if input.package_bytes.is_empty() {
             return Err(ProjectPackageTransferError::Message(

@@ -1,16 +1,16 @@
 use std::sync::Arc;
 
 use crate::provider_runtime::DynamicProviderFacade;
-use a4n_capabilities::A4nCapabilities;
 use a4n_error::AppError;
 use a4n_llm::provider::LlmProvider;
 
+use crate::sidecar_clients::RuntimeCapabilities;
 use crate::state::RuntimeProfile;
 
 pub(crate) fn create_llm_provider(
     facade: DynamicProviderFacade,
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    capabilities: &RuntimeCapabilities,
 ) -> Result<Arc<dyn LlmProvider>, AppError> {
     let sidecar_client = required_sidecar_client(profile, capabilities.llm.as_ref(), "LLM")?;
     if let Some(client) = sidecar_client {

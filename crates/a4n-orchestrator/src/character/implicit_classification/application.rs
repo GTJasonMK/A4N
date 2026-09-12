@@ -1,8 +1,8 @@
+use a4n_domain::character::apply_attribute_to_state;
 use serde_json::{Value, json};
 
 use crate::character::{
-    apply_attribute_to_state, category_storage_key, required_array, required_i32, required_string,
-    required_value,
+    category_storage_key, required_array, required_i32, required_string, required_value,
 };
 
 pub(super) fn apply_implicit_classification_to_behavior(

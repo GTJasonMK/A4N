@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use a4n_capabilities::{A4nCapabilities, ImageClient};
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult};
+use a4n_image_client::ImageClient;
 use a4n_provider_contract::ImageProviderConfig;
 use base64::Engine as _;
 use serde_json::Value;
@@ -15,16 +15,13 @@ use super::super::super::{
 use super::super::contracts::{ImageGenerationOutput, image_provider_payload};
 
 pub(crate) async fn preview_image_provider_request(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn ImageClient>>,
     config: &ImageProviderConfig,
     request: ImageGenerationRequest,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<Value, String> {
-    let client = capabilities
-        .image
-        .clone()
-        .ok_or_else(|| missing_sidecar_capability_message("image"))?;
+    let client = client.ok_or_else(|| missing_sidecar_capability_message("image"))?;
     let payload = image_provider_payload(config, request)?;
     let response = client
         .preview_request(service_request_with_context_provider_secret_policy(

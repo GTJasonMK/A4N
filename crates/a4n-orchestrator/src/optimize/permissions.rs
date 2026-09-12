@@ -4,7 +4,7 @@ use a4n_db_models::models::ai::optimization_session;
 use a4n_error::AppError;
 use serde_json::{Value, json};
 
-pub use a4n_api_contract::optimize::OptimizationAgentPermissions as OptimizeAgentPermissions;
+pub(crate) use a4n_api_contract::optimize::OptimizationAgentPermissions as OptimizeAgentPermissions;
 
 use super::{
     OPTIMIZATION_PATCH_MAX_COUNT, OPTIMIZATION_PATCH_NEW_TEXT_MAX_CHARS,

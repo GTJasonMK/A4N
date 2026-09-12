@@ -153,6 +153,16 @@ mod tests {
     }
 
     #[test]
+    fn optional_profile_text_trims_blank_to_none() {
+        assert_eq!(
+            optional_profile_text(Some("  男  ")),
+            Some("男".to_string())
+        );
+        assert_eq!(optional_profile_text(Some(" \n\t ")), None);
+        assert_eq!(optional_profile_text(None), None);
+    }
+
+    #[test]
     fn seed_prompt_includes_name_and_context() {
         let prompt = profile_portrait_seed_prompt(&profile_with("小雪")).expect("prompt");
         assert!(prompt.contains("小雪"));

@@ -55,7 +55,7 @@ impl SourceSyncApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn source_sync_preview_context_for_user_validated(
+    pub(crate) async fn source_sync_preview_context_for_user_validated(
         &self,
         user_id: i64,
         derived_project_id: i64,
@@ -64,7 +64,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn preview_source_sync(
+    pub(crate) async fn preview_source_sync(
         &self,
         derived_project_id: i64,
     ) -> Result<SourceSyncPlanRecord, AppError> {
@@ -73,14 +73,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn source_sync_run_by_id(
+    pub(crate) async fn source_sync_run_by_id(
         &self,
         sync_run_id: i64,
     ) -> Result<Option<source_sync_run::Model>, AppError> {
         self.source_sync.source_sync_run_by_id(sync_run_id).await
     }
 
-    pub async fn source_sync_run_for_user_validated(
+    pub(crate) async fn source_sync_run_for_user_validated(
         &self,
         user_id: i64,
         sync_run_id: i64,
@@ -106,7 +106,7 @@ impl OrchestratorContext {
         Ok(run)
     }
 
-    pub async fn detach_derived_project_for_user_validated(
+    pub(crate) async fn detach_derived_project_for_user_validated(
         &self,
         user_id: i64,
         derived_project_id: i64,

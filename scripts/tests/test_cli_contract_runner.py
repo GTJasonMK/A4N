@@ -40,6 +40,7 @@ from run_all_workflows_e2e import (
     seed_fixtures,
     _first_video_segment_target,
     validate_auth_cli_result,
+    validate_result_references,
     validate_result_schema,
 )
 
@@ -248,6 +249,36 @@ class CliContractRunnerTest(unittest.TestCase):
         }
         validate_result_schema(schema, None, schema)
         validate_result_schema(schema, {"id": 1}, schema)
+
+    def test_result_schema_enforces_bounds_patterns_uniqueness_and_object_shape(self) -> None:
+        schema = {
+            "type": "object",
+            "properties": {
+                "count": {"type": "integer", "minimum": 1, "maximum": 3},
+                "token": {"type": "string", "pattern": "^[A-Z]+$"},
+                "items": {"type": "array", "uniqueItems": True},
+            },
+            "required": ["count", "token", "items"],
+            "additionalProperties": False,
+        }
+        valid = {"count": 2, "token": "OK", "items": ["a", "b"]}
+        validate_result_schema(schema, valid, schema)
+        for invalid in [
+            {**valid, "count": 0},
+            {**valid, "count": 4},
+            {**valid, "token": "bad"},
+            {**valid, "items": ["a", "a"]},
+            {**valid, "unexpected": True},
+        ]:
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    validate_result_schema(schema, invalid, schema)
+
+    def test_result_references_projection_is_required_when_declared(self) -> None:
+        descriptor = {"result_references": ["project_ids"]}
+        validate_result_references(descriptor, {"meta": {"references": {}}})
+        with self.assertRaises(ValueError):
+            validate_result_references(descriptor, {"meta": {}})
 
     def test_manifest_probe_classifies_expected_http_errors_and_real_failures(self) -> None:
         self.assertEqual(manifest_classify({"ok": True}), "business_success")

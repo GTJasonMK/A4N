@@ -1,9 +1,11 @@
 use std::sync::Mutex;
 
-use a4n_capabilities::{CapabilityResult, JsonRequest};
-use a4n_service_protocol::{CapabilityTaskEvent, ServiceError, ServiceErrorCode};
+use a4n_service_client::ServiceClientResult as CapabilityResult;
+use a4n_service_protocol::{CapabilityTaskEvent, ServiceError, ServiceErrorCode, ServiceRequest};
 
 use super::unexpected_call;
+
+type JsonRequest = ServiceRequest<serde_json::Value>;
 
 pub(super) struct RequestLedger<T = JsonRequest> {
     requests: Mutex<Vec<T>>,

@@ -10,10 +10,10 @@ mod import;
 mod lifecycle;
 mod prompt;
 mod provider_image;
-mod tail_frame;
-pub use assembly::assembly_media_properties;
 mod snapshot;
+mod tail_frame;
 mod workflow;
+pub use assembly::assembly_media_properties;
 pub use config::{
     VIDEO_DURATION_MODE_FIXED, VIDEO_DURATION_MODE_RANGE, VideoConfigParams,
     VideoDurationCapability, duration_capability_for_params, validate_video_config_params,

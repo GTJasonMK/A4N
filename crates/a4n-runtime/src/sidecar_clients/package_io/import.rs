@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
-use a4n_capabilities::A4nCapabilities;
+use a4n_import_client::ImportClient;
 use a4n_import_contract::{ImportReadMediaPackageZipInput, ImportReadMediaPackageZipOutput};
 use serde_json::Value;
 
@@ -12,16 +13,14 @@ use super::super::{
 
 pub(crate) async fn read_import_media_package_zip(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn ImportClient>>,
     zip_bytes: Vec<u8>,
     manifest_path: &str,
     package_label: &str,
     manifest_label: &str,
 ) -> Result<(Value, HashMap<String, Vec<u8>>), String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .import
-            .clone()
+        let client = client
             .ok_or_else(|| "import sidecar capability 未配置，无法读取媒体项目包".to_string())?;
         let input = ImportReadMediaPackageZipInput::from_zip_bytes(
             zip_bytes,

@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use a4n_capabilities::{A4nCapabilities, VideoClient};
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoJobDeleteOutcome, VideoJobState, VideoJobStatus};
+use a4n_video_client::VideoClient;
 use serde_json::Value;
 
 use super::super::super::{
@@ -16,16 +16,13 @@ use super::super::contracts::{
 };
 
 pub(crate) async fn preview_video_provider_request(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn VideoClient>>,
     config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<Value, String> {
-    let client = capabilities
-        .video
-        .clone()
-        .ok_or_else(|| missing_sidecar_capability_message("video"))?;
+    let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
     let payload = video_provider_payload(config, request, None, project_id)?;
     let response = client
         .preview_request(service_request_with_context_provider_secret_policy(

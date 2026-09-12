@@ -7,7 +7,6 @@ use super::context::{
 use super::events::handle_rag_ingest_event;
 use super::request::rag_service_request;
 use super::store::SidecarVectorStore;
-use a4n_capabilities::A4nCapabilities;
 use a4n_error::AppError;
 use a4n_rag_core::vector_store::{EmbeddingRecord, VectorStore};
 use a4n_service_protocol::{CapabilityTaskEvent, SecretForwardingPolicy, ServiceErrorCode};
@@ -19,7 +18,7 @@ use crate::rag_ingest::SceneRagSyncTraceSource;
 
 #[test]
 fn sidecar_rag_requires_capability_without_disabled_fallback() {
-    let Err(error) = super::store::create_sidecar_rag_store(&A4nCapabilities::default()) else {
+    let Err(error) = super::store::create_sidecar_rag_store(None) else {
         panic!("missing RAG sidecar capability must fail at startup");
     };
 

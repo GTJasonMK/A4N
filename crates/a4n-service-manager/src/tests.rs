@@ -196,14 +196,12 @@ fn request_mtls_status_with_factory(
     Err(last_error)
 }
 
-fn demo_sidecar_binary_from_env() -> Option<PathBuf> {
-    let Ok(binary) = std::env::var("A4N_DEMO_SIDECAR_BIN") else {
-        eprintln!("skipping demo sidecar start test; A4N_DEMO_SIDECAR_BIN is not set");
-        return None;
-    };
+fn demo_sidecar_binary_from_env() -> PathBuf {
+    let binary = std::env::var("A4N_DEMO_SIDECAR_BIN")
+        .expect("A4N_DEMO_SIDECAR_BIN is required for sidecar process tests");
     let path = PathBuf::from(binary);
     if path.is_absolute() {
-        return Some(path.canonicalize().unwrap_or(path));
+        return path.canonicalize().unwrap_or(path);
     }
 
     let current_dir = std::env::current_dir().ok();
@@ -219,11 +217,11 @@ fn demo_sidecar_binary_from_env() -> Option<PathBuf> {
     {
         let candidate = base.join(&path);
         if candidate.exists() {
-            return Some(candidate.canonicalize().unwrap_or(candidate));
+            return candidate.canonicalize().unwrap_or(candidate);
         }
     }
 
-    Some(path)
+    path
 }
 
 #[test]
@@ -421,15 +419,8 @@ fn missing_mtls_files_fail_closed_without_exposing_paths() {
 }
 
 #[test]
+#[ignore = "requires the openssl process runner"]
 fn remote_mtls_process_handshake_and_certificate_reload() {
-    if Command::new("openssl").arg("version").output().is_err() {
-        if std::env::var("A4N_REQUIRE_OPENSSL_MTLS").as_deref() == Ok("1") {
-            panic!("openssl is required for the configured remote mTLS process runner");
-        }
-        eprintln!("skipping remote mTLS process test; openssl is not available");
-        return;
-    }
-
     let dir = MtlstestDir::new();
     generate_test_ca(&dir);
     generate_test_identity(&dir, "server", "localhost", "serverAuth");
@@ -779,10 +770,9 @@ fn sidecar_environment_rejects_host_secrets_but_keeps_bootstrap_contract() {
 }
 
 #[tokio::test]
+#[ignore = "requires A4N_DEMO_SIDECAR_BIN"]
 async fn start_sidecar_launches_demo_and_health_reports_exit() {
-    let Some(binary) = demo_sidecar_binary_from_env() else {
-        return;
-    };
+    let binary = demo_sidecar_binary_from_env();
     let addr = unused_local_addr();
     let mut config = ManagedServiceConfig::sidecar("demo", binary, format!("http://{addr}"));
     config
@@ -900,10 +890,9 @@ async fn start_sidecar_launches_demo_and_health_reports_exit() {
 }
 
 #[tokio::test]
+#[ignore = "requires A4N_DEMO_SIDECAR_BIN"]
 async fn supervisor_restarts_once_and_does_not_replay_in_flight_request() {
-    let Some(binary) = demo_sidecar_binary_from_env() else {
-        return;
-    };
+    let binary = demo_sidecar_binary_from_env();
     let addr = unused_local_addr();
     let base_url = format!("http://{addr}");
     let counter = std::env::temp_dir().join(format!(
@@ -989,10 +978,9 @@ async fn supervisor_restarts_once_and_does_not_replay_in_flight_request() {
 }
 
 #[tokio::test]
+#[ignore = "requires A4N_DEMO_SIDECAR_BIN"]
 async fn supervisor_retries_transient_stop_failure_without_losing_child() {
-    let Some(binary) = demo_sidecar_binary_from_env() else {
-        return;
-    };
+    let binary = demo_sidecar_binary_from_env();
     let addr = unused_local_addr();
     let token_env = format!("A4N_TEST_STOP_TOKEN_{}", std::process::id());
     unsafe {
@@ -1045,10 +1033,9 @@ async fn supervisor_retries_transient_stop_failure_without_losing_child() {
 }
 
 #[tokio::test]
+#[ignore = "requires A4N_DEMO_SIDECAR_BIN"]
 async fn supervisor_opens_circuit_after_restart_budget_is_exhausted() {
-    let Some(binary) = demo_sidecar_binary_from_env() else {
-        return;
-    };
+    let binary = demo_sidecar_binary_from_env();
     let addr = unused_local_addr();
     let base_url = format!("http://{addr}");
     let token = "demo-circuit-token";
@@ -1129,10 +1116,9 @@ async fn supervisor_opens_circuit_after_restart_budget_is_exhausted() {
 }
 
 #[tokio::test]
+#[ignore = "requires A4N_DEMO_SIDECAR_BIN"]
 async fn two_managers_own_distinct_sidecars_and_stop_independently() {
-    let Some(binary) = demo_sidecar_binary_from_env() else {
-        return;
-    };
+    let binary = demo_sidecar_binary_from_env();
 
     let first_addr = unused_local_addr();
     let mut first_config =

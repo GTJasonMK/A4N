@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use a4n_capabilities::{
-    CapabilityClient, CapabilityResult, ImageClient, JsonRequest, JsonResponse,
-};
+use a4n_image_client::{ImageClient, JsonRequest, JsonResponse};
+use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
@@ -57,7 +56,7 @@ impl RecordingImageClient {
 }
 
 #[async_trait]
-impl CapabilityClient for RecordingImageClient {
+impl ServiceClient for RecordingImageClient {
     async fn health(&self) -> CapabilityResult<ServiceHealth> {
         Err(unexpected_call("RecordingImageClient", "health"))
     }

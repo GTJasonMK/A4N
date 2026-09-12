@@ -9,8 +9,8 @@ mod manifest;
 mod media;
 mod provenance;
 
-pub use media::MediaEntryOwnerIndex;
-pub(super) use media::{validate_media_entry_bytes, validate_media_entry_owner};
+#[cfg(test)]
+pub(crate) use media::{MediaEntryOwnerIndex, validate_media_entry_bytes};
 
 pub(super) fn validate_package_manifest(
     package: &VideoStudioProjectPackage,

@@ -1,11 +1,9 @@
-use a4n_db::workflow::{
-    UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
-    WORKFLOW_STATUS_RUNNING,
-};
+use a4n_db::workflow::{UpsertWorkflowCheckpointInput, UpsertWorkflowRunInput};
 use a4n_db_models::models::{
     chapter::chapter,
     generation::{workflow_checkpoint, workflow_run},
 };
+use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
 use a4n_domain::{project::ChapterDerivedCleanupArtifacts, source_text_hash};
 use a4n_error::AppError;
 use serde_json::{Value, json};

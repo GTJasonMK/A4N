@@ -1,9 +1,10 @@
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{ProjectStatus, ProjectStatusHistoryInput};
+use a4n_domain::project_reset::ProjectGeneratedDataResetOutcome;
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, DatabaseTransaction, Set};
 
-use super::super::types::{ProjectGeneratedDataResetOutcome, ProjectResetDbError};
+use super::super::types::ProjectResetDbError;
 use super::result::{GalgameResetOutcomeInput, galgame_reset_outcome};
 use crate::galgame::delete_galgame_script_records_for_project;
 use crate::project as project_db;

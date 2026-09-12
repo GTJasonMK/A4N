@@ -276,7 +276,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn project_status_machine_for_user_validated(
+    pub(crate) async fn project_status_machine_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -286,7 +286,7 @@ impl OrchestratorContext {
         self.project_status.machine(project_id).await
     }
 
-    pub async fn preview_project_status_rollback_for_user_validated(
+    pub(crate) async fn preview_project_status_rollback_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -299,7 +299,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn forward_project_status_for_user_validated(
+    pub(crate) async fn forward_project_status_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -310,7 +310,7 @@ impl OrchestratorContext {
         self.forward_project_status_record(project_id, target).await
     }
 
-    pub async fn rollback_project_status_for_user_validated(
+    pub(crate) async fn rollback_project_status_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -343,7 +343,7 @@ impl OrchestratorContext {
         Ok(transition.project)
     }
 
-    pub async fn advance_project_status_if_allowed(
+    pub(crate) async fn advance_project_status_if_allowed(
         &self,
         project_id: i64,
         target: ProjectStatus,
@@ -354,7 +354,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn sync_project_status_from_artifacts(
+    pub(crate) async fn sync_project_status_from_artifacts(
         &self,
         project_id: i64,
     ) -> Result<(), AppError> {

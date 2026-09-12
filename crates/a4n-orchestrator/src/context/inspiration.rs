@@ -92,7 +92,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn inspiration_messages(
+    pub(crate) async fn inspiration_messages(
         &self,
         project_id: i64,
         limit: u64,

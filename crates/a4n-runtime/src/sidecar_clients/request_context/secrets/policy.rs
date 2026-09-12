@@ -6,10 +6,11 @@ use crate::sidecar_clients::{
     },
     service_manager::sidecar_service_and_url_for_capability,
 };
-use a4n_capabilities::JsonRequest;
 use a4n_service_manager::is_loopback_http_url;
-use a4n_service_protocol::SecretForwardingPolicy;
+use a4n_service_protocol::{SecretForwardingPolicy, ServiceRequest};
 use serde::Serialize;
+
+type JsonRequest = ServiceRequest<serde_json::Value>;
 
 pub(crate) fn global_provider_service_request(
     capability_version: impl Into<String>,

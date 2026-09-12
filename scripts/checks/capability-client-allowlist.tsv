@@ -1,0 +1,46 @@
+# rule	subject	dependency or source marker	kind
+# Batch 0 keeps the current contract exceptions explicit while each contract is migrated.
+legacy-contract-dependency	a4n-rag-contract	a4n-domain	normal
+legacy-contract-dependency	a4n-rag-contract	a4n-embedding	normal
+legacy-contract-dependency	a4n-rag-contract	a4n-rag-core	normal
+legacy-contract-dependency	a4n-video-contract	a4n-domain	normal
+legacy-contract-dependency	a4n-video-contract	a4n-video	normal
+
+orchestrator-client	a4n-orchestrator	a4n-prompt-client	normal
+orchestrator-client	a4n-orchestrator	a4n-service-client	normal
+runtime-client	a4n-runtime	a4n-export-client	normal
+runtime-client	a4n-runtime	a4n-embedding-client	normal
+runtime-client	a4n-runtime	a4n-image-client	normal
+runtime-client	a4n-runtime	a4n-import-client	normal
+runtime-client	a4n-runtime	a4n-llm-client	normal
+runtime-client	a4n-runtime	a4n-prompt-client	normal
+runtime-client	a4n-runtime	a4n-rag-client	normal
+runtime-client	a4n-runtime	a4n-service-client	normal
+runtime-client	a4n-runtime	a4n-video-client	normal
+
+# Future capability clients point at their own contract, shared transport, and protocol identity.
+client-dependency	a4n-prompt-client	a4n-prompt-contract	normal
+client-dependency	a4n-prompt-client	a4n-service-client	normal
+client-dependency	a4n-prompt-client	a4n-service-protocol	normal
+client-dependency	a4n-import-client	a4n-service-protocol	normal
+client-dependency	a4n-export-client	a4n-service-protocol	normal
+client-dependency	a4n-llm-client	a4n-service-protocol	normal
+client-dependency	a4n-llm-client	a4n-service-client	dev
+client-dependency	a4n-llm-client	a4n-service-client	normal
+client-dependency	a4n-embedding-client	a4n-service-protocol	normal
+client-dependency	a4n-embedding-client	a4n-service-client	dev
+client-dependency	a4n-embedding-client	a4n-service-client	normal
+client-dependency	a4n-rag-client	a4n-service-protocol	normal
+client-dependency	a4n-rag-client	a4n-service-client	normal
+client-dependency	a4n-rag-client	a4n-service-client	dev
+client-dependency	a4n-image-client	a4n-service-protocol	normal
+client-dependency	a4n-image-client	a4n-service-client	normal
+client-dependency	a4n-image-client	a4n-service-client	dev
+client-dependency	a4n-video-client	a4n-service-protocol	normal
+client-dependency	a4n-video-client	a4n-service-client	normal
+client-dependency	a4n-video-client	a4n-service-client	dev
+client-dependency	a4n-import-client	a4n-import-contract	normal
+client-dependency	a4n-import-client	a4n-service-client	normal
+client-dependency	a4n-export-client	a4n-export-contract	normal
+client-dependency	a4n-export-client	a4n-service-client	normal
+transport-dependency	a4n-service-client	a4n-service-protocol	normal

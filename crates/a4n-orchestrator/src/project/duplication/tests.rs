@@ -3,6 +3,7 @@ use std::sync::{
     atomic::{AtomicUsize, Ordering},
 };
 
+use a4n_api_contract::project::DuplicateProjectInput;
 use a4n_db::{
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_VIDEO,
@@ -30,7 +31,7 @@ use serde_json::json;
 
 use crate::{OrchestratorContext, test_support::TestOrchestratorBuilder};
 
-use super::{DuplicateProjectApplicationInput, ProjectDuplicationHostPort};
+use super::ProjectDuplicationHostPort;
 
 #[derive(Default)]
 struct TestProjectDuplicationHost {
@@ -95,8 +96,8 @@ async fn duplicate_text_application_owns_lookup_permission_validation_and_dispat
 
     let duplicated = context
         .duplicate_project_validated(
-            DuplicateProjectApplicationInput {
-                user_id: 19,
+            19,
+            DuplicateProjectInput {
                 project_id: source.id,
                 new_title: "  文本项目副本  ".to_string(),
             },
@@ -120,8 +121,8 @@ async fn duplicate_missing_project_is_not_found_before_permission_check() {
 
     let error = context
         .duplicate_project_validated(
-            DuplicateProjectApplicationInput {
-                user_id: 19,
+            19,
+            DuplicateProjectInput {
                 project_id: i64::MAX,
                 new_title: "不存在的副本".to_string(),
             },
@@ -151,8 +152,8 @@ async fn duplicate_freeform_application_rolls_back_host_files_on_copy_failure() 
 
     let error = context
         .duplicate_project_validated(
-            DuplicateProjectApplicationInput {
-                user_id: 23,
+            23,
+            DuplicateProjectInput {
                 project_id: source.id,
                 new_title: "自由画布副本".to_string(),
             },
@@ -188,8 +189,8 @@ async fn duplicate_freeform_application_rejects_non_terminal_video_before_copyin
 
     let error = context
         .duplicate_project_validated(
-            DuplicateProjectApplicationInput {
-                user_id: 24,
+            24,
+            DuplicateProjectInput {
                 project_id: source.id,
                 new_title: "运行中自由画布副本".to_string(),
             },
@@ -275,8 +276,8 @@ async fn duplicate_freeform_application_remaps_source_material_and_clears_runtim
 
     let duplicated = context
         .duplicate_project_validated(
-            DuplicateProjectApplicationInput {
-                user_id: 26,
+            26,
+            DuplicateProjectInput {
                 project_id: source.id,
                 new_title: "终态自由画布副本".to_string(),
             },

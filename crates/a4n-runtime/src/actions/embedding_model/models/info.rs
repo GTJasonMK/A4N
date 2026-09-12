@@ -16,8 +16,11 @@ pub async fn get_embedding_model_download_info(
 ) -> Result<EmbeddingModelDownloadInfoSummary, AppError> {
     if state.runtime_profile().uses_sidecars() {
         let model = required_text(&input.model, "fastembed 模型名")?;
-        return crate::sidecar_clients::embedding_model_download_info(state.capabilities(), &model)
-            .await;
+        return crate::sidecar_clients::embedding_model_download_info(
+            state.capabilities().embedding.clone(),
+            &model,
+        )
+        .await;
     }
     get_embedding_model_download_info_in_cache(&input.model, &state.embedding_models_dir()).await
 }

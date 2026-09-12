@@ -1,4 +1,3 @@
-use a4n_capabilities::JsonRequest;
 use a4n_service_protocol::{
     SecretForwardingPolicy, SecretMaterialScope, ServiceRequest, ServiceRequestContext,
     TraceContext, egress_data_type_for_service, validate_egress_scope,
@@ -12,6 +11,8 @@ use super::{
 };
 use crate::sidecar_clients::service_manager::sidecar_service_and_url_for_capability;
 use a4n_service_manager::is_loopback_http_url;
+
+type JsonRequest = ServiceRequest<Value>;
 
 pub(crate) fn global_service_request_without_secrets(
     capability_version: impl Into<String>,

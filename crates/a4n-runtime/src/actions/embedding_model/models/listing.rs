@@ -12,7 +12,10 @@ pub async fn list_local_embedding_models(
     state: &AppState,
 ) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
     if state.runtime_profile().uses_sidecars() {
-        return crate::sidecar_clients::list_embedding_models(state.capabilities()).await;
+        return crate::sidecar_clients::list_embedding_models(
+            state.capabilities().embedding.clone(),
+        )
+        .await;
     }
     list_local_embedding_models_in_cache(&state.embedding_models_dir())
 }

@@ -242,7 +242,7 @@ impl GalgameApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn galgame_asset_generation_specs(
+    pub(crate) async fn galgame_asset_generation_specs(
         &self,
         project_id: i64,
         target_kinds: &[&str],
@@ -263,7 +263,7 @@ impl OrchestratorContext {
         self.galgame.galgame_webgal_portraits(root_project_id).await
     }
 
-    pub async fn galgame_portrait_spec_target_profile(
+    pub(crate) async fn galgame_portrait_spec_target_profile(
         &self,
         spec: &a4n_db_models::models::generation::generation_spec::Model,
         input: &a4n_db::galgame::GalgamePortraitSpecTargetInput,
@@ -273,7 +273,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn completed_galgame_portrait_record(
+    pub(crate) async fn completed_galgame_portrait_record(
         &self,
         spec: &a4n_db_models::models::generation::generation_spec::Model,
         profile_id: i64,
@@ -286,7 +286,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn primary_galgame_portrait_reference_image_ids(
+    pub(crate) async fn primary_galgame_portrait_reference_image_ids(
         &self,
         profile: &a4n_db::galgame::GalgamePortraitSpecTargetProfile,
     ) -> Result<Vec<i64>, a4n_error::AppError> {
@@ -295,7 +295,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn mark_galgame_generation_spec_status_record(
+    pub(crate) async fn mark_galgame_generation_spec_status_record(
         &self,
         generation_spec_id: i64,
         status: &str,
@@ -305,7 +305,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn galgame_prompt_artifact_by_generation_spec(
+    pub(crate) async fn galgame_prompt_artifact_by_generation_spec(
         &self,
         generation_spec_id: i64,
     ) -> Result<
@@ -317,7 +317,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn upsert_galgame_prompt_artifact_record(
+    pub(crate) async fn upsert_galgame_prompt_artifact_record(
         &self,
         input: a4n_db::galgame::GalgamePromptArtifactUpsertInput,
     ) -> Result<a4n_db_models::models::generation::prompt_artifact::Model, a4n_error::AppError>
@@ -327,7 +327,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn galgame_media_target_context(
+    pub(crate) async fn galgame_media_target_context(
         &self,
         project_id: i64,
         target_kind: &str,
@@ -338,7 +338,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn galgame_generated_image_by_id(
+    pub(crate) async fn galgame_generated_image_by_id(
         &self,
         image_id: i64,
         project_id: i64,
@@ -348,7 +348,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn bind_galgame_media_records(
+    pub(crate) async fn bind_galgame_media_records(
         &self,
         project_id: i64,
         media_asset_id: i64,
@@ -369,7 +369,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn unbind_galgame_media_records(
+    pub(crate) async fn unbind_galgame_media_records(
         &self,
         project_id: i64,
         target_kind: &str,
@@ -382,7 +382,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn completed_galgame_visual_binding_records(
+    pub(crate) async fn completed_galgame_visual_binding_records(
         &self,
         spec: &a4n_db_models::models::generation::generation_spec::Model,
         target_entity_kind: &str,
@@ -399,7 +399,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_media_asset_with_provenance_records(
+    pub(crate) async fn delete_media_asset_with_provenance_records(
         &self,
         media_asset_id: i64,
     ) -> Result<(), a4n_error::AppError> {

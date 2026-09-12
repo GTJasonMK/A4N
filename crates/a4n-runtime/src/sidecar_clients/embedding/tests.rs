@@ -8,9 +8,8 @@ use super::download::{
     test_embedding_config_via_sidecar,
 };
 use crate::state::RuntimeProfile;
-use a4n_capabilities::A4nCapabilities;
-use a4n_capabilities::JsonResponse;
 use a4n_embedding::provider::EmbeddingModelIdentity;
+use a4n_embedding_client::JsonResponse;
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{
@@ -164,11 +163,10 @@ async fn embedding_connectivity_uses_typed_capability_and_deny_all_request() {
     let client = Arc::new(RecordingEmbeddingClient::new(
         successful_embedding_response(),
     ));
-    let capabilities = A4nCapabilities::default().with_embedding(client.clone());
     let mut model = embedding_model("fastembed");
     model.local_model_path = Some("/host/private/cache".to_string());
 
-    test_embedding_config_via_sidecar(&capabilities, &model)
+    test_embedding_config_via_sidecar(Some(client.clone()), &model)
         .await
         .expect("sidecar connectivity test");
 
@@ -186,12 +184,11 @@ async fn api_embedding_connectivity_forwards_secret_only_with_local_user_policy(
     let client = Arc::new(RecordingEmbeddingClient::new(
         successful_embedding_response(),
     ));
-    let capabilities = A4nCapabilities::default().with_embedding(client.clone());
     let mut model = embedding_model("api");
     model.base_url = Some("https://provider.example/v1".to_string());
     model.api_key = Some("secret-key".to_string());
 
-    test_embedding_config_via_sidecar(&capabilities, &model)
+    test_embedding_config_via_sidecar(Some(client.clone()), &model)
         .await
         .expect("API embedding connectivity test");
     let request = client.last_embed_request().expect("recorded embed request");
@@ -273,11 +270,12 @@ fn embedding_download_events_preserve_failure_and_cancel_semantics() {
 async fn host_cancel_drops_embedding_sidecar_event_stream() {
     let client = Arc::new(PendingEmbeddingDownloadClient::new());
     let observer = client.observer();
-    let capabilities = A4nCapabilities::default().with_embedding(client.clone());
     let cancel_token = CancellationToken::new();
     let task_cancel_token = cancel_token.clone();
+    let task_client = client.clone();
     let task = tokio::spawn(async move {
-        download_embedding_model_events(&capabilities, "test-model", None, task_cancel_token).await
+        download_embedding_model_events(Some(task_client), "test-model", None, task_cancel_token)
+            .await
     });
 
     observer.wait_until_started().await;

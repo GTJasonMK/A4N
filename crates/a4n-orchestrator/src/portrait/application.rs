@@ -8,7 +8,7 @@ mod workflow;
 mod tests;
 
 pub use contracts::{
-    DecodedPortraitImage, GeneratedPortraitImage, PortraitBatchItem, PortraitBatchOutcome,
-    PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
+    DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
+    PortraitImageProviderInput, PortraitProgress,
 };
 pub use image::portrait_summary;

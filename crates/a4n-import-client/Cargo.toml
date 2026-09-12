@@ -1,0 +1,12 @@
+[package]
+name = "a4n-import-client"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[dependencies]
+a4n-import-contract = { path = "../a4n-import-contract" }
+a4n-service-client = { path = "../a4n-service-client" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+
+async-trait = { workspace = true }

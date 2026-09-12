@@ -1,3 +1,4 @@
+use a4n_domain::workflow::WORKFLOW_STATUS_CANCELLED;
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde_json::Value;
@@ -123,7 +124,7 @@ impl OrchestratorContext {
         workflow_run_id: i64,
     ) -> Result<(), AppError> {
         let run = self.workflow_run_model_by_id(workflow_run_id).await?;
-        if run.status == a4n_db::workflow::WORKFLOW_STATUS_CANCELLED {
+        if run.status == WORKFLOW_STATUS_CANCELLED {
             return Err(AppError::Cancelled);
         }
         Ok(())

@@ -18,29 +18,32 @@ mod record_lifecycle;
 mod snapshot_rules;
 mod sync_projection;
 mod sync_rules;
-use a4n_api_contract::character::ApplyImplicitUpdateDecisionResultSummary;
+use a4n_api_contract::character::{
+    ApplyImplicitUpdateDecisionInput, ApplyImplicitUpdateDecisionResultSummary,
+    CheckImplicitUpdateInput, GetImplicitReviewInput, ImplicitReviewSummary,
+    ImplicitUpdateDecisionSummary,
+};
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_prompt::rendering::PromptRenderer;
 
 pub const CHARACTER_PROFILE_SYNC_STEPS: u32 = 10;
 
-pub use a4n_db::character::{
+pub(crate) use a4n_db::character::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
     AppliedCharacterSyncPersistenceRecord, CharacterAttributeDeletionExecutionResult,
     CharacterAttributeEventHistoryFilter, CharacterAttributeMutationResult,
-    CharacterConflictContextRows, CharacterDeletionMarkRewindSummary, CharacterPortraitRecordError,
-    CharacterPortraitRollbackError, CharacterPortraitRollbackResult, CharacterProfileCreateError,
+    CharacterConflictContextRows, CharacterPortraitRecordError, CharacterProfileCreateError,
     CharacterProfileDeleteError, CharacterProfileDeletionSummary, CharacterProfileRollbackResult,
     CharacterSyncAttributeEventRecordInput, CharacterSyncPersistenceInput,
     CharacterSyncWriteStepRecordInput, CharacterTimelineDeletionSummary,
-    PortraitNamedPromptProfileRows, PortraitPromptProfileRows, apply_attribute_to_state,
-    character_sync_attribute_events_at_chapter, snapshot_attributes_from_data,
+    PortraitNamedPromptProfileRows, PortraitPromptProfileRows,
 };
-pub use a4n_db::generation::{GenerationRunTraceTarget, RecordCompletedGenerationRunInput};
-pub use attribute_lifecycle::CharacterAttributeLifecycleError;
+pub(crate) use a4n_db::generation::RecordCompletedGenerationRunInput;
+pub(crate) use a4n_domain::character::category_storage_key;
+pub(crate) use attribute_lifecycle::CharacterAttributeLifecycleError;
 pub use conflict::CharacterConflictApplicationPort;
-pub use record_lifecycle::{
+pub(crate) use record_lifecycle::{
     CharacterProfileRecordDeletionResult, CharacterRecordLifecycleError,
     CharacterTimelineRollbackLifecycleResult,
 };
@@ -89,28 +92,6 @@ pub(crate) fn character_profile_create_error(error: CharacterProfileCreateError)
     }
 }
 
-pub(crate) fn character_portrait_rollback_error(error: CharacterPortraitRollbackError) -> AppError {
-    use CharacterPortraitRollbackError as Error;
-
-    match error {
-        Error::NotFound(message) => AppError::NotFound(message),
-        Error::InvalidArgument(message) => AppError::InvalidArgument(message),
-        Error::Begin(error)
-        | Error::QueryPortrait(error)
-        | Error::LockMirrorImages(error)
-        | Error::DeleteMirrorImageBindings(error)
-        | Error::DeleteMirrorImagePrimaryMaterials(error)
-        | Error::DeleteMirrorImages(error)
-        | Error::DeletePortrait(error)
-        | Error::CheckFileReferences(error)
-        | Error::Commit(error) => AppError::Database(error),
-        Error::ClearMirrorImageReferences(error) => crate::video::video_db_error(error),
-        Error::DeleteMirrorImageTargets(error) | Error::DeletePortraitTargets(error) => {
-            crate::generation::generation_error(error)
-        }
-    }
-}
-
 pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError) -> AppError {
     match error {
         CharacterProfileDeleteError::NotFound(message) => AppError::NotFound(message),
@@ -122,7 +103,7 @@ pub(crate) fn character_profile_delete_error(error: CharacterProfileDeleteError)
     }
 }
 
-pub use attribute_lifecycle::implicit_review_attribute_event;
+pub(crate) use attribute_lifecycle::implicit_review_attribute_event;
 
 pub use conflict::{
     CHARACTER_CONFLICT_KIND, CHARACTER_CONFLICT_PROGRESS_TOTAL, CharacterConflictProgressReporter,
@@ -311,16 +292,15 @@ impl CharacterAiApplicationPort for crate::OrchestratorContext {
 }
 pub use discovery::{
     CHARACTER_DISCOVERY_CALL_KEY, CHARACTER_DISCOVERY_KIND, CHARACTER_DISCOVERY_PROGRESS_TOTAL,
-    CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview, character_identity_key,
-    character_llm_chapter_context, profile_character_keys, validate_character_discovery_input,
+    CharacterDiscoveryProgress, CharacterDiscoveryRequestPreview,
+    validate_character_discovery_input,
+};
+pub(crate) use discovery::{
+    character_identity_key, character_llm_chapter_context, profile_character_keys,
 };
 pub(crate) use implicit_classification::CharacterImplicitClassificationInput;
 pub(crate) use implicit_review::CharacterSyncImplicitReviewInput;
-pub use implicit_review::{
-    ApplyImplicitUpdateDecisionInput, CheckImplicitUpdateInput, GetImplicitReviewInput,
-    IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND, ImplicitAttributeReviewSummary,
-    ImplicitEvidenceSummary, ImplicitReviewSummary, ImplicitUpdateDecisionSummary,
-};
+pub use implicit_review::{IMPLICIT_UPDATE_PROMPT_NAME, IMPLICIT_UPDATE_WORKFLOW_KIND};
 
 /// Host-facing boundary for implicit character review.
 ///
@@ -354,42 +334,46 @@ pub trait CharacterImplicitReviewApplicationPort: Send + Sync {
         input: ApplyImplicitUpdateDecisionInput,
     ) -> Result<ApplyImplicitUpdateDecisionResultSummary, AppError>;
 }
-pub use profile_sync::{
+pub use profile_sync::CharacterProfileSyncProgress;
+pub(crate) use profile_sync::{
     CharacterProfileSyncAnchorMode, CharacterProfileSyncApplicationInput,
-    CharacterProfileSyncProgress, CharacterProfileSyncSubject,
+    CharacterProfileSyncSubject,
 };
 pub use profile_sync_batch::{
-    analysis_sync_character_names, character_keys_from_names,
-    character_names_from_chapter_analysis, character_names_from_discovery_result,
+    analysis_sync_character_names, character_names_from_chapter_analysis,
+    character_names_from_discovery_result,
+};
+pub(crate) use profile_sync_stages::{
+    CharacterProfileSyncChapterStateDraft, CharacterProfileSyncGenerationTrace,
+    CharacterProfileSyncStageInput,
 };
 pub use profile_sync_stages::{
-    CharacterProfileSyncChapterStateDraft, CharacterProfileSyncExtraction,
-    CharacterProfileSyncGenerationTrace, CharacterProfileSyncPreviewStep,
-    CharacterProfileSyncStageInput, CharacterProfileSyncStageOutput,
-    CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
+    CharacterProfileSyncPreviewStep, CharacterProfileSyncStageTraceInput,
+    CharacterProfileSyncStageTracePort,
 };
-pub use sync_projection::{
+pub(crate) use sync_projection::{
     CharacterSyncAttributeEventDraft, pending_character_sync_attribute_events,
     project_character_attribute_changes,
 };
 pub use sync_rules::{
     CharacterSyncRange, CharacterSyncRangeMode, analysis_profile_sync_skip_reason,
-    character_profile_skipped_result, character_profile_sync_business_key,
-    character_profile_sync_mode_label, character_profile_sync_stage_call_key,
-    character_profile_sync_workflow_fingerprint, character_sync_range,
-    character_sync_range_with_first_seen, character_sync_start_chapter, profile_first_seen_chapter,
-    profile_sync_skip_reason, validate_character_sync_target_chapter,
+    character_profile_skipped_result, character_sync_range, character_sync_start_chapter,
+    profile_first_seen_chapter, profile_sync_skip_reason, validate_character_sync_target_chapter,
     validate_contiguous_character_sync_range,
 };
+pub(crate) use sync_rules::{
+    character_profile_sync_business_key, character_profile_sync_mode_label,
+    character_profile_sync_stage_call_key, character_profile_sync_workflow_fingerprint,
+    character_sync_range_with_first_seen,
+};
 
-pub use snapshot_rules::{
+pub(crate) use snapshot_rules::{
     CHARACTER_SNAPSHOT_ENTITY_TYPE, ensure_positive_snapshot_chapter, initial_snapshot_data,
     validate_snapshot_diff_chapters, validate_snapshot_range,
 };
 
-pub use json_field_rules::{
-    attribute_counts, category_attributes, category_storage_key, optional_string,
-    optional_string_or_null, required_array, required_attribute_change_operation,
-    required_category, required_i32, required_i32_at, required_i64, required_string,
-    required_string_array, required_usize, required_value,
+pub(crate) use json_field_rules::{
+    attribute_counts, category_attributes, optional_string, optional_string_or_null,
+    required_array, required_attribute_change_operation, required_category, required_i32,
+    required_i32_at, required_string, required_string_array, required_usize, required_value,
 };

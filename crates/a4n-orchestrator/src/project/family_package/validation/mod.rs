@@ -23,6 +23,7 @@ mod text_core;
 mod video;
 mod visual_plan;
 
-pub use common::validate_media_bytes;
+#[cfg(test)]
+pub(crate) use common::validate_media_bytes;
 pub(crate) use media::validate_media_manifest;
 pub(crate) use package::validate_package_manifest;

@@ -40,13 +40,12 @@ use crate::character::{
     AppliedCharacterImplicitDecisionRecord, AppliedCharacterSyncPersistenceRecord,
     CharacterAttributeDeletionExecutionResult, CharacterAttributeEventHistoryFilter,
     CharacterAttributeLifecycleError, CharacterAttributeMutationResult,
-    CharacterConflictContextRows, CharacterPortraitRollbackResult, CharacterProfileDeletionSummary,
+    CharacterConflictContextRows, CharacterProfileDeletionSummary,
     CharacterProfileRecordDeletionResult, CharacterProfileRollbackResult,
     CharacterRecordLifecycleError, CharacterSyncPersistenceInput,
     CharacterTimelineRollbackLifecycleResult, PortraitNamedPromptProfileRows,
     PortraitPromptProfileRows, character_db_error, character_portrait_record_error,
-    character_portrait_rollback_error, character_profile_create_error,
-    character_profile_delete_error,
+    character_profile_create_error, character_profile_delete_error,
 };
 use crate::character::{
     CHARACTER_SNAPSHOT_ENTITY_TYPE, ensure_positive_snapshot_chapter, initial_snapshot_data,
@@ -66,15 +65,6 @@ impl CharacterApplication {
     }
 
     // —— profiles ——
-
-    async fn profiles_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<protagonist_profile::Model>, AppError> {
-        a4n_db::character::profiles_by_project(self.database.connection(), project_id)
-            .await
-            .map_err(AppError::Database)
-    }
 
     async fn profiles_with_timeline_state(
         &self,
@@ -149,20 +139,6 @@ impl CharacterApplication {
         )
         .await
         .map_err(character_db_error)
-    }
-
-    async fn rollback_failed_portrait_creation_records(
-        &self,
-        portrait_id: i64,
-        image_path: &str,
-    ) -> Result<CharacterPortraitRollbackResult, AppError> {
-        a4n_db::character::rollback_failed_portrait_creation_records(
-            self.database.connection(),
-            portrait_id,
-            image_path,
-        )
-        .await
-        .map_err(character_portrait_rollback_error)
     }
 
     // —— portraits ——
@@ -1264,14 +1240,7 @@ impl PortraitRecordApplicationPort for OrchestratorContext {
 impl OrchestratorContext {
     // —— profiles ——
 
-    pub async fn profiles_by_project(
-        &self,
-        project_id: i64,
-    ) -> Result<Vec<protagonist_profile::Model>, AppError> {
-        self.character.profiles_by_project(project_id).await
-    }
-
-    pub async fn profiles_with_timeline_state(
+    pub(crate) async fn profiles_with_timeline_state(
         &self,
         project_id: i64,
     ) -> Result<Vec<(protagonist_profile::Model, bool, bool)>, AppError> {
@@ -1280,14 +1249,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn profile_by_id(
+    pub(crate) async fn profile_by_id(
         &self,
         profile_id: i64,
     ) -> Result<Option<protagonist_profile::Model>, AppError> {
         self.character.profile_by_id(profile_id).await
     }
 
-    pub async fn profile_by_project_name(
+    pub(crate) async fn profile_by_project_name(
         &self,
         project_id: i64,
         name: &str,
@@ -1297,7 +1266,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn missing_portrait_profiles(
+    pub(crate) async fn missing_portrait_profiles(
         &self,
         project_id: i64,
     ) -> Result<Vec<protagonist_profile::Model>, AppError> {
@@ -1305,7 +1274,7 @@ impl OrchestratorContext {
     }
 
     /// 创建角色档案：校验姓名后落库。
-    pub async fn create_profile_validated(
+    pub(crate) async fn create_profile_validated(
         &self,
         project_id: i64,
         name: String,
@@ -1316,7 +1285,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_initial_profile_validated(
+    pub(crate) async fn update_initial_profile_validated(
         &self,
         project_id: i64,
         profile_id: i64,
@@ -1333,26 +1302,16 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn rollback_failed_portrait_creation_records(
-        &self,
-        portrait_id: i64,
-        image_path: &str,
-    ) -> Result<CharacterPortraitRollbackResult, AppError> {
-        self.character
-            .rollback_failed_portrait_creation_records(portrait_id, image_path)
-            .await
-    }
-
     // —— portraits ——
 
-    pub async fn character_portrait_by_id(
+    pub(crate) async fn character_portrait_by_id(
         &self,
         portrait_id: i64,
     ) -> Result<Option<character_portrait::Model>, AppError> {
         self.character.character_portrait_by_id(portrait_id).await
     }
 
-    pub async fn character_portrait_records_by_project(
+    pub(crate) async fn character_portrait_records_by_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<character_portrait::Model>, AppError> {
@@ -1361,7 +1320,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn primary_character_portrait_record(
+    pub(crate) async fn primary_character_portrait_record(
         &self,
         profile_id: i64,
     ) -> Result<Option<character_portrait::Model>, AppError> {
@@ -1370,7 +1329,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn create_character_portrait_for_profile(
+    pub(crate) async fn create_character_portrait_for_profile(
         &self,
         input: CharacterPortraitCreateInput,
     ) -> Result<character_portrait::Model, AppError> {
@@ -1379,7 +1338,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn set_primary_character_portrait_record(
+    pub(crate) async fn set_primary_character_portrait_record(
         &self,
         portrait_id: i64,
     ) -> Result<(), AppError> {
@@ -1388,7 +1347,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn portrait_prompt_profile_rows(
+    pub(crate) async fn portrait_prompt_profile_rows(
         &self,
         project_id: i64,
         profile_id: i64,
@@ -1398,7 +1357,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn portrait_named_prompt_profile_rows(
+    pub(crate) async fn portrait_named_prompt_profile_rows(
         &self,
         project_id: i64,
         character_name: &str,
@@ -1408,7 +1367,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn portrait_reference_images_by_ids(
+    pub(crate) async fn portrait_reference_images_by_ids(
         &self,
         project_id: i64,
         image_ids: &[i64],
@@ -1429,7 +1388,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn attribute_history(
+    pub(crate) async fn attribute_history(
         &self,
         profile_id: i64,
         filter: CharacterAttributeEventHistoryFilter,
@@ -1438,7 +1397,7 @@ impl OrchestratorContext {
     }
 
     /// 规范化属性输入后新增属性并同步 RAG。
-    pub async fn add_profile_attribute_validated(
+    pub(crate) async fn add_profile_attribute_validated(
         &self,
         input: CharacterAttributeValueChangeInput,
     ) -> Result<CharacterAttributeMutationResult, CharacterAttributeLifecycleError> {
@@ -1453,7 +1412,7 @@ impl OrchestratorContext {
     }
 
     /// 规范化属性输入后修改属性并同步 RAG。
-    pub async fn modify_profile_attribute_validated(
+    pub(crate) async fn modify_profile_attribute_validated(
         &self,
         input: CharacterAttributeValueChangeInput,
     ) -> Result<CharacterAttributeMutationResult, CharacterAttributeLifecycleError> {
@@ -1468,7 +1427,7 @@ impl OrchestratorContext {
     }
 
     /// 规范化后执行就绪的属性删除并同步 RAG。
-    pub async fn execute_ready_attribute_deletion_validated(
+    pub(crate) async fn execute_ready_attribute_deletion_validated(
         &self,
         input: CharacterAttributeDeletionExecutionInput,
     ) -> Result<CharacterAttributeDeletionExecutionResult, CharacterAttributeLifecycleError> {
@@ -1510,7 +1469,7 @@ impl OrchestratorContext {
 
     // —— behavior ——
 
-    pub async fn behavior_records_by_profile(
+    pub(crate) async fn behavior_records_by_profile(
         &self,
         profile_id: i64,
         chapter_from: Option<i32>,
@@ -1539,7 +1498,7 @@ impl OrchestratorContext {
     }
 
     /// 解析列表过滤后读取删除标记。
-    pub async fn deletion_marks_by_profile_validated(
+    pub(crate) async fn deletion_marks_by_profile_validated(
         &self,
         profile_id: i64,
         category: Option<CharacterAttributeCategory>,
@@ -1555,7 +1514,7 @@ impl OrchestratorContext {
     }
 
     /// 规范化后请求属性删除标记。
-    pub async fn request_attribute_deletion_validated(
+    pub(crate) async fn request_attribute_deletion_validated(
         &self,
         input: CharacterAttributeDeletionRequestInput,
     ) -> Result<protagonist_deletion_mark::Model, AppError> {
@@ -1563,7 +1522,7 @@ impl OrchestratorContext {
     }
 
     /// 规范化分类/key 后重置删除标记。
-    pub async fn reset_deletion_marks_validated(
+    pub(crate) async fn reset_deletion_marks_validated(
         &self,
         profile_id: i64,
         category: CharacterAttributeCategory,
@@ -1629,35 +1588,6 @@ impl OrchestratorContext {
         self.verify_project_permission(profile.project_id, user_id, ProjectAccessRole::Editor)
             .await?;
         Ok(profile)
-    }
-
-    pub async fn snapshot_references_for_user_validated(
-        &self,
-        user_id: i64,
-        profile_id: i64,
-        start_chapter: Option<i32>,
-        end_chapter: Option<i32>,
-    ) -> Result<Vec<snapshot_reference::Model>, AppError> {
-        validate_snapshot_range(start_chapter, end_chapter)?;
-        let profile = self
-            .character_profile_for_user_validated(user_id, profile_id)
-            .await?;
-        self.snapshot_references_by_profile(profile.id, start_chapter, end_chapter)
-            .await
-    }
-
-    pub async fn profile_snapshot_for_user_at_chapter_validated(
-        &self,
-        user_id: i64,
-        profile_id: i64,
-        chapter_number: i32,
-    ) -> Result<snapshot_reference::Model, AppError> {
-        ensure_positive_snapshot_chapter(chapter_number)?;
-        self.character_profile_for_user_validated(user_id, profile_id)
-            .await?;
-        self.snapshot_reference_by_chapter(profile_id, chapter_number)
-            .await?
-            .ok_or_else(|| AppError::NotFound(format!("第 {chapter_number} 章没有角色快照")))
     }
 
     async fn diff_profile_snapshots_for_user(
@@ -1779,7 +1709,7 @@ impl OrchestratorContext {
     }
 
     /// 删除角色档案记录并同步清理 RAG（文件副作用仍由 Host 执行）。
-    pub async fn delete_character_profile_records_validated(
+    pub(crate) async fn delete_character_profile_records_validated(
         &self,
         profile_id: i64,
     ) -> Result<CharacterProfileRecordDeletionResult, CharacterRecordLifecycleError> {
@@ -1801,7 +1731,7 @@ impl OrchestratorContext {
     }
 
     /// 校验章节号后回滚角色时间线并清理 RAG。
-    pub async fn rollback_character_profile_timeline_validated(
+    pub(crate) async fn rollback_character_profile_timeline_validated(
         &self,
         profile_id: i64,
         chapter_number: i32,

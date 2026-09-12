@@ -48,7 +48,7 @@ pub(super) async fn provider_preview_step(
     if state.runtime_profile().uses_sidecars() {
         let root_project_id = crate::actions::sidecar_root_project_id(state, project_id).await?;
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
-            state.capabilities(),
+            state.capabilities().image.clone(),
             config,
             request,
             Some(project_id),

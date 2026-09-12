@@ -1,7 +1,8 @@
 use a4n_db::workflow::{
     self, CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput,
-    UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_FAILED,
+    UpsertWorkflowCheckpointInput,
 };
+use a4n_domain::workflow::WORKFLOW_STATUS_FAILED;
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use serde::de::DeserializeOwned;

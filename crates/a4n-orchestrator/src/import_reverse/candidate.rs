@@ -13,13 +13,11 @@ use a4n_db::{
         apply_reverse_part_outline_records, reverse_context_rows,
     },
     outline::load_outline_generation_source_rows_for_update,
-    workflow::{
-        WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING,
-        completed_llm_call_checkpoint_from_model,
-    },
+    workflow::completed_llm_call_checkpoint_from_model,
 };
 use a4n_db_models::models::generation::{workflow_checkpoint, workflow_run};
 use a4n_domain::project::ProjectStatus;
+use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
 use chrono::Utc;

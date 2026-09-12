@@ -13,7 +13,8 @@ use super::contracts::{
     CanvasTrimVideoNodeInput,
 };
 
-pub fn build_canvas_editing_node_input_for_preview(
+#[cfg(test)]
+pub(crate) fn build_canvas_editing_node_input_for_preview(
     node: &canvas_node::Model,
     document: &CanvasGraphRecordDocument,
 ) -> Result<CanvasEditingNodeInput, String> {

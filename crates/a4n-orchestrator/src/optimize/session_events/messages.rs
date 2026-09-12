@@ -1,8 +1,9 @@
+use a4n_db::optimize::OptimizationSessionMessageInsertInput;
 use a4n_db_models::models::ai::optimization_session_message;
 use a4n_error::AppError;
 use serde_json::Value;
 
-use super::super::{OptimizationSessionMessageInsertInput, OrchestratorContext};
+use super::super::OrchestratorContext;
 
 impl OrchestratorContext {
     pub async fn record_llm_request(

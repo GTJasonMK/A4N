@@ -288,7 +288,6 @@ impl OrchestratorContext {
             project_id,
             chapter_id,
             prompt_ids,
-            config_id,
         };
         let prompt_ids = self.validate_chapter_video_batch_prompts(&input).await?;
         let total = u32::try_from(prompt_ids.len())

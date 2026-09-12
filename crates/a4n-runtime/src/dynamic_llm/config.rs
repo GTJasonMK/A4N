@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use a4n_capabilities::LlmClient;
 use a4n_error::AppError;
 #[cfg(feature = "embedded-llm-provider")]
 use a4n_llm::provider::LlmProvider;
 use a4n_llm::provider::{ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities};
+use a4n_llm_client::{JsonRequest, LlmClient};
 use a4n_provider_contract::LlmProviderConfig;
 use futures::stream;
 
@@ -115,7 +115,7 @@ pub(super) fn sidecar_chat_request(
     mut request: ChatRequest,
     trace_context: &LlmTraceContext,
     operation: &str,
-) -> Result<a4n_capabilities::JsonRequest, AppError> {
+) -> Result<JsonRequest, AppError> {
     request.stream_include_usage = true;
     let payload = resolved_model.sidecar_payload(request);
     let sidecar_context = crate::sidecar_clients::sidecar_context_for_llm_trace(trace_context)

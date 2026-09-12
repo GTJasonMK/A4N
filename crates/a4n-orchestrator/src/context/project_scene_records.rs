@@ -78,7 +78,7 @@ impl ProjectSceneRecordsApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn chapter_scenes_by_chapter(
+    pub(crate) async fn chapter_scenes_by_chapter(
         &self,
         chapter_id: i64,
     ) -> Result<Vec<chapter_scene::Model>, AppError> {
@@ -87,7 +87,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_scenes_for_user_validated(
+    pub(crate) async fn chapter_scenes_for_user_validated(
         &self,
         user_id: i64,
         chapter_id: i64,
@@ -97,7 +97,7 @@ impl OrchestratorContext {
         self.chapter_scenes_by_chapter(chapter_id).await
     }
 
-    pub async fn chapter_scene_by_id(
+    pub(crate) async fn chapter_scene_by_id(
         &self,
         scene_id: i64,
     ) -> Result<Option<chapter_scene::Model>, AppError> {
@@ -114,7 +114,7 @@ impl OrchestratorContext {
         self.project_scene_records.update_scene(input).await
     }
 
-    pub async fn update_chapter_scene_for_user_validated(
+    pub(crate) async fn update_chapter_scene_for_user_validated(
         &self,
         user_id: i64,
         input: UpdateChapterSceneInput,
@@ -129,7 +129,10 @@ impl OrchestratorContext {
         self.update_chapter_scene_validated(scene, input).await
     }
 
-    pub async fn delete_chapter_scene_validated(&self, scene_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_chapter_scene_validated(
+        &self,
+        scene_id: i64,
+    ) -> Result<(), AppError> {
         let rows_affected = self.project_scene_records.delete_scene(scene_id).await?;
         if rows_affected == 0 {
             return Err(AppError::NotFound(format!(
@@ -139,7 +142,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn delete_chapter_scene_for_user_validated(
+    pub(crate) async fn delete_chapter_scene_for_user_validated(
         &self,
         user_id: i64,
         scene_id: i64,
@@ -167,7 +170,7 @@ impl OrchestratorContext {
         self.project_scene_records.reorder_scenes(order).await
     }
 
-    pub async fn reorder_chapter_scenes_for_user_validated(
+    pub(crate) async fn reorder_chapter_scenes_for_user_validated(
         &self,
         user_id: i64,
         input: ReorderChapterScenesInput,

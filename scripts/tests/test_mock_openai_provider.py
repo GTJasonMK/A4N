@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import base64
 import json
-import shutil
 import subprocess
 import tempfile
 import threading
@@ -776,8 +775,6 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertIn(b"mdat", video)
 
     def test_video_fixture_has_a_frame_at_thumbnail_timestamp(self) -> None:
-        if shutil.which("ffmpeg") is None:
-            self.skipTest("ffmpeg is unavailable")
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             input_path = root / "input.mp4"

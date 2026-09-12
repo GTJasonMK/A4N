@@ -40,22 +40,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "a4n-capabilities"
-version = "0.1.0"
-dependencies = [
- "a4n-export-contract",
- "a4n-import-contract",
- "a4n-prompt-contract",
- "a4n-service-protocol",
- "async-trait",
- "futures",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "a4n-chapter-analysis"
 version = "0.1.0"
 dependencies = [
@@ -196,6 +180,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-embedding-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "a4n-embedding-fastembed"
 version = "0.1.0"
 dependencies = [
@@ -253,6 +248,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-export-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-export-contract",
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
+]
+
+[[package]]
 name = "a4n-export-contract"
 version = "0.1.0"
 dependencies = [
@@ -301,6 +306,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-image-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "a4n-image-providers"
 version = "0.1.0"
 dependencies = [
@@ -333,6 +349,16 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "a4n-import-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-import-contract",
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
 ]
 
 [[package]]
@@ -392,6 +418,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-llm-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "a4n-llm-config"
 version = "0.1.0"
 dependencies = [
@@ -406,12 +443,13 @@ dependencies = [
 name = "a4n-llm-gateway"
 version = "0.1.0"
 dependencies = [
- "a4n-capabilities",
  "a4n-domain",
  "a4n-error",
  "a4n-llm",
+ "a4n-llm-client",
  "a4n-llm-http",
  "a4n-model-discovery",
+ "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
  "a4n-sidecar-bootstrap",
@@ -485,7 +523,6 @@ dependencies = [
  "a4n-api-contract",
  "a4n-archive-core",
  "a4n-canvas-contract",
- "a4n-capabilities",
  "a4n-chapter-analysis",
  "a4n-cleanup-contract",
  "a4n-config",
@@ -504,12 +541,14 @@ dependencies = [
  "a4n-migration",
  "a4n-progress",
  "a4n-prompt",
+ "a4n-prompt-client",
  "a4n-prompt-contract",
  "a4n-provider-contract",
  "a4n-provider-runtime-contract",
  "a4n-queue",
  "a4n-rag-contract",
  "a4n-rag-core",
+ "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
  "a4n-storage",
@@ -560,6 +599,16 @@ dependencies = [
  "tera",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "a4n-prompt-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-prompt-contract",
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
 ]
 
 [[package]]
@@ -635,6 +684,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-rag-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "a4n-rag-contract"
 version = "0.1.0"
 dependencies = [
@@ -701,22 +761,26 @@ dependencies = [
  "a4n-api-contract",
  "a4n-archive-core",
  "a4n-canvas-contract",
- "a4n-capabilities",
  "a4n-cleanup-contract",
  "a4n-config",
  "a4n-db",
  "a4n-db-models",
  "a4n-domain",
  "a4n-embedding",
+ "a4n-embedding-client",
  "a4n-embedding-fastembed",
  "a4n-error",
  "a4n-event",
+ "a4n-export-client",
  "a4n-export-contract",
  "a4n-image",
+ "a4n-image-client",
  "a4n-image-providers",
+ "a4n-import-client",
  "a4n-import-contract",
  "a4n-import-core",
  "a4n-llm",
+ "a4n-llm-client",
  "a4n-llm-config",
  "a4n-llm-http",
  "a4n-media",
@@ -724,19 +788,23 @@ dependencies = [
  "a4n-model-discovery",
  "a4n-orchestrator",
  "a4n-prompt",
+ "a4n-prompt-client",
  "a4n-prompt-git",
  "a4n-provider-contract",
  "a4n-provider-runtime-contract",
  "a4n-queue",
+ "a4n-rag-client",
  "a4n-rag-contract",
  "a4n-rag-core",
  "a4n-rag-index",
+ "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
  "a4n-storage",
  "a4n-task-runtime",
  "a4n-test-support",
  "a4n-video",
+ "a4n-video-client",
  "a4n-video-contract",
  "a4n-video-providers",
  "anyhow",
@@ -795,6 +863,19 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+]
+
+[[package]]
+name = "a4n-service-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-service-protocol",
+ "async-trait",
+ "futures",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]
@@ -902,17 +983,26 @@ dependencies = [
 name = "a4n-test-support"
 version = "0.1.0"
 dependencies = [
- "a4n-capabilities",
  "a4n-db-models",
  "a4n-domain",
  "a4n-embedding",
+ "a4n-embedding-client",
  "a4n-error",
+ "a4n-export-client",
  "a4n-export-contract",
+ "a4n-image-client",
+ "a4n-import-client",
  "a4n-import-contract",
  "a4n-llm",
+ "a4n-llm-client",
+ "a4n-prompt-client",
+ "a4n-rag-client",
  "a4n-rag-core",
+ "a4n-service-client",
  "a4n-service-manager",
  "a4n-service-protocol",
+ "a4n-task-runtime",
+ "a4n-video-client",
  "anyhow",
  "async-trait",
  "axum 0.8.9",
@@ -934,6 +1024,17 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "a4n-video-client"
+version = "0.1.0"
+dependencies = [
+ "a4n-service-client",
+ "a4n-service-protocol",
+ "async-trait",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

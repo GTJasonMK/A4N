@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use a4n_capabilities::A4nCapabilities;
 use a4n_db::DbHandle;
+use a4n_prompt_client::PromptClient;
 
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
@@ -117,7 +117,6 @@ pub struct OrchestratorContext {
     import_reverse: ImportReverseApplication,
     import_review: ImportReviewApplication,
     inspiration: InspirationApplication,
-    llm_context: LlmContextApplication,
     manga: MangaApplication,
     optimize: OptimizeApplication,
     profile_material: ProfileMaterialApplication,
@@ -141,7 +140,7 @@ pub struct OrchestratorContext {
     text_anchor: TextAnchorApplication,
     video: VideoApplication,
     workflow: WorkflowApplication,
-    capabilities: A4nCapabilities,
+    prompt_client: Option<Arc<dyn PromptClient>>,
     service_manager: Arc<ServiceManager>,
 
     /// 应用配置（含 data_dir）；仅 context 子树与用途方法可访问。

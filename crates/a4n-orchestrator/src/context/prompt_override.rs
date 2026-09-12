@@ -177,7 +177,7 @@ impl OrchestratorContext {
     ///
     /// Runtime creates the engine, while this owner performs the database read
     /// and applies the validated overrides.
-    pub async fn hydrate_prompt_overrides(&self) -> Result<(), AppError> {
+    pub(crate) async fn hydrate_prompt_overrides(&self) -> Result<(), AppError> {
         self.prompt_override
             .hydrate_prompt_engine(&self.engine)
             .await

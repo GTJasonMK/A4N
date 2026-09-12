@@ -51,20 +51,13 @@ pub(in crate::video) use test_support::{
 };
 
 // 子模块通过 `use crate::video::{...}` / `super::` 共享的类型与错误映射。
-pub use a4n_db::generation::RecordStartedGenerationRunInput;
-pub use a4n_db::video::{
-    CreateGeneratedImageRecordDraftInput, CreateGeneratedVideoRecordDraftInput,
-    UpdateGeneratedImageRecordInput, UpdateGeneratedVideoRecordInput,
-};
-pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
+pub(crate) use a4n_db::video::CreateGeneratedImageRecordDraftInput;
+pub(crate) use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 #[cfg(test)]
 pub(in crate::video) use a4n_error::AppError;
 
 pub(crate) use a4n_video::ensure_provider_generation_run_updated;
-pub use a4n_video_contract::{
-    ChapterVideoGenerationHostPort, ReferenceMediaVideoGenerationHostPort, VideoGenerationHostPort,
-};
-pub(crate) use assembly_clip_rules::{
+pub(in crate::video) use assembly_clip_rules::{
     AssemblyClipOrderAnchor, assembly_clip_display_shot_number,
     assembly_clip_insert_after_video_id, assembly_clip_sort_order,
     assembly_insert_metadata_with_position, is_assembly_clip_video_type,
@@ -81,16 +74,10 @@ pub(in crate::video) use assembly_push_rules::{
     latest_non_rejected_push_index, parse_assembly_push_metadata, selected_assembly_push_end_index,
     validate_assembly_workflow_mode,
 };
-pub use boundary_frame_rules::latest_boundary_frame_image_id;
 pub(in crate::video) use boundary_frame_rules::{
     boundary_frame_numbers_for_prompt, frame_prompt_matches_video_prompt,
 };
 pub(in crate::video) use chapter_video_generation::GenerateChapterVideosBatchInput;
-pub use chapter_video_request_rules::{
-    BoundaryFrameImageIds, ChapterVideoProviderRequestContext, ProviderPromptImageBinding,
-    append_provider_input_note, build_video_generation_provider_prompt_with_renderer,
-    provider_specific_negative_prompt,
-};
 pub(in crate::video) use contracts::ProjectChapterVideoSource;
 pub(in crate::video) use contracts::{
     BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, CHAT_VIDEO_CONTRACT_VERSION,
@@ -111,10 +98,9 @@ pub(crate) use job_status_rules::{
     can_adopt_authoritative_video_completion, ensure_positive_generated_video_id,
     ensure_positive_project_id_for_video, ensure_positive_video_prompt_id,
     normalized_provider_job_id, provider_poll_config_id, required_generated_video_failure_message,
-    required_provider_job_id, validate_generated_video_interrupted_status,
-    validate_generated_video_waiting_status,
+    required_provider_job_id, validate_generated_video_waiting_status,
 };
-pub use library::{
+pub(crate) use library::{
     image_type_rank, is_video_reference_image_candidate, resolve_video_reference_image_project_ids,
     video_reference_scope_rank,
 };
@@ -141,20 +127,19 @@ pub(in crate::video) use provider_execution::{
     VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoProviderExecutionInput,
 };
 pub(in crate::video) use provider_prompt_text_rules::{
-    MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, ProviderPromptTextViolation,
-    provider_prompt_text_violation, validate_provider_model_text,
+    MIN_PROVIDER_MOTION_PROMPT_CHARS, validate_provider_model_text,
 };
 pub(in crate::video) use provider_request_rules::prompt_provider_workflow_for_recipe;
 pub(in crate::video) use provider_request_rules::{
-    MAX_CLIPROXY_VIDEO_PROMPT_BYTES, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES,
-    ProviderGenerationWorkflow, boundary_frame_missing_image_message,
-    cliproxy_prompt_length_violation_message, ensure_newapi_first_frame_image_supported,
-    ensure_provider_generation_workflow, first_frame_chain_missing_start_image_message,
-    linked_video_preview_config_id, provider_image_binding_violation_messages,
-    reference_ids_with_storyboard_image, required_prompt_source_prompt_type,
-    required_video_execution_identity, storyboard_missing_image_message,
+    MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES, ProviderGenerationWorkflow,
+    boundary_frame_missing_image_message, cliproxy_prompt_length_violation_message,
+    ensure_newapi_first_frame_image_supported, ensure_provider_generation_workflow,
+    first_frame_chain_missing_start_image_message, linked_video_preview_config_id,
+    provider_image_binding_violation_messages, reference_ids_with_storyboard_image,
+    required_prompt_source_prompt_type, required_video_execution_identity,
+    storyboard_missing_image_message,
 };
-pub use provider_workflow_rules::{
+pub(crate) use provider_workflow_rules::{
     video_provider_progress_workflow_run_input, video_provider_workflow_business_key,
     video_provider_workflow_fingerprint,
 };
@@ -165,10 +150,7 @@ pub(in crate::video) use reference_media_rules::{
 pub(in crate::video) use storyboard_frame_rules::{
     latest_storyboard_image_id, storyboard_prompt_matches_video_prompt,
 };
-pub(crate) use tail_frame_rules::{
-    is_first_frame_chain_video, should_capture_video_tail_frame,
-    tail_frame_reference_belongs_to_video, video_shot_number,
-};
+pub(crate) use tail_frame_rules::{tail_frame_reference_belongs_to_video, video_shot_number};
 
 pub(in crate::video) use crate::OrchestratorContext;
 #[cfg(test)]
@@ -183,19 +165,10 @@ pub(crate) use self::config::{
     validate_video_config_model, validate_video_duration_for_provider_config_secs,
     video_provider_config_from_model,
 };
-pub use self::prompt_json::{
-    validate_direct_prompt_text, video_motion_prompt_has_temporal_storyboard,
-    video_prompt_missing_required_section_for_language, video_prompt_stale_section_for_language,
-    video_prompt_upload_status_term,
-};
-#[cfg(test)]
-pub use self::prompt_records::VideoPromptUpdateInput;
 
 pub(crate) use errors::video_db_error;
 pub(in crate::video) use errors::video_llm_step_error;
-pub use records::{
-    PreparedImportedChapterVideoRecord, VideoGenerationRecordInput, generated_video_summary,
-};
+pub(crate) use records::{VideoGenerationRecordInput, generated_video_summary};
 
 #[cfg(test)]
 mod tests;

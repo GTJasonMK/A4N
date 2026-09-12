@@ -1,5 +1,5 @@
 use a4n_db::DbHandle;
-use a4n_db_models::models::{chapter::chapter, project::source_snapshot_chapter};
+use a4n_db_models::models::chapter::chapter;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
@@ -83,20 +83,6 @@ impl ProjectChapterRecordsApplication {
         .map_err(project_chapter_context_error_to_app_error)
     }
 
-    async fn source_snapshot_chapter_by_snapshot_and_source(
-        &self,
-        snapshot_id: i64,
-        source_chapter_id: i64,
-    ) -> Result<Option<source_snapshot_chapter::Model>, AppError> {
-        a4n_db::project::source_snapshot_chapter_by_snapshot_and_source(
-            self.database.connection(),
-            snapshot_id,
-            source_chapter_id,
-        )
-        .await
-        .map_err(project_mutation_error_to_app_error)
-    }
-
     async fn source_snapshot_chapter_content_by_snapshot_and_source(
         &self,
         snapshot_id: i64,
@@ -110,24 +96,13 @@ impl ProjectChapterRecordsApplication {
         .await
         .map_err(project_mutation_error_to_app_error)
     }
-
-    async fn chapters_for_project_numbers(
-        &self,
-        project_id: i64,
-        chapter_numbers: &[i32],
-    ) -> Result<Vec<chapter::Model>, AppError> {
-        a4n_db::project::chapters_for_project_numbers(
-            self.database.connection(),
-            project_id,
-            chapter_numbers,
-        )
-        .await
-        .map_err(project_chapter_context_error_to_app_error)
-    }
 }
 
 impl OrchestratorContext {
-    pub async fn chapter_by_id(&self, chapter_id: i64) -> Result<Option<chapter::Model>, AppError> {
+    pub(crate) async fn chapter_by_id(
+        &self,
+        chapter_id: i64,
+    ) -> Result<Option<chapter::Model>, AppError> {
         self.project_chapter_records.chapter_by_id(chapter_id).await
     }
 
@@ -145,7 +120,7 @@ impl OrchestratorContext {
         Ok(chapter)
     }
 
-    pub async fn chapter_by_project_number(
+    pub(crate) async fn chapter_by_project_number(
         &self,
         project_id: i64,
         chapter_number: i32,
@@ -164,7 +139,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn character_sync_chapters(
+    pub(crate) async fn character_sync_chapters(
         &self,
         project_id: i64,
     ) -> Result<Vec<chapter::Model>, AppError> {
@@ -173,29 +148,22 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn refresh_project_current_chapter(&self, project_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn refresh_project_current_chapter(
+        &self,
+        project_id: i64,
+    ) -> Result<(), AppError> {
         self.project_chapter_records
             .refresh_project_current_chapter(project_id)
             .await
     }
 
-    pub async fn chapters_before_number(
+    pub(crate) async fn chapters_before_number(
         &self,
         project_id: i64,
         chapter_number: i32,
     ) -> Result<Vec<chapter::Model>, AppError> {
         self.project_chapter_records
             .chapters_before_number(project_id, chapter_number)
-            .await
-    }
-
-    pub async fn source_snapshot_chapter_by_snapshot_and_source(
-        &self,
-        snapshot_id: i64,
-        source_chapter_id: i64,
-    ) -> Result<Option<source_snapshot_chapter::Model>, AppError> {
-        self.project_chapter_records
-            .source_snapshot_chapter_by_snapshot_and_source(snapshot_id, source_chapter_id)
             .await
     }
 
@@ -209,17 +177,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapters_for_project_numbers(
-        &self,
-        project_id: i64,
-        chapter_numbers: &[i32],
-    ) -> Result<Vec<chapter::Model>, AppError> {
-        self.project_chapter_records
-            .chapters_for_project_numbers(project_id, chapter_numbers)
-            .await
-    }
-
-    pub fn validate_chapter_generation_readiness(
+    pub(crate) fn validate_chapter_generation_readiness(
         &self,
         _project_id: i64,
         chapter_number: i32,

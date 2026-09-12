@@ -311,7 +311,7 @@ fn analyze_style_tags(content: &str) -> Vec<String> {
 }
 
 impl OrchestratorContext {
-    pub async fn list_chapter_summaries_for_user(
+    pub(crate) async fn list_chapter_summaries_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -322,7 +322,7 @@ impl OrchestratorContext {
         super::chapter_content_projection::chapter_summaries_with_sync_state(self, &chapters).await
     }
 
-    pub async fn chapter_summary_for_user(
+    pub(crate) async fn chapter_summary_for_user(
         &self,
         user_id: i64,
         chapter_id: i64,
@@ -340,7 +340,7 @@ impl OrchestratorContext {
         self.chapter_content.process_chapter(chapter).await
     }
 
-    pub async fn chapters_for_project(
+    pub(crate) async fn chapters_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_db_models::models::chapter::chapter::Model>, AppError> {

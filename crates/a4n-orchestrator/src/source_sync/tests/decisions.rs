@@ -1,8 +1,9 @@
+use a4n_api_contract::source_sync::SourceSyncDecisionInput;
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::{Map, Value, json};
 
 use super::super::decisions::{PreparedSourceSyncDecisionContext, parse_decision_payload};
-use super::super::{RefreshSpecPayload, SourceSyncDecisionInput, prepared_source_sync_decisions};
+use super::super::{RefreshSpecPayload, prepared_source_sync_decisions};
 
 #[test]
 fn source_sync_decision_input_rejects_unknown_fields() {

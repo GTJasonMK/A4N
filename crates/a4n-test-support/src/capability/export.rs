@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
-use a4n_capabilities::{CapabilityClient, CapabilityResult, ExportClient};
+use a4n_export_client::ExportClient;
 use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{ServiceHealth, ServiceRequest, ServiceResponse};
 use async_trait::async_trait;
 
@@ -41,7 +42,7 @@ impl RecordingExportClient {
 }
 
 #[async_trait]
-impl CapabilityClient for RecordingExportClient {
+impl ServiceClient for RecordingExportClient {
     async fn health(&self) -> CapabilityResult<ServiceHealth> {
         Err(unexpected_call("RecordingExportClient", "health"))
     }

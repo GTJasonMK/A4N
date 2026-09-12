@@ -12,8 +12,8 @@ use a4n_db::generation::{
     purge_expired_generation_task_trees, reserve_generation_task, restore_project_lifecycle_gate,
 };
 use a4n_db::workflow::{
-    ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, WORKFLOW_STATUS_COMPLETED,
-    WORKFLOW_STATUS_FAILED, claim_exclusive_workflow_run, mark_workflow_status,
+    ClaimExclusiveWorkflowRunInput, UpsertWorkflowRunInput, claim_exclusive_workflow_run,
+    mark_workflow_status,
 };
 use a4n_db_models::models::{
     chapter::chapter,
@@ -24,6 +24,7 @@ use a4n_db_models::models::{
 use a4n_domain::generation::{
     GenerationTaskListCursor, LifecycleGateClaimState, ProjectLifecycleOperation,
 };
+use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED};
 use a4n_migration::test_support::connect_test_database;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use a4n_service_protocol::{

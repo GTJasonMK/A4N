@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use a4n_capabilities::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, RagClient};
+use a4n_rag_client::{JsonRequest, JsonResponse, RagClient};
+use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
@@ -40,7 +41,7 @@ impl RecordingRagClient {
 }
 
 #[async_trait]
-impl CapabilityClient for RecordingRagClient {
+impl ServiceClient for RecordingRagClient {
     async fn health(&self) -> CapabilityResult<ServiceHealth> {
         Err(unexpected_call("RecordingRagClient", "health"))
     }

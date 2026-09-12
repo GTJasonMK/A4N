@@ -1,8 +1,9 @@
+use a4n_domain::character::apply_attribute_to_state;
 use serde_json::Value;
 
 use super::{
-    apply_attribute_to_state, category_storage_key, required_attribute_change_operation,
-    required_category, required_i32, required_string, required_usize, required_value,
+    category_storage_key, required_attribute_change_operation, required_category, required_i32,
+    required_string, required_usize, required_value,
 };
 
 #[cfg(test)]

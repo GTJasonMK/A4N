@@ -16,8 +16,10 @@ mod stages;
 mod workflow;
 
 pub use outputs::{ChapterAnalysisOutputError, chapter_analysis_foreshadowing_drafts};
-pub use workflow::{
+pub(crate) use workflow::{
     CHAPTER_ANALYSIS_REPLACEMENT_CLEANUP_STEP, CHAPTER_ANALYSIS_REPLACEMENT_COMMIT_STEP,
+};
+pub use workflow::{
     ChapterAnalysisResumeBlockReason, chapter_analysis_phase_fingerprint,
     chapter_analysis_resume_block_reason, chapter_analysis_run_input_matches,
     chapter_analysis_run_uses_replacement_commit, chapter_analysis_workflow_business_key,
@@ -25,10 +27,10 @@ pub use workflow::{
     require_completed_chapter_analysis_phase,
 };
 
-pub type ChapterAnalysisProgressReporter<'a> =
+pub(crate) type ChapterAnalysisProgressReporter<'a> =
     &'a mut (dyn FnMut(u32, u32, &str) -> Result<(), AppError> + Send);
 
-pub struct ChapterAnalysisInput<'a> {
+pub(crate) struct ChapterAnalysisInput<'a> {
     pub chapter: chapter::Model,
     pub prompt_renderer: &'a dyn PromptRenderer,
     pub progress: Option<ChapterAnalysisProgressReporter<'a>>,
@@ -90,10 +92,12 @@ impl<'a> ChapterAnalysisProgress<'a> {
 
 pub(crate) use owner::build_chapter_analysis_initial_request;
 
-pub use application::{
+pub(crate) use application::{
     CHAPTER_ANALYSIS_STEP_CHARACTER_DISCOVERY, CHAPTER_ANALYSIS_STEP_CHARACTER_SYNC,
     CHAPTER_ANALYSIS_STEP_OBJECT_DISCOVERY, CHAPTER_ANALYSIS_STEP_OUTLINE_SYNC,
     CHAPTER_ANALYSIS_STEP_SCENE_SYNC, CHAPTER_ANALYSIS_STEP_SYNC_OUTPUTS,
+};
+pub use application::{
     ChapterAnalysisApplicationProgress, ChapterAnalysisApplicationProgressReporter,
     ChapterAnalysisGenerationApplicationPort, ChapterAnalysisHostPort,
     ChapterAnalysisPreviewApplicationPort, ChapterAnalysisRequestPreview,

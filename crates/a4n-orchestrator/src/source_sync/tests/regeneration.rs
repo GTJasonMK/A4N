@@ -1,3 +1,4 @@
+use a4n_api_contract::source_sync::SourceSyncDecisionInput;
 use a4n_domain::source_sync::SourceSyncResolutionStrategy;
 use serde_json::{Map, Value, json};
 
@@ -7,7 +8,7 @@ use super::super::decisions::{
     validate_galgame_scene_regeneration_plan_for_apply,
 };
 use super::super::{
-    RegenerateGalgameScenePayload, SourceSyncDecisionInput, prepared_source_sync_decisions,
+    RegenerateGalgameScenePayload, prepared_source_sync_decisions,
     source_sync_decisions_require_galgame_preparation,
 };
 use super::support::valid_regenerate_scene_apply_plan;

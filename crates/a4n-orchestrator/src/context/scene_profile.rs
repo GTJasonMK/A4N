@@ -8,15 +8,16 @@ use a4n_api_contract::{
         SceneProfileMutationResult, SceneProfileSummary, UpdateSceneProfileInput,
     },
 };
-use a4n_db::DbHandle;
+use a4n_db::{DbHandle, scene_profile::SceneSyncRecordResult};
 use a4n_db_models::models::scene::scene_profile;
-use a4n_domain::profile_material::ProfileMaterialKind;
+use a4n_domain::{
+    profile_material::ProfileMaterialKind, scene_profile::SceneProfileEvidenceRecordInput,
+};
 use a4n_error::AppError;
 
 use super::{OrchestratorContext, profile_mutation::resolve_downstream_image_ids};
 use crate::scene_profile::{
-    SceneProfileEvidenceRecordInput, SceneSyncInput, SceneSyncRecordResult,
-    normalize_scene_profile_record_input, normalize_scene_sync_record_input,
+    SceneSyncInput, normalize_scene_profile_record_input, normalize_scene_sync_record_input,
     scene_profile_db_error,
 };
 
@@ -145,7 +146,7 @@ impl SceneProfileApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn list_scene_profiles_for_user(
+    pub(crate) async fn list_scene_profiles_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -182,7 +183,7 @@ impl OrchestratorContext {
             .collect())
     }
 
-    pub async fn scene_profiles_by_project(
+    pub(crate) async fn scene_profiles_by_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<a4n_db_models::models::scene::scene_profile::Model>, AppError> {
@@ -191,7 +192,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn scene_profile_by_id(
+    pub(crate) async fn scene_profile_by_id(
         &self,
         scene_profile_id: i64,
     ) -> Result<a4n_db_models::models::scene::scene_profile::Model, AppError> {
@@ -201,7 +202,7 @@ impl OrchestratorContext {
     }
 
     /// 创建场景档案：规范化 API 输入后落库。
-    pub async fn create_scene_profile_validated(
+    pub(crate) async fn create_scene_profile_validated(
         &self,
         project_id: i64,
         input: SceneProfileInput,
@@ -212,7 +213,7 @@ impl OrchestratorContext {
     }
 
     /// 更新场景档案：规范化 API 输入后落库。
-    pub async fn update_scene_profile_validated(
+    pub(crate) async fn update_scene_profile_validated(
         &self,
         scene_profile_id: i64,
         input: SceneProfileInput,
@@ -223,7 +224,7 @@ impl OrchestratorContext {
     }
 
     /// 删除场景档案记录（下游图片清理仍由 Host 执行）。
-    pub async fn delete_scene_profile_records_validated(
+    pub(crate) async fn delete_scene_profile_records_validated(
         &self,
         scene_profile_id: i64,
     ) -> Result<(), AppError> {
@@ -261,7 +262,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn scene_occurrence_count(
+    pub(crate) async fn scene_occurrence_count(
         &self,
         project_id: i64,
         scene_profile_id: i64,
@@ -271,7 +272,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn scene_occurrence_counts_by_profile(
+    pub(crate) async fn scene_occurrence_counts_by_profile(
         &self,
         project_id: i64,
         profile_ids: &[i64],

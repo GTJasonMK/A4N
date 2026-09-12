@@ -80,7 +80,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
             .await
             .map_err(host_error)?;
             let request = crate::sidecar_clients::preview_video_provider_request(
-                self.state.capabilities(),
+                self.state.capabilities().video.clone(),
                 &input.config,
                 input.request,
                 Some(input.project_id),
@@ -157,7 +157,7 @@ impl<'state> RuntimeVideoProviderHostPort<'state> {
                     move || async move {
                         crate::sidecar_clients::generate_video(
                             state.runtime_profile(),
-                            state.capabilities(),
+                            state.capabilities().video.clone(),
                             &input.config,
                             input.request,
                             input.provider_idempotency_key_sha256,
@@ -648,7 +648,7 @@ impl CanvasVideoGenerationHostPort for RuntimeVideoProviderHostPort<'_> {
             || async move {
                 crate::sidecar_clients::generate_video(
                     self.state.runtime_profile(),
-                    self.state.capabilities(),
+                    self.state.capabilities().video.clone(),
                     &input.config,
                     input.request,
                     None,

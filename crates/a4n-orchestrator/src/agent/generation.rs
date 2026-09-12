@@ -1,14 +1,10 @@
 use super::*;
-pub use a4n_db::agent::{AgentOwnedTask, AgentTaskExecutionInput};
+use a4n_db::agent::{AgentOwnedTask, AgentTaskExecutionInput};
 use a4n_domain::agent::AgentWorkflowOrigin;
 
-// ChatRequest's wire serializer deliberately omits internal context. Preserve
-// it in the durable Execution so replay uses the same manifest and trace.
+// Keep the local name for Agent accounting while the DTO owns snapshot semantics.
 pub fn model_request_snapshot(request: &a4n_llm::provider::ChatRequest) -> Result<Value, AppError> {
-    let mut value = serde_json::to_value(request)?;
-    value["trace_context"] = serde_json::to_value(&request.trace_context)?;
-    value["context_manifest_json"] = request.context_manifest_json.clone().unwrap_or(Value::Null);
-    Ok(value)
+    request.snapshot_value()
 }
 
 pub fn restore_model_request_snapshot(

@@ -1,6 +1,7 @@
 use a4n_api_contract::character::{
     DiscoverCharacterProfilesResult, ExistingCharacterProfileDiscovery,
 };
+use a4n_db::text_anchor::EVIDENCE_ROLE_FIRST_SEEN;
 use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use serde_json::{Value, json};
@@ -12,7 +13,7 @@ use crate::{
         RecordCompletedGenerationRunInput,
         json_field_rules::{required_string, required_value},
     },
-    text_anchor::{EVIDENCE_ROLE_FIRST_SEEN, text_anchor_db_error},
+    text_anchor::text_anchor_db_error,
 };
 use a4n_domain::text_anchor::{TextAnchorEvidenceInput, TextAnchorProfileKind};
 

@@ -278,10 +278,9 @@ async fn resolve_response(
             },
         ) => {
             check_editor_revision(&input.expected_editor_revision, &editor_revision)?;
-            let projection = a4n_orchestrator::chapter_visual_plan::project_editor_visual_plan(
-                &plan,
-                &input.view,
-            )?;
+            let projection = state
+                .chapter_visual_plan_read_application()
+                .project_editor(&plan, &input.view)?;
             Ok((
                 serde_json::to_value(AgentEditorDraftView {
                     source: "editor_draft".into(),

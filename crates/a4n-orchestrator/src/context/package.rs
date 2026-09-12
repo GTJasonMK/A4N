@@ -18,7 +18,7 @@ use super::OrchestratorContext;
 use crate::admin::AdminPermission;
 
 impl OrchestratorContext {
-    pub async fn initialize_package_states(&self) -> Result<(), AppError> {
+    pub(crate) async fn initialize_package_states(&self) -> Result<(), AppError> {
         let catalog = package_catalog();
         let package_ids = catalog
             .packages
@@ -48,7 +48,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn package_overview(&self) -> Result<Vec<PackageOverview>, AppError> {
+    pub(crate) async fn package_overview(&self) -> Result<Vec<PackageOverview>, AppError> {
         let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
         let mut overview = Vec::new();
         for definition in package_catalog().packages {
@@ -90,7 +90,7 @@ impl OrchestratorContext {
         Ok(overview)
     }
 
-    pub async fn package_command_availability(
+    pub(crate) async fn package_command_availability(
         &self,
         user_id: i64,
         command: &str,
@@ -101,7 +101,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn list_package_command_availability(
+    pub(crate) async fn list_package_command_availability(
         &self,
         user_id: i64,
         commands: Option<&[String]>,
@@ -135,7 +135,7 @@ impl OrchestratorContext {
         Ok(result)
     }
 
-    pub async fn start_package_lifecycle(
+    pub(crate) async fn start_package_lifecycle(
         &self,
         user_id: i64,
         input: StartPackageLifecycleInput,
@@ -218,7 +218,7 @@ impl OrchestratorContext {
 
     /// 推进一个已持久化的包操作。停用只在所有现有 owner 都进入安全终态后
     /// 才关闭 Host 状态；外部 provider 仍有 job 时保持 waiting_external。
-    pub async fn advance_package_lifecycle(
+    pub(crate) async fn advance_package_lifecycle(
         &self,
         operation_id: &str,
     ) -> Result<a4n_db_models::models::package::host_package_operation::Model, AppError> {
@@ -344,7 +344,7 @@ impl OrchestratorContext {
     /// 在 Runtime 完成共享 service 安全停止后，提交停用终态。
     ///
     /// 重新读取工作事实，避免把一次旧快照当成排空确认。
-    pub async fn finalize_package_disable(
+    pub(crate) async fn finalize_package_disable(
         &self,
         operation_id: &str,
     ) -> Result<a4n_db_models::models::package::host_package_operation::Model, AppError> {
@@ -384,14 +384,17 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn package_execution_enabled(&self, package_id: PackageId) -> Result<bool, AppError> {
+    pub(crate) async fn package_execution_enabled(
+        &self,
+        package_id: PackageId,
+    ) -> Result<bool, AppError> {
         Ok(self
             .package_execution_block_reason(package_id)
             .await?
             .is_none())
     }
 
-    pub async fn ensure_package_execution_enabled(
+    pub(crate) async fn ensure_package_execution_enabled(
         &self,
         package_id: PackageId,
     ) -> Result<(), AppError> {
@@ -438,13 +441,13 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn pending_package_lifecycle_operations(
+    pub(crate) async fn pending_package_lifecycle_operations(
         &self,
     ) -> Result<Vec<a4n_db_models::models::package::host_package_operation::Model>, AppError> {
         a4n_db::package::pending_package_operations(self.database.connection()).await
     }
 
-    pub async fn enabled_package_service_names(&self) -> Result<Vec<String>, AppError> {
+    pub(crate) async fn enabled_package_service_names(&self) -> Result<Vec<String>, AppError> {
         let states = a4n_db::package::list_host_package_states(self.database.connection()).await?;
         let mut services = HashSet::new();
         for state in states {
@@ -463,7 +466,7 @@ impl OrchestratorContext {
         Ok(services)
     }
 
-    pub async fn package_workload_snapshot(
+    pub(crate) async fn package_workload_snapshot(
         &self,
         package_id: &str,
     ) -> Result<a4n_db::package::PackageWorkloadSnapshot, AppError> {
@@ -472,7 +475,7 @@ impl OrchestratorContext {
 
     /// 返回可以安全停止的 managed service。任何其他包处于未知、过渡或
     /// 明确启用状态时都保留共享 service，避免停用一个包误杀另一个包。
-    pub async fn package_services_safe_to_stop(
+    pub(crate) async fn package_services_safe_to_stop(
         &self,
         package_id: PackageId,
     ) -> Result<Vec<String>, AppError> {
@@ -516,14 +519,14 @@ impl OrchestratorContext {
 
     /// 返回该包直接拥有的 service。生命周期进程装配由 Runtime 执行，
     /// 但 service 归属必须继续由包策略唯一维护。
-    pub fn package_service_names(&self, package_id: PackageId) -> Vec<String> {
+    pub(crate) fn package_service_names(&self, package_id: PackageId) -> Vec<String> {
         services_for_package(package_id)
             .iter()
             .map(|service| (*service).to_string())
             .collect()
     }
 
-    pub async fn get_package_operation(
+    pub(crate) async fn get_package_operation(
         &self,
         user_id: i64,
         operation_id: &str,
@@ -537,7 +540,7 @@ impl OrchestratorContext {
         package_lifecycle_summary(operation)
     }
 
-    pub async fn package_preferences(
+    pub(crate) async fn package_preferences(
         &self,
         user_id: i64,
     ) -> Result<PackagePreferencesSummary, AppError> {
@@ -553,7 +556,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn update_package_preferences(
+    pub(crate) async fn update_package_preferences(
         &self,
         user_id: i64,
         input: UpdatePackagePreferencesInput,
@@ -738,6 +741,10 @@ impl OrchestratorContext {
 
 #[async_trait::async_trait]
 impl a4n_api_contract::package::PackageApplicationPort for OrchestratorContext {
+    async fn initialize_states(&self) -> Result<(), AppError> {
+        self.initialize_package_states().await
+    }
+
     async fn overview(&self) -> Result<Vec<a4n_api_contract::package::PackageOverview>, AppError> {
         self.package_overview().await
     }

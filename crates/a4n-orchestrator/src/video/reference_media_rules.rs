@@ -66,8 +66,6 @@ pub(crate) struct ResolvedReferenceMediaVideoInput {
     pub(crate) aspect_ratio: String,
 }
 
-pub use a4n_video_contract::VideoProviderValidationMode;
-
 /// 与 provider visual / 参考媒体 prompt 下限一致（单一来源）。
 pub const MIN_PROVIDER_VISUAL_PROMPT_CHARS: usize = 100;
 

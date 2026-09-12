@@ -57,8 +57,6 @@ pub struct GenerateChapterVideosBatchInput {
     pub project_id: i64,
     pub chapter_id: i64,
     pub prompt_ids: Vec<i64>,
-    #[serde(default)]
-    pub config_id: Option<i64>,
 }
 
 #[derive(Default)]

@@ -13,22 +13,9 @@ use a4n_media::{
     trim_video_segment,
 };
 
-fn media_tools_available() -> bool {
-    ["ffmpeg", "ffprobe"].into_iter().all(|command| {
-        Command::new(command)
-            .arg("-version")
-            .status()
-            .is_ok_and(|status| status.success())
-    })
-}
-
 #[test]
-fn ffprobe_reports_real_audio_duration_when_available() {
-    if !media_tools_available() {
-        eprintln!("skipping real FFprobe audio test because FFmpeg or FFprobe is unavailable");
-        return;
-    }
-
+#[ignore = "requires ffmpeg and ffprobe"]
+fn ffprobe_reports_real_audio_duration() {
     let temp_dir = unique_temp_dir();
     std::fs::create_dir_all(&temp_dir).expect("create FFprobe audio smoke directory");
     let input = temp_dir.join("input.wav");
@@ -44,12 +31,8 @@ fn ffprobe_reports_real_audio_duration_when_available() {
 }
 
 #[test]
-fn ffmpeg_basic_video_transforms_create_non_empty_outputs_when_available() {
-    if !media_tools_available() {
-        eprintln!("skipping real FFmpeg smoke test because FFmpeg or FFprobe is unavailable");
-        return;
-    }
-
+#[ignore = "requires ffmpeg and ffprobe"]
+fn ffmpeg_basic_video_transforms_create_non_empty_outputs() {
     let temp_dir = unique_temp_dir();
     std::fs::create_dir_all(&temp_dir).expect("create FFmpeg smoke directory");
     let input = temp_dir.join("input.mp4");

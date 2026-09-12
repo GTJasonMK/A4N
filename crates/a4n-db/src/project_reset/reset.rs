@@ -1,5 +1,8 @@
 use super::*;
 use a4n_domain::project::ProjectStatusHistoryInput;
+use a4n_domain::project_reset::{
+    ProjectGeneratedDataResetOutcome, ProjectGeneratedDataResetResult,
+};
 
 /// 重置项目生成态（含事务与状态写回）。事件发布仍由调用方负责。
 pub async fn reset_project_generated_data_record(

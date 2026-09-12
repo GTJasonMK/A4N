@@ -183,7 +183,7 @@ impl ProjectChapterContextApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn foreshadowing_records_by_project(
+    pub(crate) async fn foreshadowing_records_by_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<foreshadowing_index::Model>, AppError> {
@@ -192,7 +192,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn create_foreshadowing_record(
+    pub(crate) async fn create_foreshadowing_record(
         &self,
         project_id: i64,
         input: a4n_domain::character::ForeshadowingRecordInput,
@@ -202,7 +202,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_foreshadowing_record(
+    pub(crate) async fn update_foreshadowing_record(
         &self,
         project_id: i64,
         foreshadowing_id: i64,
@@ -214,7 +214,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_foreshadowing_record(
+    pub(crate) async fn delete_foreshadowing_record(
         &self,
         project_id: i64,
         foreshadowing_id: i64,
@@ -265,7 +265,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn protagonist_profiles_for_project(
+    pub(crate) async fn protagonist_profiles_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<protagonist_profile::Model>, AppError> {
@@ -285,7 +285,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn snapshot_profile_ids_for_chapter(
+    pub(crate) async fn snapshot_profile_ids_for_chapter(
         &self,
         profile_ids: &[i64],
         chapter_number: i32,

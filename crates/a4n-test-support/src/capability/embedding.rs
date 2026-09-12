@@ -3,10 +3,8 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
 };
 
-use a4n_capabilities::{
-    CapabilityClient, CapabilityResult, EmbeddingClient, EmbeddingModelOperation, JsonRequest,
-    JsonResponse,
-};
+use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation, JsonRequest, JsonResponse};
+use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
@@ -71,7 +69,7 @@ impl PendingEmbeddingDownloadObserver {
 }
 
 #[async_trait]
-impl CapabilityClient for PendingEmbeddingDownloadClient {
+impl ServiceClient for PendingEmbeddingDownloadClient {
     async fn health(&self) -> CapabilityResult<ServiceHealth> {
         Err(unexpected_call("PendingEmbeddingDownloadClient", "health"))
     }
@@ -153,7 +151,7 @@ impl RecordingEmbeddingClient {
 }
 
 #[async_trait]
-impl CapabilityClient for RecordingEmbeddingClient {
+impl ServiceClient for RecordingEmbeddingClient {
     async fn health(&self) -> CapabilityResult<ServiceHealth> {
         Err(unexpected_call("RecordingEmbeddingClient", "health"))
     }

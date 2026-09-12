@@ -26,20 +26,19 @@ mod prompt_generation;
 mod prompt_rules;
 mod workflow_rules;
 
+pub(crate) use application::PortraitProgress;
 pub(crate) use application::portrait_summary;
 pub use application::{
-    DecodedPortraitImage, GeneratedPortraitImage, PortraitBatchItem, PortraitBatchOutcome,
-    PortraitGenerationHostPort, PortraitImageProviderInput, PortraitProgress,
+    DecodedPortraitImage, GeneratedPortraitImage, PortraitGenerationHostPort,
+    PortraitImageProviderInput,
 };
-pub use prompt_generation::{
+pub(crate) use prompt_generation::{
     PortraitPromptGenerationInput, PortraitPromptRequestInput, PortraitPromptSpec,
     build_generate_prompt_request, normalize_portrait_prompt_response,
 };
-pub use prompt_rules::{
-    DEFAULT_PORTRAIT_EXPRESSION, expression_or_default, portrait_profile_context,
-    portrait_style_with_pose, profile_portrait_seed_prompt,
-};
-pub use workflow_rules::{
+pub(crate) use prompt_rules::{expression_or_default, portrait_style_with_pose};
+pub use prompt_rules::{portrait_profile_context, profile_portrait_seed_prompt};
+pub(crate) use workflow_rules::{
     missing_portrait_item_fingerprint, portrait_generate_business_key,
     portrait_generate_workflow_fingerprint, portrait_image_business_key,
     portrait_image_workflow_fingerprint, portrait_prompt_business_key,

@@ -1,4 +1,4 @@
-pub use a4n_api_contract::character::{
+pub(super) use a4n_api_contract::character::{
     ApplyImplicitUpdateDecisionInput, CheckImplicitUpdateInput, GetImplicitReviewInput,
     ImplicitAttributeReviewSummary, ImplicitEvidenceSummary, ImplicitReviewSummary,
     ImplicitUpdateDecisionSummary,

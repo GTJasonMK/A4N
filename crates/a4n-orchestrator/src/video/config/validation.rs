@@ -35,32 +35,14 @@ pub fn video_provider_config_from_model(cfg: &video_gen_config::Model) -> VideoP
     }
 }
 
-pub fn validate_video_provider_config(
-    cfg: &VideoProviderConfig,
-) -> Result<VideoConfigParams, String> {
+fn validate_video_provider_config(cfg: &VideoProviderConfig) -> Result<VideoConfigParams, String> {
     a4n_video::validate_video_config_params(video_config_params(cfg)?)
-}
-
-pub fn duration_capability_for_config(
-    cfg: &video_gen_config::Model,
-) -> Result<VideoDurationCapability, String> {
-    duration_capability_for_provider_config(&video_provider_config_from_model(cfg))
 }
 
 pub fn duration_capability_for_provider_config(
     cfg: &VideoProviderConfig,
 ) -> Result<VideoDurationCapability, String> {
     duration_capability_for_params(&video_config_params(cfg)?)
-}
-
-pub fn validate_video_duration_for_config_secs(
-    cfg: &video_gen_config::Model,
-    duration_secs: i32,
-) -> Result<(), String> {
-    validate_video_duration_for_provider_config_secs(
-        &video_provider_config_from_model(cfg),
-        duration_secs,
-    )
 }
 
 pub fn validate_video_duration_for_provider_config_secs(

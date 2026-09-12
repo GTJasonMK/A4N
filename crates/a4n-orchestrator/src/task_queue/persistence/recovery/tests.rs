@@ -4,10 +4,7 @@ use a4n_db::{
     video::{
         CreateGeneratedVideoRecordDraftInput, create_generated_video_record_with_generation_run,
     },
-    workflow::{
-        UpsertWorkflowRunInput, WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING,
-        upsert_workflow_run,
-    },
+    workflow::{UpsertWorkflowRunInput, upsert_workflow_run},
 };
 use a4n_db_models::models::{
     ai::generated_video,
@@ -15,6 +12,7 @@ use a4n_db_models::models::{
     task::task_queue,
 };
 use a4n_domain::video_workflow::WORKFLOW_MODE_CANVAS_VIDEO;
+use a4n_domain::workflow::{WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING};
 use sea_orm::{ActiveModelTrait, Set};
 use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
 

@@ -27,15 +27,6 @@ pub fn validate_generated_video_waiting_status(status: &str) -> Result<(), Strin
     }
 }
 
-/// 校验中断状态字面量（仅 interrupted）。
-pub fn validate_generated_video_interrupted_status(status: &str) -> Result<(), String> {
-    if status == a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED {
-        Ok(())
-    } else {
-        Err(format!("不支持的视频中断状态: {status}"))
-    }
-}
-
 /// 规范化 provider job id：trim 后非空才有效。
 pub fn normalized_provider_job_id(provider_job_id: Option<&str>) -> Option<&str> {
     provider_job_id
@@ -232,12 +223,6 @@ mod tests {
         assert!(validate_generated_video_waiting_status("running").is_ok());
         assert!(validate_generated_video_waiting_status("failed").is_err());
         assert!(validate_generated_video_waiting_status("completed").is_err());
-    }
-
-    #[test]
-    fn interrupted_status_literal_only() {
-        assert!(validate_generated_video_interrupted_status("interrupted").is_ok());
-        assert!(validate_generated_video_interrupted_status("failed").is_err());
     }
 
     #[test]

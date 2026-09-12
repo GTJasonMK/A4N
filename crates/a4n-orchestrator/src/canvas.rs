@@ -17,49 +17,47 @@ mod tools;
 mod video_generation;
 mod workflow_rules;
 
-pub use a4n_db::canvas::{
-    CanvasAssemblyContractSyncInput, CanvasAssemblyContractSyncSummary,
-    CanvasAssemblySourceVideoInput, CanvasGraphRecordDocument, CanvasImageMediaAssetEnsureInput,
-    CanvasPromptArtifactUpsertInput, CanvasVideoMediaAssetEnsureInput,
-    FreeformCanvasGenerationSpecUpsertInput, validate_canvas_record_document_edge_contract,
-    validate_canvas_record_document_is_dag, validate_canvas_record_viewport_json,
+pub(crate) use a4n_db::canvas::{
+    CanvasGraphRecordDocument, CanvasImageMediaAssetEnsureInput, CanvasVideoMediaAssetEnsureInput,
+    validate_canvas_record_document_edge_contract, validate_canvas_record_document_is_dag,
+    validate_canvas_record_viewport_json,
 };
-pub use editing_nodes::{
-    CanvasAssembleVideoNodeInput, CanvasEditingNodeExecutionInput, CanvasEditingNodeInput,
-    CanvasExtractFrameNodeInput, CanvasTrimVideoNodeInput,
-    build_canvas_editing_node_input_for_preview,
-};
+pub(crate) use editing_nodes::CanvasEditingNodeExecutionInput;
 pub(crate) use errors::{canvas_db_error, video_studio_project_import_error};
-pub use image_generation::{
-    CanvasImageNodeApplicationPort, CanvasImageNodeExecutionInput, CanvasImageNodeInput,
-    build_canvas_image_node_input_for_preview,
+pub use image_generation::CanvasImageNodeApplicationPort;
+pub(crate) use image_generation::{
+    CanvasImageNodeExecutionInput, build_canvas_image_node_input_for_preview,
 };
 pub(crate) use input_rules::source_node;
-pub use input_rules::{
+pub(crate) use input_rules::{
     canvas_config_f32, canvas_config_i64, canvas_config_string, canvas_edge_order_index,
     canvas_node_is_operation, i64_to_i32, incoming_edges, validate_canvas_clip_order,
 };
 pub(crate) use node_execution::CanvasNodeLifecycle;
-pub use node_execution::CanvasNodeRunHandle;
-pub use output_nodes::{CanvasOutputDataType, CanvasOutputNodeExecutionInput, CanvasOutputValue};
+pub(crate) use node_execution::CanvasNodeRunHandle;
+pub(crate) use output_nodes::{
+    CanvasOutputDataType, CanvasOutputNodeExecutionInput, CanvasOutputValue,
+};
 pub use preview::{CanvasNodeRequestPreview, CanvasPreviewApplicationPort};
-pub use probe_nodes::CanvasProbeNodeExecutionInput;
+pub(crate) use probe_nodes::CanvasProbeNodeExecutionInput;
 pub(crate) use source_checkpoint::source_node_output_id;
 pub(crate) use source_text::{
     first_canvas_text_asset_id, source_canvas_text_asset_id, source_text_value,
 };
 pub use text_generation::{
     CanvasLlmTextNodeApplicationPort, CanvasTextGenerationLlmCall, CanvasTextGenerationLlmPort,
+};
+pub(crate) use text_generation::{
     CanvasTextNodeExecutionInput, build_canvas_llm_text_request_for_preview,
 };
 pub use video_generation::{
     CanvasVideoFileInput, CanvasVideoGenerationHostPort, CanvasVideoNodeApplicationPort,
-    CanvasVideoNodeExecutionInput, CanvasVideoNodeInput, CanvasVideoPersistedFile,
-    CanvasVideoProviderInput, build_canvas_video_node_input_for_preview,
+    CanvasVideoPersistedFile, CanvasVideoProviderInput,
 };
-pub use workflow_rules::{
-    WORKFLOW_KIND_VIDEO_CANVAS_GRAPH, canvas_graph_workflow_business_key,
-    canvas_graph_workflow_run_input, canvas_node_step_key, canvas_node_step_workflow_business_key,
-    canvas_node_step_workflow_run_input, canvas_single_node_workflow_business_key,
-    canvas_single_node_workflow_run_input,
+pub(crate) use video_generation::{
+    CanvasVideoNodeExecutionInput, build_canvas_video_node_input_for_preview,
+};
+pub(crate) use workflow_rules::{
+    WORKFLOW_KIND_VIDEO_CANVAS_GRAPH, canvas_graph_workflow_run_input, canvas_node_step_key,
+    canvas_node_step_workflow_run_input, canvas_single_node_workflow_run_input,
 };

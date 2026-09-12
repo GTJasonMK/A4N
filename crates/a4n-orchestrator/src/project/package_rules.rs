@@ -241,8 +241,12 @@ mod tests {
     }
 
     #[test]
-    fn hash_json_stable() {
+    fn hash_json_matches_sha256_vector() {
         let v = json!({"a": 1});
-        assert_eq!(hash_json(&v), hash_json(&v));
+        assert_eq!(
+            hash_json(&v),
+            "015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862"
+        );
+        assert_ne!(hash_json(&v), hash_json(&json!({"a": 2})));
     }
 }

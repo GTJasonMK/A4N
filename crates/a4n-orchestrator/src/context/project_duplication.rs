@@ -1,3 +1,4 @@
+use a4n_api_contract::project::DuplicateProjectInput;
 use a4n_db::DbHandle;
 use a4n_db_models::models::project::novel_project;
 use a4n_domain::project::{
@@ -7,8 +8,8 @@ use a4n_error::AppError;
 
 use super::OrchestratorContext;
 use crate::project::{
-    DuplicateProjectApplicationInput, ProjectDuplicationApplicationPort,
-    ProjectDuplicationHostPort, project_duplicate_error_to_app_error,
+    ProjectDuplicationApplicationPort, ProjectDuplicationHostPort,
+    project_duplicate_error_to_app_error,
 };
 
 struct ProjectDuplicationHostPortRef<'a> {
@@ -109,9 +110,10 @@ impl ProjectDuplicationApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn duplicate_project_validated<Host>(
+    pub(crate) async fn duplicate_project_validated<Host>(
         &self,
-        input: DuplicateProjectApplicationInput,
+        user_id: i64,
+        input: DuplicateProjectInput,
         host_port: &mut Host,
     ) -> Result<novel_project::Model, AppError>
     where
@@ -119,7 +121,7 @@ impl OrchestratorContext {
     {
         let original = self.project_for_duplication(input.project_id).await?;
         host_port
-            .verify_project_editor(input.user_id, original.id)
+            .verify_project_editor(user_id, original.id)
             .await?;
         let new_title =
             required_text(&input.new_title, "新项目标题").map_err(AppError::InvalidArgument)?;
@@ -130,20 +132,20 @@ impl OrchestratorContext {
         {
             ProjectSourceMode::Self_ => {
                 self.project_duplication
-                    .duplicate_text(&original, input.user_id, new_title)
+                    .duplicate_text(&original, user_id, new_title)
                     .await
             }
             ProjectSourceMode::Derived => {
                 let result = self
                     .project_duplication
-                    .duplicate_derived(&original, input.user_id, new_title, host_port)
+                    .duplicate_derived(&original, user_id, new_title, host_port)
                     .await;
                 duplication_result_with_file_rollback(result, host_port).await
             }
             ProjectSourceMode::Freeform => {
                 let result = self
                     .project_duplication
-                    .duplicate_freeform(&original, input.user_id, new_title, host_port)
+                    .duplicate_freeform(&original, user_id, new_title, host_port)
                     .await;
                 duplication_result_with_file_rollback(result, host_port).await
             }
@@ -164,13 +166,13 @@ impl OrchestratorContext {
 impl ProjectDuplicationApplicationPort for OrchestratorContext {
     async fn duplicate_project(
         &self,
-        input: DuplicateProjectApplicationInput,
+        user_id: i64,
+        input: DuplicateProjectInput,
         host_port: &mut dyn ProjectDuplicationHostPort,
     ) -> Result<a4n_api_contract::project::ProjectSummary, AppError> {
-        let user_id = input.user_id;
         let mut host_port_ref = ProjectDuplicationHostPortRef { inner: host_port };
         let project = self
-            .duplicate_project_validated(input, &mut host_port_ref)
+            .duplicate_project_validated(user_id, input, &mut host_port_ref)
             .await?;
         self.project_summary_for_user(user_id, project.id)
             .await?

@@ -19,7 +19,8 @@ use a4n_video::{
     ProviderImageInputTransport, VideoGenerationRequest, VideoGenerationResult, VideoJobState,
 };
 use a4n_video_contract::{
-    ChapterVideoImageInput, ChapterVideoPreviewHostPort, PersistedVideoResult,
+    ChapterVideoGenerationHostPort, ChapterVideoImageInput, ChapterVideoPreviewHostPort,
+    PersistedVideoResult, ReferenceMediaVideoGenerationHostPort,
     ReferenceMediaVideoPreviewHostPort, ResolvedChapterVideoImageInputs,
     VIDEO_SEGMENT_EXECUTION_RECIPE_V1, VideoCancellationHandle, VideoGenerationProgressPort,
     VideoProviderRequestBody, VideoProviderRequestInput, VideoProviderResultTarget,
@@ -35,8 +36,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::test_support::TestOrchestratorBuilder;
 use crate::video::{
-    ChapterVideoGenerationHostPort, GenerateChapterVideosBatchInput, SEEDANCE2_VIDEO_BACKEND,
-    VideoGenerationProgress,
+    GenerateChapterVideosBatchInput, SEEDANCE2_VIDEO_BACKEND, VideoGenerationProgress,
 };
 use a4n_video_contract::VideoProviderHostPort;
 
@@ -1178,7 +1178,6 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
             project_id,
             chapter_id,
             prompt_ids: Vec::new(),
-            config_id: None,
         })
         .await
         .expect_err("空批量应失败");
@@ -1192,7 +1191,6 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
             project_id,
             chapter_id,
             prompt_ids: vec![p1.id, p1.id],
-            config_id: None,
         })
         .await
         .expect_err("重复 id 应失败");
@@ -1215,7 +1213,6 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
             project_id,
             chapter_id,
             prompt_ids: vec![running.id],
-            config_id: None,
         })
         .await
         .expect_err("running 提示词应失败");
@@ -1242,7 +1239,6 @@ async fn chapter_batch_validation_rejects_invalid_inputs_and_accepts_existing_ca
             project_id,
             chapter_id,
             prompt_ids: vec![bound.id],
-            config_id: None,
         })
         .await
         .expect("已有候选的视频提示词仍可继续生成新候选");
@@ -1265,7 +1261,6 @@ async fn chapter_batch_validation_accepts_ready_provider_prompts() {
             project_id,
             chapter_id,
             prompt_ids: vec![first.id, second.id],
-            config_id: None,
         })
         .await
         .expect("boundary_frames completed 提示词应通过批量门禁");

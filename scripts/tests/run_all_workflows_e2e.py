@@ -426,6 +426,16 @@ def validate_result_schema(
             for name, child in properties.items():
                 if name in value:
                     validate_result_schema(child, value[name], root, f"{path}/{name}")
+        additional_properties = schema.get("additionalProperties", True)
+        unknown = [
+            name for name in value
+            if not isinstance(properties, dict) or name not in properties
+        ]
+        if additional_properties is False and unknown:
+            raise _schema_error(f"{path}/{unknown[0]}", "不允许未声明字段")
+        if isinstance(additional_properties, dict):
+            for name in unknown:
+                validate_result_schema(additional_properties, value[name], root, f"{path}/{name}")
         return
     if schema_type == "array":
         if not isinstance(value, list):
@@ -436,6 +446,18 @@ def validate_result_schema(
             raise _schema_error(path, "array 少于 minItems")
         if isinstance(maximum, int) and len(value) > maximum:
             raise _schema_error(path, "array 超过 maxItems")
+        if schema.get("uniqueItems") is True:
+            seen = set()
+            for index, item in enumerate(value):
+                marker = json.dumps(
+                    item,
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                if marker in seen:
+                    raise _schema_error(f"{path}/{index}", "array 包含重复项")
+                seen.add(marker)
         for index, item in enumerate(value):
             validate_result_schema(schema.get("items", True), item, root, f"{path}/{index}")
         return
@@ -445,6 +467,14 @@ def validate_result_schema(
         raise _schema_error(path, "应为 integer")
     if schema_type == "number" and (isinstance(value, bool) or not isinstance(value, (int, float))):
         raise _schema_error(path, "应为 number")
+    if schema_type in {"integer", "number"}:
+        minimum = schema.get("minimum")
+        maximum = schema.get("maximum")
+        if isinstance(minimum, (int, float)) and not isinstance(minimum, bool) and value < minimum:
+            raise _schema_error(path, f"number 小于 minimum {minimum}")
+        if isinstance(maximum, (int, float)) and not isinstance(maximum, bool) and value > maximum:
+            raise _schema_error(path, f"number 超过 maximum {maximum}")
+        return
     if schema_type == "string":
         if not isinstance(value, str):
             raise _schema_error(path, "应为 string")
@@ -454,16 +484,20 @@ def validate_result_schema(
             raise _schema_error(path, "string 少于 minLength")
         if isinstance(maximum, int) and len(value) > maximum:
             raise _schema_error(path, "string 超过 maxLength")
+        pattern = schema.get("pattern")
+        if isinstance(pattern, str) and re.search(pattern, value) is None:
+            raise _schema_error(path, f"string 不匹配 pattern {pattern!r}")
 
 
 def validate_result_references(descriptor: dict[str, Any], envelope: dict[str, Any]) -> None:
-    references = envelope.get("meta", {}).get("references", {})
     if not descriptor.get("result_references"):
         return
-    # Empty list/read responses and older host envelopes may omit the optional
-    # references projection. Validate it whenever the server emits it.
+    meta = envelope.get("meta")
+    if not isinstance(meta, dict):
+        raise ValueError("/meta: 引用投影要求 object")
+    references = meta.get("references")
     if not isinstance(references, dict):
-        return
+        raise ValueError("/meta/references: 缺少引用投影 object")
     for kind in descriptor["result_references"]:
         values = references.get(kind)
         if values is None:

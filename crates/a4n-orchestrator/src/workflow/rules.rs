@@ -6,8 +6,8 @@ use super::{
 };
 
 pub use a4n_domain::workflow::{
-    cancel_workflow_requires_target, is_video_status_final_for_cancel_interrupt,
-    require_positive_workflow_run_id, validate_optional_project_id, validate_task_history_limit,
+    is_video_status_final_for_cancel_interrupt, require_positive_workflow_run_id,
+    validate_optional_project_id,
 };
 
 /// 统一恢复入口可分发的目标（不含 Host 访问与领域执行）。
@@ -187,50 +187,6 @@ fn blueprint_scope_target_id(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn task_history_limit_must_be_positive() {
-        assert!(validate_task_history_limit(1).is_ok());
-        assert_eq!(
-            validate_task_history_limit(0).unwrap_err(),
-            "limit 必须大于 0"
-        );
-    }
-
-    #[test]
-    fn optional_project_id_must_be_positive_when_present() {
-        assert!(validate_optional_project_id(None).is_ok());
-        assert!(validate_optional_project_id(Some(1)).is_ok());
-        assert_eq!(
-            validate_optional_project_id(Some(0)).unwrap_err(),
-            "project_id 必须大于 0"
-        );
-        assert_eq!(
-            validate_optional_project_id(Some(-1)).unwrap_err(),
-            "project_id 必须大于 0"
-        );
-    }
-
-    #[test]
-    fn cancel_requires_at_least_one_target() {
-        assert!(cancel_workflow_requires_target(true, false).is_ok());
-        assert!(cancel_workflow_requires_target(false, true).is_ok());
-        assert!(cancel_workflow_requires_target(true, true).is_ok());
-        assert_eq!(
-            cancel_workflow_requires_target(false, false).unwrap_err(),
-            "必须提供 task_id 或 workflow_run_id"
-        );
-    }
-
-    #[test]
-    fn cancel_interrupt_skip_status_includes_interrupted() {
-        assert!(is_video_status_final_for_cancel_interrupt("completed"));
-        assert!(is_video_status_final_for_cancel_interrupt("failed"));
-        assert!(is_video_status_final_for_cancel_interrupt("cancelled"));
-        assert!(is_video_status_final_for_cancel_interrupt("interrupted"));
-        assert!(!is_video_status_final_for_cancel_interrupt("running"));
-        assert!(!is_video_status_final_for_cancel_interrupt("pending"));
-    }
 
     #[test]
     fn require_workflow_can_resume_is_status_aware() {
@@ -444,7 +400,5 @@ mod tests {
         input.status = WORKFLOW_STATUS_RUNNING.to_string();
         input.business_key = "  ".into();
         assert!(validate_begin_workflow_run_input(&input).is_err());
-        assert!(require_positive_workflow_run_id(0).is_err());
-        assert!(require_positive_workflow_run_id(1).is_ok());
     }
 }

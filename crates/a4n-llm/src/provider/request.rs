@@ -87,6 +87,14 @@ impl ChatRequest {
         self.response_format = Some(ResponseFormat::json_object());
         self
     }
+
+    /// Preserve internal context that the provider wire serializer omits.
+    pub fn snapshot_value(&self) -> Result<Value, a4n_error::AppError> {
+        let mut value = serde_json::to_value(self)?;
+        value["trace_context"] = serde_json::to_value(&self.trace_context)?;
+        value["context_manifest_json"] = self.context_manifest_json.clone().unwrap_or(Value::Null);
+        Ok(value)
+    }
 }
 
 /// OpenAI-compatible response format.

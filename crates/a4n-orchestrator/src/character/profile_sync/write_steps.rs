@@ -1,3 +1,4 @@
+use a4n_api_contract::character::ImplicitUpdateDecisionSummary;
 use a4n_db_models::models::character::attribute_event::SOURCE_KIND_AI_SYNC;
 use a4n_domain::character::{
     CharacterAttributeDeletionRequestInput, CharacterAttributeValueChangeInput,
@@ -8,8 +9,8 @@ use serde_json::Value;
 
 use super::super::{
     CharacterSyncAttributeEventDraft, CharacterSyncAttributeEventRecordInput,
-    CharacterSyncWriteStepRecordInput, ImplicitUpdateDecisionSummary, optional_string,
-    required_category, required_i32, required_string, required_value,
+    CharacterSyncWriteStepRecordInput, optional_string, required_category, required_i32,
+    required_string, required_value,
 };
 
 pub(super) struct BuildCharacterSyncWriteStepsInput<'a> {

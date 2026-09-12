@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::provider_runtime::DynamicProviderFacade;
-use a4n_capabilities::LlmClient;
 use a4n_error::AppError;
+use a4n_llm_client::LlmClient;
 use a4n_provider_contract::LlmProviderConfig;
 
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};

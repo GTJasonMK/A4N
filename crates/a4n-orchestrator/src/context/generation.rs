@@ -67,7 +67,7 @@ use crate::generation::{
 };
 use crate::task_queue::PersistentTaskQueue;
 use crate::video::validate_reference_media_start_input;
-pub use a4n_api_contract::generation_tasks::GenerationTaskStart;
+pub(crate) use a4n_api_contract::generation_tasks::GenerationTaskStart;
 
 /// Runtime-facing generation boundary.
 ///
@@ -1363,20 +1363,6 @@ impl GenerationApplication {
         .map_err(generation_error)
     }
 
-    async fn delete_generation_run_targets_for(
-        &self,
-        target_table: &str,
-        target_ids: &[i64],
-    ) -> Result<u64, AppError> {
-        a4n_db::generation::delete_generation_run_targets_for(
-            self.connection(),
-            target_table,
-            target_ids,
-        )
-        .await
-        .map_err(generation_error)
-    }
-
     async fn generation_run_exists_for_target_output(
         &self,
         target_table: &str,
@@ -1758,7 +1744,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn start_chapter_generation_task(
+    pub(crate) async fn start_chapter_generation_task(
         &self,
         user_id: i64,
         input: &StartChapterGenerationInput,
@@ -1786,7 +1772,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_inspiration_generation_task(
+    pub(crate) async fn start_inspiration_generation_task(
         &self,
         user_id: i64,
         input: &StartInspirationGenerationInput,
@@ -1808,7 +1794,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_outline_generation_task(
+    pub(crate) async fn start_outline_generation_task(
         &self,
         user_id: i64,
         input: &StartOutlineGenerationInput,
@@ -1821,7 +1807,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_portrait_generation_task(
+    pub(crate) async fn start_portrait_generation_task(
         &self,
         user_id: i64,
         input: &StartPortraitGenerationInput,
@@ -1834,7 +1820,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_image_generation_task(
+    pub(crate) async fn start_image_generation_task(
         &self,
         user_id: i64,
         input: &StartImageGenerationInput,
@@ -1847,7 +1833,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_video_generation_task(
+    pub(crate) async fn start_video_generation_task(
         &self,
         user_id: i64,
         input: &StartVideoGenerationInput,
@@ -1860,7 +1846,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_blueprint_generation_task(
+    pub(crate) async fn start_blueprint_generation_task(
         &self,
         user_id: i64,
         input: &StartBlueprintGenerationInput,
@@ -1887,7 +1873,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_blueprint_refinement_task(
+    pub(crate) async fn start_blueprint_refinement_task(
         &self,
         user_id: i64,
         input: &StartBlueprintRefinementInput,
@@ -1914,7 +1900,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_optimize_chat_generation_task(
+    pub(crate) async fn start_optimize_chat_generation_task(
         &self,
         user_id: i64,
         input: &StartOptimizeChatGenerationInput,
@@ -1932,7 +1918,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_optimize_analysis_generation_task(
+    pub(crate) async fn start_optimize_analysis_generation_task(
         &self,
         user_id: i64,
         input: &StartOptimizeAnalysisGenerationInput,
@@ -1946,7 +1932,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn start_optimize_patch_generation_task(
+    pub(crate) async fn start_optimize_patch_generation_task(
         &self,
         user_id: i64,
         input: &StartOptimizePatchGenerationInput,
@@ -1968,7 +1954,7 @@ impl OrchestratorContext {
     }
 
     /// 读取 generation task 前统一检查 owner、attempt 和项目 Viewer 权限。
-    pub async fn authorize_generation_task(
+    pub(crate) async fn authorize_generation_task(
         &self,
         user_id: i64,
         task_id: &str,
@@ -1982,7 +1968,7 @@ impl OrchestratorContext {
     }
 
     /// 读取 summary 时只校验 checkpoint 规范列；损坏/过期 snapshot 仍返回可展示条目。
-    pub async fn generation_task_summary_for_user(
+    pub(crate) async fn generation_task_summary_for_user(
         &self,
         user_id: i64,
         task_id: &str,
@@ -1996,7 +1982,7 @@ impl OrchestratorContext {
         )
     }
 
-    pub async fn list_active_generation_task_summaries(
+    pub(crate) async fn list_active_generation_task_summaries(
         &self,
         user_id: i64,
         project_id: Option<i64>,
@@ -2015,7 +2001,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn list_generation_task_history_summaries(
+    pub(crate) async fn list_generation_task_history_summaries(
         &self,
         user_id: i64,
         project_id: Option<i64>,
@@ -2037,7 +2023,7 @@ impl OrchestratorContext {
     }
 
     /// 只从已授权 task 取得进程内 session；不存在 live session 时显式要求 snapshot。
-    pub fn subscribe_generation_task(
+    pub(crate) fn subscribe_generation_task(
         &self,
         task: &AuthorizedGenerationTask,
         after_sequence: Option<u64>,
@@ -2049,7 +2035,7 @@ impl OrchestratorContext {
         session.subscribe(after_sequence).map_err(Into::into)
     }
 
-    pub async fn begin_generation_project_lifecycle_gate(
+    pub(crate) async fn begin_generation_project_lifecycle_gate(
         &self,
         project_id: i64,
         user_id: i64,
@@ -2060,7 +2046,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn begin_generation_user_disable_gate(
+    pub(crate) async fn begin_generation_user_disable_gate(
         &self,
         caller_user_id: i64,
         user_id: i64,
@@ -2070,7 +2056,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn active_generation_tasks_for_project(
+    pub(crate) async fn active_generation_tasks_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
@@ -2079,7 +2065,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn active_generation_tasks_for_user(
+    pub(crate) async fn active_generation_tasks_for_user(
         &self,
         user_id: i64,
     ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
@@ -2088,13 +2074,13 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn active_generation_tasks(
+    pub(crate) async fn active_generation_tasks(
         &self,
     ) -> Result<Vec<GenerationLifecycleTask>, GenerationLifecycleGateError> {
         self.generation.active_generation_tasks().await
     }
 
-    pub async fn expire_generation_snapshot_bodies(
+    pub(crate) async fn expire_generation_snapshot_bodies(
         &self,
         limit: usize,
     ) -> Result<u64, GenerationTaskLifecycleError> {
@@ -2103,7 +2089,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn purge_expired_generation_task_trees(
+    pub(crate) async fn purge_expired_generation_task_trees(
         &self,
         limit: usize,
     ) -> Result<u64, GenerationTaskLifecycleError> {
@@ -2112,20 +2098,20 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn pending_generation_lifecycle_operations(
+    pub(crate) async fn pending_generation_lifecycle_operations(
         &self,
     ) -> Result<Vec<PendingLifecycleOperation>, GenerationLifecycleGateError> {
         self.generation.pending_lifecycle_operations().await
     }
 
-    pub async fn request_generation_destructive_cancel(
+    pub(crate) async fn request_generation_destructive_cancel(
         &self,
         task: &GenerationLifecycleTask,
     ) -> Result<GenerationTerminalWriteOutcome, GenerationTerminalError> {
         self.generation.request_destructive_cancel(task).await
     }
 
-    pub async fn request_generation_cancel(
+    pub(crate) async fn request_generation_cancel(
         &self,
         requested_by_user_id: i64,
         task_id: &str,
@@ -2136,7 +2122,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn interrupt_generation_destructive_task(
+    pub(crate) async fn interrupt_generation_destructive_task(
         &self,
         task: &GenerationLifecycleTask,
         reason: a4n_service_protocol::InterruptionReason,
@@ -2147,7 +2133,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn restore_generation_project_lifecycle_gate(
+    pub(crate) async fn restore_generation_project_lifecycle_gate(
         &self,
         project_id: i64,
         operation: ProjectLifecycleOperation,
@@ -2160,14 +2146,14 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn restore_generation_user_lifecycle_gate(
+    pub(crate) async fn restore_generation_user_lifecycle_gate(
         &self,
         user_id: i64,
     ) -> Result<(), GenerationLifecycleGateError> {
         a4n_db::generation::restore_user_lifecycle_gate(self.database.connection(), user_id).await
     }
 
-    pub async fn complete_generation_project_reset_gate(
+    pub(crate) async fn complete_generation_project_reset_gate(
         &self,
         project_id: i64,
     ) -> Result<(), GenerationLifecycleGateError> {
@@ -2175,21 +2161,21 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn complete_generation_user_disable_gate(
+    pub(crate) async fn complete_generation_user_disable_gate(
         &self,
         user_id: i64,
     ) -> Result<(), GenerationLifecycleGateError> {
         a4n_db::generation::complete_user_disable_gate(self.database.connection(), user_id).await
     }
 
-    pub async fn record_completed_generation_run(
+    pub(crate) async fn record_completed_generation_run(
         &self,
         input: RecordCompletedGenerationRunInput,
     ) -> Result<generation_run::Model, AppError> {
         self.generation.record_completed_generation_run(input).await
     }
 
-    pub async fn record_completed_generation_run_with_checkpoint(
+    pub(crate) async fn record_completed_generation_run_with_checkpoint(
         &self,
         input: RecordCompletedGenerationRunWithCheckpointInput,
     ) -> Result<generation_run::Model, AppError> {
@@ -2198,7 +2184,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn attach_generation_runs_to_workflow_for_target(
+    pub(crate) async fn attach_generation_runs_to_workflow_for_target(
         &self,
         input: AttachGenerationRunsToWorkflowInput,
     ) -> Result<usize, AppError> {
@@ -2207,24 +2193,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn record_llm_call_trace(
-        &self,
-        input: RecordLlmCallTraceInput,
-    ) -> Result<llm_call_trace::Model, AppError> {
-        self.generation.record_llm_call_trace(input).await
-    }
-
-    pub async fn delete_generation_run_targets_for(
-        &self,
-        target_table: &str,
-        target_ids: &[i64],
-    ) -> Result<u64, AppError> {
-        self.generation
-            .delete_generation_run_targets_for(target_table, target_ids)
-            .await
-    }
-
-    pub async fn generation_run_exists_for_target_output(
+    pub(crate) async fn generation_run_exists_for_target_output(
         &self,
         target_table: &str,
         target_id: i64,

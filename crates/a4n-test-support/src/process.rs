@@ -27,15 +27,22 @@ use tokio::{io::AsyncWriteExt, net::TcpStream};
 
 pub const SIDECAR_PROCESS_TEST_TOKEN: &str = "a4n-process-test-token";
 
-pub use a4n_capabilities::{
-    EmbeddingClient, EmbeddingModelOperation, ExportClient, HttpEmbeddingClient, HttpExportClient,
-    HttpImageClient, HttpImportClient, HttpPromptClient, HttpRagClient, HttpVideoClient,
-    ImageClient, ImportClient, JsonRequest, PromptClient, RagClient, VideoClient,
+pub use a4n_embedding_client::{
+    EmbeddingClient, EmbeddingModelOperation, HttpEmbeddingClient, JsonRequest,
 };
+pub use a4n_export_client::{ExportClient, HttpExportClient};
 pub use a4n_export_contract::{
     ExportRenderJsonInput, ExportRenderZipInput, ExportZipEntryBytes, ExportZipPackageInput,
 };
+pub use a4n_image_client::{HttpImageClient, ImageClient};
+pub use a4n_import_client::{HttpImportClient, ImportClient};
 pub use a4n_import_contract::ImportReadMediaPackageZipInput;
+pub use a4n_llm_client::{HttpLlmClient, LlmClient};
+pub use a4n_prompt_client::{HttpPromptClient, PromptClient};
+pub use a4n_rag_client::{HttpRagClient, RagClient};
+pub use a4n_service_client::{
+    ServiceClient as CapabilityClient, ServiceClientResult as CapabilityResult,
+};
 pub use a4n_service_protocol::{
     EMBEDDING_CAPABILITY_VERSION, EMBEDDING_SERVICE_NAME, EXPORT_RENDER_CAPABILITY_VERSION,
     EXPORT_SERVICE_NAME, IMAGE_PROVIDER_CAPABILITY_VERSION, IMAGE_SERVICE_NAME,
@@ -43,6 +50,7 @@ pub use a4n_service_protocol::{
     PROMPT_SERVICE_NAME, RAG_INDEX_CAPABILITY_VERSION, RAG_SERVICE_NAME, ServiceRequestContext,
     ServiceStatus, TraceContext, VIDEO_PROVIDER_CAPABILITY_VERSION, VIDEO_SERVICE_NAME,
 };
+pub use a4n_video_client::{HttpVideoClient, VideoClient};
 
 pub fn sidecar_base_url(addr: SocketAddr) -> String {
     format!("http://{addr}")

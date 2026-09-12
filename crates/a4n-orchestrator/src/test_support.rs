@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use a4n_capabilities::A4nCapabilities;
 use a4n_config::app_config::AppConfig;
 use a4n_db::{
     DatabaseConnection, DbHandle, SharedDatabaseConnection, character::Sha256SnapshotStore,
@@ -9,6 +8,7 @@ use a4n_db::{
 use a4n_embedding::provider::EmbeddingProvider;
 use a4n_event::BroadcastEventBus;
 use a4n_llm::provider::LlmProvider;
+use a4n_prompt_client::PromptClient;
 use a4n_rag_core::{memory_store::MemoryVectorStore, vector_store::VectorStore};
 use a4n_service_manager::ServiceManager;
 use a4n_task_runtime::channel::TaskManager;
@@ -37,7 +37,7 @@ pub(crate) async fn create_test_user(db: &DatabaseConnection) -> i64 {
 
 pub(crate) struct TestOrchestratorBuilder {
     db: SharedDatabaseConnection,
-    capabilities: A4nCapabilities,
+    prompt_client: Option<Arc<dyn PromptClient>>,
     config: AppConfig,
     prompt_dir: PathBuf,
     llm: Arc<dyn LlmProvider>,
@@ -48,7 +48,7 @@ impl TestOrchestratorBuilder {
     pub(crate) fn new(db: SharedDatabaseConnection) -> Self {
         Self {
             db,
-            capabilities: A4nCapabilities::default(),
+            prompt_client: None,
             config: AppConfig::default(),
             prompt_dir: Path::new(env!("CARGO_MANIFEST_DIR")).join("../../prompts"),
             llm: Arc::new(UnavailableLlmProvider::new(DEFAULT_LLM_STREAM_ERROR)),
@@ -63,11 +63,6 @@ impl TestOrchestratorBuilder {
 
     pub(crate) fn with_embedding(mut self, embedding: Arc<dyn EmbeddingProvider>) -> Self {
         self.embedding = embedding;
-        self
-    }
-
-    pub(crate) fn with_capabilities(mut self, capabilities: A4nCapabilities) -> Self {
-        self.capabilities = capabilities;
         self
     }
 
@@ -102,7 +97,7 @@ impl TestOrchestratorBuilder {
         let embedding = self.embedding;
         OrchestratorContext::bootstrap(
             db_handle,
-            self.capabilities,
+            self.prompt_client,
             Arc::new(
                 ServiceManager::new(Vec::new()).expect("empty service manager should initialize"),
             ),
@@ -142,13 +137,12 @@ mod tests {
         let builder = TestOrchestratorBuilder::new(db)
             .with_llm(Arc::clone(&llm))
             .with_embedding(Arc::clone(&embedding))
-            .with_capabilities(A4nCapabilities::default())
             .with_config(config)
             .with_prompt_dir(prompt_dir.clone());
 
         assert!(Arc::ptr_eq(&builder.llm, &llm));
         assert!(Arc::ptr_eq(&builder.embedding, &embedding));
-        assert!(builder.capabilities.llm.is_none());
+        assert!(builder.prompt_client.is_none());
         assert_eq!(builder.config.data_dir, PathBuf::from("test-data"));
         assert_eq!(builder.prompt_dir, prompt_dir);
     }

@@ -1,6 +1,7 @@
 //! 角色 AI JSON 字段纯规则（无 DB、无 Host IO）。
 
 use a4n_api_contract::character::AttributeCountsSummary;
+use a4n_domain::character::category_storage_key;
 use serde_json::Value;
 
 pub fn required_i64(json: &Value, key: &str) -> Result<i64, String> {
@@ -118,15 +119,6 @@ pub fn optional_string(json: &Value, key: &str) -> Option<String> {
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
-}
-
-pub fn category_storage_key(category: &str) -> &'static str {
-    match category {
-        "explicit" => "explicit_attributes",
-        "implicit" => "implicit_attributes",
-        "social" => "social_attributes",
-        _ => "attributes",
-    }
 }
 
 /// 统计角色状态某一分类属性对象的键数量。

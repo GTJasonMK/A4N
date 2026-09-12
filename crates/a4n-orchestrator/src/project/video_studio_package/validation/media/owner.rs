@@ -130,10 +130,3 @@ impl<'a> MediaEntryOwnerIndex<'a> {
         Ok(())
     }
 }
-
-pub(in crate::project::video_studio_package) fn validate_media_entry_owner(
-    package: &VideoStudioProjectPackage,
-    entry: &MediaFileEntry,
-) -> Result<(), String> {
-    MediaEntryOwnerIndex::new(package).validate_owner(entry)
-}

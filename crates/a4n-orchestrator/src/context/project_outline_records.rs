@@ -185,7 +185,7 @@ impl ProjectOutlineRecordsApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn list_chapter_outlines_for_user(
+    pub(crate) async fn list_chapter_outlines_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -207,7 +207,7 @@ impl OrchestratorContext {
             .collect())
     }
 
-    pub async fn list_part_outlines_for_user(
+    pub(crate) async fn list_part_outlines_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -222,7 +222,7 @@ impl OrchestratorContext {
             .collect())
     }
 
-    pub async fn outline_generation_progress_for_user(
+    pub(crate) async fn outline_generation_progress_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -231,7 +231,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_outline_by_project_number(
+    pub(crate) async fn chapter_outline_by_project_number(
         &self,
         project_id: i64,
         chapter_number: i32,
@@ -251,7 +251,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_outline_source_kinds_for_ids(
+    pub(crate) async fn chapter_outline_source_kinds_for_ids(
         &self,
         outline_ids: &[i64],
     ) -> Result<HashMap<i64, String>, AppError> {
@@ -260,7 +260,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_outline_by_id(
+    pub(crate) async fn chapter_outline_by_id(
         &self,
         outline_id: i64,
     ) -> Result<Option<chapter_outline::Model>, AppError> {
@@ -270,7 +270,7 @@ impl OrchestratorContext {
     }
 
     /// 更新章节大纲：ID 门禁 + 可选字段规范化后落库。
-    pub async fn update_chapter_outline_validated(
+    pub(crate) async fn update_chapter_outline_validated(
         &self,
         input: UpdateChapterOutlineInput,
     ) -> Result<chapter_outline::Model, AppError> {
@@ -279,7 +279,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn save_manual_chapter_outline_validated(
+    pub(crate) async fn save_manual_chapter_outline_validated(
         &self,
         input: SaveChapterOutlineInput,
     ) -> Result<chapter_outline::Model, AppError> {
@@ -288,7 +288,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn save_manual_part_outline_validated(
+    pub(crate) async fn save_manual_part_outline_validated(
         &self,
         input: SavePartOutlineInput,
     ) -> Result<part_outline::Model, AppError> {
@@ -297,7 +297,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_latest_part_outline_records_validated(
+    pub(crate) async fn delete_latest_part_outline_records_validated(
         &self,
         input: DeleteLatestOutlineRecordsInput,
     ) -> Result<(), AppError> {
@@ -306,7 +306,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_latest_chapter_outline_records_validated(
+    pub(crate) async fn delete_latest_chapter_outline_records_validated(
         &self,
         input: DeleteLatestOutlineRecordsInput,
     ) -> Result<(), AppError> {
@@ -315,7 +315,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_outlines_for_project(
+    pub(crate) async fn chapter_outlines_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<chapter_outline::Model>, AppError> {
@@ -324,7 +324,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn part_outlines_for_project(
+    pub(crate) async fn part_outlines_for_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<part_outline::Model>, AppError> {
@@ -333,7 +333,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn part_outline_by_id(
+    pub(crate) async fn part_outline_by_id(
         &self,
         part_id: i64,
     ) -> Result<Option<part_outline::Model>, AppError> {
@@ -342,7 +342,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn outline_generation_progress_rows(
+    pub(crate) async fn outline_generation_progress_rows(
         &self,
         project_id: i64,
     ) -> Result<OutlineGenerationProgressRows, AppError> {
@@ -351,7 +351,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_latest_chapter_outlines_for_user(
+    pub(crate) async fn delete_latest_chapter_outlines_for_user(
         &self,
         user_id: i64,
         input: DeleteLatestOutlineRecordsInput,
@@ -365,7 +365,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn delete_latest_part_outlines_for_user(
+    pub(crate) async fn delete_latest_part_outlines_for_user(
         &self,
         user_id: i64,
         input: DeleteLatestOutlineRecordsInput,
@@ -379,7 +379,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn save_chapter_outline_for_user(
+    pub(crate) async fn save_chapter_outline_for_user(
         &self,
         user_id: i64,
         input: SaveChapterOutlineInput,
@@ -393,7 +393,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn update_chapter_outline_for_user(
+    pub(crate) async fn update_chapter_outline_for_user(
         &self,
         user_id: i64,
         input: UpdateChapterOutlineInput,
@@ -407,7 +407,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn save_part_outline_for_user(
+    pub(crate) async fn save_part_outline_for_user(
         &self,
         user_id: i64,
         input: SavePartOutlineInput,

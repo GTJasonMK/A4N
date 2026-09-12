@@ -8,9 +8,10 @@ use std::{
 
 use a4n_db::{
     DatabaseConnection,
-    workflow::{UpsertWorkflowRunInput, WORKFLOW_STATUS_RUNNING, upsert_workflow_run},
+    workflow::{UpsertWorkflowRunInput, upsert_workflow_run},
 };
 use a4n_db_models::models::generation::workflow_checkpoint;
+use a4n_domain::workflow::WORKFLOW_STATUS_RUNNING;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatMessage, ChatResponse};
 use a4n_prompt::rendering::PromptRenderer;

@@ -102,8 +102,7 @@ pub use foreshadowing::{
 };
 pub(crate) use freeform_reset::FreeformGeneratedResetTargets;
 pub use freeform_reset::{
-    FreeformGeneratedResetDbError, FreeformVideoGeneratedDataResetResult,
-    reset_freeform_video_generated_data_records,
+    FreeformGeneratedResetDbError, reset_freeform_video_generated_data_records,
 };
 pub use material_refs::{
     character_portrait_project_id, primary_material_image_ids_for_projects,

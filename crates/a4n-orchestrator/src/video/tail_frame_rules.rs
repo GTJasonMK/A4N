@@ -1,11 +1,6 @@
 //! 视频尾帧归属与元数据纯规则（无 DB、无 Host）。
 
 use a4n_db_models::models::ai::{generated_image, generated_video};
-use a4n_domain::image::{
-    IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_VIDEO_TAIL_FRAME,
-    image_generation_source,
-};
-use serde_json::Value;
 
 /// 尾帧轻量引用是否属于指定视频，供只读清理列表避免加载完整图片实体。
 pub fn tail_frame_reference_belongs_to_video(
@@ -24,22 +19,13 @@ pub fn video_shot_number(video: &generated_video::Model) -> Result<i32, String> 
     a4n_video::video_shot_number(video.metadata_json.as_ref(), video.id)
 }
 
-pub fn is_first_frame_chain_video(video: &generated_video::Model) -> bool {
-    a4n_video::is_first_frame_chain_workflow(video.workflow_mode.as_deref())
-}
-
-pub fn should_capture_video_tail_frame(video: &generated_video::Model) -> bool {
-    a4n_video::should_capture_video_tail_frame_fields(
-        &video.video_type,
-        video.workflow_mode.as_deref(),
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use a4n_domain::image::IMAGE_TYPE_VIDEO_TAIL_FRAME;
-    use serde_json::json;
+    use a4n_domain::image::{
+        IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_VIDEO_TAIL_FRAME,
+    };
+    use serde_json::{Value, json};
 
     fn image_with_context(context: Value) -> generated_image::Reference {
         generated_image::Reference {

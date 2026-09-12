@@ -1,6 +1,6 @@
 mod chapter;
 
-use crate::text_anchor::SOURCE_KIND_CHAPTER_CONTENT;
+use a4n_db::text_anchor::SOURCE_KIND_CHAPTER_CONTENT;
 use a4n_db_models::models::project::text_anchor;
 use std::collections::{HashMap, HashSet};
 

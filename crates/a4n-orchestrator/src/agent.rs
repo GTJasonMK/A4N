@@ -77,9 +77,8 @@ pub use editor_claim::AgentEditorClaimApplicationPort;
 pub use editor_response::AgentEditorResponseApplicationPort;
 pub use editor_wait::AgentEditorWaitApplicationPort;
 pub use external_task_wait::{AgentExternalTaskWaitApplicationPort, AgentExternalTaskWaitSnapshot};
-pub use generation::{
-    AgentOwnedTask, AgentTaskExecutionInput, model_request_snapshot, restore_model_request_snapshot,
-};
+pub use generation::model_request_snapshot;
+pub use generation::restore_model_request_snapshot;
 pub use generation_cancel::{AgentGenerationCancelApplicationPort, AgentGenerationCancelSnapshot};
 pub use lease_recovery::AgentRunLeaseRecoveryApplicationPort;
 pub use worker_activation::AgentWorkerActivationApplicationPort;
@@ -109,7 +108,10 @@ pub struct AgentApplication {
 impl AgentApplication {
     /// Lifecycle shutdown uses the same durable run-tree cancellation owner as
     /// the user-facing control path, but does not impersonate a user.
-    pub async fn cancel_run_for_package_shutdown(&self, run_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn cancel_run_for_package_shutdown(
+        &self,
+        run_id: i64,
+    ) -> Result<(), AppError> {
         agent::cancel_run_tree(
             self.connection(),
             run_id,
@@ -120,7 +122,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub fn new(database: DbHandle) -> Self {
+    pub(crate) fn new(database: DbHandle) -> Self {
         Self { database }
     }
 
@@ -154,7 +156,7 @@ impl AgentApplication {
         ))
     }
 
-    pub async fn ensure_main_thread(
+    pub(crate) async fn ensure_main_thread(
         &self,
         user_id: i64,
         input: EnsureMainAgentThreadInput,
@@ -193,7 +195,7 @@ impl AgentApplication {
         }
     }
 
-    pub async fn create_thread(
+    pub(crate) async fn create_thread(
         &self,
         user_id: i64,
         input: CreateAgentThreadInput,
@@ -279,7 +281,7 @@ impl AgentApplication {
     /// Creates a user-visible branch from an existing thread.  A fork is a
     /// new sub-agent thread; durable message/run history remains attached to
     /// the source thread and is intentionally not copied.
-    pub async fn fork_thread(
+    pub(crate) async fn fork_thread(
         &self,
         user_id: i64,
         input: ForkAgentThreadInput,
@@ -320,7 +322,7 @@ impl AgentApplication {
         .await
     }
 
-    pub async fn update_thread(
+    pub(crate) async fn update_thread(
         &self,
         user_id: i64,
         input: UpdateAgentThreadInput,
@@ -399,7 +401,7 @@ impl AgentApplication {
         thread_view(updated)
     }
 
-    pub async fn archive_thread(
+    pub(crate) async fn archive_thread(
         &self,
         user_id: i64,
         input: ArchiveAgentThreadInput,
@@ -439,7 +441,7 @@ impl AgentApplication {
     /// Returns the stable domain thread used by a main Agent delegation.
     /// Creation is idempotent on the database unique binding key so concurrent
     /// model/tool workers converge on one child thread.
-    pub async fn ensure_canonical_subagent_thread(
+    pub(crate) async fn ensure_canonical_subagent_thread(
         &self,
         user_id: i64,
         input: EnsureCanonicalSubagentThreadInput,
@@ -509,7 +511,7 @@ impl AgentApplication {
         }
     }
 
-    pub async fn list_threads(
+    pub(crate) async fn list_threads(
         &self,
         user_id: i64,
         input: ListAgentThreadsInput,
@@ -537,7 +539,7 @@ impl AgentApplication {
             .collect()
     }
 
-    pub async fn show_thread(
+    pub(crate) async fn show_thread(
         &self,
         user_id: i64,
         thread_id: &str,
@@ -617,7 +619,7 @@ impl AgentApplication {
         })
     }
 
-    pub async fn list_messages(
+    pub(crate) async fn list_messages(
         &self,
         user_id: i64,
         input: ListAgentMessagesInput,
@@ -647,7 +649,7 @@ impl AgentApplication {
     /// Loads a message referenced by an inbox item for the durable worker.
     /// The thread check keeps a malformed or cross-thread payload from being
     /// injected into the model context.
-    pub async fn load_message_for_worker(
+    pub(crate) async fn load_message_for_worker(
         &self,
         thread_id: i64,
         message_id: i64,
@@ -668,7 +670,11 @@ impl AgentApplication {
         Ok(row.into())
     }
 
-    pub async fn show_run(&self, user_id: i64, run_id: &str) -> Result<AgentRunView, AppError> {
+    pub(crate) async fn show_run(
+        &self,
+        user_id: i64,
+        run_id: &str,
+    ) -> Result<AgentRunView, AppError> {
         let run_id = parse_id(run_id, "run_id")?;
         let mut run = agent::run_by_id(self.connection(), run_id)
             .await
@@ -679,7 +685,7 @@ impl AgentApplication {
         run_view(run)
     }
 
-    pub fn describe_tool(
+    pub(crate) fn describe_tool(
         &self,
         input: a4n_api_contract::agent::DescribeAgentToolInput,
     ) -> Result<AgentToolDescriptor, AppError> {
@@ -697,7 +703,7 @@ impl AgentApplication {
             .ok_or_else(|| AppError::NotFound(format!("Agent tool 不存在或未公开: {name}")))
     }
 
-    pub async fn send_message(
+    pub(crate) async fn send_message(
         &self,
         user_id: i64,
         input: SendAgentMessageInput,
@@ -897,7 +903,7 @@ impl AgentApplication {
     /// Sends a user message to a child thread through an existing delegation.
     /// The parent ownership check prevents a user from addressing another
     /// user's child by guessing a delegation id.
-    pub async fn send_message_to_child(
+    pub(crate) async fn send_message_to_child(
         &self,
         user_id: i64,
         input: SendAgentMessageToChildInput,
@@ -938,7 +944,7 @@ impl AgentApplication {
         Ok(accepted)
     }
 
-    pub async fn control_child_agent(
+    pub(crate) async fn control_child_agent(
         &self,
         user_id: i64,
         input: ControlChildAgentInput,
@@ -979,7 +985,7 @@ impl AgentApplication {
         .await
     }
 
-    pub async fn spawn_agent(
+    pub(crate) async fn spawn_agent(
         &self,
         user_id: i64,
         input: SpawnAgentInput,
@@ -1224,7 +1230,7 @@ impl AgentApplication {
         delegation_view(delegation)
     }
 
-    pub async fn list_memories(
+    pub(crate) async fn list_memories(
         &self,
         user_id: i64,
         scope_kind: Option<AgentMemoryScopeKind>,
@@ -1242,7 +1248,7 @@ impl AgentApplication {
         rows.into_iter().map(memory_view).collect()
     }
 
-    pub async fn create_memory(
+    pub(crate) async fn create_memory(
         &self,
         user_id: i64,
         input: AgentMemoryInput,
@@ -1316,7 +1322,7 @@ impl AgentApplication {
         memory_view(row)
     }
 
-    pub async fn retract_memory(
+    pub(crate) async fn retract_memory(
         &self,
         user_id: i64,
         input: RetractAgentMemoryInput,
@@ -1342,7 +1348,7 @@ impl AgentApplication {
         memory_view(row)
     }
 
-    pub async fn control_run(
+    pub(crate) async fn control_run(
         &self,
         user_id: i64,
         input: ControlAgentRunInput,
@@ -1415,7 +1421,7 @@ impl AgentApplication {
         run_view(updated)
     }
 
-    pub async fn events(
+    pub(crate) async fn events(
         &self,
         user_id: i64,
         input: AgentEventsInput,
@@ -1438,7 +1444,7 @@ impl AgentApplication {
             .collect()
     }
 
-    pub fn search_tools(
+    pub(crate) fn search_tools(
         &self,
         input: SearchAgentToolsInput,
     ) -> Result<AgentToolSearchResult, AppError> {
@@ -1536,7 +1542,7 @@ impl AgentApplication {
         Ok((tools, total))
     }
 
-    pub async fn review_delegation(
+    pub(crate) async fn review_delegation(
         &self,
         user_id: i64,
         input: a4n_api_contract::agent::ReviewAgentDelegationInput,
@@ -1584,7 +1590,7 @@ impl AgentApplication {
         delegation_view(row)
     }
 
-    pub async fn resolve_approval(
+    pub(crate) async fn resolve_approval(
         &self,
         user_id: i64,
         input: ResolveAgentApprovalInput,
@@ -1668,7 +1674,7 @@ impl AgentApplication {
     /// Host command against a project-bound Agent scope. Argument names alone
     /// cannot prove this relationship, so the durable chapter row is the
     /// single source of truth at the runtime boundary.
-    pub async fn verify_chapters_in_project(
+    pub(crate) async fn verify_chapters_in_project(
         &self,
         user_id: i64,
         project_id: i64,
@@ -2541,7 +2547,7 @@ pub struct EnsureCanonicalSubagentThreadInput {
 
 impl AgentApplication {
     /// Claims one queued Run and loads its owner/thread in the same façade.
-    pub async fn claim_worker_run(
+    pub(crate) async fn claim_worker_run(
         &self,
         worker_id: &str,
     ) -> Result<Option<AgentWorkerRun>, AppError> {
@@ -2573,7 +2579,7 @@ impl AgentApplication {
     }
 
     /// Converts expired leases into the explicit recovery terminal state.
-    pub async fn recover_expired_runs(
+    pub(crate) async fn recover_expired_runs(
         &self,
         limit: u64,
         error_message: Option<&str>,
@@ -2594,7 +2600,7 @@ impl AgentApplication {
         Ok(recovered)
     }
 
-    pub async fn expire_pending_approvals(
+    pub(crate) async fn expire_pending_approvals(
         &self,
         limit: u64,
     ) -> Result<Vec<approval::Model>, AppError> {
@@ -2628,7 +2634,7 @@ impl AgentApplication {
     }
 
     /// Loads the complete durable context required for one model decision.
-    pub async fn load_run_context(
+    pub(crate) async fn load_run_context(
         &self,
         claimed: &AgentWorkerRun,
     ) -> Result<AgentRunContext, AppError> {
@@ -2725,7 +2731,7 @@ impl AgentApplication {
         })
     }
 
-    pub async fn update_context_summary(
+    pub(crate) async fn update_context_summary(
         &self,
         claimed: &AgentWorkerRun,
         context_summary: Value,
@@ -2741,7 +2747,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn read_memory_for_run(
+    pub(crate) async fn read_memory_for_run(
         &self,
         context: &AgentRunContext,
         input: a4n_api_contract::agent::ReadAgentMemoryInput,
@@ -2794,13 +2800,16 @@ impl AgentApplication {
         })
     }
 
-    pub async fn renew_worker_lease(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+    pub(crate) async fn renew_worker_lease(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<(), AppError> {
         agent::renew_run_lease(self.connection(), claimed.run.id, &claimed.lease_token)
             .await
             .map_err(agent_db_error_to_app)
     }
 
-    pub async fn read_execution_result_for_run(
+    pub(crate) async fn read_execution_result_for_run(
         &self,
         context: &AgentRunContext,
         input: a4n_api_contract::agent::ReadAgentExecutionResultInput,
@@ -2859,7 +2868,10 @@ impl AgentApplication {
         })
     }
 
-    pub async fn result_refs_for_run(&self, claimed: &AgentWorkerRun) -> Result<Value, AppError> {
+    pub(crate) async fn result_refs_for_run(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<Value, AppError> {
         let executions = agent::executions_by_runs(self.connection(), vec![claimed.run.id])
             .await
             .map_err(agent_db_error_to_app)?;
@@ -2883,7 +2895,7 @@ impl AgentApplication {
         serde_json::to_value(refs).map_err(AppError::from)
     }
 
-    pub async fn run_budget_snapshot(
+    pub(crate) async fn run_budget_snapshot(
         &self,
         run_id: i64,
     ) -> Result<agent::AgentBudgetSnapshot, AppError> {
@@ -2892,7 +2904,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
     }
 
-    pub async fn create_prepared_execution(
+    pub(crate) async fn create_prepared_execution(
         &self,
         input: WorkerExecutionInput,
     ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
@@ -2921,7 +2933,7 @@ impl AgentApplication {
 
     /// Starts a child Run on an existing canonical sub-agent thread and binds
     /// lineage before the child becomes visible to the worker claim query.
-    pub async fn create_child_run(
+    pub(crate) async fn create_child_run(
         &self,
         claimed: &AgentWorkerRun,
         input: WorkerDelegationInput,
@@ -3080,7 +3092,7 @@ impl AgentApplication {
         })
     }
 
-    pub async fn complete_child_run(
+    pub(crate) async fn complete_child_run(
         &self,
         claimed: &AgentWorkerRun,
         content: impl Into<String>,
@@ -3120,7 +3132,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn update_worker_execution(
+    pub(crate) async fn update_worker_execution(
         &self,
         input: WorkerExecutionUpdate,
     ) -> Result<AgentExecutionSnapshot, AppError> {
@@ -3140,7 +3152,10 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn update_run_usage(&self, input: WorkerUsage) -> Result<run::Model, AppError> {
+    pub(crate) async fn update_run_usage(
+        &self,
+        input: WorkerUsage,
+    ) -> Result<run::Model, AppError> {
         agent::update_run_usage(
             self.connection(),
             input.run_id,
@@ -3151,7 +3166,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn mark_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+    pub(crate) async fn mark_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
         agent::mark_turn_active_for_run_lease(
             self.connection(),
             claimed.run.id,
@@ -3162,7 +3177,11 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn wait_run(&self, claimed: &AgentWorkerRun, reason: &str) -> Result<(), AppError> {
+    pub(crate) async fn wait_run(
+        &self,
+        claimed: &AgentWorkerRun,
+        reason: &str,
+    ) -> Result<(), AppError> {
         validate_waiting_reason(reason)?;
         agent::wait_run_for_lease(
             self.connection(),
@@ -3175,7 +3194,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn wait_for_editor(
+    pub(crate) async fn wait_for_editor(
         &self,
         claimed: &AgentWorkerRun,
         request: &a4n_api_contract::agent::AgentEditorRequest,
@@ -3192,7 +3211,7 @@ impl AgentApplication {
         Ok(())
     }
 
-    pub async fn claim_editor_request(
+    pub(crate) async fn claim_editor_request(
         &self,
         user_id: i64,
         input: &a4n_api_contract::agent::RespondAgentEditorInput,
@@ -3241,7 +3260,7 @@ impl AgentApplication {
         ))
     }
 
-    pub async fn requeue_after_external_response(
+    pub(crate) async fn requeue_after_external_response(
         &self,
         claimed: &AgentWorkerRun,
     ) -> Result<(), AppError> {
@@ -3258,7 +3277,7 @@ impl AgentApplication {
         Ok(())
     }
 
-    pub async fn append_worker_update(
+    pub(crate) async fn append_worker_update(
         &self,
         claimed: &AgentWorkerRun,
         kind: &str,
@@ -3289,7 +3308,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn append_tool_message(
+    pub(crate) async fn append_tool_message(
         &self,
         claimed: &AgentWorkerRun,
         execution_id: i64,
@@ -3325,7 +3344,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn append_assistant_tool_message(
+    pub(crate) async fn append_assistant_tool_message(
         &self,
         claimed: &AgentWorkerRun,
         content: impl Into<String>,
@@ -3356,7 +3375,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn upsert_assistant_streaming_message(
+    pub(crate) async fn upsert_assistant_streaming_message(
         &self,
         claimed: &AgentWorkerRun,
         client_message_id: String,
@@ -3388,7 +3407,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn interrupt_assistant_streaming_message(
+    pub(crate) async fn interrupt_assistant_streaming_message(
         &self,
         claimed: &AgentWorkerRun,
         client_message_id: String,
@@ -3405,7 +3424,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn complete_assistant_streaming_message(
+    pub(crate) async fn complete_assistant_streaming_message(
         &self,
         claimed: &AgentWorkerRun,
         client_message_id: String,
@@ -3425,7 +3444,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn complete_claimed_run(
+    pub(crate) async fn complete_claimed_run(
         &self,
         claimed: &AgentWorkerRun,
         content: impl Into<String>,
@@ -3472,7 +3491,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn fail_child_run(
+    pub(crate) async fn fail_child_run(
         &self,
         claimed: &AgentWorkerRun,
         error_message: impl Into<String>,
@@ -3494,7 +3513,7 @@ impl AgentApplication {
         .map_err(agent_db_error_to_app)
     }
 
-    pub async fn claim_inbox_for_thread(
+    pub(crate) async fn claim_inbox_for_thread(
         &self,
         thread_id: i64,
     ) -> Result<Option<AgentInboxSnapshot>, AppError> {
@@ -3504,7 +3523,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
     }
 
-    pub async fn consume_claimed_inbox(
+    pub(crate) async fn consume_claimed_inbox(
         &self,
         row: &AgentInboxSnapshot,
     ) -> Result<AgentInboxSnapshot, AppError> {
@@ -3521,7 +3540,7 @@ impl AgentApplication {
             .map_err(agent_db_error_to_app)
     }
 
-    pub async fn persist_claimed_inbox(
+    pub(crate) async fn persist_claimed_inbox(
         &self,
         claimed: &AgentWorkerRun,
         row: &AgentInboxSnapshot,
@@ -3572,7 +3591,7 @@ impl AgentApplication {
     /// Returns an approved operation for the given execution.  Approval
     /// consumption is intentionally left to the side-effect owner; an
     /// approved row is evidence, not permission to mutate unrelated data.
-    pub async fn approved_execution(
+    pub(crate) async fn approved_execution(
         &self,
         thread_id: i64,
         execution_id: i64,
@@ -3587,7 +3606,7 @@ impl AgentApplication {
     /// Atomically records a write approval request and releases the claimed
     /// Run into `waiting(approval)`. Runtime workers must use this façade
     /// instead of composing the two database operations themselves.
-    pub async fn request_worker_approval(
+    pub(crate) async fn request_worker_approval(
         &self,
         claimed: &AgentWorkerRun,
         execution_id: i64,
@@ -3616,7 +3635,7 @@ impl AgentApplication {
         Ok(approval)
     }
 
-    pub async fn mark_recovery_required(
+    pub(crate) async fn mark_recovery_required(
         &self,
         claimed: &AgentWorkerRun,
         reason: impl Into<String>,

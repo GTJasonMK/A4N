@@ -26,12 +26,6 @@ impl ProjectFamilyApplication {
         Self { database }
     }
 
-    async fn character_portrait_project_id(&self, portrait_id: i64) -> Result<i64, AppError> {
-        a4n_db::project::character_portrait_project_id(self.database.connection(), portrait_id)
-            .await
-            .map_err(project_family_error_to_app_error)
-    }
-
     async fn protagonist_profile_project_id(&self, profile_id: i64) -> Result<i64, AppError> {
         a4n_db::project::protagonist_profile_project_id(self.database.connection(), profile_id)
             .await
@@ -419,7 +413,7 @@ impl ProjectFamilyApplication {
     async fn reset_project_generated_data(
         &self,
         project_id: i64,
-    ) -> Result<a4n_db::project_reset::ProjectGeneratedDataResetOutcome, AppError> {
+    ) -> Result<a4n_domain::project_reset::ProjectGeneratedDataResetOutcome, AppError> {
         a4n_db::project_reset::reset_project_generated_data_record(
             self.database.connection(),
             project_id,
@@ -431,7 +425,7 @@ impl ProjectFamilyApplication {
     pub(crate) async fn reset_freeform_video_generated_data_records(
         &self,
         project_id: i64,
-    ) -> Result<crate::project::FreeformVideoGeneratedDataResetResult, AppError> {
+    ) -> Result<a4n_domain::project_reset::FreeformVideoGeneratedDataResetResult, AppError> {
         a4n_db::project::reset_freeform_video_generated_data_records(
             self.database.connection(),
             project_id,
@@ -442,7 +436,7 @@ impl ProjectFamilyApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn verify_project_or_derived_family_access_validated(
+    pub(crate) async fn verify_project_or_derived_family_access_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -465,7 +459,7 @@ impl OrchestratorContext {
             .map(|_| ())
     }
 
-    pub async fn verify_project_or_derived_family_editor_validated(
+    pub(crate) async fn verify_project_or_derived_family_editor_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -507,19 +501,16 @@ impl OrchestratorContext {
         Ok(context)
     }
 
-    pub async fn character_portrait_project_id(&self, portrait_id: i64) -> Result<i64, AppError> {
-        self.project_family
-            .character_portrait_project_id(portrait_id)
-            .await
-    }
-
-    pub async fn protagonist_profile_project_id(&self, profile_id: i64) -> Result<i64, AppError> {
+    pub(crate) async fn protagonist_profile_project_id(
+        &self,
+        profile_id: i64,
+    ) -> Result<i64, AppError> {
         self.project_family
             .protagonist_profile_project_id(profile_id)
             .await
     }
 
-    pub async fn primary_material_image_ids_for_projects(
+    pub(crate) async fn primary_material_image_ids_for_projects(
         &self,
         project_ids: &[i64],
     ) -> Result<Vec<i64>, AppError> {
@@ -528,7 +519,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn derived_project_family_context(
+    pub(crate) async fn derived_project_family_context(
         &self,
         project_id: i64,
     ) -> Result<ProjectFamilyContext, AppError> {
@@ -546,7 +537,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_manga_source_by_id(
+    pub(crate) async fn chapter_manga_source_by_id(
         &self,
         chapter_id: i64,
         project_id: i64,
@@ -557,7 +548,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn chapter_manga_source_by_number(
+    pub(crate) async fn chapter_manga_source_by_number(
         &self,
         project_id: i64,
         chapter_number: i32,
@@ -579,7 +570,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn source_snapshot_chapters(
+    pub(crate) async fn source_snapshot_chapters(
         &self,
         project_id: i64,
     ) -> Result<Vec<SourceSnapshotChapterSummary>, AppError> {
@@ -589,12 +580,15 @@ impl OrchestratorContext {
     }
 
     /// 校验项目 ID 后级联删除项目记录。
-    pub async fn delete_project_cascade_validated(&self, project_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_project_cascade_validated(
+        &self,
+        project_id: i64,
+    ) -> Result<(), AppError> {
         ensure_positive_project_id(project_id)?;
         self.project_family.delete_project_cascade(project_id).await
     }
 
-    pub async fn claim_project_deletion_cleanup(
+    pub(crate) async fn claim_project_deletion_cleanup(
         &self,
         project_id: Option<i64>,
     ) -> Result<Option<a4n_cleanup_contract::ProjectDeletionCleanupClaim>, AppError> {
@@ -603,7 +597,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn claim_media_workflow_v2_reset(
+    pub(crate) async fn claim_media_workflow_v2_reset(
         &self,
         project_id: Option<i64>,
     ) -> Result<Option<a4n_cleanup_contract::MediaWorkflowV2ResetClaim>, AppError> {
@@ -612,7 +606,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn insert_file_artifact_cleanup_intent(
+    pub(crate) async fn insert_file_artifact_cleanup_intent(
         &self,
         project_id: i64,
         dedupe_key: String,
@@ -623,7 +617,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn claim_file_artifact_cleanup(
+    pub(crate) async fn claim_file_artifact_cleanup(
         &self,
         project_id: Option<i64>,
     ) -> Result<Option<a4n_cleanup_contract::FileArtifactCleanupClaim>, AppError> {
@@ -632,7 +626,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn claim_generation_cleanup(
+    pub(crate) async fn claim_generation_cleanup(
         &self,
         project_id: Option<i64>,
     ) -> Result<Option<a4n_cleanup_contract::GenerationCleanupClaim>, AppError> {
@@ -641,19 +635,22 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn project_ids_with_incomplete_cleanup(&self) -> Result<Vec<i64>, AppError> {
+    pub(crate) async fn project_ids_with_incomplete_cleanup(&self) -> Result<Vec<i64>, AppError> {
         self.project_family
             .project_ids_with_incomplete_cleanup()
             .await
     }
 
-    pub async fn purge_completed_cleanup_audits(&self, limit: usize) -> Result<u64, AppError> {
+    pub(crate) async fn purge_completed_cleanup_audits(
+        &self,
+        limit: usize,
+    ) -> Result<u64, AppError> {
         self.project_family
             .purge_completed_cleanup_audits(limit)
             .await
     }
 
-    pub async fn reset_media_workflows_to_v2(
+    pub(crate) async fn reset_media_workflows_to_v2(
         &self,
         project_id: i64,
         cleanup_intent_id: i64,
@@ -680,7 +677,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn complete_claimed_cleanup(
+    pub(crate) async fn complete_claimed_cleanup(
         &self,
         id: i64,
         lease_token: &str,
@@ -690,7 +687,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn complete_claimed_generation_cleanup(
+    pub(crate) async fn complete_claimed_generation_cleanup(
         &self,
         id: i64,
         lease_token: &str,
@@ -701,7 +698,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn observe_claimed_generation_reconcile(
+    pub(crate) async fn observe_claimed_generation_reconcile(
         &self,
         id: i64,
         lease_token: &str,
@@ -712,7 +709,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn schedule_provider_delete_from_reconcile(
+    pub(crate) async fn schedule_provider_delete_from_reconcile(
         &self,
         id: i64,
         lease_token: &str,
@@ -722,13 +719,17 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn renew_claimed_cleanup(&self, id: i64, lease_token: &str) -> Result<(), AppError> {
+    pub(crate) async fn renew_claimed_cleanup(
+        &self,
+        id: i64,
+        lease_token: &str,
+    ) -> Result<(), AppError> {
         self.project_family
             .renew_claimed_cleanup(id, lease_token)
             .await
     }
 
-    pub async fn retry_claimed_cleanup(
+    pub(crate) async fn retry_claimed_cleanup(
         &self,
         id: i64,
         lease_token: &str,
@@ -740,7 +741,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn retry_or_fail_claimed_generation_cleanup(
+    pub(crate) async fn retry_or_fail_claimed_generation_cleanup(
         &self,
         id: i64,
         lease_token: &str,
@@ -751,14 +752,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn unreferenced_media_paths(
+    pub(crate) async fn unreferenced_media_paths(
         &self,
         paths: &[String],
     ) -> Result<Vec<String>, AppError> {
         self.project_family.unreferenced_media_paths(paths).await
     }
 
-    pub async fn media_path_prefix_has_persisted_reference(
+    pub(crate) async fn media_path_prefix_has_persisted_reference(
         &self,
         prefix: &str,
     ) -> Result<bool, AppError> {
@@ -768,7 +769,7 @@ impl OrchestratorContext {
     }
 
     /// 按项目类型路由生成数据重置（标准 / freeform），含状态变更事件。
-    pub async fn reset_project_generated_data_validated(
+    pub(crate) async fn reset_project_generated_data_validated(
         &self,
         project_id: i64,
     ) -> Result<ProjectGeneratedDataResetApplicationResult, AppError> {

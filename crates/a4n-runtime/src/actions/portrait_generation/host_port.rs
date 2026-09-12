@@ -179,7 +179,7 @@ impl PortraitGenerationHostPort for RuntimePortraitGenerationHostPort<'_> {
             || async move {
                 crate::sidecar_clients::generate_image(
                     self.state.runtime_profile(),
-                    self.state.capabilities(),
+                    self.state.capabilities().image.clone(),
                     &config,
                     request,
                     Some(project_id),

@@ -5,8 +5,9 @@ use std::{
     time::Duration,
 };
 
-use a4n_capabilities::{CapabilityClient, HttpLlmClient, JsonRequest, LlmClient};
 use a4n_llm::provider::ChatRequest;
+use a4n_llm_client::{HttpLlmClient, JsonRequest, LlmClient};
+use a4n_service_client::ServiceClient;
 use a4n_service_manager::{
     ManagedServiceConfig, ManagedSidecarState, ServiceManager, ServiceManagerError,
 };

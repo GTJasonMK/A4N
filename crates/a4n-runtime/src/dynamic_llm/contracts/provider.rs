@@ -1,5 +1,6 @@
-use a4n_capabilities::LlmClient;
 use std::sync::Arc;
+
+use a4n_llm_client::LlmClient;
 
 use crate::provider_runtime::DynamicProviderFacade;
 

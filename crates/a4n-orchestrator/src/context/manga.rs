@@ -37,20 +37,6 @@ impl MangaApplication {
         .map_err(manga_prompt_record_error)
     }
 
-    async fn manga_page_prompt_statuses_by_chapter(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<(i64, String)>, AppError> {
-        a4n_db::manga::manga_page_prompt_statuses_by_chapter(
-            self.database.connection(),
-            project_id,
-            chapter_id,
-        )
-        .await
-        .map_err(manga_prompt_record_error)
-    }
-
     async fn manga_page_prompt_statuses_by_chapters(
         &self,
         project_id: i64,
@@ -172,23 +158,13 @@ impl MangaApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn manga_page_prompts_by_chapter(
+    pub(crate) async fn manga_page_prompts_by_chapter(
         &self,
         project_id: i64,
         chapter_id: i64,
     ) -> Result<Vec<chapter_manga_prompt::Model>, AppError> {
         self.manga
             .manga_page_prompts_by_chapter(project_id, chapter_id)
-            .await
-    }
-
-    pub async fn manga_page_prompt_statuses_by_chapter(
-        &self,
-        project_id: i64,
-        chapter_id: i64,
-    ) -> Result<Vec<(i64, String)>, AppError> {
-        self.manga
-            .manga_page_prompt_statuses_by_chapter(project_id, chapter_id)
             .await
     }
 
@@ -202,7 +178,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_manga_prompts_by_chapter(
+    pub(crate) async fn delete_manga_prompts_by_chapter(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -212,11 +188,11 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_manga_prompt_record(&self, prompt_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_manga_prompt_record(&self, prompt_id: i64) -> Result<(), AppError> {
         self.manga.delete_manga_prompt_record(prompt_id).await
     }
 
-    pub async fn manga_page_prompt_for_image_generation(
+    pub(crate) async fn manga_page_prompt_for_image_generation(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -227,7 +203,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn mark_manga_page_prompt_image_completed_with_image(
+    pub(crate) async fn mark_manga_page_prompt_image_completed_with_image(
         &self,
         page_prompt_id: i64,
         image_id: i64,
@@ -238,14 +214,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn manga_page_prompt_by_id(
+    pub(crate) async fn manga_page_prompt_by_id(
         &self,
         prompt_id: i64,
     ) -> Result<Option<chapter_manga_prompt::Model>, AppError> {
         self.manga.manga_page_prompt_by_id(prompt_id).await
     }
 
-    pub async fn update_manga_page_prompt_layout(
+    pub(crate) async fn update_manga_page_prompt_layout(
         &self,
         page_prompt: chapter_manga_prompt::Model,
         layout: Value,
@@ -255,7 +231,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_manga_page_prompt_image_prompt(
+    pub(crate) async fn update_manga_page_prompt_image_prompt(
         &self,
         page_prompt: chapter_manga_prompt::Model,
         image_prompt: String,
@@ -265,7 +241,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn manga_reference_bound_asset(
+    pub(crate) async fn manga_reference_bound_asset(
         &self,
         project_id: i64,
         asset_kind: MangaReferenceAssetKind,

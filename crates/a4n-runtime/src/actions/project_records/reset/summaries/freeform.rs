@@ -1,7 +1,7 @@
 use super::super::super::summaries::project_summary_with_family_for_user;
 use crate::AppState;
 use a4n_api_contract::project::ProjectGeneratedDataResetSummary;
-use a4n_orchestrator::project::FreeformVideoGeneratedDataResetResult;
+use a4n_domain::project_reset::FreeformVideoGeneratedDataResetResult;
 
 pub(in crate::actions::project_records::reset) async fn to_freeform_generated_data_reset_summary(
     state: &AppState,

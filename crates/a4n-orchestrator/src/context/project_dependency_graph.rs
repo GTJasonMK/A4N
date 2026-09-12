@@ -38,7 +38,7 @@ impl ProjectDependencyGraphApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn asset_dependency_graph_for_user_validated(
+    pub(crate) async fn asset_dependency_graph_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -48,7 +48,7 @@ impl OrchestratorContext {
         self.project_dependency_graph.graph(project_id).await
     }
 
-    pub async fn asset_dependency_graph_node_detail_for_user_validated(
+    pub(crate) async fn asset_dependency_graph_node_detail_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,

@@ -220,7 +220,7 @@ impl CanvasApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn get_or_create_canvas_graph(
+    pub(crate) async fn get_or_create_canvas_graph(
         &self,
         project_id: i64,
         graph_id: Option<i64>,
@@ -233,7 +233,7 @@ impl OrchestratorContext {
         canvas_graph_document(document)
     }
 
-    pub async fn get_or_create_canvas_graph_record(
+    pub(crate) async fn get_or_create_canvas_graph_record(
         &self,
         project_id: i64,
         graph_id: Option<i64>,
@@ -256,7 +256,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn save_canvas_graph(
+    pub(crate) async fn save_canvas_graph(
         &self,
         project_id: i64,
         expected_version: Option<i32>,
@@ -285,7 +285,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn upsert_canvas_text_asset(
+    pub(crate) async fn upsert_canvas_text_asset(
         &self,
         project_id: i64,
         input: CanvasTextAssetInput,
@@ -307,7 +307,7 @@ impl OrchestratorContext {
         Ok(canvas_text_asset_summary(record))
     }
 
-    pub async fn upsert_freeform_canvas_generation_spec_record(
+    pub(crate) async fn upsert_freeform_canvas_generation_spec_record(
         &self,
         input: FreeformCanvasGenerationSpecUpsertInput,
     ) -> Result<generation_spec::Model, AppError> {
@@ -316,7 +316,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn mark_canvas_generation_spec_status_record(
+    pub(crate) async fn mark_canvas_generation_spec_status_record(
         &self,
         generation_spec_id: i64,
         status: &str,
@@ -326,7 +326,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn upsert_canvas_prompt_artifact_record(
+    pub(crate) async fn upsert_canvas_prompt_artifact_record(
         &self,
         input: CanvasPromptArtifactUpsertInput,
     ) -> Result<prompt_artifact::Model, AppError> {
@@ -351,7 +351,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn ensure_canvas_image_media_asset_record(
+    pub(crate) async fn ensure_canvas_image_media_asset_record(
         &self,
         input: CanvasImageMediaAssetEnsureInput,
     ) -> Result<media_asset::Model, AppError> {
@@ -360,7 +360,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn ensure_canvas_video_media_asset_record(
+    pub(crate) async fn ensure_canvas_video_media_asset_record(
         &self,
         input: CanvasVideoMediaAssetEnsureInput,
     ) -> Result<media_asset::Model, AppError> {
@@ -369,7 +369,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn sync_canvas_assembly_contract_records(
+    pub(crate) async fn sync_canvas_assembly_contract_records(
         &self,
         input: CanvasAssemblyContractSyncInput,
     ) -> Result<CanvasAssemblyContractSyncSummary, AppError> {
@@ -438,7 +438,7 @@ impl OrchestratorContext {
     }
 
     /// 画布节点独立 step run：校验后创建 workflow_run（RUNNING）。
-    pub async fn begin_canvas_node_step_workflow_validated(
+    pub(crate) async fn begin_canvas_node_step_workflow_validated(
         &self,
         project_id: i64,
         graph_id: i64,

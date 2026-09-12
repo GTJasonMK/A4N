@@ -11,12 +11,6 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-fn require_qdrant() -> bool {
-    std::env::var("A4N_QDRANT_URL")
-        .map(|s| !s.trim().is_empty())
-        .unwrap_or(false)
-}
-
 async fn store() -> Arc<QdrantVectorStore> {
     let coll = format!(
         "a4n_live_{}_{}",
@@ -58,11 +52,8 @@ fn record(
 }
 
 #[tokio::test]
+#[ignore = "requires a running Qdrant at A4N_QDRANT_URL"]
 async fn live_ingest_query_text_hybrid_delete_completeness() {
-    if !require_qdrant() {
-        eprintln!("skip: set A4N_QDRANT_URL to run live Qdrant tests");
-        return;
-    }
     let store = store().await;
     let collection = "42";
 

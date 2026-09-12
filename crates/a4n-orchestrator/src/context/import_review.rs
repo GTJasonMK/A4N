@@ -119,7 +119,7 @@ fn import_review_mutation_error(error: ImportReviewMutationError) -> AppError {
 }
 
 impl OrchestratorContext {
-    pub async fn import_reviews_for_user_validated(
+    pub(crate) async fn import_reviews_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -138,7 +138,7 @@ impl OrchestratorContext {
         self.import_review.create_import_reviews(inputs).await
     }
 
-    pub async fn reject_import_review_for_user_validated(
+    pub(crate) async fn reject_import_review_for_user_validated(
         &self,
         user_id: i64,
         review_id: i64,
@@ -147,7 +147,7 @@ impl OrchestratorContext {
         self.import_review.reject_import_review(review).await
     }
 
-    pub async fn delete_import_review_for_user_validated(
+    pub(crate) async fn delete_import_review_for_user_validated(
         &self,
         user_id: i64,
         review_id: i64,
@@ -157,7 +157,7 @@ impl OrchestratorContext {
     }
 
     /// 接受导入审核并完成章节派生数据后处理。
-    pub async fn accept_import_review_for_user_validated(
+    pub(crate) async fn accept_import_review_for_user_validated(
         &self,
         user_id: i64,
         review_id: i64,
@@ -183,7 +183,7 @@ impl OrchestratorContext {
         Ok(accepted)
     }
 
-    pub async fn batch_accept_import_reviews_for_user_validated(
+    pub(crate) async fn batch_accept_import_reviews_for_user_validated(
         &self,
         user_id: i64,
         review_ids: &[i64],
@@ -248,7 +248,7 @@ impl OrchestratorContext {
         Ok(accepted)
     }
 
-    pub async fn check_import_dedup_for_user_validated(
+    pub(crate) async fn check_import_dedup_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,

@@ -10,12 +10,26 @@ import { listProfiles } from "./profiles";
 describe("character API identity", () => {
   beforeEach(() => mocks.apiInvoke.mockReset().mockResolvedValue([]));
 
-  it("uses the authenticated Host identity instead of duplicating userId", async () => {
+  it("maps profile and attribute history inputs to their Host contracts", async () => {
     await listProfiles(7);
     await attributeHistory(11, { category: "social" });
 
-    for (const [, args] of mocks.apiInvoke.mock.calls) {
-      expect(args).not.toHaveProperty("userId");
-    }
+    expect(mocks.apiInvoke.mock.calls).toEqual([
+      ["list_profiles", { input: { project_id: 7 } }],
+      [
+        "attribute_history",
+        {
+          input: {
+            profile_id: 11,
+            chapter_from: null,
+            chapter_to: null,
+            category: "social",
+            key: null,
+            operation: null,
+            limit: null,
+          },
+        },
+      ],
+    ]);
   });
 });

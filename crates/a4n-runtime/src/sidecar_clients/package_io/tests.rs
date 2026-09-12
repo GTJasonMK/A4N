@@ -1,7 +1,6 @@
 use super::{read_import_media_package_zip, render_export_zip_package};
 use crate::state::RuntimeProfile;
 use a4n_archive_core::{ArchiveEntry, write_zip};
-use a4n_capabilities::A4nCapabilities;
 use a4n_export_contract::{ExportRenderZipOutput, ExportZipPackageInput};
 use a4n_service_protocol::{ServiceResponse, ServiceStatus};
 use a4n_test_support::capability::RecordingExportClient;
@@ -23,7 +22,7 @@ fn zip_package_input() -> ExportZipPackageInput {
 async fn import_package_io_sidecar_missing_capability_fails_without_local_fallback() {
     let error = read_import_media_package_zip(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::default(),
+        None,
         vec![1, 2, 3],
         "manifest.json",
         "测试项目包",
@@ -39,7 +38,7 @@ async fn import_package_io_sidecar_missing_capability_fails_without_local_fallba
 async fn export_package_io_sidecar_missing_capability_fails_without_local_fallback() {
     let error = render_export_zip_package(
         RuntimeProfile::Sidecar,
-        &A4nCapabilities::default(),
+        None,
         zip_package_input(),
         Some(11),
         Some(3),
@@ -52,10 +51,9 @@ async fn export_package_io_sidecar_missing_capability_fails_without_local_fallba
 
 #[tokio::test]
 async fn embedded_package_io_facade_roundtrips_manifest_and_entries() {
-    let capabilities = A4nCapabilities::default();
     let zip_bytes = render_export_zip_package(
         RuntimeProfile::Minimal,
-        &capabilities,
+        None,
         zip_package_input(),
         Some(11),
         Some(3),
@@ -65,7 +63,7 @@ async fn embedded_package_io_facade_roundtrips_manifest_and_entries() {
 
     let (manifest, entries) = read_import_media_package_zip(
         RuntimeProfile::Minimal,
-        &capabilities,
+        None,
         zip_bytes,
         "manifest.json",
         "测试项目包",
@@ -83,11 +81,10 @@ async fn export_sidecar_request_carries_explicit_project_scope() {
     let client = Arc::new(
         RecordingExportClient::new().with_render_zip_response(successful_export_zip_response()),
     );
-    let capabilities = A4nCapabilities::default().with_export(client.clone());
 
     let zip_bytes = render_export_zip_package(
         RuntimeProfile::Sidecar,
-        &capabilities,
+        Some(client.clone()),
         zip_package_input(),
         Some(11),
         Some(3),

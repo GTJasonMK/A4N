@@ -362,20 +362,6 @@ impl VideoApplication {
         .map_err(video_db_error)
     }
 
-    pub(super) async fn create_generated_image_record_with_generation_run_checkpoint(
-        &self,
-        input: CreateGeneratedImageRecordDraftInput,
-        generation_run: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<generated_image::Model, AppError> {
-        a4n_db::video::create_generated_image_record_with_generation_run_checkpoint(
-            self.connection(),
-            input,
-            generation_run,
-        )
-        .await
-        .map_err(video_db_error)
-    }
-
     pub(super) async fn create_generated_video_record(
         &self,
         input: CreateGeneratedVideoRecordDraftInput,
@@ -1191,7 +1177,7 @@ impl OrchestratorContext {
         Ok(true)
     }
 
-    pub async fn generated_images_for_video_prompt_references(
+    pub(crate) async fn generated_images_for_video_prompt_references(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -1274,7 +1260,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn validated_video_reference_images(
+    pub(crate) async fn validated_video_reference_images(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -1289,14 +1275,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn generated_image_by_id(
+    pub(crate) async fn generated_image_by_id(
         &self,
         image_id: i64,
     ) -> Result<Option<generated_image::Model>, AppError> {
         self.video.generated_image_by_id(image_id).await
     }
 
-    pub async fn update_generated_image_record(
+    pub(crate) async fn update_generated_image_record(
         &self,
         image_id: i64,
         input: UpdateGeneratedImageRecordInput,
@@ -1306,7 +1292,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_manga_page_image_records(
+    pub(crate) async fn delete_manga_page_image_records(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -1318,20 +1304,20 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn video_tail_frame_images(
+    pub(crate) async fn video_tail_frame_images(
         &self,
     ) -> Result<Vec<(i64, String, Option<serde_json::Value>)>, AppError> {
         self.video.video_tail_frame_images().await
     }
 
-    pub async fn create_generated_image_record(
+    pub(crate) async fn create_generated_image_record(
         &self,
         input: CreateGeneratedImageRecordDraftInput,
     ) -> Result<generated_image::Model, AppError> {
         self.video.create_generated_image_record(input).await
     }
 
-    pub async fn create_image_publication_intent(
+    pub(crate) async fn create_image_publication_intent(
         &self,
         input: CreateImagePublicationIntentInput,
     ) -> Result<(image_publication::Model, OwnedMutexGuard<()>), AppError> {
@@ -1340,18 +1326,18 @@ impl OrchestratorContext {
 
     /// The Host already owns its data directory/database exclusively. Keep this
     /// guard through file inspection and publication so recovery cannot race a writer.
-    pub async fn lock_image_publications(&self) -> OwnedMutexGuard<()> {
+    pub(crate) async fn lock_image_publications(&self) -> OwnedMutexGuard<()> {
         self.video.image_publication_gate.clone().lock_owned().await
     }
 
-    pub async fn image_publication_by_id(
+    pub(crate) async fn image_publication_by_id(
         &self,
         publication_id: &str,
     ) -> Result<Option<image_publication::Model>, AppError> {
         self.video.image_publication_by_id(publication_id).await
     }
 
-    pub async fn publish_image_publication(
+    pub(crate) async fn publish_image_publication(
         &self,
         publication_id: &str,
         facts: ImagePublicationFileFacts,
@@ -1361,7 +1347,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn publish_image_publication_with_generation_run_checkpoint(
+    pub(crate) async fn publish_image_publication_with_generation_run_checkpoint(
         &self,
         publication_id: &str,
         facts: ImagePublicationFileFacts,
@@ -1376,7 +1362,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_image_publication_metadata(
+    pub(crate) async fn update_image_publication_metadata(
         &self,
         publication_id: &str,
         expected_version: i64,
@@ -1387,7 +1373,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn image_publications_for_recovery(
+    pub(crate) async fn image_publications_for_recovery(
         &self,
         limit: usize,
         published_after: Option<&str>,
@@ -1397,7 +1383,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn mark_image_publication_reclaiming(
+    pub(crate) async fn mark_image_publication_reclaiming(
         &self,
         publication_id: &str,
         version: i64,
@@ -1408,7 +1394,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn mark_image_publication_reclaimed(
+    pub(crate) async fn mark_image_publication_reclaimed(
         &self,
         publication_id: &str,
         version: i64,
@@ -1419,17 +1405,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn create_generated_image_record_with_generation_run_checkpoint(
-        &self,
-        input: CreateGeneratedImageRecordDraftInput,
-        generation_run: RecordCompletedGenerationRunWithCheckpointInput,
-    ) -> Result<generated_image::Model, AppError> {
-        self.video
-            .create_generated_image_record_with_generation_run_checkpoint(input, generation_run)
-            .await
-    }
-
-    pub async fn create_video_record(
+    pub(crate) async fn create_video_record(
         &self,
         input: CreateGeneratedVideoRecordDraftInput,
     ) -> Result<generated_video::Model, AppError> {
@@ -1490,7 +1466,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn generated_videos_for_chapter(
+    pub(crate) async fn generated_videos_for_chapter(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -1500,7 +1476,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn generated_video_by_id(
+    pub(crate) async fn generated_video_by_id(
         &self,
         video_id: i64,
     ) -> Result<Option<generated_video::Model>, AppError> {
@@ -1514,7 +1490,7 @@ impl OrchestratorContext {
         self.video.generated_videos_by_ids(video_ids).await
     }
 
-    pub async fn resolve_video_config_for_provider_job(
+    pub(crate) async fn resolve_video_config_for_provider_job(
         &self,
         project_id: Option<i64>,
         provider_kind: &str,
@@ -1580,7 +1556,7 @@ impl OrchestratorContext {
         Ok(crate::video::video_provider_config_from_model(&config))
     }
 
-    pub async fn update_generated_video_record(
+    pub(crate) async fn update_generated_video_record(
         &self,
         video_id: i64,
         input: UpdateGeneratedVideoRecordInput,
@@ -1590,7 +1566,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_generated_video_duration_record(
+    pub(crate) async fn update_generated_video_duration_record(
         &self,
         video_id: i64,
         duration_secs: f32,
@@ -1600,7 +1576,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_generated_image_record_with_cleanup(
+    pub(crate) async fn delete_generated_image_record_with_cleanup(
         &self,
         image_id: i64,
     ) -> Result<(), AppError> {
@@ -1609,7 +1585,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_generated_video_record_with_cleanup(
+    pub(crate) async fn delete_generated_video_record_with_cleanup(
         &self,
         video_id: i64,
     ) -> Result<(), AppError> {
@@ -1627,7 +1603,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn missing_video_reference_project_ids(
+    pub(crate) async fn missing_video_reference_project_ids(
         &self,
         video_id: i64,
     ) -> Result<Vec<i64>, AppError> {
@@ -1653,7 +1629,7 @@ impl OrchestratorContext {
 
     /// 通用 error 状态写路径（导入失败等无 generation_run 合同场景）。
     /// provider 失败请用 `mark_generated_video_failed_validated`；中断请用 `mark_generated_video_interrupted_validated`。
-    pub async fn mark_generated_video_error_status_and_prompt(
+    pub(crate) async fn mark_generated_video_error_status_and_prompt(
         &self,
         video_id: i64,
         prompt_id: Option<i64>,
@@ -1707,7 +1683,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn mark_generated_video_completed_and_link_prompt(
+    pub(crate) async fn mark_generated_video_completed_and_link_prompt(
         &self,
         video_id: i64,
         file_path: &str,
@@ -1730,7 +1706,7 @@ impl OrchestratorContext {
 
     /// poll/失败路径：校验后将视频标 failed，并 fail 关联 generation_run。
     /// Host 仍负责 workflow 钩子与文件清理。
-    pub async fn mark_generated_video_failed_validated(
+    pub(crate) async fn mark_generated_video_failed_validated(
         &self,
         video_id: i64,
         prompt_id: Option<i64>,
@@ -1762,7 +1738,7 @@ impl OrchestratorContext {
     }
 
     /// provider 提交前由用户取消：视频、提示词和关联 generation_run 统一标 cancelled。
-    pub async fn mark_generated_video_cancelled_validated(
+    pub(crate) async fn mark_generated_video_cancelled_validated(
         &self,
         video_id: i64,
         prompt_id: Option<i64>,
@@ -1795,7 +1771,7 @@ impl OrchestratorContext {
 
     /// poll 等待态：仅允许 pending/running，再更新视频与提示词状态。
     /// Host 仍负责 workflow running 钩子。
-    pub async fn update_generated_video_waiting_status_validated(
+    pub(crate) async fn update_generated_video_waiting_status_validated(
         &self,
         video_id: i64,
         prompt_id: Option<i64>,
@@ -1861,7 +1837,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn chapter_video_prompt(
+    pub(crate) async fn chapter_video_prompt(
         &self,
         prompt_id: i64,
     ) -> Result<chapter_video_prompt::Model, AppError> {
@@ -1871,7 +1847,7 @@ impl OrchestratorContext {
             .ok_or_else(|| AppError::NotFound("视频提示词不存在".to_string()))
     }
 
-    pub async fn chapter_video_prompts_for_chapter(
+    pub(crate) async fn chapter_video_prompts_for_chapter(
         &self,
         project_id: i64,
         chapter_id: i64,
@@ -1910,7 +1886,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_chapter_video_prompt_with_policy(
+    pub(crate) async fn update_chapter_video_prompt_with_policy(
         &self,
         prompt_id: i64,
         input: ChapterVideoPromptPatch,
@@ -1921,7 +1897,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_chapter_video_segment_recipe(
+    pub(crate) async fn update_chapter_video_segment_recipe(
         &self,
         prompt_id: i64,
         recipe: VideoSegmentExecutionRecipeV1,
@@ -1931,7 +1907,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_chapter_video_prompt_with_generation_run_checkpoint(
+    pub(crate) async fn update_chapter_video_prompt_with_generation_run_checkpoint(
         &self,
         prompt_id: i64,
         input: ChapterVideoPromptPatch,
@@ -1960,14 +1936,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn prompt_downstream_dependencies(
+    pub(crate) async fn prompt_downstream_dependencies(
         &self,
         prompt_id: i64,
     ) -> Result<VideoPromptDownstreamDependencies, AppError> {
         self.video.prompt_downstream_dependencies(prompt_id).await
     }
 
-    pub async fn ensure_frame_prompt_image_generation_allowed(
+    pub(crate) async fn ensure_frame_prompt_image_generation_allowed(
         &self,
         prompt_id: i64,
         generation_source: &str,
@@ -1977,7 +1953,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn effective_frame_prompt_image_reference_ids(
+    pub(crate) async fn effective_frame_prompt_image_reference_ids(
         &self,
         prompt_id: i64,
         generation_source: &str,
@@ -2225,7 +2201,7 @@ impl OrchestratorContext {
     }
 
     /// 视频 provider workflow：统一写入 run、checkpoint 与 generation_run 关联。
-    pub async fn mark_video_provider_workflow_validated(
+    pub(crate) async fn mark_video_provider_workflow_validated(
         &self,
         video: &generated_video::Model,
         status: &str,

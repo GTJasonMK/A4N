@@ -7,11 +7,10 @@ mod image_generation;
 mod image_record_lifecycle;
 mod image_workflow_rules;
 
-pub use batch_image_application::{
-    BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationItem,
-    BatchImageGenerationOutcome,
+pub(crate) use batch_image_application::{
+    BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };
-pub use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
+pub(crate) use contracts::{CreateMediaAssetInput, CreateMediaProvenanceInput};
 pub use image_generation::{
     ImageGenerationApplicationPort, ImageGenerationExecutionInput, ImageGenerationExecutionOutcome,
     ImageGenerationHostPort, ImageGenerationPostCommitAction, ImageGenerationProgress,
@@ -26,21 +25,20 @@ pub use image_record_lifecycle::{
     ImagePublicationRecoveryPort, PreparedImportedImageUpload,
 };
 
-pub use image_workflow_rules::{
-    batch_image_item_step_key, batch_image_workflow_business_key, batch_image_workflow_fingerprint,
-    batch_image_workflow_run_input, image_generation_step_key,
-    image_generation_workflow_business_key, image_generation_workflow_fingerprint,
-    image_generation_workflow_run_input,
+pub(crate) use image_workflow_rules::{
+    batch_image_item_step_key, batch_image_workflow_run_input, image_generation_step_key,
+    image_generation_workflow_fingerprint, image_generation_workflow_run_input,
 };
 
-pub use a4n_domain::media::{
-    MEDIA_BINDING_ROLE_BACKGROUND, MEDIA_BINDING_ROLE_BGM, MEDIA_BINDING_ROLE_CG,
-    MEDIA_BINDING_ROLE_SFX, MEDIA_BINDING_ROLES, MEDIA_BINDING_TARGET_GALGAME_LINE,
-    MEDIA_BINDING_TARGET_GALGAME_SCENE, MEDIA_BINDING_TARGET_KINDS, MEDIA_KIND_AUDIO,
-    MEDIA_KIND_IMAGE, MEDIA_KIND_VIDEO, MEDIA_ORIGIN_ASSEMBLED_PREVIEW,
-    MEDIA_ORIGIN_EXTRACTED_FRAME, MEDIA_ORIGIN_GENERATED, MEDIA_ORIGIN_IMPORTED,
-    MEDIA_STATUS_CANCELLED, MEDIA_STATUS_COMPLETED, MEDIA_STATUS_FAILED, MEDIA_STATUS_PENDING,
-    MEDIA_STATUS_RUNNING, galgame_media_binding_required_media_kind,
+#[cfg(test)]
+pub(crate) use a4n_domain::media::{
+    MEDIA_BINDING_ROLE_BACKGROUND, MEDIA_BINDING_ROLES, MEDIA_BINDING_TARGET_KINDS,
+    MEDIA_KIND_VIDEO, MEDIA_ORIGIN_ASSEMBLED_PREVIEW, MEDIA_ORIGIN_EXTRACTED_FRAME,
+    MEDIA_STATUS_CANCELLED, MEDIA_STATUS_FAILED, MEDIA_STATUS_PENDING, MEDIA_STATUS_RUNNING,
+};
+pub(crate) use a4n_domain::media::{
+    MEDIA_KIND_AUDIO, MEDIA_KIND_IMAGE, MEDIA_ORIGIN_GENERATED, MEDIA_ORIGIN_IMPORTED,
+    MEDIA_STATUS_COMPLETED, galgame_media_binding_required_media_kind,
     is_valid_galgame_media_binding_pair, is_valid_media_binding_role,
     is_valid_media_binding_target_kind, is_valid_media_kind, is_valid_media_origin,
     is_valid_media_status,
@@ -102,7 +100,7 @@ where
 }
 
 impl OrchestratorContext {
-    pub async fn create_media_asset(
+    pub(crate) async fn create_media_asset(
         &self,
         input: CreateMediaAssetInput,
     ) -> Result<media_asset::Model, AppError> {
@@ -159,7 +157,7 @@ impl OrchestratorContext {
     }
 
     /// 单张图片生成：校验后创建/恢复 workflow_run，并返回 step_key 与指纹。
-    pub async fn begin_image_generation_workflow_validated(
+    pub(crate) async fn begin_image_generation_workflow_validated(
         &self,
         project_id: i64,
         chapter_id: Option<i64>,

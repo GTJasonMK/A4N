@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
+use a4n_db::profile_material::generated_image_profile_material_identity;
 use a4n_db_models::models::ai::generated_image;
 
 use super::{
     MAX_AVAILABLE_VIDEO_ASSETS, SELECTION_REASON_PROFILE_FAVORITE, SELECTION_REASON_PROFILE_LATEST,
-    SELECTION_REASON_PROFILE_PRIMARY, generated_image_profile_material_identity,
+    SELECTION_REASON_PROFILE_PRIMARY,
 };
 
 #[derive(Clone)]

@@ -1,7 +1,7 @@
 //! 视频 provider 请求：参考图 ID、provider 媒体合同、提示词元数据纯规则（无 DB、无 Host）。
 
 use a4n_db_models::models::chapter::chapter_video_prompt;
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::collections::HashSet;
 
 use super::boundary_frame_numbers_for_prompt;
@@ -23,16 +23,6 @@ pub enum ProviderGenerationWorkflow {
 }
 
 impl ProviderGenerationWorkflow {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::BoundaryFrames => chapter_video_prompt::WORKFLOW_MODE_BOUNDARY_FRAMES,
-            Self::FirstFrameChain => chapter_video_prompt::WORKFLOW_MODE_FIRST_FRAME_CHAIN,
-            Self::Storyboard => chapter_video_prompt::WORKFLOW_MODE_STORYBOARD,
-            Self::Keyframes => "keyframes",
-            Self::TextOnly => "text_only",
-        }
-    }
-
     pub fn uses_first_frame_chain(self) -> bool {
         matches!(self, Self::FirstFrameChain)
     }
@@ -407,6 +397,7 @@ pub fn cliproxy_prompt_length_violation_message(
 mod tests {
     use super::*;
     use a4n_db_models::models::chapter::chapter_video_prompt;
+    use serde_json::json;
 
     #[test]
     fn reference_ids_dedupe_and_order() {

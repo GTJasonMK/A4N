@@ -1,26 +1,84 @@
 use std::sync::Arc;
 
-use a4n_capabilities::{
-    A4nCapabilities, HttpEmbeddingClient, HttpExportClient, HttpImageClient, HttpImportClient,
-    HttpLlmClient, HttpPromptClient, HttpRagClient, HttpVideoClient,
-};
+use a4n_embedding_client::{EmbeddingClient, HttpEmbeddingClient};
+use a4n_export_client::{ExportClient, HttpExportClient};
+use a4n_image_client::{HttpImageClient, ImageClient};
+use a4n_import_client::{HttpImportClient, ImportClient};
+use a4n_llm_client::{HttpLlmClient, LlmClient};
+use a4n_prompt_client::{HttpPromptClient, PromptClient};
+use a4n_rag_client::{HttpRagClient, RagClient};
 use a4n_service_manager::{ServiceManager, ServiceMode};
 use a4n_service_protocol::{
     EMBEDDING_SERVICE_NAME, EXPORT_SERVICE_NAME, IMAGE_SERVICE_NAME, IMPORT_SERVICE_NAME,
     LLM_SERVICE_NAME, PROMPT_SERVICE_NAME, RAG_SERVICE_NAME, VIDEO_SERVICE_NAME,
 };
+use a4n_video_client::{HttpVideoClient, VideoClient};
 
 use crate::state::RuntimeProfile;
+
+#[derive(Clone, Default)]
+pub(crate) struct RuntimeCapabilities {
+    pub(crate) prompt: Option<Arc<dyn PromptClient>>,
+    pub(crate) llm: Option<Arc<dyn LlmClient>>,
+    pub(crate) embedding: Option<Arc<dyn EmbeddingClient>>,
+    pub(crate) rag: Option<Arc<dyn RagClient>>,
+    pub(crate) image: Option<Arc<dyn ImageClient>>,
+    pub(crate) video: Option<Arc<dyn VideoClient>>,
+    pub(crate) import: Option<Arc<dyn ImportClient>>,
+    pub(crate) export: Option<Arc<dyn ExportClient>>,
+}
+
+impl RuntimeCapabilities {
+    fn with_prompt(mut self, prompt: Arc<dyn PromptClient>) -> Self {
+        self.prompt = Some(prompt);
+        self
+    }
+
+    fn with_llm(mut self, llm: Arc<dyn LlmClient>) -> Self {
+        self.llm = Some(llm);
+        self
+    }
+
+    fn with_embedding(mut self, embedding: Arc<dyn EmbeddingClient>) -> Self {
+        self.embedding = Some(embedding);
+        self
+    }
+
+    fn with_rag(mut self, rag: Arc<dyn RagClient>) -> Self {
+        self.rag = Some(rag);
+        self
+    }
+
+    fn with_image(mut self, image: Arc<dyn ImageClient>) -> Self {
+        self.image = Some(image);
+        self
+    }
+
+    fn with_video(mut self, video: Arc<dyn VideoClient>) -> Self {
+        self.video = Some(video);
+        self
+    }
+
+    fn with_import(mut self, import: Arc<dyn ImportClient>) -> Self {
+        self.import = Some(import);
+        self
+    }
+
+    fn with_export(mut self, export: Arc<dyn ExportClient>) -> Self {
+        self.export = Some(export);
+        self
+    }
+}
 
 pub(crate) fn runtime_capabilities(
     profile: RuntimeProfile,
     service_manager: &ServiceManager,
-) -> Result<A4nCapabilities, String> {
+) -> Result<RuntimeCapabilities, String> {
     if !profile.uses_sidecars() {
-        return Ok(A4nCapabilities::default());
+        return Ok(RuntimeCapabilities::default());
     }
 
-    let mut capabilities = A4nCapabilities::default();
+    let mut capabilities = RuntimeCapabilities::default();
     if service_is_configured(service_manager, PROMPT_SERVICE_NAME)? {
         capabilities = capabilities.with_prompt(Arc::new(http_prompt(service_manager)?));
     }

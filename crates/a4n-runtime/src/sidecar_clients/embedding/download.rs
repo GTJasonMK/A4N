@@ -1,11 +1,12 @@
 use a4n_api_contract::embedding::{EmbeddingModelDownloadInfoSummary, LocalEmbeddingModelSummary};
-use a4n_capabilities::{A4nCapabilities, EmbeddingClient, EmbeddingModelOperation, JsonResponse};
 use a4n_embedding::provider::DownloadProgress;
+use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation, JsonResponse};
 use a4n_error::AppError;
 use a4n_provider_contract::EmbeddingProviderConfig;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
 };
+use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::CancellationToken;
 
@@ -20,11 +21,11 @@ use super::contracts::{
 };
 
 async fn embedding_model_operation<P: serde::Serialize>(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
     operation: EmbeddingModelOperation,
     payload: P,
 ) -> Result<JsonResponse, AppError> {
-    let client = required_embedding_client(capabilities)?;
+    let client = required_embedding_client(client)?;
     let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
     client
@@ -34,19 +35,18 @@ async fn embedding_model_operation<P: serde::Serialize>(
 }
 
 pub(crate) async fn list_embedding_models(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
 ) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
-    let response =
-        embedding_model_operation(capabilities, EmbeddingModelOperation::List, ()).await?;
+    let response = embedding_model_operation(client, EmbeddingModelOperation::List, ()).await?;
     response_payload(response, "embedding").map_err(service_app_error)
 }
 
 pub(crate) async fn embedding_model_download_info(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
     model: &str,
 ) -> Result<EmbeddingModelDownloadInfoSummary, AppError> {
     let response = embedding_model_operation(
-        capabilities,
+        client,
         EmbeddingModelOperation::DownloadInfo,
         embedding_model_payload(model),
     )
@@ -55,11 +55,11 @@ pub(crate) async fn embedding_model_download_info(
 }
 
 pub(crate) async fn delete_embedding_model(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
     model: &str,
 ) -> Result<(), AppError> {
     let response = embedding_model_operation(
-        capabilities,
+        client,
         EmbeddingModelOperation::Delete,
         embedding_model_payload(model),
     )
@@ -68,10 +68,10 @@ pub(crate) async fn delete_embedding_model(
 }
 
 pub(crate) async fn test_embedding_config_via_sidecar(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
     model: &EmbeddingProviderConfig,
 ) -> Result<(), AppError> {
-    let client = required_embedding_client(capabilities)?;
+    let client = required_embedding_client(client)?;
     let payload = embedding_connectivity_test_payload(model)?;
     let expected_dimension = payload.dimension;
     let request = global_provider_service_request(EMBEDDING_CAPABILITY_VERSION, payload)
@@ -86,12 +86,12 @@ pub(crate) async fn test_embedding_config_via_sidecar(
 }
 
 pub(crate) async fn download_embedding_model_events(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
     model: &str,
     progress_tx: Option<UnboundedSender<DownloadProgress>>,
     cancel_token: CancellationToken,
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
-    let client = required_embedding_client(capabilities)?;
+    let client = required_embedding_client(client)?;
     let payload = embedding_model_payload(model);
     let request = global_service_request_without_secrets(EMBEDDING_CAPABILITY_VERSION, payload)
         .map_err(service_app_error)?;
@@ -120,12 +120,9 @@ pub(crate) async fn download_embedding_model_events(
 }
 
 fn required_embedding_client(
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
 ) -> Result<std::sync::Arc<dyn EmbeddingClient>, AppError> {
-    capabilities
-        .embedding
-        .clone()
-        .ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))
+    client.ok_or_else(|| AppError::ConfigError(missing_sidecar_capability_message("embedding")))
 }
 
 pub(super) fn handle_embedding_download_event(

@@ -7,7 +7,7 @@ use a4n_prompt::rendering::PromptRenderer;
 use serde::Deserialize;
 use serde_json::Value;
 
-pub use a4n_api_contract::source_sync::SourceSyncDecisionInput;
+pub(super) use a4n_api_contract::source_sync::SourceSyncDecisionInput;
 
 #[derive(Clone, Copy, Default)]
 pub struct SourceSyncExecutionContext<'a> {

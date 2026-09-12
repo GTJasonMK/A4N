@@ -7,7 +7,7 @@ use a4n_canvas_contract::CanvasImageNodeApplicationInput;
 use a4n_error::AppError;
 use async_trait::async_trait;
 
-pub use contracts::{CanvasImageNodeExecutionInput, CanvasImageNodeInput};
+pub(crate) use contracts::CanvasImageNodeExecutionInput;
 pub use input::build_canvas_image_node_input_for_preview;
 
 #[async_trait]

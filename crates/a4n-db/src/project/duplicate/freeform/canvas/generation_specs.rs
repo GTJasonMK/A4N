@@ -187,18 +187,39 @@ mod tests {
                 .await
                 .unwrap();
         assert_eq!(copied.spec_id_map.len(), source_rows.len());
-        assert_eq!(copied.deferred_targets.len(), source_rows.len());
-        assert!(
-            copied
-                .deferred_targets
-                .iter()
-                .all(|target| target.new_spec_id > 0)
+        assert_eq!(
+            copied.spec_ids,
+            source_rows.iter().map(|spec| spec.id).collect::<Vec<_>>()
         );
+        assert_eq!(copied.deferred_targets.len(), source_rows.len());
         let target_rows = generation_spec::Entity::find()
             .filter(generation_spec::Column::ProjectId.eq(target.id))
             .all(&db)
             .await
             .unwrap();
         assert_eq!(target_rows.len(), source_rows.len());
+        let target_by_id = target_rows
+            .iter()
+            .map(|spec| (spec.id, spec))
+            .collect::<std::collections::HashMap<_, _>>();
+        for source_spec in &source_rows {
+            let new_spec_id = copied.spec_id_map[&source_spec.id];
+            let target_spec = target_by_id[&new_spec_id];
+            assert_ne!(target_spec.id, source_spec.id);
+            assert_eq!(target_spec.project_id, target.id);
+            assert_eq!(target_spec.root_project_id, target.id);
+            assert_eq!(target_spec.params_json, source_spec.params_json);
+            assert_eq!(target_spec.status, source_spec.status);
+            assert_eq!(
+                target_spec.source_version_hash,
+                source_spec.source_version_hash
+            );
+            assert_eq!(target_spec.target_entity_id, None);
+            assert!(copied.deferred_targets.iter().any(|deferred| {
+                deferred.new_spec_id == new_spec_id
+                    && deferred.target_entity_kind == source_spec.target_entity_kind
+                    && deferred.old_target_entity_id == source_spec.target_entity_id.unwrap()
+            }));
+        }
     }
 }

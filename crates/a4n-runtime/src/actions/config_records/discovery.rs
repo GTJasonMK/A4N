@@ -40,7 +40,9 @@ async fn detect_config_models(
     let api_key = resolve_model_discovery_api_key(state, user_id, kind, &input).await?;
     discover_models(
         state.runtime_profile(),
-        state.capabilities(),
+        state.capabilities().llm.clone(),
+        state.capabilities().image.clone(),
+        state.capabilities().video.clone(),
         kind,
         &input.provider,
         &input.base_url,

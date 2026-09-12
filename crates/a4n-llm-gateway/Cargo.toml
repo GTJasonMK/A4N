@@ -22,7 +22,8 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-a4n-capabilities = { path = "../a4n-capabilities", features = ["test-support"] }
+a4n-llm-client = { path = "../a4n-llm-client", features = ["test-support"] }
 a4n-service-manager = { path = "../a4n-service-manager" }
+a4n-service-client = { path = "../a4n-service-client" }
 a4n-test-support = { path = "../a4n-test-support" }
 sha2 = { workspace = true }

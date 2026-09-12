@@ -1,8 +1,10 @@
-use a4n_capabilities::A4nCapabilities;
+use std::sync::Arc;
+
 #[cfg(feature = "embedded-media-providers")]
 use a4n_config::image_backend_api_key;
 use a4n_error::AppError;
 use a4n_image::{ImageGenerationRequest, ImageGenerationResult, ImageProvider};
+use a4n_image_client::ImageClient;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_image_providers::pick_image_provider;
 use a4n_provider_contract::ImageProviderConfig;
@@ -40,7 +42,7 @@ fn configured_image_provider(
 
 pub(crate) async fn generate_image(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn ImageClient>>,
     config: &ImageProviderConfig,
     request: ImageGenerationRequest,
     project_id: Option<i64>,
@@ -49,10 +51,7 @@ pub(crate) async fn generate_image(
     progress: Option<&(dyn Fn(&str) + Send + Sync)>,
 ) -> Result<ImageGenerationResult, String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .image
-            .clone()
-            .ok_or_else(|| missing_sidecar_capability_message("image"))?;
+        let client = client.ok_or_else(|| missing_sidecar_capability_message("image"))?;
         return generate_image_via_sidecar(
             client,
             config,

@@ -1,10 +1,12 @@
-use a4n_capabilities::{JsonResponse, sidecar_response_payload};
 use a4n_error::AppError;
+use a4n_service_client::sidecar_response_payload;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, ServiceErrorCode, ServiceResponse,
 };
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+
+type JsonResponse = ServiceResponse<Value>;
 
 pub(super) enum GenerationEvent<T> {
     Progress(String),

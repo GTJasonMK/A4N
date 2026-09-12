@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use crate::{AppState, actions::app_error_message};
 use a4n_api_contract::workflow::{CancelWorkflowInput, WorkflowRunSummary};
-use a4n_domain::workflow::{cancel_workflow_requires_target, require_positive_workflow_run_id};
+use a4n_domain::workflow::{
+    cancel_workflow_requires_target, is_video_status_final_for_cancel_interrupt,
+    require_positive_workflow_run_id,
+};
 use a4n_task_runtime::channel::normalize_task_id;
 
 use super::super::access::{
@@ -82,12 +85,9 @@ pub async fn cancel_workflow(
 
     if let Some(task_id) = task_id
         && !task_has_linked_workflow
-        && !persisted_task.as_ref().is_some_and(|task| {
-            matches!(
-                task.status.as_str(),
-                "completed" | "failed" | "cancelled" | "interrupted"
-            )
-        })
+        && !persisted_task
+            .as_ref()
+            .is_some_and(|task| is_video_status_final_for_cancel_interrupt(task.status.as_str()))
     {
         if task_handle.is_some() {
             state.task_manager().cancel(task_id);

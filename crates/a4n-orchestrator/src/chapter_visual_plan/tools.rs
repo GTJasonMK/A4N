@@ -350,7 +350,7 @@ fn project_plan(
     }
 }
 
-pub fn project_editor_visual_plan(
+pub(crate) fn project_editor_visual_plan(
     plan: &ChapterVisualPlanV2,
     view: &VisualPlanReadView,
 ) -> Result<VisualPlanProjection, AppError> {

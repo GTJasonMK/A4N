@@ -81,6 +81,9 @@ jobs:
           ./scripts/checks/check-generation-safety-boundary.sh
           cargo test -p a4n-service-protocol --lib events_artifacts
 
+      - name: Run CLI integration contract tests
+        run: timeout 900 cargo test -p a4n-cli --test cli_e2e -- --nocapture --test-threads=1
+
   sidecar-catalog:
     name: Read sidecar catalog
     runs-on: ubuntu-latest
@@ -130,13 +133,16 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
+      - name: Install OpenSSL process test dependency
+        run: sudo apt-get update && sudo apt-get install -y openssl
+
       - name: Build demo sidecar
         run: cargo build -p a4n-demo-sidecar
 
       - name: Run multi-instance ownership test
         env:
           A4N_DEMO_SIDECAR_BIN: ${{ github.workspace }}/target/debug/a4n-demo-sidecar
-        run: timeout 120 cargo test -p a4n-service-manager --lib two_managers_own_distinct_sidecars_and_stop_independently -- --nocapture
+        run: timeout 300 cargo test -p a4n-service-manager --lib -- --ignored --nocapture --test-threads=1
 
   sidecar-process:
     name: Sidecar process test ${{ matrix.package }}
@@ -283,7 +289,7 @@ jobs:
         run: timeout 900 cargo test -p a4n-db --lib --tests -- --nocapture
 
       - name: Run orchestrator database integration tests
-        run: timeout 900 cargo test -p a4n-orchestrator --lib --no-default-features -- --nocapture
+        run: timeout 900 cargo test -p a4n-orchestrator --lib --tests --no-default-features -- --nocapture
 
       - name: Run runtime database integration tests
         run: timeout 900 cargo test -p a4n-runtime --lib --no-default-features -- --nocapture
@@ -637,6 +643,88 @@ jobs:
         working-directory: frontend
         run: npm run check:web-api-parity
 
+  python-contract-tests:
+    name: Python contract and preflight tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run Python test scripts
+        run: |
+          python3 scripts/tests/test_cli_contract_runner.py
+          python3 scripts/tests/test_mock_openai_provider.py
+          python3 scripts/tests/test_run_preflight.py
+
+  media-ffmpeg-smoke:
+    name: FFmpeg media smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run FFmpeg smoke tests
+        run: timeout 600 cargo test -p a4n-media --test ffmpeg_smoke -- --ignored --nocapture --test-threads=1
+
+  qdrant-live:
+    name: Qdrant live vector-store smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      A4N_QDRANT_URL: http://127.0.0.1:6334
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
+
+      - name: Start verified Qdrant
+        run: |
+          ./scripts/dev/setup-qdrant.sh
+          source scripts/lib/common.sh
+          qdrant_log="$CARGO_TARGET_DIR/tmp/qdrant-live.log"
+          ./scripts/dev/run-qdrant.sh >"$qdrant_log" 2>&1 &
+          qdrant_pid=$!
+          trap 'kill "$qdrant_pid" 2>/dev/null || true; wait "$qdrant_pid" 2>/dev/null || true' EXIT
+          wait_for_qdrant "$qdrant_pid" "$qdrant_log"
+          timeout 600 cargo test -p a4n-rag-index --test qdrant_live -- --ignored --nocapture --test-threads=1
+
+  frontend-browser-smoke:
+    name: Frontend browser smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Install Chromium, ChromeDriver and FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium chromium-driver ffmpeg
+
+      - name: Install Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run browser smoke specs
+        working-directory: frontend
+        run: |
+          npm run test:browser-video-mode
+          npm run test:browser-video-scrub
+
   generation-host-process:
     name: Generation Web and Tauri process
     runs-on: ubuntu-latest
@@ -756,12 +844,12 @@ jobs:
       - name: Exercise manager restart and cleanup
         env:
           A4N_DEMO_SIDECAR_BIN: ${{ github.workspace }}/${{ matrix.binary }}
-        run: cargo test -p a4n-service-manager --lib supervisor_restarts_once_and_does_not_replay_in_flight_request -- --nocapture
+        run: cargo test -p a4n-service-manager --lib supervisor_restarts_once_and_does_not_replay_in_flight_request -- --ignored --nocapture
 
       - name: Verify live sidecar log visibility
         env:
           A4N_DEMO_SIDECAR_BIN: ${{ github.workspace }}/${{ matrix.binary }}
-        run: cargo test -p a4n-service-manager --lib start_sidecar_launches_demo_and_health_reports_exit -- --nocapture
+        run: cargo test -p a4n-service-manager --lib start_sidecar_launches_demo_and_health_reports_exit -- --ignored --nocapture
 
   cross-platform-remote-mtls:
     name: Remote mTLS process ${{ matrix.os }}
@@ -804,8 +892,6 @@ jobs:
         uses: dtolnay/rust-toolchain@f133eefe930d61f0d9371efd474daf0125ed3dd1 # 1.95.0
 
       - name: Run cross-platform remote mTLS process test
-        env:
-          A4N_REQUIRE_OPENSSL_MTLS: "1"
         run: |
           cargo test -p a4n-service-manager --lib remote_tls_fingerprint_detects_same_length_content_rotation -- --nocapture
-          cargo test -p a4n-service-manager --lib remote_mtls_process_handshake_and_certificate_reload -- --nocapture
+          cargo test -p a4n-service-manager --lib remote_mtls_process_handshake_and_certificate_reload -- --ignored --nocapture

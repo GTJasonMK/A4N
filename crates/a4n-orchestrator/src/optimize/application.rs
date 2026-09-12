@@ -9,6 +9,7 @@ use a4n_api_contract::{
         StartOptimizeChatGenerationInput, StartOptimizePatchGenerationInput,
     },
 };
+use a4n_db::optimize::OptimizationChapterPatchWriteInput;
 use a4n_db_models::models::ai::{
     optimization_patch, optimization_patch_set, optimization_session, optimization_turn,
     optimization_turn_event,
@@ -23,10 +24,9 @@ use crate::collaboration::ProjectAccessRole;
 use crate::{GenerationTaskAccessError, GenerationTaskStart};
 
 use super::{
-    OptimizationChapterPatchWriteInput, OptimizationPatch, OptimizeAgentPermissions,
-    OptimizeChatGenerationApplicationContext, OptimizePatchGenerationApplicationContext,
-    apply_optimization_patches_to_content, optimization_agent_variables,
-    optimization_analysis_variables, optimization_content_hash,
+    OptimizationPatch, OptimizeAgentPermissions, OptimizeChatGenerationApplicationContext,
+    OptimizePatchGenerationApplicationContext, apply_optimization_patches_to_content,
+    optimization_agent_variables, optimization_analysis_variables, optimization_content_hash,
 };
 
 const PATCH_SET_STATUS_PENDING: &str = "pending";

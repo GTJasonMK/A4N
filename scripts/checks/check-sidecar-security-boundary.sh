@@ -65,11 +65,11 @@ if rg -n 'DATABASE_URL|JWT_SECRET|BOOTSTRAP_ADMIN_PASSWORD|PROVIDER_API_KEY' cra
     printf 'sidecar environment allowlist contains a host database, auth, or provider secret\n' >&2
     exit 1
 fi
-rg -q --fixed-strings 'SIDECAR_AUTH_HEADER' crates/a4n-capabilities/src/transport.rs || {
+rg -q --fixed-strings 'SIDECAR_AUTH_HEADER' crates/a4n-service-client/src/transport.rs || {
     printf 'capability transport must forward sidecar authentication\n' >&2
     exit 1
 }
-rg -q --fixed-strings 'redact_sensitive_message' crates/a4n-capabilities/src/transport/errors.rs || {
+rg -q --fixed-strings 'redact_sensitive_message' crates/a4n-service-client/src/transport/errors.rs || {
     printf 'capability transport errors must redact URLs and secrets\n' >&2
     exit 1
 }
@@ -77,11 +77,11 @@ rg -q --fixed-strings 'redact_sensitive_message' crates/a4n-sidecar-bootstrap/sr
     printf 'sidecar runtime metrics must redact last-error URLs and secrets\n' >&2
     exit 1
 }
-rg -q --fixed-strings 'connect_timeout' crates/a4n-capabilities/src/transport.rs || {
+rg -q --fixed-strings 'connect_timeout' crates/a4n-service-client/src/transport.rs || {
     printf 'capability transport must configure a connect timeout\n' >&2
     exit 1
 }
-rg -q --fixed-strings 'stream_idle_timeout' crates/a4n-capabilities/src/transport.rs || {
+rg -q --fixed-strings 'stream_idle_timeout' crates/a4n-service-client/src/transport.rs || {
     printf 'event stream transport must enforce an idle timeout\n' >&2
     exit 1
 }
@@ -129,7 +129,7 @@ rg -q --fixed-strings 'health.version.service_version != env!("CARGO_PKG_VERSION
     printf 'local sidecar build parity enforcement is missing\n' >&2
     exit 1
 }
-rg -q --fixed-strings 'auth_token_configured' crates/a4n-capabilities/src/transport.rs || {
+rg -q --fixed-strings 'auth_token_configured' crates/a4n-service-client/src/transport.rs || {
     printf 'sidecar transport debug output must redact authentication material\n' >&2
     exit 1
 }

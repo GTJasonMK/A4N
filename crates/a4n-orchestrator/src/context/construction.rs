@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use a4n_capabilities::A4nCapabilities;
 use a4n_db::DbHandle;
 use a4n_error::AppError;
 use a4n_event::InternalEvent;
+use a4n_prompt_client::PromptClient;
 use a4n_provider_runtime_contract::ProviderRuntimePort;
 use a4n_rag_core::vector_store::VectorStore;
 use a4n_service_manager::ServiceManager;
@@ -27,8 +27,8 @@ use crate::context::dynamic_provider::ProviderRuntimeAdapter;
 use crate::task_queue::PersistentTaskQueue;
 
 impl OrchestratorContext {
-    pub(crate) fn capabilities(&self) -> &A4nCapabilities {
-        &self.capabilities
+    pub(crate) fn prompt_client(&self) -> Option<Arc<dyn PromptClient>> {
+        self.prompt_client.clone()
     }
 
     pub(crate) fn chapter_generation_service(&self) -> ChapterGenerationService {
@@ -38,7 +38,7 @@ impl OrchestratorContext {
     /// 引导构造：仅用于初始化 LLM/embedding provider 的短暂阶段。
     pub fn bootstrap(
         db: DbHandle,
-        capabilities: A4nCapabilities,
+        prompt_client: Option<Arc<dyn PromptClient>>,
         service_manager: Arc<ServiceManager>,
         config: a4n_config::app_config::AppConfig,
         event_bus: Arc<a4n_event::BroadcastEventBus>,
@@ -119,7 +119,6 @@ impl OrchestratorContext {
             import_reverse,
             import_review,
             inspiration,
-            llm_context,
             manga,
             optimize,
             profile_material,
@@ -143,7 +142,7 @@ impl OrchestratorContext {
             text_anchor,
             video,
             workflow,
-            capabilities,
+            prompt_client,
             service_manager,
             config,
             event_bus,
@@ -189,6 +188,20 @@ impl OrchestratorContext {
         &self.config.data_dir
     }
 
+    /// 日志目录。
+    pub fn log_dir(&self) -> &std::path::Path {
+        &self.config.log_dir
+    }
+
+    /// 临时目录。
+    pub fn temp_dir(&self) -> &std::path::Path {
+        &self.config.temp_dir
+    }
+
+    /// Embedding 模型缓存目录。
+    pub fn embedding_models_dir(&self) -> std::path::PathBuf {
+        self.config.embedding_models_dir()
+    }
     /// 取消已注册任务句柄。
     pub(crate) fn cancel_task_handle(&self, task_id: &str) -> bool {
         self.task_manager.cancel(task_id)

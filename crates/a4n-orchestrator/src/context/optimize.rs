@@ -298,7 +298,7 @@ impl OrchestratorContext {
 }
 
 impl OrchestratorContext {
-    pub async fn optimize_sessions_for_user(
+    pub(crate) async fn optimize_sessions_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -311,7 +311,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn optimize_session_for_user(
+    pub(crate) async fn optimize_session_for_user(
         &self,
         user_id: i64,
         session_id: i64,
@@ -322,7 +322,7 @@ impl OrchestratorContext {
         Ok(session)
     }
 
-    pub async fn optimize_turns_for_user(
+    pub(crate) async fn optimize_turns_for_user(
         &self,
         user_id: i64,
         session_id: i64,
@@ -353,7 +353,7 @@ impl OrchestratorContext {
             .collect())
     }
 
-    pub async fn optimize_patch_sets_for_user(
+    pub(crate) async fn optimize_patch_sets_for_user(
         &self,
         user_id: i64,
         session_id: i64,
@@ -390,7 +390,7 @@ impl OrchestratorContext {
             .collect())
     }
 
-    pub async fn delete_optimize_session_for_user_validated(
+    pub(crate) async fn delete_optimize_session_for_user_validated(
         &self,
         user_id: i64,
         session_id: i64,
@@ -406,7 +406,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn record_optimize_agent_event_for_user_validated(
+    pub(crate) async fn record_optimize_agent_event_for_user_validated(
         &self,
         user_id: i64,
         session_id: i64,

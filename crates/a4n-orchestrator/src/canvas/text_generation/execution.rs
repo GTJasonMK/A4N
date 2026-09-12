@@ -1,5 +1,6 @@
 use a4n_api_contract::canvas::CanvasRunSummary;
 use a4n_db::{
+    agent::{AgentOwnedTask, AgentTaskExecutionInput},
     canvas::{CanvasPromptArtifactUpsertInput, FreeformCanvasGenerationSpecUpsertInput},
     generation::{
         GENERATION_SPEC_TARGET_ENTITY_KIND_CANVAS_NODE, GENERATION_SPEC_TARGET_KIND_CANVAS_PROMPT,
@@ -14,10 +15,7 @@ use serde_json::{Value, json};
 
 use crate::{
     OrchestratorContext,
-    agent::{
-        AgentOwnedTask, AgentTaskExecutionInput, model_request_snapshot,
-        restore_model_request_snapshot,
-    },
+    agent::{model_request_snapshot, restore_model_request_snapshot},
     canvas::WORKFLOW_KIND_VIDEO_CANVAS_GRAPH,
     project::ProjectSourceMode,
     structured_llm::ensure_checkpoint_parsed_output_matches,

@@ -16,16 +16,25 @@ import { previewChapterVideoRequest } from "./records";
 describe("chapter video request preview contract", () => {
   beforeEach(() => mocks.apiInvoke.mockReset().mockResolvedValue({ steps: [] }));
 
-  it("omits an absent override and preserves explicit nullable fields", async () => {
+  it("maps project, chapter, config, and nullable prompt override fields", async () => {
     await previewChapterVideoRequest(1, 2, 3);
-    const args = mocks.apiInvoke.mock.calls.at(-1)?.[1];
-    expect(args).not.toHaveProperty("promptOverride");
-    expect(args).not.toHaveProperty("userId");
-
     await previewChapterVideoRequest(1, 2, 3, null, { motion_prompt: null });
-    expect(mocks.apiInvoke).toHaveBeenLastCalledWith(
-      "preview_chapter_video_request",
-      expect.objectContaining({ promptOverride: { motion_prompt: null } }),
-    );
+
+    expect(mocks.apiInvoke.mock.calls).toEqual([
+      [
+        "preview_chapter_video_request",
+        { projectId: 1, chapterId: 2, promptId: 3, configId: null },
+      ],
+      [
+        "preview_chapter_video_request",
+        {
+          projectId: 1,
+          chapterId: 2,
+          promptId: 3,
+          configId: null,
+          promptOverride: { motion_prompt: null },
+        },
+      ],
+    ]);
   });
 });

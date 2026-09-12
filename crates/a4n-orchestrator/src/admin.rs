@@ -1,7 +1,7 @@
 use a4n_db_models::models::user::role::{UserRole, parse_user_role};
 use a4n_error::AppError;
 
-pub use a4n_api_contract::admin::AdminPermission;
+pub(crate) use a4n_api_contract::admin::AdminPermission;
 
 pub(crate) fn require_admin_role(role: &str, permission: AdminPermission) -> Result<(), AppError> {
     let role = parse_user_role(role)?;
@@ -13,12 +13,6 @@ pub(crate) fn require_admin_role(role: &str, permission: AdminPermission) -> Res
         )))
     }
 }
-
-pub use a4n_db::admin::{
-    AdminDbError, AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint,
-    GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, ThemeInfo,
-    UsageLogSummary, UsageTrendsInput,
-};
 
 #[cfg(test)]
 mod tests {

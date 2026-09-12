@@ -1,4 +1,4 @@
-use crate::profile_material::{
+use a4n_db::profile_material::{
     generated_image_profile_material_identity, is_project_reusable_video_material_image,
 };
 use a4n_db_models::models::ai::generated_image;

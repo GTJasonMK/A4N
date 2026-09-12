@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::state::RuntimeProfile;
 use crate::{
     AppState,
@@ -5,8 +7,8 @@ use crate::{
         ModelRequestPreviewStep, image_provider_request_step, provider_request_step,
     },
 };
-use a4n_capabilities::A4nCapabilities;
 use a4n_image::ImageGenerationRequest;
+use a4n_image_client::ImageClient;
 use a4n_orchestrator::media::PreparedImageGenerationRequest;
 use a4n_provider_contract::ImageProviderConfig;
 
@@ -24,7 +26,7 @@ pub(super) async fn prepared_image_generation_preview_step(
     }
     image_generation_preview_step(
         state.runtime_profile(),
-        state.capabilities(),
+        state.capabilities().image.clone(),
         state.project_access_application(),
         project_id,
         key,
@@ -39,7 +41,7 @@ pub(super) async fn prepared_image_generation_preview_step(
 
 pub(super) async fn image_generation_preview_step(
     runtime_profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn ImageClient>>,
     collaboration: &dyn a4n_api_contract::collaboration::ProjectAccessApplicationPort,
     project_id: i64,
     key: impl Into<String>,
@@ -58,7 +60,7 @@ pub(super) async fn image_generation_preview_step(
             .map(|root| Some(root.id))
             .map_err(crate::actions::app_error_message)?;
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
-            capabilities,
+            client,
             config,
             request,
             Some(project_id),

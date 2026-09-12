@@ -26,7 +26,7 @@ pub(in crate::optimize) use agent_loop_executor::{
     AgentLoopExecutionError, AgentLoopGenerationContext,
 };
 pub use application::{OptimizeApplicationPort, OptimizePatchApplyHostPort};
-pub use chat::OptimizeChatGenerationApplicationContext;
+pub(crate) use chat::OptimizeChatGenerationApplicationContext;
 pub(in crate::optimize) use contracts::{
     OptimizeChatTurnExecution, OptimizeProposePatchesInput, OptimizeSendUserMessageInput,
 };
@@ -35,28 +35,20 @@ pub(in crate::optimize) use generation::{
     agent_loop_error_to_generation_error, app_error_to_generation_error,
     generation_stream_completion, optimize_progress,
 };
-pub use patch::{
-    OptimizationPatch, OptimizationPatchProposal, apply_optimization_patches_to_content,
-    optimization_content_hash,
+pub(crate) use patch::OptimizationPatch;
+pub(crate) use patch::{
+    OptimizationPatchProposal, apply_optimization_patches_to_content, optimization_content_hash,
 };
-pub use patch_generation::OptimizePatchGenerationApplicationContext;
+pub(crate) use patch_generation::OptimizePatchGenerationApplicationContext;
 pub(in crate::optimize) use patch_request::{
     build_content_optimization_patch_request, optimize_llm_call_input_fingerprint_json,
 };
-pub use permissions::{
+pub(crate) use permissions::{
     OptimizeAgentPermissions, optimization_agent_variables, optimization_analysis_variables,
 };
 pub(crate) use service::optimize_db_error;
 pub(in crate::optimize) use session_names::required_available_session_name;
 pub(crate) use workflow_rules::optimize_session_workflow_run_input;
-
-pub use a4n_db::optimize::{
-    OptimizationBlueprintRows, OptimizationChapterPatchWriteInput, OptimizationContextReadInput,
-    OptimizationContextRows, OptimizationPatchCreateInput, OptimizationPatchSetCreateInput,
-    OptimizationSessionCreateInput, OptimizationSessionMessageInsertInput,
-    OptimizationSessionUpdateInput, OptimizationTurnCreateInput, OptimizationTurnEventAppendInput,
-    OptimizationTurnUpdateInput, OptimizeDbError,
-};
 
 use crate::OrchestratorContext;
 

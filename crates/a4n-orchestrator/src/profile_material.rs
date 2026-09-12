@@ -3,9 +3,9 @@ use a4n_api_contract::profile::{
     ProfileMaterialImageSummary, ProfileMaterialProfileSummary, SetProfilePrimaryMaterialInput,
     UploadProfileMaterialImageInput,
 };
-pub(crate) use a4n_db::profile_material::{
-    generated_image_profile_material_identity, is_project_reusable_video_material_image,
-    profile_material_identity, profile_material_identity_from_fields,
+use a4n_db::profile_material::{
+    generated_image_profile_material_identity, profile_material_identity,
+    profile_material_identity_from_fields,
 };
 
 use a4n_db::video::{
@@ -194,7 +194,7 @@ pub(crate) fn object_profile_content(profile: &object_profile::Model) -> String 
 }
 
 impl OrchestratorContext {
-    pub async fn list_profile_materials_validated(
+    pub(crate) async fn list_profile_materials_validated(
         &self,
         user_id: i64,
         input: ListProfileMaterialsInput,
@@ -204,7 +204,7 @@ impl OrchestratorContext {
         self.profile_material_groups(input).await
     }
 
-    pub async fn set_profile_primary_material_validated(
+    pub(crate) async fn set_profile_primary_material_validated(
         &self,
         user_id: i64,
         input: SetProfilePrimaryMaterialInput,
@@ -260,7 +260,7 @@ impl OrchestratorContext {
             })
     }
 
-    pub async fn upload_profile_material_image_validated(
+    pub(crate) async fn upload_profile_material_image_validated(
         &self,
         user_id: i64,
         host: &dyn ImageGenerationHostPort,
@@ -452,7 +452,7 @@ impl OrchestratorContext {
             })
     }
 
-    pub async fn ensure_profile_material_publication_identity_for_user_validated(
+    pub(crate) async fn ensure_profile_material_publication_identity_for_user_validated(
         &self,
         user_id: i64,
         publication: &image_publication::Model,
@@ -522,31 +522,7 @@ impl OrchestratorContext {
         Ok(())
     }
 
-    pub async fn count_profile_material_images(
-        &self,
-        project_id: i64,
-        kind: ProfileMaterialKind,
-        profile_id: i64,
-    ) -> Result<i64, AppError> {
-        let count = self
-            .profile_material_image_identity_rows_by_type(
-                project_id,
-                image_type_for_profile_material_kind(kind),
-            )
-            .await?
-            .into_iter()
-            .filter(|image| {
-                profile_material_identity(&image.image_type, image.metadata_json.as_ref())
-                    == Some((kind.as_str(), profile_id))
-            })
-            .count();
-        i64::try_from(count).map_err(|_| AppError::InvalidState {
-            current: "profile_material_image_count".to_string(),
-            operation: "素材图数量超过 i64 上限".to_string(),
-        })
-    }
-
-    pub async fn count_profile_material_images_by_profile(
+    pub(crate) async fn count_profile_material_images_by_profile(
         &self,
         project_id: i64,
         kind: ProfileMaterialKind,
@@ -575,7 +551,7 @@ impl OrchestratorContext {
         Ok(counts.into_iter().collect())
     }
 
-    pub async fn profile_material_image_ids(
+    pub(crate) async fn profile_material_image_ids(
         &self,
         project_id: i64,
         kind: ProfileMaterialKind,

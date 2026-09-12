@@ -18,7 +18,8 @@ use crate::project::{ImportMediaPayload, MediaFileEntry};
 mod export_assembly;
 mod validation;
 
-pub use validation::MediaEntryOwnerIndex;
+#[cfg(test)]
+pub(crate) use validation::MediaEntryOwnerIndex;
 
 /// 视频画布项目包版本号。
 pub(crate) const VIDEO_STUDIO_PACKAGE_VERSION: &str = "video_studio_project_v2";
@@ -83,21 +84,4 @@ pub(crate) fn validate_package_manifest(
     media_payload: &ImportMediaPayload,
 ) -> Result<(), String> {
     validation::validate_package_manifest(package, media_payload)
-}
-
-/// 校验媒体清单项 owner 引用（包读取时用）。
-pub fn validate_media_entry_owner(
-    package: &VideoStudioProjectPackage,
-    entry: &MediaFileEntry,
-) -> Result<(), String> {
-    validation::validate_media_entry_owner(package, entry)
-}
-
-/// 校验媒体字节与记录字段一致性（包读取时用）。
-pub fn validate_media_entry_bytes(
-    package: &VideoStudioProjectPackage,
-    entry: &MediaFileEntry,
-    bytes: &[u8],
-) -> Result<(), String> {
-    validation::validate_media_entry_bytes(package, entry, bytes)
 }

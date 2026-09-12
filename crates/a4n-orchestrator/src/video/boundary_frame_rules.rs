@@ -55,21 +55,6 @@ pub fn frame_prompt_matches_video_prompt<P: PromptChainFields>(
     )
 }
 
-pub fn latest_boundary_frame_image_id<P: PromptChainFields>(
-    images: &[generated_image::Reference],
-    frame_prompt: &P,
-) -> Option<i64> {
-    images
-        .iter()
-        .find(|image| {
-            let metadata = image.metadata_json.as_ref();
-            image_generation_prompt_id(metadata) == Some(frame_prompt.id())
-                && image_generation_source(metadata)
-                    == Some(IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT)
-        })
-        .map(|image| image.id)
-}
-
 /// Resolves both boundary images in one pass over the id-descending image list.
 pub(in crate::video) fn latest_boundary_frame_image_ids(
     images: &[generated_image::Reference],

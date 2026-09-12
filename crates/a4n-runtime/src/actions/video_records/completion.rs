@@ -9,6 +9,7 @@ use a4n_api_contract::video::{
     CompleteVideoRecordInput, GeneratedVideoSummary, VideoRecordCompletionError,
 };
 use a4n_domain::media::{MEDIA_STATUS_CANCELLED, MEDIA_STATUS_COMPLETED, MEDIA_STATUS_FAILED};
+use a4n_domain::video_workflow::VIDEO_STATUS_INTERRUPTED;
 use a4n_storage::canonicalize_data_file_path;
 use serde_json::Value;
 
@@ -174,7 +175,7 @@ pub(in crate::actions::video_records) async fn complete_video_record(
             if authoritative.as_ref().is_some_and(|completion| {
                 matches!(
                     completion.summary.status.as_str(),
-                    MEDIA_STATUS_FAILED | "interrupted" | MEDIA_STATUS_CANCELLED
+                    MEDIA_STATUS_FAILED | VIDEO_STATUS_INTERRUPTED | MEDIA_STATUS_CANCELLED
                 )
             }) {
                 return Err(append_secondary_error(primary_error, cleanup_error));

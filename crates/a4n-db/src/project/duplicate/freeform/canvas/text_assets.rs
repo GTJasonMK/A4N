@@ -110,8 +110,19 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(copied.len(), source_rows.len());
+        let copied_by_id = copied
+            .iter()
+            .map(|asset| (asset.id, asset))
+            .collect::<std::collections::HashMap<_, _>>();
         for source_row in source_rows {
-            assert!(id_map.contains_key(&source_row.id));
+            let copied_id = id_map[&source_row.id];
+            let copied_row = copied_by_id[&copied_id];
+            assert_ne!(copied_row.id, source_row.id);
+            assert_eq!(copied_row.project_id, target.id);
+            assert_eq!(copied_row.title, source_row.title);
+            assert_eq!(copied_row.text_kind, source_row.text_kind);
+            assert_eq!(copied_row.content, source_row.content);
+            assert_eq!(copied_row.content_hash, source_row.content_hash);
         }
     }
 }

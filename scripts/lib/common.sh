@@ -8,8 +8,11 @@ A4N_SCRIPT_COMMON_SOURCED=1
 SCRIPT_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_LIB_DIR/../.." && pwd)"
 
-# 默认将可再生产物放在当前工作树；调用者可为并行 agent 指定隔离的共享 target。
-export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$PROJECT_ROOT/target}"
+# 所有入口共用一套主缓存，避免同一依赖图被编进多个 target 目录。
+# 调用者可为并行 agent 显式提供隔离 target；未设置时保留历史默认值。
+if [[ -z "${CARGO_TARGET_DIR:-}" ]]; then
+    export CARGO_TARGET_DIR="$PROJECT_ROOT/target"
+fi
 
 make_target_temp_dir() {
     local temp_root="$CARGO_TARGET_DIR/tmp"

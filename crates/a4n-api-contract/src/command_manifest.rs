@@ -3577,8 +3577,7 @@ mod tests {
     }
 
     #[test]
-    fn command_specs_are_the_complete_sorted_source() {
-        assert_eq!(API_COMMANDS.len(), COMMAND_SPECS.len());
+    fn command_manifest_is_sorted_unique_and_self_consistent() {
         assert!(API_COMMANDS.windows(2).all(|pair| pair[0] < pair[1]));
         assert_eq!(
             API_COMMANDS.len(),

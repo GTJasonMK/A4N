@@ -4,6 +4,39 @@ use serde_json::Value;
 
 pub const CHARACTER_DELETION_THRESHOLD: i32 = 5;
 
+pub fn category_storage_key(category: &str) -> &'static str {
+    match category {
+        "explicit" => "explicit_attributes",
+        "implicit" => "implicit_attributes",
+        "social" => "social_attributes",
+        _ => "attributes",
+    }
+}
+
+pub fn apply_attribute_to_state(
+    state: &mut Value,
+    category: &str,
+    key: &str,
+    operation: &str,
+    new_value: Value,
+) -> Result<(), String> {
+    let storage_key = category_storage_key(category);
+    let root = state
+        .as_object_mut()
+        .ok_or_else(|| "角色当前状态不是 JSON 对象".to_string())?;
+    let attributes = root
+        .get_mut(storage_key)
+        .ok_or_else(|| format!("角色当前状态缺少 {storage_key}"))?
+        .as_object_mut()
+        .ok_or_else(|| format!("角色当前状态 {storage_key} 不是 JSON 对象"))?;
+    if operation == "delete" {
+        attributes.remove(key);
+    } else {
+        attributes.insert(key.to_string(), new_value);
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct CharacterProfileCreateInput {
     pub project_id: i64,
@@ -275,7 +308,67 @@ pub enum AppliedImplicitUpdateAction {
 
 #[cfg(test)]
 mod tests {
-    use super::ForeshadowingStatus;
+    use super::{ForeshadowingStatus, apply_attribute_to_state};
+    use serde_json::json;
+
+    #[test]
+    fn attribute_state_projection_applies_and_deletes_values() {
+        let mut state = json!({
+            "explicit_attributes": {},
+            "implicit_attributes": {},
+            "social_attributes": {}
+        });
+
+        apply_attribute_to_state(
+            &mut state,
+            "explicit",
+            "appearance",
+            "modify",
+            json!("白衣"),
+        )
+        .expect("canonical state should accept attribute changes");
+        assert_eq!(state["explicit_attributes"]["appearance"], json!("白衣"));
+
+        apply_attribute_to_state(&mut state, "explicit", "appearance", "delete", json!(null))
+            .expect("canonical state should accept attribute deletion");
+        assert!(state["explicit_attributes"].get("appearance").is_none());
+    }
+
+    #[test]
+    fn attribute_state_projection_rejects_non_object_state() {
+        let mut state = json!("invalid");
+
+        let error = apply_attribute_to_state(
+            &mut state,
+            "explicit",
+            "appearance",
+            "modify",
+            json!("白衣"),
+        )
+        .expect_err("non-object state must fail");
+
+        assert_eq!(error, "角色当前状态不是 JSON 对象");
+    }
+
+    #[test]
+    fn attribute_state_projection_rejects_non_object_category() {
+        let mut state = json!({
+            "explicit_attributes": [],
+            "implicit_attributes": {},
+            "social_attributes": {}
+        });
+
+        let error = apply_attribute_to_state(
+            &mut state,
+            "explicit",
+            "appearance",
+            "modify",
+            json!("白衣"),
+        )
+        .expect_err("non-object category must fail");
+
+        assert_eq!(error, "角色当前状态 explicit_attributes 不是 JSON 对象");
+    }
 
     #[test]
     fn foreshadowing_status_accepts_only_canonical_values() {

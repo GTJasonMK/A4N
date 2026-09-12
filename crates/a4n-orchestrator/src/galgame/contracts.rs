@@ -2,7 +2,7 @@ use super::{GalgamePipelinePromptChapter, GalgamePipelineSourceSpan};
 use a4n_domain::shooting_script::ChapterShootingScriptV1;
 use serde::Serialize;
 
-pub use a4n_api_contract::galgame::{
+pub(crate) use a4n_api_contract::galgame::{
     BindGalgameMediaInput, GalgameAssetGenerationItem, GalgameAssetGenerationSummary,
     GalgameAssetPlan, GalgameChoice, GalgameLine, GalgameMediaAsset, GalgameMediaBinding,
     GalgameMediaBindingSummary, GalgameScene, GalgameSceneDetail, GalgameScriptDetail,
@@ -11,7 +11,7 @@ pub use a4n_api_contract::galgame::{
     UnbindGalgameMediaInput, UpdateGalgameChoicesInput, UpdateGalgameLineInput,
     UpdateGalgameSceneInput,
 };
-pub use a4n_domain::galgame::{
+pub(crate) use a4n_domain::galgame::{
     GALGAME_ENTITY_CHARACTER_PROFILE, GALGAME_ENTITY_LINE, GALGAME_ENTITY_SCENE,
     GALGAME_EXPRESSIONS, GALGAME_PIPELINE_TOTAL_STEPS, GALGAME_TARGET_BACKGROUND,
     GALGAME_TARGET_CG, GALGAME_TARGET_PORTRAIT_EXPRESSION, GalgameAudioRole, GalgameCgImportance,

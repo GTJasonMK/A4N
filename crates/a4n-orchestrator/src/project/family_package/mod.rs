@@ -9,8 +9,6 @@ use crate::media::{
     is_valid_galgame_media_binding_pair,
 };
 #[cfg(test)]
-use crate::text_anchor::{EVIDENCE_ROLE_FIRST_SEEN, SOURCE_KIND_CHAPTER_CONTENT};
-#[cfg(test)]
 use a4n_db_models::models::{
     asset::object_profile,
     chapter::{chapter, part_outline},
@@ -43,14 +41,15 @@ mod validation;
 mod tests;
 
 pub(crate) use contracts::PROJECT_FAMILY_PACKAGE_VERSION;
-pub use contracts::{MANIFEST_PATH, ProjectFamilyPackage, TextCorePackage};
+#[cfg(test)]
+pub(crate) use contracts::TextCorePackage;
+pub(crate) use contracts::{MANIFEST_PATH, ProjectFamilyPackage};
 
 pub(crate) use crate::project::{hash_json, hash_text, sha256_bytes};
 
 pub(crate) use export_assembly::{
     assemble_project_family_export_package, family_media_package_path,
 };
-pub use validation::validate_media_bytes;
 pub(crate) use validation::{validate_media_manifest, validate_package_manifest};
 
 use a4n_db::project_family_import::ProjectFamilyImportPackage;

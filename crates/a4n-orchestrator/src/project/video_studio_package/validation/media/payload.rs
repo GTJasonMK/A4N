@@ -2,7 +2,7 @@ use super::owner::{MediaEntryOwner, MediaEntryOwnerIndex};
 use crate::project::{MediaFileEntry, VideoStudioProjectPackage, sha256_bytes};
 use a4n_db_models::models::media::media_asset::FILE_PATH_FIELD;
 
-pub(in crate::project::video_studio_package) fn validate_media_entry_bytes(
+pub(crate) fn validate_media_entry_bytes(
     package: &VideoStudioProjectPackage,
     entry: &MediaFileEntry,
     bytes: &[u8],

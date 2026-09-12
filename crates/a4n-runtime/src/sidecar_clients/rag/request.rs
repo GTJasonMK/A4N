@@ -1,4 +1,4 @@
-use a4n_capabilities::JsonRequest;
+use a4n_rag_client::JsonRequest;
 use a4n_service_protocol::TraceContext;
 use serde::Serialize;
 use serde_json::Value;

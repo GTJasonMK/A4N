@@ -253,14 +253,14 @@ impl CollaborationApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn accessible_projects(
+    pub(crate) async fn accessible_projects(
         &self,
         input: AccessibleProjectListInput,
     ) -> Result<AccessibleProjectsPage, AppError> {
         self.collaboration.accessible_projects(input).await
     }
 
-    pub async fn project_access_info(
+    pub(crate) async fn project_access_info(
         &self,
         query: ProjectAccessInfoQuery,
         user_id: i64,
@@ -268,7 +268,7 @@ impl OrchestratorContext {
         self.collaboration.project_access_info(query, user_id).await
     }
 
-    pub async fn project_access_info_batch(
+    pub(crate) async fn project_access_info_batch(
         &self,
         queries: &[ProjectAccessInfoQuery],
         user_id: i64,
@@ -278,7 +278,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn collaboration_root_project(
+    pub(crate) async fn collaboration_root_project(
         &self,
         project_id: i64,
     ) -> Result<CollaborationRootProject, AppError> {
@@ -287,7 +287,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn verify_project_permission(
+    pub(crate) async fn verify_project_permission(
         &self,
         project_id: i64,
         user_id: i64,
@@ -298,7 +298,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn verify_project_permissions(
+    pub(crate) async fn verify_project_permissions(
         &self,
         project_ids: &[i64],
         user_id: i64,
@@ -309,7 +309,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn project_ids_with_permission(
+    pub(crate) async fn project_ids_with_permission(
         &self,
         project_ids: &[i64],
         user_id: i64,
@@ -320,7 +320,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn invite_project_member(
+    pub(crate) async fn invite_project_member(
         &self,
         inviter_user_id: i64,
         project_id: i64,
@@ -332,7 +332,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn list_project_invites(
+    pub(crate) async fn list_project_invites(
         &self,
         actor_user_id: i64,
         project_id: i64,
@@ -342,14 +342,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn list_my_project_invites(
+    pub(crate) async fn list_my_project_invites(
         &self,
         user_id: i64,
     ) -> Result<Vec<ProjectInviteSummary>, AppError> {
         self.collaboration.list_my_project_invites(user_id).await
     }
 
-    pub async fn accept_project_invite(
+    pub(crate) async fn accept_project_invite(
         &self,
         user_id: i64,
         invite_id: i64,
@@ -359,7 +359,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn decline_project_invite(
+    pub(crate) async fn decline_project_invite(
         &self,
         user_id: i64,
         invite_id: i64,
@@ -369,7 +369,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn revoke_project_invite(
+    pub(crate) async fn revoke_project_invite(
         &self,
         actor_user_id: i64,
         project_id: i64,
@@ -380,7 +380,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn list_project_members(
+    pub(crate) async fn list_project_members(
         &self,
         actor_user_id: i64,
         project_id: i64,
@@ -390,7 +390,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_project_member_role(
+    pub(crate) async fn update_project_member_role(
         &self,
         actor_user_id: i64,
         project_id: i64,
@@ -402,7 +402,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn remove_project_member(
+    pub(crate) async fn remove_project_member(
         &self,
         actor_user_id: i64,
         project_id: i64,
@@ -413,7 +413,11 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn leave_project(&self, user_id: i64, project_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn leave_project(
+        &self,
+        user_id: i64,
+        project_id: i64,
+    ) -> Result<(), AppError> {
         self.collaboration.leave_project(user_id, project_id).await
     }
 }

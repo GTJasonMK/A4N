@@ -97,7 +97,7 @@ pub trait BlueprintGenerationApplicationPort: Send + Sync {
 pub(crate) use json::validate_sparse_blueprint_sections;
 
 impl OrchestratorContext {
-    pub fn blueprint_generation_input_from_workflow_run(
+    pub(crate) fn blueprint_generation_input_from_workflow_run(
         &self,
         run: &WorkflowResumeRecord,
     ) -> Result<StartBlueprintGenerationInput, AppError> {
@@ -156,7 +156,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub fn blueprint_refinement_input_from_workflow_run(
+    pub(crate) fn blueprint_refinement_input_from_workflow_run(
         &self,
         run: &WorkflowResumeRecord,
     ) -> Result<StartBlueprintRefinementInput, AppError> {
@@ -203,7 +203,7 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn preview_blueprint_generation_request_for_user_validated(
+    pub(crate) async fn preview_blueprint_generation_request_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,

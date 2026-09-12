@@ -1,7 +1,7 @@
 use a4n_db::{
-    generation::generation_checkpoint_fingerprint_sha256,
-    workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED},
+    generation::generation_checkpoint_fingerprint_sha256, workflow::UpsertWorkflowCheckpointInput,
 };
+use a4n_domain::workflow::WORKFLOW_STATUS_COMPLETED;
 use a4n_error::AppError;
 use serde_json::Value;
 

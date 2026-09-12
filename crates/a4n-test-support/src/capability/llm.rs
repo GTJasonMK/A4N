@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-use a4n_capabilities::{CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, LlmClient};
+use a4n_llm_client::{JsonRequest, JsonResponse, LlmClient};
+use a4n_service_client::{ServiceClient, ServiceClientResult as CapabilityResult};
 use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
 use async_trait::async_trait;
 
@@ -52,7 +53,7 @@ impl RecordingLlmClient {
 }
 
 #[async_trait]
-impl CapabilityClient for RecordingLlmClient {
+impl ServiceClient for RecordingLlmClient {
     async fn health(&self) -> CapabilityResult<ServiceHealth> {
         Err(unexpected_call("RecordingLlmClient", "health"))
     }

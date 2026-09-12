@@ -16,13 +16,13 @@ use crate::project::{
 };
 
 impl OrchestratorContext {
-    pub async fn export_video_studio_project_validated<Host>(
+    pub(crate) async fn export_video_studio_project_validated<Host: ?Sized>(
         &self,
         input: ExportVideoStudioProjectApplicationInput,
         host_port: &Host,
     ) -> Result<ExportedProjectPackage, ProjectPackageTransferError>
     where
-        Host: ProjectPackageTransferHostPort + ?Sized,
+        Host: ProjectPackageTransferHostPort,
     {
         self.verify_project_permission(input.project_id, input.user_id, ProjectAccessRole::Owner)
             .await?;
@@ -58,13 +58,13 @@ impl OrchestratorContext {
         })
     }
 
-    pub async fn import_video_studio_project_validated<Host>(
+    pub(crate) async fn import_video_studio_project_validated<Host: ?Sized>(
         &self,
         input: ImportProjectPackageApplicationInput,
         host_port: &mut Host,
     ) -> Result<novel_project::Model, ProjectPackageTransferError>
     where
-        Host: ProjectPackageTransferHostPort + ?Sized,
+        Host: ProjectPackageTransferHostPort,
     {
         if input.package_bytes.is_empty() {
             return Err(ProjectPackageTransferError::Message(

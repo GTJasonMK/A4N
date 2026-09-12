@@ -256,6 +256,8 @@ pub struct UpdatePackagePreferencesInput {
 /// contract instead of the concrete orchestration facade.
 #[async_trait::async_trait]
 pub trait PackageApplicationPort: Send + Sync {
+    async fn initialize_states(&self) -> Result<(), a4n_error::AppError>;
+
     async fn overview(&self) -> Result<Vec<PackageOverview>, a4n_error::AppError>;
 
     async fn list_command_availability(

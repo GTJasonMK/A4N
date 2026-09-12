@@ -1,10 +1,9 @@
 use std::collections::HashSet;
 
+use a4n_db::profile_material::is_project_reusable_video_material_image;
 use a4n_db_models::models::ai::generated_image;
 use a4n_error::AppError;
 use serde_json::Value;
-
-use super::is_project_reusable_video_material_image;
 
 pub(in crate::video) fn available_video_image_ids(
     available_assets: &Value,

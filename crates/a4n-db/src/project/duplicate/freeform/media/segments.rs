@@ -134,7 +134,7 @@ where
 mod tests {
     use super::*;
     use chrono::Utc;
-    use sea_orm::{EntityTrait, Set};
+    use sea_orm::{ActiveModelTrait, EntityTrait, QueryFilter, QueryOrder, Set};
 
     #[tokio::test]
     async fn copies_video_segments_and_links_in_batches() {
@@ -160,7 +160,7 @@ mod tests {
         .await
         .unwrap();
         let now = Utc::now().naive_utc();
-        let source_rows = (0..20)
+        let source_rows = (0..3)
             .map(|index| video_segment::ActiveModel {
                 project_id: Set(source.id),
                 root_project_id: Set(source.id),
@@ -179,8 +179,27 @@ mod tests {
                 ..Default::default()
             })
             .collect::<Vec<_>>();
-        video_segment::Entity::insert_many(source_rows)
-            .exec_without_returning(&db)
+        let mut source_rows = video_segment::Entity::insert_many(source_rows)
+            .exec_with_returning_many(&db)
+            .await
+            .unwrap();
+        for (index, row) in source_rows.iter().enumerate() {
+            video_segment::ActiveModel {
+                id: Set(row.id),
+                previous_segment_id: Set(index
+                    .checked_sub(1)
+                    .map(|previous| source_rows[previous].id)),
+                next_segment_id: Set(source_rows.get(index + 1).map(|next| next.id)),
+                ..Default::default()
+            }
+            .update(&db)
+            .await
+            .unwrap();
+        }
+        source_rows = video_segment::Entity::find()
+            .filter(video_segment::Column::ProjectId.eq(source.id))
+            .order_by_asc(video_segment::Column::OrderIndex)
+            .all(&db)
             .await
             .unwrap();
 
@@ -194,18 +213,37 @@ mod tests {
         )
         .await
         .unwrap();
-        assert_eq!(segment_id_map.len(), 20);
+        assert_eq!(segment_id_map.len(), source_rows.len());
         let copied = video_segment::Entity::find()
             .filter(video_segment::Column::ProjectId.eq(target.id))
             .all(&db)
             .await
             .unwrap();
-        assert_eq!(copied.len(), 20);
-        assert!(
-            copied
-                .iter()
-                .all(|segment| segment.previous_segment_id.is_none()
-                    && segment.next_segment_id.is_none())
-        );
+        assert_eq!(copied.len(), source_rows.len());
+        let copied_by_id = copied
+            .iter()
+            .map(|segment| (segment.id, segment))
+            .collect::<std::collections::HashMap<_, _>>();
+        for source_segment in &source_rows {
+            let copied_id = segment_id_map[&source_segment.id];
+            let copied_segment = copied_by_id[&copied_id];
+            assert_ne!(copied_segment.id, source_segment.id);
+            assert_eq!(copied_segment.project_id, target.id);
+            assert_eq!(copied_segment.root_project_id, target.id);
+            assert_eq!(copied_segment.segment_type, source_segment.segment_type);
+            assert_eq!(copied_segment.order_index, source_segment.order_index);
+            assert_eq!(copied_segment.title, source_segment.title);
+            assert_eq!(copied_segment.duration_secs, source_segment.duration_secs);
+            assert_eq!(
+                copied_segment.previous_segment_id,
+                source_segment
+                    .previous_segment_id
+                    .map(|id| segment_id_map[&id])
+            );
+            assert_eq!(
+                copied_segment.next_segment_id,
+                source_segment.next_segment_id.map(|id| segment_id_map[&id])
+            );
+        }
     }
 }

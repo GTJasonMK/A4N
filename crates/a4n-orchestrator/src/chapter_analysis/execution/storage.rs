@@ -3,8 +3,9 @@ use a4n_db::chapter_content::{
     StoreChapterAnalysisRecordInput, lock_chapter_analysis_source, store_chapter_analysis_record,
 };
 use a4n_db::project::ChapterSourceSnapshot;
-use a4n_db::workflow::{UpsertWorkflowCheckpointInput, WORKFLOW_STATUS_COMPLETED};
+use a4n_db::workflow::UpsertWorkflowCheckpointInput;
 use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
+use a4n_domain::workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_RUNNING};
 use a4n_error::AppError;
 use sea_orm::TransactionTrait;
 use serde_json::json;
@@ -120,7 +121,7 @@ impl OrchestratorContext {
                 || latest.workflow_kind != "chapter_analysis"
                 || latest.project_id != Some(locked.project_id)
                 || latest.chapter_id != Some(locked.id)
-                || latest.status != a4n_db::workflow::WORKFLOW_STATUS_RUNNING
+                || latest.status != WORKFLOW_STATUS_RUNNING
                 || !chapter_analysis_run_input_matches(&latest.input_fingerprint_json, &locked)
             {
                 return Err(AppError::InvalidState {

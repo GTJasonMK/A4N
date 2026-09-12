@@ -4,9 +4,8 @@ mod output;
 mod request;
 
 pub use contracts::{
-    CharacterProfileSyncChapterStateDraft, CharacterProfileSyncExtraction,
-    CharacterProfileSyncGenerationTrace, CharacterProfileSyncPreviewStep,
-    CharacterProfileSyncStageInput, CharacterProfileSyncStageOutput,
+    CharacterProfileSyncChapterStateDraft, CharacterProfileSyncGenerationTrace,
+    CharacterProfileSyncPreviewStep, CharacterProfileSyncStageInput,
     CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
 };
 

@@ -18,7 +18,7 @@ pub async fn download_embedding_model(
 ) -> Result<LocalEmbeddingModelSummary, AppError> {
     let model = required_text(&input.model, "fastembed 模型名")?;
     if state.runtime_profile().uses_sidecars() {
-        let capabilities = state.capabilities().clone();
+        let client = state.capabilities().embedding.clone();
         let queue_cancel_token = cancel_token.clone();
         return state
             .provider_runtime()
@@ -29,7 +29,7 @@ pub async fn download_embedding_model(
                 queue_cancel_token,
                 || async move {
                     crate::sidecar_clients::download_embedding_model_events(
-                        &capabilities,
+                        client,
                         &model,
                         progress_tx,
                         cancel_token,

@@ -107,14 +107,14 @@ impl ProjectMutationApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn create_project(
+    pub(crate) async fn create_project(
         &self,
         input: CreateProjectRecordInput,
     ) -> Result<novel_project::Model, AppError> {
         self.project_mutation.create_project(input).await
     }
 
-    pub async fn create_derived_project(
+    pub(crate) async fn create_derived_project(
         &self,
         owner_user_id: i64,
         params: CreateDerivedProjectParams,
@@ -124,7 +124,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn create_freeform_video_project(
+    pub(crate) async fn create_freeform_video_project(
         &self,
         user_id: i64,
         params: CreateFreeformVideoProjectParams,
@@ -135,7 +135,7 @@ impl OrchestratorContext {
     }
 
     /// 更新项目：校验可选标题后落库。
-    pub async fn update_project_validated(
+    pub(crate) async fn update_project_validated(
         &self,
         project_id: i64,
         title: Option<String>,

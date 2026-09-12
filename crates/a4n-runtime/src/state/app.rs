@@ -8,7 +8,6 @@ use std::{
 };
 
 use a4n_api_contract::generation_tasks::GenerationTaskHandle;
-use a4n_capabilities::A4nCapabilities;
 use a4n_config::app_config::AppConfig;
 use a4n_db::character::Sha256SnapshotStore;
 use a4n_event::{BroadcastEventBus, InternalEvent};
@@ -22,6 +21,7 @@ use super::database::{
 use super::profile::RuntimeProfile;
 use super::prompt_engine::create_prompt_engine;
 use super::rag::create_rag_store;
+use crate::sidecar_clients::RuntimeCapabilities;
 
 /// Runtime owns Host lifecycle state and receives business behavior through
 /// explicit application ports.
@@ -226,7 +226,7 @@ pub struct AppState {
     settings_all_application: Arc<dyn a4n_orchestrator::config::SettingsAllApplicationPort>,
     /// Host-facing prompt record boundary. Prompt service selection and
     /// project override persistence stay with the prompt owner.
-    prompt_application: Arc<dyn a4n_api_contract::prompt::PromptApplicationPort>,
+    prompt_application: Arc<dyn a4n_orchestrator::prompt_records::PromptApplicationPort>,
     /// Host-facing Agent application port. Worker-only lease operations stay
     /// on the orchestrator implementation and are intentionally not exposed
     /// through this port.
@@ -453,7 +453,7 @@ pub struct AppState {
     inspiration_request_application:
         Arc<dyn a4n_orchestrator::inspiration::InspirationRequestPreviewApplicationPort>,
     /// Runtime-owned capability registry used by adapters and lifecycle code.
-    capabilities: A4nCapabilities,
+    capabilities: RuntimeCapabilities,
     /// Runtime-owned event bus used by Host bridges.
     event_bus: Arc<BroadcastEventBus>,
     /// Runtime provider port captured during bootstrap; provider execution does
@@ -876,7 +876,7 @@ impl AppState {
         self.runtime_profile
     }
 
-    pub(crate) fn capabilities(&self) -> &a4n_capabilities::A4nCapabilities {
+    pub(crate) fn capabilities(&self) -> &RuntimeCapabilities {
         &self.capabilities
     }
 
@@ -1274,7 +1274,7 @@ impl AppState {
 
     pub(crate) fn prompt_application(
         &self,
-    ) -> &dyn a4n_api_contract::prompt::PromptApplicationPort {
+    ) -> &dyn a4n_orchestrator::prompt_records::PromptApplicationPort {
         self.prompt_application.as_ref()
     }
 
@@ -1982,7 +1982,7 @@ impl AppState {
         let task_queue = Arc::new(PersistentTaskQueue::new(db.clone()).await?);
         let (prompt_engine_result, rag_store_result) = futures::join!(
             async { create_prompt_engine(&config) },
-            create_rag_store(runtime_profile, &capabilities),
+            create_rag_store(runtime_profile, capabilities.rag.clone()),
         );
         let prompt_engine = prompt_engine_result?;
         let chapter = ChapterGenerationService::new(db.clone());
@@ -1992,7 +1992,7 @@ impl AppState {
         let mut provider_runtime = None;
         let orchestrator = a4n_orchestrator::OrchestratorContext::bootstrap(
             a4n_db::DbHandle::new(db.clone()),
-            capabilities.clone(),
+            capabilities.prompt.clone(),
             service_manager.clone(),
             config.clone(),
             event_bus.clone(),
@@ -2010,7 +2010,7 @@ impl AppState {
                     provider_facade.clone(),
                     &config,
                     runtime_profile,
-                    &capabilities,
+                    capabilities.embedding.clone(),
                 )?;
                 let llm = crate::sidecar_clients::create_llm_provider(
                     provider_facade,
@@ -2020,7 +2020,9 @@ impl AppState {
                 Ok((llm, embedding))
             },
         )?;
-        orchestrator.hydrate_prompt_overrides().await?;
+        let prompt_application: Arc<dyn a4n_orchestrator::prompt_records::PromptApplicationPort> =
+            Arc::new(orchestrator.clone());
+        prompt_application.hydrate_overrides().await?;
         let provider_runtime =
             provider_runtime.ok_or_else(|| a4n_error::AppError::InvalidState {
                 current: "provider runtime port 未初始化".to_string(),
@@ -2033,10 +2035,12 @@ impl AppState {
         let rag_ingest: Arc<dyn a4n_rag_contract::RagIngestPort> = Arc::new(orchestrator.clone());
         let config_application: Arc<dyn a4n_api_contract::config::ConfigApplicationPort> =
             Arc::new(orchestrator.clone());
+        let package_application: Arc<dyn a4n_api_contract::package::PackageApplicationPort> =
+            Arc::new(orchestrator.clone());
         let settings_all_application: Arc<
             dyn a4n_orchestrator::config::SettingsAllApplicationPort,
         > = Arc::new(orchestrator.clone());
-        orchestrator.initialize_package_states().await?;
+        package_application.initialize_states().await?;
         crate::baseline_configs::ensure_baseline_model_configs(
             config_application.as_ref(),
             &config,
@@ -2106,7 +2110,7 @@ impl AppState {
             theme_application: Arc::new(orchestrator.clone()),
             config_application,
             settings_all_application,
-            prompt_application: Arc::new(orchestrator.clone()),
+            prompt_application,
             agent_application: Arc::new(orchestrator.agent().clone()),
             agent_worker_application: Arc::new(orchestrator.agent().clone()),
             canvas_application: Arc::new(orchestrator.clone()),
@@ -2120,7 +2124,7 @@ impl AppState {
             canvas_output_application: Arc::new(orchestrator.clone()),
             canvas_media_import_application: Arc::new(orchestrator.clone()),
             canvas_graph_execution_application: Arc::new(orchestrator.clone()),
-            package_application: Arc::new(orchestrator.clone()),
+            package_application,
             import_analysis_progress_application: Arc::new(orchestrator.clone()),
             import_analysis_preview_application: Arc::new(orchestrator.clone()),
             import_analysis_application: Arc::new(orchestrator.clone()),

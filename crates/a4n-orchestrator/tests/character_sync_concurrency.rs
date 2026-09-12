@@ -8,10 +8,11 @@
 use a4n_db::{
     project::{CreateProjectRecordInput, create_project_record},
     workflow::{
-        UpsertWorkflowRunInput, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING,
-        WorkflowWriteError, mark_workflow_status, resume_or_upsert_workflow_run,
+        UpsertWorkflowRunInput, WorkflowWriteError, mark_workflow_status,
+        resume_or_upsert_workflow_run,
     },
 };
+use a4n_domain::workflow::{WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING};
 use serde_json::json;
 
 /// 复刻 begin_character_profile_sync_workflow_validated 构造的输入。

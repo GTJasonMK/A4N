@@ -12,16 +12,6 @@ pub enum CanvasOutputDataType {
 }
 
 impl CanvasOutputDataType {
-    pub fn parse(value: &str) -> Result<Self, String> {
-        match value {
-            "text" => Ok(Self::Text),
-            "image" => Ok(Self::Image),
-            "audio" => Ok(Self::Audio),
-            "video" => Ok(Self::Video),
-            other => Err(format!("输出节点数据类型无效: {other}")),
-        }
-    }
-
     pub(crate) fn from_output_node_kind(kind: &str) -> Result<Self, String> {
         match kind {
             "TextOutputNode" => Ok(Self::Text),

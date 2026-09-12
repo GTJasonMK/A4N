@@ -1,9 +1,12 @@
-use a4n_capabilities::A4nCapabilities;
+use a4n_image_client::ImageClient;
+use a4n_llm_client::LlmClient;
 use a4n_model_discovery::{ModelDiscoveryRequest, ModelDiscoveryResult};
 use a4n_service_protocol::{
     IMAGE_SERVICE_NAME, LLM_SERVICE_NAME, VIDEO_SERVICE_NAME,
     expected_capability_version_for_service,
 };
+use a4n_video_client::VideoClient;
+use std::sync::Arc;
 
 use crate::state::RuntimeProfile;
 
@@ -18,7 +21,9 @@ pub(crate) enum ModelDiscoveryKind {
 
 pub(crate) async fn discover_models(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    llm_client: Option<Arc<dyn LlmClient>>,
+    image_client: Option<Arc<dyn ImageClient>>,
+    video_client: Option<Arc<dyn VideoClient>>,
     kind: ModelDiscoveryKind,
     provider: &str,
     base_url: &str,
@@ -40,25 +45,19 @@ pub(crate) async fn discover_models(
     )?;
     let response = match kind {
         ModelDiscoveryKind::Llm => {
-            capabilities
-                .llm
-                .as_ref()
+            llm_client
                 .ok_or_else(|| kind.missing_capability_message())?
                 .discover_models(request)
                 .await
         }
         ModelDiscoveryKind::Image => {
-            capabilities
-                .image
-                .as_ref()
+            image_client
                 .ok_or_else(|| kind.missing_capability_message())?
                 .discover_models(request)
                 .await
         }
         ModelDiscoveryKind::Video => {
-            capabilities
-                .video
-                .as_ref()
+            video_client
                 .ok_or_else(|| kind.missing_capability_message())?
                 .discover_models(request)
                 .await

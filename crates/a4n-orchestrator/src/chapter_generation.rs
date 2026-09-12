@@ -20,7 +20,7 @@ use a4n_embedding::provider::EmbeddingModelIdentity;
 
 pub use application::{ChapterGenerationApplicationContext, ChapterGenerationRequestPreview};
 pub(crate) use lifecycle::StartChapterGenerationWorkflowInput;
-pub use preparation::{
+use preparation::{
     ChapterGenerationWordCountRange, compact_json_text, generation_chapter_title,
     is_meaningful_json_value, merge_generation_outline_text, non_empty_trimmed,
     outline_character_names, resolve_generation_word_count_range, truncate_text_chars,

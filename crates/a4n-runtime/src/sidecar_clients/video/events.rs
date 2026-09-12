@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{VideoGenerationRequest, VideoGenerationResult};
+use a4n_video_client::VideoClient;
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::super::{
@@ -12,7 +13,7 @@ use super::super::{
 use super::contracts::{VideoGenerationOutput, video_generation_result, video_provider_payload};
 
 pub(in crate::sidecar_clients::video) async fn generate_video_via_sidecar(
-    client: Arc<dyn a4n_capabilities::VideoClient>,
+    client: Arc<dyn VideoClient>,
     config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,

@@ -104,7 +104,7 @@ impl ProjectBlueprintApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn blueprint_summary_for_user(
+    pub(crate) async fn blueprint_summary_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -113,7 +113,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn blueprint_versions_for_user(
+    pub(crate) async fn blueprint_versions_for_user(
         &self,
         user_id: i64,
         input: ListBlueprintVersionsInput,
@@ -122,7 +122,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn blueprint_diff_for_user(
+    pub(crate) async fn blueprint_diff_for_user(
         &self,
         user_id: i64,
         input: DiffBlueprintVersionsInput,
@@ -138,7 +138,7 @@ impl OrchestratorContext {
         Ok(BlueprintDiffSummary { diff })
     }
 
-    pub async fn blueprint_summary_for_user_validated(
+    pub(crate) async fn blueprint_summary_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -159,14 +159,14 @@ impl OrchestratorContext {
         Ok(Some(blueprint_summary(blueprint, needs_review)))
     }
 
-    pub async fn novel_blueprint_for_project(
+    pub(crate) async fn novel_blueprint_for_project(
         &self,
         project_id: i64,
     ) -> Result<Option<novel_blueprint::Model>, AppError> {
         self.project_blueprint.current(project_id).await
     }
 
-    pub async fn blueprint_version_summaries_for_user_validated(
+    pub(crate) async fn blueprint_version_summaries_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -215,7 +215,7 @@ impl OrchestratorContext {
         Ok(result)
     }
 
-    pub async fn diff_blueprint_versions_for_user_validated(
+    pub(crate) async fn diff_blueprint_versions_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -240,7 +240,7 @@ impl OrchestratorContext {
         ))
     }
 
-    pub async fn restore_blueprint_version_for_user_validated(
+    pub(crate) async fn restore_blueprint_version_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -252,7 +252,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_blueprint_world_setting_for_user_validated(
+    pub(crate) async fn update_blueprint_world_setting_for_user_validated(
         &self,
         user_id: i64,
         project_id: i64,
@@ -274,7 +274,7 @@ impl OrchestratorContext {
         Ok(result)
     }
 
-    pub async fn save_blueprint_for_user_validated(
+    pub(crate) async fn save_blueprint_for_user_validated(
         &self,
         user_id: i64,
         input: SaveBlueprintInput,

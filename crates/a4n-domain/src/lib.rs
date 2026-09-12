@@ -30,6 +30,7 @@ pub mod profile_ownership;
 pub mod profile_text;
 pub mod progress;
 pub mod project;
+pub mod project_reset;
 pub mod prompt_language;
 pub mod provider;
 pub mod rag;

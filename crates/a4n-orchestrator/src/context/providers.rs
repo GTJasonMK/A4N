@@ -65,7 +65,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn chapter_rag_records(
+    pub(crate) async fn chapter_rag_records(
         &self,
         chapter: &chapter::Model,
         mode: ChapterRagChunkingMode,

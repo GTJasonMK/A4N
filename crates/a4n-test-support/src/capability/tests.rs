@@ -1,8 +1,10 @@
-use a4n_capabilities::{
-    CapabilityClient, EmbeddingClient, EmbeddingModelOperation, ExportClient, ImageClient,
-    LlmClient, RagClient, VideoClient,
-};
+use a4n_embedding_client::{EmbeddingClient, EmbeddingModelOperation};
+use a4n_export_client::ExportClient;
 use a4n_export_contract::{ExportRenderJsonInput, ExportRenderZipInput, ExportRenderZipOutput};
+use a4n_image_client::ImageClient;
+use a4n_llm_client::LlmClient;
+use a4n_rag_client::RagClient;
+use a4n_service_client::ServiceClient;
 use a4n_service_protocol::{
     CapabilityTaskEvent, CapabilityTaskEventKind, EMBEDDING_CAPABILITY_VERSION,
     EXPORT_RENDER_CAPABILITY_VERSION, IMAGE_PROVIDER_CAPABILITY_VERSION,
@@ -10,6 +12,7 @@ use a4n_service_protocol::{
     ServiceRequestContext, ServiceResponse, ServiceStatus, TraceContext,
     VIDEO_PROVIDER_CAPABILITY_VERSION,
 };
+use a4n_video_client::VideoClient;
 use std::sync::Arc;
 
 use super::{
@@ -398,7 +401,10 @@ fn export_request<T>(request_id: &str, payload: T) -> a4n_service_protocol::Serv
     .expect("valid typed export request")
 }
 
-fn request(request_id: &str, capability_version: &str) -> a4n_capabilities::JsonRequest {
+fn request(
+    request_id: &str,
+    capability_version: &str,
+) -> a4n_service_protocol::ServiceRequest<serde_json::Value> {
     ServiceRequestContext::deny_all(
         request_id,
         TraceContext {

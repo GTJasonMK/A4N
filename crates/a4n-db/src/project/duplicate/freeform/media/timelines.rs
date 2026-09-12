@@ -169,7 +169,7 @@ mod tests {
         .await
         .unwrap();
         let now = Utc::now().naive_utc();
-        let source_rows = (0..20)
+        let source_rows = (0..3)
             .map(|index| assembly_timeline::ActiveModel {
                 project_id: Set(source.id),
                 source_chapter_id: Set(None),
@@ -202,7 +202,7 @@ mod tests {
         .await
         .unwrap();
         let mut maps = FreeformCopyMaps::default();
-        for index in 0..20 {
+        for index in 0..3 {
             maps.graph_ids.insert(10_000 + index, 30_000 + index);
             maps.node_ids.insert(20_000 + index, 40_000 + index);
         }
@@ -216,11 +216,21 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(copied.len(), source_rows.len());
-        assert!(copied.iter().all(|timeline| {
-            timeline
-                .preview_cache_key
-                .as_deref()
-                .is_some_and(|key| key.starts_with("canvas_graph:30"))
-        }));
+        let copied_by_id = copied
+            .iter()
+            .map(|timeline| (timeline.id, timeline))
+            .collect::<std::collections::HashMap<_, _>>();
+        for (index, source_timeline) in source_rows.iter().enumerate() {
+            let copied_id = timeline_id_map[&source_timeline.id];
+            let copied_timeline = copied_by_id[&copied_id];
+            assert_ne!(copied_timeline.id, source_timeline.id);
+            assert_eq!(copied_timeline.project_id, target.id);
+            assert_eq!(copied_timeline.version, source_timeline.version);
+            assert_eq!(copied_timeline.status, source_timeline.status);
+            assert_eq!(
+                copied_timeline.preview_cache_key.as_deref(),
+                Some(format!("canvas_graph:{}:node:{}", 30_000 + index, 40_000 + index).as_str())
+            );
+        }
     }
 }

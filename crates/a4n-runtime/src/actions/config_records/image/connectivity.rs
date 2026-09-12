@@ -19,7 +19,7 @@ pub async fn test_image_config(
     let config = resolve_image_config_for_connectivity_test(state, user_id, config_id).await?;
     let request = build_image_connectivity_test_request(&config)?;
     let profile = state.runtime_profile();
-    let capabilities = state.capabilities().clone();
+    let image_client = state.capabilities().image.clone();
     state
         .provider_runtime()
         .queue_run_tracked(
@@ -29,7 +29,7 @@ pub async fn test_image_config(
             || async move {
                 crate::sidecar_clients::generate_image(
                     profile,
-                    &capabilities,
+                    image_client,
                     &config,
                     request,
                     None,
@@ -55,7 +55,7 @@ pub async fn preview_test_image_config_request(
     let request = build_image_connectivity_test_request(&config)?;
     if state.runtime_profile().uses_sidecars() {
         let provider_request = crate::sidecar_clients::preview_image_provider_request(
-            state.capabilities(),
+            state.capabilities().image.clone(),
             &config,
             request,
             None,

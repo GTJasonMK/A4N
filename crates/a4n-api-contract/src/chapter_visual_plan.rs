@@ -309,6 +309,12 @@ pub struct ChapterVisualPlanValidationResult {
 /// plan owner; Runtime only routes complete results.
 #[async_trait::async_trait]
 pub trait ChapterVisualPlanReadApplicationPort: Send + Sync {
+    fn project_editor(
+        &self,
+        plan: &ChapterVisualPlanV2,
+        view: &VisualPlanReadView,
+    ) -> Result<VisualPlanProjection, a4n_error::AppError>;
+
     async fn get(
         &self,
         user_id: i64,

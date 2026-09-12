@@ -1,15 +1,15 @@
 use a4n_db_models::models::{chapter::chapter, generation::workflow_run};
 use a4n_domain::source_text_hash as source_content_sha256;
-use a4n_orchestrator::{
-    chapter_analysis::{
-        ChapterAnalysisOutputError, ChapterAnalysisResumeBlockReason,
-        chapter_analysis_foreshadowing_drafts, chapter_analysis_phase_fingerprint,
-        chapter_analysis_resume_block_reason, chapter_analysis_run_input_matches,
-        chapter_analysis_run_uses_replacement_commit, chapter_analysis_workflow_business_key,
-        chapter_analysis_workflow_fingerprint, chapter_analysis_workflow_run_input,
-        require_completed_chapter_analysis_phase,
-    },
-    workflow::{WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING},
+use a4n_domain::workflow::{
+    WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED, WORKFLOW_STATUS_RUNNING,
+};
+use a4n_orchestrator::chapter_analysis::{
+    ChapterAnalysisOutputError, ChapterAnalysisResumeBlockReason,
+    chapter_analysis_foreshadowing_drafts, chapter_analysis_phase_fingerprint,
+    chapter_analysis_resume_block_reason, chapter_analysis_run_input_matches,
+    chapter_analysis_run_uses_replacement_commit, chapter_analysis_workflow_business_key,
+    chapter_analysis_workflow_fingerprint, chapter_analysis_workflow_run_input,
+    require_completed_chapter_analysis_phase,
 };
 use a4n_test_support::workflow::WorkflowRunModelBuilder;
 use serde_json::{Value, json};

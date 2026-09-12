@@ -243,6 +243,115 @@ if rg -n 'a4n_orchestrator::video::VideoProviderPollTarget|pub enum VideoProvide
     exit 1
 fi
 
+if rg -U -n '^pub use a4n_video_contract::\{[^}]*\b(ChapterVideoGenerationHostPort|ReferenceMediaVideoGenerationHostPort|VideoGenerationHostPort)\b' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Video generation HostPorts must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use a4n_video::VideoDurationCapability' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'VideoDurationCapability must remain owned by a4n-video, not the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use contracts::ProjectChapterVideoSource' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'ProjectChapterVideoSource must remain an internal video owner type\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use chapter_video_generation::GenerateChapterVideosBatchInput' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'GenerateChapterVideosBatchInput must remain an internal video generation type\n' >&2
+    exit 1
+fi
+
+if rg -U -n '^pub use chapter_video_request_rules::\{[^}]*\bBoundaryFrameImageIds\b' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'BoundaryFrameImageIds must remain an internal video request type\n' >&2
+    exit 1
+fi
+
+if rg -U -n '^pub use chapter_video_request_rules::\{[^}]*\bChapterVideoProviderRequestContext\b' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'ChapterVideoProviderRequestContext must remain an internal video request type\n' >&2
+    exit 1
+fi
+
+if rg -U -n '^pub use chapter_video_request_rules::\{[^}]*\bProviderPromptImageBinding\b' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'ProviderPromptImageBinding must remain an internal video request type\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use prompt_chain_rules::' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Video prompt-chain rules must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use assembly_push_rules::ASSEMBLY_PUSH_STATUS_PENDING' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Assembly push status constants must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use boundary_frame_rules::' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Boundary frame rules must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n 'latest_boundary_frame_image_id' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Unused latest boundary frame facade must not return to the video module\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use first_frame_chain_rules::' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'First-frame chain rules must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use generation_run_rules::' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Video generation run inputs must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use job_status_rules::' crates/a4n-orchestrator/src/video/mod.rs \
+    || rg -n 'CanvasVideoWorkflowContext' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Video job-status rules must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n 'validate_generated_video_interrupted_status' \
+    crates/a4n-orchestrator/src/video/mod.rs \
+    crates/a4n-orchestrator/src/video/job_status_rules.rs; then
+    printf 'Unused video interrupted-status helper must not return\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use library::' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Video library rules must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use prompt_application::' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Video prompt application inputs must remain internal to the video owner\n' >&2
+    exit 1
+fi
+
+if rg -n 'VideoSegmentPlanDraftState' crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'Unused video segment draft state facade must not return\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub use a4n_video_contract::VideoProviderValidationMode' \
+    crates/a4n-orchestrator/src/video/reference_media_rules.rs \
+    || rg -U -n 'pub use reference_media_rules::\{[^}]*\bVideoProviderValidationMode\b' \
+    crates/a4n-orchestrator/src/video/mod.rs; then
+    printf 'VideoProviderValidationMode must remain in a4n-video-contract, not the orchestrator facade\n' >&2
+    exit 1
+fi
+
 if ! rg -n 'a4n_video_contract::VideoProviderPollTarget|VideoProviderPollTarget' \
     crates/a4n-runtime/src/actions/video_generation/poll.rs \
     crates/a4n-orchestrator/src/video/records.rs \
@@ -1183,17 +1292,8 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     exit 1
 fi
 
-if rg -n 'pub trait PromptApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs || \
-   rg -n 'a4n_orchestrator::prompt_records::PromptApplicationPort' crates/a4n-runtime/src; then
-    printf 'PromptApplicationPort must not be owned or re-exported by the orchestrator facade\n' >&2
-    exit 1
-fi
-
-if ! rg -n 'pub trait PromptApplicationPort' crates/a4n-api-contract/src/prompt.rs || \
-   ! rg -n 'a4n_api_contract::prompt::PromptApplicationPort' \
-    crates/a4n-runtime/src/state/app.rs \
-    crates/a4n-orchestrator/src/prompt_records.rs; then
-    printf 'PromptApplicationPort consumers must use the API prompt contract\n' >&2
+if ! rg -n 'pub trait PromptApplicationPort' crates/a4n-orchestrator/src/prompt_records.rs; then
+    printf 'PromptApplicationPort contract is missing\n' >&2
     exit 1
 fi
 
@@ -2274,6 +2374,52 @@ fi
 if ! rg -n 'pub use a4n_api_contract::character::\{' \
     crates/a4n-runtime/src/actions/character_implicit_review/mod.rs; then
     printf 'Implicit character-review actions must consume the API character contract directly\n' >&2
+    exit 1
+fi
+
+if rg -n 'pub use a4n_api_contract::source_sync::SourceSyncDecisionInput' \
+    crates/a4n-orchestrator/src/source_sync.rs \
+    crates/a4n-orchestrator/src/source_sync/contracts.rs; then
+    printf 'Source-sync decision input must not be publicly re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use a4n_api_contract::optimize::OptimizationAgentPermissions' \
+    crates/a4n-orchestrator/src/optimize/permissions.rs \
+    || rg -n '^pub use permissions::\{[^}]*OptimizeAgentPermissions' \
+    crates/a4n-orchestrator/src/optimize.rs; then
+    printf 'Optimization permissions must be consumed from the API contract without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use a4n_api_contract::optimize::OptimizationPatch' \
+    crates/a4n-orchestrator/src/optimize/patch/contracts.rs \
+    || rg -n '^pub use patch::\{[^}]*OptimizationPatch' \
+    crates/a4n-orchestrator/src/optimize.rs \
+    || rg -n '^pub use contracts::\{[^}]*OptimizationPatch' \
+    crates/a4n-orchestrator/src/optimize/patch.rs; then
+    printf 'Optimization patches must be consumed from the API contract without an orchestrator facade\n' >&2
+    exit 1
+fi
+
+if rg -n '^pub use a4n_api_contract::generation_tasks::GenerationTaskStart' \
+    crates/a4n-orchestrator/src/context/generation.rs \
+    || rg -U -n '^pub use context::generation::\{[^}]*\bGenerationTaskStart\b' \
+    crates/a4n-orchestrator/src/lib.rs; then
+    printf 'GenerationTaskStart must remain an internal orchestrator alias\n' >&2
+    exit 1
+fi
+
+if rg -U -n '^pub use a4n_api_contract::shooting_script::\{' \
+    crates/a4n-orchestrator/src/shooting_script.rs; then
+    printf 'Shooting-script DTOs must not be publicly re-exported by the orchestrator facade\n' >&2
+    exit 1
+fi
+
+if rg -U -n 'pub use a4n_api_contract::character::\{[^}]*\b(ApplyImplicitUpdateDecisionInput|CheckImplicitUpdateInput|GetImplicitReviewInput|ImplicitReviewSummary|ImplicitUpdateDecisionSummary)\b' \
+    crates/a4n-orchestrator/src/character.rs \
+    crates/a4n-orchestrator/src/character/implicit_review.rs; then
+    printf 'Implicit character-review DTOs must not be publicly re-exported by the orchestrator facade\n' >&2
     exit 1
 fi
 

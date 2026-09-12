@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use crate::provider_runtime::DynamicProviderFacade;
-use a4n_capabilities::A4nCapabilities;
 use a4n_config::app_config::AppConfig;
 use a4n_embedding::provider::EmbeddingProvider;
+use a4n_embedding_client::EmbeddingClient;
 use a4n_error::AppError;
 
 use crate::{dynamic_embedding::DynamicEmbeddingProvider, state::RuntimeProfile};
@@ -15,10 +15,9 @@ pub(crate) fn create_embedding_provider(
     facade: DynamicProviderFacade,
     config: &AppConfig,
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn EmbeddingClient>>,
 ) -> Result<Arc<dyn EmbeddingProvider>, AppError> {
-    let sidecar_client =
-        required_sidecar_client(profile, capabilities.embedding.as_ref(), "embedding")?;
+    let sidecar_client = required_sidecar_client(profile, client.as_ref(), "embedding")?;
 
     if let Some(client) = sidecar_client {
         return Ok(Arc::new(SidecarEmbeddingProvider::new(

@@ -131,7 +131,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn execute_prepared_enhanced_rag_search(
+    pub(crate) async fn execute_prepared_enhanced_rag_search(
         &self,
         prepared: PreparedEnhancedRagSearch,
     ) -> Result<EnhancedRagSearchResult, a4n_error::AppError> {
@@ -143,7 +143,7 @@ impl OrchestratorContext {
         .await
     }
 
-    pub async fn execute_prepared_enhanced_rag_search_with_vectors(
+    pub(crate) async fn execute_prepared_enhanced_rag_search_with_vectors(
         &self,
         prepared: PreparedEnhancedRagSearch,
         embedding_identity: &a4n_embedding::provider::EmbeddingModelIdentity,

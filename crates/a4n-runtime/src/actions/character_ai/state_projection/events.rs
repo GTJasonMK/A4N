@@ -1,4 +1,4 @@
-use a4n_orchestrator::character::apply_attribute_to_state;
+use a4n_domain::character::apply_attribute_to_state;
 use serde_json::Value;
 
 pub(in crate::actions::character_ai) fn fold_attribute_event_tuples(

@@ -442,7 +442,7 @@ async fn process_claimed_provider_job_cleanup(
                 renew_cleanup_lease(state, id, lease_token).await?;
                 match crate::sidecar_clients::delete_video_job(
                     state.runtime_profile(),
-                    state.capabilities(),
+                    state.capabilities().video.clone(),
                     &config,
                     &payload.provider_job_id,
                     claim.record.project_id,
@@ -477,7 +477,7 @@ async fn process_claimed_provider_job_cleanup(
                 renew_cleanup_lease(state, id, lease_token).await?;
                 let status = crate::sidecar_clients::video_job_status(
                     state.runtime_profile(),
-                    state.capabilities(),
+                    state.capabilities().video.clone(),
                     &config,
                     &payload.provider_job_id,
                     claim.record.project_id,

@@ -1274,7 +1274,7 @@ async fn process_claimed_run_inner(
                 // canonical replay policy wire value so the durable execution
                 // can be projected and resumed after a worker restart.
                 replay_policy: Some("safe".into()),
-                arguments_json: Some(a4n_orchestrator::agent::model_request_snapshot(&request)?),
+                arguments_json: Some(request.snapshot_value()?),
                 resource_preconditions_json: Some(
                     json!({"input_message_id": loaded_message_ids.iter().max()}),
                 ),
@@ -2384,7 +2384,7 @@ async fn execute_tool_call(
             chapter_id,
         )?;
         let mut child_scope = binding.scope();
-        a4n_orchestrator::agent::inherit_subagent_allowlists(&context.scope, &mut child_scope)?;
+        delegation_application.inherit_subagent_allowlists(&context.scope, &mut child_scope)?;
         let child_thread = delegation_application
             .ensure_canonical_subagent_thread(
                 context.owner_user_id,

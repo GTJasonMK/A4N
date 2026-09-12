@@ -1,9 +1,11 @@
-use a4n_capabilities::A4nCapabilities;
+use std::sync::Arc;
+
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{
     VideoGenerationRequest, VideoGenerationResult, VideoJobDeleteOutcome, VideoJobState,
     VideoJobStatus, VideoProvider,
 };
+use a4n_video_client::VideoClient;
 #[cfg(feature = "embedded-media-providers")]
 use a4n_video_providers::pick_video_provider;
 use tokio::sync::mpsc::UnboundedSender;
@@ -41,7 +43,7 @@ fn pick_provider_for_config(
 
 pub(crate) async fn generate_video(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn VideoClient>>,
     config: &VideoProviderConfig,
     request: VideoGenerationRequest,
     provider_idempotency_key_sha256: Option<String>,
@@ -51,10 +53,7 @@ pub(crate) async fn generate_video(
     progress_tx: Option<UnboundedSender<String>>,
 ) -> Result<VideoGenerationResult, String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .video
-            .clone()
-            .ok_or_else(|| missing_sidecar_capability_message("video"))?;
+        let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
         return generate_video_via_sidecar(
             client,
             config,
@@ -77,7 +76,7 @@ pub(crate) async fn generate_video(
 
 pub(crate) async fn poll_video(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn VideoClient>>,
     config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
@@ -85,10 +84,7 @@ pub(crate) async fn poll_video(
     workflow_run_id: Option<i64>,
 ) -> Result<VideoJobState, String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .video
-            .clone()
-            .ok_or_else(|| missing_sidecar_capability_message("video"))?;
+        let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
         return poll_video_via_sidecar(
             client,
             config,
@@ -106,17 +102,14 @@ pub(crate) async fn poll_video(
 
 pub(crate) async fn video_job_status(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn VideoClient>>,
     config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<VideoJobStatus, String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .video
-            .clone()
-            .ok_or_else(|| missing_sidecar_capability_message("video"))?;
+        let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
         return video_status_via_sidecar(client, config, job_id, project_id, root_project_id).await;
     }
 
@@ -126,17 +119,14 @@ pub(crate) async fn video_job_status(
 
 pub(crate) async fn delete_video_job(
     profile: RuntimeProfile,
-    capabilities: &A4nCapabilities,
+    client: Option<Arc<dyn VideoClient>>,
     config: &VideoProviderConfig,
     job_id: &str,
     project_id: Option<i64>,
     root_project_id: Option<i64>,
 ) -> Result<VideoJobDeleteOutcome, String> {
     if profile.uses_sidecars() {
-        let client = capabilities
-            .video
-            .clone()
-            .ok_or_else(|| missing_sidecar_capability_message("video"))?;
+        let client = client.ok_or_else(|| missing_sidecar_capability_message("video"))?;
         return delete_video_via_sidecar(client, config, job_id, project_id, root_project_id).await;
     }
 

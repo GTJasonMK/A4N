@@ -1,6 +1,7 @@
 use a4n_api_contract::galgame::{GalgamePipelineProgressUpdate, GalgameProgressReporter};
-use a4n_db::workflow::{WORKFLOW_STATUS_CANCELLED, WorkflowProgressEventInput};
+use a4n_db::workflow::WorkflowProgressEventInput;
 use a4n_domain::progress::{ProgressMeta, ProgressPhaseKind};
+use a4n_domain::workflow::WORKFLOW_STATUS_CANCELLED;
 use a4n_error::AppError;
 
 use super::super::{GALGAME_PIPELINE_TOTAL_STEPS, GalgamePipelineStartStage, OrchestratorContext};

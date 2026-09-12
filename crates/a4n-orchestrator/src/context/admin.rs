@@ -1,4 +1,9 @@
 use a4n_db::DbHandle;
+use a4n_db::admin::{
+    AdminDbError, AdminOverviewSummary, AdminProjectSummary, DailyUsagePoint,
+    GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, UsageLogSummary,
+    UsageTrendsInput,
+};
 use a4n_db_models::models::user::{
     invite_code,
     role::{UserRole, parse_user_role},
@@ -7,11 +12,7 @@ use a4n_domain::admin::InviteCodeSummary;
 use a4n_error::AppError;
 
 use super::OrchestratorContext;
-use crate::admin::{
-    AdminDbError, AdminOverviewSummary, AdminPermission, AdminProjectSummary, DailyUsagePoint,
-    GenerationCallAnalytics, GenerationCallAnalyticsInput, TaskQueueSummary, UsageLogSummary,
-    UsageTrendsInput, require_admin_role,
-};
+use crate::admin::{AdminPermission, require_admin_role};
 
 #[derive(Clone)]
 pub(super) struct AdminApplication {
@@ -79,7 +80,7 @@ impl AdminApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn require_admin_permission(
+    pub(crate) async fn require_admin_permission(
         &self,
         caller_user_id: i64,
         permission: AdminPermission,
@@ -91,7 +92,7 @@ impl OrchestratorContext {
         require_admin_role(&user.role, permission)
     }
 
-    pub async fn is_active_admin_user(&self, user_id: i64) -> Result<bool, AppError> {
+    pub(crate) async fn is_active_admin_user(&self, user_id: i64) -> Result<bool, AppError> {
         let user = self.auth_user_by_id(user_id).await?;
         if !user.is_active {
             return Ok(false);
@@ -99,18 +100,18 @@ impl OrchestratorContext {
         Ok(parse_user_role(&user.role)? == UserRole::Admin)
     }
 
-    pub async fn admin_usage_trends(
+    pub(crate) async fn admin_usage_trends(
         &self,
         input: UsageTrendsInput,
     ) -> Result<Vec<DailyUsagePoint>, AppError> {
         self.admin.usage_trends(input).await
     }
 
-    pub async fn admin_overview(&self) -> Result<AdminOverviewSummary, AppError> {
+    pub(crate) async fn admin_overview(&self) -> Result<AdminOverviewSummary, AppError> {
         self.admin.overview().await
     }
 
-    pub async fn user_usage(
+    pub(crate) async fn user_usage(
         &self,
         user_id: i64,
         limit: u64,
@@ -118,23 +119,23 @@ impl OrchestratorContext {
         self.admin.user_usage(user_id, limit).await
     }
 
-    pub async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, AppError> {
+    pub(crate) async fn token_summary(&self, user_id: i64) -> Result<serde_json::Value, AppError> {
         self.admin.token_summary(user_id).await
     }
 
-    pub async fn pending_tasks(&self) -> Result<Vec<TaskQueueSummary>, AppError> {
+    pub(crate) async fn pending_tasks(&self) -> Result<Vec<TaskQueueSummary>, AppError> {
         self.admin.pending_tasks().await
     }
 
-    pub async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, AppError> {
+    pub(crate) async fn all_project_summaries(&self) -> Result<Vec<AdminProjectSummary>, AppError> {
         self.admin.all_project_summaries().await
     }
 
-    pub async fn check_database_health(&self) -> Result<(), AppError> {
+    pub(crate) async fn check_database_health(&self) -> Result<(), AppError> {
         self.admin.check_database_health().await
     }
 
-    pub async fn generation_call_analytics(
+    pub(crate) async fn generation_call_analytics(
         &self,
         input: GenerationCallAnalyticsInput,
     ) -> Result<GenerationCallAnalytics, AppError> {

@@ -10,7 +10,6 @@ cd "$PROJECT_ROOT"
 HOST_PACKAGE="${A4N_WORKER_ISOLATION_HOST_PACKAGE:-a4n-tauri}"
 WORKER_PACKAGE="${A4N_WORKER_ISOLATION_WORKER_PACKAGE:-a4n-export-service}"
 SERVICE_NAME="export"
-CAPABILITY_PACKAGE="a4n-capabilities"
 
 # Provider implementations are leaf-worker candidates. Keep their contracts,
 # adapters, and service entrypoints independent from Host core so changing an
@@ -57,30 +56,8 @@ if grep -q 'a4n-export-core v' <<<"$host_tree"; then
     exit 1
 fi
 
-capability_tree="$(cargo tree --locked -e normal,build -p "$CAPABILITY_PACKAGE")"
-if grep -q 'a4n-export-core v' <<<"$capability_tree"; then
-    echo "$CAPABILITY_PACKAGE must not depend on the export renderer" >&2
-    exit 1
-fi
 if rg -n 'a4n[-_]export[-_]core' crates/a4n-test-support/Cargo.toml crates/a4n-test-support/src; then
     echo "shared test support must not pull the export Worker implementation" >&2
-    exit 1
-fi
-if ! grep -q 'a4n-export-contract v' <<<"$capability_tree"; then
-    echo "$CAPABILITY_PACKAGE must depend on the narrow export contract" >&2
-    exit 1
-fi
-if grep -q 'a4n-prompt v' <<<"$capability_tree"; then
-    echo "$CAPABILITY_PACKAGE must not depend on the prompt renderer" >&2
-    exit 1
-fi
-if ! grep -q 'a4n-prompt-contract v' <<<"$capability_tree"; then
-    echo "$CAPABILITY_PACKAGE must depend on the narrow prompt contract" >&2
-    exit 1
-fi
-if rg -n 'a4n[-_]prompt([[:space:]]|=)|a4n[-_]import[-_]core|a4n[-_]export[-_]core' \
-    crates/a4n-capabilities/Cargo.toml crates/a4n-capabilities/src; then
-    echo "$CAPABILITY_PACKAGE source and manifest must only reference capability contracts" >&2
     exit 1
 fi
 

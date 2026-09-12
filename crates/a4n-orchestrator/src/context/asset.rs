@@ -108,7 +108,7 @@ impl AssetApplication {
 }
 
 impl OrchestratorContext {
-    pub async fn list_object_profiles_for_user(
+    pub(crate) async fn list_object_profiles_for_user(
         &self,
         user_id: i64,
         project_id: i64,
@@ -138,14 +138,14 @@ impl OrchestratorContext {
             .collect())
     }
 
-    pub async fn object_profiles_by_project(
+    pub(crate) async fn object_profiles_by_project(
         &self,
         project_id: i64,
     ) -> Result<Vec<object_profile::Model>, AppError> {
         self.asset.object_profiles_by_project(project_id).await
     }
 
-    pub async fn object_profile_by_id(
+    pub(crate) async fn object_profile_by_id(
         &self,
         object_profile_id: i64,
     ) -> Result<object_profile::Model, AppError> {
@@ -153,7 +153,7 @@ impl OrchestratorContext {
     }
 
     /// 创建物体档案：规范化草稿后落库。
-    pub async fn create_object_profile_validated(
+    pub(crate) async fn create_object_profile_validated(
         &self,
         project_id: i64,
         draft: ObjectProfileInput,
@@ -164,7 +164,7 @@ impl OrchestratorContext {
     }
 
     /// 更新物体档案：规范化草稿后落库。
-    pub async fn update_object_profile_validated(
+    pub(crate) async fn update_object_profile_validated(
         &self,
         object_profile_id: i64,
         draft: ObjectProfileInput,
@@ -195,7 +195,7 @@ impl OrchestratorContext {
     }
 
     /// 删除物体档案记录（下游图片清理仍由 Host 执行）。
-    pub async fn delete_object_profile_record_validated(
+    pub(crate) async fn delete_object_profile_record_validated(
         &self,
         object_profile_id: i64,
     ) -> Result<(), AppError> {

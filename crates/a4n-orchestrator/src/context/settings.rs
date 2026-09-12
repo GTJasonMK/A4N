@@ -625,21 +625,21 @@ fn settings_all_config_import_error(
 }
 
 impl OrchestratorContext {
-    pub async fn list_themes_visible_to_user(
+    pub(crate) async fn list_themes_visible_to_user(
         &self,
         user_id: i64,
     ) -> Result<Vec<theme_config::Model>, AppError> {
         self.settings.list_themes_visible_to_user(user_id).await
     }
 
-    pub async fn theme_by_id(
+    pub(crate) async fn theme_by_id(
         &self,
         theme_id: i64,
     ) -> Result<Option<theme_config::Model>, AppError> {
         self.settings.theme_by_id(theme_id).await
     }
 
-    pub async fn create_user_theme_record(
+    pub(crate) async fn create_user_theme_record(
         &self,
         user_id: i64,
         name: String,
@@ -651,7 +651,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn update_theme_record(
+    pub(crate) async fn update_theme_record(
         &self,
         theme: theme_config::Model,
         name: Option<String>,
@@ -663,22 +663,25 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_theme_record(&self, theme_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_theme_record(&self, theme_id: i64) -> Result<(), AppError> {
         self.settings.delete_theme_record(theme_id).await
     }
 
-    pub async fn activate_theme(&self, theme_id: i64) -> Result<theme_config::Model, AppError> {
+    pub(crate) async fn activate_theme(
+        &self,
+        theme_id: i64,
+    ) -> Result<theme_config::Model, AppError> {
         self.settings.activate_theme(theme_id).await
     }
 
-    pub async fn list_theme_resources(
+    pub(crate) async fn list_theme_resources(
         &self,
         theme_id: i64,
     ) -> Result<Vec<a4n_db_models::models::user::theme_resource::Model>, AppError> {
         self.settings.list_theme_resources(theme_id).await
     }
 
-    pub async fn list_theme_resources_for_themes(
+    pub(crate) async fn list_theme_resources_for_themes(
         &self,
         theme_ids: &[i64],
     ) -> Result<Vec<a4n_db_models::models::user::theme_resource::Model>, AppError> {
@@ -687,14 +690,14 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn theme_resource_by_id(
+    pub(crate) async fn theme_resource_by_id(
         &self,
         resource_id: i64,
     ) -> Result<Option<a4n_db_models::models::user::theme_resource::Model>, AppError> {
         self.settings.theme_resource_by_id(resource_id).await
     }
 
-    pub async fn upsert_theme_resource(
+    pub(crate) async fn upsert_theme_resource(
         &self,
         theme_id: i64,
         resource_key: &str,
@@ -717,21 +720,21 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn delete_theme_resource(
+    pub(crate) async fn delete_theme_resource(
         &self,
         resource_id: i64,
     ) -> Result<a4n_db_models::models::user::theme_resource::Model, AppError> {
         self.settings.delete_theme_resource(resource_id).await
     }
 
-    pub async fn theme_preference(
+    pub(crate) async fn theme_preference(
         &self,
         user_id: i64,
     ) -> Result<Option<a4n_db_models::models::user::theme_preference::Model>, AppError> {
         self.settings.theme_preference(user_id).await
     }
 
-    pub async fn upsert_theme_preference(
+    pub(crate) async fn upsert_theme_preference(
         &self,
         user_id: i64,
         appearance: a4n_domain::ThemeAppearance,
@@ -741,24 +744,27 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn list_llm_config_records(&self) -> Result<Vec<llm_config::Model>, AppError> {
+    pub(crate) async fn list_llm_config_records(&self) -> Result<Vec<llm_config::Model>, AppError> {
         self.settings.list_llm_config_records().await
     }
 
-    pub async fn llm_config_by_id(&self, config_id: i64) -> Result<llm_config::Model, AppError> {
+    pub(crate) async fn llm_config_by_id(
+        &self,
+        config_id: i64,
+    ) -> Result<llm_config::Model, AppError> {
         self.settings.llm_config_by_id(config_id).await
     }
 
     /// 创建 LLM 配置：规范化后落库。
-    pub async fn create_llm_config_validated(
+    pub(crate) async fn create_llm_config_validated(
         &self,
         input: CreateLlmInput,
     ) -> Result<llm_config::Model, AppError> {
         self.settings.create_llm_config_validated(input).await
     }
 
-    /// 更新 LLM 配置：规范化后落库。
-    pub async fn update_llm_config_validated(
+    /// 更新 LLM 配置：规范化、默认 max_tokens 门禁后落库。
+    pub(crate) async fn update_llm_config_validated(
         &self,
         config_id: i64,
         input: UpdateLlmInput,
@@ -768,32 +774,31 @@ impl OrchestratorContext {
             .await
     }
 
-    /// 设为默认 LLM 配置：校验模型能力后落库。
-    pub async fn set_default_llm_config_validated(&self, config_id: i64) -> Result<(), AppError> {
+    /// 设为默认 LLM 配置：模型与 max_tokens 门禁后落库。
+    pub(crate) async fn set_default_llm_config_validated(
+        &self,
+        config_id: i64,
+    ) -> Result<(), AppError> {
         self.settings
             .set_default_llm_config_validated(config_id)
             .await
     }
 
     /// 删除 LLM 配置：非默认门禁后落库。
-    pub async fn delete_llm_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_llm_config_if_allowed(
+        &self,
+        config_id: i64,
+    ) -> Result<(), AppError> {
         self.settings.delete_llm_config_if_allowed(config_id).await
     }
 
-    pub async fn resolve_llm_config(
-        &self,
-        config_id: Option<i64>,
-    ) -> Result<llm_config::Model, AppError> {
-        self.settings.resolve_llm_config(config_id).await
-    }
-
-    pub async fn list_image_config_records(
+    pub(crate) async fn list_image_config_records(
         &self,
     ) -> Result<Vec<image_gen_config::Model>, AppError> {
         self.settings.list_image_config_records().await
     }
 
-    pub async fn image_config_by_id(
+    pub(crate) async fn image_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<image_gen_config::Model, AppError> {
@@ -801,7 +806,7 @@ impl OrchestratorContext {
     }
 
     /// 创建图片配置：校验参数后落库。
-    pub async fn create_image_config_validated(
+    pub(crate) async fn create_image_config_validated(
         &self,
         input: ImageConfigInput,
     ) -> Result<image_gen_config::Model, AppError> {
@@ -809,7 +814,7 @@ impl OrchestratorContext {
     }
 
     /// 更新图片配置：读库、合并 api_key、校验后落库。
-    pub async fn update_image_config_validated(
+    pub(crate) async fn update_image_config_validated(
         &self,
         config_id: i64,
         input: UpdateImageConfigInput,
@@ -820,41 +825,47 @@ impl OrchestratorContext {
     }
 
     /// 设为默认图片配置：模型校验后落库。
-    pub async fn set_default_image_config_validated(&self, config_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn set_default_image_config_validated(
+        &self,
+        config_id: i64,
+    ) -> Result<(), AppError> {
         self.settings
             .set_default_image_config_validated(config_id)
             .await
     }
 
     /// 删除图片配置：非默认门禁后落库。
-    pub async fn delete_image_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_image_config_if_allowed(
+        &self,
+        config_id: i64,
+    ) -> Result<(), AppError> {
         self.settings
             .delete_image_config_if_allowed(config_id)
             .await
     }
 
-    pub async fn resolve_image_config(
+    pub(crate) async fn resolve_image_config(
         &self,
         config_id: Option<i64>,
     ) -> Result<image_gen_config::Model, AppError> {
         self.settings.resolve_image_config(config_id).await
     }
 
-    pub async fn video_config_by_id(
+    pub(crate) async fn video_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<video_gen_config::Model, AppError> {
         self.settings.video_config_by_id(config_id).await
     }
 
-    pub async fn list_video_config_records(
+    pub(crate) async fn list_video_config_records(
         &self,
     ) -> Result<Vec<video_gen_config::Model>, AppError> {
         self.settings.list_video_config_records().await
     }
 
     /// 创建视频配置：校验参数后落库。
-    pub async fn create_video_config_validated(
+    pub(crate) async fn create_video_config_validated(
         &self,
         input: VideoConfigInput,
     ) -> Result<video_gen_config::Model, AppError> {
@@ -862,7 +873,7 @@ impl OrchestratorContext {
     }
 
     /// 更新视频配置：读库、合并 api_key、校验后落库。
-    pub async fn update_video_config_validated(
+    pub(crate) async fn update_video_config_validated(
         &self,
         config_id: i64,
         input: UpdateVideoConfigInput,
@@ -873,24 +884,30 @@ impl OrchestratorContext {
     }
 
     /// 设为默认视频配置：模型校验后落库。
-    pub async fn set_default_video_config_validated(&self, config_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn set_default_video_config_validated(
+        &self,
+        config_id: i64,
+    ) -> Result<(), AppError> {
         self.settings
             .set_default_video_config_validated(config_id)
             .await
     }
 
     /// 删除视频配置：非默认且无进行中任务门禁后落库。
-    pub async fn delete_video_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_video_config_if_allowed(
+        &self,
+        config_id: i64,
+    ) -> Result<(), AppError> {
         self.settings
             .delete_video_config_if_allowed(config_id)
             .await
     }
 
-    pub async fn default_video_config(&self) -> Result<video_gen_config::Model, AppError> {
+    pub(crate) async fn default_video_config(&self) -> Result<video_gen_config::Model, AppError> {
         self.settings.default_video_config().await
     }
 
-    pub async fn active_generated_video_ids_for_config(
+    pub(crate) async fn active_generated_video_ids_for_config(
         &self,
         config_id: i64,
     ) -> Result<Vec<i64>, AppError> {
@@ -899,21 +916,13 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn default_embedding_config_optional(
+    pub(crate) async fn list_embedding_configs(
         &self,
-    ) -> Result<Option<embedding_config::Model>, AppError> {
-        self.settings.default_embedding_config_optional().await
-    }
-
-    pub async fn default_embedding_config(&self) -> Result<embedding_config::Model, AppError> {
-        self.settings.default_embedding_config().await
-    }
-
-    pub async fn list_embedding_configs(&self) -> Result<Vec<embedding_config::Model>, AppError> {
+    ) -> Result<Vec<embedding_config::Model>, AppError> {
         self.settings.list_embedding_configs().await
     }
 
-    pub async fn embedding_config_by_id(
+    pub(crate) async fn embedding_config_by_id(
         &self,
         config_id: i64,
     ) -> Result<embedding_config::Model, AppError> {
@@ -921,7 +930,7 @@ impl OrchestratorContext {
     }
 
     /// 创建嵌入配置：校验参数后落库。
-    pub async fn create_embedding_config_validated(
+    pub(crate) async fn create_embedding_config_validated(
         &self,
         input: CreateEmbeddingInput,
     ) -> Result<embedding_config::Model, AppError> {
@@ -929,7 +938,7 @@ impl OrchestratorContext {
     }
 
     /// 更新嵌入配置：完整替换字段并保留未提交的 API Key。
-    pub async fn update_embedding_config_validated(
+    pub(crate) async fn update_embedding_config_validated(
         &self,
         config_id: i64,
         input: UpdateEmbeddingInput,
@@ -940,7 +949,7 @@ impl OrchestratorContext {
     }
 
     /// 设为默认嵌入配置：模型校验后落库。
-    pub async fn set_default_embedding_config_validated(
+    pub(crate) async fn set_default_embedding_config_validated(
         &self,
         config_id: i64,
     ) -> Result<(), AppError> {
@@ -950,31 +959,34 @@ impl OrchestratorContext {
     }
 
     /// 删除嵌入配置：非默认门禁后落库。
-    pub async fn delete_embedding_config_if_allowed(&self, config_id: i64) -> Result<(), AppError> {
+    pub(crate) async fn delete_embedding_config_if_allowed(
+        &self,
+        config_id: i64,
+    ) -> Result<(), AppError> {
         self.settings
             .delete_embedding_config_if_allowed(config_id)
             .await
     }
 
-    pub async fn llm_configs_exist(&self) -> Result<bool, AppError> {
+    pub(crate) async fn llm_configs_exist(&self) -> Result<bool, AppError> {
         self.settings.llm_configs_exist().await
     }
 
-    pub async fn image_configs_exist(&self) -> Result<bool, AppError> {
+    pub(crate) async fn image_configs_exist(&self) -> Result<bool, AppError> {
         self.settings.image_configs_exist().await
     }
 
-    pub async fn video_configs_exist(&self) -> Result<bool, AppError> {
+    pub(crate) async fn video_configs_exist(&self) -> Result<bool, AppError> {
         self.settings.video_configs_exist().await
     }
 
-    pub async fn insert_baseline_embedding_config_if_empty(&self) -> Result<bool, AppError> {
+    pub(crate) async fn insert_baseline_embedding_config_if_empty(&self) -> Result<bool, AppError> {
         self.settings
             .insert_baseline_embedding_config_if_empty()
             .await
     }
 
-    pub async fn insert_baseline_llm_config_if_empty(
+    pub(crate) async fn insert_baseline_llm_config_if_empty(
         &self,
         config: NormalizedLlmConfig,
     ) -> Result<bool, AppError> {
@@ -983,7 +995,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn insert_baseline_image_config_if_empty(
+    pub(crate) async fn insert_baseline_image_config_if_empty(
         &self,
         config: CreateImageConfigParams,
     ) -> Result<bool, AppError> {
@@ -992,7 +1004,7 @@ impl OrchestratorContext {
             .await
     }
 
-    pub async fn insert_baseline_video_config_if_empty(
+    pub(crate) async fn insert_baseline_video_config_if_empty(
         &self,
         config: VideoConfigParams,
     ) -> Result<bool, AppError> {

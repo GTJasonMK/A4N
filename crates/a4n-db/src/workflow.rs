@@ -19,13 +19,13 @@ pub(in crate::workflow) use errors::WorkflowValidationError;
 pub use errors::{WorkflowCheckpointContractError, WorkflowReadError, WorkflowWriteError};
 
 mod status;
-pub(in crate::workflow) use status::MAX_PERSISTED_PROGRESS_EVENTS;
-pub(crate) use status::is_terminal_workflow_status;
-pub use status::{
+pub(crate) use a4n_domain::workflow::{
     WORKFLOW_STATUS_CANCELLED, WORKFLOW_STATUS_COMPLETED, WORKFLOW_STATUS_FAILED,
     WORKFLOW_STATUS_INTERRUPTED, WORKFLOW_STATUS_RUNNING, WORKFLOW_STATUS_SUPERSEDED,
-    workflow_run_is_running_or_resumable,
 };
+pub(in crate::workflow) use status::MAX_PERSISTED_PROGRESS_EVENTS;
+pub(crate) use status::is_terminal_workflow_status;
+pub use status::workflow_run_is_running_or_resumable;
 
 mod inputs;
 pub use inputs::{

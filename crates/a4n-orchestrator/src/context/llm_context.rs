@@ -4,12 +4,9 @@
 
 use a4n_db::DbHandle;
 use a4n_db::llm_context::LlmContextPackDbError;
-use a4n_db_models::models::generation::llm_context_pack;
 use a4n_domain::llm::ContextPackReference;
 use a4n_domain::llm::RecordOrReuseContextPackInput;
 use a4n_error::AppError;
-
-use super::OrchestratorContext;
 
 #[derive(Clone)]
 pub(super) struct LlmContextApplication {
@@ -19,15 +16,6 @@ pub(super) struct LlmContextApplication {
 impl LlmContextApplication {
     pub(super) fn new(database: DbHandle) -> Self {
         Self { database }
-    }
-
-    pub(super) async fn record_or_reuse_context_pack(
-        &self,
-        input: RecordOrReuseContextPackInput,
-    ) -> Result<llm_context_pack::Model, AppError> {
-        a4n_db::llm_context::record_or_reuse_context_pack(self.database.connection(), input)
-            .await
-            .map_err(llm_context_pack_db_error)
     }
 
     pub(super) async fn record_or_reuse_context_pack_reference(
@@ -59,14 +47,5 @@ fn llm_context_pack_db_error(error: LlmContextPackDbError) -> AppError {
     match error {
         LlmContextPackDbError::InvalidArgument(message) => AppError::InvalidArgument(message),
         LlmContextPackDbError::Database(error) => AppError::Database(error),
-    }
-}
-
-impl OrchestratorContext {
-    pub async fn record_or_reuse_context_pack(
-        &self,
-        input: RecordOrReuseContextPackInput,
-    ) -> Result<llm_context_pack::Model, AppError> {
-        self.llm_context.record_or_reuse_context_pack(input).await
     }
 }

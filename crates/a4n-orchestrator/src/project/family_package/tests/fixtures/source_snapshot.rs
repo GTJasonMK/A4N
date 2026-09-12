@@ -1,4 +1,5 @@
 use super::super::*;
+use a4n_db::text_anchor::{EVIDENCE_ROLE_FIRST_SEEN, SOURCE_KIND_CHAPTER_CONTENT};
 
 pub(in crate::project::family_package::tests) fn source_snapshot_record()
 -> project_source_snapshot::Model {

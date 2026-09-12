@@ -51,6 +51,30 @@ fn chat_request_serialization_omits_default_stream_usage() {
 }
 
 #[test]
+fn chat_request_snapshot_preserves_internal_context() {
+    let mut request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None, None)
+        .with_trace_context(LlmTraceContext {
+            project_id: Some(1),
+            root_project_id: Some(1),
+            workflow: "test".to_string(),
+            step_key: "step".to_string(),
+            generation_run_id: None,
+            workflow_run_id: None,
+            call_key: None,
+            input_fingerprint_sha256: None,
+            context_plan_json: None,
+            context_pack_refs_json: None,
+        });
+    request.context_manifest_json = Some(json!({"packs": []}));
+
+    let value = request
+        .snapshot_value()
+        .expect("request snapshot serializes");
+    assert_eq!(value["trace_context"]["workflow"], "test");
+    assert_eq!(value["context_manifest_json"], json!({"packs": []}));
+}
+
+#[test]
 fn chat_request_serializes_json_response_format() {
     let request =
         ChatRequest::new(vec![ChatMessage::user("json")], None, None).with_json_response_format();

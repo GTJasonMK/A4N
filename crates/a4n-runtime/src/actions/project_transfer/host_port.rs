@@ -50,7 +50,7 @@ impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_
     ) -> Result<Vec<u8>, String> {
         let manifest = crate::sidecar_clients::render_export_json_manifest_bytes(
             self.state.runtime_profile(),
-            self.state.capabilities(),
+            self.state.capabilities().export.clone(),
             &input.manifest,
             &input.manifest_label,
             input.project_id,
@@ -67,7 +67,7 @@ impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_
         )?;
         crate::sidecar_clients::render_export_zip_package(
             self.state.runtime_profile(),
-            self.state.capabilities(),
+            self.state.capabilities().export.clone(),
             a4n_export_contract::ExportZipPackageInput {
                 manifest_path: input.manifest_path,
                 manifest_bytes: manifest,
@@ -90,7 +90,7 @@ impl ProjectPackageTransferHostPort for RuntimeProjectPackageTransferHostPort<'_
     ) -> Result<ProjectPackageImportPayload, String> {
         let (manifest, media_bytes) = crate::sidecar_clients::read_import_media_package_zip(
             self.state.runtime_profile(),
-            self.state.capabilities(),
+            self.state.capabilities().import.clone(),
             package_bytes,
             manifest_path,
             package_label,

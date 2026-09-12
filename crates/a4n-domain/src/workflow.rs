@@ -1,5 +1,12 @@
 //! 无状态工作流输入门禁。
 
+pub const WORKFLOW_STATUS_RUNNING: &str = "running";
+pub const WORKFLOW_STATUS_INTERRUPTED: &str = "interrupted";
+pub const WORKFLOW_STATUS_FAILED: &str = "failed";
+pub const WORKFLOW_STATUS_CANCELLED: &str = "cancelled";
+pub const WORKFLOW_STATUS_COMPLETED: &str = "completed";
+pub const WORKFLOW_STATUS_SUPERSEDED: &str = "superseded";
+
 pub fn require_positive_workflow_run_id(workflow_run_id: i64) -> Result<(), String> {
     if workflow_run_id <= 0 {
         Err("workflow_run_id 必须大于 0".to_string())
@@ -35,7 +42,13 @@ pub fn cancel_workflow_requires_target(
 }
 
 pub fn is_video_status_final_for_cancel_interrupt(status: &str) -> bool {
-    matches!(status, "completed" | "failed" | "cancelled" | "interrupted")
+    matches!(
+        status,
+        WORKFLOW_STATUS_COMPLETED
+            | WORKFLOW_STATUS_FAILED
+            | WORKFLOW_STATUS_CANCELLED
+            | WORKFLOW_STATUS_INTERRUPTED
+    )
 }
 
 #[cfg(test)]
@@ -61,7 +74,11 @@ mod tests {
         assert!(cancel_workflow_requires_target(true, false).is_ok());
         assert!(cancel_workflow_requires_target(false, true).is_ok());
         assert!(cancel_workflow_requires_target(false, false).is_err());
+        assert!(is_video_status_final_for_cancel_interrupt("completed"));
+        assert!(is_video_status_final_for_cancel_interrupt("failed"));
+        assert!(is_video_status_final_for_cancel_interrupt("cancelled"));
         assert!(is_video_status_final_for_cancel_interrupt("interrupted"));
         assert!(!is_video_status_final_for_cancel_interrupt("running"));
+        assert!(!is_video_status_final_for_cancel_interrupt("pending"));
     }
 }

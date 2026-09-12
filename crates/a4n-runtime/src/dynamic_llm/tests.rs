@@ -93,17 +93,16 @@ async fn llm_connectivity_uses_probe_without_chat_fallback() {
 
 #[tokio::test]
 async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
-    use a4n_capabilities::{
-        CapabilityClient, CapabilityResult, JsonRequest, JsonResponse, LlmClient,
-    };
+    use a4n_llm_client::{JsonRequest, JsonResponse, LlmClient};
+    use a4n_service_client::{ServiceClient, ServiceClientResult};
     use a4n_service_protocol::{CapabilityTaskEvent, ServiceHealth};
     use async_trait::async_trait;
 
     struct ToolStreamClient;
 
     #[async_trait]
-    impl CapabilityClient for ToolStreamClient {
-        async fn health(&self) -> CapabilityResult<ServiceHealth> {
+    impl ServiceClient for ToolStreamClient {
+        async fn health(&self) -> ServiceClientResult<ServiceHealth> {
             unreachable!("health is not used")
         }
     }
@@ -114,7 +113,7 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
             &self,
             request: JsonRequest,
             events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
-        ) -> CapabilityResult<()> {
+        ) -> ServiceClientResult<()> {
             let chunks = [
                 ChatChunk {
                     content: None,
@@ -175,11 +174,14 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
             Ok(())
         }
 
-        async fn probe(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+        async fn probe(&self, _request: JsonRequest) -> ServiceClientResult<JsonResponse> {
             unreachable!("probe is not used")
         }
 
-        async fn discover_models(&self, _request: JsonRequest) -> CapabilityResult<JsonResponse> {
+        async fn discover_models(
+            &self,
+            _request: JsonRequest,
+        ) -> ServiceClientResult<JsonResponse> {
             unreachable!("model discovery is not used")
         }
     }
@@ -303,7 +305,7 @@ fn test_chat_request() -> ChatRequest {
     }
 }
 
-fn successful_probe_response() -> a4n_capabilities::JsonResponse {
+fn successful_probe_response() -> a4n_llm_client::JsonResponse {
     a4n_service_protocol::ServiceResponse {
         status: a4n_service_protocol::ServiceStatus::Ok,
         trace_id: Some("trace".to_string()),

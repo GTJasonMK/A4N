@@ -1,0 +1,19 @@
+[package]
+name = "a4n-rag-client"
+version = "0.1.0"
+edition = "2024"
+license.workspace = true
+
+[features]
+test-support = ["a4n-service-client/test-support"]
+
+[dependencies]
+a4n-service-client = { path = "../a4n-service-client" }
+a4n-service-protocol = { path = "../a4n-service-protocol" }
+
+async-trait = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+a4n-service-client = { path = "../a4n-service-client", features = ["test-support"] }

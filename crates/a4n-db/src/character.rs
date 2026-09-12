@@ -12,10 +12,9 @@ pub use attributes::{
     AppliedCharacterImplicitDecisionAction, AppliedCharacterImplicitDecisionRecord,
     CharacterAttributeDeletionExecutionResult, CharacterAttributeEventHistoryFilter,
     CharacterAttributeMutationResult, CharacterDeletionMarkRewindSummary, add_profile_attribute,
-    apply_attribute_to_state, apply_implicit_review_decision_record, attribute_events_by_ids,
-    attribute_history, deletion_marks_by_profile, execute_ready_attribute_deletion,
-    modify_profile_attribute, request_attribute_deletion, reset_deletion_marks_in,
-    rewind_deletion_marks_after,
+    apply_implicit_review_decision_record, attribute_events_by_ids, attribute_history,
+    deletion_marks_by_profile, execute_ready_attribute_deletion, modify_profile_attribute,
+    request_attribute_deletion, reset_deletion_marks_in, rewind_deletion_marks_after,
 };
 pub use behavior::{behavior_records_by_profile, implicit_review_behavior_records};
 pub use blueprint_seed::{CharacterProfileSeedError, sync_character_profiles_from_blueprint};

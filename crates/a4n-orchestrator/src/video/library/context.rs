@@ -4,11 +4,11 @@ use a4n_db_models::models::ai::generated_image;
 use a4n_error::AppError;
 use serde_json::Value;
 
-use crate::profile_material::{
-    generated_image_profile_material_identity, is_project_reusable_video_material_image,
-};
 use crate::video::{ChapterVideoSourceContext, OrchestratorContext};
 use a4n_db::profile_material::{PROFILE_KIND_OBJECT, PROFILE_KIND_SCENE};
+use a4n_db::profile_material::{
+    generated_image_profile_material_identity, is_project_reusable_video_material_image,
+};
 
 use super::candidates::{
     RelevantProfile, VideoAssetCandidate, VideoAssetCandidates, best_profile_material_image,
