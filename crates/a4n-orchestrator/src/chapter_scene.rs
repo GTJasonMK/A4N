@@ -9,7 +9,7 @@ mod output;
 mod request;
 mod workflow;
 
-pub use contracts::ChapterSceneRequestPreview;
+pub(crate) use contracts::ChapterSceneRequestPreview;
 
 /// Runtime-facing chapter-scene generation boundary.
 #[async_trait::async_trait]

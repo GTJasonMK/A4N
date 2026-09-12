@@ -15,9 +15,11 @@ pub use a4n_api_contract::shooting_script::{
 #[cfg(test)]
 pub(crate) use contracts::visual_plan_fixture;
 pub use contracts::{
-    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ChapterShootingScriptUnitProgress,
-    EditedChapterShootingScript, ResolvedChapterShootingScript, ShootingScriptProgressReporter,
+    CHAPTER_SHOOTING_SCRIPT_PROGRESS_TOTAL, ShootingScriptProgressReporter,
     ShootingScriptStreamReporter,
+};
+pub(crate) use contracts::{
+    ChapterShootingScriptUnitProgress, EditedChapterShootingScript, ResolvedChapterShootingScript,
 };
 pub(crate) use workflow_rules::chapter_shooting_script_workflow_run_input;
 
