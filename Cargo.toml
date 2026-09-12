@@ -69,6 +69,7 @@ members = [
     "crates/a4n-runtime",
     "crates/a4n-tauri",
     "crates/a4n-migration",
+    "crates/a4n-edge",
     "crates/a4n-control",
     "crates/a4n-server",
 ]

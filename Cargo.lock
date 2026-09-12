@@ -198,6 +198,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "a4n-edge"
+version = "0.1.0"
+dependencies = [
+ "a4n-control",
+ "anyhow",
+ "axum 0.8.9",
+ "tokio",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
 name = "a4n-embedding"
 version = "0.1.0"
 dependencies = [
@@ -867,16 +879,13 @@ dependencies = [
  "a4n-control",
  "a4n-db",
  "a4n-db-models",
+ "a4n-edge",
  "a4n-migration",
  "a4n-queue",
  "anyhow",
- "axum 0.8.9",
  "reqwest 0.12.28",
  "sea-orm",
  "tempfile",
- "tokio",
- "tower-http",
- "tracing",
 ]
 
 [[package]]

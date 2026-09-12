@@ -18,12 +18,9 @@ embedded-media-providers = [
 
 [dependencies]
 a4n-control = { path = "../a4n-control" }
+a4n-edge = { path = "../a4n-edge" }
 
 anyhow = { workspace = true }
-axum = { workspace = true }
-tokio = { workspace = true }
-tower-http = { workspace = true }
-tracing = { workspace = true }
 
 [dev-dependencies]
 a4n-db = { path = "../a4n-db" }
