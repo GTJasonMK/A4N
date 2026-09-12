@@ -30,6 +30,9 @@ use a4n_orchestrator::agent::{
     WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent, enforce_delegation_limits,
     validate_agent_budget,
 };
+use a4n_worker_contract::{
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
+};
 use futures::StreamExt;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
@@ -62,6 +65,80 @@ const MAX_BASE_AGENT_TOOLS: usize = 6;
 const MAX_DISCOVERED_AGENT_TOOLS: usize = 8;
 const MAX_AGENT_TOOL_SCHEMAS: usize = 12;
 const CONTEXT_SUMMARY_OUTPUT_TOKENS: usize = 2_048;
+
+fn worker_request_for_claimed_run(
+    claimed: &AgentWorkerRun,
+    expected_worker_id: &str,
+) -> Result<WorkerRequest<Value>, AppError> {
+    let run = &claimed.run;
+    let worker_id = run
+        .worker_id
+        .as_deref()
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!("Agent run {} 领取后缺少 worker_id", run.id),
+            operation: "构造 Agent worker request".into(),
+        })?;
+    if worker_id != expected_worker_id {
+        return Err(AppError::InvalidState {
+            current: format!("Agent run {} 的 worker_id 与当前 worker 不一致", run.id),
+            operation: "构造 Agent worker request".into(),
+        });
+    }
+    if run.lease_token.as_deref() != Some(claimed.lease_token.as_str()) {
+        return Err(AppError::InvalidState {
+            current: format!("Agent run {} 的 lease fencing token 不一致", run.id),
+            operation: "构造 Agent worker request".into(),
+        });
+    }
+    let attempt = u64::try_from(run.attempt).map_err(|_| AppError::InvalidState {
+        current: format!("Agent run {} 的 attempt 无效", run.id),
+        operation: "构造 Agent worker request".into(),
+    })?;
+    let expires_at = run
+        .lease_expires_at
+        .ok_or_else(|| AppError::InvalidState {
+            current: format!("Agent run {} 领取后缺少 lease_expires_at", run.id),
+            operation: "构造 Agent worker request".into(),
+        })?
+        .to_string();
+    let target_revision =
+        u64::try_from(claimed.thread.revision).map_err(|_| AppError::InvalidState {
+            current: format!("Agent thread {} 的 revision 无效", claimed.thread.id),
+            operation: "构造 Agent worker request".into(),
+        })?;
+    let request = WorkerRequest {
+        schema_version: WORKER_SCHEMA_VERSION,
+        request_id: format!("agent-run-{}-{}", run.id, attempt),
+        trace_id: format!("agent-run:{}:{}", run.id, attempt),
+        principal: WorkerPrincipal {
+            kind: WorkerPrincipalKind::User,
+            subject: claimed.thread.owner_user_id.to_string(),
+        },
+        operation_id: "agent.run".into(),
+        idempotency_key: format!("agent-run:{}:{}", run.id, attempt),
+        project_id: claimed.thread.project_id,
+        root_project_id: None,
+        target_revision: Some(target_revision),
+        runtime_config_snapshot_ref: None,
+        lease: WorkerLease {
+            worker_id: worker_id.into(),
+            epoch: attempt,
+            fence_token: claimed.lease_token.clone(),
+            expires_at,
+        },
+        payload: json!({
+            "run_id": run.id,
+            "thread_id": run.thread_id,
+            "turn_id": run.turn_id,
+            "profile_id": claimed.thread.profile_id,
+        }),
+    };
+    request.validate().map_err(|error| AppError::InvalidState {
+        current: format!("Agent worker request contract 无效: {error}"),
+        operation: "校验 Agent worker request".into(),
+    })?;
+    Ok(request)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RunProgress {
@@ -825,13 +902,17 @@ async fn drain_runnable_runs(state: &AppState) {
         };
         drop(admission);
         let run_id = claimed.run.id;
-        if let Err(error) = process_claimed_run(state, claimed).await {
+        if let Err(error) = process_claimed_run(state, claimed, &worker_id).await {
             tracing::error!(run_id, error = %error, "Agent worker run failed");
         }
     }
 }
 
-async fn process_claimed_run(state: &AppState, claimed: AgentWorkerRun) -> Result<(), AppError> {
+async fn process_claimed_run(
+    state: &AppState,
+    claimed: AgentWorkerRun,
+    worker_id: &str,
+) -> Result<(), AppError> {
     let failure_application = state.agent_worker_failure_application();
     let run_cancel = state
         .register_agent_run_cancellation(claimed.run.id, claimed.run.parent_run_id)
@@ -860,6 +941,7 @@ async fn process_claimed_run(state: &AppState, claimed: AgentWorkerRun) -> Resul
 
     // Keep the loop state out of every outer worker future's debug poll stack.
     let outcome: Result<_, AppError> = async {
+        let request = worker_request_for_claimed_run(&claimed, worker_id)?;
         let budget: AgentBudget = serde_json::from_value(claimed.run.budget_json.clone())?;
         validate_agent_budget(&budget)?;
         let deadline = agent_duration_deadline(
@@ -874,7 +956,12 @@ async fn process_claimed_run(state: &AppState, claimed: AgentWorkerRun) -> Resul
                     None => std::future::pending::<()>().await,
                 }
             } => None,
-            result = Box::pin(process_claimed_run_inner(state, &claimed, &run_cancel)) => Some(result),
+            result = Box::pin(process_claimed_run_inner(
+                state,
+                &claimed,
+                &run_cancel,
+                &request,
+            )) => Some(result),
         })
     }
     .await;
@@ -970,7 +1057,14 @@ async fn process_claimed_run_inner(
     state: &AppState,
     claimed: &AgentWorkerRun,
     cancel: &CancellationToken,
+    request: &WorkerRequest<Value>,
 ) -> Result<(), AppError> {
+    tracing::debug!(
+        run_id = claimed.run.id,
+        request_id = %request.request_id,
+        operation_id = %request.operation_id,
+        "Agent worker request contract validated"
+    );
     let execution_application = state.agent_worker_execution_application();
     let usage_application = state.agent_worker_usage_application();
     let mut context = state
@@ -3567,6 +3661,56 @@ pub async fn resolve_approval(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use a4n_orchestrator::agent::AgentRunSnapshot;
+
+    fn claimed_worker_run() -> AgentWorkerRun {
+        let now = chrono::Utc::now().naive_utc();
+        AgentWorkerRun {
+            run: AgentRunSnapshot {
+                id: 7,
+                thread_id: 11,
+                turn_id: 13,
+                parent_run_id: None,
+                attempt: 2,
+                status: "running".into(),
+                budget_json: json!({}),
+                usage_json: json!({}),
+                worker_id: Some("worker-1".into()),
+                lease_token: Some("lease-2".into()),
+                lease_expires_at: Some(now + chrono::Duration::minutes(5)),
+                created_at: now,
+                started_at: Some(now),
+            },
+            thread: a4n_orchestrator::agent::AgentThreadSnapshot {
+                id: 11,
+                owner_user_id: 19,
+                thread_kind: "main".into(),
+                profile_id: "main".into(),
+                title: None,
+                project_id: Some(23),
+                resource_type: None,
+                resource_id: None,
+                scope_json: json!({}),
+                default_model_config_id: None,
+                status: "running".into(),
+                revision: 4,
+                context_summary: None,
+            },
+            lease_token: "lease-2".into(),
+        }
+    }
+
+    #[test]
+    fn claimed_agent_run_is_bound_to_worker_contract_and_fence() {
+        let claimed = claimed_worker_run();
+        let request = worker_request_for_claimed_run(&claimed, "worker-1")
+            .expect("claimed run should produce a valid worker request");
+        assert_eq!(request.schema_version, WORKER_SCHEMA_VERSION);
+        assert_eq!(request.lease.epoch, 2);
+        assert_eq!(request.lease.fence_token, "lease-2");
+        assert_eq!(request.payload["run_id"], json!(7));
+        assert!(worker_request_for_claimed_run(&claimed, "worker-2").is_err());
+    }
 
     #[tokio::test]
     async fn duration_budget_has_a_deadline_even_when_the_model_never_finishes() {
