@@ -154,10 +154,9 @@ pub use provider_workflow_rules::{
     video_provider_progress_workflow_run_input, video_provider_workflow_business_key,
     video_provider_workflow_fingerprint,
 };
-pub use reference_media_rules::{
-    MIN_PROVIDER_VISUAL_PROMPT_CHARS, VideoProviderValidationMode,
-    reference_media_dimensions_for_aspect_ratio, validate_reference_media_import_options,
-    validate_reference_media_start_input,
+pub(crate) use reference_media_rules::validate_reference_media_start_input;
+pub(in crate::video) use reference_media_rules::{
+    MIN_PROVIDER_VISUAL_PROMPT_CHARS, validate_reference_media_import_options,
 };
 pub use storyboard_frame_rules::{
     latest_storyboard_image_id, storyboard_prompt_matches_video_prompt,
