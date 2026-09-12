@@ -142,8 +142,8 @@ pub use provider_prompt_text_rules::{
     MIN_FRAME_PROMPT_CHARS, MIN_PROVIDER_MOTION_PROMPT_CHARS, ProviderPromptTextViolation,
     provider_prompt_text_violation, validate_provider_model_text,
 };
-pub(crate) use provider_request_rules::prompt_provider_workflow_for_recipe;
-pub use provider_request_rules::{
+pub(in crate::video) use provider_request_rules::prompt_provider_workflow_for_recipe;
+pub(in crate::video) use provider_request_rules::{
     MAX_CLIPROXY_VIDEO_PROMPT_BYTES, MAX_CLIPROXY_VIDEO_REFERENCE_IMAGES,
     ProviderGenerationWorkflow, boundary_frame_missing_image_message,
     cliproxy_prompt_length_violation_message, ensure_newapi_first_frame_image_supported,
