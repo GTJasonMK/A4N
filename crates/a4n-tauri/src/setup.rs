@@ -83,7 +83,7 @@ pub(crate) fn install_agent_host_dispatcher(runtime: &Arc<AppState>) -> Result<(
             return Box::pin(async { Err("A4N Host 已退出".to_string()) });
         };
         Box::pin(async move {
-            a4n_server::dispatch_runtime_command(&runtime, user_id, args, command).await
+            a4n_control::dispatch_runtime_command(&runtime, user_id, args, command).await
         })
     }))
 }
