@@ -18,7 +18,6 @@ pub(in crate::blueprint::generation) fn blueprint_stage_call_fingerprint_json(
         "prompt_name": BLUEPRINT_GENERATION_PROMPTS.join(" + "),
         "messages": request.messages,
         "context_manifest": request.context_manifest_json,
-        "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
         "output_schema": spec.output_schema,
     }))
@@ -41,13 +40,8 @@ mod tests {
 
     #[test]
     fn fingerprint_contains_request_and_stage_identity() {
-        let request = ChatRequest::new(
-            vec![ChatMessage::user("生成世界观")],
-            Some(0.7),
-            None,
-            Some("blueprint".to_string()),
-        )
-        .with_json_response_format();
+        let request = ChatRequest::new(vec![ChatMessage::user("生成世界观")], Some(0.7), None)
+            .with_json_response_format();
         let fingerprint =
             blueprint_stage_call_fingerprint_json(&BLUEPRINT_GENERATION_STAGES[1], &request)
                 .expect("fingerprint should build");
@@ -56,7 +50,6 @@ mod tests {
         assert_eq!(fingerprint["workflow"], BLUEPRINT_GENERATION_KIND);
         assert_eq!(fingerprint["call_key"], "blueprint_generation.world");
         assert_eq!(fingerprint["stage_key"], "world");
-        assert_eq!(fingerprint["max_tokens_profile"], "blueprint");
         assert!(
             fingerprint["output_schema"]
                 .as_str()

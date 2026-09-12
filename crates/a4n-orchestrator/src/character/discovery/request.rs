@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use a4n_db_models::models::{
     chapter::chapter, character::protagonist_profile, project::text_anchor,
 };
-use a4n_domain::llm::llm_token_profiles;
 use a4n_domain::source_spans::text_anchor_prompt_values;
 use a4n_error::AppError;
 use a4n_llm::{
@@ -77,7 +76,6 @@ pub(super) async fn build_character_discovery_request(
             stable_context_json: stable_context,
             dynamic_user_prompt: user_prompt,
             temperature: Some(0.2),
-            max_tokens_profile: llm_token_profiles::CHARACTER_DISCOVERY.to_string(),
             call_key: Some(CHARACTER_DISCOVERY_CALL_KEY.to_string()),
         },
     )

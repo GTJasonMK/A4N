@@ -38,7 +38,6 @@ impl AgentApplication {
         if output == 0 {
             return Err(AppError::InvalidArgument("模型输出上限必须大于 0".into()));
         }
-        request.max_tokens_profile = None;
         request.max_tokens = Some(output);
         request.stream_include_usage = true;
         if let Some(available) = self.run_budget_snapshot(run_id).await?.remaining.max_tokens {

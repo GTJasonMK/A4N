@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::provider::{
@@ -28,26 +27,22 @@ async fn build_video_prompt_request(
     let system = prompt_renderer
         .render_prompt(prompt_name, variables, Some(project_id))
         .await?;
-    Ok(context_aware_system_user_request(
-        system,
-        manifest,
-        Some(temperature),
-        None,
-        Some(llm_token_profiles::MEDIA_PROMPT.into()),
-    )?
-    .with_json_response_format()
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(project_id),
-        root_project_id: None,
-        workflow: VIDEO_PROMPT_WORKFLOW.to_string(),
-        step_key: prompt_name.to_string(),
-        generation_run_id: None,
-        workflow_run_id: None,
-        call_key: None,
-        input_fingerprint_sha256: None,
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
+    Ok(
+        context_aware_system_user_request(system, manifest, Some(temperature), None)?
+            .with_json_response_format()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(project_id),
+                root_project_id: None,
+                workflow: VIDEO_PROMPT_WORKFLOW.to_string(),
+                step_key: prompt_name.to_string(),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: None,
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+    )
 }
 
 pub(in crate::video::prompt_generation) async fn build_video_prompt_request_with_call_trace(
@@ -105,8 +100,7 @@ pub(super) fn ensure_video_output_not_truncated(
 ) -> Result<(), AppError> {
     if is_truncated_finish_reason(finish_reason) {
         return Err(AppError::InvalidArgument(format!(
-            "{prompt_name} 输出被 max_tokens 截断，未形成完整 JSON。当前使用 token 档位 {}，请在设置页调大“媒体提示词”输出上限，或减少本次输入/输出规模后重试。",
-            llm_token_profiles::MEDIA_PROMPT
+            "{prompt_name} 输出被 max_tokens 截断，未形成完整 JSON。请检查模型的 max_output_tokens 配置，或减少本次输入/输出规模后重试。"
         )));
     }
     Ok(())
@@ -156,7 +150,7 @@ pub(super) async fn chat_with_video_cancel(
 
 #[cfg(test)]
 mod tests {
-    use super::{AppError, ensure_video_output_not_truncated, llm_token_profiles};
+    use super::{AppError, ensure_video_output_not_truncated};
 
     #[test]
     fn detects_video_output_truncated_by_max_tokens() {
@@ -166,7 +160,6 @@ mod tests {
             err,
             AppError::InvalidArgument(message)
                 if message.contains("chapter_video_prompt 输出被 max_tokens 截断")
-                    && message.contains(llm_token_profiles::MEDIA_PROMPT)
         ));
     }
 }

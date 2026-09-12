@@ -113,6 +113,7 @@ impl MigratorTrait for Migrator {
             Box::new(crate::migrations::chapter_visual_plan_authoring_mode_cleanup::Migration),
             Box::new(crate::migrations::image_publication::Migration),
             Box::new(crate::migrations::package_lifecycle::Migration),
+            Box::new(crate::migrations::llm_max_tokens_setting_cleanup::Migration),
         ]
     }
 }
@@ -167,7 +168,6 @@ mod tests {
                 .map(String::as_str)
                 .collect::<Vec<_>>(),
             [
-                "chapter_outline_provenance",
                 "character_timeline_provenance",
                 "chapter_video_timeline",
                 "chapter_video_timeline_cleanup",
@@ -217,6 +217,7 @@ mod tests {
                 "chapter_visual_plan_authoring_mode_cleanup",
                 "image_publication",
                 "package_lifecycle",
+                "llm_max_tokens_setting_cleanup",
             ],
             "deployed migration history must remain registered in execution order"
         );

@@ -29,7 +29,7 @@ use a4n_db_models::models::{
     user::theme_config,
 };
 use a4n_domain::{
-    LlmMaxTokensConfig, ThemeDocument, ThemeMode, embedding::CreateEmbeddingConfigParams,
+    ThemeDocument, ThemeMode, embedding::CreateEmbeddingConfigParams,
     image::CreateImageConfigParams,
 };
 use a4n_error::AppError;
@@ -194,7 +194,7 @@ impl ConfigApplication {
         .await
     }
 
-    /// 读库、规范化更新、默认配置与全局 max_tokens 门禁后落库。
+    /// 读库、规范化更新并落库。
     async fn update_llm_config_validated(
         &self,
         config_id: i64,
@@ -219,10 +219,6 @@ impl ConfigApplication {
                 extra_body_json: input.extra_body_json,
             },
         )?;
-        if existing.is_default {
-            self.ensure_llm_max_tokens_fits_model_output(normalized.max_output_tokens)
-                .await?;
-        }
         a4n_db::config::update_llm_config_record(
             self.database.connection(),
             existing,
@@ -231,12 +227,10 @@ impl ConfigApplication {
         .await
     }
 
-    /// 模型校验与 max_tokens 门禁后设为默认 LLM 配置。
+    /// 校验模型能力后设为默认 LLM 配置。
     async fn set_default_llm_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         let target = self.llm_config_by_id(config_id).await?;
         validate_llm_config(&llm_config_snapshot(&target))?;
-        self.ensure_llm_max_tokens_fits_model_output(target.max_output_tokens)
-            .await?;
         self.set_default_provider_config(ProviderConfigKind::Llm, config_id)
             .await
     }
@@ -246,17 +240,6 @@ impl ConfigApplication {
         let target = self.llm_config_by_id(config_id).await?;
         ensure_default_config_delete_allowed(" LLM 配置", target.is_default)?;
         a4n_db::config::delete_llm_config_record(self.database.connection(), config_id).await
-    }
-
-    async fn ensure_llm_max_tokens_fits_model_output(
-        &self,
-        max_output_tokens: i32,
-    ) -> Result<(), AppError> {
-        let model_cap = positive_model_output_cap(max_output_tokens)?;
-        let max_tokens = self.llm_max_tokens_config().await?;
-        max_tokens
-            .validate_against_model_output_cap(model_cap)
-            .map_err(AppError::InvalidArgument)
     }
 
     pub(super) async fn resolve_llm_config(
@@ -563,32 +546,6 @@ impl ConfigApplication {
         a4n_db::config::settings_all_config_rows(self.database.connection()).await
     }
 
-    pub(super) async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {
-        a4n_db::config::llm_max_tokens_config(self.database.connection()).await
-    }
-
-    /// 校验全局 max_tokens 预算与默认模型输出上限后落库。
-    async fn save_llm_max_tokens_config_validated(
-        &self,
-        config: LlmMaxTokensConfig,
-    ) -> Result<LlmMaxTokensConfig, AppError> {
-        config.validate().map_err(AppError::InvalidArgument)?;
-        for model in a4n_db::config::default_llm_output_cap_rows(self.database.connection()).await?
-        {
-            let model_cap = positive_model_output_cap(model.max_output_tokens)?;
-            config
-                .validate_against_model_output_cap(model_cap)
-                .map_err(|err| {
-                    AppError::InvalidArgument(format!(
-                        "默认 LLM 配置 #{} {}：{err}",
-                        model.id, model.name
-                    ))
-                })?;
-        }
-        a4n_db::config::save_llm_max_tokens_config(self.database.connection(), &config).await?;
-        Ok(config)
-    }
-
     pub(super) async fn web_search_runtime_config(
         &self,
     ) -> Result<WebSearchRuntimeConfig, AppError> {
@@ -800,7 +757,7 @@ impl OrchestratorContext {
         self.settings.create_llm_config_validated(input).await
     }
 
-    /// 更新 LLM 配置：规范化、默认 max_tokens 门禁后落库。
+    /// 更新 LLM 配置：规范化后落库。
     pub async fn update_llm_config_validated(
         &self,
         config_id: i64,
@@ -811,7 +768,7 @@ impl OrchestratorContext {
             .await
     }
 
-    /// 设为默认 LLM 配置：模型与 max_tokens 门禁后落库。
+    /// 设为默认 LLM 配置：校验模型能力后落库。
     pub async fn set_default_llm_config_validated(&self, config_id: i64) -> Result<(), AppError> {
         self.settings
             .set_default_llm_config_validated(config_id)
@@ -1048,20 +1005,6 @@ impl OrchestratorContext {
         self.settings.settings_all_config_rows().await
     }
 
-    pub async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {
-        self.settings.llm_max_tokens_config().await
-    }
-
-    /// 保存 LLM max_tokens 预算：校验与默认模型上限后落库。
-    pub async fn save_llm_max_tokens_config_validated(
-        &self,
-        config: LlmMaxTokensConfig,
-    ) -> Result<LlmMaxTokensConfig, AppError> {
-        self.settings
-            .save_llm_max_tokens_config_validated(config)
-            .await
-    }
-
     pub async fn web_search_runtime_config(&self) -> Result<WebSearchRuntimeConfig, AppError> {
         self.settings.web_search_runtime_config().await
     }
@@ -1149,19 +1092,6 @@ impl a4n_api_contract::config::ConfigApplicationPort for OrchestratorContext {
             video_config_params(input)?,
         )
         .await
-    }
-
-    async fn llm_max_tokens(&self) -> Result<LlmMaxTokensConfig, AppError> {
-        OrchestratorContext::llm_max_tokens_config(self).await
-    }
-
-    async fn update_llm_max_tokens(
-        &self,
-        caller_user_id: i64,
-        config: LlmMaxTokensConfig,
-    ) -> Result<LlmMaxTokensConfig, AppError> {
-        self.require_settings_admin(caller_user_id).await?;
-        OrchestratorContext::save_llm_max_tokens_config_validated(self, config).await
     }
 
     async fn web_search_runtime_config(&self) -> Result<WebSearchRuntimeConfig, AppError> {
@@ -1651,13 +1581,6 @@ fn embedding_config_summary(config: &embedding_config::Model) -> EmbeddingConfig
         local_model_path: config.local_model_path.clone(),
         is_default: config.is_default,
     }
-}
-
-fn positive_model_output_cap(value: i32) -> Result<usize, AppError> {
-    usize::try_from(value)
-        .ok()
-        .filter(|value| *value > 0)
-        .ok_or_else(|| AppError::InvalidArgument("模型最大输出必须大于 0".into()))
 }
 
 fn normalize_llm_config_input(input: CreateLlmInput) -> Result<NormalizedLlmConfig, AppError> {

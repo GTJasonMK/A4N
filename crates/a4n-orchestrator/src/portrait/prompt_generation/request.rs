@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
@@ -91,28 +90,24 @@ pub async fn build_generate_prompt_request(
         "existing_portrait_count": spec.existing_portrait_count,
     }))?);
 
-    Ok(context_aware_system_user_request(
-        prompt_content,
-        manifest,
-        Some(0.8),
-        None,
-        Some(llm_token_profiles::MEDIA_PROMPT.into()),
-    )?
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(project_id),
-        root_project_id: None,
-        workflow: "portrait_prompt_generation".to_string(),
-        step_key: "character_portrait_generation".to_string(),
-        generation_run_id: None,
-        workflow_run_id: None,
-        call_key: Some(format!(
-            "portrait_prompt:{}:{}",
-            spec.profile_name, spec.portrait_type
-        )),
-        input_fingerprint_sha256: Some(fingerprint),
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
+    Ok(
+        context_aware_system_user_request(prompt_content, manifest, Some(0.8), None)?
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(project_id),
+                root_project_id: None,
+                workflow: "portrait_prompt_generation".to_string(),
+                step_key: "character_portrait_generation".to_string(),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: Some(format!(
+                    "portrait_prompt:{}:{}",
+                    spec.profile_name, spec.portrait_type
+                )),
+                input_fingerprint_sha256: Some(fingerprint),
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+    )
 }
 
 pub(super) fn portrait_type_description(portrait_type: PortraitType) -> &'static str {

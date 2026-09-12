@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use a4n_db_models::models::ai::{embedding_config, llm_config};
-use a4n_domain::llm::{ContextPackReference, LlmMaxTokensConfig};
+use a4n_domain::llm::ContextPackReference;
 use a4n_error::AppError;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 use a4n_provider_runtime_contract::{ProviderRuntimePort, ProviderTaskPriority, TaskLease};
@@ -58,10 +58,6 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
             .resolve_llm_config(config_id)
             .await
             .map(llm_provider_config)
-    }
-
-    async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {
-        self.settings.llm_max_tokens_config().await
     }
 
     async fn default_embedding_config_optional(

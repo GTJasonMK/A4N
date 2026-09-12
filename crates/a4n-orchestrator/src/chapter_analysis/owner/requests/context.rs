@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::chapter::chapter;
-use a4n_domain::llm::llm_token_profiles;
 use a4n_domain::source_spans::source_spans_for_chapters;
 use a4n_error::AppError;
 use a4n_llm::{
@@ -52,13 +51,9 @@ pub(super) async fn build_chapter_analysis_stage_request(
     let mut ledger = LlmContextLedger::new();
     add_chapter_analysis_source_pack(&mut ledger, ch, &source_spans)?;
     let manifest = ledger.into_manifest(user_prompt, None);
-    Ok(context_aware_system_user_request(
-        system_prompt,
-        manifest,
-        Some(0.2),
-        None,
-        Some(llm_token_profiles::CHAPTER_ANALYSIS.into()),
-    )?
-    .with_json_response_format()
-    .with_trace_context(chapter_analysis_trace_context(ch.project_id, prompt_name)))
+    Ok(
+        context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
+            .with_json_response_format()
+            .with_trace_context(chapter_analysis_trace_context(ch.project_id, prompt_name)),
+    )
 }

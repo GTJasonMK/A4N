@@ -79,7 +79,7 @@ pub fn ensure_response_not_truncated(
 ) -> Result<(), AppError> {
     if is_truncated_finish_reason(finish_reason) {
         return Err(AppError::InvalidArgument(format!(
-            "模型生成{label}时达到当前场景输出上限，返回 JSON 被截断；请在设置页调大大纲生成 max_tokens，或减少生成范围/输出细节后重试"
+            "模型生成{label}时达到 max_output_tokens 上限，返回 JSON 被截断；请提高模型输出上限，或减少生成范围/输出细节后重试"
         )));
     }
     Ok(())

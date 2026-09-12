@@ -58,6 +58,7 @@ pub mod legacy_asset_lineage_shadow_cleanup;
 pub mod llm_call_trace_join_fields;
 pub mod llm_call_trace_status_fields;
 pub mod llm_context_tracking;
+pub mod llm_max_tokens_setting_cleanup;
 pub mod llm_model_capabilities;
 pub mod llm_request_options;
 pub mod manga_page_layout_identity_cleanup;

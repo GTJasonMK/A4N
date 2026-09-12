@@ -758,7 +758,7 @@ mod tests {
             &provider,
             &publisher,
             LlmGenerationRequest {
-                request: ChatRequest::new(vec![ChatMessage::user("写作")], None, None, None),
+                request: ChatRequest::new(vec![ChatMessage::user("写作")], None, None),
                 stream_id: "main".to_string(),
                 cancellation: CancellationToken::new(),
                 checkpoint: None,
@@ -808,7 +808,7 @@ mod tests {
             &provider,
             &publisher,
             LlmGenerationRequest {
-                request: ChatRequest::new(vec![ChatMessage::user("写作")], None, None, None),
+                request: ChatRequest::new(vec![ChatMessage::user("写作")], None, None),
                 stream_id: "raw_json".to_string(),
                 cancellation: CancellationToken::new(),
                 checkpoint: None,
@@ -844,7 +844,7 @@ mod tests {
             &provider,
             &publisher,
             LlmGenerationRequest {
-                request: ChatRequest::new(vec![ChatMessage::user("continue")], None, None, None),
+                request: ChatRequest::new(vec![ChatMessage::user("continue")], None, None),
                 stream_id: "raw_json".to_string(),
                 cancellation: CancellationToken::new(),
                 checkpoint: None,
@@ -904,7 +904,7 @@ mod tests {
             &provider,
             &RecordingPublisher::default(),
             LlmGenerationRequest {
-                request: ChatRequest::new(vec![ChatMessage::user("continue")], None, None, None),
+                request: ChatRequest::new(vec![ChatMessage::user("continue")], None, None),
                 stream_id: "main".to_string(),
                 cancellation: CancellationToken::new(),
                 checkpoint: None,
@@ -925,7 +925,7 @@ mod tests {
             &FailingProvider,
             &RecordingPublisher::default(),
             LlmGenerationRequest {
-                request: ChatRequest::new(vec![ChatMessage::user("continue")], None, None, None),
+                request: ChatRequest::new(vec![ChatMessage::user("continue")], None, None),
                 stream_id: "main".to_string(),
                 cancellation: CancellationToken::new(),
                 checkpoint: None,

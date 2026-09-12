@@ -817,7 +817,6 @@ mod tests {
             "messages": [],
             "context_manifest": null,
             "max_tokens": 4096,
-            "max_tokens_profile": "outline",
             "response_format": null,
         });
         let hash = a4n_db::workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint).unwrap();

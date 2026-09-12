@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
@@ -41,32 +40,28 @@ pub(in crate::optimize) fn build_agent_loop_chat_request(
 ) -> Result<ChatRequest, AppError> {
     let step_user_message = build_agent_loop_step_user_message(observations, step)?;
     let manifest = build_agent_loop_context_manifest(base_user_message, step_user_message)?;
-    Ok(context_aware_system_user_request(
-        system_prompt,
-        manifest,
-        Some(0.2),
-        None,
-        Some(llm_token_profiles::JSON_STANDARD.into()),
-    )?
-    .with_json_response_format()
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(project_id),
-        root_project_id: None,
-        workflow: workflow.to_string(),
-        step_key: session_id
-            .map(|id| format!("session_{id}_step_{step}"))
-            .unwrap_or_else(|| format!("preview_step_{step}")),
-        generation_run_id: None,
-        workflow_run_id: None,
-        call_key: Some(
-            session_id
-                .map(|id| format!("session_{id}_step_{step}"))
-                .unwrap_or_else(|| format!("preview_step_{step}")),
-        ),
-        input_fingerprint_sha256: None,
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
+    Ok(
+        context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
+            .with_json_response_format()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(project_id),
+                root_project_id: None,
+                workflow: workflow.to_string(),
+                step_key: session_id
+                    .map(|id| format!("session_{id}_step_{step}"))
+                    .unwrap_or_else(|| format!("preview_step_{step}")),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: Some(
+                    session_id
+                        .map(|id| format!("session_{id}_step_{step}"))
+                        .unwrap_or_else(|| format!("preview_step_{step}")),
+                ),
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+    )
 }
 
 fn build_agent_loop_context_manifest(

@@ -24,7 +24,7 @@ pub fn ensure_blueprint_response_not_truncated(
 ) -> Result<(), AppError> {
     if is_truncated_finish_reason(finish_reason) {
         return Err(AppError::InvalidArgument(format!(
-            "{label} 输出达到当前蓝图 max_tokens 上限，返回 JSON 被截断；请在设置页调大“蓝图”输出档位，或减少本次蓝图输入/输出规模后重试"
+            "{label} 输出达到 max_output_tokens 上限，返回 JSON 被截断；请提高模型输出上限，或减少本次蓝图输入/输出规模后重试"
         )));
     }
     Ok(())
@@ -42,7 +42,7 @@ mod tests {
                     .expect_err("truncated blueprint response must fail");
             assert_eq!(
                 error.to_string(),
-                "参数无效：蓝图故事核心 输出达到当前蓝图 max_tokens 上限，返回 JSON 被截断；请在设置页调大“蓝图”输出档位，或减少本次蓝图输入/输出规模后重试"
+                "参数无效：蓝图故事核心 输出达到 max_output_tokens 上限，返回 JSON 被截断；请提高模型输出上限，或减少本次蓝图输入/输出规模后重试"
             );
         }
     }

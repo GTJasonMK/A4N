@@ -1494,7 +1494,7 @@ fn runtime_config_is_persisted_and_injected_by_manifest_policy() {
     write_json(
         &snapshot,
         &json!({
-            "schema_version": 1,
+            "schema_version": 2,
             "llm": {
                 "id": 1,
                 "name": "local",
@@ -2543,7 +2543,7 @@ fn config_and_context_commands_persist_and_clear_hierarchical_state() {
     assert!(shown.get("access_token").is_none());
 
     let snapshot = json!({
-        "schema_version": 1,
+        "schema_version": 2,
         "llm": {
             "id": 1,
             "name": "local",

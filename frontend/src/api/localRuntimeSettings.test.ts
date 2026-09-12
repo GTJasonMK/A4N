@@ -55,6 +55,19 @@ it("creates one canonical baseline embedding config when storage is absent", () 
   expect(listLocalEmbeddingConfigs()).toEqual(configs);
 });
 
+it("ignores the retired local llm_max_tokens field and removes it on write", () => {
+  const payload = currentPayload();
+  payload.llm_max_tokens = { default: 8192 };
+  storage.raw = JSON.stringify(payload);
+
+  expect(listLocalEmbeddingConfigs()).toHaveLength(1);
+  updateSystemDefaultLlmApiKey(null);
+
+  expect(JSON.parse(storage.raw ?? "null")).not.toHaveProperty(
+    "llm_max_tokens",
+  );
+});
+
 it("rejects incomplete, contradictory, repaired, and extended v1 settings", () => {
   expectStoredSettingsRejected(
     (payload) => delete payload.default_source,

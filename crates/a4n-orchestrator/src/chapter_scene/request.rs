@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::{
     context::{ContextAwareJsonLlmRequestInput, context_aware_system_user_llm_request},
@@ -94,7 +93,6 @@ pub(super) fn build_scene_generation_request(
             ),
             dynamic_user_prompt: user_prompt,
             temperature: Some(0.8),
-            max_tokens_profile: llm_token_profiles::STANDARD.to_string(),
             call_key: Some(chapter_scene_call_key(
                 input.chapter_number,
                 input.scene_number,

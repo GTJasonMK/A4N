@@ -144,40 +144,8 @@ export interface UpdateLlmInput {
   timeout_secs: number;
 }
 
-export interface LlmMaxTokensConfig {
-  blueprint: number;
-  chapter_analysis: number;
-  chapter_generation: number;
-  character_discovery: number;
-  character_sync: number;
-  connection_test: number;
-  extra_long: number;
-  json_standard: number;
-  long: number;
-  media_prompt: number;
-  outline: number;
-  short: number;
-  standard: number;
-}
-
 export const DEFAULT_LLM_MAX_CONTEXT_TOKENS = 128000;
 export const DEFAULT_LLM_MAX_OUTPUT_TOKENS = 8192;
-export const LLM_MAX_TOKEN_LIMIT = 262144;
-export const DEFAULT_LLM_MAX_TOKENS_CONFIG: LlmMaxTokensConfig = {
-  connection_test: 8,
-  short: 1024,
-  standard: 2048,
-  json_standard: 4096,
-  long: 8192,
-  extra_long: 8192,
-  chapter_generation: 8192,
-  chapter_analysis: 4096,
-  outline: 8192,
-  blueprint: 8192,
-  character_discovery: 8192,
-  character_sync: 8192,
-  media_prompt: 4096,
-};
 export const LLM_RESERVED_REQUEST_OPTION_KEYS: readonly string[] = ["model", "messages", "stream", "temperature", "max_tokens", "response_format", "prompt_cache_key", "tools", "tool_choice", "stop", "stop_sequences", "system", "anthropic_version", "cache_control"];
 
 export interface VideoConfigSummary {

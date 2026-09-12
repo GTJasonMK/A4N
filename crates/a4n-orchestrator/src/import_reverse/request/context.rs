@@ -19,7 +19,6 @@ pub(super) fn build_reverse_engineer_context(
 ) -> Result<(LlmContextManifest, String), AppError> {
     let prompt_name = target.prompt_name();
     let instruction = target.user_instruction();
-    let max_tokens_profile = target.max_tokens_profile();
     let source_artifact = reverse_engineer_source_artifact(content_sample)?;
     let source_hash = source_content_sha256(&serde_json::to_string(&source_artifact)?);
     let mut ledger = LlmContextLedger::new();
@@ -53,7 +52,6 @@ pub(super) fn build_reverse_engineer_context(
         "prompt_name": prompt_name,
         "source_artifact_sha256": source_hash,
         "instruction": instruction.trim(),
-        "max_tokens_profile": max_tokens_profile,
     }))?);
     Ok((manifest, fingerprint))
 }

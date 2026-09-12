@@ -2710,7 +2710,7 @@ async fn server_process_reconnects_inspiration_sse_ten_times_without_losing_one_
             "project_id": project.id,
             "message": "请帮我梳理主角动机",
             "runtime_config_snapshot": {
-                "schema_version": 1,
+                "schema_version": 2,
                 "llm_default_source": "system",
                 "system_llm_api_key_encrypted": "process-test-key"
             }
@@ -2968,7 +2968,7 @@ async fn server_process_streams_image_generation_success_terminal() {
                 "height": 1024,
             },
             "runtime_config_snapshot": {
-                "schema_version": 1,
+                "schema_version": 2,
                 "image": {
                     "id": image_config_id,
                     "name": image_config.name,

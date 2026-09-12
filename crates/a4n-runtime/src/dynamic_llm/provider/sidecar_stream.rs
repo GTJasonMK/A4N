@@ -8,7 +8,7 @@ use a4n_llm::provider::{ChatChunk, ChatRequest};
 use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;
 
-use super::super::budget::ensure_max_tokens_within_model_cap;
+use super::super::budget::requested_max_tokens;
 use super::super::config::{require_sidecar_business_trace, sidecar_chat_request};
 use super::super::contracts::DynamicLlmProvider;
 use super::super::streams::QueueTrackedSidecarLlmStream;
@@ -21,20 +21,17 @@ impl DynamicLlmProvider {
         config_id: Option<i64>,
         mut request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-        let profile = request.max_tokens_profile.clone();
         let temperature = request.temperature;
         let message_count = request.messages.len();
         let prompt_chars: usize = request.messages.iter().map(|msg| msg.content.len()).sum();
         let resolved_model = self.resolve_runtime_model_by_id(config_id).await?;
         let model_name = resolved_model.model_name().to_string();
         let model_max_output_tokens = resolved_model.capabilities.max_output_tokens;
-        request.max_tokens = self.resolve_max_tokens(&request).await?;
-        ensure_max_tokens_within_model_cap(
+        request.max_tokens = Some(requested_max_tokens(
             request.max_tokens,
-            profile.as_deref(),
             model_max_output_tokens,
             model_name.as_str(),
-        )?;
+        )?);
         let planner = resolved_model.planner();
         let trace_context =
             prepare_dynamic_llm_trace_context(&self.facade, &planner, &mut request).await?;
@@ -44,7 +41,6 @@ impl DynamicLlmProvider {
         tracing::debug!(
             target: "a4n::llm",
             model = %model_name,
-            profile = ?profile,
             max_tokens = ?request.max_tokens,
             temperature = ?temperature,
             message_count,

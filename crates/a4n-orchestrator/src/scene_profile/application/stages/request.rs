@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use serde_json::{Value, json};
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_domain::source_spans::text_anchor_prompt_values;
 use a4n_llm::context::{
     ContextAwareJsonLlmRequestInput, PACK_KIND_SCENE_PROFILE_SYNC_SOURCE_CONTEXT,
@@ -92,7 +91,6 @@ pub(in crate::scene_profile::application) async fn build_scene_profile_stage_req
             stable_context_json: scene_profile_stage_stable_context(context),
             dynamic_user_prompt: user_prompt,
             temperature: Some(0.2),
-            max_tokens_profile: llm_token_profiles::CHARACTER_DISCOVERY.to_string(),
             call_key: Some(format!(
                 "scene_profile_sync:{}:{}",
                 context.chapter.id, prompt_name

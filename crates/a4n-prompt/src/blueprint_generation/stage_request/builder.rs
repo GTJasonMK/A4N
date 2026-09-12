@@ -1,8 +1,5 @@
 use crate::blueprint_generation::stage_response::parse_blueprint_stage_output_schema;
-use a4n_domain::{
-    llm::llm_token_profiles,
-    project::{BLUEPRINT_GENERATION_KIND, BLUEPRINT_STAGE_SYSTEM_PROMPT},
-};
+use a4n_domain::project::{BLUEPRINT_GENERATION_KIND, BLUEPRINT_STAGE_SYSTEM_PROMPT};
 use a4n_error::AppError;
 use a4n_llm::context::context_aware_system_user_request;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
@@ -52,24 +49,20 @@ pub async fn build_blueprint_stage_request(
         stage_name,
         &output_schema,
     )?;
-    Ok(context_aware_system_user_request(
-        system_content,
-        manifest,
-        Some(0.7),
-        None,
-        Some(llm_token_profiles::BLUEPRINT.into()),
-    )?
-    .with_json_response_format()
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(project_id),
-        root_project_id: None,
-        workflow: BLUEPRINT_GENERATION_KIND.to_string(),
-        step_key: stage_key.to_string(),
-        generation_run_id: None,
-        workflow_run_id: None,
-        call_key: Some(stage_key.to_string()),
-        input_fingerprint_sha256: None,
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
+    Ok(
+        context_aware_system_user_request(system_content, manifest, Some(0.7), None)?
+            .with_json_response_format()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(project_id),
+                root_project_id: None,
+                workflow: BLUEPRINT_GENERATION_KIND.to_string(),
+                step_key: stage_key.to_string(),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: Some(stage_key.to_string()),
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+    )
 }

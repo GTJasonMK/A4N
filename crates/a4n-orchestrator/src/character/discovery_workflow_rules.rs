@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn workflow_run_input_rejects_non_positive_project() {
-        let request = ChatRequest::new(vec![ChatMessage::user("hi")], None, None, None);
+        let request = ChatRequest::new(vec![ChatMessage::user("hi")], None, None);
         assert!(character_discovery_workflow_run_input(0, None, &[], &[], &request, None).is_err());
     }
 }

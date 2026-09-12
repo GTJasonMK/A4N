@@ -47,7 +47,6 @@ pub(crate) fn discovery_workflow_fingerprint(
         "system_prompt_sha256": request.messages.first()
             .map(|message| source_content_sha256(&message.content)),
         "temperature": request.temperature,
-        "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format
     })
 }

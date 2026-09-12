@@ -28,29 +28,24 @@ pub(in crate::import_reverse) async fn build_reverse_engineer_request(
         variables,
     } = input;
     let prompt_name = target.prompt_name();
-    let max_tokens_profile = target.max_tokens_profile();
     let sys = prompt_renderer
         .render_prompt(prompt_name, variables, Some(project_id))
         .await?;
     let (manifest, fingerprint) = build_reverse_engineer_context(target, content_sample)?;
-    Ok(context_aware_system_user_request(
-        sys,
-        manifest,
-        Some(0.3),
-        None,
-        Some(max_tokens_profile.into()),
-    )?
-    .with_json_response_format()
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(project_id),
-        root_project_id: None,
-        workflow: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
-        step_key: prompt_name.to_string(),
-        generation_run_id: None,
-        workflow_run_id: None,
-        call_key: Some(prompt_name.to_string()),
-        input_fingerprint_sha256: Some(fingerprint),
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
+    Ok(
+        context_aware_system_user_request(sys, manifest, Some(0.3), None)?
+            .with_json_response_format()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(project_id),
+                root_project_id: None,
+                workflow: IMPORT_REVERSE_WORKFLOW_KIND.to_string(),
+                step_key: prompt_name.to_string(),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: Some(prompt_name.to_string()),
+                input_fingerprint_sha256: Some(fingerprint),
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+    )
 }

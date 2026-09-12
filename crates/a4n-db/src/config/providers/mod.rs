@@ -26,9 +26,8 @@ pub use image::{
 };
 pub(crate) use llm::insert_llm_config_record;
 pub use llm::{
-    DefaultLlmOutputCapRow, LlmConfigRecordInput, create_llm_config_record,
-    default_llm_output_cap_rows, delete_llm_config_record, list_llm_config_records,
-    llm_config_by_id, resolve_llm_config, update_llm_config_record,
+    LlmConfigRecordInput, create_llm_config_record, delete_llm_config_record,
+    list_llm_config_records, llm_config_by_id, resolve_llm_config, update_llm_config_record,
 };
 pub(crate) use video::insert_video_config_record;
 pub use video::{

@@ -51,8 +51,7 @@ mod tests {
     #[test]
     fn call_fingerprint_records_formal_source_fingerprint() {
         let source = json!({"version": 1, "outline": "章纲"});
-        let request =
-            a4n_llm::provider::ChatRequest::system_user("system", "user", None, None, None);
+        let request = a4n_llm::provider::ChatRequest::system_user("system", "user", None, None);
 
         let fingerprint = chapter_generation_call_fingerprint_json(7, 3, &source, &request)
             .expect("fingerprint should serialize");

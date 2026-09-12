@@ -10,11 +10,9 @@ import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import {
   listEmbeddingConfig,
-  getServerLlmMaxTokensConfig,
   getServerWebSearchConfig,
   listServerLlmConfig,
   type EmbeddingConfig,
-  type LlmMaxTokensConfig,
   type WebSearchConfigSummary,
 } from "../../../api/config";
 import { listServerImageConfigs, type ImageGenConfig } from "../../../api/image";
@@ -39,7 +37,6 @@ interface ApiConfigSnapshot {
   video: VideoGenConfig[];
   embedding: EmbeddingConfig[];
   webSearch: WebSearchConfigSummary;
-  maxTokens: LlmMaxTokensConfig;
   providers: ModelProviderCatalog;
 }
 
@@ -116,17 +113,16 @@ const ApiConfigOverview: React.FC = () => {
     loadSeqRef.current = requestSeq;
     setLoading(true);
     try {
-      const [llm, image, video, embedding, webSearch, maxTokens, providers] = await Promise.all([
+      const [llm, image, video, embedding, webSearch, providers] = await Promise.all([
         listServerLlmConfig(),
         listServerImageConfigs(),
         listServerVideoConfigs(),
         listEmbeddingConfig("server"),
         getServerWebSearchConfig(),
-        getServerLlmMaxTokensConfig(),
         listModelProviderCatalog(),
       ]);
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
-      setSnapshot({ llm, image, video, embedding, webSearch, maxTokens, providers });
+      setSnapshot({ llm, image, video, embedding, webSearch, providers });
     } catch (err) {
       if (!mountedRef.current || loadSeqRef.current !== requestSeq) return;
       addToast(extractErrorMessage(err, t("settingsAdmin.loadApiConfigFailed")), "error");
@@ -202,15 +198,6 @@ const ApiConfigOverview: React.FC = () => {
                     [t("settingsForm.advancedParams"), configuredLabel(defaults.llm.extra_body_json, t)],
                   ]
                 : []
-            }
-            diagnosticFooter={
-              snapshot
-                ? t("settingsAdmin.sceneBudget", {
-                    chapter: snapshot.maxTokens.chapter_generation,
-                    analysis: snapshot.maxTokens.chapter_analysis,
-                    media: snapshot.maxTokens.media_prompt,
-                  })
-                : undefined
             }
           />
 

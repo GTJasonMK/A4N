@@ -7,9 +7,7 @@ use serde_json::Value;
 use crate::{OrchestratorContext, structured_llm::parse_strict_json_response};
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::contracts::{
-    MANGA_PIPELINE_MAX_TOKENS_PROFILE, MangaLlmCallInput, MangaPromptGenerationTrace,
-};
+use super::super::contracts::{MangaLlmCallInput, MangaPromptGenerationTrace};
 use super::checkpoint::load_manga_restored_llm_checkpoint;
 use super::request::prepare_manga_llm_call;
 
@@ -75,7 +73,7 @@ impl OrchestratorContext {
                 let response = self.stream_complete_llm(prepared.request).await?;
                 if is_truncated_finish_reason(response.finish_reason.as_deref()) {
                     return Err(AppError::InvalidArgument(format!(
-                        "{prompt_name} 输出被 max_tokens 截断，未形成完整 JSON。当前使用 token 档位 {MANGA_PIPELINE_MAX_TOKENS_PROFILE}，请减少本章输入规模或增大该档位后重试。"
+                        "{prompt_name} 输出达到模型当前 max_tokens 上限，未形成完整 JSON；请减少本次输入规模或提高模型配置的最大输出后重试。"
                     )));
                 }
                 (

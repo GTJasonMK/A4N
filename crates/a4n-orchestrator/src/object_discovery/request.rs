@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::{asset::object_profile, chapter::chapter, project::text_anchor};
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::{
     context::{
@@ -75,7 +74,6 @@ pub(super) async fn build_object_discovery_request(
             stable_context_json: stable_context,
             dynamic_user_prompt: build_object_discovery_manifest_user_prompt()?,
             temperature: Some(0.2),
-            max_tokens_profile: llm_token_profiles::CHARACTER_DISCOVERY.to_string(),
             call_key: Some(OBJECT_DISCOVERY_CALL_KEY.to_string()),
         },
     )

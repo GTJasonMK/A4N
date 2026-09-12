@@ -71,7 +71,6 @@ vi.mock("./localRuntimeSettings", () => ({
   activeLocalLlmConfig: () =>
     snapshotState.usesSystemDefaultLlm ? null : llm,
   activeLocalVideoConfig: () => video,
-  getLocalLlmMaxTokensConfig: () => ({}),
   getSystemDefaultImageApiKey: () => null,
   getSystemDefaultLlmApiKey: () => snapshotState.systemLlmApiKey,
   getSystemDefaultVideoApiKey: () => null,

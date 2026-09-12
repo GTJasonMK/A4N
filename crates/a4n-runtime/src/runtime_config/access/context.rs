@@ -1,4 +1,3 @@
-use a4n_domain::LlmMaxTokensConfig;
 use serde_json::Value;
 
 use super::super::RuntimeConfigSnapshot;
@@ -10,10 +9,6 @@ pub fn current_snapshot() -> Option<RuntimeConfigSnapshot> {
 
 pub fn current_user_id() -> Option<i64> {
     RUNTIME_USER_ID.try_with(|user_id| *user_id).ok()
-}
-
-pub fn current_llm_max_tokens() -> Option<LlmMaxTokensConfig> {
-    current_snapshot().and_then(|snapshot| snapshot.llm_max_tokens)
 }
 
 pub fn uses_client_desktop_embedding() -> bool {

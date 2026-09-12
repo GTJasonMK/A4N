@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use serde_json::{Value, json};
@@ -52,7 +51,6 @@ pub(in crate::outline::parts) async fn build_part_outline_request(
         manifest,
         Some(0.7),
         None,
-        Some(llm_token_profiles::OUTLINE.into()),
     )?
     .with_json_response_format()
     .with_trace_context(LlmTraceContext {
@@ -98,7 +96,6 @@ pub(in crate::outline::parts) fn part_outline_call_fingerprint_json(
         "messages": request.messages,
         "context_manifest": request.context_manifest_json,
         "max_tokens": request.max_tokens,
-        "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
         "source_snapshot_sha256": source_content_sha256(&serde_json::to_string(source_snapshot)?),
         "target": {

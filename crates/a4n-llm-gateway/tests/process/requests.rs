@@ -70,7 +70,7 @@ async fn stream_response_headers_have_a_connect_deadline_when_gateway_is_saturat
                 "process-connect-timeout-trace",
                 "http://127.0.0.1:1",
                 "process-connect-timeout-model",
-                ChatRequest::system_user("system", "connect timeout", None, Some(16), None),
+                ChatRequest::system_user("system", "connect timeout", None, Some(16)),
             ),
             events,
         )
@@ -110,7 +110,7 @@ async fn event_queue_backpressure_waits_for_capacity_across_independent_gateway_
                     "process-backpressure-trace",
                     &provider_base_url,
                     "process-burst-model",
-                    ChatRequest::system_user("system", "backpressure ping", None, Some(16), None),
+                    ChatRequest::system_user("system", "backpressure ping", None, Some(16)),
                 ),
                 event_tx,
             )
@@ -168,7 +168,7 @@ async fn remote_egress_rejects_provider_secret_and_allows_content_without_it() {
             &provider_base_url,
             "process-fake-model",
             Some("process-provider-secret"),
-            ChatRequest::system_user("system", "remote secret must stop", None, Some(16), None),
+            ChatRequest::system_user("system", "remote secret must stop", None, Some(16)),
         ),
     )
     .await;
@@ -189,7 +189,7 @@ async fn remote_egress_rejects_provider_secret_and_allows_content_without_it() {
             &provider_base_url,
             "process-fake-model",
             None,
-            ChatRequest::system_user("system", "remote content is explicit", None, Some(16), None),
+            ChatRequest::system_user("system", "remote content is explicit", None, Some(16)),
         ),
     )
     .await;
@@ -239,7 +239,7 @@ async fn typed_stream_crosses_independent_gateway_process() {
         "process-stream-request",
         "process-stream-trace",
         &provider_base_url,
-        ChatRequest::system_user("system", "stream ping", None, Some(16), None).with_stream_usage(),
+        ChatRequest::system_user("system", "stream ping", None, Some(16)).with_stream_usage(),
     );
     assert_route_rejects_unknown_payload_field(&gateway_base_url, "/llm/stream", &stream_request)
         .await;
@@ -365,7 +365,7 @@ async fn provider_failure_is_isolated_from_independent_gateway_process() {
             "process-error-trace",
             &provider_base_url,
             "process-error-500",
-            ChatRequest::system_user("system", "error ping", None, Some(16), None),
+            ChatRequest::system_user("system", "error ping", None, Some(16)),
         ),
     )
     .await;
@@ -392,7 +392,7 @@ async fn provider_failure_is_isolated_from_independent_gateway_process() {
             "process-recovery-request",
             "process-recovery-trace",
             &provider_base_url,
-            ChatRequest::system_user("system", "recovery ping", None, Some(16), None),
+            ChatRequest::system_user("system", "recovery ping", None, Some(16)),
         ),
     )
     .await;

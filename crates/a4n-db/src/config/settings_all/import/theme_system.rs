@@ -1,10 +1,6 @@
-use super::super::super::LLM_MAX_TOKENS_SETTING_KEY;
-use super::super::{
-    types::{
-        SettingsAllConfigImportError, SettingsAllSystemSettingRow, SettingsAllThemeRow,
-        settings_all_config_database,
-    },
-    validation::validate_llm_max_tokens_import_against_current_default,
+use super::super::types::{
+    SettingsAllConfigImportError, SettingsAllSystemSettingRow, SettingsAllThemeRow,
+    settings_all_config_database,
 };
 use a4n_db_models::models::{ai::system_settings, user::theme_config};
 use a4n_domain::validate_theme_document;
@@ -91,9 +87,6 @@ pub(super) async fn import_system_setting_row<C>(
 where
     C: ConnectionTrait,
 {
-    if row.key == LLM_MAX_TOKENS_SETTING_KEY {
-        validate_llm_max_tokens_import_against_current_default(db, row.value.clone()).await?;
-    }
     let existing = system_settings::Entity::find()
         .filter(system_settings::Column::Key.eq(&row.key))
         .one(db)

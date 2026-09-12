@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::{
     context::{
@@ -69,7 +68,6 @@ pub(super) async fn build_character_profile_sync_stage_request(
             stable_context_json: character_profile_sync_stage_stable_context(input),
             dynamic_user_prompt: user_prompt,
             temperature: Some(stage.temperature()),
-            max_tokens_profile: llm_token_profiles::CHARACTER_SYNC.to_string(),
             call_key: Some(
                 character_profile_sync_stage_call_key(
                     input.profile_id,

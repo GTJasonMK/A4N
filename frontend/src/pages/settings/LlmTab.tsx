@@ -4,7 +4,6 @@ import {
   createServerLlmConfig,
   deleteLlmConfig,
   deleteServerLlmConfig,
-  getServerLlmMaxTokensConfig,
   listLlmConfig,
   listServerLlmConfig,
   previewTestLlmConfigRequest,
@@ -13,13 +12,11 @@ import {
   testLlmConfig,
   updateLlmConfig,
   updateServerLlmConfig,
-  updateServerLlmMaxTokensConfig,
   SYSTEM_LLM_CONFIG_ID,
 } from "../../api/config";
 import { ConfigListPanel, type ConfigItem } from "./ConfigListPanel";
 import { useConfigItems } from "./config-list/useConfigItems";
 import { LlmConfigEditor } from "./llm/LlmConfigEditor";
-import { LlmMaxTokensPanel } from "./llm/LlmMaxTokensPanel";
 import {
   DEFAULT_LLM_FORM,
   formatLlmItem,
@@ -37,13 +34,6 @@ import type { ModelProviderCatalog } from "../../api/generated/config";
 import type { ModelConfigScope } from "../../api/modelDiscovery";
 import { useI18n } from "../../i18n";
 
-/**
- * LLM 配置 Tab
- *
- * A4N 后端的 llm_config 只存连接信息（name / provider / base_url / api_key /
- * model / max_concurrent）；各生成场景的 max_tokens 统一存放在
- * system_settings.llm_max_tokens。
- */
 interface LlmTabProps {
   scope?: ModelConfigScope;
 }
@@ -74,17 +64,8 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
     t("settings.loadConfigFailed", { name: t("settings.llmConfig") }),
   );
 
-  const defaultModelOutputCap =
-    items.find((item) => item.isActive)?.config.max_output_tokens ?? null;
-
   return (
     <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
-      <LlmMaxTokensPanel
-        modelMaxOutputTokens={defaultModelOutputCap}
-        getConfig={serverScope ? getServerLlmMaxTokensConfig : undefined}
-        updateConfig={serverScope ? updateServerLlmMaxTokensConfig : undefined}
-      />
-
       <div className="min-h-0 md:flex-1">
         <ConfigListPanel<LlmForm>
           title={t("settings.llmConfig")}

@@ -60,7 +60,7 @@ mod tests {
     #[tokio::test]
     async fn detached_command_inherits_parent_runtime_snapshot() {
         let snapshot = a4n_runtime::host_api::runtime_config::RuntimeConfigSnapshot {
-            schema_version: 1,
+            schema_version: 2,
             llm: None,
             llm_configs: Vec::new(),
             image: None,
@@ -74,7 +74,6 @@ mod tests {
             system_llm_api_key_encrypted: None,
             system_image_api_key_encrypted: None,
             system_video_api_key_encrypted: None,
-            llm_max_tokens: None,
             client_context: None,
         };
 

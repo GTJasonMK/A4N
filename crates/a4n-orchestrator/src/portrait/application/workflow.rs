@@ -98,7 +98,7 @@ pub(super) async fn resolve_initial_portrait_prompt(
             .await?;
     if is_truncated_finish_reason(response.finish_reason.as_deref()) {
         return Err(AppError::InvalidArgument(
-            "人物三视图提示词输出达到当前 max_tokens 上限，提示词可能被截断；请在设置页调大“媒体提示词”输出档位，或减少角色上下文后重试".to_string(),
+            "人物三视图提示词输出达到当前 max_tokens 上限，提示词可能被截断；请在模型配置中提高 max_output_tokens，或减少角色上下文后重试".to_string(),
         ));
     }
     let response_content = response.message.content.clone();

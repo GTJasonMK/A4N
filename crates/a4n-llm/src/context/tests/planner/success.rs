@@ -35,6 +35,22 @@ fn budget_planner_uses_input_utilization_cap() {
 }
 
 #[test]
+fn adaptive_budget_reserves_the_largest_output_that_fits_required_context() {
+    let plan = ContextBudgetPlanner::new(0)
+        .with_input_utilization_percent(100)
+        .plan_requirements_adaptive(
+            100,
+            90,
+            vec![requirement("source", COMPRESSION_MINIMAL, 20, true)],
+            0,
+        )
+        .expect("adaptive plan");
+
+    assert_eq!(plan.output_token_reserve, 80);
+    assert_eq!(plan.estimated_input_tokens, 20);
+}
+
+#[test]
 fn budget_planner_selects_compressed_required_variant() {
     let plan = ContextBudgetPlanner::new(100)
         .with_input_utilization_percent(100)

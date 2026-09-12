@@ -39,7 +39,7 @@ async fn closed_receiver_cancels_stream_across_independent_gateway_process() {
                 "process-cancel-trace",
                 &hanging_provider_base_url,
                 "process-cancel-model",
-                ChatRequest::system_user("system", "cancel ping", None, Some(16), None),
+                ChatRequest::system_user("system", "cancel ping", None, Some(16)),
             ),
             event_tx,
         ),
@@ -76,7 +76,7 @@ async fn closed_receiver_cancels_stream_across_independent_gateway_process() {
             "process-cancel-recovery-request",
             "process-cancel-recovery-trace",
             &recovery_provider_base_url,
-            ChatRequest::system_user("system", "recovery ping", None, Some(16), None),
+            ChatRequest::system_user("system", "recovery ping", None, Some(16)),
         ),
     )
     .await;
@@ -115,7 +115,7 @@ async fn provider_idle_timeout_emits_failed_terminal_event_and_recovers() {
         "process-timeout-trace",
         &hanging_provider_base_url,
         "process-timeout-model",
-        ChatRequest::system_user("system", "timeout ping", None, Some(16), None),
+        ChatRequest::system_user("system", "timeout ping", None, Some(16)),
     );
     request.payload["provider"]["timeout_secs"] = json!(1);
 
@@ -161,7 +161,7 @@ async fn provider_idle_timeout_emits_failed_terminal_event_and_recovers() {
             "process-timeout-recovery-request",
             "process-timeout-recovery-trace",
             &recovery_provider.base_url(),
-            ChatRequest::system_user("system", "recovery ping", None, Some(16), None),
+            ChatRequest::system_user("system", "recovery ping", None, Some(16)),
         ),
     )
     .await;
@@ -199,7 +199,7 @@ async fn stream_idle_timeout_releases_provider_body_across_independent_process()
         "process-stream-idle-trace",
         &hanging_provider_base_url,
         "process-stream-idle-model",
-        ChatRequest::system_user("system", "stream idle ping", None, Some(16), None),
+        ChatRequest::system_user("system", "stream idle ping", None, Some(16)),
     );
     request.payload["provider"]["timeout_secs"] = json!(120);
     let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);

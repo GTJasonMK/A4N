@@ -14,6 +14,6 @@ pub(crate) struct ChatRequestStepInput {
 pub(crate) struct ChatRequestStepWithBudgetInput {
     pub(crate) step: ChatRequestStepInput,
     pub(crate) model_context_tokens: usize,
-    pub(crate) output_token_reserve_override: Option<usize>,
+    pub(crate) output_token_reserve: usize,
     pub(crate) budget_note: Option<String>,
 }

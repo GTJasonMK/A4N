@@ -2296,7 +2296,7 @@ mod tests {
     #[tokio::test]
     async fn generation_worker_inherits_runtime_context() {
         let snapshot = serde_json::from_value(json!({
-            "schema_version": 1,
+            "schema_version": 2,
             "image": {
                 "id": 1,
                 "name": "request image config",

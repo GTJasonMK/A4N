@@ -3,8 +3,7 @@
 use std::{future::Future, sync::Arc};
 
 use a4n_domain::llm::{
-    ContextPackReference, LlmMaxTokensConfig, RecordLlmCallTraceInput,
-    RecordOrReuseContextPackInput,
+    ContextPackReference, RecordLlmCallTraceInput, RecordOrReuseContextPackInput,
 };
 use a4n_error::AppError;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
@@ -30,10 +29,6 @@ impl DynamicProviderFacade {
         config_id: Option<i64>,
     ) -> Result<LlmProviderConfig, AppError> {
         self.port.resolve_llm_config(config_id).await
-    }
-
-    pub(crate) async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError> {
-        self.port.llm_max_tokens_config().await
     }
 
     pub(crate) async fn default_embedding_config_optional(

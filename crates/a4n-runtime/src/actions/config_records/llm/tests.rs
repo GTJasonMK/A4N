@@ -1,3 +1,4 @@
+use super::connectivity::validate_llm_runtime_snapshot_config_id;
 use super::contracts::{CreateLlmInput, UpdateLlmInput};
 use super::*;
 use a4n_provider_contract::LlmProviderConfig;
@@ -88,19 +89,6 @@ fn runtime_snapshot_config_id_error_names_non_llm_config_kind() {
     assert!(err.contains("runtime_config_snapshot.image.id 必须等于 config_id"));
     assert!(err.contains("snapshot_id=3"));
     assert!(err.contains("config_id=4"));
-}
-
-#[test]
-fn llm_connectivity_test_rejects_connection_tokens_above_tested_model_cap() {
-    let config = test_llm_config_model(7, 4);
-
-    let err = validate_llm_connection_test_max_tokens(8, &config)
-        .expect_err("connection_test above tested model output cap must fail");
-
-    assert!(err.contains("LLM 连接测试 max_tokens 不能超过被测配置模型最大输出"));
-    assert!(err.contains("config_id=7"));
-    assert!(err.contains("connection_test=8"));
-    assert!(err.contains("model_max_output_tokens=4"));
 }
 
 fn test_llm_config_model(id: i64, max_output_tokens: i32) -> LlmProviderConfig {

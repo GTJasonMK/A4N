@@ -6,14 +6,8 @@ use crate::provider::{ChatMessage, ChatRequest};
 fn context_aware_request_attaches_manifest_without_serializing_it() {
     let mut manifest = manifest_with_pack("生成当前片段");
     manifest.output_contract = Some("只输出 JSON".to_string());
-    let request = context_aware_system_user_request(
-        "system",
-        manifest,
-        Some(0.2),
-        None,
-        Some("media_prompt".to_string()),
-    )
-    .expect("request");
+    let request =
+        context_aware_system_user_request("system", manifest, Some(0.2), None).expect("request");
 
     assert!(request.context_manifest_json.is_some());
     assert_eq!(request.messages.len(), 2);
@@ -32,14 +26,8 @@ fn context_aware_request_rejects_empty_manifest_packs() {
         output_contract: None,
     };
 
-    let err = context_aware_system_user_request(
-        "system",
-        manifest,
-        Some(0.2),
-        None,
-        Some("media_prompt".to_string()),
-    )
-    .expect_err("empty context manifest must fail");
+    let err = context_aware_system_user_request("system", manifest, Some(0.2), None)
+        .expect_err("empty context manifest must fail");
 
     assert!(err.to_string().contains("至少需要一个上下文包"));
 }
@@ -55,7 +43,6 @@ fn manifest_rewrite_rejects_complex_chat_history() {
         ],
         Some(0.2),
         None,
-        None,
     );
 
     let err = replace_request_user_content_from_manifest(&mut request, &manifest, &[])
@@ -68,8 +55,7 @@ fn manifest_rewrite_rejects_complex_chat_history() {
 fn manifest_rewrite_records_the_stable_user_cache_boundary() {
     let manifest = manifest_with_pack("当前任务");
     let mut request =
-        context_aware_system_user_request("system", manifest.clone(), None, None, None)
-            .expect("request");
+        context_aware_system_user_request("system", manifest.clone(), None, None).expect("request");
     let selected = PlannedContextPack {
         pack_ref: pack_ref("chapter_source", COMPRESSION_FULL_RAW, 10),
         stable_prefix: true,

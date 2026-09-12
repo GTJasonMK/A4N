@@ -1,4 +1,4 @@
-use a4n_api_contract::config::{CreateLlmInput, LlmMaxTokensConfig, UpdateLlmInput};
+use a4n_api_contract::config::{CreateLlmInput, UpdateLlmInput};
 use serde_json::Value;
 
 use super::shared::{
@@ -23,16 +23,6 @@ config_web_id_unit_command!(
     config_records_actions::set_default_llm_config,
 );
 config_web_id_unit_command!(delete_llm_config, config_records_actions::delete_llm_config);
-config_web_no_arg_command!(
-    get_llm_max_tokens_config,
-    config_records_actions::get_llm_max_tokens_config,
-);
-config_web_input_command!(
-    update_llm_max_tokens_config,
-    LlmMaxTokensConfig,
-    config_records_actions::update_llm_max_tokens_config,
-);
-
 pub(in crate::routes::commands) async fn test_llm_config(
     state: &ServerState,
     user_id: i64,

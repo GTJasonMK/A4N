@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_domain::shooting_script::{ShootingSceneV1, ShootingShotV1};
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
@@ -92,7 +91,6 @@ fn design_unit_request(
             "只设计 narrative_unit_index={} 的 ShootingSceneV1。shots 必须与 locked_visual_unit.shots 数量和顺序一致；不得改变视觉镜头 ID、时间范围、source_span_ids、user_addition_ids 或关键帧/事件约束。",
             unit.narrative_unit_index,
         ),
-        llm_token_profiles::EXTRA_LONG.into(),
     )
 }
 

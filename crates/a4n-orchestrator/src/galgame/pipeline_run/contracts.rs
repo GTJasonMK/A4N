@@ -1,5 +1,4 @@
 use a4n_api_contract::galgame::GalgameProgressReporter;
-use a4n_domain::llm::llm_token_profiles;
 use serde_json::Value;
 
 use super::super::{
@@ -8,7 +7,6 @@ use super::super::{
 };
 
 pub(super) const GALGAME_PIPELINE_WORKFLOW: &str = "galgame_pipeline";
-pub(super) const GALGAME_PIPELINE_MAX_TOKENS_PROFILE: &str = llm_token_profiles::EXTRA_LONG;
 pub(super) const CHECKPOINT_SCENES: &str = "scenes";
 pub(super) const CHECKPOINT_LINES_DRAFT: &str = "lines_draft";
 pub(super) const CHECKPOINT_LINES_STAGED: &str = "lines_staged";

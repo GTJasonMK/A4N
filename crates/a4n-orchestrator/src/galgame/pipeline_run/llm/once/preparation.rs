@@ -6,7 +6,6 @@ use serde_json::json;
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
 
-use super::super::super::contracts::GALGAME_PIPELINE_MAX_TOKENS_PROFILE;
 use super::{GalgameLlmOnceInput, PreparedGalgameLlmOnce};
 
 pub(super) async fn prepare_galgame_llm_once(
@@ -23,7 +22,6 @@ pub(super) async fn prepare_galgame_llm_once(
         "system_prompt": system_prompt,
         "user_prompt": input.user_prompt.as_str(),
         "temperature": 0.25,
-        "max_tokens_profile": GALGAME_PIPELINE_MAX_TOKENS_PROFILE,
     });
     let input_fingerprint_sha256 =
         workflow::llm_call_checkpoint_fingerprint_sha256(&fingerprint_json)

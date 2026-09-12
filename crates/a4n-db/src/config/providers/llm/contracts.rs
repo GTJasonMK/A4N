@@ -1,12 +1,5 @@
 use serde_json::Value;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct DefaultLlmOutputCapRow {
-    pub id: i64,
-    pub name: String,
-    pub max_output_tokens: i32,
-}
-
 pub struct LlmConfigRecordInput {
     pub name: String,
     pub provider: String,

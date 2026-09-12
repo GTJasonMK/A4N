@@ -15,7 +15,7 @@ fn detects_known_truncated_finish_reasons() {
 
 #[test]
 fn chat_request_serialization_skips_internal_trace_fields() {
-    let mut request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None, None)
+    let mut request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None)
         .with_stream_usage()
         .with_trace_context(LlmTraceContext {
             project_id: Some(1),
@@ -44,7 +44,7 @@ fn chat_request_serialization_skips_internal_trace_fields() {
 
 #[test]
 fn chat_request_serialization_omits_default_stream_usage() {
-    let request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None, None);
+    let request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None);
 
     let value = serde_json::to_value(&request).expect("request serializes");
     assert!(value.get("stream_include_usage").is_none());
@@ -52,8 +52,8 @@ fn chat_request_serialization_omits_default_stream_usage() {
 
 #[test]
 fn chat_request_serializes_json_response_format() {
-    let request = ChatRequest::new(vec![ChatMessage::user("json")], None, None, None)
-        .with_json_response_format();
+    let request =
+        ChatRequest::new(vec![ChatMessage::user("json")], None, None).with_json_response_format();
 
     let value = serde_json::to_value(&request).expect("request serializes");
     assert_eq!(value["response_format"]["type"], "json_object");

@@ -21,7 +21,6 @@ pub struct ContextAwareJsonLlmRequestInput {
     pub stable_context_json: Value,
     pub dynamic_user_prompt: String,
     pub temperature: Option<f32>,
-    pub max_tokens_profile: String,
     pub call_key: Option<String>,
 }
 
@@ -77,32 +76,27 @@ pub fn context_aware_system_user_llm_request(
             "step_key": &input.step_key,
             "stable_context_sha256": stable_context_sha256,
             "dynamic_user_sha256": dynamic_user_sha256,
-            "max_tokens_profile": &input.max_tokens_profile,
             "temperature": input.temperature,
         }))
         .map_err(|error| format!("LLM 请求 fingerprint 序列化失败: {error}"))?,
     );
 
-    Ok(context_aware_system_user_request(
-        system_prompt,
-        manifest,
-        input.temperature,
-        None,
-        Some(input.max_tokens_profile),
+    Ok(
+        context_aware_system_user_request(system_prompt, manifest, input.temperature, None)
+            .map_err(|error| error.to_string())?
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(input.project_id),
+                root_project_id: None,
+                workflow: input.workflow,
+                step_key: input.step_key,
+                generation_run_id: None,
+                workflow_run_id: input.workflow_run_id,
+                call_key: input.call_key,
+                input_fingerprint_sha256: Some(fingerprint),
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
     )
-    .map_err(|error| error.to_string())?
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(input.project_id),
-        root_project_id: None,
-        workflow: input.workflow,
-        step_key: input.step_key,
-        generation_run_id: None,
-        workflow_run_id: input.workflow_run_id,
-        call_key: input.call_key,
-        input_fingerprint_sha256: Some(fingerprint),
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
 }
 
 pub fn context_aware_system_user_json_llm_request(
@@ -139,7 +133,6 @@ mod tests {
             stable_context_json: json!({"chapter": {"id": 3, "content": "潮汐城"}}),
             dynamic_user_prompt: "提取角色档案".to_string(),
             temperature: Some(0.2),
-            max_tokens_profile: "profile_sync".to_string(),
             call_key: Some("profile_sync:extract".to_string()),
         }
     }

@@ -59,7 +59,7 @@ fn test_video_config(id: i64, is_default: bool) -> RuntimeVideoConfig {
 #[tokio::test]
 async fn explicit_config_id_lookup_accepts_active_or_list_config() {
     let snapshot = RuntimeConfigSnapshot {
-        schema_version: 1,
+        schema_version: 2,
         llm: Some(test_llm_config(1, true)),
         llm_configs: vec![test_llm_config(2, false)],
         image: Some(test_image_config(1, true)),
@@ -73,7 +73,6 @@ async fn explicit_config_id_lookup_accepts_active_or_list_config() {
         system_llm_api_key_encrypted: None,
         system_image_api_key_encrypted: None,
         system_video_api_key_encrypted: None,
-        llm_max_tokens: None,
         client_context: None,
     };
 
@@ -140,7 +139,7 @@ async fn explicit_config_id_lookup_accepts_active_or_list_config() {
 #[tokio::test]
 async fn config_lists_do_not_define_runtime_defaults() {
     let snapshot = RuntimeConfigSnapshot {
-        schema_version: 1,
+        schema_version: 2,
         llm: None,
         llm_configs: vec![test_llm_config(2, true)],
         image: None,
@@ -154,7 +153,6 @@ async fn config_lists_do_not_define_runtime_defaults() {
         system_llm_api_key_encrypted: None,
         system_image_api_key_encrypted: None,
         system_video_api_key_encrypted: None,
-        llm_max_tokens: None,
         client_context: None,
     };
 
@@ -189,7 +187,7 @@ async fn config_lists_do_not_define_runtime_defaults() {
 fn snapshot_from_args_rejects_malformed_snapshot() {
     let args = json!({
         "runtime_config_snapshot": {
-            "schema_version": 1,
+            "schema_version": 2,
             "llm": {
                 "name": "local",
                 "provider": "openai",
@@ -215,10 +213,22 @@ fn snapshot_from_args_rejects_malformed_snapshot() {
 }
 
 #[test]
+fn snapshot_from_args_rejects_unsupported_schema_version() {
+    let args = json!({
+        "runtime_config_snapshot": {
+            "schema_version": 1
+        }
+    });
+
+    let err = snapshot_from_args(&args).expect_err("unsupported snapshot must fail explicitly");
+    assert!(err.contains("schema_version 不支持: 1"), "{err}");
+}
+
+#[test]
 fn snapshot_from_args_requires_runtime_llm_token_cap_fields() {
     let args = json!({
         "runtime_config_snapshot": {
-            "schema_version": 1,
+            "schema_version": 2,
             "llm": {
                 "id": 1,
                 "name": "local",
@@ -257,7 +267,7 @@ fn snapshot_from_args_rejects_camel_case_compatibility_fields() {
 fn snapshot_from_args_rejects_unknown_nested_config_fields() {
     let args = json!({
         "runtime_config_snapshot": {
-            "schema_version": 1,
+            "schema_version": 2,
             "llm": {
                 "id": 1,
                 "name": "local",
@@ -284,7 +294,7 @@ fn snapshot_from_args_rejects_unknown_nested_config_fields() {
 #[test]
 fn redacted_snapshot_value_uses_shared_sidecar_sensitive_field_policy() {
     let snapshot = RuntimeConfigSnapshot {
-        schema_version: 1,
+        schema_version: 2,
         llm: Some(RuntimeLlmConfig {
             id: 1,
             name: "local llm".to_string(),
@@ -311,7 +321,6 @@ fn redacted_snapshot_value_uses_shared_sidecar_sensitive_field_policy() {
         system_llm_api_key_encrypted: Some("sk-system-secret".to_string()),
         system_image_api_key_encrypted: Some("sk-image-secret".to_string()),
         system_video_api_key_encrypted: Some("sk-video-secret".to_string()),
-        llm_max_tokens: None,
         client_context: Some(json!({
             "access_token": "token-secret",
             "safe": "visible"

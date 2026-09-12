@@ -68,21 +68,6 @@ describe("恢复稀疏章节资料同步", () => {
           image: [],
           video: [],
           default_source: { llm: "system", image: "system", video: "system" },
-          llm_max_tokens: {
-            connection_test: 8,
-            short: 1024,
-            standard: 2048,
-            json_standard: 4096,
-            long: 8192,
-            extra_long: 8192,
-            chapter_generation: 8192,
-            chapter_analysis: 4096,
-            outline: 8192,
-            blueprint: 8192,
-            character_discovery: 8192,
-            character_sync: 8192,
-            media_prompt: 4096,
-          },
         }),
       );
     }, llmApiKey);

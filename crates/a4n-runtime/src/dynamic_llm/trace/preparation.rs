@@ -27,7 +27,9 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
     complete_llm_trace_project_scope(facade, &mut trace_context).await?;
 
     let caps = provider.capabilities();
-    let output_reserve = request.max_tokens.unwrap_or(caps.max_output_tokens);
+    let output_reserve = request.max_tokens.ok_or_else(|| {
+        AppError::InvalidArgument("动态 LLM 请求缺少已解析的 max_tokens".to_string())
+    })?;
     let system_messages = system_messages(&request.messages);
     let system_tokens = provider.count_messages_tokens(&system_messages);
     let mut system_requirements = Vec::new();
@@ -63,7 +65,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                 } else {
                     system_tokens
                 });
-            let mut plan = ContextBudgetPlanner::default().plan_requirements(
+            let mut plan = ContextBudgetPlanner::default().plan_requirements_adaptive(
                 caps.max_context_tokens,
                 output_reserve,
                 all_requirements,
@@ -82,7 +84,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
                 } else {
                     system_tokens
                 });
-            ContextBudgetPlanner::default().plan_requirements(
+            ContextBudgetPlanner::default().plan_requirements_adaptive(
                 caps.max_context_tokens,
                 output_reserve,
                 system_requirements,
@@ -90,6 +92,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             )?
         }
     };
+    request.max_tokens = Some(plan.output_token_reserve);
     trace_context.context_plan_json =
         Some(serde_json::to_value(&plan).map_err(AppError::Serialization)?);
     trace_context.context_pack_refs_json =
@@ -171,7 +174,7 @@ mod tests {
 
     #[test]
     fn gpt_5_6_cache_reuses_stable_project_prefix_across_runs() {
-        let mut request = ChatRequest::system_user("stable", "dynamic", None, None, None);
+        let mut request = ChatRequest::system_user("stable", "dynamic", None, None);
         let mut trace = LlmTraceContext {
             project_id: Some(1),
             root_project_id: Some(1),
@@ -222,7 +225,7 @@ mod tests {
         assert_eq!(request.cache_scope_key.as_deref(), Some(first_key.as_str()));
 
         trace.project_id = None;
-        let mut unrelated = ChatRequest::new(vec![ChatMessage::user("one shot")], None, None, None);
+        let mut unrelated = ChatRequest::new(vec![ChatMessage::user("one shot")], None, None);
         unrelated.cache_user_prefix_len = Some(1);
         configure_prompt_cache(&mut unrelated, "gpt-5.6-luna", &trace);
         assert!(unrelated.cache_scope_key.is_none());
@@ -235,7 +238,6 @@ mod tests {
         let mut request = ChatRequest::system_user(
             "stable system",
             "stable context\n\ncurrent task one",
-            None,
             None,
             None,
         );

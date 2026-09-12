@@ -70,7 +70,6 @@ fn chat_request_step_renders_context_aware_preview() {
         },
         Some(0.2),
         Some(1024),
-        None,
     )
     .expect("context-aware request");
 
@@ -84,7 +83,7 @@ fn chat_request_step_renders_context_aware_preview() {
             request,
         },
         model_context_tokens: 128_000,
-        output_token_reserve_override: Some(1024),
+        output_token_reserve: 1024,
         budget_note: Some("测试模型预算".to_string()),
     })
     .expect("preview step");
@@ -97,6 +96,11 @@ fn chat_request_step_renders_context_aware_preview() {
     assert!(step.context_manifest.is_some());
     assert!(step.context_plan.is_some());
     assert!(step.context_pack_refs.is_some());
+    assert_eq!(step.request.as_ref().unwrap()["max_tokens"], json!(1024));
+    assert_eq!(
+        step.context_plan.as_ref().unwrap()["output_token_reserve"],
+        json!(1024)
+    );
 }
 
 #[test]

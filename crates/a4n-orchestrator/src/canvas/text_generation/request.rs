@@ -132,7 +132,6 @@ pub(super) fn build_canvas_llm_text_request(
         manifest,
         llm_input.temperature,
         llm_input.max_tokens,
-        None,
     )
     .map_err(|error| error.to_string())?
     .with_trace_context(LlmTraceContext {

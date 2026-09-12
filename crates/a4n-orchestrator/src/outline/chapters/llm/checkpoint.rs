@@ -21,7 +21,6 @@ pub(super) fn chapter_outline_call_fingerprint_json(
         "messages": request.messages,
         "context_manifest": request.context_manifest_json,
         "max_tokens": request.max_tokens,
-        "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
         "source_snapshot_sha256": a4n_domain::source_text_hash(
             &serde_json::to_string(source_snapshot)?

@@ -330,7 +330,7 @@ fn ensure_response_not_truncated(
     }
     let scope = format!("{profile_name} {}", stage.title());
     Err(AppError::InvalidArgument(format!(
-        "{scope} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色同步”输出档位，或减少本次同步章节后重试"
+        "{scope} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次同步章节后重试"
     )))
 }
 

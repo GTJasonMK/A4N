@@ -102,7 +102,7 @@ fn scene_generation_request_uses_manifest_context_contract() {
     })
     .expect("scene request should build");
 
-    assert_eq!(request.max_tokens_profile.as_deref(), Some("standard"));
+    assert!(request.max_tokens.is_none());
     let manifest = request
         .context_manifest_json
         .expect("context-aware request must carry manifest");

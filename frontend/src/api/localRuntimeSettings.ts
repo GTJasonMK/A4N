@@ -1,7 +1,6 @@
 import type { LocalEmbeddingConfig } from "./config";
 import type {
   LlmConfigSummary,
-  LlmMaxTokensConfig,
   UpdateEmbeddingInput,
   UpdateLlmInput,
 } from "./generated/config";
@@ -18,10 +17,7 @@ import type {
   VideoGenConfig,
 } from "./video";
 import { readPortableItem, writePortableItem } from "../utils/portableStorage";
-import {
-  DEFAULT_LLM_MAX_TOKENS_CONFIG,
-  LLM_RESERVED_REQUEST_OPTION_KEYS,
-} from "./generated/config";
+import { LLM_RESERVED_REQUEST_OPTION_KEYS } from "./generated/config";
 
 const STORE_KEY = "a4n:local-runtime-settings:v1";
 const LOCAL_RUNTIME_SETTINGS_KEYS = [
@@ -35,8 +31,8 @@ const LOCAL_RUNTIME_SETTINGS_KEYS = [
   "image",
   "video",
   "default_source",
-  "llm_max_tokens",
 ] as const;
+const RETIRED_LOCAL_RUNTIME_SETTINGS_KEYS = ["llm_max_tokens"] as const;
 const LOCAL_RUNTIME_DEFAULT_SOURCE_KEYS = ["llm", "image", "video"] as const;
 const SYSTEM_API_KEY_FIELDS = {
   llm: "system_llm_api_key_encrypted",
@@ -59,7 +55,6 @@ interface LocalRuntimeSettings {
   image: ImageGenConfig[];
   video: VideoGenConfig[];
   default_source: LocalRuntimeDefaultSource;
-  llm_max_tokens: LlmMaxTokensConfig;
 }
 
 interface LocalRuntimeSettingsInput {
@@ -73,7 +68,6 @@ interface LocalRuntimeSettingsInput {
   image: unknown[];
   video: unknown[];
   default_source: unknown;
-  llm_max_tokens: LlmMaxTokensConfig;
 }
 
 interface LocalRuntimeDefaultSource {
@@ -83,10 +77,6 @@ interface LocalRuntimeDefaultSource {
 }
 
 type LocalRuntimeProviderKind = keyof LocalRuntimeDefaultSource;
-
-const LLM_MAX_TOKEN_KEYS = Object.keys(DEFAULT_LLM_MAX_TOKENS_CONFIG) as Array<
-  keyof LlmMaxTokensConfig
->;
 
 const DEFAULT_LOCAL_EMBEDDING_NAME = "基础本地哈希向量";
 const DEFAULT_LOCAL_EMBEDDING_MODEL = "local-sha256-hash";
@@ -122,7 +112,6 @@ function defaultSettings(): LocalRuntimeSettings {
       image: "system",
       video: "system",
     },
-    llm_max_tokens: { ...DEFAULT_LLM_MAX_TOKENS_CONFIG },
   };
 }
 
@@ -137,7 +126,11 @@ function parseSettings(raw: string | null): LocalRuntimeSettings {
     );
   }
   const payload = requiredObject(parsed, "本机运行时设置");
-  assertNoUnknownKeys(payload, LOCAL_RUNTIME_SETTINGS_KEYS, "本机运行时设置");
+  assertNoUnknownKeys(
+    payload,
+    [...LOCAL_RUNTIME_SETTINGS_KEYS, ...RETIRED_LOCAL_RUNTIME_SETTINGS_KEYS],
+    "本机运行时设置",
+  );
   if (payload.schema_version !== 1) {
     throw new Error("本机运行时设置 schema_version 必须为 1");
   }
@@ -152,7 +145,6 @@ function parseSettings(raw: string | null): LocalRuntimeSettings {
     image: requiredArraySection<ImageGenConfig>(payload, "image"),
     video: requiredArraySection<VideoGenConfig>(payload, "video"),
     default_source: payload.default_source,
-    llm_max_tokens: normalizeLocalMaxTokensConfig(payload.llm_max_tokens),
   });
 }
 
@@ -256,23 +248,6 @@ function requiredArraySection<T>(
   return value as T[];
 }
 
-function normalizeLocalMaxTokensConfig(value: unknown): LlmMaxTokensConfig {
-  const payload = requiredObject(value, "本机运行时设置 llm_max_tokens");
-  assertNoUnknownKeys(
-    payload,
-    LLM_MAX_TOKEN_KEYS,
-    "本机运行时设置 llm_max_tokens",
-  );
-  const result = {} as LlmMaxTokensConfig;
-  for (const key of LLM_MAX_TOKEN_KEYS) {
-    result[key] = requiredPositiveInt(
-      payload[key],
-      `本机运行时设置 llm_max_tokens.${key}`,
-    );
-  }
-  return result;
-}
-
 function normalizeSettings(
   settings: LocalRuntimeSettingsInput,
 ): LocalRuntimeSettings {
@@ -296,7 +271,6 @@ function normalizeSettings(
     image: settings.image.map(normalizeLocalImageConfig),
     video: settings.video.map(normalizeLocalVideoConfig),
     default_source: normalizeDefaultSource(settings.default_source, settings),
-    llm_max_tokens: settings.llm_max_tokens,
   };
   if (normalized.embedding.length === 0) {
     throw new Error("本机运行时设置 embedding 必须至少包含一个配置");
@@ -699,23 +673,6 @@ function normalizeSupportedDurations(value: unknown, label: string): number[] {
   });
 }
 
-function assertMaxTokensWithinModelCap(
-  config: LlmMaxTokensConfig,
-  modelMaxOutputTokens: number,
-): void {
-  if (!Number.isInteger(modelMaxOutputTokens) || modelMaxOutputTokens <= 0) {
-    throw new Error("模型能力最大输出必须为正整数");
-  }
-  const overLimit = Object.entries(config)
-    .filter(([, value]) => value > modelMaxOutputTokens)
-    .map(([key, value]) => `${key}=${value}`);
-  if (overLimit.length > 0) {
-    throw new Error(
-      `场景请求输出预算不能超过当前默认模型最大输出 ${modelMaxOutputTokens} tokens：${overLimit.join(", ")}`,
-    );
-  }
-}
-
 function ensureSingleDefault<T extends { is_default: boolean }>(
   items: T[],
   section: string,
@@ -893,10 +850,6 @@ export function createLocalLlmConfig(input: {
   return mutateSettings((settings) => {
     const isFirstLlmConfig = settings.llm.length === 0;
     if (isFirstLlmConfig) {
-      assertMaxTokensWithinModelCap(
-        settings.llm_max_tokens,
-        input.max_output_tokens,
-      );
       settings.default_source.llm = "local";
     }
     const item = normalizeLocalLlmConfig({
@@ -925,12 +878,6 @@ export function updateLocalLlmConfig(
   return mutateSettings((settings) => {
     const item = settings.llm.find((row) => row.id === id);
     if (!item) throw new Error(`本机 LLM 配置不存在: ${id}`);
-    if (item.is_default) {
-      assertMaxTokensWithinModelCap(
-        settings.llm_max_tokens,
-        input.max_output_tokens,
-      );
-    }
     item.name = input.name.trim();
     item.provider = input.provider.trim();
     item.base_url = input.base_url.trim();
@@ -958,10 +905,6 @@ export function setDefaultLocalLlmConfig(id: number): void {
   mutateSettings((settings) => {
     const target = settings.llm.find((item) => item.id === id);
     if (!target) throw new Error(`本机配置不存在: ${id}`);
-    assertMaxTokensWithinModelCap(
-      settings.llm_max_tokens,
-      target.max_output_tokens,
-    );
     settings.default_source.llm = "local";
     return setSingleDefault(settings.llm, id);
   });
@@ -978,24 +921,6 @@ export function deleteLocalLlmConfig(id: number): void {
       id,
       settings.default_source.llm === "system",
     );
-  });
-}
-
-export function getLocalLlmMaxTokensConfig(): LlmMaxTokensConfig {
-  return readLocalRuntimeSettings().llm_max_tokens;
-}
-
-export function updateLocalLlmMaxTokensConfig(
-  input: LlmMaxTokensConfig,
-): LlmMaxTokensConfig {
-  return mutateSettings((settings) => {
-    const nextConfig = normalizeLocalMaxTokensConfig(input);
-    const activeLlm = settings.llm.find((item) => item.is_default) ?? null;
-    if (activeLlm) {
-      assertMaxTokensWithinModelCap(nextConfig, activeLlm.max_output_tokens);
-    }
-    settings.llm_max_tokens = nextConfig;
-    return settings.llm_max_tokens;
   });
 }
 

@@ -142,7 +142,7 @@ impl OrchestratorContext {
             let response = self.stream_complete_llm(request).await?;
             if is_truncated_finish_reason(response.finish_reason.as_deref()) {
                 return Err(AppError::InvalidArgument(
-                        "行为隐性属性分类输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“JSON 标准”输出档位，或减少本次分类上下文后重试"
+                        "行为隐性属性分类输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次分类上下文后重试"
                             .to_string(),
                     ));
             }

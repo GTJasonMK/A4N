@@ -4,8 +4,7 @@
 //! crates do not inherit queue or Tokio dependencies.
 
 use a4n_domain::llm::{
-    ContextPackReference, LlmMaxTokensConfig, RecordLlmCallTraceInput,
-    RecordOrReuseContextPackInput,
+    ContextPackReference, RecordLlmCallTraceInput, RecordOrReuseContextPackInput,
 };
 use a4n_domain::task_queue::TaskKind;
 use a4n_error::AppError;
@@ -32,8 +31,6 @@ pub trait ProviderRuntimePort: Send + Sync {
         &self,
         config_id: Option<i64>,
     ) -> Result<LlmProviderConfig, AppError>;
-
-    async fn llm_max_tokens_config(&self) -> Result<LlmMaxTokensConfig, AppError>;
 
     async fn default_embedding_config_optional(
         &self,

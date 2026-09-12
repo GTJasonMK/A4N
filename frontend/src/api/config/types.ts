@@ -13,7 +13,6 @@ import type {
 
 export type {
   LlmConfigSummary,
-  LlmMaxTokensConfig,
   UpdateEmbeddingInput,
   UpdateLlmInput,
 } from "../generated/config";

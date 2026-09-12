@@ -266,7 +266,7 @@ impl OrchestratorContext {
         let response = self.stream_complete_llm(request).await?;
         if is_truncated_finish_reason(response.finish_reason.as_deref()) {
             return Err(AppError::InvalidArgument(
-                "场景正文生成输出达到当前 max_tokens 上限，正文可能被截断；请在设置页调大“标准”输出档位，或缩短本次场景目标后重试".to_string(),
+                "场景正文生成输出达到当前 max_tokens 上限，正文可能被截断；请在模型配置中提高 max_output_tokens，或缩短本次场景目标后重试".to_string(),
             ));
         }
         let content = normalize_scene_generation_output(&response.message.content)?;

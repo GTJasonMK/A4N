@@ -17,7 +17,7 @@ pub(super) async fn chat_chapter_analysis_stage(
     progress: &mut ChapterAnalysisProgress<'_>,
 ) -> Result<String, AppError> {
     let truncated_message = format!(
-        "{} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“章节分析”输出档位，或减少章节正文长度后重试",
+        "{} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少章节正文长度后重试",
         spec.stage
     );
     // 活体信号与字段级里程碑取自同一个 token 流，二者互补而非替代。

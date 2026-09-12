@@ -7,9 +7,7 @@ use serde_json::json;
 
 use crate::workflow::workflow_checkpoint_contract_app_error;
 
-use super::super::super::contracts::{
-    GALGAME_PIPELINE_MAX_TOKENS_PROFILE, GALGAME_PIPELINE_WORKFLOW,
-};
+use super::super::super::contracts::GALGAME_PIPELINE_WORKFLOW;
 use super::{GalgameLlmStageInput, PreparedGalgameLlmStage};
 
 const GALGAME_PIPELINE_SESSION_PROMPT: &str = "galgame_pipeline_session";
@@ -43,7 +41,6 @@ pub(super) async fn prepare_galgame_llm_stage(
         "system_prompt": stage_prompt,
         "user_prompt": input.user_prompt,
         "temperature": 0.25,
-        "max_tokens_profile": GALGAME_PIPELINE_MAX_TOKENS_PROFILE,
     });
     if input.stage == crate::galgame::GalgamePipelineStartStage::CharacterStaging {
         fingerprint_json["shared_shooting_script_projection"] =

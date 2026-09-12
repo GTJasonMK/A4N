@@ -57,4 +57,41 @@ impl ContextBudgetPlanner {
             estimated_input_tokens: selection.used,
         })
     }
+
+    /// 先尝试完整输出预算；输入无法容纳时，收敛到仍能容纳必需上下文的最大预算。
+    pub fn plan_requirements_adaptive(
+        &self,
+        model_context_tokens: usize,
+        requested_output_tokens: usize,
+        requirements: Vec<LlmContextPackRequirement>,
+        dynamic_delta_tokens: usize,
+    ) -> Result<LlmContextPlan, AppError> {
+        let plan = |output_token_reserve| {
+            self.plan_requirements(
+                model_context_tokens,
+                output_token_reserve,
+                requirements.clone(),
+                dynamic_delta_tokens,
+            )
+        };
+        match plan(requested_output_tokens) {
+            Ok(plan) => Ok(plan),
+            Err(initial_error) => {
+                let Ok(_) = plan(1) else {
+                    return Err(initial_error);
+                };
+                let mut lowest_working = 1;
+                let mut highest_failing = requested_output_tokens;
+                while lowest_working + 1 < highest_failing {
+                    let middle = lowest_working + (highest_failing - lowest_working) / 2;
+                    if plan(middle).is_ok() {
+                        lowest_working = middle;
+                    } else {
+                        highest_failing = middle;
+                    }
+                }
+                plan(lowest_working)
+            }
+        }
+    }
 }

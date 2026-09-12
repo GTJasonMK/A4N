@@ -102,14 +102,14 @@ mod tests {
             "apply_source_sync_decisions",
             json!({
                 "input": { "sync_run_id": 1, "decisions": [] },
-                "runtime_config_snapshot": { "schema_version": 1 }
+                "runtime_config_snapshot": { "schema_version": 2 }
             }),
         )
         .unwrap();
         assert_eq!(request.path, "/commands/apply_source_sync_decisions");
         assert_eq!(
             request.body.unwrap()["runtime_config_snapshot"]["schema_version"],
-            1
+            2
         );
     }
 
@@ -131,7 +131,7 @@ mod tests {
             json!({
                 "input": { "project_id": 1, "chapter_number": 1 },
                 "runtime_config_snapshot": {
-                    "schema_version": 1,
+                    "schema_version": 2,
                     "image": { "api_key_encrypted": "sk-test" }
                 }
             }),

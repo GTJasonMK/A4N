@@ -9,7 +9,6 @@ import type { ModelRequestPreview } from "../requestPreview";
 import type {
   CreateLlmInput,
   LlmConfigSummary,
-  LlmMaxTokensConfig,
   UpdateLlmInput,
 } from "./types";
 import { type ApiId as Id, idNum } from "../shared";
@@ -19,12 +18,10 @@ import {
   getSystemDefaultLlmApiKey,
   getLocalLlmConfig,
   hasSystemDefaultLlmApiKey,
-  getLocalLlmMaxTokensConfig,
   listLocalLlmConfigs,
   setDefaultLocalLlmConfig,
   setSystemDefaultLlmConfig,
   updateLocalLlmConfig,
-  updateLocalLlmMaxTokensConfig,
   updateSystemDefaultLlmApiKey,
   usesSystemDefaultLlmConfig,
 } from "../localRuntimeSettings";
@@ -238,30 +235,6 @@ export async function previewTestLlmConfigRequest(
         )
       : null,
   });
-}
-
-export async function getServerLlmMaxTokensConfig(): Promise<LlmMaxTokensConfig> {
-  return apiInvoke<LlmMaxTokensConfig>("get_llm_max_tokens_config");
-}
-
-export async function getLlmMaxTokensConfig(): Promise<LlmMaxTokensConfig> {
-  if (usesLocalRuntimeSettings()) return getLocalLlmMaxTokensConfig();
-  return getServerLlmMaxTokensConfig();
-}
-
-export async function updateServerLlmMaxTokensConfig(
-  input: LlmMaxTokensConfig,
-): Promise<LlmMaxTokensConfig> {
-  return apiInvoke<LlmMaxTokensConfig>("update_llm_max_tokens_config", {
-    input,
-  });
-}
-
-export async function updateLlmMaxTokensConfig(
-  input: LlmMaxTokensConfig,
-): Promise<LlmMaxTokensConfig> {
-  if (usesLocalRuntimeSettings()) return updateLocalLlmMaxTokensConfig(input);
-  return updateServerLlmMaxTokensConfig(input);
 }
 
 export async function detectLlmConfigModels(

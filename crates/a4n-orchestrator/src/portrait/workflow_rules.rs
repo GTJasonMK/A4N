@@ -158,7 +158,7 @@ mod tests {
     use a4n_llm::provider::{ChatMessage, ChatRequest};
 
     fn empty_request() -> ChatRequest {
-        ChatRequest::new(vec![ChatMessage::user("hi")], None, None, None)
+        ChatRequest::new(vec![ChatMessage::user("hi")], None, None)
     }
 
     fn sample_profile() -> protagonist_profile::Model {

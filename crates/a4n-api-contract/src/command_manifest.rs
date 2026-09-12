@@ -456,7 +456,6 @@ command_specs! {
     "get_generation_progress" => args_project_id, result_outline_generation_progress, "task", context(PROJECT_CONTEXT), effect(READ_EFFECT);
     "get_implicit_review" => args_get_implicit_review, result_get_implicit_review, "profile", effect(READ_EFFECT);
     "get_inspiration_history" => args_get_inspiration_history, result_inspiration_history, "inspiration", context(NO_CONTEXT), effect(READ_EFFECT);
-    "get_llm_max_tokens_config" => args_get_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
     "get_log_dir" => empty_args_schema, result_string, "system", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
     "get_manga_pipeline_status" => args_cancel_manga_pipeline, result_get_manga_pipeline_status, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
     "get_optimize_session" => args_optimize_session, result_optimization_session, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -505,19 +504,19 @@ command_specs! {
     "list_chapter_video_prompts" => args_list_chapter_video_prompts, result_list_chapter_video_prompts, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_chapters" => args_project_id, result_chapter_summaries, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_deletion_marks" => args_list_deletion_marks, result_list_deletion_marks, "profile", effect(READ_EFFECT);
-    "list_embedding_config" => args_get_llm_max_tokens_config, result_list_embedding_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
+    "list_embedding_config" => empty_args_schema, result_list_embedding_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_foreshadowing" => args_list_foreshadowing, result_list_foreshadowing, "profile", effect(READ_EFFECT);
-    "list_image_configs" => args_get_llm_max_tokens_config, result_list_image_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
+    "list_image_configs" => empty_args_schema, result_list_image_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMAGE);
     "list_images_by_chapter" => args_list_images_by_chapter, result_list_images_by_chapter, "chapter", context(NO_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
     "list_images_by_project" => args_list_images_by_project, result_list_images_by_chapter, "asset", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_images_by_projects" => args_list_images_by_projects, result_list_images_by_chapter, "asset", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_import_queue" => args_import_project_reviews, result_import_reviews, "import", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_IMPORT);
     "list_invite_codes" => empty_args_schema, result_invite_codes, "collaboration", identity(ADMIN_IDENTITY), effect(READ_EFFECT);
-    "list_llm_config" => args_get_llm_max_tokens_config, result_list_llm_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
-    "list_local_embedding_models" => args_get_llm_max_tokens_config, result_list_local_embedding_models, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
+    "list_llm_config" => empty_args_schema, result_list_llm_config, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_local_embedding_models" => empty_args_schema, result_list_local_embedding_models, "rag", effect(READ_EFFECT), capabilities(CAPABILITIES_EMBEDDING);
     "list_manga_page_prompts" => args_cancel_manga_pipeline, result_list_manga_page_prompts, "manga", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_manga_pipeline_statuses" => args_list_manga_pipeline_statuses, result_list_manga_pipeline_statuses, "manga", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow");
-    "list_model_provider_catalog" => args_get_llm_max_tokens_config, result_list_model_provider_catalog, "system", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_model_provider_catalog" => empty_args_schema, result_list_model_provider_catalog, "system", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_my_project_invites" => empty_args_schema, result_list_my_project_invites, "project", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_object_profiles" => args_list_object_profiles, result_list_object_profiles, "profile", effect(READ_EFFECT);
     "list_optimize_patch_sets" => args_optimize_session, result_optimization_patch_sets, "optimize", context(NO_CONTEXT), effect(READ_EFFECT);
@@ -537,8 +536,8 @@ command_specs! {
     "list_sessions" => empty_args_schema, result_list_sessions, "auth", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_snapshots" => args_list_snapshots, result_list_snapshots, "profile", effect(READ_EFFECT);
     "list_source_snapshot_chapters" => args_project_id, result_source_snapshot_chapters, "chapter", context(PROJECT_CONTEXT), effect(READ_EFFECT), references(REFERENCES_CHAPTER_IDS);
-    "list_themes" => args_get_llm_max_tokens_config, result_list_themes, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
-    "list_video_configs" => args_get_llm_max_tokens_config, result_list_video_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
+    "list_themes" => empty_args_schema, result_list_themes, "settings", context(NO_CONTEXT), effect(READ_EFFECT);
+    "list_video_configs" => empty_args_schema, result_list_video_configs, "settings", context(NO_CONTEXT), effect(READ_EFFECT), capabilities(CAPABILITIES_VIDEO);
     "list_video_reference_images" => args_list_video_reference_images, result_list_images_by_chapter, "asset", context(NO_CONTEXT), effect(READ_EFFECT);
     "list_videos_by_chapter" => args_list_videos_by_chapter, result_list_videos_by_chapter, "video", context(PROJECT_CHAPTER_CONTEXT), effect(READ_EFFECT);
     "list_workflow_runs" => args_list_workflow_runs, result_list_workflow_runs, "workflow", context(NO_CONTEXT), effect(READ_EFFECT), execution("workflow"), references(REFERENCES_WORKFLOW_RUN_IDS);
@@ -709,7 +708,6 @@ command_specs! {
     "update_image" => args_update_image, result_update_image, "asset", context(NO_CONTEXT);
     "update_image_config" => args_update_image_config, result_add_image_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS), capabilities(CAPABILITIES_IMAGE);
     "update_llm_config" => args_update_llm_config, result_create_llm_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT), secrets(PROVIDER_SECRET_POINTERS);
-    "update_llm_max_tokens_config" => args_update_llm_max_tokens_config, result_get_llm_max_tokens_config, "settings", identity(ADMIN_IDENTITY), context(NO_CONTEXT);
     "update_manga_prompt" => args_update_manga_prompt, result_bind_manga_reference_image, "manga", context(NO_CONTEXT);
     "update_object_profile" => args_update_object_profile, result_object_profile_mutation, "profile";
     "update_package_preferences" => args_update_package_preferences, result_package_preferences, "settings", context(NO_CONTEXT);
@@ -1668,10 +1666,6 @@ fn args_get_snapshot() -> Value {
     strict_typed_input_schema::<crate::character::GetSnapshotInput>()
 }
 
-fn args_get_llm_max_tokens_config() -> Value {
-    empty_args_schema()
-}
-
 fn args_get_package_operation() -> Value {
     strict_typed_input_schema::<crate::package::GetPackageOperationInput>()
 }
@@ -2405,10 +2399,6 @@ fn args_update_llm_config() -> Value {
     config_typed_input_schema::<crate::config::UpdateLlmInput>()
 }
 
-fn args_update_llm_max_tokens_config() -> Value {
-    strict_typed_input_schema::<crate::config::LlmMaxTokensConfig>()
-}
-
 fn args_update_web_search_config() -> Value {
     strict_typed_input_schema::<crate::web_search::UpdateWebSearchConfigInput>()
 }
@@ -2939,10 +2929,6 @@ fn result_get_profile_state_at_chapter() -> Value {
 
 fn result_get_snapshot() -> Value {
     typed_schema::<crate::character::SnapshotSummary>()
-}
-
-fn result_get_llm_max_tokens_config() -> Value {
-    typed_schema::<crate::config::LlmMaxTokensConfig>()
 }
 
 fn result_get_web_search_config() -> Value {

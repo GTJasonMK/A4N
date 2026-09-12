@@ -17,9 +17,8 @@ pub(in crate::routes::commands) use image::{
     test_image_config, update_image_config,
 };
 pub(in crate::routes::commands) use llm::{
-    create_llm_config, delete_llm_config, detect_llm_config_models, get_llm_max_tokens_config,
-    list_llm_config, preview_test_llm_config_request, set_default_llm_config, test_llm_config,
-    update_llm_config, update_llm_max_tokens_config,
+    create_llm_config, delete_llm_config, detect_llm_config_models, list_llm_config,
+    preview_test_llm_config_request, set_default_llm_config, test_llm_config, update_llm_config,
 };
 pub(in crate::routes::commands) use settings_all::{export_all_configs_json, import_all_configs};
 pub(in crate::routes::commands) use video::{

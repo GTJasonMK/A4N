@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::context::LlmContextManifest;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
@@ -25,26 +24,22 @@ pub(in crate::optimize) fn build_content_optimization_patch_request(
         project_context,
         user_message,
     )?;
-    Ok(context_aware_system_user_request(
-        system_prompt,
-        manifest,
-        Some(0.2),
-        None,
-        Some(llm_token_profiles::STANDARD.into()),
-    )?
-    .with_json_response_format()
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(project_id),
-        root_project_id: None,
-        workflow: "content_optimization_patch".to_string(),
-        step_key: format!("session_{session_id}_patch"),
-        generation_run_id: None,
-        workflow_run_id: None,
-        call_key: Some(format!("session_{session_id}_patch")),
-        input_fingerprint_sha256: None,
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
+    Ok(
+        context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
+            .with_json_response_format()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(project_id),
+                root_project_id: None,
+                workflow: "content_optimization_patch".to_string(),
+                step_key: format!("session_{session_id}_patch"),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: Some(format!("session_{session_id}_patch")),
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+    )
 }
 
 pub(in crate::optimize) fn optimize_llm_call_input_fingerprint_json(

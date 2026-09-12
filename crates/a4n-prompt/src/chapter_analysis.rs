@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn stage_fingerprint_keeps_stage_and_request_trace() {
-        let request = ChatRequest::system_user("system", "user", Some(0.2), None, None);
+        let request = ChatRequest::system_user("system", "user", Some(0.2), None);
         let fingerprint = chapter_analysis_stage_fingerprint("chapter_fact_extraction", &request)
             .expect("fingerprint");
 

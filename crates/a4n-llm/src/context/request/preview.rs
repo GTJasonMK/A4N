@@ -30,7 +30,7 @@ pub fn preview_context_aware_chat_request(
     let requirement_inputs = preview_requirement_inputs(&system_messages, &manifest)?;
     let dynamic_delta_tokens =
         estimate_context_tokens(&render_context_manifest_user_content(&manifest, &[])?);
-    let mut plan = ContextBudgetPlanner::default().plan_requirements(
+    let mut plan = ContextBudgetPlanner::default().plan_requirements_adaptive(
         model_context_tokens,
         output_token_reserve,
         requirement_inputs.requirements,
@@ -38,6 +38,7 @@ pub fn preview_context_aware_chat_request(
     )?;
     hydrate_selected_pack_content(&mut plan, &requirement_inputs.content_by_key);
     replace_request_user_content_from_manifest(request, &manifest, &plan.selected_packs)?;
+    request.max_tokens = Some(plan.output_token_reserve);
     Ok(Some(LlmContextRequestPreview {
         manifest_json,
         plan_json: serde_json::to_value(&plan).map_err(AppError::Serialization)?,

@@ -1,11 +1,10 @@
 use a4n_db::config::{
-    LLM_MAX_TOKENS_SETTING_KEY, SettingsAllConfigImportInput, SettingsAllConfigRows,
-    SettingsAllEmbeddingConfigRow, SettingsAllImageConfigRow, SettingsAllLlmConfigRow,
-    SettingsAllSystemSettingRow, SettingsAllThemeRow, SettingsAllVideoConfigRow,
-    import_settings_all_configs, settings_all_config_rows,
-    validate_settings_all_config_import_defaults,
+    SettingsAllConfigImportInput, SettingsAllConfigRows, SettingsAllEmbeddingConfigRow,
+    SettingsAllImageConfigRow, SettingsAllLlmConfigRow, SettingsAllSystemSettingRow,
+    SettingsAllThemeRow, SettingsAllVideoConfigRow, import_settings_all_configs,
+    settings_all_config_rows, validate_settings_all_config_import_defaults,
 };
-use a4n_domain::{ImageSize, LlmMaxTokensConfig, ThemeDocument, ThemeMode};
+use a4n_domain::{ImageSize, ThemeDocument, ThemeMode};
 use serde_json::json;
 
 fn settings_rows() -> SettingsAllConfigRows {
@@ -178,32 +177,4 @@ async fn settings_all_rejects_multiple_incoming_defaults() {
     .await
     .expect_err("multiple incoming defaults must be rejected");
     assert!(error.to_string().contains("只能声明一个默认 LLM 配置"));
-}
-
-#[tokio::test]
-async fn settings_all_transaction_validates_budget_against_imported_default_llm() {
-    let db = a4n_migration::test_support::connect_test_database().await;
-    let mut rows = settings_rows();
-    rows.system_settings.push(SettingsAllSystemSettingRow {
-        key: LLM_MAX_TOKENS_SETTING_KEY.to_string(),
-        value: serde_json::to_value(LlmMaxTokensConfig::default()).unwrap(),
-        category: "llm".to_string(),
-        description: None,
-    });
-
-    let error = import_settings_all_configs(
-        &db,
-        SettingsAllConfigImportInput {
-            overwrite: false,
-            rows,
-        },
-    )
-    .await
-    .expect_err("LLM budget must use the imported default model output cap");
-
-    assert!(
-        error
-            .to_string()
-            .contains("当前默认模型最大输出 2048 tokens")
-    );
 }

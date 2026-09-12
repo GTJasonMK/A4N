@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_llm::provider::{ChatRequest, UsageInfo};
 use serde::Serialize;
 use serde_json::Value;
 
 use a4n_prompt::rendering::PromptRenderer;
 
-pub(in crate::manga) const MANGA_PIPELINE_MAX_TOKENS_PROFILE: &str = llm_token_profiles::EXTRA_LONG;
 pub(in crate::manga) const MANGA_PIPELINE_WORKFLOW: &str = "manga_pipeline";
 pub(in crate::manga) const MANGA_PIPELINE_PROMPT_NAMES: &[&str] = &[
     "manga_character_binding",

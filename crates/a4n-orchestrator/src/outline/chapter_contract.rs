@@ -23,6 +23,5 @@ pub(in crate::outline) use persistence::{
 };
 pub(in crate::outline) use prompt::{
     beat_mapping_manifest_user_message, chapter_outline_generation_manifest_user_message,
-    chapter_outline_generation_max_tokens, parse_beat_sheet_json,
-    validate_chapter_outline_generation_request,
+    parse_beat_sheet_json, validate_chapter_outline_generation_request,
 };

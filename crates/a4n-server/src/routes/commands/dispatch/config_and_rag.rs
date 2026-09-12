@@ -3,16 +3,15 @@ use super::super::{
     create_embedding_config, create_llm_config, create_theme, delete_embedding_config,
     delete_llm_config, delete_local_embedding_model, delete_theme, delete_theme_resource,
     detect_llm_config_models, download_embedding_model, export_all_configs_json, export_theme,
-    export_theme_package, get_embedding_model_download_info, get_llm_max_tokens_config,
-    get_storage_paths, get_theme_preference, get_web_search_config, import_all_configs,
-    import_theme, import_theme_package, list_embedding_config, list_llm_config,
-    list_local_embedding_models, list_model_provider_catalog, list_themes,
-    prepare_chapter_generation_rag_embedding, preview_test_embedding_config_request,
-    preview_test_llm_config_request, rag_enhanced_search, rag_enhanced_search_with_vectors,
-    rag_ingest_all, rag_prepare_enhanced_search, rag_prepare_ingest_all,
-    rag_upload_ingest_embeddings, set_default_embedding_config, set_default_llm_config,
-    test_embedding_config, test_llm_config, update_embedding_config, update_llm_config,
-    update_llm_max_tokens_config, update_theme, update_theme_preference, update_web_search_config,
+    export_theme_package, get_embedding_model_download_info, get_storage_paths,
+    get_theme_preference, get_web_search_config, import_all_configs, import_theme,
+    import_theme_package, list_embedding_config, list_llm_config, list_local_embedding_models,
+    list_model_provider_catalog, list_themes, prepare_chapter_generation_rag_embedding,
+    preview_test_embedding_config_request, preview_test_llm_config_request, rag_enhanced_search,
+    rag_enhanced_search_with_vectors, rag_ingest_all, rag_prepare_enhanced_search,
+    rag_prepare_ingest_all, rag_upload_ingest_embeddings, set_default_embedding_config,
+    set_default_llm_config, test_embedding_config, test_llm_config, update_embedding_config,
+    update_llm_config, update_theme, update_theme_preference, update_web_search_config,
     upload_theme_resource, web_search,
 };
 use serde_json::Value;
@@ -44,10 +43,6 @@ pub(super) async fn try_dispatch(
         "update_llm_config" => update_llm_config(state, user_id, args).await?,
         "set_default_llm_config" => set_default_llm_config(state, user_id, args).await?,
         "delete_llm_config" => delete_llm_config(state, user_id, args).await?,
-        "get_llm_max_tokens_config" => get_llm_max_tokens_config(state, user_id, args).await?,
-        "update_llm_max_tokens_config" => {
-            update_llm_max_tokens_config(state, user_id, args).await?
-        }
         "get_web_search_config" => get_web_search_config(state, user_id, args).await?,
         "update_web_search_config" => update_web_search_config(state, user_id, args).await?,
         "web_search" => web_search(state, user_id, args).await?,

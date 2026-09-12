@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use a4n_domain::{
-    llm::llm_token_profiles,
-    source_spans::{source_span_prompt_values, source_spans_for_content},
-};
+use a4n_domain::source_spans::{source_span_prompt_values, source_spans_for_content};
 use a4n_error::AppError;
 use serde_json::json;
 
@@ -101,11 +98,6 @@ impl OrchestratorContext {
             },
             "visual_plan": &visual_plan.plan,
             "temperature": 0.2,
-            "max_tokens_profiles": {
-                "layout_unit": llm_token_profiles::LONG,
-                "unit_adaptation": llm_token_profiles::LONG,
-                "design_unit": llm_token_profiles::EXTRA_LONG,
-            },
         });
         let input_fingerprint_sha256 =
             a4n_db::generation::generation_checkpoint_fingerprint_sha256(&input_fingerprint_json)?;

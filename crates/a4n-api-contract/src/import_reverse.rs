@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -37,13 +36,6 @@ impl ReverseEngineeringTarget {
             Self::Blueprint => "请从以下内容反推蓝图（世界观/角色/剧情大纲/主题，输出 JSON）：",
             Self::Outline => "请从以下章节内容反推章节大纲（输出 JSON）：",
             Self::PartOutline => "请从以下内容反推分部大纲结构（输出 JSON）：",
-        }
-    }
-
-    pub const fn max_tokens_profile(self) -> &'static str {
-        match self {
-            Self::Blueprint => llm_token_profiles::BLUEPRINT,
-            Self::Outline | Self::PartOutline => llm_token_profiles::OUTLINE,
         }
     }
 
@@ -164,10 +156,6 @@ mod tests {
         assert_eq!(
             ReverseEngineeringTarget::Blueprint.prompt_name(),
             "reverse_blueprint"
-        );
-        assert_eq!(
-            ReverseEngineeringTarget::Outline.max_tokens_profile(),
-            llm_token_profiles::OUTLINE
         );
         assert_eq!(REVERSE_ENGINEERING_PROGRESS_TOTAL, 3);
     }

@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::{
     context::{ContextAwareJsonLlmRequestInput, context_aware_system_user_llm_request},
@@ -99,7 +98,6 @@ pub(super) fn build_character_conflict_request(
             }),
             dynamic_user_prompt: user_prompt,
             temperature: Some(0.3),
-            max_tokens_profile: llm_token_profiles::JSON_STANDARD.to_string(),
             call_key: Some(call_key.clone()),
         },
     )

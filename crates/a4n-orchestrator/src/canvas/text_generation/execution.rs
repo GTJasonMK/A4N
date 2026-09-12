@@ -463,7 +463,7 @@ impl OrchestratorContext {
         }
         if is_truncated_finish_reason(response.finish_reason.as_deref()) {
             return Err(AppError::InvalidArgument(
-                "LlmTextNode 输出达到当前 max_tokens 上限，文本可能被截断；请调大输出档位或减少上游文本后重试"
+                "LlmTextNode 输出达到当前 max_tokens 上限，文本可能被截断；请提高模型配置 max_output_tokens 或减少上游文本后重试"
                     .to_string(),
             ));
         }

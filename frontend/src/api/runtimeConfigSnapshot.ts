@@ -6,7 +6,6 @@ import {
   getSystemDefaultImageApiKey,
   getSystemDefaultLlmApiKey,
   getSystemDefaultVideoApiKey,
-  getLocalLlmMaxTokensConfig,
   listLocalImageConfigs,
   listLocalLlmConfigs,
   listLocalVideoConfigs,
@@ -18,7 +17,7 @@ import { RUNTIME_CONFIG_POLICIES } from "./generated/host";
 import { usesLocalRuntimeSettings, workspaceContext } from "../utils/runtimeMode";
 
 export interface RuntimeConfigSnapshot {
-  schema_version: 1;
+  schema_version: 2;
   llm?: unknown;
   image?: unknown;
   video?: unknown;
@@ -32,7 +31,6 @@ export interface RuntimeConfigSnapshot {
   llm_configs?: unknown[];
   image_configs?: unknown[];
   video_configs?: unknown[];
-  llm_max_tokens?: unknown;
   client_context: {
     frontend_kind: "tauri" | "web";
     backend_kind: "local_tauri" | "remote_http";
@@ -129,7 +127,7 @@ export function buildRuntimeConfigSnapshot(
     runtimeConfigPayload(config, includeProviderApiKeys),
   );
   return {
-    schema_version: 1,
+    schema_version: 2,
     ...(llm ? { llm } : {}),
     llm_default_source: llmDefaultSource,
     image_default_source: imageDefaultSource,
@@ -149,7 +147,6 @@ export function buildRuntimeConfigSnapshot(
     llm_configs: llmConfigs,
     image_configs: imageConfigs,
     video_configs: videoConfigs,
-    llm_max_tokens: getLocalLlmMaxTokensConfig(),
     client_context: {
       frontend_kind: context.frontendKind,
       backend_kind: context.backendKind,

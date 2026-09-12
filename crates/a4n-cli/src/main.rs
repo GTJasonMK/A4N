@@ -4631,7 +4631,7 @@ mod tests {
     #[test]
     fn call_runtime_config_respects_manifest_policy_and_explicit_override() {
         let snapshot: RuntimeConfigSnapshot = serde_json::from_value(json!({
-            "schema_version": 1,
+            "schema_version": 2,
             "llm": {
                 "id": 1,
                 "name": "local",
@@ -4681,7 +4681,7 @@ mod tests {
         .unwrap();
         assert_eq!(no_runtime, json!({}));
 
-        let mut explicit = json!({ "runtime_config_snapshot": { "schema_version": 1 } });
+        let mut explicit = json!({ "runtime_config_snapshot": { "schema_version": 2 } });
         apply_runtime_config(
             &mut explicit,
             &catalog::command_descriptor("check_character_conflict").unwrap(),
@@ -4690,7 +4690,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             explicit["runtime_config_snapshot"],
-            json!({ "schema_version": 1 })
+            json!({ "schema_version": 2 })
         );
 
         let mut disabled = json!({ "runtime_config_snapshot": null });

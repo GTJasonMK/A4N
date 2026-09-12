@@ -318,7 +318,7 @@ pub(crate) fn gateway_probe_request(
                 "timeout_secs": 5,
                 "extra_body_json": null
             },
-            "request": ChatRequest::system_user("system", "probe ping", None, Some(16), None)
+            "request": ChatRequest::system_user("system", "probe ping", None, Some(16))
         }),
     )
     .expect("process probe request context should be valid")

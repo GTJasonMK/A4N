@@ -21,9 +21,8 @@ pub use image::{
     set_default_image_config, test_image_config, update_image_config,
 };
 pub use llm::{
-    create_llm_config, delete_llm_config, get_llm_max_tokens_config, list_llm_config,
-    preview_test_llm_config_request, set_default_llm_config, test_llm_config, update_llm_config,
-    update_llm_max_tokens_config,
+    create_llm_config, delete_llm_config, list_llm_config, preview_test_llm_config_request,
+    set_default_llm_config, test_llm_config, update_llm_config,
 };
 pub use video::{
     add_video_config, list_video_configs, remove_video_config, set_default_video_config,

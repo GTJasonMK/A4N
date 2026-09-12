@@ -1,4 +1,3 @@
-use a4n_domain::llm_token_profiles;
 use a4n_llm::provider::ChatMessage;
 use a4n_orchestrator::character::{
     CharacterProfileSyncStageTraceInput, CharacterProfileSyncStageTracePort,
@@ -99,7 +98,6 @@ fn write_character_sync_llm_trace(
         "parse_error": parse_error,
         "request": {
             "temperature": temperature,
-            "max_tokens_profile": llm_token_profiles::CHARACTER_SYNC,
             "response_format": {
                 "type": "json_object"
             },

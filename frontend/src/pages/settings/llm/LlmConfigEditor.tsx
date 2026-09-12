@@ -7,7 +7,6 @@ import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import type { LlmForm } from "./types";
 import type { LlmProviderDescriptor } from "../../../api/generated/config";
-import { LLM_MAX_TOKEN_LIMIT } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
 import { useI18n } from "../../../i18n";
@@ -217,7 +216,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           <BookInput
             type="number"
             min={1}
-            max={LLM_MAX_TOKEN_LIMIT}
+            max={Math.max(1, form.max_context_tokens - 1)}
             step={256}
             value={String(form.max_output_tokens)}
             onChange={(event) =>

@@ -3,8 +3,6 @@ use super::super::contracts::{
 };
 use super::chat_request_step_with_budget;
 use crate::{AppState, dynamic_llm, runtime_config};
-use a4n_domain::LlmMaxTokensConfig;
-use a4n_llm::provider::ChatRequest;
 use a4n_provider_contract::LlmProviderConfig;
 
 pub(crate) async fn chat_request_step_for_state(
@@ -12,18 +10,12 @@ pub(crate) async fn chat_request_step_for_state(
     step: ChatRequestStepInput,
 ) -> Result<ModelRequestPreviewStep, String> {
     let model = resolve_preview_llm_model_for_state(state).await?;
-    let max_tokens_config =
-        resolve_preview_llm_max_tokens_config_for_state(state, &step.request).await?;
-    let budget = dynamic_llm::resolve_effective_llm_preview_budget_for_config(
-        model,
-        &step.request,
-        max_tokens_config.as_ref(),
-    )
-    .map_err(|err| err.to_string())?;
+    let budget = dynamic_llm::resolve_effective_llm_preview_budget_for_config(model, &step.request)
+        .map_err(|err| err.to_string())?;
     chat_request_step_with_budget(ChatRequestStepWithBudgetInput {
         step,
         model_context_tokens: budget.max_context_tokens,
-        output_token_reserve_override: Some(budget.output_token_reserve),
+        output_token_reserve: budget.output_token_reserve,
         budget_note: Some(format!(
             "预览模型={}；上下文={}；输出上限={}；输出保留={}（{}）",
             budget.model_name,
@@ -61,22 +53,4 @@ async fn resolve_preview_llm_model_for_state(
         .resolve_llm_config(None)
         .await
         .map_err(|err| err.to_string())
-}
-
-async fn resolve_preview_llm_max_tokens_config_for_state(
-    state: &AppState,
-    request: &ChatRequest,
-) -> Result<Option<LlmMaxTokensConfig>, String> {
-    if request.max_tokens_profile.is_none() {
-        return Ok(None);
-    }
-    match runtime_config::current_llm_max_tokens() {
-        Some(config) => Ok(Some(config)),
-        None => state
-            .provider_runtime()
-            .llm_max_tokens_config()
-            .await
-            .map(Some)
-            .map_err(|err| err.to_string()),
-    }
 }

@@ -112,7 +112,3 @@ pub(in crate::outline) fn beat_mapping_manifest_user_message(
         &payload,
     )
 }
-
-pub(in crate::outline) fn chapter_outline_generation_max_tokens(count: i32) -> usize {
-    1_200 + count as usize * 900
-}

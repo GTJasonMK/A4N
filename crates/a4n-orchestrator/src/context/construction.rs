@@ -189,21 +189,6 @@ impl OrchestratorContext {
         &self.config.data_dir
     }
 
-    /// 日志目录。
-    pub(crate) fn log_dir(&self) -> &std::path::Path {
-        &self.config.log_dir
-    }
-
-    /// 临时目录。
-    pub(crate) fn temp_dir(&self) -> &std::path::Path {
-        &self.config.temp_dir
-    }
-
-    /// Embedding 模型缓存目录。
-    pub(crate) fn embedding_models_dir(&self) -> std::path::PathBuf {
-        self.config.embedding_models_dir()
-    }
-
     /// 取消已注册任务句柄。
     pub(crate) fn cancel_task_handle(&self, task_id: &str) -> bool {
         self.task_manager.cancel(task_id)

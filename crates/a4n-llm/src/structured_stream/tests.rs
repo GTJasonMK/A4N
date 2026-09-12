@@ -140,7 +140,7 @@ impl LlmProvider for StreamProvider {
 }
 
 fn request() -> ChatRequest {
-    ChatRequest::new(vec![ChatMessage::user("test")], None, None, None)
+    ChatRequest::new(vec![ChatMessage::user("test")], None, None)
 }
 
 fn chunk(content: Option<&str>, finish_reason: Option<&str>, index: u32) -> ChatChunk {

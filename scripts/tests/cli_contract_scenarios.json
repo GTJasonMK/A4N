@@ -78,12 +78,6 @@
       }
     },
     {
-      "name": "read llm token budgets",
-      "description": "Verify the shared generation budget contract.",
-      "command": "get_llm_max_tokens_config",
-      "args": {}
-    },
-    {
       "name": "read queue stats",
       "description": "Verify task queue observability without submitting work.",
       "command": "get_queue_stats",

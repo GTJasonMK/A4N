@@ -740,7 +740,7 @@ mod tests {
                 "height": 512
             },
             "runtime_config_snapshot": {
-                "schema_version": 1,
+                "schema_version": 2,
                 "image": {
                     "id": 1,
                     "name": "request image config",

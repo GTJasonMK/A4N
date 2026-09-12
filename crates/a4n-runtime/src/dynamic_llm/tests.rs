@@ -10,45 +10,53 @@ use a4n_test_support::capability::RecordingLlmClient;
 
 use crate::dynamic_llm::trace::validated_authoritative_trace_root_project_id;
 
-use super::budget::ensure_max_tokens_within_model_cap;
+use super::budget::{requested_max_tokens, resolve_effective_llm_preview_budget_for_config};
 use super::config::{chat_via_sidecar, probe_llm_via_sidecar, require_sidecar_business_trace};
 use super::contracts::ResolvedLlmModel;
 
 #[test]
 fn max_tokens_cap_accepts_missing_or_within_limit() {
     assert!(
-        ensure_max_tokens_within_model_cap(
-            None,
-            None,
-            DEFAULT_LLM_MAX_OUTPUT_TOKENS,
-            "deepseek-chat"
-        )
-        .is_ok()
+        requested_max_tokens(None, DEFAULT_LLM_MAX_OUTPUT_TOKENS, "deepseek-chat")
+            .is_ok_and(|value| value == DEFAULT_LLM_MAX_OUTPUT_TOKENS)
     );
     assert!(
-        ensure_max_tokens_within_model_cap(
+        requested_max_tokens(
             Some(DEFAULT_LLM_MAX_OUTPUT_TOKENS),
-            Some("media_prompt"),
             DEFAULT_LLM_MAX_OUTPUT_TOKENS,
             "deepseek-chat",
         )
-        .is_ok()
+        .is_ok_and(|value| value == DEFAULT_LLM_MAX_OUTPUT_TOKENS)
     );
 }
 
 #[test]
-fn max_tokens_cap_rejects_profile_above_model_limit() {
-    let err = ensure_max_tokens_within_model_cap(
-        Some(12_288),
-        Some("character_sync"),
-        DEFAULT_LLM_MAX_OUTPUT_TOKENS,
-        "deepseek-chat",
-    )
-    .expect_err("profile output limit must not exceed model capability");
+fn max_tokens_cap_rejects_explicit_request_above_model_limit() {
+    let err = requested_max_tokens(Some(12_288), DEFAULT_LLM_MAX_OUTPUT_TOKENS, "deepseek-chat")
+        .expect_err("explicit output limit must not exceed model capability");
 
     assert!(matches!(err, AppError::ConfigError(_)));
-    assert!(err.to_string().contains("profile=character_sync"));
+    assert!(err.to_string().contains("max_tokens=12288"));
     assert!(err.to_string().contains("model_max_output_tokens=8192"));
+}
+
+#[test]
+fn configured_large_output_cap_survives_runtime_budget_resolution() {
+    let mut model = test_llm_model();
+    model.max_context_tokens = 1_048_576;
+    model.max_output_tokens = 393_216;
+    let request = ChatRequest::new(vec![ChatMessage::user("ping")], None, None);
+
+    let budget = resolve_effective_llm_preview_budget_for_config(model.clone(), &request)
+        .expect("large configured output cap should be accepted");
+
+    assert_eq!(budget.max_output_tokens, 393_216);
+    assert_eq!(budget.output_token_reserve, 393_216);
+    assert_eq!(
+        requested_max_tokens(request.max_tokens, 393_216, "test-model").expect("request budget"),
+        393_216
+    );
+    assert_eq!(model.max_output_tokens, 393_216);
 }
 
 #[test]
@@ -282,7 +290,6 @@ fn test_chat_request() -> ChatRequest {
         }],
         temperature: Some(0.0),
         max_tokens: Some(8),
-        max_tokens_profile: None,
         response_format: None,
         stream_include_usage: false,
         cache_scope_key: None,

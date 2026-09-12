@@ -7,9 +7,7 @@ use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 use crate::serde_update::{deserialize_nullable_update_field, deserialize_required_nullable_field};
 use crate::web_search::{WebSearchConfigSummary, WebSearchRuntimeConfig};
 
-pub use a4n_domain::{
-    DiscoveredModel, ImageSize, LlmMaxTokensConfig, ModelDiscoveryResult, VideoDurationMode,
-};
+pub use a4n_domain::{DiscoveredModel, ImageSize, ModelDiscoveryResult, VideoDurationMode};
 
 /// AI provider configuration application boundary.
 ///
@@ -40,14 +38,6 @@ pub trait ConfigApplicationPort: Send + Sync {
         &self,
         input: VideoConfigInput,
     ) -> Result<bool, a4n_error::AppError>;
-
-    async fn llm_max_tokens(&self) -> Result<LlmMaxTokensConfig, a4n_error::AppError>;
-
-    async fn update_llm_max_tokens(
-        &self,
-        caller_user_id: i64,
-        config: LlmMaxTokensConfig,
-    ) -> Result<LlmMaxTokensConfig, a4n_error::AppError>;
 
     async fn web_search_runtime_config(
         &self,

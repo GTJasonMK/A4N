@@ -78,7 +78,7 @@ async fn tauri_channel_remounts_active_image_generation_after_window_cleanup() {
     .await
     .unwrap();
     let runtime_config_snapshot = json!({
-        "schema_version": 1,
+        "schema_version": 2,
         "image": {
             "id": image_config.id,
             "name": image_config.name,

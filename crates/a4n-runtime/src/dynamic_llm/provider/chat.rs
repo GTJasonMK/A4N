@@ -5,7 +5,7 @@ use a4n_llm::provider::{ChatRequest, ChatResponse};
 use a4n_provider_contract::LlmProviderConfig;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 
-use super::super::budget::ensure_max_tokens_within_model_cap;
+use super::super::budget::requested_max_tokens;
 use super::super::config::{chat_embedded, chat_via_sidecar, require_sidecar_business_trace};
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 use super::super::trace::{
@@ -40,19 +40,16 @@ impl DynamicLlmProvider {
         resolved_model: ResolvedLlmModel,
         mut request: ChatRequest,
     ) -> Result<ChatResponse, AppError> {
-        let profile = request.max_tokens_profile.clone();
         let temperature = request.temperature;
         let message_count = request.messages.len();
         let prompt_chars: usize = request.messages.iter().map(|msg| msg.content.len()).sum();
         let model_name = resolved_model.model_name().to_string();
         let model_max_output_tokens = resolved_model.capabilities.max_output_tokens;
-        request.max_tokens = self.resolve_max_tokens(&request).await?;
-        ensure_max_tokens_within_model_cap(
+        request.max_tokens = Some(requested_max_tokens(
             request.max_tokens,
-            profile.as_deref(),
             model_max_output_tokens,
             model_name.as_str(),
-        )?;
+        )?);
         let planner = resolved_model.planner();
         let trace_context =
             prepare_dynamic_llm_trace_context(&self.facade, &planner, &mut request).await?;
@@ -68,7 +65,6 @@ impl DynamicLlmProvider {
             target: "a4n::llm",
             model = %model_name,
             config_id = ?config_id,
-            profile = ?profile,
             max_tokens = ?request.max_tokens,
             temperature = ?temperature,
             message_count,
@@ -109,7 +105,6 @@ impl DynamicLlmProvider {
                     target: "a4n::llm",
                     model = %model_name,
                     config_id = ?config_id,
-                    profile = ?profile,
                     duration_ms = started.elapsed().as_millis(),
                     finish_reason = ?response.finish_reason,
                     usage = ?response.usage,
@@ -136,7 +131,6 @@ impl DynamicLlmProvider {
                     target: "a4n::llm",
                     model = %model_name,
                     config_id = ?config_id,
-                    profile = ?profile,
                     duration_ms = started.elapsed().as_millis(),
                     error = %error,
                     "LLM chat 失败"

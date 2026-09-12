@@ -98,7 +98,7 @@ impl OrchestratorContext {
             .map_err(manga_prompt_optimization_llm_error)?;
         if is_truncated_finish_reason(response.finish_reason.as_deref()) {
             return Err(AppError::InvalidArgument(
-                "优化漫画提示词输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“媒体提示词”输出档位，或缩短本次提示词后重试".to_string(),
+                "优化漫画提示词输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或缩短本次提示词后重试".to_string(),
             ));
         }
         let parsed = parse_strict_json_response::<OptimizedMangaPromptFields>(

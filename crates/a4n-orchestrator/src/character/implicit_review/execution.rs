@@ -36,7 +36,7 @@ use super::{
     },
 };
 
-const IMPLICIT_UPDATE_TRUNCATED_MESSAGE: &str = "隐性属性复审输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“JSON 标准”输出档位，或减少本次复审上下文后重试";
+const IMPLICIT_UPDATE_TRUNCATED_MESSAGE: &str = "隐性属性复审输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次复审上下文后重试";
 
 impl OrchestratorContext {
     pub async fn implicit_review_summary_validated(

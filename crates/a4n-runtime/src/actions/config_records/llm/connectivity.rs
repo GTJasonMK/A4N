@@ -1,6 +1,5 @@
 use super::super::shared::validate_runtime_snapshot_config_id;
 use super::contracts::{positive_model_context_cap, positive_model_output_cap};
-use super::max_tokens::load_effective_llm_max_tokens_config;
 use crate::actions::request_preview::{
     ChatRequestStepInput, ChatRequestStepWithBudgetInput, ModelRequestPreview,
     chat_request_step_with_budget, model_request_preview,
@@ -13,7 +12,7 @@ const LLM_CONNECTIVITY_TEST_PROMPT: &str = "ping";
 
 pub async fn test_llm_config(state: &AppState, user_id: i64, config_id: i64) -> Result<(), String> {
     let config = resolve_llm_config_for_connectivity_test(state, user_id, config_id).await?;
-    let request = build_llm_connectivity_test_request(state, &config).await?;
+    let request = build_llm_connectivity_test_request(&config)?;
     let provider = state
         .dynamic_llm_provider_for_profile()
         .map_err(|error| error.to_string())?;
@@ -39,7 +38,7 @@ pub async fn preview_test_llm_config_request(
     config_id: i64,
 ) -> Result<ModelRequestPreview, String> {
     let config = resolve_llm_config_for_connectivity_test(state, user_id, config_id).await?;
-    let request = build_llm_connectivity_test_request(state, &config).await?;
+    let request = build_llm_connectivity_test_request(&config)?;
     let context_cap = positive_model_context_cap(config.max_context_tokens)?;
     let output_cap = positive_model_output_cap(config.max_output_tokens)?;
     Ok(model_request_preview(
@@ -56,7 +55,7 @@ pub async fn preview_test_llm_config_request(
                     request,
                 },
                 model_context_tokens: context_cap,
-                output_token_reserve_override: Some(output_cap),
+                output_token_reserve: output_cap,
                 budget_note: Some(format!(
                     "被测配置模型={}；上下文={}；输出上限={}",
                     config.model, context_cap, output_cap
@@ -82,19 +81,14 @@ async fn resolve_llm_config_for_connectivity_test(
         .map_err(app_error_message)
 }
 
-async fn build_llm_connectivity_test_request(
-    state: &AppState,
+fn build_llm_connectivity_test_request(
     config: &a4n_provider_contract::LlmProviderConfig,
 ) -> Result<ChatRequest, String> {
-    let max_tokens = load_effective_llm_max_tokens_config(state)
-        .await?
-        .connection_test;
-    validate_llm_connection_test_max_tokens(max_tokens, config)?;
+    let max_tokens = 8.min(positive_model_output_cap(config.max_output_tokens)?);
     Ok(ChatRequest::new(
         vec![ChatMessage::user(LLM_CONNECTIVITY_TEST_PROMPT)],
         Some(0.0),
         Some(max_tokens),
-        None,
     ))
 }
 
@@ -103,18 +97,4 @@ pub(super) fn validate_llm_runtime_snapshot_config_id(
     config_id: i64,
 ) -> Result<(), String> {
     validate_runtime_snapshot_config_id("llm", config.id, config_id)
-}
-
-pub(super) fn validate_llm_connection_test_max_tokens(
-    max_tokens: usize,
-    config: &a4n_provider_contract::LlmProviderConfig,
-) -> Result<(), String> {
-    let model_cap = positive_model_output_cap(config.max_output_tokens)?;
-    if max_tokens <= model_cap {
-        return Ok(());
-    }
-    Err(format!(
-        "LLM 连接测试 max_tokens 不能超过被测配置模型最大输出：config_id={}, model={}, connection_test={}, model_max_output_tokens={}",
-        config.id, config.model, max_tokens, model_cap
-    ))
 }

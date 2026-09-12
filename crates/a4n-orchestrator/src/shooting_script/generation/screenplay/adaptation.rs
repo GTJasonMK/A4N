@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use tokio_util::sync::CancellationToken;
@@ -106,6 +105,5 @@ fn unit_adaptation_request(
             "只改编以下目标 unit 的 performance_facts，不得使用其他 unit 的 source_span_ids：\n{}",
             serde_json::to_string(unit)?
         ),
-        llm_token_profiles::LONG.into(),
     )
 }

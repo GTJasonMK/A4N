@@ -10,7 +10,7 @@ use super::{
 };
 
 fn request() -> ChatRequest {
-    ChatRequest::new(vec![ChatMessage::user("test")], None, None, None)
+    ChatRequest::new(vec![ChatMessage::user("test")], None, None)
 }
 
 #[tokio::test]
@@ -58,7 +58,6 @@ async fn capturing_sequence_provider_records_only_user_messages() {
         ],
         None,
         None,
-        None,
     );
 
     let first = collect_chat_stream(&provider, first_request)
@@ -66,7 +65,7 @@ async fn capturing_sequence_provider_records_only_user_messages() {
         .expect("first captured response");
     let second = collect_chat_stream(
         &provider,
-        ChatRequest::new(vec![ChatMessage::user("second user")], None, None, None),
+        ChatRequest::new(vec![ChatMessage::user("second user")], None, None),
     )
     .await
     .expect("second captured response");

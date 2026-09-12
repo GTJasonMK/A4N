@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatMessage, ChatRequest};
 use a4n_prompt::rendering::PromptRenderer;
@@ -305,7 +304,6 @@ async fn build_preview_request(
             ],
             Some(0.25),
             None,
-            Some(llm_token_profiles::EXTRA_LONG.to_string()),
         )
         .with_json_response_format(),
     })

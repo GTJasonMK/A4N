@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use a4n_llm::{
     context::{
@@ -78,7 +77,6 @@ pub(super) async fn prepare_implicit_classification_call(
             stable_context_json: stable_context.clone(),
             dynamic_user_prompt: user_prompt,
             temperature: Some(0.2),
-            max_tokens_profile: llm_token_profiles::JSON_STANDARD.to_string(),
             call_key: Some(call_key.clone()),
         },
     )

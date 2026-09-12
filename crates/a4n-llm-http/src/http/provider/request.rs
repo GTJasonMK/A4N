@@ -121,7 +121,10 @@ impl HttpLlmProvider {
         body.insert("model".into(), Value::String(self.model.clone()));
         body.insert("messages".into(), json!(messages));
         insert_optional(&mut body, "temperature", request.temperature);
-        insert_optional(&mut body, "max_tokens", request.max_tokens);
+        body.insert(
+            "max_tokens".to_string(),
+            json!(request.max_tokens.unwrap_or(self.caps.max_output_tokens)),
+        );
         insert_optional(
             &mut body,
             "prompt_cache_key",

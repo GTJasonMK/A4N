@@ -97,8 +97,8 @@ fn optional_workflow_run_controls_completed_checkpoint_persistence() {
 
 #[test]
 fn checkpoint_trace_fields_are_attached_together() {
-    let mut request = ChatRequest::system_user("system", "user", None, None, None)
-        .with_trace_context(LlmTraceContext {
+    let mut request = ChatRequest::system_user("system", "user", None, None).with_trace_context(
+        LlmTraceContext {
             project_id: Some(1),
             root_project_id: None,
             workflow: "test".to_string(),
@@ -109,7 +109,8 @@ fn checkpoint_trace_fields_are_attached_together() {
             input_fingerprint_sha256: None,
             context_plan_json: None,
             context_pack_refs_json: None,
-        });
+        },
+    );
 
     super::attach_llm_call_checkpoint_trace(&mut request, 7, "chapter.sync", &json!({"id": 1}))
         .expect("trace contract should be valid");

@@ -50,7 +50,6 @@ fn projects_provider_request_and_messages_without_internal_context() {
         vec![ChatMessage::system("system"), ChatMessage::user("user")],
         Some(0.2),
         Some(512),
-        Some("analysis".to_string()),
     );
     request.context_manifest_json = Some(json!({"private": true}));
 
@@ -86,7 +85,7 @@ fn projects_context_manifest_summary_and_trace_context_for_audit() {
         dynamic_user_content: "继续写作".to_string(),
         output_contract: Some("返回 JSON".to_string()),
     };
-    let request = ChatRequest::system_user("system", "user", None, None, None)
+    let request = ChatRequest::system_user("system", "user", None, None)
         .with_context_manifest_json(serde_json::to_value(manifest).expect("manifest serializes"))
         .with_trace_context(crate::provider::LlmTraceContext {
             project_id: Some(7),

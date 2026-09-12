@@ -6,7 +6,7 @@ use a4n_queue::priority::{TaskKind, TaskPriority};
 use futures::Stream;
 
 use super::super::{
-    budget::ensure_max_tokens_within_model_cap,
+    budget::requested_max_tokens,
     config::make_provider,
     contracts::DynamicLlmProvider,
     streams::QueueTrackedLlmStream,
@@ -22,7 +22,6 @@ impl DynamicLlmProvider {
         config_id: Option<i64>,
         mut request: ChatRequest,
     ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-        let profile = request.max_tokens_profile.clone();
         let temperature = request.temperature;
         let message_count = request.messages.len();
         let prompt_chars: usize = request.messages.iter().map(|msg| msg.content.len()).sum();
@@ -30,13 +29,11 @@ impl DynamicLlmProvider {
         let provider = make_provider(&resolved_model.model)?;
         let model_name = provider.model_name().to_string();
         let model_max_output_tokens = provider.capabilities().max_output_tokens;
-        request.max_tokens = self.resolve_max_tokens(&request).await?;
-        ensure_max_tokens_within_model_cap(
+        request.max_tokens = Some(requested_max_tokens(
             request.max_tokens,
-            profile.as_deref(),
             model_max_output_tokens,
             model_name.as_str(),
-        )?;
+        )?);
         let trace_context =
             prepare_dynamic_llm_trace_context(&self.facade, provider.as_ref(), &mut request)
                 .await?;
@@ -46,7 +43,6 @@ impl DynamicLlmProvider {
         tracing::debug!(
             target: "a4n::llm",
             model = %model_name,
-            profile = ?profile,
             max_tokens = ?request.max_tokens,
             temperature = ?temperature,
             message_count,
@@ -93,7 +89,6 @@ impl DynamicLlmProvider {
                 tracing::warn!(
                     target: "a4n::llm",
                     model = %model_name,
-                    profile = ?profile,
                     duration_ms = started.elapsed().as_millis(),
                     error = %error,
                     "LLM stream 建立失败"

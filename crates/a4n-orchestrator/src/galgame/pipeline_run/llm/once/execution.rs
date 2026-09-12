@@ -6,7 +6,6 @@ use crate::galgame::OrchestratorContext;
 use crate::structured_llm::parse_strict_json_response;
 use crate::workflow::{CompletedLlmCallCheckpoint, CompletedLlmCallCheckpointInput};
 
-use super::super::super::contracts::GALGAME_PIPELINE_MAX_TOKENS_PROFILE;
 use super::{GalgameLlmOnceInput, PreparedGalgameLlmOnce};
 
 pub(super) async fn execute_galgame_llm_once<F>(
@@ -25,7 +24,6 @@ where
         ],
         Some(0.25),
         None,
-        Some(GALGAME_PIPELINE_MAX_TOKENS_PROFILE.to_string()),
     )
     .with_json_response_format()
     .with_trace_context(LlmTraceContext {

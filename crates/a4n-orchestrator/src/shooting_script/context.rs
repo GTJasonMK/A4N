@@ -18,29 +18,24 @@ pub(super) fn shooting_context_request<T: Serialize>(
     system_prompt: String,
     shared_plan: Option<(&str, &T)>,
     dynamic_task: String,
-    max_tokens_profile: String,
 ) -> Result<ChatRequest, AppError> {
     let manifest = shooting_context_manifest(prepared, shared_plan, dynamic_task)?;
-    Ok(context_aware_system_user_request(
-        system_prompt,
-        manifest,
-        Some(0.2),
-        None,
-        Some(max_tokens_profile),
-    )?
-    .with_json_response_format()
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(prepared.source.requested_project_id),
-        root_project_id: Some(prepared.source.root_project_id),
-        workflow: super::contracts::CHAPTER_SHOOTING_SCRIPT_WORKFLOW.to_string(),
-        step_key: prompt_name.to_string(),
-        generation_run_id: None,
-        workflow_run_id: Some(workflow_run_id),
-        call_key: Some(call_key),
-        input_fingerprint_sha256: None,
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
+    Ok(
+        context_aware_system_user_request(system_prompt, manifest, Some(0.2), None)?
+            .with_json_response_format()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(prepared.source.requested_project_id),
+                root_project_id: Some(prepared.source.root_project_id),
+                workflow: super::contracts::CHAPTER_SHOOTING_SCRIPT_WORKFLOW.to_string(),
+                step_key: prompt_name.to_string(),
+                generation_run_id: None,
+                workflow_run_id: Some(workflow_run_id),
+                call_key: Some(call_key),
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+    )
 }
 
 pub(super) fn shooting_context_manifest<T: Serialize>(

@@ -3,7 +3,9 @@ use super::provider::HttpLlmProvider;
 use super::response::*;
 use super::sse::*;
 use a4n_error::AppError;
-use a4n_llm::provider::{ChatChunk, ChatMessage, ChatRequest, normalize_extra_body};
+use a4n_llm::provider::{
+    ChatChunk, ChatMessage, ChatRequest, ModelCapabilities, normalize_extra_body,
+};
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
@@ -287,10 +289,31 @@ fn provider_uses_derived_connect_timeout() {
 }
 
 #[test]
+fn request_uses_configured_large_model_output_cap() {
+    let provider = HttpLlmProvider::new_with_timeout_options_and_capabilities(
+        "https://example.test",
+        "gpt-test",
+        None,
+        120,
+        None,
+        ModelCapabilities {
+            max_context_tokens: 1_048_576,
+            max_output_tokens: 393_216,
+        },
+    )
+    .expect("provider should accept model capabilities");
+    let request = ChatRequest::system_user("system", "user", None, None);
+
+    let body = request_body_json(provider.build_request(&request, false));
+
+    assert_eq!(body["max_tokens"], json!(393_216));
+}
+
+#[test]
 fn stream_request_includes_usage_only_when_requested() {
     let provider =
         HttpLlmProvider::new_with_timeout("https://example.test", "deepseek-chat", None, 120);
-    let base_request = ChatRequest::system_user("system", "user", Some(0.2), None, None);
+    let base_request = ChatRequest::system_user("system", "user", Some(0.2), None);
 
     let without_usage = request_body_json(provider.build_request(&base_request, true));
     assert_eq!(without_usage["stream"], json!(true));
@@ -316,8 +339,7 @@ fn stream_request_usage_merges_existing_stream_options() {
         })),
     )
     .expect("provider options should be accepted");
-    let request =
-        ChatRequest::system_user("system", "user", Some(0.2), None, None).with_stream_usage();
+    let request = ChatRequest::system_user("system", "user", Some(0.2), None).with_stream_usage();
 
     let body = request_body_json(provider.build_request(&request, true));
     assert_eq!(body["stream_options"]["include_usage"], json!(true));
@@ -337,7 +359,6 @@ fn request_marks_the_stable_system_prefix_for_gpt_5_6_cache_reuse() {
             ChatMessage::system("stable shared context"),
             ChatMessage::user("dynamic user"),
         ],
-        None,
         None,
         None,
     );
@@ -368,7 +389,6 @@ fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
         "[稳定上下文]\nshared chapter\n\n[当前任务]\npage 2",
         None,
         None,
-        None,
     );
     request.cache_scope_key = Some("a4n:workflow_run:299:prefix:abc".to_string());
     request.cache_system_prefix = true;
@@ -394,8 +414,8 @@ fn request_marks_the_manifest_stable_prefix_before_dynamic_user_content() {
 fn request_includes_json_response_format_when_requested() {
     let provider =
         HttpLlmProvider::new_with_timeout("https://example.test", "deepseek-chat", None, 120);
-    let request = ChatRequest::system_user("system", "user", Some(0.2), None, None)
-        .with_json_response_format();
+    let request =
+        ChatRequest::system_user("system", "user", Some(0.2), None).with_json_response_format();
 
     let body = request_body_json(provider.build_request(&request, false));
     assert_eq!(body["response_format"]["type"], json!("json_object"));

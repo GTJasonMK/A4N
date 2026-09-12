@@ -11,7 +11,6 @@ vi.mock("./localRuntimeSettings", () => ({
   activeLocalImageConfig: unexpectedSnapshotRead,
   activeLocalLlmConfig: unexpectedSnapshotRead,
   activeLocalVideoConfig: unexpectedSnapshotRead,
-  getLocalLlmMaxTokensConfig: unexpectedSnapshotRead,
   getSystemDefaultImageApiKey: unexpectedSnapshotRead,
   getSystemDefaultLlmApiKey: unexpectedSnapshotRead,
   getSystemDefaultVideoApiKey: unexpectedSnapshotRead,

@@ -281,7 +281,6 @@ mod tests {
                 }],
                 None,
                 None,
-                None,
             ),
         )
         .await
@@ -350,7 +349,7 @@ mod tests {
 
         let response = collect_chat_stream(
             &ToolStreamProvider,
-            ChatRequest::new(vec![ChatMessage::user("tool")], None, None, None),
+            ChatRequest::new(vec![ChatMessage::user("tool")], None, None),
         )
         .await
         .expect("tool stream should collect");

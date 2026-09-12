@@ -2,7 +2,6 @@ use super::super::contracts::{
     ChatRequestStepInput, ChatRequestStepWithBudgetInput, ModelRequestPreviewStep,
 };
 use super::super::sanitize::{redact_data_uris_in_text, sanitize_preview_value};
-use a4n_domain::DEFAULT_LLM_MAX_OUTPUT_TOKENS;
 use a4n_llm::context::preview_context_aware_chat_request;
 use a4n_llm::provider::MessageRole;
 use serde_json::json;
@@ -21,18 +20,19 @@ pub(crate) fn chat_request_step_with_budget(
                 mut request,
             },
         model_context_tokens,
-        output_token_reserve_override,
+        output_token_reserve,
         budget_note,
     } = input;
-    let output_token_reserve = output_token_reserve_override
-        .or(request.max_tokens)
-        .unwrap_or(DEFAULT_LLM_MAX_OUTPUT_TOKENS);
+    request.max_tokens = Some(output_token_reserve);
     let context_preview = preview_context_aware_chat_request(
         &mut request,
         model_context_tokens,
         output_token_reserve,
     )
     .map_err(|err| err.to_string())?;
+    let output_token_reserve = request
+        .max_tokens
+        .ok_or_else(|| "上下文预览未保留最终输出预算".to_string())?;
     let system_prompt = request
         .messages
         .iter()

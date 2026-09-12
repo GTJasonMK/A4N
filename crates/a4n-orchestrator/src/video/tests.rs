@@ -1,4 +1,3 @@
-use a4n_api_contract::video::UpdateGeneratedVideoInput;
 use a4n_db_models::models::ai::{generated_image, generated_video};
 use a4n_db_models::models::canvas::{canvas_graph, canvas_node};
 use a4n_db_models::models::chapter::{chapter, chapter_video_prompt};

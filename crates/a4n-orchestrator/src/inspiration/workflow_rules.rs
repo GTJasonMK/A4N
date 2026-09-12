@@ -76,7 +76,7 @@ mod tests {
     use a4n_llm::provider::ChatMessage;
 
     fn sample_request() -> ChatRequest {
-        ChatRequest::new(vec![ChatMessage::user("hello")], None, None, None)
+        ChatRequest::new(vec![ChatMessage::user("hello")], None, None)
     }
 
     #[test]

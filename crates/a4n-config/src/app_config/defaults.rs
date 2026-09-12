@@ -1,7 +1,5 @@
 use crate::optional_non_empty_env_path;
-use a4n_domain::{
-    DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS, LlmMaxTokensConfig,
-};
+use a4n_domain::{DEFAULT_LLM_MAX_CONTEXT_TOKENS, DEFAULT_LLM_MAX_OUTPUT_TOKENS};
 use std::path::PathBuf;
 
 use super::contracts::{
@@ -107,7 +105,6 @@ impl Default for LlmConfig {
             max_context_tokens: default_llm_max_context_tokens(),
             max_output_tokens: default_llm_max_output_tokens(),
             extra_body_json: None,
-            max_tokens: LlmMaxTokensConfig::default(),
         }
     }
 }

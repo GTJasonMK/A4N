@@ -3,7 +3,6 @@ use std::sync::Arc;
 use crate::provider_runtime::DynamicProviderFacade;
 use a4n_capabilities::LlmClient;
 use a4n_error::AppError;
-use a4n_llm::provider::ChatRequest;
 use a4n_provider_contract::LlmProviderConfig;
 
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
@@ -85,25 +84,5 @@ impl DynamicLlmProvider {
     ) -> Result<ResolvedLlmModel, AppError> {
         let model = self.resolve_model_by_id(config_id).await?;
         ResolvedLlmModel::new(model)
-    }
-
-    pub(in crate::dynamic_llm) async fn resolve_max_tokens(
-        &self,
-        request: &ChatRequest,
-    ) -> Result<Option<usize>, AppError> {
-        let Some(profile) = request.max_tokens_profile.as_deref() else {
-            return Ok(request.max_tokens);
-        };
-        let config = match runtime_config::current_llm_max_tokens() {
-            Some(config) => config,
-            None => self.facade.llm_max_tokens_config().await?,
-        };
-        let configured = config.for_profile(profile).ok_or_else(|| {
-            AppError::ConfigError(format!("未知的 LLM max_tokens 场景配置: {profile}"))
-        })?;
-        Ok(Some(match request.max_tokens {
-            Some(required_minimum) => configured.max(required_minimum),
-            None => configured,
-        }))
     }
 }

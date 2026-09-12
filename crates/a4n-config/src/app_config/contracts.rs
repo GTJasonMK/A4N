@@ -1,4 +1,4 @@
-use a4n_domain::{ImageSize, LlmMaxTokensConfig, default_image_sizes};
+use a4n_domain::{ImageSize, default_image_sizes};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -93,10 +93,6 @@ pub struct LlmConfig {
     /// Provider-specific extra JSON fields merged into chat/completions requests.
     #[serde(default)]
     pub extra_body_json: Option<Value>,
-
-    /// LLM 各场景请求输出预算配置
-    #[serde(default)]
-    pub max_tokens: LlmMaxTokensConfig,
 }
 
 /// 嵌入模型配置

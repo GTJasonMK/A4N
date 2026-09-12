@@ -267,7 +267,7 @@ impl OrchestratorContext {
                     ChatJsonStreamInput {
                         request: llm_request.clone(),
                         prompt_name: super::CHARACTER_DISCOVERY_KIND,
-                        truncated_message: "角色发现输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色发现”输出档位，或减少本次章节上下文后重试",
+                        truncated_message: "角色发现输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次章节上下文后重试",
                         structured_progress: Some(StructuredLlmProgress {
                             spec: StructuredJsonProgressSpec {
                                 root_array_key: "characters",

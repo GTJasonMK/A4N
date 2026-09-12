@@ -132,7 +132,6 @@ fn workflow_and_call_fingerprints_validate_input_contracts() {
         vec![a4n_llm::provider::ChatMessage::user("发现角色")],
         None,
         None,
-        None,
     );
     assert!(character_discovery_workflow_run_input(0, None, &[], &[], &request, None).is_err());
 

@@ -3,7 +3,7 @@ use a4n_llm::provider::ChatRequest;
 use a4n_provider_contract::LlmProviderConfig;
 use a4n_queue::priority::{TaskKind, TaskPriority};
 
-use super::super::budget::ensure_max_tokens_within_model_cap;
+use super::super::budget::requested_max_tokens;
 use super::super::config::probe_llm_via_sidecar;
 use super::super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
 
@@ -22,14 +22,11 @@ impl DynamicLlmProvider {
         })?;
         let model_name = resolved_model.model_name().to_string();
         let model_max_output_tokens = resolved_model.capabilities.max_output_tokens;
-        let profile = request.max_tokens_profile.clone();
-        request.max_tokens = self.resolve_max_tokens(&request).await?;
-        ensure_max_tokens_within_model_cap(
+        request.max_tokens = Some(requested_max_tokens(
             request.max_tokens,
-            profile.as_deref(),
             model_max_output_tokens,
             &model_name,
-        )?;
+        )?);
         let output = self
             .facade
             .queue_run_tracked(TaskKind::LlmCall, TaskPriority::High, None, || async move {
@@ -40,7 +37,6 @@ impl DynamicLlmProvider {
             target: "a4n::llm",
             model = %model_name,
             config_id = %config_id,
-            profile = ?profile,
             response_preview = %output.response_preview,
             finish_reason = ?output.finish_reason,
             usage = ?output.usage,

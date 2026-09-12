@@ -503,4 +503,25 @@ mod tests {
         assert_eq!(terminal.finish_reason.as_deref(), Some("tool_calls"));
         assert_eq!(terminal.usage.unwrap().total_tokens, 7);
     }
+
+    #[test]
+    fn request_uses_configured_large_model_output_cap() {
+        let provider = AnthropicLlmProvider::new(
+            "https://example.test",
+            "claude-test",
+            None,
+            120,
+            None,
+            ModelCapabilities {
+                max_context_tokens: 1_048_576,
+                max_output_tokens: 393_216,
+            },
+        )
+        .expect("provider should accept model capabilities");
+        let request = ChatRequest::system_user("system", "user", None, None);
+
+        let body = provider.request_body(&request).expect("request body");
+
+        assert_eq!(body["max_tokens"], json!(393_216));
+    }
 }

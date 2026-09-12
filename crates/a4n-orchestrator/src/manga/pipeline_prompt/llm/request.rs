@@ -9,10 +9,7 @@ use crate::workflow::workflow_checkpoint_contract_app_error;
 use a4n_llm::trace::context_aware_chat_request_trace_json;
 use a4n_prompt::rendering::PromptRenderer;
 
-use super::super::contracts::{
-    MANGA_PIPELINE_MAX_TOKENS_PROFILE, MANGA_PIPELINE_WORKFLOW, MangaLlmCallInput,
-    MangaPreparedLlmCall,
-};
+use super::super::contracts::{MANGA_PIPELINE_WORKFLOW, MangaLlmCallInput, MangaPreparedLlmCall};
 async fn build_manga_chat_request(
     prompt_renderer: &dyn PromptRenderer,
     prompt_name: &str,
@@ -24,26 +21,22 @@ async fn build_manga_chat_request(
     let sys = prompt_renderer
         .render_prompt(prompt_name, variables, Some(project_id))
         .await?;
-    Ok(ChatRequest::system_user(
-        sys,
-        user_content,
-        Some(temperature),
-        None,
-        Some(MANGA_PIPELINE_MAX_TOKENS_PROFILE.into()),
+    Ok(
+        ChatRequest::system_user(sys, user_content, Some(temperature), None)
+            .with_json_response_format()
+            .with_trace_context(LlmTraceContext {
+                project_id: Some(project_id),
+                root_project_id: None,
+                workflow: MANGA_PIPELINE_WORKFLOW.to_string(),
+                step_key: prompt_name.to_string(),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: None,
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
     )
-    .with_json_response_format()
-    .with_trace_context(LlmTraceContext {
-        project_id: Some(project_id),
-        root_project_id: None,
-        workflow: MANGA_PIPELINE_WORKFLOW.to_string(),
-        step_key: prompt_name.to_string(),
-        generation_run_id: None,
-        workflow_run_id: None,
-        call_key: None,
-        input_fingerprint_sha256: None,
-        context_plan_json: None,
-        context_pack_refs_json: None,
-    }))
 }
 
 pub(in crate::manga) async fn prepare_manga_llm_call(

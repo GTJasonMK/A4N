@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use a4n_db_models::models::chapter::chapter_manga_prompt;
-use a4n_domain::{llm::llm_token_profiles, source_text_hash};
+use a4n_domain::source_text_hash;
 use a4n_error::AppError;
 use a4n_llm::provider::{ChatRequest, LlmTraceContext};
 use a4n_prompt::rendering::PromptRenderer;
@@ -53,14 +53,8 @@ pub(super) async fn build_manga_prompt_optimization_request(
             Some(prompt.project_id),
         )
         .await?;
-    let mut request = ChatRequest::system_user(
-        system_prompt,
-        user_prompt,
-        Some(0.25),
-        None,
-        Some(llm_token_profiles::MEDIA_PROMPT.to_string()),
-    )
-    .with_json_response_format();
+    let mut request = ChatRequest::system_user(system_prompt, user_prompt, Some(0.25), None)
+        .with_json_response_format();
     let input_fingerprint_sha256 =
         source_text_hash(&serde_json::to_string(&request).map_err(AppError::Serialization)?);
     request = request.with_trace_context(LlmTraceContext {

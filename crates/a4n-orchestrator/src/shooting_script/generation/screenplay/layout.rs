@@ -1,4 +1,3 @@
-use a4n_domain::llm::llm_token_profiles;
 use a4n_error::AppError;
 use tokio_util::sync::CancellationToken;
 
@@ -168,6 +167,5 @@ fn screenplay_layout_unit_request(
             "只细化 narrative_unit_index={}。",
             unit.narrative_unit_index
         ),
-        llm_token_profiles::LONG.into(),
     )
 }

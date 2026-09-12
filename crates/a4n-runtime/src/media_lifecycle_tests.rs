@@ -3,9 +3,7 @@ use std::{path::Path, time::Duration};
 use a4n_config::app_config::{AppConfig, SecurityConfig};
 use a4n_db_models::models::project::project_member;
 use a4n_error::AppError;
-use a4n_orchestrator::media::{
-    ImageImportApplicationPort, ImagePublicationRecoveryPort, PreparedImportedImageUpload,
-};
+use a4n_orchestrator::media::PreparedImportedImageUpload;
 use sea_orm::{ActiveModelTrait, EntityTrait, Set};
 use sha2::{Digest, Sha256};
 

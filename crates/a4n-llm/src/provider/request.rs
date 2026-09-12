@@ -11,8 +11,6 @@ pub struct ChatRequest {
     pub temperature: Option<f32>,
     pub max_tokens: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub max_tokens_profile: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub response_format: Option<ResponseFormat>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub stream_include_usage: bool,
@@ -36,13 +34,11 @@ impl ChatRequest {
         messages: Vec<ChatMessage>,
         temperature: Option<f32>,
         max_tokens: Option<usize>,
-        max_tokens_profile: Option<String>,
     ) -> Self {
         Self {
             messages,
             temperature,
             max_tokens,
-            max_tokens_profile,
             response_format: None,
             stream_include_usage: false,
             cache_scope_key: None,
@@ -61,7 +57,6 @@ impl ChatRequest {
         user_prompt: impl Into<String>,
         temperature: Option<f32>,
         max_tokens: Option<usize>,
-        max_tokens_profile: Option<String>,
     ) -> Self {
         Self::new(
             vec![
@@ -70,7 +65,6 @@ impl ChatRequest {
             ],
             temperature,
             max_tokens,
-            max_tokens_profile,
         )
     }
 

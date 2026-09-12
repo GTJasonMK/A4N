@@ -19,7 +19,7 @@ pub(super) async fn chat_scene_profile_stage(
     response_chars: &mut Vec<Value>,
 ) -> Result<SceneProfileStageCallResult, String> {
     let truncated_message = format!(
-        "{prompt_name} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在设置页调大“角色/档案发现”输出档位，或减少本次章节上下文后重试"
+        "{prompt_name} 输出达到当前 max_tokens 上限，返回 JSON 被截断；请在模型配置中提高 max_output_tokens，或减少本次章节上下文后重试"
     );
     // 活体信号与字段级里程碑取自同一个 token 流：前者证明"还在输出"，
     // 后者说明"进行到哪了"，二者互补而非替代。

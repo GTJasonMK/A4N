@@ -3,9 +3,7 @@ mod defaults;
 mod models;
 mod secrets;
 
-pub use context::{
-    current_llm_max_tokens, current_snapshot, current_user_id, uses_client_desktop_embedding,
-};
+pub use context::{current_snapshot, current_user_id, uses_client_desktop_embedding};
 pub use defaults::{
     uses_system_default_image_template, uses_system_default_llm_template,
     uses_system_default_video_template,

@@ -78,7 +78,7 @@ fn request_uses_stable_context_manifest_and_json_contract() {
         .expect("request should build");
 
     assert_eq!(call_key, expected_call_key);
-    assert_eq!(request.max_tokens_profile.as_deref(), Some("json_standard"));
+    assert!(request.max_tokens.is_none());
     assert_eq!(
         request
             .trace_context

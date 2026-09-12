@@ -52,7 +52,6 @@ fn import_reverse_call_fingerprint_json(
         "messages": request.messages,
         "context_manifest": request.context_manifest_json,
         "max_tokens": request.max_tokens,
-        "max_tokens_profile": request.max_tokens_profile,
         "response_format": request.response_format,
     }))
 }

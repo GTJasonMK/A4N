@@ -1,4 +1,4 @@
-use a4n_domain::{ImageSize, LlmMaxTokensConfig};
+use a4n_domain::ImageSize;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as _};
 use serde_json::Value;
@@ -34,8 +34,6 @@ pub struct RuntimeConfigSnapshot {
     pub system_image_api_key_encrypted: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system_video_api_key_encrypted: Option<String>,
-    #[serde(default)]
-    pub llm_max_tokens: Option<LlmMaxTokensConfig>,
     #[serde(default)]
     pub client_context: Option<Value>,
 }
@@ -164,7 +162,7 @@ where
     D: Deserializer<'de>,
 {
     let version = u32::deserialize(deserializer)?;
-    if version != 1 {
+    if version != 2 {
         return Err(D::Error::custom(format!(
             "runtime_config_snapshot.schema_version 不支持: {version}"
         )));
@@ -193,7 +191,7 @@ mod tests {
     #[test]
     fn without_secrets_clears_active_list_and_system_keys() {
         let snapshot: RuntimeConfigSnapshot = serde_json::from_value(json!({
-            "schema_version": 1,
+            "schema_version": 2,
             "llm": runtime_llm(1, "active"),
             "llm_configs": [runtime_llm(1, "list")],
             "image": runtime_image(2, "image"),
