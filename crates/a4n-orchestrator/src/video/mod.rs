@@ -160,7 +160,7 @@ pub(crate) use reference_media_rules::validate_reference_media_start_input;
 pub(in crate::video) use reference_media_rules::{
     MIN_PROVIDER_VISUAL_PROMPT_CHARS, validate_reference_media_import_options,
 };
-pub use storyboard_frame_rules::{
+pub(in crate::video) use storyboard_frame_rules::{
     latest_storyboard_image_id, storyboard_prompt_matches_video_prompt,
 };
 pub(crate) use tail_frame_rules::{
