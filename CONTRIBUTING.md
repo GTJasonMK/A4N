@@ -54,6 +54,14 @@ npm --prefix frontend ci
 4. 修改接口时同步源合同、descriptor、Server 分派及受影响的 Tauri/CLI/前端消费者。Host 类型用 `npm --prefix frontend run generate:api-contract` 生成；generation 合同用 `npm --prefix frontend run generate:generation-contract`，不手改生成结果。
 5. 按影响范围验证，同步有效指南；依赖变化同步 manifest 和锁文件，边界变化同步检查规则与测试。
 
+### 并行工作树与集成基线
+
+- `debug` 是实际运行和调试基线，不在该工作树直接编辑、rebase、reset 或切换分支。
+- 每个修改会话从最新 `debug` 创建独立的 `agent/<topic>` 分支和工作树；提交前只交付自己负责且已验证的完整切片。
+- 集成在独立的 `integration` 工作树进行：先把 agent 分支合并到 `integration`，再运行受影响的编译、测试、格式和边界检查；验证通过后提交合并结果。
+- `debug` 只接受验证通过的 integration 结果，并使用 `git merge --ff-only integration` 快进更新。`master` 和远端发布属于单独的明确交接窗口，不在普通调试合并中隐式更新，也不强推。
+- `docs/work.md` 是被忽略的本地协作记录；需要长期维护的流程、架构和决策写入已跟踪的项目文档。
+
 Rust 使用 rustfmt、4 空格、`snake_case` 函数/模块和 `PascalCase` 类型，crate 名沿用 `a4n-<职责>`。TypeScript/TSX 使用 2 空格、双引号、分号、`camelCase` 函数和 `PascalCase` 组件/类型；沿用所在模块风格，不附带全仓格式重排。
 
 ## 验证要求
