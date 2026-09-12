@@ -134,8 +134,8 @@ pub(in crate::video) use prompt_generation::{
 pub(crate) use prompt_workflow_rules::{
     video_prompt_optimization_workflow_run_input, video_prompt_workflow_run_input,
 };
-pub(crate) use provider_execution::VideoGenerationCheckpointContext;
-pub use provider_execution::{
+pub(in crate::video) use provider_execution::VideoGenerationCheckpointContext;
+pub(in crate::video) use provider_execution::{
     VIDEO_GENERATION_PROGRESS_TOTAL, VideoGenerationProgress, VideoProviderExecutionInput,
 };
 pub(in crate::video) use provider_prompt_text_rules::{
