@@ -58,7 +58,7 @@ pub use a4n_db::video::{
 };
 pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 #[cfg(test)]
-pub(crate) use a4n_error::AppError;
+pub(in crate::video) use a4n_error::AppError;
 
 pub(crate) use a4n_video::ensure_provider_generation_run_updated;
 pub use a4n_video_contract::{
