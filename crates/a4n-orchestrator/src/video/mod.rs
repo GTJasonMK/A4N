@@ -81,9 +81,9 @@ pub(in crate::video) use assembly_push_rules::{
     latest_non_rejected_push_index, parse_assembly_push_metadata, selected_assembly_push_end_index,
     validate_assembly_workflow_mode,
 };
-pub use boundary_frame_rules::{
+pub use boundary_frame_rules::latest_boundary_frame_image_id;
+pub(in crate::video) use boundary_frame_rules::{
     boundary_frame_numbers_for_prompt, frame_prompt_matches_video_prompt,
-    latest_boundary_frame_image_id,
 };
 pub use chapter_video_generation::GenerateChapterVideosBatchInput;
 pub use chapter_video_request_rules::{
