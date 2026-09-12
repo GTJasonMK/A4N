@@ -44,6 +44,7 @@ import {
   type VisualEntityEventKindV1,
   type VisualEntityEventV2,
   type VisualEntityKindV1,
+  type VisualEntityV2,
   type VisualEntityStateV1,
   type VisualFacingV1,
   type VisualInterpolationV1,
@@ -56,6 +57,7 @@ import {
   type VisualTechniqueEventV2,
   type VisualTechniqueKindV1,
 } from "../../api/chapterVisualPlan";
+import { listSceneProfiles, type SceneProfile } from "../../api/sceneProfiles";
 import type {
   ShootingCameraAngleV1,
   ShootingCameraHeightV1,
@@ -405,6 +407,24 @@ const TECHNIQUE_EVENT_OPTIONS: ReadonlyArray<readonly [VisualTechniqueKindV1, Me
 const makeId = (prefix: string) =>
   `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 
+export const sceneProfileEntityId = (profileId: number): string => `scene-profile:${profileId}`;
+
+export const sceneProfileToVisualEntity = (profile: SceneProfile): VisualEntityV2 => {
+  const label = profile.name.trim() || String(profile.id);
+  const description = [
+    profile.visual_description,
+    profile.base_description,
+    profile.spatial_layout,
+    profile.atmosphere,
+  ].map((value) => value.trim()).find(Boolean) ?? label;
+  return {
+    id: sceneProfileEntityId(profile.id),
+    label,
+    kind: "environment",
+    description,
+  };
+};
+
 const defaultCamera = (): VisualCameraStateV1 => ({
   center_x: 0.5,
   center_y: 0.5,
@@ -638,6 +658,10 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
   const chapterId = chapter?.id ?? null;
   const [planSet, setPlanSet] = useState<ChapterVisualPlanSetView | null>(null);
   const [plan, setPlan] = useState<ChapterVisualPlanV2 | null>(null);
+  const [sceneProfiles, setSceneProfiles] = useState<SceneProfile[]>([]);
+  const [sceneProfilesProjectId, setSceneProfilesProjectId] = useState<number | null>(null);
+  const [sceneProfilesLoading, setSceneProfilesLoading] = useState(true);
+  const [sceneProfilesLoadError, setSceneProfilesLoadError] = useState<string | null>(null);
   const [baseline, setBaseline] = useState("");
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -711,9 +735,22 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
       nearestKeyframe(selectedShot, Math.max(0, playheadMs - (selectedRef?.start_ms ?? 0)))
     : null;
   const selectedEntityState = selectedKeyframe?.entity_states.find((state) => state.entity_id === selectedEntityId) ?? null;
+  const sceneProfilesForProject = sceneProfilesProjectId === projectId ? sceneProfiles : [];
+  const sceneProfileEntities = useMemo(
+    () => sceneProfilesForProject.map(sceneProfileToVisualEntity),
+    [sceneProfilesForProject],
+  );
+  const availableEntities = useMemo(() => {
+    const entities = [...(plan?.entities ?? [])];
+    const knownIds = new Set(entities.map((entity) => entity.id));
+    sceneProfileEntities.forEach((entity) => {
+      if (!knownIds.has(entity.id)) entities.push(entity);
+    });
+    return entities;
+  }, [plan, sceneProfileEntities]);
   const entityById = useMemo(
-    () => new Map((plan?.entities ?? []).map((entity) => [entity.id, entity] as const)),
-    [plan],
+    () => new Map(availableEntities.map((entity) => [entity.id, entity] as const)),
+    [availableEntities],
   );
   const strictIssues = useMemo(
     () => plan ? collectVisualPlanIssues(plan, true) : [],
@@ -892,6 +929,35 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
       if (runtimeRef.current === runtime) setLoading(false);
     }
   }, [chapterId, persistRuntimeDraft, projectId, resetEditor, t]);
+
+  useEffect(() => {
+    let active = true;
+    setSceneProfiles([]);
+    setSceneProfilesProjectId(null);
+    setSceneProfilesLoading(true);
+    setSceneProfilesLoadError(null);
+    void listSceneProfiles(projectId)
+      .then((nextProfiles) => {
+        if (!active) return;
+        if (nextProfiles.some((profile) => profile.project_id !== projectId)) {
+          throw new Error(t("novel.profile.foreignProjectData", { name: t("novel.profile.scene") }));
+        }
+        setSceneProfiles(nextProfiles);
+        setSceneProfilesProjectId(projectId);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setSceneProfiles([]);
+        setSceneProfilesProjectId(projectId);
+        setSceneProfilesLoadError(extractErrorMessage(error, t("novel.profile.loadFailed", { name: t("novel.profile.scene") })));
+      })
+      .finally(() => {
+        if (active) setSceneProfilesLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [projectId, t]);
 
   const handleDirectorResourceChanged = useCallback(async () => {
     if (resourceRefreshRef.current) return resourceRefreshRef.current;
@@ -1492,6 +1558,7 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     }
     const draft = structuredClone(sceneDraft);
     const participants = [...new Set(draft.participant_entity_ids)];
+    const selectedProfileEntities = sceneProfileEntities.filter((entity) => participants.includes(entity.id));
     const supportsIntercutGroup = draft.editing_mode === "intercut" || draft.editing_mode === "parallel_action";
     Object.assign(draft, {
       title: draft.title.trim(),
@@ -1507,8 +1574,15 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
     const isPending = pendingCreate?.kind === "scene" && pendingCreate.id === draft.id;
     const changed = commit((next) => {
       const target = next.scenes.find((scene) => scene.id === draft.id);
+      if (!target && !isPending) return;
+      const knownEntityIds = new Set(next.entities.map((entity) => entity.id));
+      selectedProfileEntities.forEach((entity) => {
+        if (knownEntityIds.has(entity.id)) return;
+        next.entities.push(structuredClone(entity));
+        knownEntityIds.add(entity.id);
+      });
       if (target) Object.assign(target, draft);
-      else if (isPending) next.scenes.push(draft);
+      else next.scenes.push(draft);
     });
     if (!changed) {
       dismissModal();
@@ -2497,7 +2571,7 @@ export const ChapterVisualPlanTab: React.FC<ChapterVisualPlanTabProps> = ({
       </Modal>
 
       <Modal isOpen={modal === "scene" && sceneDraft != null} onClose={requestModalClose} title={t("visualPlan.editScene")} icon={<Layers3 size={15} />} footer={<ModalActions onCancel={requestModalClose} onSave={saveScene} onDelete={() => { if (sceneDraft) void deleteScene(sceneDraft.id); }} deleteDisabled={!editable || !sceneDraft} disabled={!editable || !sceneDraft?.title.trim() || !sceneDraft?.narrative_purpose.trim()} t={t} />}>
-        {sceneDraft ? <div className="space-y-3"><div className="grid gap-3 sm:grid-cols-2"><Field label={t("visualPlan.sceneTitle")}><TextInput value={sceneDraft.title} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, title: event.currentTarget.value })} /></Field><SelectField label={t("visualPlan.editingMode")} value={sceneDraft.editing_mode} disabled={!editable} options={optionItems(EDITING_MODE_OPTIONS, t)} onChange={(value) => { const editingMode = value as ShootingEditingModeV1; setSceneDraft({ ...sceneDraft, editing_mode: editingMode, intercut_group_id: editingMode === "intercut" || editingMode === "parallel_action" ? sceneDraft.intercut_group_id : null }); }} /><Field label={t("visualPlan.sceneLocation")}><TextInput value={toText(sceneDraft.location)} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, location: event.currentTarget.value })} /></Field><Field label={t("visualPlan.timeOfDay")}><TextInput value={toText(sceneDraft.time_of_day)} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, time_of_day: event.currentTarget.value })} /></Field><Field label={t("visualPlan.intercutGroup")} className="sm:col-span-2"><TextInput value={toText(sceneDraft.intercut_group_id)} disabled={!editable || (sceneDraft.editing_mode !== "intercut" && sceneDraft.editing_mode !== "parallel_action")} onChange={(event) => setSceneDraft({ ...sceneDraft, intercut_group_id: event.currentTarget.value })} /></Field><Field label={t("visualPlan.scenePurpose")} className="sm:col-span-2"><TextArea value={sceneDraft.narrative_purpose} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, narrative_purpose: event.currentTarget.value })} /></Field></div><fieldset><legend className="mb-1 text-caption font-semibold text-book-text-muted">{t("visualPlan.participants")}</legend><div className="grid gap-1 sm:grid-cols-2">{plan.entities.map((entity) => <label key={entity.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-book-border/55 bg-book-bg-paper px-2 py-2 text-caption text-book-text-sub"><input type="checkbox" checked={sceneDraft.participant_entity_ids.includes(entity.id)} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, participant_entity_ids: event.currentTarget.checked ? [...sceneDraft.participant_entity_ids, entity.id] : sceneDraft.participant_entity_ids.filter((id) => id !== entity.id) })} /><span className="min-w-0 truncate">{entity.label}</span></label>)}</div></fieldset><SelectField label={t("visualPlan.focalEntity")} value={sceneDraft.focal_entity_id ?? ""} disabled={!editable} options={[{ value: "", label: t("common.none") }, ...plan.entities.filter((entity) => sceneDraft.participant_entity_ids.includes(entity.id)).map((entity) => ({ value: entity.id, label: entity.label }))]} onChange={(value) => setSceneDraft({ ...sceneDraft, focal_entity_id: value || null })} /></div> : null}
+        {sceneDraft ? <div className="space-y-3"><div className="grid gap-3 sm:grid-cols-2"><Field label={t("visualPlan.sceneTitle")}><TextInput value={sceneDraft.title} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, title: event.currentTarget.value })} /></Field><SelectField label={t("visualPlan.editingMode")} value={sceneDraft.editing_mode} disabled={!editable} options={optionItems(EDITING_MODE_OPTIONS, t)} onChange={(value) => { const editingMode = value as ShootingEditingModeV1; setSceneDraft({ ...sceneDraft, editing_mode: editingMode, intercut_group_id: editingMode === "intercut" || editingMode === "parallel_action" ? sceneDraft.intercut_group_id : null }); }} /><Field label={t("visualPlan.sceneLocation")}><TextInput value={toText(sceneDraft.location)} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, location: event.currentTarget.value })} /></Field><Field label={t("visualPlan.timeOfDay")}><TextInput value={toText(sceneDraft.time_of_day)} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, time_of_day: event.currentTarget.value })} /></Field><Field label={t("visualPlan.intercutGroup")} className="sm:col-span-2"><TextInput value={toText(sceneDraft.intercut_group_id)} disabled={!editable || (sceneDraft.editing_mode !== "intercut" && sceneDraft.editing_mode !== "parallel_action")} onChange={(event) => setSceneDraft({ ...sceneDraft, intercut_group_id: event.currentTarget.value })} /></Field><Field label={t("visualPlan.scenePurpose")} className="sm:col-span-2"><TextArea value={sceneDraft.narrative_purpose} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, narrative_purpose: event.currentTarget.value })} /></Field></div><fieldset><legend className="mb-1 text-caption font-semibold text-book-text-muted">{t("visualPlan.participants")}</legend><div className="grid gap-1 sm:grid-cols-2">{availableEntities.map((entity) => <label key={entity.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-book-border/55 bg-book-bg-paper px-2 py-2 text-caption text-book-text-sub"><input type="checkbox" checked={sceneDraft.participant_entity_ids.includes(entity.id)} disabled={!editable} onChange={(event) => setSceneDraft({ ...sceneDraft, participant_entity_ids: event.currentTarget.checked ? [...sceneDraft.participant_entity_ids, entity.id] : sceneDraft.participant_entity_ids.filter((id) => id !== entity.id) })} /><span className="min-w-0 truncate">{entity.label}</span></label>)}</div>{sceneProfilesLoading ? <p className="mt-2 flex items-center gap-1.5 text-caption text-book-text-muted"><LoadingSpinner size="sm" />{t("common.loading")}</p> : null}{sceneProfilesLoadError ? <p role="status" className="mt-2 text-caption text-error">{sceneProfilesLoadError}</p> : null}</fieldset><SelectField label={t("visualPlan.focalEntity")} value={sceneDraft.focal_entity_id ?? ""} disabled={!editable} options={[{ value: "", label: t("common.none") }, ...availableEntities.filter((entity) => sceneDraft.participant_entity_ids.includes(entity.id)).map((entity) => ({ value: entity.id, label: entity.label }))]} onChange={(value) => setSceneDraft({ ...sceneDraft, focal_entity_id: value || null })} /></div> : null}
       </Modal>
 
       <Modal isOpen={modal === "shot" && shotDraft != null} onClose={requestModalClose} title={t("visualPlan.shotDetails")} subtitle={shotDraft?.shot.title ?? selectedShot?.title} icon={<Film size={15} />} maxWidthClassName="max-w-2xl" footer={<ModalActions onCancel={requestModalClose} onSave={saveShot} onDelete={() => { if (shotDraft) void deleteShot(shotDraft.shot.id); }} deleteDisabled={!editable || !shotDraft} disabled={!editable || !shotDraft?.shot.title.trim() || !shotDraft?.shot.narrative_purpose.trim()} t={t} />}>
