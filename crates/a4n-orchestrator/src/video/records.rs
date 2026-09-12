@@ -21,6 +21,7 @@ use a4n_domain::{
 use a4n_provider_contract::VideoProviderConfig;
 use a4n_video::{
     assembly_media_properties, canvas_frame_timestamp, imported_chapter_video_metadata,
+    tail_frame_metadata_belongs_to_video,
     trimmed_video_metadata, validate_video_trim_range,
 };
 use a4n_video_contract::{
@@ -60,7 +61,7 @@ use super::{
     is_assembly_clip_video_type, is_canvas_video_record, latest_non_rejected_push_index,
     next_assembly_insert_sort_order, parse_assembly_push_metadata, parse_postprocess_edit_metadata,
     postprocess_edit_timing, selected_assembly_push_end_index,
-    tail_frame_metadata_belongs_to_video, validate_assembly_workflow_mode,
+    validate_assembly_workflow_mode,
     validate_reference_media_import_options, video_shot_number,
 };
 

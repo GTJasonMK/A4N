@@ -165,9 +165,9 @@ pub use reference_media_rules::{
 pub use storyboard_frame_rules::{
     latest_storyboard_image_id, storyboard_prompt_matches_video_prompt,
 };
-pub use tail_frame_rules::{
-    is_first_frame_chain_video, should_capture_video_tail_frame, tail_frame_image_belongs_to_video,
-    tail_frame_metadata_belongs_to_video, tail_frame_reference_belongs_to_video, video_shot_number,
+pub(crate) use tail_frame_rules::{
+    is_first_frame_chain_video, should_capture_video_tail_frame,
+    tail_frame_reference_belongs_to_video, video_shot_number,
 };
 
 pub(crate) use crate::OrchestratorContext;

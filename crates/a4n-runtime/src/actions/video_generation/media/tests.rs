@@ -4,9 +4,11 @@ use a4n_domain::image::{
     IMAGE_GENERATION_SOURCE_VIDEO_BOUNDARY_FRAME_PROMPT,
     IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE, IMAGE_TYPE_VIDEO_TAIL_FRAME,
 };
-use a4n_orchestrator::video::{tail_frame_image_belongs_to_video, video_shot_number};
 use a4n_storage::{canonicalize_data_file_path, data_dir_relative_file_path};
-use a4n_video::{encode_query_component, is_provider_supported_image_content_type};
+use a4n_video::{
+    encode_query_component, is_provider_supported_image_content_type,
+    tail_frame_metadata_belongs_to_video, video_shot_number,
+};
 use chrono::Utc;
 use serde_json::{Value, json};
 
@@ -87,8 +89,16 @@ fn tail_frame_image_binds_to_capture_video_id() {
         }
     }));
 
-    assert!(tail_frame_image_belongs_to_video(&image, 42));
-    assert!(!tail_frame_image_belongs_to_video(&image, 41));
+    assert!(tail_frame_metadata_belongs_to_video(
+        &image.image_type,
+        image.metadata_json.as_ref(),
+        42,
+    ));
+    assert!(!tail_frame_metadata_belongs_to_video(
+        &image.image_type,
+        image.metadata_json.as_ref(),
+        41,
+    ));
 
     image.metadata_json = Some(json!({
         "generation_context": {
@@ -96,7 +106,11 @@ fn tail_frame_image_binds_to_capture_video_id() {
             "video_id": 42,
         }
     }));
-    assert!(!tail_frame_image_belongs_to_video(&image, 42));
+    assert!(!tail_frame_metadata_belongs_to_video(
+        &image.image_type,
+        image.metadata_json.as_ref(),
+        42,
+    ));
 }
 
 #[test]
@@ -358,20 +372,24 @@ fn media_url_query_component_encodes_path_separators_and_spaces() {
 
 #[test]
 fn video_shot_number_requires_explicit_positive_metadata() {
+    let valid_video = video_with_shot_number(Some(json!(3)));
     assert_eq!(
-        video_shot_number(&video_with_shot_number(Some(json!(3)))).unwrap(),
+        video_shot_number(valid_video.metadata_json.as_ref(), valid_video.id).unwrap(),
         3
     );
 
-    let missing = video_shot_number(&video_with_shot_number(None))
+    let missing_video = video_with_shot_number(None);
+    let missing = video_shot_number(missing_video.metadata_json.as_ref(), missing_video.id)
         .expect_err("missing shot number must not fall back to first shot");
     assert!(missing.contains("缺少有效 shot_number"));
 
-    let zero = video_shot_number(&video_with_shot_number(Some(json!(0))))
+    let zero_video = video_with_shot_number(Some(json!(0)));
+    let zero = video_shot_number(zero_video.metadata_json.as_ref(), zero_video.id)
         .expect_err("zero shot number must be rejected");
     assert!(zero.contains("缺少有效 shot_number"));
 
-    let string_value = video_shot_number(&video_with_shot_number(Some(json!("3"))))
+    let string_video = video_with_shot_number(Some(json!("3")));
+    let string_value = video_shot_number(string_video.metadata_json.as_ref(), string_video.id)
         .expect_err("string shot number must be rejected");
     assert!(string_value.contains("缺少有效 shot_number"));
 }

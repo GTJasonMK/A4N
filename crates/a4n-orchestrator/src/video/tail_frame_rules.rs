@@ -7,47 +7,21 @@ use a4n_domain::image::{
 };
 use serde_json::Value;
 
-/// 尾帧图是否属于指定视频的采集产物。
-pub fn tail_frame_image_belongs_to_video(image: &generated_image::Model, video_id: i64) -> bool {
-    tail_frame_metadata_belongs_to_video(&image.image_type, image.metadata_json.as_ref(), video_id)
-}
-
 /// 尾帧轻量引用是否属于指定视频，供只读清理列表避免加载完整图片实体。
 pub fn tail_frame_reference_belongs_to_video(
     image: &generated_image::Reference,
     video_id: i64,
 ) -> bool {
-    tail_frame_metadata_belongs_to_video(&image.image_type, image.metadata_json.as_ref(), video_id)
-}
-
-pub fn tail_frame_metadata_belongs_to_video(
-    image_type: &str,
-    metadata_json: Option<&Value>,
-    video_id: i64,
-) -> bool {
-    if image_type != IMAGE_TYPE_VIDEO_TAIL_FRAME
-        || image_generation_source(metadata_json)
-            != Some(IMAGE_GENERATION_SOURCE_VIDEO_TAIL_FRAME_CAPTURE)
-    {
-        return false;
-    }
-    metadata_json
-        .and_then(|metadata| metadata.get("generation_context"))
-        .and_then(|context| context.get("video_id"))
-        .and_then(Value::as_i64)
-        == Some(video_id)
+    a4n_video::tail_frame_metadata_belongs_to_video(
+        &image.image_type,
+        image.metadata_json.as_ref(),
+        video_id,
+    )
 }
 
 /// 从视频元数据读取镜头序号。
 pub fn video_shot_number(video: &generated_video::Model) -> Result<i32, String> {
-    video
-        .metadata_json
-        .as_ref()
-        .and_then(|metadata| metadata.get("shot_number"))
-        .and_then(Value::as_i64)
-        .and_then(|value| i32::try_from(value).ok())
-        .filter(|value| *value > 0)
-        .ok_or_else(|| format!("视频 #{} 缺少有效 shot_number，无法采集真实尾帧", video.id))
+    a4n_video::video_shot_number(video.metadata_json.as_ref(), video.id)
 }
 
 pub fn is_first_frame_chain_video(video: &generated_video::Model) -> bool {
