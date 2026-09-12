@@ -56,6 +56,7 @@ export const ThemedSelect = React.forwardRef<
   React.SelectHTMLAttributes<HTMLSelectElement>
 >(function ThemedSelect(
   {
+    autoFocus,
     children,
     className = "",
     defaultValue,
@@ -68,6 +69,7 @@ export const ThemedSelect = React.forwardRef<
     "aria-describedby": ariaDescribedBy,
     "aria-label": ariaLabel,
     "aria-labelledby": ariaLabelledBy,
+    "aria-invalid": ariaInvalid,
     ...nativeProps
   },
   forwardedRef,
@@ -149,6 +151,7 @@ export const ThemedSelect = React.forwardRef<
   }, []);
 
   const open = useCallback((direction = 1) => {
+    if (disabled) return;
     if (!options.some((option) => !option.props.disabled)) return;
     const selectedIsEnabled = selectedIndex >= 0 && !options[selectedIndex].props.disabled;
     const nextIndex = selectedIsEnabled
@@ -158,11 +161,11 @@ export const ThemedSelect = React.forwardRef<
     setActiveIndex(nextIndex);
     setPosition((current) => ({ ...current, ready: false }));
     setIsOpen(true);
-  }, [options, selectedIndex]);
+  }, [disabled, options, selectedIndex]);
 
   const commit = useCallback((index: number) => {
     const option = options[index];
-    if (!option || option.props.disabled) return;
+    if (disabled || !option || option.props.disabled) return;
     const nextValue = optionValue(option);
     if (!controlled) setUncontrolledValue(nextValue);
 
@@ -172,7 +175,7 @@ export const ThemedSelect = React.forwardRef<
       nativeSelect.dispatchEvent(new Event("change", { bubbles: true }));
     }
     close(true);
-  }, [close, controlled, options, selectedValue]);
+  }, [close, controlled, disabled, options, selectedValue]);
 
   const moveActive = useCallback((step: number) => {
     setActiveIndex((current) => {
@@ -180,6 +183,10 @@ export const ThemedSelect = React.forwardRef<
       return firstEnabledIndex(options, start, step);
     });
   }, [options]);
+
+  useEffect(() => {
+    if (disabled) close();
+  }, [close, disabled]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -236,6 +243,7 @@ export const ThemedSelect = React.forwardRef<
   const triggerKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === "Escape" && isOpen) {
       event.preventDefault();
+      event.stopPropagation();
       close(true);
       return;
     }
@@ -263,7 +271,7 @@ export const ThemedSelect = React.forwardRef<
     }
   };
 
-  const listbox = isOpen ? createPortal(
+  const listbox = isOpen && !disabled ? createPortal(
     <div
       ref={listboxRef}
       id={listboxId}
@@ -295,6 +303,7 @@ export const ThemedSelect = React.forwardRef<
             data-active={isActive ? "true" : undefined}
             data-option-index={index}
             className="a4n-themed-select__option"
+            onPointerDown={(event) => event.preventDefault()}
             onMouseEnter={() => {
               if (!optionDisabled) setActiveIndex(index);
             }}
@@ -318,30 +327,18 @@ export const ThemedSelect = React.forwardRef<
 
   return (
     <>
-      <select
-        {...nativeProps}
-        ref={setNativeSelectRef}
-        value={controlled ? selectedValue : undefined}
-        defaultValue={controlled ? undefined : selectedValue}
-        disabled={disabled}
-        required={required}
-        aria-hidden="true"
-        tabIndex={-1}
-        className="a4n-themed-select__native"
-        onChange={onChange}
-      >
-        {children}
-      </select>
       <button
         id={id}
         ref={triggerRef}
         type="button"
         title={title}
         disabled={disabled}
+        autoFocus={autoFocus}
         role="combobox"
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
         aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         aria-required={required || undefined}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
@@ -363,6 +360,20 @@ export const ThemedSelect = React.forwardRef<
           className={`a4n-themed-select__chevron shrink-0 transition-transform ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
+      <select
+        {...nativeProps}
+        ref={setNativeSelectRef}
+        value={controlled ? selectedValue : undefined}
+        defaultValue={controlled ? undefined : selectedValue}
+        disabled={disabled}
+        required={required}
+        aria-hidden="true"
+        tabIndex={-1}
+        className="a4n-themed-select__native"
+        onChange={onChange}
+      >
+        {children}
+      </select>
       {listbox}
     </>
   );

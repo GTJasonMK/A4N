@@ -15,7 +15,7 @@ interface BookButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> 
 
 /** ghost/warning/danger 共用的布局与动效基串（DRY），仅各自补色彩与边框 */
 const CUSTOM_BTN_BASE =
-  'inline-flex items-center justify-center gap-2 font-semibold tracking-tight transition-[transform,background-color,color,filter] duration-150 ease-out active:scale-[0.97] focus-visible:outline-2';
+  'inline-flex items-center justify-center gap-2 font-semibold transition-[transform,background-color,color,filter] duration-150 ease-out active:scale-[0.97] focus-visible:outline-2';
 
 export const BookButton: React.FC<BookButtonProps> = ({
   children,

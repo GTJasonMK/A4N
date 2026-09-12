@@ -1,4 +1,4 @@
-import type { ProjectKind, ProjectSourceMode, ProjectStatus } from "../api/project";
+import { canEditProjectMaterials, type NovelProject, type ProjectKind, type ProjectSourceMode, type ProjectStatus } from "../api/project";
 import type { MessageKey, MessageTranslator } from "../i18n";
 
 export interface RoutedProject {
@@ -7,6 +7,12 @@ export interface RoutedProject {
   project_kind: ProjectKind;
   source_mode: ProjectSourceMode;
 }
+
+export type HomeEntryProject = RoutedProject & Pick<NovelProject, "my_role" | "lifecycle_gate">;
+
+const entersWritingDesk = (project: HomeEntryProject): boolean =>
+  project.project_kind === "text" && canEditProjectMaterials(project) &&
+  (project.status === "writing" || project.status === "completed");
 
 export interface DerivedProjectPresentation {
   root_project_title?: string | null;
@@ -137,23 +143,10 @@ export const getProjectWorkspaceLabel = (
         ? t("novel.enterGameWorkspace")
         : t("novel.enterWritingDesk");
 
-export const getProjectHomeEntryRoute = (project: RoutedProject): string => {
-  if (project.project_kind !== "text") return getProjectPrimaryRoute(project);
-
-  if (project.status === "writing" || project.status === "completed") {
-    return getProjectWorkspaceRoute(project);
-  }
-  return getProjectPrimaryRoute(project);
-};
+export const getProjectHomeEntryRoute = (project: HomeEntryProject): string =>
+  entersWritingDesk(project) ? getProjectWorkspaceRoute(project) : getProjectPrimaryRoute(project);
 
 export const getProjectHomeEntryLabel = (
-  project: RoutedProject,
+  project: HomeEntryProject,
   t: MessageTranslator,
-): string => {
-  if (project.project_kind !== "text") return getProjectPrimaryLabel(project, t);
-
-  if (project.status === "writing" || project.status === "completed") {
-    return getProjectWorkspaceLabel(project, t);
-  }
-  return getProjectPrimaryLabel(project, t);
-};
+): string => entersWritingDesk(project) ? getProjectWorkspaceLabel(project, t) : getProjectPrimaryLabel(project, t);

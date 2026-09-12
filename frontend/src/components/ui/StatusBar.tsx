@@ -158,7 +158,7 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
         <div id="a4n-status-bar-panel" className="a4n-status-bar-popover">
           <div className="a4n-status-bar">
             <div className="a4n-status-bar__message flex min-w-0 items-center gap-2" role="status" aria-live="polite">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success/70" aria-hidden="true" />
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-book-text-muted/70" aria-hidden="true" />
               <span className="truncate text-small text-book-text-sub">{t("common.ready")}</span>
             </div>
             <div className="a4n-status-bar__actions flex min-w-0 shrink-0 items-center gap-1">
@@ -184,7 +184,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
         type="button"
         className="a4n-status-bar-orb"
         data-over-control={orbOverControl ? "true" : "false"}
-        tabIndex={orbOverControl ? -1 : 0}
         aria-label={toggleLabel}
         aria-expanded={expanded}
         aria-controls={expanded ? "a4n-status-bar-panel" : undefined}

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Eye, Plus, SlidersHorizontal } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookCardAction } from "../../../components/ui/BookCard";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
 import { parseNumberInput, type NumberInputValue } from "./outlineTabUtils";
@@ -157,22 +158,13 @@ export function PartOutlineSection({
       {parts.length === 0 ? (
         <EmptyHint text={t("outline.partSection.empty")} />
       ) : (
-        <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
+        <ul className="space-y-2">
           {parts.map((part) => (
             <li
               key={part.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => onOpenPart(part)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  onOpenPart(part);
-                }
-              }}
-              className="flex min-h-14 cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
-              title={t("outline.partSection.viewDetails")}
+              className="a4n-flat-surface relative flex min-h-14 items-start gap-3 px-4 py-3 transition-colors hover:border-book-primary/35"
             >
+              <BookCardAction label={`${t("outline.partSection.part", { part: part.part_number })} · ${part.title}`} onClick={() => onOpenPart(part)} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold text-book-text-main">
                   {t("outline.partSection.part", { part: part.part_number })}

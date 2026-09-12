@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { CharacterProfile } from "../../../api/character";
 import { CharacterDetailDialog } from "../../CharacterDetailDialog";
+import { BookCardAction } from "../../../components/ui/BookCard";
 import {
   characterAttributeEntries,
   characterAttributeText,
@@ -81,18 +82,9 @@ export const CharacterProfilesPanel: React.FC<{
             return (
               <li
                 key={profile.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setDetailFor(profile)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setDetailFor(profile);
-                  }
-                }}
-                className="a4n-flat-surface flex min-h-20 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
-                title={t("characterDetail.viewDetails")}
+                className="a4n-flat-surface relative flex min-h-20 items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35"
               >
+                <BookCardAction label={`${profile.name} · ${t("characterDetail.viewDetails")}`} onClick={() => setDetailFor(profile)} />
                 <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-book-primary/10 text-xs font-semibold text-book-primary">
                   {profile.name.trim().charAt(0).toUpperCase() || "?"}
                 </span>

@@ -73,7 +73,7 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
             type="button"
             onClick={() => onSelectMode(option.id)}
             disabled={creating}
-            className="a4n-flat-surface group flex min-h-[108px] w-full items-start gap-3 p-3.5 text-left transition-[border-color,background-color,transform] duration-150 ease-out hover:-translate-y-px hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+            className="a4n-flat-surface group flex min-h-[108px] w-full items-start gap-3 p-3.5 text-left transition-[border-color,background-color] duration-150 ease-out hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] border border-book-primary/25 bg-book-primary/10 text-book-primary">
               {option.icon}
@@ -86,7 +86,7 @@ export const ProjectCreationDialog: React.FC<ProjectCreationDialogProps> = ({
             </span>
             <ChevronRight
               size={14}
-              className="mt-2.5 shrink-0 text-book-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-book-primary"
+              className="mt-2.5 shrink-0 text-book-text-muted transition-colors group-hover:text-book-primary"
             />
           </button>
         ))}

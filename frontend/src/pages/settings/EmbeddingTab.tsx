@@ -401,12 +401,13 @@ export const EmbeddingTab: React.FC<EmbeddingTabProps> = ({
             secondary: `${embeddingProviderLabels.get(c.backend) ?? c.backend} · ${c.model}`,
             tertiary: `${t("settingsEmbedding.dimensionUnit", { count: c.dimension })} · ${t("settingsForm.batchSize")} ${c.batch_size}`,
           })}
-          renderEditor={(form, setForm) => (
+          renderEditor={(form, setForm, context) => (
             <EmbeddingConfigEditor
               form={form}
               providers={selectableProviders}
               localModels={localModels}
               busyModel={busyModel}
+              readonly={context.readonly}
               setForm={setForm}
               pickFastembedModel={pickFastembedModel}
               resolveLocalModel={resolveLocalModel}

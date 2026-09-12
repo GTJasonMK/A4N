@@ -45,7 +45,7 @@ export function ToastContainer() {
   } satisfies Record<ToastType, string>;
 
   return (
-    <div aria-live="polite" aria-relevant="additions removals" className="a4n-toast-container pointer-events-none fixed inset-x-3 top-3 z-[140] flex flex-col items-end gap-2 sm:left-auto sm:w-[min(92vw,23rem)]">
+    <div aria-live="polite" aria-relevant="additions removals" className="a4n-toast-container pointer-events-none fixed inset-x-3 top-[calc(var(--a4n-page-header-height)+2rem)] z-[140] flex flex-col items-end gap-2 sm:inset-x-auto sm:bottom-3 sm:left-3 sm:top-auto sm:w-[min(92vw,23rem)]">
       {toasts.map((toast) => (
         <div
           key={toast.id}

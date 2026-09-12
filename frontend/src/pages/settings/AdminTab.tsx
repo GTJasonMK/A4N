@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Shield } from "lucide-react";
 import { useAuthStore } from "../../store/auth";
+import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { OverviewSection } from "./admin/OverviewSection";
 import { ApiConfigSection } from "./admin/ApiConfigSection";
 import { ProjectsSection } from "./admin/ProjectsSection";
@@ -16,6 +17,7 @@ export const AdminTab: React.FC = () => {
   const { user } = useAuthStore();
   const { t } = useI18n();
   const [section, setSection] = useState<Section>("overview");
+  const navigationGuardRef = useRef(false);
   const sectionDefs: { id: Section; label: string }[] = [
     { id: "overview", label: t("settingsAdmin.overview") },
     { id: "users", label: t("settingsAdmin.users") },
@@ -25,6 +27,29 @@ export const AdminTab: React.FC = () => {
     { id: "trends", label: t("settingsAdmin.trends") },
     { id: "packages", label: t("settingsAdmin.packages") },
   ];
+
+  const selectSection = async (nextSection: Section) => {
+    if (nextSection === section) return;
+    if (document.querySelector('[data-settings-dirty="true"]')) {
+      if (navigationGuardRef.current) return;
+      navigationGuardRef.current = true;
+      try {
+        const ok = await confirmDialog({
+          title: t("common.unsavedChangesTitle"),
+          message: t("common.unsavedChangesMessage", {
+            name: t("settings.title"),
+            action: t("settings.category"),
+          }),
+          confirmText: t("common.discardDraft"),
+          dialogType: "warning",
+        });
+        if (!ok) return;
+      } finally {
+        navigationGuardRef.current = false;
+      }
+    }
+    setSection(nextSection);
+  };
 
   if (!user) {
     return (
@@ -53,7 +78,7 @@ export const AdminTab: React.FC = () => {
           <button
             key={s.id}
             type="button"
-            onClick={() => setSection(s.id)}
+            onClick={() => void selectSection(s.id)}
             aria-pressed={section === s.id}
             aria-current={section === s.id ? "page" : undefined}
             data-active={section === s.id ? "1" : undefined}

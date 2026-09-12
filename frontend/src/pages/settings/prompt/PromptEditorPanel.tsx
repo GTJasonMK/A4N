@@ -63,6 +63,7 @@ export const PromptEditorPanel: React.FC<PromptEditorPanelProps> = ({
           <textarea
             value={draft}
             onChange={(event) => onDraftChange(event.target.value)}
+            aria-label={prompt.title || t("settingsPrompt.prompt")}
             className="book-control min-h-[18rem] flex-1 resize-none rounded-xl p-3 font-mono text-xs leading-relaxed"
             spellCheck={false}
           />

@@ -114,7 +114,26 @@ export const WritingDesk: React.FC = () => {
     : false;
   const [chapters, setChapters] = useState<ChapterSummary[]>([]);
   const [outlines, setOutlines] = useState<ChapterOutline[]>([]);
-  const [activeNumber, setActiveNumber] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
+  const requestedChapterNumber = () => {
+    const value = searchParamsRef.current.get("chapter");
+    if (!value || !/^[1-9]\d*$/.test(value)) return null;
+    const number = Number(value);
+    return Number.isSafeInteger(number) && number <= 2_147_483_647 ? number : null;
+  };
+  // URL owns chapter selection; changing chapters must not remount the workspace.
+  const activeNumber = loading ? null : requestedChapterNumber();
+  const setActiveNumber = useCallback((number: number | null) => {
+    const next = new URLSearchParams(searchParamsRef.current);
+    const value = number == null ? null : String(number);
+    if (next.get("chapter") === value) return;
+    if (value == null) next.delete("chapter");
+    else next.set("chapter", value);
+    searchParamsRef.current = next;
+    setSearchParams(next, { replace: true });
+  }, [setSearchParams]);
   const [chapterQuery, setChapterQuery] = useState("");
   const [writingNotesByChapter, setWritingNotesByChapter] = useState<Record<string, string>>({});
   const writingNotesKey =
@@ -138,7 +157,6 @@ export const WritingDesk: React.FC = () => {
   const [maxWordCount, setMaxWordCount] = useState(
     String(DEFAULT_GENERATION_WORD_COUNT_RANGE.max),
   );
-  const [loading, setLoading] = useState(true);
   const [savingContent, setSavingContent] = useState(false);
   const [resetGeneratedDataBusy, setResetGeneratedDataBusy] = useState(false);
   const [leftSidebarVisible, setLeftSidebarVisible] = useState(true);
@@ -336,16 +354,12 @@ export const WritingDesk: React.FC = () => {
         setChapters(ch);
         setOutlines(ol);
 
-        const chapterParam = searchParams.get("chapter");
-        const fromUrl = chapterParam == null ? null : Number(chapterParam);
-        const fromUrlNumber =
-          fromUrl != null && Number.isFinite(fromUrl) && fromUrl > 0
-            ? Math.floor(fromUrl)
-            : null;
+        const fromUrlNumber = requestedChapterNumber();
         if (
           fromUrlNumber != null &&
           (ch.some((chapter) => chapter.chapter_number === fromUrlNumber) ||
-            outlineNumbers.includes(fromUrlNumber))
+            outlineNumbers.includes(fromUrlNumber) ||
+            draftSet.has(fromUrlNumber))
         ) {
           setActiveNumber(fromUrlNumber);
           return;
@@ -395,7 +409,7 @@ export const WritingDesk: React.FC = () => {
       setActiveNumber(chapterNumber);
       return true;
     },
-    [confirmCurrentEdit],
+    [confirmCurrentEdit, setActiveNumber],
   );
 
   const handleCreateChapter = useCallback(async () => {
@@ -441,7 +455,7 @@ export const WritingDesk: React.FC = () => {
 
     setChapterQuery("");
     setActiveNumber(chapterNumber);
-  }, [addToast, chapters, confirmCurrentEdit, lifecycleBlockedReason, outlines]);
+  }, [addToast, chapters, confirmCurrentEdit, lifecycleBlockedReason, outlines, setActiveNumber]);
 
   const safeNavigateTo = useCallback(
     async (to: string) => {
@@ -455,16 +469,6 @@ export const WritingDesk: React.FC = () => {
     const ok = await confirmCurrentEdit(t("common.back"));
     if (ok) smartBack();
   }, [confirmCurrentEdit, smartBack]);
-
-  useEffect(() => {
-    if (activeNumber == null) return;
-    const cur = searchParams.get("chapter");
-    if (cur === String(activeNumber)) return;
-
-    const next = new URLSearchParams(searchParams);
-    next.set("chapter", String(activeNumber));
-    setSearchParams(next, { replace: true });
-  }, [activeNumber, searchParams, setSearchParams]);
 
   const wordCount = useMemo(() => {
     // 与后端 chapter.word_count 的 content.chars().count() 保持一致。
@@ -498,20 +502,18 @@ export const WritingDesk: React.FC = () => {
         const next = await listChapters(requestProjectId);
         if (!mountedRef.current || projectIdRef.current !== requestProjectId) return null;
         setChapters(next);
-        setActiveNumber((current) => {
-          if (
-            current &&
-            (next.some((ch) => ch.chapter_number === current) ||
-              outlines.some((outline) => outline.chapter_number === current))
-          ) {
-            return current;
-          }
-          return (
+        const current = activeNumberRef.current;
+        if (
+          current == null ||
+          (!next.some((ch) => ch.chapter_number === current) &&
+            !outlines.some((outline) => outline.chapter_number === current))
+        ) {
+          setActiveNumber(
             next[next.length - 1]?.chapter_number ??
             outlines[0]?.chapter_number ??
-            null
+            null,
           );
-        });
+        }
         return next;
       } catch (err) {
         if (mountedRef.current && projectIdRef.current === requestProjectId) {
@@ -533,7 +535,7 @@ export const WritingDesk: React.FC = () => {
       promise,
     };
     return promise;
-  }, [projectId, addToast, outlines]);
+  }, [projectId, addToast, outlines, activeNumberRef, setActiveNumber]);
 
   const reloadOutlines = useCallback(async () => {
     const requestProjectId = projectId;
@@ -702,6 +704,7 @@ export const WritingDesk: React.FC = () => {
     clearStreamState,
     resetDraftTracking,
     resetPromptPreview,
+    setActiveNumber,
     setEditorState,
   ]);
 

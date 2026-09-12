@@ -21,6 +21,7 @@ import { listModelProviderCatalog } from "../../../api/providerCatalog";
 import type { ModelProviderCatalog } from "../../../api/generated/config";
 import type { LlmConfigSummary } from "../../../api/generated/config";
 import { useToast } from "../../../components/feedback/Toast";
+import { confirmDialog } from "../../../components/feedback/ConfirmDialog";
 import { BookIconButton } from "../../../components/ui/BookButton";
 import { EmbeddingTab } from "../EmbeddingTab";
 import { ImageTab } from "../ImageTab";
@@ -56,6 +57,30 @@ const PANEL_DEFS: Array<{
 export const ApiConfigSection: React.FC = () => {
   const { t } = useI18n();
   const [panel, setPanel] = useState<ApiConfigPanel>("overview");
+  const navigationGuardRef = useRef(false);
+
+  const selectPanel = async (nextPanel: ApiConfigPanel) => {
+    if (nextPanel === panel) return;
+    if (document.querySelector('[data-settings-dirty="true"]')) {
+      if (navigationGuardRef.current) return;
+      navigationGuardRef.current = true;
+      try {
+        const ok = await confirmDialog({
+          title: t("common.unsavedChangesTitle"),
+          message: t("common.unsavedChangesMessage", {
+            name: t("settingsAdmin.configuration"),
+            action: t("settings.category"),
+          }),
+          confirmText: t("common.discardDraft"),
+          dialogType: "warning",
+        });
+        if (!ok) return;
+      } finally {
+        navigationGuardRef.current = false;
+      }
+    }
+    setPanel(nextPanel);
+  };
 
   return (
     <div className="flex min-h-0 flex-col gap-3">
@@ -67,7 +92,7 @@ export const ApiConfigSection: React.FC = () => {
           <button
             key={item.id}
             type="button"
-            onClick={() => setPanel(item.id)}
+            onClick={() => void selectPanel(item.id)}
             data-active={panel === item.id ? "1" : undefined}
             className="pyqt-tab inline-flex items-center gap-1.5 whitespace-nowrap"
           >

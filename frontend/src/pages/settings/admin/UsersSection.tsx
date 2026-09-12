@@ -160,10 +160,33 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     }
   }, [tokenFor, usageFor, users]);
 
-  const closeCreate = () => {
+  const resetCreate = () => {
     setCreateOpen(false);
     setCreateForm(emptyCreateUserForm);
     createFormVersionRef.current += 1;
+  };
+
+  const createDirty =
+    createForm.username.trim().length > 0 ||
+    createForm.email.trim().length > 0 ||
+    createForm.password.length > 0 ||
+    createForm.role !== emptyCreateUserForm.role;
+
+  const closeCreate = async () => {
+    if (createBusy) return;
+    if (createDirty) {
+      const ok = await confirmDialog({
+        title: t("common.unsavedChangesTitle"),
+        message: t("common.unsavedChangesMessage", {
+          name: t("settingsAdmin.createUser"),
+          action: t("common.close"),
+        }),
+        confirmText: t("common.discardDraft"),
+        dialogType: "warning",
+      });
+      if (!ok) return;
+    }
+    resetCreate();
   };
 
   const openCreate = () => {
@@ -196,7 +219,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       if (!isCurrentUser(requestCurrentUserId)) return;
       if (createFormVersionRef.current === requestFormVersion && createOpen) {
         addToast(t("settingsAdmin.userCreated"), "success");
-        closeCreate();
+        resetCreate();
       } else {
         addToast(t("settingsAdmin.userCreatedWithDraft"), "info");
       }
@@ -432,7 +455,10 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
     createForm.password.trim().length > 0;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div
+      className="flex flex-col gap-3"
+      data-settings-dirty={createDirty ? "true" : undefined}
+    >
       <div className="flex min-h-9 flex-wrap items-center gap-2">
         <span className="text-xs text-book-text-muted">{t("settingsAdmin.userCount", { count: users.length })}</span>
         <span className="flex-1" />
@@ -538,9 +564,7 @@ export const UsersSection: React.FC<{ currentUserId: number }> = ({
       </Modal>
       <Modal
         isOpen={createOpen}
-        onClose={() => {
-          if (!createBusy) closeCreate();
-        }}
+        onClose={() => void closeCreate()}
         title={t("settingsAdmin.createUser")}
         subtitle={t("settingsAdmin.createUserSubtitle")}
         icon={<Plus size={15} />}

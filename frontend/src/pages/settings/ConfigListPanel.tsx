@@ -378,6 +378,13 @@ export function ConfigListPanel<C>({
       return;
     }
     deletingRef.current = id;
+    if (dirtyRef.current && selectedIdRef.current === id) {
+      const discard = await confirmDiscardDraft(t("settings.deleteConfig"));
+      if (!discard) {
+        if (deletingRef.current === id) deletingRef.current = null;
+        return;
+      }
+    }
     const ok = await confirmDialog({
       title: t("settings.deleteConfigTitle", { name: title }),
       message: t("common.deleteConfirm", { name: title }),
@@ -402,7 +409,9 @@ export function ConfigListPanel<C>({
       addToast(t("settings.configDeleted"), "success");
       if (selectedIdRef.current === id) {
         setSelectedId(null);
+        setForm(defaultForm);
         setMobileEditorOpen(false);
+        markClean();
       }
       setTestResults((prev) => {
         const next = { ...prev };
@@ -567,7 +576,11 @@ export function ConfigListPanel<C>({
   );
 
   return (
-    <section aria-label={t("settings.configManagement", { name: title })} className="flex h-auto flex-col gap-3 md:h-full">
+    <section
+      aria-label={t("settings.configManagement", { name: title })}
+      data-settings-dirty={dirty ? "true" : undefined}
+      className="flex h-auto flex-col gap-3 md:h-full"
+    >
       <ConfigListToolbar
         title={title}
         itemCount={items.length}
@@ -606,6 +619,9 @@ export function ConfigListPanel<C>({
           title={mobileEditorTitle}
           maxWidthClassName="max-w-xl"
           bodyClassName="min-h-0 flex-1 overflow-y-auto custom-scrollbar p-3"
+          closeOnBackdrop={!itemActionBusy}
+          closeOnEscape={!itemActionBusy}
+          showCloseButton={!itemActionBusy}
         >
           {editorPanel}
         </Modal>

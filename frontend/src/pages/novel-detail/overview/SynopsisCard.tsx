@@ -60,11 +60,13 @@ const SynopsisCardContent: React.FC<SynopsisCardProps> = ({
     <header className="flex flex-col gap-2 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <h2 className="text-sm font-semibold text-book-text-main">{t("novel.storySummary")}</h2>
-        <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
-          {blueprint
-            ? [blueprint.genre, blueprint.tone].filter(Boolean).join(" · ") || t("novel.blueprintCoreSummary")
-            : t("novel.synopsisFromMaterials")}
-        </p>
+        {blueprint || canEditBlueprint ? (
+          <p className="mt-0.5 text-small leading-relaxed text-book-text-muted">
+            {blueprint
+              ? [blueprint.genre, blueprint.tone].filter(Boolean).join(" · ") || t("novel.blueprintCoreSummary")
+              : t("novel.synopsisFromMaterials")}
+          </p>
+        ) : null}
       </div>
       {blueprint ? (
         <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">

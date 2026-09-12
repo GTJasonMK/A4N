@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Check, Download, Pencil, Trash2 } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { type Theme } from "../../../api/theme";
@@ -7,6 +7,7 @@ import { Dropdown, type DropdownItem } from "../../../components/ui/Dropdown";
 import { parseCssRgb, rgb } from "../../../utils/cssColor";
 import { useI18n } from "../../../i18n";
 import { isDeletableTheme } from "./types";
+import { isImeCompositionActive } from "../../../utils/ime";
 
 interface ThemeCardProps {
   theme: Theme;
@@ -54,6 +55,12 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
   onSelect,
 }) => {
   const { t } = useI18n();
+  const composingRef = useRef(false);
+  const compositionEndedAtRef = useRef(0);
+  useEffect(() => {
+    composingRef.current = false;
+    compositionEndedAtRef.current = 0;
+  }, [renaming]);
   const renameReady =
     renameValue.trim().length > 0 && renameValue.trim() !== theme.name.trim();
   const previewColor = (key: string): string =>
@@ -70,6 +77,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
     {
       label: t("settingsTheme.export"),
       icon: <Download size={12} />,
+      disabled: mutationBusy,
       onClick: onExport,
     },
   ];
@@ -120,13 +128,30 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <input
                 value={renameValue}
+                aria-label={t("settingsTheme.rename")}
                 onChange={(event) => onRenameInput(event.target.value)}
                 disabled={renameSaving}
                 className="pyqt-input min-w-32 flex-1 !px-2 !py-1 text-xs"
                 autoFocus
+                onCompositionStart={() => { composingRef.current = true; }}
+                onCompositionEnd={() => {
+                  composingRef.current = false;
+                  compositionEndedAtRef.current = Date.now();
+                }}
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" && renameReady && !renameSaving) onRenameConfirm();
-                  if (event.key === "Escape" && !renameSaving) onRenameCancel();
+                  if (isImeCompositionActive(event.nativeEvent, composingRef.current, compositionEndedAtRef.current)) {
+                    event.stopPropagation();
+                    return;
+                  }
+                  if (event.key === "Enter" && renameReady && !renameSaving) {
+                    event.preventDefault();
+                    onRenameConfirm();
+                  }
+                  if (event.key === "Escape" && !renameSaving) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onRenameCancel();
+                  }
                 }}
               />
               <BookButton
@@ -217,7 +242,7 @@ export const ThemeCard: React.FC<ThemeCardProps> = ({
               <span className="inline-flex h-8 w-8 items-center justify-center text-book-text-muted">
                 <LoadingSpinner size="sm" />
               </span>
-            ) : (
+            ) : mutationBusy ? null : (
               <Dropdown items={moreItems} />
             )}
           </div>

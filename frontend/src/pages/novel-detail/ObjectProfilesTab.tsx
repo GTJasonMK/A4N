@@ -23,6 +23,7 @@ import type { ImageSize } from "../../api/image";
 import { confirmDialog } from "../../components/feedback/ConfirmDialog";
 import { useToast } from "../../components/feedback/Toast";
 import { BookButton } from "../../components/ui/BookButton";
+import { BookCardAction } from "../../components/ui/BookCard";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { Modal } from "../../components/ui/Modal";
 import { runGenerationProgressTaskThen } from "../../hooks/runGenerationProgressTask";
@@ -375,18 +376,9 @@ export const ObjectProfilesTab: React.FC<{
             {profiles.map((profile) => (
               <li
                 key={profile.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setDetailFor(profile)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setDetailFor(profile);
-                  }
-                }}
-                className="a4n-flat-surface flex min-h-16 cursor-pointer items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35"
-                title={t("novel.profile.viewObject")}
+                className="a4n-flat-surface relative flex min-h-16 items-start gap-3 p-3 transition-colors hover:border-book-primary/35 hover:bg-book-bg-tertiary/35"
               >
+                <BookCardAction label={`${profile.name} · ${t("novel.profile.viewObject")}`} onClick={() => setDetailFor(profile)} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold text-book-text-main">{profile.name}</div>
                   <div className="mt-0.5 text-caption text-book-text-muted">

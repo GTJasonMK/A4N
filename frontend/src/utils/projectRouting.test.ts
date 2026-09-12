@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getProjectHomeEntryRoute,
+  getProjectHomeEntryLabel,
   getProjectPrimaryLabel,
   getProjectPrimaryRoute,
   getProjectTypeLabel,
@@ -35,6 +36,8 @@ describe("nonlinear text project entry", () => {
     status: "draft",
     project_kind: "text",
     source_mode: "self",
+    my_role: "owner",
+    lifecycle_gate: "active",
   } as const;
 
   it("opens draft text projects in project details instead of forcing inspiration", () => {
@@ -42,5 +45,20 @@ describe("nonlinear text project entry", () => {
     expect(getProjectHomeEntryRoute(draftProject)).toBe("/novel/12");
     expect(getProjectPrimaryLabel(draftProject, t)).toBe("进入项目详情");
     expect(getProjectWorkspaceRoute(draftProject)).toBe("/write/12");
+  });
+
+  it("keeps readonly collaborators and blocked projects out of the writing entry", () => {
+    const writingProject = { ...draftProject, status: "writing" } as const;
+    for (const my_role of ["owner", "manager", "editor"] as const) {
+      expect(getProjectHomeEntryRoute({ ...writingProject, my_role })).toBe("/write/12");
+    }
+    for (const project of [
+      { ...writingProject, my_role: "viewer" as const },
+      { ...writingProject, lifecycle_gate: "resetting" as const },
+      { ...writingProject, lifecycle_gate: "deleting" as const },
+    ]) {
+      expect(getProjectHomeEntryRoute(project)).toBe("/novel/12");
+      expect(getProjectHomeEntryLabel(project, t)).toBe("进入项目详情");
+    }
   });
 });

@@ -35,13 +35,14 @@ export function buildModelDiscoveryField(options: ModelDiscoveryFieldOptions): {
   const apiKey = options.apiKey.trim();
   const configId = options.configId ?? null;
   return {
-    discoveryKey: [
+    // Private request identity; never persist it or render/log credentials.
+    discoveryKey: JSON.stringify([
       options.provider,
       options.baseUrl.trim(),
       options.scope,
       configId ?? "new",
-      options.clearApiKey ? "cleared-key" : apiKey ? "form-key" : "saved-key",
-    ].join("|"),
+      options.clearApiKey ? ["cleared"] : apiKey ? ["form", apiKey] : ["saved", options.hasApiKey],
+    ]),
     input: {
       provider: options.provider,
       base_url: options.baseUrl,

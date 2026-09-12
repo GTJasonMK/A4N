@@ -125,6 +125,22 @@ export const PromptTab: React.FC = () => {
     [items, activeCategory, keyword],
   );
 
+  const handleCategoryChange = async (nextCategory: string): Promise<boolean> => {
+    if (nextCategory === activeCategory) return true;
+    if (!(await confirmDiscardDraft(t("settingsPrompt.category")))) return false;
+    if (!mountedRef.current) return false;
+    if (dirtyRef.current) discardDraftToSavedState();
+    const nextFiltered = filterPrompts(items, {
+      activeCategory: nextCategory,
+      keyword,
+    });
+    if (selectedName && !nextFiltered.some((prompt) => prompt.name === selectedName)) {
+      setSelectedName(nextFiltered[0]?.name ?? null);
+    }
+    setActiveCategory(nextCategory);
+    return true;
+  };
+
   const selected = useMemo(
     () => items.find((p) => p.name === selectedName) ?? null,
     [items, selectedName],
@@ -367,12 +383,15 @@ export const PromptTab: React.FC = () => {
   };
 
   return (
-    <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
+    <div
+      data-settings-dirty={dirty ? "true" : undefined}
+      className="flex h-auto min-h-0 flex-col gap-3 md:h-full"
+    >
       <PromptCategoryTabs
         categories={categories}
         activeCategory={activeCategory}
         filteredCount={filtered.length}
-        onCategoryChange={setActiveCategory}
+        onCategoryChange={handleCategoryChange}
       />
 
       <PromptToolbar

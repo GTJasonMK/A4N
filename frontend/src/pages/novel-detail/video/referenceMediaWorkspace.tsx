@@ -588,7 +588,7 @@ export const VideoReferenceInputSlots: React.FC<{
                     <img
                       src={src}
                       alt=""
-                      className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+                      className="h-full w-full object-cover"
                     />
                   ) : image ? (
                     t("video.reference.noImage")

@@ -120,8 +120,8 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
           </div>
         </div>
         <div className="grid min-w-0 grid-cols-2 items-center gap-2 sm:flex sm:justify-end">
-            <label className="inline-flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1">
-              <span className="hidden xl:inline">{t("novel.projectTypeFilter")}</span>
+            <label className="inline-flex min-w-0 flex-col items-stretch gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1 xl:flex-row xl:items-center">
+              <span>{t("novel.projectTypeFilter")}</span>
               <ThemedSelect
                 aria-label={t("novel.projectTypeFilter")}
                 value={projectKindFilter}
@@ -137,8 +137,8 @@ export const ProjectListPanel: React.FC<ProjectListPanelProps> = ({
                 ))}
               </ThemedSelect>
             </label>
-            <label className="inline-flex min-w-0 items-center gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1">
-              <span className="hidden xl:inline">{t("novel.accessFilter")}</span>
+            <label className="inline-flex min-w-0 flex-col items-stretch gap-1.5 text-small font-semibold text-book-text-muted max-md:flex-1 xl:flex-row xl:items-center">
+              <span>{t("novel.accessFilter")}</span>
               <ThemedSelect
                 aria-label={t("novel.accessFilter")}
                 value={accessScope}

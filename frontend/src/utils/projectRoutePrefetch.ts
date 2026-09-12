@@ -1,4 +1,4 @@
-import { getProjectHomeEntryRoute, type RoutedProject } from "./projectRouting";
+import { getProjectHomeEntryRoute, type HomeEntryProject } from "./projectRouting";
 
 const prefetchedKeys = new Set<string>();
 const inflightKeys = new Set<string>();
@@ -35,7 +35,7 @@ const runPrefetch = (key: string, load: () => Promise<unknown>): void => {
 };
 
 const resolveProjectPrefetchTarget = (
-  project: RoutedProject,
+  project: HomeEntryProject,
 ): { key: string; load: () => Promise<unknown> } => {
   const route = getProjectHomeEntryRoute(project);
   if (route.startsWith("/write/")) {
@@ -62,7 +62,7 @@ const resolveProjectPrefetchTarget = (
 };
 
 export const prefetchProjectRouteByStatus = (
-  project: RoutedProject,
+  project: HomeEntryProject,
   opts: { immediate?: boolean; delayMs?: number } = {},
 ): (() => void) => {
   if (typeof window === "undefined") return () => {};

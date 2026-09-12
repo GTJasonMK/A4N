@@ -16,6 +16,7 @@ import {
 } from "../../api/project";
 import type { ProjectActionItems } from "./ProjectLists";
 import type { MessageKey } from "../../i18n";
+import { getProjectHomeEntryRoute, getProjectPrimaryRoute } from "../../utils/projectRouting";
 
 type DerivedProjectKind = Exclude<ProjectKind, "text">;
 
@@ -39,11 +40,11 @@ export const createProjectActions = (
   const textProjectActions: ProjectActionItems =
     project.project_kind === "text"
       ? [
-          {
+          ...(getProjectHomeEntryRoute(project) !== getProjectPrimaryRoute(project) ? [{
             label: t("novel.viewProfile"),
             icon: <BookOpenText size={14} />,
             onClick: () => handlers.onOpenDetails(project),
-          },
+          }] : []),
           ...(canEdit
             ? [
                 {

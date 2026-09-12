@@ -1,14 +1,17 @@
 import React from "react";
 import { BookOpen, ChevronRight, Gamepad2, Image, Video } from "lucide-react";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { BookCardAction } from "../../components/ui/BookCard";
 import { useContextMenu, type ContextMenuEntry } from "../../components/ui/ContextMenu";
-import type { NovelProject } from "../../api/project";
+import { canEditProjectMaterials, type NovelProject } from "../../api/project";
 import {
   getProjectLifecycleBlockedReason,
   getProjectProgressText,
 } from "../../utils/projectStatus";
 import {
+  getProjectHomeEntryLabel,
   getProjectHomeEntryRoute,
+  getProjectWorkspaceLabel,
   getProjectWorkspaceRoute,
 } from "../../utils/projectRouting";
 import { prefetchProjectRouteByStatus } from "../../utils/projectRoutePrefetch";
@@ -64,7 +67,7 @@ export const AllProjectList: React.FC<
     <div className="a4n-motion-stagger space-y-5">
       {groups.map(([letter, families]) => (
         <div key={letter}>
-          <div className="text-xs font-semibold text-book-text-muted uppercase tracking-wide mb-1.5 px-1">
+          <div className="text-xs font-semibold text-book-text-muted uppercase mb-1.5 px-1">
             {letter}
           </div>
           <ul className="space-y-3">
@@ -97,7 +100,7 @@ const ProjectFamilyCard: React.FC<{
 
   return (
     <li
-      className="a4n-flat-surface a4n-project-family overflow-hidden"
+      className="a4n-project-family space-y-2"
       data-project-family={family.key}
       data-project-family-kind={derivedProjects.length > 0 ? "root-with-derived" : "standalone"}
     >
@@ -112,7 +115,7 @@ const ProjectFamilyCard: React.FC<{
           />
         </ul>
       ) : (
-        <div className="border-b border-book-border/35 px-3 py-2 text-small text-book-text-muted sm:px-4">
+        <div className="px-1 text-small text-book-text-muted">
           {t("novel.originatedFrom")} <span className="font-medium text-book-text-sub">{family.title}</span>
         </div>
       )}
@@ -120,12 +123,12 @@ const ProjectFamilyCard: React.FC<{
       {derivedProjects.length > 0 ? (
         <section
           aria-label={`${family.title} ${t("novel.derivedProjects", { count: derivedProjects.length })}`}
-          className={`${family.root ? "border-t " : ""}border-book-border/35 bg-book-bg-tertiary/20`}
+          className="ml-3 border-l border-book-border/70 pl-3 sm:ml-5 sm:pl-4"
         >
-          <div className="px-3 pb-1 pt-2 text-caption font-medium text-book-text-muted sm:px-4">
+          <div className="pb-2 text-small font-medium text-book-text-muted">
             {t("novel.derivedProjects", { count: derivedProjects.length })}
           </div>
-          <ul className="divide-y divide-book-border/35">
+          <ul className="space-y-2">
             {derivedProjects.map((project) => (
               <ProjectRow
                 key={project.id}
@@ -188,23 +191,9 @@ const ProjectRow: React.FC<{
     editor: t("novel.editorRole"),
     viewer: t("novel.viewerRole"),
   }[project.my_role];
-  const entryLabel = project.project_kind === "video"
-    ? t("novel.enterVideoProject")
-    : project.project_kind === "comic"
-      ? t("novel.enterComicProject")
-      : project.project_kind === "galgame"
-        ? t("novel.enterGalgameProject")
-        : project.status === "writing" || project.status === "completed"
-          ? t("novel.enterWritingDesk")
-          : t("novel.enterProjectDetails");
+  const entryLabel = getProjectHomeEntryLabel(project, t);
   const entryRoute = getProjectHomeEntryRoute(project);
-  const workspaceLabel = project.project_kind === "video"
-    ? t("novel.enterVideoWorkspace")
-    : project.project_kind === "comic"
-      ? t("novel.enterComicWorkspace")
-      : project.project_kind === "galgame"
-        ? t("novel.enterGameWorkspace")
-        : t("novel.enterWritingDesk");
+  const workspaceLabel = getProjectWorkspaceLabel(project, t);
   const workspaceRoute = getProjectWorkspaceRoute(project);
   const lifecycleBlockedReason = getProjectLifecycleBlockedReason(project, t);
   const lifecycleLabel =
@@ -213,7 +202,7 @@ const ProjectRow: React.FC<{
       : project.lifecycle_gate === "deleting"
         ? t("novel.deleting")
         : "";
-  const showWorkspaceEntry = !lifecycleBlockedReason && workspaceRoute !== entryRoute;
+  const showWorkspaceEntry = canEditProjectMaterials(project) && workspaceRoute !== entryRoute;
   const progressText = getProjectProgressText(project, t);
   const projectMeta = [
     kindLabel,
@@ -228,25 +217,15 @@ const ProjectRow: React.FC<{
   ];
 
   return (
-    <li className="group">
+    <li className="group a4n-flat-surface">
       <div
         data-project-relation={relation}
-        role="button"
-        tabIndex={0}
-        onClick={() => onOpen(project)}
         onContextMenu={menu.handle(fullItems)}
         onMouseEnter={() => prefetchProjectRouteByStatus(project, { immediate: true })}
         onFocus={() => prefetchProjectRouteByStatus(project, { immediate: true })}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            onOpen(project);
-          }
-        }}
-        className={`a4n-project-row w-full cursor-pointer px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/55 focus-visible:bg-book-bg-tertiary/55 focus-visible:outline-none sm:px-4 ${
-          relation === "derived" ? "pl-5 sm:pl-6" : ""
-        }`}
+        className="a4n-project-row relative w-full rounded-[var(--pyqt-radius-lg)] px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/55 sm:px-4"
       >
+        <BookCardAction label={`${project.title} · ${entryLabel}`} onClick={() => onOpen(project)} />
         <div className="flex items-start gap-3">
           <span
             className="a4n-project-kind mt-0.5"
@@ -256,20 +235,20 @@ const ProjectRow: React.FC<{
             <ProjectKindIcon size={17} strokeWidth={1.8} />
           </span>
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-body-lg font-semibold text-book-text-main sm:text-base">
-              {project.title}
+            <h3 className="text-body-lg font-semibold text-book-text-main sm:text-base">
+              <span className="block truncate">{project.title}</span>
             </h3>
             <p className="mt-1 truncate text-small text-book-text-muted">
               {project.owner_username} · {formatDate(project.updated_at, locale)}
             </p>
             <p
-              className="mt-1 truncate text-small text-book-text-sub"
+              className="mt-1 break-words text-small text-book-text-sub sm:truncate"
               title={progressText}
             >
               {projectMeta}
             </p>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="pointer-events-none flex shrink-0 items-center gap-2">
             {lifecycleBlockedReason ? (
               <span className="hidden text-body-sm font-semibold text-warning sm:inline">
                 {lifecycleLabel}
@@ -281,19 +260,20 @@ const ProjectRow: React.FC<{
                   e.stopPropagation();
                   onWrite(project);
                 }}
-                className="inline-flex min-h-8 cursor-pointer items-center bg-transparent px-1 text-body-sm font-semibold text-book-primary hover:opacity-80"
+                aria-label={workspaceLabel}
+                title={workspaceLabel}
+                className="pointer-events-auto relative z-20 inline-flex min-h-11 cursor-pointer items-center bg-transparent px-1 text-body-sm font-semibold text-book-primary hover:underline sm:min-h-8"
               >
                 <span className="hidden sm:inline">{workspaceLabel}</span>
-                <span className="sm:hidden">{t("common.open")}</span>
+                <span className="sm:hidden">{t("novel.writeShortcut")}</span>
               </button>
             ) : (
-              <span className="text-body-sm font-semibold text-book-primary">
-                <span className="hidden sm:inline">{entryLabel}</span>
-                <span className="sm:hidden">{t("common.open")}</span>
+              <span className="hidden text-body-sm font-semibold text-book-primary sm:inline">
+                {entryLabel}
               </span>
             )}
             {hasActionItems ? (
-              <span onClick={(e) => e.stopPropagation()}>
+              <span className="pointer-events-auto relative z-20">
                 <Dropdown items={actions} />
               </span>
             ) : null}
