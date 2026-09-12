@@ -6,6 +6,7 @@ import { FormField } from "../ConfigListPanel";
 import { ClearSavedApiKeySwitch } from "../config-list/ClearSavedApiKeySwitch";
 import { ModelDiscoveryField } from "../config-list/ModelDiscoveryField";
 import type { LlmForm } from "./types";
+import { selectLlmProvider } from "./llmConfigUtils";
 import type { LlmProviderDescriptor } from "../../../api/generated/config";
 import { buildModelDiscoveryField } from "../../../api/modelDiscovery";
 import type { ModelConfigScope } from "../../../api/modelDiscovery";
@@ -31,7 +32,6 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
   providers,
 }) => {
   const { t } = useI18n();
-  const apiKeyInputDisabled = form.clear_api_key;
   const structureDisabled = readonly || templateLocked;
   const selectedProvider = providers.find(
     (provider) => provider.id === form.provider,
@@ -59,27 +59,11 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
       </FormField>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <FormField label={t("settingsForm.provider")}>
+        <FormField label={t("settingsForm.providerPreset")} hint={t("settingsForm.providerPresetHint")}>
           <ThemedSelect
             value={form.provider}
-            onChange={(event) => {
-              const provider = event.target.value;
-              const currentDefault = providers.find(
-                (item) => item.id === form.provider,
-              )?.default_base_url;
-              const nextDefault = providers.find(
-                (item) => item.id === provider,
-              )?.default_base_url;
-              const baseUrl = form.api_base_url.trim();
-              setForm({
-                ...form,
-                provider,
-                api_base_url:
-                  !baseUrl || baseUrl === currentDefault
-                    ? (nextDefault ?? "")
-                    : form.api_base_url,
-              });
-            }}
+            aria-label={t("settingsForm.providerPreset")}
+            onChange={(event) => setForm(selectLlmProvider(form, event.target.value, providers))}
             className="pyqt-input w-full"
             disabled={structureDisabled}
           >
@@ -103,7 +87,8 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
         </FormField>
       </div>
 
-      <FormField label={t("settingsForm.endpoint")} required>
+      <FormField label={t("settingsForm.endpoint")} required
+        hint={selectedProvider ? t("settingsForm.protocolHint", { protocol: selectedProvider.protocol }) : undefined}>
         <BookInput
           value={form.api_base_url}
           onChange={(event) =>
@@ -136,7 +121,7 @@ export const LlmConfigEditor: React.FC<LlmConfigEditorProps> = ({
           }
           placeholder="sk-..."
           autoComplete="off"
-          disabled={apiKeyInputDisabled || readonly}
+          disabled={readonly}
         />
       </FormField>
       {form.has_api_key ? (

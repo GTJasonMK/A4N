@@ -156,10 +156,23 @@ struct ToolCallAccumulator {
     id: String,
     name: String,
     arguments: String,
+    provider_metadata: Option<Value>,
 }
 
 impl ToolCallAccumulator {
     fn append(&mut self, call: ToolCall) -> Result<(), AppError> {
+        if let Some(metadata) = call.provider_metadata {
+            if self
+                .provider_metadata
+                .as_ref()
+                .is_some_and(|current| current != &metadata)
+            {
+                return Err(AppError::LlmError(
+                    "同一 tool call 收到冲突协议上下文".into(),
+                ));
+            }
+            self.provider_metadata = Some(metadata);
+        }
         if !call.id.trim().is_empty() {
             if !self.id.is_empty() && self.id != call.id {
                 return Err(AppError::LlmError(format!(
@@ -211,6 +224,7 @@ impl ToolCallAccumulator {
             name: self.name,
             arguments,
             stream_index: None,
+            provider_metadata: self.provider_metadata,
         })
     }
 }
@@ -310,6 +324,7 @@ mod tests {
                             name: "locate".into(),
                             arguments: Value::String("{\"project_id\":".into()),
                             stream_index: Some(0),
+                            provider_metadata: None,
                         }]),
                         finish_reason: None,
                         index: 0,
@@ -323,6 +338,7 @@ mod tests {
                             name: String::new(),
                             arguments: Value::String("7}".into()),
                             stream_index: Some(0),
+                            provider_metadata: None,
                         }]),
                         finish_reason: Some("tool_calls".into()),
                         index: 0,
@@ -374,6 +390,7 @@ mod tests {
                     name: "first".into(),
                     arguments: Value::String("{\"value\":".into()),
                     stream_index: Some(1),
+                    provider_metadata: None,
                 }]),
                 finish_reason: None,
                 index: 0,
@@ -387,6 +404,7 @@ mod tests {
                     name: "second".into(),
                     arguments: Value::String("{}".into()),
                     stream_index: Some(0),
+                    provider_metadata: None,
                 }]),
                 finish_reason: None,
                 index: 0,
@@ -400,6 +418,7 @@ mod tests {
                     name: String::new(),
                     arguments: Value::String("1}".into()),
                     stream_index: Some(1),
+                    provider_metadata: None,
                 }]),
                 finish_reason: Some("tool_calls".into()),
                 index: 0,

@@ -152,6 +152,7 @@ pub(super) async fn process(
             name: "send_content_optimization_message".into(),
             arguments: args,
             stream_index: None,
+            provider_metadata: None,
         },
     )
     .await?
@@ -168,6 +169,7 @@ pub(super) async fn process(
             name: "wait_generation_task".into(),
             arguments: json!({"taskId": handle.task_id, "attempt": handle.attempt}),
             stream_index: None,
+            provider_metadata: None,
         },
     )
     .await?

@@ -165,6 +165,7 @@ fn parse_tool_calls(value: &Value) -> Result<Option<Vec<a4n_llm::provider::ToolC
             name,
             arguments,
             stream_index: Some(index),
+            provider_metadata: None,
         });
     }
     Ok((!calls.is_empty()).then_some(calls))

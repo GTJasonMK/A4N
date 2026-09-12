@@ -285,6 +285,7 @@ mod tests {
                     name: id.into(),
                     arguments: json!({"version": 7}),
                     stream_index: None,
+                    provider_metadata: None,
                 })
                 .to_vec(),
         );

@@ -2,6 +2,7 @@
 
 mod anthropic;
 mod errors;
+mod native;
 mod provider;
 mod response;
 mod sse;
@@ -26,7 +27,11 @@ pub fn pick_llm_provider(
     capabilities: ModelCapabilities,
 ) -> Result<Box<dyn LlmProvider>, AppError> {
     match LlmProtocolKind::for_provider(provider) {
-        Some(LlmProtocolKind::OpenAiChatCompletions) => Ok(Box::new(
+        Some(
+            protocol @ (LlmProtocolKind::OpenAiChatCompletions
+            | LlmProtocolKind::OpenAiResponses
+            | LlmProtocolKind::GeminiGenerateContent),
+        ) => Ok(Box::new(
             HttpLlmProvider::new_with_timeout_options_and_capabilities(
                 base_url,
                 model,
@@ -34,7 +39,8 @@ pub fn pick_llm_provider(
                 timeout_secs,
                 extra_body_json,
                 capabilities,
-            )?,
+            )?
+            .with_protocol(protocol),
         )),
         Some(LlmProtocolKind::AnthropicMessages) => Ok(Box::new(AnthropicLlmProvider::new(
             base_url,

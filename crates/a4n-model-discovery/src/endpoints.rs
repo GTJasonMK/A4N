@@ -39,7 +39,8 @@ pub(crate) fn model_discovery_endpoint(provider: &str, base_url: &str) -> ModelD
             parser: ModelDiscoveryParser::ComfyUiCheckpointLoader,
         };
     }
-    if provider == "anthropic" {
+    let protocol = LlmProtocolKind::for_provider(&provider);
+    if protocol == Some(LlmProtocolKind::AnthropicMessages) {
         return ModelDiscoveryEndpoint {
             url: format!("{}/v1/models", base_url.trim_end_matches('/')),
             label: "Anthropic 模型列表端点",
@@ -47,9 +48,16 @@ pub(crate) fn model_discovery_endpoint(provider: &str, base_url: &str) -> ModelD
             parser: ModelDiscoveryParser::DataList,
         };
     }
-    if provider == "gemini-veo-video" {
+    if protocol == Some(LlmProtocolKind::GeminiGenerateContent) || provider == "gemini-veo-video" {
         return ModelDiscoveryEndpoint {
-            url: format!("{}/models", gemini_api_base_url(base_url)),
+            url: format!(
+                "{}/models",
+                if provider == "gemini-veo-video" {
+                    gemini_api_base_url(base_url)
+                } else {
+                    base_url.trim_end_matches('/').to_string()
+                }
+            ),
             label: "Gemini 模型列表端点",
             auth: ModelDiscoveryAuth::GeminiApiKey,
             parser: ModelDiscoveryParser::Gemini,
@@ -87,6 +95,7 @@ pub(crate) fn openai_model_list_url(base_url: &str) -> String {
 fn strip_known_model_endpoint_suffix(base_url: &str) -> String {
     let suffixes = [
         "/chat/completions",
+        "/responses",
         "/images/generations",
         "/images/edits",
         "/videos/generations",
@@ -102,3 +111,4 @@ fn strip_known_model_endpoint_suffix(base_url: &str) -> String {
     }
     base
 }
+use a4n_domain::llm::LlmProtocolKind;

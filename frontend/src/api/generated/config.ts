@@ -146,7 +146,7 @@ export interface UpdateLlmInput {
 
 export const DEFAULT_LLM_MAX_CONTEXT_TOKENS = 128000;
 export const DEFAULT_LLM_MAX_OUTPUT_TOKENS = 8192;
-export const LLM_RESERVED_REQUEST_OPTION_KEYS: readonly string[] = ["model", "messages", "stream", "temperature", "max_tokens", "response_format", "prompt_cache_key", "tools", "tool_choice", "stop", "stop_sequences", "system", "anthropic_version", "cache_control"];
+export const LLM_RESERVED_REQUEST_OPTION_KEYS: readonly string[] = ["model", "messages", "stream", "temperature", "max_tokens", "response_format", "prompt_cache_key", "tools", "tool_choice", "stop", "stop_sequences", "system", "anthropic_version", "cache_control", "input", "max_output_tokens", "text", "include", "store", "contents", "systeminstruction", "toolconfig"];
 
 export interface VideoConfigSummary {
   backend: string;
@@ -252,6 +252,7 @@ export interface LlmProviderDescriptor {
   default_base_url: string;
   display_name: string;
   id: string;
+  protocol: string;
 }
 
 export interface ImageProviderDescriptor {
@@ -278,4 +279,3 @@ export interface ModelProviderCatalog {
   llm: LlmProviderDescriptor[];
   video: VideoProviderDescriptor[];
 }
-

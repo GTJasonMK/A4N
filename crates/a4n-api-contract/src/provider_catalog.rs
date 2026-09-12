@@ -7,6 +7,7 @@ pub struct LlmProviderDescriptor {
     pub id: String,
     pub display_name: String,
     pub default_base_url: String,
+    pub protocol: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
