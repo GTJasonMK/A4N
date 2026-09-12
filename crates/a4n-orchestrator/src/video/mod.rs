@@ -91,7 +91,7 @@ pub use chapter_video_request_rules::{
     append_provider_input_note, build_video_generation_provider_prompt_with_renderer,
     provider_specific_negative_prompt,
 };
-pub use contracts::ProjectChapterVideoSource;
+pub(in crate::video) use contracts::ProjectChapterVideoSource;
 pub(in crate::video) use contracts::{
     BOUNDARY_FRAME_PROMPT_CONTRACT_VERSION, CHAT_VIDEO_CONTRACT_VERSION,
     ChapterVideoPromptStageInput, ChapterVideoSourceContext, FIRST_FRAME_CHAIN_CONTRACT_VERSION,
