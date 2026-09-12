@@ -49,7 +49,7 @@ pub(in crate::optimize) use patch_request::{
 pub use permissions::{
     OptimizeAgentPermissions, optimization_agent_variables, optimization_analysis_variables,
 };
-pub use service::optimize_db_error;
+pub(crate) use service::optimize_db_error;
 pub(in crate::optimize) use session_names::required_available_session_name;
 pub use workflow_rules::{
     optimize_session_workflow_business_key, optimize_session_workflow_fingerprint,
