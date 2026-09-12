@@ -386,6 +386,7 @@ fn project_anthropic_event(
                         name: tool.name,
                         arguments,
                         stream_index: Some(index),
+                        provider_metadata: None,
                     }]),
                     None,
                 );

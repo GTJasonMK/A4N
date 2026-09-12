@@ -74,6 +74,7 @@ CLAUDE.md
 docs/*
 !docs/TEST_DATABASE.md
 !docs/virtual-provider-cli-e2e.md
+!docs/llm-provider-protocols.md
 !docs/重构/
 docs/重构/*
 !docs/重构/rag-qdrant-migration.md

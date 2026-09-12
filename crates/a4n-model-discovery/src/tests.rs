@@ -24,6 +24,23 @@ fn routes_anthropic_to_native_model_endpoint_and_auth() {
 }
 
 #[test]
+fn custom_presets_discover_models_using_their_declared_protocol() {
+    let anthropic = model_discovery_endpoint("custom-anthropic", "https://proxy.example/native");
+    assert_eq!(anthropic.url, "https://proxy.example/native/v1/models");
+    assert!(matches!(anthropic.auth, ModelDiscoveryAuth::Anthropic));
+    for provider in ["gemini", "custom-gemini"] {
+        let endpoint = model_discovery_endpoint(provider, "https://proxy.example/native/");
+        assert_eq!(endpoint.url, "https://proxy.example/native/models");
+        assert!(matches!(endpoint.auth, ModelDiscoveryAuth::GeminiApiKey));
+        assert!(matches!(endpoint.parser, ModelDiscoveryParser::Gemini));
+    }
+    assert_eq!(
+        openai_model_list_url("https://proxy.example/v1/responses"),
+        "https://proxy.example/v1/models"
+    );
+}
+
+#[test]
 fn parses_provider_data_list() {
     let models = parse_discovered_models(
         &json!({

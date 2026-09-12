@@ -7,6 +7,7 @@ import {
   DEFAULT_LLM_MAX_CONTEXT_TOKENS,
   DEFAULT_LLM_MAX_OUTPUT_TOKENS,
   LLM_RESERVED_REQUEST_OPTION_KEYS,
+  type LlmProviderDescriptor,
 } from "../../../api/generated/config";
 import type { ConfigItem } from "../ConfigListPanel";
 import type { LlmForm } from "./types";
@@ -15,8 +16,8 @@ import type { MessageTranslator } from "../../../i18n";
 export const DEFAULT_LLM_FORM: LlmForm = {
   name: "",
   provider: "deepseek",
-  model: "deepseek-v4-flash",
-  api_base_url: "https://api.deepseek.com/v1",
+  model: "",
+  api_base_url: "",
   api_key: "",
   has_api_key: false,
   clear_api_key: false,
@@ -26,6 +27,33 @@ export const DEFAULT_LLM_FORM: LlmForm = {
   max_output_tokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
   extra_body_text: "",
 };
+
+export function selectLlmProvider(
+  form: LlmForm,
+  provider: string,
+  providers: LlmProviderDescriptor[],
+): LlmForm {
+  if (provider === form.provider) return form;
+  const previous = providers.find((item) => item.id === form.provider);
+  const next = providers.find((item) => item.id === provider);
+  if (!next) throw new Error(`LLM provider 未注册：${provider}`);
+  const baseUrl = form.api_base_url.trim().replace(/\/+$/, "");
+  return {
+    ...form,
+    provider,
+    model: "",
+    name: !form.name.trim() || form.name === previous?.display_name
+      ? next.display_name
+      : form.name,
+    api_base_url: !baseUrl || baseUrl === previous?.default_base_url.replace(/\/+$/, "")
+      ? next.default_base_url
+      : form.api_base_url,
+    // A preset can change the destination. Require its own key instead of
+    // carrying a saved or newly entered key across providers.
+    api_key: "",
+    clear_api_key: form.has_api_key,
+  };
+}
 
 export function validateLlmForm(form: LlmForm, t: MessageTranslator): string | null {
   if (!form.name.trim()) return t("settingsForm.nameRequired");

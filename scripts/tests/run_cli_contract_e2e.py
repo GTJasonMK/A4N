@@ -61,6 +61,7 @@ def parse_args() -> argparse.Namespace:
         help="environment variable read for --username login (password is sent through stdin)",
     )
     parser.add_argument("--provider-url", help="existing mock provider base URL; /v1 is appended when absent")
+    parser.add_argument("--llm-provider", default="openai", help="LLM preset exercised by the runtime snapshot")
     parser.add_argument(
         "--provider-script",
         type=Path,
@@ -700,13 +701,17 @@ def start_provider(
     return provider, request_log
 
 
-def runtime_snapshot(base_url: str) -> dict[str, Any]:
+def runtime_snapshot(base_url: str, llm_provider: str = "openai") -> dict[str, Any]:
     key = "a4n-e2e-provider-key"
     llm = {
         "id": 900001,
         "name": "A4N virtual text",
-        "provider": "openai",
-        "base_url": base_url,
+        "provider": llm_provider,
+        "base_url": (
+            base_url.removesuffix("/v1") if llm_provider in {"anthropic", "custom-anthropic"}
+            else base_url.removesuffix("/v1") + "/v1beta" if llm_provider in {"gemini", "custom-gemini"}
+            else base_url
+        ),
         "api_key_encrypted": key,
         "model": "a4n-virtual-text",
         "max_concurrent": 4,
@@ -758,7 +763,7 @@ def runtime_snapshot(base_url: str) -> dict[str, Any]:
         "is_default": True,
     }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "llm": llm,
         "llm_configs": [llm],
         "image": image,
@@ -1196,7 +1201,8 @@ def main() -> int:
                     }
                 )
                 runtime_path = work_dir / "runtime-config.json"
-                secure_json(runtime_path, runtime_snapshot(provider.base_url))
+                snapshot = runtime_snapshot(provider.base_url, args.llm_provider)
+                secure_json(runtime_path, snapshot)
                 _, runtime_result = checked(
                     cli,
                     ["config", "runtime", "set", "--input", f"@{runtime_path}"],
@@ -1221,6 +1227,8 @@ def main() -> int:
                     artifact_root,
                     {
                         "provider_base_url": provider.base_url,
+                        "llm_provider": args.llm_provider,
+                        "llm_base_url": snapshot["llm"]["base_url"],
                         "server_url": args.server,
                         "run_id": run_id,
                     },

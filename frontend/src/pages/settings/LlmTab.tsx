@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 import {
   createLlmConfig,
   createServerLlmConfig,
@@ -64,6 +64,11 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
     t("settings.loadConfigFailed", { name: t("settings.llmConfig") }),
   );
 
+  const defaultForm = useMemo(() => ({
+    ...DEFAULT_LLM_FORM,
+    api_base_url: catalog?.llm.find((provider) => provider.id === DEFAULT_LLM_FORM.provider)?.default_base_url ?? "",
+  }), [catalog]);
+
   return (
     <div className="flex h-auto min-h-0 flex-col gap-3 md:h-full">
       <div className="min-h-0 md:flex-1">
@@ -72,7 +77,7 @@ export const LlmTab: React.FC<LlmTabProps> = ({ scope = "local" }) => {
           items={items}
           loading={loading}
           onRefresh={refresh}
-          defaultForm={DEFAULT_LLM_FORM}
+          defaultForm={defaultForm}
           validate={(form) => validateLlmForm(form, t)}
           activeLabel={serverScope ? t("settings.globalDefault") : t("settings.currentDefault")}
           activateText={serverScope ? t("settings.setGlobalDefault") : t("settings.setDefault")}

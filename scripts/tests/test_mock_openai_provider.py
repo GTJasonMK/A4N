@@ -97,6 +97,30 @@ class MockOpenAIProviderTest(unittest.TestCase):
         self.assertEqual(events[-1], "[DONE]")
         return [json.loads(event) for event in events[:-1]]
 
+    def test_native_text_protocol_http_contracts(self) -> None:
+        cases = [
+            ("/v1/responses", {"model": "a4n-virtual-text", "input": [{"role": "user", "content": "ping"}], "stream": True},
+             {"Authorization": "Bearer fixture"}, "response.completed"),
+            ("/v1/messages", {"model": "a4n-virtual-text", "messages": [{"role": "user", "content": [{"type": "text", "text": "ping"}]}], "stream": True},
+             {"x-api-key": "fixture", "anthropic-version": "2023-06-01"}, "message_stop"),
+            ("/v1/messages", {"model": "a4n-virtual-text", "messages": [{"role": "user", "content": "ping"}], "stream": True},
+             {"x-api-key": "fixture", "anthropic-version": "2023-06-01"}, "message_stop"),
+            ("/v1beta/models/a4n-virtual-text:streamGenerateContent?alt=sse", {"contents": [{"role": "user", "parts": [{"text": "ping"}]}]},
+             {"x-goog-api-key": "fixture"}, None),
+        ]
+        for path, body, headers, terminal in cases:
+            with self.subTest(path=path):
+                request = Request(self.base_url + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json", **headers})
+                with urlopen(request, timeout=2) as response:
+                    self.assertEqual(response.headers.get_content_type(), "text/event-stream")
+                    wire = response.read().decode()
+                self.assertIn("pong", wire)
+                events = [json.loads(line[6:]) for line in wire.splitlines() if line.startswith("data: ")]
+                if terminal:
+                    self.assertEqual(events[-1]["type"], terminal)
+                else:
+                    self.assertEqual(events[-1]["candidates"][0]["finishReason"], "STOP")
+
     def streamed_tool_call(
         self,
         chunks: list[dict[str, object]],

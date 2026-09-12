@@ -1,61 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LlmProtocolKind {
-    OpenAiChatCompletions,
-    AnthropicMessages,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LlmProviderCapabilities {
-    pub id: &'static str,
-    pub display_name: &'static str,
-    pub default_base_url: &'static str,
-    pub protocol: LlmProtocolKind,
-}
-
-pub const LLM_PROVIDER_CAPABILITIES: &[LlmProviderCapabilities] = &[
-    LlmProviderCapabilities {
-        id: "openai",
-        display_name: "OpenAI / 兼容协议",
-        default_base_url: "https://api.openai.com/v1",
-        protocol: LlmProtocolKind::OpenAiChatCompletions,
-    },
-    LlmProviderCapabilities {
-        id: "anthropic",
-        display_name: "Anthropic Claude",
-        default_base_url: "https://api.anthropic.com",
-        protocol: LlmProtocolKind::AnthropicMessages,
-    },
-    LlmProviderCapabilities {
-        id: "deepseek",
-        display_name: "DeepSeek",
-        default_base_url: "https://api.deepseek.com/v1",
-        protocol: LlmProtocolKind::OpenAiChatCompletions,
-    },
-    LlmProviderCapabilities {
-        id: "qwen",
-        display_name: "通义千问",
-        default_base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        protocol: LlmProtocolKind::OpenAiChatCompletions,
-    },
-    LlmProviderCapabilities {
-        id: "ollama",
-        display_name: "Ollama 本地",
-        default_base_url: "http://127.0.0.1:11434/v1",
-        protocol: LlmProtocolKind::OpenAiChatCompletions,
-    },
-];
-
-impl LlmProtocolKind {
-    pub fn for_provider(provider: &str) -> Option<Self> {
-        LLM_PROVIDER_CAPABILITIES
-            .iter()
-            .find(|capabilities| capabilities.id.eq_ignore_ascii_case(provider.trim()))
-            .map(|capabilities| capabilities.protocol)
-    }
-}
+pub use a4n_domain::llm::{LLM_PROVIDER_CAPABILITIES, LlmProtocolKind, LlmProviderCapabilities};
 
 /// 模型能力标记
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,6 +69,10 @@ pub struct ToolCall {
     /// the final call id may only arrive in a later delta.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream_index: Option<u32>,
+    /// Opaque protocol state needed when replaying this call (for example a
+    /// Gemini thought signature or Responses encrypted reasoning items).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_metadata: Option<Value>,
 }
 
 /// 应用层 LLM 调用追踪上下文。

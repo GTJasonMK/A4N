@@ -2512,6 +2512,9 @@ class ProviderHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:
         normalized_path = self.path.split("?", 1)[0].rstrip("/")
+        if normalized_path == "/v1beta/models":
+            self._json(200, {"models": [{"name": "models/a4n-virtual-text", "displayName": "Virtual text"}]})
+            return
         if normalized_path in {"/models", "/v1/models"}:
             self._json(
                 200,
@@ -2589,7 +2592,7 @@ class ProviderHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         raw_body = self.rfile.read(length)
-        normalized_path = self.path.rstrip("/")
+        normalized_path = self.path.split("?", 1)[0].rstrip("/")
 
         if normalized_path in {"/images/edits", "/v1/images/edits"}:
             content_type = self.headers.get("Content-Type", "")
@@ -2680,6 +2683,8 @@ class ProviderHandler(BaseHTTPRequestHandler):
             return
 
         self.server.record(self.path, body)
+        if self._native_llm(normalized_path, body):
+            return
         if normalized_path in {"/embeddings", "/v1/embeddings"}:
             inputs = body.get("input")
             if isinstance(inputs, str):
@@ -2879,6 +2884,55 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             },
         )
+
+
+    def _native_llm(self, path: str, body: dict[str, Any]) -> bool:
+        """Wire fixtures for native text protocols; reuse the prompt fixture owner."""
+        if path not in {"/v1/responses", "/v1/messages", "/v1beta/models/a4n-virtual-text:streamGenerateContent"}:
+            return False
+        try:
+            if path == "/v1/responses":
+                if not self._has_bearer_token() or body.get("stream") is not True or not isinstance(body.get("input"), list):
+                    raise ValueError("Responses requires bearer auth, stream and input[]")
+                messages = [{"role": item["role"], "content": item["content"]} for item in body["input"] if "role" in item]
+            elif path == "/v1/messages":
+                if not self.headers.get("x-api-key") or not self.headers.get("anthropic-version") or body.get("stream") is not True:
+                    raise ValueError("Messages requires native auth/version and stream")
+                def text_content(value: Any) -> str:
+                    return value if isinstance(value, str) else "\n".join(part["text"] for part in value)
+                messages = [{"role": "system", "content": text_content(body.get("system", []))}]
+                messages += [{"role": item["role"], "content": text_content(item["content"])} for item in body["messages"]]
+            else:
+                if not self.headers.get("x-goog-api-key") or "alt=sse" not in self.path:
+                    raise ValueError("Gemini requires native auth and alt=sse")
+                messages = [{"role": "system", "content": "\n".join(part["text"] for part in body.get("systemInstruction", {}).get("parts", []))}]
+                messages += [{"role": "assistant" if item["role"] == "model" else "user", "content": "\n".join(part["text"] for part in item["parts"])} for item in body["contents"]]
+            content = response_for({"messages": messages})
+        except (KeyError, TypeError, ValueError, UnhandledPromptError) as error:
+            self._json(422, {"error": {"message": str(error)}})
+            return True
+        if path == "/v1/responses":
+            events = [
+                {"type": "response.output_text.delta", "delta": content},
+                {"type": "response.completed", "response": {"status": "completed", "output": [
+                    {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": content}]}
+                ], "usage": {"input_tokens": 2, "output_tokens": 1, "total_tokens": 3}}},
+            ]
+        elif path == "/v1/messages":
+            events = [
+                {"type": "message_start", "message": {"usage": {"input_tokens": 2, "output_tokens": 0}}},
+                {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}},
+                {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": content}},
+                {"type": "content_block_stop", "index": 0},
+                {"type": "message_delta", "delta": {"stop_reason": "end_turn"}, "usage": {"output_tokens": 1}},
+                {"type": "message_stop"},
+            ]
+        else:
+            events = [{"candidates": [{"content": {"role": "model", "parts": [{"text": content}]}, "finishReason": "STOP"}],
+                       "usageMetadata": {"promptTokenCount": 2, "candidatesTokenCount": 1, "totalTokenCount": 3}}]
+        data = "".join(f"data: {json.dumps(event, ensure_ascii=False)}\n\n" for event in events).encode("utf-8")
+        self._bytes(200, "text/event-stream", data)
+        return True
 
 
 class ProviderServer(ThreadingHTTPServer):

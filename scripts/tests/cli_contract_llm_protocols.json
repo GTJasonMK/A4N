@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "variables": {},
+  "scenarios": [
+    {
+      "name": "enable the installed AI workflow package",
+      "command": "start_package_lifecycle",
+      "args": {
+        "input": {
+          "package_id": "ai-workflow",
+          "action": "enable",
+          "operation_id": "llm-protocol-${run_id}"
+        }
+      }
+    },
+    {
+      "name": "read registered provider protocols",
+      "command": "list_model_provider_catalog",
+      "args": {}
+    },
+    {
+      "name": "discover native protocol models",
+      "command": "detect_llm_config_models",
+      "args": {
+        "input": {
+          "provider": "${llm_provider}",
+          "base_url": "${llm_base_url}",
+          "api_key": "a4n-e2e-provider-key",
+          "config_id": null,
+          "use_saved_api_key": false
+        }
+      }
+    },
+    {
+      "name": "probe protocol through the real runtime",
+      "command": "test_llm_config",
+      "args": { "configId": 900001 }
+    }
+  ],
+  "skips": {}
+}

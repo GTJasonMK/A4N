@@ -14,6 +14,7 @@ pub fn model_provider_catalog() -> ModelProviderCatalog {
                 id: capabilities.id.into(),
                 display_name: capabilities.display_name.into(),
                 default_base_url: capabilities.default_base_url.into(),
+                protocol: capabilities.protocol.display_name().into(),
             })
             .collect(),
         image: IMAGE_PROVIDER_CAPABILITIES

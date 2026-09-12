@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+mod providers;
+pub use providers::{LLM_PROVIDER_CAPABILITIES, LlmProtocolKind, LlmProviderCapabilities};
+
 pub const DEFAULT_LLM_MAX_CONTEXT_TOKENS: usize = 128_000;
 pub const DEFAULT_LLM_MAX_OUTPUT_TOKENS: usize = 8_192;
 
@@ -19,6 +22,14 @@ pub const LLM_RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
     "system",
     "anthropic_version",
     "cache_control",
+    "input",
+    "max_output_tokens",
+    "text",
+    "include",
+    "store",
+    "contents",
+    "systeminstruction",
+    "toolconfig",
 ];
 
 #[derive(Debug, Clone)]

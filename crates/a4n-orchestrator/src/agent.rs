@@ -3363,7 +3363,10 @@ impl AgentApplication {
                 sender_thread_id: None,
                 client_message_id: Some(format!(
                     "agent-assistant:{}:{}",
-                    claimed.run.id, tool_calls
+                    // Tool arguments and opaque provider context can exceed a
+                    // PostgreSQL index entry; keep message identity bounded.
+                    claimed.run.id,
+                    a4n_domain::source_text_hash(&tool_calls.to_string())
                 )),
                 content: content.into(),
                 status: "complete".into(),

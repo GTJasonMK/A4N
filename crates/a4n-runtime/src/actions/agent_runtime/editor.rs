@@ -152,6 +152,7 @@ async fn resolve_claimed_editor(
             .clone()
             .ok_or_else(|| AppError::InvalidArgument("编辑器执行缺少原始参数".into()))?,
         stream_index: None,
+        provider_metadata: None,
     };
     if request_for_call(&context, execution, &call)? != request {
         return Err(AppError::Forbidden("编辑器响应与原始工具合同不一致".into()));
