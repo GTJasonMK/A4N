@@ -59,7 +59,6 @@ pub use a4n_db::video_prompt::VideoPromptDownstreamDependencies;
 pub(crate) use a4n_error::AppError;
 
 pub use a4n_api_contract::video::VideoGenerationApplicationPort;
-pub use a4n_video::VideoDurationCapability;
 pub use a4n_video_contract::{
     ChapterVideoGenerationHostPort, ReferenceMediaVideoGenerationHostPort, VideoGenerationHostPort,
 };
