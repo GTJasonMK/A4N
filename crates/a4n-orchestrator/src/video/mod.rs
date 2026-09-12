@@ -187,7 +187,8 @@ pub use self::prompt_json::{
 #[cfg(test)]
 pub use self::prompt_records::VideoPromptUpdateInput;
 
-pub(crate) use errors::{video_db_error, video_llm_step_error};
+pub(crate) use errors::video_db_error;
+pub(in crate::video) use errors::video_llm_step_error;
 pub use records::{
     PreparedImportedChapterVideoRecord, VideoGenerationRecordInput, generated_video_summary,
 };
