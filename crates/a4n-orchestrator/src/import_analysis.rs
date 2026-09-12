@@ -12,5 +12,3 @@ pub use application::{
     ImportAnalysisProgressApplicationPort,
 };
 pub use ingest::create_import_analysis_reviews_for_user_validated;
-pub(crate) use lifecycle::cancel_import_analysis;
-pub(crate) use lifecycle::project_import_analysis_progress;
