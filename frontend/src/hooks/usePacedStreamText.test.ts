@@ -11,6 +11,10 @@ describe("advancePacedStreamText", () => {
   it("reconciles a replaced stream at its common prefix", () => {
     expect(advancePacedStreamText("旧内容", "新内容")).toBe("");
     expect(advancePacedStreamText("共同旧", "共同新")).toBe("共同");
+    expect(advancePacedStreamText("😀旧", "😁新")).toBe("");
+    expect(advancePacedStreamText("猫🙂旧", "猫🙂新")).toBe("猫🙂");
+    expect(advancePacedStreamText("猫🙂旧", "猫🙂")).toBe("猫🙂");
+    expect(advancePacedStreamText("猫🙂", "猫🙂")).toBe("猫🙂");
   });
 
   it("keeps the persisted rate inside the supported range", () => {

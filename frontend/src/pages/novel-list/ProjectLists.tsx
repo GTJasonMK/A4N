@@ -1,8 +1,9 @@
 import React from "react";
 import { BookOpen, ChevronRight, Gamepad2, Image, Video } from "lucide-react";
 import { Dropdown } from "../../components/ui/Dropdown";
+import { BookCardAction } from "../../components/ui/BookCard";
 import { useContextMenu, type ContextMenuEntry } from "../../components/ui/ContextMenu";
-import type { NovelProject } from "../../api/project";
+import { canEditProjectMaterials, type NovelProject } from "../../api/project";
 import {
   getProjectLifecycleBlockedReason,
   getProjectProgressText,
@@ -201,7 +202,7 @@ const ProjectRow: React.FC<{
       : project.lifecycle_gate === "deleting"
         ? t("novel.deleting")
         : "";
-  const showWorkspaceEntry = !lifecycleBlockedReason && workspaceRoute !== entryRoute;
+  const showWorkspaceEntry = canEditProjectMaterials(project) && workspaceRoute !== entryRoute;
   const progressText = getProjectProgressText(project, t);
   const projectMeta = [
     kindLabel,
@@ -224,6 +225,7 @@ const ProjectRow: React.FC<{
         onFocus={() => prefetchProjectRouteByStatus(project, { immediate: true })}
         className="a4n-project-row relative w-full rounded-[var(--pyqt-radius-lg)] px-3 py-3 text-left transition-colors hover:bg-book-bg-tertiary/55 sm:px-4"
       >
+        <BookCardAction label={`${project.title} · ${entryLabel}`} onClick={() => onOpen(project)} />
         <div className="flex items-start gap-3">
           <span
             className="a4n-project-kind mt-0.5"
@@ -234,15 +236,7 @@ const ProjectRow: React.FC<{
           </span>
           <div className="min-w-0 flex-1">
             <h3 className="text-body-lg font-semibold text-book-text-main sm:text-base">
-              <button
-                type="button"
-                onClick={() => onOpen(project)}
-                title={project.title}
-                aria-label={`${project.title} · ${entryLabel}`}
-                className="block w-full cursor-pointer truncate text-left after:absolute after:inset-0 after:rounded-[var(--pyqt-radius-lg)] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-book-primary focus-visible:after:-outline-offset-2"
-              >
-                {project.title}
-              </button>
+              <span className="block truncate">{project.title}</span>
             </h3>
             <p className="mt-1 truncate text-small text-book-text-muted">
               {project.owner_username} · {formatDate(project.updated_at, locale)}
@@ -268,7 +262,7 @@ const ProjectRow: React.FC<{
                 }}
                 aria-label={workspaceLabel}
                 title={workspaceLabel}
-                className="pointer-events-auto relative inline-flex min-h-11 cursor-pointer items-center bg-transparent px-1 text-body-sm font-semibold text-book-primary hover:underline sm:min-h-8"
+                className="pointer-events-auto relative z-20 inline-flex min-h-11 cursor-pointer items-center bg-transparent px-1 text-body-sm font-semibold text-book-primary hover:underline sm:min-h-8"
               >
                 <span className="hidden sm:inline">{workspaceLabel}</span>
                 <span className="sm:hidden">{t("novel.writeShortcut")}</span>
@@ -279,7 +273,7 @@ const ProjectRow: React.FC<{
               </span>
             )}
             {hasActionItems ? (
-              <span className="pointer-events-auto relative">
+              <span className="pointer-events-auto relative z-20">
                 <Dropdown items={actions} />
               </span>
             ) : null}

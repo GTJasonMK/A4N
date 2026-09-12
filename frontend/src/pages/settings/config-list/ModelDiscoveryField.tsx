@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Radar } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { extractErrorMessage } from "../../../api";
 import type { DiscoveredModel, ModelDiscoveryResult } from "../../../api/modelDiscovery";
-import { useToast } from "../../../components/feedback/Toast";
 import { ThemedCombobox } from "../../../components/ui/ThemedCombobox";
 import { useI18n } from "../../../i18n";
 
@@ -26,45 +25,62 @@ export function ModelDiscoveryField({
   discoveryKey,
   detectModels,
 }: ModelDiscoveryFieldProps) {
-  const addToast = useToast((state) => state.addToast);
   const { t } = useI18n();
-  const [models, setModels] = useState<DiscoveredModel[]>([]);
+  const [models, setModels] = useState<DiscoveredModel[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [detecting, setDetecting] = useState(false);
+  const feedbackId = useId();
+  const requestRef = useRef<symbol | null>(null);
+  const latestRef = useRef({ discoveryKey, value, inputDisabled, onChange });
+  latestRef.current = { discoveryKey, value, inputDisabled, onChange };
 
   useEffect(() => {
-    setModels([]);
+    requestRef.current = null;
+    setModels(null);
+    setError(null);
+    setDetecting(false);
+    return () => { requestRef.current = null; };
   }, [discoveryKey]);
 
   const handleDetect = async () => {
-    if (detecting || disabled) return;
+    if (requestRef.current != null || disabled) return;
+    const request = Symbol("model-discovery");
+    requestRef.current = request;
+    const isCurrent = () => requestRef.current === request && latestRef.current.discoveryKey === discoveryKey;
     setDetecting(true);
-    setModels([]);
+    setModels(null);
+    setError(null);
     try {
       const result = await detectModels();
+      if (!isCurrent()) return;
       setModels(result.models);
-      if (!value.trim()) {
-        onChange(result.models[0].id);
+      const latest = latestRef.current;
+      if (result.models.length > 0 && !latest.inputDisabled && !latest.value.trim()) {
+        latest.onChange(result.models[0].id);
       }
-      addToast(t("settings.discoveredModels", { count: result.models.length }), "success");
     } catch (err) {
-      addToast(extractErrorMessage(err, t("settings.modelDiscoveryFailed")), "error");
+      if (isCurrent()) setError(extractErrorMessage(err, t("settings.modelDiscoveryFailed")));
     } finally {
-      setDetecting(false);
+      if (isCurrent()) {
+        requestRef.current = null;
+        setDetecting(false);
+      }
     }
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" aria-busy={detecting}>
       <div className="flex gap-2">
         <ThemedCombobox
           value={value}
-          options={models.map((model) => ({
+          options={(models ?? []).map((model) => ({
             value: model.id,
             label: modelOptionLabel(model),
           }))}
           onChange={onChange}
           placeholder={placeholder}
           disabled={inputDisabled}
+          aria-describedby={feedbackId}
         />
         <button
           type="button"
@@ -77,11 +93,11 @@ export function ModelDiscoveryField({
           <span>{t("settings.detect")}</span>
         </button>
       </div>
-      {models.length > 0 ? (
-        <div className="text-small text-book-text-muted">
-          {t("settings.loadedModels", { count: models.length })}
-        </div>
-      ) : null}
+      <div id={feedbackId} role={error ? "alert" : "status"} className={`min-h-4 text-small ${error ? "text-error" : "text-book-text-muted"}`}>
+        {error ?? (models == null ? null : models.length > 0
+          ? t("settings.loadedModels", { count: models.length })
+          : t("settings.noModelsFound"))}
+      </div>
     </div>
   );
 }

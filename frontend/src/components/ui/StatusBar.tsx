@@ -184,7 +184,6 @@ export const StatusBar: React.FC<StatusBarProps> = ({ actions }) => {
         type="button"
         className="a4n-status-bar-orb"
         data-over-control={orbOverControl ? "true" : "false"}
-        tabIndex={orbOverControl ? -1 : 0}
         aria-label={toggleLabel}
         aria-expanded={expanded}
         aria-controls={expanded ? "a4n-status-bar-panel" : undefined}

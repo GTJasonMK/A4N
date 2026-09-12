@@ -127,6 +127,16 @@ function currentProjectIdFromPath(pathname: string): number | null {
 const routeDepth = (pathname: string): number =>
   pathname.split("/").filter(Boolean).length;
 
+function RouteStage({ direction, children }: { direction: string; children: React.ReactNode }) {
+  // Enter once per page; query/hash updates must not restart its entrance motion.
+  const entryDirection = useRef(direction);
+  return (
+    <div className="a4n-route-stage flex min-h-0 flex-1 flex-col overflow-hidden" data-route-direction={entryDirection.current}>
+      {children}
+    </div>
+  );
+}
+
 function RouteContent() {
   const location = useLocation();
   const navigationType = useNavigationType();
@@ -145,10 +155,9 @@ function RouteContent() {
   }, [location.pathname]);
 
   return (
-    <div
+    <RouteStage
       key={location.pathname}
-      className="a4n-route-stage flex min-h-0 flex-1 flex-col overflow-hidden"
-      data-route-direction={routeDirection}
+      direction={routeDirection}
     >
       <Suspense fallback={<RouteFallback />}>
         <Routes>
@@ -180,7 +189,7 @@ function RouteContent() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </div>
+    </RouteStage>
   );
 }
 

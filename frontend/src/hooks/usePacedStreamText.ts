@@ -24,21 +24,22 @@ export const useStreamDisplayRate = () => usePersistedState<number>(
 );
 
 const commonPrefix = (left: string, right: string): string => {
-  const leftChars = Array.from(left);
-  const rightChars = Array.from(right);
+  if (right.startsWith(left)) return left;
   let index = 0;
-  while (index < leftChars.length && index < rightChars.length && leftChars[index] === rightChars[index]) {
-    index += 1;
+  while (index < left.length && index < right.length) {
+    const point = left.codePointAt(index)!;
+    if (point !== right.codePointAt(index)) break;
+    index += point > 0xffff ? 2 : 1;
   }
-  return rightChars.slice(0, index).join("");
+  return right.slice(0, index);
 };
 
 export const advancePacedStreamText = (displayedText: string, targetText: string): string => {
-  const displayedChars = Array.from(displayedText);
-  const targetChars = Array.from(targetText);
+  if (displayedText === targetText) return displayedText;
   const prefix = commonPrefix(displayedText, targetText);
   if (prefix !== displayedText) return prefix;
-  return targetChars.slice(0, displayedChars.length + 1).join("");
+  const width = targetText.codePointAt(displayedText.length)! > 0xffff ? 2 : 1;
+  return targetText.slice(0, displayedText.length + width);
 };
 
 export const usePacedStreamText = (
@@ -85,9 +86,7 @@ export const usePacedStreamText = (
     return () => globalThis.clearInterval(interval);
   }, [active, drainRequested, drainWhenInactive, rate]);
 
-  const displayedChars = Array.from(displayedText);
-  const sourceChars = Array.from(sourceText);
-  const hasPendingText = sourceChars.length > displayedChars.length
+  const hasPendingText = sourceText.length > displayedText.length
     && sourceText.startsWith(displayedText);
 
   return {

@@ -10,7 +10,7 @@ let output = "";
 export const config = {
   ...browserConfig,
   baseUrl,
-  specs: ["./ui-presentation.e2e.mjs"],
+  specs: ["./ui-presentation.e2e.mjs", "./ui-controls.e2e.mjs"],
   onPrepare: async () => {
     server = spawn(process.execPath, ["./node_modules/vite/bin/vite.js", "--port", String(port), "--strictPort"], {
       cwd: fileURLToPath(new URL("../..", import.meta.url)),

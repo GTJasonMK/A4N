@@ -10,6 +10,7 @@ import React, {
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { getPortalRoot } from "./portalRoot";
+import { isImeCompositionActive } from "../../utils/ime";
 
 export interface ThemedComboboxOption {
   value: string;
@@ -49,6 +50,10 @@ export const ThemedCombobox = React.forwardRef<
   {
     className = "",
     disabled = false,
+    readOnly = false,
+    onBlur,
+    onCompositionStart,
+    onCompositionEnd,
     onChange,
     onClick,
     onFocus,
@@ -62,8 +67,11 @@ export const ThemedCombobox = React.forwardRef<
   const inputRef = useRef<HTMLInputElement | null>(null);
   const listboxRef = useRef<HTMLDivElement>(null);
   const suppressFocusOpenRef = useRef(false);
+  const composingRef = useRef(false);
+  const compositionEndedAtRef = useRef(0);
   const listboxId = useId();
   const [isOpen, setIsOpen] = useState(false);
+  const [filtering, setFiltering] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [position, setPosition] = useState({
     top: 0,
@@ -75,21 +83,19 @@ export const ThemedCombobox = React.forwardRef<
 
   const filteredOptions = useMemo(() => {
     const query = value.trim().toLowerCase();
-    if (!query) return options;
+    if (!filtering || !query) return options;
     return options.filter((option) =>
       `${option.value} ${option.label}`.toLowerCase().includes(query),
     );
-  }, [options, value]);
-  const listboxOpen = !disabled && isOpen && filteredOptions.length > 0;
+  }, [filtering, options, value]);
+  const listboxOpen = !disabled && !readOnly && isOpen && filteredOptions.length > 0;
 
   const close = useCallback((restoreFocus = false) => {
     setIsOpen(false);
     if (restoreFocus) {
       suppressFocusOpenRef.current = true;
-      window.requestAnimationFrame(() => {
-        inputRef.current?.focus();
-        suppressFocusOpenRef.current = false;
-      });
+      inputRef.current?.focus();
+      suppressFocusOpenRef.current = false;
     }
   }, []);
 
@@ -140,24 +146,21 @@ export const ThemedCombobox = React.forwardRef<
   }, []);
 
   const open = useCallback(() => {
-    if (disabled || filteredOptions.length === 0) return;
-    setActiveIndex((current) => {
-      if (current >= 0 && current < filteredOptions.length && !filteredOptions[current].disabled) {
-        return current;
-      }
-      const selected = filteredOptions.findIndex((option) => option.value === value);
-      return firstEnabledIndex(filteredOptions, selected >= 0 ? selected : 0);
-    });
+    if (disabled || readOnly || options.length === 0) return;
+    // Opening browses the catalog; filtering starts only when the user types.
+    setFiltering(false);
+    const selected = options.findIndex((option) => option.value === value);
+    setActiveIndex(firstEnabledIndex(options, selected >= 0 ? selected : 0));
     setPosition((current) => ({ ...current, ready: false }));
     setIsOpen(true);
-  }, [disabled, filteredOptions, value]);
+  }, [disabled, options, readOnly, value]);
 
   const commit = useCallback((index: number) => {
     const option = filteredOptions[index];
-    if (!option || option.disabled) return;
+    if (disabled || readOnly || !option || option.disabled) return;
     onChange(option.value);
     close(true);
-  }, [close, filteredOptions, onChange]);
+  }, [close, disabled, filteredOptions, onChange, readOnly]);
 
   const moveActive = useCallback((step: number) => {
     setActiveIndex((current) => firstEnabledIndex(
@@ -173,8 +176,12 @@ export const ThemedCombobox = React.forwardRef<
   }, [filteredOptions, value]);
 
   useEffect(() => {
-    if (disabled) setIsOpen(false);
-  }, [disabled]);
+    if (disabled || readOnly) {
+      setIsOpen(false);
+      composingRef.current = false;
+      compositionEndedAtRef.current = 0;
+    }
+  }, [disabled, readOnly]);
 
   useEffect(() => {
     if (!listboxOpen) return undefined;
@@ -220,13 +227,23 @@ export const ThemedCombobox = React.forwardRef<
     const hasMatches = options.some((option) =>
       `${option.value} ${option.label}`.toLowerCase().includes(query),
     );
+    setFiltering(true);
     onChange(nextValue);
     setIsOpen(hasMatches);
   };
 
   const handleKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (isImeCompositionActive(event.nativeEvent, composingRef.current, compositionEndedAtRef.current)) {
+      event.stopPropagation();
+      return;
+    }
+    if (readOnly) {
+      onKeyDown?.(event);
+      return;
+    }
     if (event.key === "Escape" && listboxOpen) {
       event.preventDefault();
+      event.stopPropagation();
       close(true);
       return;
     }
@@ -234,16 +251,6 @@ export const ThemedCombobox = React.forwardRef<
       event.preventDefault();
       if (!listboxOpen) open();
       else moveActive(event.key === "ArrowDown" ? 1 : -1);
-      return;
-    }
-    if (event.key === "Home" && listboxOpen) {
-      event.preventDefault();
-      setActiveIndex(firstEnabledIndex(filteredOptions));
-      return;
-    }
-    if (event.key === "End" && listboxOpen) {
-      event.preventDefault();
-      setActiveIndex(firstEnabledIndex(filteredOptions, filteredOptions.length - 1, -1));
       return;
     }
     if (event.key === "Enter" && listboxOpen) {
@@ -291,6 +298,8 @@ export const ThemedCombobox = React.forwardRef<
             data-active={index === activeIndex ? "true" : undefined}
             data-option-index={index}
             className="a4n-themed-combobox__option"
+            // Keep focus until onChange finishes; blur may persist the current value.
+            onPointerDown={(event) => event.preventDefault()}
             onMouseEnter={() => {
               if (!option.disabled) setActiveIndex(index);
             }}
@@ -311,6 +320,7 @@ export const ThemedCombobox = React.forwardRef<
         ref={setInputRef}
         value={value}
         disabled={disabled}
+        readOnly={readOnly}
         autoComplete={nativeProps.autoComplete ?? "off"}
         role="combobox"
         aria-autocomplete="list"
@@ -320,17 +330,32 @@ export const ThemedCombobox = React.forwardRef<
         aria-activedescendant={listboxOpen && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
         className={`a4n-themed-combobox__input pyqt-input w-full ${className}`}
         onChange={handleInputChange}
+        onBlur={(event) => {
+          close();
+          composingRef.current = false;
+          compositionEndedAtRef.current = 0;
+          onBlur?.(event);
+        }}
+        onCompositionStart={(event) => {
+          composingRef.current = true;
+          onCompositionStart?.(event);
+        }}
+        onCompositionEnd={(event) => {
+          composingRef.current = false;
+          compositionEndedAtRef.current = Date.now();
+          onCompositionEnd?.(event);
+        }}
         onFocus={(event) => {
           if (!suppressFocusOpenRef.current) open();
           onFocus?.(event);
         }}
         onClick={(event) => {
-          open();
+          if (!listboxOpen) open();
           onClick?.(event);
         }}
         onKeyDown={handleKeyDown}
       />
-      {options.length > 0 ? (
+      {!readOnly && options.length > 0 ? (
         <ChevronDown
           aria-hidden="true"
           size={14}

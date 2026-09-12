@@ -116,22 +116,9 @@ export function OptimizeComposer({
         const submitter = nativeEvent.submitter;
         if (
           submitter instanceof HTMLElement &&
-          submitter.dataset.optimizeSubmit === "send"
+          submitter.dataset.optimizeSubmit === "send" &&
+          canSubmitInstruction
         ) {
-          onSubmit();
-        }
-      }}
-      onKeyDown={(event) => {
-        if (
-          event.key === "Enter" &&
-          !event.shiftKey &&
-          !isImeCompositionActive(
-            event.nativeEvent,
-            composingRef.current,
-            lastCompositionEndRef.current,
-          )
-        ) {
-          event.preventDefault();
           onSubmit();
         }
       }}
@@ -177,7 +164,16 @@ export function OptimizeComposer({
         <Dropdown label={t("optimize.composerTools")} items={toolItems} />
         <textarea
           ref={inputRef}
+          aria-label={t("optimize.inputPlaceholder")}
           value={input}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey && !isImeCompositionActive(
+              event.nativeEvent, composingRef.current, lastCompositionEndRef.current,
+            )) {
+              event.preventDefault();
+              if (canSubmitInstruction) onSubmit();
+            }
+          }}
           onCompositionStart={() => {
             composingRef.current = true;
           }}
@@ -200,8 +196,9 @@ export function OptimizeComposer({
             type="button"
             onClick={onCancelTask}
             disabled={cancellingOptimize}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-warning/55 bg-warning-bg text-warning transition-[transform,filter] active:scale-[0.96] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8"
+            className="a4n-touch-target inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-warning/55 bg-warning-bg text-warning transition-[transform,filter] active:scale-[0.96] hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60 sm:h-8 sm:w-8"
             title={cancellingOptimize ? t("optimize.stopping") : t("optimize.stopTask")}
+            aria-label={cancellingOptimize ? t("optimize.stopping") : t("optimize.stopTask")}
           >
             {cancellingOptimize ? (
               <LoadingSpinner size="sm" />
@@ -214,8 +211,9 @@ export function OptimizeComposer({
             type="submit"
             data-optimize-submit="send"
             disabled={!canSubmitInstruction}
-            className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-book-primary bg-book-primary text-white shadow-[var(--shadow-soft)] transition-[transform,filter] active:scale-[0.96] hover:brightness-95 disabled:cursor-not-allowed disabled:border-book-border disabled:bg-book-bg-tertiary disabled:text-book-text-muted disabled:shadow-none sm:h-8 sm:w-8"
+            className="a4n-touch-target inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-book-primary bg-book-primary text-[rgb(var(--color-button-text))] shadow-[var(--shadow-soft)] transition-[transform,filter] active:scale-[0.96] hover:brightness-95 disabled:cursor-not-allowed disabled:border-book-border disabled:bg-book-bg-tertiary disabled:text-book-text-muted disabled:shadow-none sm:h-8 sm:w-8"
             title={t("optimize.sendToOptimize")}
+            aria-label={t("optimize.sendToOptimize")}
           >
             <Send size={15} />
           </button>

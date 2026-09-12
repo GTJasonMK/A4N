@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { BackButton, useSmartBack } from "../../components/ui/BackButton";
 import { Dropdown } from "../../components/ui/Dropdown";
 import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
@@ -45,7 +46,11 @@ const LogsTab = lazy(() =>
  * 页面入口只负责设置页框架、深链同步与 Tab 编排；具体设置面板在各自目录内维护。
  */
 export const SettingsPage: React.FC = () => {
-  const [tab, setTab] = usePersistedTab<TabId>("a4n:settings:tab", "llm", TAB_IDS);
+  const [lastTab, setLastTab] = usePersistedTab<TabId>("a4n:settings:tab", "llm", TAB_IDS);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const requestedTab = TAB_IDS.find((id) => id === location.hash.slice(1));
+  const tab = requestedTab ?? lastTab;
   const { user, logout } = useAuthStore();
   const { t } = useI18n();
   const activeTab = TABS.find((item) => item.id === tab);
@@ -53,26 +58,16 @@ export const SettingsPage: React.FC = () => {
 
   const selectTab = (nextTab: TabId) => {
     if (nextTab === tab) return;
-    setTab(nextTab);
+    navigate({ pathname: location.pathname, search: location.search, hash: `#${nextTab}` }, { replace: true });
   };
 
   useEffect(() => {
-    const syncTabFromHash = () => {
-      const fromHash = window.location.hash.replace("#", "") as TabId;
-      if (fromHash && TABS.some((item) => item.id === fromHash)) {
-        setTab(fromHash);
-      }
-    };
-    syncTabFromHash();
-    window.addEventListener("hashchange", syncTabFromHash);
-    return () => window.removeEventListener("hashchange", syncTabFromHash);
-  }, [setTab]);
-
-  useEffect(() => {
-    if (window.location.hash !== `#${tab}`) {
-      window.history.replaceState(window.history.state, "", `#${tab}`);
+    if (requestedTab) {
+      if (requestedTab !== lastTab) setLastTab(requestedTab);
+    } else {
+      navigate({ pathname: location.pathname, search: location.search, hash: `#${lastTab}` }, { replace: true });
     }
-  }, [tab]);
+  }, [lastTab, location.pathname, location.search, navigate, requestedTab, setLastTab]);
 
   return (
     <div className="h-full w-full flex flex-col bg-book-bg">
@@ -137,6 +132,7 @@ export const SettingsPage: React.FC = () => {
         </nav>
 
         <section
+          key={tab}
           aria-label={activeTab ? t(activeTab.labelKey) : t("settings.content")}
           className="content-wide min-w-0 flex min-h-0 flex-col overflow-y-auto overflow-x-hidden a4n-page-container md:overflow-hidden"
         >

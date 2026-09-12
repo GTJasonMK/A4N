@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { getPortalRoot } from './portalRoot';
 import { useI18n } from '../../i18n';
+import { isImeCompositionActive } from '../../utils/ime';
 
 type ModalTone = 'default' | 'info' | 'success' | 'warning' | 'danger';
 
@@ -34,6 +35,7 @@ const FOCUSABLE_SELECTOR = [
   'textarea:not([disabled])',
   'input:not([disabled])',
   'select:not([disabled])',
+  'summary',
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -42,6 +44,8 @@ const MODAL_EXIT_MS = 180;
 interface ModalEntry {
   id: symbol;
   layerElement: HTMLElement | null;
+  parentId: symbol | null;
+  returnFocus: HTMLElement | null;
 }
 
 const openModalStack: ModalEntry[] = [];
@@ -70,19 +74,38 @@ const updateModalInert = () => {
   }
 };
 
-const registerModal = (modalId: symbol, layerElement: HTMLElement | null) => {
+const registerModal = (
+  modalId: symbol,
+  layerElement: HTMLElement | null,
+  returnFocusOrigins: Array<HTMLElement | null>,
+) => {
   if (openModalStack.some((entry) => entry.id === modalId)) return;
   if (openModalStack.length === 0) {
     bodyOverflowBeforeModal = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
   }
-  openModalStack.push({ id: modalId, layerElement });
+  openModalStack.push({
+    id: modalId,
+    layerElement,
+    parentId: openModalStack.at(-1)?.id ?? null,
+    returnFocus: returnFocusOrigins.find((element) => element?.isConnected && element !== document.body) ?? null,
+  });
   updateModalInert();
 };
 
 const unregisterModal = (modalId: symbol) => {
   const index = openModalStack.findIndex((entry) => entry.id === modalId);
-  if (index >= 0) openModalStack.splice(index, 1);
+  if (index < 0) return;
+  const wasTop = index === openModalStack.length - 1;
+  const [closed] = openModalStack.splice(index, 1);
+  // A details dialog may close while handing off to its editor.
+  for (const entry of openModalStack) {
+    if (entry.parentId !== closed.id) continue;
+    entry.parentId = closed.parentId;
+    if (!entry.returnFocus?.isConnected || closed.layerElement?.contains(entry.returnFocus)) {
+      entry.returnFocus = closed.returnFocus;
+    }
+  }
   updateModalInert();
   if (openModalStack.length === 0 && bodyOverflowBeforeModal != null) {
     document.body.style.overflow = bodyOverflowBeforeModal;
@@ -90,18 +113,34 @@ const unregisterModal = (modalId: symbol) => {
     for (const [element, inert] of bodyInertBeforeModal) setInert(element, inert);
     bodyInertBeforeModal.clear();
   }
+  // Effect replay does not dismiss the visible dialog or its autofocus target.
+  if (!wasTop || closed.layerElement?.getClientRects().length) return;
+  const active = document.activeElement;
+  // A replacement dialog may already own focus before its effect registers it.
+  if (active instanceof HTMLElement && active !== document.body && canReceiveFocus(active) && !closed.layerElement?.contains(active)) return;
+  const parent = openModalStack.at(-1);
+  if (canReceiveFocus(closed.returnFocus) && (!parent || parent.layerElement?.contains(closed.returnFocus))) {
+    closed.returnFocus.focus({ preventScroll: true });
+  } else if (parent) {
+    focusFirstElement(parent.layerElement?.querySelector<HTMLElement>('[role="dialog"]') ?? null);
+  }
 };
 
 const isTopModal = (modalId: symbol): boolean =>
   openModalStack[openModalStack.length - 1]?.id === modalId;
 
+const canReceiveFocus = (element: HTMLElement | null): element is HTMLElement => Boolean(
+  element?.isConnected &&
+  !element.matches(':disabled') &&
+  !element.closest('[inert], [aria-hidden="true"]') &&
+  element.getClientRects().length > 0 &&
+  getComputedStyle(element).visibility !== 'hidden',
+);
+
 const getFocusableElements = (container: HTMLElement | null): HTMLElement[] => {
   if (!container) return [];
-  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((item) => {
-    if (item.hasAttribute('disabled')) return false;
-    if (item.getAttribute('aria-hidden') === 'true') return false;
-    return item.getClientRects().length > 0;
-  });
+  return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+    .filter((item) => item.tabIndex >= 0 && canReceiveFocus(item));
 };
 
 const focusFirstElement = (
@@ -109,8 +148,12 @@ const focusFirstElement = (
   initialFocusRef?: React.RefObject<HTMLElement | null>,
 ) => {
   const focusable = getFocusableElements(container);
-  const target = initialFocusRef?.current ?? focusable[0] ?? container;
-  target?.focus();
+  const initial = initialFocusRef?.current ?? null;
+  const active = document.activeElement instanceof HTMLElement && container?.contains(document.activeElement)
+    ? document.activeElement
+    : null;
+  const target = canReceiveFocus(initial) ? initial : canReceiveFocus(active) ? active : focusable[0] ?? container;
+  target?.focus({ preventScroll: true });
 };
 
 export const Modal: React.FC<ModalProps> = ({
@@ -137,7 +180,14 @@ export const Modal: React.FC<ModalProps> = ({
   const titleId = useId();
   const layerRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  const previousActiveElementRef = useRef<HTMLElement | null>(null);
+  // Keep the origin chain before React removes a details dialog or autofocuses its editor.
+  const activeElementBeforeRender = typeof document !== 'undefined' && typeof HTMLElement !== 'undefined' && document.activeElement instanceof HTMLElement
+    ? document.activeElement
+    : null;
+  const returnFocusOrigins = [
+    activeElementBeforeRender,
+    ...openModalStack.slice().reverse().map((entry) => entry.returnFocus),
+  ];
   const modalIdRef = useRef(Symbol('modal'));
   const [rendered, setRendered] = useState(isOpen);
   const openedRef = useRef(isOpen);
@@ -175,10 +225,7 @@ export const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     if (!rendered || typeof document === 'undefined') return undefined;
 
-    previousActiveElementRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    registerModal(modalIdRef.current, layerRef.current);
+    registerModal(modalIdRef.current, layerRef.current, returnFocusOrigins);
 
     const raf = window.requestAnimationFrame(() => {
       focusFirstElement(dialogRef.current, initialFocusRef);
@@ -187,12 +234,6 @@ export const Modal: React.FC<ModalProps> = ({
     return () => {
       window.cancelAnimationFrame(raf);
       unregisterModal(modalIdRef.current);
-      const previousActiveElement = previousActiveElementRef.current;
-      if (openModalStack.length === 0 && previousActiveElement?.isConnected) {
-        window.requestAnimationFrame(() => {
-          if (openModalStack.length === 0 && previousActiveElement.isConnected) previousActiveElement.focus();
-        });
-      }
     };
   }, [initialFocusRef, rendered]);
 
@@ -200,11 +241,12 @@ export const Modal: React.FC<ModalProps> = ({
     if (!rendered || !isOpen) return undefined;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isTopModal(modalIdRef.current)) return;
+      if (event.defaultPrevented || isImeCompositionActive(event) || !isTopModal(modalIdRef.current)) return;
 
       if (event.key === 'Escape') {
         if (!closeOnEscape) return;
         event.preventDefault();
+        event.stopPropagation();
         onClose();
         return;
       }

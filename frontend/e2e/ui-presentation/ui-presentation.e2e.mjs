@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 const project = {
   id: 1, title: "山海之间", description: "关于记忆与归途的故事", project_kind: "text",
@@ -16,6 +18,8 @@ const projects = [project, {
   ...project, id: 3, title: "山海之间 · 先导短片", project_kind: "video",
   root_project_id: 1, root_project_title: project.title, source_mode: "derived",
   lifecycle_gate: "resetting",
+}, {
+  ...project, id: 4, title: "只读协作项目", my_role: "viewer", owner_username: "另一位作者",
 }];
 const chapters = ["旧书店", "未寄出的信"].map((title, index) => ({
   id: index + 1, project_id: 1, chapter_number: index + 1, title,
@@ -27,7 +31,25 @@ const chapters = ["旧书店", "未寄出的信"].map((title, index) => ({
   derived_sync_can_resume: false, derived_sync_workflow_run_id: null, material_updates: [],
   material_sync: Object.fromEntries(["characters", "objects", "scenes", "content_index", "outline_and_foreshadowing"].map((key) => [key, "completed"])),
 }));
+const agentSnapshots = ["主 Agent", "分镜 Agent"].map((title, index) => ({
+  protocol_version: 1,
+  thread: {
+    id: `thread-${index}`, title, kind: index === 0 ? "main" : "subagent", status: "active",
+    capability: index === 0 ? null : "storyboard", bound_resource: null, context_summary: null,
+    default_model_config_id: null, created_at: "2026-09-11T12:00:00Z", updated_at: "2026-09-11T12:00:00Z",
+    next_event_sequence: 1, next_turn_sequence: 1, owner_user_id: 1, protocol_version: 1, revision: 1,
+    scope: { allowed_capabilities: [], allowed_tools: [], chapter_id: null, project_id: null, resource_id: null, resource_kind: null },
+  },
+  approvals: [], delegations: [], events: [], executions: [], inbox: [], memories: [], runs: [], turns: [],
+  messages: [{
+    id: `reply-${index}`, thread_id: `thread-${index}`, role: "assistant", status: "complete",
+    content: index === 0 ? Array.from({ length: 18 }, (_, paragraph) => `第 ${paragraph + 1} 段审阅：人物的行动应与前文保持一致。保留旧书店和信件的线索，让转场来自角色的选择。`).join("\n\n") : "分镜方案已准备好，可以继续讨论角色的行动。",
+    created_at: "2026-09-11T12:00:00Z", updated_at: null, metadata: null, run_id: null,
+    source_id: null, source_kind: null, turn_id: null,
+  }],
+}));
 const responses = {
+  agentSnapshots,
   get_current_user: {
     id: 1, username: "写作者", email: "writer@example.test", role: "user", is_active: true,
     page_cli_enabled: false, avatar_url: null, created_at: null, updated_at: null,
@@ -38,14 +60,21 @@ const responses = {
   list_chapters: chapters,
   list_chapter_outlines: [],
   list_my_project_invites: [],
-  list_themes: [],
+  list_themes: [{
+    id: 1, user_id: 1, name: "书房主题", mode: "light", is_active: false, is_system_default: false,
+    document: { version: 1, backgrounds: {}, tokens: { "--color-primary": "151 72 29", "--color-bg-primary": "241 238 232", "--color-bg-secondary": "255 252 245", "--color-text-primary": "44 24 16", "--color-border": "205 194 181" } },
+    resources: [],
+  }],
   get_theme_preference: { appearance: "light", user_id: 1 },
   get_blueprint: null,
   list_profiles: [],
   active: [],
   list_llm_config: [],
   list_model_provider_catalog: {
-    llm: [{ id: "deepseek", display_name: "DeepSeek", default_base_url: "https://api.deepseek.com/v1" }],
+    llm: [
+      { id: "deepseek", display_name: "DeepSeek", default_base_url: "https://api.deepseek.com/v1" },
+      { id: "openai", display_name: "OpenAI", default_base_url: "https://api.openai.com/v1" },
+    ],
     embedding: [], image: [], video: [],
   },
 };
@@ -53,6 +82,38 @@ const responses = {
 const button = (label) => $(`button[aria-label="${label}"]`);
 const commands = () => browser.execute(() => window.__uiAudit.commands);
 const draws = () => browser.execute(() => window.__uiAudit.draws);
+const fieldInput = (name) => $(`//label[./span[contains(.,"${name}")]]//input`);
+const replaceInput = async (input, value) => {
+  await input.click();
+  await browser.keys(["Control", "a"]);
+  await browser.keys(value || "Backspace");
+  assert.equal(await input.getValue(), value);
+};
+const openNewLlmConfig = async () => {
+  await browser.setWindowSize(1440, 900);
+  await browser.url("/settings#llm");
+  await $('//button[contains(.,"新增 LLM 配置")]').click();
+  await replaceInput(await fieldInput("配置名称"), "配置 A");
+  await replaceInput(await $('input[role="combobox"]'), "");
+};
+const finishModelDiscovery = (index, id) => browser.execute((requestIndex, modelId) => {
+  window.__uiAudit.modelRequests[requestIndex].resolve(new Response(
+    JSON.stringify({ models: modelId ? [{ id: modelId, name: modelId, owned_by: null }] : [] }),
+    { headers: { "Content-Type": "application/json" } },
+  ));
+}, index, id);
+const finishAgentSend = (error = null) => browser.execute((errorMessage) => {
+  const { resolve, input } = window.__uiAudit.agentMessages[0];
+  const body = errorMessage ? {
+    code: "provider_unavailable", message: errorMessage, retryable: true, trace_id: null, details: {},
+  } : {
+    created_run: true, message_id: "message-1", run_id: "run-1", turn_id: "turn-1",
+    thread_id: input.thread_id, status: "queued",
+  };
+  resolve(new Response(JSON.stringify(body), { status: errorMessage ? 503 : 200, headers: { "Content-Type": "application/json" } }));
+}, error);
+const agentMessageCount = () => browser.execute(() => window.__uiAudit.agentMessages.length);
+const selectAgentThread = (title) => $(`//button[contains(@class,"a4n-sidebar-item") and .//span[text()="${title}"]]`).click();
 
 describe("UI presentation and workspace continuity", () => {
   before(async () => {
@@ -61,7 +122,7 @@ describe("UI presentation and workspace continuity", () => {
       localStorage.setItem("a4n:current_user_id", "1");
       localStorage.setItem("a4n:current_access_token", "ui-test-fixture");
       localStorage.setItem("a4n:settings:locale", "zh-CN");
-      window.__uiAudit = { commands: [], unexpected: [], errors: [], draws: { attached: 0, detached: 0 } };
+      window.__uiAudit = { commands: [], unexpected: [], errors: [], modelRequests: [], agentMessages: [], draws: { attached: 0, detached: 0 } };
       window.addEventListener("error", (event) => window.__uiAudit.errors.push(event.message));
       window.addEventListener("unhandledrejection", (event) => window.__uiAudit.errors.push(String(event.reason)));
       const fetch = window.fetch.bind(window);
@@ -70,6 +131,44 @@ describe("UI presentation and workspace continuity", () => {
         if (!url.pathname.startsWith("/api/")) return fetch(input, options);
         const command = url.pathname.split("/").at(-1);
         window.__uiAudit.commands.push(command);
+        if (url.pathname === "/api/agent-threads") {
+          return new Response(JSON.stringify(fixtures.agentSnapshots.map((item) => item.thread)), { headers: { "Content-Type": "application/json" } });
+        }
+        const agentPath = url.pathname.match(/^\/api\/agent-threads\/(thread-\d)(?:\/(messages|events))?$/);
+        if (agentPath) {
+          const snapshot = fixtures.agentSnapshots.find((item) => item.thread.id === agentPath[1]);
+          if (!snapshot) throw new Error(`Missing Agent fixture: ${agentPath[1]}`);
+          if (agentPath[2] === "messages" && options.method === "POST") {
+            return new Promise((resolve) => window.__uiAudit.agentMessages.push({ input: JSON.parse(options.body), resolve }));
+          }
+          if (agentPath[2] === "events") {
+            return new Response(new ReadableStream({
+              start(controller) {
+                if (options.signal.aborted) controller.close();
+                else options.signal.addEventListener("abort", () => controller.close(), { once: true });
+              },
+            }), { headers: { "Content-Type": "text/event-stream" } });
+          }
+          if (!agentPath[2]) return new Response(JSON.stringify(snapshot), { headers: { "Content-Type": "application/json" } });
+          throw new Error(`Unexpected Agent fixture request: ${options.method} ${url.pathname}`);
+        }
+        if (command === "get_project") {
+          const projectId = JSON.parse(options.body).projectId;
+          const record = fixtures.list_projects.items.find((item) => item.id === projectId);
+          if (!record) throw new Error(`Missing project fixture: ${projectId}`);
+          return new Response(JSON.stringify(record), { headers: { "Content-Type": "application/json" } });
+        }
+        if (command === "update_theme") {
+          const { themeId, input } = JSON.parse(options.body);
+          const record = fixtures.list_themes.find((item) => item.id === themeId);
+          Object.assign(record, input);
+          return new Response(JSON.stringify(record), { headers: { "Content-Type": "application/json" } });
+        }
+        if (command === "detect_llm_config_models") {
+          return new Promise((resolve) => {
+            window.__uiAudit.modelRequests.push({ resolve });
+          });
+        }
         if (!(command in fixtures)) {
           window.__uiAudit.unexpected.push(command);
           return new Response(JSON.stringify({ message: `Missing UI fixture: ${command}` }), { status: 501 });
@@ -86,8 +185,18 @@ describe("UI presentation and workspace continuity", () => {
     }, encodeURIComponent(JSON.stringify(responses)));
   });
 
-  afterEach(async () => {
-    const { unexpected, errors } = await browser.execute(() => window.__uiAudit);
+  beforeEach(async () => {
+    // A same-fragment navigation keeps the previous document and its draft.
+    await browser.url("/");
+    await browser.setWindowSize(1440, 900);
+  });
+
+  afterEach(async function () {
+    const directory = fileURLToPath(new URL("../../../.dev-runtime/ui-details/", import.meta.url));
+    await mkdir(directory, { recursive: true });
+    const name = this.currentTest.title.replace(/[^a-z0-9]+/gi, "-").slice(0, 100);
+    await browser.saveScreenshot(`${directory}/${process.env.A4N_UI_AUDIT_PHASE ?? "current"}-${name}.png`);
+    const { unexpected, errors } = await browser.execute(() => ({ unexpected: window.__uiAudit.unexpected, errors: window.__uiAudit.errors }));
     assert.deepEqual(unexpected, []);
     assert.deepEqual(errors, []);
   });
@@ -199,18 +308,177 @@ describe("UI presentation and workspace continuity", () => {
     await canvas.moveTo();
     await browser.waitUntil(async () => (await draws()).attached > settled.attached);
     await $('//button[normalize-space()="设置"]').click();
-    await $('section[aria-label="LLM 服务"]').waitForDisplayed();
+    await $(".a4n-settings-layout").waitForDisplayed();
     await browser.pause(350);
     assert.equal((await draws()).detached, 0);
   });
 
-  it("keeps project and settings controls inside narrow viewports", async () => {
+  it("preserves newer form edits when model discovery completes", async () => {
+    await openNewLlmConfig();
+    const detect = await $('button[title="检测模型列表"]');
+    await detect.click();
+    await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.modelRequests.length)) === 1);
+    await replaceInput(await fieldInput("配置名称"), "更新后的配置名称");
+    await finishModelDiscovery(0, "discovered-model");
+    await detect.waitForEnabled();
+    assert.equal(await fieldInput("配置名称").getValue(), "更新后的配置名称");
+    assert.equal(await $('input[role="combobox"]').getValue(), "discovered-model");
+  });
+
+  it("isolates model discovery when the provider changes", async () => {
+    await openNewLlmConfig();
+    const detect = await $('button[title="检测模型列表"]');
+    await detect.click();
+    await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.modelRequests.length)) === 1);
+    await $('//label[./span[contains(.,"服务商")]]//button[@role="combobox"]').click();
+    await $('//div[@role="option" and normalize-space()="OpenAI"]').click();
+    await detect.waitForEnabled();
+    await detect.click();
+    await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.modelRequests.length)) === 2);
+    await finishModelDiscovery(0, "old-provider-model");
+    await finishModelDiscovery(1, "new-provider-model");
+    await detect.waitForEnabled();
+    assert.match(await $('//label[./span[contains(.,"服务商")]]//button[@role="combobox"]').getText(), /OpenAI/);
+    assert.equal(await $('input[role="combobox"]').getValue(), "new-provider-model");
+  });
+
+  it("explains an empty model catalog without replacing the form", async () => {
+    await openNewLlmConfig();
+    const detect = await $('button[title="检测模型列表"]');
+    await detect.click();
+    await browser.waitUntil(async () => (await browser.execute(() => window.__uiAudit.modelRequests.length)) === 1);
+    await finishModelDiscovery(0, null);
+    await detect.waitForEnabled();
+    await $('//*[contains(text(),"未发现可用模型")]').waitForDisplayed();
+    assert.equal(await $('input[role="combobox"]').getValue(), "");
+  });
+
+  it("opens readonly projects in a readable view without offering writing actions", async () => {
+    await browser.url("/");
+    const entry = await $('button[aria-label="只读协作项目 · 进入项目详情"]');
+    await entry.waitForDisplayed();
+    const card = await entry.$('..');
+    assert.equal(await card.$('button[aria-label="进入写作台"]').isExisting(), false);
+    assert.equal(await card.$('button[aria-label="更多操作"]').isExisting(), false);
+    await entry.click();
+    await browser.waitUntil(async () => new URL(await browser.getUrl()).pathname === "/novel/4");
+    await $('//h1[normalize-space()="只读协作项目"]').waitForDisplayed();
+    await $('//*[text()="还没有故事蓝图"]').waitForDisplayed();
+    assert.equal(await $('//*[text()="从现有资料归纳、直接录入或从灵感对话开始"]').isExisting(), false);
+    assert.equal((await commands()).includes("update_chapter_content"), false);
+  });
+
+  it("does not save a theme name when Enter confirms IME composition", async () => {
+    await browser.url("/settings#theme");
+    await $('button[title="重命名"]').click();
+    const name = await $('input[aria-label="重命名"]');
+    await replaceInput(name, "书房主题修改");
+    await name.execute((element) => element.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", isComposing: true, bubbles: true, cancelable: true })));
+    assert.equal((await commands()).includes("update_theme"), false);
+    assert.equal(await name.isExisting(), true);
+    await $('//button[normalize-space()="保存"]').click();
+    await browser.waitUntil(async () => (await commands()).includes("update_theme"));
+    await name.waitForExist({ reverse: true });
+    assert.equal(await $('//button[normalize-space()="书房主题修改"]').isDisplayed(), true);
+    assert.deepEqual(await browser.execute(() => {
+      const toast = document.querySelector(".a4n-toast").getBoundingClientRect();
+      return [...document.querySelectorAll(".a4n-settings-layout button, .a4n-settings-layout input")].filter((element) => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 1 && rect.height > 1 && toast.left < rect.right && toast.right > rect.left && toast.top < rect.bottom && toast.bottom > rect.top;
+      }).map((element) => element.getAttribute("aria-label") || element.textContent);
+    }), [], "A saved notification must leave settings controls available");
+  });
+
+  it("honors settings deep links and keeps the page stable when switching categories", async () => {
+    await browser.execute(() => localStorage.setItem("a4n:settings:tab", "llm"));
+    await browser.url("/settings#theme");
+    await $('[aria-label="外观偏好"]').waitForDisplayed();
+    assert.equal(new URL(await browser.getUrl()).hash, "#theme");
+    await browser.execute(() => {
+      window.__settingsStage = document.querySelector(".a4n-route-stage");
+      window.__settingsDirection = window.__settingsStage.dataset.routeDirection;
+    });
+    await $('//nav//button[contains(.,"LLM")]').click();
+    await $('//button[contains(.,"新增 LLM 配置")]').waitForDisplayed();
+    assert.equal(new URL(await browser.getUrl()).hash, "#llm");
+    assert.equal(await browser.execute(() => window.__settingsStage === document.querySelector(".a4n-route-stage") && window.__settingsDirection === window.__settingsStage.dataset.routeDirection), true);
+  });
+
+  it("keeps unsent Agent drafts with their thread", async () => {
+    await browser.url("/agents");
+    const input = await $('textarea[aria-label="Agent 消息"]');
+    await input.waitForDisplayed();
+    await input.setValue("主 Agent 的未发送消息");
+    await selectAgentThread("分镜 Agent");
+    assert.equal(await input.getValue(), "");
+    await input.setValue("分镜 Agent 的未发送消息");
+    await selectAgentThread("主 Agent");
+    assert.equal(await input.getValue(), "主 Agent 的未发送消息");
+    await selectAgentThread("分镜 Agent");
+    assert.equal(await input.getValue(), "分镜 Agent 的未发送消息");
+  });
+
+  it("keeps a late Agent send from replacing the selected thread", async () => {
+    await browser.url("/agents");
+    const input = await $('textarea[aria-label="Agent 消息"]');
+    await input.waitForDisplayed();
+    await input.setValue("请继续主线程任务");
+    await button("发送消息").click();
+    await browser.waitUntil(async () => (await agentMessageCount()) === 1);
+    const mainThread = await $('//button[contains(@class,"a4n-sidebar-item") and .//span[text()="主 Agent"]]');
+    assert.equal(await mainThread.getAttribute("aria-busy"), "true");
+    await selectAgentThread("分镜 Agent");
+    await $('//h2[text()="分镜 Agent"]').waitForDisplayed();
+    await input.waitForEnabled();
+    await input.setValue("分镜线程的新草稿");
+    await finishAgentSend();
+    await browser.waitUntil(async () => (await mainThread.getAttribute("aria-busy")) !== "true");
+    assert.equal(await $('//h2[text()="分镜 Agent"]').isDisplayed(), true);
+    assert.equal(await $('//h2[text()="主 Agent"]').isExisting(), false);
+    assert.equal(await input.getValue(), "分镜线程的新草稿");
+    await selectAgentThread("主 Agent");
+    assert.equal(await input.getValue(), "");
+  });
+
+  it("does not send an Agent message while confirming IME input", async () => {
+    await browser.url("/agents");
+    const input = await $('textarea[aria-label="Agent 消息"]');
+    await input.waitForDisplayed();
+    await input.setValue("正在输入的中文");
+    await input.execute((element) => element.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Enter", ctrlKey: true, isComposing: true, bubbles: true, cancelable: true,
+    })));
+    assert.equal(await agentMessageCount(), 0);
+    await browser.keys(["Control", "Enter"]);
+    await browser.waitUntil(async () => (await agentMessageCount()) === 1);
+    await finishAgentSend();
+    await input.waitForEnabled();
+    assert.equal(await input.getValue(), "");
+  });
+
+  it("preserves the Agent draft and shows the actual send failure", async () => {
+    await browser.url("/agents");
+    const input = await $('textarea[aria-label="Agent 消息"]');
+    await input.waitForDisplayed();
+    await input.setValue("发送失败时仍需保留的文字");
+    await button("发送消息").click();
+    await browser.waitUntil(async () => (await agentMessageCount()) === 1);
+    await finishAgentSend("模型服务暂时无法连接");
+    await input.waitForEnabled();
+    assert.equal(await input.getValue(), "发送失败时仍需保留的文字");
+    const alert = await $('.a4n-toast[role="alert"]');
+    await alert.waitForDisplayed();
+    assert.match(await alert.getText(), /模型服务暂时无法连接/);
+  });
+
+  it("keeps narrow workspace controls readable and message history keyboard scrollable", async () => {
     for (const width of [390, 1024]) {
       await browser.setWindowSize(width, 900);
-      for (const route of ["/", "/settings"]) {
+      for (const route of ["/", "/settings#llm", "/agents"]) {
         await browser.url(route);
         await $("h1").waitForExist();
-        await browser.waitUntil(async () => (await commands()).includes(route === "/" ? "list_projects" : "list_llm_config"));
+        const expectedCommand = route === "/" ? "list_projects" : route === "/agents" ? "agent-threads" : "list_llm_config";
+        await browser.waitUntil(async () => (await commands()).includes(expectedCommand));
         assert.equal(await browser.execute(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
         if (route === "/") {
           const kind = await $('//label/span[normalize-space()="项目类型"]');
@@ -224,6 +492,14 @@ describe("UI presentation and workspace continuity", () => {
           });
           assert.ok(bounds.left >= 0 && bounds.right <= bounds.width);
           await browser.keys("Escape");
+        }
+        if (route === "/agents") {
+          const log = await $('[role="log"]');
+          await log.waitForDisplayed();
+          assert.ok((await log.getSize()).height >= 180, "Message history needs enough room to read several lines");
+          await log.execute((element) => element.focus());
+          await browser.keys("End");
+          await browser.waitUntil(async () => (await log.execute((element) => element.scrollTop)) > 0);
         }
       }
     }

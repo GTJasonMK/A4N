@@ -1,5 +1,16 @@
 import React from 'react';
 
+/** Primary action of a positioned card/row; secondary controls sit above it. */
+export const BookCardAction = ({ label, onClick }: { label: string; onClick: () => void }) => (
+  <button
+    type="button"
+    aria-label={label}
+    title={label}
+    onClick={onClick}
+    className="absolute inset-0 z-10 cursor-pointer rounded-[inherit] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-book-primary"
+  />
+);
+
 /**
  * 基础卡片容器。
  *

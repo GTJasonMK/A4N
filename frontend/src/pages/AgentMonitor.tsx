@@ -49,6 +49,7 @@ import { formatDateTime } from "../i18n/format";
 import { useI18n, type Locale } from "../i18n";
 import { useNavigate } from "react-router-dom";
 import { extractWritingTarget } from "./agentMonitorUtils";
+import { isImeCompositionActive } from "../utils/ime";
 
 const ACTIVE_RUN_STATUSES = new Set<AgentRunView["status"]>([
   "queued", "running", "waiting", "pausing", "paused", "cancelling",
@@ -102,24 +103,35 @@ export const AgentMonitor: React.FC = () => {
   const { locale, t } = useI18n();
   const [threads, setThreads] = useState<AgentThreadView[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
-  const [snapshot, setSnapshot] = useState<AgentThreadSnapshot | null>(null);
+  const [loadedSnapshot, setSnapshot] = useState<AgentThreadSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [snapshotLoading, setSnapshotLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [deliveryMode, setDeliveryMode] = useState<AgentDeliveryMode>("followup");
   const [executionMode, setExecutionMode] = useState<AgentExecutionMode>("autonomous");
-  const [sending, setSending] = useState(false);
+  const [sendingThreads, setSendingThreads] = useState<Record<string, boolean>>({});
   const [controlBusy, setControlBusy] = useState<AgentControlAction | null>(null);
   const [approvalBusy, setApprovalBusy] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [createCapability, setCreateCapability] = useState("general");
   const snapshotRequestRef = useRef(0);
+  const selectedThreadIdRef = useRef(selectedThreadId);
+  const composingRef = useRef(false);
+  const lastCompositionEndRef = useRef(0);
   const locateBaselineThreadRef = useRef<string | null>(null);
   const handledLocateMessageIdsRef = useRef<Set<string>>(new Set());
+
+  selectedThreadIdRef.current = selectedThreadId;
+  const snapshot = loadedSnapshot?.thread.id === selectedThreadId ? loadedSnapshot : null;
+  const draft = selectedThreadId ? drafts[selectedThreadId] ?? "" : "";
+  const sending = selectedThreadId ? sendingThreads[selectedThreadId] === true : false;
+  const setDraft = (value: string) => {
+    if (selectedThreadId) setDrafts((current) => ({ ...current, [selectedThreadId]: value }));
+  };
 
   const refreshThreads = useCallback(async (manual = false) => {
     if (manual) setRefreshing(true);
@@ -143,18 +155,20 @@ export const AgentMonitor: React.FC = () => {
   }, [t]);
 
   const loadSnapshot = useCallback(async (threadId: string, quiet = false) => {
+    if (selectedThreadIdRef.current !== threadId) return;
     const requestId = snapshotRequestRef.current + 1;
     snapshotRequestRef.current = requestId;
+    const isCurrent = () => selectedThreadIdRef.current === threadId && snapshotRequestRef.current === requestId;
     if (!quiet) setSnapshotLoading(true);
     try {
       const next = await getAgentThread(threadId);
-      if (snapshotRequestRef.current !== requestId) return;
+      if (!isCurrent()) return;
       setSnapshot(next);
       setError(null);
     } catch (err) {
-      if (snapshotRequestRef.current === requestId) setError(extractErrorMessage(err, t("agent.loadFailed")));
+      if (isCurrent()) setError(extractErrorMessage(err, t("agent.loadFailed")));
     } finally {
-      if (snapshotRequestRef.current === requestId) setSnapshotLoading(false);
+      if (isCurrent()) setSnapshotLoading(false);
     }
   }, [t]);
 
@@ -236,19 +250,27 @@ export const AgentMonitor: React.FC = () => {
     [threads],
   );
 
-  const selectThread = (threadId: string) => { if (threadId !== selectedThreadId) { setSelectedThreadId(threadId); setSnapshot(null); setDraft(""); } };
+  const selectThread = (threadId: string) => {
+    if (threadId === selectedThreadId) return;
+    setSelectedThreadId(threadId);
+    setSnapshot(null);
+    composingRef.current = false;
+    lastCompositionEndRef.current = 0;
+  };
 
   const send = async () => {
     const content = draft.trim();
     if (!content || !selectedThreadId || sending) return;
-    setSending(true);
+    setSendingThreads((current) => ({ ...current, [selectedThreadId]: true }));
     try {
       await sendAgentMessage({ thread_id: selectedThreadId, client_message_id: randomClientMessageId(), content, delivery_mode: deliveryMode, execution_mode: executionMode });
       setDraft("");
       await Promise.all([loadSnapshot(selectedThreadId, true), refreshThreads()]);
     } catch (err) {
       addToast(extractErrorMessage(err, locale === "zh-CN" ? "发送 Agent 消息失败" : "Failed to send Agent message"), "error");
-    } finally { setSending(false); }
+    } finally {
+      setSendingThreads((current) => ({ ...current, [selectedThreadId]: false }));
+    }
   };
 
   const control = async (action: AgentControlAction) => {
@@ -298,21 +320,93 @@ export const AgentMonitor: React.FC = () => {
       />
       <main className="custom-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pb-8 pt-3 sm:px-5">
         {error ? <Notice>{error}</Notice> : null}
-        <section aria-label={locale === "zh-CN" ? "Agent 概览" : "Agent overview"} className="grid grid-cols-2 gap-2.5 md:grid-cols-3">
+        <section aria-label={locale === "zh-CN" ? "Agent 概览" : "Agent overview"} className="grid grid-cols-3 gap-3 border-b border-book-border/50 pb-3">
           <Summary label={locale === "zh-CN" ? "持久线程" : "Durable threads"} value={threads.length} icon={<MessageSquare size={14} />} />
           <Summary label={locale === "zh-CN" ? "可用线程" : "Available threads"} value={availableThreadCount} icon={<Activity size={14} />} accent />
           <Summary label={locale === "zh-CN" ? "待审批" : "Pending approvals"} value={pendingApprovals.length} icon={<ShieldCheck size={14} />} />
         </section>
-        <section className="mt-3 grid min-h-[34rem] min-w-0 flex-1 grid-cols-1 gap-3 lg:min-h-0 lg:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)]">
+        <section className="mt-3 grid min-w-0 flex-none grid-cols-1 gap-3 lg:grid-cols-[minmax(13rem,18rem)_minmax(0,1fr)] xl:min-h-0 xl:flex-1">
           <aside className="a4n-flat-surface flex min-w-0 flex-col overflow-hidden p-2.5 lg:min-h-0">
             <div className="flex min-w-0 items-center gap-2 px-1 pb-2"><div className="min-w-0 flex-1"><h2 className="text-sm font-semibold text-book-text-main">{locale === "zh-CN" ? "线程" : "Threads"}</h2><p className="truncate text-caption text-book-text-muted">{locale === "zh-CN" ? "主 Agent 与领域子 Agent" : "Main and domain sub-agents"}</p></div><BookIconButton label={locale === "zh-CN" ? "新建子 Agent" : "New sub-agent"} onClick={() => setCreateOpen((open) => !open)} size="sm"><Plus size={14} /></BookIconButton></div>
             {createOpen ? <div className="mb-2 space-y-2 rounded-xl border border-book-border/50 bg-book-bg-tertiary/35 p-2"><input aria-label={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} placeholder={locale === "zh-CN" ? "线程名称（可选）" : "Thread title (optional)"} className="pyqt-input h-8 min-h-8 text-xs" /><input aria-label={locale === "zh-CN" ? "子 Agent 能力域" : "Sub-agent capability"} value={createCapability} onChange={(event) => setCreateCapability(event.target.value)} placeholder={locale === "zh-CN" ? "能力域，例如 content_optimization" : "Capability, e.g. content_optimization"} className="pyqt-input h-8 min-h-8 text-xs" /><div className="flex gap-2"><BookButton size="sm" className="flex-1" onClick={() => void createSubagent()}><Plus size={13} />{locale === "zh-CN" ? "创建" : "Create"}</BookButton><BookButton size="sm" variant="ghost" onClick={() => setCreateOpen(false)}>{locale === "zh-CN" ? "关闭" : "Close"}</BookButton></div></div> : null}
             {loading ? <div className="flex min-h-28 items-center justify-center gap-2 text-xs text-book-text-muted"><LoadingSpinner size="sm" />{t("common.loading")}</div> : null}
             {!loading && threads.length === 0 ? <div className="a4n-empty-state a4n-empty-state--compact px-2"><Bot size={22} /><p className="text-xs">{locale === "zh-CN" ? "还没有持久线程" : "No durable threads yet"}</p></div> : null}
-            <div className="custom-scrollbar min-w-0 space-y-1 overflow-y-auto overscroll-contain lg:min-h-0 lg:flex-1">{threads.map((thread) => <button key={thread.id} type="button" onClick={() => selectThread(thread.id)} data-active={selectedThreadId === thread.id ? "1" : undefined} className="a4n-sidebar-item flex min-w-0 items-center gap-2 text-left"><span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${thread.kind === "main" ? "bg-book-primary/12 text-book-primary" : "bg-book-bg-tertiary text-book-text-muted"}`}><Bot size={14} /></span><span className="min-w-0 flex-1"><span className="flex min-w-0 items-center gap-1.5"><span className="min-w-0 flex-1 truncate text-xs font-medium">{thread.title || (thread.kind === "main" ? (locale === "zh-CN" ? "主 Agent" : "Main Agent") : thread.capability || (locale === "zh-CN" ? "子 Agent" : "Sub-agent"))}</span><span className="shrink-0 text-[10px] text-book-text-muted">{thread.kind === "main" ? "M" : "S"}</span></span><span className="mt-0.5 block truncate text-caption text-book-text-muted">{thread.capability || thread.bound_resource?.kind || labelFor(thread.status, locale)}</span></span><ChevronRight size={13} className="shrink-0 text-book-text-muted/60" /></button>)}</div>
+            <div className="custom-scrollbar min-w-0 space-y-1 overflow-y-auto overscroll-contain lg:min-h-0 lg:flex-1">
+              {threads.map((thread) => (
+                <button key={thread.id} type="button" onClick={() => selectThread(thread.id)}
+                  aria-current={selectedThreadId === thread.id ? "true" : undefined}
+                  aria-busy={sendingThreads[thread.id] || undefined}
+                  data-active={selectedThreadId === thread.id ? "1" : undefined}
+                  className="a4n-sidebar-item flex min-w-0 items-center gap-2 text-left">
+                  <span className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${thread.kind === "main" ? "bg-book-primary/12 text-book-primary" : "bg-book-bg-tertiary text-book-text-muted"}`}><Bot size={14} /></span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="min-w-0 flex-1 truncate text-xs font-medium">{thread.title || (thread.kind === "main" ? (locale === "zh-CN" ? "主 Agent" : "Main Agent") : thread.capability || (locale === "zh-CN" ? "子 Agent" : "Sub-agent"))}</span>
+                      <span className="shrink-0 text-[10px] text-book-text-muted">{thread.kind === "main" ? "M" : "S"}</span>
+                    </span>
+                    <span className="mt-0.5 block truncate text-caption text-book-text-muted">{thread.capability || thread.bound_resource?.kind || labelFor(thread.status, locale)}</span>
+                  </span>
+                  {sendingThreads[thread.id] ? <LoadingSpinner size="sm" /> : <ChevronRight size={13} className="shrink-0 text-book-text-muted/60" />}
+                </button>
+              ))}
+            </div>
           </aside>
           <section className="a4n-flat-surface flex min-w-0 min-h-0 flex-col overflow-hidden">
-            {!selectedThreadId ? <div className="a4n-empty-state m-auto"><Bot size={28} /><p className="text-sm">{locale === "zh-CN" ? "选择一个 Agent 线程开始" : "Select an Agent thread"}</p></div> : <><ThreadHeader thread={snapshot?.thread ?? threads.find((thread) => thread.id === selectedThreadId) ?? null} locale={locale} loading={snapshotLoading} /><div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(15rem,21rem)]"><div className="flex min-h-0 min-w-0 flex-col border-b border-book-border/50 xl:border-b-0 xl:border-r"><div className="custom-scrollbar min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4"><MessageSection messages={snapshot?.messages ?? []} locale={locale} />{snapshot?.messages.length === 0 && !snapshotLoading ? <div className="a4n-empty-state a4n-empty-state--compact"><MessageSquare size={22} /><p className="text-xs">{locale === "zh-CN" ? "等待第一条消息" : "Waiting for the first message"}</p></div> : null}</div><div className="shrink-0 border-t border-book-border/50 bg-book-bg-paper/70 p-2.5 sm:p-3"><div className="mb-2 flex min-w-0 flex-wrap items-center gap-2"><ThemedSelect aria-label={locale === "zh-CN" ? "消息交付模式" : "Delivery mode"} value={deliveryMode} onChange={(event) => setDeliveryMode(event.target.value as AgentDeliveryMode)} className="pyqt-input h-8 min-h-8 max-w-full flex-1 text-xs sm:flex-none"><option value="followup">{locale === "zh-CN" ? "Follow-up · 追加" : "Follow-up"}</option><option value="steer">{locale === "zh-CN" ? "Steer · 转向" : "Steer"}</option><option value="inject">{locale === "zh-CN" ? "Inject · 注入" : "Inject"}</option></ThemedSelect><ThemedSelect aria-label={locale === "zh-CN" ? "执行模式" : "Execution mode"} value={executionMode} onChange={(event) => setExecutionMode(event.target.value as AgentExecutionMode)} className="pyqt-input h-8 min-h-8 max-w-full flex-1 text-xs sm:flex-none"><option value="autonomous">{locale === "zh-CN" ? "自主执行" : "Autonomous"}</option><option value="review_writes">{locale === "zh-CN" ? "写入需审核" : "Review writes"}</option><option value="advice_only">{locale === "zh-CN" ? "仅建议" : "Advice only"}</option></ThemedSelect>{currentRun ? <span className={`ml-auto rounded-full px-2 py-1 text-caption ${RUN_STATUS_TONES[currentRun.status] ?? "text-book-text-muted bg-book-bg-tertiary"}`}>{labelFor(currentRun.status, locale)}</span> : null}</div><div className="flex min-w-0 items-end gap-2"><textarea aria-label={locale === "zh-CN" ? "Agent 消息" : "Agent message"} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) { event.preventDefault(); void send(); } }} rows={2} maxLength={8000} placeholder={locale === "zh-CN" ? "告诉主 Agent 或当前子 Agent 下一步做什么…（⌘/Ctrl + Enter 发送）" : "Tell this Agent what to do next… (⌘/Ctrl + Enter to send)"} className="pyqt-input min-h-16 min-w-0 flex-1 resize-y text-xs leading-relaxed" disabled={sending} /><BookIconButton label={locale === "zh-CN" ? "发送消息" : "Send message"} variant="secondary" size="md" onClick={() => void send()} disabled={!draft.trim() || sending}><Send size={15} className={sending ? "animate-pulse" : undefined} /></BookIconButton></div></div></div><ActivityPanel snapshot={snapshot} currentRun={currentRun} pendingApprovals={pendingApprovals} locale={locale} controlBusy={controlBusy} approvalBusy={approvalBusy} onControl={control} onResolve={resolveApproval} onSelectThread={selectThread} /></div></>}
+            {!selectedThreadId ? <div className="a4n-empty-state m-auto"><Bot size={28} /><p className="text-sm">{locale === "zh-CN" ? "选择一个 Agent 线程开始" : "Select an Agent thread"}</p></div> : <>
+              <ThreadHeader key={selectedThreadId} thread={snapshot?.thread ?? threads.find((thread) => thread.id === selectedThreadId) ?? null} locale={locale} loading={snapshotLoading} />
+              <div className="grid min-h-0 flex-1 grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(15rem,21rem)]">
+                <div className="flex min-h-0 min-w-0 flex-col border-b border-book-border/50 xl:border-b-0 xl:border-r">
+                  <div role="log" aria-label={locale === "zh-CN" ? "消息记录" : "Message history"} tabIndex={0}
+                    className="custom-scrollbar max-h-[60dvh] min-h-48 flex-1 space-y-3 overflow-y-auto overscroll-contain px-3 py-3 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-book-primary sm:px-4 xl:max-h-none xl:min-h-0">
+                    <MessageSection messages={snapshot?.messages ?? []} locale={locale} />
+                    {snapshot?.messages.length === 0 && !snapshotLoading ? <div className="a4n-empty-state a4n-empty-state--compact"><MessageSquare size={22} /><p className="text-xs">{locale === "zh-CN" ? "等待第一条消息" : "Waiting for the first message"}</p></div> : null}
+                  </div>
+                  <div className="shrink-0 border-t border-book-border/50 bg-book-bg-paper/70 p-2.5 sm:p-3">
+                    <div className="mb-2 flex min-w-0 flex-wrap items-center gap-2"><ThemedSelect aria-label={locale === "zh-CN" ? "消息交付模式" : "Delivery mode"} value={deliveryMode} onChange={(event) => setDeliveryMode(event.target.value as AgentDeliveryMode)} className="pyqt-input h-8 min-h-8 max-w-full flex-1 text-xs sm:flex-none"><option value="followup">{locale === "zh-CN" ? "Follow-up · 追加" : "Follow-up"}</option><option value="steer">{locale === "zh-CN" ? "Steer · 转向" : "Steer"}</option><option value="inject">{locale === "zh-CN" ? "Inject · 注入" : "Inject"}</option></ThemedSelect><ThemedSelect aria-label={locale === "zh-CN" ? "执行模式" : "Execution mode"} value={executionMode} onChange={(event) => setExecutionMode(event.target.value as AgentExecutionMode)} className="pyqt-input h-8 min-h-8 max-w-full flex-1 text-xs sm:flex-none"><option value="autonomous">{locale === "zh-CN" ? "自主执行" : "Autonomous"}</option><option value="review_writes">{locale === "zh-CN" ? "写入需审核" : "Review writes"}</option><option value="advice_only">{locale === "zh-CN" ? "仅建议" : "Advice only"}</option></ThemedSelect>{currentRun ? <span className={`ml-auto rounded-full px-2 py-1 text-caption ${RUN_STATUS_TONES[currentRun.status] ?? "text-book-text-muted bg-book-bg-tertiary"}`}>{labelFor(currentRun.status, locale)}</span> : null}</div>
+                    <div className="flex min-w-0 items-end gap-2">
+                      <textarea
+                        key={selectedThreadId}
+                        aria-label={locale === "zh-CN" ? "Agent 消息" : "Agent message"}
+                        aria-keyshortcuts="Control+Enter Meta+Enter"
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        onCompositionStart={() => { composingRef.current = true; }}
+                        onBlur={() => {
+                          composingRef.current = false;
+                          lastCompositionEndRef.current = 0;
+                        }}
+                        onCompositionEnd={(event) => {
+                          composingRef.current = false;
+                          lastCompositionEndRef.current = Date.now();
+                          setDraft(event.currentTarget.value);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" && (event.ctrlKey || event.metaKey) && !isImeCompositionActive(
+                            event.nativeEvent, composingRef.current, lastCompositionEndRef.current,
+                          )) {
+                            event.preventDefault();
+                            void send();
+                          }
+                        }}
+                        rows={2}
+                        maxLength={8000}
+                        placeholder={locale === "zh-CN" ? "告诉当前 Agent 下一步做什么…" : "Tell this Agent what to do next…"}
+                        className="pyqt-input min-h-16 min-w-0 flex-1 resize-y text-xs leading-relaxed"
+                        disabled={sending}
+                      />
+                      <BookIconButton
+                        label={locale === "zh-CN" ? "发送消息" : "Send message"}
+                        title={locale === "zh-CN" ? "发送消息（⌘/Ctrl + Enter）" : "Send message (⌘/Ctrl + Enter)"}
+                        variant="secondary" size="md" onClick={() => void send()} disabled={!draft.trim() || sending}
+                      >
+                        {sending ? <LoadingSpinner size="sm" /> : <Send size={15} />}
+                      </BookIconButton>
+                    </div>
+                  </div>
+                </div>
+                <ActivityPanel snapshot={snapshot} currentRun={currentRun} pendingApprovals={pendingApprovals} locale={locale} controlBusy={controlBusy} approvalBusy={approvalBusy} onControl={control} onResolve={resolveApproval} onSelectThread={selectThread} />
+              </div>
+            </>}
           </section>
         </section>
       </main>
@@ -321,12 +415,36 @@ export const AgentMonitor: React.FC = () => {
 };
 
 function Summary({ label, value, icon, accent = false }: { label: string; value: number; icon: React.ReactNode; accent?: boolean }) {
-  return <div className="a4n-stat-tile flex min-w-0 items-center gap-2.5"><span className={accent ? "text-book-primary" : "text-book-text-muted"}>{icon}</span><div className="min-w-0"><div className="text-base font-semibold leading-none text-book-text-main">{value.toLocaleString()}</div><div className="mt-1 truncate text-caption text-book-text-muted">{label}</div></div></div>;
+  return <div className="flex min-w-0 items-center gap-2.5 py-1"><span className={accent ? "text-book-primary" : "text-book-text-muted"}>{icon}</span><div className="min-w-0"><div className="text-base font-semibold leading-none text-book-text-main">{value.toLocaleString()}</div><div className="mt-1 truncate text-caption text-book-text-muted">{label}</div></div></div>;
 }
 
 function ThreadHeader({ thread, locale, loading }: { thread: AgentThreadView | null; locale: Locale; loading: boolean }) {
+  const { t } = useI18n();
   if (!thread) return <div className="border-b border-book-border/50 px-3 py-3 text-xs text-book-text-muted">{loading ? "…" : "—"}</div>;
-  return <header className="flex min-w-0 flex-wrap items-start gap-3 border-b border-book-border/50 bg-book-bg-paper/55 px-3 py-3 sm:px-4"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary"><Bot size={17} /></span><div className="min-w-0 flex-1"><div className="flex min-w-0 flex-wrap items-center gap-2"><h2 className="min-w-0 max-w-full truncate text-sm font-semibold text-book-text-main">{thread.title || (thread.kind === "main" ? (locale === "zh-CN" ? "主 Agent" : "Main Agent") : thread.capability || (locale === "zh-CN" ? "子 Agent" : "Sub-agent"))}</h2><span className={`rounded-full px-2 py-0.5 text-caption ${thread.kind === "main" ? "text-book-primary bg-book-primary/10" : "text-book-text-muted bg-book-bg-tertiary"}`}>{thread.kind === "main" ? (locale === "zh-CN" ? "主 Agent" : "Main") : (locale === "zh-CN" ? "子 Agent" : "Sub-agent")}</span><span className={`rounded-full px-2 py-0.5 text-caption ${thread.status === "active" ? "text-success bg-success-bg" : "text-book-text-muted bg-book-bg-tertiary"}`}>{labelFor(thread.status, locale)}</span></div><div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-book-text-muted"><span>{thread.capability || (locale === "zh-CN" ? "全局编排" : "Orchestration")}</span>{thread.bound_resource ? <><span aria-hidden="true">·</span><span className="max-w-56 truncate">{thread.bound_resource.label || `${thread.bound_resource.kind}:${thread.bound_resource.id}`}</span></> : null}<span aria-hidden="true">·</span><span className="font-mono [overflow-wrap:anywhere]">#{thread.id}</span></div></div><span className="shrink-0 text-caption text-book-text-muted">{loading ? <LoadingSpinner size="sm" /> : `${locale === "zh-CN" ? "事件" : "Events"} ${thread.next_event_sequence - 1}`}</span></header>;
+  return (
+    <header className="flex min-w-0 flex-wrap items-start gap-3 border-b border-book-border/50 bg-book-bg-paper/55 px-3 py-3 sm:px-4">
+      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-book-primary/10 text-book-primary"><Bot size={17} /></span>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h2 className="min-w-0 max-w-full truncate text-sm font-semibold text-book-text-main">{thread.title || (thread.kind === "main" ? (locale === "zh-CN" ? "主 Agent" : "Main Agent") : thread.capability || (locale === "zh-CN" ? "子 Agent" : "Sub-agent"))}</h2>
+          <span className={`rounded-full px-2 py-0.5 text-caption ${thread.kind === "main" ? "text-book-primary bg-book-primary/10" : "text-book-text-muted bg-book-bg-tertiary"}`}>{thread.kind === "main" ? (locale === "zh-CN" ? "主 Agent" : "Main") : (locale === "zh-CN" ? "子 Agent" : "Sub-agent")}</span>
+          <span className={`rounded-full px-2 py-0.5 text-caption ${thread.status === "active" ? "text-success bg-success-bg" : "text-book-text-muted bg-book-bg-tertiary"}`}>{labelFor(thread.status, locale)}</span>
+        </div>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-book-text-muted">
+          <span>{thread.capability || (locale === "zh-CN" ? "全局编排" : "Orchestration")}</span>
+          {thread.bound_resource?.label ? <><span aria-hidden="true">·</span><span className="max-w-56 truncate">{thread.bound_resource.label}</span></> : null}
+        </div>
+        <details className="mt-1 text-caption text-book-text-muted">
+          <summary className="w-fit cursor-pointer py-1 hover:text-book-text-main">{t("feedback.diagnostics")}</summary>
+          <dl className="mt-1 space-y-1 [overflow-wrap:anywhere]">
+            <div><dt>{locale === "zh-CN" ? "线程编号" : "Thread ID"}</dt><dd className="font-mono">{thread.id}</dd></div>
+            {thread.bound_resource ? <div><dt>{locale === "zh-CN" ? "关联资源" : "Bound resource"}</dt><dd className="font-mono">{thread.bound_resource.kind}:{thread.bound_resource.id}</dd></div> : null}
+          </dl>
+        </details>
+      </div>
+      <span className="shrink-0 text-caption text-book-text-muted">{loading ? <LoadingSpinner size="sm" /> : `${locale === "zh-CN" ? "事件" : "Events"} ${thread.next_event_sequence - 1}`}</span>
+    </header>
+  );
 }
 
 function MessageSection({ messages, locale }: { messages: AgentMessageView[]; locale: Locale }) {

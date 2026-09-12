@@ -3058,6 +3058,13 @@ body {
   transform: translateX(calc(100% - 0.5rem));
 }
 
+.a4n-status-bar-orb[data-over-control="true"]:focus-visible {
+  pointer-events: auto;
+  opacity: 1;
+  transform: none;
+  transition: none;
+}
+
 .a4n-status-bar {
   display: flex;
   width: max-content;
@@ -3969,12 +3976,14 @@ body {
     font-size: 0.8125rem;
   }
 
-  .a4n-toast-container {
-    top: calc(0.75rem + env(safe-area-inset-top, 0px)) !important;
-  }
-
   .a4n-mobile-scroll-rail {
     overscroll-behavior-inline: contain;
+  }
+}
+
+@media (max-width: 639px) {
+  .a4n-toast-container {
+    top: calc(var(--a4n-page-header-height) + 2rem + env(safe-area-inset-top, 0px)) !important;
   }
 }
 

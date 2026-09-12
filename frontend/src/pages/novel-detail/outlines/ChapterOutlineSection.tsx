@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Eye, MoreHorizontal, Plus } from "lucide-react";
 import { LoadingSpinner } from "../../../components/ui/LoadingSpinner";
 import { BookButton, BookIconButton } from "../../../components/ui/BookButton";
+import { BookCardAction } from "../../../components/ui/BookCard";
 import { nonEmptyText } from "../../../utils/text";
 import { EmptyHint } from "../shared";
 import { deleteChapterOutlinesFromAction } from "./outlineTabUtils";
@@ -164,30 +165,14 @@ export function ChapterOutlineSection({
       {outlines.length === 0 ? (
         <EmptyHint text={t("outline.chapterSection.empty")} />
       ) : (
-        <ul className="a4n-flat-surface divide-y divide-book-border/35 overflow-hidden">
+        <ul className="space-y-2">
           {outlines.map((outline) => {
             const isEditing = editingId === outline.id;
             const deleting = delActing === deleteChapterOutlinesFromAction(outline.id);
             return (
               <li
                 key={outline.id}
-                role={isEditing ? undefined : "button"}
-                tabIndex={isEditing ? undefined : 0}
-                onClick={isEditing ? undefined : () => onOpenDetail(outline)}
-                onKeyDown={
-                  isEditing
-                    ? undefined
-                    : (event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onOpenDetail(outline);
-                        }
-                      }
-                }
-                className={`flex min-h-14 items-start gap-3 px-4 py-3 transition-colors hover:bg-book-bg-tertiary/35 focus-visible:outline-2 focus-visible:outline-book-primary/35 ${
-                  isEditing ? "" : "cursor-pointer"
-                }`}
-                title={isEditing ? undefined : t("outline.chapterSection.viewDetails")}
+                className="a4n-flat-surface relative flex min-h-14 items-start gap-3 px-4 py-3 transition-colors hover:border-book-primary/35"
               >
                 {isEditing ? (
                   <div className="flex flex-1 flex-col gap-2">
@@ -235,6 +220,7 @@ export function ChapterOutlineSection({
                   </div>
                 ) : (
                   <>
+                    <BookCardAction label={`${t("outline.chapterSection.chapter", { chapter: outline.chapter_number })} · ${outline.title ?? t("outline.chapterSection.viewDetails")}`} onClick={() => onOpenDetail(outline)} />
                     <div className="min-w-0 flex-1">
                       <div className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-book-text-main">
                         <span className="truncate">
@@ -254,7 +240,7 @@ export function ChapterOutlineSection({
                       ) : null}
                     </div>
                     {canEdit && (
-                      <div className="flex shrink-0 items-center">
+                      <div className="relative z-20 flex shrink-0 items-center">
                         <button
                           type="button"
                           onClick={(event) => {
@@ -263,6 +249,7 @@ export function ChapterOutlineSection({
                           }}
                           disabled={disabled || regenId === outline.id || deleting}
                           title={t("outline.chapterSection.moreActions")}
+                          aria-label={t("outline.chapterSection.moreActions")}
                           className="pyqt-btn-icon !h-9 !w-9 sm:!h-8 sm:!w-8"
                         >
                           {regenId === outline.id || deleting ? (
