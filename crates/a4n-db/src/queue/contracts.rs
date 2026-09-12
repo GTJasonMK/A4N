@@ -9,6 +9,8 @@ pub struct DefaultProviderConcurrencyLimits {
 
 #[derive(Debug, thiserror::Error)]
 pub enum QueueDbError {
+    #[error("任务或工作流已取消")]
+    Cancelled,
     #[error("{0}")]
     InvalidConfig(String),
     #[error("{0}")]

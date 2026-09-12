@@ -74,7 +74,7 @@ async fn dropped_pending_workflow_task_clears_active_task() {
     .unwrap();
     let task_id = queue
         .submit_internal(
-            TaskKind::LlmCall,
+            TaskKind::TextGeneration,
             TaskPriority::High,
             Some(11),
             None,

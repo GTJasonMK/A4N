@@ -4,9 +4,24 @@ use a4n_queue::priority::QueueStats;
 use super::{PersistentTaskQueue, queue_db_error};
 
 #[cfg(test)]
+mod llm_tests;
+#[cfg(test)]
 mod tests;
 
 impl PersistentTaskQueue {
+    pub(crate) async fn cancel_workflow_llm_calls(
+        &self,
+        workflow_run_id: i64,
+    ) -> Result<(), AppError> {
+        let ids = a4n_db::queue::active_workflow_llm_task_ids(self.db.as_ref(), workflow_run_id)
+            .await
+            .map_err(queue_db_error)?;
+        for id in ids {
+            self.cancel_persisted_task(&id).await?;
+        }
+        Ok(())
+    }
+
     pub async fn cancel(&self, task_id: &str) -> Result<(), AppError> {
         self.cancel_persisted_task(task_id).await
     }

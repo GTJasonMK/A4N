@@ -25,6 +25,104 @@ fn pending_task(id: &str, priority: TaskPriority) -> TaskInfo {
 }
 
 #[tokio::test]
+async fn model_calls_use_their_own_limits_even_inside_a_workflow_slot() {
+    let queue = MemoryTaskQueue::with_limits(1, 1, 1, 1, 1);
+    let mut outer = pending_task("workflow", TaskPriority::Medium);
+    outer.task_type = TaskKind::TextGeneration;
+    queue.submit_persisted(outer).unwrap();
+    let outer = queue
+        .acquire_task_with_cancel("workflow", CancellationToken::new())
+        .await
+        .unwrap()
+        .unwrap();
+    for id in ["a-1", "a-2", "b-1"] {
+        queue
+            .submit_persisted(pending_task(id, TaskPriority::Medium))
+            .unwrap();
+    }
+    let limit = |key: &str| a4n_domain::task_queue::LlmConcurrencyLimit {
+        key: key.to_string(),
+        max_concurrent: 1,
+    };
+    let first = tokio::time::timeout(
+        Duration::from_millis(100),
+        crate::with_llm_slot(queue.acquire_llm_call_with_cancel(
+            "a-1",
+            CancellationToken::new(),
+            limit("a"),
+        )),
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .unwrap();
+    assert!(
+        tokio::time::timeout(
+            Duration::from_millis(10),
+            crate::with_llm_slot(queue.acquire_llm_call_with_cancel(
+                "a-2",
+                CancellationToken::new(),
+                limit("a")
+            ))
+        )
+        .await
+        .is_err()
+    );
+    let other = tokio::time::timeout(
+        Duration::from_millis(100),
+        crate::with_llm_slot(queue.acquire_llm_call_with_cancel(
+            "b-1",
+            CancellationToken::new(),
+            limit("b"),
+        )),
+    )
+    .await
+    .unwrap()
+    .unwrap()
+    .unwrap();
+    queue.cancel_task_now("a-2").unwrap();
+    first.complete();
+    other.complete();
+    outer.complete();
+    assert_eq!(queue.queue_stats().llm_queue.running, 0);
+}
+
+#[tokio::test]
+async fn standalone_model_calls_still_obey_process_admission() {
+    let queue = MemoryTaskQueue::with_limits(1, 1, 1, 1, 1);
+    for id in ["a", "b"] {
+        queue
+            .submit_persisted(pending_task(id, TaskPriority::Medium))
+            .unwrap();
+    }
+    let limit = |key: &str| a4n_domain::task_queue::LlmConcurrencyLimit {
+        key: key.into(),
+        max_concurrent: 5,
+    };
+    let first = queue
+        .acquire_llm_call_with_cancel("a", CancellationToken::new(), limit("a"))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        tokio::time::timeout(
+            Duration::from_millis(10),
+            queue.acquire_llm_call_with_cancel("b", CancellationToken::new(), limit("b"))
+        )
+        .await
+        .is_err()
+    );
+    first.complete();
+    let second = queue
+        .acquire_llm_call_with_cancel("b", CancellationToken::new(), limit("b"))
+        .await
+        .unwrap()
+        .unwrap();
+    second.complete();
+    assert_eq!(queue.queue_stats().llm_queue.running, 0);
+}
+
+#[tokio::test]
 async fn persisted_tasks_acquire_in_priority_order() {
     let queue = Arc::new(MemoryTaskQueue::with_limits(1, 1, 1, 1, 1));
     queue

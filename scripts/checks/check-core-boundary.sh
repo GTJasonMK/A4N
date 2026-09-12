@@ -642,11 +642,21 @@ if rg -n 'state\.orchestrator\(\)|OrchestratorContext' \
     exit 1
 fi
 
-if ! rg -n 'provider_runtime\(\)' \
-    crates/a4n-runtime/src/actions/canvas_workflow/text_nodes/host_port.rs || \
-   ! rg -n 'queue_run_tracked_with_workflow_context' \
+if rg -n 'queue_run_tracked' \
     crates/a4n-runtime/src/actions/canvas_workflow/text_nodes/host_port.rs; then
-    printf 'Canvas text node HostPort must route workflow-tracked provider calls through ProviderRuntime\n' >&2
+    printf 'Canvas text node HostPort must not acquire a second LLM queue slot\n' >&2
+    exit 1
+fi
+
+if ! rg -q 'chat_with_config_id' \
+    crates/a4n-runtime/src/actions/canvas_workflow/text_nodes/host_port.rs || \
+   ! rg -q 'queue_start_llm_task' \
+    crates/a4n-runtime/src/dynamic_llm/provider/preparation.rs || \
+   ! rg -q 'concurrency_limit\(\)' \
+    crates/a4n-runtime/src/dynamic_llm/provider/preparation.rs || \
+   ! rg -q 'trace.workflow_run_id' \
+    crates/a4n-runtime/src/provider_runtime.rs; then
+    printf 'Canvas LLM calls must retain resolved model admission and workflow tracking through the shared provider path\n' >&2
     exit 1
 fi
 

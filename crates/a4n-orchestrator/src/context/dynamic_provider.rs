@@ -122,15 +122,17 @@ impl ProviderRuntimePort for ProviderRuntimeAdapter {
         project_id: Option<i64>,
         workflow_run_id: Option<i64>,
         cancel_token: CancellationToken,
+        llm_limit: Option<a4n_domain::task_queue::LlmConcurrencyLimit>,
     ) -> Result<Box<dyn TaskLease>, AppError> {
         let workflow = workflow_run_id.map(TaskWorkflowContext::new).transpose()?;
         self.task_queue
-            .start_task_with_cancel(
+            .start_task_with_limit(
                 task_type,
                 queue_task_priority(priority),
                 project_id,
                 workflow,
                 cancel_token,
+                llm_limit,
             )
             .await
             .map(|task| Box::new(DurableTaskLease(task)) as Box<dyn TaskLease>)
@@ -149,12 +151,20 @@ struct DurableTaskLease(RunningTask);
 
 #[async_trait::async_trait]
 impl TaskLease for DurableTaskLease {
+    fn cancellation_token(&self) -> CancellationToken {
+        self.0.cancellation_token()
+    }
+
     async fn complete(self: Box<Self>) -> Result<(), AppError> {
         self.0.complete().await
     }
 
     async fn fail(self: Box<Self>, error: String) -> Result<(), AppError> {
         self.0.fail(&error).await
+    }
+
+    async fn cancel(self: Box<Self>) -> Result<(), AppError> {
+        self.0.cancel().await
     }
 }
 

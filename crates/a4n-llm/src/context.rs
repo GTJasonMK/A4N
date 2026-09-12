@@ -60,9 +60,9 @@ pub fn canonical_json_text(value: &Value) -> Result<String, AppError> {
 }
 
 pub fn estimate_context_tokens(text: &str) -> usize {
-    let chinese_chars = text.chars().filter(|c| u32::from(*c) > 0x2E80).count();
-    let other_words = text.split_whitespace().count();
-    ((chinese_chars as f32 * 0.5) + (other_words as f32 * 1.3)).ceil() as usize
+    // ponytail: UTF-8 bytes conservatively bound text tokens; use model tokenizers
+    // when recovering unused context capacity is worth their model data/dependency.
+    text.len()
 }
 
 #[cfg(test)]
@@ -72,11 +72,20 @@ mod core_tests {
 
     #[test]
     fn preserves_context_token_estimate_and_canonical_json_contracts() {
-        assert_eq!(estimate_context_tokens("你好 world"), 4);
+        assert_eq!(estimate_context_tokens("你好 world"), "你好 world".len());
         assert_eq!(
             canonical_json_text(&json!({"name": "A4N"})).expect("json should serialize"),
             "{\n  \"name\": \"A4N\"\n}"
         );
+    }
+
+    #[test]
+    fn compact_json_and_unbroken_text_cannot_collapse_to_one_word() {
+        let json = serde_json::to_string(&(0..20_000).collect::<Vec<_>>()).unwrap();
+        for text in [json, "a".repeat(100_000), "文字".repeat(10_000)] {
+            assert_eq!(estimate_context_tokens(&text), text.len());
+        }
+        assert_eq!(estimate_context_tokens(""), 0);
     }
 }
 

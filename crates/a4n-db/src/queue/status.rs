@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 struct TaskStatusRecord {
     id: String,
     status: String,
+    task_type: String,
     workflow_run_id: Option<i64>,
 }
 
@@ -40,6 +41,7 @@ pub async fn update_task_status(
         .select_only()
         .column(task_queue::Column::Id)
         .column(task_queue::Column::Status)
+        .column(task_queue::Column::TaskType)
         .column(task_queue::Column::WorkflowRunId);
     if tx.get_database_backend() != DbBackend::Sqlite {
         query = query.lock_exclusive();
@@ -50,6 +52,9 @@ pub async fn update_task_status(
         .await?
         .ok_or_else(|| QueueDbError::NotFound(format!("任务不存在: {task_id}")))?;
     if is_terminal_status(&task.status) {
+        if status == "running" && task.status == "cancelled" {
+            return Err(QueueDbError::Cancelled);
+        }
         tx.commit().await?;
         return Ok(());
     }
@@ -86,7 +91,10 @@ pub async fn update_task_status(
     if update.exec(&tx).await?.rows_affected != 1 {
         return Err(QueueDbError::NotFound(format!("任务不存在: {task_id}")));
     }
-    sync_workflow_active_task(&tx, workflow_run_id, task_id, status, now).await?;
+    if task.task_type != "llm_call" {
+        // Child model calls must not replace the workflow's generation-task owner.
+        sync_workflow_active_task(&tx, workflow_run_id, task_id, status, now).await?;
+    }
     tx.commit().await?;
     Ok(())
 }
@@ -109,6 +117,7 @@ pub async fn interrupt_active_tasks(
         .select_only()
         .column(task_queue::Column::Id)
         .column(task_queue::Column::Status)
+        .column(task_queue::Column::TaskType)
         .column(task_queue::Column::WorkflowRunId)
         .filter(task_queue::Column::Id.is_in(requested_ids.clone()))
         .order_by_asc(task_queue::Column::Id);

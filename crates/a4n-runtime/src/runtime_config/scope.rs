@@ -44,3 +44,39 @@ where
         }
     })
 }
+
+/// Capture before spawning: Tokio does not inherit task-local identity or secrets.
+pub(crate) fn inherit_runtime_context<F: Future>(future: F) -> impl Future<Output = F::Output> {
+    let user_id = super::current_user_id();
+    let snapshot = super::current_snapshot();
+    async move {
+        match (user_id, snapshot) {
+            (Some(user_id), snapshot) => request_scope(user_id, snapshot, future).await,
+            (None, Some(snapshot)) => scope(snapshot, future).await,
+            (None, None) => future.await,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn detached_work_preserves_remote_identity_without_a_model_snapshot() {
+        let (user_id, snapshot) = request_scope(7, None, async {
+            tokio::spawn(inherit_runtime_context(async {
+                (
+                    super::super::current_user_id(),
+                    super::super::current_snapshot(),
+                )
+            }))
+            .await
+            .unwrap()
+        })
+        .await;
+        assert_eq!(user_id, Some(7));
+        assert!(snapshot.is_none());
+        assert!(super::super::current_user_id().is_none());
+    }
+}

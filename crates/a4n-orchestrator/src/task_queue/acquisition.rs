@@ -9,7 +9,12 @@ impl PersistentTaskQueue {
         permit: TaskPermit,
     ) -> Result<TaskPermit, AppError> {
         let task_id = permit.task_id().to_string();
-        self.update_status(&task_id, "running", None).await?;
+        if let Err(error) = self.update_status(&task_id, "running", None).await {
+            if matches!(error, AppError::Cancelled) {
+                permit.cancel();
+            }
+            return Err(error);
+        }
         Ok(permit)
     }
 }

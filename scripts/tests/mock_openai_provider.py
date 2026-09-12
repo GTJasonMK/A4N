@@ -2742,7 +2742,11 @@ class ProviderHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            agent_fixture = agent_chat_fixture(body)
+            lifecycle_fixture = str(body.get("model", "")).removeprefix("a4n-llm-lifecycle-")
+            if lifecycle_fixture in {"ok", "length", "missing", "slow"}:
+                agent_fixture = {"content": "partial answer " * 200 if lifecycle_fixture == "slow" else "LLM lifecycle fixture output"}
+            else:
+                agent_fixture = agent_chat_fixture(body)
         except (ValueError, KeyError, TypeError) as error:
             self._json(422, {"error": {"message": str(error), "type": "invalid_agent_fixture"}})
             return
@@ -2793,19 +2797,27 @@ class ProviderHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b"data: [DONE]\n\n")
                 self.wfile.flush()
                 return
-            for index in range(0, len(content), 1024):
+            chunk_size = 32 if lifecycle_fixture == "slow" else 1024
+            for index in range(0, len(content), chunk_size):
                 event = {
                     "choices": [
                         {
                             "index": 0,
-                            "delta": {"content": content[index : index + 1024]},
+                            "delta": {"content": content[index : index + chunk_size]},
                             "finish_reason": None,
                         }
                     ]
                 }
-                self.wfile.write(("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode("utf-8"))
+                try:
+                    self.wfile.write(("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode("utf-8"))
+                    if lifecycle_fixture == "slow":
+                        self.wfile.flush()
+                        time.sleep(0.05)
+                except (BrokenPipeError, ConnectionResetError):
+                    # Cancellation fixtures deliberately close an active response.
+                    return
             final = {
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                "choices": [{"index": 0, "delta": {}, "finish_reason": {"length": "length", "missing": None}.get(lifecycle_fixture, "stop")}],
                 "usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30},
             }
             self.wfile.write(("data: " + json.dumps(final) + "\n\n").encode("utf-8"))

@@ -18,6 +18,7 @@ pub use access::{
     uses_system_default_video_template,
 };
 pub(crate) use redaction::redacted_current_snapshot_value;
+pub(crate) use scope::inherit_runtime_context;
 pub use scope::{request_scope, scope, snapshot_from_args};
 
 #[cfg(test)]

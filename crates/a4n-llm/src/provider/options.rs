@@ -12,6 +12,11 @@ pub fn normalize_extra_body_json(value: Option<Value>) -> Result<Option<Value>, 
         ));
     };
     for key in map.keys() {
+        if key.eq_ignore_ascii_case("n") && (key != "n" || map[key].as_u64() != Some(1)) {
+            return Err(AppError::ConfigError(
+                "LLM 调用只支持一个候选，extra_body_json.n 必须为 1".to_string(),
+            ));
+        }
         if LLM_RESERVED_REQUEST_OPTION_KEYS
             .iter()
             .any(|reserved| key.eq_ignore_ascii_case(reserved))

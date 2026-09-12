@@ -20,7 +20,9 @@ impl QueueConcurrencyLimits {
             .await
             .map_err(queue_db_error)?;
         Ok(Self {
-            llm: provider_limits.llm,
+            // Workflow admission is independent of a selected model's API limit.
+            // Actual LlmCall requests use their resolved configuration in the queue.
+            llm: 4,
             image: provider_limits.image,
             video: provider_limits.video,
             embedding: 2,

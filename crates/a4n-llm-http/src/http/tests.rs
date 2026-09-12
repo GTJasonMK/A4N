@@ -25,16 +25,45 @@ fn request_body_json(request: reqwest::RequestBuilder) -> Value {
 }
 
 #[test]
+fn completion_budget_uses_the_model_protocol_without_duplicate_limits() {
+    let request = ChatRequest::system_user("system", "user", Some(0.2), Some(4096), None);
+    for model in [
+        "o1",
+        "o3",
+        "o3-mini",
+        "o3-2025-04-16",
+        "o4-mini",
+        "openai/o3",
+    ] {
+        let provider =
+            HttpLlmProvider::new_with_timeout("https://example.test/v1", model, None, 30);
+        let body = request_body_json(provider.build_request(&request, true));
+        assert_eq!(body["max_completion_tokens"], 4096);
+        assert!(body.get("max_tokens").is_none());
+        assert!(body.get("temperature").is_none());
+        assert_eq!(body["n"], 1);
+    }
+    for model in ["gpt-4o", "deepseek-chat", "qwen", "o35-custom"] {
+        let provider =
+            HttpLlmProvider::new_with_timeout("https://example.test/v1", model, None, 30);
+        let body = request_body_json(provider.build_request(&request, true));
+        assert_eq!(body["max_tokens"], 4096);
+        assert!(body.get("max_completion_tokens").is_none());
+        assert!(body.get("temperature").is_some());
+    }
+}
+
+#[test]
 fn parse_sse_data_line_accepts_valid_chunk() {
     let chunk = parse_data_line(
-        r#"data: {"choices":[{"index":2,"delta":{"content":"你好"},"finish_reason":"stop"}]}"#,
+        r#"data: {"choices":[{"index":0,"delta":{"content":"你好"},"finish_reason":"stop"}]}"#,
     )
     .expect("valid chunk");
 
     assert_eq!(chunk.content.as_deref(), Some("你好"));
     assert_eq!(chunk.reasoning_content.as_deref(), None);
     assert_eq!(chunk.finish_reason.as_deref(), Some("stop"));
-    assert_eq!(chunk.index, 2);
+    assert_eq!(chunk.index, 0);
     assert!(chunk.usage.is_none());
 }
 
@@ -50,6 +79,18 @@ fn parse_sse_data_line_accepts_reasoning_chunk_without_content() {
     assert_eq!(chunk.finish_reason.as_deref(), None);
     assert_eq!(chunk.index, 0);
     assert!(chunk.usage.is_none());
+}
+
+#[test]
+fn single_response_stream_rejects_additional_choices() {
+    let choice =
+        |index| json!({"index": index, "delta": {"content": "answer"}, "finish_reason": "stop"});
+    for choices in [vec![choice(1)], vec![choice(0), choice(1)]] {
+        let line = format!("data: {}", json!({"choices": choices}));
+        let error =
+            parse_data_line(&line).expect_err("choices must never be silently mixed or discarded");
+        assert!(error.to_string().contains("一个候选"));
+    }
 }
 
 #[test]

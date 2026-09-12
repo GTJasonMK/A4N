@@ -143,16 +143,6 @@ impl LlmProvider for AnthropicLlmProvider {
     fn capabilities(&self) -> ModelCapabilities {
         self.caps.clone()
     }
-
-    fn count_tokens(&self, text: &str) -> usize {
-        approximate_tokens(text)
-    }
-}
-
-fn approximate_tokens(text: &str) -> usize {
-    let chinese_chars = text.chars().filter(|c| u32::from(*c) > 0x2E80).count();
-    let other_words = text.split_whitespace().count();
-    ((chinese_chars as f32 * 0.5) + (other_words as f32 * 1.3)).ceil() as usize
 }
 
 fn anthropic_messages(messages: &[ChatMessage]) -> Result<Value, AppError> {

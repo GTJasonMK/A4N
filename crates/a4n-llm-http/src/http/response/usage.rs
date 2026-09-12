@@ -37,6 +37,17 @@ pub(in crate::http) fn first_choice<'a>(
     let choices = json["choices"].as_array().ok_or_else(|| {
         llm_response_shape_error(json, format!("LLM 响应缺少数组字段 {field}"), body)
     })?;
+    if choices.len() > 1
+        || choices
+            .first()
+            .is_some_and(|choice| choice["index"].as_u64().is_some_and(|index| index != 0))
+    {
+        return Err(llm_response_shape_error(
+            json,
+            "LLM 单响应调用只接受 index=0 的一个候选".to_string(),
+            body,
+        ));
+    }
     choices.first().ok_or_else(|| {
         llm_response_shape_error(json, format!("LLM 响应字段 {field} 不能为空"), body)
     })

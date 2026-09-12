@@ -79,6 +79,11 @@ pub(super) fn ensure_max_tokens_within_model_cap(
     let Some(max_tokens) = max_tokens else {
         return Ok(());
     };
+    if max_tokens == 0 {
+        return Err(AppError::InvalidArgument(
+            "LLM max_tokens 必须大于 0".into(),
+        ));
+    }
     if max_tokens <= model_max_output_tokens {
         return Ok(());
     }

@@ -285,3 +285,12 @@ async fn pre_cancelled_request_does_not_open_the_provider_stream() {
     assert_eq!(error, "请求已取消");
     assert_eq!(provider.stream_calls.load(Ordering::SeqCst), 0);
 }
+
+#[tokio::test]
+async fn complete_json_without_a_model_terminal_is_not_success() {
+    let provider = StreamProvider::new(vec![chunk(Some("{\"ok\":true}"), None, 0)]);
+    let error = chat_json_stream_with_progress(input(&provider, None, None), |_, _| Ok(()))
+        .await
+        .expect_err("transport EOF is not a model terminal");
+    assert!(error.contains("finish_reason"));
+}

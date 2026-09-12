@@ -6,7 +6,7 @@ use a4n_llm::{
         render_context_manifest_user_content, replace_request_user_content_from_manifest,
         validate_context_manifest,
     },
-    provider::{ChatRequest, LlmProvider, LlmTraceContext},
+    provider::{ChatMessage, ChatRequest, LlmProvider, LlmTraceContext},
 };
 use sha2::{Digest, Sha256};
 
@@ -21,13 +21,27 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
     provider: &dyn LlmProvider,
     request: &mut ChatRequest,
 ) -> Result<Option<LlmTraceContext>, AppError> {
+    let caps = provider.capabilities();
+    let output_reserve = request.max_tokens.unwrap_or(caps.max_output_tokens);
+    let tools_tokens = request
+        .tools
+        .as_ref()
+        .map(|tools| serde_json::to_string(tools).map(|text| provider.count_tokens(&text)))
+        .transpose()?
+        .unwrap_or(0);
     let Some(mut trace_context) = request.trace_context.clone() else {
+        ContextBudgetPlanner::default().plan_requirements(
+            caps.max_context_tokens,
+            output_reserve,
+            Vec::new(),
+            provider
+                .count_messages_tokens(&request.messages)
+                .saturating_add(tools_tokens),
+        )?;
         return Ok(None);
     };
     complete_llm_trace_project_scope(facade, &mut trace_context).await?;
 
-    let caps = provider.capabilities();
-    let output_reserve = request.max_tokens.unwrap_or(caps.max_output_tokens);
     let system_messages = system_messages(&request.messages);
     let system_tokens = provider.count_messages_tokens(&system_messages);
     let mut system_requirements = Vec::new();
@@ -57,7 +71,11 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             let mut all_requirements = system_requirements;
             all_requirements.append(&mut requirements);
             let dynamic_delta_tokens = provider
-                .count_tokens(&render_context_manifest_user_content(&manifest, &[])?)
+                .count_messages_tokens(&[ChatMessage::user(render_context_manifest_user_content(
+                    &manifest,
+                    &[],
+                )?)])
+                .saturating_add(tools_tokens)
                 .saturating_add(if can_record_system_pack {
                     0
                 } else {
@@ -77,6 +95,7 @@ pub(in crate::dynamic_llm) async fn prepare_dynamic_llm_trace_context(
             let non_system_messages = non_system_messages(&request.messages);
             let task_delta_tokens = provider
                 .count_messages_tokens(&non_system_messages)
+                .saturating_add(tools_tokens)
                 .saturating_add(if can_record_system_pack {
                     0
                 } else {

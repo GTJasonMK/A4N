@@ -28,25 +28,28 @@ async fn closed_receiver_cancels_stream_across_independent_gateway_process() {
         .await
         .expect("manager should start the independent gateway binary");
     let client = gateway_client(addr);
-    let (event_tx, event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+    let request = gateway_request_for_model(
+        "process-cancel-request",
+        "process-cancel-trace",
+        &hanging_provider_base_url,
+        "process-cancel-model",
+        ChatRequest::system_user("system", "cancel ping", None, Some(16), None),
+    );
+    let stream_client = gateway_client(addr);
+    let stream = tokio::spawn(async move { stream_client.stream(request, event_tx).await });
+    let first = timeout(Duration::from_secs(5), event_rx.recv())
+        .await
+        .expect("provider should start streaming before cancellation")
+        .expect("first provider chunk should reach the receiver");
+    assert_eq!(first.event_kind, CapabilityTaskEventKind::Chunk);
     drop(event_rx);
 
-    let error = timeout(
-        Duration::from_secs(5),
-        client.stream(
-            gateway_request_for_model(
-                "process-cancel-request",
-                "process-cancel-trace",
-                &hanging_provider_base_url,
-                "process-cancel-model",
-                ChatRequest::system_user("system", "cancel ping", None, Some(16), None),
-            ),
-            event_tx,
-        ),
-    )
-    .await
-    .expect("typed stream should observe the closed receiver before timeout")
-    .expect_err("closed event receiver must cancel the typed stream");
+    let error = timeout(Duration::from_secs(5), stream)
+        .await
+        .expect("typed stream should observe the closed receiver before timeout")
+        .expect("stream task should join")
+        .expect_err("closed event receiver must cancel the typed stream");
     timeout(Duration::from_secs(5), provider_body_dropped)
         .await
         .expect("provider response body should be dropped before timeout")

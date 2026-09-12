@@ -50,6 +50,11 @@ impl Stream for QueueTrackedLlmStream {
         if self.terminal.is_finished() {
             return Poll::Ready(None);
         }
+        if self.terminal.poll_cancelled(cx) {
+            self.inner = Box::pin(futures::stream::empty());
+            self.terminal.start_failed(AppError::Cancelled);
+            return self.terminal.poll(cx);
+        }
         match self.inner.as_mut().poll_next(cx) {
             Poll::Ready(Some(Ok(chunk))) => {
                 self.terminal.observe_chunk(&chunk);

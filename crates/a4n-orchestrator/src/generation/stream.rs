@@ -25,8 +25,6 @@ use super::{
 };
 use crate::OrchestratorContext;
 
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-const TOTAL_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 const BATCH_DELAY: Duration = Duration::from_millis(50);
 const BATCH_BYTES: usize = MAX_TEXT_DELTA_BYTES;
 pub(crate) const REASONING_STREAM_ID: &str = "reasoning";
@@ -193,26 +191,25 @@ pub(crate) async fn execute_llm_generation(
         "正在连接模型",
     )
     .await?;
-    let started = Instant::now();
-    let mut stream = tokio::select! {
-        _ = cancellation.cancelled() => return Err(cancelled_error()),
-        result = tokio::time::timeout(CONNECT_TIMEOUT, llm.chat_stream(request)) => match result {
-            Ok(Ok(stream)) => stream,
-            Ok(Err(error)) => {
-                tracing::error!(
-                    stage_code = "provider_connect",
-                    error = %error,
-                    "模型流建立失败"
-                );
-                let message = format!(
-                    "模型流建立失败：{}",
-                    a4n_config::app_error_plain_message(error)
-                );
-                return Err(public_error("provider_job_failed", &message, true, "provider_connect"));
-            }
-            Err(_) => return Err(public_error("llm_stream_connect_timeout", "模型流连接超时", true, "provider_connect")),
-        },
-    };
+    let mut stream =
+        a4n_llm::provider::open_chat_stream(llm.chat_stream(request), cancellation.clone())
+            .await
+            .map_err(|error| {
+                if matches!(error, AppError::Cancelled) {
+                    return cancelled_error();
+                }
+                tracing::error!(stage_code = "provider_connect", error = %error, "模型流建立失败");
+                let retryable = matches!(error, AppError::Timeout(_) | AppError::LlmError(_));
+                public_error(
+                    "provider_job_failed",
+                    &format!(
+                        "模型调用准备或建流失败：{}",
+                        a4n_config::app_error_plain_message(error)
+                    ),
+                    retryable,
+                    "provider_connect",
+                )
+            })?;
     publish_progress(
         publisher,
         "provider_wait",
@@ -222,7 +219,6 @@ pub(crate) async fn execute_llm_generation(
     .await?;
     checkpoint_if_due(checkpoint.as_ref()).await?;
 
-    let total_deadline = started + TOTAL_TIMEOUT;
     let mut flush_deadline = None;
     let mut saw_content = false;
     let mut content = String::new();
@@ -243,11 +239,9 @@ pub(crate) async fn execute_llm_generation(
             Item(T),
             Flush,
             Cancelled,
-            TotalTimeout,
         }
         let next = tokio::select! {
             _ = cancellation.cancelled() => Next::Cancelled,
-            _ = tokio::time::sleep_until(total_deadline) => Next::TotalTimeout,
             _ = wait_until(flush_deadline) => Next::Flush,
             item = stream.next() => Next::Item(item),
         };
@@ -262,16 +256,6 @@ pub(crate) async fn execute_llm_generation(
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
                 flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
                 return Err(cancelled_error());
-            }
-            Next::TotalTimeout => {
-                flush_text(publisher, &stream_id, &mut pending_text).await?;
-                flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
-                return Err(public_error(
-                    "llm_stream_total_timeout",
-                    "模型流超过总时限",
-                    true,
-                    "provider_stream",
-                ));
             }
             Next::Item(None) => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
@@ -295,6 +279,9 @@ pub(crate) async fn execute_llm_generation(
             Next::Item(Some(Err(error))) => {
                 flush_text(publisher, &stream_id, &mut pending_text).await?;
                 flush_text(publisher, REASONING_STREAM_ID, &mut pending_reasoning).await?;
+                if matches!(error, AppError::Cancelled) {
+                    return Err(cancelled_error());
+                }
                 tracing::error!(
                     stage_code = "provider_stream",
                     error = %error,

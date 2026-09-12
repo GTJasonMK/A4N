@@ -109,7 +109,7 @@ pub(super) fn ensure_video_output_not_truncated(
             llm_token_profiles::MEDIA_PROMPT
         )));
     }
-    Ok(())
+    a4n_llm::provider::validate_finish_reason(finish_reason)
 }
 
 pub(super) fn log_video_prompt_usage(prompt_name: &str, usage: Option<&UsageInfo>, streamed: bool) {

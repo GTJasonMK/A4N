@@ -115,16 +115,9 @@ async fn submit_prepared_canvas_graph_run(
         return Err(error.to_string());
     }
     let summary = prepared.summary(WORKFLOW_STATUS_RUNNING, None);
-    let runtime_snapshot = crate::runtime_config::current_snapshot();
     let background_state = state.clone();
-    tokio::spawn(async move {
-        match run_prepared_canvas_graph_with_runtime_config(
-            &background_state,
-            prepared,
-            runtime_snapshot,
-        )
-        .await
-        {
+    tokio::spawn(crate::runtime_config::inherit_runtime_context(async move {
+        match run_prepared_canvas_graph(&background_state, prepared).await {
             Ok(summary) if summary.status == WORKFLOW_STATUS_CANCELLED => {
                 tracing::info!(
                     workflow_run_id = summary.workflow_run_id,
@@ -143,21 +136,8 @@ async fn submit_prepared_canvas_graph_run(
                 tracing::error!(error = %error, "画布后台运行失败，且终态写入未能完成");
             }
         }
-    });
+    }));
     Ok(summary)
-}
-
-async fn run_prepared_canvas_graph_with_runtime_config(
-    state: &AppState,
-    prepared: PreparedCanvasGraphRun,
-    runtime_snapshot: Option<crate::runtime_config::RuntimeConfigSnapshot>,
-) -> Result<CanvasRunSummary, String> {
-    match runtime_snapshot {
-        Some(snapshot) => {
-            crate::runtime_config::scope(snapshot, run_prepared_canvas_graph(state, prepared)).await
-        }
-        None => run_prepared_canvas_graph(state, prepared).await,
-    }
 }
 
 async fn run_prepared_canvas_graph(

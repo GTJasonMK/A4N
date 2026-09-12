@@ -178,6 +178,9 @@ async fn fake_chat_completions(
                     "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"x\"},\"finish_reason\":null}]}\n\n",
                 );
             }
+            stream.push_str(
+                "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+            );
             stream.push_str("data: [DONE]\n\n");
             return ([(header::CONTENT_TYPE, "text/event-stream")], stream).into_response();
         }
@@ -185,7 +188,7 @@ async fn fake_chat_completions(
             [(header::CONTENT_TYPE, "text/event-stream")],
             concat!(
                 "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"pro\"},\"finish_reason\":null}]}\n\n",
-                "data: {\"choices\":[{\"index\":1,\"delta\":{\"content\":\"cess\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2,\"total_tokens\":6}}\n\n",
+                "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"cess\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2,\"total_tokens\":6}}\n\n",
                 "data: [DONE]\n\n"
             ),
         )

@@ -17,17 +17,19 @@ impl HttpSidecarTransport {
         events: tokio::sync::mpsc::Sender<CapabilityTaskEvent>,
     ) -> CapabilityResult<()> {
         let client = self.request_client()?;
-        let response = tokio::time::timeout(self.connect_timeout, async {
-            self.authorize_request(client.post(self.url(path)), &request)?
-                .json(&request)
-                .send()
-                .await
-                .map_err(transport_error)?
-                .error_for_status()
-                .map_err(transport_error)
-        })
-        .await
-        .map_err(|_| timeout_error("event stream connect"))??;
+        let response = tokio::select! {
+            biased;
+            _ = events.closed() => return Err(cancelled_error()),
+            response = tokio::time::timeout(self.connect_timeout, async {
+                self.authorize_request(client.post(self.url(path)), &request)?
+                    .json(&request)
+                    .send()
+                    .await
+                    .map_err(transport_error)?
+                    .error_for_status()
+                    .map_err(transport_error)
+            }) => response.map_err(|_| timeout_error("event stream connect"))??,
+        };
         if response
             .headers()
             .get(CONTENT_TYPE)

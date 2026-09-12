@@ -52,6 +52,11 @@ impl Stream for QueueTrackedSidecarLlmStream {
         if self.terminal.is_finished() {
             return Poll::Ready(None);
         }
+        if self.terminal.poll_cancelled(cx) {
+            self.events.close();
+            self.terminal.start_failed(AppError::Cancelled);
+            return self.terminal.poll(cx);
+        }
         loop {
             let event = match self.events.poll_recv(cx) {
                 Poll::Ready(Some(event)) => event,

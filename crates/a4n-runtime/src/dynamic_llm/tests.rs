@@ -11,8 +11,11 @@ use a4n_test_support::capability::RecordingLlmClient;
 use crate::dynamic_llm::trace::validated_authoritative_trace_root_project_id;
 
 use super::budget::ensure_max_tokens_within_model_cap;
-use super::config::{chat_via_sidecar, probe_llm_via_sidecar, require_sidecar_business_trace};
-use super::contracts::ResolvedLlmModel;
+use super::config::{probe_llm_via_sidecar, require_sidecar_business_trace};
+use super::contracts::{DynamicLlmProvider, ResolvedLlmModel};
+
+mod support;
+use support::TestProviderPort;
 
 #[test]
 fn max_tokens_cap_accepts_missing_or_within_limit() {
@@ -176,30 +179,113 @@ async fn sidecar_chat_keeps_incremental_tool_calls_and_tail_usage() {
         }
     }
 
-    let response = chat_via_sidecar(
+    let port = Arc::new(TestProviderPort::default());
+    let provider = DynamicLlmProvider::new_with_sidecar_client(
+        crate::provider_runtime::DynamicProviderFacade::new(port.clone()),
         Arc::new(ToolStreamClient),
-        ResolvedLlmModel::new(test_llm_model()).expect("resolved model"),
-        test_chat_request(),
-        &LlmTraceContext {
-            project_id: Some(1),
-            root_project_id: Some(1),
-            workflow: "agent".into(),
-            step_key: "model_call".into(),
-            generation_run_id: None,
-            workflow_run_id: None,
-            call_key: Some("run-1".into()),
-            input_fingerprint_sha256: None,
-            context_plan_json: None,
-            context_pack_refs_json: None,
-        },
-    )
-    .await
-    .expect("sidecar tool stream should collect");
+    );
+    let response = provider
+        .chat_with_config_id(
+            None,
+            test_chat_request().with_trace_context(LlmTraceContext {
+                project_id: Some(1),
+                root_project_id: Some(1),
+                workflow: "agent".into(),
+                step_key: "model_call".into(),
+                generation_run_id: None,
+                workflow_run_id: None,
+                call_key: Some("run-1".into()),
+                input_fingerprint_sha256: None,
+                context_plan_json: None,
+                context_pack_refs_json: None,
+            }),
+        )
+        .await
+        .expect("sidecar tool stream should collect");
 
     let call = response.message.tool_calls.expect("tool call").remove(0);
     assert_eq!(call.id, "call-1");
     assert_eq!(call.arguments, serde_json::json!({"project_id": 7}));
     assert_eq!(response.usage.map(|usage| usage.total_tokens), Some(5));
+    assert_eq!(port.limits.lock().unwrap().len(), 1);
+    assert_eq!(*port.statuses.lock().unwrap(), ["completed"]);
+}
+
+#[tokio::test]
+async fn remote_identity_without_snapshot_never_resolves_server_credentials() {
+    let port = Arc::new(TestProviderPort::default());
+    let provider = DynamicLlmProvider::new(crate::provider_runtime::DynamicProviderFacade::new(
+        port.clone(),
+    ));
+    let result = crate::runtime_config::request_scope(
+        7,
+        None,
+        provider.chat_with_config_id(None, test_chat_request()),
+    )
+    .await;
+    assert!(matches!(result, Err(AppError::ConfigError(_))));
+    assert_eq!(
+        port.resolutions.load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+}
+
+#[tokio::test]
+async fn queue_cancellation_ends_a_sidecar_stream_as_cancelled() {
+    use futures::StreamExt;
+    let port = Arc::new(TestProviderPort::default());
+    let provider = DynamicLlmProvider::new_with_sidecar_client(
+        crate::provider_runtime::DynamicProviderFacade::new(port.clone()),
+        Arc::new(RecordingLlmClient::new(successful_probe_response())),
+    );
+    let mut request = test_chat_request();
+    request.trace_context = Some(LlmTraceContext {
+        project_id: None,
+        root_project_id: None,
+        workflow: "agent".into(),
+        step_key: "model".into(),
+        generation_run_id: None,
+        workflow_run_id: None,
+        call_key: None,
+        input_fingerprint_sha256: None,
+        context_plan_json: None,
+        context_pack_refs_json: None,
+    });
+    let mut stream = provider
+        .chat_stream_with_config_id(None, request)
+        .await
+        .unwrap();
+    port.cancel.cancel();
+    assert!(matches!(
+        stream.next().await,
+        Some(Err(AppError::Cancelled))
+    ));
+    assert!(stream.next().await.is_none());
+    assert_eq!(*port.statuses.lock().unwrap(), ["cancelled"]);
+}
+
+#[test]
+fn concurrency_identity_excludes_limit_but_separates_credentials() {
+    let model = test_llm_model();
+    let first = ResolvedLlmModel::new(model.clone())
+        .unwrap()
+        .concurrency_limit();
+    let mut changed = model;
+    changed.max_concurrent = 5;
+    let second = ResolvedLlmModel::new(changed.clone())
+        .unwrap()
+        .concurrency_limit();
+    assert_eq!(first.key, second.key);
+    assert_eq!(second.max_concurrent, 5);
+    changed.api_key = Some("another-test-key".into());
+    assert_ne!(
+        first.key,
+        ResolvedLlmModel::new(changed)
+            .unwrap()
+            .concurrency_limit()
+            .key
+    );
+    assert!(!first.key.contains("test-key"));
 }
 
 #[test]

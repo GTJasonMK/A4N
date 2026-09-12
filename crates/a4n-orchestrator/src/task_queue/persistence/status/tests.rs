@@ -56,7 +56,7 @@ async fn mark_failed_records_error() {
 }
 
 #[tokio::test]
-async fn task_status_and_workflow_active_task_update_together() {
+async fn generation_task_status_and_workflow_owner_update_together() {
     let db = setup_db().await;
     let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
     let workflow = upsert_workflow_run(
@@ -84,7 +84,7 @@ async fn task_status_and_workflow_active_task_update_together() {
     .unwrap();
     let task_id = queue
         .submit_internal(
-            TaskKind::LlmCall,
+            TaskKind::TextGeneration,
             TaskPriority::Medium,
             Some(7),
             None,
@@ -123,7 +123,13 @@ async fn missing_workflow_rolls_back_task_status_update() {
     let db = setup_db().await;
     let queue = PersistentTaskQueue::new(db.clone()).await.unwrap();
     let task_id = queue
-        .submit_internal(TaskKind::LlmCall, TaskPriority::Medium, None, None, None)
+        .submit_internal(
+            TaskKind::TextGeneration,
+            TaskPriority::Medium,
+            None,
+            None,
+            None,
+        )
         .await
         .unwrap();
     let task = task_queue::Entity::find_by_id(task_id.clone())
