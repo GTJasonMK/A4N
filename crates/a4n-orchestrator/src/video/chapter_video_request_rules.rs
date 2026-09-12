@@ -6,7 +6,7 @@ use a4n_domain::image::reference_image_ids;
 use a4n_domain::prompt_language::PromptOutputLanguage;
 use a4n_prompt::rendering::PromptRenderer;
 use a4n_provider_contract::VideoProviderConfig;
-use a4n_video::VideoGenerationRequest;
+use a4n_video::{VideoGenerationRequest, video_request_prompt_length_context};
 use serde_json::{Value, json};
 
 use super::{
@@ -409,22 +409,6 @@ pub(crate) fn chapter_video_provider_descriptor(
     Ok(descriptor)
 }
 
-pub fn video_request_prompt_length_context(request: &VideoGenerationRequest) -> String {
-    format!(
-        "实际发送 prompt：{} 字符 / {} UTF-8 字节",
-        request.prompt.chars().count(),
-        request.prompt.len()
-    )
-}
-
-pub fn append_video_request_prompt_length_context(error: String, context: &str) -> String {
-    if error.contains(context) {
-        error
-    } else {
-        format!("{error}；{context}")
-    }
-}
-
 pub(crate) fn sanitized_chapter_video_request_for_snapshot(
     context: &ChapterVideoProviderRequestContext,
 ) -> Result<VideoGenerationRequest, String> {
@@ -482,7 +466,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn negative_prompt_and_length_context_are_stable() {
+    fn negative_prompt_is_stable() {
         assert_eq!(
             provider_specific_negative_prompt(Some("  无特殊要求  ")),
             None
@@ -490,18 +474,6 @@ mod tests {
         assert_eq!(
             provider_specific_negative_prompt(Some("  手机屏幕反光过强  ")),
             Some("手机屏幕反光过强".to_string())
-        );
-        let context = "实际发送 prompt：10 字符 / 20 UTF-8 字节";
-        assert_eq!(
-            append_video_request_prompt_length_context("provider failed".to_string(), context),
-            format!("provider failed；{context}")
-        );
-        assert_eq!(
-            append_video_request_prompt_length_context(
-                format!("provider failed；{context}"),
-                context,
-            ),
-            format!("provider failed；{context}")
         );
     }
 }
