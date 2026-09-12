@@ -125,10 +125,6 @@ impl RagSyncContext {
         })
     }
 
-    pub fn project_id(&self) -> i64 {
-        self.project_id
-    }
-
     pub(crate) fn into_port_snapshot(
         self,
     ) -> (EmbeddingModelIdentity, HashMap<String, Value>, Vec<String>) {
