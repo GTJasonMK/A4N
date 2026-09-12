@@ -346,7 +346,7 @@ export const VideoGenerationWorkspace: React.FC<
             <img
               src={src}
               alt=""
-              className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+              className="h-full w-full object-cover"
               onError={() =>
                 setFailedFrameMediaSrcs((current) => new Set(current).add(src))
               }
@@ -417,7 +417,7 @@ export const VideoGenerationWorkspace: React.FC<
             <img
               src={selectedContinuityTailFrameSrc}
               alt=""
-              className="h-full w-full object-cover transition-transform group-hover:scale-[1.02]"
+              className="h-full w-full object-cover"
               onError={() =>
                 setFailedFrameMediaSrcs((current) =>
                   new Set(current).add(selectedContinuityTailFrameSrc),

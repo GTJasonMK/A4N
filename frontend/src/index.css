@@ -1057,8 +1057,7 @@ body {
     transition:
       background var(--a4n-motion-fast) var(--a4n-ease-out),
       border-color var(--a4n-motion-fast) var(--a4n-ease-out),
-      box-shadow var(--a4n-motion) var(--a4n-ease-out),
-      transform var(--a4n-motion) var(--a4n-ease-out);
+      box-shadow var(--a4n-motion) var(--a4n-ease-out);
     backdrop-filter: blur(var(--a4n-surface-blur));
     -webkit-backdrop-filter: blur(var(--a4n-surface-blur));
   }
@@ -1067,7 +1066,6 @@ body {
     background: rgb(var(--color-bg-secondary) / var(--a4n-card-opacity));
     border-color: rgb(var(--color-primary) / 0.18);
     box-shadow: var(--shadow-card-hover);
-    transform: translateY(-1px);
   }
 
   .a4n-interactive-row:focus-visible {
@@ -4185,8 +4183,7 @@ body {
 }
 
 .a4n-seg__btn:active:not(:disabled),
-.a4n-sidebar-item:active,
-.a4n-interactive-row:active {
+.a4n-sidebar-item:active {
   transform: scale(0.985);
 }
 

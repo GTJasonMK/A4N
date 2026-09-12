@@ -98,7 +98,7 @@ export function ConfigListSidebar<C>({
                         className={
                           selected
                             ? "text-book-primary"
-                            : "text-book-text-muted transition-transform group-hover:translate-x-0.5"
+                            : "text-book-text-muted transition-colors group-hover:text-book-primary"
                         }
                       />
                     </span>

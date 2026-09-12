@@ -58,7 +58,7 @@ export const PortraitGalleryGrid: React.FC<PortraitGalleryGridProps> = ({
                   alt={profile?.name
                     ? t("characterDetail.portrait.alt", { name: profile.name })
                     : t("characterDetail.portrait.altGeneric")}
-                  className="h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.02]"
+                  className="h-full w-full object-cover"
                 />
               ) : (
                 <span>{t("characterDetail.portrait.noImage")}</span>

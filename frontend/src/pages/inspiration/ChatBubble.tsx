@@ -22,9 +22,9 @@ const OptionCard: React.FC<{
       type="button"
       onClick={onSend}
       disabled={!interactive}
-      className={`inspiration-option-card w-full rounded-2xl border px-3.5 py-3 text-left text-book-text-main ${
+      className={`inspiration-option-card w-full rounded-[8px] border px-3.5 py-3 text-left text-book-text-main ${
         interactive
-          ? "border-book-primary/45 bg-book-bg-paper transition-[transform,border-color,background-color,box-shadow] duration-150 ease-out hover:-translate-y-px hover:border-book-primary/70 hover:bg-book-bg-paper hover:shadow-[var(--shadow-card)] active:translate-y-0"
+          ? "border-book-primary/45 bg-book-bg-paper transition-[border-color,background-color,box-shadow] duration-150 ease-out hover:border-book-primary/70 hover:bg-book-bg-paper hover:shadow-[var(--shadow-card)]"
           : "cursor-not-allowed border-book-border/35 bg-book-bg-tertiary/35 opacity-55"
       }`}
     >
@@ -34,7 +34,7 @@ const OptionCard: React.FC<{
           className={`mt-0.5 shrink-0 ${interactive ? "text-book-accent" : "text-book-text-muted"}`}
         />
         <div className="min-w-0">
-          <div className="text-body font-semibold leading-snug tracking-tight">{option.label}</div>
+          <div className="text-body font-semibold leading-snug">{option.label}</div>
           {option.description && (
             <div className="mt-1 text-xs leading-relaxed text-book-text-muted">
               {option.description}
@@ -107,12 +107,11 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           className={`text-small font-semibold mb-1 px-1 ${
             isUser ? "text-book-primary" : "text-book-text-muted"
           }`}
-          style={{ letterSpacing: "0.04em" }}
         >
           {isUser ? t("inspiration.you") : t("inspiration.creativeAssistant")}
         </div>
         <div
-          className={`px-4 py-3 text-body-lg leading-relaxed whitespace-pre-wrap break-words tracking-tight ${
+          className={`px-4 py-3 text-body-lg leading-relaxed whitespace-pre-wrap break-words ${
             isUser
               ? "rounded-[18px] rounded-br-md bg-book-primary text-[rgb(var(--color-button-text))] shadow-sm"
               : "rounded-[18px] rounded-bl-md border border-book-border/45 bg-book-bg-paper/65 text-book-text-main"
@@ -152,7 +151,7 @@ export const ChatBubble: React.FC<ChatBubbleProps> = ({
           {showPendingSkeleton && (
             <div
               aria-hidden="true"
-              className="inspiration-option-card inspiration-option-card-skeleton w-full rounded-2xl border border-dashed border-book-accent/35 bg-book-accent/5 px-3.5 py-3 text-left"
+              className="inspiration-option-card inspiration-option-card-skeleton w-full rounded-[8px] border border-dashed border-book-accent/35 bg-book-accent/5 px-3.5 py-3 text-left"
             >
               <div className="flex items-start gap-2">
                 <div className="mt-0.5 h-3 w-3 shrink-0 rounded-md bg-book-accent/30" />
