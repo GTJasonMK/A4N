@@ -27,6 +27,7 @@ pub(super) struct QueueTrackedStreamTerminal {
     usage: Option<UsageInfo>,
     finish_reason: Option<String>,
     terminal_task: Option<tokio::task::JoinHandle<Result<(), AppError>>>,
+    cancelled: Pin<Box<dyn Future<Output = ()> + Send>>,
     finished: bool,
 }
 
@@ -42,6 +43,7 @@ impl QueueTrackedStreamTerminal {
         Self {
             kind,
             facade,
+            cancelled: Box::pin(running_task.cancellation_token().cancelled_owned()),
             running_task: Some(running_task),
             trace_context,
             model_name,
@@ -65,6 +67,10 @@ impl QueueTrackedStreamTerminal {
         self.running_task.is_some() && !self.finished
     }
 
+    pub(super) fn poll_cancelled(&mut self, cx: &mut Context<'_>) -> bool {
+        self.cancelled.as_mut().poll(cx).is_ready()
+    }
+
     pub(super) fn observe_chunk(&mut self, chunk: &ChatChunk) {
         if let Some(usage) = chunk.usage.clone() {
             self.usage = Some(usage);
@@ -78,6 +84,11 @@ impl QueueTrackedStreamTerminal {
         if self.finished || self.terminal_task.is_some() {
             return;
         }
+        if let Err(error) = a4n_llm::provider::classify_finish_reason(self.finish_reason.as_deref())
+        {
+            self.start_failed(error);
+            return;
+        }
         let Some(running_task) = self.running_task.take() else {
             return;
         };
@@ -86,20 +97,16 @@ impl QueueTrackedStreamTerminal {
         let trace_context = self.trace_context.clone();
         let model_name = self.model_name.clone();
         let duration_ms = Some(self.started.elapsed().as_millis() as i64);
-        let usage = self.usage.clone();
-        let finish_reason = self.finish_reason.clone();
-        self.terminal_task = Some(start_completed_sync(
-            TerminalSyncContext {
-                kind,
-                running_task,
-                facade,
-                trace_context,
-                model_name,
-                duration_ms,
-            },
-            usage,
-            finish_reason,
-        ));
+        self.terminal_task = Some(start_completed_sync(TerminalSyncContext {
+            kind,
+            running_task,
+            facade,
+            trace_context,
+            model_name,
+            duration_ms,
+            usage: self.usage.clone(),
+            finish_reason: self.finish_reason.clone(),
+        }));
     }
 
     pub(super) fn start_failed(&mut self, error: AppError) {
@@ -123,6 +130,8 @@ impl QueueTrackedStreamTerminal {
                 trace_context,
                 model_name,
                 duration_ms,
+                usage: self.usage.clone(),
+                finish_reason: self.finish_reason.clone(),
             },
             error,
             message,
@@ -150,6 +159,8 @@ impl QueueTrackedStreamTerminal {
                 trace_context,
                 model_name,
                 duration_ms,
+                usage: self.usage.clone(),
+                finish_reason: self.finish_reason.clone(),
             },
             error,
             message,

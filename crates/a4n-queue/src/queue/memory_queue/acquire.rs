@@ -1,8 +1,7 @@
-use std::sync::Arc;
 use std::time::Duration;
 
+use a4n_domain::task_queue::LlmConcurrencyLimit;
 use a4n_error::AppError;
-use tokio::sync::Semaphore;
 use tokio_util::sync::CancellationToken;
 
 use super::kind::{QueueKind, queue_kind_for_task_type};
@@ -16,7 +15,7 @@ impl MemoryTaskQueue {
         task_type: TaskKind,
         priority: TaskPriority,
         cancellation_token: CancellationToken,
-        semaphore: Option<Arc<Semaphore>>,
+        slot: Option<Box<dyn Send>>,
     ) -> TaskPermit {
         let queue = self.clone();
         let task_id_clone = task_id.clone();
@@ -32,9 +31,7 @@ impl MemoryTaskQueue {
             }
 
             queue.cancel_tokens.remove(&task_id_clone);
-            if let Some(semaphore) = semaphore {
-                semaphore.add_permits(1);
-            }
+            drop(slot);
         });
 
         TaskPermit::with_cancellation_token(
@@ -51,7 +48,7 @@ impl MemoryTaskQueue {
         task_id: &str,
         cancel_token: CancellationToken,
     ) -> Result<Option<TaskPermit>, AppError> {
-        self.acquire_task_with_cancel_inner(task_id, cancel_token, true)
+        self.acquire_task_with_cancel_inner(task_id, cancel_token, true, None)
             .await
     }
 
@@ -60,7 +57,17 @@ impl MemoryTaskQueue {
         task_id: &str,
         cancel_token: CancellationToken,
     ) -> Result<Option<TaskPermit>, AppError> {
-        self.acquire_task_with_cancel_inner(task_id, cancel_token, false)
+        self.acquire_task_with_cancel_inner(task_id, cancel_token, false, None)
+            .await
+    }
+
+    pub async fn acquire_llm_call_with_cancel(
+        &self,
+        task_id: &str,
+        cancel_token: CancellationToken,
+        limit: LlmConcurrencyLimit,
+    ) -> Result<Option<TaskPermit>, AppError> {
+        self.acquire_task_with_cancel_inner(task_id, cancel_token, true, Some(limit))
             .await
     }
 
@@ -69,6 +76,7 @@ impl MemoryTaskQueue {
         task_id: &str,
         cancel_token: CancellationToken,
         allow_reentrant: bool,
+        llm_limit: Option<LlmConcurrencyLimit>,
     ) -> Result<Option<TaskPermit>, AppError> {
         loop {
             if cancel_token.is_cancelled() {
@@ -107,82 +115,77 @@ impl MemoryTaskQueue {
 
             let kind = queue_kind_for_task_type(&task.task_type);
             let semaphore = self.semaphore_for_kind(kind).clone();
-            if allow_reentrant
+            let reentrant = allow_reentrant
                 && ((matches!(kind, QueueKind::Llm) && crate::scope::llm_slot_is_held())
                     || (matches!(kind, QueueKind::Image) && crate::scope::image_slot_is_held())
-                    || (matches!(kind, QueueKind::Video) && crate::scope::video_slot_is_held()))
-            {
+                    || (matches!(kind, QueueKind::Video) && crate::scope::video_slot_is_held()));
+            // Keep process admission before provider admission. Taking these in
+            // the opposite order could deadlock a workflow that already owns a slot.
+            let mut slot: Option<Box<dyn Send>> = if reentrant {
                 if !waiting::remove_task(&self.waiting, task_id) {
+                    if task_cancellation.is_cancelled() || cancel_token.is_cancelled() {
+                        return Ok(None);
+                    }
                     return Err(AppError::Internal(anyhow::anyhow!(
                         "任务不在等待队列中：{task_id}"
                     )));
                 }
-                if task_cancellation.is_cancelled() {
-                    return Ok(None);
-                }
-                self.update_status(
-                    task_id,
-                    TaskStatus::Running,
-                    Some(TaskProgress {
-                        current: 0,
-                        total: 0,
-                        message: "开始执行".into(),
-                        meta: None,
-                        updated_at: Some(chrono::Utc::now().to_rfc3339()),
-                    }),
-                );
-                return Ok(Some(self.make_permit(
-                    task_id.to_string(),
-                    task.task_type,
-                    task.priority,
-                    task_cancellation,
-                    None,
-                )));
-            }
-            match tokio::time::timeout(Duration::from_millis(500), semaphore.acquire()).await {
-                Ok(Ok(permit)) => {
-                    match waiting::pop_specific_if_next(&self.waiting, &self.tasks, task_id, kind) {
-                        waiting::SpecificPop::Ready {
-                            task_type,
-                            priority,
-                        } => {
-                            if task_cancellation.is_cancelled() {
-                                drop(permit);
-                                return Ok(None);
-                            }
-                            self.update_status(
-                                task_id,
-                                TaskStatus::Running,
-                                Some(TaskProgress {
-                                    current: 0,
-                                    total: 0,
-                                    message: "开始执行".into(),
-                                    meta: None,
-                                    updated_at: Some(chrono::Utc::now().to_rfc3339()),
-                                }),
-                            );
-                            std::mem::forget(permit);
-                            return Ok(Some(self.make_permit(
-                                task_id.to_string(),
-                                task_type,
-                                priority,
-                                task_cancellation,
-                                Some(semaphore.clone()),
-                            )));
-                        }
-                        waiting::SpecificPop::Blocked | waiting::SpecificPop::Missing => {
-                            drop(permit);
-                            tokio::time::sleep(Duration::from_millis(100)).await;
-                        }
+                None
+            } else {
+                let acquired = tokio::select! {
+                    biased;
+                    _ = cancel_token.cancelled() => return Ok(None),
+                    _ = task_cancellation.cancelled() => return Ok(None),
+                    result = tokio::time::timeout(Duration::from_millis(500), semaphore.clone().acquire_owned()) => result,
+                };
+                let permit = match acquired {
+                    Ok(Ok(permit)) => permit,
+                    Ok(Err(_)) | Err(_) => continue,
+                };
+                match waiting::pop_specific_if_next(&self.waiting, &self.tasks, task_id, kind) {
+                    waiting::SpecificPop::Ready => Some(Box::new(permit)),
+                    waiting::SpecificPop::Blocked | waiting::SpecificPop::Missing => {
+                        drop(permit);
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                        continue;
                     }
                 }
-                Ok(Err(_)) => continue,
-                Err(_) => {
-                    if cancel_token.is_cancelled() {
-                        return Ok(None);
-                    }
+            };
+            if let Some(limit) = llm_limit.as_ref() {
+                if task.task_type != TaskKind::LlmCall {
+                    return Err(AppError::InvalidArgument(
+                        "LLM 并发限制只能用于 llm_call".into(),
+                    ));
                 }
+                let provider_slot = tokio::select! {
+                    biased;
+                    _ = cancel_token.cancelled() => return Ok(None),
+                    _ = task_cancellation.cancelled() => return Ok(None),
+                    permit = self.llm_limits.acquire(limit, task.priority) => permit?,
+                };
+                slot = Some(Box::new((slot, provider_slot)));
             }
+            if task_cancellation.is_cancelled() || cancel_token.is_cancelled() {
+                return Ok(None);
+            }
+            self.update_status(
+                task_id,
+                TaskStatus::Running,
+                Some(TaskProgress {
+                    current: 0,
+                    total: 0,
+                    message: "开始执行".into(),
+                    meta: None,
+                    updated_at: Some(chrono::Utc::now().to_rfc3339()),
+                }),
+            );
+            return Ok(Some(self.make_permit(
+                task_id.to_string(),
+                task.task_type,
+                task.priority,
+                task_cancellation,
+                slot,
+            )));
         }
     }
 }

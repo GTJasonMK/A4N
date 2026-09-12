@@ -6,7 +6,7 @@
 use a4n_domain::llm::{
     ContextPackReference, RecordLlmCallTraceInput, RecordOrReuseContextPackInput,
 };
-use a4n_domain::task_queue::TaskKind;
+use a4n_domain::task_queue::{LlmConcurrencyLimit, TaskKind};
 use a4n_error::AppError;
 use a4n_provider_contract::{EmbeddingProviderConfig, LlmProviderConfig};
 use async_trait::async_trait;
@@ -21,8 +21,10 @@ pub enum ProviderTaskPriority {
 
 #[async_trait]
 pub trait TaskLease: Send {
+    fn cancellation_token(&self) -> CancellationToken;
     async fn complete(self: Box<Self>) -> Result<(), AppError>;
     async fn fail(self: Box<Self>, error: String) -> Result<(), AppError>;
+    async fn cancel(self: Box<Self>) -> Result<(), AppError>;
 }
 
 #[async_trait]
@@ -59,5 +61,6 @@ pub trait ProviderRuntimePort: Send + Sync {
         project_id: Option<i64>,
         workflow_run_id: Option<i64>,
         cancel_token: CancellationToken,
+        llm_limit: Option<LlmConcurrencyLimit>,
     ) -> Result<Box<dyn TaskLease>, AppError>;
 }

@@ -168,7 +168,7 @@ async fn fake_chat_completions(
         [(header::CONTENT_TYPE, "text/event-stream")],
         concat!(
             "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hel\"},\"finish_reason\":null}]}\n\n",
-            "data: {\"choices\":[{\"index\":1,\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\n",
+            "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"lo\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3,\"total_tokens\":5}}\n\n",
             "data: [DONE]\n\n"
         ),
     )
@@ -405,7 +405,7 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks() {
     assert_eq!(events[1].event_kind, CapabilityTaskEventKind::Chunk);
     assert_eq!(events[1].sequence, 2);
     let second = event_chunk(&events[1]);
-    assert_eq!(second.index, 1);
+    assert_eq!(second.index, 0);
     assert_eq!(second.content.as_deref(), Some("lo"));
     assert_eq!(second.finish_reason.as_deref(), Some("stop"));
     assert_eq!(
@@ -420,7 +420,7 @@ async fn typed_stream_client_roundtrips_fake_provider_chunks() {
 }
 
 #[tokio::test]
-async fn closed_typed_event_receiver_drops_gateway_and_provider_http_streams() {
+async fn closed_receiver_cancels_before_and_during_provider_streams() {
     let provider_observation = Arc::new(Mutex::new(None));
     let (provider_disconnected_tx, provider_disconnected_rx) = oneshot::channel();
     let provider = TestHttpServer::start(hanging_fake_provider_router(
@@ -441,16 +441,32 @@ async fn closed_typed_event_receiver_drops_gateway_and_provider_http_streams() {
         },
         request: ChatRequest::system_user("system", "cancel ping", None, Some(16)),
     });
-    let (event_tx, event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
-    drop(event_rx);
-
-    let error = timeout(
-        Duration::from_secs(5),
-        client.stream(json_request(request), event_tx),
+    let (closed_tx, closed_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+    drop(closed_rx);
+    let early_error = timeout(
+        Duration::from_secs(1),
+        client.stream(json_request(request.clone()), closed_tx),
     )
     .await
-    .expect("typed stream should observe the closed receiver before timeout")
-    .expect_err("closed event receiver must cancel the typed stream");
+    .expect("a closed receiver must cancel before opening the request")
+    .expect_err("a closed receiver must not reach the provider");
+    assert_eq!(early_error.code, ServiceErrorCode::Cancelled);
+    assert!(provider_observation.lock().unwrap().is_none());
+
+    let (event_tx, mut event_rx) = tokio::sync::mpsc::channel(SIDECAR_EVENT_QUEUE_CAPACITY);
+    let stream = tokio::spawn(async move { client.stream(json_request(request), event_tx).await });
+    let first = timeout(Duration::from_secs(5), event_rx.recv())
+        .await
+        .expect("provider should start streaming before cancellation")
+        .expect("first provider chunk should reach the receiver");
+    assert_eq!(first.event_kind, CapabilityTaskEventKind::Chunk);
+    drop(event_rx);
+
+    let error = timeout(Duration::from_secs(5), stream)
+        .await
+        .expect("typed stream should observe the closed receiver before timeout")
+        .expect("stream task should join")
+        .expect_err("closed event receiver must cancel the typed stream");
     timeout(Duration::from_secs(5), provider_disconnected_rx)
         .await
         .expect("provider response body should be dropped before timeout")

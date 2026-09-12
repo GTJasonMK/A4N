@@ -16,7 +16,7 @@ pub async fn collect_chat_stream(
     llm: &dyn LlmProvider,
     request: ChatRequest,
 ) -> Result<ChatResponse, AppError> {
-    let stream = llm.chat_stream(request).await?;
+    let stream = super::open_chat_stream(llm.chat_stream(request), Default::default()).await?;
     collect_chat_chunks(stream).await
 }
 
@@ -95,11 +95,7 @@ impl ChatStreamAccumulator {
     }
 
     pub fn finish(self) -> Result<ChatResponse, AppError> {
-        if self.finish_reason.is_none() {
-            return Err(AppError::LlmError(
-                "模型流结束但缺少 finish_reason".to_string(),
-            ));
-        }
+        super::validate_finish_reason(self.finish_reason.as_deref())?;
         let mut message = super::ChatMessage::assistant(self.content);
         message.tool_calls = self.tool_calls.finish()?;
         Ok(ChatResponse {
@@ -288,6 +284,18 @@ mod tests {
         assert_eq!(response.message.content, "ok");
         assert_eq!(response.finish_reason.as_deref(), Some("stop"));
         assert_eq!(response.usage.map(|u| u.total_tokens), Some(2));
+    }
+
+    #[test]
+    fn message_budget_includes_tool_arguments_and_message_framing() {
+        let mut message = ChatMessage::assistant("");
+        message.tool_calls = Some(vec![ToolCall {
+            id: "call-1".to_string(),
+            name: "edit".to_string(),
+            arguments: serde_json::json!({"text": "x".repeat(10_000)}),
+            stream_index: None,
+        }]);
+        assert!(StreamOnlyProvider.count_messages_tokens(&[message]) > 10_000);
     }
 
     #[tokio::test]

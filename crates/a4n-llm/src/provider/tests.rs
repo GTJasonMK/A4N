@@ -14,6 +14,47 @@ fn detects_known_truncated_finish_reasons() {
 }
 
 #[test]
+fn collected_responses_require_a_usable_model_terminal() {
+    for reason in [
+        None,
+        Some(""),
+        Some("length"),
+        Some("max_tokens"),
+        Some("content_filter"),
+        Some("unknown"),
+    ] {
+        let mut accumulator = super::ChatStreamAccumulator::default();
+        accumulator
+            .push(ChatChunk {
+                content: Some("nonempty partial answer".to_string()),
+                reasoning_content: None,
+                tool_calls: None,
+                finish_reason: reason.map(str::to_string),
+                index: 0,
+                usage: None,
+            })
+            .unwrap();
+        assert!(accumulator.finish().is_err(), "must reject {reason:?}");
+    }
+    assert!(super::validate_finish_reason(Some("stop")).is_ok());
+    assert!(super::validate_finish_reason(Some("tool_calls")).is_ok());
+}
+
+#[test]
+fn single_response_options_cannot_enable_multiple_choices_or_override_output_budget() {
+    assert!(normalize_extra_body_json(Some(json!({"n": 1}))).is_ok());
+    for value in [
+        json!({"n": 2}),
+        json!({"n": 0}),
+        json!({"n": "1"}),
+        json!({"N": 2}),
+        json!({"max_completion_tokens": 99999}),
+    ] {
+        assert!(normalize_extra_body_json(Some(value)).is_err());
+    }
+}
+
+#[test]
 fn chat_request_serialization_skips_internal_trace_fields() {
     let mut request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None)
         .with_stream_usage()
@@ -52,7 +93,7 @@ fn chat_request_serialization_omits_default_stream_usage() {
 
 #[test]
 fn chat_request_snapshot_preserves_internal_context() {
-    let mut request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None, None)
+    let mut request = ChatRequest::new(vec![ChatMessage::user("hello")], None, None)
         .with_trace_context(LlmTraceContext {
             project_id: Some(1),
             root_project_id: Some(1),

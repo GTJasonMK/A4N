@@ -5,14 +5,11 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 
 use super::kind::{QueueKind, queue_kind_for_task_type};
-use crate::queue::priority::{TaskInfo, TaskKind, TaskPriority, TaskStatus};
+use crate::queue::priority::{TaskInfo, TaskPriority, TaskStatus};
 
 #[derive(Debug, Clone)]
 pub(super) enum SpecificPop {
-    Ready {
-        task_type: TaskKind,
-        priority: TaskPriority,
-    },
+    Ready,
     Blocked,
     Missing,
 }
@@ -87,10 +84,7 @@ pub(super) fn pop_specific_if_next(
         }
 
         if waiting_task.task_id == task_id {
-            result = SpecificPop::Ready {
-                task_type: task_info.task_type,
-                priority: task_info.priority,
-            };
+            result = SpecificPop::Ready;
         } else {
             remaining.push(waiting_task);
             result = SpecificPop::Blocked;

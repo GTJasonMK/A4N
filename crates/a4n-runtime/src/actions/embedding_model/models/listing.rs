@@ -25,7 +25,7 @@ pub fn list_local_embedding_models_in_cache(
 ) -> Result<Vec<LocalEmbeddingModelSummary>, AppError> {
     #[cfg(feature = "local-embedding")]
     {
-        list_fastembed_local_models(cache_dir)
+        list_fastembed_local_models(cache_dir).map_err(AppError::from)
     }
     #[cfg(not(feature = "local-embedding"))]
     {

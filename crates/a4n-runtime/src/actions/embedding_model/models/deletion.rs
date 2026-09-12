@@ -30,7 +30,7 @@ pub fn delete_local_embedding_model_in_cache(
     #[cfg(feature = "local-embedding")]
     {
         let model = required_text(model, "fastembed 模型名")?;
-        delete_fastembed_model(&model, cache_dir)
+        delete_fastembed_model(&model, cache_dir).map_err(AppError::from)
     }
     #[cfg(not(feature = "local-embedding"))]
     {

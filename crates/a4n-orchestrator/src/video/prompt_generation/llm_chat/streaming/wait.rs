@@ -20,7 +20,10 @@ pub(super) async fn open_video_prompt_stream(
     progress: &mut Option<VideoPromptProgress<'_>>,
     started: Instant,
 ) -> Result<Pin<Box<dyn Stream<Item = Result<ChatChunk, AppError>> + Send>>, AppError> {
-    let mut request_future = Box::pin(llm.chat_stream(request));
+    let mut request_future = Box::pin(a4n_llm::provider::open_chat_stream(
+        llm.chat_stream(request),
+        cancel_token.cloned().unwrap_or_default(),
+    ));
     let mut heartbeat = interval_at(
         TokioInstant::now() + VIDEO_PROMPT_STREAM_HEARTBEAT,
         VIDEO_PROMPT_STREAM_HEARTBEAT,

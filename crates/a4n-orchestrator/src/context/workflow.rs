@@ -629,6 +629,9 @@ impl OrchestratorContext {
             .cancel_workflow_run_persistence(workflow_run_id, reason)
             .await?;
         if !cancellation.already_terminal {
+            self.task_queue
+                .cancel_workflow_llm_calls(workflow_run_id)
+                .await?;
             if let Some(task_id) = cancellation.active_task_id.as_deref() {
                 self.cancel_task_handle(task_id);
                 if let Err(error) = self.queue_cancel(task_id).await {
@@ -750,9 +753,16 @@ impl OrchestratorContext {
         can_resume: bool,
         error_message: Option<&str>,
     ) -> Result<workflow_run::Model, AppError> {
-        self.workflow
+        let run = self
+            .workflow
             .mark_workflow_status(workflow_run_id, status, can_resume, error_message)
-            .await
+            .await?;
+        if status == a4n_domain::workflow::WORKFLOW_STATUS_CANCELLED {
+            self.task_queue
+                .cancel_workflow_llm_calls(workflow_run_id)
+                .await?;
+        }
+        Ok(run)
     }
 
     /// 开始工作流：校验 business_key/kind/id 与 RUNNING 后 upsert。

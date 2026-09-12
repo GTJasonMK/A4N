@@ -120,9 +120,21 @@ impl HttpLlmProvider {
         let mut body = self.extra_body.clone().unwrap_or_default();
         body.insert("model".into(), Value::String(self.model.clone()));
         body.insert("messages".into(), json!(messages));
-        insert_optional(&mut body, "temperature", request.temperature);
+        body.insert("n".into(), json!(1));
+        let model = self.model.rsplit('/').next().unwrap_or(self.model.as_str());
+        let o_series = matches!(model.split('-').next(), Some("o1" | "o3" | "o4"));
+        // o-series uses a completion budget including reasoning and does not
+        // accept the generic workflow sampling temperature.
+        if !o_series {
+            insert_optional(&mut body, "temperature", request.temperature);
+        }
         body.insert(
-            "max_tokens".to_string(),
+            if o_series {
+                "max_completion_tokens"
+            } else {
+                "max_tokens"
+            }
+            .to_string(),
             json!(request.max_tokens.unwrap_or(self.caps.max_output_tokens)),
         );
         insert_optional(

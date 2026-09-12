@@ -3,10 +3,9 @@ use std::sync::Arc;
 use a4n_error::AppError;
 #[cfg(feature = "embedded-llm-provider")]
 use a4n_llm::provider::LlmProvider;
-use a4n_llm::provider::{ChatRequest, ChatResponse, LlmTraceContext, ModelCapabilities};
+use a4n_llm::provider::{ChatRequest, LlmTraceContext, ModelCapabilities};
 use a4n_llm_client::{JsonRequest, LlmClient};
 use a4n_provider_contract::LlmProviderConfig;
-use futures::stream;
 
 use super::contracts::{LlmProbeOutput, ResolvedLlmModel};
 
@@ -65,51 +64,6 @@ pub(super) fn make_provider(m: &LlmProviderConfig) -> Result<Box<dyn LlmProvider
     )
 }
 
-pub(super) async fn chat_via_sidecar(
-    client: Arc<dyn LlmClient>,
-    resolved_model: ResolvedLlmModel,
-    request: ChatRequest,
-    trace_context: &LlmTraceContext,
-) -> Result<ChatResponse, AppError> {
-    // 业务完整结果只走 sidecar stream 再收集，禁止 capability /chat 完整响应。
-    let sidecar_request =
-        sidecar_chat_request(resolved_model, request, trace_context, "LLM sidecar")?;
-    let (event_tx, mut event_rx) =
-        tokio::sync::mpsc::channel(a4n_service_protocol::SIDECAR_EVENT_QUEUE_CAPACITY);
-    let stream_task = client.stream(sidecar_request, event_tx);
-    tokio::pin!(stream_task);
-
-    let mut transport_complete = false;
-    let mut completed = false;
-    let mut chunks = Vec::new();
-    loop {
-        tokio::select! {
-            stream_result = &mut stream_task, if !transport_complete => {
-                stream_result.map_err(llm_sidecar_error)?;
-                transport_complete = true;
-            }
-            event = event_rx.recv() => {
-                let Some(event) = event else { break; };
-                match super::streams::parse_sidecar_llm_event(event)? {
-                    super::streams::SidecarLlmEvent::Chunk(chunk) => {
-                        chunks.push(chunk);
-                    }
-                    super::streams::SidecarLlmEvent::Completed => {
-                        completed = true;
-                    }
-                    super::streams::SidecarLlmEvent::Progress => {}
-                }
-            }
-        }
-    }
-    if !completed {
-        return Err(AppError::LlmError(
-            "LLM sidecar stream 在 Completed 前关闭".to_string(),
-        ));
-    }
-    a4n_llm::provider::collect_chat_chunks(stream::iter(chunks.into_iter().map(Ok))).await
-}
-
 pub(super) fn sidecar_chat_request(
     resolved_model: ResolvedLlmModel,
     mut request: ChatRequest,
@@ -155,26 +109,6 @@ pub(super) async fn probe_llm_via_sidecar(
         .map_err(|err| AppError::LlmError(format!("LLM sidecar probe 响应失败：{err}")))
 }
 
-#[cfg(feature = "embedded-llm-provider")]
-pub(super) async fn chat_embedded(
-    resolved_model: ResolvedLlmModel,
-    request: ChatRequest,
-) -> Result<ChatResponse, AppError> {
-    let provider = make_provider(&resolved_model.model)?;
-    // 完整结果只允许从真实 chat_stream 收集，禁止完整响应接口。
-    a4n_llm::provider::collect_chat_stream(provider.as_ref(), request).await
-}
-
-#[cfg(not(feature = "embedded-llm-provider"))]
-pub(super) async fn chat_embedded(
-    _resolved_model: ResolvedLlmModel,
-    _request: ChatRequest,
-) -> Result<ChatResponse, AppError> {
-    Err(AppError::ConfigError(
-        "当前 runtime 未编译 embedded LLM provider；请使用 A4N_RUNTIME_PROFILE=sidecar 并启动 a4n-llm-gateway，或以 --features embedded-capabilities 显式构建 full profile".to_string(),
-    ))
-}
-
 pub(super) fn llm_sidecar_error(error: a4n_service_protocol::ServiceError) -> AppError {
     match error.code {
         a4n_service_protocol::ServiceErrorCode::ConfigurationError => {
@@ -187,14 +121,4 @@ pub(super) fn llm_sidecar_error(error: a4n_service_protocol::ServiceError) -> Ap
         }
         _ => AppError::LlmError(format!("LLM sidecar 调用失败：{}", error.message)),
     }
-}
-
-pub(super) fn estimate_llm_tokens(text: &str) -> usize {
-    let chinese_chars = text.chars().filter(|c| u32::from(*c) > 0x2E80).count();
-    let other_words = if chinese_chars == text.len() {
-        0
-    } else {
-        text.split_whitespace().count()
-    };
-    ((chinese_chars as f32 * 0.5) + (other_words as f32 * 1.3)).ceil() as usize
 }

@@ -10,6 +10,13 @@ pub struct RunningTask {
 }
 
 impl RunningTask {
+    pub fn cancellation_token(&self) -> tokio_util::sync::CancellationToken {
+        self.permit
+            .as_ref()
+            .expect("running task owns its permit")
+            .cancellation_token()
+    }
+
     pub(in crate::task_queue) fn new(db: SharedDatabaseConnection, permit: TaskPermit) -> Self {
         Self {
             db,
@@ -31,6 +38,15 @@ impl RunningTask {
         let task_id = permit.task_id().to_string();
         permit.fail(error.to_string());
         a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "failed", Some(error))
+            .await
+            .map_err(queue_db_error)
+    }
+
+    pub async fn cancel(mut self) -> Result<(), AppError> {
+        let permit = self.take_permit();
+        let task_id = permit.task_id().to_string();
+        permit.cancel();
+        a4n_db::queue::update_task_status(self.db.as_ref(), &task_id, "cancelled", None)
             .await
             .map_err(queue_db_error)
     }

@@ -4,6 +4,13 @@ use crate::progress::{ProgressMeta, ProgressPhaseKind};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Resolved provider configuration identity; the key must not contain credentials.
+#[derive(Debug, Clone)]
+pub struct LlmConcurrencyLimit {
+    pub key: String,
+    pub max_concurrent: usize,
+}
+
 /// Task kinds shared by persistence, scheduling, and host progress reporting.
 ///
 /// This is a domain contract: it deliberately does not depend on the in-process

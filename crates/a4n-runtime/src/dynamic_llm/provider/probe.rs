@@ -1,7 +1,7 @@
 use a4n_error::AppError;
 use a4n_llm::provider::ChatRequest;
 use a4n_provider_contract::LlmProviderConfig;
-use a4n_queue::priority::{TaskKind, TaskPriority};
+use a4n_queue::priority::TaskPriority;
 
 use super::super::budget::requested_max_tokens;
 use super::super::config::probe_llm_via_sidecar;
@@ -27,12 +27,21 @@ impl DynamicLlmProvider {
             model_max_output_tokens,
             &model_name,
         )?);
-        let output = self
-            .facade
-            .queue_run_tracked(TaskKind::LlmCall, TaskPriority::High, None, || async move {
-                probe_llm_via_sidecar(client, resolved_model, request).await
-            })
-            .await?;
+        let output = tokio::time::timeout(a4n_llm::provider::LLM_CALL_TOTAL_TIMEOUT, async {
+            let task = self
+                .facade
+                .queue_start_llm_task(resolved_model.concurrency_limit(), TaskPriority::High, None)
+                .await?;
+            let cancellation = task.cancellation_token();
+            let result = tokio::select! {
+                biased;
+                _ = cancellation.cancelled() => Err(AppError::Cancelled),
+                result = probe_llm_via_sidecar(client, resolved_model, request) => result,
+            };
+            crate::provider_runtime::finish_provider_task(task, result).await
+        })
+        .await
+        .map_err(|_| AppError::Timeout("LLM 连接测试超过总时限（包含排队）".into()))??;
         tracing::debug!(
             target: "a4n::llm",
             model = %model_name,

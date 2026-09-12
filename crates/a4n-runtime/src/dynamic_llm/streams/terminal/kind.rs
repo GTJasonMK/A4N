@@ -8,14 +8,6 @@ pub(in crate::dynamic_llm::streams) enum StreamKind {
 }
 
 impl StreamKind {
-    pub(super) fn failed_trace_code(self) -> &'static str {
-        match self {
-            #[cfg(feature = "embedded-llm-provider")]
-            Self::Embedded => "stream_error",
-            Self::Sidecar => "sidecar_stream_error",
-        }
-    }
-
     pub(super) fn completed_queue_error(self, error: impl std::fmt::Display) -> AppError {
         let context = match self {
             #[cfg(feature = "embedded-llm-provider")]

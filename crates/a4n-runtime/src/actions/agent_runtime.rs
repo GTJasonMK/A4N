@@ -859,7 +859,32 @@ async fn process_claimed_run(state: &AppState, claimed: AgentWorkerRun) -> Resul
     });
 
     // Keep the loop state out of every outer worker future's debug poll stack.
-    let result = Box::pin(process_claimed_run_inner(state, &claimed, &run_cancel)).await;
+    let outcome: Result<_, AppError> = async {
+        let budget: AgentBudget = serde_json::from_value(claimed.run.budget_json.clone())?;
+        validate_agent_budget(&budget)?;
+        let deadline = agent_duration_deadline(
+            &budget,
+            claimed.run.started_at.unwrap_or(claimed.run.created_at),
+        )?;
+        Ok(tokio::select! {
+            biased;
+            _ = async {
+                match deadline {
+                    Some(deadline) => tokio::time::sleep_until(deadline).await,
+                    None => std::future::pending::<()>().await,
+                }
+            } => None,
+            result = Box::pin(process_claimed_run_inner(state, &claimed, &run_cancel)) => Some(result),
+        })
+    }
+    .await;
+    // Drop the in-flight call before persisting the wait; a continuously active
+    // stream must not extend the run's duration budget or keep its HTTP body alive.
+    let result = match outcome {
+        Ok(Some(result)) => result,
+        Ok(None) => suspend_agent_at_duration_limit(state, &claimed).await,
+        Err(error) => Err(error),
+    };
     renew_cancel.cancel();
     renew_handle.abort();
     state
@@ -891,6 +916,54 @@ async fn process_claimed_run(state: &AppState, claimed: AgentWorkerRun) -> Resul
         let _ = state.take_agent_runtime_snapshot(claimed.run.id).await;
     }
     result
+}
+
+fn agent_duration_deadline(
+    budget: &AgentBudget,
+    started_at: chrono::NaiveDateTime,
+) -> Result<Option<tokio::time::Instant>, AppError> {
+    let Some(seconds) = budget.max_duration_seconds else {
+        return Ok(None);
+    };
+    let elapsed = chrono::Utc::now()
+        .naive_utc()
+        .signed_duration_since(started_at)
+        .to_std()
+        .unwrap_or_default();
+    tokio::time::Instant::now()
+        .checked_add(Duration::from_secs(seconds).saturating_sub(elapsed))
+        .map(Some)
+        .ok_or_else(|| AppError::InvalidArgument("Agent max_duration_seconds 超出时钟范围".into()))
+}
+
+async fn suspend_agent_at_duration_limit(
+    state: &AppState,
+    claimed: &AgentWorkerRun,
+) -> Result<(), AppError> {
+    let context = state
+        .agent_worker_context_application()
+        .load_run_context(claimed)
+        .await?;
+    for execution in context
+        .executions
+        .iter()
+        .filter(|execution| execution.status == "running")
+    {
+        if let Some(client_message_id) = stream_client_message_id(claimed.run.id, execution) {
+            state
+                .agent_worker_message_application()
+                .interrupt_assistant_streaming_message(
+                    claimed,
+                    client_message_id,
+                    Some("Agent 已达到时长预算，等待调整预算后继续".into()),
+                )
+                .await?;
+        }
+    }
+    state
+        .agent_worker_wait_application()
+        .wait_run(claimed, "budget")
+        .await
 }
 
 async fn process_claimed_run_inner(
@@ -1355,6 +1428,7 @@ async fn process_claimed_run_inner(
                 .await?;
             response
         };
+        a4n_llm::provider::validate_finish_reason(response.finish_reason.as_deref())?;
         // A succeeded durable execution is a replay after a worker restart;
         // its usage was already persisted before the crash. Counting it
         // again would let retries silently exceed token budgets.
@@ -1760,6 +1834,7 @@ async fn recover_model_messages(
             continue;
         }
         let response = model_response(execution)?;
+        a4n_llm::provider::validate_finish_reason(response.finish_reason.as_deref())?;
         let calls = response.message.tool_calls.unwrap_or_default();
         if calls.is_empty() {
             if response.message.content.trim().is_empty() {
@@ -3492,6 +3567,26 @@ pub async fn resolve_approval(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn duration_budget_has_a_deadline_even_when_the_model_never_finishes() {
+        let budget = AgentBudget {
+            max_duration_seconds: Some(1),
+            ..Default::default()
+        };
+        let started = chrono::Utc::now().naive_utc() - chrono::Duration::seconds(2);
+        let deadline = agent_duration_deadline(&budget, started).unwrap().unwrap();
+        assert!(
+            tokio::time::timeout_at(deadline, std::future::pending::<()>())
+                .await
+                .is_err()
+        );
+        assert!(
+            agent_duration_deadline(&AgentBudget::default(), started)
+                .unwrap()
+                .is_none()
+        );
+    }
 
     #[test]
     fn model_action_respects_token_and_duration_limits() {

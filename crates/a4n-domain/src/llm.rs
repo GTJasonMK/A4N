@@ -9,6 +9,7 @@ pub const LLM_RESERVED_REQUEST_OPTION_KEYS: &[&str] = &[
     "stream",
     "temperature",
     "max_tokens",
+    "max_completion_tokens",
     "response_format",
     "prompt_cache_key",
     "tools",

@@ -13,10 +13,9 @@ pub(super) fn system_prompt_requirement(
     if system_messages.is_empty() {
         return Ok(None);
     }
-    let system_tokens = system_messages
-        .iter()
-        .map(|message| estimate_context_tokens(&message.content))
-        .sum();
+    let system_tokens = estimate_context_tokens(
+        &serde_json::to_string(system_messages).map_err(AppError::Serialization)?,
+    );
     Ok(Some(LlmContextPackRequirement {
         pack_kind: "system_prompt_prefix".to_string(),
         required: true,

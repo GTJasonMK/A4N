@@ -1,4 +1,4 @@
-use crate::dynamic_llm::config::{estimate_llm_tokens, model_capabilities, validated_timeout_secs};
+use crate::dynamic_llm::config::{model_capabilities, validated_timeout_secs};
 use a4n_error::AppError;
 use a4n_llm::gateway::{
     LlmGatewayPayload as LlmChatPayload, LlmGatewayProviderConfig, LlmProbePayload,
@@ -31,6 +31,24 @@ impl ResolvedLlmModel {
 
     pub(in crate::dynamic_llm) fn model_name(&self) -> &str {
         &self.model.model
+    }
+
+    pub(in crate::dynamic_llm) fn concurrency_limit(
+        &self,
+    ) -> a4n_domain::task_queue::LlmConcurrencyLimit {
+        let identity = serde_json::json!({
+            "user": crate::runtime_config::current_user_id(),
+            "config": self.model.id,
+            "provider": self.model.provider.trim().to_ascii_lowercase(),
+            "base_url": self.model.base_url.trim_end_matches('/'),
+            "model": self.model.model,
+            "credential": self.model.api_key,
+        });
+        a4n_domain::task_queue::LlmConcurrencyLimit {
+            key: a4n_domain::source_text_hash(&identity.to_string()),
+            max_concurrent: usize::try_from(self.model.max_concurrent)
+                .expect("validated model concurrency"),
+        }
     }
 
     pub(in crate::dynamic_llm) fn planner(&self) -> PlanningLlmProvider {
@@ -103,9 +121,5 @@ impl LlmProvider for PlanningLlmProvider {
 
     fn capabilities(&self) -> ModelCapabilities {
         self.capabilities.clone()
-    }
-
-    fn count_tokens(&self, text: &str) -> usize {
-        estimate_llm_tokens(text)
     }
 }

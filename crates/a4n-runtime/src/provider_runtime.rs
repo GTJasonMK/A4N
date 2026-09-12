@@ -160,59 +160,54 @@ impl DynamicProviderFacade {
                 project_id,
                 workflow.map(|workflow| workflow.workflow_run_id),
                 cancel_token,
+                None,
             )
             .await?;
-        match operation().await {
-            Ok(value) => task.complete().await.map(|()| value).map_err(|error| {
-                AppError::Internal(anyhow::anyhow!(
-                    "队列任务业务操作已完成，但同步完成状态失败: {error}"
-                ))
-            }),
-            Err(error) => {
-                let message = error.to_string();
-                match task.fail(message).await {
-                    Ok(()) => Err(error),
-                    Err(status_error) => Err(AppError::Internal(anyhow::anyhow!(
-                        "{error}；同步队列任务失败状态失败: {status_error}"
-                    ))),
-                }
-            }
-        }
+        finish_provider_task(task, operation().await).await
     }
 
-    pub(crate) async fn queue_start_task(
+    pub(crate) async fn queue_start_llm_task(
         &self,
-        task_type: TaskKind,
+        limit: a4n_domain::task_queue::LlmConcurrencyLimit,
         priority: QueueTaskPriority,
-        project_id: Option<i64>,
-    ) -> Result<Box<dyn TaskLease>, AppError> {
-        self.queue_start_task_with_workflow(
-            task_type,
-            priority,
-            project_id,
-            None,
-            CancellationToken::new(),
-        )
-        .await
-    }
-
-    pub(crate) async fn queue_start_task_with_workflow(
-        &self,
-        task_type: TaskKind,
-        priority: QueueTaskPriority,
-        project_id: Option<i64>,
-        workflow_run_id: Option<i64>,
-        cancel_token: CancellationToken,
+        trace: Option<&a4n_llm::provider::LlmTraceContext>,
     ) -> Result<Box<dyn TaskLease>, AppError> {
         self.port
             .start_task(
-                task_type,
+                TaskKind::LlmCall,
                 provider_task_priority(priority),
-                project_id,
-                workflow_run_id,
-                cancel_token,
+                trace.and_then(|trace| trace.project_id),
+                trace.and_then(|trace| trace.workflow_run_id),
+                CancellationToken::new(),
+                Some(limit),
             )
             .await
+    }
+}
+
+pub(crate) async fn finish_provider_task<T>(
+    task: Box<dyn TaskLease>,
+    result: Result<T, AppError>,
+) -> Result<T, AppError> {
+    match result {
+        Ok(value) => task.complete().await.map(|()| value).map_err(|error| {
+            AppError::Internal(anyhow::anyhow!(
+                "队列任务业务操作已完成，但同步完成状态失败: {error}"
+            ))
+        }),
+        Err(error) => {
+            let status = if matches!(error, AppError::Cancelled) {
+                task.cancel().await
+            } else {
+                task.fail(error.to_string()).await
+            };
+            match status {
+                Ok(()) => Err(error),
+                Err(status_error) => Err(AppError::Internal(anyhow::anyhow!(
+                    "{error}；同步队列任务失败状态失败: {status_error}"
+                ))),
+            }
+        }
     }
 }
 

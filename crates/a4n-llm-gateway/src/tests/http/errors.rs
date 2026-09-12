@@ -105,12 +105,12 @@ async fn broken_body_chat_completions(
     let prefix = match model.as_str() {
         "body-error-after-done" => concat!(
             "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"complete\"},\"finish_reason\":null}]}\n\n",
-            "data: {\"choices\":[{\"index\":1,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+            "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
             "data: [DONE]\n\n"
         ),
         "body-error-after-length-finish" => concat!(
             "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"truncated\"},\"finish_reason\":null}]}\n\n",
-            "data: {\"choices\":[{\"index\":1,\"delta\":{},\"finish_reason\":\"length\"}]}\n\n"
+            "data: {\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"length\"}]}\n\n"
         ),
         "body-error-after-partial-content" => {
             "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial\"},\"finish_reason\":null}]}\n\n"
@@ -426,6 +426,53 @@ async fn provider_body_error_before_terminal_marker_remains_failed() {
         assert!(error.message.contains("parsed_chunks=1"));
         assert!(error.message.contains("request or response body error"));
         assert!(error.message.contains("unexpected EOF"));
+    }
+}
+
+#[tokio::test]
+async fn incomplete_or_interleaved_provider_output_cannot_complete_gateway_stream() {
+    for (tail, expected_error) in [
+        ("data: [DONE]\n\n", "finish_reason"),
+        (
+            "data: {\"choices\":[{\"index\":1,\"delta\":{\"content\":\"other\"},\"finish_reason\":\"stop\"}]}\n\n",
+            "一个候选",
+        ),
+    ] {
+        let response = format!(
+            "data: {{\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"partial\"}},\"finish_reason\":null}}]}}\n\n{tail}"
+        );
+        let provider = TestHttpServer::start(Router::new().route(
+            "/chat/completions",
+            post(move || {
+                let response = response.clone();
+                async move { ([(header::CONTENT_TYPE, "text/event-stream")], response) }
+            }),
+        ))
+        .await;
+        let gateway = TestHttpServer::start(build_router()).await;
+        let request = service_request(LlmGatewayPayload {
+            provider: LlmGatewayProviderConfig {
+                base_url: provider.base_url(),
+                api_key: None,
+                ..super::test_provider_config()
+            },
+            request: ChatRequest::system_user("system", "protocol ping", None, Some(16)),
+        });
+        let events = collect_stream_events(&gateway.client(), json_request(request)).await;
+        gateway.stop().await;
+        provider.stop().await;
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].event_kind, CapabilityTaskEventKind::Chunk);
+        assert_one_failed_terminal(&events);
+        assert!(
+            events[1]
+                .error
+                .as_ref()
+                .unwrap()
+                .message
+                .contains(expected_error)
+        );
     }
 }
 

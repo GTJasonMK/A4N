@@ -103,7 +103,7 @@ pub(super) fn ensure_video_output_not_truncated(
             "{prompt_name} 输出被 max_tokens 截断，未形成完整 JSON。请检查模型的 max_output_tokens 配置，或减少本次输入/输出规模后重试。"
         )));
     }
-    Ok(())
+    a4n_llm::provider::validate_finish_reason(finish_reason)
 }
 
 pub(super) fn log_video_prompt_usage(prompt_name: &str, usage: Option<&UsageInfo>, streamed: bool) {

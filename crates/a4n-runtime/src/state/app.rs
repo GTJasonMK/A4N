@@ -512,23 +512,6 @@ struct AgentRuntimeSnapshot {
     value: crate::runtime_config::RuntimeConfigSnapshot,
 }
 
-fn inherit_generation_runtime_context<F>(future: F) -> impl Future<Output = F::Output>
-where
-    F: Future,
-{
-    let user_id = crate::runtime_config::current_user_id();
-    let snapshot = crate::runtime_config::current_snapshot();
-    async move {
-        match (user_id, snapshot) {
-            (Some(user_id), snapshot) => {
-                crate::runtime_config::request_scope(user_id, snapshot, future).await
-            }
-            (None, Some(snapshot)) => crate::runtime_config::scope(snapshot, future).await,
-            (None, None) => future.await,
-        }
-    }
-}
-
 impl AppState {
     /// 启动唯一的 Agent durable-run worker；重复调用不会创建第二个 worker。
     ///
@@ -1914,8 +1897,8 @@ impl AppState {
         worker_kind: &'static str,
         future: impl Future<Output = Result<(), String>> + Send + 'static,
     ) {
-        drop(tokio::spawn(inherit_generation_runtime_context(
-            async move {
+        drop(tokio::spawn(
+            crate::runtime_config::inherit_runtime_context(async move {
                 if let Err(error) = future.await {
                     tracing::error!(
                         task_id = %task_id,
@@ -1925,8 +1908,8 @@ impl AppState {
                         "generation worker 失败"
                     );
                 }
-            },
-        )));
+            }),
+        ));
     }
 
     pub(crate) fn destructive_lifecycle(
@@ -2284,7 +2267,8 @@ impl std::fmt::Debug for AppState {
 mod tests {
     use serde_json::json;
 
-    use super::{acquire_data_dir_lock, inherit_generation_runtime_context};
+    use super::acquire_data_dir_lock;
+    use crate::runtime_config::inherit_runtime_context;
 
     #[test]
     fn data_dir_lock_rejects_second_owner_and_releases_on_drop() {
@@ -2316,7 +2300,7 @@ mod tests {
         .unwrap();
 
         crate::runtime_config::request_scope(42, Some(snapshot), async {
-            let worker = tokio::spawn(inherit_generation_runtime_context(async {
+            let worker = tokio::spawn(inherit_runtime_context(async {
                 let snapshot = crate::runtime_config::current_snapshot().unwrap();
                 (
                     crate::runtime_config::current_user_id(),

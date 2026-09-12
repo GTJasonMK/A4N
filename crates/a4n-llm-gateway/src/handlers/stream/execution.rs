@@ -24,7 +24,11 @@ pub(super) fn stream_with_provider(
     let task_id = request.request_id.clone();
     let provider_stream = Box::pin(async move {
         let provider = provider_from_config(request.payload.provider)?;
-        provider.chat_stream(request.payload.request).await
+        a4n_llm::provider::open_chat_stream(
+            provider.chat_stream(request.payload.request),
+            Default::default(),
+        )
+        .await
     });
     llm_event_stream_from_source(
         task_id,

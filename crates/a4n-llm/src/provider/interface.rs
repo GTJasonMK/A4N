@@ -26,11 +26,13 @@ pub trait LlmProvider: Send + Sync {
     fn capabilities(&self) -> ModelCapabilities;
 
     /// 计算文本的 Token 数量
-    fn count_tokens(&self, text: &str) -> usize;
+    fn count_tokens(&self, text: &str) -> usize {
+        crate::context::estimate_context_tokens(text)
+    }
 
     /// 计算消息列表的总 Token 数
     fn count_messages_tokens(&self, messages: &[ChatMessage]) -> usize {
-        messages.iter().map(|m| self.count_tokens(&m.content)).sum()
+        self.count_tokens(&serde_json::to_string(messages).expect("chat messages serialize"))
     }
 
     /// 从消息列表中截断以适应上下文窗口
@@ -40,8 +42,8 @@ pub trait LlmProvider: Send + Sync {
         let mut kept = Vec::new();
         let mut token_count = 0;
         for msg in messages.into_iter().rev() {
-            let msg_tokens = self.count_tokens(&msg.content);
-            if token_count + msg_tokens <= max_tokens {
+            let msg_tokens = self.count_messages_tokens(std::slice::from_ref(&msg));
+            if msg_tokens <= max_tokens.saturating_sub(token_count) {
                 token_count += msg_tokens;
                 kept.push(msg);
             } else {

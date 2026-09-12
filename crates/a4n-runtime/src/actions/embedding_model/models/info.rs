@@ -32,7 +32,9 @@ pub async fn get_embedding_model_download_info_in_cache(
     #[cfg(feature = "local-embedding")]
     {
         let model = required_text(model, "fastembed 模型名")?;
-        fastembed_model_download_info(&model, cache_dir.to_path_buf()).await
+        fastembed_model_download_info(&model, cache_dir.to_path_buf())
+            .await
+            .map_err(AppError::from)
     }
     #[cfg(not(feature = "local-embedding"))]
     {

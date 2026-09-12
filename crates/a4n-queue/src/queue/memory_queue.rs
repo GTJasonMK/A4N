@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 mod acquire;
 mod cancellation;
 mod kind;
+mod llm_limits;
 mod waiting;
 
 #[cfg(test)]
@@ -39,6 +40,7 @@ pub struct MemoryTaskQueue {
     embedding_semaphore: Arc<Semaphore>,
     background_semaphore: Arc<Semaphore>,
     max_llm_concurrent: usize,
+    llm_limits: Arc<llm_limits::LlmLimits>,
     max_image_concurrent: usize,
     max_video_concurrent: usize,
     max_embedding_concurrent: usize,
@@ -67,6 +69,7 @@ impl MemoryTaskQueue {
             embedding_semaphore: Arc::new(Semaphore::new(max_embedding_concurrent)),
             background_semaphore: Arc::new(Semaphore::new(max_background_concurrent)),
             max_llm_concurrent,
+            llm_limits: Arc::default(),
             max_image_concurrent,
             max_video_concurrent,
             max_embedding_concurrent,
@@ -123,7 +126,12 @@ impl MemoryTaskQueue {
     }
 
     pub fn queue_stats(&self) -> QueueStats {
-        let counts = waiting::counts(&self.waiting, &self.tasks);
+        let mut counts = waiting::counts(&self.waiting, &self.tasks);
+        let [high, medium, low] = self.llm_limits.waiting_by_priority();
+        counts.llm_waiting += high + medium + low;
+        counts.high_priority_waiting += high;
+        counts.medium_priority_waiting += medium;
+        counts.low_priority_waiting += low;
         QueueStats {
             llm_queue: QueueSlotStats {
                 max_concurrent: self.max_llm_concurrent,

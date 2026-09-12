@@ -52,7 +52,9 @@ pub async fn download_embedding_model(
                 None,
                 queue_cancel_token,
                 || async move {
-                    download_fastembed_model(&model, cache_dir, progress_tx, cancel_token).await
+                    download_fastembed_model(&model, cache_dir, progress_tx, cancel_token)
+                        .await
+                        .map_err(AppError::from)
                 },
             )
             .await
@@ -73,7 +75,9 @@ pub async fn download_embedding_model_to_cache(
     #[cfg(feature = "local-embedding")]
     {
         let model = required_text(&input.model, "fastembed 模型名")?;
-        download_fastembed_model(&model, cache_dir, progress_tx, cancel_token).await
+        download_fastembed_model(&model, cache_dir, progress_tx, cancel_token)
+            .await
+            .map_err(AppError::from)
     }
     #[cfg(not(feature = "local-embedding"))]
     {

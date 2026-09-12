@@ -5,7 +5,7 @@ use super::super::contracts::{LlmContextManifest, LlmContextRequestPreview};
 use super::super::manifest::{render_context_manifest_user_content, validate_context_manifest};
 use super::super::planner::{ContextBudgetPlanner, estimate_context_tokens};
 use super::replace_request_user_content_from_manifest;
-use crate::provider::{ChatRequest, MessageRole};
+use crate::provider::{ChatMessage, ChatRequest, MessageRole};
 use a4n_error::AppError;
 use hydration::hydrate_selected_pack_content;
 use requirements::preview_requirement_inputs;
@@ -28,8 +28,17 @@ pub fn preview_context_aware_chat_request(
         .cloned()
         .collect::<Vec<_>>();
     let requirement_inputs = preview_requirement_inputs(&system_messages, &manifest)?;
+    let tools_tokens = request
+        .tools
+        .as_ref()
+        .map(|tools| serde_json::to_string(tools).map(|text| estimate_context_tokens(&text)))
+        .transpose()?
+        .unwrap_or(0);
     let dynamic_delta_tokens =
-        estimate_context_tokens(&render_context_manifest_user_content(&manifest, &[])?);
+        estimate_context_tokens(&serde_json::to_string(&[ChatMessage::user(
+            render_context_manifest_user_content(&manifest, &[])?,
+        )])?)
+        .saturating_add(tools_tokens);
     let mut plan = ContextBudgetPlanner::default().plan_requirements_adaptive(
         model_context_tokens,
         output_token_reserve,

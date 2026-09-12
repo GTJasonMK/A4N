@@ -97,6 +97,23 @@ runner 输出一个 JSON 报告和 Provider 请求 JSONL。不要把小型 ledge
 `tested_complete` 会继续明确报告它是否覆盖当前 manifest。核心账本是部分业务 fixture 时，
 `success=true` 且 `complete=false` 是正常结果，不应把它误读为所有 descriptor 都已测试。
 
+## LLM 调用生命周期回归
+
+`run_llm_lifecycle_cli_e2e.py` 验证 Canvas 个人配置隔离、单模型并发为 1 时可完成、截断与缺失结束信号被拒绝、运行中取消，以及 Agent 的时长预算和时钟溢出失败状态。使用专用数据库与目录，并保持独立 mock Provider 运行：
+
+```bash
+python3 scripts/tests/mock_openai_provider.py --host 127.0.0.1 --port 18765 \
+  --log data/cli-contract-e2e/llm-provider.jsonl
+
+# 在另一终端运行；密码从环境变量读取。
+python3 scripts/tests/run_llm_lifecycle_cli_e2e.py \
+  --a4n "${CARGO_TARGET_DIR:-target}/debug/a4n" \
+  --server "$A4N_TEST_SERVER_URL" --username "$A4N_USERNAME" \
+  --password-env A4N_PASSWORD --provider-url http://127.0.0.1:18765/v1 \
+  --provider-log data/cli-contract-e2e/llm-provider.jsonl \
+  --report data/cli-contract-e2e/llm-lifecycle.json
+```
+
 ## 工具驱动的导演 Agent 试点
 
 `run_specialized_agent_cli_e2e.py` 会新建项目、章节、草稿和 Agent Thread，只在专用测试数据库与目录中运行。沿用上面的 Server/CLI 构建及账号配置：

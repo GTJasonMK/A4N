@@ -185,5 +185,42 @@ pub struct UsageInfo {
 
 /// 不同 OpenAI-compatible 服务对输出上限的 finish_reason 命名不完全一致。
 pub fn is_truncated_finish_reason(finish_reason: Option<&str>) -> bool {
-    matches!(finish_reason, Some("length" | "max_tokens"))
+    matches!(
+        classify_finish_reason(finish_reason),
+        Ok(LlmFinishReason::Truncated)
+    )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LlmFinishReason {
+    Stop,
+    ToolCalls,
+    Truncated,
+}
+
+/// Transport termination and usable output are distinct: a length-limited
+/// response has a terminal event, but must not complete the business task.
+pub fn classify_finish_reason(
+    finish_reason: Option<&str>,
+) -> Result<LlmFinishReason, a4n_error::AppError> {
+    match finish_reason {
+        Some("stop") => Ok(LlmFinishReason::Stop),
+        Some("tool_calls") => Ok(LlmFinishReason::ToolCalls),
+        Some("length" | "max_tokens") => Ok(LlmFinishReason::Truncated),
+        None | Some("") => Err(a4n_error::AppError::LlmError(
+            "模型流结束但缺少 finish_reason".to_string(),
+        )),
+        Some(reason) => Err(a4n_error::AppError::LlmError(format!(
+            "模型未正常完成：finish_reason={reason}"
+        ))),
+    }
+}
+
+pub fn validate_finish_reason(finish_reason: Option<&str>) -> Result<(), a4n_error::AppError> {
+    match classify_finish_reason(finish_reason)? {
+        LlmFinishReason::Stop | LlmFinishReason::ToolCalls => Ok(()),
+        LlmFinishReason::Truncated => Err(a4n_error::AppError::LlmError(
+            "模型输出被 max_tokens 截断，任务未完成".to_string(),
+        )),
+    }
 }
