@@ -32,7 +32,7 @@ use chrono::Utc;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 
-pub use a4n_api_contract::video::{
+use a4n_api_contract::video::{
     AssemblyPushAction, SelectSegmentVideoInput, UpdateAssemblyPushStatusInput,
     UpdateGeneratedVideoInput,
 };
