@@ -61,24 +61,6 @@ impl RunningTask {
         }
     }
 
-    pub async fn finish_message<T>(self, result: Result<T, String>) -> Result<T, String> {
-        match result {
-            Ok(value) => self
-                .complete()
-                .await
-                .map(|()| value)
-                .map_err(|status_error| {
-                    format!("队列任务业务操作已完成，但同步完成状态失败: {status_error}")
-                }),
-            Err(mut error) => {
-                if let Err(status_error) = self.fail(&error).await {
-                    error.push_str(&format!("；同步队列任务失败状态失败: {status_error}"));
-                }
-                Err(error)
-            }
-        }
-    }
-
     fn take_permit(&mut self) -> TaskPermit {
         self.permit
             .take()
