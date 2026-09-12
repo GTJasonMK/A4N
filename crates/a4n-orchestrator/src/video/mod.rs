@@ -168,9 +168,9 @@ pub(crate) use tail_frame_rules::{
     tail_frame_reference_belongs_to_video, video_shot_number,
 };
 
-pub(crate) use crate::OrchestratorContext;
+pub(in crate::video) use crate::OrchestratorContext;
 #[cfg(test)]
-pub(crate) use tokio_util::sync::CancellationToken;
+pub(in crate::video) use tokio_util::sync::CancellationToken;
 
 pub(in crate::video) use self::config::{
     CLIPROXY_OPENAI_VIDEO_BACKEND, GEMINI_VEO_VIDEO_BACKEND, NEWAPI_VIDEO_BACKEND,
