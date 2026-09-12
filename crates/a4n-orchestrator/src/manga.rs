@@ -30,7 +30,7 @@ pub use projections::manga_page_prompt_summary;
 pub use prompt_optimization::MangaPromptOptimizationInput;
 pub(crate) use record_errors::manga_prompt_record_error;
 pub use source::ensure_manga_source_can_write;
-pub use workflow::{manga_pipeline_business_key, manga_pipeline_fingerprint};
+pub(in crate::manga) use workflow::{manga_pipeline_business_key, manga_pipeline_fingerprint};
 
 pub struct MangaGeneratePagePromptsInput<'a> {
     pub chapter_id: i64,
