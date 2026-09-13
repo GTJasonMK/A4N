@@ -2791,6 +2791,23 @@ if ! rg -n 'pub trait OptimizePreviewApplicationPort' \
     printf 'Optimize request previews must route through the preview port\n' >&2
     exit 1
 fi
+if ! rg -n 'pub trait OptimizeGenerationApplicationPort' \
+    crates/a4n-orchestrator/src/optimize/application.rs || \
+   ! rg -n 'optimize_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/analysis.rs \
+    crates/a4n-runtime/src/actions/optimize/chat.rs \
+    crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
+    printf 'Optimize generation actions must route through the generation port\n' >&2
+    exit 1
+fi
+if rg -n 'OptimizeApplicationPort|optimize_application\(\)' \
+    crates/a4n-api-contract/src/optimize.rs \
+    crates/a4n-orchestrator/src/optimize \
+    crates/a4n-runtime/src/actions/optimize \
+    crates/a4n-runtime/src/state/app.rs; then
+    printf 'The mixed OptimizeApplicationPort must remain removed\n' >&2
+    exit 1
+fi
 
 if rg -n '^pub use a4n_api_contract::generation_tasks::GenerationTaskStart' \
     crates/a4n-orchestrator/src/context/generation.rs \

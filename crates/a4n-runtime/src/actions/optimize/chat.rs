@@ -24,7 +24,7 @@ pub(crate) async fn start_optimize_chat_generation_with_output_limit(
     agent_max_output_tokens: Option<usize>,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize_application()
+        .optimize_generation_application()
         .start_chat_generation(user_id, &input)
         .await?;
     if !start.should_run {
@@ -38,7 +38,7 @@ pub(crate) async fn start_optimize_chat_generation_with_output_limit(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .optimize_application()
+                .optimize_generation_application()
                 .run_chat_generation(
                     prompt_renderer,
                     agent_max_output_tokens,

@@ -157,7 +157,7 @@ pub trait OptimizePreviewApplicationPort: Send + Sync {
 
 /// Runtime-facing content-optimization generation boundary.
 #[async_trait]
-pub trait OptimizeApplicationPort: Send + Sync {
+pub trait OptimizeGenerationApplicationPort: Send + Sync {
     async fn start_chat_generation(
         &self,
         user_id: i64,
@@ -807,7 +807,7 @@ impl OptimizePreviewApplicationPort for OrchestratorContext {
 }
 
 #[async_trait]
-impl OptimizeApplicationPort for OrchestratorContext {
+impl OptimizeGenerationApplicationPort for OrchestratorContext {
     async fn start_chat_generation(
         &self,
         user_id: i64,

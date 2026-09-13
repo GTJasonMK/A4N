@@ -14,7 +14,7 @@ pub async fn start_optimize_patch_generation_typed(
     input: StartOptimizePatchGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize_application()
+        .optimize_generation_application()
         .start_patch_generation(user_id, &input)
         .await?;
     if !start.should_run {
@@ -27,7 +27,7 @@ pub async fn start_optimize_patch_generation_typed(
         move |handle| async move {
             let prompt_renderer = &worker_state;
             worker_state
-                .optimize_application()
+                .optimize_generation_application()
                 .run_patch_generation(prompt_renderer, user_id, input, handle)
                 .await
         },

@@ -122,7 +122,8 @@ pub struct AppState {
         Arc<dyn a4n_orchestrator::optimize::OptimizePreviewApplicationPort>,
     /// Content optimization generation workers stay in the optimize owner;
     /// Runtime only schedules and executes Host tasks.
-    optimize_application: Arc<dyn a4n_orchestrator::optimize::OptimizeApplicationPort>,
+    optimize_generation_application:
+        Arc<dyn a4n_orchestrator::optimize::OptimizeGenerationApplicationPort>,
     /// Scene-profile synchronization remains owned by the scene-profile
     /// application; Runtime supplies only the RAG host adapter.
     scene_profile_sync_application:
@@ -1126,10 +1127,10 @@ impl AppState {
         self.chapter_scene_generation_application.as_ref()
     }
 
-    pub(crate) fn optimize_application(
+    pub(crate) fn optimize_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeApplicationPort {
-        self.optimize_application.as_ref()
+    ) -> &dyn a4n_orchestrator::optimize::OptimizeGenerationApplicationPort {
+        self.optimize_generation_application.as_ref()
     }
 
     pub(crate) fn optimize_session_read_application(
@@ -2425,7 +2426,7 @@ impl AppState {
             optimize_session_mutation_application: Arc::new(orchestrator.clone()),
             optimize_patch_application: Arc::new(orchestrator.clone()),
             optimize_preview_application: Arc::new(orchestrator.clone()),
-            optimize_application: Arc::new(orchestrator.clone()),
+            optimize_generation_application: Arc::new(orchestrator.clone()),
             scene_profile_sync_application: Arc::new(orchestrator.clone()),
             service_health_application: Arc::new(crate::service_health::ServiceHealthApplication::new(
                 service_manager.clone(),

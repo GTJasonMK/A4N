@@ -21,7 +21,7 @@ pub async fn start_optimize_analysis_generation_typed(
     input: StartOptimizeAnalysisGenerationInput,
 ) -> Result<GenerationTaskHandle, GenerationTaskAccessError> {
     let start = state
-        .optimize_application()
+        .optimize_generation_application()
         .start_analysis_generation(user_id, &input)
         .await?;
     if !start.should_run {
@@ -33,7 +33,7 @@ pub async fn start_optimize_analysis_generation_typed(
         "optimize_analysis",
         move |handle| async move {
             worker_state
-                .optimize_application()
+                .optimize_generation_application()
                 .run_analysis_generation(user_id, input, handle)
                 .await
         },
