@@ -194,7 +194,7 @@ pub struct AppState {
     /// Host-facing chapter content mutation boundary. Workflow side effects
     /// are supplied through the explicit cleanup host port at call time.
     chapter_content_mutation_application:
-        Arc<dyn a4n_orchestrator::chapter_content::ChapterContentMutationApplicationPort>,
+        Arc<dyn a4n_api_contract::chapter::ChapterContentMutationApplicationPort>,
     /// Host-facing chapter-content derived-data synchronization and recovery
     /// boundary.
     chapter_content_sync_application:
@@ -1258,7 +1258,7 @@ impl AppState {
 
     pub(crate) fn chapter_content_mutation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::chapter_content::ChapterContentMutationApplicationPort {
+    ) -> &dyn a4n_api_contract::chapter::ChapterContentMutationApplicationPort {
         self.chapter_content_mutation_application.as_ref()
     }
 

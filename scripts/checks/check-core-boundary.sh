@@ -1666,8 +1666,18 @@ if ! rg -n 'chapter_content_mutation_application\(\)' \
 fi
 
 if ! rg -n 'pub trait ChapterContentMutationApplicationPort' \
-    crates/a4n-orchestrator/src/chapter_content/application.rs; then
-    printf 'ChapterContentMutationApplicationPort contract is missing\n' >&2
+    crates/a4n-api-contract/src/chapter.rs; then
+    printf 'ChapterContentMutationApplicationPort contract is missing from the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ChapterContentMutationApplicationPort' \
+    crates/a4n-orchestrator/src/chapter_content; then
+    printf 'ChapterContentMutationApplicationPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::chapter_content::ChapterContentMutationApplicationPort' \
+    crates/a4n-runtime/src; then
+    printf 'Runtime chapter content mutations must consume the API contract directly\n' >&2
     exit 1
 fi
 

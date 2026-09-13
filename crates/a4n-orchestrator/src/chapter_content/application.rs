@@ -1,6 +1,8 @@
 use std::collections::BTreeSet;
 
-use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
+use a4n_api_contract::chapter::{
+    ChapterContentMutationApplicationPort, ChapterDerivedCleanupHostPort,
+};
 use a4n_db_models::models::{chapter::chapter, character::protagonist_profile};
 use a4n_domain::project::ChapterDerivedCleanupArtifacts;
 use a4n_error::AppError;
@@ -12,26 +14,6 @@ use crate::{
 };
 
 use super::rules::ensure_text_project_kind;
-
-/// Runtime-facing content mutation boundary. The cleanup host port is kept
-/// explicit because file, RAG and derived-artifact side effects remain Host
-/// responsibilities; chapter validation and durable writes stay here.
-#[async_trait]
-pub trait ChapterContentMutationApplicationPort: Send + Sync {
-    async fn update(
-        &self,
-        user_id: i64,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        input: a4n_api_contract::chapter::UpdateChapterContentInput,
-    ) -> Result<i64, AppError>;
-
-    async fn import(
-        &self,
-        user_id: i64,
-        host_port: &dyn ChapterDerivedCleanupHostPort,
-        input: a4n_api_contract::chapter::ImportChapterInput,
-    ) -> Result<i64, AppError>;
-}
 
 /// Runtime-facing boundary for derived-data synchronization and recovery.
 #[async_trait]

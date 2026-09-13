@@ -110,6 +110,24 @@ pub trait ChapterDerivedCleanupHostPort: Send + Sync {
     ) -> Result<(), a4n_error::AppError>;
 }
 
+/// Host-facing chapter content mutation boundary.
+#[async_trait::async_trait]
+pub trait ChapterContentMutationApplicationPort: Send + Sync {
+    async fn update(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: UpdateChapterContentInput,
+    ) -> Result<i64, a4n_error::AppError>;
+
+    async fn import(
+        &self,
+        user_id: i64,
+        host_port: &dyn ChapterDerivedCleanupHostPort,
+        input: ImportChapterInput,
+    ) -> Result<i64, a4n_error::AppError>;
+}
+
 /// Host callback for chapter-scene generation progress.
 pub type ChapterSceneProgressReporter<'a> =
     &'a (dyn Fn(u32, u32, &str) -> Result<(), a4n_error::AppError> + Send + Sync);
