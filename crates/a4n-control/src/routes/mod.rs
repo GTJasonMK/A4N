@@ -219,6 +219,18 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/context-summary",
             post(agent_runtime::update_agent_context_summary),
         )
+        .route(
+            "/agent/execution/lookup",
+            post(agent_runtime::worker_execution_by_key),
+        )
+        .route(
+            "/agent/execution/prepare",
+            post(agent_runtime::create_prepared_execution),
+        )
+        .route(
+            "/agent/execution/update",
+            post(agent_runtime::update_worker_execution),
+        )
         .route("/agent/command", post(agent_runtime::command))
         .route(
             "/agent/package",

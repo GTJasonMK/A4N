@@ -1,7 +1,7 @@
 use crate::host::AgentRuntimeHost;
 use a4n_agent_application::agent::{
     AgentApplication, AgentApprovalExpiryApplicationPort, AgentEditorClaimApplicationPort,
-    AgentEditorResponseApplicationPort, AgentEditorWaitApplicationPort,
+    AgentEditorResponseApplicationPort, AgentEditorWaitApplicationPort, AgentExecutionSnapshot,
     AgentExternalTaskWaitApplicationPort, AgentGenerationCancelApplicationPort, AgentRunContext,
     AgentRunLeaseRecoveryApplicationPort, AgentWorkerActivationApplicationPort,
     AgentWorkerApprovalApplicationPort, AgentWorkerBudgetApplicationPort,
@@ -11,14 +11,15 @@ use a4n_agent_application::agent::{
     AgentWorkerInboxApplicationPort, AgentWorkerLeaseApplicationPort,
     AgentWorkerMessageApplicationPort, AgentWorkerReadApplicationPort,
     AgentWorkerRecoveryApplicationPort, AgentWorkerRun, AgentWorkflowBindingApplicationPort,
-    AgentWorkflowCancelApplicationPort,
+    AgentWorkflowCancelApplicationPort, WorkerExecutionInput, WorkerExecutionUpdate,
 };
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentRunPayload, AgentWorkerContextSummaryRequest,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, WorkerLease,
-    WorkerRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionUpdateRequest, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
+    AgentWorkerUsageRequest, WorkerLease, WorkerRequest,
 };
 use serde_json::Value;
 use std::collections::HashMap;
@@ -35,6 +36,12 @@ pub struct AgentRuntimeState {
     agent_admission: Arc<Mutex<()>>,
     agent_run_cancellations: Arc<Mutex<HashMap<i64, AgentRunCancellation>>>,
     agent_runtime_snapshots: Arc<RwLock<HashMap<i64, AgentRuntimeSnapshot>>>,
+}
+
+#[derive(Clone, Copy)]
+pub struct AgentWorkerExecutionHostPort<'a> {
+    state: &'a AgentRuntimeState,
+    claimed: &'a AgentWorkerRun,
 }
 
 #[derive(Clone)]
@@ -190,6 +197,95 @@ impl AgentRuntimeState {
             operation: "更新 Agent context summary".into(),
         })?;
         self.host.update_context_summary(&request).await
+    }
+
+    pub async fn worker_execution_by_key(
+        &self,
+        claimed: &AgentWorkerRun,
+        execution_key: &str,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        let request = AgentWorkerExecutionLookupRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            execution_key: execution_key.to_string(),
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent execution lookup request 无效: {error}"),
+            operation: "读取 Agent execution".into(),
+        })?;
+        self.host
+            .worker_execution_by_key(&request)
+            .await
+            .map(|snapshot| snapshot.map(Into::into))
+    }
+
+    pub async fn create_prepared_execution(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: WorkerExecutionInput,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        if input.run_id != claimed.run.id || input.lease_token != claimed.lease_token {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "Agent execution input 与 run {} 的 lease 不匹配",
+                    claimed.run.id
+                ),
+                operation: "创建 Agent execution".into(),
+            });
+        }
+        let request = AgentWorkerExecutionCreateRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            execution_key: input.execution_key,
+            execution_kind: input.execution_kind,
+            tool_name: input.tool_name,
+            effect: input.effect,
+            replay_policy: input.replay_policy,
+            arguments_json: input.arguments_json,
+            resource_preconditions_json: input.resource_preconditions_json,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent execution create request 无效: {error}"),
+            operation: "创建 Agent execution".into(),
+        })?;
+        self.host
+            .create_prepared_execution(&request)
+            .await
+            .map(|snapshot| snapshot.map(Into::into))
+    }
+
+    pub async fn update_worker_execution(
+        &self,
+        claimed: &AgentWorkerRun,
+        input: WorkerExecutionUpdate,
+    ) -> Result<AgentExecutionSnapshot, AppError> {
+        if input.run_id != claimed.run.id || input.lease_token != claimed.lease_token {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "Agent execution input 与 run {} 的 lease 不匹配",
+                    claimed.run.id
+                ),
+                operation: "更新 Agent execution".into(),
+            });
+        }
+        let request = AgentWorkerExecutionUpdateRequest {
+            run_id: claimed.run.id,
+            lease: self.agent_worker_lease_request(claimed)?.lease,
+            execution_id: input.execution_id,
+            status: input.status,
+            result_json: input.result_json,
+            result_summary: input.result_summary,
+            result_refs_json: input.result_refs_json,
+            error_message: input.error_message,
+        };
+        request.validate().map_err(|error| AppError::InvalidState {
+            current: format!("Agent execution update request 无效: {error}"),
+            operation: "更新 Agent execution".into(),
+        })?;
+        self.host
+            .update_worker_execution(&request)
+            .await
+            .map(Into::into)
     }
 
     pub async fn authorize_agent_host_command(
@@ -349,8 +445,14 @@ impl AgentRuntimeState {
     pub fn worker_delegation_application(&self) -> &dyn AgentWorkerDelegationApplicationPort {
         self.application.as_ref()
     }
-    pub fn worker_execution_application(&self) -> &dyn AgentWorkerExecutionApplicationPort {
-        self.application.as_ref()
+    pub fn worker_execution_application<'a>(
+        &'a self,
+        claimed: &'a AgentWorkerRun,
+    ) -> AgentWorkerExecutionHostPort<'a> {
+        AgentWorkerExecutionHostPort {
+            state: self,
+            claimed,
+        }
     }
     pub fn worker_failure_application(&self) -> Arc<dyn AgentWorkerFailureApplicationPort> {
         self.application.clone()
@@ -399,5 +501,76 @@ impl AgentRuntimeState {
     }
     pub fn workflow_cancel_application(&self) -> &dyn AgentWorkflowCancelApplicationPort {
         self.application.as_ref()
+    }
+}
+
+#[async_trait::async_trait]
+impl AgentWorkerExecutionApplicationPort for AgentWorkerExecutionHostPort<'_> {
+    async fn worker_execution_by_key(
+        &self,
+        run_id: i64,
+        key: &str,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        if run_id != self.claimed.run.id {
+            return Err(AppError::InvalidState {
+                current: format!(
+                    "Agent execution run_id 与 claimed run {} 不一致",
+                    self.claimed.run.id
+                ),
+                operation: "读取 Agent execution".into(),
+            });
+        }
+        self.state.worker_execution_by_key(self.claimed, key).await
+    }
+
+    async fn create_prepared_execution(
+        &self,
+        input: WorkerExecutionInput,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        self.state
+            .create_prepared_execution(self.claimed, input)
+            .await
+    }
+
+    async fn update_worker_execution(
+        &self,
+        input: WorkerExecutionUpdate,
+    ) -> Result<AgentExecutionSnapshot, AppError> {
+        self.state
+            .update_worker_execution(self.claimed, input)
+            .await
+    }
+
+    async fn worker_execution_by_key_request(
+        &self,
+        request: &AgentWorkerExecutionLookupRequest,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        self.state
+            .host
+            .worker_execution_by_key(request)
+            .await
+            .map(|snapshot| snapshot.map(Into::into))
+    }
+
+    async fn create_prepared_execution_request(
+        &self,
+        request: &AgentWorkerExecutionCreateRequest,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        self.state
+            .host
+            .create_prepared_execution(request)
+            .await
+            .map(|snapshot| snapshot.map(Into::into))
+    }
+
+    async fn update_worker_execution_request(
+        &self,
+        request: &AgentWorkerExecutionUpdateRequest,
+    ) -> Result<AgentExecutionSnapshot, AppError> {
+        self.state
+            .host
+            .update_worker_execution(request)
+            .await
+            .map(Into::into)
     }
 }

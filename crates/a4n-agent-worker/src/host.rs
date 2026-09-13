@@ -10,6 +10,8 @@ use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
     AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
@@ -147,6 +149,30 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
             .request_json(Method::POST, "/internal/agent/context-summary", request)
             .await?;
         Ok(())
+    }
+
+    async fn worker_execution_by_key(
+        &self,
+        request: &AgentWorkerExecutionLookupRequest,
+    ) -> Result<Option<AgentWorkerExecutionSnapshotWire>, AppError> {
+        self.request_json(Method::POST, "/internal/agent/execution/lookup", request)
+            .await
+    }
+
+    async fn create_prepared_execution(
+        &self,
+        request: &AgentWorkerExecutionCreateRequest,
+    ) -> Result<Option<AgentWorkerExecutionSnapshotWire>, AppError> {
+        self.request_json(Method::POST, "/internal/agent/execution/prepare", request)
+            .await
+    }
+
+    async fn update_worker_execution(
+        &self,
+        request: &AgentWorkerExecutionUpdateRequest,
+    ) -> Result<AgentWorkerExecutionSnapshotWire, AppError> {
+        self.request_json(Method::POST, "/internal/agent/execution/update", request)
+            .await
     }
 
     async fn execute_command(

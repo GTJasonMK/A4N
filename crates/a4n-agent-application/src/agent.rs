@@ -35,10 +35,12 @@ use a4n_domain::agent::{
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerContextSummaryRequest, AgentWorkerDelegationSnapshotWire,
-    AgentWorkerExecutionSnapshotWire, AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire,
-    AgentWorkerRunLeaseRequest, AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerRunWire, AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire,
-    AgentWorkerUsageRequest, WorkerRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerRunSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerRunWire,
+    AgentWorkerThreadSnapshotWire, AgentWorkerTurnSnapshotWire, AgentWorkerUsageRequest,
+    WorkerRequest,
 };
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter, QueryOrder, QuerySelect, Set,
@@ -2097,6 +2099,48 @@ pub struct AgentExecutionSnapshot {
     pub error_message: Option<String>,
 }
 
+impl From<AgentExecutionSnapshot> for AgentWorkerExecutionSnapshotWire {
+    fn from(snapshot: AgentExecutionSnapshot) -> Self {
+        Self {
+            id: snapshot.id,
+            run_id: snapshot.run_id,
+            execution_key: snapshot.execution_key,
+            execution_kind: snapshot.execution_kind,
+            status: snapshot.status,
+            tool_name: snapshot.tool_name,
+            effect: snapshot.effect,
+            replay_policy: snapshot.replay_policy,
+            arguments_json: snapshot.arguments_json,
+            resource_preconditions_json: snapshot.resource_preconditions_json,
+            result_json: snapshot.result_json,
+            result_summary: snapshot.result_summary,
+            result_refs_json: snapshot.result_refs_json,
+            error_message: snapshot.error_message,
+        }
+    }
+}
+
+impl From<AgentWorkerExecutionSnapshotWire> for AgentExecutionSnapshot {
+    fn from(snapshot: AgentWorkerExecutionSnapshotWire) -> Self {
+        Self {
+            id: snapshot.id,
+            run_id: snapshot.run_id,
+            execution_key: snapshot.execution_key,
+            execution_kind: snapshot.execution_kind,
+            status: snapshot.status,
+            tool_name: snapshot.tool_name,
+            effect: snapshot.effect,
+            replay_policy: snapshot.replay_policy,
+            arguments_json: snapshot.arguments_json,
+            resource_preconditions_json: snapshot.resource_preconditions_json,
+            result_json: snapshot.result_json,
+            result_summary: snapshot.result_summary,
+            result_refs_json: snapshot.result_refs_json,
+            error_message: snapshot.error_message,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AgentDelegationSnapshot {
     pub id: i64,
@@ -2451,26 +2495,7 @@ impl AgentRunContext {
                     error_message: delegation.error_message.clone(),
                 })
                 .collect(),
-            executions: self
-                .executions
-                .iter()
-                .map(|execution| AgentWorkerExecutionSnapshotWire {
-                    id: execution.id,
-                    run_id: execution.run_id,
-                    execution_key: execution.execution_key.clone(),
-                    execution_kind: execution.execution_kind.clone(),
-                    status: execution.status.clone(),
-                    tool_name: execution.tool_name.clone(),
-                    effect: execution.effect.clone(),
-                    replay_policy: execution.replay_policy.clone(),
-                    arguments_json: execution.arguments_json.clone(),
-                    resource_preconditions_json: execution.resource_preconditions_json.clone(),
-                    result_json: execution.result_json.clone(),
-                    result_summary: execution.result_summary.clone(),
-                    result_refs_json: execution.result_refs_json.clone(),
-                    error_message: execution.error_message.clone(),
-                })
-                .collect(),
+            executions: self.executions.iter().cloned().map(Into::into).collect(),
             editor_source: self.editor_source.clone(),
             owner_user_id: self.owner_user_id,
             scope: self.scope.clone(),
@@ -2532,26 +2557,7 @@ impl AgentRunContext {
                     error_message: delegation.error_message,
                 })
                 .collect(),
-            executions: wire
-                .executions
-                .into_iter()
-                .map(|execution| AgentExecutionSnapshot {
-                    id: execution.id,
-                    run_id: execution.run_id,
-                    execution_key: execution.execution_key,
-                    execution_kind: execution.execution_kind,
-                    status: execution.status,
-                    tool_name: execution.tool_name,
-                    effect: execution.effect,
-                    replay_policy: execution.replay_policy,
-                    arguments_json: execution.arguments_json,
-                    resource_preconditions_json: execution.resource_preconditions_json,
-                    result_json: execution.result_json,
-                    result_summary: execution.result_summary,
-                    result_refs_json: execution.result_refs_json,
-                    error_message: execution.error_message,
-                })
-                .collect(),
+            executions: wire.executions.into_iter().map(Into::into).collect(),
             editor_source: wire.editor_source,
             owner_user_id: wire.owner_user_id,
             scope: wire.scope,
@@ -3361,6 +3367,73 @@ impl AgentApplication {
             Err(AgentDbError::BudgetExhausted(_)) => Ok(None),
             Err(error) => Err(agent_db_error_to_app(error)),
         }
+    }
+
+    pub(crate) async fn worker_execution_by_key_request(
+        &self,
+        request: &AgentWorkerExecutionLookupRequest,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        self.worker_execution_by_key(request.run_id, &request.execution_key)
+            .await
+    }
+
+    pub(crate) async fn create_prepared_execution_request(
+        &self,
+        request: &AgentWorkerExecutionCreateRequest,
+    ) -> Result<Option<AgentExecutionSnapshot>, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        self.create_prepared_execution(WorkerExecutionInput {
+            run_id: request.run_id,
+            lease_token: request.lease.fence_token.clone(),
+            execution_key: request.execution_key.clone(),
+            execution_kind: request.execution_kind.clone(),
+            tool_name: request.tool_name.clone(),
+            effect: request.effect.clone(),
+            replay_policy: request.replay_policy.clone(),
+            arguments_json: request.arguments_json.clone(),
+            resource_preconditions_json: request.resource_preconditions_json.clone(),
+        })
+        .await
+    }
+
+    pub(crate) async fn update_worker_execution_request(
+        &self,
+        request: &AgentWorkerExecutionUpdateRequest,
+    ) -> Result<AgentExecutionSnapshot, AppError> {
+        request
+            .validate()
+            .map_err(|error| AppError::InvalidArgument(error.to_string()))?;
+        self.validate_worker_lease_request(&AgentWorkerRunLeaseRequest {
+            run_id: request.run_id,
+            lease: request.lease.clone(),
+        })
+        .await?;
+        self.update_worker_execution(WorkerExecutionUpdate {
+            run_id: request.run_id,
+            lease_token: request.lease.fence_token.clone(),
+            execution_id: request.execution_id,
+            status: request.status.clone(),
+            result_json: request.result_json.clone(),
+            result_summary: request.result_summary.clone(),
+            result_refs_json: request.result_refs_json.clone(),
+            error_message: request.error_message.clone(),
+        })
+        .await
     }
 
     /// Starts a child Run on an existing canonical sub-agent thread and binds

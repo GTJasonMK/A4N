@@ -182,8 +182,8 @@ async fn call(
     worker_request: &WorkerRequest<AgentRunPayload>,
     call: ToolCall,
 ) -> Result<Option<Value>, AppError> {
-    let execution_application = state.worker_execution_application();
-    let Some(execution) = prepare_tool_call(execution_application, claimed, &call).await? else {
+    let execution_application = state.worker_execution_application(claimed);
+    let Some(execution) = prepare_tool_call(&execution_application, claimed, &call).await? else {
         state.wait_agent_worker_run(claimed, "budget").await?;
         return Ok(None);
     };
@@ -208,7 +208,7 @@ async fn call(
     }
     let (progress, _) = execute_tool_call(
         state,
-        execution_application,
+        &execution_application,
         claimed,
         context,
         &RuntimeAgentToolExecutor::new(state.clone(), worker_request.clone()),

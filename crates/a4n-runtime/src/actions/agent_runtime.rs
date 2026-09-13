@@ -32,9 +32,10 @@ use a4n_llm::provider::{
 };
 use a4n_worker_contract::{
     AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerContextSummaryRequest,
-    AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
-    WorkerPrincipalKind, WorkerRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest, AgentWorkerRunContextWire,
+    AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
+    WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
 use serde::Deserialize;
@@ -1069,6 +1070,48 @@ pub async fn update_agent_context_summary(
         .agent_worker_context_application()
         .update_context_summary_request(request)
         .await
+}
+
+pub async fn worker_execution_by_key(
+    state: &AppState,
+    request: &AgentWorkerExecutionLookupRequest,
+) -> Result<Option<AgentWorkerExecutionSnapshotWire>, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent execution lookup 无效: {error}"))
+    })?;
+    state
+        .agent_worker_execution_application()
+        .worker_execution_by_key_request(request)
+        .await
+        .map(|snapshot| snapshot.map(Into::into))
+}
+
+pub async fn create_prepared_execution(
+    state: &AppState,
+    request: &AgentWorkerExecutionCreateRequest,
+) -> Result<Option<AgentWorkerExecutionSnapshotWire>, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent execution create 无效: {error}"))
+    })?;
+    state
+        .agent_worker_execution_application()
+        .create_prepared_execution_request(request)
+        .await
+        .map(|snapshot| snapshot.map(Into::into))
+}
+
+pub async fn update_worker_execution(
+    state: &AppState,
+    request: &AgentWorkerExecutionUpdateRequest,
+) -> Result<AgentWorkerExecutionSnapshotWire, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent execution update 无效: {error}"))
+    })?;
+    state
+        .agent_worker_execution_application()
+        .update_worker_execution_request(request)
+        .await
+        .map(Into::into)
 }
 
 pub async fn authorize_agent_host_command(

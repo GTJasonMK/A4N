@@ -1,9 +1,9 @@
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput,
-    WorkerExecutionInput, WorkerExecutionUpdate, child_budget_within_parent,
-    enforce_delegation_limits, validate_agent_budget,
+    AgentRunContext, AgentWorkerExecutionApplicationPort, AgentWorkerReadApplicationPort,
+    AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput, WorkerExecutionUpdate,
+    child_budget_within_parent, enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -844,7 +844,7 @@ async fn process_claimed_run_inner(
         operation_id = %request.operation_id,
         "Agent worker request contract validated"
     );
-    let execution_application = state.worker_execution_application();
+    let execution_application = state.worker_execution_application(claimed);
     let mut context = state.load_agent_run_context(request).await?;
     let snapshot = state.agent_runtime_snapshot(claimed.run.id).await;
     if context.runtime_snapshot_required && snapshot.is_none() {
@@ -1103,7 +1103,7 @@ async fn process_claimed_run_inner(
                 state,
                 claimed,
                 &mut context,
-                execution_application,
+                &execution_application,
                 config_id,
                 &capabilities,
                 latest_message_sequence,
@@ -1217,7 +1217,7 @@ async fn process_claimed_run_inner(
                 }
             })?)?
         } else {
-            execution_application
+            (&execution_application)
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
                     lease_token: claimed.lease_token.clone(),
@@ -1250,7 +1250,7 @@ async fn process_claimed_run_inner(
                 cancel,
             )
             .await?;
-            execution_application
+            (&execution_application)
                 .update_worker_execution(WorkerExecutionUpdate {
                     run_id: claimed.run.id,
                     lease_token: claimed.lease_token.clone(),
@@ -1868,7 +1868,7 @@ async fn execute_tool_calls(
     model_calls: u32,
     tokens: u64,
 ) -> Result<RunProgress, AppError> {
-    let execution_application = state.worker_execution_application();
+    let execution_application = state.worker_execution_application(claimed);
     let parallelism = usize::from(budget.max_parallel_tools.unwrap_or(1).max(1));
     let mut index = 0;
     while index < calls.len() {
@@ -1900,7 +1900,7 @@ async fn execute_tool_calls(
             // Preparing is the durable reservation. A restart reconstructs the
             // count from these records, including calls awaiting approval.
             // The shared DB admission also allows waits while tokens are reserved.
-            let Some(execution) = prepare_tool_call(execution_application, claimed, call).await?
+            let Some(execution) = prepare_tool_call(&execution_application, claimed, call).await?
             else {
                 break;
             };
@@ -1929,7 +1929,7 @@ async fn execute_tool_calls(
                 let mut local_messages = Vec::new();
                 let (progress, names) = execute_tool_call(
                     state,
-                    execution_application,
+                    &execution_application,
                     claimed,
                     context,
                     executor,

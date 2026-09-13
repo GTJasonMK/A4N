@@ -22,6 +22,8 @@ use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
     AgentWorkerClaimRequest, AgentWorkerContextSummaryRequest, AgentWorkerEditorProjectionRequest,
+    AgentWorkerExecutionCreateRequest, AgentWorkerExecutionLookupRequest,
+    AgentWorkerExecutionSnapshotWire, AgentWorkerExecutionUpdateRequest,
     AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunWaitRequest,
     AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
@@ -133,6 +135,51 @@ pub(super) async fn update_agent_context_summary(
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::update_agent_context_summary(state.runtime(), &input).await?;
     Ok(Json(Value::Null))
+}
+
+pub(super) async fn worker_execution_by_key(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerExecutionLookupRequest>,
+) -> Result<Json<Option<AgentWorkerExecutionSnapshotWire>>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::worker_execution_by_key(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn create_prepared_execution(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerExecutionCreateRequest>,
+) -> Result<Json<Option<AgentWorkerExecutionSnapshotWire>>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::create_prepared_execution(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
+}
+
+pub(super) async fn update_worker_execution(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerExecutionUpdateRequest>,
+) -> Result<Json<AgentWorkerExecutionSnapshotWire>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::update_worker_execution(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
 }
 
 pub(super) async fn command(

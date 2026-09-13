@@ -139,6 +139,81 @@ impl AgentWorkerContextSummaryRequest {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerExecutionLookupRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub execution_key: String,
+}
+
+impl AgentWorkerExecutionLookupRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("execution_key", &self.execution_key)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerExecutionCreateRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub execution_key: String,
+    pub execution_kind: String,
+    pub tool_name: Option<String>,
+    pub effect: Option<String>,
+    pub replay_policy: Option<String>,
+    pub arguments_json: Option<serde_json::Value>,
+    pub resource_preconditions_json: Option<serde_json::Value>,
+}
+
+impl AgentWorkerExecutionCreateRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        validate_non_blank("execution_key", &self.execution_key)?;
+        validate_non_blank("execution_kind", &self.execution_kind)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerExecutionUpdateRequest {
+    pub run_id: i64,
+    pub lease: WorkerLease,
+    pub execution_id: i64,
+    pub status: String,
+    pub result_json: Option<serde_json::Value>,
+    pub result_summary: Option<String>,
+    pub result_refs_json: Option<serde_json::Value>,
+    pub error_message: Option<String>,
+}
+
+impl AgentWorkerExecutionUpdateRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        AgentWorkerRunLeaseRequest {
+            run_id: self.run_id,
+            lease: self.lease.clone(),
+        }
+        .validate()?;
+        if self.execution_id <= 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "execution_id",
+                reason: "must be positive",
+            });
+        }
+        validate_non_blank("status", &self.status)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct AgentRunPayload {
@@ -755,6 +830,53 @@ mod tests {
             invalid.validate(),
             Err(WorkerContractError::InvalidValue {
                 field: "context_summary",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn execution_requests_validate_their_lease_and_identifiers() {
+        let lease = valid_request().lease;
+        let lookup = AgentWorkerExecutionLookupRequest {
+            run_id: 7,
+            lease: lease.clone(),
+            execution_key: "tool-call:1".into(),
+        };
+        lookup.validate().expect("lookup should be valid");
+
+        let create = AgentWorkerExecutionCreateRequest {
+            run_id: 7,
+            lease: lease.clone(),
+            execution_key: "tool-call:1".into(),
+            execution_kind: "tool_call".into(),
+            tool_name: Some("read".into()),
+            effect: Some("read".into()),
+            replay_policy: Some("safe".into()),
+            arguments_json: Some(serde_json::json!({})),
+            resource_preconditions_json: None,
+        };
+        create.validate().expect("create should be valid");
+
+        let update = AgentWorkerExecutionUpdateRequest {
+            run_id: 7,
+            lease,
+            execution_id: 2,
+            status: "succeeded".into(),
+            result_json: None,
+            result_summary: None,
+            result_refs_json: None,
+            error_message: None,
+        };
+        update.validate().expect("update should be valid");
+        assert!(matches!(
+            AgentWorkerExecutionUpdateRequest {
+                execution_id: 0,
+                ..update
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "execution_id",
                 ..
             })
         ));
