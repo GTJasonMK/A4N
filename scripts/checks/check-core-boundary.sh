@@ -2752,6 +2752,17 @@ if ! rg -n 'search_tools_for_worker|describe_tool_for_worker' \
     printf 'Agent worker tool discovery read port is missing\n' >&2
     exit 1
 fi
+if rg -U -n 'ensure_argument_resource_scope\(\s*self\.state\.application\(\)' \
+    crates/a4n-agent-runtime/src/engine/mod.rs; then
+    printf 'Agent worker resource scope checks must consume AgentWorkerReadApplicationPort\n' >&2
+    exit 1
+fi
+if ! rg -n 'verify_chapters_in_project_for_worker' \
+    crates/a4n-agent-application/src/agent/worker_read.rs \
+    crates/a4n-agent-runtime/src/engine/mod.rs; then
+    printf 'Agent worker resource scope read port is missing\n' >&2
+    exit 1
+fi
 if rg -n 'state\.application\(\)\.review_delegation' \
     crates/a4n-agent-runtime/src/engine; then
     printf 'Agent worker delegation review must consume AgentWorkerDelegationApplicationPort\n' >&2

@@ -1,9 +1,9 @@
 use crate::state::AgentRuntimeState;
 use a4n_agent_application::agent::{
     AgentContextSummary, AgentExecutionSnapshot, AgentInboxSnapshot, AgentMessageSnapshot,
-    AgentRunContext, AgentWorkerRun, WorkerDelegationInput, WorkerExecutionInput,
-    WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent, enforce_delegation_limits,
-    validate_agent_budget,
+    AgentRunContext, AgentWorkerReadApplicationPort, AgentWorkerRun, WorkerDelegationInput,
+    WorkerExecutionInput, WorkerExecutionUpdate, WorkerUsage, child_budget_within_parent,
+    enforce_delegation_limits, validate_agent_budget,
 };
 use a4n_api_contract::agent::{
     AgentBudget, AgentScope, AgentToolDescriptor, AgentToolExposure, DescribeAgentToolInput,
@@ -198,7 +198,7 @@ impl RuntimeAgentToolExecutor {
         ensure_scope_allows_tool(&context.scope, name)?;
         ensure_argument_scope(&context.scope, &descriptor, &arguments)?;
         ensure_argument_resource_scope(
-            self.state.application(),
+            self.state.worker_read_application(),
             context.owner_user_id,
             &context.scope,
             &arguments,
@@ -374,7 +374,7 @@ fn ensure_argument_scope(
 }
 
 async fn ensure_argument_resource_scope(
-    application: &dyn a4n_api_contract::agent::AgentApplicationPort,
+    application: &dyn AgentWorkerReadApplicationPort,
     user_id: i64,
     scope: &AgentScope,
     arguments: &Value,
@@ -395,7 +395,7 @@ async fn ensure_argument_resource_scope(
         ensure_project_scope(scope, requested_project)?;
     }
     application
-        .verify_chapters_in_project(user_id, project_id, &chapter_ids)
+        .verify_chapters_in_project_for_worker(user_id, project_id, &chapter_ids)
         .await
 }
 
