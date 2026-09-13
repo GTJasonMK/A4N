@@ -20,8 +20,8 @@ pub use self::planner::ContextBudgetPlanner;
 pub use self::request::{
     ContextAwareJsonLlmRequestInput, chat_request_with_workflow_run_id,
     context_aware_system_user_json_llm_request, context_aware_system_user_llm_request,
-    context_aware_system_user_request, preview_context_aware_chat_request,
-    replace_request_user_content_from_manifest,
+    context_aware_system_user_request, context_manifest_dynamic_messages,
+    preview_context_aware_chat_request, replace_request_user_content_from_manifest,
 };
 
 pub const CONTEXT_MANIFEST_SCHEMA_VERSION: u32 = 1;

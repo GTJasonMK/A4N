@@ -6610,6 +6610,7 @@ const messages = {
     hitRate: "Hit rate",
     hitTokens: "Hit tokens",
     missTokens: "Missed tokens",
+    writeTokens: "Cache write tokens",
     dailyGenerationCalls: "Daily generation calls",
     inputOutput: "Input {input} / Output {output}",
     cancelled: "Cancelled",
@@ -6621,7 +6622,7 @@ const messages = {
     tokensNotReturned: "Tokens not returned",
     tokenValue: "{count} tokens",
     cacheNotReturned: "Cache not returned",
-    cacheValue: "Cache {hit}/{miss} ({ratio})",
+    cacheValue: "Cache hit {hit} / miss {miss} / write {write} ({ratio})",
   },
   pageCli: {
     title: "Page CLI",

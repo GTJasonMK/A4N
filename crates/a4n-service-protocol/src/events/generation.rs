@@ -283,6 +283,9 @@ pub struct GenerationUsage {
     pub prompt_cache_hit_tokens: Option<u64>,
     #[schemars(range(max = JS_SAFE_INTEGER_U64))]
     pub prompt_cache_miss_tokens: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(range(max = JS_SAFE_INTEGER_U64))]
+    pub prompt_cache_write_tokens: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -832,6 +835,11 @@ fn validate_usage(usage: &GenerationUsage) -> Result<(), GenerationContractError
     let cache_miss = usage.prompt_cache_miss_tokens.unwrap_or(0);
     validate_safe_u64("usage.prompt_cache_hit_tokens", cache_hit, true)?;
     validate_safe_u64("usage.prompt_cache_miss_tokens", cache_miss, true)?;
+    validate_safe_u64(
+        "usage.prompt_cache_write_tokens",
+        usage.prompt_cache_write_tokens.unwrap_or(0),
+        true,
+    )?;
     if cache_hit
         .checked_add(cache_miss)
         .is_none_or(|value| value > usage.prompt_tokens)
@@ -1355,6 +1363,7 @@ mod tests {
             total_tokens: 4,
             prompt_cache_hit_tokens: None,
             prompt_cache_miss_tokens: None,
+            prompt_cache_write_tokens: None,
         };
         assert!(
             envelope(

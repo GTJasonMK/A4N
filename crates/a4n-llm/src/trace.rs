@@ -39,6 +39,9 @@ pub fn llm_usage_summary_text(usage: Option<&UsageInfo>) -> String {
             summary.push_str("，缓存数据未返回");
         }
     }
+    if let Some(write) = usage.prompt_cache_write_tokens {
+        summary.push_str(&format!("，缓存写入 token {write}"));
+    }
     summary
 }
 

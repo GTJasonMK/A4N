@@ -1298,6 +1298,8 @@ async fn process_claimed_run_inner(
             response_format: None,
             stream_include_usage: true,
             cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
+            cache_breakpoints: Vec::new(),
+            cache_mode: None,
             cache_system_prefix: true,
             cache_user_prefix_len: None,
             trace_context: Some(LlmTraceContext {
@@ -1606,6 +1608,8 @@ async fn compact_context(
         response_format: Some(a4n_llm::provider::ResponseFormat::json_object()),
         stream_include_usage: true,
         cache_scope_key: Some(format!("agent-thread:{}", context.thread.id)),
+        cache_breakpoints: Vec::new(),
+        cache_mode: None,
         cache_system_prefix: true,
         cache_user_prefix_len: None,
         trace_context: Some(LlmTraceContext {

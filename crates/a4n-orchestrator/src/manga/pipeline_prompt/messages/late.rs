@@ -1,4 +1,5 @@
 use a4n_error::AppError;
+use a4n_llm::context::LlmContextManifest;
 use serde_json::{Value, json};
 
 use a4n_domain::source_spans::SourceSpan;
@@ -10,7 +11,7 @@ use super::source_windows::event_source_span_windows;
 pub(in crate::manga) fn manga_visual_anchor_extraction_user_message(
     events_json: Value,
     source_spans: &[SourceSpan],
-) -> Result<String, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     let chapter_context = event_source_span_windows(&events_json, source_spans)?;
     build_manga_step_user_message(
         "manga_visual_anchor_extraction",
@@ -33,7 +34,7 @@ pub(in crate::manga) fn manga_visual_anchor_extraction_user_message(
 pub(in crate::manga) fn manga_item_extraction_user_message(
     speech_json: Value,
     visual_json: Value,
-) -> Result<String, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     build_manga_step_user_message(
         "manga_item_extraction",
         "基于对白旁白和视觉锚点抽取漫画页需要稳定绘制的关键物品",
@@ -52,7 +53,7 @@ pub(in crate::manga) fn manga_chapter_comic_synthesis_user_message(
     speech_json: Value,
     visual_json: Value,
     items_json: Value,
-) -> Result<String, AppError> {
+) -> Result<LlmContextManifest, AppError> {
     build_manga_step_user_message(
         "manga_chapter_comic_synthesis",
         "基于事件、对白旁白、视觉锚点和物品生成漫画分页所需章节综合信息",

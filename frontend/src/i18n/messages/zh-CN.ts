@@ -6559,6 +6559,7 @@ const messages = {
     hitRate: "命中率",
     hitTokens: "命中令牌",
     missTokens: "未命中令牌",
+    writeTokens: "缓存写入令牌",
     dailyGenerationCalls: "每日生成调用量",
     inputOutput: "输入 {input} / 输出 {output}",
     cancelled: "取消",
@@ -6570,7 +6571,7 @@ const messages = {
     tokensNotReturned: "未返回令牌",
     tokenValue: "{count} 令牌",
     cacheNotReturned: "缓存未返回",
-    cacheValue: "缓存 {hit}/{miss} ({ratio})",
+    cacheValue: "缓存命中 {hit} / 未命中 {miss} / 写入 {write} ({ratio})",
   },
   pageCli: {
     title: "页面 CLI",

@@ -7,6 +7,45 @@ use serde_json::Value;
 
 use super::*;
 use crate::manga::pipeline_prompt::{MangaLlmCallInput, prepare_manga_llm_call};
+use a4n_llm::context::{
+    LlmContextManifest, context_aware_system_user_request, preview_context_aware_chat_request,
+};
+
+fn render_manifest(manifest: LlmContextManifest) -> String {
+    let mut request = context_aware_system_user_request("system", manifest, None, None).unwrap();
+    preview_context_aware_chat_request(&mut request, 1_000_000, 8192).unwrap();
+    request.messages[1].content.clone()
+}
+
+#[test]
+fn manga_pages_reuse_shared_input_without_losing_page_or_output_requirements() {
+    let build = |page| {
+        build_manga_step_user_message(
+        "manga_page_drawing_prompt", &format!("只生成第 {page} 页"),
+        json!({"current_page": {"page_number": page}, "page_context": {"cast": ["林晓雨"]}, "reference_assets": ["portrait:1"]}),
+        json!({"format": "json_object", "required_fields": ["panels"], "page_number": page}),
+    ).unwrap()
+    };
+    let first = build(1);
+    let second = build(2);
+    assert_eq!(first.packs, second.packs);
+    let rendered = render_manifest(second.clone());
+    for required in ["林晓雨", "portrait:1", "panels", "只生成第 2 页"] {
+        assert!(rendered.contains(required));
+    }
+    let payload: Value = serde_json::from_str(
+        a4n_prompt::request::json_user_message_payload(&second.dynamic_user_content).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(payload["input"]["current_page"]["page_number"], 2);
+    assert_eq!(payload["output_contract"]["page_number"], 2);
+    assert!(!second.packs.iter().any(|pack| {
+        pack.variants[0]
+            .canonical_content_json
+            .to_string()
+            .contains("current_page")
+    }));
+}
 
 struct TestPromptRenderer;
 
@@ -27,7 +66,7 @@ impl PromptRenderer for TestPromptRenderer {
 async fn manga_llm_request_sends_dynamic_payload_once() {
     let marker = "unique-manga-payload-marker";
     let variables = HashMap::new();
-    let prepared = prepare_manga_llm_call(MangaLlmCallInput {
+    let mut prepared = prepare_manga_llm_call(MangaLlmCallInput {
         prompt_renderer: &TestPromptRenderer,
         prompt_name: "manga_character_binding",
         project_id: 7,
@@ -35,11 +74,18 @@ async fn manga_llm_request_sends_dynamic_payload_once() {
         call_key: "manga:test".to_string(),
         call_order: 1,
         variables: &variables,
-        user_content: marker.to_string(),
+        user_content: build_manga_step_user_message(
+            "manga_character_binding",
+            "绑定角色",
+            json!({"chapter": marker}),
+            json!({"format": "json_object"}),
+        )
+        .unwrap(),
         temperature: 0.3,
     })
     .await
     .expect("manga request should build");
+    preview_context_aware_chat_request(&mut prepared.request, 1_000_000, 8192).unwrap();
 
     let sent = prepared
         .request
@@ -49,7 +95,7 @@ async fn manga_llm_request_sends_dynamic_payload_once() {
         .collect::<Vec<_>>()
         .join("\n");
     assert_eq!(sent.matches(marker).count(), 1);
-    assert!(prepared.request.context_manifest_json.is_none());
+    assert!(prepared.request.context_manifest_json.is_some());
 }
 
 #[test]
@@ -66,6 +112,7 @@ fn build_manga_step_user_message_uses_json_payload() {
         }),
     )
     .expect("manga step message should build");
+    let message = render_manifest(message);
 
     assert!(message.contains(r#""prompt_name": "manga_speech_selection""#));
     assert!(message.contains(r#""input": {"#));
@@ -90,6 +137,7 @@ fn manga_speech_selection_user_message_uses_event_windows() {
         json!({"character_portraits": []}),
     )
     .expect("speech selection prompt should serialize");
+    let message = render_manifest(message);
 
     assert!(message.contains(r#""source_windows": ["#));
     assert!(message.contains(r#""available_source_spans": ["#));
@@ -119,6 +167,7 @@ fn manga_visual_anchor_extraction_user_message_uses_event_windows() {
         &source_spans,
     )
     .expect("visual anchor prompt should serialize");
+    let message = render_manifest(message);
 
     assert!(message.contains(r#""source_windows": ["#));
     assert!(message.contains(r#""available_source_spans": ["#));

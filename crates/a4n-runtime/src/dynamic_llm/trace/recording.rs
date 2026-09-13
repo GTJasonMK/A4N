@@ -1,5 +1,5 @@
 use crate::provider_runtime::DynamicProviderFacade;
-use a4n_domain::llm::{LlmCallUsageTraceInput, RecordLlmCallTraceInput};
+use a4n_domain::llm::RecordLlmCallTraceInput;
 use a4n_llm::provider::{LlmTraceContext, UsageInfo};
 
 pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
@@ -31,7 +31,7 @@ pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
             model: model.map(ToString::to_string),
             context_plan_json: trace_context.context_plan_json.clone(),
             context_pack_refs_json: trace_context.context_pack_refs_json.clone(),
-            usage: usage.map(llm_call_usage_trace_input),
+            usage,
             duration_ms,
             streamed,
             status: status.to_string(),
@@ -48,15 +48,5 @@ pub(in crate::dynamic_llm) async fn record_dynamic_llm_trace(
             error = %err,
             "记录 LLM 调用 trace 失败"
         );
-    }
-}
-
-fn llm_call_usage_trace_input(usage: UsageInfo) -> LlmCallUsageTraceInput {
-    LlmCallUsageTraceInput {
-        prompt_tokens: usage.prompt_tokens,
-        completion_tokens: usage.completion_tokens,
-        total_tokens: usage.total_tokens,
-        prompt_cache_hit_tokens: usage.prompt_cache_hit_tokens,
-        prompt_cache_miss_tokens: usage.prompt_cache_miss_tokens,
     }
 }

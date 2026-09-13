@@ -42,6 +42,7 @@ where
         total_tokens: Set(usage_trace.total_tokens),
         prompt_cache_hit_tokens: Set(usage_trace.prompt_cache_hit_tokens),
         prompt_cache_miss_tokens: Set(usage_trace.prompt_cache_miss_tokens),
+        prompt_cache_write_tokens: Set(usage_trace.prompt_cache_write_tokens),
         prompt_cache_hit_ratio: Set(usage_trace.prompt_cache_hit_ratio),
         duration_ms: Set(input.duration_ms),
         streamed: Set(input.streamed),
@@ -64,6 +65,7 @@ pub(in crate::generation) struct UsageTraceFields {
     pub(in crate::generation) total_tokens: Option<i32>,
     pub(in crate::generation) prompt_cache_hit_tokens: Option<i32>,
     pub(in crate::generation) prompt_cache_miss_tokens: Option<i32>,
+    pub(in crate::generation) prompt_cache_write_tokens: Option<i32>,
     pub(in crate::generation) prompt_cache_hit_ratio: Option<f64>,
 }
 
@@ -73,6 +75,10 @@ pub(in crate::generation) fn usage_trace_fields(
     let Some(usage) = usage else {
         return Ok(UsageTraceFields::default());
     };
+    let usage = usage
+        .clone()
+        .normalize_cache_tokens()
+        .map_err(GenerationDbError::InvalidArgument)?;
     let prompt_cache_hit_ratio = match (
         usage.prompt_cache_hit_tokens,
         usage.prompt_cache_miss_tokens,
@@ -91,6 +97,10 @@ pub(in crate::generation) fn usage_trace_fields(
         prompt_cache_miss_tokens: usage
             .prompt_cache_miss_tokens
             .map(|value| usize_to_i32(value, "prompt_cache_miss_tokens"))
+            .transpose()?,
+        prompt_cache_write_tokens: usage
+            .prompt_cache_write_tokens
+            .map(|value| usize_to_i32(value, "prompt_cache_write_tokens"))
             .transpose()?,
         prompt_cache_hit_ratio,
     })

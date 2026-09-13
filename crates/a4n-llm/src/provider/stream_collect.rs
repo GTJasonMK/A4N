@@ -258,6 +258,7 @@ mod tests {
                     total_tokens: 2,
                     prompt_cache_hit_tokens: None,
                     prompt_cache_miss_tokens: None,
+                    prompt_cache_write_tokens: None,
                 }),
             })])))
         }
@@ -445,6 +446,7 @@ mod tests {
                     total_tokens: 7,
                     prompt_cache_hit_tokens: None,
                     prompt_cache_miss_tokens: None,
+                    prompt_cache_write_tokens: None,
                 }),
             }),
         ]);

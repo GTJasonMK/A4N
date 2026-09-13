@@ -51,6 +51,7 @@ impl TestLlmPort {
                     total_tokens: 14,
                     prompt_cache_hit_tokens: None,
                     prompt_cache_miss_tokens: None,
+                    prompt_cache_write_tokens: None,
                 }),
                 finish_reason: finish_reason.map(str::to_string),
                 reasoning_content: None,

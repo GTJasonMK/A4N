@@ -1706,6 +1706,7 @@ export interface CallKindOverview {
   prompt_cache_hit_ratio: number | null;
   prompt_cache_hit_tokens: number;
   prompt_cache_miss_tokens: number;
+  prompt_cache_write_tokens: number | null;
   prompt_tokens: number;
   success: number;
   total_tokens: number;
@@ -1717,6 +1718,7 @@ export interface DailyCallMetric {
   llm_calls: number;
   llm_prompt_cache_hit_tokens: number;
   llm_prompt_cache_miss_tokens: number;
+  llm_prompt_cache_write_tokens: number | null;
   llm_total_tokens: number;
   video_calls: number;
 }
@@ -1736,6 +1738,7 @@ export interface LlmWorkflowMetric {
   prompt_cache_hit_ratio: number | null;
   prompt_cache_hit_tokens: number;
   prompt_cache_miss_tokens: number;
+  prompt_cache_write_tokens: number | null;
   prompt_tokens: number;
   step_key: string;
   success: number;
@@ -1768,6 +1771,7 @@ export interface RecentLlmCall {
   prompt_cache_hit_ratio: number | null;
   prompt_cache_hit_tokens: number | null;
   prompt_cache_miss_tokens: number | null;
+  prompt_cache_write_tokens: number | null;
   prompt_tokens: number | null;
   provider: string | null;
   stable_prefix_tokens: number | null;

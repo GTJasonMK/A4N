@@ -37,6 +37,23 @@ from mock_openai_provider import (
 
 
 class MockOpenAIProviderTest(unittest.TestCase):
+    def test_cache_content_blocks_and_immutable_loop_observations(self) -> None:
+        self.assertEqual(response_for({"messages": [{"role": "user", "content": [
+            {"type": "text", "text": "pi"}, {"type": "text", "text": "ng"}
+        ]}]}), "pong")
+        with self.assertRaises(ValueError):
+            response_for({"messages": [{"role": "user", "content": [{"type": "image_url"}]}]})
+        observation = {"tool": "get_project_information", "success": True,
+                       "result": {"content": {"source_spans": [{"text": "林岚走进机房。"}]}}}
+        request = {"messages": [
+            {"role": "system", "content": "content_optimization_chat_agent_loop"},
+            {"role": "user", "content": json.dumps({"loop_observation": {"sequence": 1, "value": observation}}, ensure_ascii=False)},
+            {"role": "user", "content": json.dumps({"loop_state": {"observations_ref": "previous messages", "progress": {"observation_count": 1}}})},
+        ]}
+        decision = json.loads(response_for(request))
+        self.assertEqual(decision["arguments"]["tool"], "edit_article")
+        self.assertEqual(decision["arguments"]["arguments"]["patches"][0]["old_text"], "林岚走进机房。")
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.temp_dir = tempfile.TemporaryDirectory()

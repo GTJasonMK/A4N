@@ -1094,6 +1094,15 @@
             "null"
           ]
         },
+        "prompt_cache_write_tokens": {
+          "format": "uint64",
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
         "prompt_tokens": {
           "format": "uint64",
           "maximum": 9007199254740991,

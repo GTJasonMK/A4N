@@ -58,29 +58,33 @@ pub(in crate::http) fn usage_info_from_json(value: &Value) -> Result<UsageInfo, 
     let completion_tokens = required_usize(&value["completion_tokens"], "usage.completion_tokens")?;
     let total_tokens = required_usize(&value["total_tokens"], "usage.total_tokens")?;
     let prompt_cache_hit_tokens = prompt_cache_hit_tokens_from_usage(value)?;
-    let prompt_cache_miss_tokens = match optional_usize(
+    let prompt_cache_miss_tokens = optional_usize(
         value.get("prompt_cache_miss_tokens"),
         "usage.prompt_cache_miss_tokens",
+    )?;
+    let prompt_cache_write_tokens = match optional_nested_usize(
+        value,
+        &["prompt_tokens_details", "cache_write_tokens"],
+        "usage.prompt_tokens_details.cache_write_tokens",
     )? {
-        Some(value) => Some(value),
-        None => prompt_cache_hit_tokens
-            .map(|hit| {
-                prompt_tokens.checked_sub(hit).ok_or_else(|| {
-                    AppError::LlmError(format!(
-                        "LLM usage 缓存命中 token 数超过 prompt token 数：hit={hit}, prompt={prompt_tokens}"
-                    ))
-                })
-            })
-            .transpose()?,
+        Some(tokens) => Some(tokens),
+        None => optional_nested_usize(
+            value,
+            &["input_tokens_details", "cache_write_tokens"],
+            "usage.input_tokens_details.cache_write_tokens",
+        )?,
     };
 
-    Ok(UsageInfo {
+    UsageInfo {
         prompt_tokens,
         completion_tokens,
         total_tokens,
         prompt_cache_hit_tokens,
         prompt_cache_miss_tokens,
-    })
+        prompt_cache_write_tokens,
+    }
+    .normalize_cache_tokens()
+    .map_err(AppError::LlmError)
 }
 
 fn prompt_cache_hit_tokens_from_usage(value: &Value) -> Result<Option<usize>, AppError> {

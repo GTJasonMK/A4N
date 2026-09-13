@@ -23,6 +23,7 @@ struct LlmCallAnalyticsRow {
     total_tokens: Option<i32>,
     prompt_cache_hit_tokens: Option<i32>,
     prompt_cache_miss_tokens: Option<i32>,
+    prompt_cache_write_tokens: Option<i32>,
     prompt_cache_hit_ratio: Option<f64>,
     duration_ms: Option<i64>,
     streamed: bool,
@@ -54,6 +55,7 @@ impl From<LlmCallAnalyticsRow> for llm_call_trace::Model {
             total_tokens: row.total_tokens,
             prompt_cache_hit_tokens: row.prompt_cache_hit_tokens,
             prompt_cache_miss_tokens: row.prompt_cache_miss_tokens,
+            prompt_cache_write_tokens: row.prompt_cache_write_tokens,
             prompt_cache_hit_ratio: row.prompt_cache_hit_ratio,
             duration_ms: row.duration_ms,
             streamed: row.streamed,
@@ -172,6 +174,7 @@ pub async fn generation_call_analytics(
                 .column(llm_call_trace::Column::TotalTokens)
                 .column(llm_call_trace::Column::PromptCacheHitTokens)
                 .column(llm_call_trace::Column::PromptCacheMissTokens)
+                .column(llm_call_trace::Column::PromptCacheWriteTokens)
                 .column(llm_call_trace::Column::PromptCacheHitRatio)
                 .column(llm_call_trace::Column::DurationMs)
                 .column(llm_call_trace::Column::Streamed)

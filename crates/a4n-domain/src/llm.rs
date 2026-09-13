@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 mod providers;
+mod usage;
 pub use providers::{LLM_PROVIDER_CAPABILITIES, LlmProtocolKind, LlmProviderCapabilities};
+pub use usage::LlmCallUsageTraceInput;
 
 pub const DEFAULT_LLM_MAX_CONTEXT_TOKENS: usize = 128_000;
 pub const DEFAULT_LLM_MAX_OUTPUT_TOKENS: usize = 8_192;
@@ -55,15 +57,6 @@ pub struct ContextPackReference {
     pub content_sha256: String,
     pub compression_level: String,
     pub token_estimate: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LlmCallUsageTraceInput {
-    pub prompt_tokens: usize,
-    pub completion_tokens: usize,
-    pub total_tokens: usize,
-    pub prompt_cache_hit_tokens: Option<usize>,
-    pub prompt_cache_miss_tokens: Option<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

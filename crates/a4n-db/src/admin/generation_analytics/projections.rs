@@ -16,10 +16,10 @@ pub(super) fn call_kind_overview(kind: String, acc: CallKindAccumulator) -> Call
         completion_tokens: acc.completion_tokens,
         prompt_cache_hit_tokens: acc.prompt_cache_hit_tokens,
         prompt_cache_miss_tokens: acc.prompt_cache_miss_tokens,
-        prompt_cache_hit_ratio: cache_hit_ratio(
-            acc.prompt_cache_hit_tokens,
-            acc.prompt_cache_miss_tokens,
-        ),
+        prompt_cache_write_tokens: acc.prompt_cache_write_tokens,
+        prompt_cache_hit_ratio: (!acc.cache_usage_incomplete)
+            .then(|| cache_hit_ratio(acc.prompt_cache_hit_tokens, acc.prompt_tokens))
+            .flatten(),
         avg_duration_ms: avg_duration_ms(acc.duration_total_ms, acc.duration_count),
     }
 }
@@ -41,10 +41,10 @@ pub(super) fn sorted_llm_workflows(
             completion_tokens: acc.completion_tokens,
             prompt_cache_hit_tokens: acc.prompt_cache_hit_tokens,
             prompt_cache_miss_tokens: acc.prompt_cache_miss_tokens,
-            prompt_cache_hit_ratio: cache_hit_ratio(
-                acc.prompt_cache_hit_tokens,
-                acc.prompt_cache_miss_tokens,
-            ),
+            prompt_cache_write_tokens: acc.prompt_cache_write_tokens,
+            prompt_cache_hit_ratio: (!acc.cache_usage_incomplete)
+                .then(|| cache_hit_ratio(acc.prompt_cache_hit_tokens, acc.prompt_tokens))
+                .flatten(),
             avg_duration_ms: avg_duration_ms(acc.duration_total_ms, acc.duration_count),
             avg_stable_prefix_tokens: avg_i64(
                 acc.stable_prefix_tokens_total,
@@ -110,6 +110,7 @@ pub(super) fn recent_llm_call(call: llm_call_trace::Model) -> RecentLlmCall {
         total_tokens: call.total_tokens,
         prompt_cache_hit_tokens: call.prompt_cache_hit_tokens,
         prompt_cache_miss_tokens: call.prompt_cache_miss_tokens,
+        prompt_cache_write_tokens: call.prompt_cache_write_tokens,
         prompt_cache_hit_ratio: call.prompt_cache_hit_ratio,
         duration_ms: call.duration_ms,
         streamed: call.streamed,

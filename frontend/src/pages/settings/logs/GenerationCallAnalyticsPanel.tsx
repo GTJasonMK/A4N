@@ -17,7 +17,6 @@ import {
   type RecentLlmCall,
   type RecentMediaCall,
 } from "../../../api/generationAnalytics";
-import { useToast } from "../../../components/feedback/Toast";
 import { useAuthStore } from "../../../store/auth";
 import { logger } from "../../../utils/logger";
 import { formatNumber, useI18n } from "../../../i18n";
@@ -26,7 +25,6 @@ const CHART_WIDTH = 720;
 const CHART_HEIGHT = 164;
 
 export const GenerationCallAnalyticsPanel: React.FC = () => {
-  const { addToast } = useToast();
   const { t, locale } = useI18n();
   const user = useAuthStore((state) => state.user);
   const [days, setDays] = useState(30);
@@ -84,7 +82,6 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
       setData(null);
       setLoadedKey(requestKey);
       setErrorState({ key: requestKey, message });
-      addToast(message, "error");
       logger
         .scoped("GenerationCallAnalyticsPanel")
         .error("refresh failed", { err });
@@ -99,7 +96,7 @@ export const GenerationCallAnalyticsPanel: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [addToast, callerUserId, canReadDiagnostics, days, t]);
+  }, [callerUserId, canReadDiagnostics, days, t]);
 
   useEffect(() => {
     void refresh();
@@ -395,10 +392,9 @@ const CacheSummary: React.FC<{
 
   const hit = item?.prompt_cache_hit_tokens ?? 0;
   const miss = item?.prompt_cache_miss_tokens ?? 0;
-  const total = hit + miss;
-  const hitWidth =
-    total > 0 ? Math.max(0, Math.min(100, (hit / total) * 100)) : 0;
-  const missWidth = total > 0 ? 100 - hitWidth : 0;
+  const ratio = item?.prompt_cache_hit_ratio;
+  const hitWidth = ratio == null ? 0 : ratio * 100;
+  const missWidth = ratio == null ? 0 : 100 - hitWidth;
 
   return (
     <div className="flex flex-col gap-3">
@@ -406,13 +402,14 @@ const CacheSummary: React.FC<{
         <div className="bg-success" style={{ width: `${hitWidth}%` }} />
         <div className="bg-warning" style={{ width: `${missWidth}%` }} />
       </div>
-      <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="grid grid-cols-2 gap-2 text-xs">
         <MetricValue
           label={t("settingsLogs.hitRate")}
           value={formatPercent(item?.prompt_cache_hit_ratio ?? null, locale)}
         />
         <MetricValue label={t("settingsLogs.hitTokens")} value={formatCompact(hit, locale)} />
         <MetricValue label={t("settingsLogs.missTokens")} value={formatCompact(miss, locale)} />
+        <MetricValue label={t("settingsLogs.writeTokens")} value={formatOptionalCompact(item?.prompt_cache_write_tokens ?? null, locale)} />
       </div>
     </div>
   );
@@ -731,12 +728,14 @@ function formatPercent(value: number | null, locale: ReturnType<typeof useI18n>[
 function formatCacheDetail(row: RecentLlmCall, t: ReturnType<typeof useI18n>["t"], locale: ReturnType<typeof useI18n>["locale"]): string {
   const hit = row.prompt_cache_hit_tokens;
   const miss = row.prompt_cache_miss_tokens;
-  if (hit == null && miss == null && row.prompt_cache_hit_ratio == null) {
+  const write = row.prompt_cache_write_tokens;
+  if (hit == null && miss == null && write == null && row.prompt_cache_hit_ratio == null) {
     return t("settingsLogs.cacheNotReturned");
   }
   return t("settingsLogs.cacheValue", {
     hit: formatOptionalCompact(hit, locale),
     miss: formatOptionalCompact(miss, locale),
+    write: formatOptionalCompact(write, locale),
     ratio: formatPercent(row.prompt_cache_hit_ratio, locale),
   });
 }
