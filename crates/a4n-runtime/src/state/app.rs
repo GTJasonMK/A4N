@@ -277,6 +277,7 @@ pub struct AppState {
     agent_run_mutation_application:
         Arc<dyn a4n_api_contract::agent::AgentRunMutationApplicationPort>,
     agent_run_read_application: Arc<dyn a4n_api_contract::agent::AgentRunReadApplicationPort>,
+    agent_delegation_application: Arc<dyn a4n_api_contract::agent::AgentDelegationApplicationPort>,
     /// Agent worker ports used only by the durable Runtime worker. Keeping the
     /// aggregate behind its contract avoids coupling Runtime to the owner.
     agent_worker_application: Arc<dyn a4n_agent_runtime_contract::AgentWorkerApplicationPort>,
@@ -1518,6 +1519,12 @@ impl AppState {
         self.agent_run_read_application.as_ref()
     }
 
+    pub(crate) fn agent_delegation_application(
+        &self,
+    ) -> &dyn a4n_api_contract::agent::AgentDelegationApplicationPort {
+        self.agent_delegation_application.as_ref()
+    }
+
     pub(crate) fn agent_external_task_wait_application(
         &self,
     ) -> &dyn a4n_agent_runtime_contract::AgentExternalTaskWaitApplicationPort {
@@ -2510,6 +2517,7 @@ impl AppState {
             agent_thread_read_application: Arc::new(orchestrator.agent().clone()),
             agent_run_mutation_application: Arc::new(orchestrator.agent().clone()),
             agent_run_read_application: Arc::new(orchestrator.agent().clone()),
+            agent_delegation_application: Arc::new(orchestrator.agent().clone()),
             agent_worker_application: Arc::new(orchestrator.agent().clone()),
             canvas_read_application: Arc::new(orchestrator.clone()),
             canvas_mutation_application: Arc::new(orchestrator.clone()),

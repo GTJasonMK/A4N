@@ -548,7 +548,7 @@ impl RuntimeAgentToolExecutor {
                 .input;
                 serde_json::to_value(
                     self.state
-                        .agent_application()
+                        .agent_delegation_application()
                         .review_delegation(user_id, input, Some(context.run.id))
                         .await?,
                 )
@@ -4423,7 +4423,7 @@ pub async fn spawn_agent_with_admission(
     let _admission = state.lock_agent_admission().await;
     crate::actions::package::ensure_package_execution_enabled(state, PackageId::Agent).await?;
     let result = state
-        .agent_application()
+        .agent_delegation_application()
         .spawn_agent(user_id, input)
         .await?;
     if let Some(runtime_snapshot) = runtime_snapshot {
@@ -4509,7 +4509,7 @@ pub async fn review_delegation(
     input: a4n_api_contract::agent::ReviewAgentDelegationInput,
 ) -> Result<a4n_api_contract::agent::AgentDelegationView, AppError> {
     state
-        .agent_application()
+        .agent_delegation_application()
         .review_delegation(user_id, input, None)
         .await
 }
