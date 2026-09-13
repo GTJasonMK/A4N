@@ -871,9 +871,21 @@ if ! rg -n 'image_import_application\(\)' \
     exit 1
 fi
 
-if ! rg -n 'pub trait ImageImportApplicationPort|pub trait ImagePublicationRecoveryPort|pub trait ImageMediaReferencePort' \
+if ! rg -n 'pub trait ImageImportApplicationPort|pub trait ImagePublicationRecoveryPort' \
     crates/a4n-orchestrator/src/media/image_record_lifecycle.rs; then
-    printf 'image import/recovery/reference contracts are missing\n' >&2
+    printf 'image import/recovery contracts are missing\n' >&2
+    exit 1
+fi
+if ! rg -n 'pub trait ImageMediaReferencePort' crates/a4n-api-contract/src/image.rs; then
+    printf 'image media reference contract is missing from the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ImageMediaReferencePort' crates/a4n-orchestrator/src/media; then
+    printf 'ImageMediaReferencePort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::media::ImageMediaReferencePort' crates/a4n-runtime/src; then
+    printf 'Runtime image media reference adapters must consume the API contract directly\n' >&2
     exit 1
 fi
 

@@ -354,7 +354,7 @@ pub struct AppState {
     image_publication_recovery_application:
         Arc<dyn a4n_orchestrator::media::ImagePublicationRecoveryPort>,
     /// Persisted media-reference queries used by cleanup and orphan scans.
-    image_media_reference_application: Arc<dyn a4n_orchestrator::media::ImageMediaReferencePort>,
+    image_media_reference_application: Arc<dyn a4n_api_contract::image::ImageMediaReferencePort>,
     /// Image provider config lookup stays in the settings owner.
     image_provider_config: Arc<dyn a4n_api_contract::image::ImageProviderConfigPort>,
     /// Image generation task owner. Runtime supplies only provider and file
@@ -1710,7 +1710,7 @@ impl AppState {
 
     pub(crate) fn image_media_reference_application(
         &self,
-    ) -> &dyn a4n_orchestrator::media::ImageMediaReferencePort {
+    ) -> &dyn a4n_api_contract::image::ImageMediaReferencePort {
         self.image_media_reference_application.as_ref()
     }
 

@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
 use a4n_api_contract::image::{
-    DeleteImageInput, GeneratedImageSummary, ImageRecordMutationApplicationPort,
-    ImageRecordReadApplicationPort, ListImagesByChapterInput, ListImagesByProjectInput,
-    ListImagesByProjectsInput, ListVideoReferenceImagesInput, UpdateGeneratedImageInput,
-    UploadImageInput,
+    DeleteImageInput, GeneratedImageSummary, ImageMediaReferencePort,
+    ImageRecordMutationApplicationPort, ImageRecordReadApplicationPort, ListImagesByChapterInput,
+    ListImagesByProjectInput, ListImagesByProjectsInput, ListVideoReferenceImagesInput,
+    UpdateGeneratedImageInput, UploadImageInput,
 };
 use a4n_db::video::{
     CreateGeneratedImageRecordDraftInput, CreateImagePublicationIntentInput,
@@ -149,26 +149,6 @@ pub trait ImagePublicationRecoveryPort: Send + Sync {
         version: i64,
         reason: Option<String>,
     ) -> Result<(), AppError>;
-}
-
-/// Host-facing media-reference boundary used by cleanup and orphan scans.
-#[async_trait]
-pub trait ImageMediaReferencePort: Send + Sync {
-    async fn unreferenced_media_paths(&self, paths: &[String]) -> Result<Vec<String>, AppError>;
-
-    async fn media_path_prefix_has_persisted_reference(
-        &self,
-        prefix: &str,
-    ) -> Result<bool, AppError>;
-
-    async fn project_has_active_image_publication(&self, project_id: i64)
-    -> Result<bool, AppError>;
-
-    async fn protected_image_publication_cleanup_paths(
-        &self,
-        project_id: i64,
-        paths: &[String],
-    ) -> Result<HashSet<String>, AppError>;
 }
 
 pub struct PreparedImportedImageUpload {

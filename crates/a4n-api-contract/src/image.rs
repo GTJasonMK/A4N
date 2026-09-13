@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -66,6 +68,31 @@ pub trait ImageRecordMutationApplicationPort: Send + Sync {
         user_id: i64,
         input: DeleteImageInput,
     ) -> Result<(), a4n_error::AppError>;
+}
+
+/// Host-facing media-reference queries used by cleanup and orphan scans.
+#[async_trait::async_trait]
+pub trait ImageMediaReferencePort: Send + Sync {
+    async fn unreferenced_media_paths(
+        &self,
+        paths: &[String],
+    ) -> Result<Vec<String>, a4n_error::AppError>;
+
+    async fn media_path_prefix_has_persisted_reference(
+        &self,
+        prefix: &str,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn project_has_active_image_publication(
+        &self,
+        project_id: i64,
+    ) -> Result<bool, a4n_error::AppError>;
+
+    async fn protected_image_publication_cleanup_paths(
+        &self,
+        project_id: i64,
+        paths: &[String],
+    ) -> Result<HashSet<String>, a4n_error::AppError>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]

@@ -7,6 +7,7 @@ mod image_generation;
 mod image_record_lifecycle;
 mod image_workflow_rules;
 
+pub use a4n_api_contract::image::ImageMediaReferencePort;
 pub(crate) use batch_image_application::{
     BatchImageExecutionItem, BatchImageGenerationApplicationInput, BatchImageGenerationOutcome,
 };
@@ -21,8 +22,8 @@ pub use image_generation::{
     generated_image_summary, image_generation_request_trace_json, normalize_image_metadata,
 };
 pub use image_record_lifecycle::{
-    GeneratedImageIdentity, ImageImportApplicationPort, ImageMediaReferencePort,
-    ImagePublicationRecoveryPort, PreparedImportedImageUpload,
+    GeneratedImageIdentity, ImageImportApplicationPort, ImagePublicationRecoveryPort,
+    PreparedImportedImageUpload,
 };
 
 pub(crate) use image_workflow_rules::{
