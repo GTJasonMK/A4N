@@ -17,7 +17,7 @@ use a4n_agent_application::agent::{
 use a4n_api_contract::runtime_config::RuntimeConfigSnapshot;
 use a4n_error::AppError;
 use a4n_worker_contract::{
-    AgentHostCommandPayload, AgentRunPayload, AgentWorkerLeaseRenewRequest, WorkerLease,
+    AgentHostCommandPayload, AgentRunPayload, AgentWorkerRunLeaseRequest, WorkerLease,
     WorkerRequest,
 };
 use serde_json::Value;
@@ -89,7 +89,10 @@ impl AgentRuntimeState {
         self.host.load_run_context(request).await
     }
 
-    pub async fn renew_agent_worker_lease(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+    fn agent_worker_lease_request(
+        &self,
+        claimed: &AgentWorkerRun,
+    ) -> Result<AgentWorkerRunLeaseRequest, AppError> {
         let worker_id = claimed
             .run
             .worker_id
@@ -109,7 +112,7 @@ impl AgentRuntimeState {
                 current: format!("Agent run {} 缺少 lease_expires_at", claimed.run.id),
                 operation: "续期 Agent worker lease".into(),
             })?;
-        let request = AgentWorkerLeaseRenewRequest {
+        let request = AgentWorkerRunLeaseRequest {
             run_id: claimed.run.id,
             lease: WorkerLease {
                 worker_id,
@@ -122,7 +125,17 @@ impl AgentRuntimeState {
             current: format!("Agent worker lease request 无效: {error}"),
             operation: "续期 Agent worker lease".into(),
         })?;
+        Ok(request)
+    }
+
+    pub async fn renew_agent_worker_lease(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+        let request = self.agent_worker_lease_request(claimed)?;
         self.host.renew_worker_lease(&request).await
+    }
+
+    pub async fn mark_agent_turn_active(&self, claimed: &AgentWorkerRun) -> Result<(), AppError> {
+        let request = self.agent_worker_lease_request(claimed)?;
+        self.host.mark_turn_active(&request).await
     }
 
     pub async fn authorize_agent_host_command(

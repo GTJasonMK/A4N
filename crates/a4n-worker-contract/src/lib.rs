@@ -51,12 +51,12 @@ impl AgentWorkerClaimRequest {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct AgentWorkerLeaseRenewRequest {
+pub struct AgentWorkerRunLeaseRequest {
     pub run_id: i64,
     pub lease: WorkerLease,
 }
 
-impl AgentWorkerLeaseRenewRequest {
+impl AgentWorkerRunLeaseRequest {
     pub fn validate(&self) -> Result<(), WorkerContractError> {
         if self.run_id <= 0 {
             return Err(WorkerContractError::InvalidValue {
@@ -67,6 +67,8 @@ impl AgentWorkerLeaseRenewRequest {
         self.lease.validate()
     }
 }
+
+pub type AgentWorkerLeaseRenewRequest = AgentWorkerRunLeaseRequest;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]

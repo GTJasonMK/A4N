@@ -35,7 +35,7 @@ use a4n_domain::agent::{
 use a4n_error::AppError;
 use a4n_worker_contract::{
     AgentHostCommandPayload, AgentWorkerDelegationSnapshotWire, AgentWorkerExecutionSnapshotWire,
-    AgentWorkerLeaseRenewRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire,
+    AgentWorkerMessageSnapshotWire, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunSnapshotWire, AgentWorkerRunWire, AgentWorkerThreadSnapshotWire,
     AgentWorkerTurnSnapshotWire, WorkerRequest,
 };
@@ -3165,7 +3165,36 @@ impl AgentApplication {
 
     pub(crate) async fn renew_worker_lease_request(
         &self,
-        request: &AgentWorkerLeaseRenewRequest,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<(), AppError> {
+        self.validate_worker_lease_request(request).await?;
+        agent::renew_run_lease(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+        )
+        .await
+        .map_err(agent_db_error_to_app)
+    }
+
+    pub(crate) async fn mark_turn_active_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
+    ) -> Result<(), AppError> {
+        self.validate_worker_lease_request(request).await?;
+        agent::mark_turn_active_for_run_lease(
+            self.connection(),
+            request.run_id,
+            &request.lease.fence_token,
+        )
+        .await
+        .map(|_| ())
+        .map_err(agent_db_error_to_app)
+    }
+
+    async fn validate_worker_lease_request(
+        &self,
+        request: &AgentWorkerRunLeaseRequest,
     ) -> Result<(), AppError> {
         request
             .validate()
@@ -3182,16 +3211,10 @@ impl AgentApplication {
         {
             return Err(AppError::InvalidState {
                 current: format!("Agent run {} 的 worker lease 不匹配", request.run_id),
-                operation: "续期 Agent worker lease".into(),
+                operation: "校验 Agent worker lease".into(),
             });
         }
-        agent::renew_run_lease(
-            self.connection(),
-            request.run_id,
-            &request.lease.fence_token,
-        )
-        .await
-        .map_err(agent_db_error_to_app)
+        Ok(())
     }
 
     pub(crate) async fn read_execution_result_for_run(

@@ -9,9 +9,9 @@ use a4n_llm::provider::{ChatChunk, ChatRequest, ModelCapabilities};
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerEditorProjectionRequest, AgentWorkerLeaseRenewRequest,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse,
-    AgentWorkerRunContextWire, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerWaitRequest, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -109,10 +109,17 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
 
     async fn renew_worker_lease(
         &self,
-        request: &AgentWorkerLeaseRenewRequest,
+        request: &AgentWorkerRunLeaseRequest,
     ) -> Result<(), AppError> {
         let _: Value = self
             .request_json(Method::POST, "/internal/agent/lease/renew", request)
+            .await?;
+        Ok(())
+    }
+
+    async fn mark_turn_active(&self, request: &AgentWorkerRunLeaseRequest) -> Result<(), AppError> {
+        let _: Value = self
+            .request_json(Method::POST, "/internal/agent/activation", request)
             .await?;
         Ok(())
     }

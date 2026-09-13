@@ -861,10 +861,7 @@ async fn process_claimed_run_inner(
             .await?;
         return Ok(());
     }
-    state
-        .worker_activation_application()
-        .mark_turn_active(claimed)
-        .await?;
+    state.mark_agent_turn_active(claimed).await?;
     if context.profile_id == a4n_api_contract::agent::CONTENT_OPTIMIZATION_AGENT_CAPABILITY {
         return Box::pin(optimization::process(state, claimed, &context, request)).await;
     }

@@ -31,7 +31,7 @@ use a4n_llm::provider::{
     ToolCall,
 };
 use a4n_worker_contract::{
-    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerLeaseRenewRequest, AgentWorkerRunContextWire,
+    AGENT_RUN_OPERATION, AgentRunPayload, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
     WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal, WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
@@ -1006,7 +1006,7 @@ pub async fn load_agent_run_context(
 
 pub async fn renew_agent_worker_lease(
     state: &AppState,
-    request: &AgentWorkerLeaseRenewRequest,
+    request: &AgentWorkerRunLeaseRequest,
 ) -> Result<(), AppError> {
     request
         .validate()
@@ -1014,6 +1014,19 @@ pub async fn renew_agent_worker_lease(
     state
         .agent_worker_lease_application()
         .renew_worker_lease_request(request)
+        .await
+}
+
+pub async fn mark_agent_turn_active(
+    state: &AppState,
+    request: &AgentWorkerRunLeaseRequest,
+) -> Result<(), AppError> {
+    request
+        .validate()
+        .map_err(|error| AppError::InvalidArgument(format!("Agent worker lease 无效: {error}")))?;
+    state
+        .agent_worker_activation_application()
+        .mark_turn_active_request(request)
         .await
 }
 

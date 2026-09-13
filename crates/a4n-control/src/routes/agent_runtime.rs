@@ -21,9 +21,9 @@ use a4n_runtime::host_api::agent_runtime as agent_actions;
 use a4n_worker_contract::{
     AGENT_WORKER_AUTH_HEADER, AgentHostCommandPayload, AgentRunPayload,
     AgentWorkerCancelGenerationRequest, AgentWorkerCancelWorkflowRequest, AgentWorkerChatRequest,
-    AgentWorkerClaimRequest, AgentWorkerEditorProjectionRequest, AgentWorkerLeaseRenewRequest,
-    AgentWorkerLlmCapabilitiesRequest, AgentWorkerPackageExecutionResponse,
-    AgentWorkerRunContextWire, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerClaimRequest, AgentWorkerEditorProjectionRequest, AgentWorkerLlmCapabilitiesRequest,
+    AgentWorkerPackageExecutionResponse, AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest,
+    AgentWorkerWaitRequest, WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -31,7 +31,7 @@ use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode, header};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use futures::{Stream, StreamExt, stream};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::VecDeque;
 use std::convert::Infallible;
@@ -72,13 +72,26 @@ pub(super) async fn load_agent_context(
 pub(super) async fn renew_agent_lease(
     State(state): State<ServerState>,
     headers: HeaderMap,
-    Json(input): Json<AgentWorkerLeaseRenewRequest>,
+    Json(input): Json<AgentWorkerRunLeaseRequest>,
 ) -> Result<Json<Value>, ApiError> {
     authorize_worker_request(&state, &headers)?;
     input
         .validate()
         .map_err(|error| ApiError::bad_request(error.to_string()))?;
     agent_actions::renew_agent_worker_lease(state.runtime(), &input).await?;
+    Ok(Json(Value::Null))
+}
+
+pub(super) async fn activate_agent_turn(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerRunLeaseRequest>,
+) -> Result<Json<Value>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::mark_agent_turn_active(state.runtime(), &input).await?;
     Ok(Json(Value::Null))
 }
 
