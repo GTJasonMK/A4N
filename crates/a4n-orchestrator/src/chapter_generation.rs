@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use a4n_api_contract::{
     chapter::{
-        PreparedGenerationRagEmbeddingRequest, PreviewChapterPromptInput,
-        StartChapterGenerationInput,
+        ChapterDerivedCleanupHostPort, PreparedGenerationRagEmbeddingRequest,
+        PreviewChapterPromptInput, StartChapterGenerationInput,
     },
     generation_tasks::GenerationTaskHandle,
 };
@@ -70,6 +70,6 @@ pub trait ChapterGenerationApplicationPort: Send + Sync {
         context: ChapterGenerationApplicationContext<'_>,
         input: StartChapterGenerationInput,
         handle: GenerationTaskHandle,
-        host_port: Arc<dyn crate::chapter_content::ChapterDerivedCleanupHostPort>,
+        host_port: Arc<dyn ChapterDerivedCleanupHostPort>,
     ) -> Result<(), String>;
 }

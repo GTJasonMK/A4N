@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_api_contract::import_review::{
     AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
     ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
@@ -16,10 +17,7 @@ use async_trait::async_trait;
 use serde_json::Value;
 
 use super::OrchestratorContext;
-use crate::{
-    chapter_content::ChapterDerivedCleanupHostPort, collaboration::ProjectAccessRole,
-    import_review::calculate_import_dedup,
-};
+use crate::{collaboration::ProjectAccessRole, import_review::calculate_import_dedup};
 
 #[derive(Clone)]
 pub(super) struct ImportReviewApplication {

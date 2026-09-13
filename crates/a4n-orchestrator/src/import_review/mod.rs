@@ -2,6 +2,7 @@
 //!
 //! 数据库行为由 `context/import_review.rs` 的私有 `ImportReviewApplication` 持有。
 
+use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 use a4n_api_contract::import_review::{
     AcceptImportReviewInput, BatchAcceptImportReviewsInput, CheckImportDedupInput, DedupResult,
     ImportProjectReviewsInput, ImportReviewIdInput, ImportReviewSummary,
@@ -9,8 +10,6 @@ use a4n_api_contract::import_review::{
 use a4n_domain::import_review::ImportChapterDraft;
 use a4n_error::AppError;
 use async_trait::async_trait;
-
-use crate::chapter_content::ChapterDerivedCleanupHostPort;
 
 mod rules;
 

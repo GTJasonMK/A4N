@@ -1,5 +1,6 @@
 use a4n_api_contract::chapter::{
-    CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisMutationResult, ChapterSummary,
+    CHAPTER_ANALYSIS_PROGRESS_TOTAL, ChapterAnalysisMutationResult, ChapterDerivedCleanupHostPort,
+    ChapterSummary,
 };
 use a4n_api_contract::character::DiscoverCharacterProfilesInput;
 use a4n_chapter_analysis::validate_saved_chapter_analysis;
@@ -16,7 +17,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     OrchestratorContext,
-    chapter_content::ChapterDerivedCleanupHostPort,
     character::{
         CharacterDiscoveryProgress, CharacterProfileSyncProgress,
         CharacterProfileSyncStageTracePort,

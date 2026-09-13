@@ -6,8 +6,8 @@ use std::sync::{
 
 use a4n_api_contract::{
     chapter::{
-        PreparedGenerationRagEmbeddingRequest, PreviewChapterPromptInput,
-        StartChapterGenerationInput,
+        ChapterDerivedCleanupHostPort, PreparedGenerationRagEmbeddingRequest,
+        PreviewChapterPromptInput, StartChapterGenerationInput,
     },
     generation_tasks::GenerationTaskHandle,
 };
@@ -26,7 +26,6 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     OrchestratorContext,
-    chapter_content::ChapterDerivedCleanupHostPort,
     collaboration::ProjectAccessRole,
     context::{GenerationTaskExecution, fail_generation_workflow_execution},
     generation::{
@@ -1211,7 +1210,7 @@ impl ChapterGenerationApplicationPort for OrchestratorContext {
         context: ChapterGenerationApplicationContext<'_>,
         input: StartChapterGenerationInput,
         handle: GenerationTaskHandle,
-        host_port: Arc<dyn crate::chapter_content::ChapterDerivedCleanupHostPort>,
+        host_port: Arc<dyn ChapterDerivedCleanupHostPort>,
     ) -> Result<(), String> {
         OrchestratorContext::run_chapter_generation_task(self, context, input, handle, host_port)
             .await

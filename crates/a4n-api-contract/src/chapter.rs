@@ -83,6 +83,33 @@ pub struct GenerateChapterSceneInput {
     pub scene_prompt: String,
 }
 
+/// Host callbacks for chapter-derived cleanup and RAG synchronization.
+///
+/// File, RAG and derived-artifact side effects stay with the Host; chapter
+/// owners only validate and persist their durable state.
+#[async_trait::async_trait]
+pub trait ChapterDerivedCleanupHostPort: Send + Sync {
+    fn validate_chapter_cleanup_artifacts(
+        &self,
+        artifacts: &a4n_domain::project::ChapterDerivedCleanupArtifacts,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn finish_chapter_derived_cleanup(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        chapter_number: i32,
+        artifacts: a4n_domain::project::ChapterDerivedCleanupArtifacts,
+    ) -> Result<(), a4n_error::AppError>;
+
+    async fn sync_chapter_rag_records(
+        &self,
+        project_id: i64,
+        chapter_id: i64,
+        workflow_run_id: i64,
+    ) -> Result<(), a4n_error::AppError>;
+}
+
 /// Host callback for chapter-scene generation progress.
 pub type ChapterSceneProgressReporter<'a> =
     &'a (dyn Fn(u32, u32, &str) -> Result<(), a4n_error::AppError> + Send + Sync);

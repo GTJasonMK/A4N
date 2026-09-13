@@ -1655,6 +1655,22 @@ if ! rg -n 'pub trait ChapterContentSyncApplicationPort' \
     exit 1
 fi
 
+if ! rg -n 'pub trait ChapterDerivedCleanupHostPort' \
+    crates/a4n-api-contract/src/chapter.rs; then
+    printf 'ChapterDerivedCleanupHostPort contract is missing from the API contract\n' >&2
+    exit 1
+fi
+if rg -n 'pub trait ChapterDerivedCleanupHostPort' \
+    crates/a4n-orchestrator/src/chapter_content; then
+    printf 'ChapterDerivedCleanupHostPort must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n 'a4n_orchestrator::chapter_content::ChapterDerivedCleanupHostPort' \
+    crates/a4n-runtime/src; then
+    printf 'Runtime chapter cleanup adapters must consume the API contract directly\n' >&2
+    exit 1
+fi
+
 if rg -n 'a4n_orchestrator|OrchestratorContext|state\.orchestrator\(\)' \
     crates/a4n-runtime/src/actions/outline_records/chapters/records.rs \
     crates/a4n-runtime/src/actions/outline_records/parts/records.rs; then

@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::OrchestratorContext;
 
-use super::ChapterDerivedCleanupHostPort;
+use a4n_api_contract::chapter::ChapterDerivedCleanupHostPort;
 
 pub const CHAPTER_CONTENT_SYNC_WORKFLOW_KIND: &str = "chapter_content_sync";
 pub(crate) const CHAPTER_CONTENT_SYNC_CLEANUP_STEP: &str = "chapter_content_sync.cleanup_plan";
