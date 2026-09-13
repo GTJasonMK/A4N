@@ -43,7 +43,8 @@ use a4n_worker_contract::{
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest,
+    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use axum::Json;
 use axum::extract::{Path, Query, State};
@@ -659,6 +660,21 @@ pub(super) async fn cancel_agent_workflow(
     )
     .await?;
     Ok(Json(Value::Null))
+}
+
+pub(super) async fn list_agent_workflow_cancel_candidates(
+    State(state): State<ServerState>,
+    headers: HeaderMap,
+    Json(input): Json<AgentWorkerWorkflowCancelScanRequest>,
+) -> Result<Json<Vec<AgentWorkerWorkflowCancelSnapshotWire>>, ApiError> {
+    authorize_worker_request(&state, &headers)?;
+    input
+        .validate()
+        .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    agent_actions::list_agent_workflow_cancel_candidates(state.runtime(), &input)
+        .await
+        .map(Json)
+        .map_err(Into::into)
 }
 
 pub(super) async fn read_agent_wait(

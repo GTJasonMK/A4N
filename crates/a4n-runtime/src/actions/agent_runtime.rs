@@ -52,7 +52,8 @@ use a4n_worker_contract::{
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunContextWire,
     AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest,
-    AgentWorkerUsageRequest, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
+    AgentWorkerUsageRequest, AgentWorkerWorkflowCancelScanRequest,
+    AgentWorkerWorkflowCancelSnapshotWire, WORKER_SCHEMA_VERSION, WorkerLease, WorkerPrincipal,
     WorkerPrincipalKind, WorkerRequest,
 };
 use futures::{Stream, StreamExt};
@@ -1504,6 +1505,28 @@ pub async fn list_agent_generation_cancel_candidates(
                     requested_by_user_id: task.requested_by_user_id,
                     status: task.status,
                     owner_stopped: task.owner_stopped,
+                })
+                .collect()
+        })
+}
+
+pub async fn list_agent_workflow_cancel_candidates(
+    state: &AppState,
+    request: &AgentWorkerWorkflowCancelScanRequest,
+) -> Result<Vec<AgentWorkerWorkflowCancelSnapshotWire>, AppError> {
+    request.validate().map_err(|error| {
+        AppError::InvalidArgument(format!("Agent workflow cancel scan 无效: {error}"))
+    })?;
+    state
+        .agent_workflow_cancel_application()
+        .workflow_cancel_candidates(request.after_workflow_run_id)
+        .await
+        .map(|workflows| {
+            workflows
+                .into_iter()
+                .map(|workflow| AgentWorkerWorkflowCancelSnapshotWire {
+                    workflow_run_id: workflow.workflow_run_id,
+                    owner_stopped: workflow.owner_stopped,
                 })
                 .collect()
         })

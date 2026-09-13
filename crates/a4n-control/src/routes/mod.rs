@@ -334,6 +334,10 @@ pub fn internal_router(state: ServerState) -> Router {
             "/agent/workflow/cancel",
             post(agent_runtime::cancel_agent_workflow),
         )
+        .route(
+            "/agent/workflow/cancel/scan",
+            post(agent_runtime::list_agent_workflow_cancel_candidates),
+        )
         .route("/agent/wait", post(agent_runtime::read_agent_wait))
         .route(
             "/agent/llm/capabilities",

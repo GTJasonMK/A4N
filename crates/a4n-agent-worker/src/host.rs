@@ -32,7 +32,8 @@ use a4n_worker_contract::{
     AgentWorkerMessageSnapshotWire, AgentWorkerPackageExecutionResponse,
     AgentWorkerRecoveryRequest, AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire,
     AgentWorkerRunContextWire, AgentWorkerRunLeaseRequest, AgentWorkerRunStatusSnapshotWire,
-    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest, WorkerRequest,
+    AgentWorkerRunWaitRequest, AgentWorkerUsageRequest, AgentWorkerWaitRequest,
+    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::stream;
@@ -303,6 +304,18 @@ impl AgentRuntimeHost for HttpAgentRuntimeHost {
         self.request_json(
             Method::POST,
             "/internal/agent/generation/cancel/scan",
+            request,
+        )
+        .await
+    }
+
+    async fn workflow_cancel_candidates(
+        &self,
+        request: &AgentWorkerWorkflowCancelScanRequest,
+    ) -> Result<Vec<AgentWorkerWorkflowCancelSnapshotWire>, AppError> {
+        self.request_json(
+            Method::POST,
+            "/internal/agent/workflow/cancel/scan",
             request,
         )
         .await

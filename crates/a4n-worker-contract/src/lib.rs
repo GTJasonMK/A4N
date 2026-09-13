@@ -385,6 +385,31 @@ pub struct AgentWorkerGenerationCancelSnapshotWire {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct AgentWorkerWorkflowCancelScanRequest {
+    pub after_workflow_run_id: i64,
+}
+
+impl AgentWorkerWorkflowCancelScanRequest {
+    pub fn validate(&self) -> Result<(), WorkerContractError> {
+        if self.after_workflow_run_id < 0 {
+            return Err(WorkerContractError::InvalidValue {
+                field: "after_workflow_run_id",
+                reason: "must not be negative",
+            });
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AgentWorkerWorkflowCancelSnapshotWire {
+    pub workflow_run_id: i64,
+    pub owner_stopped: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AgentWorkerExternalTaskWaitScanRequest {
     pub after_run_id: i64,
 }
@@ -1491,6 +1516,28 @@ mod tests {
         let mut value = serde_json::to_value(request).expect("scan request should serialize");
         value["unexpected"] = true.into();
         assert!(serde_json::from_value::<AgentWorkerGenerationCancelScanRequest>(value).is_err());
+    }
+
+    #[test]
+    fn workflow_cancel_scan_rejects_negative_cursor_and_unknown_fields() {
+        let request = AgentWorkerWorkflowCancelScanRequest {
+            after_workflow_run_id: 0,
+        };
+        request.validate().expect("initial cursor should be valid");
+        assert!(matches!(
+            AgentWorkerWorkflowCancelScanRequest {
+                after_workflow_run_id: -1
+            }
+            .validate(),
+            Err(WorkerContractError::InvalidValue {
+                field: "after_workflow_run_id",
+                ..
+            })
+        ));
+
+        let mut value = serde_json::to_value(request).expect("scan request should serialize");
+        value["unexpected"] = true.into();
+        assert!(serde_json::from_value::<AgentWorkerWorkflowCancelScanRequest>(value).is_err());
     }
 
     #[test]

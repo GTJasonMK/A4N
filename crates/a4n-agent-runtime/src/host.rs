@@ -27,7 +27,7 @@ use a4n_worker_contract::{
     AgentWorkerMessageRequest, AgentWorkerMessageSnapshotWire, AgentWorkerRecoveryRequest,
     AgentWorkerResultRefsRequest, AgentWorkerResultRefsSnapshotWire, AgentWorkerRunLeaseRequest,
     AgentWorkerRunStatusSnapshotWire, AgentWorkerRunWaitRequest, AgentWorkerUsageRequest,
-    WorkerRequest,
+    AgentWorkerWorkflowCancelScanRequest, AgentWorkerWorkflowCancelSnapshotWire, WorkerRequest,
 };
 use async_trait::async_trait;
 use futures::Stream;
@@ -125,6 +125,11 @@ pub trait AgentRuntimeHost: Send + Sync {
         &self,
         request: &AgentWorkerGenerationCancelScanRequest,
     ) -> Result<Vec<AgentWorkerGenerationCancelSnapshotWire>, AppError>;
+
+    async fn workflow_cancel_candidates(
+        &self,
+        request: &AgentWorkerWorkflowCancelScanRequest,
+    ) -> Result<Vec<AgentWorkerWorkflowCancelSnapshotWire>, AppError>;
 
     async fn external_task_waits(
         &self,
