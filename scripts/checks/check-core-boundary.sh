@@ -3253,14 +3253,47 @@ if ! rg -n 'pub trait ChapterAnalysisGenerationApplicationPort' \
     exit 1
 fi
 
-if rg -n -U 'orchestrator\(\)\s*\.agent\(\)\s*\.(ensure_main_thread|create_thread|fork_thread|update_thread|archive_thread|list_threads|show_thread|list_messages|show_run|send_message|control_run|send_message_to_child|control_child_agent|spawn_agent|events|search_tools|describe_tool|list_memories|create_memory|retract_memory|review_delegation|resolve_approval|verify_chapters_in_project)' \
-    crates/a4n-runtime/src/actions/agent_runtime.rs; then
-    printf 'Runtime Agent user/API actions must consume AgentApplicationPort instead of the concrete orchestrator facade\n' >&2
-    exit 1
-fi
+for contract in \
+    AgentThreadMutationApplicationPort \
+    AgentThreadReadApplicationPort \
+    AgentRunMutationApplicationPort \
+    AgentRunReadApplicationPort \
+    AgentDelegationApplicationPort \
+    AgentEventReadApplicationPort \
+    AgentToolReadApplicationPort \
+    AgentMemoryReadApplicationPort \
+    AgentMemoryMutationApplicationPort \
+    AgentApprovalApplicationPort \
+    AgentResourceAccessApplicationPort; do
+    if ! rg -q "pub trait $contract" crates/a4n-api-contract/src/agent.rs; then
+        printf '%s contract is missing\n' "$contract" >&2
+        exit 1
+    fi
+done
 
-if ! rg -n 'pub trait AgentApplicationPort' crates/a4n-api-contract/src/agent.rs; then
-    printf 'AgentApplicationPort contract is missing\n' >&2
+for accessor in \
+    agent_thread_mutation_application \
+    agent_thread_read_application \
+    agent_run_mutation_application \
+    agent_run_read_application \
+    agent_delegation_application \
+    agent_event_read_application \
+    agent_tool_read_application \
+    agent_memory_read_application \
+    agent_memory_mutation_application \
+    agent_approval_application \
+    agent_resource_access_application; do
+    if ! rg -q "$accessor\\(\\)" crates/a4n-runtime/src/actions/agent_runtime.rs; then
+        printf 'Runtime Agent actions must route through %s()\n' "$accessor" >&2
+        exit 1
+    fi
+done
+
+if rg -n 'AgentApplicationPort|agent_application\(\)' \
+    crates/a4n-api-contract/src/agent.rs \
+    crates/a4n-agent-application/src \
+    crates/a4n-runtime/src; then
+    printf 'The mixed AgentApplicationPort must remain removed\n' >&2
     exit 1
 fi
 

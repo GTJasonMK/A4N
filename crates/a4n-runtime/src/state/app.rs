@@ -267,10 +267,8 @@ pub struct AppState {
     prompt_read_application: Arc<dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort>,
     prompt_mutation_application:
         Arc<dyn a4n_orchestrator::prompt_records::PromptMutationApplicationPort>,
-    /// Host-facing Agent application port. Worker-only lease operations stay
-    /// on the orchestrator implementation and are intentionally not exposed
-    /// through this port.
-    agent_application: Arc<dyn a4n_api_contract::agent::AgentApplicationPort>,
+    /// Host-facing Agent operations are injected through focused contracts;
+    /// worker-only lease operations stay on the worker aggregate below.
     agent_thread_mutation_application:
         Arc<dyn a4n_api_contract::agent::AgentThreadMutationApplicationPort>,
     agent_thread_read_application: Arc<dyn a4n_api_contract::agent::AgentThreadReadApplicationPort>,
@@ -1499,10 +1497,6 @@ impl AppState {
         self.prompt_mutation_application.as_ref()
     }
 
-    pub(crate) fn agent_application(&self) -> &dyn a4n_api_contract::agent::AgentApplicationPort {
-        self.agent_application.as_ref()
-    }
-
     pub(crate) fn agent_thread_mutation_application(
         &self,
     ) -> &dyn a4n_api_contract::agent::AgentThreadMutationApplicationPort {
@@ -2556,7 +2550,6 @@ impl AppState {
             settings_import_application: Arc::new(orchestrator.clone()),
             prompt_read_application,
             prompt_mutation_application,
-            agent_application: Arc::new(orchestrator.agent().clone()),
             agent_thread_mutation_application: Arc::new(orchestrator.agent().clone()),
             agent_thread_read_application: Arc::new(orchestrator.agent().clone()),
             agent_run_mutation_application: Arc::new(orchestrator.agent().clone()),
