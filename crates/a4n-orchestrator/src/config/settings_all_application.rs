@@ -1,6 +1,9 @@
 use a4n_api_contract::{
     admin::AdminPermission,
-    config::{ImportAllConfigsInput, SettingsAllApplicationPort, SettingsAllHostPort},
+    config::{
+        ImportAllConfigsInput, SettingsAllHostPort, SettingsExportApplicationPort,
+        SettingsImportApplicationPort,
+    },
 };
 use a4n_db::config::{SettingsAllConfigImportInput, SettingsAllConfigRows};
 use a4n_error::AppError;
@@ -93,7 +96,7 @@ impl OrchestratorContext {
 }
 
 #[async_trait]
-impl SettingsAllApplicationPort for OrchestratorContext {
+impl SettingsExportApplicationPort for OrchestratorContext {
     async fn export_all_configs_to_json(
         &self,
         caller_user_id: i64,
@@ -103,7 +106,10 @@ impl SettingsAllApplicationPort for OrchestratorContext {
             .await?;
         self.export_all_configs_to_json_validated(host).await
     }
+}
 
+#[async_trait]
+impl SettingsImportApplicationPort for OrchestratorContext {
     async fn import_all_configs(
         &self,
         caller_user_id: i64,

@@ -848,14 +848,26 @@ if rg -n 'pub trait ProjectDuplicationApplicationPort' \
     exit 1
 fi
 
-if ! rg -n 'pub trait SettingsAll(Application|Host)Port|pub struct PromptRow' \
+if ! rg -n 'pub trait Settings(Export|Import)ApplicationPort|pub trait SettingsAllHostPort|pub struct PromptRow' \
     crates/a4n-api-contract/src/config.rs; then
-    printf 'settings import/export contracts must live in the API contract\n' >&2
+    printf 'split settings import/export contracts must live in the API contract\n' >&2
     exit 1
 fi
-if rg -n 'pub trait SettingsAll(Application|Host)Port|pub struct PromptRow' \
+if rg -n 'pub trait Settings(Export|Import)ApplicationPort|pub trait SettingsAllApplicationPort|pub struct PromptRow' \
     crates/a4n-orchestrator/src/config; then
     printf 'settings import/export contracts must not be redefined in the orchestrator\n' >&2
+    exit 1
+fi
+if rg -n '(^|[^A-Za-z])SettingsAllApplicationPort($|[^A-Za-z])|(^|[^A-Za-z_])settings_all_application\(\)' \
+    crates/a4n-api-contract/src crates/a4n-orchestrator/src crates/a4n-runtime/src; then
+    printf 'The mixed SettingsAllApplicationPort must remain removed\n' >&2
+    exit 1
+fi
+if ! rg -n 'settings_export_application\(\)' \
+    crates/a4n-runtime/src/actions/settings_all/mod.rs || \
+   ! rg -n 'settings_import_application\(\)' \
+    crates/a4n-runtime/src/actions/settings_all/mod.rs; then
+    printf 'Runtime settings actions must route through split import/export ports\n' >&2
     exit 1
 fi
 

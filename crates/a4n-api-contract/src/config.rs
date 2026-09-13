@@ -34,15 +34,19 @@ pub trait SettingsAllHostPort: Send + Sync {
     ) -> Result<(), a4n_error::AppError>;
 }
 
-/// Host-facing settings import/export boundary.
+/// Host-facing settings export boundary.
 #[async_trait::async_trait]
-pub trait SettingsAllApplicationPort: Send + Sync {
+pub trait SettingsExportApplicationPort: Send + Sync {
     async fn export_all_configs_to_json(
         &self,
         caller_user_id: i64,
         host: &dyn SettingsAllHostPort,
     ) -> Result<String, a4n_error::AppError>;
+}
 
+/// Host-facing settings import boundary.
+#[async_trait::async_trait]
+pub trait SettingsImportApplicationPort: Send + Sync {
     async fn import_all_configs(
         &self,
         caller_user_id: i64,

@@ -243,9 +243,12 @@ pub struct AppState {
     /// and DTO projection stay in the configuration owner.
     config_read_application: Arc<dyn a4n_api_contract::config::ConfigReadApplicationPort>,
     config_mutation_application: Arc<dyn a4n_api_contract::config::ConfigMutationApplicationPort>,
-    /// Host-facing settings export/import boundary. Authorization and
-    /// rollback semantics stay in the settings owner.
-    settings_all_application: Arc<dyn a4n_api_contract::config::SettingsAllApplicationPort>,
+    /// Host-facing settings export boundary. Authorization and projection
+    /// stay in the settings owner.
+    settings_export_application: Arc<dyn a4n_api_contract::config::SettingsExportApplicationPort>,
+    /// Host-facing settings import boundary. Authorization and rollback
+    /// semantics stay in the settings owner.
+    settings_import_application: Arc<dyn a4n_api_contract::config::SettingsImportApplicationPort>,
     /// Host-facing prompt record read boundary. Prompt service selection stays
     /// with the prompt owner.
     prompt_read_application: Arc<dyn a4n_orchestrator::prompt_records::PromptReadApplicationPort>,
@@ -1405,10 +1408,16 @@ impl AppState {
         self.config_mutation_application.as_ref()
     }
 
-    pub(crate) fn settings_all_application(
+    pub(crate) fn settings_export_application(
         &self,
-    ) -> &dyn a4n_api_contract::config::SettingsAllApplicationPort {
-        self.settings_all_application.as_ref()
+    ) -> &dyn a4n_api_contract::config::SettingsExportApplicationPort {
+        self.settings_export_application.as_ref()
+    }
+
+    pub(crate) fn settings_import_application(
+        &self,
+    ) -> &dyn a4n_api_contract::config::SettingsImportApplicationPort {
+        self.settings_import_application.as_ref()
     }
 
     pub(crate) fn prompt_read_application(
@@ -2293,9 +2302,6 @@ impl AppState {
         let package_mutation_application: Arc<
             dyn a4n_api_contract::package::PackageMutationApplicationPort,
         > = Arc::new(orchestrator.clone());
-        let settings_all_application: Arc<
-            dyn a4n_api_contract::config::SettingsAllApplicationPort,
-        > = Arc::new(orchestrator.clone());
         if runtime_role == RuntimeRole::Host {
             package_mutation_application.initialize_states().await?;
             crate::baseline_configs::ensure_baseline_model_configs(
@@ -2379,7 +2385,8 @@ impl AppState {
             theme_mutation_application: Arc::new(orchestrator.clone()),
             config_read_application,
             config_mutation_application,
-            settings_all_application,
+            settings_export_application: Arc::new(orchestrator.clone()),
+            settings_import_application: Arc::new(orchestrator.clone()),
             prompt_read_application,
             prompt_mutation_application,
             agent_application: Arc::new(orchestrator.agent().clone()),
