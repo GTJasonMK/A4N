@@ -172,13 +172,6 @@ pub struct PersistedGeneratedImageFile {
 /// generation.
 #[async_trait]
 pub trait ImageGenerationApplicationPort: Send + Sync {
-    async fn prepare_object_profile_request(
-        &self,
-        host_port: &dyn ImageGenerationHostPort,
-        user_id: i64,
-        input: ObjectProfileImageInput,
-    ) -> Result<PreparedImageGenerationRequest, AppError>;
-
     async fn generate_galgame_image(
         &self,
         host_port: &dyn ImageGenerationHostPort,
@@ -186,6 +179,17 @@ pub trait ImageGenerationApplicationPort: Send + Sync {
         input: GenerateGalgameImageInput,
         progress: &ImageGenerationProgress<'_>,
     ) -> Result<GeneratedImageSummary, AppError>;
+}
+
+/// Host-facing boundary for object profile image request previews.
+#[async_trait]
+pub trait ImageObjectProfileRequestPreviewApplicationPort: Send + Sync {
+    async fn prepare_object_profile_request(
+        &self,
+        host_port: &dyn ImageGenerationHostPort,
+        user_id: i64,
+        input: ObjectProfileImageInput,
+    ) -> Result<PreparedImageGenerationRequest, AppError>;
 }
 
 /// Host-facing boundary for batch image request previews.

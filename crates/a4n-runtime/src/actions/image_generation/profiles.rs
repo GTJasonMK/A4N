@@ -27,7 +27,7 @@ pub async fn preview_object_profile_image_request(
 ) -> Result<ModelRequestPreview, String> {
     let host = RuntimeImageGenerationHostPort::new(state);
     let prepared = state
-        .image_generation_application()
+        .image_object_profile_request_preview_application()
         .prepare_object_profile_request(&host, user_id, input)
         .await
         .map_err(|error| error.to_string())?;
