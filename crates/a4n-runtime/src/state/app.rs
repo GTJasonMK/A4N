@@ -120,10 +120,14 @@ pub struct AppState {
     /// Content-optimization request previews stay in the optimize owner.
     optimize_preview_application:
         Arc<dyn a4n_orchestrator::optimize::OptimizePreviewApplicationPort>,
-    /// Content optimization generation workers stay in the optimize owner;
-    /// Runtime only schedules and executes Host tasks.
-    optimize_generation_application:
-        Arc<dyn a4n_orchestrator::optimize::OptimizeGenerationApplicationPort>,
+    /// Each content-optimization worker has its own runtime boundary so a
+    /// worker-specific change does not widen the injected contract.
+    optimize_chat_generation_application:
+        Arc<dyn a4n_orchestrator::optimize::OptimizeChatGenerationApplicationPort>,
+    optimize_analysis_generation_application:
+        Arc<dyn a4n_orchestrator::optimize::OptimizeAnalysisGenerationApplicationPort>,
+    optimize_patch_generation_application:
+        Arc<dyn a4n_orchestrator::optimize::OptimizePatchGenerationApplicationPort>,
     /// Scene-profile synchronization remains owned by the scene-profile
     /// application; Runtime supplies only the RAG host adapter.
     scene_profile_sync_application:
@@ -1140,10 +1144,22 @@ impl AppState {
         self.chapter_scene_generation_application.as_ref()
     }
 
-    pub(crate) fn optimize_generation_application(
+    pub(crate) fn optimize_chat_generation_application(
         &self,
-    ) -> &dyn a4n_orchestrator::optimize::OptimizeGenerationApplicationPort {
-        self.optimize_generation_application.as_ref()
+    ) -> &dyn a4n_orchestrator::optimize::OptimizeChatGenerationApplicationPort {
+        self.optimize_chat_generation_application.as_ref()
+    }
+
+    pub(crate) fn optimize_analysis_generation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::optimize::OptimizeAnalysisGenerationApplicationPort {
+        self.optimize_analysis_generation_application.as_ref()
+    }
+
+    pub(crate) fn optimize_patch_generation_application(
+        &self,
+    ) -> &dyn a4n_orchestrator::optimize::OptimizePatchGenerationApplicationPort {
+        self.optimize_patch_generation_application.as_ref()
     }
 
     pub(crate) fn optimize_session_read_application(
@@ -2501,7 +2517,9 @@ impl AppState {
             optimize_session_mutation_application: Arc::new(orchestrator.clone()),
             optimize_patch_application: Arc::new(orchestrator.clone()),
             optimize_preview_application: Arc::new(orchestrator.clone()),
-            optimize_generation_application: Arc::new(orchestrator.clone()),
+            optimize_chat_generation_application: Arc::new(orchestrator.clone()),
+            optimize_analysis_generation_application: Arc::new(orchestrator.clone()),
+            optimize_patch_generation_application: Arc::new(orchestrator.clone()),
             scene_profile_sync_application: Arc::new(orchestrator.clone()),
             service_health_application: Arc::new(crate::service_health::ServiceHealthApplication::new(
                 service_manager.clone(),

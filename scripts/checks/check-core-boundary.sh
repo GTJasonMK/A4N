@@ -2791,16 +2791,25 @@ if ! rg -n 'pub trait OptimizePreviewApplicationPort' \
     printf 'Optimize request previews must route through the preview port\n' >&2
     exit 1
 fi
-if ! rg -n 'pub trait OptimizeGenerationApplicationPort' \
-    crates/a4n-orchestrator/src/optimize/application.rs || \
-   ! rg -n 'optimize_generation_application\(\)' \
-    crates/a4n-runtime/src/actions/optimize/analysis.rs \
-    crates/a4n-runtime/src/actions/optimize/chat.rs \
+for contract in \
+    OptimizeChatGenerationApplicationPort \
+    OptimizeAnalysisGenerationApplicationPort \
+    OptimizePatchGenerationApplicationPort; do
+    if ! rg -q "pub trait $contract" crates/a4n-orchestrator/src/optimize/application.rs; then
+        printf '%s contract is missing\n' "$contract" >&2
+        exit 1
+    fi
+done
+if ! rg -n 'optimize_chat_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/chat.rs || \
+   ! rg -n 'optimize_analysis_generation_application\(\)' \
+    crates/a4n-runtime/src/actions/optimize/analysis.rs || \
+   ! rg -n 'optimize_patch_generation_application\(\)' \
     crates/a4n-runtime/src/actions/optimize/patches/proposal.rs; then
-    printf 'Optimize generation actions must route through the generation port\n' >&2
+    printf 'Optimize generation workers must route through worker-specific ports\n' >&2
     exit 1
 fi
-if rg -n 'OptimizeApplicationPort|optimize_application\(\)' \
+if rg -n 'OptimizeApplicationPort|OptimizeGenerationApplicationPort|optimize_application\(\)|optimize_generation_application\(\)' \
     crates/a4n-api-contract/src/optimize.rs \
     crates/a4n-orchestrator/src/optimize \
     crates/a4n-runtime/src/actions/optimize \
